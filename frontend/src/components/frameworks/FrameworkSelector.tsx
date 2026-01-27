@@ -3,7 +3,7 @@
  * Dropdown for selecting framework and version
  */
 
-import React, { useState, useEffect, type SyntheticEvent } from 'react';
+import React, { useState, type SyntheticEvent } from 'react';
 import { Box, Autocomplete, TextField, CircularProgress } from '@mui/material';
 import { useFrameworks } from '@/hooks/useFrameworks';
 import { type Framework } from '@/types/scanConfig';
@@ -25,12 +25,16 @@ export const FrameworkSelector: React.FC<FrameworkSelectorProps> = ({
 
   const selectedFrameworkData = frameworks?.find((f) => f.framework === selectedFramework);
 
-  useEffect(() => {
-    if (value) {
+  // Sync state with prop changes
+  // Note: We intentionally don't include selectedFramework/selectedVersion in deps
+  // to prevent infinite re-render loops. We only want to update when the prop changes.
+  React.useEffect(() => {
+    if (value && (value.framework !== selectedFramework || value.version !== selectedVersion)) {
       setSelectedFramework(value.framework);
       setSelectedVersion(value.version);
     }
-  }, [value]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value?.framework, value?.version]);
 
   // Handle framework selection change from Autocomplete
   // MUI Autocomplete provides SyntheticEvent and selected value

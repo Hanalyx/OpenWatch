@@ -94,39 +94,28 @@ class PlatformImplementation(BaseModel):
     """
 
     versions: List[str] = Field(description="OS versions this implementation applies to")
-    service_name: Optional[str] = Field(
-        default=None, description="System service name if applicable"
-    )
-    check_command: Optional[str] = Field(
-        default=None, description="Command to check rule compliance"
-    )
+    service_name: Optional[str] = Field(default=None, description="System service name if applicable")
+    check_command: Optional[str] = Field(default=None, description="Command to check rule compliance")
     check_method: Optional[str] = Field(
         default=None,
         description="Check method type (systemd, file, command, package, etc.)",
     )
-    check_script: Optional[str] = Field(
-        default=None, description="Script content for complex checks"
-    )
+    check_script: Optional[str] = Field(default=None, description="Script content for complex checks")
     config_files: Optional[List[str]] = Field(
         default_factory=list, description="Configuration files affected by this rule"
     )
-    enable_command: Optional[str] = Field(
-        default=None, description="Command to enable/fix the rule"
-    )
-    disable_command: Optional[str] = Field(
-        default=None, description="Command to disable the rule (for testing)"
-    )
-    validation_command: Optional[str] = Field(
-        default=None, description="Command to validate the fix was applied"
-    )
-    service_dependencies: Optional[List[str]] = Field(
-        default_factory=list, description="Required packages or services"
-    )
+    enable_command: Optional[str] = Field(default=None, description="Command to enable/fix the rule")
+    disable_command: Optional[str] = Field(default=None, description="Command to disable the rule (for testing)")
+    validation_command: Optional[str] = Field(default=None, description="Command to validate the fix was applied")
+    service_dependencies: Optional[List[str]] = Field(default_factory=list, description="Required packages or services")
     # Per-platform OVAL definition reference (Option B schema)
     # Enables OS-aware OVAL selection during XCCDF generation
     oval_filename: Optional[str] = Field(
         default=None,
-        description="Platform-specific OVAL XML definition filename relative to /app/data/oval_definitions/. Example: 'rhel9/package_firewalld_installed.xml'",
+        description=(  # noqa: E501
+            "Platform-specific OVAL XML definition filename relative to /app/data/oval_definitions/. "
+            "Example: 'rhel9/package_firewalld_installed.xml'"
+        ),
     )
 
 
@@ -137,18 +126,14 @@ class ConditionalLogic(BaseModel):
         description="Condition to evaluate (e.g., {'platform': 'rhel', 'version': {'$gte': '8'}})"
     )
     then_action: Dict[str, Any] = Field(description="Action to take when condition is true")
-    else_action: Optional[Dict[str, Any]] = Field(
-        default=None, description="Action to take when condition is false"
-    )
+    else_action: Optional[Dict[str, Any]] = Field(default=None, description="Action to take when condition is false")
 
 
 class PlatformCapability(BaseModel):
     """Platform capability detection configuration"""
 
     detect_command: str = Field(description="Command to detect the capability")
-    parse_version: bool = Field(
-        default=False, description="Whether to parse version from command output"
-    )
+    parse_version: bool = Field(default=False, description="Whether to parse version from command output")
     expected_values: Optional[List[str]] = Field(
         default=None,
         description="Expected output values that indicate capability exists",
@@ -174,24 +159,16 @@ class CheckContent(BaseModel):
         default=None,
         description="Configuration file format (ini, json, yaml, ssh_config, etc.)",
     )
-    oval_reference: Optional[Dict[str, str]] = Field(
-        default=None, description="OVAL definition reference"
-    )
-    ocil_reference: Optional[Dict[str, str]] = Field(
-        default=None, description="OCIL questionnaire reference"
-    )
+    oval_reference: Optional[Dict[str, str]] = Field(default=None, description="OVAL definition reference")
+    ocil_reference: Optional[Dict[str, str]] = Field(default=None, description="OCIL questionnaire reference")
 
 
 class FixContent(BaseModel):
     """Multi-format remediation content"""
 
     shell: Optional[Dict[str, Any]] = Field(default=None, description="Shell script remediation")
-    ansible: Optional[Dict[str, Any]] = Field(
-        default=None, description="Ansible playbook remediation"
-    )
-    puppet: Optional[Dict[str, Any]] = Field(
-        default=None, description="Puppet manifest remediation"
-    )
+    ansible: Optional[Dict[str, Any]] = Field(default=None, description="Ansible playbook remediation")
+    puppet: Optional[Dict[str, Any]] = Field(default=None, description="Puppet manifest remediation")
     powershell: Optional[Dict[str, Any]] = Field(
         default=None, description="PowerShell script remediation (for Windows)"
     )
@@ -210,13 +187,9 @@ class XCCDFVariable(BaseModel):
 
     model_config = {"exclude_none": True, "exclude_unset": True}
 
-    id: str = Field(
-        description="Variable identifier (e.g., 'var_accounts_tmout', 'login_banner_text')"
-    )
+    id: str = Field(description="Variable identifier (e.g., 'var_accounts_tmout', 'login_banner_text')")
     title: str = Field(description="Human-readable variable title")
-    description: Optional[str] = Field(
-        default=None, description="Detailed description of what this variable controls"
-    )
+    description: Optional[str] = Field(default=None, description="Detailed description of what this variable controls")
     type: str = Field(
         pattern="^(string|number|boolean)$",
         description="Variable data type: string, number, or boolean",
@@ -224,11 +197,16 @@ class XCCDFVariable(BaseModel):
     default_value: str = Field(description="Default value if user doesn't provide custom value")
     interactive: bool = Field(
         default=True,
-        description="Whether this variable can be customized via UI/API (set to False for system variables)",
+        description=(
+            "Whether this variable can be customized via UI/API (set to False for system variables)"  # noqa: E501
+        ),
     )
     sensitive: bool = Field(
         default=False,
-        description="Whether this variable contains sensitive data (passwords, keys, etc.). Encrypted in storage, masked in UI.",
+        description=(
+            "Whether this variable contains sensitive data (passwords, keys, etc.). "
+            "Encrypted in storage, masked in UI."
+        ),
     )
     constraints: Optional[Dict[str, Any]] = Field(
         default=None,
@@ -255,9 +233,7 @@ class XCCDFVariable(BaseModel):
         return v
 
     @validator("constraints")
-    def validate_constraints(
-        cls, v: Optional[Dict[str, Any]], values: Dict[str, Any]
-    ) -> Optional[Dict[str, Any]]:
+    def validate_constraints(cls, v: Optional[Dict[str, Any]], values: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Validate constraints match the variable type."""
         if not v:
             return v
@@ -296,12 +272,8 @@ class ComplianceRule(Document):
 
     # Core Identifiers
     rule_id: str = Field(description="Unique OpenWatch rule identifier")
-    scap_rule_id: Optional[str] = Field(
-        default=None, description="Original SCAP rule identifier for traceability"
-    )
-    parent_rule_id: Optional[str] = Field(
-        default=None, description="For rule families and groupings"
-    )
+    scap_rule_id: Optional[str] = Field(default=None, description="Original SCAP rule identifier for traceability")
+    parent_rule_id: Optional[str] = Field(default=None, description="For rule families and groupings")
 
     # Rich Metadata with Versioning
     metadata: Dict[str, Any] = Field(
@@ -314,9 +286,7 @@ class ComplianceRule(Document):
         default=False,
         description="True if this is a base rule that cannot be executed directly",
     )
-    inherits_from: Optional[str] = Field(
-        default=None, description="Rule ID this rule inherits from"
-    )
+    inherits_from: Optional[str] = Field(default=None, description="Rule ID this rule inherits from")
     derived_rules: List[str] = Field(
         default_factory=list,
         description="Auto-populated list of rules that inherit from this one",
@@ -327,9 +297,7 @@ class ComplianceRule(Document):
         pattern="^(info|low|medium|high|critical|unknown)$",
         description="Rule severity level",
     )
-    category: str = Field(
-        description="Rule category (authentication, access_control, logging, etc.)"
-    )
+    category: str = Field(description="Rule category (authentication, access_control, logging, etc.)")
     security_function: Optional[str] = Field(
         default=None,
         description="High-level security function (network_protection, data_encryption, etc.)",
@@ -393,17 +361,18 @@ class ComplianceRule(Document):
     # Assessment Logic (Enhanced)
     check_type: str = Field(
         default="custom",
-        pattern="^(script|command|file|package|service|kernel|multi_parameter|oval|custom|scap|template)$",
-        description="Type of check to perform",
+        pattern=("^(script|command|file|package|service|kernel|multi_parameter|oval|custom|scap|template)$"),
+        description="Type of check to perform",  # noqa: E501
     )
-    check_content: Dict[str, Any] = Field(
-        default_factory=dict, description="Detailed check configuration"
-    )
+    check_content: Dict[str, Any] = Field(default_factory=dict, description="Detailed check configuration")
 
     # OVAL Definition Support (Phase 2: File-Based OVAL Storage)
     oval_filename: Optional[str] = Field(
         default=None,
-        description="OVAL XML definition filename (stored in /app/data/oval_definitions/{platform}/). Example: 'account_disable_post_pw_expiration.xml'",
+        description=(
+            "OVAL XML definition filename (stored in /app/data/oval_definitions/{platform}/). "
+            "Example: 'account_disable_post_pw_expiration.xml'"
+        ),
     )
 
     # Advanced Dependencies
@@ -413,15 +382,9 @@ class ComplianceRule(Document):
     )
 
     # Remediation with Platform Variants
-    fix_available: bool = Field(
-        default=False, description="Whether automated remediation is available"
-    )
-    fix_content: Optional[Dict[str, Any]] = Field(
-        default=None, description="Multi-format remediation content"
-    )
-    manual_remediation: Optional[str] = Field(
-        default=None, description="Manual remediation instructions"
-    )
+    fix_available: bool = Field(default=False, description="Whether automated remediation is available")
+    fix_content: Optional[Dict[str, Any]] = Field(default=None, description="Multi-format remediation content")
+    manual_remediation: Optional[str] = Field(default=None, description="Manual remediation instructions")
     remediation_complexity: str = Field(
         default="medium",
         pattern="^(low|medium|high)$",
@@ -435,9 +398,7 @@ class ComplianceRule(Document):
 
     # Change Tracking and Provenance
     source_file: str = Field(default="unknown", description="Original source file (SCAP XML, etc.)")
-    source_hash: str = Field(
-        default="unknown", description="Hash of the source content for change detection"
-    )
+    source_hash: str = Field(default="unknown", description="Hash of the source content for change detection")
 
     # Immutable Versioning (FISMA/FedRAMP/HIPAA Compliance)
     version: int = Field(
@@ -478,14 +439,10 @@ class ComplianceRule(Document):
         default_factory=datetime.utcnow,
         description="Last update timestamp (for this specific version document)",
     )
-    created_by: Optional[str] = Field(
-        default=None, description="User or system that created this version"
-    )
+    created_by: Optional[str] = Field(default=None, description="User or system that created this version")
 
     # Source Bundle Tracking
-    source_bundle: Optional[str] = Field(
-        default=None, description="Bundle filename this version was imported from"
-    )
+    source_bundle: Optional[str] = Field(default=None, description="Bundle filename this version was imported from")
     source_bundle_hash: Optional[str] = Field(
         default=None, description="SHA-512 hash of source bundle for traceability"
     )
@@ -502,12 +459,8 @@ class ComplianceRule(Document):
         default=False,
         description="True if this rule has been deprecated (for audit trail)",
     )
-    deprecation_reason: Optional[str] = Field(
-        default=None, description="Reason for deprecation if deprecated=True"
-    )
-    replacement_rule_id: Optional[str] = Field(
-        default=None, description="Rule ID that replaces this deprecated rule"
-    )
+    deprecation_reason: Optional[str] = Field(default=None, description="Reason for deprecation if deprecated=True")
+    replacement_rule_id: Optional[str] = Field(default=None, description="Rule ID that replaces this deprecated rule")
 
     # ============================================================================
     # Phase 1: Hybrid Scanning Architecture (XCCDF Variables + Native Scanners)
@@ -539,14 +492,17 @@ class ComplianceRule(Document):
             )
         }
 
-        See: /docs/REMEDIATION_WITH_XCCDF_VARIABLES.md
+        See: /docs/REMEDIATION_WITH_XCCDF_VARIABLES.md  # noqa: E501
         """,
     )
 
     # Scanner Type Routing (Polyglot Scanner Architecture)
     scanner_type: str = Field(
         default="oscap",
-        pattern="^(oscap|inspec|python|bash|aws_api|azure_api|gcp_api|kubernetes|docker|sql|mongodb|elasticsearch|opa_rego|custom)$",
+        pattern=(
+            "^(oscap|inspec|python|bash|aws_api|azure_api|gcp_api|kubernetes|docker|sql|"
+            "mongodb|elasticsearch|opa_rego|custom)$"
+        ),
         description="""
         Scanner engine to use for this rule.
 
@@ -574,11 +530,11 @@ class ComplianceRule(Document):
     remediation: Optional[Dict[str, Any]] = Field(
         default=None,
         description="""
-        Remediation content for ORSA (Open Remediation Standard Adapter) plugins.
+        Remediation content for ORSA (Open Remediation Standard Adapter) plugins.  # noqa: E501
 
         Supports multiple remediation formats extracted from XCCDF or custom-defined:
         - ansible: Ansible tasks with variable bindings
-        - bash: Bash scripts with variable substitution
+        - bash: Bash scripts with variable substitution  # noqa: E501
         - puppet: Puppet manifests
         - chef: Chef recipes
         - powershell: PowerShell scripts (Windows)
@@ -709,14 +665,10 @@ class RuleIntelligence(Document):
 
     # Business Context
     business_impact: str = Field(description="Business impact description")
-    compliance_importance: int = Field(
-        ge=1, le=10, description="Importance score for compliance (1-10)"
-    )
+    compliance_importance: int = Field(ge=1, le=10, description="Importance score for compliance (1-10)")
 
     # Known Issues
-    false_positive_rate: float = Field(
-        ge=0.0, le=1.0, default=0.0, description="Historical false positive rate"
-    )
+    false_positive_rate: float = Field(ge=0.0, le=1.0, default=0.0, description="Historical false positive rate")
     common_exceptions: List[Dict[str, Any]] = Field(
         default_factory=list, description="Common legitimate exceptions to this rule"
     )
@@ -724,14 +676,10 @@ class RuleIntelligence(Document):
     # Implementation Guidance
     implementation_notes: str = Field(description="Detailed implementation guidance")
     testing_guidance: str = Field(description="How to test the rule implementation")
-    rollback_procedure: Optional[str] = Field(
-        default=None, description="How to rollback if remediation causes issues"
-    )
+    rollback_procedure: Optional[str] = Field(default=None, description="How to rollback if remediation causes issues")
 
     # Performance Impact
-    scan_duration_avg_ms: int = Field(
-        default=0, description="Average scan duration in milliseconds"
-    )
+    scan_duration_avg_ms: int = Field(default=0, description="Average scan duration in milliseconds")
     resource_impact: str = Field(
         default="low",
         pattern="^(low|medium|high)$",
@@ -793,9 +741,7 @@ class RemediationScript(Document):
     validation_command: Optional[str] = Field(
         default=None, description="Command to validate the script worked correctly"
     )
-    rollback_script: Optional[str] = Field(
-        default=None, description="Script to undo the changes if needed"
-    )
+    rollback_script: Optional[str] = Field(default=None, description="Script to undo the changes if needed")
 
     # Metadata
     tested_on: List[str] = Field(
@@ -803,12 +749,8 @@ class RemediationScript(Document):
         description="OS versions/distributions where this was tested",
     )
     contributed_by: Optional[str] = Field(default=None, description="Who contributed this script")
-    approved: bool = Field(
-        default=False, description="Whether this script has been approved for use"
-    )
-    approval_date: Optional[datetime] = Field(
-        default=None, description="When the script was approved"
-    )
+    approved: bool = Field(default=False, description="Whether this script has been approved for use")
+    approval_date: Optional[datetime] = Field(default=None, description="When the script was approved")
 
     class Settings:
         name = "remediation_scripts"
@@ -832,9 +774,7 @@ class UploadHistory(Document):
 
     # Upload identification
     upload_id: str = Field(description="UUID of upload operation from ComplianceRulesUploadService")
-    filename: str = Field(
-        description="Original bundle filename (e.g., openwatch-rhel8-bundle_v1.0.4.tar.gz)"
-    )
+    filename: str = Field(description="Original bundle filename (e.g., openwatch-rhel8-bundle_v1.0.4.tar.gz)")
     file_hash: str = Field(description="SHA-512 hash of uploaded file for integrity verification")
 
     # Upload metadata
@@ -844,9 +784,7 @@ class UploadHistory(Document):
 
     # Processing results
     success: bool = Field(description="Whether upload completed successfully")
-    phase: str = Field(
-        description="Last completed processing phase (parsing, validation, importing, etc.)"
-    )
+    phase: str = Field(description="Last completed processing phase (parsing, validation, importing, etc.)")
 
     # Statistics
     statistics: Dict[str, Any] = Field(
@@ -861,24 +799,16 @@ class UploadHistory(Document):
     )
 
     # Detailed processing results
-    processing_time_seconds: Optional[float] = Field(
-        default=None, description="Total processing time in seconds"
-    )
-    errors: List[Dict[str, Any]] = Field(
-        default_factory=list, description="List of errors encountered during upload"
-    )
-    warnings: List[Dict[str, Any]] = Field(
-        default_factory=list, description="List of warnings generated during upload"
-    )
+    processing_time_seconds: Optional[float] = Field(default=None, description="Total processing time in seconds")
+    errors: List[Dict[str, Any]] = Field(default_factory=list, description="List of errors encountered during upload")
+    warnings: List[Dict[str, Any]] = Field(default_factory=list, description="List of warnings generated during upload")
 
     # Validation results
     security_validation: Optional[Dict[str, Any]] = Field(
         default=None,
         description="Security validation results (signature verification, hash checks)",
     )
-    dependency_validation: Optional[Dict[str, Any]] = Field(
-        default=None, description="Dependency validation results"
-    )
+    dependency_validation: Optional[Dict[str, Any]] = Field(default=None, description="Dependency validation results")
     inheritance_impact: Optional[Dict[str, Any]] = Field(
         default=None, description="Inheritance impact analysis results"
     )
@@ -894,9 +824,7 @@ class MongoManager:
         self.database: Any = None
         self.initialized: bool = False
 
-    async def initialize(
-        self, mongodb_url: str, database_name: str = "openwatch_rules", **kwargs: Any
-    ) -> None:
+    async def initialize(self, mongodb_url: str, database_name: str = "openwatch_rules", **kwargs: Any) -> None:
         """
         Initialize MongoDB connection and Beanie ODM.
 
@@ -970,21 +898,15 @@ class MongoManager:
                 document_models.append(RemediationResult)
             if BulkRemediationJob is not None:
                 document_models.append(BulkRemediationJob)
-            logger.info(
-                f"Registered {len(document_models)} Beanie document models (including Phase 1)"
-            )
+            logger.info(f"Registered {len(document_models)} Beanie document models (including Phase 1)")
         else:
-            logger.info(
-                f"Registered {len(document_models)} Beanie document models (Phase 1 models not available)"
-            )
+            logger.info(f"Registered {len(document_models)} Beanie document models (Phase 1 models not available)")
 
         try:
             await init_beanie(database=self.database, document_models=document_models)
             logger.info("Beanie ODM initialized successfully")
         except Exception as beanie_error:
-            logger.error(
-                f"Beanie initialization failed: {type(beanie_error).__name__}: {beanie_error}"
-            )
+            logger.error(f"Beanie initialization failed: {type(beanie_error).__name__}: {beanie_error}")
             raise
 
         self.initialized = True

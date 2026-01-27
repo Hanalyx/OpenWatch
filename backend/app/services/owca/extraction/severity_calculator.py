@@ -87,9 +87,7 @@ class SeverityRiskResult(BaseModel):
 
     risk_score: float = Field(..., ge=0.0, description="Calculated risk score")
     risk_level: str = Field(..., description="Risk level (low, medium, high, critical)")
-    severity_distribution: SeverityDistribution = Field(
-        ..., description="Finding counts by severity"
-    )
+    severity_distribution: SeverityDistribution = Field(..., description="Finding counts by severity")
     total_findings: int = Field(..., ge=0, description="Total finding count")
     weighted_breakdown: Dict[str, float] = Field(..., description="Score contribution by severity")
 
@@ -279,7 +277,5 @@ class SeverityCalculator:
         """
         weight = get_severity_weight(severity)
         contribution = count * weight
-        logger.debug(
-            f"Severity '{severity}' count={count} weight={weight} contribution={contribution}"
-        )
+        logger.debug(f"Severity '{severity}' count={count} weight={weight} contribution={contribution}")
         return contribution

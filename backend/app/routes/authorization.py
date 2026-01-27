@@ -41,9 +41,7 @@ class PermissionGrantRequest(BaseModel):
     role_name: Optional[str] = None
     host_id: Optional[str] = None
     host_group_id: Optional[str] = None
-    actions: Set[str] = Field(
-        ..., description="List of actions: read, write, execute, delete, manage, scan"
-    )
+    actions: Set[str] = Field(..., description="List of actions: read, write, execute, delete, manage, scan")
     effect: str = Field(default="allow", description="Permission effect: allow or deny")
     expires_at: Optional[datetime] = None
     conditions: Dict[str, Any] = Field(default_factory=dict)
@@ -90,9 +88,7 @@ class BulkPermissionCheckRequest(BaseModel):
     """Request for bulk permission checking."""
 
     user_id: Optional[str] = None
-    resources: List[Dict[str, Any]] = Field(
-        ..., description="List of {resource_type, resource_id} dicts"
-    )
+    resources: List[Dict[str, Any]] = Field(..., description="List of {resource_type, resource_id} dicts")
     action: str
     fail_fast: bool = True
 
@@ -249,9 +245,7 @@ async def revoke_permission(
                 detail=f"Permission {permission_id} not found",
             )
 
-        logger.info(
-            f"Permission {permission_id} revoked by {current_user.get('username', 'unknown')}"
-        )
+        logger.info(f"Permission {permission_id} revoked by {current_user.get('username', 'unknown')}")
 
         return {
             "success": True,
@@ -295,8 +289,7 @@ async def get_host_permissions(
         from sqlalchemy import text
 
         result = db.execute(
-            text(
-                """
+            text("""
             SELECT hp.id, hp.user_id, hp.group_id, hp.role_name, hp.host_id,
                    hp.actions, hp.effect, hp.conditions, hp.granted_by,
                    hp.granted_at, hp.expires_at, hp.is_active,
@@ -309,8 +302,7 @@ async def get_host_permissions(
             LEFT JOIN user_groups ug ON hp.group_id = ug.id
             WHERE hp.host_id = :host_id AND hp.is_active = true
             ORDER BY hp.granted_at DESC
-        """
-            ),
+        """),
             {"host_id": host_id},
         )
 
@@ -500,11 +492,7 @@ async def check_bulk_permissions(
                 "resource_type": res.resource_type.value,
                 "resource_id": res.resource_id,
                 "reason": next(
-                    (
-                        r.reason
-                        for r in result.individual_results
-                        if r.resource.resource_id == res.resource_id
-                    ),
+                    (r.reason for r in result.individual_results if r.resource.resource_id == res.resource_id),
                     "Access denied",
                 ),
             }
@@ -602,8 +590,7 @@ async def get_authorization_audit_log(
 
         # Get audit log entries
         result = db.execute(
-            text(
-                f"""
+            text(f"""
             SELECT id, event_type, user_id, resource_type, resource_id, action, decision,
                    policies_evaluated, context, ip_address, user_agent, session_id,
                    evaluation_time_ms, reason, risk_score, timestamp
@@ -611,8 +598,7 @@ async def get_authorization_audit_log(
             WHERE {where_clause}
             ORDER BY timestamp DESC
             LIMIT :limit OFFSET :offset
-        """
-            ),
+        """),
             params,
         )
 
@@ -627,9 +613,7 @@ async def get_authorization_audit_log(
                     "resource_id": row.resource_id,
                     "action": row.action,
                     "decision": row.decision,
-                    "policies_evaluated": (
-                        row.policies_evaluated.split(",") if row.policies_evaluated else []
-                    ),
+                    "policies_evaluated": (row.policies_evaluated.split(",") if row.policies_evaluated else []),
                     "context": row.context,
                     "ip_address": row.ip_address,
                     "user_agent": row.user_agent,
@@ -643,13 +627,11 @@ async def get_authorization_audit_log(
 
         # Get total count with null safety
         count_result = db.execute(
-            text(
-                f"""
+            text(f"""
             SELECT COUNT(*) as total
             FROM authorization_audit_log
             WHERE {where_clause}
-        """
-            ),
+        """),
             params,
         )
 
@@ -697,9 +679,7 @@ async def get_authorization_summary(
         from sqlalchemy import text
 
         # Get permission statistics with null safety
-        perm_stats_result = db.execute(
-            text(
-                """
+        perm_stats_result = db.execute(text("""
             SELECT
                 COUNT(*) as total_permissions,
                 COUNT(CASE WHEN user_id IS NOT NULL THEN 1 END) as user_permissions,
@@ -709,15 +689,11 @@ async def get_authorization_summary(
                 COUNT(CASE WHEN effect = 'deny' THEN 1 END) as deny_permissions
             FROM host_permissions
             WHERE is_active = true
-        """
-            )
-        )
+        """))
         perm_stats = perm_stats_result.fetchone()
 
         # Get recent audit statistics with null safety
-        audit_stats_result = db.execute(
-            text(
-                """
+        audit_stats_result = db.execute(text("""
             SELECT
                 COUNT(*) as total_checks,
                 COUNT(CASE WHEN decision = 'allow' THEN 1 END) as allowed_checks,
@@ -726,15 +702,11 @@ async def get_authorization_summary(
                 AVG(risk_score) as avg_risk_score
             FROM authorization_audit_log
             WHERE timestamp > NOW() - INTERVAL '24 hours'
-        """
-            )
-        )
+        """))
         audit_stats = audit_stats_result.fetchone()
 
         # Get most active users
-        active_users = db.execute(
-            text(
-                """
+        active_users = db.execute(text("""
             SELECT u.username, COUNT(*) as check_count
             FROM authorization_audit_log aal
             JOIN users u ON aal.user_id = u.id
@@ -742,30 +714,16 @@ async def get_authorization_summary(
             GROUP BY u.username
             ORDER BY check_count DESC
             LIMIT 10
-        """
-            )
-        ).fetchall()
+        """)).fetchall()
 
         # Build response with null safety for fetchone results
         permission_statistics: Dict[str, int] = {
-            "total_permissions": (
-                getattr(perm_stats, "total_permissions", 0) or 0 if perm_stats else 0
-            ),
-            "user_permissions": (
-                getattr(perm_stats, "user_permissions", 0) or 0 if perm_stats else 0
-            ),
-            "group_permissions": (
-                getattr(perm_stats, "group_permissions", 0) or 0 if perm_stats else 0
-            ),
-            "role_permissions": (
-                getattr(perm_stats, "role_permissions", 0) or 0 if perm_stats else 0
-            ),
-            "temporary_permissions": (
-                getattr(perm_stats, "temporary_permissions", 0) or 0 if perm_stats else 0
-            ),
-            "deny_permissions": (
-                getattr(perm_stats, "deny_permissions", 0) or 0 if perm_stats else 0
-            ),
+            "total_permissions": (getattr(perm_stats, "total_permissions", 0) or 0 if perm_stats else 0),
+            "user_permissions": (getattr(perm_stats, "user_permissions", 0) or 0 if perm_stats else 0),
+            "group_permissions": (getattr(perm_stats, "group_permissions", 0) or 0 if perm_stats else 0),
+            "role_permissions": (getattr(perm_stats, "role_permissions", 0) or 0 if perm_stats else 0),
+            "temporary_permissions": (getattr(perm_stats, "temporary_permissions", 0) or 0 if perm_stats else 0),
+            "deny_permissions": (getattr(perm_stats, "deny_permissions", 0) or 0 if perm_stats else 0),
         }
 
         # Calculate avg_evaluation_time_ms safely
@@ -774,12 +732,8 @@ async def get_authorization_summary(
 
         recent_activity: Dict[str, Any] = {
             "total_checks_24h": getattr(audit_stats, "total_checks", 0) or 0 if audit_stats else 0,
-            "allowed_checks_24h": (
-                getattr(audit_stats, "allowed_checks", 0) or 0 if audit_stats else 0
-            ),
-            "denied_checks_24h": (
-                getattr(audit_stats, "denied_checks", 0) or 0 if audit_stats else 0
-            ),
+            "allowed_checks_24h": (getattr(audit_stats, "allowed_checks", 0) or 0 if audit_stats else 0),
+            "denied_checks_24h": (getattr(audit_stats, "denied_checks", 0) or 0 if audit_stats else 0),
             "avg_evaluation_time_ms": float(avg_eval_time) if avg_eval_time else 0.0,
             "avg_risk_score": float(avg_risk) if avg_risk else 0.0,
         }

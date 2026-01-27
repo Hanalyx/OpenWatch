@@ -70,15 +70,9 @@ class ScanConfiguration(BaseModel):
     target: ScanTarget
     framework: str = Field(description="Framework to scan against (nist, cis, stig)")
     framework_version: str = Field(description="Framework version (800-53r5, v2.0.0)")
-    profile_id: Optional[str] = Field(
-        default=None, description="XCCDF profile ID (auto-generated if not provided)"
-    )
-    variable_overrides: Dict[str, str] = Field(
-        default_factory=dict, description="Custom XCCDF variable values"
-    )
-    rule_filter: Optional[Dict[str, Any]] = Field(
-        default=None, description="Additional MongoDB query to filter rules"
-    )
+    profile_id: Optional[str] = Field(default=None, description="XCCDF profile ID (auto-generated if not provided)")
+    variable_overrides: Dict[str, str] = Field(default_factory=dict, description="Custom XCCDF variable values")
+    rule_filter: Optional[Dict[str, Any]] = Field(default=None, description="Additional MongoDB query to filter rules")
     scan_options: Optional[Dict[str, Any]] = Field(
         default=None, description="Scanner-specific options (timeout, verbosity, etc.)"
     )
@@ -93,17 +87,11 @@ class RuleResult(BaseModel):
     severity: str
     status: RuleResultStatus
     message: Optional[str] = Field(default=None, description="Human-readable result message")
-    scanner_output: Optional[str] = Field(
-        default=None, description="Raw scanner output for this rule"
-    )
+    scanner_output: Optional[str] = Field(default=None, description="Raw scanner output for this rule")
     scanner_type: str = Field(default="oscap", description="Scanner that executed this rule")
-    variables_applied: Optional[Dict[str, str]] = Field(
-        default=None, description="Variable values used for this check"
-    )
+    variables_applied: Optional[Dict[str, str]] = Field(default=None, description="Variable values used for this check")
     check_time: Optional[float] = Field(default=None, description="Execution time in seconds")
-    frameworks: Optional[Dict[str, Any]] = Field(
-        default=None, description="Framework mappings for this rule"
-    )
+    frameworks: Optional[Dict[str, Any]] = Field(default=None, description="Framework mappings for this rule")
 
 
 class ScanResultSummary(BaseModel):
@@ -120,9 +108,7 @@ class ScanResultSummary(BaseModel):
     fixed: int = 0
 
     # Compliance percentage
-    compliance_percentage: float = Field(
-        default=0.0, description="(passed / (passed + failed)) * 100"
-    )
+    compliance_percentage: float = Field(default=0.0, description="(passed / (passed + failed)) * 100")
 
     # Results by severity
     by_severity: Dict[str, Dict[str, int]] = Field(
@@ -131,9 +117,7 @@ class ScanResultSummary(BaseModel):
     )
 
     # Results by scanner
-    by_scanner: Dict[str, Dict[str, int]] = Field(
-        default_factory=dict, description="Breakdown by scanner type"
-    )
+    by_scanner: Dict[str, Dict[str, int]] = Field(default_factory=dict, description="Breakdown by scanner type")
 
 
 class ScanResult(Document):
@@ -168,12 +152,8 @@ class ScanResult(Document):
         default=None,
         description="Version info for each scanner used (oscap: 1.3.7, etc.)",
     )
-    benchmark_version: Optional[str] = Field(
-        default=None, description="Version of benchmark used for scan"
-    )
-    tailoring_applied: bool = Field(
-        default=False, description="Whether variable tailoring was applied"
-    )
+    benchmark_version: Optional[str] = Field(default=None, description="Version of benchmark used for scan")
+    tailoring_applied: bool = Field(default=False, description="Whether variable tailoring was applied")
 
     # Error tracking
     errors: List[str] = Field(default_factory=list, description="Error messages if scan failed")
@@ -212,9 +192,7 @@ class ScanSchedule(Document):
 
     # Schedule configuration
     enabled: bool = True
-    cron_expression: str = Field(
-        description="Cron expression for schedule (e.g., '0 2 * * *' for daily at 2am)"
-    )
+    cron_expression: str = Field(description="Cron expression for schedule (e.g., '0 2 * * *' for daily at 2am)")
     timezone: str = Field(default="UTC")
 
     # Execution tracking
@@ -225,9 +203,7 @@ class ScanSchedule(Document):
     # Notification settings
     notify_on_completion: bool = False
     notify_on_failure: bool = True
-    notification_channels: List[str] = Field(
-        default_factory=list, description="Email addresses, Slack webhooks, etc."
-    )
+    notification_channels: List[str] = Field(default_factory=list, description="Email addresses, Slack webhooks, etc.")
 
     # Created/updated metadata
     created_by: str

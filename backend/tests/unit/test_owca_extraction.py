@@ -27,7 +27,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from backend.app.services.owca.extraction import (
+from app.services.owca.extraction import (
     SEVERITY_WEIGHTS,
     SeverityCalculator,
     SeverityDistribution,

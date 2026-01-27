@@ -164,11 +164,7 @@ async def list_webhook_endpoints(
                 "id": str(row.id),
                 "name": row.name,
                 "url": row.url,
-                "event_types": (
-                    json.loads(row.event_types)
-                    if isinstance(row.event_types, str)
-                    else row.event_types
-                ),
+                "event_types": (json.loads(row.event_types) if isinstance(row.event_types, str) else row.event_types),
                 "is_active": row.is_active,
                 "created_by": row.created_by,
                 "created_at": row.created_at.isoformat() if row.created_at else None,
@@ -220,14 +216,12 @@ async def create_webhook_endpoint(
 
         # Create webhook endpoint record
         result = db.execute(
-            text(
-                """
+            text("""
             INSERT INTO webhook_endpoints
             (id, name, url, event_types, secret_hash, is_active, created_by, created_at, updated_at)
             VALUES (:id, :name, :url, :event_types, :secret_hash, :is_active, :created_by, :created_at, :updated_at)
             RETURNING id
-        """
-            ),
+        """),
             {
                 "id": str(uuid.uuid4()),
                 "name": webhook_request.name,
@@ -243,9 +237,7 @@ async def create_webhook_endpoint(
 
         row = result.fetchone()
         if row is None:
-            raise HTTPException(
-                status_code=500, detail="Failed to create webhook - no data returned"
-            )
+            raise HTTPException(status_code=500, detail="Failed to create webhook - no data returned")
         webhook_id = row.id
         db.commit()
 
@@ -287,12 +279,10 @@ async def get_webhook_endpoint(
     """
     try:
         result = db.execute(
-            text(
-                """
+            text("""
             SELECT id, name, url, event_types, is_active, created_by, created_at, updated_at
             FROM webhook_endpoints WHERE id = :id
-        """
-            ),
+        """),
             {"id": webhook_id},
         ).fetchone()
 
@@ -304,9 +294,7 @@ async def get_webhook_endpoint(
             "name": result.name,
             "url": result.url,
             "event_types": (
-                json.loads(result.event_types)
-                if isinstance(result.event_types, str)
-                else result.event_types
+                json.loads(result.event_types) if isinstance(result.event_types, str) else result.event_types
             ),
             "is_active": result.is_active,
             "created_by": result.created_by,
@@ -522,11 +510,7 @@ async def get_webhook_deliveries(
             delivery_data = {
                 "id": str(row.id),
                 "event_type": row.event_type,
-                "event_data": (
-                    json.loads(row.event_data)
-                    if isinstance(row.event_data, str)
-                    else row.event_data
-                ),
+                "event_data": (json.loads(row.event_data) if isinstance(row.event_data, str) else row.event_data),
                 "delivery_status": row.delivery_status,
                 "http_status_code": row.http_status_code,
                 "response_body": row.response_body,
@@ -584,12 +568,10 @@ async def test_webhook_endpoint(
     try:
         # Get webhook details
         webhook_result = db.execute(
-            text(
-                """
+            text("""
             SELECT id, name, url, secret_hash FROM webhook_endpoints
             WHERE id = :id AND is_active = true
-        """
-            ),
+        """),
             {"id": webhook_id},
         ).fetchone()
 

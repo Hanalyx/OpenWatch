@@ -68,7 +68,7 @@ async def check_selinux_status(
                 message="SELinux is in enforcing mode",
                 details={
                     "selinux_status": "enforcing",
-                    "note": "SELinux may affect some compliance checks. Ensure SCAP content has proper SELinux context.",
+                    "note": "SELinux may affect some compliance checks. Ensure SCAP content has proper SELinux context.",  # noqa: E501
                 },
                 check_duration_ms=duration_ms,
             )

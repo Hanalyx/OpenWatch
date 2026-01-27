@@ -85,14 +85,10 @@ def uuid_to_int(uuid_str: Any) -> int:
 
 def find_uuid_by_int(db: Session, target_int: int) -> Optional[str]:
     """Find UUID by matching the generated integer ID"""
-    result = db.execute(
-        text(
-            """
+    result = db.execute(text("""
         SELECT id FROM unified_credentials
         WHERE scope = 'system' AND is_active = true
-    """
-        )
-    )
+    """))
 
     for row in result:
         if uuid_to_int(row.id) == target_int:
@@ -163,9 +159,7 @@ async def create_system_credential(
         # Validate auth method
         valid_methods = ["ssh_key", "password", "both"]
         if credential.auth_method not in valid_methods:
-            logger.error(
-                f"Invalid auth method '{credential.auth_method}', valid methods: {valid_methods}"
-            )
+            logger.error(f"Invalid auth method '{credential.auth_method}', valid methods: {valid_methods}")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Invalid auth method. Must be one of: {valid_methods}",
@@ -228,9 +222,7 @@ async def create_system_credential(
         # Extract SSH key metadata if we have a private key
         ssh_metadata = {}
         if credential.private_key:
-            ssh_metadata = extract_ssh_key_metadata(
-                credential.private_key, credential.private_key_passphrase
-            )
+            ssh_metadata = extract_ssh_key_metadata(credential.private_key, credential.private_key_passphrase)
 
         current_time = datetime.now().isoformat()
 
@@ -246,15 +238,11 @@ async def create_system_credential(
             updated_at=current_time,
             ssh_key_fingerprint=ssh_metadata.get("fingerprint"),
             ssh_key_type=ssh_metadata.get("key_type"),
-            ssh_key_bits=(
-                int(str(ssh_metadata.get("key_bits"))) if ssh_metadata.get("key_bits") else None
-            ),
+            ssh_key_bits=(int(str(ssh_metadata.get("key_bits"))) if ssh_metadata.get("key_bits") else None),
             ssh_key_comment=ssh_metadata.get("key_comment"),
         )
 
-        logger.info(
-            f"Created system credential '{credential.name}' with unified ID: {credential_id}"
-        )
+        logger.info(f"Created system credential '{credential.name}' with unified ID: {credential_id}")
         return response
 
     except HTTPException as http_ex:
@@ -301,9 +289,7 @@ async def get_system_credential(
 
         credential = next((c for c in credentials_list if c["id"] == uuid_id), None)
         if not credential:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Credential not found"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Credential not found")
 
         return SystemCredentialsResponse(
             id=credential_id,  # Use original external ID
@@ -406,9 +392,7 @@ async def update_system_credential(
         # Get existing credential
         existing_cred = next((c for c in credentials_list if c["id"] == uuid_id), None)
         if not existing_cred:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Credential not found"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Credential not found")
 
         # For unified credentials, we need to create a new credential and deactivate old one
         # This is because the unified system doesn't support in-place updates yet
@@ -419,9 +403,7 @@ async def update_system_credential(
         updated_username = credential_update.username or existing_cred["username"]
         updated_auth_method = credential_update.auth_method or existing_cred["auth_method"]
         updated_is_default = (
-            credential_update.is_default
-            if credential_update.is_default is not None
-            else existing_cred["is_default"]
+            credential_update.is_default if credential_update.is_default is not None else existing_cred["is_default"]
         )
 
         # Validate auth method
@@ -527,9 +509,7 @@ async def update_system_credential(
             ssh_key_comment=updated_cred["ssh_key_comment"],
         )
 
-        logger.info(
-            f"Updated system credential '{updated_name}' with new unified ID: {new_credential_id}"
-        )
+        logger.info(f"Updated system credential '{updated_name}' with new unified ID: {new_credential_id}")
         return response
 
     except HTTPException:
@@ -576,9 +556,7 @@ async def delete_system_credential(
                 detail="Credential not found or already deleted",
             )
 
-        logger.info(
-            f"Deleted system credential with external ID: {credential_id} (unified ID: {uuid_id})"
-        )
+        logger.info(f"Deleted system credential with external ID: {credential_id} (unified ID: {uuid_id})")
         return {"message": "Credential deleted successfully"}
 
     except HTTPException:
@@ -648,9 +626,7 @@ async def get_scheduler_status(
                         {
                             "id": job.id,
                             "name": job.name,
-                            "next_run": (
-                                job.next_run_time.isoformat() if job.next_run_time else None
-                            ),
+                            "next_run": (job.next_run_time.isoformat() if job.next_run_time else None),
                             "trigger": str(job.trigger),
                         }
                     )
@@ -736,8 +712,7 @@ async def start_scheduler(
 
                 db = next(get_db())
                 db.execute(
-                    text(
-                        """
+                    text("""
                     UPDATE scheduler_config
                     SET enabled = TRUE,
                         auto_start = TRUE,
@@ -745,8 +720,7 @@ async def start_scheduler(
                         interval_minutes = :interval,
                         updated_at = CURRENT_TIMESTAMP
                     WHERE service_name = 'host_monitoring'
-                """
-                    ),
+                """),
                     {"interval": _scheduler_interval},
                 )
                 db.commit()
@@ -756,8 +730,7 @@ async def start_scheduler(
 
             username = current_user.get("username", "unknown")
             logger.info(
-                f"Host monitoring scheduler started with {_scheduler_interval} min interval "
-                f"by user {username}"
+                f"Host monitoring scheduler started with {_scheduler_interval} min interval " f"by user {username}"
             )
 
             return {
@@ -796,26 +769,20 @@ async def stop_scheduler(
                 from ..database import get_db
 
                 db = next(get_db())
-                db.execute(
-                    text(
-                        """
+                db.execute(text("""
                     UPDATE scheduler_config
                     SET enabled = FALSE,
                         auto_start = FALSE,
                         last_stopped = CURRENT_TIMESTAMP,
                         updated_at = CURRENT_TIMESTAMP
                     WHERE service_name = 'host_monitoring'
-                """
-                    )
-                )
+                """))
                 db.commit()
                 db.close()
             except Exception as db_error:
                 logger.warning(f"Failed to update scheduler database state: {db_error}")
 
-            logger.info(
-                f"Host monitoring scheduler stopped by user {current_user.get('username', 'unknown')}"
-            )
+            logger.info(f"Host monitoring scheduler stopped by user {current_user.get('username', 'unknown')}")
 
             return {"message": "Scheduler stopped successfully", "status": "stopped"}
         else:
@@ -848,14 +815,12 @@ async def update_scheduler(
 
             db = next(get_db())
             db.execute(
-                text(
-                    """
+                text("""
                 UPDATE scheduler_config
                 SET interval_minutes = :interval,
                     updated_at = CURRENT_TIMESTAMP
                 WHERE service_name = 'host_monitoring'
-            """
-                ),
+            """),
                 {"interval": _scheduler_interval},
             )
             db.commit()
@@ -883,9 +848,7 @@ async def update_scheduler(
             )
 
             username = current_user.get("username", "unknown")
-            logger.info(
-                f"Scheduler interval updated to {_scheduler_interval} minutes by user {username}"
-            )
+            logger.info(f"Scheduler interval updated to {_scheduler_interval} minutes by user {username}")
 
         return {
             "message": f"Scheduler interval updated to {_scheduler_interval} minutes",
@@ -914,24 +877,18 @@ def restore_scheduler_state() -> None:
 
         try:
             # Read scheduler configuration from database
-            result = db.execute(
-                text(
-                    """
+            result = db.execute(text("""
                 SELECT enabled, interval_minutes, auto_start
                 FROM scheduler_config
                 WHERE service_name = 'host_monitoring'
-            """
-                )
-            )
+            """))
 
             config = result.fetchone()
             logger.info(f"Database config found: {config if config else 'None'}")
 
             if config:
                 _scheduler_interval = config.interval_minutes
-                logger.info(
-                    f"Setting global scheduler interval to {_scheduler_interval} minutes from database"
-                )
+                logger.info(f"Setting global scheduler interval to {_scheduler_interval} minutes from database")
 
                 if config.enabled and config.auto_start:
                     logger.info(
@@ -964,9 +921,7 @@ def restore_scheduler_state() -> None:
                             name="Host Monitoring Queue Producer",
                             replace_existing=True,
                         )
-                        logger.info(
-                            f"Added new monitoring queue producer with {_scheduler_interval} minute interval"
-                        )
+                        logger.info(f"Added new monitoring queue producer with {_scheduler_interval} minute interval")
 
                         # Add daily credential purge job (90-day retention policy)
                         from ..tasks.monitoring_tasks import periodic_credential_purge
@@ -983,40 +938,30 @@ def restore_scheduler_state() -> None:
                         logger.info("Added daily credential purge job (runs at 2 AM)")
 
                         # Update database with start time
-                        db.execute(
-                            text(
-                                """
+                        db.execute(text("""
                             UPDATE scheduler_config
                             SET last_run = CURRENT_TIMESTAMP,
                                 updated_at = CURRENT_TIMESTAMP
                             WHERE service_name = 'host_monitoring'
-                        """
-                            )
-                        )
+                        """))
                         db.commit()
 
                         logger.info(
                             f"Host monitoring scheduler auto-started with {_scheduler_interval} minute interval"
                         )
                     else:
-                        logger.info(
-                            "Scheduler initialized but not auto-started (already running or failed to create)"
-                        )
+                        logger.info("Scheduler initialized but not auto-started (already running or failed to create)")
                 else:
                     logger.info("Scheduler configured but auto-start disabled or not enabled")
             else:
                 # No configuration found, create default
-                db.execute(
-                    text(
-                        """
+                db.execute(text("""
                     INSERT INTO scheduler_config (
                         service_name, enabled, interval_minutes, auto_start
                     ) VALUES (
                         'host_monitoring', TRUE, 15, TRUE
                     )
-                """
-                    )
-                )
+                """))
                 db.commit()
                 logger.info("Created default scheduler configuration")
 
@@ -1076,15 +1021,11 @@ async def get_session_timeout(
     """
     try:
         # Try to get from system_settings table
-        result = db.execute(
-            text(
-                """
+        result = db.execute(text("""
                 SELECT setting_value, modified_at, modified_by
                 FROM system_settings
                 WHERE setting_key = 'session_inactivity_timeout_minutes'
-            """
-            )
-        )
+            """))
         row = result.fetchone()
 
         if row:
@@ -1154,35 +1095,27 @@ async def update_session_timeout(
 
         # Upsert the setting
         db.execute(
-            text(
-                """
-                INSERT INTO system_settings (setting_key, setting_value, setting_type, description, modified_by, modified_at, created_at)
-                VALUES ('session_inactivity_timeout_minutes', :value, 'integer', 'Session inactivity timeout in minutes', :modified_by, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            text("""
+                INSERT INTO system_settings (setting_key, setting_value, setting_type, description, modified_by, modified_at, created_at)  # noqa: E501
+                VALUES ('session_inactivity_timeout_minutes', :value, 'integer', 'Session inactivity timeout in minutes', :modified_by, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)  # noqa: E501
                 ON CONFLICT (setting_key)
                 DO UPDATE SET
                     setting_value = :value,
                     modified_by = :modified_by,
                     modified_at = CURRENT_TIMESTAMP
-            """
-            ),
+            """),
             {"value": str(settings.timeout_minutes), "modified_by": user_id},
         )
         db.commit()
 
-        logger.info(
-            f"Session inactivity timeout updated to {settings.timeout_minutes} minutes by {username}"
-        )
+        logger.info(f"Session inactivity timeout updated to {settings.timeout_minutes} minutes by {username}")
 
         # Return updated settings
-        result = db.execute(
-            text(
-                """
+        result = db.execute(text("""
                 SELECT setting_value, modified_at, modified_by
                 FROM system_settings
                 WHERE setting_key = 'session_inactivity_timeout_minutes'
-            """
-            )
-        )
+            """))
         row = result.fetchone()
 
         return SessionTimeoutSettings(

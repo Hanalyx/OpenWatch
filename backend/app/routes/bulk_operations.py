@@ -137,10 +137,7 @@ async def bulk_import_hosts(
             # Check if host already exists
             existing_host = (
                 db.query(Host)
-                .filter(
-                    (Host.hostname == host_data.hostname)
-                    | (Host.ip_address == host_data.ip_address)
-                )
+                .filter((Host.hostname == host_data.hostname) | (Host.ip_address == host_data.ip_address))
                 .first()
             )
 
@@ -213,9 +210,7 @@ async def bulk_import_hosts(
             result.errors.append(
                 {
                     "row": idx + 1,
-                    "hostname": (
-                        host_data.hostname if hasattr(host_data, "hostname") else "unknown"
-                    ),
+                    "hostname": (host_data.hostname if hasattr(host_data, "hostname") else "unknown"),
                     "error": str(e),
                 }
             )
@@ -228,7 +223,10 @@ async def bulk_import_hosts(
         event_type="BULK_HOST_IMPORT",
         user_id=current_user["id"],
         ip_address=current_user.get("ip_address", "unknown"),
-        details=f"Imported {result.successful_imports} hosts, {result.failed_imports} failed, {result.skipped_duplicates} skipped",
+        details=(  # noqa: E501
+            f"Imported {result.successful_imports} hosts, "
+            f"{result.failed_imports} failed, {result.skipped_duplicates} skipped"
+        ),
     )
 
     return result
@@ -512,10 +510,7 @@ async def import_with_mapping(
                 # Check for existing host
                 existing_host = (
                     db.query(Host)
-                    .filter(
-                        (Host.hostname == mapped_data["hostname"])
-                        | (Host.ip_address == mapped_data["ip_address"])
-                    )
+                    .filter((Host.hostname == mapped_data["hostname"]) | (Host.ip_address == mapped_data["ip_address"]))
                     .first()
                 )
 
@@ -598,10 +593,13 @@ async def import_with_mapping(
         # Log the import operation
         log_security_event(
             db=db,
-            event_type="ENHANCED_BULK_IMPORT",
+            event_type="ENHANCED_BULK_IMPORT",  # noqa: E501
             user_id=current_user["id"],
             ip_address=current_user.get("ip_address", "unknown"),
-            details=f"Enhanced import: {result.successful_imports} hosts, {result.failed_imports} failed, {result.skipped_duplicates} skipped",
+            details=(
+                f"Enhanced import: {result.successful_imports} hosts, "
+                f"{result.failed_imports} failed, {result.skipped_duplicates} skipped"
+            ),
         )
 
         return result

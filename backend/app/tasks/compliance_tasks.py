@@ -31,11 +31,7 @@ def scheduled_group_scan(self, group_id: int, config: Dict[str, Any]):
         # Get database session
         with get_db_session() as db:
             # Verify group still exists and has auto-scan enabled
-            group = (
-                db.query(HostGroup)
-                .filter(HostGroup.id == group_id, HostGroup.auto_scan_enabled.is_(True))
-                .first()
-            )
+            group = db.query(HostGroup).filter(HostGroup.id == group_id, HostGroup.auto_scan_enabled.is_(True)).first()
 
             if not group:
                 self.retry(countdown=300, max_retries=3)  # Retry after 5 minutes
@@ -43,14 +39,12 @@ def scheduled_group_scan(self, group_id: int, config: Dict[str, Any]):
 
             # Get hosts in the group
             hosts = db.execute(
-                text(
-                    """
+                text("""
                 SELECT h.id, h.hostname, h.ip_address, h.os_family, h.architecture
                 FROM hosts h
                 JOIN host_group_memberships hgm ON h.id = hgm.host_id
                 WHERE hgm.group_id = :group_id AND h.active = true
-            """
-                ),
+            """),
                 {"group_id": group_id},
             ).fetchall()
 
@@ -74,8 +68,7 @@ def scheduled_group_scan(self, group_id: int, config: Dict[str, Any]):
 
             # Create group scan session
             db.execute(
-                text(
-                    """
+                text("""
                 INSERT INTO group_scan_sessions (
                     session_id, group_id, total_hosts, status, scan_config,
                     estimated_completion, created_at, created_by
@@ -83,8 +76,7 @@ def scheduled_group_scan(self, group_id: int, config: Dict[str, Any]):
                     :session_id, :group_id, :total_hosts, 'pending', :config,
                     :estimated_completion, :created_at, 'system'
                 )
-            """
-                ),
+            """),
                 {
                     "session_id": session_id,
                     "group_id": group_id,
@@ -98,22 +90,18 @@ def scheduled_group_scan(self, group_id: int, config: Dict[str, Any]):
             # Initialize host progress tracking
             for host in hosts:
                 db.execute(
-                    text(
-                        """
+                    text("""
                     INSERT INTO group_scan_host_progress (
                         session_id, host_id, status, progress
                     ) VALUES (:session_id, :host_id, 'pending', 0)
-                """
-                    ),
+                """),
                     {"session_id": session_id, "host_id": host.id},
                 )
 
             db.commit()
 
             # Execute the scan asynchronously
-            execute_compliance_scan_async.delay(
-                session_id, group_id, [dict(host) for host in hosts], session_config
-            )
+            execute_compliance_scan_async.delay(session_id, group_id, [dict(host) for host in hosts], session_config)
 
             print(f"Scheduled compliance scan started for group {group_id}, session: {session_id}")
 
@@ -124,9 +112,7 @@ def scheduled_group_scan(self, group_id: int, config: Dict[str, Any]):
 
 
 @celery_app.task(bind=True, name="backend.app.tasks.execute_compliance_scan_async")
-def execute_compliance_scan_async(
-    self, session_id: str, group_id: int, hosts: List[Dict], config: Dict[str, Any]
-):
+def execute_compliance_scan_async(self, session_id: str, group_id: int, hosts: List[Dict], config: Dict[str, Any]):
     """
     Execute compliance scan asynchronously
     """
@@ -134,13 +120,11 @@ def execute_compliance_scan_async(
         with get_db_session() as db:
             # Update session status
             db.execute(
-                text(
-                    """
+                text("""
                 UPDATE group_scan_sessions
                 SET status = 'in_progress', started_at = :started_at
                 WHERE session_id = :session_id
-            """
-                ),
+            """),
                 {"session_id": session_id, "started_at": datetime.utcnow()},
             )
             db.commit()
@@ -153,13 +137,11 @@ def execute_compliance_scan_async(
                 try:
                     # Update host status
                     db.execute(
-                        text(
-                            """
+                        text("""
                         UPDATE group_scan_host_progress
                         SET status = 'in_progress', progress = 10
                         WHERE session_id = :session_id AND host_id = :host_id
-                    """
-                        ),
+                    """),
                         {"session_id": session_id, "host_id": host["id"]},
                     )
                     db.commit()
@@ -177,13 +159,11 @@ def execute_compliance_scan_async(
                     # Update progress based on scan result
                     if scan_result.get("status") == "completed":
                         db.execute(
-                            text(
-                                """
+                            text("""
                             UPDATE group_scan_host_progress
                             SET status = 'completed', progress = 100, scan_id = :scan_id
                             WHERE session_id = :session_id AND host_id = :host_id
-                        """
-                            ),
+                        """),
                             {
                                 "session_id": session_id,
                                 "host_id": host["id"],
@@ -199,13 +179,11 @@ def execute_compliance_scan_async(
                 except Exception as host_error:
                     # Update host as failed
                     db.execute(
-                        text(
-                            """
+                        text("""
                         UPDATE group_scan_host_progress
                         SET status = 'failed', error_message = :error
                         WHERE session_id = :session_id AND host_id = :host_id
-                    """
-                        ),
+                    """),
                         {
                             "session_id": session_id,
                             "host_id": host["id"],
@@ -220,14 +198,12 @@ def execute_compliance_scan_async(
             # Update session completion
             final_status = "completed" if failed_scans == 0 else "partial"
             db.execute(
-                text(
-                    """
+                text("""
                 UPDATE group_scan_sessions
                 SET status = :status, completed_at = :completed_at,
                     successful_hosts = :successful, failed_hosts = :failed
                 WHERE session_id = :session_id
-            """
-                ),
+            """),
                 {
                     "session_id": session_id,
                     "status": final_status,
@@ -258,13 +234,11 @@ def execute_compliance_scan_async(
         # Mark session as failed
         with get_db_session() as db:
             db.execute(
-                text(
-                    """
+                text("""
                 UPDATE group_scan_sessions
                 SET status = 'failed', completed_at = :completed_at, error_message = :error
                 WHERE session_id = :session_id
-            """
-                ),
+            """),
                 {
                     "session_id": session_id,
                     "completed_at": datetime.utcnow(),
@@ -285,14 +259,12 @@ def send_compliance_notification(session_id: str, group_id: int, summary: Dict[s
         with get_db_session() as db:
             # Get group and session details
             session_info = db.execute(
-                text(
-                    """
+                text("""
                 SELECT gss.*, hg.name as group_name
                 FROM group_scan_sessions gss
                 JOIN host_groups hg ON gss.group_id = hg.id
                 WHERE gss.session_id = :session_id
-            """
-                ),
+            """),
                 {"session_id": session_id},
             ).fetchone()
 
@@ -307,9 +279,7 @@ def send_compliance_notification(session_id: str, group_id: int, summary: Dict[s
                 "group_name": session_info.group_name,
                 "timestamp": datetime.utcnow().isoformat(),
                 "summary": summary,
-                "compliance_framework": json.loads(session_info.scan_config or "{}").get(
-                    "compliance_framework"
-                ),
+                "compliance_framework": json.loads(session_info.scan_config or "{}").get("compliance_framework"),
                 "total_hosts": session_info.total_hosts,
                 "status": session_info.status,
             }
@@ -320,15 +290,13 @@ def send_compliance_notification(session_id: str, group_id: int, summary: Dict[s
 
             # Log notification in audit trail
             db.execute(
-                text(
-                    """
+                text("""
                 INSERT INTO audit_logs (
                     action, resource_type, resource_id, details, timestamp
                 ) VALUES (
                     'COMPLIANCE_NOTIFICATION_SENT', 'group_scan', :session_id, :details, :timestamp
                 )
-            """
-                ),
+            """),
                 {
                     "session_id": session_id,
                     "details": json.dumps(notification_data),
@@ -356,14 +324,12 @@ def compliance_report_generation(group_id: int, report_config: Dict[str, Any]):
 
             # Update group with latest report
             db.execute(
-                text(
-                    """
+                text("""
                 UPDATE host_groups
                 SET last_compliance_report = :report_path,
                     last_report_generated = :timestamp
                 WHERE id = :group_id
-            """
-                ),
+            """),
                 {
                     "group_id": group_id,
                     "report_path": report_path,
@@ -378,9 +344,7 @@ def compliance_report_generation(group_id: int, report_config: Dict[str, Any]):
         print(f"Failed to generate compliance report for group {group_id}: {str(e)}")
 
 
-def generate_compliance_report_data(
-    db: Session, group_id: int, config: Dict[str, Any]
-) -> Dict[str, Any]:
+def generate_compliance_report_data(db: Session, group_id: int, config: Dict[str, Any]) -> Dict[str, Any]:
     """
     Generate compliance report data from database
     """
@@ -410,8 +374,7 @@ def compliance_alert_check(group_id: int):
         with get_db_session() as db:
             # Get latest compliance metrics for group
             metrics = db.execute(
-                text(
-                    """
+                text("""
                 SELECT
                     AVG(CAST(sr.score AS FLOAT)) as avg_score,
                     SUM(sr.severity_high) as critical_issues,
@@ -423,8 +386,7 @@ def compliance_alert_check(group_id: int):
                 WHERE hgm.group_id = :group_id
                     AND s.completed_at >= :recent_threshold
                     AND s.status = 'completed'
-            """
-                ),
+            """),
                 {
                     "group_id": group_id,
                     "recent_threshold": datetime.utcnow() - timedelta(days=7),
@@ -477,15 +439,13 @@ def send_compliance_alerts(group_id: int, alerts: List[Dict[str, Any]]):
             # Log alerts in audit trail
             for alert in alerts:
                 db.execute(
-                    text(
-                        """
+                    text("""
                     INSERT INTO audit_logs (
                         action, resource_type, resource_id, details, timestamp
                     ) VALUES (
                         'COMPLIANCE_ALERT_SENT', 'host_group', :group_id, :details, :timestamp
                     )
-                """
-                    ),
+                """),
                     {
                         "group_id": str(group_id),
                         "details": json.dumps(alert),
@@ -520,14 +480,10 @@ def compliance_monitoring_task():
     try:
         with get_db_session() as db:
             # Get all groups with auto-scan enabled
-            groups = db.execute(
-                text(
-                    """
+            groups = db.execute(text("""
                 SELECT id FROM host_groups
                 WHERE auto_scan_enabled = true AND active = true
-            """
-                )
-            ).fetchall()
+            """)).fetchall()
 
             # Check alerts for each group
             for group in groups:

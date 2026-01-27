@@ -147,7 +147,7 @@ REFERENCE_TYPE_PATTERNS: Dict[str, str] = {
     r"^CVE-\d{4}-\d+$": "CVE",
     r"^CWE-\d+$": "CWE",
     r"^NIST\s*SP\s*800-53": "NIST_800_53",
-    r"^AC-\d+|AU-\d+|CA-\d+|CM-\d+|CP-\d+|IA-\d+|IR-\d+|MA-\d+|MP-\d+|PE-\d+|PL-\d+|PM-\d+|PS-\d+|PT-\d+|RA-\d+|SA-\d+|SC-\d+|SI-\d+|SR-\d+": "NIST_800_53",
+    r"^AC-\d+|AU-\d+|CA-\d+|CM-\d+|CP-\d+|IA-\d+|IR-\d+|MA-\d+|MP-\d+|PE-\d+|PL-\d+|PM-\d+|PS-\d+|PT-\d+|RA-\d+|SA-\d+|SC-\d+|SI-\d+|SR-\d+": "NIST_800_53",  # noqa: E501
     r"^CIS\s+\d+\.\d+": "CIS",
     r"^\d+\.\d+\.\d+": "CIS",  # CIS control numbers like 1.1.1
     r"^V-\d+$": "STIG",
@@ -554,18 +554,10 @@ class ContentNormalizer:
 
         # Clean text fields
         normalized_title = clean_text(rule.title, MAX_TITLE_LENGTH)
-        normalized_description = clean_text(
-            rule.description, MAX_DESCRIPTION_LENGTH, preserve_formatting=True
-        )
-        normalized_rationale = clean_text(
-            rule.rationale, MAX_RATIONALE_LENGTH, preserve_formatting=True
-        )
-        normalized_fix = clean_text(
-            rule.fix_content, MAX_FIX_CONTENT_LENGTH, preserve_formatting=True
-        )
-        normalized_check = clean_text(
-            rule.check_content, MAX_CHECK_CONTENT_LENGTH, preserve_formatting=True
-        )
+        normalized_description = clean_text(rule.description, MAX_DESCRIPTION_LENGTH, preserve_formatting=True)
+        normalized_rationale = clean_text(rule.rationale, MAX_RATIONALE_LENGTH, preserve_formatting=True)
+        normalized_fix = clean_text(rule.fix_content, MAX_FIX_CONTENT_LENGTH, preserve_formatting=True)
+        normalized_check = clean_text(rule.check_content, MAX_CHECK_CONTENT_LENGTH, preserve_formatting=True)
 
         self.stats.text_fields_cleaned += 5
 
@@ -598,9 +590,7 @@ class ContentNormalizer:
         """
         # Clean text fields
         normalized_title = clean_text(profile.title, MAX_TITLE_LENGTH)
-        normalized_description = clean_text(
-            profile.description, MAX_DESCRIPTION_LENGTH, preserve_formatting=True
-        )
+        normalized_description = clean_text(profile.description, MAX_DESCRIPTION_LENGTH, preserve_formatting=True)
 
         # Normalize metadata
         normalized_metadata = self._normalize_metadata(profile.metadata)
@@ -720,8 +710,7 @@ class ContentNormalizer:
             elif isinstance(value, list):
                 # Clean list items if strings
                 normalized[norm_key] = [
-                    clean_text(item, max_length=500) if isinstance(item, str) else item
-                    for item in value
+                    clean_text(item, max_length=500) if isinstance(item, str) else item for item in value
                 ]
             else:
                 normalized[norm_key] = value

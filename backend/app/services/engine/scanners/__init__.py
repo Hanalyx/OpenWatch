@@ -99,9 +99,7 @@ def get_scanner(provider: ScanProvider) -> BaseScanner:
 
     elif provider == ScanProvider.CUSTOM:
         # Custom scanner support is planned for plugin architecture
-        raise NotImplementedError(
-            "Custom scanners are not yet implemented. " "See plugin architecture documentation."
-        )
+        raise NotImplementedError("Custom scanners are not yet implemented. " "See plugin architecture documentation.")
 
     else:
         raise ValueError(f"Unsupported scan provider: {provider}")
@@ -277,9 +275,7 @@ class ScannerFactory:
 
         if scanner_class is None:
             available = ", ".join(sorted(cls._scanners.keys()))
-            raise ValueError(
-                f"Unknown scanner type: '{scanner_type}'. " f"Available scanners: {available}"
-            )
+            raise ValueError(f"Unknown scanner type: '{scanner_type}'. " f"Available scanners: {available}")
 
         return scanner_class()
 
@@ -345,9 +341,7 @@ class ScannerFactory:
 
         # Validate scanner class inheritance
         if not issubclass(scanner_class, BaseScanner):
-            raise TypeError(
-                f"Scanner class must inherit from BaseScanner, " f"got {scanner_class.__name__}"
-            )
+            raise TypeError(f"Scanner class must inherit from BaseScanner, " f"got {scanner_class.__name__}")
 
         # Register with normalized key
         normalized_type = scanner_type.lower().strip()

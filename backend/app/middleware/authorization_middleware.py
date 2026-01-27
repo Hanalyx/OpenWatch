@@ -56,9 +56,7 @@ class AuthorizationMiddleware(BaseHTTPMiddleware):
 
     def __init__(self, app, authorization_service_factory: Callable = None):
         super().__init__(app)
-        self.authorization_service_factory = (
-            authorization_service_factory or get_authorization_service
-        )
+        self.authorization_service_factory = authorization_service_factory or get_authorization_service
 
         # Define which endpoints require authorization and what resource/action they map to
         self.protected_endpoints = {
@@ -165,13 +163,9 @@ class AuthorizationMiddleware(BaseHTTPMiddleware):
             },
         }
 
-        logger.info(
-            f"Authorization middleware initialized with {len(self.protected_endpoints)} protected endpoints"
-        )
+        logger.info(f"Authorization middleware initialized with {len(self.protected_endpoints)} protected endpoints")
 
-    async def dispatch(
-        self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
-    ) -> Response:
+    async def dispatch(self, request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
         """
         Main middleware dispatch method - validates authorization for protected endpoints
         """
@@ -190,7 +184,8 @@ class AuthorizationMiddleware(BaseHTTPMiddleware):
             current_user = await self._extract_current_user(request)
             if not current_user:
                 logger.warning(
-                    f"Authorization failed: No authenticated user for {request.method} {sanitize_for_log(str(request.url.path))}"
+                    f"Authorization failed: No authenticated user for {request.method} "  # noqa: E501
+                    f"{sanitize_for_log(str(request.url.path))}"
                 )
                 return self._create_error_response(
                     status.HTTP_401_UNAUTHORIZED,
@@ -204,8 +199,9 @@ class AuthorizationMiddleware(BaseHTTPMiddleware):
             # Extract resources from request
             resources = await self._extract_resources(request, endpoint_config, current_user)
             if not resources:
-                logger.warning(
-                    f"Authorization failed: Could not extract resources from request {request.method} {sanitize_for_log(str(request.url.path))}"
+                logger.warning(  # noqa: E501
+                    f"Authorization failed: Could not extract resources from request "
+                    f"{request.method} {sanitize_for_log(str(request.url.path))}"
                 )
                 return self._create_error_response(
                     status.HTTP_400_BAD_REQUEST,
@@ -225,14 +221,13 @@ class AuthorizationMiddleware(BaseHTTPMiddleware):
                 auth_context,
             )
 
-            if authorization_result.overall_decision != AuthorizationDecision.ALLOW:
+            if authorization_result.overall_decision != AuthorizationDecision.ALLOW:  # noqa: E501
                 logger.warning(
-                    f"Authorization denied for user {sanitize_id_for_log(current_user['id'])} on {request.method} {sanitize_for_log(str(request.url.path))}: "
+                    f"Authorization denied for user {sanitize_id_for_log(current_user['id'])} "
+                    f"on {request.method} {sanitize_for_log(str(request.url.path))}: "
                     f"{len(authorization_result.denied_resources)} resources denied"
                 )
-                return self._create_authorization_error_response(
-                    authorization_result, request.url.path
-                )
+                return self._create_authorization_error_response(authorization_result, request.url.path)
 
             # Authorization successful - add context to request for downstream use
             request.state.authorization_result = authorization_result
@@ -244,7 +239,8 @@ class AuthorizationMiddleware(BaseHTTPMiddleware):
             # Log successful authorization
             processing_time = int((time.time() - start_time) * 1000)
             logger.info(
-                f"Authorization successful for user {sanitize_id_for_log(current_user['id'])} on {request.method} {sanitize_for_log(str(request.url.path))} "
+                f"Authorization successful for user {sanitize_id_for_log(current_user['id'])} "
+                f"on {request.method} {sanitize_for_log(str(request.url.path))} "
                 f"({len(authorization_result.allowed_resources)} resources, {processing_time}ms)"
             )
 
@@ -324,12 +320,10 @@ class AuthorizationMiddleware(BaseHTTPMiddleware):
                 from sqlalchemy import text
 
                 result = db.execute(
-                    text(
-                        """
+                    text("""
                     SELECT id, username, email, role, is_active
                     FROM users WHERE id = :user_id AND is_active = true
-                """
-                    ),
+                """),
                     {"user_id": payload.get("sub")},
                 )
 
@@ -373,9 +367,7 @@ class AuthorizationMiddleware(BaseHTTPMiddleware):
                 if resource_type == ResourceType.HOST:
                     host_id = path_params.get("host_id")
                     if host_id:
-                        resources.append(
-                            ResourceIdentifier(resource_type=ResourceType.HOST, resource_id=host_id)
-                        )
+                        resources.append(ResourceIdentifier(resource_type=ResourceType.HOST, resource_id=host_id))
                     else:
                         # Check request body for host_id
                         body_host_id = await self._extract_host_id_from_body(request)
@@ -393,11 +385,7 @@ class AuthorizationMiddleware(BaseHTTPMiddleware):
                         # For scan operations, we need to get the associated host
                         host_id = await self._get_host_id_from_scan_id(scan_id)
                         if host_id:
-                            resources.append(
-                                ResourceIdentifier(
-                                    resource_type=ResourceType.HOST, resource_id=host_id
-                                )
-                            )
+                            resources.append(ResourceIdentifier(resource_type=ResourceType.HOST, resource_id=host_id))
 
                 elif resource_type == ResourceType.HOST_GROUP:
                     group_id = path_params.get("group_id")
@@ -405,19 +393,13 @@ class AuthorizationMiddleware(BaseHTTPMiddleware):
                         # For host group operations, get all hosts in the group
                         host_ids = await self._get_host_ids_from_group_id(group_id)
                         for host_id in host_ids:
-                            resources.append(
-                                ResourceIdentifier(
-                                    resource_type=ResourceType.HOST, resource_id=host_id
-                                )
-                            )
+                            resources.append(ResourceIdentifier(resource_type=ResourceType.HOST, resource_id=host_id))
 
             else:
                 # Bulk operation - extract multiple hosts
                 host_ids = await self._extract_bulk_host_ids(request, endpoint_config)
                 for host_id in host_ids:
-                    resources.append(
-                        ResourceIdentifier(resource_type=ResourceType.HOST, resource_id=host_id)
-                    )
+                    resources.append(ResourceIdentifier(resource_type=ResourceType.HOST, resource_id=host_id))
 
             logger.debug(f"Extracted {len(resources)} resources from request")
             return resources
@@ -463,11 +445,9 @@ class AuthorizationMiddleware(BaseHTTPMiddleware):
                 from sqlalchemy import text
 
                 result = db.execute(
-                    text(
-                        """
+                    text("""
                     SELECT host_id FROM scans WHERE id = :scan_id
-                """
-                    ),
+                """),
                     {"scan_id": scan_id},
                 )
 
@@ -489,13 +469,11 @@ class AuthorizationMiddleware(BaseHTTPMiddleware):
                 from sqlalchemy import text
 
                 result = db.execute(
-                    text(
-                        """
+                    text("""
                     SELECT hgm.host_id
                     FROM host_group_memberships hgm
                     WHERE hgm.group_id = :group_id
-                """
-                    ),
+                """),
                     {"group_id": group_id},
                 )
 
@@ -506,9 +484,7 @@ class AuthorizationMiddleware(BaseHTTPMiddleware):
             logger.error(f"Error getting host_ids from group_id {group_id}: {e}")
             return []
 
-    async def _extract_bulk_host_ids(
-        self, request: Request, endpoint_config: Dict[str, Any]
-    ) -> List[str]:
+    async def _extract_bulk_host_ids(self, request: Request, endpoint_config: Dict[str, Any]) -> List[str]:
         """
         Extract host IDs for bulk operations from request body
         """
@@ -547,8 +523,7 @@ class AuthorizationMiddleware(BaseHTTPMiddleware):
                 from sqlalchemy import text
 
                 result = db.execute(
-                    text(
-                        """
+                    text("""
                     SELECT COALESCE(
                         JSON_AGG(DISTINCT ug.name) FILTER (WHERE ug.name IS NOT NULL),
                         '[]'::json
@@ -558,8 +533,7 @@ class AuthorizationMiddleware(BaseHTTPMiddleware):
                     LEFT JOIN user_groups ug ON ugm.group_id = ug.id
                     WHERE u.id = :user_id
                     GROUP BY u.id
-                """
-                    ),
+                """),
                     {"user_id": current_user["id"]},
                 )
 
@@ -622,9 +596,7 @@ class AuthorizationMiddleware(BaseHTTPMiddleware):
 
                 if len(resources) == 1 and not is_bulk:
                     # Single resource check
-                    result = await auth_service.check_permission(
-                        user_id, resources[0], action, context
-                    )
+                    result = await auth_service.check_permission(user_id, resources[0], action, context)
 
                     # Convert single result to bulk result format
                     from ..models.authorization_models import BulkAuthorizationResult
@@ -632,16 +604,8 @@ class AuthorizationMiddleware(BaseHTTPMiddleware):
                     return BulkAuthorizationResult(
                         overall_decision=result.decision,
                         individual_results=[result],
-                        denied_resources=(
-                            [result.resource]
-                            if result.decision == AuthorizationDecision.DENY
-                            else []
-                        ),
-                        allowed_resources=(
-                            [result.resource]
-                            if result.decision == AuthorizationDecision.ALLOW
-                            else []
-                        ),
+                        denied_resources=([result.resource] if result.decision == AuthorizationDecision.DENY else []),
+                        allowed_resources=([result.resource] if result.decision == AuthorizationDecision.ALLOW else []),
                         total_evaluation_time_ms=result.evaluation_time_ms,
                         cached_results=1 if result.cached else 0,
                         fresh_evaluations=0 if result.cached else 1,
@@ -702,11 +666,7 @@ class AuthorizationMiddleware(BaseHTTPMiddleware):
                 "resource_type": res.resource_type.value,
                 "resource_id": res.resource_id,
                 "reason": next(
-                    (
-                        r.reason
-                        for r in auth_result.individual_results
-                        if r.resource.resource_id == res.resource_id
-                    ),
+                    (r.reason for r in auth_result.individual_results if r.resource.resource_id == res.resource_id),
                     "Access denied",
                 ),
             }

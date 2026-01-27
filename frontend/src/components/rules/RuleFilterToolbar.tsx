@@ -80,9 +80,12 @@ const RuleFilterToolbar: React.FC<RuleFilterToolbarProps> = ({
 
   // Handle filter changes - value type depends on which filter is being changed
   // Array filters (platforms, severities, etc.) accept string[], abstract accepts boolean | null
-  const handleFilterChange = (filterType: keyof FilterState, value: string[] | boolean | null) => {
-    onFiltersChange({ [filterType]: value });
-  };
+  const handleFilterChange = React.useCallback(
+    (filterType: keyof FilterState, value: string[] | boolean | null) => {
+      onFiltersChange({ [filterType]: value });
+    },
+    [onFiltersChange]
+  );
 
   const handleRemoveFilter = (filterType: keyof FilterState, value: string) => {
     const currentValues = filters[filterType] as string[];
@@ -91,7 +94,8 @@ const RuleFilterToolbar: React.FC<RuleFilterToolbarProps> = ({
     });
   };
 
-  const QuickFilters = () => (
+  // Quick Filters JSX - inlined to avoid component creation during render
+  const quickFiltersJsx = (
     <Stack direction="row" spacing={1} alignItems="center">
       <Chip
         label="High Priority"
@@ -149,9 +153,7 @@ const RuleFilterToolbar: React.FC<RuleFilterToolbarProps> = ({
         />
 
         {/* Quick Filters */}
-        <Box sx={{ display: { xs: 'none', md: 'flex' } }}>
-          <QuickFilters />
-        </Box>
+        <Box sx={{ display: { xs: 'none', md: 'flex' } }}>{quickFiltersJsx}</Box>
 
         {/* Filter Toggle */}
         <Tooltip title={expandedFilters ? 'Hide filters' : 'Show filters'}>
@@ -209,9 +211,7 @@ const RuleFilterToolbar: React.FC<RuleFilterToolbarProps> = ({
       </Box>
 
       {/* Mobile Quick Filters */}
-      <Box sx={{ display: { xs: 'flex', md: 'none' }, mb: 2 }}>
-        <QuickFilters />
-      </Box>
+      <Box sx={{ display: { xs: 'flex', md: 'none' }, mb: 2 }}>{quickFiltersJsx}</Box>
 
       {/* Expanded Filters */}
       <Collapse in={expandedFilters}>

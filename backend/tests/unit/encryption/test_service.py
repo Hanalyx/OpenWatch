@@ -4,7 +4,7 @@ Tests for EncryptionService (refactored, no singleton).
 
 import pytest
 
-from backend.app.encryption import (
+from app.encryption import (
     FAST_TEST_CONFIG,
     DecryptionError,
     EncryptionConfig,

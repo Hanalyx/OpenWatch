@@ -358,9 +358,7 @@ class PluginManager:
         return None
 
     # Reporter Plugin Helpers
-    async def generate_report(
-        self, scan_results: List[Any], format_type: str = "html"
-    ) -> Optional[bytes]:
+    async def generate_report(self, scan_results: List[Any], format_type: str = "html") -> Optional[bytes]:
         """
         Generate a report using available reporter plugins.
 
@@ -383,17 +381,12 @@ class PluginManager:
                     try:
                         return await reporter.generate_report(scan_results, format_type)
                     except Exception as e:
-                        logger.error(
-                            f"Report generation failed with plugin "
-                            f"{reporter.get_metadata().name}: {e}"
-                        )
+                        logger.error(f"Report generation failed with plugin " f"{reporter.get_metadata().name}: {e}")
 
         return None
 
     # Remediation Plugin Helpers
-    async def find_remediation_plugins(
-        self, rule_id: str, host_config: Dict[str, Any]
-    ) -> List[RemediationPlugin]:
+    async def find_remediation_plugins(self, rule_id: str, host_config: Dict[str, Any]) -> List[RemediationPlugin]:
         """
         Find remediation plugins that can handle the specified rule.
 
@@ -466,11 +459,7 @@ class PluginManager:
         """
         for attr_name in dir(module):
             attr = getattr(module, attr_name)
-            if (
-                isinstance(attr, type)
-                and issubclass(attr, PluginInterface)
-                and attr != PluginInterface
-            ):
+            if isinstance(attr, type) and issubclass(attr, PluginInterface) and attr != PluginInterface:
                 return attr
         return None
 

@@ -4,10 +4,7 @@ Enhanced MongoDB models for unified compliance architecture
 """
 
 # Import Host from database module to make it available at package level
-import sys
-
-sys.path.insert(0, "/app")
-from backend.app.database import Host  # noqa: E402
+from ..database import Host  # noqa: E402
 
 from .enhanced_mongo_models import UnifiedComplianceRule  # noqa: E402
 from .enhanced_mongo_models import (  # noqa: E402

@@ -49,11 +49,9 @@ def init_roles(db: Session):
         for role_name, role_info in role_definitions.items():
             # Check if role already exists
             result = db.execute(
-                text(
-                    """
+                text("""
                 SELECT id FROM roles WHERE name = :name
-            """
-                ),
+            """),
                 {"name": role_name.value},
             )
 
@@ -62,16 +60,14 @@ def init_roles(db: Session):
                 # Update existing role permissions
                 permissions_json = json.dumps([p.value for p in ROLE_PERMISSIONS[role_name]])
                 db.execute(
-                    text(
-                        """
+                    text("""
                     UPDATE roles
                     SET permissions = :permissions,
                         display_name = :display_name,
                         description = :description,
                         updated_at = CURRENT_TIMESTAMP
                     WHERE name = :name
-                """
-                    ),
+                """),
                     {
                         "name": role_name.value,
                         "permissions": permissions_json,
@@ -84,12 +80,12 @@ def init_roles(db: Session):
                 # Create new role
                 permissions_json = json.dumps([p.value for p in ROLE_PERMISSIONS[role_name]])
                 db.execute(
-                    text(
-                        """
-                    INSERT INTO roles (name, display_name, description, permissions, is_active, created_at, updated_at)
+                    text("""
+                    INSERT INTO roles (
+                        name, display_name, description, permissions, is_active, created_at, updated_at  # noqa: E501
+                    )
                     VALUES (:name, :display_name, :description, :permissions, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                """
-                    ),
+                """),
                     {
                         "name": role_name.value,
                         "display_name": role_info["display_name"],
@@ -127,13 +123,14 @@ def create_default_super_admin(db: Session):
 
             hashed_password = pwd_context.hash("admin123")  # Default password - should be changed
 
-            db.execute(
-                text(
-                    """
-                INSERT INTO users (id, username, email, hashed_password, role, is_active, created_at, failed_login_attempts, mfa_enabled)
+            db.execute(  # noqa: E501
+                text("""
+                INSERT INTO users (
+                    id, username, email, hashed_password, role, is_active,
+                    created_at, failed_login_attempts, mfa_enabled
+                )
                 VALUES (1, 'admin', 'admin@example.com', :password, 'super_admin', true, CURRENT_TIMESTAMP, 0, false)
-            """
-                ),
+            """),
                 {"password": hashed_password},
             )
             logger.info("Created new super admin user (username: admin, password: admin123)")
@@ -158,15 +155,11 @@ def init_default_system_credentials(db: Session):
     """
     try:
         # Check if system-level credentials exist in unified_credentials
-        result = db.execute(
-            text(
-                """
+        result = db.execute(text("""
             SELECT COUNT(*) as count
             FROM unified_credentials
             WHERE scope = 'system' AND is_active = true
-        """
-            )
-        )
+        """))
 
         existing_count = result.fetchone().count
 

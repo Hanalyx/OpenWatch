@@ -68,9 +68,9 @@ class FrameworkMetadataService:
         logger.info("Listing available frameworks")
 
         # Get all rules with frameworks field
-        all_rules = await self.collection.find(
-            {"frameworks": {"$exists": True, "$ne": {}}}, {"frameworks": 1}
-        ).to_list(length=None)
+        all_rules = await self.collection.find({"frameworks": {"$exists": True, "$ne": {}}}, {"frameworks": 1}).to_list(
+            length=None
+        )
 
         # Parse nested frameworks structure
         framework_data = {}
@@ -126,9 +126,7 @@ class FrameworkMetadataService:
         logger.info(f"Getting details for {framework}/{version}")
 
         # Count rules
-        rule_count = await self.collection.count_documents(
-            {"framework": framework, "framework_version": version}
-        )
+        rule_count = await self.collection.count_documents({"framework": framework, "framework_version": version})
 
         if rule_count == 0:
             raise ValueError(f"Framework {framework}/{version} not found")
@@ -199,9 +197,7 @@ class FrameworkMetadataService:
         logger.info(f"Found {len(variables)} variables for {framework}/{version}")
         return variables
 
-    async def validate_variable_value(
-        self, variable_def: VariableDefinition, value: Any
-    ) -> Tuple[bool, Optional[str]]:
+    async def validate_variable_value(self, variable_def: VariableDefinition, value: Any) -> Tuple[bool, Optional[str]]:
         """
         Validate a variable value against its definition and constraints.
 
@@ -219,9 +215,7 @@ class FrameworkMetadataService:
 
         # Constraint validation
         if variable_def.constraints:
-            valid, error = self._validate_constraints(
-                variable_def.constraints, value, variable_def.type
-            )
+            valid, error = self._validate_constraints(variable_def.constraints, value, variable_def.type)
             if not valid:
                 return False, error
 
@@ -314,9 +308,7 @@ class FrameworkMetadataService:
 
     async def _get_categories(self, framework: str, version: str) -> List[str]:
         """Get distinct rule categories."""
-        categories = await self.collection.distinct(
-            "category", {"framework": framework, "framework_version": version}
-        )
+        categories = await self.collection.distinct("category", {"framework": framework, "framework_version": version})
         return sorted([c for c in categories if c])
 
     async def _get_target_types(self, framework: str, version: str) -> List[ScanTargetType]:
@@ -344,9 +336,7 @@ class FrameworkMetadataService:
 
         return sorted(list(target_types), key=lambda t: t.value)
 
-    def _parse_variable_definition(
-        self, var_id: str, var_def: Dict[str, Any]
-    ) -> VariableDefinition:
+    def _parse_variable_definition(self, var_id: str, var_def: Dict[str, Any]) -> VariableDefinition:
         """
         Parse variable definition from MongoDB document.
 

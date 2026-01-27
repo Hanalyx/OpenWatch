@@ -88,7 +88,7 @@ const MicroInteractions: React.FC<MicroInteractionsProps> = ({
   onAnimationComplete,
 }) => {
   const theme = useTheme();
-  const [isAnimating, setIsAnimating] = useState(false);
+  const [isAnimating, setIsAnimating] = useState(trigger === 'mount');
   const [isVisible, setIsVisible] = useState(false);
   const elementRef = useRef<HTMLDivElement>(null);
   const observerRef = useRef<IntersectionObserver | null>(null);
@@ -188,13 +188,6 @@ const MicroInteractions: React.FC<MicroInteractionsProps> = ({
       };
     }
   }, [trigger, isVisible]);
-
-  // Mount trigger
-  useEffect(() => {
-    if (trigger === 'mount') {
-      setIsAnimating(true);
-    }
-  }, [trigger]);
 
   const animationStyle = isAnimating ? getAnimationStyle() : {};
 

@@ -51,13 +51,11 @@ async def deliver_webhook(
         db = next(get_db())
         try:
             db.execute(
-                text(
-                    """
+                text("""
                 INSERT INTO webhook_deliveries
                 (id, webhook_id, event_type, event_data, delivery_status, created_at)
                 VALUES (:id, :webhook_id, :event_type, :event_data, :delivery_status, :created_at)
-            """
-                ),
+            """),
                 {
                     "id": delivery_id,
                     "webhook_id": webhook_id,
@@ -71,15 +69,11 @@ async def deliver_webhook(
         finally:
             db.close()
     except Exception as e:
-        logger.error(
-            f"Failed to create webhook delivery record: error={e}, webhook_id={webhook_id}"
-        )
+        logger.error(f"Failed to create webhook delivery record: error={e}, webhook_id={webhook_id}")
         return False
 
     # Create webhook headers with signature
-    headers = create_webhook_headers(
-        event_data, event_data.get("event_type", "unknown"), delivery_id
-    )
+    headers = create_webhook_headers(event_data, event_data.get("event_type", "unknown"), delivery_id)
 
     # Get webhook client
     webhook_client = await get_webhook_client()
@@ -106,16 +100,14 @@ async def deliver_webhook(
         db = next(get_db())
         try:
             db.execute(
-                text(
-                    """
+                text("""
                 UPDATE webhook_deliveries SET
                 delivery_status = 'delivered',
                 http_status_code = :status_code,
                 response_body = :response_body,
                 delivered_at = :delivered_at
                 WHERE id = :id
-            """
-                ),
+            """),
                 {
                     "id": delivery_id,
                     "status_code": response.status_code,
@@ -150,14 +142,12 @@ async def deliver_webhook(
         db = next(get_db())
         try:
             db.execute(
-                text(
-                    """
+                text("""
                 UPDATE webhook_deliveries SET
                 delivery_status = 'failed',
                 error_message = :error_message
                 WHERE id = :id
-            """
-                ),
+            """),
                 {"id": delivery_id, "error_message": error_msg},
             )
             db.commit()
@@ -179,15 +169,11 @@ async def send_scan_completed_webhook(scan_id: str, scan_data: Dict[str, Any]):
         # Get active webhook endpoints that listen for scan.completed events
         db = next(get_db())
         try:
-            result = db.execute(
-                text(
-                    """
+            result = db.execute(text("""
                 SELECT id, url, secret_hash FROM webhook_endpoints
                 WHERE is_active = true
                 AND event_types::jsonb ? 'scan.completed'
-            """
-                )
-            )
+            """))
 
             webhooks = result.fetchall()
         finally:
@@ -205,9 +191,7 @@ async def send_scan_completed_webhook(scan_id: str, scan_data: Dict[str, Any]):
             try:
                 await deliver_webhook(webhook.url, webhook.secret_hash, event_data, str(webhook.id))
             except Exception as e:
-                logger.error(
-                    f"Failed to deliver scan.completed webhook: webhook_id={webhook.id}, error={e}"
-                )
+                logger.error(f"Failed to deliver scan.completed webhook: webhook_id={webhook.id}, error={e}")
 
     except Exception as e:
         logger.error(f"Failed to process scan.completed webhooks: scan_id={scan_id}, error={e}")
@@ -219,15 +203,11 @@ async def send_scan_failed_webhook(scan_id: str, scan_data: Dict[str, Any], erro
         # Get active webhook endpoints that listen for scan.failed events
         db = next(get_db())
         try:
-            result = db.execute(
-                text(
-                    """
+            result = db.execute(text("""
                 SELECT id, url, secret_hash FROM webhook_endpoints
                 WHERE is_active = true
                 AND event_types::jsonb ? 'scan.failed'
-            """
-                )
-            )
+            """))
 
             webhooks = result.fetchall()
         finally:
@@ -245,9 +225,7 @@ async def send_scan_failed_webhook(scan_id: str, scan_data: Dict[str, Any], erro
             try:
                 await deliver_webhook(webhook.url, webhook.secret_hash, event_data, str(webhook.id))
             except Exception as e:
-                logger.error(
-                    f"Failed to deliver scan.failed webhook: webhook_id={webhook.id}, error={e}"
-                )
+                logger.error(f"Failed to deliver scan.failed webhook: webhook_id={webhook.id}, error={e}")
 
     except Exception as e:
         logger.error(f"Failed to process scan.failed webhooks: scan_id={scan_id}, error={e}")

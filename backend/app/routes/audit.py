@@ -79,9 +79,7 @@ async def get_audit_events(
         # Check permissions
         user_role = UserRole(current_user.get("role", "guest"))
         if not RBACManager.can_access_resource(user_role, "audit", "read"):
-            raise HTTPException(
-                status_code=403, detail="Insufficient permissions to view audit logs"
-            )
+            raise HTTPException(status_code=403, detail="Insufficient permissions to view audit logs")
 
         # Build base query
         query = """
@@ -95,7 +93,10 @@ async def get_audit_events(
 
         # Add filters
         if search:
-            query += " AND (al.action ILIKE :search OR al.details ILIKE :search OR al.ip_address ILIKE :search OR u.username ILIKE :search)"
+            query += (  # noqa: E501
+                " AND (al.action ILIKE :search OR al.details ILIKE :search OR "
+                "al.ip_address ILIKE :search OR u.username ILIKE :search)"
+            )
             params["search"] = f"%{search}%"
 
         if action:
@@ -183,9 +184,7 @@ async def get_audit_stats(
         # Check permissions
         user_role = UserRole(current_user.get("role", "guest"))
         if not RBACManager.can_access_resource(user_role, "audit", "read"):
-            raise HTTPException(
-                status_code=403, detail="Insufficient permissions to view audit logs"
-            )
+            raise HTTPException(status_code=403, detail="Insufficient permissions to view audit logs")
 
         # Calculate date range
         from datetime import datetime, timedelta
@@ -193,21 +192,22 @@ async def get_audit_stats(
         date_from = datetime.utcnow() - timedelta(days=days)
 
         # Get statistics
-        stats_query = text(
-            """
-            SELECT
+        stats_query = text("""
+            SELECT  # noqa: E501
                 COUNT(*) as total_events,
-                COUNT(CASE WHEN action LIKE '%LOGIN%' THEN 1 END) as login_attempts,
-                COUNT(CASE WHEN action LIKE '%LOGIN_FAILED%' OR action LIKE '%AUTH_FAILURE%' THEN 1 END) as failed_logins,
+                COUNT(CASE WHEN action LIKE '%LOGIN%' THEN 1 END) as login_attempts,  # noqa: E501
+                COUNT(CASE WHEN action LIKE '%LOGIN_FAILED%' OR action LIKE '%AUTH_FAILURE%' THEN 1 END)  # noqa: E501
+                    as failed_logins,
                 COUNT(CASE WHEN action LIKE '%SCAN%' THEN 1 END) as scan_operations,
-                COUNT(CASE WHEN action LIKE '%ADMIN%' OR action LIKE '%USER_%' OR action LIKE '%DELETE%' THEN 1 END) as admin_actions,
-                COUNT(CASE WHEN action LIKE '%SECURITY%' OR action LIKE '%UNAUTHORIZED%' OR action LIKE '%ERROR%' THEN 1 END) as security_events,
+                COUNT(CASE WHEN action LIKE '%ADMIN%' OR action LIKE '%USER_%' OR action LIKE '%DELETE%'
+                    THEN 1 END) as admin_actions,
+                COUNT(CASE WHEN action LIKE '%SECURITY%' OR action LIKE '%UNAUTHORIZED%' OR action LIKE '%ERROR%'
+                    THEN 1 END) as security_events,
                 COUNT(DISTINCT user_id) as unique_users,
                 COUNT(DISTINCT ip_address) as unique_ips
             FROM audit_logs
             WHERE timestamp >= :date_from
-        """
-        )
+        """)
 
         result = db.execute(stats_query, {"date_from": date_from})
         row = result.fetchone()
@@ -260,12 +260,12 @@ async def create_audit_log(
 
         # This would typically be called internally by the system
         # For now, we'll create a simple log entry
-        insert_query = text(
-            """
-            INSERT INTO audit_logs (user_id, action, resource_type, resource_id, ip_address, details, timestamp)
+        insert_query = text("""
+            INSERT INTO audit_logs (
+                user_id, action, resource_type, resource_id, ip_address, details, timestamp
+            )
             VALUES (:user_id, :action, :resource_type, :resource_id, :ip_address, :details, :timestamp)
-        """
-        )
+        """)
 
         db.execute(
             insert_query,
@@ -297,19 +297,19 @@ def log_audit_event(
     resource_type: str,
     resource_id: Optional[str],
     ip_address: str,
-    user_agent: Optional[str],
+    user_agent: Optional[str],  # noqa: E501
     details: Optional[str],
 ) -> None:
     """
     Helper function to create audit log entries from middleware
     """
     try:
-        insert_query = text(
-            """
-            INSERT INTO audit_logs (user_id, action, resource_type, resource_id, ip_address, user_agent, details, timestamp)
+        insert_query = text("""
+            INSERT INTO audit_logs (
+                user_id, action, resource_type, resource_id, ip_address, user_agent, details, timestamp
+            )
             VALUES (:user_id, :action, :resource_type, :resource_id, :ip_address, :user_agent, :details, :timestamp)
-        """
-        )
+        """)
 
         db.execute(
             insert_query,

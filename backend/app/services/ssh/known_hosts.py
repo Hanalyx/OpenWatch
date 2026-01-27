@@ -181,9 +181,7 @@ class KnownHostsManager:
                         "key_type": row.key_type,
                         "fingerprint": row.fingerprint,
                         "first_seen": (row.first_seen.isoformat() if row.first_seen else None),
-                        "last_verified": (
-                            row.last_verified.isoformat() if row.last_verified else None
-                        ),
+                        "last_verified": (row.last_verified.isoformat() if row.last_verified else None),
                         "is_trusted": row.is_trusted,
                         "notes": row.notes,
                     }
@@ -252,22 +250,18 @@ class KnownHostsManager:
             fingerprint = self._generate_fingerprint(public_key)
 
             if fingerprint is None:
-                logger.error(
-                    "Failed to generate fingerprint for host %s - invalid key format", hostname
-                )
+                logger.error("Failed to generate fingerprint for host %s - invalid key format", hostname)
                 return False
 
             # Insert new known host record
             self.db.execute(
-                text(
-                    """
+                text("""
                     INSERT INTO ssh_known_hosts
                     (hostname, ip_address, key_type, public_key, fingerprint,
                      first_seen, is_trusted, notes)
                     VALUES (:hostname, :ip_address, :key_type, :public_key,
                             :fingerprint, :first_seen, :is_trusted, :notes)
-                """
-                ),
+                """),
                 {
                     "hostname": hostname,
                     "ip_address": ip_address,
@@ -325,12 +319,10 @@ class KnownHostsManager:
                 return False
 
             result = self.db.execute(
-                text(
-                    """
+                text("""
                     DELETE FROM ssh_known_hosts
                     WHERE hostname = :hostname AND key_type = :key_type
-                """
-                ),
+                """),
                 {"hostname": hostname, "key_type": key_type},
             )
 
@@ -372,13 +364,11 @@ class KnownHostsManager:
                 return False
 
             result = self.db.execute(
-                text(
-                    """
+                text("""
                     UPDATE ssh_known_hosts
                     SET last_verified = :last_verified
                     WHERE hostname = :hostname AND key_type = :key_type
-                """
-                ),
+                """),
                 {
                     "hostname": hostname,
                     "key_type": key_type,
@@ -422,13 +412,11 @@ class KnownHostsManager:
                 return False
 
             result = self.db.execute(
-                text(
-                    """
+                text("""
                     UPDATE ssh_known_hosts
                     SET is_trusted = :is_trusted
                     WHERE hostname = :hostname AND key_type = :key_type
-                """
-                ),
+                """),
                 {
                     "hostname": hostname,
                     "key_type": key_type,
@@ -469,14 +457,12 @@ class KnownHostsManager:
                 return None
 
             result = self.db.execute(
-                text(
-                    """
+                text("""
                     SELECT id, hostname, ip_address, key_type, fingerprint,
                            first_seen, last_verified, is_trusted, notes
                     FROM ssh_known_hosts
                     WHERE fingerprint = :fingerprint
-                """
-                ),
+                """),
                 {"fingerprint": fingerprint},
             )
 

@@ -186,9 +186,7 @@ async def validate_scan_configuration(
             try:
                 repo = ComplianceRuleRepository()
                 # Check if rules exist for the specified framework
-                rule_count = await repo.count(
-                    {f"frameworks.{validation_request.framework}": {"$exists": True}}
-                )
+                rule_count = await repo.count({f"frameworks.{validation_request.framework}": {"$exists": True}})
 
                 if rule_count == 0:
                     raise HTTPException(
@@ -197,15 +195,13 @@ async def validate_scan_configuration(
                     )
 
                 logger.info(
-                    f"MongoDB validation: Found {rule_count} rules for "
-                    f"framework={validation_request.framework}"
+                    f"MongoDB validation: Found {rule_count} rules for " f"framework={validation_request.framework}"
                 )
             except HTTPException:
                 raise
             except Exception as e:
                 logger.warning(
-                    f"MongoDB rule lookup failed (non-critical): {e}. "
-                    "Proceeding with host validation only."
+                    f"MongoDB rule lookup failed (non-critical): {e}. " "Proceeding with host validation only."
                 )
         else:
             # Legacy mode: Get SCAP content details using QueryBuilder
@@ -226,9 +222,7 @@ async def validate_scan_configuration(
                     profiles = json.loads(content_result.profiles)
                     profile_ids = [p.get("id") for p in profiles if p.get("id")]
                     if validation_request.profile_id not in profile_ids:
-                        raise HTTPException(
-                            status_code=400, detail="Profile not found in SCAP content"
-                        )
+                        raise HTTPException(status_code=400, detail="Profile not found in SCAP content")
                 except json.JSONDecodeError:
                     raise HTTPException(status_code=400, detail="Invalid SCAP content profiles")
 
@@ -239,17 +233,13 @@ async def validate_scan_configuration(
             from backend.app.services.auth import get_auth_service
 
             settings = get_settings()
-            encryption_service = create_encryption_service(
-                master_key=settings.master_key, config=EncryptionConfig()
-            )
+            encryption_service = create_encryption_service(master_key=settings.master_key, config=EncryptionConfig())
             auth_service = get_auth_service(db, encryption_service)
 
             use_default = host_result.auth_method in ["default", "system_default"]
             target_id = str(host_result.id) if not use_default and host_result.id else ""
 
-            credential_data = auth_service.resolve_credential(
-                target_id=target_id, use_default=use_default
-            )
+            credential_data = auth_service.resolve_credential(target_id=target_id, use_default=use_default)
 
             if not credential_data:
                 raise HTTPException(status_code=400, detail="No credentials available for host")
@@ -398,9 +388,7 @@ async def quick_scan(
     add_deprecation_header(response, "quick_scan")
 
     try:
-        logger.info(
-            f"Quick scan requested for host {host_id} with template {quick_scan_request.template_id}"
-        )
+        logger.info(f"Quick scan requested for host {host_id} with template {quick_scan_request.template_id}")
 
         # Initialize intelligence service
         intelligence_service = ScanIntelligenceService(db)
@@ -461,9 +449,7 @@ async def quick_scan(
                     # Fall back to first available profile
                     if profile_ids:
                         template_id = profile_ids[0]
-                        logger.warning(
-                            f"Requested profile not found, using fallback: {template_id}"
-                        )
+                        logger.warning(f"Requested profile not found, using fallback: {template_id}")
                     else:
                         raise HTTPException(
                             status_code=400,
@@ -488,17 +474,13 @@ async def quick_scan(
             from backend.app.services.auth import get_auth_service
 
             settings = get_settings()
-            encryption_service = create_encryption_service(
-                master_key=settings.master_key, config=EncryptionConfig()
-            )
+            encryption_service = create_encryption_service(master_key=settings.master_key, config=EncryptionConfig())
             auth_service = get_auth_service(db, encryption_service)
 
             use_default = host_result.auth_method in ["default", "system_default"]
             target_id = str(host_result.id) if not use_default and host_result.id else ""
 
-            credential_data = auth_service.resolve_credential(
-                target_id=target_id, use_default=use_default
-            )
+            credential_data = auth_service.resolve_credential(target_id=target_id, use_default=use_default)
 
             if credential_data:
                 # Queue async validation (placeholder - function not yet implemented)
@@ -508,8 +490,7 @@ async def quick_scan(
 
         # Create scan immediately (optimistic UI)
         db.execute(
-            text(
-                """
+            text("""
             INSERT INTO scans
             (id, name, host_id, content_id, profile_id, status, progress,
              scan_options, started_by, started_at, remediation_requested, verification_scan)
@@ -517,8 +498,7 @@ async def quick_scan(
                     :progress, :scan_options, :started_by, :started_at,
                     :remediation_requested, :verification_scan)
             RETURNING id
-        """
-            ),
+        """),
             {
                 "id": scan_id,
                 "name": scan_name,
@@ -727,16 +707,14 @@ async def create_verification_scan(
         }
 
         result = db.execute(
-            text(
-                """
+            text("""
             INSERT INTO scans
             (name, host_id, content_id, profile_id, status, progress,
              scan_options, started_by, started_at, verification_scan)
             VALUES (:name, :host_id, :content_id, :profile_id, :status,
                     :progress, :scan_options, :started_by, :started_at, :verification_scan)
             RETURNING id
-        """
-            ),
+        """),
             {
                 "name": scan_name,
                 "host_id": verification_request.host_id,
@@ -841,16 +819,14 @@ async def rescan_rule(
 
         # Get the original scan details
         result = db.execute(
-            text(
-                """
+            text("""
             SELECT s.id, s.host_id, s.profile_id, s.name,
                    h.hostname, h.ip_address, h.port, h.username,
                    h.auth_method, h.encrypted_credentials
             FROM scans s
             JOIN hosts h ON s.host_id = h.id
             WHERE s.id = :scan_id
-        """
-            ),
+        """),
             {"scan_id": scan_id},
         )
 
@@ -866,8 +842,7 @@ async def rescan_rule(
         # with MongoDB-based scanning. For MongoDB scans, create a new full scan.
         raise HTTPException(
             status_code=400,
-            detail="Rule rescanning is not supported for MongoDB-based scans. "
-            "Please create a new scan instead.",
+            detail="Rule rescanning is not supported for MongoDB-based scans. " "Please create a new scan instead.",
         )
 
     except HTTPException:
@@ -923,16 +898,14 @@ async def start_remediation(
     try:
         # Get scan details and failed rules
         scan_result = db.execute(
-            text(
-                """
+            text("""
             SELECT s.id, s.name, s.host_id, h.hostname, h.ip_address,
                    sr.failed_rules, sr.severity_high, sr.severity_medium, sr.severity_low
             FROM scans s
             JOIN hosts h ON s.host_id = h.id
             LEFT JOIN scan_results sr ON s.id = sr.scan_id
             WHERE s.id = :scan_id AND s.status = 'completed'
-        """
-            ),
+        """),
             {"scan_id": scan_id},
         ).fetchone()
 
@@ -944,14 +917,12 @@ async def start_remediation(
 
         # Get the actual failed rules for logging
         failed_rules = db.execute(
-            text(
-                """
+            text("""
             SELECT rule_id, title, severity, description
             FROM scan_rule_results
             WHERE scan_id = :scan_id AND status = 'failed'
             ORDER BY CASE severity WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END
-        """
-            ),
+        """),
             {"scan_id": scan_id},
         ).fetchall()
 
@@ -960,15 +931,13 @@ async def start_remediation(
 
         # Update scan with remediation request
         db.execute(
-            text(
-                """
+            text("""
             UPDATE scans
             SET remediation_requested = true,
                 aegis_remediation_id = :job_id,
                 remediation_status = 'pending'
             WHERE id = :scan_id
-        """
-            ),
+        """),
             {"scan_id": scan_id, "job_id": remediation_job_id},
         )
         db.commit()
@@ -1141,11 +1110,7 @@ async def validate_bulk_readiness(
             for check in result.checks:
                 if not check.passed:
                     # Handle both enum and string values for check_type
-                    check_type = (
-                        check.check_type
-                        if isinstance(check.check_type, str)
-                        else check.check_type.value
-                    )
+                    check_type = check.check_type if isinstance(check.check_type, str) else check.check_type.value
                     common_failures[check_type] = common_failures.get(check_type, 0) + 1
 
         # Calculate total duration
@@ -1153,9 +1118,7 @@ async def validate_bulk_readiness(
 
         # Build remediation priorities (top 5 most common failures)
         remediation_priorities = []
-        for check_type, count in sorted(common_failures.items(), key=lambda x: x[1], reverse=True)[
-            :5
-        ]:
+        for check_type, count in sorted(common_failures.items(), key=lambda x: x[1], reverse=True)[:5]:
             remediation_priorities.append(
                 {
                     "check_type": check_type,

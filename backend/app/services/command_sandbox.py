@@ -38,9 +38,7 @@ try:
     DOCKER_AVAILABLE = True
 except ImportError:
     DOCKER_AVAILABLE = False
-    logger.warning(
-        "Docker library not available. Container execution will use subprocess fallback."
-    )
+    logger.warning("Docker library not available. Container execution will use subprocess fallback.")
 
 
 def sanitize_for_log(value: Any) -> str:
@@ -95,9 +93,7 @@ class ContainerRuntimeClient:
             else:
                 return docker.from_env()
         except Exception as e:
-            logger.warning(
-                f"Failed to initialize container client: {e}. Using subprocess fallback."
-            )
+            logger.warning(f"Failed to initialize container client: {e}. Using subprocess fallback.")
             return None
 
 
@@ -157,7 +153,8 @@ class CommandSandbox:
         try:
             # Security: Use create_subprocess_exec to prevent command injection
             # NEVER use create_subprocess_shell with user-provided input
-            # Per OWASP Command Injection Prevention: https://cheatsheetseries.owasp.org/cheatsheets/OS_Command_Injection_Defense_Cheat_Sheet.html
+            # Per OWASP Command Injection Prevention:
+            # https://cheatsheetseries.owasp.org/cheatsheets/OS_Command_Injection_Defense_Cheat_Sheet.html
 
             # Convert string command to list for safe execution
             if isinstance(command, str):
@@ -432,9 +429,7 @@ class CommandSignatureService:
             logger.error(f"Failed to sign command {command.command_id}: {e}")
             raise
 
-    def verify_command(
-        self, command: "SecureCommand", signature: str, public_key_path: str
-    ) -> bool:
+    def verify_command(self, command: "SecureCommand", signature: str, public_key_path: str) -> bool:
         """Verify cryptographic signature for command"""
         try:
             # Load public key
@@ -555,17 +550,13 @@ class CommandSandboxService:
         # Check all required parameters are present
         for param in command.allowed_parameters:
             if param not in parameters:
-                logger.warning(
-                    f"Missing required parameter {param} for command {sanitize_for_log(command_id)}"
-                )
+                logger.warning(f"Missing required parameter {param} for command {sanitize_for_log(command_id)}")
                 return False
 
         # Validate parameter patterns
         for param, value in parameters.items():
             if param not in command.allowed_parameters:
-                logger.warning(
-                    f"Unauthorized parameter {param} for command {sanitize_for_log(command_id)}"
-                )
+                logger.warning(f"Unauthorized parameter {param} for command {sanitize_for_log(command_id)}")
                 return False
 
             if param in command.parameter_patterns:
@@ -573,9 +564,7 @@ class CommandSandboxService:
                 import re
 
                 if not re.match(pattern, str(value)):
-                    logger.warning(
-                        f"Parameter {param} value '{value}' doesn't match pattern {pattern}"
-                    )
+                    logger.warning(f"Parameter {param} value '{value}' doesn't match pattern {pattern}")
                     return False
 
         return True
@@ -603,19 +592,13 @@ class CommandSandboxService:
             target_host=target_host,
             requested_by=requested_by,
             justification=justification,
-            status=(
-                ExecutionStatus.PENDING_APPROVAL
-                if command.requires_approval
-                else ExecutionStatus.APPROVED
-            ),
+            status=(ExecutionStatus.PENDING_APPROVAL if command.requires_approval else ExecutionStatus.APPROVED),
         )
 
         self.execution_requests[request.request_id] = request
 
         # Log security event
-        logger.info(
-            f"Command execution requested: {command_id} by {requested_by} for {target_host}"
-        )
+        logger.info(f"Command execution requested: {command_id} by {requested_by} for {target_host}")
 
         return request
 
@@ -658,9 +641,7 @@ class CommandSandboxService:
 
             # Execute in sandbox
             async with SandboxEnvironment() as sandbox:
-                exit_code, stdout, stderr = sandbox.execute_command(
-                    command_str, timeout=command.max_execution_time
-                )
+                exit_code, stdout, stderr = sandbox.execute_command(command_str, timeout=command.max_execution_time)
 
                 request.exit_code = exit_code
                 request.output = stdout
@@ -676,9 +657,7 @@ class CommandSandboxService:
                 else:
                     request.status = ExecutionStatus.FAILED
 
-            logger.info(
-                f"Command execution completed: {request.command_id} (exit_code: {exit_code})"
-            )
+            logger.info(f"Command execution completed: {request.command_id} (exit_code: {exit_code})")
 
         except Exception as e:
             request.status = ExecutionStatus.FAILED
@@ -709,9 +688,7 @@ class CommandSandboxService:
                     logger.info(f"Command rollback successful: {request.command_id}")
                     return True
                 else:
-                    logger.error(
-                        f"Command rollback failed: {request.command_id} (exit_code: {exit_code})"
-                    )
+                    logger.error(f"Command rollback failed: {request.command_id} (exit_code: {exit_code})")
                     return False
 
         except Exception as e:
@@ -724,11 +701,7 @@ class CommandSandboxService:
 
     def list_pending_approvals(self) -> List[ExecutionRequest]:
         """List all pending approval requests"""
-        return [
-            req
-            for req in self.execution_requests.values()
-            if req.status == ExecutionStatus.PENDING_APPROVAL
-        ]
+        return [req for req in self.execution_requests.values() if req.status == ExecutionStatus.PENDING_APPROVAL]
 
     def get_command_info(self, command_id: str) -> Optional[SecureCommand]:
         """Get information about a secure command"""

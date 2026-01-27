@@ -97,14 +97,10 @@ async def validate_credentials(
             return {
                 "is_valid": validation_result.is_valid,
                 "auth_method": "ssh_key",
-                "key_type": (
-                    validation_result.key_type.value if validation_result.key_type else None
-                ),
+                "key_type": (validation_result.key_type.value if validation_result.key_type else None),
                 "key_bits": validation_result.key_size,
                 "security_level": (
-                    validation_result.security_level.value
-                    if validation_result.security_level
-                    else None
+                    validation_result.security_level.value if validation_result.security_level else None
                 ),
                 "error_message": validation_result.error_message,
                 "warnings": validation_result.warnings,
@@ -127,11 +123,7 @@ async def validate_credentials(
                 "is_valid": True,
                 "auth_method": "password",
                 "error_message": None,
-                "warnings": (
-                    []
-                    if len(password) >= 12
-                    else ["Password should be at least 12 characters for security"]
-                ),
+                "warnings": ([] if len(password) >= 12 else ["Password should be at least 12 characters for security"]),
                 "recommendations": [
                     "Use a password manager",
                     "Consider using SSH key authentication instead",
@@ -169,9 +161,7 @@ async def list_hosts(
         # Try to get hosts from database with latest scan information and group details
         # NOTE: This query uses LATERAL JOIN which is PostgreSQL-specific and complex
         # OW-REFACTOR-001B: Keeping original SQL due to LATERAL JOIN complexity
-        result = db.execute(
-            text(
-                """
+        result = db.execute(text("""
             SELECT h.id, h.hostname, h.ip_address, h.display_name, h.operating_system,
                    h.os_family, h.os_version, h.platform_identifier,
                    h.status, h.port, h.username, h.auth_method, h.created_at, h.updated_at, h.description,
@@ -201,9 +191,7 @@ async def list_hosts(
             LEFT JOIN host_group_memberships hgm ON hgm.host_id = h.id
             LEFT JOIN host_groups hg ON hg.id = hgm.group_id
             ORDER BY h.created_at DESC
-        """
-            )
-        )
+        """))
 
         hosts = []
         for row in result:
@@ -333,8 +321,7 @@ async def create_host(
 
         # NOTE: QueryBuilder is for SELECT queries only (OW-REFACTOR-001B)
         # For INSERT/UPDATE/DELETE, use raw SQL with parameterized queries
-        insert_query = text(
-            """
+        insert_query = text("""
             INSERT INTO hosts (
                 id, hostname, ip_address, display_name, operating_system,
                 status, port, username, auth_method, encrypted_credentials,
@@ -345,8 +332,7 @@ async def create_host(
                 :status, :port, :username, :auth_method, :encrypted_credentials,
                 :is_active, :created_at, :updated_at
             )
-        """
-        )
+        """)
 
         db.execute(
             insert_query,
@@ -373,9 +359,7 @@ async def create_host(
         if credential_info:
             # Get user UUID for audit trail (QueryBuilder for consistent parameterization)
             user_query_builder = (
-                QueryBuilder("users")
-                .select("id")
-                .where("id = :user_id", current_user.get("id"), "user_id")
+                QueryBuilder("users").select("id").where("id = :user_id", current_user.get("id"), "user_id")
             )
             user_query, user_params = user_query_builder.build()
             user_id_result = db.execute(text(user_query), user_params)
@@ -521,9 +505,7 @@ async def get_host(
         host_uuid = validate_host_uuid(host_id)
 
         # Use QueryBuilder for parameterized SELECT with JOINs
-        logger.info(
-            f"Using QueryBuilder for get_host endpoint (host_id: {sanitize_id_for_log(host_id)})"
-        )
+        logger.info(f"Using QueryBuilder for get_host endpoint (host_id: {sanitize_id_for_log(host_id)})")
         builder = (
             QueryBuilder("hosts h")
             .select(
@@ -633,9 +615,7 @@ async def update_host(
         current_time = datetime.utcnow()
 
         # Handle display_name logic properly
-        new_hostname = (
-            host_update.hostname if host_update.hostname is not None else current_host.hostname
-        )
+        new_hostname = host_update.hostname if host_update.hostname is not None else current_host.hostname
         new_display_name = (
             host_update.display_name
             if host_update.display_name is not None
@@ -658,14 +638,10 @@ async def update_host(
             if host_update.auth_method == "system_default":
                 # Delete host-specific credentials when switching to system default
                 try:
-                    existing_creds = auth_service.list_credentials(
-                        scope=CredentialScope.HOST, target_id=str(host_uuid)
-                    )
+                    existing_creds = auth_service.list_credentials(scope=CredentialScope.HOST, target_id=str(host_uuid))
                     for cred in existing_creds:
                         auth_service.delete_credential(cred["id"])
-                    logger.info(
-                        f"Deleted host-specific credentials for system default on host {host_id}"
-                    )
+                    logger.info(f"Deleted host-specific credentials for system default on host {host_id}")
                 except Exception as e:
                     logger.error(f"Failed to delete host-specific credentials: {e}")
 
@@ -687,24 +663,15 @@ async def update_host(
 
                     if validation_result.warnings:
                         logger.warning(
-                            f"SSH key warnings for host update '{host_id}': "
-                            f"{'; '.join(validation_result.warnings)}"
+                            f"SSH key warnings for host update '{host_id}': " f"{'; '.join(validation_result.warnings)}"
                         )
 
                 # Create credential data
                 credential_data = CredentialData(
                     username=host_update.username or current_host.username,
                     auth_method=AuthMethod(host_update.auth_method),
-                    password=(
-                        host_update.password
-                        if host_update.auth_method in ["password", "both"]
-                        else None
-                    ),
-                    private_key=(
-                        host_update.ssh_key
-                        if host_update.auth_method in ["ssh_key", "both"]
-                        else None
-                    ),
+                    password=(host_update.password if host_update.auth_method in ["password", "both"] else None),
+                    private_key=(host_update.ssh_key if host_update.auth_method in ["ssh_key", "both"] else None),
                     private_key_passphrase=None,
                 )
 
@@ -719,15 +686,11 @@ async def update_host(
 
                 # Check if host-specific credential already exists
                 try:
-                    existing_creds = auth_service.list_credentials(
-                        scope=CredentialScope.HOST, target_id=str(host_uuid)
-                    )
+                    existing_creds = auth_service.list_credentials(scope=CredentialScope.HOST, target_id=str(host_uuid))
 
                     # Get user UUID for created_by field (QueryBuilder for parameterization)
                     user_query_builder = (
-                        QueryBuilder("users")
-                        .select("id")
-                        .where("id = :user_id", current_user.get("id"), "user_id")
+                        QueryBuilder("users").select("id").where("id = :user_id", current_user.get("id"), "user_id")
                     )
                     user_query, user_params = user_query_builder.build()
                     user_id_result = db.execute(text(user_query), user_params)
@@ -738,9 +701,7 @@ async def update_host(
                         # Delete old credential and create new one (simpler than update)
                         for cred in existing_creds:
                             auth_service.delete_credential(cred["id"])
-                        logger.info(
-                            f"Deleted old host-specific credential for {current_host.hostname}"
-                        )
+                        logger.info(f"Deleted old host-specific credential for {current_host.hostname}")
 
                     # Store new credential
                     cred_id = auth_service.store_credential(
@@ -749,8 +710,7 @@ async def update_host(
                         created_by=user_uuid or "",
                     )
                     logger.info(
-                        f"Stored updated host-specific credential for "
-                        f"{current_host.hostname} (id: {cred_id})"
+                        f"Stored updated host-specific credential for " f"{current_host.hostname} (id: {cred_id})"
                     )
 
                 except Exception as e:
@@ -761,11 +721,7 @@ async def update_host(
         update_params = {
             "id": host_uuid,
             "hostname": new_hostname,
-            "ip_address": (
-                host_update.ip_address
-                if host_update.ip_address is not None
-                else current_host.ip_address
-            ),
+            "ip_address": (host_update.ip_address if host_update.ip_address is not None else current_host.ip_address),
             "display_name": new_display_name,
             "operating_system": (
                 host_update.operating_system
@@ -773,18 +729,12 @@ async def update_host(
                 else current_host.operating_system
             ),
             "port": (host_update.port if host_update.port is not None else current_host.port),
-            "username": (
-                host_update.username if host_update.username is not None else current_host.username
-            ),
+            "username": (host_update.username if host_update.username is not None else current_host.username),
             "auth_method": (
-                host_update.auth_method
-                if host_update.auth_method is not None
-                else current_host.auth_method
+                host_update.auth_method if host_update.auth_method is not None else current_host.auth_method
             ),
             "description": (
-                host_update.description
-                if host_update.description is not None
-                else current_host.description
+                host_update.description if host_update.description is not None else current_host.description
             ),
             "updated_at": current_time,
         }
@@ -795,8 +745,7 @@ async def update_host(
 
         # NOTE: QueryBuilder is for SELECT queries only (OW-REFACTOR-001B)
         # For INSERT/UPDATE/DELETE, use raw SQL with parameterized queries
-        update_query = text(
-            """
+        update_query = text("""
             UPDATE hosts
             SET hostname = :hostname,
                 ip_address = :ip_address,
@@ -809,8 +758,7 @@ async def update_host(
                 encrypted_credentials = :encrypted_credentials,
                 updated_at = :updated_at
             WHERE id = :id
-        """
-        )
+        """)
 
         db.execute(update_query, update_params)
 
@@ -910,9 +858,7 @@ async def delete_host(
 
         # Check if host has scans (for cascade delete)
         count_query_builder = (
-            QueryBuilder("scans")
-            .select("COUNT(*) as count")
-            .where("host_id = :host_id", host_uuid, "host_id")
+            QueryBuilder("scans").select("COUNT(*) as count").where("host_id = :host_id", host_uuid, "host_id")
         )
         count_query, count_params = count_query_builder.build()
         scan_result = db.execute(text(count_query), count_params)
@@ -926,32 +872,26 @@ async def delete_host(
             # Why: Must delete child records before parent to avoid FK violation
             # NOTE: QueryBuilder is for SELECT queries only (OW-REFACTOR-001B)
             # For INSERT/UPDATE/DELETE, use raw SQL with parameterized queries
-            delete_results_query = text(
-                """
+            delete_results_query = text("""
                 DELETE FROM scan_results
                 WHERE scan_id IN (SELECT id FROM scans WHERE host_id = :host_id)
-            """
-            )
+            """)
             db.execute(delete_results_query, {"host_id": host_uuid})
 
             # Then delete scans
-            delete_scans_query = text(
-                """
+            delete_scans_query = text("""
                 DELETE FROM scans
                 WHERE host_id = :host_id
-            """
-            )
+            """)
             db.execute(delete_scans_query, {"host_id": host_uuid})
 
             logger.info(f"Deleted {scan_count} scans for host {host_id}")
 
         # Delete the host record
-        delete_host_query = text(
-            """
+        delete_host_query = text("""
             DELETE FROM hosts
             WHERE id = :id
-        """
-        )
+        """)
         db.execute(delete_host_query, {"id": host_uuid})
 
         db.commit()
@@ -983,9 +923,7 @@ async def delete_host_ssh_key(
 
         # Verify host exists and has SSH key to delete
         select_query_builder = (
-            QueryBuilder("hosts")
-            .select("id", "auth_method", "ssh_key_fingerprint")
-            .where("id = :id", host_uuid, "id")
+            QueryBuilder("hosts").select("id", "auth_method", "ssh_key_fingerprint").where("id = :id", host_uuid, "id")
         )
         select_query, select_params = select_query_builder.build()
         result = db.execute(text(select_query), select_params)
@@ -1003,8 +941,7 @@ async def delete_host_ssh_key(
         # Clear SSH key fields (set to NULL)
         # NOTE: QueryBuilder is for SELECT queries only (OW-REFACTOR-001B)
         # For INSERT/UPDATE/DELETE, use raw SQL with parameterized queries
-        update_query = text(
-            """
+        update_query = text("""
             UPDATE hosts
             SET ssh_key_fingerprint = NULL,
                 ssh_key_type = NULL,
@@ -1012,8 +949,7 @@ async def delete_host_ssh_key(
                 ssh_key_comment = NULL,
                 updated_at = :updated_at
             WHERE id = :id
-        """
-        )
+        """)
         db.execute(update_query, {"id": host_uuid, "updated_at": datetime.utcnow()})
 
         db.commit()
@@ -1235,9 +1171,7 @@ async def get_host_os_info(
         if not platform_identifier and host_row.os_family and host_row.os_version:
             from ...tasks.os_discovery_tasks import _normalize_platform_identifier
 
-            platform_identifier = _normalize_platform_identifier(
-                host_row.os_family, host_row.os_version
-            )
+            platform_identifier = _normalize_platform_identifier(host_row.os_family, host_row.os_version)
 
         # Determine status based on whether OS info exists
         if host_row.os_family and host_row.os_version:
@@ -1255,9 +1189,7 @@ async def get_host_os_info(
             os_version=host_row.os_version,
             platform_identifier=platform_identifier,
             architecture=host_row.architecture,
-            discovered_at=(
-                host_row.last_os_detection.isoformat() + "Z" if host_row.last_os_detection else None
-            ),
+            discovered_at=(host_row.last_os_detection.isoformat() + "Z" if host_row.last_os_detection else None),
             error=None,
         )
 
@@ -1347,9 +1279,7 @@ async def detect_platform_jit(
         if host_row.os_family and host_row.os_version:
             platform_id = host_row.platform_identifier
             if not platform_id:
-                platform_id = _normalize_platform_identifier(
-                    host_row.os_family, host_row.os_version
-                )
+                platform_id = _normalize_platform_identifier(host_row.os_family, host_row.os_version)
 
             logger.info(
                 f"Platform data exists for host {host_id}: "
@@ -1364,11 +1294,7 @@ async def detect_platform_jit(
                 os_version=host_row.os_version,
                 platform_identifier=platform_id,
                 architecture=host_row.architecture,
-                discovered_at=(
-                    host_row.last_os_detection.isoformat() + "Z"
-                    if host_row.last_os_detection
-                    else None
-                ),
+                discovered_at=(host_row.last_os_detection.isoformat() + "Z" if host_row.last_os_detection else None),
                 error=None,
             )
 
@@ -1379,9 +1305,7 @@ async def detect_platform_jit(
         # This follows the SSH Connection Best Practices from CLAUDE.md:
         # Credentials are resolved at the API endpoint and passed as CredentialData
         settings = get_settings()
-        encryption_service = create_encryption_service(
-            master_key=settings.master_key, config=EncryptionConfig()
-        )
+        encryption_service = create_encryption_service(master_key=settings.master_key, config=EncryptionConfig())
 
         auth_service = CentralizedAuthService(db, encryption_service)
         try:
@@ -1409,10 +1333,7 @@ async def detect_platform_jit(
         )
 
         if not platform_info.detection_success:
-            logger.warning(
-                f"JIT platform detection failed for host {host_id}: "
-                f"{platform_info.detection_error}"
-            )
+            logger.warning(f"JIT platform detection failed for host {host_id}: " f"{platform_info.detection_error}")
             return OSDiscoveryResponse(
                 host_id=host_id,
                 task_id=None,
@@ -1426,8 +1347,7 @@ async def detect_platform_jit(
             )
 
         # Persist detected platform to database for future use
-        update_query = text(
-            """
+        update_query = text("""
             UPDATE hosts
             SET os_family = :os_family,
                 os_version = :os_version,
@@ -1437,8 +1357,7 @@ async def detect_platform_jit(
                 last_os_detection = :last_os_detection,
                 updated_at = :updated_at
             WHERE id = :host_id
-        """
-        )
+        """)
         now = datetime.utcnow()
         db.execute(
             update_query,

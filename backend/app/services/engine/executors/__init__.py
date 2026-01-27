@@ -96,9 +96,7 @@ def get_executor(
 
     elif mode == ExecutionMode.AGENT:
         # Agent mode is planned for future implementation
-        raise NotImplementedError(
-            "Agent executor is not yet implemented. " "Use SSH or LOCAL mode for now."
-        )
+        raise NotImplementedError("Agent executor is not yet implemented. " "Use SSH or LOCAL mode for now.")
 
     else:
         raise ValueError(f"Unsupported execution mode: {mode}")

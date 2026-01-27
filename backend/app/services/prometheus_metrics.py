@@ -238,13 +238,9 @@ class PrometheusMetrics:
             duration: Request duration in seconds.
             service: Service name for labeling.
         """
-        http_requests_total.labels(
-            method=method, endpoint=endpoint, status=str(status_code), service=service
-        ).inc()
+        http_requests_total.labels(method=method, endpoint=endpoint, status=str(status_code), service=service).inc()
 
-        http_request_duration_seconds.labels(
-            method=method, endpoint=endpoint, service=service
-        ).observe(duration)
+        http_request_duration_seconds.labels(method=method, endpoint=endpoint, service=service).observe(duration)
 
     def record_scan_metrics(
         self,
@@ -285,9 +281,7 @@ class PrometheusMetrics:
         """
         compliance_score.labels(host_id=host_id, framework=framework).set(score)
 
-    def update_compliance_failures(
-        self, host_id: str, framework: str, severity_counts: Dict[str, int]
-    ) -> None:
+    def update_compliance_failures(self, host_id: str, framework: str, severity_counts: Dict[str, int]) -> None:
         """
         Update compliance failure counts by severity.
 
@@ -297,9 +291,7 @@ class PrometheusMetrics:
             severity_counts: Dictionary mapping severity to failure count.
         """
         for severity, count in severity_counts.items():
-            compliance_rules_failed.labels(
-                host_id=host_id, severity=severity, framework=framework
-            ).set(count)
+            compliance_rules_failed.labels(host_id=host_id, severity=severity, framework=framework).set(count)
 
     def record_host_connectivity(self, result: str) -> None:
         """
@@ -320,9 +312,7 @@ class PrometheusMetrics:
         for status, count in status_counts.items():
             hosts_total.labels(status=status).set(count)
 
-    def record_integration_call(
-        self, target: str, endpoint: str, status: str, duration: float
-    ) -> None:
+    def record_integration_call(self, target: str, endpoint: str, status: str, duration: float) -> None:
         """
         Record integration call metrics.
 
@@ -336,9 +326,7 @@ class PrometheusMetrics:
 
         integration_call_duration_seconds.labels(target=target, endpoint=endpoint).observe(duration)
 
-    def record_remediation(
-        self, status: str, severity: str, duration: Optional[float] = None
-    ) -> None:
+    def record_remediation(self, status: str, severity: str, duration: Optional[float] = None) -> None:
         """
         Record remediation metrics.
 
@@ -389,15 +377,9 @@ class PrometheusMetrics:
             for partition in psutil.disk_partitions():
                 try:
                     usage = psutil.disk_usage(partition.mountpoint)
-                    system_disk_usage_bytes.labels(device=partition.device, type="total").set(
-                        usage.total
-                    )
-                    system_disk_usage_bytes.labels(device=partition.device, type="used").set(
-                        usage.used
-                    )
-                    system_disk_usage_bytes.labels(device=partition.device, type="free").set(
-                        usage.free
-                    )
+                    system_disk_usage_bytes.labels(device=partition.device, type="total").set(usage.total)
+                    system_disk_usage_bytes.labels(device=partition.device, type="used").set(usage.used)
+                    system_disk_usage_bytes.labels(device=partition.device, type="free").set(usage.free)
                 except PermissionError:
                     # Skip inaccessible partitions
                     continue
@@ -417,15 +399,11 @@ class PrometheusMetrics:
         """
         try:
             # Active connections from PostgreSQL system catalog
-            result = db.execute(
-                text(
-                    """
+            result = db.execute(text("""
                 SELECT count(*) as active_connections
                 FROM pg_stat_activity
                 WHERE state = 'active'
-            """
-                )
-            )
+            """))
 
             row = result.fetchone()
             if row:

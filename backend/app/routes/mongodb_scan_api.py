@@ -37,12 +37,8 @@ class MongoDBScanRequest(BaseModel):
     platform_version: str = Field(..., description="Platform version")
     framework: Optional[str] = Field(None, description="Compliance framework to use")
     severity_filter: Optional[List[str]] = Field(None, description="Filter by severity levels")
-    rule_ids: Optional[List[str]] = Field(
-        None, description="Specific rule IDs to scan (from wizard selection)"
-    )
-    connection_params: Optional[Dict[str, Any]] = Field(
-        None, description="SSH connection parameters"
-    )
+    rule_ids: Optional[List[str]] = Field(None, description="Specific rule IDs to scan (from wizard selection)")
+    connection_params: Optional[Dict[str, Any]] = Field(None, description="SSH connection parameters")
     include_enrichment: bool = Field(True, description="Include result enrichment")
     generate_report: bool = Field(True, description="Generate compliance report")
 
@@ -188,7 +184,8 @@ def parse_xccdf_results(result_file: str) -> Dict[str, Any]:
 
         # Security: Disable XXE (XML External Entity) attacks
         # Prevents malicious XML from reading arbitrary files or performing SSRF
-        # Per OWASP XXE Prevention: https://cheatsheetseries.owasp.org/cheatsheets/XML_External_Entity_Prevention_Cheat_Sheet.html
+        # Per OWASP XXE Prevention:
+        # https://cheatsheetseries.owasp.org/cheatsheets/XML_External_Entity_Prevention_Cheat_Sheet.html
         parser = etree.XMLParser(
             resolve_entities=False,  # Disable entity resolution (prevents XXE)
             no_network=True,  # Disable network access (prevents SSRF)
@@ -287,8 +284,9 @@ def parse_xccdf_results(result_file: str) -> Dict[str, Any]:
                 results["xccdf_score"] = xccdf_score_result.xccdf_score
                 results["xccdf_score_system"] = xccdf_score_result.xccdf_score_system
                 results["xccdf_score_max"] = xccdf_score_result.xccdf_score_max
-                logger.info(
-                    f"Extracted XCCDF native score: {xccdf_score_result.xccdf_score}/{xccdf_score_result.xccdf_score_max} "
+                logger.info(  # noqa: E501
+                    f"Extracted XCCDF native score: "
+                    f"{xccdf_score_result.xccdf_score}/{xccdf_score_result.xccdf_score_max} "
                     f"(system: {xccdf_score_result.xccdf_score_system})"
                 )
             else:
@@ -385,24 +383,26 @@ async def start_mongodb_scan(
         # Generate UUID for scan (compatible with PostgreSQL scans table)
         scan_uuid = uuid.uuid4()
         scan_id = f"mongodb_scan_{scan_uuid.hex[:8]}"
-        logger.info(
-            f"Starting MongoDB scan {scan_id} (UUID: {scan_uuid}) for host {scan_request.hostname}"
-        )
+        logger.info(f"Starting MongoDB scan {scan_id} (UUID: {scan_uuid}) for host {scan_request.hostname}")
 
         # Log request details safely
         try:
-            rule_count = len(scan_request.rule_ids) if scan_request.rule_ids else 0
+            rule_count = len(scan_request.rule_ids) if scan_request.rule_ids else 0  # noqa: E501
             logger.info(
-                f"Request: platform={scan_request.platform}, version={scan_request.platform_version}, framework={scan_request.framework}, rules={rule_count}"
+                f"Request: platform={scan_request.platform}, version={scan_request.platform_version}, "
+                f"framework={scan_request.framework}, rules={rule_count}"
             )
         except Exception as log_err:
             logger.warning(f"Could not log request details: {log_err}")
 
         # Validate framework using centralized constants
-        if scan_request.framework and not is_framework_supported(scan_request.framework):
+        if scan_request.framework and not is_framework_supported(scan_request.framework):  # noqa: E501
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Unsupported framework: {scan_request.framework}. Framework must be one of the supported compliance frameworks.",
+                detail=(
+                    f"Unsupported framework: {scan_request.framework}. "
+                    "Framework must be one of the supported compliance frameworks."
+                ),
             )
 
         # Phase 3/4: Resolve platform_identifier for OVAL selection
@@ -418,9 +418,7 @@ async def start_mongodb_scan(
         from backend.app.tasks.os_discovery_tasks import _normalize_platform_identifier
 
         try:
-            host_query = text(
-                "SELECT platform_identifier, os_family, os_version FROM hosts WHERE id = :host_id"
-            )
+            host_query = text("SELECT platform_identifier, os_family, os_version FROM hosts WHERE id = :host_id")
             host_result = db.execute(host_query, {"host_id": scan_request.host_id}).fetchone()
 
             if host_result:
@@ -470,12 +468,8 @@ async def start_mongodb_scan(
                             auth_service = get_auth_service(db, encryption_service)
 
                             # Check host's auth_method to determine credential source
-                            auth_method_query = text(
-                                "SELECT auth_method FROM hosts WHERE id = :host_id"
-                            )
-                            auth_result = db.execute(
-                                auth_method_query, {"host_id": scan_request.host_id}
-                            ).fetchone()
+                            auth_method_query = text("SELECT auth_method FROM hosts WHERE id = :host_id")
+                            auth_result = db.execute(auth_method_query, {"host_id": scan_request.host_id}).fetchone()
                             host_auth_method = auth_result[0] if auth_result else "system_default"
                             use_default = host_auth_method in ["system_default", "default"]
                             target_id = None if use_default else scan_request.host_id
@@ -496,9 +490,7 @@ async def start_mongodb_scan(
                                 if credential_data.password:
                                     connection_params["password"] = credential_data.password
                                 if credential_data.private_key_passphrase:
-                                    connection_params["private_key_passphrase"] = (
-                                        credential_data.private_key_passphrase
-                                    )
+                                    connection_params["private_key_passphrase"] = credential_data.private_key_passphrase
 
                                 platform_info = await detect_platform_for_scan(
                                     hostname=scan_request.hostname,
@@ -506,14 +498,10 @@ async def start_mongodb_scan(
                                     encryption_service=encryption_service,
                                     host_id=scan_request.host_id,
                                 )
-                                if (
-                                    platform_info.detection_success
-                                    and platform_info.platform_identifier
-                                ):
+                                if platform_info.detection_success and platform_info.platform_identifier:
                                     effective_platform = platform_info.platform_identifier
                                     effective_platform_version = (
-                                        platform_info.platform_version
-                                        or scan_request.platform_version
+                                        platform_info.platform_version or scan_request.platform_version
                                     )
                                     logger.info(
                                         f"JIT platform detection successful for {scan_request.host_id}: "
@@ -558,9 +546,7 @@ async def start_mongodb_scan(
             # Check if platform is not already normalized (e.g., "rhel" vs "rhel8")
             # Normalized platforms contain version numbers like "rhel8", "ubuntu2204"
             if not any(char.isdigit() for char in effective_platform):
-                computed_platform = _normalize_platform_identifier(
-                    scan_request.platform, scan_request.platform_version
-                )
+                computed_platform = _normalize_platform_identifier(scan_request.platform, scan_request.platform_version)
                 if computed_platform:
                     effective_platform = computed_platform
                     logger.info(
@@ -575,8 +561,7 @@ async def start_mongodb_scan(
         started_at = datetime.utcnow()
 
         try:
-            insert_scan_query = text(
-                """
+            insert_scan_query = text("""
                 INSERT INTO scans (
                     id, name, host_id, profile_id, status, progress,
                     scan_options, started_by, started_at, remediation_requested, verification_scan, scan_metadata
@@ -585,23 +570,28 @@ async def start_mongodb_scan(
                     :id, :name, :host_id, :profile_id, :status, :progress,
                     :scan_options, :started_by, :started_at, :remediation_requested, :verification_scan, :scan_metadata
                 )
-            """
-            )
+            """)
             db.execute(
                 insert_scan_query,
                 {
-                    "id": str(scan_uuid),
+                    "id": str(scan_uuid),  # noqa: E501
                     "name": scan_name,
                     "host_id": scan_request.host_id,
                     "profile_id": scan_request.framework or "mongodb_custom",
                     "status": "running",
-                    "progress": 0,
-                    "scan_options": f'{{"platform": "{effective_platform}", "platform_version": "{effective_platform_version}", "framework": "{scan_request.framework}"}}',
+                    "progress": 0,  # noqa: E501
+                    "scan_options": (
+                        f'{{"platform": "{effective_platform}", "platform_version": '
+                        f'"{effective_platform_version}", "framework": "{scan_request.framework}"}}'
+                    ),
                     "started_by": int(current_user.get("id")) if current_user.get("id") else None,
                     "started_at": started_at,
                     "remediation_requested": False,
                     "verification_scan": False,
-                    "scan_metadata": f'{{"scan_type": "mongodb", "rule_count": {len(scan_request.rule_ids) if scan_request.rule_ids else 0}}}',
+                    "scan_metadata": (
+                        f'{{"scan_type": "mongodb", "rule_count": '
+                        f"{len(scan_request.rule_ids) if scan_request.rule_ids else 0}}}"
+                    ),
                 },
             )
             db.commit()
@@ -632,7 +622,7 @@ async def start_mongodb_scan(
                 rule_ids=scan_request.rule_ids,
             )
         except Exception as scan_error:
-            logger.error(f"Scanner failed: {scan_error}", exc_info=True)
+            logger.error(f"Scanner failed: {scan_error}", exc_info=True)  # noqa: E501
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Scanner error: {str(scan_error)}",
@@ -642,13 +632,12 @@ async def start_mongodb_scan(
             logger.error(f"Scan failed with result: {scan_result}")
             # Update PostgreSQL scan record to failed status
             try:
-                update_scan_query = text(
-                    """
+                update_scan_query = text("""
                     UPDATE scans
-                    SET status = :status, progress = :progress, completed_at = :completed_at, error_message = :error_message
+                    SET status = :status, progress = :progress, completed_at = :completed_at,
+                        error_message = :error_message
                     WHERE id = :id
-                """
-                )
+                """)
                 db.execute(
                     update_scan_query,
                     {
@@ -672,14 +661,12 @@ async def start_mongodb_scan(
         # Update PostgreSQL scan record to completed status
         completed_at = datetime.utcnow()
         try:
-            update_scan_query = text(
-                """
+            update_scan_query = text("""
                 UPDATE scans
                 SET status = :status, progress = :progress, completed_at = :completed_at,
                     result_file = :result_file, report_file = :report_file
                 WHERE id = :id
-            """
-            )
+            """)
             db.execute(
                 update_scan_query,
                 {
@@ -708,8 +695,7 @@ async def start_mongodb_scan(
             )
 
             # Insert scan_results record with parameterized SQL
-            insert_scan_results_query = text(
-                """
+            insert_scan_results_query = text("""
                 INSERT INTO scan_results (
                     scan_id, total_rules, passed_rules, failed_rules, error_rules,
                     unknown_rules, not_applicable_rules, score, severity_high,
@@ -721,8 +707,7 @@ async def start_mongodb_scan(
                     :severity_medium, :severity_low, :xccdf_score, :xccdf_score_system,
                     :xccdf_score_max, :risk_score, :risk_level, :created_at
                 )
-                """
-            )
+                """)
             db.execute(
                 insert_scan_results_query,
                 {
@@ -837,9 +822,7 @@ async def enrich_scan_results_task(
 
 
 @router.get("/{scan_id}/status", response_model=ScanStatusResponse)
-async def get_scan_status(
-    scan_id: str, current_user: User = Depends(get_current_user)
-) -> ScanStatusResponse:
+async def get_scan_status(scan_id: str, current_user: User = Depends(get_current_user)) -> ScanStatusResponse:
     """Get status of a MongoDB scan"""
     try:
         # In a real implementation, this would query a database for scan status
@@ -1001,9 +984,7 @@ async def get_available_rules(
             try:
                 from backend.app.tasks.os_discovery_tasks import _normalize_platform_identifier
 
-                host_query = text(
-                    "SELECT platform_identifier, os_family, os_version FROM hosts WHERE id = :host_id"
-                )
+                host_query = text("SELECT platform_identifier, os_family, os_version FROM hosts WHERE id = :host_id")
                 host_result = db.execute(host_query, {"host_id": host_id}).fetchone()
 
                 if host_result:
@@ -1015,18 +996,14 @@ async def get_available_rules(
                         # Priority 1: Use persisted platform_identifier
                         effective_platform = db_platform_id
                         effective_version = db_os_version or platform_version
-                        logger.info(
-                            f"Using host {host_id} platform_identifier: {effective_platform}"
-                        )
+                        logger.info(f"Using host {host_id} platform_identifier: {effective_platform}")
                     elif db_os_family and db_os_version:
                         # Priority 2: Compute from os_family + os_version
                         computed = _normalize_platform_identifier(db_os_family, db_os_version)
                         if computed:
                             effective_platform = computed
                             effective_version = db_os_version
-                            logger.info(
-                                f"Computed platform for host {host_id}: {effective_platform}"
-                            )
+                            logger.info(f"Computed platform for host {host_id}: {effective_platform}")
                 else:
                     logger.warning(f"Host {host_id} not found in database")
             except Exception as host_err:
@@ -1059,11 +1036,7 @@ async def get_available_rules(
                     "severity": rule.severity,
                     "category": rule.category,
                     "frameworks": (list(rule.frameworks.keys()) if rule.frameworks else []),
-                    "platforms": (
-                        list(rule.platform_implementations.keys())
-                        if rule.platform_implementations
-                        else []
-                    ),
+                    "platforms": (list(rule.platform_implementations.keys()) if rule.platform_implementations else []),
                 }
             )
 
@@ -1098,9 +1071,7 @@ async def get_available_rules(
 
 
 @router.get("/scanner/health")
-async def get_scanner_health(
-    request: Request, current_user: User = Depends(get_current_user)
-) -> Dict[str, Any]:
+async def get_scanner_health(request: Request, current_user: User = Depends(get_current_user)) -> Dict[str, Any]:
     """Get MongoDB scanner service health"""
     try:
         scanner = await get_mongodb_scanner(request)

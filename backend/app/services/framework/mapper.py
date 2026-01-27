@@ -106,8 +106,7 @@ class ComplianceFrameworkMapper:
                     control_title="Non-Privileged Access for Nonsecurity Functions",
                     control_family="Access Control",
                     implementation_guidance=(
-                        "Require users to use non-privileged accounts when "
-                        "accessing nonsecurity functions"
+                        "Require users to use non-privileged accounts when " "accessing nonsecurity functions"
                     ),
                     assessment_objectives=[
                         "Verify root access is restricted",
@@ -120,13 +119,10 @@ class ComplianceFrameworkMapper:
                 FrameworkMapping(
                     framework=ComplianceFramework.CIS_CONTROLS,
                     control_id="5.4",
-                    control_title=(
-                        "Restrict Administrator Privileges to Dedicated " "Administrator Accounts"
-                    ),
+                    control_title=("Restrict Administrator Privileges to Dedicated " "Administrator Accounts"),
                     control_family="Account Management",
                     implementation_guidance=(
-                        "Ensure administrative privileges are restricted to "
-                        "dedicated admin accounts"
+                        "Ensure administrative privileges are restricted to " "dedicated admin accounts"
                     ),
                     assessment_objectives=[
                         "Verify separation of admin and user accounts",
@@ -161,9 +157,7 @@ class ComplianceFrameworkMapper:
                     control_id="SV-230365r792936",
                     control_title="System must enforce minimum password length",
                     control_family="Identification and Authentication",
-                    implementation_guidance=(
-                        "Configure PAM to enforce minimum password length of " "15 characters"
-                    ),
+                    implementation_guidance=("Configure PAM to enforce minimum password length of " "15 characters"),
                     assessment_objectives=[
                         "Verify password length configuration",
                         "Test password creation with various lengths",
@@ -177,9 +171,7 @@ class ComplianceFrameworkMapper:
                     control_id="IA-5(1)(a)",
                     control_title="Password-Based Authentication - Complexity",
                     control_family="Identification and Authentication",
-                    implementation_guidance=(
-                        "Enforce minimum password complexity requirements " "including length"
-                    ),
+                    implementation_guidance=("Enforce minimum password complexity requirements " "including length"),
                     assessment_objectives=[
                         "Verify password complexity settings",
                         "Validate enforcement mechanisms",
@@ -194,8 +186,7 @@ class ComplianceFrameworkMapper:
                     control_title="Use Unique Passwords",
                     control_family="Account Management",
                     implementation_guidance=(
-                        "Ensure all accounts have unique, complex passwords "
-                        "meeting minimum requirements"
+                        "Ensure all accounts have unique, complex passwords " "meeting minimum requirements"
                     ),
                     assessment_objectives=[
                         "Verify password policy enforcement",
@@ -523,9 +514,7 @@ class ComplianceFrameworkMapper:
             aegis_rule_id=self._get_aegis_rule_id(scap_rule_id),
         )
 
-    def _infer_mappings_from_rule_id(
-        self, scap_rule_id: str, rule_title: str
-    ) -> List[FrameworkMapping]:
+    def _infer_mappings_from_rule_id(self, scap_rule_id: str, rule_title: str) -> List[FrameworkMapping]:
         """Infer framework mappings from SCAP rule ID patterns."""
         mappings: List[FrameworkMapping] = []
 
@@ -698,9 +687,7 @@ class ComplianceFrameworkMapper:
 
         return summary
 
-    def get_remediation_priorities(
-        self, failed_rules: List[Dict[str, str]]
-    ) -> List[Dict[str, Any]]:
+    def get_remediation_priorities(self, failed_rules: List[Dict[str, str]]) -> List[Dict[str, Any]]:
         """Prioritize failed rules for remediation based on framework requirements."""
         priorities: List[Dict[str, Any]] = []
 
@@ -725,10 +712,7 @@ class ComplianceFrameworkMapper:
                 frameworks_affected.append(mapping.framework.value)
 
                 # Add extra weight for CMMC Level 2+ requirements
-                if (
-                    mapping.framework == ComplianceFramework.CMMC_2_0
-                    and mapping.maturity_level >= 2
-                ):
+                if mapping.framework == ComplianceFramework.CMMC_2_0 and mapping.maturity_level >= 2:
                     priority_score += 10
 
             priority_score += severity_scores.get(max_severity, 0) * 10
@@ -764,10 +748,7 @@ class ComplianceFrameworkMapper:
         # Check control categories
         if any(cat in ["Configuration Management", "Access Control"] for cat in control.categories):
             return "moderate"
-        elif any(
-            cat in ["Audit and Accountability", "System and Information Integrity"]
-            for cat in control.categories
-        ):
+        elif any(cat in ["Audit and Accountability", "System and Information Integrity"] for cat in control.categories):
             return "significant"
         else:
             return "moderate"

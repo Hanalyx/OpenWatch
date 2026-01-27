@@ -53,16 +53,10 @@ async def get_platform_service() -> PlatformCapabilityService:
 class RuleQuery(BaseModel):
     """Rule query parameters with advanced filtering"""
 
-    platform: Optional[str] = Field(
-        None, description="Target platform (rhel, ubuntu, windows, etc.)"
-    )
+    platform: Optional[str] = Field(None, description="Target platform (rhel, ubuntu, windows, etc.)")
     platform_version: Optional[str] = Field(None, description="Platform version (8, 20.04, etc.)")
-    framework: Optional[str] = Field(
-        None, description="Compliance framework (nist, cis, stig, etc.)"
-    )
-    framework_version: Optional[str] = Field(
-        None, description="Framework version (800-53r5, v8, etc.)"
-    )
+    framework: Optional[str] = Field(None, description="Compliance framework (nist, cis, stig, etc.)")
+    framework_version: Optional[str] = Field(None, description="Framework version (800-53r5, v8, etc.)")
     severity: Optional[List[str]] = Field(None, description="Severity levels to include")
     category: Optional[List[str]] = Field(None, description="Rule categories to include")
     priority: QueryPriority = Field(QueryPriority.NORMAL, description="Query priority for caching")
@@ -290,9 +284,7 @@ async def get_rule_detail(
     try:
         if include_dependencies:
             # Get rule with full dependency graph
-            result = await service.get_rule_with_dependencies(
-                rule_id=rule_id, resolve_depth=3, include_conflicts=True
-            )
+            result = await service.get_rule_with_dependencies(rule_id=rule_id, resolve_depth=3, include_conflicts=True)
 
             rule_data = result["rule"]
             dependency_data = RuleDependencyGraph(
@@ -548,7 +540,10 @@ async def get_applicable_rules(
         return APIResponse(
             success=True,
             data=rule_summaries,
-            message=f"Found {len(rule_summaries)} applicable rules for {applicable_query.platform} {applicable_query.platform_version}",
+            message=(  # noqa: E501
+                f"Found {len(rule_summaries)} applicable rules for "
+                f"{applicable_query.platform} {applicable_query.platform_version}"
+            ),
         )
 
     except Exception as e:

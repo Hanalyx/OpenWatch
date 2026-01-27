@@ -11,9 +11,7 @@ from pydantic import BaseModel, Field
 class XCCDFBenchmarkRequest(BaseModel):
     """Request schema for XCCDF Benchmark generation"""
 
-    benchmark_id: str = Field(
-        ..., description="Unique benchmark identifier (e.g., 'openwatch-nist-800-53r5')"
-    )
+    benchmark_id: str = Field(..., description="Unique benchmark identifier (e.g., 'openwatch-nist-800-53r5')")
     title: str = Field(..., description="Human-readable benchmark title")
     description: str = Field(..., description="Detailed description of the benchmark")
     version: str = Field(..., description="Benchmark version string (e.g., '1.0.0')")
@@ -24,9 +22,7 @@ class XCCDFBenchmarkRequest(BaseModel):
     framework_version: Optional[str] = Field(
         None, description="Specific framework version (e.g., '800-53r5', 'v2.0.0')"
     )
-    rule_filter: Optional[Dict] = Field(
-        None, description="Additional MongoDB query filter for rules"
-    )
+    rule_filter: Optional[Dict] = Field(None, description="Additional MongoDB query filter for rules")
     host_id: Optional[str] = Field(
         None,
         description="Host UUID to detect components from for intelligent rule filtering (optional)",
@@ -37,7 +33,7 @@ class XCCDFBenchmarkRequest(BaseModel):
             "example": {
                 "benchmark_id": "openwatch-nist-800-53r5",
                 "title": "NIST SP 800-53 Revision 5 Security Controls",
-                "description": "NIST Special Publication 800-53 Revision 5 security and privacy controls for information systems and organizations",
+                "description": "NIST Special Publication 800-53 Revision 5 security and privacy controls for information systems and organizations",  # noqa: E501
                 "version": "1.0.0",
                 "framework": "nist",
                 "framework_version": "800-53r5",
@@ -62,9 +58,7 @@ class XCCDFTailoringRequest(BaseModel):
     benchmark_href: str = Field(..., description="Reference to benchmark file (path or URL)")
     benchmark_version: str = Field(..., description="Version of benchmark being tailored")
     profile_id: str = Field(..., description="Base profile to customize")
-    variable_overrides: Dict[str, str] = Field(
-        ..., description="Variable ID to custom value mappings"
-    )
+    variable_overrides: Dict[str, str] = Field(..., description="Variable ID to custom value mappings")
     title: Optional[str] = Field(None, description="Custom title for tailored profile")
     description: Optional[str] = Field(None, description="Description of customizations")
 

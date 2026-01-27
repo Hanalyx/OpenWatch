@@ -177,9 +177,7 @@ async def list_users(
 
         # Add search filter (username OR email)
         if search:
-            count_builder.where(
-                "(username ILIKE :search OR email ILIKE :search)", f"%{search}%", "search"
-            )
+            count_builder.where("(username ILIKE :search OR email ILIKE :search)", f"%{search}%", "search")
 
         # Add role filter
         if role:
@@ -211,9 +209,7 @@ async def list_users(
 
         # Apply same filters as count query
         if search:
-            builder.where(
-                "(username ILIKE :search OR email ILIKE :search)", f"%{search}%", "search"
-            )
+            builder.where("(username ILIKE :search OR email ILIKE :search)", f"%{search}%", "search")
 
         if role:
             builder.where("role = :role", role.value, "role")
@@ -264,11 +260,7 @@ async def create_user(
     try:
         # OW-REFACTOR-001B: Use QueryBuilder for existence check
         # Why: Consistent with Phase 1-3 pattern, reduces SQL injection risk
-        check_builder = (
-            QueryBuilder("users")
-            .select("id")
-            .where("username = :username OR email = :email", None, None)
-        )
+        check_builder = QueryBuilder("users").select("id").where("username = :username OR email = :email", None, None)
         # Note: QueryBuilder doesn't support OR with different param values, use custom params
         check_query, _ = check_builder.build()
         result = db.execute(
@@ -284,15 +276,13 @@ async def create_user(
 
         # NOTE: QueryBuilder is for SELECT queries only (OW-REFACTOR-001B)
         # For INSERT/UPDATE/DELETE, use raw SQL with parameterized queries
-        insert_query = text(
-            """
+        insert_query = text("""
             INSERT INTO users (username, email, hashed_password, role, is_active,
                              created_at, failed_login_attempts, mfa_enabled)
             VALUES (:username, :email, :hashed_password, :role, :is_active,
                     CURRENT_TIMESTAMP, :failed_login_attempts, :mfa_enabled)
             RETURNING id, created_at
-        """
-        )
+        """)
         insert_result = db.execute(
             insert_query,
             {
@@ -424,9 +414,7 @@ async def update_user(
     try:
         # OW-REFACTOR-001B: Use QueryBuilder for existence check
         # Why: Consistent with Phase 1-3 pattern
-        check_builder = (
-            QueryBuilder("users").select("id", "role").where("id = :user_id", user_id, "user_id")
-        )
+        check_builder = QueryBuilder("users").select("id", "role").where("id = :user_id", user_id, "user_id")
         query, params = check_builder.build()
         result = db.execute(text(query), params)
         existing_user = result.fetchone()
@@ -471,13 +459,11 @@ async def update_user(
         # Note: users table does not have updated_at column, only created_at
         # Build dynamic SET clause based on update_data
         set_clauses = ", ".join([f"{key} = :{key}" for key in update_data.keys()])
-        update_query = text(
-            f"""
+        update_query = text(f"""
             UPDATE users
             SET {set_clauses}
             WHERE id = :user_id
-        """
-        )
+        """)
         update_params = {**update_data, "user_id": user_id}
         db.execute(update_query, update_params)
         db.commit()
@@ -525,9 +511,7 @@ async def delete_user(
 
         # OW-REFACTOR-001B: Use QueryBuilder for existence check
         # Why: Consistent with Phase 1-3 pattern
-        check_builder = (
-            QueryBuilder("users").select("username").where("id = :user_id", user_id, "user_id")
-        )
+        check_builder = QueryBuilder("users").select("username").where("id = :user_id", user_id, "user_id")
         query, params = check_builder.build()
         result = db.execute(text(query), params)
         user = result.fetchone()
@@ -538,13 +522,11 @@ async def delete_user(
         # For INSERT/UPDATE/DELETE, use raw SQL with parameterized queries
         # Soft delete preserves audit trails
         # Note: users table does not have updated_at column, only created_at
-        update_query = text(
-            """
+        update_query = text("""
             UPDATE users
             SET is_active = :is_active
             WHERE id = :user_id
-        """
-        )
+        """)
         db.execute(update_query, {"is_active": False, "user_id": user_id})
         db.commit()
 
@@ -601,13 +583,11 @@ async def change_password(
         # Update password
         # Note: users table does not have updated_at column, only created_at
         db.execute(
-            text(
-                """
+            text("""
             UPDATE users
             SET hashed_password = :password
             WHERE id = :user_id
-        """
-            ),
+        """),
             {"password": new_hashed, "user_id": user_id},
         )
 

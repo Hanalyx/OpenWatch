@@ -105,7 +105,7 @@ const FleetHealthWidget: React.FC<FleetHealthWidgetProps> = ({ data, groups, onS
     safeData.scanning +
     safeData.maintenance;
 
-  const getIcon = (status: string) => {
+  const getIcon = React.useCallback((status: string) => {
     switch (status) {
       case 'Online':
         return <CheckCircle fontSize="small" />;
@@ -122,33 +122,37 @@ const FleetHealthWidget: React.FC<FleetHealthWidgetProps> = ({ data, groups, onS
       default:
         return null;
     }
-  };
+  }, []);
 
   // Custom tooltip for Recharts - displays host count and status for hovered pie slice
-  const CustomTooltip = ({ active, payload }: FleetCustomTooltipProps) => {
-    if (active && payload && payload.length) {
-      const data = payload[0];
-      return (
-        <Box
-          sx={{
-            bgcolor: 'background.paper',
-            p: 1.5,
-            borderRadius: 1,
-            boxShadow: theme.shadows[4],
-            border: `1px solid ${theme.palette.divider}`,
-          }}
-        >
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Box sx={{ color: data.payload.color }}>{getIcon(data.name)}</Box>
-            <Typography variant="body2">
-              {data.name}: <strong>{data.value}</strong>
-            </Typography>
+  // Using callback component pattern to avoid React Compiler immutability issues
+  const CustomTooltip = React.useCallback(
+    ({ active, payload }: FleetCustomTooltipProps) => {
+      if (active && payload && payload.length) {
+        const data = payload[0];
+        return (
+          <Box
+            sx={{
+              bgcolor: 'background.paper',
+              p: 1.5,
+              borderRadius: 1,
+              boxShadow: theme.shadows[4],
+              border: `1px solid ${theme.palette.divider}`,
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Box sx={{ color: data.payload.color }}>{getIcon(data.name)}</Box>
+              <Typography variant="body2">
+                {data.name}: <strong>{data.value}</strong>
+              </Typography>
+            </Box>
           </Box>
-        </Box>
-      );
-    }
-    return null;
-  };
+        );
+      }
+      return null;
+    },
+    [theme, getIcon]
+  );
 
   return (
     <Card sx={{ height: '100%' }}>
@@ -198,7 +202,7 @@ const FleetHealthWidget: React.FC<FleetHealthWidgetProps> = ({ data, groups, onS
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
                 </Pie>
-                <Tooltip content={<CustomTooltip />} />
+                <Tooltip content={CustomTooltip} />
               </PieChart>
             </ResponsiveContainer>
           ) : (

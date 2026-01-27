@@ -99,8 +99,7 @@ def _store_rule_scan_results(db: Session, scan_results: Dict[str, Any]) -> None:
     try:
         for rule_result in scan_results.get("rule_results", []):
             db.execute(
-                text(
-                    """
+                text("""
                 INSERT INTO rule_scan_history (
                     id, scan_id, host_id, rule_id, profile_id, result, severity,
                     scan_output, compliance_frameworks, automated_remediation_available,
@@ -110,8 +109,7 @@ def _store_rule_scan_results(db: Session, scan_results: Dict[str, Any]) -> None:
                     :scan_output, :compliance_frameworks, :automated_remediation_available,
                     :aegis_rule_id, NOW(), :duration_ms
                 )
-            """
-                ),
+            """),
                 {
                     "scan_id": scan_results["scan_id"],
                     "host_id": scan_results["host_id"],
@@ -120,12 +118,8 @@ def _store_rule_scan_results(db: Session, scan_results: Dict[str, Any]) -> None:
                     "result": rule_result["result"],
                     "severity": rule_result.get("severity", "unknown"),
                     "scan_output": rule_result.get("scan_output", ""),
-                    "compliance_frameworks": json.dumps(
-                        rule_result.get("compliance_frameworks", [])
-                    ),
-                    "automated_remediation_available": rule_result.get(
-                        "automated_remediation_available", False
-                    ),
+                    "compliance_frameworks": json.dumps(rule_result.get("compliance_frameworks", [])),
+                    "automated_remediation_available": rule_result.get("automated_remediation_available", False),
                     "aegis_rule_id": rule_result.get("aegis_rule_id"),
                     "duration_ms": scan_results.get("duration_seconds", 0) * 1000,
                 },
@@ -150,8 +144,7 @@ def _store_remediation_plan(db: Session, plan: Any, created_by: int) -> None:
     """
     try:
         db.execute(
-            text(
-                """
+            text("""
             INSERT INTO remediation_plans (
                 id, plan_id, scan_id, host_id, total_rules, remediable_rules, remediated_rules,
                 estimated_duration, requires_reboot, status, execution_order, rule_groups,
@@ -161,8 +154,7 @@ def _store_remediation_plan(db: Session, plan: Any, created_by: int) -> None:
                 :estimated_duration, :requires_reboot, 'pending', :execution_order, :rule_groups,
                 :created_by, NOW()
             )
-        """
-            ),
+        """),
             {
                 "plan_id": plan.plan_id,
                 "scan_id": plan.scan_id,
@@ -212,15 +204,13 @@ def _update_remediation_plan_status(
             status = "failed"
 
         db.execute(
-            text(
-                """
+            text("""
             UPDATE remediation_plans
             SET status = :status,
                 remediated_rules = :remediated_rules,
                 completed_at = NOW()
             WHERE aegis_job_id = :aegis_job_id
-        """
-            ),
+        """),
             {
                 "status": status,
                 "remediated_rules": verification_report.get("successfully_remediated", 0),
@@ -289,9 +279,7 @@ async def scan_specific_rules(
         - Uses parameterized queries
     """
     try:
-        logger.info(
-            f"Rule-specific scan requested by {current_user['username']} for {len(request.rule_ids)} rules"
-        )
+        logger.info(f"Rule-specific scan requested by {current_user['username']} for {len(request.rule_ids)} rules")
 
         # Get SCAP content file path
         content_result = db.execute(
@@ -331,9 +319,7 @@ async def scan_specific_rules(
                 "passed": scan_results["passed_rules"],
                 "failed": scan_results["failed_rules"],
                 "compliance_score": scan_results.get("compliance_score", 0),
-                "automated_remediation_available": sum(
-                    1 for r in remediation_priorities if r["automated_remediation"]
-                ),
+                "automated_remediation_available": sum(1 for r in remediation_priorities if r["automated_remediation"]),
             },
         }
 
@@ -526,9 +512,7 @@ async def get_rule_scan_history(
 
         # Get additional history from files if needed
         if len(history) < limit:
-            file_history = await rule_scanner.get_rule_scan_history(
-                rule_id, host_id, limit - len(history)
-            )
+            file_history = await rule_scanner.get_rule_scan_history(rule_id, host_id, limit - len(history))
             history.extend(file_history)
 
         # Get remediation guidance
@@ -646,29 +630,23 @@ async def create_remediation_plan(
 
         # First try to get from rule_scan_history
         history_results = db.execute(
-            text(
-                """
+            text("""
             SELECT rule_id, severity FROM rule_scan_history
             WHERE scan_id = :scan_id AND result = 'fail'
-        """
-            ),
+        """),
             {"scan_id": request.scan_id},
         ).fetchall()
 
         if history_results:
-            failed_rules = [
-                {"rule_id": row.rule_id, "severity": row.severity} for row in history_results
-            ]
+            failed_rules = [{"rule_id": row.rule_id, "severity": row.severity} for row in history_results]
         else:
             # Fallback to getting from scan results table
             scan_result = db.execute(
-                text(
-                    """
+                text("""
                 SELECT sr.rule_details FROM scan_results sr
                 JOIN scans s ON sr.scan_id = s.id
                 WHERE s.id = :scan_id OR CAST(s.id AS TEXT) = :scan_id
-            """
-                ),
+            """),
                 {"scan_id": request.scan_id},
             ).fetchone()
 
@@ -708,9 +686,7 @@ async def create_remediation_plan(
                 "estimated_duration": plan.estimated_duration,
                 "requires_reboot": plan.requires_reboot,
                 "dependencies_resolved": plan.dependencies_resolved,
-                "rule_groups": {
-                    category: len(rules) for category, rules in plan.rule_groups.items()
-                },
+                "rule_groups": {category: len(rules) for category, rules in plan.rule_groups.items()},
             },
             "aegis_job_request": aegis_job_request,
             "execution_ready": plan.dependencies_resolved,

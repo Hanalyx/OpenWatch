@@ -359,9 +359,7 @@ class MongoDBTransformer:
         Returns:
             Category string.
         """
-        combined_text = (
-            f"{parsed_rule.rule_id} {parsed_rule.title} {parsed_rule.description}".lower()
-        )
+        combined_text = f"{parsed_rule.rule_id} {parsed_rule.title} {parsed_rule.description}".lower()
 
         # Category patterns (priority order)
         category_patterns = {
@@ -490,8 +488,7 @@ class MongoDBTransformer:
         platforms: Dict[str, List[str]] = {}
 
         combined_text = (
-            f"{parsed_rule.rule_id} {parsed_rule.title} "
-            f"{parsed_rule.description} {parsed_rule.rationale}"
+            f"{parsed_rule.rule_id} {parsed_rule.title} " f"{parsed_rule.description} {parsed_rule.rationale}"
         ).lower()
 
         for platform, patterns in PLATFORM_PATTERNS.items():
@@ -667,9 +664,7 @@ class MongoDBTransformer:
         Returns:
             Check method string (file, systemd, package, command).
         """
-        combined_text = (
-            f"{parsed_rule.rule_id} {parsed_rule.title} {parsed_rule.description}"
-        ).lower()
+        combined_text = (f"{parsed_rule.rule_id} {parsed_rule.title} {parsed_rule.description}").lower()
 
         if "file" in combined_text or "config" in combined_text:
             return "file"

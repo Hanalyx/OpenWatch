@@ -332,9 +332,7 @@ class SemanticEngine:
                     "processing_time_seconds": processing_time,
                     "semantic_rules_count": len(semantic_rules),
                     "frameworks_analyzed": list(compliance_matrix.keys()),
-                    "remediation_available_count": sum(
-                        1 for r in semantic_rules if r.remediation_available
-                    ),
+                    "remediation_available_count": sum(1 for r in semantic_rules if r.remediation_available),
                     "processed_at": start_time.isoformat(),
                 },
             )
@@ -728,9 +726,7 @@ class SemanticEngine:
                             business_impact=rule_data.get("business_impact", "medium"),
                             risk_level=rule_data.get("severity", "medium"),
                             frameworks=rule_data.get("frameworks", []),
-                            remediation_complexity=rule_data.get(
-                                "remediation_complexity", "simple"
-                            ),
+                            remediation_complexity=rule_data.get("remediation_complexity", "simple"),
                             estimated_fix_time=rule_data.get("estimated_fix_time", 10),
                             dependencies=rule_data.get("dependencies", []),
                             cross_framework_mappings=rule_data.get("cross_framework_mappings", {}),
@@ -806,9 +802,7 @@ class SemanticEngine:
 
                     for framework_info in frameworks_data:
                         framework_name = framework_info["name"]
-                        applicable_rules = [
-                            r for r in semantic_rules if framework_name in r.frameworks
-                        ]
+                        applicable_rules = [r for r in semantic_rules if framework_name in r.frameworks]
 
                         if applicable_rules:
                             framework_mappings[framework_name] = applicable_rules
@@ -907,11 +901,7 @@ class SemanticEngine:
 
         # Categorize rules by impact and complexity
         high_impact_rules = [r for r in semantic_rules if r.business_impact == "high"]
-        quick_wins = [
-            r
-            for r in semantic_rules
-            if r.remediation_complexity == "simple" and r.estimated_fix_time <= 10
-        ]
+        quick_wins = [r for r in semantic_rules if r.remediation_complexity == "simple" and r.estimated_fix_time <= 10]
 
         # Calculate total estimated time
         total_time = sum(rule.estimated_fix_time for rule in semantic_rules)
@@ -920,9 +910,7 @@ class SemanticEngine:
         priority_rules: List[SemanticRule] = []
 
         # 1. High impact, simple fixes first (best ROI)
-        priority_rules.extend(
-            [r for r in high_impact_rules if r.remediation_complexity == "simple"]
-        )
+        priority_rules.extend([r for r in high_impact_rules if r.remediation_complexity == "simple"])
 
         # 2. Quick wins for momentum
         priority_rules.extend([r for r in quick_wins if r not in priority_rules])
@@ -941,19 +929,11 @@ class SemanticEngine:
             "priority_order": [r.name for r in priority_rules],
             "complexity_breakdown": {
                 "simple": len([r for r in semantic_rules if r.remediation_complexity == "simple"]),
-                "moderate": len(
-                    [r for r in semantic_rules if r.remediation_complexity == "moderate"]
-                ),
-                "complex": len(
-                    [r for r in semantic_rules if r.remediation_complexity == "complex"]
-                ),
+                "moderate": len([r for r in semantic_rules if r.remediation_complexity == "moderate"]),
+                "complex": len([r for r in semantic_rules if r.remediation_complexity == "complex"]),
             },
-            "framework_impact_prediction": self._predict_framework_impact(
-                semantic_rules, compliance_matrix
-            ),
-            "remediation_recommendations": self._generate_remediation_recommendations(
-                semantic_rules
-            ),
+            "framework_impact_prediction": self._predict_framework_impact(semantic_rules, compliance_matrix),
+            "remediation_recommendations": self._generate_remediation_recommendations(semantic_rules),
         }
 
         return strategy
@@ -1016,14 +996,11 @@ class SemanticEngine:
         quick_wins_count = len([r for r in semantic_rules if r.estimated_fix_time <= 10])
 
         if high_impact_count > 0:
-            recommendations.append(
-                f"Prioritize {high_impact_count} high-impact security rules first"
-            )
+            recommendations.append(f"Prioritize {high_impact_count} high-impact security rules first")
 
         if quick_wins_count > 0:
             recommendations.append(
-                f"Consider addressing {quick_wins_count} quick-win rules for "
-                "immediate improvement"
+                f"Consider addressing {quick_wins_count} quick-win rules for " "immediate improvement"
             )
 
         total_time = sum(rule.estimated_fix_time for rule in semantic_rules)
@@ -1032,9 +1009,7 @@ class SemanticEngine:
         elif total_time <= 60:
             recommendations.append("Estimated remediation time: 30-60 minutes")
         else:
-            recommendations.append(
-                f"Estimated remediation time: {total_time} minutes - consider batching"
-            )
+            recommendations.append(f"Estimated remediation time: {total_time} minutes - consider batching")
 
         return recommendations
 
@@ -1065,12 +1040,8 @@ class SemanticEngine:
             },
             "remediation_complexity_trend": {
                 "simple": len([r for r in semantic_rules if r.remediation_complexity == "simple"]),
-                "moderate": len(
-                    [r for r in semantic_rules if r.remediation_complexity == "moderate"]
-                ),
-                "complex": len(
-                    [r for r in semantic_rules if r.remediation_complexity == "complex"]
-                ),
+                "moderate": len([r for r in semantic_rules if r.remediation_complexity == "moderate"]),
+                "complex": len([r for r in semantic_rules if r.remediation_complexity == "complex"]),
             },
             "framework_coverage": {
                 framework: len([r for r in semantic_rules if framework in r.frameworks])
@@ -1108,8 +1079,7 @@ class SemanticEngine:
                 # Store in semantic_scan_analysis table
                 # Using parameterized query to prevent SQL injection
                 db.execute(
-                    text(
-                        """
+                    text("""
                         INSERT INTO semantic_scan_analysis
                         (scan_id, host_id, semantic_rules_count, frameworks_analyzed,
                          remediation_available_count, processing_metadata,
@@ -1124,18 +1094,13 @@ class SemanticEngine:
                             processing_metadata = EXCLUDED.processing_metadata,
                             analysis_data = EXCLUDED.analysis_data,
                             updated_at = :created_at
-                        """
-                    ),
+                        """),
                     {
                         "scan_id": result.scan_id,
                         "host_id": result.host_id,
                         "semantic_rules_count": len(result.semantic_rules),
-                        "frameworks_analyzed": json.dumps(
-                            list(result.framework_compliance_matrix.keys())
-                        ),
-                        "remediation_available_count": result.processing_metadata.get(
-                            "remediation_available_count", 0
-                        ),
+                        "frameworks_analyzed": json.dumps(list(result.framework_compliance_matrix.keys())),
+                        "remediation_available_count": result.processing_metadata.get("remediation_available_count", 0),
                         "processing_metadata": json.dumps(result.processing_metadata),
                         "analysis_data": json.dumps(result.to_dict()),
                         "created_at": datetime.now(timezone.utc),
@@ -1171,12 +1136,10 @@ class SemanticEngine:
             db = next(get_db())
             try:
                 result = db.execute(
-                    text(
-                        """
+                    text("""
                         SELECT analysis_data FROM semantic_scan_analysis
                         WHERE scan_id = :scan_id
-                        """
-                    ),
+                        """),
                     {"scan_id": scan_id},
                 ).fetchone()
 
@@ -1184,9 +1147,7 @@ class SemanticEngine:
                     data = json.loads(result.analysis_data)
 
                     # Reconstruct SemanticRule objects from stored data
-                    semantic_rules = [
-                        SemanticRule(**rule_data) for rule_data in data.get("semantic_rules", [])
-                    ]
+                    semantic_rules = [SemanticRule(**rule_data) for rule_data in data.get("semantic_rules", [])]
 
                     return IntelligentScanResult(
                         scan_id=data["scan_id"],

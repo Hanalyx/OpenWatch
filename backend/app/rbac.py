@@ -277,7 +277,8 @@ def require_permission(permission: Permission) -> Callable[[F], F]:
             user_role = UserRole(current_user.get("role", "guest"))
             if not RBACManager.has_permission(user_role, permission):
                 logger.warning(
-                    f"User {sanitize_username_for_log(current_user.get('username'))} with role {user_role} attempted to access {permission}"
+                    f"User {sanitize_username_for_log(current_user.get('username'))} "  # noqa: E501
+                    f"with role {user_role} attempted to access {permission}"
                 )
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
@@ -306,8 +307,9 @@ def require_any_permission(permissions: List[Permission]) -> Callable[[F], F]:
 
             user_role = UserRole(current_user.get("role", "guest"))
             if not RBACManager.has_any_permission(user_role, permissions):
-                logger.warning(
-                    f"User {sanitize_username_for_log(current_user.get('username'))} with role {user_role} attempted to access {[p.value for p in permissions]}"
+                logger.warning(  # noqa: E501
+                    f"User {sanitize_username_for_log(current_user.get('username'))} with role {user_role} "
+                    f"attempted to access {[p.value for p in permissions]}"
                 )
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
@@ -335,9 +337,10 @@ def require_role(required_roles: List[UserRole]) -> Callable[[F], F]:
                 )
 
             user_role = UserRole(current_user.get("role", "guest"))
-            if user_role not in required_roles:
+            if user_role not in required_roles:  # noqa: E501
                 logger.warning(
-                    f"User {sanitize_username_for_log(current_user.get('username'))} with role {user_role} attempted to access endpoint requiring {[r.value for r in required_roles]}"
+                    f"User {sanitize_username_for_log(current_user.get('username'))} with role {user_role} "
+                    f"attempted to access endpoint requiring {[r.value for r in required_roles]}"
                 )
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
@@ -390,14 +393,10 @@ def check_permission(user_role: str, resource_type: str, action: str) -> None:
         )
 
 
-def check_permission_async(
-    current_user: Dict[str, Any], required_permission: Permission, db: Any = None
-) -> bool:
+def check_permission_async(current_user: Dict[str, Any], required_permission: Permission, db: Any = None) -> bool:
     """Async permission check for specific permissions"""
     if not current_user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required"
-        )
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required")
 
     user_roles = current_user.get("roles", [current_user.get("role", "guest")])
 
@@ -413,7 +412,8 @@ def check_permission_async(
 
     # If no role has permission, log and raise error
     logger.warning(
-        f"User {sanitize_username_for_log(current_user.get('username'))} attempted to access {required_permission.value}"
+        f"User {sanitize_username_for_log(current_user.get('username'))} "
+        f"attempted to access {required_permission.value}"
     )
     raise HTTPException(
         status_code=status.HTTP_403_FORBIDDEN,

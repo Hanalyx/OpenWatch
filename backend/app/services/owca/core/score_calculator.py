@@ -142,9 +142,7 @@ class ComplianceScoreCalculator:
                 "sr.severity_low_passed as low_passed",
                 "sr.severity_low_failed as low_failed",
             )
-            .join(
-                "scan_results sr", "s.id = sr.scan_id", "INNER"
-            )  # INNER join ensures we only get scans with results
+            .join("scan_results sr", "s.id = sr.scan_id", "INNER")  # INNER join ensures we only get scans with results
             .where("s.host_id = :host_id", host_id, "host_id")
             .where("s.status = :status", "completed", "status")
             .order_by("s.completed_at", "DESC")
@@ -200,13 +198,10 @@ class ComplianceScoreCalculator:
 
         # Cache the result
         if self.cache:
-            await self.cache.set(
-                f"host_score:{host_id}", compliance_score.dict(), ttl=300
-            )  # 5 min TTL
+            await self.cache.set(f"host_score:{host_id}", compliance_score.dict(), ttl=300)  # 5 min TTL
 
         logger.info(
-            f"Calculated compliance score for host {host_id}: "
-            f"{overall_score}% ({tier.value}) from scan {scan_id}"
+            f"Calculated compliance score for host {host_id}: " f"{overall_score}% ({tier.value}) from scan {scan_id}"
         )
 
         return compliance_score
@@ -293,9 +288,7 @@ class ComplianceScoreCalculator:
             scan_id=scan_id,
         )
 
-    def calculate_aggregate_score(
-        self, individual_scores: list[ComplianceScore]
-    ) -> Optional[ComplianceScore]:
+    def calculate_aggregate_score(self, individual_scores: list[ComplianceScore]) -> Optional[ComplianceScore]:
         """
         Calculate aggregate compliance score from multiple individual scores.
 

@@ -100,8 +100,7 @@ async def update_health_summary_task() -> Dict[str, Any]:
         await health_service.save_health_summary(summary)
 
         logger.info(
-            f"Health summary updated: {summary.overall_health_status}, "
-            f"{summary.active_issues_count} active issues"
+            f"Health summary updated: {summary.overall_health_status}, " f"{summary.active_issues_count} active issues"
         )
 
         return {

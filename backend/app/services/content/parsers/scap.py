@@ -672,11 +672,7 @@ class SCAPParser(BaseContentParser):
             severity=severity,
             rationale=rationale,
             check_content=check_content.get("content", {}).get("name", ""),
-            fix_content=(
-                fix_content.get("fixes", [{}])[0].get("content", "")
-                if fix_content.get("fixes")
-                else ""
-            ),
+            fix_content=(fix_content.get("fixes", [{}])[0].get("content", "") if fix_content.get("fixes") else ""),
             references=references,
             platforms=platforms,
             metadata=metadata,
