@@ -1,17 +1,32 @@
 # OpenWatch Backend - Development Container
-FROM python:3.9.21-slim
+#
+# Updated to Python 3.12 to match production environment
+# Python 3.9 reached END OF LIFE on 2025-10-31
+#
+# Base Image: Official Python 3.12 slim (Debian-based)
+# - Lighter weight than UBI9 for faster dev iteration
+# - Same Python version as production for compatibility
+
+FROM python:3.12-slim
+
+LABEL maintainer="OpenWatch Security Team" \
+      org.opencontainers.image.title="OpenWatch Backend (Dev)" \
+      org.opencontainers.image.description="Development container - Python 3.12" \
+      python.version="3.12" \
+      environment="development"
 
 # Install system dependencies including OpenSCAP and networking tools
+# Note: python3-openscap removed as it binds to system Python, not container Python
 RUN apt-get update && \
     apt-get install -y \
         gcc \
         libpq-dev \
         openssh-client \
         curl \
+        unzip \
         openscap-scanner \
         libopenscap25 \
         openscap-common \
-        python3-openscap \
         xmlstarlet \
         git \
         iputils-ping \
