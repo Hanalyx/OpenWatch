@@ -23,20 +23,22 @@ Follows CLAUDE.md standards:
 - Comprehensive comments (why, not what)
 """
 
-from unittest.mock import Mock, patch
-
 import pytest
+from pathlib import Path
+from typing import Dict, Any
+from unittest.mock import Mock, patch, MagicMock
 
-from app.services.owca.extraction import (
-    SEVERITY_WEIGHTS,
-    SeverityCalculator,
-    SeverityDistribution,
-    SeverityRiskResult,
+from backend.app.services.owca.extraction import (
     XCCDFParser,
     XCCDFScoreResult,
+    SeverityCalculator,
+    SeverityRiskResult,
+    SeverityDistribution,
+    SEVERITY_WEIGHTS,
     get_risk_level,
     get_severity_weight,
 )
+
 
 # =============================================================================
 # Severity Calculator Tests
@@ -87,11 +89,11 @@ class TestSeverityCalculator:
         - Risk level categorization (75.0 = high)
         """
         result = self.calculator.calculate_risk_score(
-            critical_count=2,  # 2 * 10 = 20
-            high_count=5,  # 5 * 5 = 25
-            medium_count=10,  # 10 * 2 = 20
-            low_count=20,  # 20 * 0.5 = 10
-            info_count=100,  # 100 * 0 = 0
+            critical_count=2,   # 2 * 10 = 20
+            high_count=5,       # 5 * 5 = 25
+            medium_count=10,    # 10 * 2 = 20
+            low_count=20,       # 20 * 0.5 = 10
+            info_count=100,     # 100 * 0 = 0
         )
 
         assert result.risk_score == 75.0
@@ -383,7 +385,10 @@ class TestXCCDFParser:
         mock_exists.return_value = True
         mock_stat.return_value = Mock(st_size=11 * 1024 * 1024)  # 11MB
 
-        result = self.parser.extract_native_score("/app/data/results/large_file.xml", user_id="test-user")
+        result = self.parser.extract_native_score(
+            "/app/data/results/large_file.xml",
+            user_id="test-user"
+        )
 
         assert result.found is False
         assert result.error is not None
@@ -403,7 +408,10 @@ class TestXCCDFParser:
         """
         mock_exists.return_value = True
 
-        result = self.parser.extract_native_score("/app/data/../../etc/passwd", user_id="test-user")
+        result = self.parser.extract_native_score(
+            "/app/data/../../etc/passwd",
+            user_id="test-user"
+        )
 
         assert result.found is False
         assert result.error is not None

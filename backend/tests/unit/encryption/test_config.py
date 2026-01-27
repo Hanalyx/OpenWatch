@@ -4,7 +4,7 @@ Tests for EncryptionConfig dataclass and validation.
 
 import pytest
 
-from backend.app.encryption import (
+from app.encryption import (
     DEFAULT_CONFIG,
     FAST_TEST_CONFIG,
     HIGH_SECURITY_CONFIG,

@@ -4,7 +4,7 @@ Tests for custom encryption exceptions.
 
 import pytest
 
-from backend.app.encryption import ConfigurationError, DecryptionError, EncryptionError, InvalidDataError
+from app.encryption import ConfigurationError, DecryptionError, EncryptionError, InvalidDataError
 
 
 class TestExceptionHierarchy:
