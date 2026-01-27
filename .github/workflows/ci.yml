@@ -90,12 +90,12 @@ jobs:
       - name: Run tests
         working-directory: ./backend
         env:
-          DATABASE_URL: postgresql://openwatch:openwatch_test@localhost:5432/openwatch_test
-          REDIS_URL: redis://localhost:6379
-          JWT_SECRET_KEY: test_secret_key_for_ci
-          SECRET_KEY: test_secret_key_for_ci
-          MASTER_KEY: test_master_key_for_ci_32bytes_long
-          ENVIRONMENT: test
+          OPENWATCH_DATABASE_URL: postgresql://openwatch:openwatch_test@localhost:5432/openwatch_test
+          OPENWATCH_REDIS_URL: redis://localhost:6379
+          OPENWATCH_JWT_SECRET_KEY: test_secret_key_for_ci_must_be_32_chars_minimum
+          OPENWATCH_SECRET_KEY: test_secret_key_for_ci_must_be_32_chars_minimum
+          OPENWATCH_MASTER_KEY: test_master_key_for_ci_32bytes_long_minimum!!
+          OPENWATCH_ENVIRONMENT: test
           TESTING: true
         run: |
           # Check if tests directory exists
