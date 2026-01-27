@@ -24,7 +24,9 @@ class MigrationRunner:
     def _create_migrations_table(self):
         """Create migrations tracking table if it doesn't exist"""
         try:
-            self.db.execute(text("""
+            self.db.execute(
+                text(
+                    """
                 CREATE TABLE IF NOT EXISTS _migrations (
                     id SERIAL PRIMARY KEY,
                     filename VARCHAR(255) NOT NULL UNIQUE,
@@ -32,7 +34,9 @@ class MigrationRunner:
                     success BOOLEAN NOT NULL DEFAULT TRUE,
                     error_message TEXT
                 )
-            """))
+            """
+                )
+            )
             self.db.commit()
             logger.info("Migrations tracking table ready")
         except Exception as e:
@@ -43,9 +47,13 @@ class MigrationRunner:
     def _get_applied_migrations(self) -> List[str]:
         """Get list of already applied migrations"""
         try:
-            result = self.db.execute(text("""
+            result = self.db.execute(
+                text(
+                    """
                 SELECT filename FROM _migrations WHERE success = TRUE ORDER BY id
-            """))
+            """
+                )
+            )
             return [row[0] for row in result]
         except Exception as e:
             logger.error(f"Failed to get applied migrations: {e}")
@@ -77,10 +85,12 @@ class MigrationRunner:
 
             # Record successful migration
             self.db.execute(
-                text("""
+                text(
+                    """
                 INSERT INTO _migrations (filename, success)
                 VALUES (:filename, TRUE)
-            """),
+            """
+                ),
                 {"filename": migration_file.name},
             )
 
@@ -96,10 +106,12 @@ class MigrationRunner:
             try:
                 self.db.rollback()
                 self.db.execute(
-                    text("""
+                    text(
+                        """
                     INSERT INTO _migrations (filename, success, error_message)
                     VALUES (:filename, FALSE, :error)
-                """),
+                """
+                    ),
                     {"filename": migration_file.name, "error": str(e)},
                 )
                 self.db.commit()

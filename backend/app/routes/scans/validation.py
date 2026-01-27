@@ -490,7 +490,8 @@ async def quick_scan(
 
         # Create scan immediately (optimistic UI)
         db.execute(
-            text("""
+            text(
+                """
             INSERT INTO scans
             (id, name, host_id, content_id, profile_id, status, progress,
              scan_options, started_by, started_at, remediation_requested, verification_scan)
@@ -498,7 +499,8 @@ async def quick_scan(
                     :progress, :scan_options, :started_by, :started_at,
                     :remediation_requested, :verification_scan)
             RETURNING id
-        """),
+        """
+            ),
             {
                 "id": scan_id,
                 "name": scan_name,
@@ -707,14 +709,16 @@ async def create_verification_scan(
         }
 
         result = db.execute(
-            text("""
+            text(
+                """
             INSERT INTO scans
             (name, host_id, content_id, profile_id, status, progress,
              scan_options, started_by, started_at, verification_scan)
             VALUES (:name, :host_id, :content_id, :profile_id, :status,
                     :progress, :scan_options, :started_by, :started_at, :verification_scan)
             RETURNING id
-        """),
+        """
+            ),
             {
                 "name": scan_name,
                 "host_id": verification_request.host_id,
@@ -819,14 +823,16 @@ async def rescan_rule(
 
         # Get the original scan details
         result = db.execute(
-            text("""
+            text(
+                """
             SELECT s.id, s.host_id, s.profile_id, s.name,
                    h.hostname, h.ip_address, h.port, h.username,
                    h.auth_method, h.encrypted_credentials
             FROM scans s
             JOIN hosts h ON s.host_id = h.id
             WHERE s.id = :scan_id
-        """),
+        """
+            ),
             {"scan_id": scan_id},
         )
 
@@ -898,14 +904,16 @@ async def start_remediation(
     try:
         # Get scan details and failed rules
         scan_result = db.execute(
-            text("""
+            text(
+                """
             SELECT s.id, s.name, s.host_id, h.hostname, h.ip_address,
                    sr.failed_rules, sr.severity_high, sr.severity_medium, sr.severity_low
             FROM scans s
             JOIN hosts h ON s.host_id = h.id
             LEFT JOIN scan_results sr ON s.id = sr.scan_id
             WHERE s.id = :scan_id AND s.status = 'completed'
-        """),
+        """
+            ),
             {"scan_id": scan_id},
         ).fetchone()
 
@@ -917,12 +925,14 @@ async def start_remediation(
 
         # Get the actual failed rules for logging
         failed_rules = db.execute(
-            text("""
+            text(
+                """
             SELECT rule_id, title, severity, description
             FROM scan_rule_results
             WHERE scan_id = :scan_id AND status = 'failed'
             ORDER BY CASE severity WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END
-        """),
+        """
+            ),
             {"scan_id": scan_id},
         ).fetchall()
 
@@ -931,13 +941,15 @@ async def start_remediation(
 
         # Update scan with remediation request
         db.execute(
-            text("""
+            text(
+                """
             UPDATE scans
             SET remediation_requested = true,
                 aegis_remediation_id = :job_id,
                 remediation_status = 'pending'
             WHERE id = :scan_id
-        """),
+        """
+            ),
             {"scan_id": scan_id, "job_id": remediation_job_id},
         )
         db.commit()
