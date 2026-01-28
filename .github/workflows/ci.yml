@@ -122,9 +122,9 @@ jobs:
           # Check if tests directory exists
           if [ -d "tests" ] && [ "$(find tests -name '*.py' | head -1)" ]; then
             echo "Running pytest tests..."
-            # Note: Coverage threshold lowered temporarily due to skipped tests
-            # When migration ENUM issues are fixed, restore --cov-fail-under=80
-            pytest tests/ -v --cov=app --cov-report=xml --cov-report=html --cov-fail-under=5
+            # Coverage threshold: incrementally raising toward 80%
+            # Migration chain consolidated (20260128) - DB-dependent tests should now run
+            pytest tests/ -v --cov=app --cov-report=xml --cov-report=html --cov-fail-under=15
           else
             echo "Warning: No test files found in tests/ directory"
             echo "CI will pass without tests, but this should be addressed"
