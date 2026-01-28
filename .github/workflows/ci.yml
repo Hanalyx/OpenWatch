@@ -219,43 +219,92 @@ jobs:
           docker --version
           docker compose version
 
-      - name: Run integration tests
+      - name: Generate TLS certificates for CI
         run: |
-          # Start services with docker compose
-          echo "Starting services with docker-compose..."
-          docker compose up -d
+          # Create certificate directories required by docker-compose
+          mkdir -p security/certs/mongodb security/keys security/certs
+
+          # Generate self-signed CA and MongoDB certs for CI
+          openssl req -x509 -newkey rsa:2048 -keyout security/certs/mongodb/ca.key \
+            -out security/certs/mongodb/ca.crt -days 1 -nodes \
+            -subj "/CN=CI-CA"
+
+          openssl req -newkey rsa:2048 -keyout security/certs/mongodb/mongodb.key \
+            -out security/certs/mongodb/mongodb.csr -nodes \
+            -subj "/CN=mongodb"
+
+          openssl x509 -req -in security/certs/mongodb/mongodb.csr \
+            -CA security/certs/mongodb/ca.crt -CAkey security/certs/mongodb/ca.key \
+            -CAcreateserial -out security/certs/mongodb/mongodb.crt -days 1
+
+          # MongoDB expects combined PEM file
+          cat security/certs/mongodb/mongodb.key security/certs/mongodb/mongodb.crt \
+            > security/certs/mongodb/mongodb.pem
+
+          # Generate frontend certs
+          openssl req -x509 -newkey rsa:2048 -keyout security/keys/frontend.key \
+            -out security/certs/frontend.crt -days 1 -nodes \
+            -subj "/CN=localhost"
+
+          echo "TLS certificates generated for CI"
+
+      - name: Run integration tests
+        env:
+          POSTGRES_PASSWORD: openwatch_ci_test
+          REDIS_PASSWORD: redis_ci_test
+          MONGO_ROOT_USER: openwatch
+          MONGO_ROOT_PASSWORD: mongo_ci_test
+          OPENWATCH_SECRET_KEY: ci_test_secret_key_must_be_32_chars_minimum!!
+          MASTER_KEY: ci_test_master_key_must_be_32_chars_minimum!!
+          OPENWATCH_ENCRYPTION_KEY: ci_test_encryption_key_32chars!!
+        run: |
+          # Start infrastructure services only (skip app containers that need building)
+          echo "Starting infrastructure services with docker-compose..."
+          docker compose up -d database redis mongodb
 
           # Wait for services to be ready
-          echo "Waiting for services to be ready..."
-          sleep 45
+          echo "Waiting for infrastructure services..."
+          sleep 30
 
-          # Check if health check script exists and use it
-          if [ -f "./scripts/production-health-check.sh" ]; then
-            echo "Running health checks..."
-            ./scripts/production-health-check.sh --local || echo "Health checks completed with warnings"
-          else
-            echo "Running basic connectivity tests..."
-            # Check basic connectivity with retries
-            for i in {1..3}; do
-              if curl -f --max-time 10 http://localhost:3001 >/dev/null 2>&1; then
-                echo "Frontend connectivity: OK"
-                break
-              else
-                echo "Frontend connectivity attempt $i failed, retrying..."
-                sleep 10
-              fi
-            done
+          # Check service health with retries
+          echo "Checking service health..."
+          for i in {1..6}; do
+            HEALTHY=true
 
-            for i in {1..3}; do
-              if curl -f --max-time 10 http://localhost:8000/health >/dev/null 2>&1; then
-                echo "Backend connectivity: OK"
-                break
-              else
-                echo "Backend connectivity attempt $i failed, retrying..."
-                sleep 10
-              fi
-            done
-          fi
+            if docker compose exec -T database pg_isready -U openwatch -d openwatch >/dev/null 2>&1; then
+              echo "PostgreSQL: OK"
+            else
+              echo "PostgreSQL: not ready (attempt $i/6)"
+              HEALTHY=false
+            fi
+
+            if docker compose exec -T redis redis-cli -a "$REDIS_PASSWORD" ping 2>/dev/null | grep -q PONG; then
+              echo "Redis: OK"
+            else
+              echo "Redis: not ready (attempt $i/6)"
+              HEALTHY=false
+            fi
+
+            if docker compose exec -T mongodb mongosh --host localhost:27017 \
+                -u "$MONGO_ROOT_USER" -p "$MONGO_ROOT_PASSWORD" \
+                --authenticationDatabase admin --quiet \
+                --eval "db.runCommand({serverStatus: 1}).ok" 2>/dev/null | grep -q 1; then
+              echo "MongoDB: OK"
+            else
+              echo "MongoDB: not ready (attempt $i/6)"
+              HEALTHY=false
+            fi
+
+            if [ "$HEALTHY" = true ]; then
+              echo "All infrastructure services healthy"
+              break
+            fi
+
+            if [ "$i" -eq 6 ]; then
+              echo "WARNING: Some services not healthy after 6 attempts"
+            fi
+            sleep 10
+          done
 
           # Show service status
           echo "Service status:"
@@ -336,8 +385,12 @@ jobs:
           OPENWATCH_SECRET_KEY: test_secret_key_for_e2e_must_be_32_chars_minimum
           OPENWATCH_MASTER_KEY: test_master_key_for_e2e_32bytes_long_minimum!!
           OPENWATCH_ENVIRONMENT: test
+          OPENWATCH_AUDIT_LOG_FILE: ./logs/audit.log
           TESTING: true
         run: |
+          # Create logs directory for audit logging
+          mkdir -p logs
+
           # Start backend in background
           python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 &
 
