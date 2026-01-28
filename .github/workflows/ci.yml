@@ -388,7 +388,10 @@ jobs:
           OPENWATCH_AUDIT_LOG_FILE: ./logs/audit.log
           TESTING: true
         run: |
-          # Create logs directory for audit logging
+          # Create logs directories for audit and security logging
+          # The app defaults to /app/logs/ paths (Docker container convention)
+          sudo mkdir -p /app/logs/security
+          sudo chmod -R 777 /app/logs
           mkdir -p logs
 
           # Start backend in background
