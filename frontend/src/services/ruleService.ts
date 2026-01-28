@@ -561,9 +561,7 @@ class RuleService {
 
     if (params.platform) {
       const platform = params.platform;
-      filteredRules = filteredRules.filter(
-        (rule) => rule.platform_implementations[platform]
-      );
+      filteredRules = filteredRules.filter((rule) => rule.platform_implementations[platform]);
     }
 
     if (params.framework) {

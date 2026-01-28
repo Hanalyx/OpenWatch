@@ -177,7 +177,10 @@ const RuleConfigStep: React.FC<RuleConfigStepProps> = ({
       const params: Record<string, string> = {};
       if (framework) params.framework = framework;
 
-      const response = await api.get<{ rules: RawApiRule[] }>('/api/compliance-rules/semantic-rules', { params });
+      const response = await api.get<{ rules: RawApiRule[] }>(
+        '/api/compliance-rules/semantic-rules',
+        { params }
+      );
 
       // Transform backend format to WizardRule interface
       const transformedRules: WizardRule[] = (response.rules || []).map((rule: RawApiRule) => ({

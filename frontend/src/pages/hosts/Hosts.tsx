@@ -225,11 +225,9 @@ const Hosts: React.FC = () => {
         displayName: host.display_name || host.hostname,
         ipAddress: host.ip_address,
         operatingSystem: host.operating_system,
-        status: (
-          host.scan_status === 'running' || host.scan_status === 'pending'
-            ? 'scanning'
-            : host.status || 'offline'
-        ) as HostStatus,
+        status: (host.scan_status === 'running' || host.scan_status === 'pending'
+          ? 'scanning'
+          : host.status || 'offline') as HostStatus,
         complianceScore: host.compliance_score || null,
         complianceTrend: 'stable' as const,
         lastScan: host.last_scan || null,

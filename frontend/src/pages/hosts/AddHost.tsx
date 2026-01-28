@@ -253,10 +253,7 @@ const AddHost: React.FC = () => {
    * Handle form field changes with type-safe value handling
    * Accepts any JSON-serializable value (string, number, boolean, etc.)
    */
-  const handleInputChange = (
-    field: string,
-    value: string | number | boolean | string[]
-  ) => {
+  const handleInputChange = (field: string, value: string | number | boolean | string[]) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
@@ -327,8 +324,7 @@ const AddHost: React.FC = () => {
       // Store error details for display
       setConnectionTestResults({
         success: false,
-        error:
-          typedErr.response?.data?.detail || typedErr.message || 'Connection test failed',
+        error: typedErr.response?.data?.detail || typedErr.message || 'Connection test failed',
         errorCode: typedErr.response?.status || 0,
         networkConnectivity: false,
         authentication: false,

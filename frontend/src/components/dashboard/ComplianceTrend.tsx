@@ -170,7 +170,9 @@ const ComplianceTrend: React.FC<ComplianceTrendProps> = ({
                 height={300}
                 margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
                 onClick={(e: unknown) => {
-                  const event = e as { activePayload?: Array<{ payload: ComplianceDataPoint }> } | null;
+                  const event = e as {
+                    activePayload?: Array<{ payload: ComplianceDataPoint }>;
+                  } | null;
                   if (event && event.activePayload && onDataPointClick) {
                     onDataPointClick(event.activePayload[0].payload);
                   }

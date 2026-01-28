@@ -434,7 +434,10 @@ const Settings: React.FC = () => {
         ? 'Failed to update credential set'
         : 'Failed to create credential set';
 
-      const typedErr = err as { response?: { data?: { detail?: string }; status?: number }; message?: string };
+      const typedErr = err as {
+        response?: { data?: { detail?: string }; status?: number };
+        message?: string;
+      };
       if (typedErr.response?.data?.detail) {
         errorMessage = typedErr.response.data.detail;
       } else if (typedErr.message && typedErr.message !== 'API request failed') {

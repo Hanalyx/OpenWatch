@@ -199,14 +199,12 @@ const ComplianceScanWizard: React.FC = () => {
         setHosts(formattedHosts);
 
         // Transform host groups to WizardHostGroup format
-        const formattedGroups: WizardHostGroup[] = (groupsData || []).map(
-          (group) => ({
-            id: group.id,
-            name: group.name,
-            description: group.description,
-            hostCount: group.host_count || 0,
-          })
-        );
+        const formattedGroups: WizardHostGroup[] = (groupsData || []).map((group) => ({
+          id: group.id,
+          name: group.name,
+          description: group.description,
+          hostCount: group.host_count || 0,
+        }));
         setHostGroups(formattedGroups);
       } catch (error) {
         console.error('Failed to load data:', error);

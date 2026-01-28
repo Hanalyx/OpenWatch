@@ -175,8 +175,7 @@ const HostMonitoringTab = forwardRef<HostMonitoringTabRef, HostMonitoringTabProp
         const stateResponse = await api.get<MonitoringState | { data: MonitoringState }>(
           '/api/monitoring/hosts/status'
         );
-        const stateData =
-          'data' in stateResponse ? stateResponse.data : stateResponse;
+        const stateData = 'data' in stateResponse ? stateResponse.data : stateResponse;
         setStateDistribution(stateData);
 
         // Fetch ALL hosts with monitoring state

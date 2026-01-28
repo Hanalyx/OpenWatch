@@ -274,7 +274,7 @@ const Dashboard: React.FC = () => {
         complianceScore:
           host.compliance_score !== undefined && host.compliance_score !== null
             ? host.compliance_score
-            : host.complianceScore ?? null,
+            : (host.complianceScore ?? null),
         displayName: host.display_name || host.displayName || host.hostname || '',
         ipAddress: host.ip_address || host.ipAddress || '',
         operatingSystem: host.operating_system || host.operatingSystem || 'Unknown',

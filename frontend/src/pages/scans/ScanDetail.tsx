@@ -328,7 +328,9 @@ const ScanDetail: React.FC = () => {
           severity: mapSeverity(rule.severity || 'unknown'),
           result: mapResult(rule.result || 'unknown'),
           description:
-            rule.description || extractRuleDescription(rule.rule_id || '') || 'No description available',
+            rule.description ||
+            extractRuleDescription(rule.rule_id || '') ||
+            'No description available',
           rationale: rule.rationale || '',
           remediation: rule.remediation || extractRuleDescription(rule.rule_id || '') || '',
         }));
@@ -1979,8 +1981,8 @@ const ScanDetail: React.FC = () => {
               </List>
 
               {scan.scan_options &&
-                typeof scan.scan_options === 'object' &&
-                Object.keys(scan.scan_options as Record<string, unknown>).length > 0 ? (
+              typeof scan.scan_options === 'object' &&
+              Object.keys(scan.scan_options as Record<string, unknown>).length > 0 ? (
                 <>
                   <Typography variant="h6" gutterBottom sx={{ mt: 2 }}>
                     Scan Options
