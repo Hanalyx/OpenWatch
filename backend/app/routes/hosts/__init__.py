@@ -116,6 +116,10 @@ except ImportError as e:
 # Re-export helpers for convenient access - use relative imports
 from .helpers import validate_host_uuid  # noqa: E402
 
+# Re-export validate_ssh_key for backward compatibility and testing
+# This function is used in crud.py for SSH key validation
+from ...services.ssh import validate_ssh_key  # noqa: E402, F401
+
 # Re-export models for convenient access - use relative imports
 from .models import (  # noqa: E402
     BulkComplianceDiscoveryRequest,
@@ -168,4 +172,6 @@ __all__ = [
     "ComplianceCapabilityAssessment",
     # Helpers
     "validate_host_uuid",
+    # SSH validation (re-exported for backward compatibility)
+    "validate_ssh_key",
 ]

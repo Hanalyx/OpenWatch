@@ -201,7 +201,7 @@ def test_validate_credentials_accepts_ssh_key():
 
     This simulates the frontend calling the endpoint.
     """
-    from app.routes.hosts import validate_credentials
+    from app.routes.hosts.crud import validate_credentials
 
     # Create a valid Ed25519 key
     key_content = generate_ed25519_key()
@@ -226,7 +226,7 @@ def test_validate_credentials_rejects_invalid_key():
     """
     Test that validate-credentials endpoint rejects invalid SSH keys.
     """
-    from app.routes.hosts import validate_credentials
+    from app.routes.hosts.crud import validate_credentials
 
     invalid_key = "-----BEGIN OPENSSH PRIVATE KEY-----\nGARBAGE\n-----END OPENSSH PRIVATE KEY-----"
 
