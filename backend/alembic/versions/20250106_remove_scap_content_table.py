@@ -30,8 +30,9 @@ def upgrade():
     2. Drops columns that referenced scap_content
     3. Drops the scap_content table itself
     """
-    # Drop FK constraint from host_groups table
-    op.drop_constraint("host_groups_scap_content_id_fkey", "host_groups", type_="foreignkey")
+    # Drop FK constraint from host_groups table.
+    # Migration 005 created this as 'fk_host_groups_scap_content'.
+    op.drop_constraint("fk_host_groups_scap_content", "host_groups", type_="foreignkey")
     op.drop_column("host_groups", "scap_content_id")
 
     # Drop FK constraint from scans table
