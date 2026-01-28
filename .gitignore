@@ -557,6 +557,9 @@ cache/
 *api_key*
 *private_key*
 
+# Exception: Allow alembic migration files (they describe schemas, not actual credentials)
+!backend/alembic/versions/*credential*.py
+
 # Configuration files that might contain secrets
 *config.local.*
 *settings.local.*
