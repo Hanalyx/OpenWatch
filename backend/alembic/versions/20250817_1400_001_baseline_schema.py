@@ -330,7 +330,7 @@ def upgrade() -> None:
         sa.Column("host_id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("user_id", sa.Integer(), nullable=True),
         sa.Column("group_id", sa.Integer(), nullable=True),
-        sa.Column("access_level", postgresql.ENUM("read", "write", "admin", name="access_levels"), nullable=False),
+        sa.Column("access_level", postgresql.ENUM("read", "write", "admin", name="access_levels", create_type=False), nullable=False),
         sa.Column("granted_by", sa.Integer(), nullable=False),
         sa.Column("granted_at", sa.DateTime(), nullable=False),
         sa.Column("expires_at", sa.DateTime(), nullable=True),
