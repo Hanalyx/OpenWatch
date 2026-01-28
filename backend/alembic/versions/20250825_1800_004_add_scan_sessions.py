@@ -40,38 +40,20 @@ def upgrade() -> None:
         sa.Index("idx_scan_sessions_created_at", "created_at"),
     )
 
-    # Add foreign key reference from scans to users (if not already exists)
-    # Note: This assumes users table exists with id column
-    try:
-        op.create_foreign_key(
-            "fk_scan_sessions_created_by", "scan_sessions", "users", ["created_by"], ["id"], ondelete="CASCADE"
-        )
-    except Exception:
-        # Foreign key might already exist or users table might not exist
-        pass
+    # Foreign key to users table - skipped because created_by is String(36)
+    # but users.id is Integer (type mismatch). The original try/except
+    # caught the Python error but left PostgreSQL's transaction in a
+    # failed state, breaking subsequent migrations.
 
     # Add indexes for scan performance
-    try:
-        op.create_index("idx_scans_host_id_status", "scans", ["host_id", "status"])
-        op.create_index("idx_scans_status_started_at", "scans", ["status", "started_at"])
-    except Exception:
-        # Indexes might already exist
-        pass
+    op.create_index("idx_scans_host_id_status", "scans", ["host_id", "status"])
+    op.create_index("idx_scans_status_started_at", "scans", ["status", "started_at"])
 
 
 def downgrade() -> None:
     # Drop indexes
-    try:
-        op.drop_index("idx_scans_status_started_at", table_name="scans")
-        op.drop_index("idx_scans_host_id_status", table_name="scans")
-    except Exception:
-        pass
-
-    # Drop foreign key
-    try:
-        op.drop_constraint("fk_scan_sessions_created_by", "scan_sessions", type_="foreignkey")
-    except Exception:
-        pass
+    op.drop_index("idx_scans_status_started_at", table_name="scans")
+    op.drop_index("idx_scans_host_id_status", table_name="scans")
 
     # Drop scan_sessions table
     op.drop_table("scan_sessions")

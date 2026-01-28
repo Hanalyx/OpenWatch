@@ -75,19 +75,11 @@ def upgrade() -> None:
         postgresql_where=sa.text("is_default = true"),
     )
 
-    # Foreign key to users table (if it exists)
-    try:
-        op.create_foreign_key(
-            "fk_unified_credentials_created_by",
-            "unified_credentials",
-            "users",
-            ["created_by"],
-            ["id"],
-            ondelete="CASCADE",
-        )
-    except Exception:
-        # Users table may not exist in all environments
-        pass
+    # Foreign key to users table - skipped because created_by is UUID
+    # but users.id is Integer (type mismatch). The original try/except
+    # caught the Python error but left PostgreSQL's transaction in a
+    # failed state, breaking subsequent migrations.
+    # TODO: Add FK if users.id is migrated to UUID in the future.
 
 
 def downgrade() -> None:
