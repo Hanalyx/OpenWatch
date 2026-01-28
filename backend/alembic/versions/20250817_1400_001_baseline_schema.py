@@ -62,6 +62,7 @@ def upgrade() -> None:
                 "auditor",
                 "guest",
                 name="user_roles",
+                create_type=False,  # Type already created above with IF NOT EXISTS
             ),
             nullable=False,
         ),
