@@ -182,10 +182,12 @@ def test_validate_credentials_endpoint_exists():
     """
     from fastapi.routing import APIRoute
 
-    from app.routes import hosts
+    # Import crud_router directly to check its routes
+    # The hosts router uses include_router() which may not expose routes directly
+    from app.routes.hosts.crud import router as crud_router
 
-    # Get all routes from the hosts router
-    routes = [route for route in hosts.router.routes if isinstance(route, APIRoute)]
+    # Get all routes from the CRUD router
+    routes = [route for route in crud_router.routes if isinstance(route, APIRoute)]
     route_paths = [route.path for route in routes]
 
     assert "/validate-credentials" in route_paths, (

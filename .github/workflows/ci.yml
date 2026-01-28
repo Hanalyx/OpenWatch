@@ -88,6 +88,19 @@ jobs:
           echo "Checking dependencies for vulnerabilities..."
           safety check --json || true
 
+      - name: Run database migrations
+        working-directory: ./backend
+        env:
+          OPENWATCH_DATABASE_URL: postgresql://openwatch:openwatch_test@localhost:5432/openwatch_test
+          OPENWATCH_JWT_SECRET_KEY: test_secret_key_for_ci_must_be_32_chars_minimum
+          OPENWATCH_SECRET_KEY: test_secret_key_for_ci_must_be_32_chars_minimum
+          OPENWATCH_MASTER_KEY: test_master_key_for_ci_32bytes_long_minimum!!
+          OPENWATCH_ENVIRONMENT: test
+        run: |
+          echo "Running Alembic database migrations..."
+          alembic upgrade head
+          echo "Database migrations completed successfully"
+
       - name: Run tests
         working-directory: ./backend
         env:
