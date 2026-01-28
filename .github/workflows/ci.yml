@@ -348,6 +348,20 @@ jobs:
         ports:
           - 6379:6379
 
+      mongodb:
+        image: mongo:7.0-jammy
+        env:
+          MONGO_INITDB_ROOT_USERNAME: openwatch
+          MONGO_INITDB_ROOT_PASSWORD: openwatch_test
+          MONGO_INITDB_DATABASE: openwatch_rules
+        options: >-
+          --health-cmd "mongosh --eval 'db.runCommand({ping:1})' --quiet"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 27017:27017
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
@@ -381,6 +395,7 @@ jobs:
         env:
           OPENWATCH_DATABASE_URL: postgresql://openwatch:openwatch_test@localhost:5432/openwatch_test
           OPENWATCH_REDIS_URL: redis://localhost:6379
+          OPENWATCH_MONGODB_URL: mongodb://openwatch:openwatch_test@localhost:27017/openwatch_rules?authSource=admin
           OPENWATCH_JWT_SECRET_KEY: test_secret_key_for_e2e_must_be_32_chars_minimum
           OPENWATCH_SECRET_KEY: test_secret_key_for_e2e_must_be_32_chars_minimum
           OPENWATCH_MASTER_KEY: test_master_key_for_e2e_32bytes_long_minimum!!
