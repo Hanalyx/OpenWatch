@@ -171,7 +171,8 @@ const ComplianceTrendChart: React.FC<ComplianceTrendChartProps> = ({
             style: { textAnchor: 'middle', fill: theme.palette.text.secondary },
           }}
         />
-        <Tooltip content={CustomTooltip} />
+        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+        <Tooltip content={CustomTooltip as any} />
         <Legend />
 
         {baselineScore !== undefined && (

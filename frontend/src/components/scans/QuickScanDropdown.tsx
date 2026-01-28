@@ -24,14 +24,19 @@ import {
 } from '@mui/icons-material';
 
 interface ScanTemplate {
-  id: string;
+  id?: string;
+  profile_id?: string;
   name: string;
-  description: string;
-  icon: React.ReactNode;
-  color: 'primary' | 'success' | 'warning' | 'error';
-  estimatedDuration: string;
+  description?: string;
+  icon?: React.ReactNode;
+  color?: 'primary' | 'success' | 'warning' | 'error';
+  estimatedDuration?: string;
+  estimated_duration?: string;
   ruleCount?: number;
+  rule_count?: number;
   isRecommended?: boolean;
+  confidence?: number;
+  reasoning?: string[];
 }
 
 interface QuickScanDropdownProps {
@@ -300,7 +305,7 @@ const QuickScanDropdown: React.FC<QuickScanDropdownProps> = ({
           <Typography variant="subtitle2" fontWeight="bold">
             Quick Scan - {hostName}
           </Typography>
-          {recommendedProfile && (
+          {recommendedProfile && recommendedProfile.confidence && (
             <Typography variant="caption" color="text.secondary">
               Recommended: {recommendedProfile.name} (
               {Math.round(recommendedProfile.confidence * 100)}% confidence)
@@ -310,8 +315,8 @@ const QuickScanDropdown: React.FC<QuickScanDropdownProps> = ({
 
         {templates.map((template) => (
           <MenuItem
-            key={template.id}
-            onClick={() => handleScanStart(template.id, template.name)}
+            key={template.id || template.profile_id}
+            onClick={() => handleScanStart(template.id || template.profile_id || '', template.name)}
             disabled={loadingScan !== null}
             sx={{
               backgroundColor: template.isRecommended ? 'action.hover' : 'inherit',

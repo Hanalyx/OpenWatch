@@ -312,7 +312,7 @@ const ReviewStartStep: React.FC<ReviewStartStepProps> = ({
 
       <Grid container spacing={3}>
         {/* Configuration Summary Card */}
-        <Grid item xs={12} md={7}>
+        <Grid size={{ xs: 12, md: 7 }}>
           <Card variant="outlined">
             <CardContent>
               <Typography variant="subtitle1" fontWeight="medium" gutterBottom>
@@ -426,7 +426,7 @@ const ReviewStartStep: React.FC<ReviewStartStepProps> = ({
         </Grid>
 
         {/* Pre-flight Validation Info Card */}
-        <Grid item xs={12} md={5}>
+        <Grid size={{ xs: 12, md: 5 }}>
           <Card variant="outlined" sx={{ bgcolor: 'action.hover' }}>
             <CardContent>
               <Typography variant="subtitle1" fontWeight="medium" gutterBottom>

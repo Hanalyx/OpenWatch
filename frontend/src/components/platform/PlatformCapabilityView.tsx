@@ -12,7 +12,6 @@ import {
   MenuItem,
   Chip,
   Stack,
-  Grid,
   Paper,
   LinearProgress,
   Alert,
@@ -30,6 +29,7 @@ import {
   CircularProgress,
   Badge,
 } from '@mui/material';
+import Grid from '@mui/material/GridLegacy';
 import {
   Computer as ComputerIcon,
   Storage as StorageIcon,

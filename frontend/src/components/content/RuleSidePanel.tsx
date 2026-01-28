@@ -7,12 +7,12 @@ import {
   Card,
   CardContent,
   Chip,
-  Grid,
   useTheme,
   alpha,
   Stack,
   Alert,
 } from '@mui/material';
+import Grid from '@mui/material/GridLegacy';
 import {
   Close as CloseIcon,
   Info as InfoIcon,

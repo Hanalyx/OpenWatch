@@ -14,7 +14,6 @@ import {
   Chip,
   Alert,
   CircularProgress,
-  Grid,
   Card,
   CardContent,
   LinearProgress,
@@ -30,6 +29,7 @@ import {
   AccordionDetails,
   Tooltip,
 } from '@mui/material';
+import Grid from '@mui/material/GridLegacy';
 import {
   Computer as HostIcon,
   CheckCircle as SuccessIcon,

@@ -9,12 +9,12 @@ import {
   Box,
   Container,
   Typography,
-  Grid,
   TextField,
   InputAdornment,
   CircularProgress,
   Alert,
 } from '@mui/material';
+import Grid from '@mui/material/GridLegacy';
 import { Search as SearchIcon } from '@mui/icons-material';
 import { useFrameworks } from '@/hooks/useFrameworks';
 import { FrameworkCard } from '@/components/frameworks/FrameworkCard';

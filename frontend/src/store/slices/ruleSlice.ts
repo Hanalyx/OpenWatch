@@ -233,16 +233,31 @@ export const fetchRules = createAsyncThunk(
       }
     });
 
-    const response = await api.get(`/api/rules?${queryParams.toString()}`);
-    return response.data;
+    interface RulesApiResponse {
+      success: boolean;
+      data: {
+        rules: Rule[];
+        offset?: number;
+        limit?: number;
+        total_count?: number;
+        has_next?: boolean;
+        has_prev?: boolean;
+      };
+    }
+    return api.get<RulesApiResponse>(`/api/rules?${queryParams.toString()}`);
   }
 );
 
 export const searchRules = createAsyncThunk(
   'rules/searchRules',
   async (searchRequest: SearchRequest) => {
-    const response = await api.post('/api/rules/search', searchRequest);
-    return response.data;
+    interface SearchApiResponse {
+      success: boolean;
+      data: {
+        results: Rule[];
+      };
+    }
+    return api.post<SearchApiResponse>('/api/rules/search', searchRequest);
   }
 );
 
@@ -250,8 +265,11 @@ export const fetchRuleDetails = createAsyncThunk(
   'rules/fetchRuleDetails',
   async ({ ruleId, includeInheritance }: { ruleId: string; includeInheritance?: boolean }) => {
     const params = includeInheritance ? '?include_inheritance=true' : '';
-    const response = await api.get(`/api/rules/${ruleId}${params}`);
-    return response.data;
+    interface RuleDetailsApiResponse {
+      success: boolean;
+      data: Rule;
+    }
+    return api.get<RuleDetailsApiResponse>(`/api/rules/${ruleId}${params}`);
   }
 );
 
@@ -266,12 +284,15 @@ export const fetchRuleDependencies = createAsyncThunk(
     includeTransitive?: boolean;
     maxDepth?: number;
   }) => {
-    const response = await api.post('/api/rules/dependencies', {
+    interface DependenciesApiResponse {
+      success: boolean;
+      data: RuleDependencyGraph;
+    }
+    return api.post<DependenciesApiResponse>('/api/rules/dependencies', {
       rule_ids: ruleIds,
       include_transitive: includeTransitive,
       max_depth: maxDepth,
     });
-    return response.data;
   }
 );
 
@@ -284,14 +305,17 @@ export const detectPlatformCapabilities = createAsyncThunk(
     compareBaseline?: boolean;
     capabilityTypes?: string[];
   }) => {
-    const response = await api.post('/api/rules/platform-capabilities', {
+    interface CapabilitiesApiResponse {
+      success: boolean;
+      data: PlatformCapability;
+    }
+    return api.post<CapabilitiesApiResponse>('/api/rules/platform-capabilities', {
       platform: params.platform,
       platform_version: params.platformVersion,
       target_host: params.targetHost,
       compare_baseline: params.compareBaseline ?? true,
       capability_types: params.capabilityTypes ?? ['package', 'service', 'security'],
     });
-    return response.data;
   }
 );
 

@@ -5,7 +5,6 @@ import {
   Box,
   Card,
   CardContent,
-  Grid,
   Typography,
   Button,
   IconButton,
@@ -38,6 +37,7 @@ import {
   InputLabel,
   Select,
 } from '@mui/material';
+import Grid from '@mui/material/GridLegacy';
 import {
   Add,
   FilterList,
@@ -76,7 +76,7 @@ import {
   type ViewMode,
 } from '../../components/design-system';
 import { api } from '../../services/api';
-import type { Host } from '../../types/host';
+import type { Host, HostStatus, AuthMethod } from '../../types/host';
 import { REFRESH_INTERVALS } from '../../constants/refresh';
 import { validateSshKey } from '../../utils/hostValidation';
 import { getComplianceScoreColor } from '../../utils/hostStatus';
@@ -214,7 +214,7 @@ const Hosts: React.FC = () => {
         setLoading(true);
       }
 
-      const apiHosts = await api.get('/api/hosts/');
+      const apiHosts = await api.get<ApiHostResponse[]>('/api/hosts/');
 
       // Auto-refresh completed successfully
 
@@ -225,10 +225,11 @@ const Hosts: React.FC = () => {
         displayName: host.display_name || host.hostname,
         ipAddress: host.ip_address,
         operatingSystem: host.operating_system,
-        status:
+        status: (
           host.scan_status === 'running' || host.scan_status === 'pending'
             ? 'scanning'
-            : host.status || 'offline',
+            : host.status || 'offline'
+        ) as HostStatus,
         complianceScore: host.compliance_score || null,
         complianceTrend: 'stable' as const,
         lastScan: host.last_scan || null,
@@ -240,10 +241,10 @@ const Hosts: React.FC = () => {
         lowIssues: host.low_issues || 0,
         tags: host.tags || [],
         group: host.group_name || host.group || 'Ungrouped',
-        group_id: host.group_id || null,
-        group_name: host.group_name || null,
-        group_description: host.group_description || null,
-        group_color: host.group_color || null,
+        group_id: host.group_id ?? undefined,
+        group_name: host.group_name ?? undefined,
+        group_description: host.group_description ?? undefined,
+        group_color: host.group_color ?? undefined,
         owner: host.owner || 'Unassigned',
         cpuUsage: host.cpu_usage || null,
         memoryUsage: host.memory_usage || null,
@@ -256,11 +257,11 @@ const Hosts: React.FC = () => {
         profile: host.scan_profile || null,
         port: host.port || 22,
         username: host.username || '',
-        authMethod: host.auth_method || 'ssh_key',
-        ssh_key_fingerprint: host.ssh_key_fingerprint || null,
-        ssh_key_type: host.ssh_key_type || null,
-        ssh_key_bits: host.ssh_key_bits || null,
-        ssh_key_comment: host.ssh_key_comment || null,
+        authMethod: (host.auth_method || 'ssh_key') as AuthMethod,
+        ssh_key_fingerprint: host.ssh_key_fingerprint ?? undefined,
+        ssh_key_type: host.ssh_key_type ?? undefined,
+        ssh_key_bits: host.ssh_key_bits ?? undefined,
+        ssh_key_comment: host.ssh_key_comment ?? undefined,
         // New scan information
         latestScanId: host.latest_scan_id || null,
         latestScanName: host.latest_scan_name || null,
@@ -483,8 +484,12 @@ const Hosts: React.FC = () => {
       await new Promise((resolve) => setTimeout(resolve, 3000));
 
       // Get updated state
-      const stateResponse = await api.get(`/api/monitoring/hosts/${host.id}/state`);
-      const state = stateResponse.data || stateResponse;
+      interface HostState {
+        current_state: string;
+        recent_history?: Array<{ error_message?: string }>;
+      }
+      const stateResponse = await api.get<HostState>(`/api/monitoring/hosts/${host.id}/state`);
+      const state = stateResponse;
 
       // ONLY block scan if host is DOWN (completely unreachable)
       // Compliance priority: allow scans unless host is definitively down
@@ -646,8 +651,24 @@ const Hosts: React.FC = () => {
 
   const checkHostStatus = async (hostId: string) => {
     try {
+      // Define response type for connectivity check
+      interface ConnectivityCheckResult {
+        current_status: string;
+        diagnostics?: {
+          ping_success?: boolean;
+          port_open?: boolean;
+          ssh_accessible?: boolean;
+          ssh_credentials_source?: string;
+        };
+        response_time_ms?: number;
+        last_check?: string;
+        error_message?: string;
+      }
+
       // Perform IMMEDIATE comprehensive connectivity check (ping → port → SSH)
-      const result = await api.post(`/api/monitoring/hosts/${hostId}/check-connectivity`);
+      const result = await api.post<ConnectivityCheckResult>(
+        `/api/monitoring/hosts/${hostId}/check-connectivity`
+      );
 
       // Get host details
       const host = hosts.find((h) => h.id === hostId);
@@ -740,8 +761,6 @@ const Hosts: React.FC = () => {
 
   const fetchSystemCredentialsForEdit = async () => {
     try {
-      // Use unified credentials API with scope filter
-      const response = await api.get('/api/system/credentials?scope=system');
       // Type-safe credential lookup - find default system credential
       interface SystemCredential {
         is_default: boolean;
@@ -752,6 +771,8 @@ const Hosts: React.FC = () => {
         ssh_key_bits?: number;
         ssh_key_comment?: string;
       }
+      // Use unified credentials API with scope filter
+      const response = await api.get<SystemCredential[]>('/api/system/credentials?scope=system');
       const defaultCredential = response.find((cred: SystemCredential) => cred.is_default);
 
       if (defaultCredential) {
@@ -1966,7 +1987,7 @@ const Hosts: React.FC = () => {
                   ip_address: host.ipAddress,
                   operating_system: host.operatingSystem,
                   environment: host.group || 'production',
-                  last_scan: host.lastScan,
+                  last_scan: host.lastScan ?? undefined,
                 }
               : null;
           })

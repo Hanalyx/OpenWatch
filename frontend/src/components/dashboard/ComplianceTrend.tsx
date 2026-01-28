@@ -169,9 +169,10 @@ const ComplianceTrend: React.FC<ComplianceTrendProps> = ({
                 width={400}
                 height={300}
                 margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
-                onClick={(e) => {
-                  if (e && e.activePayload && onDataPointClick) {
-                    onDataPointClick(e.activePayload[0].payload);
+                onClick={(e: unknown) => {
+                  const event = e as { activePayload?: Array<{ payload: ComplianceDataPoint }> } | null;
+                  if (event && event.activePayload && onDataPointClick) {
+                    onDataPointClick(event.activePayload[0].payload);
                   }
                 }}
               >
@@ -193,7 +194,8 @@ const ComplianceTrend: React.FC<ComplianceTrendProps> = ({
                   stroke={theme.palette.text.secondary}
                   style={{ fontSize: '0.75rem' }}
                 />
-                <Tooltip content={CustomTooltip} />
+                {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                <Tooltip content={CustomTooltip as any} />
                 <Legend wrapperStyle={{ fontSize: '0.875rem' }} iconType="circle" />
                 <Area
                   type="monotone"

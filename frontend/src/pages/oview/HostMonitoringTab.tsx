@@ -11,7 +11,6 @@ import {
   Box,
   Card,
   CardContent,
-  Grid,
   Typography,
   Table,
   TableBody,
@@ -34,6 +33,7 @@ import {
   MenuItem,
   TablePagination,
 } from '@mui/material';
+import Grid from '@mui/material/GridLegacy';
 import {
   Computer,
   Warning,
@@ -172,20 +172,38 @@ const HostMonitoringTab = forwardRef<HostMonitoringTabRef, HostMonitoringTabProp
         setError(null);
 
         // Fetch state distribution from monitoring API
-        const stateResponse = await api.get('/api/monitoring/hosts/status');
-        setStateDistribution(stateResponse.data || stateResponse);
+        const stateResponse = await api.get<MonitoringState | { data: MonitoringState }>(
+          '/api/monitoring/hosts/status'
+        );
+        const stateData =
+          'data' in stateResponse ? stateResponse.data : stateResponse;
+        setStateDistribution(stateData);
 
         // Fetch ALL hosts with monitoring state
-        const hostsResponse = await api.get('/api/hosts/');
-        const hostsData =
-          hostsResponse.data?.hosts || hostsResponse.hosts || hostsResponse.data || hostsResponse;
+        interface HostsApiResponse {
+          data?: ApiHostResponse[] | { hosts?: ApiHostResponse[] };
+          hosts?: ApiHostResponse[];
+        }
+        const hostsResponse = await api.get<ApiHostResponse[] | HostsApiResponse>('/api/hosts/');
+        let hostsData: ApiHostResponse[];
+        if (Array.isArray(hostsResponse)) {
+          hostsData = hostsResponse;
+        } else if ('data' in hostsResponse && hostsResponse.data) {
+          hostsData = Array.isArray(hostsResponse.data)
+            ? hostsResponse.data
+            : (hostsResponse.data as { hosts?: ApiHostResponse[] }).hosts || [];
+        } else if ('hosts' in hostsResponse && hostsResponse.hosts) {
+          hostsData = hostsResponse.hosts;
+        } else {
+          hostsData = [];
+        }
 
         // CRITICAL FIX: Use data from /api/hosts/ directly instead of N+1 queries
         // This eliminates 7 additional API calls per refresh!
-        const hostDetails = hostsData.map((host: ApiHostResponse) => ({
+        const hostDetails: HostStateDetail[] = hostsData.map((host: ApiHostResponse) => ({
           host_id: host.id,
           hostname: host.hostname,
-          ip_address: host.ip_address,
+          ip_address: host.ip_address || '',
           current_state: host.status || 'unknown',
           consecutive_failures:
             host.ping_consecutive_failures ||
@@ -199,7 +217,7 @@ const HostMonitoringTab = forwardRef<HostMonitoringTabRef, HostMonitoringTabProp
             0,
           check_priority: host.check_priority || 5,
           response_time_ms: host.response_time_ms ?? null,
-          last_check: host.last_check || host.updated_at,
+          last_check: host.last_check || host.updated_at || new Date().toISOString(),
           next_check_time: host.next_check_time ?? null,
         }));
 
@@ -319,7 +337,8 @@ const HostMonitoringTab = forwardRef<HostMonitoringTabRef, HostMonitoringTabProp
               sx={{
                 // Type-safe theme palette access - color is validated to be a MUI palette color key
                 bgcolor: alpha(
-                  (theme.palette as Record<string, { main?: string }>)[color]?.main || '#000',
+                  (theme.palette as unknown as Record<string, { main?: string }>)[color]?.main ||
+                    '#000',
                   0.1
                 ),
                 color: `${color}.main`,

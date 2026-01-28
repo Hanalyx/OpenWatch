@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   Box,
-  Grid,
   Skeleton,
   Pagination,
   Alert,
@@ -13,6 +12,7 @@ import {
   Stack,
   useTheme,
 } from '@mui/material';
+import Grid from '@mui/material/GridLegacy';
 import {
   Download as DownloadIcon,
   Close as CloseIcon,
@@ -113,6 +113,8 @@ const RulesExplorerSimplified: React.FC<RulesExplorerProps> = ({ onRuleSelect })
           offset: pagination.offset,
           limit: pagination.limit,
           ...activeFilters,
+          // Convert null to undefined for RuleQueryParams compatibility
+          abstract: activeFilters.abstract ?? undefined,
           ...params,
         });
 
@@ -204,8 +206,8 @@ const RulesExplorerSimplified: React.FC<RulesExplorerProps> = ({ onRuleSelect })
       // Reset pagination
       setPaginationState((prev) => ({ ...prev, offset: 0 }));
 
-      // Reload rules with new filters
-      loadRules({ ...newFilters, offset: 0 });
+      // Reload rules with new filters (convert null to undefined for RuleQueryParams)
+      loadRules({ ...newFilters, abstract: newFilters.abstract ?? undefined, offset: 0 });
     },
     [activeFilters, loadRules]
   );
@@ -316,8 +318,8 @@ const RulesExplorerSimplified: React.FC<RulesExplorerProps> = ({ onRuleSelect })
         includeMetadata: true,
       });
 
-      // Create download link
-      const dataStr = format === 'json' ? JSON.stringify(response, null, 2) : response;
+      // Create download link - handle both JSON object and string responses
+      const dataStr = format === 'json' ? JSON.stringify(response, null, 2) : String(response);
       const blob = new Blob([dataStr], {
         type:
           format === 'json'

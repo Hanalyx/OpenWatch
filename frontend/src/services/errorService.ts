@@ -186,7 +186,7 @@ class ErrorService {
         user_guidance: 'Check your network connection and ensure the OpenWatch server is running',
         technical_details: {
           original_error: errorMessage,
-          status_code: statusCode,
+          ...(statusCode !== undefined && { status_code: statusCode }),
         },
         automated_fixes: [
           {
@@ -238,7 +238,7 @@ class ErrorService {
         message: 'Access denied',
         user_guidance: 'You do not have permission to perform this action',
         technical_details: {
-          status_code: statusCode,
+          ...(statusCode !== undefined && { status_code: statusCode }),
           original_error: errorMessage,
         },
         automated_fixes: [],
@@ -248,7 +248,7 @@ class ErrorService {
     }
 
     // Server errors
-    if (statusCode >= 500) {
+    if (statusCode !== undefined && statusCode >= 500) {
       return {
         error_code: 'EXEC_002',
         category: 'execution',
@@ -257,7 +257,7 @@ class ErrorService {
         user_guidance:
           'A server error occurred. Please try again or contact support if the problem persists',
         technical_details: {
-          status_code: statusCode,
+          ...(statusCode !== undefined && { status_code: statusCode }),
           original_error: errorMessage,
         },
         automated_fixes: [
@@ -276,7 +276,7 @@ class ErrorService {
     }
 
     // Client errors
-    if (statusCode >= 400 && statusCode < 500) {
+    if (statusCode !== undefined && statusCode >= 400 && statusCode < 500) {
       return {
         error_code: 'EXEC_003',
         category: 'configuration',
@@ -284,7 +284,7 @@ class ErrorService {
         message: 'Invalid request',
         user_guidance: errorMessage,
         technical_details: {
-          status_code: statusCode,
+          ...(statusCode !== undefined && { status_code: statusCode }),
           original_error: errorMessage,
         },
         automated_fixes: [],
@@ -302,7 +302,7 @@ class ErrorService {
       user_guidance: errorMessage,
       technical_details: {
         original_error: errorMessage,
-        status_code: statusCode,
+        ...(statusCode !== undefined && { status_code: statusCode }),
       },
       automated_fixes: [
         {

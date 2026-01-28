@@ -40,7 +40,7 @@ interface NetworkError extends Error {
  * Extended Window interface with Redux store
  * Adds __REDUX_STORE__ property for development debugging
  */
-interface WindowWithRedux extends Window {
+interface WindowWithRedux {
   __REDUX_STORE__?: ReduxStore;
 }
 
@@ -87,7 +87,7 @@ class ApiClient {
           const windowWithRedux = window as WindowWithRedux;
           if (windowWithRedux.__REDUX_STORE__) {
             const state = windowWithRedux.__REDUX_STORE__.getState();
-            token = state.auth?.token;
+            token = state.auth?.token ?? null;
           }
         }
 
@@ -237,11 +237,11 @@ class ApiClient {
    * File upload with progress tracking
    * Returns unknown response - callers should specify expected type via generic
    */
-  async uploadFile(
+  async uploadFile<T = unknown>(
     url: string,
     file: File,
     onProgress?: (progress: number) => void
-  ): Promise<unknown> {
+  ): Promise<T> {
     const formData = new FormData();
     formData.append('file', file);
 
@@ -257,7 +257,7 @@ class ApiClient {
       },
     };
 
-    return this.post(url, formData, config);
+    return this.post<T>(url, formData, config);
   }
 }
 

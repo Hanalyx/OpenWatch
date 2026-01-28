@@ -197,7 +197,7 @@ const ActivityFeed: React.FC<ActivityFeedProps> = ({
                   }
                 >
                   <ListItemIcon sx={{ minWidth: 40 }}>
-                    {getIcon(firstItem.type, firstItem.severity)}
+                    {getIcon(firstItem.type)}
                   </ListItemIcon>
                   <ListItemText
                     primary={

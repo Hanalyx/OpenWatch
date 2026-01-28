@@ -27,20 +27,17 @@ const initialState: UserState = {
 };
 
 export const fetchUsers = createAsyncThunk('users/fetchUsers', async () => {
-  const response = await api.get('/users');
-  return response.data;
+  return api.get<User[]>('/users');
 });
 
 export const createUser = createAsyncThunk('users/createUser', async (userData: Partial<User>) => {
-  const response = await api.post('/users', userData);
-  return response.data;
+  return api.post<User>('/users', userData);
 });
 
 export const updateUser = createAsyncThunk(
   'users/updateUser',
   async ({ id, data }: { id: string; data: Partial<User> }) => {
-    const response = await api.put(`/users/${id}`, data);
-    return response.data;
+    return api.put<User>(`/users/${id}`, data);
   }
 );
 
@@ -52,8 +49,7 @@ export const deleteUser = createAsyncThunk('users/deleteUser', async (id: string
 export const toggleUserStatus = createAsyncThunk(
   'users/toggleUserStatus',
   async ({ id, is_active }: { id: string; is_active: boolean }) => {
-    const response = await api.patch(`/users/${id}/status`, { is_active });
-    return response.data;
+    return api.patch<User>(`/users/${id}/status`, { is_active });
   }
 );
 

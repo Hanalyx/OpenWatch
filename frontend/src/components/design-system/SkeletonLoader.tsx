@@ -1,5 +1,6 @@
 import React from 'react';
-import { Box, Skeleton, useTheme, alpha, keyframes, Grid } from '@mui/material';
+import { Box, Skeleton, useTheme, alpha, keyframes } from '@mui/material';
+import Grid from '@mui/material/GridLegacy';
 
 // Custom animations
 const shimmer = keyframes`

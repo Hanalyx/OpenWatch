@@ -112,7 +112,7 @@ const Users: React.FC = () => {
 
   const loadRoles = async () => {
     try {
-      const response = await api.get('/api/users/roles');
+      const response = await api.get<Role[]>('/api/users/roles');
       setRoles(response);
     } catch (err: unknown) {
       console.error('Error loading roles:', err);
@@ -131,7 +131,9 @@ const Users: React.FC = () => {
       if (roleFilter) params.append('role', roleFilter);
       if (statusFilter !== '') params.append('is_active', statusFilter);
 
-      const response = await api.get(`/api/users?${params.toString()}`);
+      const response = await api.get<{ users: User[]; total: number }>(
+        `/api/users?${params.toString()}`
+      );
       setUsers(response.users);
       setTotal(response.total);
     } catch (err: unknown) {

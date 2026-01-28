@@ -420,10 +420,10 @@ export const GroupComplianceReport: React.FC<ComplianceReportProps> = ({ groupId
                     cx="50%"
                     cy="50%"
                     labelLine={false}
-                    label={({ name, percent }: { name: string; percent?: number }) =>
+                    label={({ name, percent }: { name?: string; percent?: number }) =>
                       percent !== undefined
-                        ? `${name}: ${(percent * 100).toFixed(0)}%`
-                        : `${name}: N/A`
+                        ? `${name || 'Unknown'}: ${(percent * 100).toFixed(0)}%`
+                        : `${name || 'Unknown'}: N/A`
                     }
                     outerRadius={80}
                     fill="#8884d8"

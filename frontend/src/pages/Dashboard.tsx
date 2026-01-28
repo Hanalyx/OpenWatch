@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Container, Grid, Box, Skeleton, Alert, Button, Typography } from '@mui/material';
+import { Container, Box, Skeleton, Alert, Button, Typography } from '@mui/material';
+import Grid from '@mui/material/GridLegacy';
 import { useNavigate } from 'react-router-dom';
 import { Scanner, AddCircle, Warning, Assessment } from '@mui/icons-material';
 
@@ -29,16 +30,57 @@ interface ComplianceTrendData {
 }
 
 /**
+ * Dashboard statistics for compliance metrics
+ */
+interface DashboardStats {
+  onlineHosts: number;
+  degradedHosts: number;
+  criticalHosts: number;
+  downHosts: number;
+  scanningHosts: number;
+  maintenanceHosts: number;
+  totalHosts: number;
+  critical: number;
+  high: number;
+  medium: number;
+  low: number;
+  passed: number;
+  avgCompliance: number;
+}
+
+/**
+ * Priority host for dashboard display
+ */
+interface DashboardPriorityHost {
+  id: string;
+  hostname: string;
+  displayName: string;
+  ipAddress: string;
+  operatingSystem: string;
+  status: string;
+  complianceScore: number;
+  issueType: 'critical_issues' | 'not_scanned' | 'degrading' | 'offline';
+  issue: string;
+  severity: 'critical' | 'high' | 'medium';
+  lastScan: string;
+  criticalIssues: number;
+  highIssues: number;
+  mediumIssues: number;
+  lowIssues: number;
+  passedRules: number;
+}
+
+/**
  * Aggregated dashboard data from backend
  * Combined metrics from hosts, scans, and compliance data
  */
 interface DashboardData {
-  hosts: number;
-  scans: number;
-  complianceScore: number;
-  criticalIssues: number;
-  trendData: ComplianceTrendData[];
+  stats: DashboardStats;
+  hosts: NormalizedHost[];
+  scans: RawScanData[];
   activities: ActivityItem[];
+  priorityHosts: DashboardPriorityHost[];
+  trendData: ComplianceTrendData[];
 }
 
 /**
@@ -95,9 +137,10 @@ interface RawScanData {
 /**
  * Normalized host data after transformation
  * Consistent camelCase field naming for frontend use
- * Extends RawHostData to include all original fields plus normalized fields
  */
-interface NormalizedHost extends RawHostData {
+interface NormalizedHost {
+  id: string;
+  hostname: string;
   criticalIssues: number;
   highIssues: number;
   mediumIssues: number;
@@ -221,20 +264,21 @@ const Dashboard: React.FC = () => {
       // Normalize host data to ensure consistent field naming
       // Use RawHostData type for backend data that may have inconsistent naming
       const normalizedHosts: NormalizedHost[] = hosts.map((host: RawHostData) => ({
-        ...host,
-        // Ensure consistent camelCase naming
+        id: host.id || '',
+        hostname: host.hostname || '',
         criticalIssues: host.critical_issues || host.criticalIssues || 0,
         highIssues: host.high_issues || host.highIssues || 0,
         mediumIssues: host.medium_issues || host.mediumIssues || 0,
         lowIssues: host.low_issues || host.lowIssues || 0,
         passedRules: host.passed_rules || host.passedRules || 0,
         complianceScore:
-          host.compliance_score !== null ? host.compliance_score : host.complianceScore || 0,
-        displayName: host.display_name || host.displayName || host.hostname,
+          host.compliance_score !== undefined && host.compliance_score !== null
+            ? host.compliance_score
+            : host.complianceScore ?? null,
+        displayName: host.display_name || host.displayName || host.hostname || '',
         ipAddress: host.ip_address || host.ipAddress || '',
         operatingSystem: host.operating_system || host.operatingSystem || 'Unknown',
         lastScan: host.last_scan || host.lastScan,
-        // Ensure status has a valid value
         status: host.status || 'offline',
       }));
 
@@ -300,23 +344,30 @@ const Dashboard: React.FC = () => {
       // Generate activity items from recent scans
       // Use RawScanData type for backend scan data with snake_case/camelCase fields
       const activitiesArray: ActivityItem[] = scans
-        .filter((scan: RawScanData) => scan.completed_at)
+        .filter((scan: RawScanData) => scan.completed_at && scan.id)
         .slice(0, 10)
-        .map((scan: RawScanData) => ({
-          id: scan.id,
-          type: scan.status === 'completed' ? 'scan_completed' : 'scan_failed',
-          message: `Scan ${scan.status} for ${scan.host_name || scan.hostname || 'Unknown host'}`,
-          timestamp: new Date(scan.completed_at || scan.started_at),
-          severity: scan.status === 'completed' ? 'success' : 'error',
-          metadata: {
-            scanId: scan.id,
-            complianceScore: scan.results?.score,
-          },
-          action: {
-            label: 'View Report',
-            onClick: () => navigate(`/scans/${scan.id}`),
-          },
-        }));
+        .map((scan: RawScanData): ActivityItem => {
+          const scanId = scan.id as string; // Safe due to filter above
+          const activityType: ActivityItem['type'] =
+            scan.status === 'completed' ? 'scan_completed' : 'scan_failed';
+          const activitySeverity: ActivityItem['severity'] =
+            scan.status === 'completed' ? 'success' : 'error';
+          return {
+            id: scanId,
+            type: activityType,
+            message: `Scan ${scan.status} for ${scan.host_name || scan.hostname || 'Unknown host'}`,
+            timestamp: new Date(scan.completed_at || scan.started_at || new Date().toISOString()),
+            severity: activitySeverity,
+            metadata: {
+              scanId,
+              complianceScore: scan.results?.score,
+            },
+            action: {
+              label: 'View Report',
+              onClick: () => navigate(`/scans/${scanId}`),
+            },
+          };
+        });
 
       // Identify priority hosts using normalized data
       // Type definition for priority host array (used by both OWCA and fallback)
@@ -538,12 +589,12 @@ const Dashboard: React.FC = () => {
           low: dashboardData?.stats?.low || 0,
           passed: dashboardData?.stats?.passed || 0,
           overallCompliance: dashboardData?.stats?.avgCompliance || 0,
-          trend:
-            dashboardData?.stats?.avgCompliance > 85
-              ? 'up'
-              : dashboardData?.stats?.avgCompliance > 70
-                ? 'stable'
-                : 'down',
+          trend: (() => {
+            const avgCompliance = dashboardData?.stats?.avgCompliance ?? 0;
+            if (avgCompliance > 85) return 'up';
+            if (avgCompliance > 70) return 'stable';
+            return 'down';
+          })(),
         }}
         onFilterClick={handleFilterClick}
       />

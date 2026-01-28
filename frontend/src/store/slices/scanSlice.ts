@@ -32,26 +32,22 @@ const initialState: ScanState = {
 };
 
 export const fetchScans = createAsyncThunk('scans/fetchScans', async () => {
-  const response = await api.get('/scans');
-  return response.data;
+  return api.get<Scan[]>('/scans');
 });
 
 export const fetchScan = createAsyncThunk('scans/fetchScan', async (id: string) => {
-  const response = await api.get(`/scans/${id}`);
-  return response.data;
+  return api.get<Scan>(`/scans/${id}`);
 });
 
 export const createScan = createAsyncThunk(
   'scans/createScan',
   async (scanData: { host_id: string; content_id: string; profile_id: string }) => {
-    const response = await api.post('/scans', scanData);
-    return response.data;
+    return api.post<Scan>('/scans', scanData);
   }
 );
 
 export const cancelScan = createAsyncThunk('scans/cancelScan', async (id: string) => {
-  const response = await api.post(`/scans/${id}/cancel`);
-  return response.data;
+  return api.post<Scan>(`/scans/${id}/cancel`);
 });
 
 const scanSlice = createSlice({

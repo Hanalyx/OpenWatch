@@ -22,10 +22,10 @@ import {
   ListItemIcon,
   Card,
   CardContent,
-  Grid,
   Slider,
   IconButton,
 } from '@mui/material';
+import Grid from '@mui/material/GridLegacy';
 import { Computer, PlayArrow, Close, Info, AutoAwesome, Timer } from '@mui/icons-material';
 
 interface Host {

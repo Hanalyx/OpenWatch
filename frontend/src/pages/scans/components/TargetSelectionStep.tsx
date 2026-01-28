@@ -81,7 +81,7 @@ interface TargetSelectionStepProps {
 /**
  * Get status icon component based on host status
  */
-function getStatusIcon(status: string): React.ReactNode {
+function getStatusIcon(status: string): React.ReactElement {
   switch (status) {
     case 'online':
       return <CheckCircleIcon fontSize="small" color="success" />;
@@ -262,7 +262,7 @@ const TargetSelectionStep: React.FC<TargetSelectionStepProps> = ({
       {/* Target Type Selection Cards */}
       <Grid container spacing={2} sx={{ mb: 3 }}>
         {/* Host Groups Option */}
-        <Grid item xs={12} sm={6}>
+        <Grid size={{ xs: 12, sm: 6 }}>
           <Card
             sx={{
               cursor: 'pointer',
@@ -301,7 +301,7 @@ const TargetSelectionStep: React.FC<TargetSelectionStepProps> = ({
         </Grid>
 
         {/* Individual Hosts Option */}
-        <Grid item xs={12} sm={6}>
+        <Grid size={{ xs: 12, sm: 6 }}>
           <Card
             sx={{
               cursor: 'pointer',
