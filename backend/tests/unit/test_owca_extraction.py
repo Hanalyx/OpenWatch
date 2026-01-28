@@ -186,8 +186,8 @@ class TestSeverityCalculator:
         assert distribution.total_findings() == 75
         assert distribution.critical == 5
 
-        # Test negative validation
-        with pytest.raises(ValueError, match="non-negative"):
+        # Test negative validation - Pydantic 2.x uses "greater_than_equal" error type
+        with pytest.raises(ValueError, match="greater than or equal to 0|non-negative"):
             SeverityDistribution(critical=-1)
 
     @pytest.mark.unit

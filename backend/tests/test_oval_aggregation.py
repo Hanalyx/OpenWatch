@@ -22,29 +22,29 @@ Key Methods Tested:
 
 Usage:
     # Test all platforms and frameworks (FULL COVERAGE - uses all rules)
-    docker exec openwatch-backend python3 /app/backend/tests/test_oval_aggregation.py
+    docker exec openwatch-backend python3 /app/backend/tests/run_oval_aggregation_test.py
 
     # Test specific platform with FULL COVERAGE
-    docker exec openwatch-backend python3 /app/backend/tests/test_oval_aggregation.py --platform rhel9
+    docker exec openwatch-backend python3 /app/backend/tests/run_oval_aggregation_test.py --platform rhel9
 
     # Test specific framework for a platform (FULL COVERAGE)
-    docker exec openwatch-backend python3 /app/backend/tests/test_oval_aggregation.py --platform rhel9 --framework cis
+    docker exec openwatch-backend python3 /app/backend/tests/run_oval_aggregation_test.py --platform rhel9 --framework cis
 
     # Quick test with limited rules (faster for development)
-    docker exec openwatch-backend python3 /app/backend/tests/test_oval_aggregation.py --platform rhel8 --framework stig --quick
+    docker exec openwatch-backend python3 /app/backend/tests/run_oval_aggregation_test.py --platform rhel8 --framework stig --quick
 
     # List available platforms and frameworks
-    docker exec openwatch-backend python3 /app/backend/tests/test_oval_aggregation.py --list
+    docker exec openwatch-backend python3 /app/backend/tests/run_oval_aggregation_test.py --list
 
 Examples:
     # FULL TEST: CIS controls for RHEL 9 (production-ready validation)
-    docker exec openwatch-backend python3 /app/backend/tests/test_oval_aggregation.py --platform rhel9 --framework cis
+    docker exec openwatch-backend python3 /app/backend/tests/run_oval_aggregation_test.py --platform rhel9 --framework cis
 
     # FULL TEST: STIG profile for RHEL 8 (all 1233 rules)
-    docker exec openwatch-backend python3 /app/backend/tests/test_oval_aggregation.py --platform rhel8 --framework stig
+    docker exec openwatch-backend python3 /app/backend/tests/run_oval_aggregation_test.py --platform rhel8 --framework stig
 
     # QUICK TEST: NIST 800-53 for Ubuntu 22.04 (10 rules only, faster)
-    docker exec openwatch-backend python3 /app/backend/tests/test_oval_aggregation.py --platform ubuntu2204 --framework nist --quick
+    docker exec openwatch-backend python3 /app/backend/tests/run_oval_aggregation_test.py --platform ubuntu2204 --framework nist --quick
 
 Note:
     DEFAULT BEHAVIOR (no --quick flag):
@@ -97,19 +97,19 @@ def parse_arguments():
         epilog="""
 Examples:
   Test all platforms:
-    python3 test_oval_aggregation.py
+    python3 run_oval_aggregation_test.py
 
   Test specific platform:
-    python3 test_oval_aggregation.py --platform rhel9
+    python3 run_oval_aggregation_test.py --platform rhel9
 
   Test CIS controls for RHEL 9:
-    python3 test_oval_aggregation.py --platform rhel9 --framework cis
+    python3 run_oval_aggregation_test.py --platform rhel9 --framework cis
 
   Test STIG profile for RHEL 8:
-    python3 test_oval_aggregation.py --platform rhel8 --framework stig
+    python3 run_oval_aggregation_test.py --platform rhel8 --framework stig
 
   List available options:
-    python3 test_oval_aggregation.py --list
+    python3 run_oval_aggregation_test.py --list
         """
     )
 
@@ -236,7 +236,7 @@ async def list_available_options(db):
     logger.info("=" * 80)
 
 
-async def test_oval_aggregation(
+async def run_oval_aggregation_test(
     platform_filter: Optional[str] = None,
     framework_filter: Optional[str] = None,
     output_dir: str = "/tmp/oval_test",
@@ -783,7 +783,7 @@ async def main():
             return 0
 
         # Run OVAL aggregation test
-        success = await test_oval_aggregation(
+        success = await run_oval_aggregation_test(
             platform_filter=args.platform,
             framework_filter=args.framework,
             output_dir=args.output_dir,

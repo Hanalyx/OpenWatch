@@ -259,7 +259,7 @@ class TestSeverityCriticalDocumentation:
     def test_database_model_has_nist_comment(self):
         """Test that database.py includes NIST SP 800-30 reference comment"""
         # Read database.py to verify documentation
-        with open("backend/app/database.py", "r") as f:
+        with open("app/database.py", "r") as f:
             content = f.read()
 
         # Verify NIST SP 800-30 reference exists
@@ -274,7 +274,7 @@ class TestSeverityCriticalDocumentation:
     def test_scan_tasks_has_nist_comment(self):
         """Test that scan_tasks.py includes NIST SP 800-30 reference comment"""
         # Read scan_tasks.py to verify documentation
-        with open("backend/app/tasks/scan_tasks.py", "r") as f:
+        with open("app/tasks/scan_tasks.py", "r") as f:
             content = f.read()
 
         # Verify NIST SP 800-30 reference exists in severity counting section
