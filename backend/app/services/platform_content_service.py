@@ -159,12 +159,14 @@ class PlatformContentService:
         Returns:
             HostPlatformInfo if host exists, None otherwise
         """
-        query = text("""
+        query = text(
+            """
             SELECT id, hostname, ip_address, port,
                    os_family, os_version, platform_identifier, architecture
             FROM hosts
             WHERE id = :host_id AND is_active = true
-        """)
+        """
+        )
 
         result = self.db.execute(query, {"host_id": host_id}).fetchone()
 
@@ -420,12 +422,14 @@ class PlatformContentService:
 
         # Batch query for all hosts
         placeholders = ", ".join([f"'{hid}'" for hid in host_ids])
-        query = text(f"""
+        query = text(
+            f"""
             SELECT id, hostname, ip_address, port,
                    os_family, os_version, platform_identifier, architecture
             FROM hosts
             WHERE id IN ({placeholders}) AND is_active = true
-        """)
+        """
+        )
 
         results = {}
         host_rows = self.db.execute(query).fetchall()
@@ -465,7 +469,8 @@ class PlatformContentService:
         compliance_framework: Optional[str] = None,
     ) -> Optional[PlatformContent]:
         """Find content with exact os_family and os_version match."""
-        query = text("""
+        query = text(
+            """
             SELECT id, file_path, name, os_family, os_version,
                    profiles, compliance_framework
             FROM scap_content
@@ -474,7 +479,8 @@ class PlatformContentService:
               AND (:framework IS NULL OR LOWER(compliance_framework) = LOWER(:framework))
             ORDER BY uploaded_at DESC
             LIMIT 1
-        """)
+        """
+        )
 
         result = self.db.execute(
             query,
@@ -496,7 +502,8 @@ class PlatformContentService:
         compliance_framework: Optional[str] = None,
     ) -> Optional[PlatformContent]:
         """Find content by os_family only."""
-        query = text("""
+        query = text(
+            """
             SELECT id, file_path, name, os_family, os_version,
                    profiles, compliance_framework
             FROM scap_content
@@ -504,7 +511,8 @@ class PlatformContentService:
               AND (:framework IS NULL OR LOWER(compliance_framework) = LOWER(:framework))
             ORDER BY uploaded_at DESC
             LIMIT 1
-        """)
+        """
+        )
 
         result = self.db.execute(
             query,
@@ -523,14 +531,16 @@ class PlatformContentService:
         compliance_framework: Optional[str] = None,
     ) -> Optional[PlatformContent]:
         """Get default SCAP content when no platform match found."""
-        query = text("""
+        query = text(
+            """
             SELECT id, file_path, name, os_family, os_version,
                    profiles, compliance_framework
             FROM scap_content
             WHERE (:framework IS NULL OR LOWER(compliance_framework) = LOWER(:framework))
             ORDER BY uploaded_at DESC
             LIMIT 1
-        """)
+        """
+        )
 
         result = self.db.execute(
             query,
@@ -554,7 +564,8 @@ class PlatformContentService:
         architecture: Optional[str],
     ) -> None:
         """Update host record with detected platform information."""
-        query = text("""
+        query = text(
+            """
             UPDATE hosts
             SET os_family = :platform,
                 os_version = :platform_version,
@@ -563,7 +574,8 @@ class PlatformContentService:
                 last_os_detection = :detected_at,
                 updated_at = :updated_at
             WHERE id = :host_id
-        """)
+        """
+        )
 
         now = datetime.utcnow()
         self.db.execute(

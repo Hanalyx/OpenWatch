@@ -132,14 +132,16 @@ async def _get_scan_details(
     # Add results summary if scan is completed
     if result.status == "completed":
         results = db.execute(
-            text("""
+            text(
+                """
             SELECT total_rules, passed_rules, failed_rules, error_rules,
                    unknown_rules, not_applicable_rules, score,
                    severity_high, severity_medium, severity_low,
                    xccdf_score, xccdf_score_max, xccdf_score_system,
                    risk_score, risk_level
             FROM scan_results WHERE scan_id = :scan_id
-        """),
+        """
+            ),
             {"scan_id": scan_id},
         ).fetchone()
 
@@ -292,14 +294,16 @@ async def get_scan_results(
         # Add results summary if scan has completed
         if scan_result.status == "completed":
             results_query = db.execute(
-                text("""
+                text(
+                    """
                 SELECT total_rules, passed_rules, failed_rules, error_rules,
                        unknown_rules, not_applicable_rules, score,
                        severity_high, severity_medium, severity_low,
                        xccdf_score, xccdf_score_max, xccdf_score_system,
                        risk_score, risk_level
                 FROM scan_results WHERE scan_id = :scan_id
-            """),
+            """
+                ),
                 {"scan_id": scan_id},
             ).fetchone()
 
@@ -401,9 +405,11 @@ async def get_scan_html_report(
     try:
         # Get scan details
         result = db.execute(
-            text("""
+            text(
+                """
             SELECT report_file FROM scans WHERE id = :id
-        """),
+        """
+            ),
             {"id": scan_id},
         ).fetchone()
 
@@ -470,9 +476,11 @@ async def get_scan_json_report(
                 # Get the SCAP content file path for remediation extraction
                 content_file: Optional[str] = None
                 content_result = db.execute(
-                    text("""
+                    text(
+                        """
                     SELECT file_path FROM scap_content WHERE id = :content_id
-                """),
+                """
+                    ),
                     {"content_id": scan_data.get("content_id")},
                 ).fetchone()
 
@@ -694,7 +702,8 @@ async def get_scan_failed_rules(
     try:
         # Verify scan exists and is completed
         scan_result = db.execute(
-            text("""
+            text(
+                """
             SELECT s.id, s.name, s.host_id, s.status, s.result_file, s.profile_id,
                    h.hostname, h.ip_address, h.display_name as host_name,
                    sr.failed_rules, sr.total_rules, sr.score
@@ -702,7 +711,8 @@ async def get_scan_failed_rules(
             JOIN hosts h ON s.host_id = h.id
             LEFT JOIN scan_results sr ON sr.scan_id = s.id
             WHERE s.id = :scan_id
-        """),
+        """
+            ),
             {"scan_id": scan_id},
         ).fetchone()
 

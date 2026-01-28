@@ -289,7 +289,8 @@ async def get_host_permissions(
         from sqlalchemy import text
 
         result = db.execute(
-            text("""
+            text(
+                """
             SELECT hp.id, hp.user_id, hp.group_id, hp.role_name, hp.host_id,
                    hp.actions, hp.effect, hp.conditions, hp.granted_by,
                    hp.granted_at, hp.expires_at, hp.is_active,
@@ -302,7 +303,8 @@ async def get_host_permissions(
             LEFT JOIN user_groups ug ON hp.group_id = ug.id
             WHERE hp.host_id = :host_id AND hp.is_active = true
             ORDER BY hp.granted_at DESC
-        """),
+        """
+            ),
             {"host_id": host_id},
         )
 
@@ -590,7 +592,8 @@ async def get_authorization_audit_log(
 
         # Get audit log entries
         result = db.execute(
-            text(f"""
+            text(
+                f"""
             SELECT id, event_type, user_id, resource_type, resource_id, action, decision,
                    policies_evaluated, context, ip_address, user_agent, session_id,
                    evaluation_time_ms, reason, risk_score, timestamp
@@ -598,7 +601,8 @@ async def get_authorization_audit_log(
             WHERE {where_clause}
             ORDER BY timestamp DESC
             LIMIT :limit OFFSET :offset
-        """),
+        """
+            ),
             params,
         )
 
@@ -627,11 +631,13 @@ async def get_authorization_audit_log(
 
         # Get total count with null safety
         count_result = db.execute(
-            text(f"""
+            text(
+                f"""
             SELECT COUNT(*) as total
             FROM authorization_audit_log
             WHERE {where_clause}
-        """),
+        """
+            ),
             params,
         )
 
@@ -679,7 +685,9 @@ async def get_authorization_summary(
         from sqlalchemy import text
 
         # Get permission statistics with null safety
-        perm_stats_result = db.execute(text("""
+        perm_stats_result = db.execute(
+            text(
+                """
             SELECT
                 COUNT(*) as total_permissions,
                 COUNT(CASE WHEN user_id IS NOT NULL THEN 1 END) as user_permissions,
@@ -689,11 +697,15 @@ async def get_authorization_summary(
                 COUNT(CASE WHEN effect = 'deny' THEN 1 END) as deny_permissions
             FROM host_permissions
             WHERE is_active = true
-        """))
+        """
+            )
+        )
         perm_stats = perm_stats_result.fetchone()
 
         # Get recent audit statistics with null safety
-        audit_stats_result = db.execute(text("""
+        audit_stats_result = db.execute(
+            text(
+                """
             SELECT
                 COUNT(*) as total_checks,
                 COUNT(CASE WHEN decision = 'allow' THEN 1 END) as allowed_checks,
@@ -702,11 +714,15 @@ async def get_authorization_summary(
                 AVG(risk_score) as avg_risk_score
             FROM authorization_audit_log
             WHERE timestamp > NOW() - INTERVAL '24 hours'
-        """))
+        """
+            )
+        )
         audit_stats = audit_stats_result.fetchone()
 
         # Get most active users
-        active_users = db.execute(text("""
+        active_users = db.execute(
+            text(
+                """
             SELECT u.username, COUNT(*) as check_count
             FROM authorization_audit_log aal
             JOIN users u ON aal.user_id = u.id
@@ -714,7 +730,9 @@ async def get_authorization_summary(
             GROUP BY u.username
             ORDER BY check_count DESC
             LIMIT 10
-        """)).fetchall()
+        """
+            )
+        ).fetchall()
 
         # Build response with null safety for fetchone results
         permission_statistics: Dict[str, int] = {

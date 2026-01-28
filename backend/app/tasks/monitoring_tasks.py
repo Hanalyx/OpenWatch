@@ -125,12 +125,14 @@ def check_host_connectivity(self, host_id: str, priority: int = 5) -> dict:
         with get_db_session() as db:
             # Get host details for comprehensive check
             host_result = db.execute(
-                text("""
+                text(
+                    """
                 SELECT id, hostname, ip_address, port, username, auth_method,
                        encrypted_credentials, status
                 FROM hosts
                 WHERE id = :host_id AND is_active = true
-            """),
+            """
+                ),
                 {"host_id": host_id},
             ).fetchone()
 
