@@ -379,7 +379,7 @@ jobs:
       - name: Start backend service
         working-directory: ./backend
         env:
-          OPENWATCH_DATABASE_URL: postgresql://openwatch:openwatch_test@localhost:5432/openwatch_test?sslmode=disable
+          OPENWATCH_DATABASE_URL: postgresql://openwatch:openwatch_test@localhost:5432/openwatch_test
           OPENWATCH_REDIS_URL: redis://localhost:6379
           OPENWATCH_JWT_SECRET_KEY: test_secret_key_for_e2e_must_be_32_chars_minimum
           OPENWATCH_SECRET_KEY: test_secret_key_for_e2e_must_be_32_chars_minimum
@@ -387,6 +387,7 @@ jobs:
           OPENWATCH_ENVIRONMENT: test
           OPENWATCH_AUDIT_LOG_FILE: ./logs/audit.log
           OPENWATCH_REQUIRE_HTTPS: "false"
+          OPENWATCH_DEBUG: "true"
           TESTING: true
         run: |
           # Create directory tree the app expects (Docker container convention)
