@@ -98,7 +98,8 @@ jobs:
           OPENWATCH_ENVIRONMENT: test
         run: |
           echo "Running Alembic database migrations..."
-          alembic upgrade head
+          # Use 'heads' (plural) to handle multiple parallel migration branches
+          alembic upgrade heads
           echo "Database migrations completed successfully"
 
       - name: Run tests
