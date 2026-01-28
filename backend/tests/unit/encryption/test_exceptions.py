@@ -119,12 +119,15 @@ class TestExceptionUsagePatterns:
 
     def test_exception_chaining(self):
         """Test exception chaining with 'from' clause"""
-        try:
-            # Simulate low-level error
-            raise ValueError("Invalid key format")
-        except ValueError as e:
-            # Raise encryption-specific error with chaining
-            raise EncryptionError("Encryption initialization failed") from e
+        with pytest.raises(EncryptionError) as exc_info:
+            try:
+                # Simulate low-level error
+                raise ValueError("Invalid key format")
+            except ValueError as e:
+                # Raise encryption-specific error with chaining
+                raise EncryptionError("Encryption initialization failed") from e
 
-        # Note: This test intentionally raises to demonstrate pattern
-        # In real code, you'd catch this in another try/except block
+        # Verify the exception was chained correctly
+        assert "Encryption initialization failed" in str(exc_info.value)
+        assert exc_info.value.__cause__ is not None
+        assert isinstance(exc_info.value.__cause__, ValueError)
