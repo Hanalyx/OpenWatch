@@ -15,7 +15,7 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
-from ..config import get_settings
+from ...config import get_settings
 
 logger = logging.getLogger(__name__)
 settings = get_settings()

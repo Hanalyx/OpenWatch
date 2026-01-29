@@ -251,7 +251,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 # Security note: Sensitive values (SECRET_KEY, MASTER_KEY, DATABASE_URL)
 # are NOT set here - they MUST be provided via environment variables
 # or Kubernetes secrets at runtime (never hardcoded)
-ENV PYTHONPATH=/app \
+ENV PYTHONPATH=/app:/app/backend \
     OPENWATCH_FIPS_MODE=true \
     OPENWATCH_LOG_LEVEL=INFO \
     PYTHON_VERSION=3.12.1

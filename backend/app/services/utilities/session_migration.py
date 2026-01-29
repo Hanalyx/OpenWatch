@@ -11,8 +11,8 @@ import jwt
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from ...config import get_settings
 from ..auth import jwt_manager
-from ..config import get_settings
 
 logger = logging.getLogger(__name__)
 settings = get_settings()

@@ -8,10 +8,10 @@ import re
 from datetime import datetime
 from typing import Any, Dict, Optional
 
-from ..database import Host
+from ...database import Host
 
 # SSHConnectionManager aliased as SSHService for backward compatibility with existing code
-from ..services.ssh import SSHConnectionManager as SSHService
+from ..ssh import SSHConnectionManager as SSHService
 
 logger = logging.getLogger(__name__)
 

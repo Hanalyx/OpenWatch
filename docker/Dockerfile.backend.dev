@@ -64,7 +64,7 @@ USER openwatch
 EXPOSE 8000
 
 # Environment variables
-ENV PYTHONPATH=/app \
+ENV PYTHONPATH=/app:/app/backend \
     OPENWATCH_LOG_LEVEL=DEBUG
 
 # Set entrypoint

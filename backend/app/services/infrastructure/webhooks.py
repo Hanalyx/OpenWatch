@@ -10,7 +10,7 @@ import json
 import logging
 from typing import Any, Dict, Optional, Union
 
-from ..config import get_settings
+from ...config import get_settings
 
 logger = logging.getLogger(__name__)
 

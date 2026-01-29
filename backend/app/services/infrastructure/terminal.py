@@ -15,12 +15,12 @@ from fastapi import WebSocket, WebSocketDisconnect
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from ..audit_db import log_security_event
-from ..database import Host
-from ..encryption import EncryptionService
+from ...audit_db import log_security_event
+from ...database import Host
+from ...encryption import EncryptionService
 
 # validate_ssh_key validates key format and security level before SSH authentication
-from ..services.ssh import validate_ssh_key
+from ..ssh import validate_ssh_key
 
 logger = logging.getLogger(__name__)
 
@@ -176,7 +176,7 @@ class SSHTerminalSession:
 
             # Use centralized authentication service instead of old dual system
             try:
-                from ..services.auth import get_auth_service
+                from ..auth import get_auth_service
 
                 auth_service = get_auth_service(self.db, self.encryption_service)
 

@@ -13,8 +13,6 @@ Usage:
     )
 """
 
-from .audit import SecurityAuditLogger, get_security_audit_logger
-from .config import ConfigScope, SecurityConfigManager, SecurityConfigTemplate, get_security_config_manager
 from .email import EmailService, email_service
 from .http import (
     CircuitBreaker,
@@ -78,12 +76,6 @@ __all__ = [
     # Prometheus metrics
     "PrometheusMetrics",
     "get_metrics_instance",
-    # Security audit logger
-    "SecurityAuditLogger",
-    "get_security_audit_logger",
-    # Security config
-    "ConfigScope",
-    "SecurityConfigManager",
-    "SecurityConfigTemplate",
-    "get_security_config_manager",
+    # Security audit logger (import from .audit submodule to avoid circular imports)
+    # Security config (import from .config submodule to avoid circular imports)
 ]

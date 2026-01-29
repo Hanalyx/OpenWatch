@@ -27,7 +27,7 @@ from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey, RSAPublicKey
 from pydantic import BaseModel, Field
 
-from ..config import get_settings
+from ...config import get_settings
 
 # Initialize logger early
 logger = logging.getLogger(__name__)

@@ -30,7 +30,7 @@ from app.models.error_models import (
 )
 from app.models.readiness_models import HostReadiness, ReadinessCheckResult, ReadinessCheckSeverity, ReadinessCheckType
 
-from ..infrastructure import get_security_audit_logger
+from ..infrastructure.audit import get_security_audit_logger
 from .sanitization import get_error_sanitization_service
 
 logger = logging.getLogger(__name__)
