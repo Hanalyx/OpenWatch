@@ -87,9 +87,13 @@ def init_roles(db: Session):
                     text(
                         """
                     INSERT INTO roles (
-                        name, display_name, description, permissions, is_active, created_at, updated_at  # noqa: E501
+                        name, display_name, description, permissions,
+                        is_active, created_at, updated_at
                     )
-                    VALUES (:name, :display_name, :description, :permissions, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                    VALUES (
+                        :name, :display_name, :description, :permissions,
+                        true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                    )
                 """
                     ),
                     {
