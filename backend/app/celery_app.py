@@ -86,6 +86,9 @@ celery_app.conf.update(
     result_serializer="json",
     timezone="UTC",
     enable_utc=True,
+    # Global task timeouts (individual tasks can override)
+    task_time_limit=7200,  # Hard kill after 2 hours
+    task_soft_time_limit=6600,  # SoftTimeLimitExceeded after 1h50m
     # Security and reliability
     task_reject_on_worker_lost=True,
     task_acks_late=True,
@@ -98,6 +101,8 @@ celery_app.conf.update(
         "backend.app.tasks.check_host_connectivity": {"queue": "host_monitoring"},
         "backend.app.tasks.dispatch_host_checks": {"queue": "host_monitoring"},
         "backend.app.tasks.queue_host_checks": {"queue": "monitoring"},
+        "backend.app.tasks.detect_stale_scans": {"queue": "maintenance"},
+        "backend.app.tasks.execute_scan": {"queue": "scans"},
     },
     # Queue configuration
     task_default_queue="default",
@@ -108,6 +113,7 @@ celery_app.conf.update(
         Queue("maintenance", routing_key="maintenance"),
         Queue("monitoring", routing_key="monitoring"),
         Queue("host_monitoring", routing_key="host_monitoring"),  # Dedicated queue for adaptive monitoring
+        Queue("health_monitoring", routing_key="health_monitoring"),
     ],
     # Celery Beat schedule for periodic tasks
     beat_schedule={
@@ -129,6 +135,35 @@ celery_app.conf.update(
             "options": {
                 "queue": "default",
             },
+        },
+        # Stale scan detection - marks stuck scans as failed
+        "detect-stale-scans-every-10-minutes": {
+            "task": "backend.app.tasks.detect_stale_scans",
+            "schedule": 600.0,  # Every 10 minutes
+            "options": {
+                "queue": "maintenance",
+            },
+        },
+        # Health monitoring tasks
+        "collect-service-health": {
+            "task": "collect_service_health",
+            "schedule": crontab(minute="*/5"),
+            "options": {"queue": "health_monitoring"},
+        },
+        "collect-content-health": {
+            "task": "collect_content_health",
+            "schedule": crontab(minute=0),
+            "options": {"queue": "health_monitoring"},
+        },
+        "update-health-summary": {
+            "task": "update_health_summary",
+            "schedule": crontab(minute="*/5"),
+            "options": {"queue": "health_monitoring"},
+        },
+        "cleanup-old-health-data": {
+            "task": "cleanup_old_health_data",
+            "schedule": crontab(hour=2, minute=0),
+            "options": {"queue": "health_monitoring"},
         },
     },
     # Result backend settings
@@ -152,6 +187,8 @@ celery_app.conf.update(
         "backend.app.tasks.health_monitoring_tasks",
         "backend.app.tasks.compliance_tasks",
         "backend.app.tasks.os_discovery_tasks",
+        "backend.app.tasks.stale_scan_detection",
+        "backend.app.tasks.scan_tasks",
     ],
 )
 

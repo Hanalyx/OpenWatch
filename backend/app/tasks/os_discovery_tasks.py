@@ -161,7 +161,12 @@ def _record_discovery_failure(host_id: str, error_message: str) -> None:
         logger.warning(f"Failed to record OS discovery failure for {host_id}: {e}")
 
 
-@celery_app.task(bind=True, name="backend.app.tasks.trigger_os_discovery")
+@celery_app.task(
+    bind=True,
+    name="backend.app.tasks.trigger_os_discovery",
+    time_limit=600,
+    soft_time_limit=540,
+)
 def trigger_os_discovery(self, host_id: str) -> Dict[str, Any]:
     """
     Asynchronously discover and update OS information for a single host.
@@ -346,7 +351,12 @@ def trigger_os_discovery(self, host_id: str) -> Dict[str, Any]:
         )
 
 
-@celery_app.task(bind=True, name="backend.app.tasks.batch_os_discovery")
+@celery_app.task(
+    bind=True,
+    name="backend.app.tasks.batch_os_discovery",
+    time_limit=3600,
+    soft_time_limit=3300,
+)
 def batch_os_discovery(self, host_ids: List[str]) -> Dict[str, Any]:
     """
     Trigger OS discovery for multiple hosts in batch.
@@ -409,7 +419,12 @@ def batch_os_discovery(self, host_ids: List[str]) -> Dict[str, Any]:
     return result
 
 
-@celery_app.task(bind=True, name="backend.app.tasks.discover_all_hosts_os")
+@celery_app.task(
+    bind=True,
+    name="backend.app.tasks.discover_all_hosts_os",
+    time_limit=7200,
+    soft_time_limit=6600,
+)
 def discover_all_hosts_os(self, force: bool = False) -> Dict[str, Any]:
     """
     Discover OS information for all active hosts.
