@@ -11,7 +11,7 @@ from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from ..models.error_models import ErrorSeverity, SecurityAuditLog
+from ...models.error_models import ErrorSeverity, SecurityAuditLog
 
 
 class SecurityAuditLogger:

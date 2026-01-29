@@ -46,14 +46,10 @@ from typing import TYPE_CHECKING, Optional
 
 from .config_manager import SSHConfigManager
 from .connection_manager import SSHConnectionManager
+from .context import SSHConnectionContext  # noqa: F401
 from .exceptions import SSHCommandError, SSHConfigurationError, SSHConnectionError, SSHKeyError
 from .key_metadata import extract_key_comment, extract_ssh_key_metadata, get_key_display_info
-from .key_parser import (
-    detect_key_type,
-    get_key_fingerprint,
-    get_key_fingerprint_sha256,
-    parse_ssh_key,
-)
+from .key_parser import detect_key_type, get_key_fingerprint, get_key_fingerprint_sha256, parse_ssh_key
 from .key_validator import assess_key_security, is_key_secure, validate_ssh_key
 from .known_hosts import KnownHostsManager
 from .models import (
@@ -187,4 +183,6 @@ __all__ = [
     "extract_ssh_key_metadata",
     "extract_key_comment",
     "get_key_display_info",
+    # Connection context (from context.py)
+    "SSHConnectionContext",
 ]

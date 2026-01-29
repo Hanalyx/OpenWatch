@@ -11,7 +11,7 @@ from typing import Callable
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from ..services.prometheus_metrics import get_metrics_instance
+from ..services.infrastructure import get_metrics_instance
 
 logger = logging.getLogger(__name__)
 
@@ -166,7 +166,7 @@ class DatabaseMetricsCollector:
 
     def record_query_metrics(self, operation: str, duration: float):
         """Record database query metrics"""
-        from ..services.prometheus_metrics import database_query_duration_seconds
+        from ..services.infrastructure.prometheus import database_query_duration_seconds
 
         database_query_duration_seconds.labels(operation=operation).observe(duration)
 

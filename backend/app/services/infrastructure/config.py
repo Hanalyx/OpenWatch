@@ -15,7 +15,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from .credential_validation import SecurityPolicyConfig, SecurityPolicyLevel
+from ..auth.validation import SecurityPolicyConfig, SecurityPolicyLevel
 
 logger = logging.getLogger(__name__)
 

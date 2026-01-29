@@ -15,7 +15,7 @@ from fastapi import Request, Response
 from fastapi.responses import JSONResponse
 
 from ..models.error_models import RateLimitResponse
-from ..services.security_audit_logger import get_security_audit_logger
+from ..services.infrastructure import get_security_audit_logger
 
 logger = logging.getLogger(__name__)
 audit_logger = get_security_audit_logger()

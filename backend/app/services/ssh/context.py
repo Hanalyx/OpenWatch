@@ -15,7 +15,7 @@ Performance Benefits:
 - Example: 7 commands = 1 connection (not 7 connections)
 
 Usage Example:
-    from app.services.ssh_connection_context import SSHConnectionContext
+    from app.services.ssh import SSHConnectionContext
 
     async with SSHConnectionContext(ssh_service, host, credentials) as ctx:
         result1 = await ctx.execute_command("df -h")

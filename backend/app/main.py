@@ -89,7 +89,7 @@ from .routes.rules import router as rules_router
 # modular package with settings and debug endpoints
 from .routes.ssh import router as ssh_router
 from .routes.system_settings_unified import router as system_settings_router
-from .services.prometheus_metrics import get_metrics_instance
+from .services.infrastructure import get_metrics_instance
 
 # Import security routes only if available
 # Type declarations for optional modules

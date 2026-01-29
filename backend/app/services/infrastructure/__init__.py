@@ -13,6 +13,8 @@ Usage:
     )
 """
 
+from .audit import SecurityAuditLogger, get_security_audit_logger
+from .config import ConfigScope, SecurityConfigManager, SecurityConfigTemplate, get_security_config_manager
 from .email import EmailService, email_service
 from .http import (
     CircuitBreaker,
@@ -22,6 +24,7 @@ from .http import (
     get_default_client,
     get_webhook_client,
 )
+from .prometheus import PrometheusMetrics, get_metrics_instance
 from .sandbox import (
     CommandResult,
     CommandSandbox,
@@ -72,4 +75,15 @@ __all__ = [
     "create_webhook_headers",
     "create_scan_completed_payload",
     "create_scan_failed_payload",
+    # Prometheus metrics
+    "PrometheusMetrics",
+    "get_metrics_instance",
+    # Security audit logger
+    "SecurityAuditLogger",
+    "get_security_audit_logger",
+    # Security config
+    "ConfigScope",
+    "SecurityConfigManager",
+    "SecurityConfigTemplate",
+    "get_security_config_manager",
 ]
