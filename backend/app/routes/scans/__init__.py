@@ -138,6 +138,11 @@ router.include_router(config_router)
 router.include_router(templates_router)
 router.include_router(rules_router)
 
+# MongoDB scanning router (E1-S9 Route Consolidation)
+from app.routes.scans.mongodb import router as mongodb_router  # noqa: E402
+
+router.include_router(mongodb_router)
+
 # Core routers (more generic patterns)
 router.include_router(compliance_router)
 router.include_router(crud_router)

@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from fastapi.security import HTTPBearer
 from pydantic import BaseModel
 
-from ..utils.file_security import sanitize_filename, validate_file_extension
+from ...utils.file_security import sanitize_filename, validate_file_extension
 
 logger = logging.getLogger(__name__)
 security = HTTPBearer()

@@ -27,15 +27,13 @@ from .config import SECURITY_HEADERS, get_settings
 from .database import get_db_session
 from .middleware.metrics import PrometheusMiddleware, background_updater
 from .middleware.rate_limiting import get_rate_limiting_middleware
-from .routes import (  # noqa: E501; REMOVED route consolidation notes:; - api_keys, auth, mfa: Consolidated into routes/auth/ (E1-S4); - hosts, host_*_discovery: Consolidated into routes/hosts/ (Phase 3); - mongodb_scan_api, rule_scanning, scan_config_api, scan_templates: Consolidated into routes/scans/ (Phase 2); - compliance, drift_events, owca: Consolidated into routes/compliance/ (Phase 4); - plugin_management, webhooks: Consolidated into routes/integrations/ (Phase 4); - ssh_debug, ssh_settings: Consolidated into routes/ssh/ (Phase 4); - bulk_remediation_routes, remediation_api: Moved to SecureOps/AEGIS (ORSA subsystem)
+
+# Flat route modules (not yet organized into packages)
+from .routes import (
     adaptive_scheduler,
-    audit,
     baselines,
     bulk_operations,
     capabilities,
-    compliance_rules_api,
-    content,
-    credentials,
     health_monitoring,
     integration_metrics,
     mongodb_test,
@@ -43,13 +41,13 @@ from .routes import (  # noqa: E501; REMOVED route consolidation notes:; - api_k
     os_discovery,
     remediation_callback,
     remediation_provider,
-    rule_management,
     scans,
-    scap_import,
-    users,
     version,
-    xccdf_api,
 )
+
+# Import admin from new modular package (E1-S6 Route Consolidation)
+# This package consolidates users.py, audit.py, and credentials.py
+from .routes.admin import router as admin_router
 
 # Import auth from new modular package (E1-S4 Route Consolidation)
 # This package consolidates auth.py, mfa.py, and api_keys.py into a single
@@ -60,6 +58,10 @@ from .routes.auth import router as auth_router
 # This package consolidates compliance.py, owca.py, and drift_events.py into a single
 # modular package with intelligence, OWCA, and drift endpoints
 from .routes.compliance import router as compliance_router
+
+# Import content from new modular package (E1-S7 Route Consolidation)
+# This package consolidates content.py, scap_import.py, and xccdf_api.py
+from .routes.content import router as content_pkg_router
 
 # Import host_groups from new modular package (Phase 1 API Standardization)
 # This package consolidates host_groups.py and group_compliance.py into a single
@@ -76,6 +78,11 @@ from .routes.hosts import router as hosts_router
 # This package consolidates webhooks.py and plugin_management.py into a single
 # modular package with webhooks and plugins endpoints
 from .routes.integrations import router as integrations_router
+
+# Import rules from new modular package (E1-S5 Route Consolidation)
+# This package consolidates rule_management.py, rule_scanning.py, and
+# compliance_rules_api.py into a single modular package
+from .routes.rules import router as rules_router
 
 # Import SSH from new modular package (Phase 4 API Standardization)
 # This package consolidates ssh_settings.py and ssh_debug.py into a single
@@ -560,98 +567,41 @@ app.include_router(version.router, prefix="/api", tags=["Version"])
 # Capabilities and system information
 app.include_router(capabilities.router, prefix="/api", tags=["System Capabilities"])
 
-# MongoDB and SCAP endpoints (consolidated from v1)
+# MongoDB test endpoints
 app.include_router(mongodb_test.router, prefix="/api/mongodb", tags=["MongoDB Integration Test"])
-app.include_router(scap_import.router, prefix="/api", tags=["SCAP Import"])
-app.include_router(rule_management.router, prefix="/api", tags=["Enhanced Rule Management"])
-app.include_router(compliance_rules_api.router, prefix="/api", tags=["MongoDB Compliance Rules"])
-# mongodb_scan_api - REMOVED: Consolidated into routes/scans/mongodb.py (Phase 2)
-# Endpoints now available at /api/scans/mongodb/*
 
-# XCCDF and scanning services (consolidated from v1)
-app.include_router(xccdf_api.router, prefix="/api/xccdf", tags=["XCCDF Generator"])
-# remediation_api - REMOVED: Moved to SecureOps/AEGIS (ORSA subsystem)
-# scan_config_api - REMOVED: Consolidated into routes/scans/config.py and templates.py (Phase 2)
-# Endpoints now available at /api/scans/config/* and /api/scans/templates/*
+# Health and monitoring
 app.include_router(health_monitoring.router, prefix="/api/health-monitoring", tags=["Health Monitoring"])
+app.include_router(monitoring.router, prefix="/api", tags=["Host Monitoring"])
 
 # Remediation provider (registration interface for ORSA adapters)
 app.include_router(remediation_provider.router, prefix="/api/remediation", tags=["Remediation Provider"])
+app.include_router(remediation_callback.router, prefix="/api", tags=["AEGIS Integration"])
 
-# Core API routes
-# auth - Modular package (E1-S4) - consolidates login, MFA, API keys
+# Modular route packages
+# Each package aggregates related sub-routers with their own prefixes
 app.include_router(auth_router, prefix="/api/auth", tags=["Authentication"])
-# Hosts - Modular package with all host-related endpoints (Phase 3 API Standardization)
-# Includes: crud, discovery (basic, network, security, compliance)
-# The router already has prefix="/hosts" defined in routes/hosts/__init__.py
 app.include_router(hosts_router, prefix="/api", tags=["Hosts"])
-app.include_router(baselines.router, tags=["Baseline Management"])
-# drift_events - REMOVED: Consolidated into routes/compliance/drift.py (Phase 4)
-# Endpoints now available at /api/compliance/drift/*
-# Scans - Modular package with all scan-related endpoints (Phase 2 API Standardization)
-# Includes: compliance, crud, reports, bulk, validation, config, templates, rules, mongodb
-# The router already has prefix="/scans" defined in routes/scans/__init__.py
 app.include_router(scans.router, prefix="/api", tags=["Security Scans"])
-# owca - REMOVED: Consolidated into routes/compliance/owca.py (Phase 4)
-# Endpoints now available at /api/compliance/owca/*
-app.include_router(content.router, prefix="/api/content", tags=["Legacy Content"])
-app.include_router(monitoring.router, prefix="/api", tags=["Host Monitoring"])
+app.include_router(compliance_router, prefix="/api", tags=["Compliance"])
+app.include_router(rules_router, prefix="/api", tags=["Rules"])
+app.include_router(admin_router, prefix="/api", tags=["Administration"])
+app.include_router(content_pkg_router, prefix="/api", tags=["Content"])
+app.include_router(host_groups_router, prefix="/api", tags=["Host Groups"])
+app.include_router(ssh_router, prefix="/api", tags=["SSH"])
+app.include_router(integrations_router, prefix="/api", tags=["Integrations"])
+
+# Remaining flat route modules (not yet packaged)
+app.include_router(baselines.router, tags=["Baseline Management"])
 app.include_router(adaptive_scheduler.router, prefix="/api", tags=["Adaptive Scheduler"])
 app.include_router(os_discovery.router, prefix="/api", tags=["OS Discovery"])
 app.include_router(system_settings_router, prefix="/api", tags=["System Settings"])
-app.include_router(users.router, prefix="/api", tags=["User Management"])
-app.include_router(audit.router, prefix="/api", tags=["Audit Logs"])
-# Host Groups - Modular package with CRUD and scanning endpoints
-# The router already has prefix="/host-groups" defined in the package
-app.include_router(host_groups_router, prefix="/api", tags=["Host Groups"])
-# scan_templates - REMOVED: Consolidated into routes/scans/templates.py (Phase 2)
-# Endpoints now available at /api/scans/templates/*
-# webhooks - REMOVED: Consolidated into routes/integrations/webhooks.py (Phase 4)
-# Endpoints now available at /api/integrations/webhooks/*
-app.include_router(credentials.router, prefix="/api", tags=["Credential Sharing"])
-# api_keys - REMOVED: Consolidated into auth_router (E1-S4)
-app.include_router(remediation_callback.router, prefix="/api", tags=["AEGIS Integration"])
 app.include_router(
     integration_metrics.router,
     prefix="/api/integration/metrics",
     tags=["Integration Metrics"],
 )
 app.include_router(bulk_operations.router, prefix="/api/bulk", tags=["Bulk Operations"])
-# app.include_router(terminal.router, tags=["Terminal"])  # Terminal module not available
-# Compliance - Modular package with all compliance-related endpoints (Phase 4 API Standardization)
-# Includes: intelligence (semantic rules, framework data), owca (scoring), drift (detection)
-# The router already has prefix="/compliance" defined in routes/compliance/__init__.py
-app.include_router(compliance_router, prefix="/api", tags=["Compliance"])
-# rule_scanning - REMOVED: Consolidated into routes/scans/rules.py (Phase 2)
-# Endpoints now available at /api/scans/rules/*
-# SSH - Modular package with all SSH-related endpoints (Phase 4 API Standardization)
-# Includes: settings (policy, known-hosts), debug (test-authentication, paramiko-log)
-# The router already has prefix="/ssh" defined in routes/ssh/__init__.py
-app.include_router(ssh_router, prefix="/api", tags=["SSH"])
-# ssh_settings - REMOVED: Consolidated into routes/ssh/settings.py (Phase 4)
-# Endpoints now available at /api/ssh/settings/*
-# ssh_debug - REMOVED: Consolidated into routes/ssh/debug.py (Phase 4)
-# Endpoints now available at /api/ssh/debug/*
-# host_network_discovery - REMOVED: Consolidated into routes/hosts/discovery.py (Phase 3)
-# Endpoints now available at /api/hosts/{host_id}/discovery/network/*
-# group_compliance.py removed - functionality consolidated into host_groups package
-# See: routes/host_groups/scans.py for group scanning endpoints
-# host_compliance_discovery - REMOVED: Consolidated into routes/hosts/discovery.py (Phase 3)
-# Endpoints now available at /api/hosts/{host_id}/discovery/compliance/*
-# host_discovery - REMOVED: Consolidated into routes/hosts/discovery.py (Phase 3)
-# Endpoints now available at /api/hosts/{host_id}/discovery/basic/*
-# host_security_discovery - REMOVED: Consolidated into routes/hosts/discovery.py (Phase 3)
-# Endpoints now available at /api/hosts/{host_id}/discovery/security/*
-# Integrations - Modular package with all integration-related endpoints (Phase 4 API Standardization)
-# Includes: webhooks (CRUD, deliveries, test), plugins (import, execute, statistics)
-# The router already has prefix="/integrations" defined in routes/integrations/__init__.py
-app.include_router(integrations_router, prefix="/api", tags=["Integrations"])
-# plugin_management - REMOVED: Consolidated into routes/integrations/plugins.py (Phase 4)
-# Endpoints now available at /api/integrations/plugins/*
-# bulk_remediation_routes - REMOVED: Moved to SecureOps/AEGIS (ORSA subsystem)
-
-# QueryBuilder validation endpoints (temporary testing) - DISABLED: module not available
-# app.include_router(test_querybuilder.router, prefix="/api", tags=["QueryBuilder Validation"])
 
 # Register security routes if available
 if automated_fixes:

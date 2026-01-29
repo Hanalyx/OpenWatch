@@ -25,7 +25,7 @@ from app.services.result_enrichment_service import ResultEnrichmentService
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/mongodb-scans", tags=["MongoDB Scanning"])
+router = APIRouter(prefix="/mongodb", tags=["MongoDB Scanning"])
 
 
 class MongoDBScanRequest(BaseModel):

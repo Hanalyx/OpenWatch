@@ -14,10 +14,10 @@ from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from ..auth import get_current_user
-from ..database import User, get_db
-from ..services.platform_capability_service import PlatformCapabilityService
-from ..services.rules import QueryPriority, RuleCacheService, RuleService
+from ...auth import get_current_user
+from ...database import User, get_db
+from ...services.platform_capability_service import PlatformCapabilityService
+from ...services.rules import QueryPriority, RuleCacheService, RuleService
 
 router = APIRouter(prefix="/rules", tags=["Enhanced Rule Management"])
 

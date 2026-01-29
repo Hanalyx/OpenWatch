@@ -11,9 +11,9 @@ from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from ..auth import get_current_user
-from ..database import get_db
-from ..rbac import RBACManager, UserRole
+from ...auth import get_current_user
+from ...database import get_db
+from ...rbac import RBACManager, UserRole
 
 logger = logging.getLogger(__name__)
 
