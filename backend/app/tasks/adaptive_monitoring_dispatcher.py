@@ -23,7 +23,7 @@ from typing import Any, Dict
 
 from app.celery_app import celery_app
 from app.database import get_db
-from app.services.adaptive_scheduler_service import adaptive_scheduler_service
+from app.services.monitoring import adaptive_scheduler_service
 
 logger = logging.getLogger(__name__)
 

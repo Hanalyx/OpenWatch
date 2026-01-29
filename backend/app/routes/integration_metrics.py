@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response
 
 from ..auth import get_current_user
 from ..rbac import require_admin
-from ..services.integration_metrics import metrics_collector
+from ..services.monitoring import metrics_collector
 
 router = APIRouter()
 

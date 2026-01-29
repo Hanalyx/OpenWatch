@@ -14,7 +14,7 @@ from ..auth import get_current_user
 from ..config import get_settings
 from ..database import get_db
 from ..encryption import EncryptionConfig, create_encryption_service
-from ..services.host_monitor import get_host_monitor
+from ..services.monitoring import get_host_monitor
 
 logger = logging.getLogger(__name__)
 

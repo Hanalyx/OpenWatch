@@ -15,11 +15,11 @@ from typing import Dict, List, Optional, Tuple
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from ..encryption import EncryptionService
-from .infrastructure import email_service
+from ...encryption import EncryptionService
+from ..infrastructure import email_service
 
 # SSHConnectionManager provides connect_with_credentials() and execute_command_advanced()
-from .ssh import SSHConnectionManager
+from ..ssh import SSHConnectionManager
 
 logger = logging.getLogger(__name__)
 
@@ -359,7 +359,7 @@ class HostMonitor:
             )
 
         if auth_method in ["password", "both"]:
-            if not password or password == "CHANGE_ME_PLEASE":
+            if not password or password == "CHANGE_ME_PLEASE":  # pragma: allowlist secret
                 return (
                     False,
                     "SSH password is required or contains placeholder value. Please update credentials in Settings.",
@@ -520,7 +520,7 @@ class HostMonitor:
         """
         try:
             # Import here to avoid circular dependency
-            from .adaptive_scheduler_service import adaptive_scheduler_service
+            from .scheduler import adaptive_scheduler_service
 
             update_data = {
                 "id": host_id,
@@ -691,7 +691,7 @@ def get_host_monitor(db_session: Session = None, encryption_service: EncryptionS
         HostMonitor instance with injected dependencies
 
     Example:
-        from app.services.host_monitor import get_host_monitor
+        from app.services.monitoring import get_host_monitor
         from app.encryption import create_encryption_service, EncryptionConfig
         from app.config import get_settings
 

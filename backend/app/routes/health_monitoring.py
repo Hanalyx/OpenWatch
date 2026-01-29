@@ -13,15 +13,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from ..auth import get_current_user
 from ..database import User
-from ..models.health_models import (
-    ContentHealthDocument,
-    HealthSummaryDocument,
-    ServiceHealthDocument,
-)
-from ..services.health_monitoring_service import (
-    HealthMonitoringService,
-    get_health_monitoring_service,
-)
+from ..models.health_models import ContentHealthDocument, HealthSummaryDocument, ServiceHealthDocument
+from ..services.monitoring import HealthMonitoringService, get_health_monitoring_service
 
 logger = logging.getLogger(__name__)
 

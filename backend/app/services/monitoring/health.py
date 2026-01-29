@@ -13,8 +13,8 @@ from typing import Any, Dict, List, Optional
 
 import psutil
 
-from ..config import get_settings
-from ..models.health_models import (
+from ...config import get_settings
+from ...models.health_models import (
     AlertSeverity,
     BenchmarkHealth,
     ConnectionPool,
@@ -29,9 +29,9 @@ from ..models.health_models import (
     ServiceComponent,
     ServiceHealthDocument,
 )
-from ..models.mongo_models import ComplianceRule, RemediationScript
-from ..repositories import ComplianceRuleRepository
-from ..services.mongo_integration_service import get_mongo_service
+from ...models.mongo_models import ComplianceRule, RemediationScript
+from ...repositories import ComplianceRuleRepository
+from ..mongo_integration_service import get_mongo_service
 
 logger = logging.getLogger(__name__)
 

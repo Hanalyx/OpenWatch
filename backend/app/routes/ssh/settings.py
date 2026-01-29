@@ -318,7 +318,7 @@ async def test_ssh_connectivity(
     """
     try:
         from ...database import Host
-        from ...services.host_monitor import HostMonitor
+        from ...services.monitoring import HostMonitor
 
         # Get host
         host = db.query(Host).filter(Host.id == host_id).first()

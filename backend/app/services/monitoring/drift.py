@@ -23,8 +23,8 @@ from uuid import UUID
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from ..database import ScanBaseline, ScanDriftEvent
-from ..utils.query_builder import QueryBuilder
+from ...database import ScanBaseline, ScanDriftEvent
+from ...utils.query_builder import QueryBuilder
 
 logger = logging.getLogger(__name__)
 

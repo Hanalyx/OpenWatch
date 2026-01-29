@@ -19,7 +19,7 @@ from ..services.infrastructure import (
     create_webhook_headers,
     get_webhook_client,
 )
-from ..services.integration_metrics import record_webhook_delivery
+from ..services.monitoring import record_webhook_delivery
 
 logger = logging.getLogger(__name__)
 

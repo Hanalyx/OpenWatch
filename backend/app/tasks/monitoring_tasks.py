@@ -15,8 +15,7 @@ from app.celery_app import celery_app
 from app.config import get_settings
 from app.database import get_db_session
 from app.encryption import EncryptionConfig, create_encryption_service
-from app.services.host_monitor import get_host_monitor
-from app.services.host_monitoring_state import HostMonitoringStateMachine
+from app.services.monitoring import HostMonitoringStateMachine, get_host_monitor
 
 logger = logging.getLogger(__name__)
 

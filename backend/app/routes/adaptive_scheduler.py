@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from ..auth import get_current_user
 from ..database import get_db
 from ..rbac import Permission, require_permission
-from ..services.adaptive_scheduler_service import adaptive_scheduler_service
+from ..services.monitoring import adaptive_scheduler_service
 
 logger = logging.getLogger(__name__)
 

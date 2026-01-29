@@ -16,7 +16,7 @@ from typing import Any, Dict
 from celery.schedules import crontab
 
 from app.celery_app import celery_app
-from app.services.health_monitoring_service import get_health_monitoring_service
+from app.services.monitoring import get_health_monitoring_service
 
 logger = logging.getLogger(__name__)
 
