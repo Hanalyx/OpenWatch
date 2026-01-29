@@ -48,12 +48,11 @@ def upgrade():
             "platform_identifier",
             sa.String(50),
             nullable=True,
-            index=True,
             comment="Normalized platform ID for OVAL selection (e.g., rhel9, ubuntu2204)",
         ),
     )
 
-    # Create index explicitly for better control
+    # Create index for efficient lookup during scan orchestration
     op.create_index(
         "ix_hosts_platform_identifier",
         "hosts",
