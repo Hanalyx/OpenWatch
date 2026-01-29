@@ -175,7 +175,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             # Run SQL migrations automatically
             try:
                 from .database import SessionLocal
-                from .services.migration_runner import run_startup_migrations
+                from .services.utilities import run_startup_migrations
 
                 db = SessionLocal()
                 try:
