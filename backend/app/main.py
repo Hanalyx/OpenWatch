@@ -29,12 +29,10 @@ from .middleware.metrics import PrometheusMiddleware, background_updater
 from .middleware.rate_limiting import get_rate_limiting_middleware
 from .routes import (  # noqa: E501; REMOVED route consolidation notes:; - api_keys, auth, mfa: Consolidated into routes/auth/ (E1-S4); - hosts, host_*_discovery: Consolidated into routes/hosts/ (Phase 3); - mongodb_scan_api, rule_scanning, scan_config_api, scan_templates: Consolidated into routes/scans/ (Phase 2); - compliance, drift_events, owca: Consolidated into routes/compliance/ (Phase 4); - plugin_management, webhooks: Consolidated into routes/integrations/ (Phase 4); - ssh_debug, ssh_settings: Consolidated into routes/ssh/ (Phase 4); - bulk_remediation_routes, remediation_api: Moved to SecureOps/AEGIS (ORSA subsystem)
     adaptive_scheduler,
-    audit,
     baselines,
     bulk_operations,
     capabilities,
     content,
-    credentials,
     health_monitoring,
     integration_metrics,
     mongodb_test,
@@ -44,10 +42,13 @@ from .routes import (  # noqa: E501; REMOVED route consolidation notes:; - api_k
     remediation_provider,
     scans,
     scap_import,
-    users,
     version,
     xccdf_api,
 )
+
+# Import admin from new modular package (E1-S6 Route Consolidation)
+# This package consolidates users.py, audit.py, and credentials.py
+from .routes.admin import router as admin_router
 
 # Import auth from new modular package (E1-S4 Route Consolidation)
 # This package consolidates auth.py, mfa.py, and api_keys.py into a single
@@ -601,8 +602,7 @@ app.include_router(monitoring.router, prefix="/api", tags=["Host Monitoring"])
 app.include_router(adaptive_scheduler.router, prefix="/api", tags=["Adaptive Scheduler"])
 app.include_router(os_discovery.router, prefix="/api", tags=["OS Discovery"])
 app.include_router(system_settings_router, prefix="/api", tags=["System Settings"])
-app.include_router(users.router, prefix="/api", tags=["User Management"])
-app.include_router(audit.router, prefix="/api", tags=["Audit Logs"])
+app.include_router(admin_router, prefix="/api", tags=["Administration"])
 # Host Groups - Modular package with CRUD and scanning endpoints
 # The router already has prefix="/host-groups" defined in the package
 app.include_router(host_groups_router, prefix="/api", tags=["Host Groups"])
@@ -610,7 +610,7 @@ app.include_router(host_groups_router, prefix="/api", tags=["Host Groups"])
 # Endpoints now available at /api/scans/templates/*
 # webhooks - REMOVED: Consolidated into routes/integrations/webhooks.py (Phase 4)
 # Endpoints now available at /api/integrations/webhooks/*
-app.include_router(credentials.router, prefix="/api", tags=["Credential Sharing"])
+# credentials - REMOVED: Consolidated into routes/admin/ (E1-S6)
 # api_keys - REMOVED: Consolidated into auth_router (E1-S4)
 app.include_router(remediation_callback.router, prefix="/api", tags=["AEGIS Integration"])
 app.include_router(
