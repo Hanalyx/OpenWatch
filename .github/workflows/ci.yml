@@ -128,9 +128,9 @@ jobs:
           if [ -d "tests" ] && [ "$(find tests -name '*.py' | head -1)" ]; then
             echo "Running pytest tests..."
             # Coverage threshold: incrementally raising toward 80%
-            # Baseline: 34 integration tests (replaced 387 mock-heavy tests)
-            # Threshold set conservatively; raise once actual coverage is measured
-            pytest tests/ -v --cov=app --cov-report=xml --cov-report=html --cov-fail-under=4
+            # Measured: 28% with 34 integration tests (2026-01-29)
+            # Threshold set below measured to allow variance
+            pytest tests/ -v --cov=app --cov-report=xml --cov-report=html --cov-fail-under=20
           else
             echo "Warning: No test files found in tests/ directory"
             echo "CI will pass without tests, but this should be addressed"

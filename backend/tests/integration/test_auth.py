@@ -21,7 +21,7 @@ class TestRegistration:
         resp = register_user(
             client,
             username=f"newuser_{unique_suffix}",
-            email=f"newuser_{unique_suffix}@openwatch.test",
+            email=f"newuser_{unique_suffix}@example.com",
             password="SecurePass123!@#",  # pragma: allowlist secret
         )
         assert resp.status_code == 200
@@ -39,7 +39,7 @@ class TestRegistration:
         resp1 = register_user(
             client,
             username=username,
-            email=f"{email_base}_a@openwatch.test",
+            email=f"{email_base}_a@example.com",
             password="SecurePass123!@#",  # pragma: allowlist secret
         )
         assert resp1.status_code == 200
@@ -48,7 +48,7 @@ class TestRegistration:
         resp2 = register_user(
             client,
             username=username,
-            email=f"{email_base}_b@openwatch.test",
+            email=f"{email_base}_b@example.com",
             password="SecurePass123!@#",  # pragma: allowlist secret
         )
         assert resp2.status_code in (400, 409, 422)

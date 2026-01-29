@@ -97,7 +97,7 @@ def test_user(client, unique_suffix):
     Creates a unique user for each test to avoid collisions.
     """
     username = f"testuser_{unique_suffix}"
-    email = f"testuser_{unique_suffix}@openwatch.test"
+    email = f"testuser_{unique_suffix}@example.com"
     password = "TestPass123!@#"  # pragma: allowlist secret
 
     resp = register_user(client, username, email, password)
@@ -122,7 +122,7 @@ def test_user(client, unique_suffix):
 def admin_user(client, unique_suffix):
     """Register an admin user and return (user_data, token, headers)."""
     username = f"admin_{unique_suffix}"
-    email = f"admin_{unique_suffix}@openwatch.test"
+    email = f"admin_{unique_suffix}@example.com"
     password = "AdminPass123!@#"  # pragma: allowlist secret
 
     resp = register_user(client, username, email, password, role="admin")
