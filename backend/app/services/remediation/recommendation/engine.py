@@ -19,7 +19,7 @@ from app.models.unified_rule_models import (
     RuleExecution,
     UnifiedComplianceRule,
 )
-from app.services.multi_framework_scanner import FrameworkResult, HostResult, ScanResult
+from app.services.framework import FrameworkResult, HostResult, ScanResult
 
 
 # Simplified ORSA models for PR #12 implementation

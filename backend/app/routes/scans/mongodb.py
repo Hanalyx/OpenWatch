@@ -18,8 +18,8 @@ from sqlalchemy.orm import Session
 from app.auth import get_current_user
 from app.constants import is_framework_supported
 from app.database import User, get_db
-from app.services.compliance_framework_reporting import ComplianceFrameworkReporter
 from app.services.engine.scanners import UnifiedSCAPScanner
+from app.services.framework import ComplianceFrameworkReporter
 from app.services.owca import SeverityCalculator, XCCDFParser
 from app.services.result_enrichment_service import ResultEnrichmentService
 
