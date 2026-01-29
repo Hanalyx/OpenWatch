@@ -196,6 +196,9 @@ from .integration import (  # AEGIS Mapper; Semantic Engine
     get_semantic_engine,
 )
 
+# Re-export scan intelligence
+from .intelligence import HostInfo, RecommendedScanProfile, ScanIntelligenceService
+
 # Re-export models for convenient access
 from .models import (  # Enums; Execution context; Result types; Capabilities; File transfer
     ExecutionContext,
@@ -439,6 +442,10 @@ __all__ = [
     "PlatformDetector",
     "PlatformInfo",
     "detect_platform_for_scan",
+    # Scan Intelligence
+    "HostInfo",
+    "RecommendedScanProfile",
+    "ScanIntelligenceService",
     # Backward compatibility
     "RemoteSCAPExecutor",
 ]

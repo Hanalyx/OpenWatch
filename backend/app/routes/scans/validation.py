@@ -59,7 +59,7 @@ from app.routes.scans.models import (
     ValidationRequest,
     VerificationScanRequest,
 )
-from app.services.scan_intelligence import RecommendedScanProfile, ScanIntelligenceService
+from app.services.engine import RecommendedScanProfile, ScanIntelligenceService
 from app.services.validation import get_error_classification_service, get_error_sanitization_service
 from app.tasks.scan_tasks import execute_scan_celery
 from app.utils.query_builder import QueryBuilder
