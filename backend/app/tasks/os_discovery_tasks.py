@@ -17,11 +17,11 @@ Security Considerations:
 
 Usage:
     # Trigger OS discovery for a single host
-    from backend.app.tasks.os_discovery_tasks import trigger_os_discovery
+    from app.tasks.os_discovery_tasks import trigger_os_discovery
     trigger_os_discovery.delay(str(host_id))
 
     # Trigger batch discovery
-    from backend.app.tasks.os_discovery_tasks import batch_os_discovery
+    from app.tasks.os_discovery_tasks import batch_os_discovery
     batch_os_discovery.delay([str(host_id) for host_id in host_ids])
 
 See: docs/plans/HOST_OS_DETECTION_AND_OVAL_ALIGNMENT_PLAN.md
@@ -34,14 +34,14 @@ from uuid import UUID
 
 from sqlalchemy import text
 
-from backend.app.celery_app import celery_app
-from backend.app.config import get_settings
-from backend.app.database import get_db_session
-from backend.app.encryption import EncryptionConfig, create_encryption_service
-from backend.app.services.host_discovery_service import HostBasicDiscoveryService
+from app.celery_app import celery_app
+from app.config import get_settings
+from app.database import get_db_session
+from app.encryption import EncryptionConfig, create_encryption_service
+from app.services.host_discovery_service import HostBasicDiscoveryService
 
 # SSHConnectionManager provides modular SSH connection handling with better testability
-from backend.app.services.ssh import SSHConnectionManager
+from app.services.ssh import SSHConnectionManager
 
 logger = logging.getLogger(__name__)
 
@@ -143,12 +143,14 @@ def _record_discovery_failure(host_id: str, error_message: str) -> None:
             failures = failures[-50:]  # Keep only last 50
 
             # Upsert the failures list
-            upsert_query = text("""
+            upsert_query = text(
+                """
                 INSERT INTO system_settings (setting_key, setting_value, setting_type, description, created_at, modified_at)  # noqa: E501
                 VALUES ('os_discovery_failures', :value, 'json', 'Failed OS discovery attempts', :now, :now)
                 ON CONFLICT (setting_key)
                 DO UPDATE SET setting_value = :value, modified_at = :now
-            """)
+            """
+            )
             db.execute(upsert_query, {"value": json.dumps(failures), "now": datetime.utcnow()})
             db.commit()
 
@@ -159,7 +161,12 @@ def _record_discovery_failure(host_id: str, error_message: str) -> None:
         logger.warning(f"Failed to record OS discovery failure for {host_id}: {e}")
 
 
-@celery_app.task(bind=True, name="backend.app.tasks.trigger_os_discovery")
+@celery_app.task(
+    bind=True,
+    name="backend.app.tasks.trigger_os_discovery",
+    time_limit=600,
+    soft_time_limit=540,
+)
 def trigger_os_discovery(self, host_id: str) -> Dict[str, Any]:
     """
     Asynchronously discover and update OS information for a single host.
@@ -207,12 +214,14 @@ def trigger_os_discovery(self, host_id: str) -> Dict[str, Any]:
     try:
         with get_db_session() as db:
             # Fetch host details including credentials
-            host_query = text("""
+            host_query = text(
+                """
                 SELECT id, hostname, ip_address, port, username, auth_method,
                        encrypted_credentials, status, os_family, os_version
                 FROM hosts
                 WHERE id = :host_id AND is_active = true
-            """)
+            """
+            )
             host_row = db.execute(host_query, {"host_id": host_id}).fetchone()
 
             if not host_row:
@@ -276,7 +285,8 @@ def trigger_os_discovery(self, host_id: str) -> Dict[str, Any]:
 
             # Update host record in database
             # Phase 4: Include platform_identifier for OVAL selection during scans
-            update_query = text("""
+            update_query = text(
+                """
                 UPDATE hosts
                 SET os_family = :os_family,
                     os_version = :os_version,
@@ -286,7 +296,8 @@ def trigger_os_discovery(self, host_id: str) -> Dict[str, Any]:
                     last_os_detection = :last_os_detection,
                     updated_at = :updated_at
                 WHERE id = :host_id
-            """)
+            """
+            )
             db.execute(
                 update_query,
                 {
@@ -340,7 +351,12 @@ def trigger_os_discovery(self, host_id: str) -> Dict[str, Any]:
         )
 
 
-@celery_app.task(bind=True, name="backend.app.tasks.batch_os_discovery")
+@celery_app.task(
+    bind=True,
+    name="backend.app.tasks.batch_os_discovery",
+    time_limit=3600,
+    soft_time_limit=3300,
+)
 def batch_os_discovery(self, host_ids: List[str]) -> Dict[str, Any]:
     """
     Trigger OS discovery for multiple hosts in batch.
@@ -403,7 +419,12 @@ def batch_os_discovery(self, host_ids: List[str]) -> Dict[str, Any]:
     return result
 
 
-@celery_app.task(bind=True, name="backend.app.tasks.discover_all_hosts_os")
+@celery_app.task(
+    bind=True,
+    name="backend.app.tasks.discover_all_hosts_os",
+    time_limit=7200,
+    soft_time_limit=6600,
+)
 def discover_all_hosts_os(self, force: bool = False) -> Dict[str, Any]:
     """
     Discover OS information for all active hosts.
@@ -465,21 +486,25 @@ def discover_all_hosts_os(self, force: bool = False) -> Dict[str, Any]:
             # Build query based on force flag
             if force:
                 # Get all active hosts with credentials
-                query = text("""
+                query = text(
+                    """
                     SELECT id, hostname, os_family, os_version
                     FROM hosts
                     WHERE is_active = true
                       AND encrypted_credentials IS NOT NULL
-                """)
+                """
+                )
             else:
                 # Get only hosts missing OS information
-                query = text("""
+                query = text(
+                    """
                     SELECT id, hostname, os_family, os_version
                     FROM hosts
                     WHERE is_active = true
                       AND encrypted_credentials IS NOT NULL
                       AND (os_family IS NULL OR os_version IS NULL)
-                """)
+                """
+                )
 
             hosts = db.execute(query).fetchall()
             result["total_active_hosts"] = len(hosts)

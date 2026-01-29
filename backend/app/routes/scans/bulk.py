@@ -25,14 +25,14 @@ Security Notes:
 import logging
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from backend.app.auth import get_current_user
-from backend.app.database import get_db
-from backend.app.routes.scans.models import BulkScanRequest, BulkScanResponse
-from backend.app.services.bulk_scan_orchestrator import BulkScanOrchestrator
+from app.auth import get_current_user
+from app.database import get_db
+from app.routes.scans.models import BulkScanRequest, BulkScanResponse
+from app.services.bulk_scan_orchestrator import BulkScanOrchestrator
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +47,6 @@ router = APIRouter(tags=["Bulk Scan Operations"])
 @router.post("/bulk-scan", response_model=BulkScanResponse)
 async def create_bulk_scan(
     bulk_scan_request: BulkScanRequest,
-    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: Dict[str, Any] = Depends(get_current_user),
 ) -> BulkScanResponse:
@@ -59,7 +58,6 @@ async def create_bulk_scan(
 
     Args:
         bulk_scan_request: Configuration including host IDs, template, and priority.
-        background_tasks: FastAPI background task manager.
         db: SQLAlchemy database session.
         current_user: Authenticated user from JWT token.
 
@@ -210,10 +208,12 @@ async def cancel_bulk_scan(
     try:
         # Update session status to cancelled
         result = db.execute(
-            text("""
+            text(
+                """
             UPDATE scan_sessions SET status = 'cancelled'
             WHERE id = :session_id
-        """),
+        """
+            ),
             {"session_id": session_id},
         )
 
@@ -224,7 +224,8 @@ async def cancel_bulk_scan(
 
         # Cancel individual scans that are still pending
         db.execute(
-            text("""
+            text(
+                """
             UPDATE scans SET status = 'cancelled', error_message = 'Cancelled by user'
             WHERE id IN (
                 SELECT unnest(ARRAY(
@@ -232,7 +233,8 @@ async def cancel_bulk_scan(
                     FROM scan_sessions WHERE id = :session_id
                 ))
             ) AND status IN ('pending', 'running')
-        """),
+        """
+            ),
             {"session_id": session_id},
         )
 

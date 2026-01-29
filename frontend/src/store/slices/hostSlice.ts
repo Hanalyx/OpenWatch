@@ -28,20 +28,17 @@ const initialState: HostState = {
 };
 
 export const fetchHosts = createAsyncThunk('hosts/fetchHosts', async () => {
-  const response = await api.get('/hosts');
-  return response.data;
+  return api.get<Host[]>('/hosts');
 });
 
 export const createHost = createAsyncThunk('hosts/createHost', async (hostData: Partial<Host>) => {
-  const response = await api.post('/hosts', hostData);
-  return response.data;
+  return api.post<Host>('/hosts', hostData);
 });
 
 export const updateHost = createAsyncThunk(
   'hosts/updateHost',
   async ({ id, data }: { id: string; data: Partial<Host> }) => {
-    const response = await api.put(`/hosts/${id}`, data);
-    return response.data;
+    return api.put<Host>(`/hosts/${id}`, data);
   }
 );
 

@@ -3,7 +3,6 @@ import {
   Box,
   Typography,
   Button,
-  Grid,
   Card,
   CardContent,
   FormControl,
@@ -20,6 +19,7 @@ import {
   ListItemIcon,
   IconButton,
 } from '@mui/material';
+import Grid from '@mui/material/GridLegacy';
 import {
   ArrowForward as ArrowIcon,
   CheckCircle as CheckIcon,

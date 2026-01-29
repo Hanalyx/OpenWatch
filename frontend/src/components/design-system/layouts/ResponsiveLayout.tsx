@@ -2,7 +2,6 @@ import React from 'react';
 import {
   Box,
   Container,
-  Grid,
   Paper,
   Typography,
   useMediaQuery,
@@ -11,6 +10,7 @@ import {
   Skeleton,
   Stack,
 } from '@mui/material';
+import Grid from '@mui/material/GridLegacy';
 import { type SxProps, type Theme } from '@mui/material/styles';
 
 interface ResponsiveLayoutProps {

@@ -2,22 +2,36 @@
 Background tasks for health monitoring data collection.
 
 Scheduled tasks that periodically collect and store health metrics.
+
+Note: All tasks are sync (def, not async def) because Celery does not
+natively support async tasks. Async service calls are executed via
+asyncio.run().
 """
 
+import asyncio
 import logging
 from datetime import datetime, timedelta
 from typing import Any, Dict
 
 from celery.schedules import crontab
 
-from backend.app.celery_app import celery_app
-from backend.app.services.health_monitoring_service import get_health_monitoring_service
+from app.celery_app import celery_app
+from app.services.health_monitoring_service import get_health_monitoring_service
 
 logger = logging.getLogger(__name__)
 
 
-@celery_app.task(name="collect_service_health")
-async def collect_service_health_task() -> Dict[str, Any]:
+def _run_async(coro):
+    """Run an async coroutine synchronously for Celery task compatibility."""
+    loop = asyncio.new_event_loop()
+    try:
+        return loop.run_until_complete(coro)
+    finally:
+        loop.close()
+
+
+@celery_app.task(name="collect_service_health", time_limit=300, soft_time_limit=240)
+def collect_service_health_task() -> Dict[str, Any]:
     """
     Collect service health metrics.
 
@@ -26,11 +40,10 @@ async def collect_service_health_task() -> Dict[str, Any]:
     try:
         logger.info("Starting service health collection task")
 
-        health_service = await get_health_monitoring_service()
+        health_service = _run_async(get_health_monitoring_service())
 
-        # Collect and save service health
-        service_health = await health_service.collect_service_health()
-        await health_service.save_service_health(service_health)
+        service_health = _run_async(health_service.collect_service_health())
+        _run_async(health_service.save_service_health(service_health))
 
         logger.info(f"Service health collected successfully: {service_health.overall_status}")
 
@@ -49,8 +62,8 @@ async def collect_service_health_task() -> Dict[str, Any]:
         }
 
 
-@celery_app.task(name="collect_content_health")
-async def collect_content_health_task() -> Dict[str, Any]:
+@celery_app.task(name="collect_content_health", time_limit=600, soft_time_limit=540)
+def collect_content_health_task() -> Dict[str, Any]:
     """
     Collect content health metrics.
 
@@ -59,11 +72,10 @@ async def collect_content_health_task() -> Dict[str, Any]:
     try:
         logger.info("Starting content health collection task")
 
-        health_service = await get_health_monitoring_service()
+        health_service = _run_async(get_health_monitoring_service())
 
-        # Collect and save content health
-        content_health = await health_service.collect_content_health()
-        await health_service.save_content_health(content_health)
+        content_health = _run_async(health_service.collect_content_health())
+        _run_async(health_service.save_content_health(content_health))
 
         alert_count = len(content_health.alerts_and_recommendations)
         logger.info(f"Content health collected successfully: {alert_count} alerts")
@@ -83,8 +95,8 @@ async def collect_content_health_task() -> Dict[str, Any]:
         }
 
 
-@celery_app.task(name="update_health_summary")
-async def update_health_summary_task() -> Dict[str, Any]:
+@celery_app.task(name="update_health_summary", time_limit=300, soft_time_limit=240)
+def update_health_summary_task() -> Dict[str, Any]:
     """
     Update combined health summary.
 
@@ -93,11 +105,10 @@ async def update_health_summary_task() -> Dict[str, Any]:
     try:
         logger.info("Starting health summary update task")
 
-        health_service = await get_health_monitoring_service()
+        health_service = _run_async(get_health_monitoring_service())
 
-        # Create and save health summary
-        summary = await health_service.create_health_summary()
-        await health_service.save_health_summary(summary)
+        summary = _run_async(health_service.create_health_summary())
+        _run_async(health_service.save_health_summary(summary))
 
         logger.info(
             f"Health summary updated: {summary.overall_health_status}, " f"{summary.active_issues_count} active issues"
@@ -119,8 +130,8 @@ async def update_health_summary_task() -> Dict[str, Any]:
         }
 
 
-@celery_app.task(name="cleanup_old_health_data")
-async def cleanup_old_health_data_task(retention_days: int = 7) -> dict:
+@celery_app.task(name="cleanup_old_health_data", time_limit=600, soft_time_limit=540)
+def cleanup_old_health_data_task(retention_days: int = 7) -> dict:
     """
     Clean up old health monitoring data.
 
@@ -129,19 +140,19 @@ async def cleanup_old_health_data_task(retention_days: int = 7) -> dict:
     try:
         logger.info(f"Starting health data cleanup task (retention: {retention_days} days)")
 
-        from ..models.health_models import ContentHealthDocument, ServiceHealthDocument
+        from app.models.health_models import ContentHealthDocument, ServiceHealthDocument
 
         cutoff_date = datetime.utcnow() - timedelta(days=retention_days)
 
         # Delete old service health data
-        service_result = await ServiceHealthDocument.find(
-            ServiceHealthDocument.health_check_timestamp < cutoff_date
-        ).delete()
+        service_result = _run_async(
+            ServiceHealthDocument.find(ServiceHealthDocument.health_check_timestamp < cutoff_date).delete()
+        )
 
         # Delete old content health data
-        content_result = await ContentHealthDocument.find(
-            ContentHealthDocument.health_check_timestamp < cutoff_date
-        ).delete()
+        content_result = _run_async(
+            ContentHealthDocument.find(ContentHealthDocument.health_check_timestamp < cutoff_date).delete()
+        )
 
         logger.info(
             f"Health data cleanup completed: "

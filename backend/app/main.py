@@ -5,6 +5,7 @@ Main application with comprehensive security middleware
 
 import asyncio
 import logging
+import os
 import time
 import types
 from contextlib import asynccontextmanager
@@ -26,15 +27,7 @@ from .config import SECURITY_HEADERS, get_settings
 from .database import get_db_session
 from .middleware.metrics import PrometheusMiddleware, background_updater
 from .middleware.rate_limiting import get_rate_limiting_middleware
-from .routes import (  # noqa: E501
-    # REMOVED route consolidation notes:
-    # - api_keys, auth, mfa: Consolidated into routes/auth/ (E1-S4)
-    # - hosts, host_*_discovery: Consolidated into routes/hosts/ (Phase 3)
-    # - mongodb_scan_api, rule_scanning, scan_config_api, scan_templates: Consolidated into routes/scans/ (Phase 2)
-    # - compliance, drift_events, owca: Consolidated into routes/compliance/ (Phase 4)
-    # - plugin_management, webhooks: Consolidated into routes/integrations/ (Phase 4)
-    # - ssh_debug, ssh_settings: Consolidated into routes/ssh/ (Phase 4)
-    # - bulk_remediation_routes, remediation_api: Moved to SecureOps/AEGIS (ORSA subsystem)
+from .routes import (  # noqa: E501; REMOVED route consolidation notes:; - api_keys, auth, mfa: Consolidated into routes/auth/ (E1-S4); - hosts, host_*_discovery: Consolidated into routes/hosts/ (Phase 3); - mongodb_scan_api, rule_scanning, scan_config_api, scan_templates: Consolidated into routes/scans/ (Phase 2); - compliance, drift_events, owca: Consolidated into routes/compliance/ (Phase 4); - plugin_management, webhooks: Consolidated into routes/integrations/ (Phase 4); - ssh_debug, ssh_settings: Consolidated into routes/ssh/ (Phase 4); - bulk_remediation_routes, remediation_api: Moved to SecureOps/AEGIS (ORSA subsystem)
     adaptive_scheduler,
     audit,
     baselines,
@@ -58,6 +51,11 @@ from .routes import (  # noqa: E501
     xccdf_api,
 )
 
+# Import auth from new modular package (E1-S4 Route Consolidation)
+# This package consolidates auth.py, mfa.py, and api_keys.py into a single
+# modular package with login, MFA, and API key endpoints
+from .routes.auth import router as auth_router
+
 # Import compliance from new modular package (Phase 4 API Standardization)
 # This package consolidates compliance.py, owca.py, and drift_events.py into a single
 # modular package with intelligence, OWCA, and drift endpoints
@@ -78,11 +76,6 @@ from .routes.hosts import router as hosts_router
 # This package consolidates webhooks.py and plugin_management.py into a single
 # modular package with webhooks and plugins endpoints
 from .routes.integrations import router as integrations_router
-
-# Import auth from new modular package (E1-S4 Route Consolidation)
-# This package consolidates auth.py, mfa.py, and api_keys.py into a single
-# modular package with login, MFA, and API key endpoints
-from .routes.auth import router as auth_router
 
 # Import SSH from new modular package (Phase 4 API Standardization)
 # This package consolidates ssh_settings.py and ssh_debug.py into a single
@@ -406,6 +399,9 @@ app.add_middleware(
 
 # Trusted Host Middleware
 trusted_hosts = ["localhost", "127.0.0.1"]
+if settings.debug or os.environ.get("TESTING"):
+    # Allow FastAPI TestClient default host header
+    trusted_hosts.append("testserver")
 if not settings.debug:
     # Add production domains from allowed origins
     for origin in settings.allowed_origins:

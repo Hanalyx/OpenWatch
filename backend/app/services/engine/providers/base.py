@@ -27,7 +27,7 @@ Architecture:
     - health_check(): Validate provider connectivity
 
 Usage:
-    from backend.app.services.engine.providers.base import (
+    from app.services.engine.providers.base import (
         BaseProvider,
         ProviderConfig,
     )

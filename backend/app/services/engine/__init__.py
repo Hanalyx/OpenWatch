@@ -49,7 +49,7 @@ Supported Execution Modes:
 
 Quick Start:
     # Execute a remote scan
-    from backend.app.services.engine import (
+    from app.services.engine import (
         SSHExecutor,
         ExecutionContext,
         ScanType,
@@ -75,7 +75,7 @@ Quick Start:
         print(f"Results at: {result.result_files}")
 
     # Use AEGIS integration for remediation
-    from backend.app.services.engine import AegisMapper, get_aegis_mapper
+    from app.services.engine import AegisMapper, get_aegis_mapper
 
     mapper = get_aegis_mapper()
     plan = mapper.create_remediation_plan(
@@ -86,7 +86,7 @@ Quick Start:
     )
 
     # Use Semantic Engine for intelligent analysis
-    from backend.app.services.engine import SemanticEngine, get_semantic_engine
+    from app.services.engine import SemanticEngine, get_semantic_engine
 
     engine = get_semantic_engine()
     analysis = await engine.process_scan_with_intelligence(

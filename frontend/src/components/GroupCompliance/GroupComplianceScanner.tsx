@@ -36,14 +36,14 @@ interface ComplianceScanRequest {
 interface ScapContentBundle {
   id: number;
   name: string;
+  title: string;
   description?: string;
+  compliance_framework?: string;
   profiles: Array<{
     id: string;
     title: string;
     description?: string;
   }>;
-  // Additional bundle metadata from backend
-  [key: string]: string | number | boolean | object | undefined;
 }
 
 /**

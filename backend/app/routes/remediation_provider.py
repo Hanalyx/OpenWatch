@@ -9,7 +9,7 @@ import uuid
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import UUID4, BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -82,7 +82,6 @@ class RemediationSummary(BaseModel):
 @router.post("/start", response_model=RemediationJob)
 async def start_remediation(
     request: RemediationRequest,
-    background_tasks: BackgroundTasks,
     current_user: Dict[str, Any] = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> RemediationJob:
@@ -163,13 +162,14 @@ async def start_remediation(
             ip_address="127.0.0.1",
         )
 
-        # Start remediation in background
-        background_tasks.add_task(
-            _execute_remediation_job,
-            job_id=job_id,
+        # Start remediation via Celery
+        from app.tasks.background_tasks import execute_remediation_celery
+
+        execute_remediation_celery.delay(
+            job_id=str(job_id),
             provider=request.provider,
-            scan_id=request.scan_id,
-            host_id=request.host_id,
+            scan_id=str(request.scan_id),
+            host_id=str(request.host_id),
             failed_rules=request.failed_rules,
             options=request.options,
         )
@@ -346,7 +346,7 @@ async def retry_remediation_job(
         )
 
         # Start new remediation job
-        new_job = await start_remediation(retry_request, BackgroundTasks(), current_user, db)
+        new_job = await start_remediation(retry_request, current_user, db)
 
         logger.info(f"Retry remediation job {new_job.job_id} created for original job {job_id}")
 
@@ -533,12 +533,12 @@ async def _execute_aegis_remediation(
     failed_rules: List[str],
     options: Dict[str, Any],
 ) -> None:
-    """Execute AEGIS-based remediation"""
-    # This would make actual calls to AEGIS API
-    logger.info(f"AEGIS remediation job {job_id} - would call AEGIS API")
-    # For now, just simulate
+    """Execute AEGIS-based remediation.
+
+    STUB: Not implemented. Replace with actual AEGIS API integration.
+    """
+    logger.info(f"AEGIS remediation job {job_id} - STUB: no-op (AEGIS API not integrated)")
     await asyncio.sleep(2)
-    logger.info(f"AEGIS remediation job {job_id} completed (simulated)")
 
 
 async def _execute_ansible_remediation(
@@ -548,10 +548,12 @@ async def _execute_ansible_remediation(
     failed_rules: List[str],
     options: Dict[str, Any],
 ) -> None:
-    """Execute Ansible-based remediation"""
-    logger.info(f"Ansible remediation job {job_id} - would execute playbooks")
+    """Execute Ansible-based remediation.
+
+    STUB: Not implemented. Replace with actual Ansible playbook execution.
+    """
+    logger.info(f"Ansible remediation job {job_id} - STUB: no-op (Ansible not integrated)")
     await asyncio.sleep(2)
-    logger.info(f"Ansible remediation job {job_id} completed (simulated)")
 
 
 async def _execute_manual_remediation(
@@ -561,10 +563,12 @@ async def _execute_manual_remediation(
     failed_rules: List[str],
     options: Dict[str, Any],
 ) -> None:
-    """Generate manual remediation documentation"""
-    logger.info(f"Manual remediation job {job_id} - generating documentation")
+    """Generate manual remediation documentation.
+
+    STUB: Not implemented. Replace with actual documentation generation.
+    """
+    logger.info(f"Manual remediation job {job_id} - STUB: no-op (doc generation not implemented)")
     await asyncio.sleep(1)
-    logger.info(f"Manual remediation job {job_id} completed (simulated)")
 
 
 def _check_aegis_status() -> Dict[str, Any]:

@@ -292,6 +292,7 @@ export const PreFlightValidationDialog: React.FC<PreFlightValidationDialogProps>
       }
 
       // Create a fallback validation result
+      const typedError = error as { response?: { data?: { detail?: string } }; message?: string };
       setValidationResult({
         can_proceed: false,
         errors: [
@@ -301,10 +302,10 @@ export const PreFlightValidationDialog: React.FC<PreFlightValidationDialogProps>
             severity: 'error',
             message: 'Pre-flight validation failed',
             user_guidance:
-              error.response?.data?.detail ||
-              error.message ||
+              typedError.response?.data?.detail ||
+              typedError.message ||
               'An error occurred during validation',
-            technical_details: { error: error.message },
+            technical_details: { error: typedError.message || 'Unknown error' },
             automated_fixes: [],
             can_retry: true,
             retry_after: 30,
@@ -501,7 +502,10 @@ export const PreFlightValidationDialog: React.FC<PreFlightValidationDialogProps>
                     wordBreak: 'break-word',
                   }}
                 >
-                  {validationResult.system_info.system_details || 'No system details available'}
+                  {typeof validationResult.system_info.system_details === 'string'
+                    ? validationResult.system_info.system_details
+                    : JSON.stringify(validationResult.system_info.system_details, null, 2) ||
+                      'No system details available'}
                 </pre>
               </Paper>
             </Collapse>

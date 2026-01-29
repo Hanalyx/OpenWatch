@@ -51,11 +51,13 @@ async def deliver_webhook(
         db = next(get_db())
         try:
             db.execute(
-                text("""
+                text(
+                    """
                 INSERT INTO webhook_deliveries
                 (id, webhook_id, event_type, event_data, delivery_status, created_at)
                 VALUES (:id, :webhook_id, :event_type, :event_data, :delivery_status, :created_at)
-            """),
+            """
+                ),
                 {
                     "id": delivery_id,
                     "webhook_id": webhook_id,
@@ -100,14 +102,16 @@ async def deliver_webhook(
         db = next(get_db())
         try:
             db.execute(
-                text("""
+                text(
+                    """
                 UPDATE webhook_deliveries SET
                 delivery_status = 'delivered',
                 http_status_code = :status_code,
                 response_body = :response_body,
                 delivered_at = :delivered_at
                 WHERE id = :id
-            """),
+            """
+                ),
                 {
                     "id": delivery_id,
                     "status_code": response.status_code,
@@ -142,12 +146,14 @@ async def deliver_webhook(
         db = next(get_db())
         try:
             db.execute(
-                text("""
+                text(
+                    """
                 UPDATE webhook_deliveries SET
                 delivery_status = 'failed',
                 error_message = :error_message
                 WHERE id = :id
-            """),
+            """
+                ),
                 {"id": delivery_id, "error_message": error_msg},
             )
             db.commit()
@@ -163,17 +169,23 @@ async def deliver_webhook(
     return False
 
 
-async def send_scan_completed_webhook(scan_id: str, scan_data: Dict[str, Any]):
-    """Send scan.completed webhook to all registered endpoints"""
+def send_scan_completed_webhook(scan_id: str, scan_data: Dict[str, Any]):
+    """Send scan.completed webhook to all registered endpoints via Celery."""
     try:
+        from .background_tasks import deliver_webhook_celery
+
         # Get active webhook endpoints that listen for scan.completed events
         db = next(get_db())
         try:
-            result = db.execute(text("""
+            result = db.execute(
+                text(
+                    """
                 SELECT id, url, secret_hash FROM webhook_endpoints
                 WHERE is_active = true
                 AND event_types::jsonb ? 'scan.completed'
-            """))
+            """
+                )
+            )
 
             webhooks = result.fetchall()
         finally:
@@ -186,28 +198,39 @@ async def send_scan_completed_webhook(scan_id: str, scan_data: Dict[str, Any]):
         # Create standardized event payload
         event_data = create_scan_completed_payload(scan_id, scan_data)
 
-        # Send to all registered endpoints
+        # Dispatch each delivery via Celery
         for webhook in webhooks:
             try:
-                await deliver_webhook(webhook.url, webhook.secret_hash, event_data, str(webhook.id))
+                deliver_webhook_celery.delay(
+                    url=webhook.url,
+                    secret_hash=webhook.secret_hash,
+                    event_data=event_data,
+                    webhook_id=str(webhook.id),
+                )
             except Exception as e:
-                logger.error(f"Failed to deliver scan.completed webhook: webhook_id={webhook.id}, error={e}")
+                logger.error(f"Failed to queue scan.completed webhook: webhook_id={webhook.id}, error={e}")
 
     except Exception as e:
         logger.error(f"Failed to process scan.completed webhooks: scan_id={scan_id}, error={e}")
 
 
-async def send_scan_failed_webhook(scan_id: str, scan_data: Dict[str, Any], error_message: str):
-    """Send scan.failed webhook to all registered endpoints"""
+def send_scan_failed_webhook(scan_id: str, scan_data: Dict[str, Any], error_message: str):
+    """Send scan.failed webhook to all registered endpoints via Celery."""
     try:
+        from .background_tasks import deliver_webhook_celery
+
         # Get active webhook endpoints that listen for scan.failed events
         db = next(get_db())
         try:
-            result = db.execute(text("""
+            result = db.execute(
+                text(
+                    """
                 SELECT id, url, secret_hash FROM webhook_endpoints
                 WHERE is_active = true
                 AND event_types::jsonb ? 'scan.failed'
-            """))
+            """
+                )
+            )
 
             webhooks = result.fetchall()
         finally:
@@ -220,12 +243,17 @@ async def send_scan_failed_webhook(scan_id: str, scan_data: Dict[str, Any], erro
         # Create standardized event payload
         event_data = create_scan_failed_payload(scan_id, scan_data, error_message)
 
-        # Send to all registered endpoints
+        # Dispatch each delivery via Celery
         for webhook in webhooks:
             try:
-                await deliver_webhook(webhook.url, webhook.secret_hash, event_data, str(webhook.id))
+                deliver_webhook_celery.delay(
+                    url=webhook.url,
+                    secret_hash=webhook.secret_hash,
+                    event_data=event_data,
+                    webhook_id=str(webhook.id),
+                )
             except Exception as e:
-                logger.error(f"Failed to deliver scan.failed webhook: webhook_id={webhook.id}, error={e}")
+                logger.error(f"Failed to queue scan.failed webhook: webhook_id={webhook.id}, error={e}")
 
     except Exception as e:
         logger.error(f"Failed to process scan.failed webhooks: scan_id={scan_id}, error={e}")

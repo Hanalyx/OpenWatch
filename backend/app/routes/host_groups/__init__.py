@@ -41,11 +41,11 @@ Router Organization:
 
 Usage:
     # Import the router in main.py
-    from backend.app.routes.host_groups import router
+    from app.routes.host_groups import router
     app.include_router(router, prefix="/api/host-groups", tags=["Host Groups"])
 
     # Import models directly
-    from backend.app.routes.host_groups.models import HostGroupCreate, GroupScanRequest
+    from app.routes.host_groups.models import HostGroupCreate, GroupScanRequest
 
 Frontend Alignment:
     These endpoints align with frontend scanService.ts:
@@ -66,8 +66,8 @@ router = APIRouter(prefix="/host-groups", tags=["Host Groups"])
 
 # Import sub-routers from modular files
 try:
-    from backend.app.routes.host_groups.crud import router as crud_router
-    from backend.app.routes.host_groups.scans import router as scans_router
+    from app.routes.host_groups.crud import router as crud_router
+    from app.routes.host_groups.scans import router as scans_router
 
     # Include all sub-routers into main router
     # CRUD router first (handles base group operations)
@@ -83,7 +83,7 @@ except ImportError as e:
 
 
 # Re-export models for convenient access
-from backend.app.routes.host_groups.models import (  # noqa: E402
+from app.routes.host_groups.models import (  # noqa: E402
     AssignHostsRequest,
     CancelScanResponse,
     CompatibilityValidationResponse,
@@ -105,7 +105,7 @@ from backend.app.routes.host_groups.models import (  # noqa: E402
 )
 
 # Re-export helper functions for Celery tasks backward compatibility
-from backend.app.routes.host_groups.scans import execute_group_compliance_scan  # noqa: E402
+from app.routes.host_groups.scans import execute_group_compliance_scan  # noqa: E402
 
 __all__ = [
     # Router

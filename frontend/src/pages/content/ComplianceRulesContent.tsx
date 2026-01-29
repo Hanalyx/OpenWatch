@@ -15,7 +15,6 @@ import {
   InputLabel,
   Select,
   MenuItem,
-  Grid,
   Button,
   IconButton,
   Tooltip,
@@ -30,6 +29,7 @@ import {
   Collapse,
   Divider,
 } from '@mui/material';
+import Grid from '@mui/material/GridLegacy';
 import {
   Search as SearchIcon,
   FilterList as FilterIcon,

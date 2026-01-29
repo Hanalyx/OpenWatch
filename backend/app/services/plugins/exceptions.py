@@ -16,7 +16,7 @@ Exception Hierarchy:
     +-- PluginSignatureError: Signature verification failed
 
 Usage:
-    from backend.app.services.plugins.exceptions import (
+    from app.services.plugins.exceptions import (
         PluginError,
         PluginNotFoundError,
         PluginSecurityError,

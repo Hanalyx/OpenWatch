@@ -5,7 +5,6 @@ This module provides shared utilities for the scanning API including:
 - Scanner service singletons (lazy initialization pattern)
 - XCCDF result parsing functions
 - Error sanitization helpers
-- Background task utilities
 
 Architecture Notes:
     Singleton Pattern: Scanner services are expensive to initialize, so we use
@@ -19,18 +18,18 @@ Security Notes:
 
 import logging
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 import lxml.etree as etree  # nosec B410 (secure parser configuration below)
 from fastapi import HTTPException, Request, Response
 
-from backend.app.services.compliance_framework_reporting import ComplianceFrameworkReporter
-from backend.app.services.engine.scanners import UnifiedSCAPScanner
-from backend.app.services.error_classification import ErrorClassificationService
-from backend.app.services.error_sanitization import get_error_sanitization_service
-from backend.app.services.owca import SeverityCalculator, XCCDFParser
-from backend.app.services.result_enrichment_service import ResultEnrichmentService
-from backend.app.utils.logging_security import sanitize_path_for_log
+from app.services.compliance_framework_reporting import ComplianceFrameworkReporter
+from app.services.engine.scanners import UnifiedSCAPScanner
+from app.services.error_classification import ErrorClassificationService
+from app.services.error_sanitization import get_error_sanitization_service
+from app.services.owca import SeverityCalculator, XCCDFParser
+from app.services.result_enrichment_service import ResultEnrichmentService
+from app.utils.logging_security import sanitize_path_for_log
 
 logger = logging.getLogger(__name__)
 
@@ -330,57 +329,6 @@ def parse_xccdf_results(result_file: str) -> Dict[str, Any]:
 
 
 # =============================================================================
-# Background Task Utilities
-# =============================================================================
-
-
-async def enrich_scan_results_background(
-    scan_id: str,
-    result_file: str,
-    scan_metadata: Dict[str, Any],
-    generate_report: bool,
-) -> None:
-    """
-    Background task to enrich scan results and generate reports.
-
-    This task runs asynchronously after the scan completes to:
-    1. Enrich results with intelligence data (remediation guidance, etc.)
-    2. Generate compliance reports if requested
-
-    Args:
-        scan_id: UUID of the completed scan.
-        result_file: Path to the XCCDF results XML file.
-        scan_metadata: Original scan request metadata.
-        generate_report: Whether to generate a compliance report.
-    """
-    try:
-        logger.info("Starting background enrichment for scan %s", scan_id)
-
-        enrichment_svc = await get_enrichment_service()
-        enriched_results = await enrichment_svc.enrich_scan_results(
-            result_file_path=result_file,
-            scan_metadata=scan_metadata,
-        )
-
-        if generate_report:
-            reporter = await get_compliance_reporter()
-            framework = scan_metadata.get("framework")
-            target_frameworks: List[str] = [str(framework)] if framework else []
-
-            await reporter.generate_compliance_report(
-                enriched_results=enriched_results,
-                target_frameworks=target_frameworks,
-                report_format="json",
-            )
-            logger.info("Generated compliance report for scan %s", scan_id)
-
-        logger.info("Background enrichment completed for scan %s", scan_id)
-
-    except Exception as e:
-        logger.error("Background enrichment failed for scan %s: %s", scan_id, e)
-
-
-# =============================================================================
 # Deprecation Header Helper
 # =============================================================================
 
@@ -487,8 +435,6 @@ __all__ = [
     "get_compliance_reporter",
     # XCCDF parsing
     "parse_xccdf_results",
-    # Background tasks
-    "enrich_scan_results_background",
     # Deprecation helpers
     "DEPRECATION_WARNING",
     "add_deprecation_header",

@@ -19,7 +19,7 @@ Security Considerations:
 - Input validation: All extracted values sanitized
 
 Usage:
-    from backend.app.services.content.parsers.scap import SCAPParser
+    from app.services.content.parsers.scap import SCAPParser
 
     parser = SCAPParser()
     content = parser.parse("/path/to/benchmark.xml")

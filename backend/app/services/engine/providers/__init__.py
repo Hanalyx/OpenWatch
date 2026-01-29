@@ -39,7 +39,7 @@ Planned Features:
        - Network Policy compliance
 
 Usage (Future):
-    from backend.app.services.engine.providers import (
+    from app.services.engine.providers import (
         get_provider,
         AWSProvider,
         AzureProvider,
@@ -51,7 +51,7 @@ Usage (Future):
     await provider.push_findings(scan_results)
 """
 
-from backend.app.services.engine.providers.base import (
+from app.services.engine.providers.base import (
     BaseProvider,
     ProviderCapability,
     ProviderConfig,

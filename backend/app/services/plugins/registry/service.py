@@ -10,8 +10,8 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from backend.app.config import get_settings
-from backend.app.models.plugin_models import (
+from app.config import get_settings
+from app.models.plugin_models import (
     InstalledPlugin,
     PluginStatus,
     PluginTrustLevel,

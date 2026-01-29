@@ -13,7 +13,7 @@ from uuid import UUID
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from backend.app.utils.query_builder import QueryBuilder
+from ....utils.query_builder import QueryBuilder
 
 from ..core.score_calculator import ComplianceScoreCalculator
 from ..models import ComplianceScore, FleetStatistics
@@ -69,7 +69,8 @@ class FleetAggregator:
                 return FleetStatistics(**cached)
 
         # Build optimized query with CTEs for different metrics
-        query = text("""
+        query = text(
+            """
             WITH host_counts AS (
                 SELECT
                     COUNT(*) AS total_hosts,
@@ -163,7 +164,8 @@ class FleetAggregator:
             CROSS JOIN issue_counts ic
             CROSS JOIN needs_scan ns
             CROSS JOIN compliance_stats cst
-            """)
+            """
+        )
 
         # Threshold for "needs scan" - 7 days ago
         threshold_date = datetime.utcnow() - timedelta(days=7)
@@ -277,7 +279,8 @@ class FleetAggregator:
             >>> aggregator = FleetAggregator(db, score_calculator)
             >>> priority_hosts = await aggregator.get_top_priority_hosts(limit=5)
         """
-        query = text("""
+        query = text(
+            """
             SELECT DISTINCT ON (s.host_id)
                 h.id AS host_id,
                 h.hostname,
@@ -301,7 +304,8 @@ class FleetAggregator:
             WHERE s.status = 'completed'
             ORDER BY s.host_id, s.completed_at DESC
             LIMIT :limit
-            """)
+            """
+        )
 
         results = self.db.execute(query, {"limit": limit}).fetchall()
 

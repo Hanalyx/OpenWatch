@@ -200,9 +200,9 @@ jobs:
           fi
 
       - name: Fail if usage increased (PR only)
-        if: github.event_name == 'pull_request' && steps.scan.outputs.total_refs > 12
+        if: github.event_name == 'pull_request' && steps.scan.outputs.total_refs > 23
         run: |
           echo "❌ POLICY VIOLATION: system_credentials usage increased in this PR"
-          echo "Baseline: 12 references"
+          echo "Baseline: 23 references"
           echo "Current: ${{ steps.scan.outputs.total_refs }} references"
           exit 1

@@ -25,7 +25,7 @@ Supported Output Formats:
     - Aggregated OVAL definitions files
 
 Quick Start:
-    from backend.app.services.xccdf import XCCDFGeneratorService
+    from app.services.xccdf import XCCDFGeneratorService
 
     # Initialize with MongoDB connection
     generator = XCCDFGeneratorService(mongo_db)
@@ -121,9 +121,9 @@ def get_xccdf_generator(db) -> XCCDFGeneratorService:
 # =============================================================================
 
 # Legacy import path support
-# from backend.app.services.xccdf_generator_service import XCCDFGeneratorService
+# from app.services.xccdf_generator_service import XCCDFGeneratorService
 # is now:
-# from backend.app.services.xccdf import XCCDFGeneratorService
+# from app.services.xccdf import XCCDFGeneratorService
 
 
 # Public API - everything that should be importable from this module

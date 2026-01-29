@@ -94,7 +94,11 @@ class RuleIntelligenceService {
   }
 
   // Cache management
-  private setCache<T>(key: string, data: T, customTTL?: number): void {
+  private setCache<T extends RuleIntelligenceAnalysis | RuleUsageStatistics>(
+    key: string,
+    data: T,
+    customTTL?: number
+  ): void {
     const now = Date.now();
     const expiry = now + (customTTL || this.CACHE_TTL);
 

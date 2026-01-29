@@ -7,19 +7,19 @@ import json
 from datetime import datetime, timedelta
 from unittest.mock import Mock, patch, AsyncMock
 
-from backend.app.services.remediation_recommendation_engine import (
+from app.services.remediation_recommendation_engine import (
     RemediationRecommendationEngine, ComplianceGap, RemediationRecommendation,
     RemediationProcedure, RemediationPriority, RemediationComplexity,
     RemediationCategory
 )
-from backend.app.services.remediation_system_adapter import (
+from app.services.remediation_system_adapter import (
     RemediationRule, RemediationSystemCapability
 )
-from backend.app.models.unified_rule_models import (
+from app.models.unified_rule_models import (
     UnifiedComplianceRule, RuleExecution, ComplianceStatus, Platform,
     FrameworkMapping, PlatformImplementation
 )
-from backend.app.services.multi_framework_scanner import (
+from app.services.multi_framework_scanner import (
     ScanResult, FrameworkResult, HostResult
 )
 

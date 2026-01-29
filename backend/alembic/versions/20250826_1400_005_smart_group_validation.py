@@ -21,32 +21,50 @@ depends_on = None
 def upgrade() -> None:
     """Add smart group validation infrastructure"""
 
-    # Create enum for OS families
+    # Create enum for OS families (idempotent)
     op.execute(
         """
-        CREATE TYPE os_family_type AS ENUM (
-            'rhel', 'centos', 'fedora', 'ubuntu', 'debian', 'suse', 'opensuse',
-            'windows', 'windows_server', 'macos', 'freebsd', 'openbsd', 'solaris'
-        )
+        DO $$
+        BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'os_family_type') THEN
+                CREATE TYPE os_family_type AS ENUM (
+                    'rhel', 'centos', 'fedora', 'ubuntu', 'debian', 'suse', 'opensuse',
+                    'windows', 'windows_server', 'macos', 'freebsd', 'openbsd', 'solaris'
+                );
+            END IF;
+        END
+        $$;
     """
     )
 
-    # Create enum for group validation rule types
+    # Create enum for group validation rule types (idempotent)
     op.execute(
         """
-        CREATE TYPE group_validation_rule_type AS ENUM (
-            'os_family_match', 'os_version_match', 'scap_content_compatibility',
-            'profile_compatibility', 'architecture_match', 'custom_expression'
-        )
+        DO $$
+        BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'group_validation_rule_type') THEN
+                CREATE TYPE group_validation_rule_type AS ENUM (
+                    'os_family_match', 'os_version_match', 'scap_content_compatibility',
+                    'profile_compatibility', 'architecture_match', 'custom_expression'
+                );
+            END IF;
+        END
+        $$;
     """
     )
 
-    # Create enum for validation severity
+    # Create enum for validation severity (idempotent)
     op.execute(
         """
-        CREATE TYPE validation_severity AS ENUM (
-            'error', 'warning', 'info'
-        )
+        DO $$
+        BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'validation_severity') THEN
+                CREATE TYPE validation_severity AS ENUM (
+                    'error', 'warning', 'info'
+                );
+            END IF;
+        END
+        $$;
     """
     )
 
@@ -70,6 +88,7 @@ def upgrade() -> None:
                 "openbsd",
                 "solaris",
                 name="os_family_type",
+                create_type=False,
             ),
             nullable=True,
         ),
@@ -107,6 +126,7 @@ def upgrade() -> None:
                 "openbsd",
                 "solaris",
                 name="os_family_type",
+                create_type=False,
             ),
             nullable=True,
         ),
@@ -144,12 +164,13 @@ def upgrade() -> None:
                 "architecture_match",
                 "custom_expression",
                 name="group_validation_rule_type",
+                create_type=False,
             ),
             nullable=False,
         ),
         sa.Column("rule_expression", sa.Text(), nullable=False),
         sa.Column("error_message", sa.Text(), nullable=False),
-        sa.Column("severity", postgresql.ENUM("error", "warning", "info", name="validation_severity"), nullable=False),
+        sa.Column("severity", postgresql.ENUM("error", "warning", "info", name="validation_severity", create_type=False), nullable=False),
         sa.Column("is_active", sa.Boolean(), nullable=False, server_default="true"),
         sa.Column("created_by", sa.Integer(), nullable=True),
         sa.Column("created_at", sa.DateTime(), nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
@@ -243,6 +264,7 @@ def upgrade() -> None:
                 "openbsd",
                 "solaris",
                 name="os_family_type",
+                create_type=False,
             ),
             nullable=False,
         ),

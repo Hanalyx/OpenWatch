@@ -8,7 +8,6 @@ import {
   TextField,
   Box,
   Typography,
-  Grid,
   FormControlLabel,
   Switch,
   Alert,
@@ -29,6 +28,7 @@ import {
   FormControl,
   InputLabel,
 } from '@mui/material';
+import Grid from '@mui/material/GridLegacy';
 import {
   Edit as EditIcon,
   Computer as HostIcon,

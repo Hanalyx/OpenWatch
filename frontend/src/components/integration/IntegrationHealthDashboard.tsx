@@ -4,7 +4,6 @@ import {
   Card,
   CardContent,
   Typography,
-  Grid,
   Chip,
   Alert,
   Button,
@@ -19,6 +18,7 @@ import {
   CircularProgress,
   Divider,
 } from '@mui/material';
+import Grid from '@mui/material/GridLegacy';
 import {
   Refresh as RefreshIcon,
   CheckCircle as CheckCircleIcon,

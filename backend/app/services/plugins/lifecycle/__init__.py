@@ -27,7 +27,7 @@ Health Monitoring:
     - Automatic health score calculation
 
 Usage:
-    from backend.app.services.plugins.lifecycle import PluginLifecycleService
+    from app.services.plugins.lifecycle import PluginLifecycleService
 
     lifecycle = PluginLifecycleService()
 
@@ -46,7 +46,7 @@ Usage:
     rollback = await lifecycle.rollback_plugin(plugin_id, "1.5.0", "Health check failed", "admin")
 
 Example:
-    >>> from backend.app.services.plugins.lifecycle import (
+    >>> from app.services.plugins.lifecycle import (
     ...     PluginLifecycleService,
     ...     UpdateStrategy,
     ...     PluginHealthStatus,

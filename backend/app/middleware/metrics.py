@@ -216,12 +216,16 @@ class BackgroundMetricsUpdater:
 
             try:
                 # Update host counts
-                result = db.execute(text("""
+                result = db.execute(
+                    text(
+                        """
                     SELECT status, COUNT(*) as count
                     FROM hosts
                     WHERE is_active = true
                     GROUP BY status
-                """))
+                """
+                    )
+                )
 
                 status_counts = {}
                 for row in result:
@@ -230,11 +234,15 @@ class BackgroundMetricsUpdater:
                 self.metrics.update_host_counts(status_counts)
 
                 # Update active scans count
-                result = db.execute(text("""
+                result = db.execute(
+                    text(
+                        """
                     SELECT COUNT(*) as active_scans
                     FROM scans
                     WHERE status IN ('running', 'pending')
-                """))
+                """
+                    )
+                )
 
                 row = result.fetchone()
                 if row:

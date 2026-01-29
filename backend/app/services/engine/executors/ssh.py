@@ -22,7 +22,7 @@ Design Philosophy:
 - Defensive: Comprehensive error handling with graceful degradation
 
 Usage:
-    from backend.app.services.engine.executors import SSHExecutor
+    from app.services.engine.executors import SSHExecutor
 
     executor = SSHExecutor(db=session)
     result = executor.execute(
@@ -48,10 +48,10 @@ from typing import TYPE_CHECKING, Dict, List, Optional
 import paramiko
 from sqlalchemy.orm import Session
 
-from backend.app.services.ssh import SSHConnectionManager
+from app.services.ssh import SSHConnectionManager
 
 if TYPE_CHECKING:
-    from backend.app.services.auth import CredentialData
+    from app.services.auth import CredentialData
 
 from ..dependency_resolver import SCAPDependency, SCAPDependencyResolver
 from ..exceptions import (

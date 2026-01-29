@@ -16,7 +16,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import yaml
 
-from backend.app.models.plugin_models import (
+from app.models.plugin_models import (
     PluginManifest,
     PluginPackage,
     PluginTrustLevel,

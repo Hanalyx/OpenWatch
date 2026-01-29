@@ -43,27 +43,27 @@ from datetime import datetime
 from typing import Any, Dict, List
 from uuid import UUID
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from backend.app.auth import get_current_user
-from backend.app.database import get_db
-from backend.app.models.enums import ScanPriority
-from backend.app.models.error_models import ValidationResultResponse
-from backend.app.routes.scans.helpers import add_deprecation_header, sanitize_http_error
-from backend.app.routes.scans.models import (
+from app.auth import get_current_user
+from app.database import get_db
+from app.models.enums import ScanPriority
+from app.models.error_models import ValidationResultResponse
+from app.routes.scans.helpers import add_deprecation_header, sanitize_http_error
+from app.routes.scans.models import (
     QuickScanRequest,
     QuickScanResponse,
     RuleRescanRequest,
     ValidationRequest,
     VerificationScanRequest,
 )
-from backend.app.services.error_classification import get_error_classification_service
-from backend.app.services.error_sanitization import get_error_sanitization_service
-from backend.app.services.scan_intelligence import RecommendedScanProfile, ScanIntelligenceService
-from backend.app.tasks.scan_tasks import execute_scan_task
-from backend.app.utils.query_builder import QueryBuilder
+from app.services.error_classification import get_error_classification_service
+from app.services.error_sanitization import get_error_sanitization_service
+from app.services.scan_intelligence import RecommendedScanProfile, ScanIntelligenceService
+from app.tasks.scan_tasks import execute_scan_celery
+from app.utils.query_builder import QueryBuilder
 
 logger = logging.getLogger(__name__)
 
@@ -181,7 +181,7 @@ async def validate_scan_configuration(
         # Mode-specific validation
         if is_mongodb_mode:
             # MongoDB mode: Validate compliance rules exist for platform/framework
-            from backend.app.repositories.compliance_repository import ComplianceRuleRepository
+            from app.repositories.compliance_repository import ComplianceRuleRepository
 
             try:
                 repo = ComplianceRuleRepository()
@@ -228,9 +228,9 @@ async def validate_scan_configuration(
 
         # Resolve credentials using auth service
         try:
-            from backend.app.config import get_settings
-            from backend.app.encryption import EncryptionConfig, create_encryption_service
-            from backend.app.services.auth import get_auth_service
+            from app.config import get_settings
+            from app.encryption import EncryptionConfig, create_encryption_service
+            from app.services.auth import get_auth_service
 
             settings = get_settings()
             encryption_service = create_encryption_service(master_key=settings.master_key, config=EncryptionConfig())
@@ -342,7 +342,6 @@ async def validate_scan_configuration(
 async def quick_scan(
     host_id: str,
     quick_scan_request: QuickScanRequest,
-    background_tasks: BackgroundTasks,
     response: Response,
     db: Session = Depends(get_db),
     current_user: Dict[str, Any] = Depends(get_current_user),
@@ -359,7 +358,6 @@ async def quick_scan(
     Args:
         host_id: UUID of the target host.
         quick_scan_request: Optional template and priority settings.
-        background_tasks: FastAPI background task manager.
         response: FastAPI response for deprecation headers.
         db: Database session.
         current_user: Authenticated user from JWT.
@@ -469,9 +467,9 @@ async def quick_scan(
 
         # Pre-flight validation (async, non-blocking for optimistic UI)
         try:
-            from backend.app.config import get_settings
-            from backend.app.encryption import EncryptionConfig, create_encryption_service
-            from backend.app.services.auth import get_auth_service
+            from app.config import get_settings
+            from app.encryption import EncryptionConfig, create_encryption_service
+            from app.services.auth import get_auth_service
 
             settings = get_settings()
             encryption_service = create_encryption_service(master_key=settings.master_key, config=EncryptionConfig())
@@ -490,7 +488,8 @@ async def quick_scan(
 
         # Create scan immediately (optimistic UI)
         db.execute(
-            text("""
+            text(
+                """
             INSERT INTO scans
             (id, name, host_id, content_id, profile_id, status, progress,
              scan_options, started_by, started_at, remediation_requested, verification_scan)
@@ -498,7 +497,8 @@ async def quick_scan(
                     :progress, :scan_options, :started_by, :started_at,
                     :remediation_requested, :verification_scan)
             RETURNING id
-        """),
+        """
+            ),
             {
                 "id": scan_id,
                 "name": scan_name,
@@ -525,9 +525,8 @@ async def quick_scan(
         # Commit the scan record
         db.commit()
 
-        # Start scan as background task
-        background_tasks.add_task(
-            execute_scan_task,
+        # Start scan via Celery task (persistent, with timeout and retry)
+        execute_scan_celery.delay(
             scan_id=str(scan_id),
             host_data={
                 "hostname": host_result.hostname,
@@ -604,7 +603,6 @@ async def quick_scan(
 @router.post("/verify")
 async def create_verification_scan(
     verification_request: VerificationScanRequest,
-    background_tasks: BackgroundTasks,
     response: Response,
     db: Session = Depends(get_db),
     current_user: Dict[str, Any] = Depends(get_current_user),
@@ -620,7 +618,6 @@ async def create_verification_scan(
 
     Args:
         verification_request: Host, content, profile, and original scan reference.
-        background_tasks: FastAPI background task manager.
         response: FastAPI response for deprecation headers.
         db: Database session.
         current_user: Authenticated user from JWT.
@@ -707,14 +704,16 @@ async def create_verification_scan(
         }
 
         result = db.execute(
-            text("""
+            text(
+                """
             INSERT INTO scans
             (name, host_id, content_id, profile_id, status, progress,
              scan_options, started_by, started_at, verification_scan)
             VALUES (:name, :host_id, :content_id, :profile_id, :status,
                     :progress, :scan_options, :started_by, :started_at, :verification_scan)
             RETURNING id
-        """),
+        """
+            ),
             {
                 "name": scan_name,
                 "host_id": verification_request.host_id,
@@ -736,9 +735,8 @@ async def create_verification_scan(
         scan_id = scan_row.id
         db.commit()
 
-        # Start verification scan as background task
-        background_tasks.add_task(
-            execute_scan_task,
+        # Start verification scan via Celery task (persistent, with timeout and retry)
+        execute_scan_celery.delay(
             scan_id=str(scan_id),
             host_data={
                 "hostname": host_result.hostname,
@@ -787,7 +785,6 @@ async def create_verification_scan(
 async def rescan_rule(
     scan_id: str,
     rescan_request: RuleRescanRequest,
-    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: Dict[str, Any] = Depends(get_current_user),
 ) -> Dict[str, Any]:
@@ -800,7 +797,6 @@ async def rescan_rule(
     Args:
         scan_id: UUID of the original scan.
         rescan_request: Rule ID to rescan.
-        background_tasks: FastAPI background task manager.
         db: Database session.
         current_user: Authenticated user from JWT.
 
@@ -819,14 +815,16 @@ async def rescan_rule(
 
         # Get the original scan details
         result = db.execute(
-            text("""
+            text(
+                """
             SELECT s.id, s.host_id, s.profile_id, s.name,
                    h.hostname, h.ip_address, h.port, h.username,
                    h.auth_method, h.encrypted_credentials
             FROM scans s
             JOIN hosts h ON s.host_id = h.id
             WHERE s.id = :scan_id
-        """),
+        """
+            ),
             {"scan_id": scan_id},
         )
 
@@ -898,14 +896,16 @@ async def start_remediation(
     try:
         # Get scan details and failed rules
         scan_result = db.execute(
-            text("""
+            text(
+                """
             SELECT s.id, s.name, s.host_id, h.hostname, h.ip_address,
                    sr.failed_rules, sr.severity_high, sr.severity_medium, sr.severity_low
             FROM scans s
             JOIN hosts h ON s.host_id = h.id
             LEFT JOIN scan_results sr ON s.id = sr.scan_id
             WHERE s.id = :scan_id AND s.status = 'completed'
-        """),
+        """
+            ),
             {"scan_id": scan_id},
         ).fetchone()
 
@@ -917,12 +917,14 @@ async def start_remediation(
 
         # Get the actual failed rules for logging
         failed_rules = db.execute(
-            text("""
+            text(
+                """
             SELECT rule_id, title, severity, description
             FROM scan_rule_results
             WHERE scan_id = :scan_id AND status = 'failed'
             ORDER BY CASE severity WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END
-        """),
+        """
+            ),
             {"scan_id": scan_id},
         ).fetchall()
 
@@ -931,13 +933,15 @@ async def start_remediation(
 
         # Update scan with remediation request
         db.execute(
-            text("""
+            text(
+                """
             UPDATE scans
             SET remediation_requested = true,
                 aegis_remediation_id = :job_id,
                 remediation_status = 'pending'
             WHERE id = :scan_id
-        """),
+        """
+            ),
             {"scan_id": scan_id, "job_id": remediation_job_id},
         )
         db.commit()
@@ -1026,16 +1030,14 @@ async def validate_bulk_readiness(
         - SSH operations via UnifiedSSHService (audit logged)
     """
     try:
-        from backend.app.models.readiness_models import BulkReadinessRequest
-        from backend.app.services.host_validator.readiness_validator import (
-            ReadinessValidatorService,
-        )
+        from app.models.readiness_models import BulkReadinessRequest
+        from app.services.host_validator.readiness_validator import ReadinessValidatorService
 
         # Parse request
         bulk_request = BulkReadinessRequest(**request)
 
         # Get hosts to validate
-        from backend.app.database import Host
+        from app.database import Host
 
         if bulk_request.host_ids:
             hosts = db.query(Host).filter(Host.id.in_(bulk_request.host_ids)).all()
@@ -1211,10 +1213,8 @@ async def pre_flight_check(
         - SSH operations via UnifiedSSHService
     """
     try:
-        from backend.app.models.readiness_models import ReadinessCheckType
-        from backend.app.services.host_validator.readiness_validator import (
-            ReadinessValidatorService,
-        )
+        from app.models.readiness_models import ReadinessCheckType
+        from app.services.host_validator.readiness_validator import ReadinessValidatorService
 
         # Get scan
         scan_result = db.execute(
@@ -1228,7 +1228,7 @@ async def pre_flight_check(
         host_id = UUID(scan_result[1])
 
         # Get host
-        from backend.app.database import Host
+        from app.database import Host
 
         host = db.query(Host).filter(Host.id == host_id).first()
         if not host:

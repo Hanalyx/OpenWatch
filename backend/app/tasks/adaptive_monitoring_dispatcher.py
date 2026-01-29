@@ -21,9 +21,9 @@ import logging
 from datetime import datetime
 from typing import Any, Dict
 
-from backend.app.celery_app import celery_app
-from backend.app.database import get_db
-from backend.app.services.adaptive_scheduler_service import adaptive_scheduler_service
+from app.celery_app import celery_app
+from app.database import get_db
+from app.services.adaptive_scheduler_service import adaptive_scheduler_service
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +31,12 @@ logger = logging.getLogger(__name__)
 # It's accessed via celery_app.tasks['backend.app.tasks.check_host_connectivity']
 
 
-@celery_app.task(bind=True, name="backend.app.tasks.dispatch_host_checks")
+@celery_app.task(
+    bind=True,
+    name="backend.app.tasks.dispatch_host_checks",
+    time_limit=60,
+    soft_time_limit=45,
+)
 def dispatch_host_checks(self: Any) -> Dict[str, Any]:
     """
     Dispatcher task that runs every 30 seconds via Celery Beat.

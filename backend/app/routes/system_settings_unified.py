@@ -17,17 +17,10 @@ from ..auth import get_current_user
 from ..database import get_db
 from ..encryption import EncryptionService
 from ..rbac import Permission, require_permission
-from ..services.auth import (
-    AuthMethod,
-    CredentialData,
-    CredentialMetadata,
-    CredentialScope,
-    get_auth_service,
-)
+from ..services.auth import AuthMethod, CredentialData, CredentialMetadata, CredentialScope, get_auth_service
 
 # validate_ssh_key validates key format/security, extract_ssh_key_metadata extracts fingerprint/type
 from ..services.ssh import extract_ssh_key_metadata, validate_ssh_key
-from ..tasks.monitoring_tasks import setup_host_monitoring_scheduler
 
 logger = logging.getLogger(__name__)
 
@@ -85,10 +78,14 @@ def uuid_to_int(uuid_str: Any) -> int:
 
 def find_uuid_by_int(db: Session, target_int: int) -> Optional[str]:
     """Find UUID by matching the generated integer ID"""
-    result = db.execute(text("""
+    result = db.execute(
+        text(
+            """
         SELECT id FROM unified_credentials
         WHERE scope = 'system' AND is_active = true
-    """))
+    """
+        )
+    )
 
     for row in result:
         if uuid_to_int(row.id) == target_int:
@@ -592,10 +589,22 @@ _scheduler_interval = 15  # Default 15 minutes
 
 
 def get_scheduler() -> Any:
-    """Get or create the global scheduler instance"""
+    """Get or create the global scheduler instance.
+
+    Note: APScheduler-based monitoring has been replaced by Celery Beat
+    (dispatch_host_checks every 30s). This function remains for backward
+    compatibility with the scheduler admin endpoints but will return None
+    if APScheduler is not installed.
+    """
     global _scheduler
     if _scheduler is None:
-        _scheduler = setup_host_monitoring_scheduler()
+        try:
+            from apscheduler.schedulers.background import BackgroundScheduler
+
+            _scheduler = BackgroundScheduler()
+        except ImportError:
+            logger.warning("APScheduler not available; scheduler endpoints are no-ops")
+            return None
     return _scheduler
 
 
@@ -674,7 +683,7 @@ async def start_scheduler(
 
         if scheduler is None:
             # Try to create a new scheduler
-            _scheduler = setup_host_monitoring_scheduler()
+            _scheduler = get_scheduler()
             scheduler = _scheduler
 
             if scheduler is None:
@@ -712,7 +721,8 @@ async def start_scheduler(
 
                 db = next(get_db())
                 db.execute(
-                    text("""
+                    text(
+                        """
                     UPDATE scheduler_config
                     SET enabled = TRUE,
                         auto_start = TRUE,
@@ -720,7 +730,8 @@ async def start_scheduler(
                         interval_minutes = :interval,
                         updated_at = CURRENT_TIMESTAMP
                     WHERE service_name = 'host_monitoring'
-                """),
+                """
+                    ),
                     {"interval": _scheduler_interval},
                 )
                 db.commit()
@@ -769,14 +780,18 @@ async def stop_scheduler(
                 from ..database import get_db
 
                 db = next(get_db())
-                db.execute(text("""
+                db.execute(
+                    text(
+                        """
                     UPDATE scheduler_config
                     SET enabled = FALSE,
                         auto_start = FALSE,
                         last_stopped = CURRENT_TIMESTAMP,
                         updated_at = CURRENT_TIMESTAMP
                     WHERE service_name = 'host_monitoring'
-                """))
+                """
+                    )
+                )
                 db.commit()
                 db.close()
             except Exception as db_error:
@@ -815,12 +830,14 @@ async def update_scheduler(
 
             db = next(get_db())
             db.execute(
-                text("""
+                text(
+                    """
                 UPDATE scheduler_config
                 SET interval_minutes = :interval,
                     updated_at = CURRENT_TIMESTAMP
                 WHERE service_name = 'host_monitoring'
-            """),
+            """
+                ),
                 {"interval": _scheduler_interval},
             )
             db.commit()
@@ -835,15 +852,15 @@ async def update_scheduler(
                 if job.id == "host_monitoring":
                     scheduler.remove_job(job.id)
 
-            # Add new job with updated interval
-            from ..tasks.monitoring_tasks import periodic_host_monitoring
+            # Add new job with updated interval (uses Celery queue-based approach)
+            from ..tasks.monitoring_tasks import queue_host_checks
 
             scheduler.add_job(
-                periodic_host_monitoring,
+                queue_host_checks.delay,
                 "interval",
                 minutes=_scheduler_interval,
                 id="host_monitoring",
-                name="Host Monitoring Task",
+                name="Host Monitoring Queue Producer",
                 replace_existing=True,
             )
 
@@ -877,11 +894,15 @@ def restore_scheduler_state() -> None:
 
         try:
             # Read scheduler configuration from database
-            result = db.execute(text("""
+            result = db.execute(
+                text(
+                    """
                 SELECT enabled, interval_minutes, auto_start
                 FROM scheduler_config
                 WHERE service_name = 'host_monitoring'
-            """))
+            """
+                )
+            )
 
             config = result.fetchone()
             logger.info(f"Database config found: {config if config else 'None'}")
@@ -923,27 +944,21 @@ def restore_scheduler_state() -> None:
                         )
                         logger.info(f"Added new monitoring queue producer with {_scheduler_interval} minute interval")
 
-                        # Add daily credential purge job (90-day retention policy)
-                        from ..tasks.monitoring_tasks import periodic_credential_purge
-
-                        scheduler.add_job(
-                            periodic_credential_purge,
-                            "cron",
-                            hour=2,  # Run at 2 AM daily
-                            minute=0,
-                            id="credential_purge",
-                            name="Credential Purge Task (90-day retention)",
-                            replace_existing=True,
-                        )
-                        logger.info("Added daily credential purge job (runs at 2 AM)")
+                        # Note: credential purge is now handled via Celery Beat
+                        # (see celery_app.py beat_schedule) rather than APScheduler
+                        logger.info("Credential purge is managed by Celery Beat (not APScheduler)")
 
                         # Update database with start time
-                        db.execute(text("""
+                        db.execute(
+                            text(
+                                """
                             UPDATE scheduler_config
                             SET last_run = CURRENT_TIMESTAMP,
                                 updated_at = CURRENT_TIMESTAMP
                             WHERE service_name = 'host_monitoring'
-                        """))
+                        """
+                            )
+                        )
                         db.commit()
 
                         logger.info(
@@ -955,13 +970,17 @@ def restore_scheduler_state() -> None:
                     logger.info("Scheduler configured but auto-start disabled or not enabled")
             else:
                 # No configuration found, create default
-                db.execute(text("""
+                db.execute(
+                    text(
+                        """
                     INSERT INTO scheduler_config (
                         service_name, enabled, interval_minutes, auto_start
                     ) VALUES (
                         'host_monitoring', TRUE, 15, TRUE
                     )
-                """))
+                """
+                    )
+                )
                 db.commit()
                 logger.info("Created default scheduler configuration")
 
@@ -1021,11 +1040,15 @@ async def get_session_timeout(
     """
     try:
         # Try to get from system_settings table
-        result = db.execute(text("""
+        result = db.execute(
+            text(
+                """
                 SELECT setting_value, modified_at, modified_by
                 FROM system_settings
                 WHERE setting_key = 'session_inactivity_timeout_minutes'
-            """))
+            """
+            )
+        )
         row = result.fetchone()
 
         if row:
@@ -1095,7 +1118,8 @@ async def update_session_timeout(
 
         # Upsert the setting
         db.execute(
-            text("""
+            text(
+                """
                 INSERT INTO system_settings (setting_key, setting_value, setting_type, description, modified_by, modified_at, created_at)  # noqa: E501
                 VALUES ('session_inactivity_timeout_minutes', :value, 'integer', 'Session inactivity timeout in minutes', :modified_by, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)  # noqa: E501
                 ON CONFLICT (setting_key)
@@ -1103,7 +1127,8 @@ async def update_session_timeout(
                     setting_value = :value,
                     modified_by = :modified_by,
                     modified_at = CURRENT_TIMESTAMP
-            """),
+            """
+            ),
             {"value": str(settings.timeout_minutes), "modified_by": user_id},
         )
         db.commit()
@@ -1111,11 +1136,15 @@ async def update_session_timeout(
         logger.info(f"Session inactivity timeout updated to {settings.timeout_minutes} minutes by {username}")
 
         # Return updated settings
-        result = db.execute(text("""
+        result = db.execute(
+            text(
+                """
                 SELECT setting_value, modified_at, modified_by
                 FROM system_settings
                 WHERE setting_key = 'session_inactivity_timeout_minutes'
-            """))
+            """
+            )
+        )
         row = result.fetchone()
 
         return SessionTimeoutSettings(

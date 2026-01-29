@@ -11,7 +11,7 @@ Features:
     - Query framework statistics
 
 Example:
-    >>> from backend.app.services.framework import FrameworkMetadataService
+    >>> from app.services.framework import FrameworkMetadataService
     >>>
     >>> service = FrameworkMetadataService(db)
     >>> frameworks = await service.list_frameworks()
@@ -24,7 +24,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from backend.app.models.scan_config_models import (
+from app.models.scan_config_models import (
     FrameworkMetadata,
     FrameworkVersion,
     ScanTargetType,

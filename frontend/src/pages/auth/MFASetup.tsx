@@ -13,7 +13,6 @@ import {
   StepContent,
   Alert,
   CircularProgress,
-  Grid,
   Card,
   CardContent,
   Chip,
@@ -25,6 +24,7 @@ import {
   Switch,
   FormControlLabel,
 } from '@mui/material';
+import Grid from '@mui/material/GridLegacy';
 import { Security, ContentCopy, Download, VerifiedUser, Key, Shield } from '@mui/icons-material';
 import { useForm } from 'react-hook-form';
 import { useAppSelector } from '../../hooks/redux';

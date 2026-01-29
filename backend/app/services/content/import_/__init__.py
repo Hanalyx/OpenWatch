@@ -12,7 +12,7 @@ Components:
 - ImportResult: Result container with statistics
 
 Usage:
-    from backend.app.services.content.import_ import (
+    from app.services.content.import_ import (
         ContentImporter,
         DependencyValidator,
         ImportProgress,

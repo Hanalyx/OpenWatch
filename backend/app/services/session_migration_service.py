@@ -165,28 +165,38 @@ class SessionMigrationService:
         """
         try:
             # Check user table schema for MFA fields
-            result = db.execute(text("""
+            result = db.execute(
+                text(
+                    """
                 SELECT column_name FROM information_schema.columns
                 WHERE table_name = 'users' AND column_name IN ('mfa_enabled', 'mfa_secret')
-            """))
+            """
+                )
+            )
 
             mfa_columns = [row[0] for row in result.fetchall()]
 
             # Check for legacy password hashes
-            result = db.execute(text("""
+            result = db.execute(
+                text(
+                    """
                 SELECT COUNT(*) FROM users
                 WHERE hashed_password LIKE '$2b$%'  -- bcrypt format
-            """))
+            """
+                )
+            )
 
             legacy_password_count = result.scalar()
 
             # Check for active sessions (rough estimate)
             recent_login_threshold = datetime.utcnow() - timedelta(hours=24)
             result = db.execute(
-                text("""
+                text(
+                    """
                 SELECT COUNT(*) FROM users
                 WHERE last_login > :threshold
-            """),
+            """
+                ),
                 {"threshold": recent_login_threshold},
             )
 

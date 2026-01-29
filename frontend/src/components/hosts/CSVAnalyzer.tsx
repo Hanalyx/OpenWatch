@@ -18,8 +18,8 @@ import {
   Accordion,
   AccordionSummary,
   AccordionDetails,
-  Grid,
 } from '@mui/material';
+import Grid from '@mui/material/GridLegacy';
 import {
   CloudUpload as UploadIcon,
   CheckCircle as CheckIcon,

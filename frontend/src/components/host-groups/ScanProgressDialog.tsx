@@ -18,9 +18,9 @@ import {
   IconButton,
   Collapse,
   Alert,
-  Grid,
   Divider,
 } from '@mui/material';
+import Grid from '@mui/material/GridLegacy';
 import {
   CheckCircle,
   Error as ErrorIcon,

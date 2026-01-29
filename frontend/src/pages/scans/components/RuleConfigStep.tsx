@@ -177,7 +177,10 @@ const RuleConfigStep: React.FC<RuleConfigStepProps> = ({
       const params: Record<string, string> = {};
       if (framework) params.framework = framework;
 
-      const response = await api.get('/api/compliance-rules/semantic-rules', { params });
+      const response = await api.get<{ rules: RawApiRule[] }>(
+        '/api/compliance-rules/semantic-rules',
+        { params }
+      );
 
       // Transform backend format to WizardRule interface
       const transformedRules: WizardRule[] = (response.rules || []).map((rule: RawApiRule) => ({
@@ -310,7 +313,7 @@ const RuleConfigStep: React.FC<RuleConfigStepProps> = ({
       {/* Scan Mode Selection Cards */}
       <Grid container spacing={2} sx={{ mb: 3 }}>
         {/* Full Scan Mode */}
-        <Grid item xs={12} sm={6}>
+        <Grid size={{ xs: 12, sm: 6 }}>
           <Card
             sx={{
               cursor: 'pointer',
@@ -352,7 +355,7 @@ const RuleConfigStep: React.FC<RuleConfigStepProps> = ({
         </Grid>
 
         {/* Custom Rules Mode */}
-        <Grid item xs={12} sm={6}>
+        <Grid size={{ xs: 12, sm: 6 }}>
           <Card
             sx={{
               cursor: 'pointer',
@@ -437,8 +440,8 @@ const RuleConfigStep: React.FC<RuleConfigStepProps> = ({
             )}
 
             {/* Search and Filter Controls */}
-            <Grid container spacing={2} alignItems="center" sx={{ mb: 2 }}>
-              <Grid item xs={12} sm={5}>
+            <Grid container spacing={2} sx={{ alignItems: 'center', mb: 2 }}>
+              <Grid size={{ xs: 12, sm: 5 }}>
                 <TextField
                   fullWidth
                   size="small"
@@ -454,7 +457,7 @@ const RuleConfigStep: React.FC<RuleConfigStepProps> = ({
                   }}
                 />
               </Grid>
-              <Grid item xs={12} sm={4}>
+              <Grid size={{ xs: 12, sm: 4 }}>
                 <FormControl fullWidth size="small">
                   <InputLabel id="severity-filter-label">Severity</InputLabel>
                   <Select
@@ -473,7 +476,7 @@ const RuleConfigStep: React.FC<RuleConfigStepProps> = ({
                   </Select>
                 </FormControl>
               </Grid>
-              <Grid item xs={12} sm={3} sx={{ textAlign: 'right' }}>
+              <Grid size={{ xs: 12, sm: 3 }} sx={{ textAlign: 'right' }}>
                 <Button
                   variant="text"
                   size="small"

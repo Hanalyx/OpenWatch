@@ -15,13 +15,13 @@ Security Features:
     - Audit logging of all execution attempts
 
 Usage:
-    from backend.app.services.plugins.execution import PluginExecutionService
+    from app.services.plugins.execution import PluginExecutionService
 
     executor = PluginExecutionService()
     result = await executor.execute_plugin(request)
 
 Example:
-    >>> from backend.app.services.plugins.execution import PluginExecutionService
+    >>> from app.services.plugins.execution import PluginExecutionService
     >>> executor = PluginExecutionService()
     >>> result = await executor.execute_plugin(
     ...     PluginExecutionRequest(

@@ -27,21 +27,20 @@ import uuid
 from datetime import datetime
 from typing import Any, Dict, Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from backend.app.auth import get_current_user
-from backend.app.constants import is_framework_supported
-from backend.app.database import get_db
-from backend.app.routes.scans.helpers import (
-    enrich_scan_results_background,
+from app.auth import get_current_user
+from app.constants import is_framework_supported
+from app.database import get_db
+from app.routes.scans.helpers import (
     get_compliance_reporter,
     get_compliance_scanner,
     get_enrichment_service,
     parse_xccdf_results,
 )
-from backend.app.routes.scans.models import (
+from app.routes.scans.models import (
     AvailableRulesResponse,
     ComplianceScanRequest,
     ComplianceScanResponse,
@@ -51,7 +50,8 @@ from backend.app.routes.scans.models import (
     ScannerCapabilities,
     ScannerHealthResponse,
 )
-from backend.app.utils.query_builder import QueryBuilder
+from app.tasks.background_tasks import enrich_scan_results_celery
+from app.utils.query_builder import QueryBuilder
 
 logger = logging.getLogger(__name__)
 
@@ -88,12 +88,14 @@ def _update_scan_status(
     try:
         # Build UPDATE query with dynamic columns based on error_message presence
         if error_message:
-            update_query = text("""
+            update_query = text(
+                """
                 UPDATE scans
                 SET status = :status, progress = :progress,
                     completed_at = :completed_at, error_message = :error_message
                 WHERE id = :id
-                """)
+                """
+            )
             params = {
                 "status": status_value,
                 "progress": 100,
@@ -102,11 +104,13 @@ def _update_scan_status(
                 "id": str(scan_uuid),
             }
         else:
-            update_query = text("""
+            update_query = text(
+                """
                 UPDATE scans
                 SET status = :status, progress = :progress, completed_at = :completed_at
                 WHERE id = :id
-                """)
+                """
+            )
             params = {
                 "status": status_value,
                 "progress": 100,
@@ -152,8 +156,8 @@ async def _jit_platform_detection(
         - Logs detection attempts for audit compliance
     """
     try:
-        from backend.app.services.auth import get_auth_service
-        from backend.app.services.engine.discovery import detect_platform_for_scan
+        from app.services.auth import get_auth_service
+        from app.services.engine.discovery import detect_platform_for_scan
 
         # Get encryption service from app state
         encryption_service = getattr(request.app.state, "encryption_service", None)
@@ -223,7 +227,6 @@ async def _jit_platform_detection(
 async def create_compliance_scan(
     scan_request: ComplianceScanRequest,
     request: Request,
-    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: Dict[str, Any] = Depends(get_current_user),
 ) -> ComplianceScanResponse:
@@ -253,7 +256,6 @@ async def create_compliance_scan(
     Args:
         scan_request: Scan configuration with host, platform, and rule filters.
         request: FastAPI request for accessing app state (encryption service).
-        background_tasks: FastAPI background task queue for async enrichment.
         db: SQLAlchemy database session for scan record persistence.
         current_user: Authenticated user from JWT token.
 
@@ -335,7 +337,7 @@ async def create_compliance_scan(
         effective_platform_version = scan_request.platform_version or ""
 
         # Import normalize function for computing platform_identifier
-        from backend.app.tasks.os_discovery_tasks import _normalize_platform_identifier
+        from app.tasks.os_discovery_tasks import _normalize_platform_identifier
 
         # Initialize host_result to None for later reference
         # This ensures the variable exists even if the database query fails
@@ -459,7 +461,8 @@ async def create_compliance_scan(
         started_at = datetime.utcnow()
 
         try:
-            insert_query = text("""
+            insert_query = text(
+                """
                 INSERT INTO scans (
                     id, name, host_id, profile_id, status, progress,
                     scan_options, started_by, started_at, remediation_requested,
@@ -470,7 +473,8 @@ async def create_compliance_scan(
                     :scan_options, :started_by, :started_at, :remediation_requested,
                     :verification_scan, :scan_metadata
                 )
-                """)
+                """
+            )
             db.execute(
                 insert_query,
                 {
@@ -579,12 +583,14 @@ async def create_compliance_scan(
 
         try:
             # Update scans table with completion status
-            update_scan_query = text("""
+            update_scan_query = text(
+                """
                 UPDATE scans
                 SET status = :status, progress = :progress, completed_at = :completed_at,
                     result_file = :result_file, report_file = :report_file
                 WHERE id = :id
-                """)
+                """
+            )
             db.execute(
                 update_scan_query,
                 {
@@ -598,7 +604,8 @@ async def create_compliance_scan(
             )
 
             # Insert scan_results record with all parsed data
-            insert_results_query = text("""
+            insert_results_query = text(
+                """
                 INSERT INTO scan_results (
                     scan_id, total_rules, passed_rules, failed_rules, error_rules,
                     unknown_rules, not_applicable_rules, score,
@@ -613,7 +620,8 @@ async def create_compliance_scan(
                     :xccdf_score, :xccdf_score_system, :xccdf_score_max,
                     :risk_score, :risk_level, :created_at
                 )
-                """)
+                """
+            )
             db.execute(
                 insert_results_query,
                 {
@@ -649,8 +657,7 @@ async def create_compliance_scan(
         # Queue background enrichment and report generation
         # ---------------------------------------------------------------------
         if scan_request.include_enrichment:
-            background_tasks.add_task(
-                enrich_scan_results_background,
+            enrich_scan_results_celery.delay(
                 scan_id=scan_id,
                 result_file=str(result_file) if result_file else "",
                 scan_metadata={
@@ -800,7 +807,7 @@ async def get_available_rules(
         # If host_id provided, try to get platform from database
         if host_id:
             try:
-                from backend.app.tasks.os_discovery_tasks import _normalize_platform_identifier
+                from app.tasks.os_discovery_tasks import _normalize_platform_identifier
 
                 # Use QueryBuilder for consistent parameterized queries
                 host_builder = (
@@ -974,7 +981,7 @@ async def get_scanner_health(
         repo_status = "unknown"
         repo_details: Dict[str, Any] = {}
         try:
-            from backend.app.services.mongo_integration_service import get_mongo_service
+            from app.services.mongo_integration_service import get_mongo_service
 
             mongo_service = await get_mongo_service()
             mongo_health = await mongo_service.health_check()
@@ -1069,7 +1076,7 @@ async def get_scanner_health(
         redis_status = "unknown"
         redis_details: Dict[str, Any] = {}
         try:
-            from backend.app.celery_app import celery_app
+            from app.celery_app import celery_app
 
             # Ping the Celery broker to verify Redis connectivity
             inspect = celery_app.control.inspect()

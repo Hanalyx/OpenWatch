@@ -11,7 +11,7 @@ from typing import Optional
 import redis
 from redis.exceptions import RedisError
 
-from backend.app.config import get_settings
+from app.config import get_settings
 
 logger = logging.getLogger(__name__)
 

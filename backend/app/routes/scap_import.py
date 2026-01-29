@@ -3,21 +3,26 @@ SCAP Import API Endpoints for OpenWatch
 REST API for importing SCAP files into MongoDB
 
 This module uses the unified content module for SCAP processing.
+Import execution is handled by a Celery task for timeout safety
+and crash recovery.
 """
 
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from ..services.content import ContentImporter, ImportProgress, ImportResult, process_scap_content
+from ..services.content import ContentImporter
 
 router = APIRouter(prefix="/scap-import", tags=["SCAP Import"])
 
 # Global import service (will be initialized on first use)
 import_service: Optional[ContentImporter] = None
+
+# Maps import_id -> {"celery_task_id": ..., "file_path": ..., "started_at": ...}
+# Lightweight tracking; actual progress lives in Celery result backend.
 active_imports: Dict[str, Dict[str, Any]] = {}
 
 
@@ -66,11 +71,45 @@ async def get_import_service() -> ContentImporter:
     return import_service
 
 
+def _get_celery_import_state(import_id: str) -> Dict[str, Any]:
+    """Read import state from Celery result backend."""
+    from app.celery_app import celery_app
+
+    import_info = active_imports.get(import_id)
+    if not import_info:
+        return {"status": "unknown", "progress": {}}
+
+    task_id = import_info.get("celery_task_id")
+    if not task_id:
+        return {"status": "queued", "progress": {}}
+
+    result = celery_app.AsyncResult(task_id)
+
+    if result.state == "PENDING":
+        return {"status": "queued", "progress": {}}
+    elif result.state == "PROGRESS":
+        meta = result.info or {}
+        return {"status": "running", "progress": meta}
+    elif result.state == "SUCCESS":
+        task_result = result.result or {}
+        return {
+            "status": task_result.get("status", "completed"),
+            "progress": {"progress_percentage": 100},
+            "result": task_result,
+        }
+    elif result.state == "FAILURE":
+        return {
+            "status": "failed",
+            "progress": {},
+            "error": str(result.info) if result.info else "Unknown error",
+        }
+    else:
+        return {"status": result.state.lower(), "progress": {}}
+
+
 @router.post("/import", response_model=ImportResponse)
 async def import_scap_file(
     request: ImportRequest,
-    background_tasks: BackgroundTasks,
-    service: ContentImporter = Depends(get_import_service),
 ) -> ImportResponse:
     """
     Import a SCAP XML file into MongoDB
@@ -89,23 +128,22 @@ async def import_scap_file(
     # Generate import ID
     import_id = f"import_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}_{file_path.stem}"
 
-    # Initialize import tracking
+    # Dispatch Celery task
+    from app.tasks.background_tasks import import_scap_content_celery
+
+    task = import_scap_content_celery.delay(
+        import_id=import_id,
+        file_path=str(file_path),
+        deduplication_strategy=request.deduplication_strategy,
+        batch_size=request.batch_size,
+    )
+
+    # Track mapping from import_id to celery task
     active_imports[import_id] = {
-        "status": "queued",
+        "celery_task_id": task.id,
         "file_path": str(file_path),
         "started_at": datetime.utcnow().isoformat(),
-        "request": request.dict(),
     }
-
-    # Start background import task
-    background_tasks.add_task(
-        run_import_task,
-        import_id,
-        str(file_path),
-        request.deduplication_strategy,
-        request.batch_size,
-        service,
-    )
 
     return ImportResponse(
         import_id=import_id,
@@ -116,22 +154,19 @@ async def import_scap_file(
 
 
 @router.get("/import/{import_id}/status", response_model=ImportStatus)
-async def get_import_status(import_id: str, service: ContentImporter = Depends(get_import_service)) -> ImportStatus:
+async def get_import_status(import_id: str) -> ImportStatus:
     """Get the status of an ongoing or completed import"""
 
     if import_id not in active_imports:
         raise HTTPException(status_code=404, detail=f"Import ID not found: {import_id}")
 
-    import_info = active_imports[import_id]
-
-    # Get progress from active imports tracking
-    progress_data = import_info.get("progress", {})
+    state = _get_celery_import_state(import_id)
 
     return ImportStatus(
         import_id=import_id,
-        status=import_info["status"],
-        progress=progress_data,
-        result=import_info.get("result"),
+        status=state["status"],
+        progress=state.get("progress", {}),
+        result=state.get("result"),
     )
 
 
@@ -139,17 +174,19 @@ async def get_import_status(import_id: str, service: ContentImporter = Depends(g
 async def list_active_imports() -> Dict[str, Any]:
     """List all active and recent imports"""
 
-    return {
-        "active_imports": [
+    imports_list = []
+    for import_id, info in active_imports.items():
+        state = _get_celery_import_state(import_id)
+        imports_list.append(
             {
                 "import_id": import_id,
-                "status": info["status"],
+                "status": state["status"],
                 "file_path": info["file_path"],
                 "started_at": info["started_at"],
             }
-            for import_id, info in active_imports.items()
-        ]
-    }
+        )
+
+    return {"active_imports": imports_list}
 
 
 @router.delete("/import/{import_id}")
@@ -159,14 +196,17 @@ async def cancel_import(import_id: str) -> Dict[str, str]:
     if import_id not in active_imports:
         raise HTTPException(status_code=404, detail=f"Import ID not found: {import_id}")
 
-    import_info = active_imports[import_id]
+    state = _get_celery_import_state(import_id)
 
-    if import_info["status"] in ["completed", "failed"]:
+    if state["status"] in ["completed", "failed"]:
         raise HTTPException(status_code=400, detail="Cannot cancel completed or failed import")
 
-    # Update status (actual cancellation would require more complex implementation)
-    active_imports[import_id]["status"] = "cancelled"
-    active_imports[import_id]["cancelled_at"] = datetime.utcnow().isoformat()
+    # Revoke Celery task
+    from app.celery_app import celery_app
+
+    task_id = active_imports[import_id].get("celery_task_id")
+    if task_id:
+        celery_app.control.revoke(task_id, terminate=True)
 
     return {"message": f"Import {import_id} marked for cancellation"}
 
@@ -192,8 +232,9 @@ async def validate_import(import_id: str, service: ContentImporter = Depends(get
         raise HTTPException(status_code=404, detail=f"Import ID not found: {import_id}")
 
     import_info = active_imports[import_id]
+    state = _get_celery_import_state(import_id)
 
-    if import_info["status"] != "completed":
+    if state["status"] != "completed":
         raise HTTPException(status_code=400, detail="Can only validate completed imports")
 
     try:
@@ -252,60 +293,6 @@ async def get_import_statistics(
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to get statistics: {str(e)}")
-
-
-# Background task functions
-
-
-async def run_import_task(
-    import_id: str,
-    file_path: str,
-    deduplication_strategy: str,
-    batch_size: int,
-    service: ContentImporter,
-) -> None:
-    """Run the import task in the background"""
-
-    try:
-        # Update status to running
-        active_imports[import_id]["status"] = "running"
-        active_imports[import_id]["progress"] = {"current_phase": "starting"}
-
-        # Progress callback to update status
-        def progress_callback(progress: ImportProgress) -> None:
-            active_imports[import_id]["progress"] = {
-                "current_phase": progress.stage.value if progress.stage else "processing",
-                "processed_rules": progress.processed_count,
-                "total_rules": progress.total_count,
-                "progress_percentage": progress.percent_complete,
-            }
-
-        # Run the import using content module
-        result: ImportResult = process_scap_content(
-            source_path=file_path,
-            progress_callback=progress_callback,
-            batch_size=batch_size,
-            deduplication=deduplication_strategy,
-        )
-
-        # Update final status
-        active_imports[import_id]["status"] = "completed"
-        active_imports[import_id]["result"] = {
-            "status": "completed",
-            "statistics": {
-                "imported": result.imported_count,
-                "updated": result.updated_count,
-                "skipped": result.skipped_count,
-                "errors": result.failed_count,
-            },
-        }
-        active_imports[import_id]["completed_at"] = datetime.utcnow().isoformat()
-
-    except Exception as e:
-        # Handle import failure
-        active_imports[import_id]["status"] = "failed"
-        active_imports[import_id]["error"] = str(e)
-        active_imports[import_id]["failed_at"] = datetime.utcnow().isoformat()
 
 
 def estimate_import_duration(file_path: Path) -> float:

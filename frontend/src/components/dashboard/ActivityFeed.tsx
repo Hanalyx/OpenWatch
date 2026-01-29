@@ -196,9 +196,7 @@ const ActivityFeed: React.FC<ActivityFeedProps> = ({
                     )
                   }
                 >
-                  <ListItemIcon sx={{ minWidth: 40 }}>
-                    {getIcon(firstItem.type, firstItem.severity)}
-                  </ListItemIcon>
+                  <ListItemIcon sx={{ minWidth: 40 }}>{getIcon(firstItem.type)}</ListItemIcon>
                   <ListItemText
                     primary={
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>

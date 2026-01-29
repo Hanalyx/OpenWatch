@@ -12,16 +12,16 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from backend.app.config import get_settings
-from backend.app.models.plugin_models import (
+from app.config import get_settings
+from app.models.plugin_models import (
     InstalledPlugin,
     PluginCapability,
     PluginExecutionRequest,
     PluginExecutionResult,
     PluginStatus,
 )
-from backend.app.services.command_sandbox import CommandSandbox
-from backend.app.services.plugins.registry.service import PluginRegistryService
+from app.services.command_sandbox import CommandSandbox
+from app.services.plugins.registry.service import PluginRegistryService
 
 logger = logging.getLogger(__name__)
 settings = get_settings()

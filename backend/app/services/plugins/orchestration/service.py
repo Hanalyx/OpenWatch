@@ -24,7 +24,7 @@ Performance Considerations:
     - Optimization uses heuristic models for speed
 
 Usage:
-    from backend.app.services.plugins.orchestration import PluginOrchestrationService
+    from app.services.plugins.orchestration import PluginOrchestrationService
 
     orchestrator = PluginOrchestrationService()
 
@@ -49,7 +49,7 @@ Usage:
     )
 
 Example:
-    >>> from backend.app.services.plugins.orchestration import (
+    >>> from app.services.plugins.orchestration import (
     ...     PluginOrchestrationService,
     ...     OrchestrationStrategy,
     ... )

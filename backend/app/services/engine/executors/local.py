@@ -18,7 +18,7 @@ Design Philosophy:
 - Compatibility: Same result format as SSH executor
 
 Usage:
-    from backend.app.services.engine.executors import LocalExecutor
+    from app.services.engine.executors import LocalExecutor
 
     executor = LocalExecutor()
     result = executor.execute(

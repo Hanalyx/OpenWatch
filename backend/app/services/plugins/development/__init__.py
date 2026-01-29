@@ -36,7 +36,7 @@ Validation Severities:
     - CRITICAL: Blocking issue
 
 Usage:
-    from backend.app.services.plugins.development import PluginDevelopmentFramework
+    from app.services.plugins.development import PluginDevelopmentFramework
 
     framework = PluginDevelopmentFramework()
 
@@ -58,7 +58,7 @@ Usage:
     )
 
 Example:
-    >>> from backend.app.services.plugins.development import (
+    >>> from app.services.plugins.development import (
     ...     PluginDevelopmentFramework,
     ...     TestEnvironmentType,
     ...     BenchmarkType,

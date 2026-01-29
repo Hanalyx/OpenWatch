@@ -51,10 +51,12 @@ def execute_scan_task(
 
         # Update scan status to running
         db.execute(
-            text("""
+            text(
+                """
             UPDATE scans SET status = 'running', progress = 5
             WHERE id = :scan_id
-        """),
+        """
+            ),
             {"scan_id": scan_id},
         )
         db.commit()
@@ -191,9 +193,11 @@ def execute_scan_task(
 
         # Update progress
         db.execute(
-            text("""
+            text(
+                """
             UPDATE scans SET progress = 10 WHERE id = :scan_id
-        """),
+        """
+            ),
             {"scan_id": scan_id},
         )
         db.commit()
@@ -247,9 +251,11 @@ def execute_scan_task(
 
         # Update progress
         db.execute(
-            text("""
+            text(
+                """
             UPDATE scans SET progress = 20 WHERE id = :scan_id
-        """),
+        """
+            ),
             {"scan_id": scan_id},
         )
         db.commit()
@@ -260,9 +266,11 @@ def execute_scan_task(
         try:
             # Update progress to indicate scan execution has started
             db.execute(
-                text("""
+                text(
+                    """
                 UPDATE scans SET progress = 30 WHERE id = :scan_id
-            """),
+            """
+                ),
                 {"scan_id": scan_id},
             )
             db.commit()
@@ -294,9 +302,11 @@ def execute_scan_task(
 
             # Update progress after scan execution
             db.execute(
-                text("""
+                text(
+                    """
                 UPDATE scans SET progress = 90 WHERE id = :scan_id
-            """),
+            """
+                ),
                 {"scan_id": scan_id},
             )
             db.commit()
@@ -314,12 +324,14 @@ def execute_scan_task(
 
         # Update scan record with results
         db.execute(
-            text("""
+            text(
+                """
             UPDATE scans
             SET status = 'completed', progress = 100, completed_at = :completed_at,
                 result_file = :result_file, report_file = :report_file
             WHERE id = :scan_id
-        """),
+        """
+            ),
             {
                 "scan_id": scan_id,
                 "completed_at": datetime.utcnow(),
@@ -429,12 +441,14 @@ def _update_scan_error(
 
         # Get scan data for webhook notification and check for group scan
         scan_result = db.execute(
-            text("""
+            text(
+                """
             SELECT s.id, h.hostname, s.profile_id, s.scan_options, s.host_id
             FROM scans s
             JOIN hosts h ON s.host_id = h.id
             WHERE s.id = :scan_id
-        """),
+        """
+            ),
             {"scan_id": scan_id},
         )
 
@@ -466,11 +480,13 @@ def _update_scan_error(
                 logger.error(f"Failed to update group scan failure progress: {e}")
 
         db.execute(
-            text("""
+            text(
+                """
             UPDATE scans
             SET status = 'failed', progress = 100, completed_at = :completed_at, error_message = :error_message
             WHERE id = :scan_id
-        """),
+        """
+            ),
             {
                 "scan_id": scan_id,
                 "completed_at": datetime.utcnow(),
@@ -534,7 +550,8 @@ def _save_scan_results(db: Session, scan_id: str, scan_results: Dict[str, Any]) 
 
         # Insert scan results with granular per-severity pass/fail tracking
         db.execute(
-            text("""
+            text(
+                """
             INSERT INTO scan_results
             (scan_id, total_rules, passed_rules, failed_rules, error_rules,
              unknown_rules, not_applicable_rules, score,
@@ -552,7 +569,8 @@ def _save_scan_results(db: Session, scan_id: str, scan_results: Dict[str, Any]) 
                     :severity_medium_passed, :severity_medium_failed,
                     :severity_low_passed, :severity_low_failed,
                     :created_at)
-        """),
+        """
+            ),
             {
                 "scan_id": scan_id,
                 "total_rules": scan_results.get("rules_total", 0),
@@ -587,45 +605,73 @@ def _save_scan_results(db: Session, scan_id: str, scan_results: Dict[str, Any]) 
         logger.error(f"Failed to save scan results for {scan_id}: {e}")
 
 
-# Celery task wrapper (if Celery is available)
-try:
-    from celery import current_app
+# ---------------------------------------------------------------------------
+# Celery task for scan execution
+# ---------------------------------------------------------------------------
 
-    @current_app.task(bind=True)
-    def execute_scan_celery_task(
-        self: Any,
-        scan_id: str,
-        host_data: Dict[str, Any],
-        content_path: str,
-        profile_id: str,
-        scan_options: Dict[str, Any],
-    ) -> None:
-        """Celery task wrapper for scan execution"""
+from app.celery_app import celery_app  # noqa: E402
+
+
+@celery_app.task(
+    bind=True,
+    name="backend.app.tasks.execute_scan",
+    queue="scans",
+    time_limit=7200,
+    soft_time_limit=6600,
+    acks_late=True,
+    reject_on_worker_lost=True,
+    max_retries=1,
+)
+def execute_scan_celery(
+    self: Any,
+    scan_id: str,
+    host_data: Dict[str, Any],
+    content_path: str,
+    profile_id: str,
+    scan_options: Dict[str, Any],
+) -> None:
+    """
+    Celery task for scan execution with timeout and retry safety.
+
+    Wraps execute_scan_task with Celery lifecycle management:
+    - Stores celery_task_id for tracking
+    - Handles SoftTimeLimitExceeded gracefully
+    - Marks scan as failed on unrecoverable errors
+    - acks_late + reject_on_worker_lost ensures re-delivery on worker crash
+    """
+    from celery.exceptions import SoftTimeLimitExceeded
+
+    try:
+        # Record celery task ID for tracking
+        db = SessionLocal()
         try:
-            # Update task ID in database
-            db = SessionLocal()
             db.execute(
-                text("""
-                UPDATE scans SET celery_task_id = :task_id WHERE id = :scan_id
-            """),
+                text("UPDATE scans SET celery_task_id = :task_id WHERE id = :scan_id"),
                 {"task_id": self.request.id, "scan_id": scan_id},
             )
             db.commit()
+        finally:
             db.close()
 
-            # Execute scan
-            execute_scan_task(scan_id, host_data, content_path, profile_id, scan_options)
+        # Delegate to existing scan logic
+        execute_scan_task(scan_id, host_data, content_path, profile_id, scan_options)
 
-        except Exception as e:
-            logger.error(f"Celery task failed for scan {scan_id}: {e}")
-            # Update scan with failure
-            db = SessionLocal()
-            _update_scan_error(db, scan_id, f"Task execution failed: {str(e)}")
+    except SoftTimeLimitExceeded:
+        logger.error(f"Scan {scan_id} exceeded soft time limit (1h50m)")
+        db = SessionLocal()
+        try:
+            _update_scan_error(db, scan_id, "Scan timed out after 1 hour 50 minutes")
+        finally:
             db.close()
-            raise
 
-except ImportError:
-    logger.info("Celery not available, using background tasks only")
+    except Exception as exc:
+        logger.error(f"Celery scan task failed for {scan_id}: {exc}", exc_info=True)
+        db = SessionLocal()
+        try:
+            _update_scan_error(db, scan_id, f"Task execution failed: {str(exc)}")
+        finally:
+            db.close()
+        raise self.retry(exc=exc, countdown=120, max_retries=1)
 
 
 async def _process_semantic_intelligence(
@@ -661,14 +707,16 @@ async def _process_semantic_intelligence(
         semantic_rules_count = len(intelligent_result.semantic_rules)
 
         db.execute(
-            text("""
+            text(
+                """
             UPDATE scans SET
                 semantic_analysis_completed = true,
                 semantic_rules_count = :semantic_rules_count,
                 frameworks_analyzed = :frameworks_analyzed,
                 remediation_strategy = :remediation_strategy
             WHERE id = :scan_id
-        """),
+        """
+            ),
             {
                 "scan_id": scan_id,
                 "semantic_rules_count": semantic_rules_count,
@@ -701,14 +749,18 @@ async def _send_enhanced_semantic_webhook(scan_id: str, intelligent_result: Any,
         # Get active webhook endpoints for semantic events
         db = SessionLocal()
         try:
-            result = db.execute(text("""
+            result = db.execute(
+                text(
+                    """
                 SELECT id, url, secret_hash FROM webhook_endpoints
                 WHERE is_active = true
                 AND (
                     event_types::jsonb ? 'semantic.analysis.completed'
                     OR event_types::jsonb ? 'scan.completed'
                 )
-            """))
+            """
+                )
+            )
 
             webhooks = result.fetchall()
         finally:

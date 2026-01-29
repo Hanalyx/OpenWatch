@@ -512,13 +512,15 @@ class BulkScanOrchestrator:
 
                 # Create scan record
                 self.db.execute(
-                    text("""
+                    text(
+                        """
                     INSERT INTO scans
                     (id, name, host_id, content_id, profile_id, status, progress,
                      scan_options, started_by, started_at, remediation_requested, verification_scan)
                     VALUES (:id, :name, :host_id, :content_id, :profile_id, :status,
                             :progress, :scan_options, :started_by, :started_at, :remediation_requested, :verification_scan)  # noqa: E501
-                """),
+                """
+                    ),
                     {
                         "id": scan_id,
                         "name": scan_name,
@@ -556,13 +558,15 @@ class BulkScanOrchestrator:
         try:
             # Create a scan sessions table record (you'll need to create this table)
             self.db.execute(
-                text("""
+                text(
+                    """
                 INSERT INTO scan_sessions
                 (id, name, total_hosts, completed_hosts, failed_hosts, running_hosts,
                  status, created_by, created_at, started_at, completed_at, estimated_completion, scan_ids, error_message)  # noqa: E501
                 VALUES (:id, :name, :total_hosts, :completed_hosts, :failed_hosts, :running_hosts,
                         :status, :created_by, :created_at, :started_at, :completed_at, :estimated_completion, :scan_ids, :error_message)  # noqa: E501
-            """),
+            """
+                ),
                 {
                     "id": session.id,
                     "name": session.name,
@@ -589,7 +593,8 @@ class BulkScanOrchestrator:
         """Update scan session in database"""
         try:
             self.db.execute(
-                text("""
+                text(
+                    """
                 UPDATE scan_sessions SET
                     completed_hosts = :completed_hosts,
                     failed_hosts = :failed_hosts,
@@ -600,7 +605,8 @@ class BulkScanOrchestrator:
                     scan_ids = :scan_ids,
                     error_message = :error_message
                 WHERE id = :id
-            """),
+            """
+                ),
                 {
                     "id": session.id,
                     "completed_hosts": session.completed_hosts,
@@ -622,11 +628,13 @@ class BulkScanOrchestrator:
         """Retrieve scan session from database"""
         try:
             result = self.db.execute(
-                text("""
+                text(
+                    """
                 SELECT id, name, total_hosts, completed_hosts, failed_hosts, running_hosts,
                        status, created_by, created_at, started_at, completed_at, estimated_completion, scan_ids, error_message  # noqa: E501
                 FROM scan_sessions WHERE id = :id
-            """),
+            """
+                ),
                 {"id": session_id},
             ).fetchone()
 
@@ -662,7 +670,9 @@ class BulkScanOrchestrator:
             # Create placeholders for the IN clause
             placeholders = ",".join([f"'{scan_id}'" for scan_id in scan_ids])
 
-            result = self.db.execute(text(f"""
+            result = self.db.execute(
+                text(
+                    f"""
                 SELECT s.id, s.name, s.status, s.progress, s.started_at, s.completed_at,
                        h.hostname, h.display_name,
                        sr.score, sr.failed_rules, sr.total_rules
@@ -671,7 +681,9 @@ class BulkScanOrchestrator:
                 LEFT JOIN scan_results sr ON sr.scan_id = s.id
                 WHERE s.id IN ({placeholders})
                 ORDER BY s.started_at
-            """)).fetchall()
+            """
+                )
+            ).fetchall()
 
             scan_statuses = []
             for row in result:
@@ -709,10 +721,12 @@ class BulkScanOrchestrator:
 
             # Update scan status to running
             self.db.execute(
-                text(f"""
+                text(
+                    f"""
                 UPDATE scans SET status = 'running', started_at = :started_at
                 WHERE id IN ({placeholders}) AND status = 'pending'
-            """),
+            """
+                ),
                 {"started_at": datetime.utcnow()},
             )
 
@@ -842,7 +856,8 @@ class BulkScanOrchestrator:
         """
         try:
             result = self.db.execute(
-                text("""
+                text(
+                    """
                 SELECT u.id, u.username, u.role,
                        COALESCE(
                            JSON_AGG(DISTINCT ug.name) FILTER (WHERE ug.name IS NOT NULL),
@@ -853,7 +868,8 @@ class BulkScanOrchestrator:
                 LEFT JOIN user_groups ug ON ugm.group_id = ug.id
                 WHERE u.id = :user_id AND u.is_active = true
                 GROUP BY u.id, u.username, u.role
-            """),
+            """
+                ),
                 {"user_id": user_id},
             )
 
@@ -885,11 +901,15 @@ class BulkScanOrchestrator:
             # Create placeholders for the IN clause
             placeholders = ",".join([f"'{host_id}'" for host_id in host_ids])
 
-            result = self.db.execute(text(f"""
+            result = self.db.execute(
+                text(
+                    f"""
                 SELECT id, hostname, display_name, ip_address, status
                 FROM hosts
                 WHERE id IN ({placeholders})
-            """))
+            """
+                )
+            )
 
             return [
                 {
@@ -943,13 +963,15 @@ class BulkScanOrchestrator:
                 # Enable JIT platform detection and auto content selection for bulk scans
                 # This ensures each host gets the correct SCAP content for its platform
                 self.db.execute(
-                    text("""
+                    text(
+                        """
                     INSERT INTO scans
                     (id, name, host_id, content_id, profile_id, status, progress,
                      scan_options, started_by, started_at, remediation_requested, verification_scan)
                     VALUES (:id, :name, :host_id, :content_id, :profile_id, :status,
                             :progress, :scan_options, :started_by, :started_at, :remediation_requested, :verification_scan)  # noqa: E501
-                """),
+                """
+                    ),
                     {
                         "id": scan_id,
                         "name": scan_name,

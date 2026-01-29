@@ -237,7 +237,7 @@ export const withAnimation = <P extends object>(
 ) => {
   return React.forwardRef<HTMLElement, P>((props, ref) => (
     <MicroInteractions {...animationProps}>
-      <WrappedComponent {...props} ref={ref} />
+      <WrappedComponent {...(props as P)} ref={ref as React.Ref<HTMLElement>} />
     </MicroInteractions>
   ));
 };

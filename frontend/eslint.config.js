@@ -22,6 +22,9 @@ export default [
       '*.config.{js,ts}',
       'playwright.config.ts',
       'vite.config.ts',
+      // Storybook files excluded until @storybook/react types are installed
+      '**/*.stories.tsx',
+      '**/*.stories.ts',
     ],
   },
   {

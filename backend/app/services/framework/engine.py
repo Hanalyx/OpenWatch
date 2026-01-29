@@ -12,7 +12,7 @@ Features:
     - Export capabilities (JSON, CSV)
 
 Example:
-    >>> from backend.app.services.framework import (
+    >>> from app.services.framework import (
     ...     FrameworkMappingEngine,
     ...     MappingConfidence,
     ...     MappingType,
@@ -31,7 +31,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set, Tuple
 
-from backend.app.models.unified_rule_models import (
+from app.models.unified_rule_models import (
     Platform,
     PlatformImplementation,
     UnifiedComplianceRule,

@@ -15,7 +15,7 @@ from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.primitives.serialization import load_pem_public_key
 
-from backend.app.models.plugin_models import PluginPackage, PluginSignature, SecurityCheckResult
+from app.models.plugin_models import PluginPackage, PluginSignature, SecurityCheckResult
 
 logger = logging.getLogger(__name__)
 

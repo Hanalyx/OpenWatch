@@ -291,7 +291,7 @@ const RuleFilterToolbar: React.FC<RuleFilterToolbarProps> = ({
               <Select
                 multiple
                 value={filters.platforms}
-                onChange={(e) => handleFilterChange('platforms', e.target.value)}
+                onChange={(e) => handleFilterChange('platforms', e.target.value as string[])}
                 renderValue={(selected) => `${selected.length} selected`}
               >
                 {availablePlatforms.map((platform) => (
@@ -309,7 +309,7 @@ const RuleFilterToolbar: React.FC<RuleFilterToolbarProps> = ({
               <Select
                 multiple
                 value={filters.severities}
-                onChange={(e) => handleFilterChange('severities', e.target.value)}
+                onChange={(e) => handleFilterChange('severities', e.target.value as string[])}
                 renderValue={(selected) => `${selected.length} selected`}
               >
                 {severityOptions.map((severity) => (
@@ -327,7 +327,7 @@ const RuleFilterToolbar: React.FC<RuleFilterToolbarProps> = ({
               <Select
                 multiple
                 value={filters.categories}
-                onChange={(e) => handleFilterChange('categories', e.target.value)}
+                onChange={(e) => handleFilterChange('categories', e.target.value as string[])}
                 renderValue={(selected) => `${selected.length} selected`}
               >
                 {availableCategories.map((category) => (
@@ -348,7 +348,7 @@ const RuleFilterToolbar: React.FC<RuleFilterToolbarProps> = ({
               <Select
                 multiple
                 value={filters.frameworks}
-                onChange={(e) => handleFilterChange('frameworks', e.target.value)}
+                onChange={(e) => handleFilterChange('frameworks', e.target.value as string[])}
                 renderValue={(selected) => `${selected.length} selected`}
               >
                 {availableFrameworks.map((framework) => (

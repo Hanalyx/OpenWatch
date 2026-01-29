@@ -24,11 +24,26 @@ def upgrade() -> None:
     # Enable UUID extension
     op.execute('CREATE EXTENSION IF NOT EXISTS "uuid-ossp"')
 
-    # Create enum types
-    op.execute(
-        "CREATE TYPE user_roles AS ENUM ('super_admin', 'security_admin', 'security_analyst', 'compliance_officer', 'auditor', 'guest')"
-    )
-    op.execute("CREATE TYPE access_levels AS ENUM ('read', 'write', 'admin')")
+    # Create enum types (only if they don't exist)
+    # PostgreSQL doesn't have CREATE TYPE IF NOT EXISTS for ENUMs, so we use a DO block
+    op.execute("""
+        DO $$
+        BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'user_roles') THEN
+                CREATE TYPE user_roles AS ENUM ('super_admin', 'security_admin', 'security_analyst', 'compliance_officer', 'auditor', 'guest');
+            END IF;
+        END
+        $$;
+    """)
+    op.execute("""
+        DO $$
+        BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'access_levels') THEN
+                CREATE TYPE access_levels AS ENUM ('read', 'write', 'admin');
+            END IF;
+        END
+        $$;
+    """)
 
     # Users table
     op.create_table(
@@ -47,6 +62,7 @@ def upgrade() -> None:
                 "auditor",
                 "guest",
                 name="user_roles",
+                create_type=False,  # Type already created above with IF NOT EXISTS
             ),
             nullable=False,
         ),
@@ -314,7 +330,7 @@ def upgrade() -> None:
         sa.Column("host_id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("user_id", sa.Integer(), nullable=True),
         sa.Column("group_id", sa.Integer(), nullable=True),
-        sa.Column("access_level", postgresql.ENUM("read", "write", "admin", name="access_levels"), nullable=False),
+        sa.Column("access_level", postgresql.ENUM("read", "write", "admin", name="access_levels", create_type=False), nullable=False),
         sa.Column("granted_by", sa.Integer(), nullable=False),
         sa.Column("granted_at", sa.DateTime(), nullable=False),
         sa.Column("expires_at", sa.DateTime(), nullable=True),

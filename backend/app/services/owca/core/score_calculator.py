@@ -13,7 +13,7 @@ from uuid import UUID
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from backend.app.utils.query_builder import QueryBuilder
+from ....utils.query_builder import QueryBuilder
 
 from ..models import ComplianceScore, ComplianceTier, SeverityBreakdown
 

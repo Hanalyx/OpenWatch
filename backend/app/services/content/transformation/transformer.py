@@ -21,7 +21,7 @@ Security Considerations:
 - No shell command construction from user input
 
 Usage:
-    from backend.app.services.content.transformation import MongoDBTransformer
+    from app.services.content.transformation import MongoDBTransformer
 
     transformer = MongoDBTransformer()
     result = transformer.transform(parsed_content)
@@ -37,7 +37,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from backend.app.models.mongo_models import FrameworkVersions, PlatformImplementation
+from app.models.mongo_models import FrameworkVersions, PlatformImplementation
 
 from ..exceptions import ContentTransformationError  # noqa: F401
 from ..models import ContentSeverity, ParsedContent, ParsedRule
@@ -126,7 +126,7 @@ class MongoDBTransformer:
         warnings: List of non-fatal warnings
 
     Example:
-        >>> from backend.app.services.content.parsers import SCAPParser
+        >>> from app.services.content.parsers import SCAPParser
         >>> parser = SCAPParser()
         >>> content = parser.parse("/path/to/benchmark.xml")
         >>>

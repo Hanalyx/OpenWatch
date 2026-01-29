@@ -30,7 +30,7 @@ Security Notes:
     - Sanitizes error messages to prevent information disclosure
 
 Usage:
-    from backend.app.services.content.import.validator import (
+    from app.services.content.import.validator import (
         DependencyValidator,
         SCAPDependency,
     )

@@ -25,7 +25,7 @@ Security Notes:
 - Error messages truncated to prevent info disclosure
 
 Usage:
-    from backend.app.services.engine.scanners import KubernetesScanner
+    from app.services.engine.scanners import KubernetesScanner
 
     scanner = KubernetesScanner()
 
