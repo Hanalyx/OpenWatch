@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..encryption import EncryptionService
-from ..services.terminal_service import terminal_service
+from ..services.infrastructure import terminal_service
 
 # from ..auth import get_current_user  # Optional for future authentication
 

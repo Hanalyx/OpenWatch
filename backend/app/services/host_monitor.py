@@ -16,7 +16,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from ..encryption import EncryptionService
-from .email_service import email_service
+from .infrastructure import email_service
 
 # SSHConnectionManager provides connect_with_credentials() and execute_command_advanced()
 from .ssh import SSHConnectionManager

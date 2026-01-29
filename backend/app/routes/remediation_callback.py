@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 from ..audit_db import log_audit_event
 from ..config import get_settings
 from ..database import Scan, get_db
-from ..services.webhook_security import verify_webhook_signature
+from ..services.infrastructure import verify_webhook_signature
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
