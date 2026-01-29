@@ -36,8 +36,8 @@ from sqlalchemy.orm import Session
 
 from app.auth import get_current_user
 from app.database import get_db
-from app.services.compliance_framework_mapper import ComplianceFrameworkMapper
 from app.services.engine import get_aegis_mapper
+from app.services.framework import ComplianceFrameworkMapper
 from app.services.rules import RuleSpecificScanner
 
 logger = logging.getLogger(__name__)
