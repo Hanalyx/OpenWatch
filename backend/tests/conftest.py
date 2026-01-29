@@ -44,11 +44,13 @@ def db_session(test_engine) -> Session:
     session.close()
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture(scope="session")
 def client():
-    """Provide FastAPI TestClient (function-scoped for full isolation).
+    """Provide FastAPI TestClient (session-scoped to avoid repeated app startup).
 
-    Each test gets a fresh client with its own app lifespan cycle.
+    The app lifespan (DB init, MongoDB connect) runs once for the entire
+    test session, keeping CI fast.  Tests still get isolation through
+    unique test data and separate DB sessions.
     """
     from app.main import app
 
