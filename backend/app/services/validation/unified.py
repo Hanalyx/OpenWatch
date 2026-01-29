@@ -11,7 +11,7 @@ from typing import Dict, Optional, Tuple
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from ..models.error_models import (
+from ...models.error_models import (
     AutomatedFix,
     AutomatedFixResponse,
     ErrorCategory,
@@ -21,13 +21,13 @@ from ..models.error_models import (
     ValidationResultInternal,
     ValidationResultResponse,
 )
-from .auth import CentralizedAuthService, CredentialData
+from ..auth import CentralizedAuthService, CredentialData
 
 # UnifiedSCAPScanner provides test_ssh_connection and legacy compatibility
-from .engine.scanners import UnifiedSCAPScanner
-from .error_classification import ErrorClassificationService
-from .error_sanitization import get_error_sanitization_service
-from .system_info_sanitization import sanitize_system_info
+from ..engine.scanners import UnifiedSCAPScanner
+from .errors import ErrorClassificationService
+from .sanitization import get_error_sanitization_service
+from .system_sanitization import sanitize_system_info
 
 logger = logging.getLogger(__name__)
 

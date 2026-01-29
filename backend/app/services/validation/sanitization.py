@@ -361,12 +361,12 @@ class ErrorSanitizationService:
             # Lazy import to avoid circular dependency
             global _system_info_sanitization_service
             if _system_info_sanitization_service is None:
-                from .system_info_sanitization import get_system_info_sanitization_service
+                from .system_sanitization import get_system_info_sanitization_service
 
                 _system_info_sanitization_service = get_system_info_sanitization_service()
 
             # Create sanitization context
-            from ..models.system_models import SystemInfoLevel, SystemInfoSanitizationContext
+            from ...models.system_models import SystemInfoLevel, SystemInfoSanitizationContext
 
             context = SystemInfoSanitizationContext(
                 user_id=user_id,
@@ -415,12 +415,12 @@ class ErrorSanitizationService:
             # Lazy import to avoid circular dependency
             global _system_info_sanitization_service
             if _system_info_sanitization_service is None:
-                from .system_info_sanitization import get_system_info_sanitization_service
+                from .system_sanitization import get_system_info_sanitization_service
 
                 _system_info_sanitization_service = get_system_info_sanitization_service()
 
             # Create comprehensive sanitization context
-            from ..models.system_models import SystemInfoLevel, SystemInfoSanitizationContext
+            from ...models.system_models import SystemInfoLevel, SystemInfoSanitizationContext
 
             # Determine access level based on user role
             access_level = SystemInfoLevel.BASIC

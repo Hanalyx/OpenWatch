@@ -14,9 +14,9 @@ from typing import Any, Dict, List, Optional
 
 from sqlalchemy.orm import Session
 
-from ..database import Host, HostGroup, HostGroupMembership, ScapContent
-from ..models.error_models import ErrorCategory, ErrorSeverity
-from .system_info_sanitization import SystemInfoSanitizationService
+from ...database import Host, HostGroup, HostGroupMembership, ScapContent
+from ...models.error_models import ErrorCategory, ErrorSeverity
+from .system_sanitization import SystemInfoSanitizationService
 
 logger = logging.getLogger(__name__)
 

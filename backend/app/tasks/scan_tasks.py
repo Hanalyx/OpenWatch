@@ -22,7 +22,7 @@ from ..services.engine import ScanExecutionError, get_semantic_engine
 # UnifiedSCAPScanner provides execute_local_scan, execute_remote_scan,
 # and test_ssh_connection methods with legacy compatibility
 from ..services.engine.scanners import UnifiedSCAPScanner
-from ..services.error_classification import ErrorClassificationService
+from ..services.validation import ErrorClassificationService
 from .webhook_tasks import send_scan_completed_webhook, send_scan_failed_webhook
 
 logger = logging.getLogger(__name__)

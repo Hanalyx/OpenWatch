@@ -25,10 +25,9 @@ from fastapi import HTTPException, Request, Response
 
 from app.services.compliance_framework_reporting import ComplianceFrameworkReporter
 from app.services.engine.scanners import UnifiedSCAPScanner
-from app.services.error_classification import ErrorClassificationService
-from app.services.error_sanitization import get_error_sanitization_service
 from app.services.owca import SeverityCalculator, XCCDFParser
 from app.services.result_enrichment_service import ResultEnrichmentService
+from app.services.validation import ErrorClassificationService, get_error_sanitization_service
 from app.utils.logging_security import sanitize_path_for_log
 
 logger = logging.getLogger(__name__)

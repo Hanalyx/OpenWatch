@@ -16,7 +16,7 @@ from datetime import datetime, timedelta
 from enum import Enum
 from typing import Any, Dict, List, Tuple
 
-from ..models.system_models import (
+from ...models.system_models import (
     ComplianceSystemInfo,
     SanitizedSystemValidation,
     SystemInfoAuditEvent,
@@ -146,7 +146,7 @@ class SystemInfoSanitizationService:
     def _get_error_sanitization_service(self) -> Any:
         """Lazy load error sanitization service to avoid cyclic import."""
         if self._error_sanitization_service is None:
-            from .error_sanitization import get_error_sanitization_service
+            from .sanitization import get_error_sanitization_service
 
             self._error_sanitization_service = get_error_sanitization_service()
         return self._error_sanitization_service
