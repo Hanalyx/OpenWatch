@@ -14,7 +14,7 @@ from typing import Any, Dict, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from ..services.content import ContentImporter
+from ...services.content import ContentImporter
 
 router = APIRouter(prefix="/scap-import", tags=["SCAP Import"])
 

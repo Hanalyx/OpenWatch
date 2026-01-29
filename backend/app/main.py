@@ -32,7 +32,6 @@ from .routes import (  # noqa: E501; REMOVED route consolidation notes:; - api_k
     baselines,
     bulk_operations,
     capabilities,
-    content,
     health_monitoring,
     integration_metrics,
     mongodb_test,
@@ -41,9 +40,7 @@ from .routes import (  # noqa: E501; REMOVED route consolidation notes:; - api_k
     remediation_callback,
     remediation_provider,
     scans,
-    scap_import,
     version,
-    xccdf_api,
 )
 
 # Import admin from new modular package (E1-S6 Route Consolidation)
@@ -59,6 +56,10 @@ from .routes.auth import router as auth_router
 # This package consolidates compliance.py, owca.py, and drift_events.py into a single
 # modular package with intelligence, OWCA, and drift endpoints
 from .routes.compliance import router as compliance_router
+
+# Import content from new modular package (E1-S7 Route Consolidation)
+# This package consolidates content.py, scap_import.py, and xccdf_api.py
+from .routes.content import router as content_pkg_router
 
 # Import host_groups from new modular package (Phase 1 API Standardization)
 # This package consolidates host_groups.py and group_compliance.py into a single
@@ -566,13 +567,11 @@ app.include_router(capabilities.router, prefix="/api", tags=["System Capabilitie
 
 # MongoDB and SCAP endpoints (consolidated from v1)
 app.include_router(mongodb_test.router, prefix="/api/mongodb", tags=["MongoDB Integration Test"])
-app.include_router(scap_import.router, prefix="/api", tags=["SCAP Import"])
 app.include_router(rules_router, prefix="/api", tags=["Rules"])
+app.include_router(content_pkg_router, prefix="/api", tags=["Content"])
 # mongodb_scan_api - REMOVED: Consolidated into routes/scans/mongodb.py (Phase 2)
 # Endpoints now available at /api/scans/mongodb/*
 
-# XCCDF and scanning services (consolidated from v1)
-app.include_router(xccdf_api.router, prefix="/api/xccdf", tags=["XCCDF Generator"])
 # remediation_api - REMOVED: Moved to SecureOps/AEGIS (ORSA subsystem)
 # scan_config_api - REMOVED: Consolidated into routes/scans/config.py and templates.py (Phase 2)
 # Endpoints now available at /api/scans/config/* and /api/scans/templates/*
@@ -597,7 +596,6 @@ app.include_router(baselines.router, tags=["Baseline Management"])
 app.include_router(scans.router, prefix="/api", tags=["Security Scans"])
 # owca - REMOVED: Consolidated into routes/compliance/owca.py (Phase 4)
 # Endpoints now available at /api/compliance/owca/*
-app.include_router(content.router, prefix="/api/content", tags=["Legacy Content"])
 app.include_router(monitoring.router, prefix="/api", tags=["Host Monitoring"])
 app.include_router(adaptive_scheduler.router, prefix="/api", tags=["Adaptive Scheduler"])
 app.include_router(os_discovery.router, prefix="/api", tags=["OS Discovery"])
