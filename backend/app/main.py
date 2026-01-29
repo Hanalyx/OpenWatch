@@ -33,7 +33,6 @@ from .routes import (  # noqa: E501; REMOVED route consolidation notes:; - api_k
     baselines,
     bulk_operations,
     capabilities,
-    compliance_rules_api,
     content,
     credentials,
     health_monitoring,
@@ -43,7 +42,6 @@ from .routes import (  # noqa: E501; REMOVED route consolidation notes:; - api_k
     os_discovery,
     remediation_callback,
     remediation_provider,
-    rule_management,
     scans,
     scap_import,
     users,
@@ -76,6 +74,11 @@ from .routes.hosts import router as hosts_router
 # This package consolidates webhooks.py and plugin_management.py into a single
 # modular package with webhooks and plugins endpoints
 from .routes.integrations import router as integrations_router
+
+# Import rules from new modular package (E1-S5 Route Consolidation)
+# This package consolidates rule_management.py, rule_scanning.py, and
+# compliance_rules_api.py into a single modular package
+from .routes.rules import router as rules_router
 
 # Import SSH from new modular package (Phase 4 API Standardization)
 # This package consolidates ssh_settings.py and ssh_debug.py into a single
@@ -563,8 +566,7 @@ app.include_router(capabilities.router, prefix="/api", tags=["System Capabilitie
 # MongoDB and SCAP endpoints (consolidated from v1)
 app.include_router(mongodb_test.router, prefix="/api/mongodb", tags=["MongoDB Integration Test"])
 app.include_router(scap_import.router, prefix="/api", tags=["SCAP Import"])
-app.include_router(rule_management.router, prefix="/api", tags=["Enhanced Rule Management"])
-app.include_router(compliance_rules_api.router, prefix="/api", tags=["MongoDB Compliance Rules"])
+app.include_router(rules_router, prefix="/api", tags=["Rules"])
 # mongodb_scan_api - REMOVED: Consolidated into routes/scans/mongodb.py (Phase 2)
 # Endpoints now available at /api/scans/mongodb/*
 

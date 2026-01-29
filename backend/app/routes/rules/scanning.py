@@ -18,13 +18,13 @@ from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from ..auth import get_current_user
-from ..database import get_db
-from ..services.compliance_framework_mapper import ComplianceFrameworkMapper
+from ...auth import get_current_user
+from ...database import get_db
+from ...services.compliance_framework_mapper import ComplianceFrameworkMapper
 
 # Engine module integration - AegisMapper provides AEGIS remediation system mapping
-from ..services.engine import get_aegis_mapper
-from ..services.rules import RuleSpecificScanner
+from ...services.engine import get_aegis_mapper
+from ...services.rules import RuleSpecificScanner
 
 logger = logging.getLogger(__name__)
 
