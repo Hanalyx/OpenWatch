@@ -17,17 +17,10 @@ from ..auth import get_current_user
 from ..database import get_db
 from ..encryption import EncryptionService
 from ..rbac import Permission, require_permission
-from ..services.auth import (
-    AuthMethod,
-    CredentialData,
-    CredentialMetadata,
-    CredentialScope,
-    get_auth_service,
-)
+from ..services.auth import AuthMethod, CredentialData, CredentialMetadata, CredentialScope, get_auth_service
 
 # validate_ssh_key validates key format/security, extract_ssh_key_metadata extracts fingerprint/type
 from ..services.ssh import extract_ssh_key_metadata, validate_ssh_key
-from ..tasks.monitoring_tasks import setup_host_monitoring_scheduler
 
 logger = logging.getLogger(__name__)
 
@@ -596,10 +589,22 @@ _scheduler_interval = 15  # Default 15 minutes
 
 
 def get_scheduler() -> Any:
-    """Get or create the global scheduler instance"""
+    """Get or create the global scheduler instance.
+
+    Note: APScheduler-based monitoring has been replaced by Celery Beat
+    (dispatch_host_checks every 30s). This function remains for backward
+    compatibility with the scheduler admin endpoints but will return None
+    if APScheduler is not installed.
+    """
     global _scheduler
     if _scheduler is None:
-        _scheduler = setup_host_monitoring_scheduler()
+        try:
+            from apscheduler.schedulers.background import BackgroundScheduler
+
+            _scheduler = BackgroundScheduler()
+        except ImportError:
+            logger.warning("APScheduler not available; scheduler endpoints are no-ops")
+            return None
     return _scheduler
 
 
@@ -678,7 +683,7 @@ async def start_scheduler(
 
         if scheduler is None:
             # Try to create a new scheduler
-            _scheduler = setup_host_monitoring_scheduler()
+            _scheduler = get_scheduler()
             scheduler = _scheduler
 
             if scheduler is None:
@@ -847,15 +852,15 @@ async def update_scheduler(
                 if job.id == "host_monitoring":
                     scheduler.remove_job(job.id)
 
-            # Add new job with updated interval
-            from ..tasks.monitoring_tasks import periodic_host_monitoring
+            # Add new job with updated interval (uses Celery queue-based approach)
+            from ..tasks.monitoring_tasks import queue_host_checks
 
             scheduler.add_job(
-                periodic_host_monitoring,
+                queue_host_checks.delay,
                 "interval",
                 minutes=_scheduler_interval,
                 id="host_monitoring",
-                name="Host Monitoring Task",
+                name="Host Monitoring Queue Producer",
                 replace_existing=True,
             )
 
@@ -939,19 +944,9 @@ def restore_scheduler_state() -> None:
                         )
                         logger.info(f"Added new monitoring queue producer with {_scheduler_interval} minute interval")
 
-                        # Add daily credential purge job (90-day retention policy)
-                        from ..tasks.monitoring_tasks import periodic_credential_purge
-
-                        scheduler.add_job(
-                            periodic_credential_purge,
-                            "cron",
-                            hour=2,  # Run at 2 AM daily
-                            minute=0,
-                            id="credential_purge",
-                            name="Credential Purge Task (90-day retention)",
-                            replace_existing=True,
-                        )
-                        logger.info("Added daily credential purge job (runs at 2 AM)")
+                        # Note: credential purge is now handled via Celery Beat
+                        # (see celery_app.py beat_schedule) rather than APScheduler
+                        logger.info("Credential purge is managed by Celery Beat (not APScheduler)")
 
                         # Update database with start time
                         db.execute(

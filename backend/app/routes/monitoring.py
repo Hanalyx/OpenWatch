@@ -6,7 +6,7 @@ import logging
 from datetime import datetime
 from typing import Any, Dict
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -101,35 +101,6 @@ async def check_host_status(
     except Exception as e:
         logger.error(f"Error checking host status: {e}")
         raise HTTPException(status_code=500, detail="Failed to check host status")
-
-
-@router.post("/hosts/check-all")
-async def check_all_hosts_status(
-    background_tasks: BackgroundTasks,
-    db: Session = Depends(get_db),
-    current_user: Dict[str, Any] = Depends(get_current_user),
-) -> Dict[str, Any]:
-    """
-    Check status of all hosts (runs in background)
-    """
-    try:
-        # Create wrapper function for background monitoring
-        async def monitor_with_encryption() -> None:
-            # Create encryption service
-            settings = get_settings()
-            encryption_service = create_encryption_service(master_key=settings.master_key, config=EncryptionConfig())
-            # Create host monitor with dependencies
-            monitor = get_host_monitor(db, encryption_service)
-            await monitor.monitor_all_hosts(db)
-
-        # Run monitoring in background
-        background_tasks.add_task(monitor_with_encryption)
-
-        return {"message": "Host monitoring started in background", "status": "running"}
-
-    except Exception as e:
-        logger.error(f"Error starting host monitoring: {e}")
-        raise HTTPException(status_code=500, detail="Failed to start host monitoring")
 
 
 @router.get("/hosts/status")

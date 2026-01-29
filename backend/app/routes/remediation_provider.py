@@ -533,12 +533,12 @@ async def _execute_aegis_remediation(
     failed_rules: List[str],
     options: Dict[str, Any],
 ) -> None:
-    """Execute AEGIS-based remediation"""
-    # This would make actual calls to AEGIS API
-    logger.info(f"AEGIS remediation job {job_id} - would call AEGIS API")
-    # For now, just simulate
+    """Execute AEGIS-based remediation.
+
+    STUB: Not implemented. Replace with actual AEGIS API integration.
+    """
+    logger.info(f"AEGIS remediation job {job_id} - STUB: no-op (AEGIS API not integrated)")
     await asyncio.sleep(2)
-    logger.info(f"AEGIS remediation job {job_id} completed (simulated)")
 
 
 async def _execute_ansible_remediation(
@@ -548,10 +548,12 @@ async def _execute_ansible_remediation(
     failed_rules: List[str],
     options: Dict[str, Any],
 ) -> None:
-    """Execute Ansible-based remediation"""
-    logger.info(f"Ansible remediation job {job_id} - would execute playbooks")
+    """Execute Ansible-based remediation.
+
+    STUB: Not implemented. Replace with actual Ansible playbook execution.
+    """
+    logger.info(f"Ansible remediation job {job_id} - STUB: no-op (Ansible not integrated)")
     await asyncio.sleep(2)
-    logger.info(f"Ansible remediation job {job_id} completed (simulated)")
 
 
 async def _execute_manual_remediation(
@@ -561,10 +563,12 @@ async def _execute_manual_remediation(
     failed_rules: List[str],
     options: Dict[str, Any],
 ) -> None:
-    """Generate manual remediation documentation"""
-    logger.info(f"Manual remediation job {job_id} - generating documentation")
+    """Generate manual remediation documentation.
+
+    STUB: Not implemented. Replace with actual documentation generation.
+    """
+    logger.info(f"Manual remediation job {job_id} - STUB: no-op (doc generation not implemented)")
     await asyncio.sleep(1)
-    logger.info(f"Manual remediation job {job_id} completed (simulated)")
 
 
 def _check_aegis_status() -> Dict[str, Any]:

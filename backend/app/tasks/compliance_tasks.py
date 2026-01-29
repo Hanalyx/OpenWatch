@@ -8,7 +8,6 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, List
 
 from sqlalchemy import text
-from sqlalchemy.orm import Session
 
 from app.celery_app import celery_app
 from app.database import HostGroup, get_db_session
@@ -19,7 +18,12 @@ from app.routes.host_groups import execute_group_compliance_scan
 # GroupScanService removed - using group_compliance API instead
 
 
-@celery_app.task(bind=True, name="backend.app.tasks.scheduled_group_scan")
+@celery_app.task(
+    bind=True,
+    name="backend.app.tasks.scheduled_group_scan",
+    time_limit=7200,
+    soft_time_limit=6600,
+)
 def scheduled_group_scan(self, group_id: int, config: Dict[str, Any]):
     """
     Scheduled compliance scan for a host group
@@ -117,7 +121,12 @@ def scheduled_group_scan(self, group_id: int, config: Dict[str, Any]):
         raise self.retry(exc=exc, countdown=60, max_retries=3)
 
 
-@celery_app.task(bind=True, name="backend.app.tasks.execute_compliance_scan_async")
+@celery_app.task(
+    bind=True,
+    name="backend.app.tasks.execute_compliance_scan_async",
+    time_limit=3600,
+    soft_time_limit=3300,
+)
 def execute_compliance_scan_async(self, session_id: str, group_id: int, hosts: List[Dict], config: Dict[str, Any]):
     """
     Execute compliance scan asynchronously
@@ -329,64 +338,6 @@ def send_compliance_notification(session_id: str, group_id: int, summary: Dict[s
 
     except Exception as e:
         print(f"Failed to send compliance notification for session {session_id}: {str(e)}")
-
-
-@celery_app.task(name="backend.app.tasks.compliance_report_generation")
-def compliance_report_generation(group_id: int, report_config: Dict[str, Any]):
-    """
-    Generate comprehensive compliance reports
-    """
-    try:
-        with get_db_session() as db:
-            # Generate compliance report data
-            report_data = generate_compliance_report_data(db, group_id, report_config)
-
-            # Save report to file system or cloud storage
-            report_path = save_compliance_report(report_data, report_config.get("format", "json"))
-
-            # Update group with latest report
-            db.execute(
-                text(
-                    """
-                UPDATE host_groups
-                SET last_compliance_report = :report_path,
-                    last_report_generated = :timestamp
-                WHERE id = :group_id
-            """
-                ),
-                {
-                    "group_id": group_id,
-                    "report_path": report_path,
-                    "timestamp": datetime.utcnow(),
-                },
-            )
-            db.commit()
-
-            print(f"Compliance report generated for group {group_id}: {report_path}")
-
-    except Exception as e:
-        print(f"Failed to generate compliance report for group {group_id}: {str(e)}")
-
-
-def generate_compliance_report_data(db: Session, group_id: int, config: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Generate compliance report data from database
-    """
-    # This would contain the logic to generate comprehensive compliance reports
-    # Similar to the report endpoint but for background processing
-
-
-def save_compliance_report(report_data: Dict[str, Any], format: str = "json") -> str:
-    """
-    Save compliance report to storage
-    """
-    # This would handle saving reports to file system, S3, etc.
-    timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-    filename = f"compliance_report_{timestamp}.{format}"
-
-    # Mock implementation - in reality, save to appropriate storage
-    print(f"Saving compliance report: {filename}")
-    return f"/reports/compliance/{filename}"
 
 
 @celery_app.task(name="backend.app.tasks.compliance_alert_check")

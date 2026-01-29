@@ -1,5 +1,9 @@
 """
-Background tasks for host monitoring and credential maintenance
+Background tasks for host monitoring.
+
+Active Celery tasks:
+    - check_host_connectivity: Comprehensive ping/port/SSH check for a single host
+    - queue_host_checks: Dispatcher that queues hosts due for monitoring
 """
 
 import logging
@@ -9,93 +13,20 @@ from sqlalchemy import text
 
 from app.celery_app import celery_app
 from app.config import get_settings
-from app.database import get_db, get_db_session
+from app.database import get_db_session
 from app.encryption import EncryptionConfig, create_encryption_service
-from app.services.auth import get_auth_service
 from app.services.host_monitor import get_host_monitor
 from app.services.host_monitoring_state import HostMonitoringStateMachine
 
 logger = logging.getLogger(__name__)
 
 
-def periodic_host_monitoring():
-    """
-    Periodic task to monitor all hosts
-    This can be called by Celery or a scheduler like cron
-    """
-    try:
-        logger.info("Starting periodic host monitoring...")
-
-        # Get database session
-        db = next(get_db())
-
-        # Create encryption service
-        settings = get_settings()
-        encryption_service = create_encryption_service(master_key=settings.master_key, config=EncryptionConfig())
-
-        # Create host monitor with dependencies
-        monitor = get_host_monitor(db, encryption_service)
-
-        # Monitor all hosts
-        import asyncio
-
-        results = asyncio.run(monitor.monitor_all_hosts(db))
-
-        # Log results
-        online_count = sum(1 for r in results if r["status"] == "online")
-        total_count = len(results)
-
-        logger.info(f"Host monitoring completed: {online_count}/{total_count} hosts online")
-
-        # Log any status changes
-        for result in results:
-            if result.get("error_message"):
-                logger.warning(f"Host {result['hostname']} ({result['ip_address']}): {result['error_message']}")
-
-        db.close()
-        return f"Monitored {total_count} hosts, {online_count} online"
-
-    except Exception as e:
-        logger.error(f"Error in periodic host monitoring: {e}")
-        return f"Error: {str(e)}"
-
-
-def periodic_credential_purge():
-    """
-    Daily task to purge inactive credentials older than 90 days.
-    Maintains compliance audit trail while preventing unbounded database growth.
-    """
-    try:
-        logger.info("Starting periodic credential purge (90-day retention)...")
-
-        # Get database session
-        db = next(get_db())
-
-        try:
-            # Create encryption service
-            settings = get_settings()
-            encryption_service = create_encryption_service(master_key=settings.master_key, config=EncryptionConfig())
-
-            # Purge old inactive credentials
-            auth_service = get_auth_service(db, encryption_service)
-            purged_count = auth_service.purge_old_inactive_credentials(retention_days=90)
-
-            if purged_count > 0:
-                logger.info(f"Credential purge completed: {purged_count} inactive credentials removed")
-            else:
-                logger.debug("Credential purge completed: No credentials to purge")
-
-            return f"Purged {purged_count} old inactive credentials"
-
-        finally:
-            db.close()
-
-    except Exception as e:
-        logger.error(f"Error in periodic credential purge: {e}")
-        return f"Error: {str(e)}"
-
-
-@celery_app.task(bind=True, name="backend.app.tasks.check_host_connectivity")
+@celery_app.task(
+    bind=True,
+    name="backend.app.tasks.check_host_connectivity",
+    time_limit=300,
+    soft_time_limit=240,
+)
 def check_host_connectivity(self, host_id: str, priority: int = 5) -> dict:
     """
     Perform comprehensive connectivity check for a host (ping → port → SSH).
@@ -242,7 +173,12 @@ def check_host_connectivity(self, host_id: str, priority: int = 5) -> dict:
         raise self.retry(exc=exc, countdown=min(2**self.request.retries * 60, 300), max_retries=3)
 
 
-@celery_app.task(bind=True, name="backend.app.tasks.queue_host_checks")
+@celery_app.task(
+    bind=True,
+    name="backend.app.tasks.queue_host_checks",
+    time_limit=120,
+    soft_time_limit=90,
+)
 def queue_host_checks(self, limit: int = 100) -> dict:
     """
     Queue connectivity checks for hosts that are due for monitoring.
@@ -301,33 +237,3 @@ def queue_host_checks(self, limit: int = 100) -> dict:
     except Exception as exc:
         logger.error(f"Failed to queue host checks: {exc}")
         raise self.retry(exc=exc, countdown=60, max_retries=3)
-
-
-# Example function to set up periodic monitoring with APScheduler
-def setup_host_monitoring_scheduler():
-    """
-    Set up periodic host monitoring using APScheduler
-    This only creates the scheduler instance - jobs are configured by restore_scheduler_state()
-    """
-    try:
-        import atexit
-
-        from apscheduler.schedulers.background import BackgroundScheduler
-
-        scheduler = BackgroundScheduler()
-
-        # Don't auto-start or add jobs here - let restore_scheduler_state() handle it
-        # This allows database configuration to control the scheduler behavior
-        logger.info("Host monitoring scheduler instance created (not started)")
-
-        # Shut down the scheduler when exiting the app
-        atexit.register(lambda: scheduler.shutdown())
-
-        return scheduler
-
-    except ImportError:
-        logger.warning("APScheduler not available, periodic monitoring disabled")
-        return None
-    except Exception as e:
-        logger.error(f"Failed to setup monitoring scheduler: {e}")
-        return None

@@ -605,47 +605,73 @@ def _save_scan_results(db: Session, scan_id: str, scan_results: Dict[str, Any]) 
         logger.error(f"Failed to save scan results for {scan_id}: {e}")
 
 
-# Celery task wrapper (if Celery is available)
-try:
-    from celery import current_app
+# ---------------------------------------------------------------------------
+# Celery task for scan execution
+# ---------------------------------------------------------------------------
 
-    @current_app.task(bind=True)
-    def execute_scan_celery_task(
-        self: Any,
-        scan_id: str,
-        host_data: Dict[str, Any],
-        content_path: str,
-        profile_id: str,
-        scan_options: Dict[str, Any],
-    ) -> None:
-        """Celery task wrapper for scan execution"""
+from app.celery_app import celery_app  # noqa: E402
+
+
+@celery_app.task(
+    bind=True,
+    name="backend.app.tasks.execute_scan",
+    queue="scans",
+    time_limit=7200,
+    soft_time_limit=6600,
+    acks_late=True,
+    reject_on_worker_lost=True,
+    max_retries=1,
+)
+def execute_scan_celery(
+    self: Any,
+    scan_id: str,
+    host_data: Dict[str, Any],
+    content_path: str,
+    profile_id: str,
+    scan_options: Dict[str, Any],
+) -> None:
+    """
+    Celery task for scan execution with timeout and retry safety.
+
+    Wraps execute_scan_task with Celery lifecycle management:
+    - Stores celery_task_id for tracking
+    - Handles SoftTimeLimitExceeded gracefully
+    - Marks scan as failed on unrecoverable errors
+    - acks_late + reject_on_worker_lost ensures re-delivery on worker crash
+    """
+    from celery.exceptions import SoftTimeLimitExceeded
+
+    try:
+        # Record celery task ID for tracking
+        db = SessionLocal()
         try:
-            # Update task ID in database
-            db = SessionLocal()
             db.execute(
-                text(
-                    """
-                UPDATE scans SET celery_task_id = :task_id WHERE id = :scan_id
-            """
-                ),
+                text("UPDATE scans SET celery_task_id = :task_id WHERE id = :scan_id"),
                 {"task_id": self.request.id, "scan_id": scan_id},
             )
             db.commit()
+        finally:
             db.close()
 
-            # Execute scan
-            execute_scan_task(scan_id, host_data, content_path, profile_id, scan_options)
+        # Delegate to existing scan logic
+        execute_scan_task(scan_id, host_data, content_path, profile_id, scan_options)
 
-        except Exception as e:
-            logger.error(f"Celery task failed for scan {scan_id}: {e}")
-            # Update scan with failure
-            db = SessionLocal()
-            _update_scan_error(db, scan_id, f"Task execution failed: {str(e)}")
+    except SoftTimeLimitExceeded:
+        logger.error(f"Scan {scan_id} exceeded soft time limit (1h50m)")
+        db = SessionLocal()
+        try:
+            _update_scan_error(db, scan_id, "Scan timed out after 1 hour 50 minutes")
+        finally:
             db.close()
-            raise
 
-except ImportError:
-    logger.info("Celery not available, using background tasks only")
+    except Exception as exc:
+        logger.error(f"Celery scan task failed for {scan_id}: {exc}", exc_info=True)
+        db = SessionLocal()
+        try:
+            _update_scan_error(db, scan_id, f"Task execution failed: {str(exc)}")
+        finally:
+            db.close()
+        raise self.retry(exc=exc, countdown=120, max_retries=1)
 
 
 async def _process_semantic_intelligence(
