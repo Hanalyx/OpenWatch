@@ -113,6 +113,7 @@ jobs:
           OPENWATCH_SECRET_KEY: test_secret_key_for_ci_must_be_32_chars_minimum  # pragma: allowlist secret
           OPENWATCH_MASTER_KEY: test_master_key_for_ci_32bytes_long_minimum!!  # pragma: allowlist secret
           OPENWATCH_ENVIRONMENT: test
+          OPENWATCH_DEBUG: "true"
           OPENWATCH_AUDIT_LOG_FILE: ./logs/audit.log
           TESTING: true
         run: |
