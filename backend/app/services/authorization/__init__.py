@@ -38,11 +38,11 @@ Security Features:
     - In-memory permission caching with TTL
 
 Quick Start:
-    from backend.app.services.authorization import (
+    from app.services.authorization import (
         AuthorizationService,
         get_authorization_service,
     )
-    from backend.app.models.authorization_models import (
+    from app.models.authorization_models import (
         ActionType,
         ResourceIdentifier,
         ResourceType,
@@ -68,7 +68,7 @@ Quick Start:
         print(f"Access denied: {result.reason}")
 
     # Check bulk permissions
-    from backend.app.models.authorization_models import BulkAuthorizationRequest
+    from app.models.authorization_models import BulkAuthorizationRequest
 
     bulk_request = BulkAuthorizationRequest(
         user_id="user-123",
@@ -98,7 +98,7 @@ import logging
 
 # Re-export commonly used models for convenience
 # Note: Models stay in models/authorization_models.py per Option B pattern
-from backend.app.models.authorization_models import (  # noqa: F401
+from app.models.authorization_models import (  # noqa: F401
     ActionType,
     AuthorizationAuditEvent,
     AuthorizationConfiguration,

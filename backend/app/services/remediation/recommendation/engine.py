@@ -12,14 +12,14 @@ from datetime import datetime, timedelta
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-from backend.app.models.unified_rule_models import (
+from app.models.unified_rule_models import (
     ComplianceStatus,
     FrameworkMapping,
     PlatformImplementation,
     RuleExecution,
     UnifiedComplianceRule,
 )
-from backend.app.services.multi_framework_scanner import FrameworkResult, HostResult, ScanResult
+from app.services.multi_framework_scanner import FrameworkResult, HostResult, ScanResult
 
 
 # Simplified ORSA models for PR #12 implementation

@@ -31,7 +31,7 @@ Table Schema (ssh_known_hosts):
     - notes: Optional notes about the host
 
 Usage:
-    from backend.app.services.ssh.known_hosts import KnownHostsManager
+    from app.services.ssh.known_hosts import KnownHostsManager
 
     known_hosts = KnownHostsManager(db)
 
@@ -93,7 +93,7 @@ class KnownHostsManager:
         db: SQLAlchemy database session for persistence operations
 
     Example:
-        >>> from backend.app.services.ssh.known_hosts import KnownHostsManager
+        >>> from app.services.ssh.known_hosts import KnownHostsManager
         >>> manager = KnownHostsManager(db)
         >>>
         >>> # Get all known hosts
@@ -255,13 +255,15 @@ class KnownHostsManager:
 
             # Insert new known host record
             self.db.execute(
-                text("""
+                text(
+                    """
                     INSERT INTO ssh_known_hosts
                     (hostname, ip_address, key_type, public_key, fingerprint,
                      first_seen, is_trusted, notes)
                     VALUES (:hostname, :ip_address, :key_type, :public_key,
                             :fingerprint, :first_seen, :is_trusted, :notes)
-                """),
+                """
+                ),
                 {
                     "hostname": hostname,
                     "ip_address": ip_address,
@@ -319,10 +321,12 @@ class KnownHostsManager:
                 return False
 
             result = self.db.execute(
-                text("""
+                text(
+                    """
                     DELETE FROM ssh_known_hosts
                     WHERE hostname = :hostname AND key_type = :key_type
-                """),
+                """
+                ),
                 {"hostname": hostname, "key_type": key_type},
             )
 
@@ -364,11 +368,13 @@ class KnownHostsManager:
                 return False
 
             result = self.db.execute(
-                text("""
+                text(
+                    """
                     UPDATE ssh_known_hosts
                     SET last_verified = :last_verified
                     WHERE hostname = :hostname AND key_type = :key_type
-                """),
+                """
+                ),
                 {
                     "hostname": hostname,
                     "key_type": key_type,
@@ -412,11 +418,13 @@ class KnownHostsManager:
                 return False
 
             result = self.db.execute(
-                text("""
+                text(
+                    """
                     UPDATE ssh_known_hosts
                     SET is_trusted = :is_trusted
                     WHERE hostname = :hostname AND key_type = :key_type
-                """),
+                """
+                ),
                 {
                     "hostname": hostname,
                     "key_type": key_type,
@@ -457,12 +465,14 @@ class KnownHostsManager:
                 return None
 
             result = self.db.execute(
-                text("""
+                text(
+                    """
                     SELECT id, hostname, ip_address, key_type, fingerprint,
                            first_seen, last_verified, is_trusted, notes
                     FROM ssh_known_hosts
                     WHERE fingerprint = :fingerprint
-                """),
+                """
+                ),
                 {"fingerprint": fingerprint},
             )
 

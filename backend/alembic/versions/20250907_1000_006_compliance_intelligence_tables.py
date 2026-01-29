@@ -134,7 +134,7 @@ def upgrade() -> None:
         CREATE OR REPLACE VIEW compliance_intelligence_summary AS
         SELECT
             h.id as host_id,
-            h.name as host_name,
+            h.hostname as host_name,
             COUNT(DISTINCT fcm.framework) as frameworks_tracked,
             AVG(fcm.compliance_score) as average_compliance_score,
             MAX(fcm.last_updated) as last_updated,
@@ -143,7 +143,7 @@ def upgrade() -> None:
             SUM(CASE WHEN fcm.trend = 'declining' THEN 1 ELSE 0 END) as declining_frameworks
         FROM hosts h
         LEFT JOIN framework_compliance_matrix fcm ON h.id = fcm.host_id
-        GROUP BY h.id, h.name
+        GROUP BY h.id, h.hostname
         ORDER BY average_compliance_score DESC;
     """
     )

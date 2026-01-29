@@ -34,17 +34,15 @@ const initialState: ContentState = {
 };
 
 export const fetchContents = createAsyncThunk('content/fetchContents', async () => {
-  const response = await api.get('/content');
-  return response.data;
+  return api.get<Content[]>('/content');
 });
 
 export const uploadContent = createAsyncThunk(
   'content/uploadContent',
   async (file: File, { dispatch }) => {
-    const response = await api.uploadFile('/content/upload', file, (progress) => {
+    return api.uploadFile<Content>('/content/upload', file, (progress) => {
       dispatch(updateUploadProgress(progress));
     });
-    return response.data;
   }
 );
 

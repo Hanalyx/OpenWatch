@@ -25,7 +25,7 @@ Connection Flow:
     6. Clean up connection on completion or error
 
 Usage:
-    from backend.app.services.ssh.connection_manager import SSHConnectionManager
+    from app.services.ssh.connection_manager import SSHConnectionManager
 
     manager = SSHConnectionManager(db)
 
@@ -104,7 +104,7 @@ class SSHConnectionManager:
         _debug_mode: Whether paramiko debug logging is enabled
 
     Example:
-        >>> from backend.app.services.ssh.connection_manager import SSHConnectionManager
+        >>> from app.services.ssh.connection_manager import SSHConnectionManager
         >>> manager = SSHConnectionManager(db)
         >>>
         >>> # Connect with SSH key

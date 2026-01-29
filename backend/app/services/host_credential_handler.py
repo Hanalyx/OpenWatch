@@ -25,7 +25,7 @@ Security:
     - Generic error messages to client (detailed logs server-side)
 
 Example Usage:
-    from backend.app.services.host_credential_handler import HostCredentialHandler
+    from app.services.host_credential_handler import HostCredentialHandler
 
     handler = HostCredentialHandler(db)
 
@@ -56,13 +56,7 @@ from typing import Any, Dict, Optional
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
-from .auth_service import (
-    AuthMethod,
-    CredentialData,
-    CredentialMetadata,
-    CredentialScope,
-    get_auth_service,
-)
+from .auth import AuthMethod, CredentialData, CredentialMetadata, CredentialScope, get_auth_service
 
 # validate_ssh_key validates key format and security level
 from .ssh import validate_ssh_key

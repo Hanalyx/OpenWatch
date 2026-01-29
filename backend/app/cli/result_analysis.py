@@ -10,8 +10,8 @@ import json
 import sys
 from typing import List
 
-from backend.app.services.multi_framework_scanner import ScanResult
-from backend.app.services.result_aggregation_service import (
+from app.services.multi_framework_scanner import ScanResult
+from app.services.result_aggregation_service import (
     AggregationLevel,
     ResultAggregationService,
 )

@@ -5,7 +5,7 @@ Single source of truth for application version.
 Reads from the VERSION file at the repository root.
 
 Usage:
-    from backend.app.version import __version__, get_version_info
+    from app.version import __version__, get_version_info
 
     print(__version__)  # "0.1.0"
     print(get_version_info())  # {"version": "0.1.0", "codename": "Eyrie", ...}

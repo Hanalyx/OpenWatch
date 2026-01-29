@@ -17,7 +17,7 @@ Migration Status (API Standardization - Phase 4):
 
 Usage:
     # Import the router in main.py
-    from backend.app.routes.integrations import router
+    from app.routes.integrations import router
     app.include_router(router, prefix="/api")
 
 Router Organization:

@@ -9,7 +9,6 @@ import {
   Box,
   Container,
   Typography,
-  Grid,
   Button,
   TextField,
   InputAdornment,
@@ -20,6 +19,7 @@ import {
   DialogContent,
   DialogActions,
 } from '@mui/material';
+import Grid from '@mui/material/GridLegacy';
 import { Search as SearchIcon, Add as AddIcon } from '@mui/icons-material';
 import {
   useTemplates,

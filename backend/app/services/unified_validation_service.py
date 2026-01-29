@@ -21,7 +21,7 @@ from ..models.error_models import (
     ValidationResultInternal,
     ValidationResultResponse,
 )
-from .auth_service import CentralizedAuthService, CredentialData
+from .auth import CentralizedAuthService, CredentialData
 
 # UnifiedSCAPScanner provides test_ssh_connection and legacy compatibility
 from .engine.scanners import UnifiedSCAPScanner

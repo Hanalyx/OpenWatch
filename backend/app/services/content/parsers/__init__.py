@@ -11,7 +11,7 @@ Available Parsers:
 - DatastreamParser: SCAP 1.3 datastream parser
 
 Usage:
-    from backend.app.services.content.parsers import (
+    from app.services.content.parsers import (
         SCAPParser,
         DatastreamParser,
         get_parser_for_format,

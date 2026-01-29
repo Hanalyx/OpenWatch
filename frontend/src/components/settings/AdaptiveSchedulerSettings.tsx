@@ -8,7 +8,6 @@ import {
   TextField,
   Button,
   Alert,
-  Grid,
   Chip,
   FormControl,
   InputLabel,
@@ -20,6 +19,7 @@ import {
   Tooltip,
   LinearProgress,
 } from '@mui/material';
+import Grid from '@mui/material/GridLegacy';
 import {
   Schedule as ScheduleIcon,
   PlayArrow as PlayIcon,
@@ -87,7 +87,7 @@ const AdaptiveSchedulerSettings: React.FC<AdaptiveSchedulerSettingsProps> = ({
   const loadConfig = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/api/system/adaptive-scheduler/config');
+      const response = await api.get<SchedulerConfig>('/api/system/adaptive-scheduler/config');
       setConfig(response);
       setLocalIntervals(response.intervals);
     } catch (err) {
@@ -101,7 +101,7 @@ const AdaptiveSchedulerSettings: React.FC<AdaptiveSchedulerSettingsProps> = ({
 
   const loadStats = async () => {
     try {
-      const response = await api.get('/api/system/adaptive-scheduler/stats');
+      const response = await api.get<SchedulerStats>('/api/system/adaptive-scheduler/stats');
       setStats(response);
     } catch (err) {
       // Type-safe error handling: check if error has message property

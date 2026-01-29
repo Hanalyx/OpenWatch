@@ -16,8 +16,8 @@ from typing import Any, Dict, List, Optional, Tuple
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from backend.app.encryption import EncryptionService
-from backend.app.services.ssh import extract_ssh_key_metadata, validate_ssh_key
+from app.encryption import EncryptionService
+from app.services.ssh import extract_ssh_key_metadata, validate_ssh_key
 
 from .exceptions import (
     AuthMethodMismatchError,
@@ -125,7 +125,8 @@ class CentralizedAuthService:
             current_time = datetime.utcnow()
 
             self.db.execute(
-                text("""
+                text(
+                    """
                 INSERT INTO unified_credentials
                 (id, name, description, scope, target_id, username, auth_method,
                  encrypted_password, encrypted_private_key, encrypted_passphrase,
@@ -135,7 +136,8 @@ class CentralizedAuthService:
                         :encrypted_password, :encrypted_private_key, :encrypted_passphrase,
                         :ssh_key_fingerprint, :ssh_key_type, :ssh_key_bits, :ssh_key_comment,
                         :is_default, :is_active, :created_by, :created_at, :updated_at)
-            """),
+            """
+                ),
                 {
                     "id": metadata.id,
                     "name": metadata.name,
@@ -186,12 +188,14 @@ class CentralizedAuthService:
         """
         try:
             result = self.db.execute(
-                text("""
+                text(
+                    """
                 SELECT username, auth_method, encrypted_password, encrypted_private_key,
                        encrypted_passphrase, scope, target_id
                 FROM unified_credentials
                 WHERE id = :id AND is_active = true
-            """),
+            """
+                ),
                 {"id": credential_id},
             )
 
@@ -360,14 +364,16 @@ class CentralizedAuthService:
         """Get host-specific credential from unified_credentials table."""
         try:
             result = self.db.execute(
-                text("""
+                text(
+                    """
                 SELECT id FROM unified_credentials
                 WHERE scope = 'host'
                   AND target_id = :target_id
                   AND is_active = true
                 ORDER BY created_at DESC
                 LIMIT 1
-            """),
+            """
+                ),
                 {"target_id": target_id},
             )
 
@@ -387,11 +393,15 @@ class CentralizedAuthService:
     def _get_system_default(self) -> Optional[CredentialData]:
         """Get system default credential from unified_credentials table."""
         try:
-            result = self.db.execute(text("""
+            result = self.db.execute(
+                text(
+                    """
                 SELECT id FROM unified_credentials
                 WHERE scope = 'system' AND is_default = true AND is_active = true
                 LIMIT 1
-            """))
+            """
+                )
+            )
 
             row = result.fetchone()
             if row:
@@ -494,18 +504,24 @@ class CentralizedAuthService:
         """Unset existing default credentials in the same scope."""
         try:
             if scope == CredentialScope.SYSTEM:
-                self.db.execute(text("""
+                self.db.execute(
+                    text(
+                        """
                     UPDATE unified_credentials
                     SET is_default = false
                     WHERE scope = 'system' AND is_default = true
-                """))
+                """
+                    )
+                )
             else:
                 self.db.execute(
-                    text("""
+                    text(
+                        """
                     UPDATE unified_credentials
                     SET is_default = false
                     WHERE scope = :scope AND target_id = :target_id AND is_default = true
-                """),
+                """
+                    ),
                     {"scope": scope.value, "target_id": target_id},
                 )
 
@@ -603,11 +619,13 @@ class CentralizedAuthService:
         """
         try:
             result = self.db.execute(
-                text("""
+                text(
+                    """
                 UPDATE unified_credentials
                 SET is_active = false, updated_at = :updated_at
                 WHERE id = :id
-            """),
+            """
+                ),
                 {"id": credential_id, "updated_at": datetime.utcnow()},
             )
 
@@ -639,11 +657,13 @@ class CentralizedAuthService:
             cutoff_date = datetime.utcnow() - timedelta(days=retention_days)
 
             result = self.db.execute(
-                text("""
+                text(
+                    """
                 DELETE FROM unified_credentials
                 WHERE is_active = false
                   AND updated_at < :cutoff_date
-            """),
+            """
+                ),
                 {"cutoff_date": cutoff_date},
             )
 
@@ -674,7 +694,7 @@ def get_auth_service(db: Session, encryption_service: EncryptionService) -> Cent
 
     Example:
         from fastapi import Depends
-        from backend.app.database import get_db, get_encryption_service
+        from app.database import get_db, get_encryption_service
 
         @router.post("/credentials")
         async def create_credential(

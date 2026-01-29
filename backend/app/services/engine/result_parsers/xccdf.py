@@ -21,7 +21,7 @@ Security Notes:
 - Sanitized error messages
 
 Usage:
-    from backend.app.services.engine.result_parsers import XCCDFResultParser
+    from app.services.engine.result_parsers import XCCDFResultParser
 
     parser = XCCDFResultParser()
 

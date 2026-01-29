@@ -40,26 +40,26 @@ Supported Content Formats:
 
 Quick Start:
     # Parse a SCAP datastream
-    from backend.app.services.content import parse_content, ContentFormat
+    from app.services.content import parse_content, ContentFormat
 
     content = parse_content("/path/to/ssg-rhel8-ds.xml")
     print(f"Parsed {len(content.rules)} rules from {content.source_file}")
 
     # Transform to MongoDB format
-    from backend.app.services.content import transform_to_mongodb
+    from app.services.content import transform_to_mongodb
 
     result = transform_to_mongodb(content)
     print(f"Transformed {result.rules_transformed} rules")
 
     # Import to MongoDB
-    from backend.app.services.content import ContentImporter
+    from app.services.content import ContentImporter
 
     importer = ContentImporter(db)
     result = await importer.import_rules(result.rules)
     print(f"Imported {result.imported_count} rules")
 
     # Validate dependencies for remote transfer
-    from backend.app.services.content import DependencyValidator
+    from app.services.content import DependencyValidator
 
     validator = DependencyValidator()
     deps = validator.resolve("/path/to/xccdf.xml")

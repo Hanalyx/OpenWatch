@@ -12,7 +12,7 @@ import {
   Typography,
   Box,
   List,
-  ListItem,
+  ListItemButton,
   ListItemText,
   ListItemIcon,
   Checkbox,
@@ -194,7 +194,7 @@ const BulkConfigurationDialog: React.FC<BulkConfigurationDialogProps> = ({
           }}
         >
           {unconfiguredGroups.map((group) => (
-            <ListItem key={group.id} dense button onClick={() => handleGroupToggle(group.id)}>
+            <ListItemButton key={group.id} dense onClick={() => handleGroupToggle(group.id)}>
               <ListItemIcon>
                 <Checkbox checked={selectedGroups.includes(group.id)} tabIndex={-1} disableRipple />
               </ListItemIcon>
@@ -202,7 +202,7 @@ const BulkConfigurationDialog: React.FC<BulkConfigurationDialogProps> = ({
                 <GroupIcon />
               </ListItemIcon>
               <ListItemText primary={group.name} secondary={`${group.host_count} hosts`} />
-            </ListItem>
+            </ListItemButton>
           ))}
         </List>
 

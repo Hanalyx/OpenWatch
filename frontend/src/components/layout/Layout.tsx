@@ -26,7 +26,7 @@ import {
  * Window interface extension for legacy browser bookmark APIs
  * These APIs are deprecated but still exist in some browsers
  */
-interface WindowWithBookmarkAPI extends Window {
+interface WindowWithBookmarkAPI {
   external?: {
     AddSearchProvider?: unknown;
     AddFavorite?: (url: string, title: string) => void;
@@ -189,7 +189,7 @@ const Layout: React.FC = () => {
   // Fetch system alerts (OS discovery failures, etc.) periodically
   const fetchSystemAlerts = useCallback(async () => {
     try {
-      const response = await api.get('/api/system/os-discovery/failures/count');
+      const response = await api.get<{ count: number }>('/api/system/os-discovery/failures/count');
       dispatch(setOSDiscoveryFailures(response.count || 0));
     } catch {
       // Silently fail - alerts are not critical for app operation

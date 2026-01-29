@@ -20,7 +20,7 @@ Security Controls:
 - Type safety with strict type hints
 
 Example:
-    >>> from backend.app.services.owca import get_owca_service
+    >>> from app.services.owca import get_owca_service
     >>> owca = get_owca_service(db)
     >>> result = await owca.calculate_severity_risk(
     ...     critical=3,

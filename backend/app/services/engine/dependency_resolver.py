@@ -28,7 +28,7 @@ Design Philosophy:
     - Testable: Pure functions where possible, clear interfaces
 
 Usage:
-    from backend.app.services.engine import SCAPDependencyResolver, SCAPDependency
+    from app.services.engine import SCAPDependencyResolver, SCAPDependency
 
     resolver = SCAPDependencyResolver()
     dependencies = resolver.resolve(Path("/app/data/scap/xccdf.xml"))
@@ -531,7 +531,7 @@ def get_dependency_resolver() -> SCAPDependencyResolver:
         New SCAPDependencyResolver instance.
 
     Example:
-        >>> from backend.app.services.engine import get_dependency_resolver
+        >>> from app.services.engine import get_dependency_resolver
         >>> resolver = get_dependency_resolver()
         >>> deps = resolver.resolve(content_path)
     """

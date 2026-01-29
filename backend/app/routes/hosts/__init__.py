@@ -22,14 +22,14 @@ Migration Status (API Standardization - Phase 3):
 
 Usage:
     # Import the router in main.py
-    from backend.app.routes.hosts import router
+    from app.routes.hosts import router
     app.include_router(router, prefix="/api/hosts")
 
     # Import models directly
-    from backend.app.routes.hosts.models import Host, HostCreate
+    from app.routes.hosts.models import Host, HostCreate
 
     # Import helpers
-    from backend.app.routes.hosts.helpers import validate_host_uuid
+    from app.routes.hosts.helpers import validate_host_uuid
 
 Router Organization:
     The main router aggregates all sub-routers with their endpoints:
@@ -116,6 +116,10 @@ except ImportError as e:
 # Re-export helpers for convenient access - use relative imports
 from .helpers import validate_host_uuid  # noqa: E402
 
+# Re-export validate_ssh_key for backward compatibility and testing
+# This function is used in crud.py for SSH key validation
+from ...services.ssh import validate_ssh_key  # noqa: E402, F401
+
 # Re-export models for convenient access - use relative imports
 from .models import (  # noqa: E402
     BulkComplianceDiscoveryRequest,
@@ -168,4 +172,6 @@ __all__ = [
     "ComplianceCapabilityAssessment",
     # Helpers
     "validate_host_uuid",
+    # SSH validation (re-exported for backward compatibility)
+    "validate_ssh_key",
 ]

@@ -12,9 +12,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from backend.app.models.unified_rule_models import UnifiedComplianceRule
-from backend.app.services.compliance_justification_engine import ComplianceJustificationEngine
-from backend.app.services.multi_framework_scanner import ScanResult
+from app.models.unified_rule_models import UnifiedComplianceRule
+from app.services.compliance_justification_engine import ComplianceJustificationEngine
+from app.services.multi_framework_scanner import ScanResult
 
 
 async def load_scan_results(file_path: str) -> Optional[ScanResult]:

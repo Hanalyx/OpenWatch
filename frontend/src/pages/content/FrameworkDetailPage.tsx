@@ -14,7 +14,6 @@ import {
   Tabs,
   Tab,
   Paper,
-  Grid,
   Chip,
   Button,
   CircularProgress,
@@ -26,6 +25,7 @@ import {
   TableHead,
   TableRow,
 } from '@mui/material';
+import Grid from '@mui/material/GridLegacy';
 import {
   Home as HomeIcon,
   Article as ArticleIcon,

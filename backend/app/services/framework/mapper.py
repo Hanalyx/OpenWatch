@@ -10,7 +10,7 @@ Classes:
     - ComplianceFrameworkMapper: Service for mapping SCAP rules to frameworks
 
 Example:
-    >>> from backend.app.services.framework import ComplianceFrameworkMapper
+    >>> from app.services.framework import ComplianceFrameworkMapper
     >>>
     >>> mapper = ComplianceFrameworkMapper()
     >>> mappings = mapper.map_scap_rule_to_frameworks("xccdf_rule_id")

@@ -281,8 +281,12 @@ class OWCAService {
     layers: string[];
   }> {
     try {
-      const response = await api.get('/api/compliance/owca/version');
-      return response;
+      return api.get<{
+        algorithm: string;
+        version: string;
+        description: string;
+        layers: string[];
+      }>('/api/compliance/owca/version');
     } catch (error) {
       console.error('Failed to fetch OWCA version:', error);
       throw error;

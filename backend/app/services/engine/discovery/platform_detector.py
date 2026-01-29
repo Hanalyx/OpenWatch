@@ -15,8 +15,8 @@ SSH Connection Pattern:
     handle encryption/decryption internally.
 
 Usage:
-    from backend.app.services.auth import CentralizedAuthService, CredentialData
-    from backend.app.services.engine.discovery import PlatformDetector
+    from app.services.auth import CentralizedAuthService, CredentialData
+    from app.services.engine.discovery import PlatformDetector
 
     # Step 1: Resolve credentials at the entry point (API/task)
     auth_service = CentralizedAuthService(db, encryption_service)
@@ -40,10 +40,10 @@ from typing import TYPE_CHECKING, Any, Dict, Optional
 
 from sqlalchemy.orm import Session
 
-from backend.app.services.ssh import SSHConnectionManager
+from app.services.ssh import SSHConnectionManager
 
 if TYPE_CHECKING:
-    from backend.app.services.auth import CredentialData
+    from app.services.auth import CredentialData
 
 logger = logging.getLogger(__name__)
 
@@ -89,8 +89,8 @@ class PlatformDetector:
         (API endpoint or task).
 
     Usage:
-        from backend.app.services.auth import CentralizedAuthService
-        from backend.app.services.engine.discovery import PlatformDetector
+        from app.services.auth import CentralizedAuthService
+        from app.services.engine.discovery import PlatformDetector
 
         # At API endpoint - resolve credentials
         auth_service = CentralizedAuthService(db, encryption_service)
@@ -449,7 +449,7 @@ async def detect_platform_for_scan(
         PlatformInfo with detected platform data
 
     Example:
-        from backend.app.services.auth import CentralizedAuthService
+        from app.services.auth import CentralizedAuthService
 
         # At API endpoint - resolve credentials first
         auth_service = CentralizedAuthService(db, encryption_service)

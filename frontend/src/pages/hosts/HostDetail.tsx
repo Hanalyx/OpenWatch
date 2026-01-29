@@ -6,7 +6,6 @@ import {
   Box,
   Card,
   CardContent,
-  Grid,
   Chip,
   Button,
   IconButton,
@@ -28,6 +27,7 @@ import {
   CircularProgress,
   Tooltip,
 } from '@mui/material';
+import Grid from '@mui/material/GridLegacy';
 import {
   ArrowBack as ArrowBackIcon,
   Computer as ComputerIcon,
@@ -154,7 +154,7 @@ const HostDetail: React.FC = () => {
 
   const fetchEnhancedHostData = async () => {
     try {
-      const hosts = await api.get('/api/hosts/');
+      const hosts = await api.get<Host[]>('/api/hosts/');
       // Type-safe host lookup using existing Host interface which includes enhanced scan fields
       const enhancedHost = hosts.find((h: Host) => h.id === id);
       if (enhancedHost) {
@@ -175,7 +175,7 @@ const HostDetail: React.FC = () => {
 
   const fetchHostDetails = async () => {
     try {
-      const hostData = await api.get(`/api/hosts/${id}`);
+      const hostData = await api.get<Host>(`/api/hosts/${id}`);
       setHost(hostData);
     } catch (error) {
       console.error('Error fetching host details:', error);
@@ -186,7 +186,7 @@ const HostDetail: React.FC = () => {
   const fetchHostScans = async () => {
     try {
       // Use trailing slash to avoid redirect
-      const data = await api.get(`/api/scans/?host_id=${id}`);
+      const data = await api.get<{ scans: Scan[] }>(`/api/scans/?host_id=${id}`);
       // Retrieved scan history for host display
       setScans(data.scans || []);
     } catch (error) {
@@ -668,7 +668,19 @@ const HostDetail: React.FC = () => {
             </Typography>
             <Card>
               <CardContent>
-                <ComplianceTrendChart hostId={host.id} height={300} />
+                <ComplianceTrendChart
+                  data={scans
+                    .filter((scan) => scan.completed_at && scan.results)
+                    .map((scan) => ({
+                      timestamp: scan.completed_at,
+                      score: parseFloat(scan.results?.score || '0'),
+                      passed_rules: scan.results?.passed_rules || 0,
+                      failed_rules: scan.results?.failed_rules || 0,
+                      total_rules: scan.results?.total_rules || 0,
+                      scan_id: scan.id,
+                    }))}
+                  height={300}
+                />
               </CardContent>
             </Card>
           </Box>

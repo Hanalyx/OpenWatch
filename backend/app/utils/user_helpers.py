@@ -24,7 +24,7 @@ Security:
     - Input validation on all user IDs
 
 Example Usage:
-    from backend.app.utils.user_helpers import (
+    from app.utils.user_helpers import (
         validate_user_id,
         serialize_user_row
     )

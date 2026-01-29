@@ -17,7 +17,7 @@ Metadata Fields:
     - error: Error message if extraction failed
 
 Usage:
-    from backend.app.services.ssh.key_metadata import extract_ssh_key_metadata
+    from app.services.ssh.key_metadata import extract_ssh_key_metadata
 
     metadata = extract_ssh_key_metadata(private_key_content)
     if metadata["error"] is None:

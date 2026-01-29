@@ -35,7 +35,7 @@ Design Philosophy:
     - OW-REFACTOR-002: Repository Pattern (MANDATORY)
 
 Quick Start:
-    from backend.app.services.rules import (
+    from app.services.rules import (
         RuleService,
         RuleCacheService,
         RuleAssociationService,

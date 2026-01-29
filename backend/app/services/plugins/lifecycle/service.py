@@ -15,9 +15,9 @@ import semver
 from beanie import Document
 from pydantic import BaseModel, Field, validator
 
-from backend.app.models.plugin_models import InstalledPlugin, PluginStatus
-from backend.app.services.plugins.execution.service import PluginExecutionService
-from backend.app.services.plugins.registry.service import PluginRegistryService
+from app.models.plugin_models import InstalledPlugin, PluginStatus
+from app.services.plugins.execution.service import PluginExecutionService
+from app.services.plugins.registry.service import PluginRegistryService
 
 logger = logging.getLogger(__name__)
 

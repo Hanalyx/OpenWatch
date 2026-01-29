@@ -24,13 +24,13 @@ from typing import Any, Dict, List, Optional
 import lxml.etree as etree  # nosec B410 (secure parser configuration below)
 from fastapi import HTTPException, Request, Response
 
-from backend.app.services.compliance_framework_reporting import ComplianceFrameworkReporter
-from backend.app.services.engine.scanners import UnifiedSCAPScanner
-from backend.app.services.error_classification import ErrorClassificationService
-from backend.app.services.error_sanitization import get_error_sanitization_service
-from backend.app.services.owca import SeverityCalculator, XCCDFParser
-from backend.app.services.result_enrichment_service import ResultEnrichmentService
-from backend.app.utils.logging_security import sanitize_path_for_log
+from app.services.compliance_framework_reporting import ComplianceFrameworkReporter
+from app.services.engine.scanners import UnifiedSCAPScanner
+from app.services.error_classification import ErrorClassificationService
+from app.services.error_sanitization import get_error_sanitization_service
+from app.services.owca import SeverityCalculator, XCCDFParser
+from app.services.result_enrichment_service import ResultEnrichmentService
+from app.utils.logging_security import sanitize_path_for_log
 
 logger = logging.getLogger(__name__)
 

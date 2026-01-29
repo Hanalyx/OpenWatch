@@ -28,7 +28,7 @@ Security:
     - Comprehensive audit logging
 
 Example:
-    >>> from backend.app.services.owca import get_owca_service
+    >>> from app.services.owca import get_owca_service
     >>> owca = get_owca_service(db)
     >>>
     >>> # Extract XCCDF native score from XML file

@@ -18,11 +18,11 @@ Migration Status (API Standardization - Phase 4):
 
 Usage:
     # Import the router in main.py
-    from backend.app.routes.ssh import router
+    from app.routes.ssh import router
     app.include_router(router, prefix="/api")
 
     # Import models directly
-    from backend.app.routes.ssh.models import SSHPolicyRequest
+    from app.routes.ssh.models import SSHPolicyRequest
 
 Router Organization:
     The main router aggregates all sub-routers with their endpoints:

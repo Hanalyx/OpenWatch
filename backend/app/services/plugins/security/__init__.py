@@ -21,7 +21,7 @@ Security Checks Performed:
     - Cryptographic signature verification
 
 Usage:
-    from backend.app.services.plugins.security import (
+    from app.services.plugins.security import (
         PluginSecurityService,
         PluginSignatureService,
     )

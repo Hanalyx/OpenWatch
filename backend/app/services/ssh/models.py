@@ -18,7 +18,7 @@ Security Considerations:
 - Dataclasses use Optional types to handle missing data gracefully
 
 Usage:
-    from backend.app.services.ssh.models import (
+    from app.services.ssh.models import (
         SSHKeyType,
         SSHKeySecurityLevel,
         SSHKeyValidationResult,

@@ -37,32 +37,29 @@ export const templateService = {
    * List templates with optional filters
    */
   list: async (params?: { framework?: string; tags?: string }): Promise<ScanTemplate[]> => {
-    const response = await api.get('/api/scans/templates', { params });
-    return response.data || [];
+    const response = await api.get<ScanTemplate[]>('/api/scans/templates', { params });
+    return response || [];
   },
 
   /**
    * Get a single template by ID
    */
   get: async (id: string): Promise<ScanTemplate> => {
-    const response = await api.get(`/api/scans/templates/${id}`);
-    return response.data;
+    return api.get<ScanTemplate>(`/api/scans/templates/${id}`);
   },
 
   /**
    * Create a new template
    */
   create: async (data: CreateTemplateRequest): Promise<ScanTemplate> => {
-    const response = await api.post('/api/scans/templates', data);
-    return response.data;
+    return api.post<ScanTemplate>('/api/scans/templates', data);
   },
 
   /**
    * Update an existing template
    */
   update: async (id: string, data: UpdateTemplateRequest): Promise<ScanTemplate> => {
-    const response = await api.put(`/api/scans/templates/${id}`, data);
-    return response.data;
+    return api.put<ScanTemplate>(`/api/scans/templates/${id}`, data);
   },
 
   /**
@@ -76,18 +73,16 @@ export const templateService = {
    * Apply a template to a target (returns scan configuration)
    */
   apply: async (id: string, request: ApplyTemplateRequest): Promise<AppliedTemplateResponse> => {
-    const response = await api.post(`/api/scans/templates/${id}/apply`, request);
-    return response.data;
+    return api.post<AppliedTemplateResponse>(`/api/scans/templates/${id}/apply`, request);
   },
 
   /**
    * Clone a template with a new name
    */
   clone: async (id: string, newName: string): Promise<ScanTemplate> => {
-    const response = await api.post(
+    return api.post<ScanTemplate>(
       `/api/scans/templates/${id}/clone?new_name=${encodeURIComponent(newName)}`
     );
-    return response.data;
   },
 
   /**
@@ -110,15 +105,14 @@ export const templateService = {
    * Get template statistics
    */
   getStatistics: async (): Promise<TemplateStatistics> => {
-    const response = await api.get('/api/scans/config/statistics');
-    return response.data;
+    return api.get<TemplateStatistics>('/api/scans/config/statistics');
   },
 
   /**
    * Get templates created by a specific user
    */
   getByUser: async (username: string): Promise<ScanTemplate[]> => {
-    const response = await api.get(`/api/scans/templates/user/${username}`);
-    return response.data || [];
+    const response = await api.get<ScanTemplate[]>(`/api/scans/templates/user/${username}`);
+    return response || [];
   },
 };

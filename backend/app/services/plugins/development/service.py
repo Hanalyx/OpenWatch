@@ -21,9 +21,9 @@ import yaml
 from beanie import Document
 from pydantic import BaseModel, Field
 
-from backend.app.models.plugin_models import InstalledPlugin
-from backend.app.services.plugins.execution.service import PluginExecutionService
-from backend.app.services.plugins.registry.service import PluginRegistryService
+from app.models.plugin_models import InstalledPlugin
+from app.services.plugins.execution.service import PluginExecutionService
+from app.services.plugins.registry.service import PluginRegistryService
 
 logger = logging.getLogger(__name__)
 

@@ -18,7 +18,7 @@ Security Considerations:
     - Configuration changes require appropriate permissions
 
 Usage:
-    from backend.app.services.plugins.governance import PluginGovernanceService
+    from app.services.plugins.governance import PluginGovernanceService
 
     governance = PluginGovernanceService()
 
@@ -40,7 +40,7 @@ Usage:
     report = await governance.generate_compliance_report(plugin_id)
 
 Example:
-    >>> from backend.app.services.plugins.governance import (
+    >>> from app.services.plugins.governance import (
     ...     PluginGovernanceService,
     ...     PolicyType,
     ...     ComplianceStandard,

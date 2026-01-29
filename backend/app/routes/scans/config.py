@@ -30,8 +30,8 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from backend.app.auth import get_current_user
-from backend.app.models.scan_config_models import (
+from app.auth import get_current_user
+from app.models.scan_config_models import (
     FrameworkMetadata,
     FrameworkVersion,
     TemplateStatistics,
@@ -39,12 +39,12 @@ from backend.app.models.scan_config_models import (
     ValidationResult,
     VariableDefinition,
 )
-from backend.app.services.framework import FrameworkMetadataService
-from backend.app.services.mongo_integration_service import (
+from app.services.framework import FrameworkMetadataService
+from app.services.mongo_integration_service import (
     MongoIntegrationService,
     get_mongo_service,
 )
-from backend.app.services.scan_template_service import ScanTemplateService
+from app.services.scan_template_service import ScanTemplateService
 
 logger = logging.getLogger(__name__)
 

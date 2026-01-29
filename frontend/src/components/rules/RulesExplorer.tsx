@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   Box,
-  Grid,
   Paper,
   Typography,
   Skeleton,
@@ -13,6 +12,7 @@ import {
   IconButton,
   Fab,
 } from '@mui/material';
+import Grid from '@mui/material/GridLegacy';
 import {
   Download as DownloadIcon,
   Close as CloseIcon,
@@ -266,17 +266,17 @@ const RulesExplorer: React.FC<RulesExplorerProps> = ({ onRuleSelect }) => {
         return;
       }
 
-      const response = await dispatch(
+      const response = (await dispatch(
         exportRules({
           ruleIds: ruleIds.slice(0, 1000), // Limit to 1000 rules
           format,
           includeMetadata: true,
         })
-      ).unwrap();
+      ).unwrap()) as { data: string | Record<string, unknown> };
 
       // Create download link
       const blob = new Blob(
-        [format === 'json' ? JSON.stringify(response.data, null, 2) : response.data],
+        [format === 'json' ? JSON.stringify(response.data, null, 2) : String(response.data)],
         {
           type:
             format === 'json'

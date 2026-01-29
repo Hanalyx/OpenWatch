@@ -9,7 +9,7 @@ Classes:
     - ScanResult: Complete scan result across all hosts and frameworks
 
 Example:
-    >>> from backend.app.services.framework import ScanResult, FrameworkResult
+    >>> from app.services.framework import ScanResult, FrameworkResult
     >>>
     >>> result = ScanResult(
     ...     scan_id="scan-123",
@@ -23,7 +23,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List
 
-from backend.app.models.unified_rule_models import RuleExecution
+from app.models.unified_rule_models import RuleExecution
 
 
 @dataclass

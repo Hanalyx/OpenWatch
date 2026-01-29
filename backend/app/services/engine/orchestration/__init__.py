@@ -35,7 +35,7 @@ Architecture:
     └─────────────────────────────────────────────────────────┘
 
 Usage:
-    from backend.app.services.engine import ScanOrchestrator
+    from app.services.engine import ScanOrchestrator
 
     # Create orchestrator with MongoDB connection
     orchestrator = ScanOrchestrator(db=mongodb)

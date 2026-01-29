@@ -19,7 +19,7 @@ Features:
     - Path injection prevention with identifier sanitization
 
 Example:
-    >>> from backend.app.services.rules import RuleSpecificScanner
+    >>> from app.services.rules import RuleSpecificScanner
     >>>
     >>> scanner = RuleSpecificScanner()
     >>> results = await scanner.scan_specific_rules(
@@ -43,13 +43,13 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, cast
 
-from backend.app.services.compliance_framework_mapper import ComplianceFrameworkMapper
+from app.services.compliance_framework_mapper import ComplianceFrameworkMapper
 
 # Engine module provides standardized exception types
-from backend.app.services.engine import ScanExecutionError
+from app.services.engine import ScanExecutionError
 
 # UnifiedSCAPScanner provides execute_remote_scan, _parse_scan_results, and legacy compatibility
-from backend.app.services.engine.scanners import UnifiedSCAPScanner
+from app.services.engine.scanners import UnifiedSCAPScanner
 
 logger = logging.getLogger(__name__)
 

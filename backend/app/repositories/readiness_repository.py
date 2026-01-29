@@ -21,7 +21,7 @@ from uuid import UUID
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from backend.app.models.readiness_models import (
+from ..models.readiness_models import (
     HostReadiness,
     HostReadinessCheck,
     HostReadinessValidation,
@@ -30,7 +30,7 @@ from backend.app.models.readiness_models import (
     ReadinessCheckType,
     ReadinessStatus,
 )
-from backend.app.utils.query_builder import QueryBuilder
+from ..utils.query_builder import QueryBuilder
 
 logger = logging.getLogger(__name__)
 
@@ -117,7 +117,7 @@ class ReadinessRepository:
             validation_run_id = row[0]
 
             # Get host details
-            from backend.app.database import Host
+            from ..database import Host
 
             host = self.db.query(Host).filter(Host.id == host_id).first()
             if not host:

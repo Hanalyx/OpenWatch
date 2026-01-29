@@ -4,7 +4,6 @@ import {
   Box,
   Card,
   CardContent,
-  Grid,
   Paper,
   Table,
   TableBody,
@@ -30,6 +29,7 @@ import {
   Tabs,
   Tab,
 } from '@mui/material';
+import Grid from '@mui/material/GridLegacy';
 import {
   Search,
   Security,
@@ -154,7 +154,9 @@ const OView: React.FC = () => {
         ...(dateTo && { date_to: dateTo.toISOString() }),
       });
 
-      const response = await api.get(`/api/audit/events?${params}`);
+      const response = await api.get<{ events: AuditEvent[]; total: number }>(
+        `/api/audit/events?${params}`
+      );
       const newEvents = response.events || [];
       setEvents(newEvents);
       setTotalEvents(response.total || 0);
@@ -181,7 +183,7 @@ const OView: React.FC = () => {
   const loadAuditStats = useCallback(async () => {
     try {
       setStatsLoading(true);
-      const response = await api.get('/api/audit/stats');
+      const response = await api.get<AuditStats>('/api/audit/stats');
       setStats(response);
     } catch (err: unknown) {
       console.error('Error loading audit stats:', err);
@@ -342,7 +344,8 @@ const OView: React.FC = () => {
             sx={{
               // Type-safe theme palette access - color is validated to be a MUI palette color key
               bgcolor: alpha(
-                (theme.palette as Record<string, { main?: string }>)[color]?.main || '#000',
+                (theme.palette as unknown as Record<string, { main?: string }>)[color]?.main ||
+                  '#000',
                 0.1
               ),
               color: `${color}.main`,

@@ -26,20 +26,20 @@ from uuid import UUID, uuid4
 
 from sqlalchemy.orm import Session
 
-from backend.app.config import get_settings
-from backend.app.encryption import EncryptionConfig, EncryptionService, create_encryption_service
-from backend.app.models.readiness_models import (
+from app.config import get_settings
+from app.encryption import EncryptionConfig, EncryptionService, create_encryption_service
+from app.models.readiness_models import (
     HostReadiness,
     ReadinessCheckResult,
     ReadinessCheckType,
     ReadinessStatus,
 )
-from backend.app.repositories.readiness_repository import ReadinessRepository
-from backend.app.services.auth import CentralizedAuthService
+from app.repositories.readiness_repository import ReadinessRepository
+from app.services.auth import CentralizedAuthService
 
 # SSHConnectionManager provides SSH connection management with configurable policies
-from backend.app.services.ssh import SSHConnectionManager
-from backend.app.services.ssh_connection_context import SSHConnectionContext
+from app.services.ssh import SSHConnectionManager
+from app.services.ssh_connection_context import SSHConnectionContext
 
 # Import check modules
 from .checks import (
@@ -150,7 +150,7 @@ class ReadinessValidatorService:
                 return cached
 
         # Get host from database
-        from backend.app.database import Host
+        from app.database import Host
 
         host = self.db.query(Host).filter(Host.id == host_id).first()
         if not host:
@@ -308,7 +308,7 @@ class ReadinessValidatorService:
                     exc_info=True,
                 )
                 # Create error result
-                from backend.app.models.readiness_models import ReadinessCheckSeverity
+                from app.models.readiness_models import ReadinessCheckSeverity
 
                 error_result = ReadinessCheckResult(
                     check_type=check_type,

@@ -53,7 +53,9 @@ class AdaptiveSchedulerService:
                 return self._config_cache
 
         try:
-            result = db.execute(text("""
+            result = db.execute(
+                text(
+                    """
                 SELECT
                     enabled,
                     interval_unknown,
@@ -74,7 +76,9 @@ class AdaptiveSchedulerService:
                     priority_maintenance
                 FROM host_monitoring_config
                 WHERE id = 1
-            """))
+            """
+                )
+            )
 
             row = result.fetchone()
             if not row:
@@ -370,36 +374,46 @@ class AdaptiveSchedulerService:
         """
         try:
             # Get hosts by state
-            state_result = db.execute(text("""
+            state_result = db.execute(
+                text(
+                    """
                 SELECT status, COUNT(*) as count
                 FROM hosts
                 WHERE is_active = true
                 GROUP BY status
-            """))
+            """
+                )
+            )
 
             hosts_by_state = {row.status: row.count for row in state_result}
 
             # Get overdue hosts
             overdue_result = db.execute(
-                text("""
+                text(
+                    """
                 SELECT COUNT(*) as count
                 FROM hosts
                 WHERE is_active = true
                   AND next_check_time IS NOT NULL
                   AND next_check_time < :now
-            """),
+            """
+                ),
                 {"now": datetime.utcnow()},
             )
 
             overdue_count = overdue_result.fetchone().count
 
             # Get next check time
-            next_check_result = db.execute(text("""
+            next_check_result = db.execute(
+                text(
+                    """
                 SELECT MIN(next_check_time) as next_check
                 FROM hosts
                 WHERE is_active = true
                   AND next_check_time IS NOT NULL
-            """))
+            """
+                )
+            )
 
             next_check_row = next_check_result.fetchone()
             next_check = next_check_row.next_check if next_check_row else None

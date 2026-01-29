@@ -19,7 +19,7 @@ Security Considerations:
 - Audit logging for all integration operations
 
 Usage:
-    from backend.app.services.engine.integration import (
+    from app.services.engine.integration import (
         AegisMapper,
         SemanticEngine,
         get_aegis_mapper,
@@ -35,13 +35,13 @@ Usage:
     result = await engine.process_scan_with_intelligence(scan_id)
 """
 
-from backend.app.services.engine.integration.aegis_mapper import (
+from app.services.engine.integration.aegis_mapper import (
     AegisMapper,
     AEGISMapping,
     RemediationPlan,
     get_aegis_mapper,
 )
-from backend.app.services.engine.integration.semantic_engine import (
+from app.services.engine.integration.semantic_engine import (
     IntelligentScanResult,
     SemanticEngine,
     SemanticRule,

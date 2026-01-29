@@ -181,7 +181,7 @@ const Settings: React.FC = () => {
         scope: 'system',
         include_inactive: showInactive.toString(),
       });
-      const response = await api.get(`/api/system/credentials?${params}`);
+      const response = await api.get<SystemCredentials[]>(`/api/system/credentials?${params}`);
       setCredentials(response); // API directly returns array
     } catch (err: unknown) {
       setError('Failed to load system credentials');
@@ -195,7 +195,7 @@ const Settings: React.FC = () => {
   const loadSSHPolicy = async () => {
     try {
       setSSHLoading(true);
-      const response = await api.get('/api/ssh/settings/policy');
+      const response = await api.get<SSHPolicy>('/api/ssh/settings/policy');
       setSSHPolicy(response);
     } catch (err: unknown) {
       setError('Failed to load SSH policy');
@@ -208,7 +208,7 @@ const Settings: React.FC = () => {
   const loadKnownHosts = async () => {
     try {
       setSSHLoading(true);
-      const response = await api.get('/api/ssh/settings/known-hosts');
+      const response = await api.get<KnownHost[]>('/api/ssh/settings/known-hosts');
       setKnownHosts(response);
     } catch (err: unknown) {
       setError('Failed to load known hosts');
@@ -221,7 +221,7 @@ const Settings: React.FC = () => {
   const updateSSHPolicy = async (newPolicy: string, trustedNetworks: string[]) => {
     try {
       setSSHLoading(true);
-      const response = await api.post('/api/ssh/settings/policy', {
+      const response = await api.post<SSHPolicy>('/api/ssh/settings/policy', {
         policy: newPolicy,
         trusted_networks: trustedNetworks,
       });
@@ -294,7 +294,11 @@ const Settings: React.FC = () => {
   const loadSessionTimeout = async () => {
     try {
       setSessionTimeoutLoading(true);
-      const response = await api.get('/api/system/session-timeout');
+      interface SessionTimeoutResponse {
+        timeout_minutes?: number;
+        updated_by?: string;
+      }
+      const response = await api.get<SessionTimeoutResponse>('/api/system/session-timeout');
       setSessionTimeoutMinutes(response.timeout_minutes || 15);
       setSessionTimeoutUpdatedBy(response.updated_by || null);
     } catch (err: unknown) {
@@ -308,7 +312,11 @@ const Settings: React.FC = () => {
   const updateSessionTimeout = async (minutes: number) => {
     try {
       setSessionTimeoutLoading(true);
-      const response = await api.put('/api/system/session-timeout', {
+      interface SessionTimeoutResponse {
+        timeout_minutes: number;
+        updated_by?: string;
+      }
+      const response = await api.put<SessionTimeoutResponse>('/api/system/session-timeout', {
         timeout_minutes: minutes,
       });
       setSessionTimeoutMinutes(response.timeout_minutes);
@@ -391,7 +399,9 @@ const Settings: React.FC = () => {
       setSuccess('Credential set deleted successfully');
       loadCredentials();
     } catch (err: unknown) {
-      const errorMessage = err.response?.data?.detail || 'Failed to delete credential set';
+      const errorMessage =
+        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
+        'Failed to delete credential set';
       setError(errorMessage);
       console.error('Error deleting credential:', err);
     }
@@ -424,16 +434,20 @@ const Settings: React.FC = () => {
         ? 'Failed to update credential set'
         : 'Failed to create credential set';
 
-      if (err.response?.data?.detail) {
-        errorMessage = err.response.data.detail;
-      } else if (err.message && err.message !== 'API request failed') {
-        errorMessage = err.message;
+      const typedErr = err as {
+        response?: { data?: { detail?: string }; status?: number };
+        message?: string;
+      };
+      if (typedErr.response?.data?.detail) {
+        errorMessage = typedErr.response.data.detail;
+      } else if (typedErr.message && typedErr.message !== 'API request failed') {
+        errorMessage = typedErr.message;
       }
 
       setError(errorMessage);
       console.error('Error saving credential:', err);
-      console.error('Error response:', err.response?.data);
-      console.error('Error status:', err.response?.status);
+      console.error('Error response:', typedErr.response?.data);
+      console.error('Error status:', typedErr.response?.status);
     } finally {
       setLoading(false);
     }
@@ -470,7 +484,9 @@ const Settings: React.FC = () => {
       // Reload credentials to get updated data
       loadCredentials();
     } catch (err: unknown) {
-      const errorMessage = err.response?.data?.detail || 'Failed to delete SSH key';
+      const errorMessage =
+        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
+        'Failed to delete SSH key';
       setError(errorMessage);
       console.error('Error deleting SSH key:', err);
     } finally {

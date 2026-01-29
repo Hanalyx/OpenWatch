@@ -22,7 +22,7 @@ Scanner Registry (ScannerFactory):
 - "kubernetes" -> KubernetesScanner (K8s/OpenShift)
 
 Usage:
-    from backend.app.services.engine.scanners import (
+    from app.services.engine.scanners import (
         UnifiedSCAPScanner,
         OSCAPScanner,
         KubernetesScanner,

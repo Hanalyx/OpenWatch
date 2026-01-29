@@ -43,68 +43,68 @@ Phase 5 Components (Marketplace + Development):
 
 Usage:
     # Plugin registration and management
-    from backend.app.services.plugins import PluginRegistryService
+    from app.services.plugins import PluginRegistryService
 
     registry = PluginRegistryService()
     plugin = await registry.get_plugin("my-plugin@1.0.0")
 
     # Security validation
-    from backend.app.services.plugins import PluginSecurityService
+    from app.services.plugins import PluginSecurityService
 
     security = PluginSecurityService()
     is_valid, checks, package = await security.validate_plugin_package(data)
 
     # Signature verification
-    from backend.app.services.plugins import PluginSignatureService
+    from app.services.plugins import PluginSignatureService
 
     signature = PluginSignatureService()
     result = await signature.verify_plugin_signature(package)
 
     # Plugin execution (Phase 2)
-    from backend.app.services.plugins import PluginExecutionService
+    from app.services.plugins import PluginExecutionService
 
     executor = PluginExecutionService()
     result = await executor.execute_plugin(request)
 
     # Plugin import (Phase 2)
-    from backend.app.services.plugins import PluginImportService
+    from app.services.plugins import PluginImportService
 
     importer = PluginImportService()
     result = await importer.import_plugin_from_file(content, filename, user_id)
 
     # Plugin lifecycle (Phase 3)
-    from backend.app.services.plugins import PluginLifecycleService
+    from app.services.plugins import PluginLifecycleService
 
     lifecycle = PluginLifecycleService()
     health = await lifecycle.check_plugin_health("my-plugin@1.0.0")
 
     # Plugin analytics (Phase 3)
-    from backend.app.services.plugins import PluginAnalyticsService
+    from app.services.plugins import PluginAnalyticsService
 
     analytics = PluginAnalyticsService()
     stats = await analytics.generate_usage_stats("my-plugin@1.0.0")
 
     # Plugin governance (Phase 4)
-    from backend.app.services.plugins import PluginGovernanceService
+    from app.services.plugins import PluginGovernanceService
 
     governance = PluginGovernanceService()
     report = await governance.generate_compliance_report("my-plugin@1.0.0")
 
     # Plugin orchestration (Phase 4)
-    from backend.app.services.plugins import PluginOrchestrationService
+    from app.services.plugins import PluginOrchestrationService
 
     orchestrator = PluginOrchestrationService()
     response = await orchestrator.route_request("my-plugin@1.0.0", "POST", "/scan")
 
     # Plugin marketplace (Phase 5)
-    from backend.app.services.plugins import PluginMarketplaceService
+    from app.services.plugins import PluginMarketplaceService
 
     marketplace = PluginMarketplaceService()
     await marketplace.initialize_marketplace_service()
     results = await marketplace.search_plugins(MarketplaceSearchQuery(query="scanner"))
 
     # Plugin development (Phase 5)
-    from backend.app.services.plugins import PluginDevelopmentFramework
+    from app.services.plugins import PluginDevelopmentFramework
 
     framework = PluginDevelopmentFramework()
     validation = await framework.validate_plugin_package("/path/to/plugin")

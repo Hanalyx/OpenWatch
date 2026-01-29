@@ -26,13 +26,13 @@ Import Flow:
     7. Post-import validation
 
 Usage:
-    from backend.app.services.plugins.import_export import PluginImportService
+    from app.services.plugins.import_export import PluginImportService
 
     importer = PluginImportService()
     result = await importer.import_plugin_from_file(content, filename, user_id)
 
 Example:
-    >>> from backend.app.services.plugins.import_export import PluginImportService
+    >>> from app.services.plugins.import_export import PluginImportService
     >>> importer = PluginImportService()
     >>> with open("my-plugin.tar.gz", "rb") as f:
     ...     content = f.read()

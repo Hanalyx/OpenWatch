@@ -69,9 +69,11 @@ async def scan_specific_rules(
 
         # Get SCAP content file path
         content_result = db.execute(
-            text("""
+            text(
+                """
             SELECT file_path FROM scap_content WHERE id = :id
-        """),
+        """
+            ),
             {"id": request.content_id},
         ).fetchone()
 
@@ -128,9 +130,11 @@ async def rescan_failed_rules(
     try:
         # Get SCAP content file path
         content_result = db.execute(
-            text("""
+            text(
+                """
             SELECT file_path FROM scap_content WHERE id = :id
-        """),
+        """
+            ),
             {"id": content_id},
         ).fetchone()
 
@@ -170,9 +174,11 @@ async def verify_remediation(
     try:
         # Get SCAP content file path
         content_result = db.execute(
-            text("""
+            text(
+                """
             SELECT file_path FROM scap_content WHERE id = :id
-        """),
+        """
+            ),
             {"id": request.content_id},
         ).fetchone()
 
@@ -323,10 +329,12 @@ async def create_remediation_plan(
 
         # First try to get from rule_scan_history
         history_results = db.execute(
-            text("""
+            text(
+                """
             SELECT rule_id, severity FROM rule_scan_history
             WHERE scan_id = :scan_id AND result = 'fail'
-        """),
+        """
+            ),
             {"scan_id": scan_id},
         ).fetchall()
 
@@ -335,11 +343,13 @@ async def create_remediation_plan(
         else:
             # Fallback to getting from scan results table if exists
             scan_result = db.execute(
-                text("""
+                text(
+                    """
                 SELECT sr.rule_details FROM scan_results sr
                 JOIN scans s ON sr.scan_id = s.id
                 WHERE s.id = :scan_id OR CAST(s.id AS TEXT) = :scan_id
-            """),
+            """
+                ),
                 {"scan_id": scan_id},
             ).fetchone()
 
@@ -397,7 +407,8 @@ def _store_rule_scan_results(db: Session, scan_results: Dict[str, Any]) -> None:
     try:
         for rule_result in scan_results.get("rule_results", []):
             db.execute(
-                text("""
+                text(
+                    """
                 INSERT INTO rule_scan_history (
                     id, scan_id, host_id, rule_id, profile_id, result, severity,
                     scan_output, compliance_frameworks, automated_remediation_available,
@@ -407,7 +418,8 @@ def _store_rule_scan_results(db: Session, scan_results: Dict[str, Any]) -> None:
                     :scan_output, :compliance_frameworks, :automated_remediation_available,
                     :aegis_rule_id, NOW(), :duration_ms
                 )
-            """),
+            """
+                ),
                 {
                     "scan_id": scan_results["scan_id"],
                     "host_id": scan_results["host_id"],
@@ -435,7 +447,8 @@ def _store_remediation_plan(db: Session, plan: Any, created_by: int) -> None:
     """Store remediation plan in database"""
     try:
         db.execute(
-            text("""
+            text(
+                """
             INSERT INTO remediation_plans (
                 id, plan_id, scan_id, host_id, total_rules, remediable_rules, remediated_rules,
                 estimated_duration, requires_reboot, status, execution_order, rule_groups,
@@ -445,7 +458,8 @@ def _store_remediation_plan(db: Session, plan: Any, created_by: int) -> None:
                 :estimated_duration, :requires_reboot, 'pending', :execution_order, :rule_groups,
                 :created_by, NOW()
             )
-        """),
+        """
+            ),
             {
                 "plan_id": plan.plan_id,
                 "scan_id": plan.scan_id,
@@ -489,13 +503,15 @@ def _update_remediation_plan_status(
             status = "failed"
 
         db.execute(
-            text("""
+            text(
+                """
             UPDATE remediation_plans
             SET status = :status,
                 remediated_rules = :remediated_rules,
                 completed_at = NOW()
             WHERE aegis_job_id = :aegis_job_id
-        """),
+        """
+            ),
             {
                 "status": status,
                 "remediated_rules": verification_report.get("successfully_remediated", 0),

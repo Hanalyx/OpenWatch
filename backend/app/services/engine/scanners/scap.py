@@ -25,7 +25,7 @@ Design Philosophy:
 - Defensive coding with comprehensive error handling
 
 Usage:
-    from backend.app.services.engine.scanners import UnifiedSCAPScanner
+    from app.services.engine.scanners import UnifiedSCAPScanner
 
     scanner = UnifiedSCAPScanner()
     await scanner.initialize()
@@ -62,13 +62,13 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from backend.app.services.auth import get_auth_service
-from backend.app.services.mongo_integration_service import (
+from app.services.auth import get_auth_service
+from app.services.mongo_integration_service import (
     MongoIntegrationService,
     get_mongo_service,
 )
-from backend.app.services.platform_capability_service import PlatformCapabilityService
-from backend.app.services.rules import RuleService
+from app.services.platform_capability_service import PlatformCapabilityService
+from app.services.rules import RuleService
 
 from ..exceptions import ContentValidationError, ScanExecutionError, ScannerError
 from ..models import ExecutionContext, ScannerCapabilities, ScanProvider, ScanType
@@ -387,7 +387,7 @@ class UnifiedSCAPScanner(BaseScanner):
             )
 
             # Convert dict responses to rule objects if needed
-            from backend.app.models.mongo_models import ComplianceRule
+            from app.models.mongo_models import ComplianceRule
 
             mongodb_rules = []
             for rule_data in rules:
@@ -437,7 +437,7 @@ class UnifiedSCAPScanner(BaseScanner):
         try:
             from bson import ObjectId
 
-            from backend.app.repositories import ComplianceRuleRepository
+            from app.repositories import ComplianceRuleRepository
 
             self._logger.info("Fetching %d specific rules from MongoDB", len(rule_ids))
 
@@ -1086,7 +1086,7 @@ class UnifiedSCAPScanner(BaseScanner):
             Merged ComplianceRule.
         """
         try:
-            from backend.app.models.mongo_models import ComplianceRule
+            from app.models.mongo_models import ComplianceRule
 
             parent_rule_data = parent_data.get("rule", {})
             merged_data = child_rule.dict()
@@ -1264,7 +1264,7 @@ class UnifiedSCAPScanner(BaseScanner):
         Returns:
             Dictionary with scan results.
         """
-        from backend.app.database import SessionLocal
+        from app.database import SessionLocal
 
         from ..executors import SSHExecutor
 
@@ -1523,7 +1523,7 @@ class UnifiedSCAPScanner(BaseScanner):
             - oscap_available: Whether OpenSCAP is installed on target
             - oscap_version: Version of OpenSCAP (if available)
         """
-        from backend.app.services.ssh import SSHConnectionManager
+        from app.services.ssh import SSHConnectionManager
 
         self._logger.info("Testing SSH connection to %s@%s:%d", username, hostname, port)
 
@@ -1923,7 +1923,7 @@ class UnifiedSCAPScanner(BaseScanner):
         Returns:
             Dictionary with scan results.
         """
-        from backend.app.services.ssh import SSHConnectionManager
+        from app.services.ssh import SSHConnectionManager
 
         ssh_manager = SSHConnectionManager()
 

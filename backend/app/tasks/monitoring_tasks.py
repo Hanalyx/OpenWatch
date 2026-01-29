@@ -7,13 +7,13 @@ from datetime import datetime
 
 from sqlalchemy import text
 
-from backend.app.celery_app import celery_app
-from backend.app.config import get_settings
-from backend.app.database import get_db, get_db_session
-from backend.app.encryption import EncryptionConfig, create_encryption_service
-from backend.app.services.auth import get_auth_service
-from backend.app.services.host_monitor import get_host_monitor
-from backend.app.services.host_monitoring_state import HostMonitoringStateMachine
+from app.celery_app import celery_app
+from app.config import get_settings
+from app.database import get_db, get_db_session
+from app.encryption import EncryptionConfig, create_encryption_service
+from app.services.auth import get_auth_service
+from app.services.host_monitor import get_host_monitor
+from app.services.host_monitoring_state import HostMonitoringStateMachine
 
 logger = logging.getLogger(__name__)
 
@@ -125,12 +125,14 @@ def check_host_connectivity(self, host_id: str, priority: int = 5) -> dict:
         with get_db_session() as db:
             # Get host details for comprehensive check
             host_result = db.execute(
-                text("""
+                text(
+                    """
                 SELECT id, hostname, ip_address, port, username, auth_method,
                        encrypted_credentials, status
                 FROM hosts
                 WHERE id = :host_id AND is_active = true
-            """),
+            """
+                ),
                 {"host_id": host_id},
             ).fetchone()
 

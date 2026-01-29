@@ -173,14 +173,14 @@ const ComplianceScanWizard: React.FC = () => {
       try {
         // Fetch hosts and host groups in parallel
         const [hostsData, groupsData] = await Promise.all([
-          api.get('/api/hosts/'),
-          api.get('/api/host-groups/').catch(() => []), // Groups may not exist
+          api.get<RawHostData[]>('/api/hosts/'),
+          api.get<RawHostGroupData[]>('/api/host-groups/').catch(() => [] as RawHostGroupData[]), // Groups may not exist
         ]);
 
         // Transform hosts to WizardHost format
         // Use os_family/os_version from backend OS discovery for platform auto-detection
         // Include SSH connection fields for remote scan execution
-        const formattedHosts: WizardHost[] = hostsData.map((host: RawHostData) => ({
+        const formattedHosts: WizardHost[] = hostsData.map((host) => ({
           id: host.id,
           hostname: host.hostname,
           displayName: host.display_name || host.hostname,
@@ -199,14 +199,12 @@ const ComplianceScanWizard: React.FC = () => {
         setHosts(formattedHosts);
 
         // Transform host groups to WizardHostGroup format
-        const formattedGroups: WizardHostGroup[] = (groupsData || []).map(
-          (group: RawHostGroupData) => ({
-            id: group.id,
-            name: group.name,
-            description: group.description,
-            hostCount: group.host_count || 0,
-          })
-        );
+        const formattedGroups: WizardHostGroup[] = (groupsData || []).map((group) => ({
+          id: group.id,
+          name: group.name,
+          description: group.description,
+          hostCount: group.host_count || 0,
+        }));
         setHostGroups(formattedGroups);
       } catch (error) {
         console.error('Failed to load data:', error);

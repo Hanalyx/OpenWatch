@@ -1,9 +1,11 @@
 """Add scheduler configuration table
 
 Revision ID: 20250101_1200
-Revises:
+Revises: 001
 Create Date: 2025-01-01 12:00:00.000000
 
+Note: This migration depends on the baseline schema (001) to establish
+proper ordering in the migration chain.
 """
 
 import sqlalchemy as sa
@@ -13,7 +15,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "20250101_1200"
-down_revision = None
+down_revision = "001"  # Depends on baseline schema
 branch_labels = None
 depends_on = None
 

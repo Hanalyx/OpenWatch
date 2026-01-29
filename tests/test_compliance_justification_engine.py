@@ -7,15 +7,15 @@ import json
 from datetime import datetime, timedelta
 from unittest.mock import Mock, patch, AsyncMock
 
-from backend.app.services.compliance_justification_engine import (
+from app.services.compliance_justification_engine import (
     ComplianceJustificationEngine, ComplianceJustification, JustificationEvidence,
     ExceedingComplianceAnalysis, JustificationType, AuditEvidence
 )
-from backend.app.models.unified_rule_models import (
+from app.models.unified_rule_models import (
     UnifiedComplianceRule, RuleExecution, ComplianceStatus, Platform,
     FrameworkMapping, PlatformImplementation
 )
-from backend.app.services.multi_framework_scanner import ScanResult, FrameworkResult, HostResult
+from app.services.multi_framework_scanner import ScanResult, FrameworkResult, HostResult
 
 
 class TestComplianceJustificationEngine:

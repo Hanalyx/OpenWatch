@@ -24,7 +24,7 @@ Metric Types:
     - AVAILABILITY: Uptime, health status history
 
 Usage:
-    from backend.app.services.plugins.analytics import PluginAnalyticsService
+    from app.services.plugins.analytics import PluginAnalyticsService
 
     analytics = PluginAnalyticsService()
 
@@ -41,7 +41,7 @@ Usage:
     recommendations = await analytics.generate_optimization_recommendations(plugin_id)
 
 Example:
-    >>> from backend.app.services.plugins.analytics import (
+    >>> from app.services.plugins.analytics import (
     ...     PluginAnalyticsService,
     ...     MetricType,
     ... )

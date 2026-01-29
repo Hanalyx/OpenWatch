@@ -18,10 +18,19 @@ depends_on = None
 
 
 def upgrade() -> None:
-    """Add os_version field to ScapContent model"""
+    """Add os_version field to ScapContent model.
 
-    # Add os_version field to scap_content table
-    op.add_column("scap_content", sa.Column("os_version", sa.String(100), nullable=True))
+    Note: This column may already exist from migration 003.
+    """
+    conn = op.get_bind()
+    result = conn.execute(
+        sa.text(
+            "SELECT 1 FROM information_schema.columns "
+            "WHERE table_name = 'scap_content' AND column_name = 'os_version'"
+        )
+    )
+    if result.fetchone() is None:
+        op.add_column("scap_content", sa.Column("os_version", sa.String(100), nullable=True))
 
 
 def downgrade() -> None:

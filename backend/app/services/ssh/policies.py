@@ -17,7 +17,7 @@ Security Considerations:
 - Production environments should use SecurityWarningPolicy or stricter
 
 Usage:
-    from backend.app.services.ssh.policies import SecurityWarningPolicy
+    from app.services.ssh.policies import SecurityWarningPolicy
 
     client = paramiko.SSHClient()
     client.set_missing_host_key_policy(SecurityWarningPolicy())

@@ -21,22 +21,34 @@ depends_on = None
 def upgrade() -> None:
     """Add compliance framework mapping and enhanced SCAP processing tables"""
 
-    # Create enum for compliance frameworks
+    # Create enum for compliance frameworks (idempotent)
     op.execute(
         """
-        CREATE TYPE compliance_framework AS ENUM (
-            'DISA-STIG', 'NIST-800-53', 'CIS-Controls', 'CMMC-2.0',
-            'PCI-DSS', 'HIPAA', 'ISO-27001', 'SOC2'
-        )
+        DO $$
+        BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'compliance_framework') THEN
+                CREATE TYPE compliance_framework AS ENUM (
+                    'DISA-STIG', 'NIST-800-53', 'CIS-Controls', 'CMMC-2.0',
+                    'PCI-DSS', 'HIPAA', 'ISO-27001', 'SOC2'
+                );
+            END IF;
+        END
+        $$;
     """
     )
 
-    # Create enum for remediation status
+    # Create enum for remediation status (idempotent)
     op.execute(
         """
-        CREATE TYPE remediation_status AS ENUM (
-            'pending', 'in_progress', 'completed', 'failed', 'partial'
-        )
+        DO $$
+        BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'remediation_status') THEN
+                CREATE TYPE remediation_status AS ENUM (
+                    'pending', 'in_progress', 'completed', 'failed', 'partial'
+                );
+            END IF;
+        END
+        $$;
     """
     )
 
@@ -57,6 +69,7 @@ def upgrade() -> None:
                 "ISO-27001",
                 "SOC2",
                 name="compliance_framework",
+                create_type=False,
             ),
             nullable=False,
         ),
@@ -116,7 +129,7 @@ def upgrade() -> None:
         sa.Column("requires_reboot", sa.Boolean(), nullable=False),
         sa.Column(
             "status",
-            postgresql.ENUM("pending", "in_progress", "completed", "failed", "partial", name="remediation_status"),
+            postgresql.ENUM("pending", "in_progress", "completed", "failed", "partial", name="remediation_status", create_type=False),
             nullable=False,
         ),
         sa.Column("execution_order", postgresql.JSON(astext_type=sa.Text()), nullable=True),
@@ -188,6 +201,7 @@ def upgrade() -> None:
                 "ISO-27001",
                 "SOC2",
                 name="compliance_framework",
+                create_type=False,
             ),
             nullable=False,
         ),

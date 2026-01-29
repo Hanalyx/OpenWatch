@@ -84,15 +84,7 @@ interface HostWithScans {
   host_name: string;
   host_id: string; // Required - all scans must have valid host association
   ip_address?: string;
-  status:
-    | 'online'
-    | 'offline'
-    | 'reachable'
-    | 'ping_only'
-    | 'scanning'
-    | 'error'
-    | 'maintenance'
-    | 'pending';
+  status: HostStatus;
   scans: Scan[];
   completedCount: number;
   totalCount: number;
@@ -376,7 +368,9 @@ const Scans: React.FC = () => {
       setError(null);
 
       // Fetch host details
-      const hostData = await api.get(`/api/hosts/${hostGroup.host_id}`);
+      const hostData = await api.get<{ platform?: string; platform_version?: string }>(
+        `/api/hosts/${hostGroup.host_id}`
+      );
 
       // Get platform information from host data OR infer from previous scan
       const mostRecentScan = hostGroup.mostRecentScan;

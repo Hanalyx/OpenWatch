@@ -9,7 +9,7 @@ from io import BytesIO
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from backend.app.models.plugin_models import (
+from app.models.plugin_models import (
     InstalledPlugin,
     PluginExecutor,
     PluginManifest,
@@ -18,8 +18,8 @@ from backend.app.models.plugin_models import (
     PluginTrustLevel,
     SecurityCheckResult,
 )
-from backend.app.services.plugins.security.signature import PluginSignatureService
-from backend.app.services.plugins.security.validator import PluginSecurityService
+from app.services.plugins.security.signature import PluginSignatureService
+from app.services.plugins.security.validator import PluginSecurityService
 
 logger = logging.getLogger(__name__)
 

@@ -15,7 +15,7 @@ Performance Benefits:
 - Example: 7 commands = 1 connection (not 7 connections)
 
 Usage Example:
-    from backend.app.services.ssh_connection_context import SSHConnectionContext
+    from app.services.ssh_connection_context import SSHConnectionContext
 
     async with SSHConnectionContext(ssh_service, host, credentials) as ctx:
         result1 = await ctx.execute_command("df -h")
@@ -48,7 +48,7 @@ import paramiko
 
 if TYPE_CHECKING:
     # Import SSHConnectionManager for type hints only to avoid circular imports
-    from backend.app.services.ssh import SSHConnectionManager
+    from app.services.ssh import SSHConnectionManager
 
 logger = logging.getLogger(__name__)
 

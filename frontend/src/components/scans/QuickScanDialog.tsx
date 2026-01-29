@@ -9,7 +9,6 @@ import {
   Typography,
   Card,
   CardContent,
-  Grid,
   Chip,
   RadioGroup,
   FormControlLabel,
@@ -20,6 +19,7 @@ import {
   LinearProgress,
   IconButton,
 } from '@mui/material';
+import Grid from '@mui/material/GridLegacy';
 import {
   Security,
   CheckCircle,

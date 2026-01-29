@@ -75,7 +75,7 @@ const OSDiscoverySettings: React.FC<OSDiscoverySettingsProps> = ({ onSuccess, on
   const loadConfig = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/api/system/os-discovery/config');
+      const response = await api.get<OSDiscoveryConfig>('/api/system/os-discovery/config');
       setConfig(response);
     } catch (err) {
       console.error('Error loading OS discovery config:', err);
@@ -87,7 +87,7 @@ const OSDiscoverySettings: React.FC<OSDiscoverySettingsProps> = ({ onSuccess, on
 
   const loadStats = async () => {
     try {
-      const response = await api.get('/api/system/os-discovery/stats');
+      const response = await api.get<OSDiscoveryStats>('/api/system/os-discovery/stats');
       setStats(response);
       // Update Redux state for notification badge
       dispatch(setOSDiscoveryFailures(response.pending_failures || 0));

@@ -42,7 +42,7 @@ Enforcement Levels:
     - QUARANTINE: Complete plugin isolation
 
 Usage:
-    from backend.app.services.plugins.governance import PluginGovernanceService
+    from app.services.plugins.governance import PluginGovernanceService
 
     governance = PluginGovernanceService()
     await governance.start()
@@ -64,7 +64,7 @@ Usage:
     print(f"Compliance Score: {report.overall_score:.1f}%")
 
 Example:
-    >>> from backend.app.services.plugins.governance import (
+    >>> from app.services.plugins.governance import (
     ...     PluginGovernanceService,
     ...     PolicyType,
     ...     ComplianceStandard,

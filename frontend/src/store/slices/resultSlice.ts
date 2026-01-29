@@ -43,13 +43,11 @@ const initialState: ResultState = {
 };
 
 export const fetchResults = createAsyncThunk('results/fetchResults', async () => {
-  const response = await api.get('/results');
-  return response.data;
+  return api.get<Result[]>('/results');
 });
 
 export const fetchResult = createAsyncThunk('results/fetchResult', async (id: string) => {
-  const response = await api.get(`/results/${id}`);
-  return response.data;
+  return api.get<Result>(`/results/${id}`);
 });
 
 export const downloadReport = createAsyncThunk(

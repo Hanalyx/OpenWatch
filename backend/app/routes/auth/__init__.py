@@ -18,7 +18,7 @@ Migration Status (E1-S4 - Route Consolidation):
 
 Usage:
     # Import the aggregated router in main.py
-    from backend.app.routes.auth import router
+    from app.routes.auth import router
     app.include_router(router, prefix="/api/auth")
 
 Router Organization:

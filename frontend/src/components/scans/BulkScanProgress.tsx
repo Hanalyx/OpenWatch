@@ -18,12 +18,12 @@ import {
   IconButton,
   Collapse,
   Alert,
-  Grid,
   Divider,
 } from '@mui/material';
+import Grid from '@mui/material/GridLegacy';
 import {
   CheckCircle,
-  Error,
+  Error as ErrorIcon,
   Schedule,
   PlayArrow,
   Pause,
@@ -108,10 +108,10 @@ const BulkScanProgress: React.FC<BulkScanProgressProps> = ({
           setAutoRefresh(false);
         }
       } else {
-        const errorData = await response.json();
+        const errorData: { detail?: string } = await response.json();
         throw new Error(errorData.detail || 'Failed to fetch progress');
       }
-    } catch (err) {
+    } catch (err: unknown) {
       // Handle progress fetch errors with proper type checking
       const errorMessage = err instanceof Error ? err.message : 'Failed to fetch progress';
       setError(errorMessage);
@@ -178,7 +178,7 @@ const BulkScanProgress: React.FC<BulkScanProgressProps> = ({
       case 'completed':
         return <CheckCircle color="success" />;
       case 'failed':
-        return <Error color="error" />;
+        return <ErrorIcon color="error" />;
       case 'running':
         return <PlayArrow color="primary" />;
       case 'cancelled':

@@ -5,7 +5,6 @@ import {
   Typography,
   TextField,
   Button,
-  Grid,
   Stepper,
   Step,
   StepLabel,
@@ -35,6 +34,7 @@ import {
   ListItemText,
   LinearProgress,
 } from '@mui/material';
+import Grid from '@mui/material/GridLegacy';
 import {
   ArrowBack,
   Computer,
@@ -69,6 +69,20 @@ import { StatCard, SSHKeyDisplay } from '../../components/design-system';
 import { api } from '../../services/api';
 
 /**
+ * SSH connection test response from backend API
+ * Raw response structure from /api/hosts/test-connection
+ */
+interface ConnectionTestApiResponse {
+  network_reachable?: boolean;
+  auth_successful?: boolean;
+  detected_os?: string;
+  os_version?: string;
+  response_time_ms?: number;
+  ssh_version?: string;
+  additional_info?: string;
+}
+
+/**
  * SSH connection test results from backend
  * Contains connectivity, authentication, and system detection results
  */
@@ -79,8 +93,10 @@ interface ConnectionTestResults {
   detectedOS: string;
   detectedVersion: string;
   responseTime: number;
-  sshVersion: string;
-  additionalInfo: string;
+  sshVersion?: string;
+  additionalInfo?: string;
+  error?: string;
+  errorCode?: number;
 }
 
 /**
@@ -91,7 +107,11 @@ interface CredentialWithDefault {
   is_default: boolean;
   id?: string;
   name?: string;
-  [key: string]: unknown;
+  username?: string;
+  auth_method?: string;
+  ssh_key_type?: string;
+  ssh_key_bits?: number;
+  ssh_key_comment?: string;
 }
 
 const AddHost: React.FC = () => {
@@ -233,7 +253,7 @@ const AddHost: React.FC = () => {
    * Handle form field changes with type-safe value handling
    * Accepts any JSON-serializable value (string, number, boolean, etc.)
    */
-  const handleInputChange = (field: string, value: string | number | boolean) => {
+  const handleInputChange = (field: string, value: string | number | boolean | string[]) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
@@ -270,7 +290,10 @@ const AddHost: React.FC = () => {
       // Testing SSH connection to target host
 
       // Make API call to test connection
-      const result = await api.post('/api/hosts/test-connection', testData);
+      const result = await api.post<ConnectionTestApiResponse>(
+        '/api/hosts/test-connection',
+        testData
+      );
 
       setTestingConnection(false);
       setConnectionStatus('success');
@@ -278,25 +301,31 @@ const AddHost: React.FC = () => {
       // Store the actual results for display
       setConnectionTestResults({
         success: true,
-        networkConnectivity: result.network_reachable || true,
-        authentication: result.auth_successful || true,
+        networkConnectivity: result.network_reachable ?? true,
+        authentication: result.auth_successful ?? true,
         detectedOS: result.detected_os || 'Unknown',
         detectedVersion: result.os_version || '',
         responseTime: result.response_time_ms || 0,
         sshVersion: result.ssh_version || '',
         additionalInfo: result.additional_info || '',
       });
-    } catch (error) {
+    } catch (err) {
       // Type-safe error handling: check if error has message property
-      console.error('Connection test failed:', error);
+      console.error('Connection test failed:', err);
       setTestingConnection(false);
       setConnectionStatus('failed');
+
+      // Type-safe error property access
+      const typedErr = err as {
+        response?: { data?: { detail?: string }; status?: number };
+        message?: string;
+      };
 
       // Store error details for display
       setConnectionTestResults({
         success: false,
-        error: error.response?.data?.detail || error.message || 'Connection test failed',
-        errorCode: error.response?.status || 0,
+        error: typedErr.response?.data?.detail || typedErr.message || 'Connection test failed',
+        errorCode: typedErr.response?.status || 0,
         networkConnectivity: false,
         authentication: false,
         detectedOS: '',
@@ -361,9 +390,9 @@ const AddHost: React.FC = () => {
 
         if (defaultCredential) {
           setSystemCredentials({
-            name: defaultCredential.name,
-            username: defaultCredential.username,
-            authMethod: defaultCredential.auth_method,
+            name: defaultCredential.name || '',
+            username: defaultCredential.username || '',
+            authMethod: defaultCredential.auth_method || 'password',
             sshKeyType: defaultCredential.ssh_key_type,
             sshKeyBits: defaultCredential.ssh_key_bits,
             sshKeyComment: defaultCredential.ssh_key_comment,
@@ -1336,9 +1365,10 @@ const AddHost: React.FC = () => {
                     <TextField {...params} label="Tags" placeholder="Add tags" />
                   )}
                   renderTags={(value, getTagProps) =>
-                    value.map((option, index) => (
-                      <Chip key={option} label={option} {...getTagProps({ index })} size="small" />
-                    ))
+                    value.map((option, index) => {
+                      const { key, ...chipProps } = getTagProps({ index });
+                      return <Chip key={key} label={option} {...chipProps} size="small" />;
+                    })
                   }
                 />
               </Grid>

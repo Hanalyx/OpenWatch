@@ -10,8 +10,8 @@ from typing import Any, Dict
 
 from celery.schedules import crontab
 
-from backend.app.celery_app import celery_app
-from backend.app.services.health_monitoring_service import get_health_monitoring_service
+from app.celery_app import celery_app
+from app.services.health_monitoring_service import get_health_monitoring_service
 
 logger = logging.getLogger(__name__)
 

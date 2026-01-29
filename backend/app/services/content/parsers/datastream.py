@@ -24,7 +24,7 @@ Security Considerations:
 - File size limits enforced
 
 Usage:
-    from backend.app.services.content.parsers.datastream import DatastreamParser
+    from app.services.content.parsers.datastream import DatastreamParser
 
     parser = DatastreamParser()
     content = parser.parse("/path/to/ssg-rhel8-ds.xml")

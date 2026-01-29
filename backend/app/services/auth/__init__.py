@@ -8,7 +8,7 @@ This module provides centralized credential management for OpenWatch, including:
 - SSH key validation and metadata extraction
 
 Usage:
-    from backend.app.services.auth import (
+    from app.services.auth import (
         # Models
         CredentialData,
         AuthMethod,

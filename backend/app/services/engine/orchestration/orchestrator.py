@@ -15,7 +15,7 @@ Responsibilities:
     5. Store results in MongoDB
 
 Example:
-    from backend.app.services.engine import ScanOrchestrator
+    from app.services.engine import ScanOrchestrator
 
     orchestrator = ScanOrchestrator(db=mongodb)
     result = await orchestrator.execute_scan(
@@ -33,7 +33,7 @@ from typing import Any, Dict, List, Optional
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from backend.app.models.scan_models import (
+from app.models.scan_models import (
     RuleResult,
     ScanConfiguration,
     ScanResult,

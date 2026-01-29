@@ -22,8 +22,8 @@ SSH Connection Pattern:
     handle encryption/decryption internally.
 
 Usage:
-    from backend.app.services.auth import CentralizedAuthService, CredentialData
-    from backend.app.services.engine.discovery import (
+    from app.services.auth import CentralizedAuthService, CredentialData
+    from app.services.engine.discovery import (
         PlatformDetector,
         PlatformInfo,
         detect_platform_for_scan,

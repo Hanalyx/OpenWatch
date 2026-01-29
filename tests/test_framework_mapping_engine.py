@@ -8,11 +8,11 @@ import tempfile
 from datetime import datetime
 from unittest.mock import Mock, patch, AsyncMock
 
-from backend.app.services.framework_mapping_engine import (
+from app.services.framework_mapping_engine import (
     FrameworkMappingEngine, ControlMapping, FrameworkRelationship, UnifiedImplementation,
     MappingConfidence, MappingType
 )
-from backend.app.models.unified_rule_models import (
+from app.models.unified_rule_models import (
     UnifiedComplianceRule, FrameworkMapping, Platform, PlatformImplementation
 )
 

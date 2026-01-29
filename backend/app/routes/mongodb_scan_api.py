@@ -15,13 +15,13 @@ from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from backend.app.auth import get_current_user
-from backend.app.constants import is_framework_supported
-from backend.app.database import User, get_db
-from backend.app.services.compliance_framework_reporting import ComplianceFrameworkReporter
-from backend.app.services.engine.scanners import UnifiedSCAPScanner
-from backend.app.services.owca import SeverityCalculator, XCCDFParser
-from backend.app.services.result_enrichment_service import ResultEnrichmentService
+from app.auth import get_current_user
+from app.constants import is_framework_supported
+from app.database import User, get_db
+from app.services.compliance_framework_reporting import ComplianceFrameworkReporter
+from app.services.engine.scanners import UnifiedSCAPScanner
+from app.services.owca import SeverityCalculator, XCCDFParser
+from app.services.result_enrichment_service import ResultEnrichmentService
 
 logger = logging.getLogger(__name__)
 
@@ -415,7 +415,7 @@ async def start_mongodb_scan(
         effective_platform_version = scan_request.platform_version
 
         # Import normalize function for computing platform_identifier
-        from backend.app.tasks.os_discovery_tasks import _normalize_platform_identifier
+        from app.tasks.os_discovery_tasks import _normalize_platform_identifier
 
         try:
             host_query = text("SELECT platform_identifier, os_family, os_version FROM hosts WHERE id = :host_id")
@@ -458,8 +458,8 @@ async def start_mongodb_scan(
                         f"attempting JIT platform detection..."
                     )
                     try:
-                        from backend.app.services.auth import get_auth_service
-                        from backend.app.services.engine.discovery import detect_platform_for_scan
+                        from app.services.auth import get_auth_service
+                        from app.services.engine.discovery import detect_platform_for_scan
 
                         # Get encryption service and resolve credentials using auth service
                         # This uses the same credential resolution as the scan executor
@@ -561,7 +561,8 @@ async def start_mongodb_scan(
         started_at = datetime.utcnow()
 
         try:
-            insert_scan_query = text("""
+            insert_scan_query = text(
+                """
                 INSERT INTO scans (
                     id, name, host_id, profile_id, status, progress,
                     scan_options, started_by, started_at, remediation_requested, verification_scan, scan_metadata
@@ -570,7 +571,8 @@ async def start_mongodb_scan(
                     :id, :name, :host_id, :profile_id, :status, :progress,
                     :scan_options, :started_by, :started_at, :remediation_requested, :verification_scan, :scan_metadata
                 )
-            """)
+            """
+            )
             db.execute(
                 insert_scan_query,
                 {
@@ -632,12 +634,14 @@ async def start_mongodb_scan(
             logger.error(f"Scan failed with result: {scan_result}")
             # Update PostgreSQL scan record to failed status
             try:
-                update_scan_query = text("""
+                update_scan_query = text(
+                    """
                     UPDATE scans
                     SET status = :status, progress = :progress, completed_at = :completed_at,
                         error_message = :error_message
                     WHERE id = :id
-                """)
+                """
+                )
                 db.execute(
                     update_scan_query,
                     {
@@ -661,12 +665,14 @@ async def start_mongodb_scan(
         # Update PostgreSQL scan record to completed status
         completed_at = datetime.utcnow()
         try:
-            update_scan_query = text("""
+            update_scan_query = text(
+                """
                 UPDATE scans
                 SET status = :status, progress = :progress, completed_at = :completed_at,
                     result_file = :result_file, report_file = :report_file
                 WHERE id = :id
-            """)
+            """
+            )
             db.execute(
                 update_scan_query,
                 {
@@ -695,7 +701,8 @@ async def start_mongodb_scan(
             )
 
             # Insert scan_results record with parameterized SQL
-            insert_scan_results_query = text("""
+            insert_scan_results_query = text(
+                """
                 INSERT INTO scan_results (
                     scan_id, total_rules, passed_rules, failed_rules, error_rules,
                     unknown_rules, not_applicable_rules, score, severity_high,
@@ -707,7 +714,8 @@ async def start_mongodb_scan(
                     :severity_medium, :severity_low, :xccdf_score, :xccdf_score_system,
                     :xccdf_score_max, :risk_score, :risk_level, :created_at
                 )
-                """)
+                """
+            )
             db.execute(
                 insert_scan_results_query,
                 {
@@ -982,7 +990,7 @@ async def get_available_rules(
         # If host_id provided, try to get platform from database
         if host_id:
             try:
-                from backend.app.tasks.os_discovery_tasks import _normalize_platform_identifier
+                from app.tasks.os_discovery_tasks import _normalize_platform_identifier
 
                 host_query = text("SELECT platform_identifier, os_family, os_version FROM hosts WHERE id = :host_id")
                 host_result = db.execute(host_query, {"host_id": host_id}).fetchone()

@@ -8,7 +8,7 @@ Advanced analytics and predictive capabilities for compliance intelligence:
 - Predictive analytics (forecasting and anomaly detection)
 
 Usage:
-    >>> from backend.app.services.owca.intelligence import (
+    >>> from app.services.owca.intelligence import (
     ...     BaselineDriftDetector,
     ...     TrendAnalyzer,
     ...     RiskScorer,

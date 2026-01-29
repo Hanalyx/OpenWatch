@@ -416,7 +416,7 @@ const FrameworkConfigStep: React.FC<FrameworkConfigStepProps> = ({
 
         <Grid container spacing={2} sx={{ mb: 2 }}>
           {/* Platform Dropdown */}
-          <Grid item xs={12} sm={6}>
+          <Grid size={{ xs: 12, sm: 6 }}>
             <FormControl fullWidth>
               <InputLabel id="platform-select-label">Platform</InputLabel>
               <Select
@@ -436,7 +436,7 @@ const FrameworkConfigStep: React.FC<FrameworkConfigStepProps> = ({
           </Grid>
 
           {/* Version Dropdown */}
-          <Grid item xs={12} sm={6}>
+          <Grid size={{ xs: 12, sm: 6 }}>
             <FormControl fullWidth disabled={!platform}>
               <InputLabel id="version-select-label">Version</InputLabel>
               <Select
@@ -548,7 +548,7 @@ const FrameworkConfigStep: React.FC<FrameworkConfigStepProps> = ({
 
         <Grid container spacing={2}>
           {SUPPORTED_FRAMEWORKS.map((fw) => (
-            <Grid item xs={12} sm={6} md={4} key={fw.id}>
+            <Grid size={{ xs: 12, sm: 6, md: 4 }} key={fw.id}>
               <Card
                 sx={{
                   cursor: 'pointer',

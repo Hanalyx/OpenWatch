@@ -42,7 +42,9 @@ export interface RuleQueryParams {
 export interface PlatformDetectionParams {
   platform: string;
   platformVersion: string;
-  targetHost: string;
+  targetHost?: string;
+  compareBaseline?: boolean;
+  capabilityTypes?: string[];
 }
 
 /**
@@ -558,13 +560,13 @@ class RuleService {
     }
 
     if (params.platform) {
-      filteredRules = filteredRules.filter(
-        (rule) => rule.platform_implementations[params.platform]
-      );
+      const platform = params.platform;
+      filteredRules = filteredRules.filter((rule) => rule.platform_implementations[platform]);
     }
 
     if (params.framework) {
-      filteredRules = filteredRules.filter((rule) => rule.frameworks[params.framework]);
+      const framework = params.framework;
+      filteredRules = filteredRules.filter((rule) => rule.frameworks[framework]);
     }
 
     if (params.search) {
@@ -615,14 +617,19 @@ class RuleService {
         offset: searchRequest.offset || 0,
       };
 
-      const response = await api.get('/api/compliance-rules/', {
+      interface RulesApiResponse {
+        rules?: Rule[];
+        total?: number;
+      }
+      const response = await api.get<RulesApiResponse | Rule[]>('/api/compliance-rules/', {
         params,
         headers: getAuthHeaders(),
       });
 
-      // Transform to search response format
-      const rules = response.data.rules || response.data || [];
-      const totalCount = response.data.total || rules.length;
+      // Transform to search response format - api returns data directly
+      const responseData = response as RulesApiResponse;
+      const rules = responseData.rules || (Array.isArray(response) ? response : []);
+      const totalCount = responseData.total || rules.length;
 
       return {
         success: true,
@@ -650,14 +657,14 @@ class RuleService {
   async getRuleDetails(ruleId: string, includeInheritance = true): Promise<RuleDetailsResponse> {
     try {
       // Use the MongoDB compliance rules endpoint with centralized auth
-      const response = await api.get(`/api/compliance-rules/${ruleId}`, {
+      const response = await api.get<Rule>(`/api/compliance-rules/${ruleId}`, {
         params: { include_inheritance: includeInheritance },
         headers: getAuthHeaders(),
       });
 
       return {
         success: true,
-        data: response.data,
+        data: response, // api.get returns data directly
         message: `Retrieved rule details for ${ruleId}`,
         timestamp: new Date().toISOString(),
       };
@@ -673,12 +680,12 @@ class RuleService {
     maxDepth = 5
   ): Promise<RuleDependenciesResponse> {
     try {
-      const response = await api.post(`${this.baseUrl}/dependencies`, {
+      const response = await api.post<RuleDependenciesResponse>(`${this.baseUrl}/dependencies`, {
         rule_ids: ruleIds,
         include_transitive: includeTransitive,
         max_depth: maxDepth,
       });
-      return response.data;
+      return response; // api.post returns data directly
     } catch {
       // Mock response for development
       return this.getMockDependenciesResponse(ruleIds[0]);
@@ -693,14 +700,17 @@ class RuleService {
     capabilityTypes?: string[];
   }): Promise<PlatformCapabilitiesResponse> {
     try {
-      const response = await api.post(`${this.baseUrl}/platform-capabilities`, {
-        platform: params.platform,
-        platform_version: params.platformVersion,
-        target_host: params.targetHost,
-        compare_baseline: params.compareBaseline ?? true,
-        capability_types: params.capabilityTypes ?? ['package', 'service', 'security'],
-      });
-      return response.data;
+      const response = await api.post<PlatformCapabilitiesResponse>(
+        `${this.baseUrl}/platform-capabilities`,
+        {
+          platform: params.platform,
+          platform_version: params.platformVersion,
+          target_host: params.targetHost,
+          compare_baseline: params.compareBaseline ?? true,
+          capability_types: params.capabilityTypes ?? ['package', 'service', 'security'],
+        }
+      );
+      return response; // api.post returns data directly
     } catch {
       // Mock response for development
       return this.getMockPlatformCapabilitiesResponse(params);
@@ -715,14 +725,14 @@ class RuleService {
     ruleIds: string[];
     format: 'json' | 'csv' | 'xml';
     includeMetadata?: boolean;
-  }): Promise<string | Record<string, unknown>> {
+  }): Promise<string | RuleExportResponse> {
     try {
-      const response = await api.post<string | Record<string, unknown>>(`${this.baseUrl}/export`, {
+      const response = await api.post<string | RuleExportResponse>(`${this.baseUrl}/export`, {
         rule_ids: params.ruleIds,
         format: params.format,
         include_metadata: params.includeMetadata ?? true,
       });
-      return response.data;
+      return response; // api.post returns data directly
     } catch {
       // Mock response for development
       return this.getMockExportResponse(params);
@@ -829,7 +839,7 @@ class RuleService {
     const mockRules = this.getExpandedMongoDBRules({}).data.rules;
     const rule = mockRules.find((r) => r.rule_id === ruleId) || mockRules[0];
 
-    const enhancedRule = includeInheritance
+    const enhancedRule: Rule = includeInheritance
       ? {
           ...rule,
           inheritance: {
@@ -838,8 +848,8 @@ class RuleService {
             inherited_frameworks: ['nist'],
           },
           parameter_overrides: {
-            check_command: `Enhanced command for ${ruleId}`,
-            timeout: 30,
+            check_command: { value: `Enhanced command for ${ruleId}` },
+            timeout: { value: 30 },
           },
         }
       : rule;
@@ -942,7 +952,11 @@ class RuleService {
         .join('\n')}`;
     }
 
-    return mockRules.filter((rule) => params.ruleIds.includes(rule.rule_id));
+    // Default: return XML format as string
+    const filteredRules = mockRules.filter((rule) => params.ruleIds.includes(rule.rule_id));
+    return `<?xml version="1.0" encoding="UTF-8"?>\n<rules count="${filteredRules.length}">${filteredRules
+      .map((rule) => `\n  <rule id="${rule.rule_id}"><name>${rule.metadata.name}</name></rule>`)
+      .join('')}\n</rules>`;
   }
 }
 

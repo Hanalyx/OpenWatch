@@ -17,7 +17,7 @@ Security Considerations:
 - All exceptions inherit from base Exception for proper error handling
 
 Usage:
-    from backend.app.services.ssh.exceptions import SSHKeyError, SSHConnectionError
+    from app.services.ssh.exceptions import SSHKeyError, SSHConnectionError
 
     try:
         key = parse_ssh_key(key_content)

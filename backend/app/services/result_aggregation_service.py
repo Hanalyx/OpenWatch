@@ -10,8 +10,8 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
-from backend.app.models.unified_rule_models import ComplianceStatus, RuleExecution
-from backend.app.services.multi_framework_scanner import ScanResult
+from app.models.unified_rule_models import ComplianceStatus, RuleExecution
+from app.services.multi_framework_scanner import ScanResult
 
 
 class AggregationLevel(str, Enum):

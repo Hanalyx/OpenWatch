@@ -9,7 +9,6 @@ import {
   Button,
   Alert,
   AlertTitle,
-  Grid,
   Paper,
   Divider,
   LinearProgress,
@@ -33,6 +32,7 @@ import {
   Collapse,
   CircularProgress,
 } from '@mui/material';
+import Grid from '@mui/material/GridLegacy';
 import {
   CloudSync as SyncIcon,
   Upload as UploadIcon,
@@ -57,6 +57,12 @@ interface ValidationResults {
   fileHash?: string;
   rulesCount: number;
   validationPassed: boolean;
+  imported?: number;
+  updated?: number;
+  skipped?: number;
+  processingTime?: number;
+  inheritanceImpact?: unknown;
+  issues?: UploadMessage[];
 }
 
 /**
@@ -76,6 +82,7 @@ interface UploadStatistics {
   imported?: number;
   updated?: number;
   skipped?: number;
+  errors?: number;
 }
 
 /**
@@ -95,8 +102,13 @@ interface BundleManifest {
 interface UploadHistoryRecord {
   upload_id: string;
   file_name: string;
+  filename?: string; // Alternative property name from some API responses
+  file_hash?: string;
   timestamp: string;
+  uploaded_at?: string;
+  uploaded_by?: string;
   status: string;
+  success?: boolean;
   phase: string;
   statistics?: UploadStatistics;
   manifest?: BundleManifest;
@@ -775,7 +787,11 @@ const UploadSyncRules: React.FC = () => {
                             </TableCell>
                             <TableCell>
                               <Typography variant="body2">
-                                {new Date(upload.uploaded_at).toLocaleString()}
+                                {upload.uploaded_at
+                                  ? new Date(upload.uploaded_at).toLocaleString()
+                                  : upload.timestamp
+                                    ? new Date(upload.timestamp).toLocaleString()
+                                    : 'Unknown'}
                               </Typography>
                             </TableCell>
                             <TableCell>
@@ -901,9 +917,9 @@ const UploadSyncRules: React.FC = () => {
                                               {upload.upload_id}
                                             </Typography>
                                           </Typography>
-                                          {upload.statistics?.errors > 0 && (
+                                          {(upload.statistics?.errors ?? 0) > 0 && (
                                             <Chip
-                                              label={`${upload.statistics.errors} Errors`}
+                                              label={`${upload.statistics?.errors ?? 0} Errors`}
                                               size="small"
                                               color="error"
                                               variant="outlined"

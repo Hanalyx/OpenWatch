@@ -42,6 +42,12 @@ interface BaselineEstablishDialogProps {
   onBaselineEstablished?: () => void;
 }
 
+interface ScansResponse {
+  data: {
+    scans: Scan[];
+  };
+}
+
 interface Scan {
   id: string;
   profile_id: string;
@@ -87,7 +93,7 @@ const BaselineEstablishDialog: React.FC<BaselineEstablishDialogProps> = ({
     setError('');
 
     try {
-      const response = await api.get(`/api/scans`, {
+      const response = await api.get<ScansResponse>(`/api/scans`, {
         params: {
           host_id: hostId,
           status: 'completed',

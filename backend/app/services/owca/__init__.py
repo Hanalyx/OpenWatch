@@ -24,7 +24,7 @@ Layers:
     4. Intelligence Layer: Trends, predictions, risk scoring
 
 Usage:
-    >>> from backend.app.services.owca import get_owca_service
+    >>> from app.services.owca import get_owca_service
     >>> owca = get_owca_service(db)
     >>>
     >>> # Extract XCCDF score from XML

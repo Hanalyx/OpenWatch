@@ -9,12 +9,12 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
-from backend.app.models.unified_rule_models import (
+from app.models.unified_rule_models import (
     ComplianceStatus,
     RuleExecution,
     UnifiedComplianceRule,
 )
-from backend.app.services.multi_framework_scanner import ScanResult
+from app.services.multi_framework_scanner import ScanResult
 
 
 class JustificationType(str, Enum):

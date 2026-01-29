@@ -388,7 +388,9 @@ export const GroupComplianceReport: React.FC<ComplianceReportProps> = ({ groupId
                   <RechartsTooltip
                     labelFormatter={(date) => new Date(date).toLocaleDateString()}
                     formatter={(value: number | undefined) =>
-                      value !== undefined ? [`${value.toFixed(1)}%`, 'Compliance Score'] : ['N/A', 'Compliance Score']
+                      value !== undefined
+                        ? [`${value.toFixed(1)}%`, 'Compliance Score']
+                        : ['N/A', 'Compliance Score']
                     }
                   />
                   <Line
@@ -418,8 +420,10 @@ export const GroupComplianceReport: React.FC<ComplianceReportProps> = ({ groupId
                     cx="50%"
                     cy="50%"
                     labelLine={false}
-                    label={({ name, percent }: { name: string; percent?: number }) =>
-                      percent !== undefined ? `${name}: ${(percent * 100).toFixed(0)}%` : `${name}: N/A`
+                    label={({ name, percent }: { name?: string; percent?: number }) =>
+                      percent !== undefined
+                        ? `${name || 'Unknown'}: ${(percent * 100).toFixed(0)}%`
+                        : `${name || 'Unknown'}: N/A`
                     }
                     outerRadius={80}
                     fill="#8884d8"

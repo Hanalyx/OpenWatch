@@ -40,13 +40,15 @@ def create_admin_user():
         # Create admin user
         hashed_password = pwd_context.hash("admin123")
         conn.execute(
-            text("""
+            text(
+                """
             INSERT INTO users (  # noqa: E501
                 username, email, hashed_password, role, is_active,
                 created_at, failed_login_attempts, mfa_enabled
             )
             VALUES ('admin', 'admin@example.com', :password, :role, true, CURRENT_TIMESTAMP, 0, false)
-        """),
+        """
+            ),
             {"password": hashed_password, "role": UserRole.SUPER_ADMIN.value},
         )
         conn.commit()

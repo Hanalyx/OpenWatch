@@ -28,10 +28,10 @@ import {
   Autocomplete,
   Card,
   CardContent,
-  Grid,
   Switch,
   FormHelperText,
 } from '@mui/material';
+import Grid from '@mui/material/GridLegacy';
 import {
   CheckCircle as SuccessIcon,
   Group as GroupIcon,

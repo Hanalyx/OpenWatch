@@ -68,7 +68,7 @@ export const TemplateEditorPage: React.FC = () => {
       setIsPublic(existingTemplate.is_public);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [existingTemplate?.id]);
+  }, [existingTemplate?.template_id]);
 
   const handleFrameworkChange = (newFramework: string, newVersion: string) => {
     setFramework(newFramework);

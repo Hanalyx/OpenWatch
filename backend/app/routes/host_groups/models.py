@@ -21,7 +21,7 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
-from backend.app.models.enums import ScanPriority, ScanSessionStatus
+from app.models.enums import ScanPriority, ScanSessionStatus
 
 # =============================================================================
 # HOST GROUP CRUD MODELS

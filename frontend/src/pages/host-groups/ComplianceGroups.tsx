@@ -4,7 +4,6 @@ import {
   Card,
   CardContent,
   Typography,
-  Grid,
   Chip,
   Button,
   IconButton,
@@ -23,6 +22,7 @@ import {
   Stack,
   Badge,
 } from '@mui/material';
+import Grid from '@mui/material/GridLegacy';
 import {
   Add as AddIcon,
   MoreVert as MoreIcon,
@@ -69,7 +69,7 @@ interface HostGroup {
   auto_scan_enabled: boolean;
   scan_schedule?: string;
   // Validation rules structure from backend (varies by compliance framework)
-  validation_rules?: unknown;
+  validation_rules?: Record<string, unknown>;
   scap_content_name?: string;
   compatibility_summary?: {
     total_hosts: number;

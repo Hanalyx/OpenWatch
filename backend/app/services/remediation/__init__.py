@@ -35,7 +35,7 @@ Design Philosophy:
     - Platform Aware: Platform-specific remediation implementations
 
 Quick Start:
-    from backend.app.services.remediation import RemediationRecommendationEngine
+    from app.services.remediation import RemediationRecommendationEngine
 
     # Initialize engine
     engine = RemediationRecommendationEngine()

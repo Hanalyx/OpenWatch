@@ -4,7 +4,6 @@ import {
   Box,
   Paper,
   Typography,
-  Grid,
   Card,
   CardContent,
   LinearProgress,
@@ -45,6 +44,7 @@ import {
   StepLabel,
   StepContent,
 } from '@mui/material';
+import Grid from '@mui/material/GridLegacy';
 import {
   ArrowBack as ArrowBackIcon,
   CheckCircle as CheckCircleIcon,
@@ -293,7 +293,7 @@ const ScanDetail: React.FC = () => {
   const fetchScanDetails = async (quiet: boolean = false) => {
     try {
       if (!quiet) setLoading(true);
-      const data = await api.get(`/api/scans/${id}`);
+      const data = await api.get<ScanDetails>(`/api/scans/${id}`);
       setScan(data);
 
       // Fetch actual rule results if scan is completed
@@ -314,20 +314,25 @@ const ScanDetail: React.FC = () => {
   const fetchActualRuleResults = async (_quiet: boolean = false) => {
     try {
       // Fetch actual rule results from JSON report endpoint
-      const data = await api.get(`/api/scans/${id}/report/json`);
+      interface ReportJsonResponse {
+        rule_results?: BackendRuleResult[];
+      }
+      const data = await api.get<ReportJsonResponse>(`/api/scans/${id}/report/json`);
 
       // Check if we have actual rule results from XML parsing
       if (data.rule_results && Array.isArray(data.rule_results)) {
         // Transform raw backend rule results into validated frontend format
         const actualRules: RuleResult[] = data.rule_results.map((rule: BackendRuleResult) => ({
           rule_id: rule.rule_id || 'unknown',
-          title: rule.title || extractRuleTitle(rule.rule_id) || 'Unknown Rule',
+          title: rule.title || extractRuleTitle(rule.rule_id || '') || 'Unknown Rule',
           severity: mapSeverity(rule.severity || 'unknown'),
           result: mapResult(rule.result || 'unknown'),
           description:
-            rule.description || extractRuleDescription(rule.rule_id) || 'No description available',
+            rule.description ||
+            extractRuleDescription(rule.rule_id || '') ||
+            'No description available',
           rationale: rule.rationale || '',
-          remediation: rule.remediation || extractRuleDescription(rule.rule_id) || '',
+          remediation: rule.remediation || extractRuleDescription(rule.rule_id || '') || '',
         }));
 
         // Loaded real SCAP compliance rules with remediation guidance
@@ -527,7 +532,7 @@ const ScanDetail: React.FC = () => {
 
       // Handle different formats
       if (format === 'html') {
-        const blob = await api.get(`/api/scans/${id}/report/${format}`, {
+        const blob = await api.get<Blob>(`/api/scans/${id}/report/${format}`, {
           responseType: 'blob',
         });
         const url = window.URL.createObjectURL(blob);
@@ -539,7 +544,7 @@ const ScanDetail: React.FC = () => {
         window.URL.revokeObjectURL(url);
         document.body.removeChild(a);
       } else if (format === 'json') {
-        const data = await api.get(`/api/scans/${id}/report/${format}`);
+        const data = await api.get<Record<string, unknown>>(`/api/scans/${id}/report/${format}`);
         const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -550,7 +555,7 @@ const ScanDetail: React.FC = () => {
         window.URL.revokeObjectURL(url);
         document.body.removeChild(a);
       } else if (format === 'csv') {
-        const blob = await api.get(`/api/scans/${id}/report/${format}`, {
+        const blob = await api.get<Blob>(`/api/scans/${id}/report/${format}`, {
           responseType: 'blob',
         });
         const url = window.URL.createObjectURL(blob);
@@ -579,7 +584,12 @@ const ScanDetail: React.FC = () => {
       setIsLoading(true);
 
       // Fetch host details
-      const hostData = await api.get(`/api/hosts/${scan.host_id}`);
+      interface HostData {
+        platform?: string;
+        platform_version?: string;
+        hostname?: string;
+      }
+      const hostData = await api.get<HostData>(`/api/hosts/${scan.host_id}`);
 
       // Get platform information from host data OR infer from scan name
       let platform = hostData?.platform;
@@ -1970,7 +1980,9 @@ const ScanDetail: React.FC = () => {
                 )}
               </List>
 
-              {scan.scan_options && Object.keys(scan.scan_options).length > 0 && (
+              {scan.scan_options &&
+              typeof scan.scan_options === 'object' &&
+              Object.keys(scan.scan_options as Record<string, unknown>).length > 0 ? (
                 <>
                   <Typography variant="h6" gutterBottom sx={{ mt: 2 }}>
                     Scan Options
@@ -1981,7 +1993,7 @@ const ScanDetail: React.FC = () => {
                     </pre>
                   </Paper>
                 </>
-              )}
+              ) : null}
             </Grid>
           </Grid>
         </TabPanel>

@@ -32,13 +32,17 @@ def create_unified_credentials_table(db: Session) -> bool:
     """
     try:
         # Check if table already exists
-        result = db.execute(text("""
+        result = db.execute(
+            text(
+                """
             SELECT EXISTS (
                 SELECT FROM information_schema.tables
                 WHERE table_schema = 'public'
                 AND table_name = 'unified_credentials'
             )
-        """))
+        """
+            )
+        )
 
         table_exists = result.scalar()
 
@@ -49,7 +53,9 @@ def create_unified_credentials_table(db: Session) -> bool:
         logger.info("Creating unified_credentials table...")
 
         # Create the table
-        db.execute(text("""
+        db.execute(
+            text(
+                """
             CREATE TABLE unified_credentials (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                 name VARCHAR(255) NOT NULL,
@@ -81,30 +87,48 @@ def create_unified_credentials_table(db: Session) -> bool:
                 created_at TIMESTAMP NOT NULL DEFAULT NOW(),
                 updated_at TIMESTAMP NOT NULL DEFAULT NOW()
             )
-        """))
+        """
+            )
+        )
 
         # Create indexes for performance
-        db.execute(text("""
+        db.execute(
+            text(
+                """
             CREATE INDEX idx_unified_credentials_scope_target
                 ON unified_credentials(scope, target_id)
-        """))
+        """
+            )
+        )
 
-        db.execute(text("""
+        db.execute(
+            text(
+                """
             CREATE INDEX idx_unified_credentials_default
                 ON unified_credentials(scope, is_default)
-        """))
+        """
+            )
+        )
 
-        db.execute(text("""
+        db.execute(
+            text(
+                """
             CREATE INDEX idx_unified_credentials_active
                 ON unified_credentials(is_active)
-        """))
+        """
+            )
+        )
 
         # Create unique index for default credentials per scope/target
-        db.execute(text("""
+        db.execute(
+            text(
+                """
             CREATE UNIQUE INDEX idx_unified_credentials_unique_default
                 ON unified_credentials(scope, target_id)
                 WHERE is_default = true
-        """))
+        """
+            )
+        )
 
         db.commit()
         logger.info("[OK] unified_credentials table created successfully with indexes")
@@ -125,13 +149,17 @@ def create_scheduler_config_table(db: Session) -> bool:
     """
     try:
         # Check if table already exists
-        result = db.execute(text("""
+        result = db.execute(
+            text(
+                """
             SELECT EXISTS (
                 SELECT FROM information_schema.tables
                 WHERE table_schema = 'public'
                 AND table_name = 'scheduler_config'
             )
-        """))
+        """
+            )
+        )
 
         table_exists = result.scalar()
 
@@ -142,7 +170,9 @@ def create_scheduler_config_table(db: Session) -> bool:
         logger.info("Creating scheduler_config table...")
 
         # Create the table
-        db.execute(text("""
+        db.execute(
+            text(
+                """
             CREATE TABLE scheduler_config (
                 service_name VARCHAR(100) PRIMARY KEY,
                 enabled BOOLEAN NOT NULL DEFAULT false,
@@ -152,14 +182,20 @@ def create_scheduler_config_table(db: Session) -> bool:
                 created_at TIMESTAMP NOT NULL DEFAULT NOW(),
                 updated_at TIMESTAMP NOT NULL DEFAULT NOW()
             )
-        """))
+        """
+            )
+        )
 
         # Insert default configuration for host monitoring
-        db.execute(text("""
+        db.execute(
+            text(
+                """
             INSERT INTO scheduler_config (service_name, enabled, interval_minutes, auto_start)
             VALUES ('host_monitoring', false, 5, false)
             ON CONFLICT (service_name) DO NOTHING
-        """))
+        """
+            )
+        )
 
         db.commit()
         logger.info("[OK] scheduler_config table created successfully")
@@ -194,13 +230,17 @@ def verify_critical_tables(db: Session) -> dict:
 
     for table_name in critical_tables:
         try:
-            result = db.execute(text(f"""
+            result = db.execute(
+                text(
+                    f"""
                 SELECT EXISTS (
                     SELECT FROM information_schema.tables
                     WHERE table_schema = 'public'
                     AND table_name = '{table_name}'
                 )
-            """))
+            """
+                )
+            )
 
             exists = result.scalar()
             status[table_name] = "[OK]" if exists else "[MISSING]"

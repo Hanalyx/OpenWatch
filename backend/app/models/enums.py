@@ -6,7 +6,7 @@ These are kept separate to avoid circular imports between
 routes, services, and models.
 
 Usage:
-    from backend.app.models.enums import ScanPriority, ScanSessionStatus
+    from app.models.enums import ScanPriority, ScanSessionStatus
 """
 
 from enum import Enum

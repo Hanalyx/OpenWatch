@@ -64,8 +64,9 @@ export const fetchAuditLogs = createAsyncThunk(
     userId?: string;
     action?: string;
   }) => {
-    const response = await api.get('/audit', { params });
-    return response.data;
+    return api.get<{ logs: AuditLog[]; total: number; page: number; pageSize: number }>('/audit', {
+      params,
+    });
   }
 );
 

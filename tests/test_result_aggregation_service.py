@@ -6,15 +6,15 @@ import pytest
 import asyncio
 from datetime import datetime, timedelta
 from unittest.mock import Mock, patch, AsyncMock
-from backend.app.services.result_aggregation_service import (
+from app.services.result_aggregation_service import (
     ResultAggregationService, AggregationLevel, TrendDirection,
     ComplianceMetrics, TrendAnalysis, ComplianceGap, FrameworkComparison,
     AggregatedResults
 )
-from backend.app.services.multi_framework_scanner import (
+from app.services.multi_framework_scanner import (
     ScanResult, FrameworkResult, HostResult
 )
-from backend.app.models.unified_rule_models import (
+from app.models.unified_rule_models import (
     RuleExecution, ComplianceStatus, Platform
 )
 
