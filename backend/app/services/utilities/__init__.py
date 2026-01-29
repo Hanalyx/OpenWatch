@@ -8,6 +8,7 @@ Usage:
     from app.services.utilities import run_startup_migrations
 """
 
+from .csv_analyzer import CSVAnalyzer  # noqa: F401
 from .key_lifecycle import (
     RSAKeyLifecycleManager,
     check_keys_for_rotation,
@@ -35,4 +36,5 @@ __all__ = [
     "get_session_migration_service",
     "validate_token_with_migration_support",
     "create_migration_plan_for_deployment",
+    "CSVAnalyzer",
 ]

@@ -16,9 +16,9 @@ from typing import Dict, List, Optional, Tuple
 import pyotp
 import qrcode
 
-from ..config import get_settings
-from ..utils.logging_security import sanitize_username_for_log
-from .encryption import decrypt_data, encrypt_data
+from ...config import get_settings
+from ...encryption import decrypt_data, encrypt_data
+from ...utils.logging_security import sanitize_username_for_log
 
 logger = logging.getLogger(__name__)
 settings = get_settings()

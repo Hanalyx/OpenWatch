@@ -305,7 +305,7 @@ async def create_host(
         display_name = host.display_name or host.hostname
 
         # Phase 2: Use HostCredentialHandler service for credential validation
-        from ...services.host_credential_handler import HostCredentialHandler
+        from ...services.auth.credential_handler import HostCredentialHandler
 
         credential_handler = HostCredentialHandler(db)
         host_uuid = uuid.UUID(host_id)

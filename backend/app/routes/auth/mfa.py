@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from ...auth import audit_logger, get_current_user
 from ...database import MFAAuditLog, MFAUsedCodes, get_db
-from ...services.mfa_service import get_mfa_service
+from ...services.auth.mfa import get_mfa_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter()

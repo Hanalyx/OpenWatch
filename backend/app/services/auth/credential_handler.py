@@ -56,10 +56,9 @@ from typing import Any, Dict, Optional
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
-from .auth import AuthMethod, CredentialData, CredentialMetadata, CredentialScope, get_auth_service
-
 # validate_ssh_key validates key format and security level
-from .ssh import validate_ssh_key
+from ..ssh import validate_ssh_key
+from . import AuthMethod, CredentialData, CredentialMetadata, CredentialScope, get_auth_service
 
 logger = logging.getLogger(__name__)
 
