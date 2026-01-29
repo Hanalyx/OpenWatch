@@ -27,7 +27,7 @@ import uuid
 from datetime import datetime
 from typing import Any, Dict, Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -35,7 +35,6 @@ from app.auth import get_current_user
 from app.constants import is_framework_supported
 from app.database import get_db
 from app.routes.scans.helpers import (
-    enrich_scan_results_background,
     get_compliance_reporter,
     get_compliance_scanner,
     get_enrichment_service,
@@ -51,6 +50,7 @@ from app.routes.scans.models import (
     ScannerCapabilities,
     ScannerHealthResponse,
 )
+from app.tasks.background_tasks import enrich_scan_results_celery
 from app.utils.query_builder import QueryBuilder
 
 logger = logging.getLogger(__name__)
@@ -227,7 +227,6 @@ async def _jit_platform_detection(
 async def create_compliance_scan(
     scan_request: ComplianceScanRequest,
     request: Request,
-    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: Dict[str, Any] = Depends(get_current_user),
 ) -> ComplianceScanResponse:
@@ -257,7 +256,6 @@ async def create_compliance_scan(
     Args:
         scan_request: Scan configuration with host, platform, and rule filters.
         request: FastAPI request for accessing app state (encryption service).
-        background_tasks: FastAPI background task queue for async enrichment.
         db: SQLAlchemy database session for scan record persistence.
         current_user: Authenticated user from JWT token.
 
@@ -659,8 +657,7 @@ async def create_compliance_scan(
         # Queue background enrichment and report generation
         # ---------------------------------------------------------------------
         if scan_request.include_enrichment:
-            background_tasks.add_task(
-                enrich_scan_results_background,
+            enrich_scan_results_celery.delay(
                 scan_id=scan_id,
                 result_file=str(result_file) if result_file else "",
                 scan_metadata={

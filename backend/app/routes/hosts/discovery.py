@@ -40,7 +40,7 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from ...auth import get_current_user
@@ -61,8 +61,7 @@ from .helpers import (
     get_recommended_frameworks,
     validate_host_uuid,
 )
-from .models import (  # noqa: E501
-    # Basic discovery models; Network discovery models; Security discovery models; Compliance discovery models
+from .models import (  # noqa: E501; Basic discovery models; Network discovery models; Security discovery models; Compliance discovery models
     BulkComplianceDiscoveryRequest,
     BulkComplianceDiscoveryResponse,
     BulkDiscoveryRequest,
@@ -93,7 +92,6 @@ router = APIRouter(tags=["Host Discovery"])
 @router.post("/{host_id}/discovery/basic", response_model=HostDiscoveryResponse)
 async def discover_basic_system_info(
     host_id: str,
-    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: Dict[str, Any] = Depends(get_current_user),
 ) -> HostDiscoveryResponse:
@@ -156,7 +154,6 @@ async def discover_basic_system_info(
 @router.post("/discovery/basic/bulk", response_model=BulkDiscoveryResponse)
 async def discover_basic_system_bulk(
     request: BulkDiscoveryRequest,
-    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: Dict[str, Any] = Depends(get_current_user),
 ) -> BulkDiscoveryResponse:
@@ -193,8 +190,10 @@ async def discover_basic_system_bulk(
 
     for host in valid_hosts:
         try:
-            # Add background task for each host
-            background_tasks.add_task(_execute_background_discovery, str(host.id), db)
+            # Dispatch discovery via Celery
+            from app.tasks.background_tasks import execute_host_discovery_celery
+
+            execute_host_discovery_celery.delay(host_id=str(host.id))
             initiated_hosts.append(str(host.id))
 
         except Exception as e:

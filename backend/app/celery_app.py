@@ -103,6 +103,11 @@ celery_app.conf.update(
         "backend.app.tasks.queue_host_checks": {"queue": "monitoring"},
         "backend.app.tasks.detect_stale_scans": {"queue": "maintenance"},
         "backend.app.tasks.execute_scan": {"queue": "scans"},
+        "backend.app.tasks.enrich_scan_results": {"queue": "default"},
+        "backend.app.tasks.execute_remediation": {"queue": "default"},
+        "backend.app.tasks.import_scap_content": {"queue": "default"},
+        "backend.app.tasks.deliver_webhook": {"queue": "default"},
+        "backend.app.tasks.execute_host_discovery": {"queue": "default"},
     },
     # Queue configuration
     task_default_queue="default",
@@ -189,6 +194,7 @@ celery_app.conf.update(
         "backend.app.tasks.os_discovery_tasks",
         "backend.app.tasks.stale_scan_detection",
         "backend.app.tasks.scan_tasks",
+        "backend.app.tasks.background_tasks",
     ],
 )
 

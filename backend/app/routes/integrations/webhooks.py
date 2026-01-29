@@ -24,7 +24,7 @@ import uuid
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, validator
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -550,7 +550,6 @@ async def get_webhook_deliveries(
 @router.post("/{webhook_id}/test")
 async def test_webhook_endpoint(
     webhook_id: str,
-    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: Dict[str, Any] = Depends(get_current_user),
 ) -> Dict[str, Any]:
@@ -559,7 +558,6 @@ async def test_webhook_endpoint(
 
     Args:
         webhook_id: UUID of the webhook
-        background_tasks: FastAPI background tasks
         db: Database session
         current_user: Authenticated user context
 
@@ -595,15 +593,14 @@ async def test_webhook_endpoint(
             },
         }
 
-        # Queue webhook delivery as background task
-        from ...tasks.webhook_tasks import deliver_webhook
+        # Queue webhook delivery via Celery
+        from app.tasks.background_tasks import deliver_webhook_celery
 
-        background_tasks.add_task(
-            deliver_webhook,
-            webhook_result.url,
-            webhook_result.secret_hash,
-            test_event,
-            webhook_id,
+        deliver_webhook_celery.delay(
+            url=webhook_result.url,
+            secret_hash=webhook_result.secret_hash,
+            event_data=test_event,
+            webhook_id=webhook_id,
         )
 
         return {

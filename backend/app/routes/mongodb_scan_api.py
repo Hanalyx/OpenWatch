@@ -10,7 +10,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 import lxml.etree as etree  # nosec B410 (secure parser configuration on line 187)
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -365,7 +365,6 @@ def parse_xccdf_results(result_file: str) -> Dict[str, Any]:
 async def start_mongodb_scan(
     scan_request: MongoDBScanRequest,
     request: Request,
-    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     scanner: UnifiedSCAPScanner = Depends(get_mongodb_scanner),
@@ -768,13 +767,14 @@ async def start_mongodb_scan(
 
         # Add background tasks for enrichment and reporting
         if scan_request.include_enrichment:
+            from app.tasks.background_tasks import enrich_scan_results_celery
+
             result_file_path = scan_result.get("result_file", "")
-            background_tasks.add_task(
-                enrich_scan_results_task,
-                scan_id,
-                str(result_file_path) if result_file_path else "",
-                scan_request.dict(),
-                scan_request.generate_report,
+            enrich_scan_results_celery.delay(
+                scan_id=scan_id,
+                result_file=str(result_file_path) if result_file_path else "",
+                scan_metadata=scan_request.dict(),
+                generate_report=scan_request.generate_report,
             )
 
         logger.info(f"MongoDB scan {scan_id} completed successfully")
@@ -788,45 +788,6 @@ async def start_mongodb_scan(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Scan initialization failed: {str(e)}",
         )
-
-
-async def enrich_scan_results_task(
-    scan_id: str, result_file: str, scan_metadata: Dict[str, Any], generate_report: bool
-) -> None:
-    """Background task to enrich scan results and generate reports"""
-    try:
-        logger.info(f"Starting background enrichment for scan {scan_id}")
-
-        # Get services
-        enrichment_svc = await get_enrichment_service()
-
-        # Enrich results
-        enriched_results = await enrichment_svc.enrich_scan_results(
-            result_file_path=result_file, scan_metadata=scan_metadata
-        )
-
-        # Generate compliance report if requested
-        if generate_report:
-            reporter = await get_compliance_reporter()
-            framework = scan_metadata.get("framework")
-            target_frameworks: List[str] = [str(framework)] if framework else []
-
-            compliance_report = await reporter.generate_compliance_report(
-                enriched_results=enriched_results,
-                target_frameworks=target_frameworks,
-                report_format="json",
-            )
-
-            # Store report (in a real implementation, this would save to database)
-            logger.info(
-                f"Generated compliance report for scan {scan_id} with "
-                f"{len(compliance_report.get('frameworks', {}))} frameworks"
-            )
-
-        logger.info(f"Background enrichment completed for scan {scan_id}")
-
-    except Exception as e:
-        logger.error(f"Background enrichment failed for scan {scan_id}: {e}")
 
 
 @router.get("/{scan_id}/status", response_model=ScanStatusResponse)

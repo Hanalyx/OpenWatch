@@ -35,7 +35,7 @@ import uuid
 from datetime import datetime
 from typing import Any, Dict, Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -374,7 +374,6 @@ async def get_scan(
 @router.post("/legacy")
 async def create_scan_legacy(
     scan_request: ScanRequest,
-    background_tasks: BackgroundTasks,
     response: Response,
     db: Session = Depends(get_db),
     current_user: Dict[str, Any] = Depends(get_current_user),
@@ -387,7 +386,6 @@ async def create_scan_legacy(
 
     Args:
         scan_request: Scan configuration including host_id, content_id, profile_id.
-        background_tasks: FastAPI background task manager.
         response: FastAPI response for deprecation headers.
         db: Database session.
         current_user: Authenticated user from JWT.
@@ -900,7 +898,6 @@ async def recover_scan(
 async def apply_automated_fix(
     host_id: str,
     fix_request: AutomatedFixRequest,
-    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: Dict[str, Any] = Depends(get_current_user),
 ) -> Dict[str, Any]:
@@ -913,7 +910,6 @@ async def apply_automated_fix(
     Args:
         host_id: UUID of the target host.
         fix_request: Fix configuration including fix_id and validation options.
-        background_tasks: FastAPI background task manager.
         db: SQLAlchemy database session.
         current_user: Authenticated user from JWT token.
 

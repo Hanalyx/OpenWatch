@@ -150,7 +150,6 @@ router.include_router(validation_router)
 from app.routes.scans.helpers import (  # noqa: E402
     DEPRECATION_WARNING,
     add_deprecation_header,
-    enrich_scan_results_background,
     get_compliance_reporter,
     get_compliance_scanner,
     get_enrichment_service,
@@ -211,8 +210,6 @@ __all__ = [
     "get_compliance_reporter",
     # XCCDF parsing
     "parse_xccdf_results",
-    # Background tasks
-    "enrich_scan_results_background",
     # Deprecation helpers
     "DEPRECATION_WARNING",
     "add_deprecation_header",

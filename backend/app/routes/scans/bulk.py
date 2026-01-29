@@ -25,7 +25,7 @@ Security Notes:
 import logging
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -47,7 +47,6 @@ router = APIRouter(tags=["Bulk Scan Operations"])
 @router.post("/bulk-scan", response_model=BulkScanResponse)
 async def create_bulk_scan(
     bulk_scan_request: BulkScanRequest,
-    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: Dict[str, Any] = Depends(get_current_user),
 ) -> BulkScanResponse:
@@ -59,7 +58,6 @@ async def create_bulk_scan(
 
     Args:
         bulk_scan_request: Configuration including host IDs, template, and priority.
-        background_tasks: FastAPI background task manager.
         db: SQLAlchemy database session.
         current_user: Authenticated user from JWT token.
 

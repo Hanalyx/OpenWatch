@@ -43,7 +43,7 @@ from datetime import datetime
 from typing import Any, Dict, List
 from uuid import UUID
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -342,7 +342,6 @@ async def validate_scan_configuration(
 async def quick_scan(
     host_id: str,
     quick_scan_request: QuickScanRequest,
-    background_tasks: BackgroundTasks,
     response: Response,
     db: Session = Depends(get_db),
     current_user: Dict[str, Any] = Depends(get_current_user),
@@ -359,7 +358,6 @@ async def quick_scan(
     Args:
         host_id: UUID of the target host.
         quick_scan_request: Optional template and priority settings.
-        background_tasks: FastAPI background task manager.
         response: FastAPI response for deprecation headers.
         db: Database session.
         current_user: Authenticated user from JWT.
@@ -605,7 +603,6 @@ async def quick_scan(
 @router.post("/verify")
 async def create_verification_scan(
     verification_request: VerificationScanRequest,
-    background_tasks: BackgroundTasks,
     response: Response,
     db: Session = Depends(get_db),
     current_user: Dict[str, Any] = Depends(get_current_user),
@@ -621,7 +618,6 @@ async def create_verification_scan(
 
     Args:
         verification_request: Host, content, profile, and original scan reference.
-        background_tasks: FastAPI background task manager.
         response: FastAPI response for deprecation headers.
         db: Database session.
         current_user: Authenticated user from JWT.
@@ -789,7 +785,6 @@ async def create_verification_scan(
 async def rescan_rule(
     scan_id: str,
     rescan_request: RuleRescanRequest,
-    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: Dict[str, Any] = Depends(get_current_user),
 ) -> Dict[str, Any]:
@@ -802,7 +797,6 @@ async def rescan_rule(
     Args:
         scan_id: UUID of the original scan.
         rescan_request: Rule ID to rescan.
-        background_tasks: FastAPI background task manager.
         db: Database session.
         current_user: Authenticated user from JWT.
 
