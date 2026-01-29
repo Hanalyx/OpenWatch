@@ -147,6 +147,10 @@ def create_default_super_admin(db: Session):
             )
             logger.info("Created new super admin user (username: admin, password: admin123)")
 
+            # Advance the users_id_seq past the manually-inserted id=1
+            # so auto-generated IDs don't collide with the default admin.
+            db.execute(text("SELECT setval('users_id_seq', GREATEST(nextval('users_id_seq'), 2))"))
+
         db.commit()
 
     except Exception as e:

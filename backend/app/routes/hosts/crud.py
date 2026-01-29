@@ -631,7 +631,7 @@ async def update_host(
         # Handle credential updates using unified_credentials system
         encrypted_creds = None  # Always NULL for unified system
         if host_update.auth_method:
-            from ...services.auth_service import (
+            from ...services.auth import (
                 AuthMethod,
                 CredentialData,
                 CredentialMetadata,

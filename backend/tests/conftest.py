@@ -125,7 +125,7 @@ def admin_user(client, unique_suffix):
     email = f"admin_{unique_suffix}@example.com"
     password = "AdminPass123!@#"  # pragma: allowlist secret
 
-    resp = register_user(client, username, email, password, role="admin")
+    resp = register_user(client, username, email, password, role="super_admin")
     if resp.status_code != 200:
         pytest.skip(f"Admin registration not available: {resp.status_code} {resp.text}")
 
