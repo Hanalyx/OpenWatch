@@ -427,15 +427,11 @@ jobs:
       - name: Run E2E tests
         working-directory: ./frontend
         env:
+          CI: true
           BASE_URL: http://localhost:3001
           API_URL: http://localhost:8000
         run: |
-          # Start frontend in background
-          npm run dev &
-
-          # Wait for frontend to be ready
-          timeout 60 bash -c 'until curl -f http://localhost:3001; do sleep 2; done'
-
+          # Playwright's webServer config starts the frontend automatically
           # Run E2E tests (chromium only in CI to keep runtime reasonable)
           npx playwright test --project=chromium --reporter=html,junit
 

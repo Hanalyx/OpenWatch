@@ -133,9 +133,9 @@ jobs:
         run: |
           npm run build
 
-          # Analyze bundle size
+          # Analyze bundle size (Vite outputs to build/, not dist/)
           echo "Bundle Size Report:"
-          du -sh dist/*
+          du -sh build/*
 
       - name: Upload reports
         if: always()
