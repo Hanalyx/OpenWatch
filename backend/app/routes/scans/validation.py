@@ -62,7 +62,7 @@ from app.routes.scans.models import (
 from app.services.error_classification import get_error_classification_service
 from app.services.error_sanitization import get_error_sanitization_service
 from app.services.scan_intelligence import RecommendedScanProfile, ScanIntelligenceService
-from app.tasks.scan_tasks import execute_scan_task
+from app.tasks.scan_tasks import execute_scan_celery
 from app.utils.query_builder import QueryBuilder
 
 logger = logging.getLogger(__name__)
@@ -527,9 +527,8 @@ async def quick_scan(
         # Commit the scan record
         db.commit()
 
-        # Start scan as background task
-        background_tasks.add_task(
-            execute_scan_task,
+        # Start scan via Celery task (persistent, with timeout and retry)
+        execute_scan_celery.delay(
             scan_id=str(scan_id),
             host_data={
                 "hostname": host_result.hostname,
@@ -740,9 +739,8 @@ async def create_verification_scan(
         scan_id = scan_row.id
         db.commit()
 
-        # Start verification scan as background task
-        background_tasks.add_task(
-            execute_scan_task,
+        # Start verification scan via Celery task (persistent, with timeout and retry)
+        execute_scan_celery.delay(
             scan_id=str(scan_id),
             host_data={
                 "hostname": host_result.hostname,
@@ -1039,9 +1037,7 @@ async def validate_bulk_readiness(
     """
     try:
         from app.models.readiness_models import BulkReadinessRequest
-        from app.services.host_validator.readiness_validator import (
-            ReadinessValidatorService,
-        )
+        from app.services.host_validator.readiness_validator import ReadinessValidatorService
 
         # Parse request
         bulk_request = BulkReadinessRequest(**request)
@@ -1224,9 +1220,7 @@ async def pre_flight_check(
     """
     try:
         from app.models.readiness_models import ReadinessCheckType
-        from app.services.host_validator.readiness_validator import (
-            ReadinessValidatorService,
-        )
+        from app.services.host_validator.readiness_validator import ReadinessValidatorService
 
         # Get scan
         scan_result = db.execute(

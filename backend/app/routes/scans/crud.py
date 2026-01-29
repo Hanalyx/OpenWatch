@@ -43,7 +43,7 @@ from app.auth import get_current_user
 from app.database import get_db
 from app.routes.scans.helpers import add_deprecation_header, error_service
 from app.routes.scans.models import AutomatedFixRequest, ScanRequest, ScanUpdate
-from app.tasks.scan_tasks import execute_scan_task
+from app.tasks.scan_tasks import execute_scan_celery
 from app.utils.logging_security import sanitize_path_for_log
 from app.utils.query_builder import QueryBuilder
 
@@ -487,9 +487,8 @@ async def create_scan_legacy(
         # Commit the scan record
         db.commit()
 
-        # Start scan as background task
-        background_tasks.add_task(
-            execute_scan_task,
+        # Start scan via Celery task (persistent, with timeout and retry)
+        execute_scan_celery.delay(
             scan_id=str(scan_id),
             host_data={
                 "hostname": host_result.hostname,
