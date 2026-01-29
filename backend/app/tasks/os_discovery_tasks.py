@@ -38,7 +38,7 @@ from app.celery_app import celery_app
 from app.config import get_settings
 from app.database import get_db_session
 from app.encryption import EncryptionConfig, create_encryption_service
-from app.services.host_discovery_service import HostBasicDiscoveryService
+from app.services.discovery import HostBasicDiscoveryService
 
 # SSHConnectionManager provides modular SSH connection handling with better testability
 from app.services.ssh import SSHConnectionManager
