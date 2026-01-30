@@ -51,6 +51,7 @@ import RuleSidePanel from '../../components/content/RuleSidePanel';
 import { useComplianceStatistics } from '../../hooks/useComplianceStatistics';
 import { useFrameworkStatistics, type FrameworkData } from '../../hooks/useFrameworkStatistics';
 import { type PlatformStatistics } from '../../types/content.types';
+import { storageGet, storageSet, StorageKeys } from '../../services/storage';
 
 interface ComplianceFilters {
   search: string;
@@ -101,7 +102,7 @@ const ComplianceRulesContent: React.FC<ComplianceRulesContentProps> = ({ onRuleS
   } = useFrameworkStatistics();
 
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
-    const saved = localStorage.getItem('complianceRulesViewMode');
+    const saved = storageGet(StorageKeys.COMPLIANCE_RULES_VIEW_MODE);
     return (saved as ViewMode) || 'platform';
   });
 
@@ -266,14 +267,14 @@ const ComplianceRulesContent: React.FC<ComplianceRulesContentProps> = ({ onRuleS
   // Handle view mode change
   const handleViewModeChange = (mode: ViewMode) => {
     setViewMode(mode);
-    localStorage.setItem('complianceRulesViewMode', mode);
+    storageSet(StorageKeys.COMPLIANCE_RULES_VIEW_MODE, mode);
   };
 
   // Handle platform card actions
   const handleBrowsePlatform = (platform: PlatformStatistics) => {
     setViewMode('all');
     handleFilterChange('platform', platform.name.toLowerCase());
-    localStorage.setItem('complianceRulesViewMode', 'all');
+    storageSet(StorageKeys.COMPLIANCE_RULES_VIEW_MODE, 'all');
   };
 
   const handleExportPlatform = (platform: PlatformStatistics) => {
@@ -293,7 +294,7 @@ const ComplianceRulesContent: React.FC<ComplianceRulesContentProps> = ({ onRuleS
   const handleBrowseFramework = (framework: FrameworkData) => {
     setViewMode('all');
     handleFilterChange('framework', framework.name.toLowerCase());
-    localStorage.setItem('complianceRulesViewMode', 'all');
+    storageSet(StorageKeys.COMPLIANCE_RULES_VIEW_MODE, 'all');
   };
 
   // Count active filters

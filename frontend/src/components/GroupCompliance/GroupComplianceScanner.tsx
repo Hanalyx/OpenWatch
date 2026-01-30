@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { storageGet, StorageKeys } from '../../services/storage';
 import {
   Box,
   Card,
@@ -135,7 +136,7 @@ export const GroupComplianceScanner: React.FC<GroupComplianceProps> = ({
       // MongoDB compliance rules endpoint - returns bundles that can be used for scanning
       const response = await fetch('/api/compliance-rules/?view_mode=bundles', {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+          Authorization: `Bearer ${storageGet(StorageKeys.AUTH_TOKEN)}`,
         },
       });
       if (response.ok) {
@@ -176,7 +177,7 @@ export const GroupComplianceScanner: React.FC<GroupComplianceProps> = ({
     try {
       const response = await fetch(`/api/host-groups/${groupId}/scan-sessions?status=running`, {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+          Authorization: `Bearer ${storageGet(StorageKeys.AUTH_TOKEN)}`,
         },
       });
       if (response.ok) {
@@ -203,7 +204,7 @@ export const GroupComplianceScanner: React.FC<GroupComplianceProps> = ({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+          Authorization: `Bearer ${storageGet(StorageKeys.AUTH_TOKEN)}`,
         },
         body: JSON.stringify({
           scap_content_id: scanRequest.scapContentId,
@@ -247,7 +248,7 @@ export const GroupComplianceScanner: React.FC<GroupComplianceProps> = ({
           `/api/host-groups/${groupId}/scan-sessions/${sessionId}/progress`,
           {
             headers: {
-              Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+              Authorization: `Bearer ${storageGet(StorageKeys.AUTH_TOKEN)}`,
             },
           }
         );
@@ -286,7 +287,7 @@ export const GroupComplianceScanner: React.FC<GroupComplianceProps> = ({
         {
           method: 'POST',
           headers: {
-            Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+            Authorization: `Bearer ${storageGet(StorageKeys.AUTH_TOKEN)}`,
           },
         }
       );

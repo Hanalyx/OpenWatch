@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { storageGet, StorageKeys } from '../../services/storage';
 import {
   Box,
   Paper,
@@ -380,7 +381,7 @@ const AddHost: React.FC = () => {
       // Use unified credentials API with scope filter
       const response = await fetch('/api/system/credentials?scope=system', {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+          Authorization: `Bearer ${storageGet(StorageKeys.AUTH_TOKEN)}`,
         },
       });
 
@@ -445,7 +446,7 @@ const AddHost: React.FC = () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+          Authorization: `Bearer ${storageGet(StorageKeys.AUTH_TOKEN)}`,
         },
         body: JSON.stringify(validationData),
       });

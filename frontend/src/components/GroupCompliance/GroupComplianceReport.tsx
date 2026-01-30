@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { storageGet, StorageKeys } from '../../services/storage';
 import {
   Box,
   Card,
@@ -136,7 +137,7 @@ export const GroupComplianceReport: React.FC<ComplianceReportProps> = ({ groupId
 
       const response = await fetch(`/api/host-groups/${groupId}/compliance/report?${params}`, {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+          Authorization: `Bearer ${storageGet(StorageKeys.AUTH_TOKEN)}`,
         },
       });
 
@@ -162,7 +163,7 @@ export const GroupComplianceReport: React.FC<ComplianceReportProps> = ({ groupId
         `/api/host-groups/${groupId}/compliance/report/download?${params}`,
         {
           headers: {
-            Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+            Authorization: `Bearer ${storageGet(StorageKeys.AUTH_TOKEN)}`,
           },
         }
       );

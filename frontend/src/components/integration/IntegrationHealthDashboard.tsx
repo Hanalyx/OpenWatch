@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { storageGet, StorageKeys } from '../../services/storage';
 import {
   Box,
   Card,
@@ -98,7 +99,7 @@ const IntegrationHealthDashboard: React.FC = () => {
 
   const fetchPerformanceData = async () => {
     try {
-      const token = localStorage.getItem('auth_token');
+      const token = storageGet(StorageKeys.AUTH_TOKEN);
       const response = await fetch('/api/integration/metrics/performance', {
         headers: {
           Authorization: `Bearer ${token}`,

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { storageGet, StorageKeys } from '../../services/storage';
 import {
   Box,
   Card,
@@ -110,7 +111,7 @@ const ComplianceGroups: React.FC = () => {
 
       const response = await fetch('/api/host-groups/', {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+          Authorization: `Bearer ${storageGet(StorageKeys.AUTH_TOKEN)}`,
         },
       });
 
@@ -159,7 +160,7 @@ const ComplianceGroups: React.FC = () => {
       const response = await fetch(`/api/host-groups/${selectedGroup.id}`, {
         method: 'DELETE',
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+          Authorization: `Bearer ${storageGet(StorageKeys.AUTH_TOKEN)}`,
         },
       });
 
@@ -203,7 +204,7 @@ const ComplianceGroups: React.FC = () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+          Authorization: `Bearer ${storageGet(StorageKeys.AUTH_TOKEN)}`,
         },
         body: JSON.stringify({
           scap_content_id: selectedGroup.scap_content_id,
@@ -786,7 +787,7 @@ const ComplianceGroups: React.FC = () => {
                 {
                   method: 'POST',
                   headers: {
-                    Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+                    Authorization: `Bearer ${storageGet(StorageKeys.AUTH_TOKEN)}`,
                   },
                 }
               );

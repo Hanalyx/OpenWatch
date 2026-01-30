@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { storageGet, StorageKeys } from '../../services/storage';
 import {
   Dialog,
   DialogTitle,
@@ -91,7 +92,7 @@ const BulkScanProgress: React.FC<BulkScanProgressProps> = ({
 
       const response = await fetch(`/api/scans/bulk-scan/${sessionId}/progress`, {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+          Authorization: `Bearer ${storageGet(StorageKeys.AUTH_TOKEN)}`,
         },
       });
 
@@ -140,7 +141,7 @@ const BulkScanProgress: React.FC<BulkScanProgressProps> = ({
         const response = await fetch(`/api/scans/bulk-scan/${sessionId}/cancel`, {
           method: 'POST',
           headers: {
-            Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+            Authorization: `Bearer ${storageGet(StorageKeys.AUTH_TOKEN)}`,
           },
         });
 

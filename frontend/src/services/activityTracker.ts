@@ -9,12 +9,10 @@
 
 import { store } from '../store';
 import { logout } from '../store/slices/authSlice';
+import { storageGet, storageSet, StorageKeys } from './storage';
 
 // Default inactivity timeout in minutes
 const DEFAULT_INACTIVITY_TIMEOUT_MINUTES = 15;
-
-// Storage key for admin-configured timeout
-const TIMEOUT_STORAGE_KEY = 'session_inactivity_timeout_minutes';
 
 // Activity events to track
 const ACTIVITY_EVENTS = [
@@ -50,16 +48,12 @@ class ActivityTracker {
    * Load timeout setting from localStorage (local cache)
    */
   private loadTimeoutSetting(): void {
-    try {
-      const stored = localStorage.getItem(TIMEOUT_STORAGE_KEY);
-      if (stored) {
-        const parsed = parseInt(stored, 10);
-        if (!isNaN(parsed) && parsed >= 1 && parsed <= 480) {
-          this.inactivityTimeoutMinutes = parsed;
-        }
+    const stored = storageGet(StorageKeys.SESSION_INACTIVITY_TIMEOUT);
+    if (stored) {
+      const parsed = parseInt(stored, 10);
+      if (!isNaN(parsed) && parsed >= 1 && parsed <= 480) {
+        this.inactivityTimeoutMinutes = parsed;
       }
-    } catch {
-      // Use default if storage fails
     }
   }
 
@@ -69,7 +63,7 @@ class ActivityTracker {
    */
   async fetchTimeoutFromBackend(): Promise<void> {
     try {
-      const token = localStorage.getItem('auth_token');
+      const token = storageGet(StorageKeys.AUTH_TOKEN);
       if (!token) {
         return; // Not authenticated, skip fetch
       }
@@ -85,11 +79,7 @@ class ActivityTracker {
         if (data.timeout_minutes && data.timeout_minutes >= 1 && data.timeout_minutes <= 480) {
           this.inactivityTimeoutMinutes = data.timeout_minutes;
           // Cache locally for faster subsequent loads
-          try {
-            localStorage.setItem(TIMEOUT_STORAGE_KEY, data.timeout_minutes.toString());
-          } catch {
-            // Ignore storage errors
-          }
+          storageSet(StorageKeys.SESSION_INACTIVITY_TIMEOUT, data.timeout_minutes.toString());
         }
       }
     } catch {
@@ -103,11 +93,7 @@ class ActivityTracker {
   saveTimeoutSetting(minutes: number): void {
     if (minutes >= 1 && minutes <= 480) {
       this.inactivityTimeoutMinutes = minutes;
-      try {
-        localStorage.setItem(TIMEOUT_STORAGE_KEY, minutes.toString());
-      } catch {
-        // Ignore storage errors
-      }
+      storageSet(StorageKeys.SESSION_INACTIVITY_TIMEOUT, minutes.toString());
     }
   }
 

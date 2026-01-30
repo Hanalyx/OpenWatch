@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { storageGet, StorageKeys } from '../../services/storage';
 import {
   Dialog,
   DialogTitle,
@@ -79,31 +80,31 @@ const BulkScanDialog: React.FC<BulkScanDialogProps> = ({
       id: 'auto',
       name: 'Smart Scan (AI-Recommended)',
       description: 'Intelligent profile selection per host',
-      icon: '🤖',
+      icon: 'AI',
     },
     {
       id: 'essential',
       name: 'Essential Security',
       description: 'Quick security baseline',
-      icon: '⚡',
+      icon: 'ES',
     },
     {
       id: 'xccdf_org.ssgproject.content_profile_cui',
       name: 'CUI Compliance',
       description: 'Controlled Unclassified Information',
-      icon: '🛡️',
+      icon: 'CUI',
     },
     {
       id: 'xccdf_org.ssgproject.content_profile_stig',
       name: 'STIG Security',
       description: 'Security Technical Implementation Guide',
-      icon: '🔒',
+      icon: 'STG',
     },
     {
       id: 'xccdf_org.ssgproject.content_profile_cis',
       name: 'CIS Benchmark',
       description: 'Center for Internet Security',
-      icon: '🎯',
+      icon: 'CIS',
     },
   ];
 
@@ -199,7 +200,7 @@ const BulkScanDialog: React.FC<BulkScanDialogProps> = ({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+          Authorization: `Bearer ${storageGet(StorageKeys.AUTH_TOKEN)}`,
         },
         body: JSON.stringify({
           host_ids: hostIds,

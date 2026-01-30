@@ -1,4 +1,11 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
+import {
+  storageClearAuth,
+  storageGet,
+  storageGetJSON,
+  storageSet,
+  StorageKeys,
+} from '../../services/storage';
 
 interface User {
   id: string;
@@ -22,13 +29,12 @@ interface AuthState {
 // Load persisted auth state from localStorage
 const loadPersistedAuthState = (): Partial<AuthState> => {
   try {
-    const token = localStorage.getItem('auth_token');
-    const refreshToken = localStorage.getItem('refresh_token');
-    const userStr = localStorage.getItem('auth_user');
-    const sessionExpiryStr = localStorage.getItem('session_expiry');
+    const token = storageGet(StorageKeys.AUTH_TOKEN);
+    const refreshToken = storageGet(StorageKeys.REFRESH_TOKEN);
+    const user = storageGetJSON<User>(StorageKeys.AUTH_USER);
+    const sessionExpiryStr = storageGet(StorageKeys.SESSION_EXPIRY);
 
-    if (token && userStr) {
-      const user = JSON.parse(userStr);
+    if (token && user) {
       const sessionExpiry = sessionExpiryStr ? parseInt(sessionExpiryStr) : null;
 
       // Check if session is still valid
@@ -42,10 +48,7 @@ const loadPersistedAuthState = (): Partial<AuthState> => {
         };
       } else {
         // Session expired, clear localStorage
-        localStorage.removeItem('auth_token');
-        localStorage.removeItem('refresh_token');
-        localStorage.removeItem('auth_user');
-        localStorage.removeItem('session_expiry');
+        storageClearAuth();
       }
     }
   } catch (error) {
@@ -92,14 +95,10 @@ const authSlice = createSlice({
       state.mfaRequired = false;
 
       // Persist to localStorage
-      try {
-        localStorage.setItem('auth_token', action.payload.token);
-        localStorage.setItem('refresh_token', action.payload.refreshToken);
-        localStorage.setItem('auth_user', JSON.stringify(action.payload.user));
-        localStorage.setItem('session_expiry', state.sessionExpiry.toString());
-      } catch (error) {
-        console.warn('Failed to persist auth state:', error);
-      }
+      storageSet(StorageKeys.AUTH_TOKEN, action.payload.token);
+      storageSet(StorageKeys.REFRESH_TOKEN, action.payload.refreshToken);
+      storageSet(StorageKeys.AUTH_USER, JSON.stringify(action.payload.user));
+      storageSet(StorageKeys.SESSION_EXPIRY, state.sessionExpiry.toString());
     },
     loginFailure: (state, action: PayloadAction<string>) => {
       state.isLoading = false;
@@ -119,14 +118,7 @@ const authSlice = createSlice({
       state.mfaRequired = false;
 
       // Clear from localStorage
-      try {
-        localStorage.removeItem('auth_token');
-        localStorage.removeItem('refresh_token');
-        localStorage.removeItem('auth_user');
-        localStorage.removeItem('session_expiry');
-      } catch (error) {
-        console.warn('Failed to clear auth state from localStorage:', error);
-      }
+      storageClearAuth();
     },
     clearError: (state) => {
       state.error = null;
@@ -143,12 +135,8 @@ const authSlice = createSlice({
       state.error = null; // Clear any existing errors on successful refresh
 
       // Update localStorage
-      try {
-        localStorage.setItem('auth_token', action.payload.token);
-        localStorage.setItem('session_expiry', state.sessionExpiry.toString());
-      } catch (error) {
-        console.warn('Failed to persist refreshed token:', error);
-      }
+      storageSet(StorageKeys.AUTH_TOKEN, action.payload.token);
+      storageSet(StorageKeys.SESSION_EXPIRY, state.sessionExpiry.toString());
     },
     checkSessionExpiry: (state) => {
       if (state.sessionExpiry && state.sessionExpiry <= Date.now()) {
@@ -161,14 +149,7 @@ const authSlice = createSlice({
         state.error = 'Session expired. Please login again.';
 
         // Clear localStorage
-        try {
-          localStorage.removeItem('auth_token');
-          localStorage.removeItem('refresh_token');
-          localStorage.removeItem('auth_user');
-          localStorage.removeItem('session_expiry');
-        } catch (error) {
-          console.warn('Failed to clear expired session:', error);
-        }
+        storageClearAuth();
       }
     },
   },

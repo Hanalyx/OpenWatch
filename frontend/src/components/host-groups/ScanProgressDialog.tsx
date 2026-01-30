@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { storageGet, StorageKeys } from '../../services/storage';
 import {
   Dialog,
   DialogTitle,
@@ -97,7 +98,7 @@ const ScanProgressDialog: React.FC<ScanProgressDialogProps> = ({
         `/api/host-groups/${groupId}/scan-sessions/${sessionId}/progress`,
         {
           headers: {
-            Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+            Authorization: `Bearer ${storageGet(StorageKeys.AUTH_TOKEN)}`,
           },
         }
       );
@@ -150,7 +151,7 @@ const ScanProgressDialog: React.FC<ScanProgressDialogProps> = ({
           {
             method: 'POST',
             headers: {
-              Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+              Authorization: `Bearer ${storageGet(StorageKeys.AUTH_TOKEN)}`,
             },
           }
         );

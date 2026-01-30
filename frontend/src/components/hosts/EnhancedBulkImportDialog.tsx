@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
+import { storageGet, StorageKeys } from '../../services/storage';
 import {
   Dialog,
   DialogTitle,
@@ -156,7 +157,7 @@ const EnhancedBulkImportDialog: React.FC<EnhancedBulkImportDialogProps> = ({
     setError(null);
 
     try {
-      const token = localStorage.getItem('auth_token');
+      const token = storageGet(StorageKeys.AUTH_TOKEN);
       if (!token) {
         throw new Error('Authentication required');
       }

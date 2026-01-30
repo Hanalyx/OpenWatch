@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { storageGet, StorageKeys } from '../../services/storage';
 import {
   Dialog,
   DialogTitle,
@@ -78,7 +79,7 @@ const HostGroupsDialog: React.FC<HostGroupsDialogProps> = ({ open, onClose, onGr
       setLoading(true);
       const response = await fetch('/api/host-groups/', {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+          Authorization: `Bearer ${storageGet(StorageKeys.AUTH_TOKEN)}`,
         },
       });
 
@@ -109,7 +110,7 @@ const HostGroupsDialog: React.FC<HostGroupsDialogProps> = ({ open, onClose, onGr
         method,
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+          Authorization: `Bearer ${storageGet(StorageKeys.AUTH_TOKEN)}`,
         },
         body: JSON.stringify(formData),
       });
@@ -146,7 +147,7 @@ const HostGroupsDialog: React.FC<HostGroupsDialogProps> = ({ open, onClose, onGr
       const response = await fetch(`/api/host-groups/${groupId}`, {
         method: 'DELETE',
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+          Authorization: `Bearer ${storageGet(StorageKeys.AUTH_TOKEN)}`,
         },
       });
 
