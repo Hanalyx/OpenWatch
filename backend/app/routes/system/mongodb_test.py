@@ -8,7 +8,7 @@ from typing import Any, Dict, List
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from ..services.mongo_integration_service import MongoIntegrationService, get_mongo_service
+from ...services.mongo_integration_service import MongoIntegrationService, get_mongo_service
 
 router = APIRouter()
 

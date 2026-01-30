@@ -28,7 +28,7 @@ from .middleware.metrics import PrometheusMiddleware, background_updater
 from .middleware.rate_limiting import get_rate_limiting_middleware
 
 # Flat route modules (not yet organized into packages)
-from .routes import mongodb_test, scans
+from .routes import scans
 
 # Import admin from new modular package (E1-S6 Route Consolidation)
 # This package consolidates users.py, audit.py, and credentials.py
@@ -535,9 +535,6 @@ async def metrics() -> PlainTextResponse:
 # Include API routes - Unified API at /api prefix
 # System package (version, capabilities, health monitoring, scheduler, discovery, settings)
 app.include_router(system_router, prefix="/api", tags=["System"])
-
-# MongoDB test endpoints
-app.include_router(mongodb_test.router, prefix="/api/mongodb", tags=["MongoDB Integration Test"])
 
 # Host monitoring (physically in hosts/ package, registered separately for /api/monitoring prefix)
 app.include_router(monitoring_router, prefix="/api", tags=["Host Monitoring"])
