@@ -21,7 +21,7 @@ from typing import Any, Dict, List, Optional
 
 from sqlalchemy import text
 
-from ...database import get_async_db
+from ...database import get_db_session
 from ..infrastructure import CommandSandboxService, CommandSecurityLevel, ExecutionRequest, ExecutionStatus
 from ..validation import AutomatedFix
 
@@ -180,7 +180,8 @@ class FixExecutionAudit:
     async def _persist_audit_entry(self, entry: Dict[str, Any]):
         """Persist audit entry to database"""
         try:
-            async with get_async_db() as session:
+            session = get_db_session()
+            try:
                 # Use the existing audit_logs table structure
                 audit_sql = text(
                     """
@@ -196,7 +197,7 @@ class FixExecutionAudit:
                 """
                 )
 
-                await session.execute(
+                session.execute(
                     audit_sql,
                     {
                         "event_type": entry["event_type"],
@@ -214,7 +215,9 @@ class FixExecutionAudit:
                     },
                 )
 
-                await session.commit()
+                session.commit()
+            finally:
+                session.close()
 
         except Exception as e:
             logger.error(f"Failed to persist audit entry: {e}")
