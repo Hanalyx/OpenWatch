@@ -477,8 +477,8 @@ class BaseResultParser(ABC):
         resolved = file_path.resolve()
 
         # Check for path traversal
-        # File must be under /app/data or /tmp for security
-        allowed_prefixes = ["/app/data", "/tmp", "/var/tmp"]
+        # File must be under /openwatch/data or /tmp for security
+        allowed_prefixes = ["/openwatch/data", "/tmp", "/var/tmp"]
         path_str = str(resolved)
 
         is_allowed = any(path_str.startswith(prefix) for prefix in allowed_prefixes)

@@ -63,10 +63,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from app.services.auth import get_auth_service
-from app.services.mongo_integration_service import (
-    MongoIntegrationService,
-    get_mongo_service,
-)
+from app.services.mongo_integration_service import MongoIntegrationService, get_mongo_service
 from app.services.platform_capability_service import PlatformCapabilityService
 from app.services.rules import RuleService
 
@@ -123,8 +120,8 @@ class UnifiedSCAPScanner(BaseScanner):
         super().__init__(name="UnifiedSCAPScanner")
 
         # Use provided paths or defaults
-        self.content_dir = Path(content_dir or "/app/data/scap")
-        self.results_dir = Path(results_dir or "/app/data/results")
+        self.content_dir = Path(content_dir or "/openwatch/data/scap")
+        self.results_dir = Path(results_dir or "/openwatch/data/results")
 
         # Encryption service for credential resolution
         self.encryption_service = encryption_service
@@ -555,7 +552,7 @@ class UnifiedSCAPScanner(BaseScanner):
             Tuple of (path_to_oval, rule_to_oval_id_mapping)
         """
         try:
-            oval_storage_base = Path("/app/data/oval_definitions")
+            oval_storage_base = Path("/openwatch/data/oval_definitions")
             oval_definitions_found = []
             rules_with_oval = 0
             rules_missing_oval = 0

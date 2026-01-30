@@ -54,7 +54,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # OVAL storage base path (matches compliance_rules_upload_service.py)
-OVAL_STORAGE_BASE = Path("/app/data/oval_definitions")
+OVAL_STORAGE_BASE = Path("/openwatch/data/oval_definitions")
 
 
 class OVALReferenceMigrator:

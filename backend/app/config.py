@@ -57,8 +57,8 @@ class Settings(BaseSettings):
     # OpenSCAP
     openscap_timeout: int = 3600  # 1 hour max scan time
     max_concurrent_scans: int = 5
-    scap_content_dir: str = os.getenv("SCAP_CONTENT_DIR", "/app/data/scap")
-    scan_results_dir: str = os.getenv("SCAN_RESULTS_DIR", "/app/data/results")
+    scap_content_dir: str = os.getenv("SCAP_CONTENT_DIR", "/openwatch/data/scap")
+    scan_results_dir: str = os.getenv("SCAN_RESULTS_DIR", "/openwatch/data/results")
 
     # FIPS Configuration
     fips_mode: bool = True
@@ -86,7 +86,7 @@ class Settings(BaseSettings):
     # Logging
     log_level: str = "INFO"
     log_file: Optional[str] = None
-    audit_log_file: str = "/app/logs/audit.log"
+    audit_log_file: str = "/openwatch/logs/audit.log"
 
     # Feature Flags
     # NOTE: All feature flags have been removed as their corresponding refactorings are complete:

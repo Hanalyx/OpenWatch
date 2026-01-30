@@ -22,68 +22,9 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { api } from '../services/api';
-import type { Host, HostStatus, ComplianceTrend, AuthMethod } from '../types/host';
+import { adaptHosts, type ApiHostResponse } from '../services/adapters';
+import type { Host } from '../types/host';
 import { REFRESH_INTERVALS } from '../constants/refresh';
-
-/**
- * Raw API response type for host data
- * Uses snake_case field names matching backend response
- */
-interface ApiHostResponse {
-  id: string;
-  hostname: string;
-  display_name?: string;
-  ip_address?: string;
-  operating_system?: string;
-  os_version?: string;
-  status?: string;
-  cpu_usage?: number | null;
-  memory_usage?: number | null;
-  disk_usage?: number | null;
-  uptime?: string | null;
-  compliance_score?: number | null;
-  compliance_trend?: string;
-  last_scan?: string | null;
-  last_check?: string | null;
-  next_scan?: string | null;
-  critical_issues?: number;
-  high_issues?: number;
-  medium_issues?: number;
-  low_issues?: number;
-  critical_passed?: number;
-  critical_failed?: number;
-  high_passed?: number;
-  high_failed?: number;
-  medium_passed?: number;
-  medium_failed?: number;
-  low_passed?: number;
-  low_failed?: number;
-  latest_scan_id?: string;
-  latest_scan_name?: string;
-  scan_status?: string;
-  scan_progress?: number;
-  failed_rules?: number;
-  passed_rules?: number;
-  total_rules?: number;
-  tags?: string[];
-  group?: string;
-  group_id?: number;
-  group_name?: string;
-  group_description?: string;
-  group_color?: string;
-  owner?: string;
-  port?: number;
-  username?: string;
-  auth_method?: string;
-  ssh_key?: boolean;
-  ssh_key_fingerprint?: string;
-  ssh_key_type?: string;
-  ssh_key_bits?: number;
-  ssh_key_comment?: string;
-  agent?: string;
-  profile?: string;
-  last_backup?: string | null;
-}
 
 /**
  * Return type for useHostData hook.
@@ -118,27 +59,6 @@ export interface UseHostDataReturn {
  *
  * @param initialAutoRefresh - Whether to enable auto-refresh on mount (default: true)
  * @returns Host data and control functions
- *
- * @example
- * function HostsPage() {
- *   const {
- *     hosts,
- *     loading,
- *     refreshHosts,
- *     autoRefreshEnabled,
- *     setAutoRefreshEnabled
- *   } = useHostData();
- *
- *   return (
- *     <div>
- *       <button onClick={() => refreshHosts()}>Refresh</button>
- *       <button onClick={() => setAutoRefreshEnabled(!autoRefreshEnabled)}>
- *         Toggle Auto-Refresh
- *       </button>
- *       {loading ? <Spinner /> : <HostList hosts={hosts} />}
- *     </div>
- *   );
- * }
  */
 export function useHostData(initialAutoRefresh: boolean = true): UseHostDataReturn {
   const [hosts, setHosts] = useState<Host[]>([]);
@@ -148,7 +68,7 @@ export function useHostData(initialAutoRefresh: boolean = true): UseHostDataRetu
   const [refreshInterval, setRefreshInterval] = useState<number>(REFRESH_INTERVALS.NORMAL);
 
   /**
-   * Fetch hosts from API.
+   * Fetch hosts from API and transform via adapter.
    *
    * @param silent - If true, don't show loading spinner (for background refresh)
    */
@@ -159,66 +79,7 @@ export function useHostData(initialAutoRefresh: boolean = true): UseHostDataRetu
       }
 
       const apiHosts = await api.get<ApiHostResponse[]>('/api/hosts/');
-
-      // Transform API response to match Host interface
-      const transformedHosts: Host[] = apiHosts.map((host) => ({
-        id: host.id,
-        hostname: host.hostname,
-        displayName: host.display_name || host.hostname,
-        ipAddress: host.ip_address || '',
-        operatingSystem: host.operating_system || 'Unknown',
-        osVersion: host.os_version || '',
-        status: (host.status as HostStatus) || 'unknown',
-        cpuUsage: host.cpu_usage ?? null,
-        memoryUsage: host.memory_usage ?? null,
-        diskUsage: host.disk_usage ?? null,
-        uptime: host.uptime ?? null,
-        complianceScore: host.compliance_score ?? null,
-        complianceTrend: (host.compliance_trend as ComplianceTrend) || 'stable',
-        lastScan: host.last_scan ?? null,
-        lastCheck: host.last_check ?? null,
-        nextScan: host.next_scan ?? null,
-        criticalIssues: host.critical_issues || 0,
-        highIssues: host.high_issues || 0,
-        mediumIssues: host.medium_issues || 0,
-        lowIssues: host.low_issues || 0,
-        // Phase 1B: Per-severity pass/fail breakdown
-        criticalPassed: host.critical_passed,
-        criticalFailed: host.critical_failed,
-        highPassed: host.high_passed,
-        highFailed: host.high_failed,
-        mediumPassed: host.medium_passed,
-        mediumFailed: host.medium_failed,
-        lowPassed: host.low_passed,
-        lowFailed: host.low_failed,
-        latestScanId: host.latest_scan_id,
-        latestScanName: host.latest_scan_name,
-        scanStatus: host.scan_status,
-        scanProgress: host.scan_progress,
-        failedRules: host.failed_rules || 0,
-        passedRules: host.passed_rules || 0,
-        totalRules: host.total_rules || 0,
-        tags: host.tags || [],
-        group: host.group || 'Ungrouped',
-        group_id: host.group_id,
-        group_name: host.group_name,
-        group_description: host.group_description,
-        group_color: host.group_color,
-        owner: host.owner || 'Unknown',
-        port: host.port || 22,
-        username: host.username || '',
-        authMethod: (host.auth_method as AuthMethod) || 'ssh_key',
-        sshKey: host.ssh_key || false,
-        ssh_key_fingerprint: host.ssh_key_fingerprint,
-        ssh_key_type: host.ssh_key_type,
-        ssh_key_bits: host.ssh_key_bits,
-        ssh_key_comment: host.ssh_key_comment,
-        agent: host.agent || 'not_installed',
-        profile: host.profile ?? null,
-        lastBackup: host.last_backup ?? null,
-      }));
-
-      setHosts(transformedHosts);
+      setHosts(adaptHosts(apiHosts));
       setLastRefresh(new Date());
     } catch (error) {
       console.error('Error fetching hosts:', error);

@@ -1,4 +1,5 @@
 import React, { useState, useCallback } from 'react';
+import { storageGet, StorageKeys } from '../../services/storage';
 import {
   Box,
   Typography,
@@ -75,7 +76,7 @@ const CSVAnalyzer: React.FC<CSVAnalyzerProps> = ({ onAnalysisComplete, onError }
         setCsvContent(content);
 
         // Send to backend for analysis
-        const token = localStorage.getItem('auth_token');
+        const token = storageGet(StorageKeys.AUTH_TOKEN);
         if (!token) {
           throw new Error('Authentication required');
         }

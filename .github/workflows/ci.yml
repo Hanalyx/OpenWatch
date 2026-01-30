@@ -120,8 +120,8 @@ jobs:
           TESTING: true
         run: |
           # Create directory tree the app expects (matches Docker container layout)
-          sudo mkdir -p /app/logs/security /app/security/keys
-          sudo chmod -R 777 /app
+          sudo mkdir -p /openwatch/logs/security /openwatch/security/keys
+          sudo chmod -R 777 /openwatch
           mkdir -p logs
 
           # Check if tests directory exists
@@ -408,8 +408,8 @@ jobs:
         run: |
           # Create directory tree the app expects (Docker container convention)
           # In CI we run directly on the host, not in a container
-          sudo mkdir -p /app/logs/security /app/data/scap /app/data/results/rule_scans /app/data/oval_definitions /app/security/keys
-          sudo chmod -R 777 /app
+          sudo mkdir -p /openwatch/logs/security /openwatch/data/scap /openwatch/data/results/rule_scans /openwatch/data/oval_definitions /openwatch/security/keys
+          sudo chmod -R 777 /openwatch
           mkdir -p logs
 
           # Start backend in background

@@ -34,7 +34,7 @@ from sqlalchemy.orm import Session
 
 from app.auth import get_current_user
 from app.database import get_db
-from app.services.group_validation_service import GroupValidationService, ValidationError
+from app.services.validation import GroupValidationService, ValidationError
 
 from .models import (
     AssignHostsRequest,

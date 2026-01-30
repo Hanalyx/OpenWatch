@@ -2,13 +2,14 @@
  * Unified Authentication Headers Hook
  *
  * Consolidates authentication token access patterns across the application.
- * Replaces 52+ instances of direct localStorage.getItem('auth_token') calls
+ * Replaces 52+ instances of direct storageGet(StorageKeys.AUTH_TOKEN) calls
  * with a centralized, consistent approach.
  */
 
 import { useMemo } from 'react';
 import { useSelector } from 'react-redux';
 import { type RootState } from '../store';
+import { storageGet, StorageKeys } from '../services/storage';
 
 interface AuthHeaders {
   Authorization?: string;
@@ -34,7 +35,7 @@ export const useAuthHeaders = (): AuthHeadersResult => {
   // Fallback to localStorage for backwards compatibility
   const localToken = useMemo(() => {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem('auth_token');
+      return storageGet(StorageKeys.AUTH_TOKEN);
     }
     return null;
   }, []);
@@ -71,7 +72,7 @@ export const getAuthHeaders = (): Record<string, string> => {
 
   // Try localStorage (most reliable in non-React contexts)
   if (typeof window !== 'undefined') {
-    token = localStorage.getItem('auth_token');
+    token = storageGet(StorageKeys.AUTH_TOKEN);
   }
 
   const headers: Record<string, string> = {
@@ -90,7 +91,7 @@ export const getAuthHeaders = (): Record<string, string> => {
  */
 export const isUserAuthenticated = (): boolean => {
   if (typeof window === 'undefined') return false;
-  return !!localStorage.getItem('auth_token');
+  return !!storageGet(StorageKeys.AUTH_TOKEN);
 };
 
 /**
@@ -98,5 +99,5 @@ export const isUserAuthenticated = (): boolean => {
  */
 export const getAuthToken = (): string | null => {
   if (typeof window === 'undefined') return null;
-  return localStorage.getItem('auth_token');
+  return storageGet(StorageKeys.AUTH_TOKEN);
 };

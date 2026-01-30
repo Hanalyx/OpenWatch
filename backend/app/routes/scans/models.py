@@ -19,7 +19,7 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field, model_validator
 
-from app.services.scan_intelligence import RecommendedScanProfile
+from app.services.engine import RecommendedScanProfile
 
 # =============================================================================
 # COMPLIANCE SCAN MODELS (PRIMARY - database-agnostic)

@@ -11,7 +11,7 @@ from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
 from app.models.unified_rule_models import ComplianceStatus, RuleExecution
-from app.services.multi_framework_scanner import ScanResult
+from app.services.framework import ScanResult
 
 
 class AggregationLevel(str, Enum):

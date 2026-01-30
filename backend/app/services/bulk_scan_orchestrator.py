@@ -36,7 +36,7 @@ from ..models.authorization_models import (
     ResourceType,
 )
 from .authorization import get_authorization_service
-from .scan_intelligence import HostInfo, ScanIntelligenceService
+from .engine import HostInfo, ScanIntelligenceService
 
 logger = logging.getLogger(__name__)
 

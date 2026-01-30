@@ -71,20 +71,38 @@ Error Handling:
     ...     print(f"Encryption error: {e}")
 """
 
-from .config import (
-    DEFAULT_CONFIG,
-    FAST_TEST_CONFIG,
-    HIGH_SECURITY_CONFIG,
-    EncryptionConfig,
-    KDFAlgorithm,
-)
+from .config import DEFAULT_CONFIG, FAST_TEST_CONFIG, HIGH_SECURITY_CONFIG, EncryptionConfig, KDFAlgorithm
 from .exceptions import ConfigurationError, DecryptionError, EncryptionError, InvalidDataError
 from .service import EncryptionService, create_encryption_service
+
+
+def _get_default_service() -> EncryptionService:
+    """Get a module-level EncryptionService using the app master key."""
+    from ..config import get_settings
+
+    settings = get_settings()
+    return create_encryption_service(settings.master_key)
+
+
+def encrypt_data(data: bytes) -> bytes:
+    """Convenience function to encrypt data using the default master key."""
+    service = _get_default_service()
+    return service.encrypt(data)
+
+
+def decrypt_data(encrypted_data: bytes) -> bytes:
+    """Convenience function to decrypt data using the default master key."""
+    service = _get_default_service()
+    return service.decrypt(encrypted_data)
+
 
 __all__ = [
     # Main service
     "EncryptionService",
     "create_encryption_service",
+    # Convenience functions
+    "encrypt_data",
+    "decrypt_data",
     # Configuration
     "EncryptionConfig",
     "KDFAlgorithm",

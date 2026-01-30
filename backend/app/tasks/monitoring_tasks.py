@@ -15,15 +15,14 @@ from app.celery_app import celery_app
 from app.config import get_settings
 from app.database import get_db_session
 from app.encryption import EncryptionConfig, create_encryption_service
-from app.services.host_monitor import get_host_monitor
-from app.services.host_monitoring_state import HostMonitoringStateMachine
+from app.services.monitoring import HostMonitoringStateMachine, get_host_monitor
 
 logger = logging.getLogger(__name__)
 
 
 @celery_app.task(
     bind=True,
-    name="backend.app.tasks.check_host_connectivity",
+    name="app.tasks.check_host_connectivity",
     time_limit=300,
     soft_time_limit=240,
 )
@@ -175,7 +174,7 @@ def check_host_connectivity(self, host_id: str, priority: int = 5) -> dict:
 
 @celery_app.task(
     bind=True,
-    name="backend.app.tasks.queue_host_checks",
+    name="app.tasks.queue_host_checks",
     time_limit=120,
     soft_time_limit=90,
 )

@@ -10,11 +10,8 @@ import json
 import sys
 from typing import List
 
-from app.services.multi_framework_scanner import ScanResult
-from app.services.result_aggregation_service import (
-    AggregationLevel,
-    ResultAggregationService,
-)
+from app.services.framework import ScanResult
+from app.services.result_aggregation_service import AggregationLevel, ResultAggregationService
 
 
 async def load_scan_results(file_paths: List[str]) -> List[ScanResult]:

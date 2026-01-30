@@ -12,8 +12,8 @@ from datetime import datetime
 from enum import Enum
 from typing import Dict, List, Optional, Set, Tuple
 
-from app.services.error_classification import SecurityContext, classify_authentication_error
 from app.services.ssh import SSHKeySecurityLevel, SSHKeyType, validate_ssh_key
+from app.services.validation import SecurityContext, classify_authentication_error
 
 logger = logging.getLogger(__name__)
 

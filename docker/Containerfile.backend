@@ -30,14 +30,14 @@ RUN fips-mode-setup --enable 2>/dev/null || echo "FIPS mode configuration applie
 # Create application user with high UID/GID for rootless compatibility
 RUN groupadd -g 10001 openwatch && \
     useradd -m -u 10001 -g 10001 -s /bin/bash openwatch && \
-    mkdir -p /app /app/data /app/logs /app/security && \
-    chown -R 10001:10001 /app
+    mkdir -p /openwatch /openwatch/data /openwatch/logs /openwatch/security && \
+    chown -R 10001:10001 /openwatch
 
-# Set working directory
-WORKDIR /app
+# Set working directory to mirror dev environment root
+WORKDIR /openwatch
 
 # Copy requirements and install Python dependencies with security updates
-COPY requirements.txt .
+COPY backend/requirements.txt .
 RUN pip3 install --no-cache-dir --upgrade pip setuptools wheel && \
     pip3 install --no-cache-dir --user -r requirements.txt
 
@@ -46,12 +46,12 @@ COPY --chown=10001:10001 backend/ ./backend/
 COPY --chown=10001:10001 security/ ./security/
 
 # Create directories with proper permissions for rootless execution
-RUN mkdir -p /app/data/{scap,results,uploads} /app/logs /app/security/{keys,certs} && \
-    chown -R 10001:10001 /app && \
-    chmod -R 755 /app && \
-    chmod -R 755 /app/logs && \
-    chmod -R 700 /app/security && \
-    chmod +x /app/backend/app/*.py
+RUN mkdir -p /openwatch/data/{scap,results,uploads} /openwatch/logs /openwatch/security/{keys,certs} && \
+    chown -R 10001:10001 /openwatch && \
+    chmod -R 755 /openwatch && \
+    chmod -R 755 /openwatch/logs && \
+    chmod -R 700 /openwatch/security && \
+    chmod +x /openwatch/backend/app/*.py
 
 # Switch to non-root user for security
 USER 10001:10001
@@ -64,11 +64,12 @@ HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 \
     CMD curl -f http://localhost:8000/health 2>/dev/null || wget -q --spider http://localhost:8000/health || exit 1
 
 # Environment variables for rootless operation
-ENV PYTHONPATH=/app \
+# PYTHONPATH points to backend/ so 'from app.X' resolves to backend/app/X
+ENV PYTHONPATH=/openwatch/backend \
     OPENWATCH_FIPS_MODE=true \
     OPENWATCH_LOG_LEVEL=INFO \
     PYTHONUSERBASE=/home/openwatch/.local \
     PATH=/home/openwatch/.local/bin:$PATH
 
 # Start command optimized for Podman
-CMD ["python3", "-m", "uvicorn", "backend.app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
+CMD ["python3", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]

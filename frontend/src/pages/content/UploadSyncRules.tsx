@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { storageGet, StorageKeys } from '../../services/storage';
 import {
   Box,
   Card,
@@ -222,7 +223,7 @@ const UploadSyncRules: React.FC = () => {
       formData.append('file', selectedFile);
 
       // Get auth token
-      const token = localStorage.getItem('auth_token');
+      const token = storageGet(StorageKeys.AUTH_TOKEN);
       if (!token) {
         throw new Error('Authentication token not found. Please log in again.');
       }
@@ -311,7 +312,7 @@ const UploadSyncRules: React.FC = () => {
   const loadUploadHistory = async () => {
     setLoadingHistory(true);
     try {
-      const token = localStorage.getItem('auth_token');
+      const token = storageGet(StorageKeys.AUTH_TOKEN);
       if (!token) {
         console.warn('No auth token found');
         return;
@@ -353,7 +354,7 @@ const UploadSyncRules: React.FC = () => {
   // Export upload report as JSON
   const handleExportReport = async (uploadId: string) => {
     try {
-      const token = localStorage.getItem('auth_token');
+      const token = storageGet(StorageKeys.AUTH_TOKEN);
       if (!token) {
         setError('Authentication token not found. Please log in again.');
         return;

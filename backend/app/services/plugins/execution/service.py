@@ -20,7 +20,7 @@ from app.models.plugin_models import (
     PluginExecutionResult,
     PluginStatus,
 )
-from app.services.command_sandbox import CommandSandbox
+from app.services.infrastructure import CommandSandbox
 from app.services.plugins.registry.service import PluginRegistryService
 
 logger = logging.getLogger(__name__)

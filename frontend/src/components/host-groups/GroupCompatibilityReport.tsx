@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { storageGet, StorageKeys } from '../../services/storage';
 import {
   Dialog,
   DialogTitle,
@@ -116,7 +117,7 @@ const GroupCompatibilityReport: React.FC<GroupCompatibilityReportProps> = ({
 
       const response = await fetch(`/api/host-groups/${group.id}/compatibility-report`, {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+          Authorization: `Bearer ${storageGet(StorageKeys.AUTH_TOKEN)}`,
         },
       });
 

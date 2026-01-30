@@ -30,14 +30,14 @@ RUN mkdir -p /usr/share/xml/scap/ssg/content && \
 
 # Create application user with high UID/GID to avoid collisions
 RUN useradd -m -u 10001 openwatch && \
-    mkdir -p /app /app/data /app/logs && \
-    chown -R openwatch:openwatch /app
+    mkdir -p /openwatch /openwatch/data /openwatch/logs && \
+    chown -R openwatch:openwatch /openwatch
 
-# Set working directory
-WORKDIR /app
+# Set working directory to mirror dev environment root
+WORKDIR /openwatch
 
 # Copy requirements and install Python dependencies
-COPY requirements.txt .
+COPY backend/requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
@@ -45,13 +45,13 @@ RUN pip install --no-cache-dir --upgrade pip && \
 COPY backend/ ./backend/
 
 # Set proper permissions
-RUN chown -R openwatch:openwatch /app && \
-    chmod -R 755 /app
+RUN chown -R openwatch:openwatch /openwatch && \
+    chmod -R 755 /openwatch
 
 # Create directories for runtime data
-RUN mkdir -p /app/data/{scap,results,uploads} /app/logs && \
-    chown -R openwatch:openwatch /app/data /app/logs && \
-    chmod -R 755 /app/logs
+RUN mkdir -p /openwatch/data/{scap,results,uploads} /openwatch/logs && \
+    chown -R openwatch:openwatch /openwatch/data /openwatch/logs && \
+    chmod -R 755 /openwatch/logs
 
 # Copy entrypoint script and set permissions before switching user
 COPY docker/entrypoint-backend.sh /usr/local/bin/entrypoint.sh
@@ -64,11 +64,12 @@ USER openwatch
 EXPOSE 8000
 
 # Environment variables
-ENV PYTHONPATH=/app \
+# PYTHONPATH points to backend/ so 'from app.X' resolves to backend/app/X
+ENV PYTHONPATH=/openwatch/backend \
     OPENWATCH_LOG_LEVEL=DEBUG
 
 # Set entrypoint
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 
 # Start command
-CMD ["python", "-m", "uvicorn", "backend.app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]

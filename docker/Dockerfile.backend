@@ -119,13 +119,15 @@ RUN fips-mode-setup --enable || echo "FIPS mode setup completed"
 # - Avoid conflicts with system users (0-999)
 # - Avoid conflicts with typical user UIDs (1000+)
 # - High UID reduces risk of accidental privilege escalation
+#
+# Container layout mirrors dev environment: /openwatch/backend/app/
 RUN useradd -m -u 10001 openwatch && \
-    mkdir -p /app /app/data /app/logs /app/security && \
-    chown -R openwatch:openwatch /app
+    mkdir -p /openwatch /openwatch/data /openwatch/logs /openwatch/security && \
+    chown -R openwatch:openwatch /openwatch
 
-# Set working directory for application code
-# All subsequent commands run from /app
-WORKDIR /app
+# Set working directory to mirror dev environment root
+# All subsequent commands run from /openwatch
+WORKDIR /openwatch
 
 # Copy Python dependency manifest
 # Separate COPY to leverage Docker layer caching
@@ -172,34 +174,34 @@ RUN chmod +x /usr/local/bin/oscap-ssh
 # Set proper file permissions for security
 #
 # Why these permissions:
-# - /app: 755 (rwxr-xr-x) - Owner can write, others can read/execute
-# - /app/security: 700 (rwx------) - Owner only, contains sensitive keys/certs
+# - /openwatch: 755 (rwxr-xr-x) - Owner can write, others can read/execute
+# - /openwatch/security: 700 (rwx------) - Owner only, contains sensitive keys/certs
 #
 # Defense in depth:
-# - Even if container is compromised, attacker cannot read /app/security
+# - Even if container is compromised, attacker cannot read /openwatch/security
 # - Logs directory has relaxed permissions for debugging (755)
-RUN chown -R openwatch:openwatch /app && \
-    chmod -R 755 /app && \
-    chmod -R 700 /app/security
+RUN chown -R openwatch:openwatch /openwatch && \
+    chmod -R 755 /openwatch && \
+    chmod -R 700 /openwatch/security
 
 # Create runtime data directories
 #
 # Directory structure:
-# - /app/data/scap: SCAP content bundles (XCCDF, OVAL, CPE)
-# - /app/data/results: Scan results (XML, HTML, JSON)
-# - /app/data/uploads: User-uploaded SCAP content
-# - /app/logs: Application logs (audit, access, error)
-# - /app/security/keys: SSH private keys for host authentication
-# - /app/security/certs: TLS certificates for webhooks
+# - /openwatch/data/scap: SCAP content bundles (XCCDF, OVAL, CPE)
+# - /openwatch/data/results: Scan results (XML, HTML, JSON)
+# - /openwatch/data/uploads: User-uploaded SCAP content
+# - /openwatch/logs: Application logs (audit, access, error)
+# - /openwatch/security/keys: SSH private keys for host authentication
+# - /openwatch/security/certs: TLS certificates for webhooks
 #
 # Why separate directories:
 # - Easier to mount volumes for persistent data
 # - Logs can be shipped to SIEM without exposing sensitive data
 # - Security directory can be encrypted at rest
 # hadolint ignore=SC3009
-RUN mkdir -p /app/data/scap /app/data/results /app/data/uploads /app/logs /app/security/keys /app/security/certs && \
-    chown -R openwatch:openwatch /app/data /app/logs /app/security && \
-    chmod -R 755 /app/logs
+RUN mkdir -p /openwatch/data/scap /openwatch/data/results /openwatch/data/uploads /openwatch/logs /openwatch/security/keys /openwatch/security/certs && \
+    chown -R openwatch:openwatch /openwatch/data /openwatch/logs /openwatch/security && \
+    chmod -R 755 /openwatch/logs
 
 # Copy entrypoint script for container initialization
 # Entrypoint handles:
@@ -243,7 +245,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 
 # Environment variables for runtime configuration
 #
-# PYTHONPATH: Ensures Python can import from /app
+# PYTHONPATH: Points to backend/ so 'from app.X' resolves to backend/app/X
 # OPENWATCH_FIPS_MODE: Flag to enable FIPS-specific code paths
 # OPENWATCH_LOG_LEVEL: Default log verbosity (can be overridden at runtime)
 # PYTHON_VERSION: Document Python version for debugging/auditing
@@ -251,7 +253,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 # Security note: Sensitive values (SECRET_KEY, MASTER_KEY, DATABASE_URL)
 # are NOT set here - they MUST be provided via environment variables
 # or Kubernetes secrets at runtime (never hardcoded)
-ENV PYTHONPATH=/app \
+ENV PYTHONPATH=/openwatch/backend \
     OPENWATCH_FIPS_MODE=true \
     OPENWATCH_LOG_LEVEL=INFO \
     PYTHON_VERSION=3.12.1
@@ -264,7 +266,7 @@ ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 # Default command to start application server
 #
 # Uvicorn configuration:
-# - backend.app.main:app: FastAPI application factory
+# - app.main:app: FastAPI application (PYTHONPATH includes backend/)
 # - --host 0.0.0.0: Listen on all interfaces (required for container networking)
 # - --port 8000: Application port (matches EXPOSE directive)
 #
@@ -281,4 +283,4 @@ ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 #
 # This CMD can be overridden at runtime for debugging:
 # docker run openwatch-backend:python312 bash
-CMD ["python3.12", "-m", "uvicorn", "backend.app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["python3.12", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

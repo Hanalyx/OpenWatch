@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { storageGet, StorageKeys } from '../../services/storage';
 import {
   Dialog,
   DialogTitle,
@@ -105,7 +106,7 @@ const ScanTemplateManager: React.FC<ScanTemplateManagerProps> = ({
 
       const response = await fetch(endpoint, {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+          Authorization: `Bearer ${storageGet(StorageKeys.AUTH_TOKEN)}`,
         },
       });
 
@@ -133,7 +134,7 @@ const ScanTemplateManager: React.FC<ScanTemplateManagerProps> = ({
         method: editingTemplate ? 'PUT' : 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+          Authorization: `Bearer ${storageGet(StorageKeys.AUTH_TOKEN)}`,
         },
         body: JSON.stringify(
           editingTemplate ? { ...templateData, id: editingTemplate.id } : templateData
@@ -165,7 +166,7 @@ const ScanTemplateManager: React.FC<ScanTemplateManagerProps> = ({
       const response = await fetch(`/api/scans/templates/${templateId}`, {
         method: 'DELETE',
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+          Authorization: `Bearer ${storageGet(StorageKeys.AUTH_TOKEN)}`,
         },
       });
 

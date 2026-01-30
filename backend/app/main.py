@@ -7,9 +7,8 @@ import asyncio
 import logging
 import os
 import time
-import types
 from contextlib import asynccontextmanager
-from typing import Any, AsyncGenerator, Callable, Dict, Optional
+from typing import Any, AsyncGenerator, Callable, Dict
 
 import uvicorn
 from fastapi import Depends, FastAPI, Request, status
@@ -18,9 +17,7 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse
 from starlette.responses import Response
 
-# Note: These were previously in api/v1/endpoints/ and have been
-# consolidated into routes/ as part of the API unification effort.
-# OpenWatch uses unified /api prefix (no URL-based versioning).
+# Core application imports
 from .audit_db import log_security_event
 from .auth import audit_logger, require_admin
 from .config import SECURITY_HEADERS, get_settings
@@ -28,87 +25,25 @@ from .database import get_db_session
 from .middleware.metrics import PrometheusMiddleware, background_updater
 from .middleware.rate_limiting import get_rate_limiting_middleware
 
-# Flat route modules (not yet organized into packages)
-from .routes import (
-    adaptive_scheduler,
-    baselines,
-    bulk_operations,
-    capabilities,
-    health_monitoring,
-    integration_metrics,
-    mongodb_test,
-    monitoring,
-    os_discovery,
-    remediation_callback,
-    remediation_provider,
-    scans,
-    version,
-)
-
-# Import admin from new modular package (E1-S6 Route Consolidation)
-# This package consolidates users.py, audit.py, and credentials.py
+# Route package imports - all routes organized into modular packages
 from .routes.admin import router as admin_router
-
-# Import auth from new modular package (E1-S4 Route Consolidation)
-# This package consolidates auth.py, mfa.py, and api_keys.py into a single
-# modular package with login, MFA, and API key endpoints
 from .routes.auth import router as auth_router
-
-# Import compliance from new modular package (Phase 4 API Standardization)
-# This package consolidates compliance.py, owca.py, and drift_events.py into a single
-# modular package with intelligence, OWCA, and drift endpoints
 from .routes.compliance import router as compliance_router
-
-# Import content from new modular package (E1-S7 Route Consolidation)
-# This package consolidates content.py, scap_import.py, and xccdf_api.py
 from .routes.content import router as content_pkg_router
-
-# Import host_groups from new modular package (Phase 1 API Standardization)
-# This package consolidates host_groups.py and group_compliance.py into a single
-# modular package with CRUD and scanning endpoints aligned with frontend scanService.ts
 from .routes.host_groups import router as host_groups_router
-
-# Import hosts from new modular package (Phase 3 API Standardization)
-# This package consolidates hosts.py, host_discovery.py, host_network_discovery.py,
-# host_security_discovery.py, and host_compliance_discovery.py into a single
-# modular package with CRUD and discovery endpoints
 from .routes.hosts import router as hosts_router
 
-# Import integrations from new modular package (Phase 4 API Standardization)
-# This package consolidates webhooks.py and plugin_management.py into a single
-# modular package with webhooks and plugins endpoints
+# Routes registered separately from their packages for prefix compatibility
+from .routes.hosts.bulk_operations import router as bulk_operations_router
+from .routes.hosts.monitoring import router as monitoring_router
 from .routes.integrations import router as integrations_router
-
-# Import rules from new modular package (E1-S5 Route Consolidation)
-# This package consolidates rule_management.py, rule_scanning.py, and
-# compliance_rules_api.py into a single modular package
+from .routes.integrations.metrics import router as integration_metrics_router
+from .routes.remediation import router as remediation_router
 from .routes.rules import router as rules_router
-
-# Import SSH from new modular package (Phase 4 API Standardization)
-# This package consolidates ssh_settings.py and ssh_debug.py into a single
-# modular package with settings and debug endpoints
+from .routes.scans import router as scans_router
 from .routes.ssh import router as ssh_router
-from .routes.system_settings_unified import router as system_settings_router
-from .services.prometheus_metrics import get_metrics_instance
-
-# Import security routes only if available
-# Type declarations for optional modules
-automated_fixes: Optional[types.ModuleType]
-authorization: Optional[types.ModuleType]
-security_config: Optional[types.ModuleType]
-
-try:
-    from .routes import automated_fixes
-except ImportError:
-    print("automated_fixes not available")
-    automated_fixes = None
-
-try:
-    from .routes import authorization, security_config
-except ImportError:
-    print("authorization/security_config not available")
-    authorization = None
-    security_config = None
+from .routes.system import router as system_router
+from .services.infrastructure import get_metrics_instance
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -175,7 +110,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             # Run SQL migrations automatically
             try:
                 from .database import SessionLocal
-                from .services.migration_runner import run_startup_migrations
+                from .services.utilities import run_startup_migrations
 
                 db = SessionLocal()
                 try:
@@ -560,56 +495,24 @@ async def metrics() -> PlainTextResponse:
     return PlainTextResponse(content=metrics_data, media_type="text/plain; version=0.0.4; charset=utf-8")
 
 
-# Include API routes - Unified API at /api prefix
-# Version endpoint (public, no auth required)
-app.include_router(version.router, prefix="/api", tags=["Version"])
-
-# Capabilities and system information
-app.include_router(capabilities.router, prefix="/api", tags=["System Capabilities"])
-
-# MongoDB test endpoints
-app.include_router(mongodb_test.router, prefix="/api/mongodb", tags=["MongoDB Integration Test"])
-
-# Health and monitoring
-app.include_router(health_monitoring.router, prefix="/api/health-monitoring", tags=["Health Monitoring"])
-app.include_router(monitoring.router, prefix="/api", tags=["Host Monitoring"])
-
-# Remediation provider (registration interface for ORSA adapters)
-app.include_router(remediation_provider.router, prefix="/api/remediation", tags=["Remediation Provider"])
-app.include_router(remediation_callback.router, prefix="/api", tags=["AEGIS Integration"])
-
-# Modular route packages
-# Each package aggregates related sub-routers with their own prefixes
-app.include_router(auth_router, prefix="/api/auth", tags=["Authentication"])
-app.include_router(hosts_router, prefix="/api", tags=["Hosts"])
-app.include_router(scans.router, prefix="/api", tags=["Security Scans"])
-app.include_router(compliance_router, prefix="/api", tags=["Compliance"])
-app.include_router(rules_router, prefix="/api", tags=["Rules"])
+# Include API routes - all organized into modular packages under /api prefix
 app.include_router(admin_router, prefix="/api", tags=["Administration"])
+app.include_router(auth_router, prefix="/api/auth", tags=["Authentication"])
+app.include_router(compliance_router, prefix="/api", tags=["Compliance"])
 app.include_router(content_pkg_router, prefix="/api", tags=["Content"])
 app.include_router(host_groups_router, prefix="/api", tags=["Host Groups"])
-app.include_router(ssh_router, prefix="/api", tags=["SSH"])
+app.include_router(hosts_router, prefix="/api", tags=["Hosts"])
 app.include_router(integrations_router, prefix="/api", tags=["Integrations"])
+app.include_router(remediation_router, prefix="/api", tags=["Remediation"])
+app.include_router(rules_router, prefix="/api", tags=["Rules"])
+app.include_router(scans_router, prefix="/api", tags=["Security Scans"])
+app.include_router(ssh_router, prefix="/api", tags=["SSH"])
+app.include_router(system_router, prefix="/api", tags=["System"])
 
-# Remaining flat route modules (not yet packaged)
-app.include_router(baselines.router, tags=["Baseline Management"])
-app.include_router(adaptive_scheduler.router, prefix="/api", tags=["Adaptive Scheduler"])
-app.include_router(os_discovery.router, prefix="/api", tags=["OS Discovery"])
-app.include_router(system_settings_router, prefix="/api", tags=["System Settings"])
-app.include_router(
-    integration_metrics.router,
-    prefix="/api/integration/metrics",
-    tags=["Integration Metrics"],
-)
-app.include_router(bulk_operations.router, prefix="/api/bulk", tags=["Bulk Operations"])
-
-# Register security routes if available
-if automated_fixes:
-    app.include_router(automated_fixes.router, prefix="/api", tags=["Secure Automated Fixes"])
-if authorization:
-    app.include_router(authorization.router, prefix="/api", tags=["Authorization Management"])
-if security_config:
-    app.include_router(security_config.router, prefix="/api", tags=["Security Configuration"])
+# Routes registered separately from their packages for prefix compatibility
+app.include_router(bulk_operations_router, prefix="/api/bulk", tags=["Bulk Operations"])
+app.include_router(integration_metrics_router, prefix="/api/integration/metrics", tags=["Integration Metrics"])
+app.include_router(monitoring_router, prefix="/api", tags=["Host Monitoring"])
 
 
 # Global Exception Handler

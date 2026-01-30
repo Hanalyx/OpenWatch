@@ -46,10 +46,12 @@ from sqlalchemy.orm import Session
 from ...auth import get_current_user
 from ...database import Host, get_db
 from ...rbac import check_permission
-from ...services.host_compliance_discovery import HostComplianceDiscoveryService
-from ...services.host_discovery_service import HostBasicDiscoveryService
-from ...services.host_network_discovery import HostNetworkDiscoveryService
-from ...services.host_security_discovery import HostSecurityDiscoveryService
+from ...services.discovery import (
+    HostBasicDiscoveryService,
+    HostComplianceDiscoveryService,
+    HostNetworkDiscoveryService,
+    HostSecurityDiscoveryService,
+)
 from .helpers import (
     assess_audit_capability,
     assess_privilege_escalation,

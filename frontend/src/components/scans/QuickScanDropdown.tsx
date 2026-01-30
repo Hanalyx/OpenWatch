@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { storageGet, StorageKeys } from '../../services/storage';
 import {
   Button,
   Menu,
@@ -134,7 +135,7 @@ const QuickScanDropdown: React.FC<QuickScanDropdownProps> = ({
 
       // In a real implementation:
       // const response = await fetch(`/api/scans/hosts/${hostId}/profile-suggestion`, {
-      //   headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` }
+      //   headers: { 'Authorization': `Bearer ${storageGet(StorageKeys.AUTH_TOKEN)}` }
       // });
       // const recommendation = await response.json();
 
@@ -172,7 +173,7 @@ const QuickScanDropdown: React.FC<QuickScanDropdownProps> = ({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+          Authorization: `Bearer ${storageGet(StorageKeys.AUTH_TOKEN)}`,
         },
         body: JSON.stringify({
           template_id: templateId,

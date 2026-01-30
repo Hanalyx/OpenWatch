@@ -26,7 +26,7 @@ PENDING_TIMEOUT = timedelta(minutes=30)
 
 
 @celery_app.task(
-    name="backend.app.tasks.detect_stale_scans",
+    name="app.tasks.detect_stale_scans",
     time_limit=120,
     soft_time_limit=90,
 )

@@ -84,6 +84,7 @@ _modules_loaded = False
 
 try:
     # Core host routers - use relative imports within package
+    from .baselines import router as baselines_router
     from .crud import router as crud_router
     from .discovery import router as discovery_router
 
@@ -91,6 +92,9 @@ try:
     # Order matters for route matching - more specific routes first
     # Discovery router has specific prefixes, so include it first
     router.include_router(discovery_router)
+
+    # Baselines endpoints (/{host_id}/baseline)
+    router.include_router(baselines_router)
 
     # CRUD router (more generic patterns)
     router.include_router(crud_router)
@@ -113,12 +117,12 @@ except ImportError as e:
         logger.error("Failed to load any host router - API will be incomplete")
 
 
-# Re-export helpers for convenient access - use relative imports
-from .helpers import validate_host_uuid  # noqa: E402
-
 # Re-export validate_ssh_key for backward compatibility and testing
 # This function is used in crud.py for SSH key validation
 from ...services.ssh import validate_ssh_key  # noqa: E402, F401
+
+# Re-export helpers for convenient access - use relative imports
+from .helpers import validate_host_uuid  # noqa: E402
 
 # Re-export models for convenient access - use relative imports
 from .models import (  # noqa: E402

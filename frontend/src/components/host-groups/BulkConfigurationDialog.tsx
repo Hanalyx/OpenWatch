@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { storageGet, StorageKeys } from '../../services/storage';
 import {
   Dialog,
   DialogTitle,
@@ -92,7 +93,7 @@ const BulkConfigurationDialog: React.FC<BulkConfigurationDialogProps> = ({
       // MongoDB compliance rules endpoint - returns bundles that can be used for scanning
       const response = await fetch('/api/compliance-rules/?view_mode=bundles', {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+          Authorization: `Bearer ${storageGet(StorageKeys.AUTH_TOKEN)}`,
         },
       });
 
@@ -135,7 +136,7 @@ const BulkConfigurationDialog: React.FC<BulkConfigurationDialogProps> = ({
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+            Authorization: `Bearer ${storageGet(StorageKeys.AUTH_TOKEN)}`,
           },
           body: JSON.stringify({
             scap_content_id: scapContent,

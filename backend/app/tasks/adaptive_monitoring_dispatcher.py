@@ -23,17 +23,17 @@ from typing import Any, Dict
 
 from app.celery_app import celery_app
 from app.database import get_db
-from app.services.adaptive_scheduler_service import adaptive_scheduler_service
+from app.services.monitoring import adaptive_scheduler_service
 
 logger = logging.getLogger(__name__)
 
 # Note: check_host_connectivity is imported at runtime to avoid circular imports
-# It's accessed via celery_app.tasks['backend.app.tasks.check_host_connectivity']
+# It's accessed via celery_app.tasks['app.tasks.check_host_connectivity']
 
 
 @celery_app.task(
     bind=True,
-    name="backend.app.tasks.dispatch_host_checks",
+    name="app.tasks.dispatch_host_checks",
     time_limit=60,
     soft_time_limit=45,
 )
@@ -78,7 +78,7 @@ def dispatch_host_checks(self: Any) -> Dict[str, Any]:
                     # Dispatch individual host check task with priority
                     # Use send_task to avoid circular import
                     celery_app.send_task(
-                        "backend.app.tasks.check_host_connectivity",
+                        "app.tasks.check_host_connectivity",
                         args=[host["id"], priority],
                         priority=priority,  # Celery queue priority
                         queue="host_monitoring",  # Dedicated queue for monitoring tasks
@@ -117,7 +117,7 @@ def dispatch_host_checks(self: Any) -> Dict[str, Any]:
 # This should be added to celeryconfig.py or celery_app.py
 CELERY_BEAT_SCHEDULE = {
     "dispatch-host-checks-every-30-seconds": {
-        "task": "backend.app.tasks.dispatch_host_checks",
+        "task": "app.tasks.dispatch_host_checks",
         "schedule": 30.0,  # Run every 30 seconds
         "options": {
             "queue": "host_monitoring",

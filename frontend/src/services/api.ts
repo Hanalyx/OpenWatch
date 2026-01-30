@@ -1,4 +1,5 @@
 import axios, { type AxiosInstance, type AxiosRequestConfig, type AxiosError } from 'axios';
+import { storageGet, storageSet, storageRemove, StorageKeys } from './storage';
 
 // Use empty string for development (relies on Vite proxy) or explicit URL for production
 const API_BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '' : '');
@@ -79,7 +80,7 @@ class ApiClient {
     this.instance.interceptors.request.use(
       async (config) => {
         // Get token from localStorage first, then fall back to Redux store if available
-        let token = localStorage.getItem('auth_token');
+        let token = storageGet(StorageKeys.AUTH_TOKEN);
 
         // Try Redux store if localStorage token not found
         // Type-safe access to window.__REDUX_STORE__ development extension
@@ -106,11 +107,11 @@ class ApiClient {
               token = loginData.access_token;
 
               // Store token for future requests
-              localStorage.setItem('auth_token', token || '');
-              localStorage.setItem('refresh_token', loginData.refresh_token);
-              localStorage.setItem('auth_user', JSON.stringify(loginData.user));
-              localStorage.setItem(
-                'session_expiry',
+              storageSet(StorageKeys.AUTH_TOKEN, token || '');
+              storageSet(StorageKeys.REFRESH_TOKEN, loginData.refresh_token);
+              storageSet(StorageKeys.AUTH_USER, JSON.stringify(loginData.user));
+              storageSet(
+                StorageKeys.SESSION_EXPIRY,
                 (Date.now() + loginData.expires_in * 1000).toString()
               );
 
@@ -160,7 +161,7 @@ class ApiClient {
         // Authentication errors
         if (error.response?.status === 401) {
           // Clear tokens from both places
-          localStorage.removeItem('auth_token');
+          storageRemove(StorageKeys.AUTH_TOKEN);
           // Type-safe window.__REDUX_STORE__ access
           if (typeof window !== 'undefined' && (window as WindowWithRedux).__REDUX_STORE__) {
             // Could dispatch logout action here if needed

@@ -28,7 +28,9 @@ router = APIRouter(tags=["Administration"])
 # Import sub-routers from modular files
 try:
     from .audit import router as audit_router
+    from .authorization import router as authorization_router
     from .credentials import router as credentials_router
+    from .security import router as security_router
     from .users import router as users_router
 
     # Include all sub-routers into main router
@@ -40,6 +42,12 @@ try:
 
     # Credential sharing endpoints (/credentials/*)
     router.include_router(credentials_router)
+
+    # Authorization management endpoints (/authorization/*)
+    router.include_router(authorization_router)
+
+    # Security configuration endpoints (/security/config/*)
+    router.include_router(security_router)
 
 except ImportError as e:
     import logging

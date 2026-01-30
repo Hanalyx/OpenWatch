@@ -43,14 +43,10 @@ import logging
 import time
 from typing import TYPE_CHECKING, Optional, Set
 
-from app.models.readiness_models import (
-    ReadinessCheckResult,
-    ReadinessCheckSeverity,
-    ReadinessCheckType,
-)
+from app.models.readiness_models import ReadinessCheckResult, ReadinessCheckSeverity, ReadinessCheckType
 
 if TYPE_CHECKING:
-    from app.services.ssh_connection_context import SSHConnectionContext
+    from app.services.ssh import SSHConnectionContext
 
 logger = logging.getLogger(__name__)
 

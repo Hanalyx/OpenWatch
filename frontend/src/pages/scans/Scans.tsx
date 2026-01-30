@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { storageGet, StorageKeys } from '../../services/storage';
 import {
   Box,
   Button,
@@ -424,7 +425,7 @@ const Scans: React.FC = () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+          Authorization: `Bearer ${storageGet(StorageKeys.AUTH_TOKEN)}`,
         },
         body: JSON.stringify({
           host_id: hostGroup.host_id,

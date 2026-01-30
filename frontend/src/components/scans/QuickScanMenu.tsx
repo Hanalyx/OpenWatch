@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { storageGet, StorageKeys } from '../../services/storage';
 import {
   Button,
   Menu,
@@ -74,7 +75,7 @@ const QuickScanMenu: React.FC<QuickScanMenuProps> = ({
       setLoading(true);
       const response = await fetch(`/api/scans/templates/host/${hostId}`, {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+          Authorization: `Bearer ${storageGet(StorageKeys.AUTH_TOKEN)}`,
         },
       });
 

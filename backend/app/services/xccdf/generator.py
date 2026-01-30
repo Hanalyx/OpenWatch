@@ -138,7 +138,7 @@ class XCCDFGeneratorService:
 
         # Set default OVAL base path if not provided
         if oval_base_path is None:
-            oval_base_path = Path("/app/data/oval_definitions")
+            oval_base_path = Path("/openwatch/data/oval_definitions")
 
         # Component-based filtering (if target capabilities provided)
         if target_capabilities is not None:
@@ -309,7 +309,7 @@ class XCCDFGeneratorService:
         """
         logger.info(f"Generating aggregated OVAL definitions file for platform: {platform}")
 
-        oval_base_dir = Path("/app/data/oval_definitions")
+        oval_base_dir = Path("/openwatch/data/oval_definitions")
 
         # Collect unique OVAL filenames from rules
         # Phase 3: Use platform-specific OVAL from platform_implementations
@@ -471,7 +471,7 @@ class XCCDFGeneratorService:
             >>> print(oval_id)
             oval:ssg-accounts_tmout:def:1
         """
-        oval_base_dir = Path("/app/data/oval_definitions")
+        oval_base_dir = Path("/openwatch/data/oval_definitions")
         oval_file_path = oval_base_dir / oval_filename
 
         if not oval_file_path.exists():
@@ -903,7 +903,7 @@ class XCCDFGeneratorService:
         Example:
             >>> rules = await self.collection.find({}).to_list(None)
             >>> capabilities = {'filesystem', 'openssh', 'audit'}
-            >>> oval_path = Path("/app/data/oval_definitions")
+            >>> oval_path = Path("/openwatch/data/oval_definitions")
             >>> filtered, stats = self._filter_by_capabilities(
             ...     rules, capabilities, oval_path, target_platform="rhel9"
             ... )
@@ -999,7 +999,7 @@ class XCCDFGeneratorService:
 
         Example:
             >>> rules = await self.collection.find({}).to_list(None)
-            >>> oval_path = Path("/app/data/oval_definitions")
+            >>> oval_path = Path("/openwatch/data/oval_definitions")
             >>> filtered, stats = self._filter_by_platform_oval(
             ...     rules, oval_path, "rhel9"
             ... )
@@ -1077,7 +1077,7 @@ class XCCDFGeneratorService:
             ...         'rhel9': {'oval_filename': 'rhel9/package_cups_removed.xml'}
             ...     }
             ... }
-            >>> oval_path = Path("/app/data/oval_definitions")
+            >>> oval_path = Path("/openwatch/data/oval_definitions")
             >>> if self._has_oval_check(rule, oval_path, target_platform="rhel9"):
             ...     print("Rule has automated check for RHEL 9")
             ... else:

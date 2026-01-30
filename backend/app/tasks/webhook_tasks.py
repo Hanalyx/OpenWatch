@@ -13,13 +13,13 @@ from typing import Any, Dict
 from sqlalchemy import text
 
 from ..database import get_db
-from ..services.http_client import get_webhook_client
-from ..services.integration_metrics import record_webhook_delivery
-from ..services.webhook_security import (
+from ..services.infrastructure import (
     create_scan_completed_payload,
     create_scan_failed_payload,
     create_webhook_headers,
+    get_webhook_client,
 )
+from ..services.monitoring import record_webhook_delivery
 
 logger = logging.getLogger(__name__)
 

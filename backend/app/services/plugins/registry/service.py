@@ -11,12 +11,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from app.config import get_settings
-from app.models.plugin_models import (
-    InstalledPlugin,
-    PluginStatus,
-    PluginTrustLevel,
-    PluginType,
-)
+from app.models.plugin_models import InstalledPlugin, PluginStatus, PluginTrustLevel, PluginType
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -27,7 +22,7 @@ class PluginRegistryService:
 
     def __init__(self) -> None:
         """Initialize plugin registry service."""
-        self.plugin_storage_path = Path("/app/data/plugins")
+        self.plugin_storage_path = Path("/openwatch/data/plugins")
         self.plugin_storage_path.mkdir(parents=True, exist_ok=True)
         self._plugin_cache: Dict[str, Any] = {}
         self._dependency_graph: Dict[str, Any] = {}

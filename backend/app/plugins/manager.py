@@ -61,7 +61,7 @@ class PluginManager:
     Handles plugin discovery, loading, configuration, and execution
     """
 
-    def __init__(self, plugins_dir: str = "/app/plugins", config_dir: str = "/app/config/plugins"):
+    def __init__(self, plugins_dir: str = "/openwatch/plugins", config_dir: str = "/openwatch/config/plugins"):
         self.plugins_dir = Path(plugins_dir)
         self.config_dir = Path(config_dir)
         self.loaded_plugins: Dict[str, PluginInterface] = {}

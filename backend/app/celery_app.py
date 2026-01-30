@@ -51,9 +51,9 @@ celery_app = Celery(
     broker=broker_url,
     backend=broker_url,
     include=[
-        "backend.app.tasks.monitoring_tasks",
-        "backend.app.tasks.compliance_tasks",
-        "backend.app.tasks.adaptive_monitoring_dispatcher",
+        "app.tasks.monitoring_tasks",
+        "app.tasks.compliance_tasks",
+        "app.tasks.adaptive_monitoring_dispatcher",
     ],
 )
 
@@ -95,19 +95,19 @@ celery_app.conf.update(
     worker_prefetch_multiplier=1,
     # Task routing
     task_routes={
-        "backend.app.tasks.scan_host": {"queue": "scans"},
-        "backend.app.tasks.process_scan_result": {"queue": "results"},
-        "backend.app.tasks.cleanup_old_files": {"queue": "maintenance"},
-        "backend.app.tasks.check_host_connectivity": {"queue": "host_monitoring"},
-        "backend.app.tasks.dispatch_host_checks": {"queue": "host_monitoring"},
-        "backend.app.tasks.queue_host_checks": {"queue": "monitoring"},
-        "backend.app.tasks.detect_stale_scans": {"queue": "maintenance"},
-        "backend.app.tasks.execute_scan": {"queue": "scans"},
-        "backend.app.tasks.enrich_scan_results": {"queue": "default"},
-        "backend.app.tasks.execute_remediation": {"queue": "default"},
-        "backend.app.tasks.import_scap_content": {"queue": "default"},
-        "backend.app.tasks.deliver_webhook": {"queue": "default"},
-        "backend.app.tasks.execute_host_discovery": {"queue": "default"},
+        "app.tasks.scan_host": {"queue": "scans"},
+        "app.tasks.process_scan_result": {"queue": "results"},
+        "app.tasks.cleanup_old_files": {"queue": "maintenance"},
+        "app.tasks.check_host_connectivity": {"queue": "host_monitoring"},
+        "app.tasks.dispatch_host_checks": {"queue": "host_monitoring"},
+        "app.tasks.queue_host_checks": {"queue": "monitoring"},
+        "app.tasks.detect_stale_scans": {"queue": "maintenance"},
+        "app.tasks.execute_scan": {"queue": "scans"},
+        "app.tasks.enrich_scan_results": {"queue": "default"},
+        "app.tasks.execute_remediation": {"queue": "default"},
+        "app.tasks.import_scap_content": {"queue": "default"},
+        "app.tasks.deliver_webhook": {"queue": "default"},
+        "app.tasks.execute_host_discovery": {"queue": "default"},
     },
     # Queue configuration
     task_default_queue="default",
@@ -124,7 +124,7 @@ celery_app.conf.update(
     beat_schedule={
         # Adaptive host monitoring dispatcher
         "dispatch-host-checks-every-30-seconds": {
-            "task": "backend.app.tasks.dispatch_host_checks",
+            "task": "app.tasks.dispatch_host_checks",
             "schedule": 30.0,  # Run every 30 seconds
             "options": {
                 "queue": "host_monitoring",
@@ -135,7 +135,7 @@ celery_app.conf.update(
         # Runs daily at 2 AM UTC to populate os_family, os_version, platform_identifier
         # Controlled by system_settings.os_discovery_enabled
         "discover-all-hosts-os-daily": {
-            "task": "backend.app.tasks.discover_all_hosts_os",
+            "task": "app.tasks.discover_all_hosts_os",
             "schedule": crontab(hour=2, minute=0),  # Run at 2 AM daily
             "options": {
                 "queue": "default",
@@ -143,7 +143,7 @@ celery_app.conf.update(
         },
         # Stale scan detection - marks stuck scans as failed
         "detect-stale-scans-every-10-minutes": {
-            "task": "backend.app.tasks.detect_stale_scans",
+            "task": "app.tasks.detect_stale_scans",
             "schedule": 600.0,  # Every 10 minutes
             "options": {
                 "queue": "maintenance",
@@ -187,14 +187,14 @@ celery_app.conf.update(
     task_eager_propagates=True if settings.debug else False,
     # Task autodiscovery - import all task modules
     imports=[
-        "backend.app.tasks.monitoring_tasks",
-        "backend.app.tasks.adaptive_monitoring_dispatcher",
-        "backend.app.tasks.health_monitoring_tasks",
-        "backend.app.tasks.compliance_tasks",
-        "backend.app.tasks.os_discovery_tasks",
-        "backend.app.tasks.stale_scan_detection",
-        "backend.app.tasks.scan_tasks",
-        "backend.app.tasks.background_tasks",
+        "app.tasks.monitoring_tasks",
+        "app.tasks.adaptive_monitoring_dispatcher",
+        "app.tasks.health_monitoring_tasks",
+        "app.tasks.compliance_tasks",
+        "app.tasks.os_discovery_tasks",
+        "app.tasks.stale_scan_detection",
+        "app.tasks.scan_tasks",
+        "app.tasks.background_tasks",
     ],
 )
 
@@ -221,7 +221,7 @@ class SecureCeleryManager:
 
             # Submit task
             task = self.app.send_task(
-                "backend.app.tasks.scan_host",
+                "app.tasks.scan_host",
                 args=[scan_id, host_data, content_data, profile_id, user_id],
                 queue="scans",
                 retry=True,

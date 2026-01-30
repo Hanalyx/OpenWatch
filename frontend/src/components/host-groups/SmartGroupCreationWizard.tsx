@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { storageGet, StorageKeys } from '../../services/storage';
 import {
   Dialog,
   DialogTitle,
@@ -166,7 +167,7 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
       setLoading(true);
       const response = await fetch('/api/hosts/', {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+          Authorization: `Bearer ${storageGet(StorageKeys.AUTH_TOKEN)}`,
         },
       });
 
@@ -193,7 +194,7 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
       // MongoDB compliance rules endpoint - returns bundles that can be used for scanning
       const response = await fetch('/api/compliance-rules/?view_mode=bundles', {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+          Authorization: `Bearer ${storageGet(StorageKeys.AUTH_TOKEN)}`,
         },
       });
 
@@ -243,7 +244,7 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+          Authorization: `Bearer ${storageGet(StorageKeys.AUTH_TOKEN)}`,
         },
         body: JSON.stringify({
           host_ids: selectedHosts.map((h) => h.id),
@@ -340,7 +341,7 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+          Authorization: `Bearer ${storageGet(StorageKeys.AUTH_TOKEN)}`,
         },
         body: JSON.stringify(groupConfig),
       });
@@ -356,7 +357,7 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+          Authorization: `Bearer ${storageGet(StorageKeys.AUTH_TOKEN)}`,
         },
         body: JSON.stringify({
           host_ids: selectedHosts.map((h) => h.id),
@@ -372,7 +373,7 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
       await fetch(`/api/host-groups/${tempGroup.id}`, {
         method: 'DELETE',
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+          Authorization: `Bearer ${storageGet(StorageKeys.AUTH_TOKEN)}`,
         },
       });
     } catch (err) {
@@ -408,7 +409,7 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+          Authorization: `Bearer ${storageGet(StorageKeys.AUTH_TOKEN)}`,
         },
         body: JSON.stringify(groupConfig),
       });
@@ -449,7 +450,7 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+          Authorization: `Bearer ${storageGet(StorageKeys.AUTH_TOKEN)}`,
         },
         body: JSON.stringify({
           host_ids: hostIds,

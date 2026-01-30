@@ -80,7 +80,6 @@ Performance Notes:
 
 import logging
 
-# Core recommendation engine
 from .recommendation import (  # Models
     RemediationCategory,
     RemediationComplexity,
@@ -92,6 +91,9 @@ from .recommendation import (  # Models
     RemediationStep,
     RemediationSystemCapability,
 )
+
+# Core recommendation engine
+from .secure_fixes import SecureAutomatedFix, SecureAutomatedFixExecutor  # noqa: F401
 
 logger = logging.getLogger(__name__)
 
@@ -137,6 +139,9 @@ __all__ = [
     "RemediationJob",
     # Factory functions
     "get_recommendation_engine",
+    # Secure automated fixes
+    "SecureAutomatedFix",
+    "SecureAutomatedFixExecutor",
 ]
 
 # Module initialization logging

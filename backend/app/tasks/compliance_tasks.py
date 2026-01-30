@@ -20,7 +20,7 @@ from app.routes.host_groups import execute_group_compliance_scan
 
 @celery_app.task(
     bind=True,
-    name="backend.app.tasks.scheduled_group_scan",
+    name="app.tasks.scheduled_group_scan",
     time_limit=7200,
     soft_time_limit=6600,
 )
@@ -123,7 +123,7 @@ def scheduled_group_scan(self, group_id: int, config: Dict[str, Any]):
 
 @celery_app.task(
     bind=True,
-    name="backend.app.tasks.execute_compliance_scan_async",
+    name="app.tasks.execute_compliance_scan_async",
     time_limit=3600,
     soft_time_limit=3300,
 )
@@ -277,7 +277,7 @@ def execute_compliance_scan_async(self, session_id: str, group_id: int, hosts: L
         raise self.retry(exc=exc, countdown=300, max_retries=2)
 
 
-@celery_app.task(name="backend.app.tasks.send_compliance_notification")
+@celery_app.task(name="app.tasks.send_compliance_notification")
 def send_compliance_notification(session_id: str, group_id: int, summary: Dict[str, Any]):
     """
     Send compliance scan completion notification
@@ -340,7 +340,7 @@ def send_compliance_notification(session_id: str, group_id: int, summary: Dict[s
         print(f"Failed to send compliance notification for session {session_id}: {str(e)}")
 
 
-@celery_app.task(name="backend.app.tasks.compliance_alert_check")
+@celery_app.task(name="app.tasks.compliance_alert_check")
 def compliance_alert_check(group_id: int):
     """
     Check compliance metrics against alert rules
@@ -403,7 +403,7 @@ def compliance_alert_check(group_id: int):
         print(f"Failed to check compliance alerts for group {group_id}: {str(e)}")
 
 
-@celery_app.task(name="backend.app.tasks.send_compliance_alerts")
+@celery_app.task(name="app.tasks.send_compliance_alerts")
 def send_compliance_alerts(group_id: int, alerts: List[Dict[str, Any]]):
     """
     Send compliance alert notifications
@@ -451,7 +451,7 @@ def setup_periodic_tasks(sender, **kwargs):
     )
 
 
-@celery_app.task(name="backend.app.tasks.compliance_monitoring_task")
+@celery_app.task(name="app.tasks.compliance_monitoring_task")
 def compliance_monitoring_task():
     """
     Periodic task to monitor compliance across all groups

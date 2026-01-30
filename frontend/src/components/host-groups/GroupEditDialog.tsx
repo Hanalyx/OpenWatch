@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { storageGet, StorageKeys } from '../../services/storage';
 import {
   Dialog,
   DialogTitle,
@@ -178,7 +179,7 @@ const GroupEditDialog: React.FC<GroupEditDialogProps> = ({
       // MongoDB compliance rules endpoint - returns bundles that can be used for scanning
       const response = await fetch('/api/compliance-rules/?view_mode=bundles', {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+          Authorization: `Bearer ${storageGet(StorageKeys.AUTH_TOKEN)}`,
         },
       });
 
@@ -212,7 +213,7 @@ const GroupEditDialog: React.FC<GroupEditDialogProps> = ({
     try {
       const response = await fetch(`/api/host-groups/${group.id}/hosts`, {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+          Authorization: `Bearer ${storageGet(StorageKeys.AUTH_TOKEN)}`,
         },
       });
 
@@ -230,7 +231,7 @@ const GroupEditDialog: React.FC<GroupEditDialogProps> = ({
     try {
       const response = await fetch('/api/hosts/', {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+          Authorization: `Bearer ${storageGet(StorageKeys.AUTH_TOKEN)}`,
         },
       });
 
@@ -267,7 +268,7 @@ const GroupEditDialog: React.FC<GroupEditDialogProps> = ({
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+          Authorization: `Bearer ${storageGet(StorageKeys.AUTH_TOKEN)}`,
         },
         body: JSON.stringify(updateData),
       });
@@ -294,7 +295,7 @@ const GroupEditDialog: React.FC<GroupEditDialogProps> = ({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+          Authorization: `Bearer ${storageGet(StorageKeys.AUTH_TOKEN)}`,
         },
         body: JSON.stringify({
           host_ids: [host.id],
@@ -321,7 +322,7 @@ const GroupEditDialog: React.FC<GroupEditDialogProps> = ({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+          Authorization: `Bearer ${storageGet(StorageKeys.AUTH_TOKEN)}`,
         },
         body: JSON.stringify({
           host_ids: [host.id],
@@ -342,7 +343,7 @@ const GroupEditDialog: React.FC<GroupEditDialogProps> = ({
       const response = await fetch(`/api/host-groups/${group.id}/hosts/${host.id}`, {
         method: 'DELETE',
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+          Authorization: `Bearer ${storageGet(StorageKeys.AUTH_TOKEN)}`,
         },
       });
 

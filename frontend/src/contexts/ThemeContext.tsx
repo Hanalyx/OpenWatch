@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
 import { ThemeProvider, createTheme, type PaletteMode } from '@mui/material';
 import CssBaseline from '@mui/material/CssBaseline';
+import { storageGet, storageSet, StorageKeys } from '../services/storage';
 
 interface ThemeContextType {
   mode: PaletteMode;
@@ -21,7 +22,7 @@ interface ThemeProviderProps {
 export const CustomThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
   // Get initial theme from localStorage or system preference
   const getInitialMode = (): PaletteMode => {
-    const savedMode = localStorage.getItem('themeMode');
+    const savedMode = storageGet(StorageKeys.THEME_MODE);
     if (savedMode === 'light' || savedMode === 'dark') {
       return savedMode;
     }
@@ -37,14 +38,14 @@ export const CustomThemeProvider: React.FC<ThemeProviderProps> = ({ children }) 
   const toggleTheme = () => {
     const newMode = mode === 'light' ? 'dark' : 'light';
     setMode(newMode);
-    localStorage.setItem('themeMode', newMode);
+    storageSet(StorageKeys.THEME_MODE, newMode);
   };
 
   // Listen for system theme changes
   useEffect(() => {
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
     const handleChange = (e: MediaQueryListEvent) => {
-      if (!localStorage.getItem('themeMode')) {
+      if (!storageGet(StorageKeys.THEME_MODE)) {
         setMode(e.matches ? 'dark' : 'light');
       }
     };
