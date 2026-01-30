@@ -13,10 +13,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import UUID4, BaseModel, Field
 from sqlalchemy.orm import Session
 
-from ..audit_db import log_audit_event
-from ..auth import get_current_user
-from ..config import get_settings
-from ..database import Host, Scan, get_db
+from ...audit_db import log_audit_event
+from ...auth import get_current_user
+from ...config import get_settings
+from ...database import Host, Scan, get_db
 
 logger = logging.getLogger(__name__)
 

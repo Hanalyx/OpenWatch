@@ -29,16 +29,7 @@ from .middleware.metrics import PrometheusMiddleware, background_updater
 from .middleware.rate_limiting import get_rate_limiting_middleware
 
 # Flat route modules (not yet organized into packages)
-from .routes import (
-    baselines,
-    bulk_operations,
-    integration_metrics,
-    mongodb_test,
-    monitoring,
-    remediation_callback,
-    remediation_provider,
-    scans,
-)
+from .routes import baselines, bulk_operations, integration_metrics, mongodb_test, monitoring, scans
 
 # Import admin from new modular package (E1-S6 Route Consolidation)
 # This package consolidates users.py, audit.py, and credentials.py
@@ -73,6 +64,7 @@ from .routes.hosts import router as hosts_router
 # This package consolidates webhooks.py and plugin_management.py into a single
 # modular package with webhooks and plugins endpoints
 from .routes.integrations import router as integrations_router
+from .routes.remediation import router as remediation_router
 
 # Import rules from new modular package (E1-S5 Route Consolidation)
 # This package consolidates rule_management.py, rule_scanning.py, and
@@ -88,15 +80,8 @@ from .services.infrastructure import get_metrics_instance
 
 # Import security routes only if available
 # Type declarations for optional modules
-automated_fixes: Optional[types.ModuleType]
 authorization: Optional[types.ModuleType]
 security_config: Optional[types.ModuleType]
-
-try:
-    from .routes import automated_fixes
-except ImportError:
-    print("automated_fixes not available")
-    automated_fixes = None
 
 try:
     from .routes import authorization, security_config
@@ -565,9 +550,8 @@ app.include_router(mongodb_test.router, prefix="/api/mongodb", tags=["MongoDB In
 # Host monitoring
 app.include_router(monitoring.router, prefix="/api", tags=["Host Monitoring"])
 
-# Remediation provider (registration interface for ORSA adapters)
-app.include_router(remediation_provider.router, prefix="/api/remediation", tags=["Remediation Provider"])
-app.include_router(remediation_callback.router, prefix="/api", tags=["AEGIS Integration"])
+# Remediation package (automated fixes, provider interface, AEGIS callbacks)
+app.include_router(remediation_router, prefix="/api", tags=["Remediation"])
 
 # Modular route packages
 # Each package aggregates related sub-routers with their own prefixes
@@ -592,8 +576,6 @@ app.include_router(
 app.include_router(bulk_operations.router, prefix="/api/bulk", tags=["Bulk Operations"])
 
 # Register security routes if available
-if automated_fixes:
-    app.include_router(automated_fixes.router, prefix="/api", tags=["Secure Automated Fixes"])
 if authorization:
     app.include_router(authorization.router, prefix="/api", tags=["Authorization Management"])
 if security_config:

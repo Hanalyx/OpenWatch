@@ -21,11 +21,11 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from ..auth import get_current_user
-from ..database import get_db
-from ..rbac import Permission, check_permission_async
-from ..services.remediation import SecureAutomatedFixExecutor
-from ..services.validation import AutomatedFix
+from ...auth import get_current_user
+from ...database import get_db
+from ...rbac import Permission, check_permission_async
+from ...services.remediation import SecureAutomatedFixExecutor
+from ...services.validation import AutomatedFix
 
 logger = logging.getLogger(__name__)
 
