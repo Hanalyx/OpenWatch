@@ -4,7 +4,7 @@
 **Priority**: P0 (Critical)
 **Phase**: 1 (Week 1-2)
 **Owner**: AI (Claude) with Human review
-**Status**: Not Started
+**Status**: Complete (2026-01-30)
 
 ---
 
@@ -83,18 +83,18 @@ This creates:
 ## 5. User Stories
 
 ### Story E1-S1: Eliminate SSH Settings Duplicate
-**Priority**: P0 | **Points**: 3 | **Status**: Not Started
+**Priority**: P0 | **Points**: 3 | **Status**: Complete
 
 **As a** developer,
 **I want** a single source of truth for SSH settings endpoints,
 **So that** I don't have conflicting implementations.
 
 **Acceptance Criteria**:
-- [ ] `routes/ssh/settings.py` contains all SSH settings functionality
-- [ ] `routes/ssh_settings.py` is deleted
-- [ ] All imports updated (grep finds no references to old file)
-- [ ] All tests pass
-- [ ] API behavior unchanged (verified with curl)
+- [x] `routes/ssh/settings.py` contains all SSH settings functionality
+- [x] `routes/ssh_settings.py` is deleted
+- [x] All imports updated (grep finds no references to old file)
+- [x] All tests pass
+- [x] API behavior unchanged (verified with curl)
 
 **Implementation Notes**:
 1. Compare both files for differences
@@ -106,53 +106,53 @@ This creates:
 ---
 
 ### Story E1-S2: Eliminate SSH Debug Duplicate
-**Priority**: P0 | **Points**: 2 | **Status**: Not Started
+**Priority**: P0 | **Points**: 2 | **Status**: Complete
 
 **As a** developer,
 **I want** a single source of truth for SSH debug endpoints,
 **So that** debugging tools work consistently.
 
 **Acceptance Criteria**:
-- [ ] `routes/ssh/debug.py` contains all SSH debug functionality
-- [ ] `routes/ssh_debug.py` is deleted
-- [ ] All imports updated
-- [ ] All tests pass
-- [ ] API behavior unchanged
+- [x] `routes/ssh/debug.py` contains all SSH debug functionality
+- [x] `routes/ssh_debug.py` is deleted
+- [x] All imports updated
+- [x] All tests pass
+- [x] API behavior unchanged
 
 ---
 
 ### Story E1-S3: Eliminate Scan Config Duplicate
-**Priority**: P0 | **Points**: 3 | **Status**: Not Started
+**Priority**: P0 | **Points**: 3 | **Status**: Complete
 
 **As a** developer,
 **I want** a single source of truth for scan configuration endpoints,
 **So that** scan configuration is consistent.
 
 **Acceptance Criteria**:
-- [ ] `routes/scans/config.py` contains all scan config functionality
-- [ ] `routes/scan_config_api.py` is deleted
-- [ ] All imports updated
-- [ ] All tests pass
-- [ ] API behavior unchanged
+- [x] `routes/scans/config.py` contains all scan config functionality
+- [x] `routes/scan_config_api.py` is deleted
+- [x] All imports updated
+- [x] All tests pass
+- [x] API behavior unchanged
 
 ---
 
 ### Story E1-S4: Create Auth Route Package
-**Priority**: P1 | **Points**: 5 | **Status**: Not Started
+**Priority**: P1 | **Points**: 5 | **Status**: Complete
 
 **As a** developer,
 **I want** authentication routes organized in a package,
 **So that** auth-related code is easy to find and maintain.
 
 **Acceptance Criteria**:
-- [ ] `routes/auth/` directory created with `__init__.py`
-- [ ] `routes/auth/login.py` - Login/logout endpoints
-- [ ] `routes/auth/mfa.py` - MFA endpoints (from `mfa.py`)
-- [ ] `routes/auth/api_keys.py` - API key endpoints (from `api_keys.py`)
-- [ ] `routes/auth/sessions.py` - Session management
-- [ ] Old flat files deleted
-- [ ] All imports updated
-- [ ] All tests pass
+- [x] `routes/auth/` directory created with `__init__.py`
+- [x] `routes/auth/login.py` - Login/logout endpoints
+- [x] `routes/auth/mfa.py` - MFA endpoints (from `mfa.py`)
+- [x] `routes/auth/api_keys.py` - API key endpoints (from `api_keys.py`)
+- [x] `routes/auth/sessions.py` - Session management
+- [x] Old flat files deleted
+- [x] All imports updated
+- [x] All tests pass
 
 **Package Structure**:
 ```
@@ -167,104 +167,104 @@ routes/auth/
 ---
 
 ### Story E1-S5: Create Rules Route Package
-**Priority**: P1 | **Points**: 5 | **Status**: Not Started
+**Priority**: P1 | **Points**: 5 | **Status**: Complete
 
 **As a** developer,
 **I want** rule-related routes organized in a package,
 **So that** rule management code is cohesive.
 
 **Acceptance Criteria**:
-- [ ] `routes/rules/` directory created
-- [ ] `routes/rules/crud.py` - Basic rule CRUD
-- [ ] `routes/rules/management.py` - From `rule_management.py`
-- [ ] `routes/rules/scanning.py` - From `rule_scanning.py`
-- [ ] `routes/rules/compliance.py` - From `compliance_rules_api.py`
-- [ ] Old flat files deleted
-- [ ] All imports updated
-- [ ] All tests pass
+- [x] `routes/rules/` directory created
+- [x] `routes/rules/crud.py` - Basic rule CRUD
+- [x] `routes/rules/management.py` - From `rule_management.py`
+- [x] `routes/rules/scanning.py` - From `rule_scanning.py`
+- [x] `routes/rules/compliance.py` - From `compliance_rules_api.py`
+- [x] Old flat files deleted
+- [x] All imports updated
+- [x] All tests pass
 
 ---
 
 ### Story E1-S6: Create Admin Route Package
-**Priority**: P2 | **Points**: 3 | **Status**: Not Started
+**Priority**: P2 | **Points**: 3 | **Status**: Complete
 
 **As a** developer,
 **I want** admin routes organized in a package,
 **So that** administrative functions are grouped.
 
 **Acceptance Criteria**:
-- [ ] `routes/admin/` directory created
-- [ ] `routes/admin/users.py` - From `users.py`
-- [ ] `routes/admin/audit.py` - From `audit.py`
-- [ ] `routes/admin/settings.py` - System settings
-- [ ] Old flat files deleted
-- [ ] All imports updated
-- [ ] All tests pass
+- [x] `routes/admin/` directory created
+- [x] `routes/admin/users.py` - From `users.py`
+- [x] `routes/admin/audit.py` - From `audit.py`
+- [x] `routes/admin/settings.py` - System settings
+- [x] Old flat files deleted
+- [x] All imports updated
+- [x] All tests pass
 
 ---
 
 ### Story E1-S7: Create Content Route Package
-**Priority**: P2 | **Points**: 4 | **Status**: Not Started
+**Priority**: P2 | **Points**: 4 | **Status**: Complete
 
 **As a** developer,
 **I want** SCAP content routes organized in a package,
 **So that** content management is cohesive.
 
 **Acceptance Criteria**:
-- [ ] `routes/content/` directory created
-- [ ] `routes/content/scap.py` - From `content.py`
-- [ ] `routes/content/import_.py` - From `scap_import.py`
-- [ ] `routes/content/xccdf.py` - From `xccdf_api.py`
-- [ ] Old flat files deleted
-- [ ] All imports updated
-- [ ] All tests pass
+- [x] `routes/content/` directory created
+- [x] `routes/content/scap.py` - From `content.py`
+- [x] `routes/content/import_.py` - From `scap_import.py`
+- [x] `routes/content/xccdf.py` - From `xccdf_api.py`
+- [x] Old flat files deleted
+- [x] All imports updated
+- [x] All tests pass
 
 ---
 
 ### Story E1-S8: Remove Legacy Host Routes
-**Priority**: P0 | **Points**: 2 | **Status**: Not Started
+**Priority**: P0 | **Points**: 2 | **Status**: Complete
 
 **As a** developer,
 **I want** legacy host routes removed,
 **So that** there's no confusion about which endpoints to use.
 
 **Acceptance Criteria**:
-- [ ] Verified `routes/hosts/` has all necessary functionality
-- [ ] `routes/hosts_legacy.py` deleted
-- [ ] No other legacy host files remain
-- [ ] All imports updated
-- [ ] All tests pass
-- [ ] Frontend verified to work correctly
+- [x] Verified `routes/hosts/` has all necessary functionality
+- [x] `routes/hosts_legacy.py` deleted
+- [x] No other legacy host files remain
+- [x] All imports updated
+- [x] All tests pass
+- [x] Frontend verified to work correctly
 
 ---
 
 ### Story E1-S9: Consolidate MongoDB Scan Routes
-**Priority**: P2 | **Points**: 3 | **Status**: Not Started
+**Priority**: P2 | **Points**: 3 | **Status**: Complete
 
 **As a** developer,
 **I want** MongoDB scan routes in the scans package,
 **So that** all scan routes are in one place.
 
 **Acceptance Criteria**:
-- [ ] Functionality from `mongodb_scan_api.py` merged into `routes/scans/`
-- [ ] `mongodb_scan_api.py` deleted
-- [ ] All imports updated
-- [ ] All tests pass
+- [x] Functionality from `mongodb_scan_api.py` merged into `routes/scans/`
+- [x] `mongodb_scan_api.py` deleted
+- [x] All imports updated
+- [x] All tests pass
 
 ---
 
 ### Story E1-S10: Update main.py Router Registration
-**Priority**: P0 | **Points**: 2 | **Status**: Not Started
+**Priority**: P0 | **Points**: 2 | **Status**: Complete
 
 **As a** developer,
 **I want** main.py to only register modular route packages,
 **So that** the router configuration is clean and consistent.
 
 **Acceptance Criteria**:
-- [ ] main.py includes only package routers (not individual files)
-- [ ] All routes accessible via `/api` prefix
-- [ ] OpenAPI docs reflect correct structure
-- [ ] All tests pass
+- [x] main.py includes only package routers (not individual files)
+- [x] All routes accessible via `/api` prefix
+- [x] OpenAPI docs reflect correct structure
+- [x] All tests pass
 
 ---
 
@@ -305,24 +305,24 @@ graph TD
 
 ## 8. Acceptance Criteria (Epic Level)
 
-- [ ] Zero duplicate route files
-- [ ] All routes in modular packages (except truly standalone utilities)
-- [ ] `main.py` router registration is clean
-- [ ] All tests pass
-- [ ] Frontend fully functional
-- [ ] OpenAPI docs accurate
-- [ ] No deprecation warnings in logs
+- [x] Zero duplicate route files
+- [x] All routes in modular packages (except truly standalone utilities)
+- [x] `main.py` router registration is clean
+- [x] All tests pass
+- [x] Frontend fully functional
+- [x] OpenAPI docs accurate
+- [x] No deprecation warnings in logs
 
 ---
 
 ## 9. Definition of Done
 
-- [ ] All stories completed
-- [ ] Code reviewed and approved
-- [ ] Tests pass (unit + integration)
-- [ ] Documentation updated
-- [ ] No regressions introduced
-- [ ] Committed with proper messages
+- [x] All stories completed
+- [x] Code reviewed and approved
+- [x] Tests pass (unit + integration)
+- [x] Documentation updated
+- [x] No regressions introduced
+- [x] Committed with proper messages
 
 ---
 

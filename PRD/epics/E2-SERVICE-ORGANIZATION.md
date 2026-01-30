@@ -4,7 +4,7 @@
 **Priority**: P1 (High)
 **Phase**: 2 (Week 3-4)
 **Owner**: AI (Claude) with Human review
-**Status**: Not Started
+**Status**: Complete (2026-01-30)
 **Depends On**: E1 (Route Consolidation)
 
 ---
@@ -105,21 +105,21 @@ This creates:
 ## 5. User Stories
 
 ### Story E2-S1: Create Discovery Module
-**Priority**: P1 | **Points**: 5 | **Status**: Not Started
+**Priority**: P1 | **Points**: 5 | **Status**: Complete
 
 **As a** developer,
 **I want** host discovery services in a dedicated module,
 **So that** discovery-related code is easy to find.
 
 **Acceptance Criteria**:
-- [ ] `services/discovery/` directory created with `__init__.py`
-- [ ] `services/discovery/host.py` - General host discovery
-- [ ] `services/discovery/compliance.py` - Compliance discovery
-- [ ] `services/discovery/network.py` - Network discovery
-- [ ] `services/discovery/security.py` - Security discovery
-- [ ] All imports updated throughout codebase
-- [ ] Old flat files deleted
-- [ ] All tests pass
+- [x] `services/discovery/` directory created with `__init__.py`
+- [x] `services/discovery/host.py` - General host discovery
+- [x] `services/discovery/compliance.py` - Compliance discovery
+- [x] `services/discovery/network.py` - Network discovery
+- [x] `services/discovery/security.py` - Security discovery
+- [x] All imports updated throughout codebase
+- [x] Old flat files deleted
+- [x] All tests pass
 
 **Package Structure**:
 ```
@@ -139,22 +139,22 @@ services/discovery/
 ---
 
 ### Story E2-S2: Create Monitoring Module
-**Priority**: P1 | **Points**: 5 | **Status**: Not Started
+**Priority**: P1 | **Points**: 5 | **Status**: Complete
 
 **As a** developer,
 **I want** monitoring services in a dedicated module,
 **So that** health and monitoring code is cohesive.
 
 **Acceptance Criteria**:
-- [ ] `services/monitoring/` directory created with `__init__.py`
-- [ ] `services/monitoring/health.py` - Health monitoring
-- [ ] `services/monitoring/host.py` - Host monitoring
-- [ ] `services/monitoring/drift.py` - Drift detection
-- [ ] `services/monitoring/metrics.py` - Integration metrics
-- [ ] `services/monitoring/scheduler.py` - Adaptive scheduling
-- [ ] All imports updated
-- [ ] Old flat files deleted
-- [ ] All tests pass
+- [x] `services/monitoring/` directory created with `__init__.py`
+- [x] `services/monitoring/health.py` - Health monitoring
+- [x] `services/monitoring/host.py` - Host monitoring
+- [x] `services/monitoring/drift.py` - Drift detection
+- [x] `services/monitoring/metrics.py` - Integration metrics
+- [x] `services/monitoring/scheduler.py` - Adaptive scheduling
+- [x] All imports updated
+- [x] Old flat files deleted
+- [x] All tests pass
 
 **Package Structure**:
 ```
@@ -171,21 +171,21 @@ services/monitoring/
 ---
 
 ### Story E2-S3: Create Validation Module
-**Priority**: P1 | **Points**: 4 | **Status**: Not Started
+**Priority**: P1 | **Points**: 4 | **Status**: Complete
 
 **As a** developer,
 **I want** validation services in a dedicated module,
 **So that** validation logic is centralized.
 
 **Acceptance Criteria**:
-- [ ] `services/validation/` directory created with `__init__.py`
-- [ ] `services/validation/unified.py` - Unified validation
-- [ ] `services/validation/group.py` - Group validation
-- [ ] `services/validation/errors.py` - Error classification
-- [ ] `services/validation/sanitization.py` - Input sanitization
-- [ ] All imports updated
-- [ ] Old flat files deleted
-- [ ] All tests pass
+- [x] `services/validation/` directory created with `__init__.py`
+- [x] `services/validation/unified.py` - Unified validation
+- [x] `services/validation/group.py` - Group validation
+- [x] `services/validation/errors.py` - Error classification
+- [x] `services/validation/sanitization.py` - Input sanitization
+- [x] All imports updated
+- [x] Old flat files deleted
+- [x] All tests pass
 
 **Package Structure**:
 ```
@@ -200,56 +200,56 @@ services/validation/
 ---
 
 ### Story E2-S4: Create Infrastructure Module
-**Priority**: P2 | **Points**: 4 | **Status**: Not Started
+**Priority**: P2 | **Points**: 4 | **Status**: Complete
 
 **As a** developer,
 **I want** infrastructure services in a dedicated module,
 **So that** infrastructure code is separate from business logic.
 
 **Acceptance Criteria**:
-- [ ] `services/infrastructure/` directory created with `__init__.py`
-- [ ] `services/infrastructure/terminal.py` - Terminal service
-- [ ] `services/infrastructure/sandbox.py` - Command sandbox
-- [ ] `services/infrastructure/http.py` - HTTP client
-- [ ] `services/infrastructure/email.py` - Email service
-- [ ] `services/infrastructure/webhooks.py` - Webhook security
-- [ ] All imports updated
-- [ ] Old flat files deleted
-- [ ] All tests pass
+- [x] `services/infrastructure/` directory created with `__init__.py`
+- [x] `services/infrastructure/terminal.py` - Terminal service
+- [x] `services/infrastructure/sandbox.py` - Command sandbox
+- [x] `services/infrastructure/http.py` - HTTP client
+- [x] `services/infrastructure/email.py` - Email service
+- [x] `services/infrastructure/webhooks.py` - Webhook security
+- [x] All imports updated
+- [x] Old flat files deleted
+- [x] All tests pass
 
 ---
 
 ### Story E2-S5: Create Utilities Module
-**Priority**: P2 | **Points**: 3 | **Status**: Not Started
+**Priority**: P2 | **Points**: 3 | **Status**: Complete
 
 **As a** developer,
 **I want** utility services in a dedicated module,
 **So that** cross-cutting utilities are organized.
 
 **Acceptance Criteria**:
-- [ ] `services/utilities/` directory created with `__init__.py`
-- [ ] `services/utilities/session_migration.py`
-- [ ] `services/utilities/key_lifecycle.py`
-- [ ] `services/utilities/migration.py`
-- [ ] All imports updated
-- [ ] Old flat files deleted
-- [ ] All tests pass
+- [x] `services/utilities/` directory created with `__init__.py`
+- [x] `services/utilities/session_migration.py`
+- [x] `services/utilities/key_lifecycle.py`
+- [x] `services/utilities/migration.py`
+- [x] All imports updated
+- [x] Old flat files deleted
+- [x] All tests pass
 
 ---
 
 ### Story E2-S6: Consolidate Framework Services
-**Priority**: P1 | **Points**: 3 | **Status**: Not Started
+**Priority**: P1 | **Points**: 3 | **Status**: Complete
 
 **As a** developer,
 **I want** framework services properly consolidated,
 **So that** there's no confusion between modules.
 
 **Acceptance Criteria**:
-- [ ] `compliance_framework_mapper.py` merged into `services/framework/`
-- [ ] Clear relationship documented between `framework/` and `owca/framework/`
-- [ ] All imports updated
-- [ ] No circular dependencies
-- [ ] All tests pass
+- [x] `compliance_framework_mapper.py` merged into `services/framework/`
+- [x] Clear relationship documented between `framework/` and `owca/framework/`
+- [x] All imports updated
+- [x] No circular dependencies
+- [x] All tests pass
 
 **Investigation Required**:
 1. What's the difference between `compliance_framework_mapper.py` and `framework/mapper.py`?
@@ -259,18 +259,18 @@ services/validation/
 ---
 
 ### Story E2-S7: Clean Up Remaining Flat Files
-**Priority**: P2 | **Points**: 3 | **Status**: Not Started
+**Priority**: P2 | **Points**: 3 | **Status**: Complete
 
 **As a** developer,
 **I want** all remaining flat files either organized or justified,
 **So that** the services root is clean.
 
 **Acceptance Criteria**:
-- [ ] Each remaining flat file is either:
+- [x] Each remaining flat file is either:
   - Moved to appropriate module
   - Documented as intentionally standalone
-- [ ] Less than 10 flat files remain at services root
-- [ ] All tests pass
+- [x] Less than 10 flat files remain at services root
+- [x] All tests pass
 
 **Files to Evaluate**:
 - `scan_intelligence.py` → Consider moving to `engine/`
@@ -280,17 +280,17 @@ services/validation/
 ---
 
 ### Story E2-S8: Update Service Imports in Routes
-**Priority**: P1 | **Points**: 3 | **Status**: Not Started
+**Priority**: P1 | **Points**: 3 | **Status**: Complete
 
 **As a** developer,
 **I want** all routes to use consistent service imports,
 **So that** the codebase follows the same patterns.
 
 **Acceptance Criteria**:
-- [ ] All routes import from `__init__.py` not internal files
-- [ ] No direct imports from moved files
-- [ ] Deprecation warnings for old import paths
-- [ ] All tests pass
+- [x] All routes import from `__init__.py` not internal files
+- [x] No direct imports from moved files
+- [x] Deprecation warnings for old import paths
+- [x] All tests pass
 
 **Example**:
 ```python
@@ -304,20 +304,20 @@ from backend.app.services.host_discovery_service import HostDiscoveryService
 ---
 
 ### Story E2-S9: Document Service Module Boundaries
-**Priority**: P1 | **Points**: 2 | **Status**: Not Started
+**Priority**: P1 | **Points**: 2 | **Status**: Complete
 
 **As a** developer,
 **I want** clear documentation of what each module owns,
 **So that** I know where to add new code.
 
 **Acceptance Criteria**:
-- [ ] `context/MODULE_BOUNDARIES.md` created
-- [ ] Each module has documented:
+- [x] `context/MODULE_BOUNDARIES.md` created
+- [x] Each module has documented:
   - Purpose
   - What it owns
   - What it depends on
   - What it does NOT do
-- [ ] Document added to CLAUDE.md context file table
+- [x] Document added to CLAUDE.md context file table
 
 **Content Template**:
 ```markdown
@@ -372,23 +372,23 @@ graph TD
 
 ## 8. Acceptance Criteria (Epic Level)
 
-- [ ] Less than 10 flat files at services root
-- [ ] 5 new modules created (discovery, monitoring, validation, infrastructure, utilities)
-- [ ] All modules have `__init__.py` with proper exports
-- [ ] No circular dependencies
-- [ ] All tests pass
-- [ ] Module boundaries documented
+- [x] Less than 10 flat files at services root
+- [x] 5 new modules created (discovery, monitoring, validation, infrastructure, utilities)
+- [x] All modules have `__init__.py` with proper exports
+- [x] No circular dependencies
+- [x] All tests pass
+- [x] Module boundaries documented
 
 ---
 
 ## 9. Definition of Done
 
-- [ ] All stories completed
-- [ ] Code reviewed and approved
-- [ ] Tests pass (unit + integration)
-- [ ] `context/MODULE_BOUNDARIES.md` created
-- [ ] No regressions introduced
-- [ ] Committed with proper messages
+- [x] All stories completed
+- [x] Code reviewed and approved
+- [x] Tests pass (unit + integration)
+- [x] `context/MODULE_BOUNDARIES.md` created
+- [x] No regressions introduced
+- [x] Committed with proper messages
 
 ---
 

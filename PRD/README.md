@@ -26,10 +26,10 @@ This PRD is organized into modular documents for focused reading and maintenance
 | Epic | Priority | Description |
 |------|----------|-------------|
 | [epics/E0-SCAN-ACCURACY.md](epics/E0-SCAN-ACCURACY.md) | **P0 BLOCKER** | Fix 35% scan discrepancy vs native OpenSCAP |
-| [epics/E1-ROUTE-CONSOLIDATION.md](epics/E1-ROUTE-CONSOLIDATION.md) | P0 | Eliminate duplicate routes, complete modular migration |
-| [epics/E2-SERVICE-ORGANIZATION.md](epics/E2-SERVICE-ORGANIZATION.md) | P1 | Consolidate 50 flat services into modules |
+| [epics/E1-ROUTE-CONSOLIDATION.md](epics/E1-ROUTE-CONSOLIDATION.md) | P0 | ~~Eliminate duplicate routes, complete modular migration~~ **Complete** |
+| [epics/E2-SERVICE-ORGANIZATION.md](epics/E2-SERVICE-ORGANIZATION.md) | P1 | ~~Consolidate 50 flat services into modules~~ **Complete** |
 | [epics/E3-DOCUMENTATION.md](epics/E3-DOCUMENTATION.md) | P1 | Reorganize 249 docs, create production guides |
-| [epics/E4-FRONTEND-REFACTOR.md](epics/E4-FRONTEND-REFACTOR.md) | P2 | Extract large components, standardize state |
+| [epics/E4-FRONTEND-REFACTOR.md](epics/E4-FRONTEND-REFACTOR.md) | P2 | ~~Extract large components, standardize state~~ **Complete** |
 | [epics/E5-TESTING.md](epics/E5-TESTING.md) | P2 | Achieve 80% coverage, add regression tests |
 | [epics/E6-PRODUCTION-HARDENING.md](epics/E6-PRODUCTION-HARDENING.md) | P1 | Deployment guides, monitoring, security audit |
 
@@ -81,12 +81,12 @@ Individual stories are located in [stories/](stories/) directory, organized by e
 | Phase | Status | Target | Actual |
 |-------|--------|--------|--------|
 | Phase 0: Scan Accuracy | Not Started | Week 1-4 | - |
-| Phase 1: Critical Fixes | Not Started | Week 2-3 | - |
-| Phase 2: Consolidation | Not Started | Week 4-5 | - |
-| Phase 3: Documentation | Not Started | Week 6-7 | - |
-| Phase 4: Frontend | Not Started | Week 8-9 | - |
-| Phase 5: Testing | Not Started | Week 10-11 | - |
-| Phase 6: Hardening | Not Started | Week 12-14 | - |
+| Phase 1: Critical Fixes (E1) | Complete | Week 2-3 | 2026-01-30 |
+| Phase 2: Consolidation (E2) | Complete | Week 4-5 | 2026-01-30 |
+| Phase 3: Documentation (E3) | Not Started | Week 6-7 | - |
+| Phase 4: Frontend (E4) | Complete | Week 8-9 | 2026-01-30 |
+| Phase 5: Testing (E5) | Not Started | Week 10-11 | - |
+| Phase 6: Hardening (E6) | Not Started | Week 12-14 | - |
 
 > **Note**: Phase 0 runs in parallel with Phase 1. Total timeline extended to 14 weeks to accommodate scan accuracy work.
 
@@ -96,4 +96,5 @@ Individual stories are located in [stories/](stories/) directory, organized by e
 
 | Version | Date | Author | Changes |
 |---------|------|--------|---------|
+| 1.1.0 | 2026-01-30 | Claude Opus 4.5 | Mark E1, E2, E4 as Complete; update status tracking |
 | 1.0.0 | 2026-01-21 | Claude Opus 4.5 | Initial PRD creation |
