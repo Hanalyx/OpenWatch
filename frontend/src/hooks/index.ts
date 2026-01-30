@@ -11,6 +11,15 @@
 export { useHostData } from './useHostData';
 export type { UseHostDataReturn } from './useHostData';
 
+export {
+  useHosts,
+  useHost,
+  useCreateHost,
+  useUpdateHost,
+  useDeleteHost,
+  hostKeys,
+} from './useHosts';
+
 export { useHostFilters } from './useHostFilters';
 export type { UseHostFiltersReturn, GroupedHosts } from './useHostFilters';
 
