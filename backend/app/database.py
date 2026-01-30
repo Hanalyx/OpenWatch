@@ -391,6 +391,44 @@ class ScanBaseline(Base):  # type: ignore[valid-type, misc]
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
 
+class ScanDriftEvent(Base):  # type: ignore[valid-type, misc]
+    """
+    Records compliance drift events detected against baselines.
+
+    Each event captures the delta between current scan results and the
+    active baseline per NIST SP 800-137 Continuous Monitoring requirements.
+    """
+
+    __tablename__ = "scan_drift_events"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4, index=True)
+    host_id = Column(UUID(as_uuid=True), ForeignKey("hosts.id", ondelete="CASCADE"), nullable=False)
+    scan_id = Column(UUID(as_uuid=True), ForeignKey("scans.id", ondelete="CASCADE"), nullable=False)
+    baseline_id = Column(UUID(as_uuid=True), ForeignKey("scan_baselines.id"), nullable=False)
+
+    # Drift metrics
+    drift_type = Column(String(20), nullable=False, comment="Drift type: major, minor, improvement, or stable")
+    drift_magnitude = Column(Float, nullable=False, comment="Absolute percentage point change")
+
+    # Scores
+    baseline_score = Column(Float, nullable=False, comment="Baseline compliance score")
+    current_score = Column(Float, nullable=False, comment="Current scan score")
+    score_delta = Column(Float, nullable=False, comment="Score change (current - baseline)")
+
+    # Per-severity pass/fail deltas
+    critical_passed_delta = Column(Integer, nullable=True)
+    critical_failed_delta = Column(Integer, nullable=True)
+    high_passed_delta = Column(Integer, nullable=True)
+    high_failed_delta = Column(Integer, nullable=True)
+    medium_passed_delta = Column(Integer, nullable=True)
+    medium_failed_delta = Column(Integer, nullable=True)
+    low_passed_delta = Column(Integer, nullable=True)
+    low_failed_delta = Column(Integer, nullable=True)
+
+    # Audit
+    detected_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
 class SystemCredentials(Base):  # type: ignore[valid-type, misc]
     """System-wide SSH credentials for enterprise environments"""
 
