@@ -68,20 +68,16 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { StatCard, SSHKeyDisplay } from '../../components/design-system';
 import { api } from '../../services/api';
+import {
+  adaptConnectionTest,
+  adaptCredential,
+  adaptKeyValidation,
+  type ApiConnectionTestResponse,
+  type ApiCredentialResponse,
+  type ApiKeyValidationResponse,
+} from '../../services/adapters';
 
-/**
- * SSH connection test response from backend API
- * Raw response structure from /api/hosts/test-connection
- */
-interface ConnectionTestApiResponse {
-  network_reachable?: boolean;
-  auth_successful?: boolean;
-  detected_os?: string;
-  os_version?: string;
-  response_time_ms?: number;
-  ssh_version?: string;
-  additional_info?: string;
-}
+// ConnectionTestApiResponse imported from adapters
 
 /**
  * SSH connection test results from backend
@@ -100,20 +96,7 @@ interface ConnectionTestResults {
   errorCode?: number;
 }
 
-/**
- * Credential object with is_default flag
- * Used for displaying and selecting credentials in dropdown
- */
-interface CredentialWithDefault {
-  is_default: boolean;
-  id?: string;
-  name?: string;
-  username?: string;
-  auth_method?: string;
-  ssh_key_type?: string;
-  ssh_key_bits?: number;
-  ssh_key_comment?: string;
-}
+// CredentialWithDefault replaced by ApiCredentialResponse from adapters
 
 const AddHost: React.FC = () => {
   const navigate = useNavigate();
@@ -291,7 +274,7 @@ const AddHost: React.FC = () => {
       // Testing SSH connection to target host
 
       // Make API call to test connection
-      const result = await api.post<ConnectionTestApiResponse>(
+      const result = await api.post<ApiConnectionTestResponse>(
         '/api/hosts/test-connection',
         testData
       );
@@ -299,17 +282,8 @@ const AddHost: React.FC = () => {
       setTestingConnection(false);
       setConnectionStatus('success');
 
-      // Store the actual results for display
-      setConnectionTestResults({
-        success: true,
-        networkConnectivity: result.network_reachable ?? true,
-        authentication: result.auth_successful ?? true,
-        detectedOS: result.detected_os || 'Unknown',
-        detectedVersion: result.os_version || '',
-        responseTime: result.response_time_ms || 0,
-        sshVersion: result.ssh_version || '',
-        additionalInfo: result.additional_info || '',
-      });
+      // Store the actual results for display via adapter
+      setConnectionTestResults(adaptConnectionTest(result));
     } catch (err) {
       // Type-safe error handling: check if error has message property
       console.error('Connection test failed:', err);
@@ -386,18 +360,11 @@ const AddHost: React.FC = () => {
       });
 
       if (response.ok) {
-        const credentials: CredentialWithDefault[] = await response.json();
+        const credentials: ApiCredentialResponse[] = await response.json();
         const defaultCredential = credentials.find((cred) => cred.is_default);
 
         if (defaultCredential) {
-          setSystemCredentials({
-            name: defaultCredential.name || '',
-            username: defaultCredential.username || '',
-            authMethod: defaultCredential.auth_method || 'password',
-            sshKeyType: defaultCredential.ssh_key_type,
-            sshKeyBits: defaultCredential.ssh_key_bits,
-            sshKeyComment: defaultCredential.ssh_key_comment,
-          });
+          setSystemCredentials(adaptCredential(defaultCredential));
         }
       }
     } catch (error) {
@@ -460,27 +427,28 @@ const AddHost: React.FC = () => {
         return;
       }
 
-      const result = await response.json();
+      const rawResult: ApiKeyValidationResponse = await response.json();
+      const validated = adaptKeyValidation(rawResult);
 
-      if (result.is_valid) {
+      if (validated.isValid) {
         // Build detailed success message
         let message = 'SSH key is valid and properly formatted.';
-        if (result.key_type && result.key_bits) {
-          message += ` (${result.key_type.toUpperCase()}-${result.key_bits})`;
+        if (validated.keyType && validated.keyBits) {
+          message += ` (${validated.keyType.toUpperCase()}-${validated.keyBits})`;
         }
 
         setSshKeyValidation({
           status: 'valid',
           message,
-          keyType: result.key_type,
-          keyBits: result.key_bits,
-          securityLevel: result.security_level,
+          keyType: validated.keyType,
+          keyBits: validated.keyBits,
+          securityLevel: validated.securityLevel,
         });
         setAuthMethodLocked(true);
       } else {
         setSshKeyValidation({
           status: 'invalid',
-          message: result.error_message || 'SSH key validation failed.',
+          message: validated.message || 'SSH key validation failed.',
         });
       }
     } catch {

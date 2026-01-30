@@ -76,61 +76,11 @@ import {
   type ViewMode,
 } from '../../components/design-system';
 import { api } from '../../services/api';
-import type { Host, HostStatus, AuthMethod } from '../../types/host';
+import { adaptHosts, toUpdateHostRequest, type ApiHostResponse } from '../../services/adapters';
+import type { Host } from '../../types/host';
 import { REFRESH_INTERVALS } from '../../constants/refresh';
 import { validateSshKey } from '../../utils/hostValidation';
 import { getComplianceScoreColor } from '../../utils/hostStatus';
-
-/**
- * API host response structure from backend
- * Maps snake_case backend fields to frontend Host interface
- * Backend uses PostgreSQL naming conventions (snake_case)
- */
-interface ApiHostResponse {
-  id: string;
-  hostname: string;
-  display_name?: string;
-  ip_address: string;
-  operating_system: string;
-  os_version?: string;
-  status?: string;
-  scan_status?: string;
-  compliance_score?: number;
-  last_scan?: string;
-  last_check?: string;
-  critical_issues?: number;
-  high_issues?: number;
-  medium_issues?: number;
-  low_issues?: number;
-  tags?: string[];
-  group?: string;
-  group_id?: number;
-  group_name?: string;
-  group_description?: string;
-  group_color?: string;
-  owner?: string;
-  cpu_usage?: number;
-  memory_usage?: number;
-  disk_usage?: number;
-  uptime?: string;
-  last_backup?: string;
-  ssh_key?: boolean;
-  agent_status?: string;
-  scan_profile?: string;
-  port?: number;
-  username?: string;
-  auth_method?: string;
-  ssh_key_fingerprint?: string;
-  ssh_key_type?: string;
-  ssh_key_bits?: number;
-  ssh_key_comment?: string;
-  latest_scan_id?: string;
-  latest_scan_name?: string;
-  scan_progress?: number;
-  failed_rules?: number;
-  passed_rules?: number;
-  total_rules?: number;
-}
 
 const Hosts: React.FC = () => {
   const theme = useTheme();
@@ -216,62 +166,8 @@ const Hosts: React.FC = () => {
 
       const apiHosts = await api.get<ApiHostResponse[]>('/api/hosts/');
 
-      // Auto-refresh completed successfully
-
-      // Transform API response to match our Host interface
-      const transformedHosts = apiHosts.map((host: ApiHostResponse) => ({
-        id: host.id,
-        hostname: host.hostname,
-        displayName: host.display_name || host.hostname,
-        ipAddress: host.ip_address,
-        operatingSystem: host.operating_system,
-        status: (host.scan_status === 'running' || host.scan_status === 'pending'
-          ? 'scanning'
-          : host.status || 'offline') as HostStatus,
-        complianceScore: host.compliance_score || null,
-        complianceTrend: 'stable' as const,
-        lastScan: host.last_scan || null,
-        lastCheck: host.last_check || null,
-        nextScan: host.last_scan ? 'Pending' : null,
-        criticalIssues: host.critical_issues || 0,
-        highIssues: host.high_issues || 0,
-        mediumIssues: host.medium_issues || 0,
-        lowIssues: host.low_issues || 0,
-        tags: host.tags || [],
-        group: host.group_name || host.group || 'Ungrouped',
-        group_id: host.group_id ?? undefined,
-        group_name: host.group_name ?? undefined,
-        group_description: host.group_description ?? undefined,
-        group_color: host.group_color ?? undefined,
-        owner: host.owner || 'Unassigned',
-        cpuUsage: host.cpu_usage || null,
-        memoryUsage: host.memory_usage || null,
-        diskUsage: host.disk_usage || null,
-        uptime: host.uptime || null,
-        osVersion: host.os_version || host.operating_system,
-        lastBackup: host.last_backup || null,
-        sshKey: host.ssh_key || false,
-        agent: host.agent_status || 'not_installed',
-        profile: host.scan_profile || null,
-        port: host.port || 22,
-        username: host.username || '',
-        authMethod: (host.auth_method || 'ssh_key') as AuthMethod,
-        ssh_key_fingerprint: host.ssh_key_fingerprint ?? undefined,
-        ssh_key_type: host.ssh_key_type ?? undefined,
-        ssh_key_bits: host.ssh_key_bits ?? undefined,
-        ssh_key_comment: host.ssh_key_comment ?? undefined,
-        // New scan information
-        latestScanId: host.latest_scan_id || null,
-        latestScanName: host.latest_scan_name || null,
-        scanStatus: host.scan_status || null,
-        scanProgress: host.scan_progress || null,
-        failedRules: host.failed_rules || 0,
-        passedRules: host.passed_rules || 0,
-        totalRules: host.total_rules || 0,
-      }));
-
-      // Use only API hosts (no mock data)
-      setHosts(transformedHosts);
+      // Transform API response to match our Host interface via adapter
+      setHosts(adaptHosts(apiHosts));
       setLastRefresh(new Date());
     } catch (error) {
       console.error('Error fetching hosts:', error);
@@ -624,20 +520,8 @@ const Hosts: React.FC = () => {
     if (!editDialog.host) return;
 
     try {
-      const requestData = {
-        hostname: editFormData.hostname,
-        ip_address: editFormData.ipAddress,
-        display_name: editFormData.displayName,
-        operating_system: editFormData.operatingSystem,
-        port: editFormData.port,
-        username: editFormData.username,
-        auth_method: editFormData.authMethod,
-        ssh_key: editFormData.sshKey,
-        password: editFormData.password,
-      };
-
       // Submit updated host configuration to API
-      await api.put(`/api/hosts/${editDialog.host.id}`, requestData);
+      await api.put(`/api/hosts/${editDialog.host.id}`, toUpdateHostRequest(editFormData));
 
       // Refresh hosts list to get latest data including SSH key metadata
       await fetchHosts();
