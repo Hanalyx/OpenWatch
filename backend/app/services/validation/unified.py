@@ -11,8 +11,8 @@ from typing import Dict, Optional, Tuple
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from ...models.error_models import AutomatedFixInternal as AutomatedFix
 from ...models.error_models import (
-    AutomatedFix,
     AutomatedFixResponse,
     ErrorCategory,
     ErrorSeverity,
