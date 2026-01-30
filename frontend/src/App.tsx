@@ -5,6 +5,7 @@ import { useAppSelector, useAppDispatch } from './hooks/redux';
 import { checkSessionExpiry } from './store/slices/authSlice';
 import CustomThemeProvider from './contexts/ThemeContext';
 import { tokenService } from './services/tokenService';
+import GlobalErrorBoundary from './components/common/GlobalErrorBoundary';
 
 // Create React Query client
 const queryClient = new QueryClient({
@@ -62,55 +63,63 @@ function App() {
   }, [dispatch, isAuthenticated]);
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <CustomThemeProvider>
-        <Router>
-          <Routes>
-            {/* Public routes */}
-            <Route element={<PublicRoute />}>
-              <Route path="/login" element={<Login />} />
-              <Route path="/register" element={<Register />} />
-              <Route path="/mfa-setup" element={<MFASetup />} />
-            </Route>
-
-            {/* Private routes */}
-            <Route element={<PrivateRoute />}>
-              <Route element={<Layout />}>
-                <Route path="/" element={<Dashboard />} />
-                <Route path="/hosts" element={<Hosts />} />
-                <Route path="/hosts/add-host" element={<AddHost />} />
-                <Route path="/hosts/:id" element={<HostDetail />} />
-                <Route path="/host-groups" element={<ComplianceGroups />} />
-                <Route path="/content" element={<Content />} />
-                <Route path="/content/frameworks" element={<FrameworksPage />} />
-                <Route
-                  path="/content/frameworks/:framework/:version"
-                  element={<FrameworkDetailPage />}
-                />
-                <Route path="/content/templates" element={<TemplatesPage />} />
-                <Route path="/content/templates/new" element={<TemplateEditorPage />} />
-                <Route path="/content/templates/:id" element={<TemplateEditorPage />} />
-                <Route path="/scans" element={<Scans />} />
-                <Route path="/scans/create" element={<ComplianceScanWizard />} />
-                <Route path="/scans/:id" element={<ScanDetail />} />
-                <Route path="/users" element={<Users />} />
-                <Route path="/oview" element={<OView />} />
-                <Route path="/settings" element={<Settings />} />
+    <GlobalErrorBoundary level="page">
+      <QueryClientProvider client={queryClient}>
+        <CustomThemeProvider>
+          <Router>
+            <Routes>
+              {/* Public routes */}
+              <Route element={<PublicRoute />}>
+                <Route path="/login" element={<Login />} />
+                <Route path="/register" element={<Register />} />
+                <Route path="/mfa-setup" element={<MFASetup />} />
               </Route>
-            </Route>
 
-            {/* Redirect to login if not authenticated */}
-            <Route
-              path="*"
-              element={
-                isAuthenticated ? <Navigate to="/" replace /> : <Navigate to="/login" replace />
-              }
-            />
-          </Routes>
-          <SessionManager />
-        </Router>
-      </CustomThemeProvider>
-    </QueryClientProvider>
+              {/* Private routes */}
+              <Route element={<PrivateRoute />}>
+                <Route
+                  element={
+                    <GlobalErrorBoundary level="route">
+                      <Layout />
+                    </GlobalErrorBoundary>
+                  }
+                >
+                  <Route path="/" element={<Dashboard />} />
+                  <Route path="/hosts" element={<Hosts />} />
+                  <Route path="/hosts/add-host" element={<AddHost />} />
+                  <Route path="/hosts/:id" element={<HostDetail />} />
+                  <Route path="/host-groups" element={<ComplianceGroups />} />
+                  <Route path="/content" element={<Content />} />
+                  <Route path="/content/frameworks" element={<FrameworksPage />} />
+                  <Route
+                    path="/content/frameworks/:framework/:version"
+                    element={<FrameworkDetailPage />}
+                  />
+                  <Route path="/content/templates" element={<TemplatesPage />} />
+                  <Route path="/content/templates/new" element={<TemplateEditorPage />} />
+                  <Route path="/content/templates/:id" element={<TemplateEditorPage />} />
+                  <Route path="/scans" element={<Scans />} />
+                  <Route path="/scans/create" element={<ComplianceScanWizard />} />
+                  <Route path="/scans/:id" element={<ScanDetail />} />
+                  <Route path="/users" element={<Users />} />
+                  <Route path="/oview" element={<OView />} />
+                  <Route path="/settings" element={<Settings />} />
+                </Route>
+              </Route>
+
+              {/* Redirect to login if not authenticated */}
+              <Route
+                path="*"
+                element={
+                  isAuthenticated ? <Navigate to="/" replace /> : <Navigate to="/login" replace />
+                }
+              />
+            </Routes>
+            <SessionManager />
+          </Router>
+        </CustomThemeProvider>
+      </QueryClientProvider>
+    </GlobalErrorBoundary>
   );
 }
 
