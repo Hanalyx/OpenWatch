@@ -17,7 +17,7 @@ from ...models.error_models import ErrorSeverity, SecurityAuditLog
 class SecurityAuditLogger:
     """Secure audit logger for error classification events"""
 
-    def __init__(self, log_directory: str = "/app/logs/security"):
+    def __init__(self, log_directory: str = "/openwatch/logs/security"):
         self.log_directory = Path(log_directory)
         self.log_directory.mkdir(parents=True, exist_ok=True)
 

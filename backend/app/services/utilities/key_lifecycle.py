@@ -82,7 +82,7 @@ class RSAKeyLifecycleManager:
     """FIPS-compliant RSA key lifecycle management"""
 
     def __init__(self) -> None:
-        self.key_storage_path = Path("/app/security/keys")
+        self.key_storage_path = Path("/openwatch/security/keys")
         self.key_storage_path.mkdir(parents=True, exist_ok=True, mode=0o700)
         self.key_size = 2048  # FIPS minimum
         self.key_lifetime_days = 365  # 1 year default

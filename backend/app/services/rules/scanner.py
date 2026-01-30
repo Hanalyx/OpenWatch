@@ -67,7 +67,7 @@ class RuleSpecificScanner:
         executor: ThreadPoolExecutor for concurrent local scans
     """
 
-    def __init__(self, results_dir: str = "/app/data/results/rule_scans"):
+    def __init__(self, results_dir: str = "/openwatch/data/results/rule_scans"):
         """
         Initialize the rule-specific scanner.
 
@@ -731,7 +731,7 @@ class RuleSpecificScanner:
 
             if not result_file.exists():
                 # Try searching in main results directory
-                main_results = Path("/app/data/results") / sanitized_scan_id
+                main_results = Path("/openwatch/data/results") / sanitized_scan_id
                 if main_results.exists():
                     # Look for results.json in scan directory
                     result_file = main_results / "results.json"

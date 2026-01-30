@@ -163,7 +163,7 @@ class ExecutionContext:
     port: int = 22
     username: str = ""
     timeout: int = 1800
-    working_dir: Path = field(default_factory=lambda: Path("/app/data/results"))
+    working_dir: Path = field(default_factory=lambda: Path("/openwatch/data/results"))
     remote_dir: str = ""
     environment: Dict[str, str] = field(default_factory=dict)
 

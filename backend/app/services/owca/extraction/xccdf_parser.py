@@ -300,8 +300,8 @@ class XCCDFParser:
         except Exception:
             return False
 
-        # Only allow paths within /app/data/ (OpenWatch data directory)
-        allowed_base = Path("/app/data").resolve()
+        # Only allow paths within /openwatch/data/ (OpenWatch data directory)
+        allowed_base = Path("/openwatch/data").resolve()
         try:
             resolved.relative_to(allowed_base)
             return True

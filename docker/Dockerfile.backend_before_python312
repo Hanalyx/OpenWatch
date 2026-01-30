@@ -22,11 +22,11 @@ RUN fips-mode-setup --enable || echo "FIPS mode setup completed"
 
 # Create application user with high UID/GID to avoid collisions
 RUN useradd -m -u 10001 openwatch && \
-    mkdir -p /app /app/data /app/logs /app/security && \
-    chown -R openwatch:openwatch /app
+    mkdir -p /openwatch /openwatch/data /openwatch/logs /openwatch/security && \
+    chown -R openwatch:openwatch /openwatch
 
-# Set working directory
-WORKDIR /app
+# Set working directory to mirror dev environment root
+WORKDIR /openwatch
 
 # Copy requirements and install Python dependencies
 COPY backend/requirements.txt .
@@ -43,15 +43,15 @@ COPY backend/scripts/oscap-ssh /usr/local/bin/oscap-ssh
 RUN chmod +x /usr/local/bin/oscap-ssh
 
 # Set proper permissions
-RUN chown -R openwatch:openwatch /app && \
-    chmod -R 755 /app && \
-    chmod -R 700 /app/security
+RUN chown -R openwatch:openwatch /openwatch && \
+    chmod -R 755 /openwatch && \
+    chmod -R 700 /openwatch/security
 
 # Create directories for runtime data
 # hadolint ignore=SC3009
-RUN mkdir -p /app/data/scap /app/data/results /app/data/uploads /app/logs /app/security/keys /app/security/certs && \
-    chown -R openwatch:openwatch /app/data /app/logs /app/security && \
-    chmod -R 755 /app/logs
+RUN mkdir -p /openwatch/data/scap /openwatch/data/results /openwatch/data/uploads /openwatch/logs /openwatch/security/keys /openwatch/security/certs && \
+    chown -R openwatch:openwatch /openwatch/data /openwatch/logs /openwatch/security && \
+    chmod -R 755 /openwatch/logs
 
 # Copy entrypoint script and set permissions before switching user
 COPY docker/entrypoint-backend.sh /usr/local/bin/entrypoint.sh
@@ -68,7 +68,8 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
 # Environment variables
-ENV PYTHONPATH=/app \
+# PYTHONPATH points to backend/ so 'from app.X' resolves to backend/app/X
+ENV PYTHONPATH=/openwatch/backend \
     OPENWATCH_FIPS_MODE=true \
     OPENWATCH_LOG_LEVEL=INFO
 
@@ -76,4 +77,4 @@ ENV PYTHONPATH=/app \
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 
 # Start command
-CMD ["python3", "-m", "uvicorn", "backend.app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["python3", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

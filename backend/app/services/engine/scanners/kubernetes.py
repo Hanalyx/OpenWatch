@@ -584,7 +584,7 @@ class KubernetesScanner(BaseScanner):
             allowed_prefixes = [
                 str(Path.home() / ".kube"),
                 "/etc/kubernetes",
-                "/app/data/kubeconfig",
+                "/openwatch/data/kubeconfig",
                 "/tmp",
             ]
 

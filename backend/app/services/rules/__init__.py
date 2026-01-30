@@ -97,13 +97,7 @@ from .association import (  # noqa: F401
 # =============================================================================
 # Cache Layer - Distributed Caching
 # =============================================================================
-from .cache import (
-    CacheEntry,
-    CacheMetrics,
-    CachePriority,
-    CacheStrategy,
-    RuleCacheService,
-)  # noqa: F401
+from .cache import CacheEntry, CacheMetrics, CachePriority, CacheStrategy, RuleCacheService  # noqa: F401
 
 # =============================================================================
 # Service Layer - Rule Querying and Management
@@ -213,7 +207,7 @@ def get_association_service() -> RuleAssociationService:
     return RuleAssociationService()
 
 
-def get_rule_scanner(results_dir: str = "/app/data/results/rule_scans") -> RuleSpecificScanner:
+def get_rule_scanner(results_dir: str = "/openwatch/data/results/rule_scans") -> RuleSpecificScanner:
     """
     Get a rule-specific scanner instance.
 

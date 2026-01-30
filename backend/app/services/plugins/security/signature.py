@@ -30,7 +30,7 @@ class PluginSignatureService:
         Args:
             trusted_keys_dir: Directory containing trusted public keys
         """
-        self.trusted_keys_dir = trusted_keys_dir or Path("/app/security/plugin_keys")
+        self.trusted_keys_dir = trusted_keys_dir or Path("/openwatch/security/plugin_keys")
         self.trusted_keys_cache = {}
         self._load_trusted_keys()
 

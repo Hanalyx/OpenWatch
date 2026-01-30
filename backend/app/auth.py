@@ -60,8 +60,8 @@ class FIPSJWTManager:
             private_key_path = os.path.join(keys_dir, "jwt_private_test.pem")
             public_key_path = os.path.join(keys_dir, "jwt_public_test.pem")
         else:
-            # Production/Development mode - use /app/security/keys/
-            keys_dir = os.getenv("JWT_KEYS_DIR", "/app/security/keys")
+            # Production/Development mode - use /openwatch/security/keys/
+            keys_dir = os.getenv("JWT_KEYS_DIR", "/openwatch/security/keys")
             private_key_path = os.path.join(keys_dir, "jwt_private.pem")
             public_key_path = os.path.join(keys_dir, "jwt_public.pem")
 

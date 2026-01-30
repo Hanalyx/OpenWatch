@@ -47,9 +47,9 @@ services:
       OPENWATCH_REQUIRE_HTTPS: "false"  # Disabled for dev
       OPENWATCH_DEBUG: "true"
     volumes:
-      - ./backend:/app/backend:ro
-      - app_data_dev:/app/data
-      - app_logs_dev:/app/logs
+      - ./backend:/openwatch/backend:ro
+      - app_data_dev:/openwatch/data
+      - app_logs_dev:/openwatch/logs
     depends_on:
       - database
       - redis
@@ -63,7 +63,7 @@ services:
       context: .
       dockerfile: docker/Dockerfile.backend.dev
     container_name: openwatch-worker-dev
-    command: ["python3", "-m", "celery", "-A", "backend.app.celery_app", "worker", "--loglevel=info"]
+    command: ["python3", "-m", "celery", "-A", "app.celery_app", "worker", "--loglevel=info"]
     environment:
       OPENWATCH_DATABASE_URL: postgresql://openwatch:${POSTGRES_PASSWORD:-OpenWatch2025}@database:5432/openwatch
       OPENWATCH_REDIS_URL: redis://:${REDIS_PASSWORD:-redis123}@redis:6379
@@ -71,9 +71,9 @@ services:
       OPENWATCH_MASTER_KEY: ${MASTER_KEY:-utvm1S8EbrNihMW0k1t9YNk3uWAEAKG2}
       OPENWATCH_FIPS_MODE: "false"
     volumes:
-      - ./backend:/app/backend:ro
-      - app_data_dev:/app/data
-      - app_logs_dev:/app/logs
+      - ./backend:/openwatch/backend:ro
+      - app_data_dev:/openwatch/data
+      - app_logs_dev:/openwatch/logs
     depends_on:
       - database
       - redis

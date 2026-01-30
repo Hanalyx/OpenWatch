@@ -48,14 +48,7 @@ from typing import Any, Dict, List, Optional, Set
 from lxml import etree
 
 from ..exceptions import ContentParseError
-from ..models import (
-    ContentFormat,
-    ContentSeverity,
-    ParsedContent,
-    ParsedOVALDefinition,
-    ParsedProfile,
-    ParsedRule,
-)
+from ..models import ContentFormat, ContentSeverity, ParsedContent, ParsedOVALDefinition, ParsedProfile, ParsedRule
 from . import register_parser
 from .base import BaseContentParser
 
@@ -118,7 +111,7 @@ class DatastreamParser(BaseContentParser):
         ...     print(f"{profile.title}: {len(profile.selected_rules)} rules")
     """
 
-    def __init__(self, content_dir: str = "/app/data/scap") -> None:
+    def __init__(self, content_dir: str = "/openwatch/data/scap") -> None:
         """
         Initialize Data-stream Parser.
 

@@ -101,11 +101,11 @@ services:
       # OPENWATCH_STRICT_SSH: "false"        # Uncomment to force RejectPolicy
       # OPENWATCH_PERMISSIVE_SSH: "false"    # Uncomment to force AutoAddPolicy
     volumes:
-      - app_data:/app/data
-      - app_logs:/app/logs
-      - ./security/certs:/app/security/certs:ro
-      - ./security/keys:/app/security/keys
-      - ssh_known_hosts:/app/security/known_hosts
+      - app_data:/openwatch/data
+      - app_logs:/openwatch/logs
+      - ./security/certs:/openwatch/security/certs:ro
+      - ./security/keys:/openwatch/security/keys
+      - ssh_known_hosts:/openwatch/security/known_hosts
     ports:
       - "8000:8000"
     depends_on:
@@ -130,7 +130,7 @@ services:
       context: .
       dockerfile: docker/Dockerfile.backend
     container_name: openwatch-worker
-    command: ["python3", "-m", "celery", "-A", "backend.app.celery_app", "worker", "--loglevel=info", "-Q", "default,scans,results,maintenance,monitoring,host_monitoring"]
+    command: ["python3", "-m", "celery", "-A", "app.celery_app", "worker", "--loglevel=info", "-Q", "default,scans,results,maintenance,monitoring,host_monitoring"]
     environment:
       OPENWATCH_DATABASE_URL: postgresql://openwatch:${POSTGRES_PASSWORD}@database:5432/openwatch
       OPENWATCH_REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
@@ -145,11 +145,11 @@ services:
       # OPENWATCH_STRICT_SSH: "false"        # Uncomment to force RejectPolicy
       # OPENWATCH_PERMISSIVE_SSH: "false"    # Uncomment to force AutoAddPolicy
     volumes:
-      - app_data:/app/data
-      - app_logs:/app/logs
-      - ./security/certs:/app/security/certs:ro
-      - ./security/keys:/app/security/keys
-      - ssh_known_hosts:/app/security/known_hosts
+      - app_data:/openwatch/data
+      - app_logs:/openwatch/logs
+      - ./security/certs:/openwatch/security/certs:ro
+      - ./security/keys:/openwatch/security/keys
+      - ssh_known_hosts:/openwatch/security/known_hosts
     depends_on:
       - database
       - redis
@@ -157,7 +157,7 @@ services:
       - openwatch-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "python3", "-m", "celery", "-A", "backend.app.celery_app", "inspect", "ping"]
+      test: ["CMD", "python3", "-m", "celery", "-A", "app.celery_app", "inspect", "ping"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -169,7 +169,7 @@ services:
       context: .
       dockerfile: docker/Dockerfile.backend
     container_name: openwatch-celery-beat
-    command: ["python3", "-m", "celery", "-A", "backend.app.celery_app", "beat", "--loglevel=info"]
+    command: ["python3", "-m", "celery", "-A", "app.celery_app", "beat", "--loglevel=info"]
     healthcheck:
       disable: true
     environment:
@@ -182,10 +182,10 @@ services:
       OPENWATCH_FIPS_MODE: "false"
       OPENWATCH_DEBUG: "true"
     volumes:
-      - app_data:/app/data
-      - app_logs:/app/logs
-      - ./security/certs:/app/security/certs:ro
-      - ./security/keys:/app/security/keys
+      - app_data:/openwatch/data
+      - app_logs:/openwatch/logs
+      - ./security/certs:/openwatch/security/certs:ro
+      - ./security/keys:/openwatch/security/keys
     depends_on:
       - database
       - redis

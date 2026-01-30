@@ -164,13 +164,13 @@ class AegisMapper:
         category_priorities: Priority order for remediation categories
 
     Example:
-        mapper = AegisMapper(mappings_dir="/app/data/mappings")
+        mapper = AegisMapper(mappings_dir="/openwatch/data/mappings")
         mapping = mapper.get_aegis_mapping("xccdf_rule_ssh_config")
         if mapping:
             print(f"AEGIS rule: {mapping.aegis_rule_id}")
     """
 
-    def __init__(self, mappings_dir: str = "/app/data/mappings") -> None:
+    def __init__(self, mappings_dir: str = "/openwatch/data/mappings") -> None:
         """
         Initialize the AEGIS mapper with mapping directory.
 
@@ -864,7 +864,7 @@ class AegisMapper:
             raise ValueError(f"Unsupported format: {export_format}")
 
 
-def get_aegis_mapper(mappings_dir: str = "/app/data/mappings") -> AegisMapper:
+def get_aegis_mapper(mappings_dir: str = "/openwatch/data/mappings") -> AegisMapper:
     """
     Get or create the singleton AegisMapper instance.
 
