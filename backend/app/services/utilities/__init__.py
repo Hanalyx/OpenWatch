@@ -9,20 +9,18 @@ Usage:
 """
 
 from .csv_analyzer import CSVAnalyzer  # noqa: F401
-from .key_lifecycle import (
+from .key_lifecycle import (  # noqa: F401
     RSAKeyLifecycleManager,
     check_keys_for_rotation,
     get_active_jwt_key_id,
     get_key_lifecycle_manager,
     rotate_jwt_keys,
 )
-from .migration import MigrationRunner, run_startup_migrations
-from .session_migration import (
-    SessionMigrationService,
-    create_migration_plan_for_deployment,
-    get_session_migration_service,
-    validate_token_with_migration_support,
-)
+from .migration import MigrationRunner, run_startup_migrations  # noqa: F401
+
+# session_migration imports are NOT eagerly loaded here to avoid circular imports:
+# utilities -> session_migration -> auth -> auth/validation -> validation -> unified -> auth
+# Import from app.services.utilities.session_migration directly when needed.
 
 __all__ = [
     "MigrationRunner",
@@ -32,9 +30,5 @@ __all__ = [
     "rotate_jwt_keys",
     "get_active_jwt_key_id",
     "check_keys_for_rotation",
-    "SessionMigrationService",
-    "get_session_migration_service",
-    "validate_token_with_migration_support",
-    "create_migration_plan_for_deployment",
     "CSVAnalyzer",
 ]

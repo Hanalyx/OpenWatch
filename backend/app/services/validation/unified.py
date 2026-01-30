@@ -4,9 +4,11 @@ Consolidates all credential types into a single, reliable validation flow.
 Eliminates duplication between system default and host-based credential validation.
 """
 
+from __future__ import annotations
+
 import logging
 import time
-from typing import Dict, Optional, Tuple
+from typing import TYPE_CHECKING, Dict, Optional, Tuple
 
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -21,13 +23,17 @@ from ...models.error_models import (
     ValidationResultInternal,
     ValidationResultResponse,
 )
-from ..auth import CentralizedAuthService, CredentialData
+
+# Lazy import to avoid circular: auth -> auth/validation -> validation -> unified -> auth
+# CentralizedAuthService and CredentialData are imported lazily at runtime.
+if TYPE_CHECKING:
+    from ..auth import CredentialData
 
 # UnifiedSCAPScanner provides test_ssh_connection and legacy compatibility
 from ..engine.scanners import UnifiedSCAPScanner
 from .errors import ErrorClassificationService
 from .sanitization import get_error_sanitization_service
-from .system_sanitization import sanitize_system_info
+from .system_sanitization import get_system_info_sanitization_service
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +56,8 @@ class UnifiedValidationService:
     """
 
     def __init__(self, db: Session):
+        from ..auth import CentralizedAuthService
+
         self.db = db
         self.auth_service = CentralizedAuthService(db)
         self.error_classifier = ErrorClassificationService()
@@ -422,7 +430,8 @@ class UnifiedValidationService:
             sanitized_warnings.append(sanitized_warning)
 
         # Sanitize system info
-        sanitized_system_info = sanitize_system_info(internal_result.system_info)
+        sanitization_service = get_system_info_sanitization_service()
+        sanitized_system_info, _ = sanitization_service.sanitize_system_information(internal_result.system_info)
 
         return ValidationResultResponse(
             can_proceed=internal_result.can_proceed,
