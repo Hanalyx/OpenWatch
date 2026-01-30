@@ -34,7 +34,7 @@ def _run_async(coro):
 
 
 @celery_app.task(
-    name="backend.app.tasks.enrich_scan_results",
+    name="app.tasks.enrich_scan_results",
     time_limit=600,
     soft_time_limit=540,
 )
@@ -89,7 +89,7 @@ def enrich_scan_results_celery(
 
 
 @celery_app.task(
-    name="backend.app.tasks.execute_remediation",
+    name="app.tasks.execute_remediation",
     time_limit=3600,
     soft_time_limit=3300,
 )
@@ -135,7 +135,7 @@ def execute_remediation_celery(
 
 @celery_app.task(
     bind=True,
-    name="backend.app.tasks.import_scap_content",
+    name="app.tasks.import_scap_content",
     time_limit=3600,
     soft_time_limit=3300,
 )
@@ -202,7 +202,7 @@ def import_scap_content_celery(
 
 
 @celery_app.task(
-    name="backend.app.tasks.deliver_webhook",
+    name="app.tasks.deliver_webhook",
     time_limit=120,
     soft_time_limit=90,
     max_retries=3,
@@ -227,7 +227,7 @@ def deliver_webhook_celery(
 
 
 @celery_app.task(
-    name="backend.app.tasks.execute_host_discovery",
+    name="app.tasks.execute_host_discovery",
     time_limit=300,
     soft_time_limit=240,
 )

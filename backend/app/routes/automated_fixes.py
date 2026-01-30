@@ -430,7 +430,7 @@ async def cleanup_old_requests(
         )
 
 
-@router.get("/health")
+@router.get("/health", response_model=None)
 async def health_check() -> Union[Dict[str, Any], JSONResponse]:
     """Health check endpoint for automated fix service"""
     try:

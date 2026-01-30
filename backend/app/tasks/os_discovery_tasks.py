@@ -163,7 +163,7 @@ def _record_discovery_failure(host_id: str, error_message: str) -> None:
 
 @celery_app.task(
     bind=True,
-    name="backend.app.tasks.trigger_os_discovery",
+    name="app.tasks.trigger_os_discovery",
     time_limit=600,
     soft_time_limit=540,
 )
@@ -353,7 +353,7 @@ def trigger_os_discovery(self, host_id: str) -> Dict[str, Any]:
 
 @celery_app.task(
     bind=True,
-    name="backend.app.tasks.batch_os_discovery",
+    name="app.tasks.batch_os_discovery",
     time_limit=3600,
     soft_time_limit=3300,
 )
@@ -421,7 +421,7 @@ def batch_os_discovery(self, host_ids: List[str]) -> Dict[str, Any]:
 
 @celery_app.task(
     bind=True,
-    name="backend.app.tasks.discover_all_hosts_os",
+    name="app.tasks.discover_all_hosts_os",
     time_limit=7200,
     soft_time_limit=6600,
 )

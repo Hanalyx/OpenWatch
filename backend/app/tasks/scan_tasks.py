@@ -614,7 +614,7 @@ from app.celery_app import celery_app  # noqa: E402
 
 @celery_app.task(
     bind=True,
-    name="backend.app.tasks.execute_scan",
+    name="app.tasks.execute_scan",
     queue="scans",
     time_limit=7200,
     soft_time_limit=6600,
