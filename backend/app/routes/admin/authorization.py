@@ -19,11 +19,11 @@ from fastapi.security import HTTPBearer
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from ..auth import get_current_user
-from ..database import get_db
-from ..models.authorization_models import ActionType, ResourceIdentifier, ResourceType
-from ..rbac import Permission, require_permission
-from ..services.authorization import get_authorization_service
+from ...auth import get_current_user
+from ...database import get_db
+from ...models.authorization_models import ActionType, ResourceIdentifier, ResourceType
+from ...rbac import Permission, require_permission
+from ...services.authorization import get_authorization_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/authorization", tags=["authorization"])

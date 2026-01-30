@@ -24,19 +24,15 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from ..auth import get_current_user
-from ..database import get_db
-from ..services.baseline_service import BaselineService
-from ..utils.logging_security import (
-    sanitize_for_log,
-    sanitize_id_for_log,
-    sanitize_username_for_log,
-)
+from ...auth import get_current_user
+from ...database import get_db
+from ...services.baseline_service import BaselineService
+from ...utils.logging_security import sanitize_for_log, sanitize_id_for_log, sanitize_username_for_log
 
 logger = logging.getLogger(__name__)
 audit_logger = logging.getLogger("openwatch.audit")
 
-router = APIRouter(prefix="/api/hosts", tags=["baselines"])
+router = APIRouter(tags=["Baseline Management"])
 
 
 class BaselineEstablishRequest(BaseModel):

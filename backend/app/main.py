@@ -7,9 +7,8 @@ import asyncio
 import logging
 import os
 import time
-import types
 from contextlib import asynccontextmanager
-from typing import Any, AsyncGenerator, Callable, Dict, Optional
+from typing import Any, AsyncGenerator, Callable, Dict
 
 import uvicorn
 from fastapi import Depends, FastAPI, Request, status
@@ -29,7 +28,7 @@ from .middleware.metrics import PrometheusMiddleware, background_updater
 from .middleware.rate_limiting import get_rate_limiting_middleware
 
 # Flat route modules (not yet organized into packages)
-from .routes import baselines, bulk_operations, integration_metrics, mongodb_test, monitoring, scans
+from .routes import mongodb_test, scans
 
 # Import admin from new modular package (E1-S6 Route Consolidation)
 # This package consolidates users.py, audit.py, and credentials.py
@@ -60,10 +59,15 @@ from .routes.host_groups import router as host_groups_router
 # modular package with CRUD and discovery endpoints
 from .routes.hosts import router as hosts_router
 
+# Route files physically in packages but registered separately for prefix compatibility
+from .routes.hosts.bulk_operations import router as bulk_operations_router
+from .routes.hosts.monitoring import router as monitoring_router
+
 # Import integrations from new modular package (Phase 4 API Standardization)
 # This package consolidates webhooks.py and plugin_management.py into a single
 # modular package with webhooks and plugins endpoints
 from .routes.integrations import router as integrations_router
+from .routes.integrations.metrics import router as integration_metrics_router
 from .routes.remediation import router as remediation_router
 
 # Import rules from new modular package (E1-S5 Route Consolidation)
@@ -77,18 +81,6 @@ from .routes.rules import router as rules_router
 from .routes.ssh import router as ssh_router
 from .routes.system import router as system_router
 from .services.infrastructure import get_metrics_instance
-
-# Import security routes only if available
-# Type declarations for optional modules
-authorization: Optional[types.ModuleType]
-security_config: Optional[types.ModuleType]
-
-try:
-    from .routes import authorization, security_config
-except ImportError:
-    print("authorization/security_config not available")
-    authorization = None
-    security_config = None
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -547,8 +539,8 @@ app.include_router(system_router, prefix="/api", tags=["System"])
 # MongoDB test endpoints
 app.include_router(mongodb_test.router, prefix="/api/mongodb", tags=["MongoDB Integration Test"])
 
-# Host monitoring
-app.include_router(monitoring.router, prefix="/api", tags=["Host Monitoring"])
+# Host monitoring (physically in hosts/ package, registered separately for /api/monitoring prefix)
+app.include_router(monitoring_router, prefix="/api", tags=["Host Monitoring"])
 
 # Remediation package (automated fixes, provider interface, AEGIS callbacks)
 app.include_router(remediation_router, prefix="/api", tags=["Remediation"])
@@ -566,20 +558,13 @@ app.include_router(host_groups_router, prefix="/api", tags=["Host Groups"])
 app.include_router(ssh_router, prefix="/api", tags=["SSH"])
 app.include_router(integrations_router, prefix="/api", tags=["Integrations"])
 
-# Remaining flat route modules (not yet packaged)
-app.include_router(baselines.router, tags=["Baseline Management"])
+# Routes physically in packages but registered separately for prefix compatibility
 app.include_router(
-    integration_metrics.router,
+    integration_metrics_router,
     prefix="/api/integration/metrics",
     tags=["Integration Metrics"],
 )
-app.include_router(bulk_operations.router, prefix="/api/bulk", tags=["Bulk Operations"])
-
-# Register security routes if available
-if authorization:
-    app.include_router(authorization.router, prefix="/api", tags=["Authorization Management"])
-if security_config:
-    app.include_router(security_config.router, prefix="/api", tags=["Security Configuration"])
+app.include_router(bulk_operations_router, prefix="/api/bulk", tags=["Bulk Operations"])
 
 
 # Global Exception Handler
