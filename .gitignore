@@ -449,6 +449,11 @@ frontend_test.log
 *test*.ts
 *test*.tsx
 
+# Allow frontend unit/integration tests
+!frontend/src/**/*.test.ts
+!frontend/src/**/*.test.tsx
+!frontend/src/test/
+
 # Temporary files
 *.tmp
 *.temp
