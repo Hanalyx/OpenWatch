@@ -13,14 +13,14 @@ from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from ..auth import get_current_user
-from ..database import get_db
-from ..encryption import EncryptionService
-from ..rbac import Permission, require_permission
-from ..services.auth import AuthMethod, CredentialData, CredentialMetadata, CredentialScope, get_auth_service
+from ...auth import get_current_user
+from ...database import get_db
+from ...encryption import EncryptionService
+from ...rbac import Permission, require_permission
+from ...services.auth import AuthMethod, CredentialData, CredentialMetadata, CredentialScope, get_auth_service
 
 # validate_ssh_key validates key format/security, extract_ssh_key_metadata extracts fingerprint/type
-from ..services.ssh import extract_ssh_key_metadata, validate_ssh_key
+from ...services.ssh import extract_ssh_key_metadata, validate_ssh_key
 
 logger = logging.getLogger(__name__)
 
@@ -697,7 +697,7 @@ async def start_scheduler(
 
             # Configure the monitoring job with the requested interval
             # WEEK 2 MIGRATION: Use Celery queue-based approach for scalability
-            from ..tasks.monitoring_tasks import queue_host_checks
+            from ...tasks.monitoring_tasks import queue_host_checks
 
             # Remove any existing job first
             for job in scheduler.get_jobs():
@@ -717,7 +717,7 @@ async def start_scheduler(
 
             # Update database with start time and enabled status
             try:
-                from ..database import get_db
+                from ...database import get_db
 
                 db = next(get_db())
                 db.execute(
@@ -777,7 +777,7 @@ async def stop_scheduler(
 
             # Update database with stop time and disabled status
             try:
-                from ..database import get_db
+                from ...database import get_db
 
                 db = next(get_db())
                 db.execute(
@@ -826,7 +826,7 @@ async def update_scheduler(
 
         # Update database with new interval
         try:
-            from ..database import get_db
+            from ...database import get_db
 
             db = next(get_db())
             db.execute(
@@ -853,7 +853,7 @@ async def update_scheduler(
                     scheduler.remove_job(job.id)
 
             # Add new job with updated interval (uses Celery queue-based approach)
-            from ..tasks.monitoring_tasks import queue_host_checks
+            from ...tasks.monitoring_tasks import queue_host_checks
 
             scheduler.add_job(
                 queue_host_checks.delay,
@@ -888,7 +888,7 @@ def restore_scheduler_state() -> None:
         # global _scheduler, _scheduler_interval
 
         # Get database session
-        from ..database import get_db
+        from ...database import get_db
 
         db = next(get_db())
 
@@ -923,7 +923,7 @@ def restore_scheduler_state() -> None:
 
                         # Configure the monitoring job with saved interval
                         # WEEK 2 MIGRATION: Use Celery queue-based approach for scalability
-                        from ..tasks.monitoring_tasks import queue_host_checks
+                        from ...tasks.monitoring_tasks import queue_host_checks
 
                         # Remove any existing job first (including the hardcoded one from setup)
                         existing_jobs = scheduler.get_jobs()

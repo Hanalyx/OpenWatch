@@ -30,19 +30,14 @@ from .middleware.rate_limiting import get_rate_limiting_middleware
 
 # Flat route modules (not yet organized into packages)
 from .routes import (
-    adaptive_scheduler,
     baselines,
     bulk_operations,
-    capabilities,
-    health_monitoring,
     integration_metrics,
     mongodb_test,
     monitoring,
-    os_discovery,
     remediation_callback,
     remediation_provider,
     scans,
-    version,
 )
 
 # Import admin from new modular package (E1-S6 Route Consolidation)
@@ -88,7 +83,7 @@ from .routes.rules import router as rules_router
 # This package consolidates ssh_settings.py and ssh_debug.py into a single
 # modular package with settings and debug endpoints
 from .routes.ssh import router as ssh_router
-from .routes.system_settings_unified import router as system_settings_router
+from .routes.system import router as system_router
 from .services.infrastructure import get_metrics_instance
 
 # Import security routes only if available
@@ -561,17 +556,13 @@ async def metrics() -> PlainTextResponse:
 
 
 # Include API routes - Unified API at /api prefix
-# Version endpoint (public, no auth required)
-app.include_router(version.router, prefix="/api", tags=["Version"])
-
-# Capabilities and system information
-app.include_router(capabilities.router, prefix="/api", tags=["System Capabilities"])
+# System package (version, capabilities, health monitoring, scheduler, discovery, settings)
+app.include_router(system_router, prefix="/api", tags=["System"])
 
 # MongoDB test endpoints
 app.include_router(mongodb_test.router, prefix="/api/mongodb", tags=["MongoDB Integration Test"])
 
-# Health and monitoring
-app.include_router(health_monitoring.router, prefix="/api/health-monitoring", tags=["Health Monitoring"])
+# Host monitoring
 app.include_router(monitoring.router, prefix="/api", tags=["Host Monitoring"])
 
 # Remediation provider (registration interface for ORSA adapters)
@@ -593,9 +584,6 @@ app.include_router(integrations_router, prefix="/api", tags=["Integrations"])
 
 # Remaining flat route modules (not yet packaged)
 app.include_router(baselines.router, tags=["Baseline Management"])
-app.include_router(adaptive_scheduler.router, prefix="/api", tags=["Adaptive Scheduler"])
-app.include_router(os_discovery.router, prefix="/api", tags=["OS Discovery"])
-app.include_router(system_settings_router, prefix="/api", tags=["System Settings"])
 app.include_router(
     integration_metrics.router,
     prefix="/api/integration/metrics",

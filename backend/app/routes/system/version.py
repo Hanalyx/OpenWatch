@@ -12,7 +12,7 @@ from typing import Optional
 from fastapi import APIRouter
 from pydantic import BaseModel
 
-from ..version import get_version_info
+from ...version import get_version_info
 
 router = APIRouter(tags=["Version"])
 

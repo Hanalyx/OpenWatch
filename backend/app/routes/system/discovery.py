@@ -22,10 +22,10 @@ from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from ..auth import get_current_user
-from ..database import get_db
-from ..rbac import Permission, require_permission
-from ..utils.query_builder import QueryBuilder
+from ...auth import get_current_user
+from ...database import get_db
+from ...rbac import Permission, require_permission
+from ...utils.query_builder import QueryBuilder
 
 logger = logging.getLogger(__name__)
 
@@ -290,7 +290,7 @@ async def trigger_os_discovery(
     """
     try:
         # Import here to avoid circular dependency
-        from ..tasks.os_discovery_tasks import discover_all_hosts_os
+        from ...tasks.os_discovery_tasks import discover_all_hosts_os
 
         # Trigger the task with force=True to bypass the enabled check
         task = discover_all_hosts_os.delay(force=True)
