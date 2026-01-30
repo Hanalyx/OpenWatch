@@ -17,9 +17,7 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse
 from starlette.responses import Response
 
-# Note: These were previously in api/v1/endpoints/ and have been
-# consolidated into routes/ as part of the API unification effort.
-# OpenWatch uses unified /api prefix (no URL-based versioning).
+# Core application imports
 from .audit_db import log_security_event
 from .auth import audit_logger, require_admin
 from .config import SECURITY_HEADERS, get_settings
@@ -27,57 +25,22 @@ from .database import get_db_session
 from .middleware.metrics import PrometheusMiddleware, background_updater
 from .middleware.rate_limiting import get_rate_limiting_middleware
 
-# Flat route modules (not yet organized into packages)
-from .routes import scans
-
-# Import admin from new modular package (E1-S6 Route Consolidation)
-# This package consolidates users.py, audit.py, and credentials.py
+# Route package imports - all routes organized into modular packages
 from .routes.admin import router as admin_router
-
-# Import auth from new modular package (E1-S4 Route Consolidation)
-# This package consolidates auth.py, mfa.py, and api_keys.py into a single
-# modular package with login, MFA, and API key endpoints
 from .routes.auth import router as auth_router
-
-# Import compliance from new modular package (Phase 4 API Standardization)
-# This package consolidates compliance.py, owca.py, and drift_events.py into a single
-# modular package with intelligence, OWCA, and drift endpoints
 from .routes.compliance import router as compliance_router
-
-# Import content from new modular package (E1-S7 Route Consolidation)
-# This package consolidates content.py, scap_import.py, and xccdf_api.py
 from .routes.content import router as content_pkg_router
-
-# Import host_groups from new modular package (Phase 1 API Standardization)
-# This package consolidates host_groups.py and group_compliance.py into a single
-# modular package with CRUD and scanning endpoints aligned with frontend scanService.ts
 from .routes.host_groups import router as host_groups_router
-
-# Import hosts from new modular package (Phase 3 API Standardization)
-# This package consolidates hosts.py, host_discovery.py, host_network_discovery.py,
-# host_security_discovery.py, and host_compliance_discovery.py into a single
-# modular package with CRUD and discovery endpoints
 from .routes.hosts import router as hosts_router
 
-# Route files physically in packages but registered separately for prefix compatibility
+# Routes registered separately from their packages for prefix compatibility
 from .routes.hosts.bulk_operations import router as bulk_operations_router
 from .routes.hosts.monitoring import router as monitoring_router
-
-# Import integrations from new modular package (Phase 4 API Standardization)
-# This package consolidates webhooks.py and plugin_management.py into a single
-# modular package with webhooks and plugins endpoints
 from .routes.integrations import router as integrations_router
 from .routes.integrations.metrics import router as integration_metrics_router
 from .routes.remediation import router as remediation_router
-
-# Import rules from new modular package (E1-S5 Route Consolidation)
-# This package consolidates rule_management.py, rule_scanning.py, and
-# compliance_rules_api.py into a single modular package
 from .routes.rules import router as rules_router
-
-# Import SSH from new modular package (Phase 4 API Standardization)
-# This package consolidates ssh_settings.py and ssh_debug.py into a single
-# modular package with settings and debug endpoints
+from .routes.scans import router as scans_router
 from .routes.ssh import router as ssh_router
 from .routes.system import router as system_router
 from .services.infrastructure import get_metrics_instance
@@ -532,36 +495,24 @@ async def metrics() -> PlainTextResponse:
     return PlainTextResponse(content=metrics_data, media_type="text/plain; version=0.0.4; charset=utf-8")
 
 
-# Include API routes - Unified API at /api prefix
-# System package (version, capabilities, health monitoring, scheduler, discovery, settings)
-app.include_router(system_router, prefix="/api", tags=["System"])
-
-# Host monitoring (physically in hosts/ package, registered separately for /api/monitoring prefix)
-app.include_router(monitoring_router, prefix="/api", tags=["Host Monitoring"])
-
-# Remediation package (automated fixes, provider interface, AEGIS callbacks)
-app.include_router(remediation_router, prefix="/api", tags=["Remediation"])
-
-# Modular route packages
-# Each package aggregates related sub-routers with their own prefixes
-app.include_router(auth_router, prefix="/api/auth", tags=["Authentication"])
-app.include_router(hosts_router, prefix="/api", tags=["Hosts"])
-app.include_router(scans.router, prefix="/api", tags=["Security Scans"])
-app.include_router(compliance_router, prefix="/api", tags=["Compliance"])
-app.include_router(rules_router, prefix="/api", tags=["Rules"])
+# Include API routes - all organized into modular packages under /api prefix
 app.include_router(admin_router, prefix="/api", tags=["Administration"])
+app.include_router(auth_router, prefix="/api/auth", tags=["Authentication"])
+app.include_router(compliance_router, prefix="/api", tags=["Compliance"])
 app.include_router(content_pkg_router, prefix="/api", tags=["Content"])
 app.include_router(host_groups_router, prefix="/api", tags=["Host Groups"])
-app.include_router(ssh_router, prefix="/api", tags=["SSH"])
+app.include_router(hosts_router, prefix="/api", tags=["Hosts"])
 app.include_router(integrations_router, prefix="/api", tags=["Integrations"])
+app.include_router(remediation_router, prefix="/api", tags=["Remediation"])
+app.include_router(rules_router, prefix="/api", tags=["Rules"])
+app.include_router(scans_router, prefix="/api", tags=["Security Scans"])
+app.include_router(ssh_router, prefix="/api", tags=["SSH"])
+app.include_router(system_router, prefix="/api", tags=["System"])
 
-# Routes physically in packages but registered separately for prefix compatibility
-app.include_router(
-    integration_metrics_router,
-    prefix="/api/integration/metrics",
-    tags=["Integration Metrics"],
-)
+# Routes registered separately from their packages for prefix compatibility
 app.include_router(bulk_operations_router, prefix="/api/bulk", tags=["Bulk Operations"])
+app.include_router(integration_metrics_router, prefix="/api/integration/metrics", tags=["Integration Metrics"])
+app.include_router(monitoring_router, prefix="/api", tags=["Host Monitoring"])
 
 
 # Global Exception Handler
