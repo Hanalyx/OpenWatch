@@ -29,8 +29,8 @@ from ...models.error_models import (
 if TYPE_CHECKING:
     from ..auth import CredentialData
 
-# UnifiedSCAPScanner provides test_ssh_connection and legacy compatibility
-from ..engine.scanners import UnifiedSCAPScanner
+# UnifiedSCAPScanner is lazily imported in __init__ to avoid circular:
+# engine -> orchestration -> scanners -> scap -> auth -> validation -> unified -> engine.scanners
 from .errors import ErrorClassificationService
 from .sanitization import get_error_sanitization_service
 from .system_sanitization import get_system_info_sanitization_service
@@ -57,6 +57,7 @@ class UnifiedValidationService:
 
     def __init__(self, db: Session):
         from ..auth import CentralizedAuthService
+        from ..engine.scanners import UnifiedSCAPScanner
 
         self.db = db
         self.auth_service = CentralizedAuthService(db)
