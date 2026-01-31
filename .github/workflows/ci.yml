@@ -128,9 +128,9 @@ jobs:
           if [ -d "tests" ] && [ "$(find tests -name '*.py' | head -1)" ]; then
             echo "Running pytest tests..."
             # Coverage threshold: incrementally raising toward 80%
-            # Measured: 32% with 222 tests (2026-01-30, E5 phase 1-4)
-            # Threshold set below measured to allow variance
-            pytest tests/ -v --cov=app --cov-report=xml --cov-report=html --cov-fail-under=30
+            # Measured: 32% with 290+ tests (2026-01-31, E5 S1-S8 complete)
+            # Threshold set at measured level; raise as coverage grows
+            pytest tests/ -v --cov=app --cov-report=xml --cov-report=html --cov-fail-under=32
           else
             echo "Warning: No test files found in tests/ directory"
             echo "CI will pass without tests, but this should be addressed"
@@ -183,13 +183,18 @@ jobs:
           echo "Running TypeScript type check..."
           npx tsc --noEmit
 
-      - name: Run tests
+      - name: Run tests with coverage
         working-directory: ./frontend
         run: |
-          echo "Running tests..."
-          # Note: --passWithNoTests allows CI to pass when no tests exist yet
-          # Remove this flag once you have test files to ensure tests must pass
-          npm test -- --passWithNoTests
+          echo "Running Vitest with coverage..."
+          npx vitest run --coverage
+
+      - name: Upload frontend coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-coverage
+          path: frontend/coverage/
 
       - name: Build application
         working-directory: ./frontend
