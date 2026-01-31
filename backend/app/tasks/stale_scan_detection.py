@@ -74,6 +74,11 @@ def detect_stale_scans() -> dict:
                 )
 
             # Mark stale pending scans as failed
+            # The scans table has no created_at column; pending scans have
+            # started_at IS NULL, so fall back to checking that started_at
+            # is NULL and no completion timestamp exists.  We use a fixed
+            # window: any pending scan whose started_at is either NULL and
+            # older than the cutoff, or before the cutoff, is considered stale.
             result = db.execute(
                 text(
                     """
@@ -82,9 +87,9 @@ def detect_stale_scans() -> dict:
                         error_message = 'Scan timed out while pending for over 30 minutes',
                         completed_at = :now
                     WHERE status = 'pending'
-                      AND created_at < :cutoff
+                      AND (started_at IS NULL OR started_at < :cutoff)
                       AND completed_at IS NULL
-                    RETURNING id, host_id, created_at
+                    RETURNING id, host_id, started_at
                     """
                 ),
                 {"now": now, "cutoff": pending_cutoff},
@@ -95,7 +100,7 @@ def detect_stale_scans() -> dict:
 
             for scan in stale_pending:
                 logger.warning(
-                    f"Recovered stale pending scan {scan.id} " f"(host={scan.host_id}, created={scan.created_at})"
+                    f"Recovered stale pending scan {scan.id} " f"(host={scan.host_id}, started_at={scan.started_at})"
                 )
 
             db.commit()
