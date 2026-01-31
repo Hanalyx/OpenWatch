@@ -3,6 +3,7 @@
 [![License: AGPLv3 + MSE](https://img.shields.io/badge/License-AGPLv3%20%2B%20MSE-blue.svg)](LICENSE)
 [![Container Support](https://img.shields.io/badge/Container-Docker%20%7C%20Podman-green)](https://podman.io/)
 [![Documentation](https://img.shields.io/badge/docs-latest-brightgreen)](https://hanalyx.github.io/OpenWatch/)
+[![codecov](https://codecov.io/gh/Hanalyx/OpenWatch/branch/main/graph/badge.svg)](https://codecov.io/gh/Hanalyx/OpenWatch)
 
 OpenWatch is an open-source SCAP (Security Content Automation Protocol) compliance scanner for automated security assessments. Scan your infrastructure against STIG, CIS, and custom security profiles.
 

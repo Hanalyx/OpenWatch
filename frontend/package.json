@@ -67,6 +67,7 @@
     "@typescript-eslint/eslint-plugin": "^8.46.4",
     "@typescript-eslint/parser": "^8.42.0",
     "@vitejs/plugin-react": "^5.1.0",
+    "@vitest/coverage-v8": "^4.0.18",
     "@vitest/ui": "^4.0.8",
     "eslint": "^9.39.1",
     "eslint-config-prettier": "^8.8.0",
