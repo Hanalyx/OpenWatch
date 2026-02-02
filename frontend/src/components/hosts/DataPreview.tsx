@@ -25,7 +25,7 @@ import {
   Card,
   CardContent,
 } from '@mui/material';
-import Grid from '@mui/material/GridLegacy';
+import Grid from '@mui/material/Grid';
 import {
   ArrowBack as BackIcon,
   PlayArrow as ImportIcon,
@@ -205,25 +205,25 @@ const DataPreview: React.FC<DataPreviewProps> = ({
         <Alert severity={importResult.failed_imports > 0 ? 'warning' : 'success'} sx={{ mb: 3 }}>
           <AlertTitle>{dryRun ? 'Validation Results' : 'Import Results'}</AlertTitle>
           <Grid container spacing={2}>
-            <Grid item xs={6} sm={3}>
+            <Grid size={{ xs: 6, sm: 3 }}>
               <Typography variant="body2">
                 <strong>Total Processed:</strong> {importResult.total_processed}
               </Typography>
             </Grid>
-            <Grid item xs={6} sm={3}>
+            <Grid size={{ xs: 6, sm: 3 }}>
               <Typography variant="body2">
                 <strong>Successful:</strong> {importResult.successful_imports}
               </Typography>
             </Grid>
             {importResult.failed_imports > 0 && (
-              <Grid item xs={6} sm={3}>
+              <Grid size={{ xs: 6, sm: 3 }}>
                 <Typography variant="body2">
                   <strong>Failed:</strong> {importResult.failed_imports}
                 </Typography>
               </Grid>
             )}
             {importResult.skipped_duplicates > 0 && (
-              <Grid item xs={6} sm={3}>
+              <Grid size={{ xs: 6, sm: 3 }}>
                 <Typography variant="body2">
                   <strong>Skipped:</strong> {importResult.skipped_duplicates}
                 </Typography>

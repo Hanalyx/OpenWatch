@@ -19,7 +19,7 @@ import {
   LinearProgress,
   IconButton,
 } from '@mui/material';
-import Grid from '@mui/material/GridLegacy';
+import Grid from '@mui/material/Grid';
 import {
   Security,
   CheckCircle,
@@ -193,7 +193,7 @@ const QuickScanDialog: React.FC<QuickScanDialogProps> = ({
         >
           <Grid container spacing={2}>
             {templates.map((template) => (
-              <Grid item xs={12} sm={6} md={4} key={template.id}>
+              <Grid size={{ xs: 12, sm: 6, md: 4 }} key={template.id}>
                 <Card
                   sx={{
                     cursor: 'pointer',

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Box, Skeleton, useTheme, alpha, keyframes } from '@mui/material';
-import Grid from '@mui/material/GridLegacy';
+import Grid from '@mui/material/Grid';
 
 // Custom animations
 const shimmer = keyframes`
@@ -208,7 +208,7 @@ const SkeletonLoader: React.FC<SkeletonLoaderProps> = ({
             <Box sx={{ mb: 4 }}>
               <Grid container spacing={3}>
                 {[1, 2, 3, 4].map((stat) => (
-                  <Grid item xs={12} sm={6} md={3} key={stat}>
+                  <Grid size={{ xs: 12, sm: 6, md: 3 }} key={stat}>
                     <Box
                       sx={{
                         p: 3,
@@ -246,10 +246,10 @@ const SkeletonLoader: React.FC<SkeletonLoaderProps> = ({
             </Box>
             {/* Content Grid */}
             <Grid container spacing={3}>
-              <Grid item xs={12} lg={8}>
+              <Grid size={{ xs: 12, lg: 8 }}>
                 <Skeleton variant="rectangular" height={300} {...baseProps} />
               </Grid>
-              <Grid item xs={12} lg={4}>
+              <Grid size={{ xs: 12, lg: 4 }}>
                 <Skeleton variant="rectangular" height={300} {...baseProps} />
               </Grid>
             </Grid>

@@ -18,7 +18,7 @@ import {
   Divider,
   LinearProgress,
 } from '@mui/material';
-import Grid from '@mui/material/GridLegacy';
+import Grid from '@mui/material/Grid';
 import {
   Computer,
   Key,
@@ -107,7 +107,7 @@ export const QuickAddHostForm: React.FC<QuickAddHostFormProps> = ({
     </Box>
 
     <Grid container spacing={3}>
-      <Grid item xs={12} md={6}>
+      <Grid size={{ xs: 12, md: 6 }}>
         <TextField
           fullWidth
           label="Hostname or IP Address"
@@ -123,7 +123,7 @@ export const QuickAddHostForm: React.FC<QuickAddHostFormProps> = ({
           }}
         />
       </Grid>
-      <Grid item xs={12} md={6}>
+      <Grid size={{ xs: 12, md: 6 }}>
         <TextField
           fullWidth
           label="Display Name (Optional)"
@@ -140,14 +140,14 @@ export const QuickAddHostForm: React.FC<QuickAddHostFormProps> = ({
         />
       </Grid>
 
-      <Grid item xs={12}>
+      <Grid size={{ xs: 12 }}>
         <Divider sx={{ my: 1 }} />
         <Typography variant="subtitle2" color="text.secondary" sx={{ mt: 2, mb: 2 }}>
           Authentication Method
         </Typography>
       </Grid>
 
-      <Grid item xs={12}>
+      <Grid size={{ xs: 12 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
           <Box>
             <RadioGroup
@@ -194,7 +194,7 @@ export const QuickAddHostForm: React.FC<QuickAddHostFormProps> = ({
         </Box>
       </Grid>
 
-      <Grid item xs={12} md={6}>
+      <Grid size={{ xs: 12, md: 6 }}>
         <TextField
           fullWidth
           label="Username"
@@ -212,7 +212,7 @@ export const QuickAddHostForm: React.FC<QuickAddHostFormProps> = ({
       </Grid>
 
       {formData.authMethod === 'password' && (
-        <Grid item xs={12} md={6}>
+        <Grid size={{ xs: 12, md: 6 }}>
           <TextField
             fullWidth
             type={showPassword ? 'text' : 'password'}
@@ -245,7 +245,7 @@ export const QuickAddHostForm: React.FC<QuickAddHostFormProps> = ({
       )}
 
       {formData.authMethod === 'system_default' && (
-        <Grid item xs={12}>
+        <Grid size={{ xs: 12 }}>
           <Card
             sx={{
               border: '2px solid',
@@ -295,7 +295,7 @@ export const QuickAddHostForm: React.FC<QuickAddHostFormProps> = ({
       )}
 
       {formData.authMethod === 'ssh_key' && (
-        <Grid item xs={12}>
+        <Grid size={{ xs: 12 }}>
           {sshKeyValidation.status === 'valid' && authMethodLocked && !editingAuth ? (
             // Show validated SSH key info when locked
             <Card
@@ -400,7 +400,7 @@ export const QuickAddHostForm: React.FC<QuickAddHostFormProps> = ({
 
       {formData.authMethod === 'both' && (
         <>
-          <Grid item xs={12}>
+          <Grid size={{ xs: 12 }}>
             <Alert severity="info" icon={<Security />}>
               <AlertTitle>SSH Key + Password Fallback</AlertTitle>
               The system will attempt SSH key authentication first (more secure). If SSH key fails,
@@ -408,7 +408,7 @@ export const QuickAddHostForm: React.FC<QuickAddHostFormProps> = ({
             </Alert>
           </Grid>
 
-          <Grid item xs={12}>
+          <Grid size={{ xs: 12 }}>
             <TextField
               fullWidth
               label="SSH Private Key (Primary)"
@@ -447,7 +447,7 @@ export const QuickAddHostForm: React.FC<QuickAddHostFormProps> = ({
             )}
           </Grid>
 
-          <Grid item xs={12} md={6}>
+          <Grid size={{ xs: 12, md: 6 }}>
             <TextField
               fullWidth
               type={showPassword ? 'text' : 'password'}
@@ -475,7 +475,7 @@ export const QuickAddHostForm: React.FC<QuickAddHostFormProps> = ({
         </>
       )}
 
-      <Grid item xs={12}>
+      <Grid size={{ xs: 12 }}>
         <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
           <Button variant="outlined" onClick={() => onCancel()} startIcon={<Cancel />}>
             Cancel
@@ -502,7 +502,7 @@ export const QuickAddHostForm: React.FC<QuickAddHostFormProps> = ({
       </Grid>
 
       {connectionStatus !== 'idle' && (
-        <Grid item xs={12}>
+        <Grid size={{ xs: 12 }}>
           <Alert
             severity={
               connectionStatus === 'success'

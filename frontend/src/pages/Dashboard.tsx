@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Container, Box, Skeleton, Alert, Button, Typography } from '@mui/material';
-import Grid from '@mui/material/GridLegacy';
+import Grid from '@mui/material/Grid';
 import { useNavigate } from 'react-router-dom';
 import { Scanner, AddCircle, Warning, Assessment } from '@mui/icons-material';
 
@@ -521,7 +521,7 @@ const Dashboard: React.FC = () => {
         </Box>
         <Grid container spacing={3}>
           {[1, 2, 3, 4].map((i) => (
-            <Grid item xs={12} sm={6} md={3} key={i}>
+            <Grid size={{ xs: 12, sm: 6, md: 3 }} key={i}>
               <Skeleton variant="rectangular" height={120} />
             </Grid>
           ))}
@@ -602,7 +602,7 @@ const Dashboard: React.FC = () => {
       {/* Quick Actions */}
       <Box sx={{ mb: 4 }}>
         <Grid container spacing={3}>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <QuickActionCard
               title="New Scan"
               subtitle="Start a compliance scan"
@@ -612,7 +612,7 @@ const Dashboard: React.FC = () => {
               badge={0}
             />
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <QuickActionCard
               title="Add Host"
               subtitle="Register new system"
@@ -622,7 +622,7 @@ const Dashboard: React.FC = () => {
               badge={0}
             />
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <QuickActionCard
               title="View Reports"
               subtitle="Compliance reports"
@@ -632,7 +632,7 @@ const Dashboard: React.FC = () => {
               badge={0}
             />
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <QuickActionCard
               title="Critical Issues"
               subtitle="High priority alerts"
@@ -648,10 +648,10 @@ const Dashboard: React.FC = () => {
       {/* Main Content Grid */}
       <Grid container spacing={3}>
         {/* Left Column - Fleet Health & Compliance */}
-        <Grid item xs={12} lg={8}>
+        <Grid size={{ xs: 12, lg: 8 }}>
           <Grid container spacing={3}>
             {/* Fleet Health Widget */}
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <DashboardErrorBoundary onRetry={fetchDashboardData}>
                 <FleetHealthWidget
                   data={{
@@ -668,7 +668,7 @@ const Dashboard: React.FC = () => {
             </Grid>
 
             {/* Compliance Trend */}
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <DashboardErrorBoundary onRetry={fetchDashboardData}>
                 <ComplianceTrend
                   data={trendData}
@@ -679,7 +679,7 @@ const Dashboard: React.FC = () => {
             </Grid>
 
             {/* Priority Hosts */}
-            <Grid item xs={12}>
+            <Grid size={{ xs: 12 }}>
               <DashboardErrorBoundary onRetry={fetchDashboardData}>
                 <PriorityHosts
                   hosts={priorityHosts.map((host) => ({
@@ -722,17 +722,17 @@ const Dashboard: React.FC = () => {
         </Grid>
 
         {/* Right Column - Activity Feed */}
-        <Grid item xs={12} lg={4}>
+        <Grid size={{ xs: 12, lg: 4 }}>
           <Grid container spacing={3}>
             {/* Drift Alerts Widget */}
-            <Grid item xs={12}>
+            <Grid size={{ xs: 12 }}>
               <DashboardErrorBoundary onRetry={fetchDashboardData}>
                 <DriftAlertsWidget limit={5} autoRefresh={true} refreshInterval={30000} />
               </DashboardErrorBoundary>
             </Grid>
 
             {/* Activity Feed */}
-            <Grid item xs={12}>
+            <Grid size={{ xs: 12 }}>
               <DashboardErrorBoundary onRetry={fetchDashboardData}>
                 <ActivityFeed activities={activities} />
               </DashboardErrorBoundary>

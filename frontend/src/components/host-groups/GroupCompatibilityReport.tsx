@@ -30,7 +30,7 @@ import {
   AccordionDetails,
   Tooltip,
 } from '@mui/material';
-import Grid from '@mui/material/GridLegacy';
+import Grid from '@mui/material/Grid';
 import {
   Computer as HostIcon,
   CheckCircle as SuccessIcon,
@@ -185,7 +185,7 @@ const GroupCompatibilityReport: React.FC<GroupCompatibilityReportProps> = ({
 
     return (
       <Grid container spacing={3} sx={{ mb: 3 }}>
-        <Grid item xs={12} sm={3}>
+        <Grid size={{ xs: 12, sm: 3 }}>
           <Card>
             <CardContent sx={{ textAlign: 'center' }}>
               <Typography variant="h4" color="primary">
@@ -198,7 +198,7 @@ const GroupCompatibilityReport: React.FC<GroupCompatibilityReportProps> = ({
           </Card>
         </Grid>
 
-        <Grid item xs={12} sm={3}>
+        <Grid size={{ xs: 12, sm: 3 }}>
           <Card>
             <CardContent sx={{ textAlign: 'center' }}>
               <Typography variant="h4" color="success.main">
@@ -211,7 +211,7 @@ const GroupCompatibilityReport: React.FC<GroupCompatibilityReportProps> = ({
           </Card>
         </Grid>
 
-        <Grid item xs={12} sm={3}>
+        <Grid size={{ xs: 12, sm: 3 }}>
           <Card>
             <CardContent sx={{ textAlign: 'center' }}>
               <Typography variant="h4" color="warning.main">
@@ -224,7 +224,7 @@ const GroupCompatibilityReport: React.FC<GroupCompatibilityReportProps> = ({
           </Card>
         </Grid>
 
-        <Grid item xs={12} sm={3}>
+        <Grid size={{ xs: 12, sm: 3 }}>
           <Card>
             <CardContent sx={{ textAlign: 'center' }}>
               <Typography variant="h4" color="error.main">
@@ -237,7 +237,7 @@ const GroupCompatibilityReport: React.FC<GroupCompatibilityReportProps> = ({
           </Card>
         </Grid>
 
-        <Grid item xs={12}>
+        <Grid size={{ xs: 12 }}>
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom>
@@ -451,7 +451,7 @@ const GroupCompatibilityReport: React.FC<GroupCompatibilityReportProps> = ({
             {/* Group Information */}
             <Paper sx={{ p: 2, mb: 3, bgcolor: 'background.default' }}>
               <Grid container spacing={2}>
-                <Grid item xs={12} sm={6}>
+                <Grid size={{ xs: 12, sm: 6 }}>
                   <Typography variant="subtitle2" color="text.secondary">
                     OS Requirements
                   </Typography>
@@ -459,7 +459,7 @@ const GroupCompatibilityReport: React.FC<GroupCompatibilityReportProps> = ({
                     {report.group.os_family} {report.group.os_version_pattern || 'Any version'}
                   </Typography>
                 </Grid>
-                <Grid item xs={12} sm={6}>
+                <Grid size={{ xs: 12, sm: 6 }}>
                   <Typography variant="subtitle2" color="text.secondary">
                     Compliance Framework
                   </Typography>

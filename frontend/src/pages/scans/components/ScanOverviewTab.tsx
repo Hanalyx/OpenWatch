@@ -6,7 +6,7 @@
 
 import React from 'react';
 import { Box, Paper, Typography, LinearProgress, Alert, CircularProgress } from '@mui/material';
-import Grid from '@mui/material/GridLegacy';
+import Grid from '@mui/material/Grid';
 import { Refresh as RefreshIcon } from '@mui/icons-material';
 import {
   PieChart,
@@ -44,7 +44,7 @@ const ScanOverviewTab: React.FC<ScanOverviewTabProps> = ({ scan }) => {
 
     return (
       <Grid container spacing={3}>
-        <Grid item xs={12} md={6}>
+        <Grid size={{ xs: 12, md: 6 }}>
           <Typography variant="h6" gutterBottom>
             Compliance Summary
           </Typography>
@@ -71,7 +71,7 @@ const ScanOverviewTab: React.FC<ScanOverviewTabProps> = ({ scan }) => {
           </Box>
         </Grid>
 
-        <Grid item xs={12} md={6}>
+        <Grid size={{ xs: 12, md: 6 }}>
           <Typography variant="h6" gutterBottom>
             Severity Distribution
           </Typography>
@@ -92,7 +92,7 @@ const ScanOverviewTab: React.FC<ScanOverviewTabProps> = ({ scan }) => {
           </Box>
         </Grid>
 
-        <Grid item xs={12}>
+        <Grid size={{ xs: 12 }}>
           <Typography variant="h6" gutterBottom>
             Summary Statistics
           </Typography>
@@ -105,7 +105,7 @@ const ScanOverviewTab: React.FC<ScanOverviewTabProps> = ({ scan }) => {
               { value: scan.results.not_applicable_rules, label: 'N/A', color: 'text.secondary' },
               { value: scan.results.unknown_rules, label: 'Unknown', color: 'info.main' },
             ].map((stat) => (
-              <Grid item xs={6} sm={4} md={2} key={stat.label}>
+              <Grid size={{ xs: 6, sm: 4, md: 2 }} key={stat.label}>
                 <Paper variant="outlined" sx={{ p: 2, textAlign: 'center' }}>
                   <Typography variant="h4" color={stat.color}>
                     {stat.value}

@@ -19,7 +19,7 @@ import {
   DialogContent,
   DialogActions,
 } from '@mui/material';
-import Grid from '@mui/material/GridLegacy';
+import Grid from '@mui/material/Grid';
 import { Search as SearchIcon, Add as AddIcon } from '@mui/icons-material';
 import {
   useTemplates,
@@ -156,7 +156,7 @@ export const TemplatesPage: React.FC = () => {
         {filteredMyTemplates.length > 0 ? (
           <Grid container spacing={3}>
             {filteredMyTemplates.map((template) => (
-              <Grid item xs={12} sm={6} md={4} key={template.template_id}>
+              <Grid size={{ xs: 12, sm: 6, md: 4 }} key={template.template_id}>
                 <TemplateCard
                   template={template}
                   onEdit={() => handleEdit(template.template_id)}
@@ -185,7 +185,7 @@ export const TemplatesPage: React.FC = () => {
         {filteredPublicTemplates.length > 0 ? (
           <Grid container spacing={3}>
             {filteredPublicTemplates.map((template) => (
-              <Grid item xs={12} sm={6} md={4} key={template.template_id}>
+              <Grid size={{ xs: 12, sm: 6, md: 4 }} key={template.template_id}>
                 <TemplateCard
                   template={template}
                   onClone={() => handleClone(template.template_id, template.name)}

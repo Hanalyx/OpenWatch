@@ -1,6 +1,6 @@
 import React from 'react';
 import { Box, Typography, IconButton, Paper, Card, CardContent } from '@mui/material';
-import Grid from '@mui/material/GridLegacy';
+import Grid from '@mui/material/Grid';
 import { ArrowBack, Computer, Security, Schedule, Description } from '@mui/icons-material';
 import { StatCard } from '../../components/design-system';
 import { useAddHostForm } from './hooks/useAddHostForm';
@@ -53,7 +53,7 @@ const AddHost: React.FC = () => {
 
       {/* Quick Stats */}
       <Grid container spacing={2} sx={{ mb: 3 }}>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <StatCard
             title="Total Hosts"
             value="4"
@@ -62,7 +62,7 @@ const AddHost: React.FC = () => {
             subtitle="Currently managed"
           />
         </Grid>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <StatCard
             title="Available Profiles"
             value="8"
@@ -71,7 +71,7 @@ const AddHost: React.FC = () => {
             subtitle="Compliance standards"
           />
         </Grid>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <StatCard
             title="Scan Queue"
             value="2"
@@ -80,7 +80,7 @@ const AddHost: React.FC = () => {
             subtitle="Pending scans"
           />
         </Grid>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <StatCard
             title="Templates"
             value="5"
@@ -139,7 +139,7 @@ const AddHost: React.FC = () => {
           Quick Start Templates
         </Typography>
         <Grid container spacing={2}>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <Card
               variant="outlined"
               sx={{ cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } }}
@@ -154,7 +154,7 @@ const AddHost: React.FC = () => {
               </CardContent>
             </Card>
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <Card
               variant="outlined"
               sx={{ cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } }}
@@ -169,7 +169,7 @@ const AddHost: React.FC = () => {
               </CardContent>
             </Card>
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <Card
               variant="outlined"
               sx={{ cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } }}
@@ -184,7 +184,7 @@ const AddHost: React.FC = () => {
               </CardContent>
             </Card>
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <Card
               variant="outlined"
               sx={{ cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } }}

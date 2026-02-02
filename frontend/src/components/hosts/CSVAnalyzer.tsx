@@ -20,7 +20,7 @@ import {
   AccordionSummary,
   AccordionDetails,
 } from '@mui/material';
-import Grid from '@mui/material/GridLegacy';
+import Grid from '@mui/material/Grid';
 import {
   CloudUpload as UploadIcon,
   CheckCircle as CheckIcon,
@@ -203,7 +203,7 @@ const CSVAnalyzer: React.FC<CSVAnalyzerProps> = ({ onAnalysisComplete, onError }
             </Box>
 
             <Grid container spacing={3}>
-              <Grid item xs={12} md={6}>
+              <Grid size={{ xs: 12, md: 6 }}>
                 <Typography variant="subtitle2" gutterBottom>
                   File Information
                 </Typography>
@@ -218,7 +218,7 @@ const CSVAnalyzer: React.FC<CSVAnalyzerProps> = ({ onAnalysisComplete, onError }
               </Grid>
 
               {analysis && analysis.template_matches.length > 0 && (
-                <Grid item xs={12} md={6}>
+                <Grid size={{ xs: 12, md: 6 }}>
                   <Typography variant="subtitle2" gutterBottom>
                     Detected Templates
                   </Typography>

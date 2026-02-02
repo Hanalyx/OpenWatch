@@ -26,7 +26,7 @@ import {
   Slider,
   IconButton,
 } from '@mui/material';
-import Grid from '@mui/material/GridLegacy';
+import Grid from '@mui/material/Grid';
 import { Computer, PlayArrow, Close, Info, AutoAwesome, Timer } from '@mui/icons-material';
 
 interface Host {
@@ -288,7 +288,7 @@ const BulkScanDialog: React.FC<BulkScanDialogProps> = ({
                 </Box>
 
                 <Grid container spacing={2}>
-                  <Grid item xs={6} sm={3}>
+                  <Grid size={{ xs: 6, sm: 3 }}>
                     <Box sx={{ textAlign: 'center' }}>
                       <Typography variant="h4" color="primary">
                         {feasibility.total_hosts}
@@ -296,7 +296,7 @@ const BulkScanDialog: React.FC<BulkScanDialogProps> = ({
                       <Typography variant="caption">Total Hosts</Typography>
                     </Box>
                   </Grid>
-                  <Grid item xs={6} sm={3}>
+                  <Grid size={{ xs: 6, sm: 3 }}>
                     <Box sx={{ textAlign: 'center' }}>
                       <Typography variant="h4" color="success.main">
                         {feasibility.max_parallel_scans}
@@ -304,7 +304,7 @@ const BulkScanDialog: React.FC<BulkScanDialogProps> = ({
                       <Typography variant="caption">Parallel Scans</Typography>
                     </Box>
                   </Grid>
-                  <Grid item xs={12} sm={6}>
+                  <Grid size={{ xs: 12, sm: 6 }}>
                     <Box sx={{ textAlign: 'center' }}>
                       <Typography variant="h4" color="warning.main">
                         {formatEstimatedTime(feasibility.estimated_time_minutes)}

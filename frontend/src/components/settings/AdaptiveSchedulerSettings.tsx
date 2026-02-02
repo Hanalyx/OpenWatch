@@ -19,7 +19,7 @@ import {
   Tooltip,
   LinearProgress,
 } from '@mui/material';
-import Grid from '@mui/material/GridLegacy';
+import Grid from '@mui/material/Grid';
 import {
   Schedule as ScheduleIcon,
   PlayArrow as PlayIcon,
@@ -311,7 +311,7 @@ const AdaptiveSchedulerSettings: React.FC<AdaptiveSchedulerSettingsProps> = ({
           </Tooltip>
         </Typography>
         <Grid container spacing={2} sx={{ mt: 1 }}>
-          <Grid item xs={12} sm={6} md={4}>
+          <Grid size={{ xs: 12, sm: 6, md: 4 }}>
             <TextField
               fullWidth
               label="Unknown (New Hosts)"
@@ -325,7 +325,7 @@ const AdaptiveSchedulerSettings: React.FC<AdaptiveSchedulerSettingsProps> = ({
               helperText="0 = immediate (0-60 min)"
             />
           </Grid>
-          <Grid item xs={12} sm={6} md={4}>
+          <Grid size={{ xs: 12, sm: 6, md: 4 }}>
             <TextField
               fullWidth
               label="Online (Healthy)"
@@ -339,7 +339,7 @@ const AdaptiveSchedulerSettings: React.FC<AdaptiveSchedulerSettingsProps> = ({
               helperText="5-60 minutes"
             />
           </Grid>
-          <Grid item xs={12} sm={6} md={4}>
+          <Grid size={{ xs: 12, sm: 6, md: 4 }}>
             <TextField
               fullWidth
               label="Degraded (1 Failure)"
@@ -353,7 +353,7 @@ const AdaptiveSchedulerSettings: React.FC<AdaptiveSchedulerSettingsProps> = ({
               helperText="1-15 minutes"
             />
           </Grid>
-          <Grid item xs={12} sm={6} md={4}>
+          <Grid size={{ xs: 12, sm: 6, md: 4 }}>
             <TextField
               fullWidth
               label="Critical (2 Failures)"
@@ -367,7 +367,7 @@ const AdaptiveSchedulerSettings: React.FC<AdaptiveSchedulerSettingsProps> = ({
               helperText="1-10 minutes"
             />
           </Grid>
-          <Grid item xs={12} sm={6} md={4}>
+          <Grid size={{ xs: 12, sm: 6, md: 4 }}>
             <TextField
               fullWidth
               label="Down (3+ Failures)"
@@ -381,7 +381,7 @@ const AdaptiveSchedulerSettings: React.FC<AdaptiveSchedulerSettingsProps> = ({
               helperText="10-120 minutes"
             />
           </Grid>
-          <Grid item xs={12} sm={6} md={4}>
+          <Grid size={{ xs: 12, sm: 6, md: 4 }}>
             <TextField
               fullWidth
               label="Maintenance"
@@ -478,7 +478,7 @@ const AdaptiveSchedulerSettings: React.FC<AdaptiveSchedulerSettingsProps> = ({
         <Collapse in={showAdvanced}>
           <Box sx={{ mt: 2 }}>
             <Grid container spacing={2}>
-              <Grid item xs={12} sm={6}>
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <TextField
                   fullWidth
                   label="Max Concurrent Checks"
@@ -494,7 +494,7 @@ const AdaptiveSchedulerSettings: React.FC<AdaptiveSchedulerSettingsProps> = ({
                   helperText="1-50 (prevents network flooding)"
                 />
               </Grid>
-              <Grid item xs={12} sm={6}>
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <TextField
                   fullWidth
                   label="Check Timeout (seconds)"
@@ -510,7 +510,7 @@ const AdaptiveSchedulerSettings: React.FC<AdaptiveSchedulerSettingsProps> = ({
                   helperText="10-300 seconds"
                 />
               </Grid>
-              <Grid item xs={12}>
+              <Grid size={{ xs: 12 }}>
                 <FormControlLabel
                   control={
                     <Switch

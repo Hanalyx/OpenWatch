@@ -29,7 +29,7 @@ import {
   Collapse,
   Divider,
 } from '@mui/material';
-import Grid from '@mui/material/GridLegacy';
+import Grid from '@mui/material/Grid';
 import {
   Search as SearchIcon,
   FilterList as FilterIcon,
@@ -417,7 +417,7 @@ const ComplianceRulesContent: React.FC<ComplianceRulesContentProps> = ({ onRuleS
         <Collapse in={showFilters}>
           <Box sx={{ mt: 2, pt: 2, borderTop: `1px solid ${theme.palette.divider}` }}>
             <Grid container spacing={2}>
-              <Grid item xs={12} sm={6} md={3}>
+              <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                 <FormControl fullWidth size="small">
                   <InputLabel>Framework</InputLabel>
                   <Select
@@ -435,7 +435,7 @@ const ComplianceRulesContent: React.FC<ComplianceRulesContentProps> = ({ onRuleS
                 </FormControl>
               </Grid>
 
-              <Grid item xs={12} sm={6} md={3}>
+              <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                 <FormControl fullWidth size="small">
                   <InputLabel>Severity</InputLabel>
                   <Select
@@ -463,7 +463,7 @@ const ComplianceRulesContent: React.FC<ComplianceRulesContentProps> = ({ onRuleS
                 </FormControl>
               </Grid>
 
-              <Grid item xs={12} sm={6} md={3}>
+              <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                 <FormControl fullWidth size="small">
                   <InputLabel>Category</InputLabel>
                   <Select
@@ -484,7 +484,7 @@ const ComplianceRulesContent: React.FC<ComplianceRulesContentProps> = ({ onRuleS
                 </FormControl>
               </Grid>
 
-              <Grid item xs={12} sm={6} md={3}>
+              <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                 <FormControl fullWidth size="small">
                   <InputLabel>Platform</InputLabel>
                   <Select
@@ -572,7 +572,10 @@ const ComplianceRulesContent: React.FC<ComplianceRulesContentProps> = ({ onRuleS
 
               <Grid container spacing={3}>
                 {platforms.map((platform) => (
-                  <Grid item xs={12} sm={6} lg={4} key={`${platform.name}-${platform.version}`}>
+                  <Grid
+                    size={{ xs: 12, sm: 6, lg: 4 }}
+                    key={`${platform.name}-${platform.version}`}
+                  >
                     <PlatformCard
                       platform={platform}
                       onBrowse={handleBrowsePlatform}
@@ -622,7 +625,10 @@ const ComplianceRulesContent: React.FC<ComplianceRulesContentProps> = ({ onRuleS
 
               <Grid container spacing={3}>
                 {frameworks.map((framework) => (
-                  <Grid item xs={12} sm={6} lg={4} key={`${framework.name}-${framework.version}`}>
+                  <Grid
+                    size={{ xs: 12, sm: 6, lg: 4 }}
+                    key={`${framework.name}-${framework.version}`}
+                  >
                     <FrameworkCard
                       name={framework.name}
                       version={framework.version}
