@@ -43,6 +43,16 @@ jobs:
         ports:
           - 6379:6379
 
+      mongodb:
+        image: mongo:7.0
+        options: >-
+          --health-cmd "mongosh --eval 'db.adminCommand(\"ping\")'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 27017:27017
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
@@ -109,8 +119,7 @@ jobs:
           OPENWATCH_DATABASE_URL: postgresql://openwatch:openwatch_test@localhost:5432/openwatch_test
           TEST_DATABASE_URL: postgresql://openwatch:openwatch_test@localhost:5432/openwatch_test
           OPENWATCH_REDIS_URL: redis://localhost:6379
-          # MongoDB not available in backend CI; set short timeout so app startup fails fast
-          OPENWATCH_MONGODB_URL: mongodb://localhost:27017/openwatch_test?serverSelectionTimeoutMS=1000
+          OPENWATCH_MONGODB_URL: mongodb://localhost:27017/openwatch_test
           OPENWATCH_JWT_SECRET_KEY: test_secret_key_for_ci_must_be_32_chars_minimum  # pragma: allowlist secret
           OPENWATCH_SECRET_KEY: test_secret_key_for_ci_must_be_32_chars_minimum  # pragma: allowlist secret
           OPENWATCH_MASTER_KEY: test_master_key_for_ci_32bytes_long_minimum!!  # pragma: allowlist secret
