@@ -2,23 +2,37 @@ import { Page, expect } from '@playwright/test';
 import { BasePage } from './BasePage';
 
 export class DashboardPage extends BasePage {
-  private readonly pageTitle = 'h4:has-text("Security Compliance Dashboard")';
+  // Dashboard title uses Typography variant="h4" component="h1", renders as <h1>
+  private readonly pageTitle = ':is(h1, h2, h3, h4):has-text("Security Compliance Dashboard")';
   private readonly statsCards = '.MuiCard-root';
   private readonly quickActionsSection = 'text=Quick Actions';
   private readonly recentScansSection = 'text=Recent Scans';
   private readonly complianceOverviewSection = 'text=Compliance Overview';
-  private readonly logoutMenuItem = '[role="menuitem"]:has-text("Logout")';
-  private readonly userMenuButton = '.MuiIconButton-root:has(.MuiAvatar-root)';
+  // Multiple selector fallbacks for better resilience
+  private readonly logoutMenuItemSelectors = [
+    '[role="menuitem"]:has-text("Logout")',
+    '[role="menuitem"]:has-text("Log out")',
+    '[role="menuitem"]:has-text("Sign out")',
+    'li:has-text("Logout")',
+  ];
+  private readonly userMenuButtonSelectors = [
+    '.MuiIconButton-root:has(.MuiAvatar-root)',
+    '[data-testid="user-menu"]',
+    '[aria-label*="account"]',
+    '[aria-label*="profile"]',
+    'button:has(.MuiAvatar-root)',
+  ];
   
-  // Navigation items
+  // Navigation items - Layout.tsx uses ListItemButton with onClick, not <a> tags
+  // Match by ListItemText content within the sidebar
   private readonly navItems = {
-    dashboard: 'a[href="/dashboard"]',
-    hosts: 'a[href="/hosts"]',
-    hostGroups: 'a[href="/host-groups"]',
-    content: 'a[href="/scap-content"]',
-    scans: 'a[href="/scans"]',
-    users: 'a[href="/users"]',
-    settings: 'a[href="/settings"]'
+    dashboard: '.MuiListItemButton-root:has-text("Dashboard")',
+    hosts: '.MuiListItemButton-root:has-text("Hosts"):not(:has-text("Host Groups"))',
+    hostGroups: '.MuiListItemButton-root:has-text("Host Groups")',
+    content: '.MuiListItemButton-root:has-text("Content"):not(:has-text("Frameworks")):not(:has-text("Templates"))',
+    scans: '.MuiListItemButton-root:has-text("Scans")',
+    users: '.MuiListItemButton-root:has-text("Users")',
+    settings: '.MuiListItemButton-root:has-text("Settings")'
   };
 
   constructor(page: Page) {
@@ -26,10 +40,10 @@ export class DashboardPage extends BasePage {
   }
 
   /**
-   * Navigate to dashboard
+   * Navigate to dashboard (root path)
    */
   async goto() {
-    await this.page.goto('/dashboard');
+    await this.page.goto('/');
     await this.waitForPageLoad();
   }
 
@@ -120,19 +134,41 @@ export class DashboardPage extends BasePage {
   }
 
   /**
-   * Open user menu
+   * Open user menu with fallback selectors
    */
   async openUserMenu() {
-    await this.page.click(this.userMenuButton);
+    // Try each selector until one works
+    for (const selector of this.userMenuButtonSelectors) {
+      const element = this.page.locator(selector).first();
+      if (await element.isVisible({ timeout: 1000 }).catch(() => false)) {
+        await element.click();
+        return;
+      }
+    }
+    // Fallback to first selector with extended timeout
+    await this.page.click(this.userMenuButtonSelectors[0], { timeout: 10000 });
   }
 
   /**
-   * Logout from dashboard
+   * Logout from dashboard with fallback selectors
    */
   async logout() {
     await this.openUserMenu();
-    await this.page.click(this.logoutMenuItem);
-    await this.page.waitForURL('**/login');
+    // Wait for menu to appear
+    await this.page.waitForTimeout(500);
+
+    // Try each logout selector
+    for (const selector of this.logoutMenuItemSelectors) {
+      const element = this.page.locator(selector).first();
+      if (await element.isVisible({ timeout: 1000 }).catch(() => false)) {
+        await element.click();
+        await this.page.waitForURL('**/login', { timeout: 10000 });
+        return;
+      }
+    }
+    // Fallback
+    await this.page.click(this.logoutMenuItemSelectors[0], { timeout: 5000 });
+    await this.page.waitForURL('**/login', { timeout: 10000 });
   }
 
   /**
