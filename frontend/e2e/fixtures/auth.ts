@@ -2,26 +2,27 @@ import { test as base } from '@playwright/test';
 import { LoginPage } from './page-objects/LoginPage';
 import { DashboardPage } from './page-objects/DashboardPage';
 
-// Test user credentials
+// Test user credentials (NOT real secrets - test data only)
+// Valid roles: super_admin, security_admin, security_analyst, compliance_officer, auditor, guest
 export const TEST_USERS = {
   admin: {
     username: 'admin@openwatch.local',
-    password: 'Admin123!@#',
-    role: 'admin'
+    password: 'Admin123!@#', // pragma: allowlist secret
+    role: 'super_admin'
   },
-  user: {
-    username: 'user@openwatch.local', 
-    password: 'User123!@#',
-    role: 'user'
+  analyst: {
+    username: 'analyst@openwatch.local',
+    password: 'Analyst123!@#', // pragma: allowlist secret
+    role: 'security_analyst'
   },
-  readOnly: {
-    username: 'readonly@openwatch.local',
-    password: 'ReadOnly123!@#',
-    role: 'read_only'
+  auditor: {
+    username: 'auditor@openwatch.local',
+    password: 'Auditor123!@#', // pragma: allowlist secret
+    role: 'auditor'
   },
   invalid: {
     username: 'invalid@openwatch.local',
-    password: 'wrongpassword',
+    password: 'wrongpassword', // pragma: allowlist secret
     role: 'none'
   }
 };
