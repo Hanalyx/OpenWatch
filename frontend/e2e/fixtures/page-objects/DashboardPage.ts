@@ -7,8 +7,8 @@ export class DashboardPage extends BasePage {
   private readonly quickActionsSection = 'text=Quick Actions';
   private readonly recentScansSection = 'text=Recent Scans';
   private readonly complianceOverviewSection = 'text=Compliance Overview';
-  private readonly logoutButton = 'button:has-text("Logout")';
-  private readonly userAvatar = '[data-testid="user-avatar"]';
+  private readonly logoutMenuItem = '[role="menuitem"]:has-text("Logout")';
+  private readonly userMenuButton = '.MuiIconButton-root:has(.MuiAvatar-root)';
   
   // Navigation items
   private readonly navItems = {
@@ -123,7 +123,7 @@ export class DashboardPage extends BasePage {
    * Open user menu
    */
   async openUserMenu() {
-    await this.page.click(this.userAvatar);
+    await this.page.click(this.userMenuButton);
   }
 
   /**
@@ -131,7 +131,7 @@ export class DashboardPage extends BasePage {
    */
   async logout() {
     await this.openUserMenu();
-    await this.page.click(this.logoutButton);
+    await this.page.click(this.logoutMenuItem);
     await this.page.waitForURL('**/login');
   }
 
