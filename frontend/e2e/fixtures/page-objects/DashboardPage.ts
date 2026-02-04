@@ -2,7 +2,8 @@ import { Page, expect } from '@playwright/test';
 import { BasePage } from './BasePage';
 
 export class DashboardPage extends BasePage {
-  private readonly pageTitle = 'h4:has-text("Security Compliance Dashboard")';
+  // Dashboard title uses Typography variant="h4" component="h1", renders as <h1>
+  private readonly pageTitle = ':is(h1, h2, h3, h4):has-text("Security Compliance Dashboard")';
   private readonly statsCards = '.MuiCard-root';
   private readonly quickActionsSection = 'text=Quick Actions';
   private readonly recentScansSection = 'text=Recent Scans';
@@ -22,15 +23,16 @@ export class DashboardPage extends BasePage {
     'button:has(.MuiAvatar-root)',
   ];
   
-  // Navigation items - must match paths in Layout.tsx menuItems
+  // Navigation items - Layout.tsx uses ListItemButton with onClick, not <a> tags
+  // Match by ListItemText content within the sidebar
   private readonly navItems = {
-    dashboard: 'a[href="/"]',
-    hosts: 'a[href="/hosts"]',
-    hostGroups: 'a[href="/host-groups"]',
-    content: 'a[href="/content"]',
-    scans: 'a[href="/scans"]',
-    users: 'a[href="/users"]',
-    settings: 'a[href="/settings"]'
+    dashboard: '.MuiListItemButton-root:has-text("Dashboard")',
+    hosts: '.MuiListItemButton-root:has-text("Hosts"):not(:has-text("Host Groups"))',
+    hostGroups: '.MuiListItemButton-root:has-text("Host Groups")',
+    content: '.MuiListItemButton-root:has-text("Content"):not(:has-text("Frameworks")):not(:has-text("Templates"))',
+    scans: '.MuiListItemButton-root:has-text("Scans")',
+    users: '.MuiListItemButton-root:has-text("Users")',
+    settings: '.MuiListItemButton-root:has-text("Settings")'
   };
 
   constructor(page: Page) {
