@@ -4,7 +4,7 @@ import { BasePage } from './BasePage';
 export class LoginPage extends BasePage {
   private readonly usernameInput = 'input[name="username"]';
   private readonly passwordInput = 'input[name="password"]';
-  private readonly loginButton = 'button[type="submit"]:has-text("Login")';
+  private readonly loginButton = 'button[type="submit"]:has-text("Sign In")';
   private readonly errorAlert = '[role="alert"]';
   private readonly forgotPasswordLink = 'a:has-text("Forgot Password")';
   private readonly registerLink = 'a:has-text("Register")';
