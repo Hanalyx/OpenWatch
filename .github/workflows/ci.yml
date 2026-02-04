@@ -471,6 +471,20 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Run database migrations
+        if: env.E2E_REQUIRED == 'true'
+        working-directory: ./backend
+        env:
+          OPENWATCH_DATABASE_URL: postgresql://openwatch:openwatch_test@localhost:5432/openwatch_test
+          OPENWATCH_JWT_SECRET_KEY: test_secret_key_for_e2e_must_be_32_chars_minimum  # pragma: allowlist secret
+          OPENWATCH_SECRET_KEY: test_secret_key_for_e2e_must_be_32_chars_minimum  # pragma: allowlist secret
+          OPENWATCH_MASTER_KEY: test_master_key_for_e2e_32bytes_long_minimum!!  # pragma: allowlist secret
+          OPENWATCH_ENVIRONMENT: test
+        run: |
+          echo "Running Alembic database migrations..."
+          alembic upgrade head
+          echo "Migration completed"
+
       - name: Start backend service
         if: env.E2E_REQUIRED == 'true'
         working-directory: ./backend
@@ -510,34 +524,37 @@ jobs:
           # Create test users via API
           # Valid roles: super_admin, security_admin, security_analyst, compliance_officer, auditor, guest
           echo "Creating admin test user..."
-          curl -sf -X POST http://localhost:8000/api/auth/register \
+          ADMIN_RESPONSE=$(curl -s -X POST http://localhost:8000/api/auth/register \
             -H "Content-Type: application/json" \
             -d '{
               "username": "admin@openwatch.local",
               "email": "admin@openwatch.local",
               "password": "Admin123!@#",
               "role": "super_admin"
-            }' && echo "Admin user created" || echo "Admin user may already exist"
+            }')
+          echo "Admin registration response: $ADMIN_RESPONSE"
 
           echo "Creating analyst test user..."
-          curl -sf -X POST http://localhost:8000/api/auth/register \
+          ANALYST_RESPONSE=$(curl -s -X POST http://localhost:8000/api/auth/register \
             -H "Content-Type: application/json" \
             -d '{
               "username": "analyst@openwatch.local",
               "email": "analyst@openwatch.local",
               "password": "Analyst123!@#",
               "role": "security_analyst"
-            }' && echo "Analyst user created" || echo "Analyst user may already exist"
+            }')
+          echo "Analyst registration response: $ANALYST_RESPONSE"
 
           echo "Creating auditor test user..."
-          curl -sf -X POST http://localhost:8000/api/auth/register \
+          AUDITOR_RESPONSE=$(curl -s -X POST http://localhost:8000/api/auth/register \
             -H "Content-Type: application/json" \
             -d '{
               "username": "auditor@openwatch.local",
               "email": "auditor@openwatch.local",
               "password": "Auditor123!@#",
               "role": "auditor"
-            }' && echo "Auditor user created" || echo "Auditor user may already exist"
+            }')
+          echo "Auditor registration response: $AUDITOR_RESPONSE"
 
           # Verify at least one user can log in (don't fail if login doesn't work)
           echo "Verifying login works..."
