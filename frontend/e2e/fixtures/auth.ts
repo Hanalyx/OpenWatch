@@ -3,13 +3,16 @@ import { LoginPage } from './page-objects/LoginPage';
 import { DashboardPage } from './page-objects/DashboardPage';
 
 // Test user credentials (NOT real secrets - test data only)
-// Valid roles: super_admin, security_admin, security_analyst, compliance_officer, auditor, guest
+// The 'admin' user is created by backend init_roles.py on startup
+// Other users are created via API in CI test data step
 export const TEST_USERS = {
+  // Default admin created by backend on startup (init_roles.py)
   admin: {
-    username: 'admin@example.com',
-    password: 'Admin123!@#', // pragma: allowlist secret
+    username: 'admin',
+    password: 'admin123', // pragma: allowlist secret
     role: 'super_admin'
   },
+  // Created via API in CI
   analyst: {
     username: 'analyst@example.com',
     password: 'Analyst123!@#', // pragma: allowlist secret

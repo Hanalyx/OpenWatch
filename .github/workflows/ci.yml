@@ -557,13 +557,14 @@ jobs:
           echo "Auditor registration response: $AUDITOR_RESPONSE"
 
           # Verify at least one user can log in (don't fail if login doesn't work)
+          # Use default admin created by init_roles.py
           echo "Verifying login works..."
+          # Test credentials from init_roles.py - NOT real secrets
+          ADMIN_USER="admin"
+          ADMIN_PASS="admin123"  # pragma: allowlist secret
           LOGIN_RESPONSE=$(curl -s -X POST http://localhost:8000/api/auth/login \
             -H "Content-Type: application/json" \
-            -d '{
-              "username": "admin@example.com",
-              "password": "Admin123!@#"
-            }' || echo '{}')
+            -d "{\"username\": \"$ADMIN_USER\", \"password\": \"$ADMIN_PASS\"}" || echo '{}')
 
           if echo "$LOGIN_RESPONSE" | grep -q "access_token"; then
             echo "Login verification successful"
