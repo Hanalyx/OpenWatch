@@ -59,25 +59,25 @@
     "test:coverage": "vitest run --coverage"
   },
   "devDependencies": {
-    "@playwright/test": "^1.55.0",
-    "@storybook/react": "^10.0.8",
+    "@playwright/test": "^1.58.1",
+    "@storybook/react": "^10.2.4",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.9.1",
-    "@testing-library/react": "^16.3.0",
+    "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
-    "@typescript-eslint/eslint-plugin": "^8.46.4",
-    "@typescript-eslint/parser": "^8.42.0",
-    "@vitejs/plugin-react": "^5.1.0",
+    "@typescript-eslint/eslint-plugin": "^8.54.0",
+    "@typescript-eslint/parser": "^8.54.0",
+    "@vitejs/plugin-react": "^5.1.3",
     "@vitest/coverage-v8": "^4.0.18",
-    "@vitest/ui": "^4.0.8",
-    "eslint": "^9.39.1",
+    "@vitest/ui": "^4.0.18",
+    "eslint": "^9.39.2",
     "eslint-config-prettier": "^8.8.0",
-    "eslint-plugin-prettier": "^5.5.4",
+    "eslint-plugin-prettier": "^5.5.5",
     "eslint-plugin-react": "^7.32.2",
     "eslint-plugin-react-hooks": "^7.0.1",
     "jsdom": "^27.4.0",
-    "prettier": "^3.6.2",
-    "vite": "^7.2.2",
-    "vitest": "^4.0.8"
+    "prettier": "^3.8.1",
+    "vite": "^7.3.1",
+    "vitest": "^4.0.18"
   }
 }
