@@ -302,31 +302,42 @@ async def get_rule_detail(
                 message=f"Retrieved rule {rule_id} with dependencies",
             )
         else:
-            # Get basic rule details (would need database integration)
-            # For now, return a mock response structure
+            # Get basic rule details from repository
+            from ...repositories.compliance_repository import ComplianceRuleRepository
+
+            repo = ComplianceRuleRepository()
+            rule = await repo.find_one({"rule_id": rule_id})
+
+            if not rule:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Rule not found: {rule_id}",
+                )
+
+            # Convert MongoDB document to response format
             rule_data = {
-                "rule_id": rule_id,
-                "scap_rule_id": f"scap_{rule_id}",
+                "rule_id": rule.rule_id,
+                "scap_rule_id": getattr(rule, "scap_rule_id", None),
                 "metadata": {
-                    "name": f"Rule {rule_id}",
-                    "description": f"Description for rule {rule_id}",
-                    "source": "OpenWatch",
+                    "name": getattr(rule, "title", rule.rule_id),
+                    "description": getattr(rule, "description", ""),
+                    "source": getattr(rule, "source", "OpenWatch"),
                 },
-                "abstract": False,
-                "severity": "medium",
-                "category": "system",
-                "security_function": "configuration",
-                "tags": ["security", "compliance"],
-                "frameworks": {"nist": {"800-53r5": ["AC-2"]}},
-                "platform_implementations": {"rhel": {"versions": ["8", "9"]}},
-                "platform_requirements": None,
-                "inherits_from": None,
-                "derived_rules": [],
-                "dependencies": {"requires": [], "conflicts": [], "related": []},
-                "parameter_overrides": None,
+                "abstract": getattr(rule, "abstract", False),
+                "severity": getattr(rule, "severity", "medium"),
+                "category": getattr(rule, "category", "system"),
+                "security_function": getattr(rule, "security_function", None),
+                "tags": getattr(rule, "tags", []),
+                "frameworks": getattr(rule, "frameworks", {}),
+                "platform_implementations": getattr(rule, "platform_implementations", {}),
+                "platform_requirements": getattr(rule, "platform_requirements", None),
+                "inherits_from": getattr(rule, "inherits_from", None),
+                "derived_rules": getattr(rule, "derived_rules", []),
+                "dependencies": getattr(rule, "dependencies", {"requires": [], "conflicts": [], "related": []}),
+                "parameter_overrides": getattr(rule, "parameter_overrides", None),
                 "inheritance_resolved": resolve_inheritance,
-                "created_at": datetime.utcnow(),
-                "updated_at": datetime.utcnow(),
+                "created_at": getattr(rule, "created_at", datetime.utcnow()),
+                "updated_at": getattr(rule, "updated_at", datetime.utcnow()),
             }
 
             rule_detail = RuleDetail(**rule_data)
