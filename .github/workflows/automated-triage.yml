@@ -155,7 +155,7 @@ jobs:
 
       - name: Upload Assessment Results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: risk-assessment-results
           path: |
@@ -240,7 +240,7 @@ jobs:
 
       - name: Upload Code Scanning Assessment
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: code-scanning-assessment
           path: |
