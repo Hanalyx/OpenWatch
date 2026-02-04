@@ -527,8 +527,8 @@ jobs:
           ADMIN_RESPONSE=$(curl -s -X POST http://localhost:8000/api/auth/register \
             -H "Content-Type: application/json" \
             -d '{
-              "username": "admin@openwatch.local",
-              "email": "admin@openwatch.local",
+              "username": "admin@example.com",
+              "email": "admin@example.com",
               "password": "Admin123!@#",
               "role": "super_admin"
             }')
@@ -538,8 +538,8 @@ jobs:
           ANALYST_RESPONSE=$(curl -s -X POST http://localhost:8000/api/auth/register \
             -H "Content-Type: application/json" \
             -d '{
-              "username": "analyst@openwatch.local",
-              "email": "analyst@openwatch.local",
+              "username": "analyst@example.com",
+              "email": "analyst@example.com",
               "password": "Analyst123!@#",
               "role": "security_analyst"
             }')
@@ -549,8 +549,8 @@ jobs:
           AUDITOR_RESPONSE=$(curl -s -X POST http://localhost:8000/api/auth/register \
             -H "Content-Type: application/json" \
             -d '{
-              "username": "auditor@openwatch.local",
-              "email": "auditor@openwatch.local",
+              "username": "auditor@example.com",
+              "email": "auditor@example.com",
               "password": "Auditor123!@#",
               "role": "auditor"
             }')
@@ -561,7 +561,7 @@ jobs:
           LOGIN_RESPONSE=$(curl -s -X POST http://localhost:8000/api/auth/login \
             -H "Content-Type: application/json" \
             -d '{
-              "username": "admin@openwatch.local",
+              "username": "admin@example.com",
               "password": "Admin123!@#"
             }' || echo '{}')
 

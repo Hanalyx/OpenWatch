@@ -6,22 +6,22 @@ import { DashboardPage } from './page-objects/DashboardPage';
 // Valid roles: super_admin, security_admin, security_analyst, compliance_officer, auditor, guest
 export const TEST_USERS = {
   admin: {
-    username: 'admin@openwatch.local',
+    username: 'admin@example.com',
     password: 'Admin123!@#', // pragma: allowlist secret
     role: 'super_admin'
   },
   analyst: {
-    username: 'analyst@openwatch.local',
+    username: 'analyst@example.com',
     password: 'Analyst123!@#', // pragma: allowlist secret
     role: 'security_analyst'
   },
   auditor: {
-    username: 'auditor@openwatch.local',
+    username: 'auditor@example.com',
     password: 'Auditor123!@#', // pragma: allowlist secret
     role: 'auditor'
   },
   invalid: {
-    username: 'invalid@openwatch.local',
+    username: 'invalid@example.com',
     password: 'wrongpassword', // pragma: allowlist secret
     role: 'none'
   }
