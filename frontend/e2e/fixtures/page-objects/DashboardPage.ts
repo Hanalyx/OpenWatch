@@ -22,12 +22,12 @@ export class DashboardPage extends BasePage {
     'button:has(.MuiAvatar-root)',
   ];
   
-  // Navigation items
+  // Navigation items - must match paths in Layout.tsx menuItems
   private readonly navItems = {
-    dashboard: 'a[href="/dashboard"]',
+    dashboard: 'a[href="/"]',
     hosts: 'a[href="/hosts"]',
     hostGroups: 'a[href="/host-groups"]',
-    content: 'a[href="/scap-content"]',
+    content: 'a[href="/content"]',
     scans: 'a[href="/scans"]',
     users: 'a[href="/users"]',
     settings: 'a[href="/settings"]'
@@ -38,10 +38,10 @@ export class DashboardPage extends BasePage {
   }
 
   /**
-   * Navigate to dashboard
+   * Navigate to dashboard (root path)
    */
   async goto() {
-    await this.page.goto('/dashboard');
+    await this.page.goto('/');
     await this.waitForPageLoad();
   }
 

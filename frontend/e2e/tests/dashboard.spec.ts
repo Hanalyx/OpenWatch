@@ -8,7 +8,7 @@ import { test, expect } from '../fixtures/auth';
 test.describe('Dashboard Page', () => {
   test('dashboard loads after login', async ({ authenticatedPage }) => {
     const page = authenticatedPage.page;
-    await page.goto('/dashboard');
+    await page.goto('/');
     await page.waitForLoadState('networkidle');
 
     // Dashboard should display some heading or title
@@ -18,7 +18,7 @@ test.describe('Dashboard Page', () => {
 
   test('statistics cards are visible', async ({ authenticatedPage }) => {
     const page = authenticatedPage.page;
-    await page.goto('/dashboard');
+    await page.goto('/');
     await page.waitForLoadState('networkidle');
 
     // Dashboard should show MUI cards with statistics
@@ -28,7 +28,7 @@ test.describe('Dashboard Page', () => {
 
   test('navigation links are functional', async ({ authenticatedPage }) => {
     const page = authenticatedPage.page;
-    await page.goto('/dashboard');
+    await page.goto('/');
     await page.waitForLoadState('networkidle');
 
     // Find sidebar or nav links
