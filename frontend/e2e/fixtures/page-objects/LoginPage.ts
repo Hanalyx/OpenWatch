@@ -42,10 +42,11 @@ export class LoginPage extends BasePage {
   async login(username: string, password: string) {
     await this.fillLoginForm(username, password);
     await this.submitLogin();
-    
+
     // Wait for either successful navigation or error
+    // Frontend navigates to '/' after login, not '/dashboard'
     await Promise.race([
-      this.page.waitForURL('**/dashboard', { timeout: 10000 }),
+      this.page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 10000 }),
       this.page.waitForSelector(this.errorAlert, { timeout: 10000 })
     ]);
   }
