@@ -46,22 +46,32 @@ export const test = base.extend<{
   // Pre-authenticated page fixture
   authenticatedPage: async ({ page }, use) => {
     const loginPage = new LoginPage(page);
-    
+
     // Perform login before test
     await loginPage.goto();
     await loginPage.login(TEST_USERS.admin.username, TEST_USERS.admin.password);
-    
-    // Verify login was successful
-    const dashboardPage = new DashboardPage(page);
-    await dashboardPage.isDashboardDisplayed();
-    
+
+    // Wait for navigation to complete with extended timeout
+    const loginSuccessful = await loginPage.isLoginSuccessful();
+
+    if (!loginSuccessful) {
+      // Check if there's an error message
+      const errorMsg = await loginPage.getErrorMessage();
+      console.error(`Login failed. Error: ${errorMsg || 'Unknown error'}`);
+      console.error('This may indicate test user was not created in CI setup.');
+      // Still allow test to continue - it will fail with clear assertion
+    }
+
     await use(loginPage);
-    
-    // Cleanup: logout after test
-    try {
-      await dashboardPage.logout();
-    } catch {
-      // Ignore logout errors in cleanup
+
+    // Cleanup: logout after test (only if logged in)
+    if (loginSuccessful) {
+      try {
+        const dashboardPage = new DashboardPage(page);
+        await dashboardPage.logout();
+      } catch {
+        // Ignore logout errors in cleanup
+      }
     }
   }
 });

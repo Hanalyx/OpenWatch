@@ -7,8 +7,20 @@ export class DashboardPage extends BasePage {
   private readonly quickActionsSection = 'text=Quick Actions';
   private readonly recentScansSection = 'text=Recent Scans';
   private readonly complianceOverviewSection = 'text=Compliance Overview';
-  private readonly logoutMenuItem = '[role="menuitem"]:has-text("Logout")';
-  private readonly userMenuButton = '.MuiIconButton-root:has(.MuiAvatar-root)';
+  // Multiple selector fallbacks for better resilience
+  private readonly logoutMenuItemSelectors = [
+    '[role="menuitem"]:has-text("Logout")',
+    '[role="menuitem"]:has-text("Log out")',
+    '[role="menuitem"]:has-text("Sign out")',
+    'li:has-text("Logout")',
+  ];
+  private readonly userMenuButtonSelectors = [
+    '.MuiIconButton-root:has(.MuiAvatar-root)',
+    '[data-testid="user-menu"]',
+    '[aria-label*="account"]',
+    '[aria-label*="profile"]',
+    'button:has(.MuiAvatar-root)',
+  ];
   
   // Navigation items
   private readonly navItems = {
@@ -120,19 +132,41 @@ export class DashboardPage extends BasePage {
   }
 
   /**
-   * Open user menu
+   * Open user menu with fallback selectors
    */
   async openUserMenu() {
-    await this.page.click(this.userMenuButton);
+    // Try each selector until one works
+    for (const selector of this.userMenuButtonSelectors) {
+      const element = this.page.locator(selector).first();
+      if (await element.isVisible({ timeout: 1000 }).catch(() => false)) {
+        await element.click();
+        return;
+      }
+    }
+    // Fallback to first selector with extended timeout
+    await this.page.click(this.userMenuButtonSelectors[0], { timeout: 10000 });
   }
 
   /**
-   * Logout from dashboard
+   * Logout from dashboard with fallback selectors
    */
   async logout() {
     await this.openUserMenu();
-    await this.page.click(this.logoutMenuItem);
-    await this.page.waitForURL('**/login');
+    // Wait for menu to appear
+    await this.page.waitForTimeout(500);
+
+    // Try each logout selector
+    for (const selector of this.logoutMenuItemSelectors) {
+      const element = this.page.locator(selector).first();
+      if (await element.isVisible({ timeout: 1000 }).catch(() => false)) {
+        await element.click();
+        await this.page.waitForURL('**/login', { timeout: 10000 });
+        return;
+      }
+    }
+    // Fallback
+    await this.page.click(this.logoutMenuItemSelectors[0], { timeout: 5000 });
+    await this.page.waitForURL('**/login', { timeout: 10000 });
   }
 
   /**

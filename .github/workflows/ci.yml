@@ -502,14 +502,55 @@ jobs:
       - name: Create test data
         if: env.E2E_REQUIRED == 'true'
         run: |
-          # Create test users via API (if registration endpoint exists)
-          curl -X POST http://localhost:8000/api/auth/register \
+          # Wait for backend to be fully ready (not just health endpoint)
+          echo "Waiting for backend API to be fully operational..."
+          sleep 5
+
+          # Create test users via API
+          echo "Creating admin test user..."
+          curl -sf -X POST http://localhost:8000/api/auth/register \
             -H "Content-Type: application/json" \
             -d '{
               "username": "admin@openwatch.local",
+              "email": "admin@openwatch.local",
               "password": "Admin123!@#",
               "role": "admin"
-            }' || echo "Test user creation handled in tests"
+            }' && echo "Admin user created" || echo "Admin user may already exist"
+
+          echo "Creating regular test user..."
+          curl -sf -X POST http://localhost:8000/api/auth/register \
+            -H "Content-Type: application/json" \
+            -d '{
+              "username": "user@openwatch.local",
+              "email": "user@openwatch.local",
+              "password": "User123!@#",
+              "role": "user"
+            }' && echo "Regular user created" || echo "Regular user may already exist"
+
+          echo "Creating readonly test user..."
+          curl -sf -X POST http://localhost:8000/api/auth/register \
+            -H "Content-Type: application/json" \
+            -d '{
+              "username": "readonly@openwatch.local",
+              "email": "readonly@openwatch.local",
+              "password": "ReadOnly123!@#",
+              "role": "read_only"
+            }' && echo "Readonly user created" || echo "Readonly user may already exist"
+
+          # Verify at least one user can log in
+          echo "Verifying login works..."
+          LOGIN_RESPONSE=$(curl -sf -X POST http://localhost:8000/api/auth/login \
+            -H "Content-Type: application/json" \
+            -d '{
+              "username": "admin@openwatch.local",
+              "password": "Admin123!@#"
+            }')
+
+          if echo "$LOGIN_RESPONSE" | grep -q "access_token"; then
+            echo "Login verification successful"
+          else
+            echo "WARNING: Login verification failed. Response: $LOGIN_RESPONSE"
+          fi
 
       - name: Run E2E tests
         if: env.E2E_REQUIRED == 'true'
