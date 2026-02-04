@@ -332,11 +332,61 @@ jobs:
           # Clean up
           docker compose down -v
 
-  # E2E Testing
+  # Detect what changed to optimize test runs
+  changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+      frontend_critical: ${{ steps.filter.outputs.frontend_critical }}
+      e2e_required: ${{ steps.e2e_check.outputs.required }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Detect file changes
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            backend:
+              - 'backend/**'
+              - 'docker/Dockerfile.backend'
+            frontend:
+              - 'frontend/**'
+              - 'docker/Dockerfile.frontend'
+            frontend_critical:
+              - 'frontend/src/services/api.ts'
+              - 'frontend/src/store/slices/authSlice.ts'
+              - 'frontend/src/pages/auth/**'
+              - 'frontend/src/components/auth/**'
+              - 'frontend/e2e/**'
+
+      - name: Determine if E2E is required
+        id: e2e_check
+        run: |
+          # E2E required if:
+          # 1. Backend changes (API changes may break E2E flows)
+          # 2. Critical frontend changes (auth, API client)
+          # 3. E2E test files changed
+          # 4. Explicitly requested via label
+          if [[ "${{ steps.filter.outputs.backend }}" == "true" ]] || \
+             [[ "${{ steps.filter.outputs.frontend_critical }}" == "true" ]] || \
+             [[ "${{ contains(github.event.pull_request.labels.*.name, 'run-e2e') }}" == "true" ]]; then
+            echo "required=true" >> $GITHUB_OUTPUT
+            echo "E2E tests required: backend=${{ steps.filter.outputs.backend }}, frontend_critical=${{ steps.filter.outputs.frontend_critical }}"
+          else
+            echo "required=false" >> $GITHUB_OUTPUT
+            echo "E2E tests skipped: frontend-only non-critical changes"
+          fi
+
+  # E2E Testing - conditional based on changes
   e2e:
     name: E2E Tests
     runs-on: ubuntu-latest
-    needs: [backend, frontend]
+    needs: [backend, frontend, changes]
+    # Run E2E if required by changes, or always on main branch pushes
+    if: needs.changes.outputs.e2e_required == 'true' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
 
     services:
       postgres:
@@ -475,8 +525,15 @@ jobs:
   docker:
     name: Build and Push Docker Images
     runs-on: ubuntu-latest
-    needs: [backend, frontend, integration, e2e]
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: [backend, frontend, integration, e2e, changes]
+    # Run on main push if core tests pass (e2e may be skipped for frontend-only changes)
+    if: |
+      github.ref == 'refs/heads/main' &&
+      github.event_name == 'push' &&
+      needs.backend.result == 'success' &&
+      needs.frontend.result == 'success' &&
+      needs.integration.result == 'success' &&
+      (needs.e2e.result == 'success' || needs.e2e.result == 'skipped')
 
     steps:
       - name: Checkout code
