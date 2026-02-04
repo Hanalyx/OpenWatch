@@ -189,6 +189,9 @@ jobs:
           echo "Running ESLint..."
           npm run lint
 
+          echo "Running Prettier check..."
+          npx prettier --check "src/**/*.{ts,tsx}" || echo "Prettier found formatting issues (non-blocking)"
+
           echo "Running TypeScript type check..."
           npx tsc --noEmit
 
