@@ -385,8 +385,9 @@ jobs:
     name: E2E Tests
     runs-on: ubuntu-latest
     needs: [backend, frontend, changes]
-    # Run E2E if required by changes, or always on main branch pushes
-    if: needs.changes.outputs.e2e_required == 'true' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    # Always run to satisfy required status check, but exit early if not needed
+    env:
+      E2E_REQUIRED: ${{ needs.changes.outputs.e2e_required == 'true' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
 
     services:
       postgres:
@@ -428,34 +429,47 @@ jobs:
           - 27017:27017
 
     steps:
+      - name: Skip E2E if not required
+        if: env.E2E_REQUIRED != 'true'
+        run: |
+          echo "E2E tests skipped - no critical changes detected"
+          echo "To force E2E tests, add the 'run-e2e' label to the PR"
+
       - name: Checkout code
+        if: env.E2E_REQUIRED == 'true'
         uses: actions/checkout@v5
 
       - name: Set up Node.js
+        if: env.E2E_REQUIRED == 'true'
         uses: actions/setup-node@v5
         with:
           node-version: ${{ env.NODE_VERSION }}
 
       - name: Install frontend dependencies
+        if: env.E2E_REQUIRED == 'true'
         working-directory: ./frontend
         run: npm ci
 
       - name: Install Playwright browsers
+        if: env.E2E_REQUIRED == 'true'
         working-directory: ./frontend
         run: npx playwright install --with-deps
 
       - name: Set up Python
+        if: env.E2E_REQUIRED == 'true'
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Install backend dependencies
+        if: env.E2E_REQUIRED == 'true'
         working-directory: ./backend
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
       - name: Start backend service
+        if: env.E2E_REQUIRED == 'true'
         working-directory: ./backend
         env:
           OPENWATCH_DATABASE_URL: postgresql://openwatch:openwatch_test@localhost:5432/openwatch_test
@@ -483,6 +497,7 @@ jobs:
           timeout 60 bash -c 'until curl -f http://localhost:8000/health; do sleep 2; done'
 
       - name: Create test data
+        if: env.E2E_REQUIRED == 'true'
         run: |
           # Create test users via API (if registration endpoint exists)
           curl -X POST http://localhost:8000/api/auth/register \
@@ -494,6 +509,7 @@ jobs:
             }' || echo "Test user creation handled in tests"
 
       - name: Run E2E tests
+        if: env.E2E_REQUIRED == 'true'
         working-directory: ./frontend
         env:
           CI: true
@@ -506,7 +522,7 @@ jobs:
 
       - name: Upload E2E test results
         uses: actions/upload-artifact@v4
-        if: always()
+        if: always() && env.E2E_REQUIRED == 'true'
         with:
           name: e2e-test-results
           path: |
@@ -516,7 +532,7 @@ jobs:
 
       - name: Upload E2E screenshots on failure
         uses: actions/upload-artifact@v4
-        if: failure()
+        if: failure() && env.E2E_REQUIRED == 'true'
         with:
           name: e2e-failure-screenshots
           path: frontend/test-results/screenshots/
