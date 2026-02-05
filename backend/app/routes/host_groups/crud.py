@@ -35,6 +35,7 @@ from sqlalchemy.orm import Session
 from app.auth import get_current_user
 from app.database import get_db
 from app.services.validation import GroupValidationService, ValidationError
+from app.utils.query_builder import QueryBuilder
 
 from .models import (
     AssignHostsRequest,
@@ -221,11 +222,10 @@ async def create_host_group(
         HTTPException: 400 if name exists, 500 if creation fails.
     """
     try:
-        # Check if group name already exists using parameterized query
-        existing = db.execute(
-            text("SELECT id FROM host_groups WHERE name = :name"),
-            {"name": group_data.name},
-        ).fetchone()
+        # Check if group name already exists
+        builder = QueryBuilder("host_groups").select("id").where("name = :name", group_data.name, "name")
+        query, params = builder.build()
+        existing = db.execute(text(query), params).fetchone()
 
         if existing:
             raise HTTPException(status_code=400, detail="Group name already exists")
@@ -326,20 +326,23 @@ async def update_host_group(
     """
     try:
         # Check if group exists
-        existing = db.execute(
-            text("SELECT id FROM host_groups WHERE id = :group_id"),
-            {"group_id": group_id},
-        ).fetchone()
+        exists_builder = QueryBuilder("host_groups").select("id").where("id = :group_id", group_id, "group_id")
+        query, params = exists_builder.build()
+        existing = db.execute(text(query), params).fetchone()
 
         if not existing:
             raise HTTPException(status_code=404, detail="Group not found")
 
         # Check if new name conflicts
         if group_data.name:
-            name_conflict = db.execute(
-                text("SELECT id FROM host_groups WHERE name = :name AND id != :group_id"),
-                {"name": group_data.name, "group_id": group_id},
-            ).fetchone()
+            conflict_builder = (
+                QueryBuilder("host_groups")
+                .select("id")
+                .where("name = :name", group_data.name, "name")
+                .where("id != :group_id", group_id, "group_id")
+            )
+            query, params = conflict_builder.build()
+            name_conflict = db.execute(text(query), params).fetchone()
 
             if name_conflict:
                 raise HTTPException(status_code=400, detail="Group name already exists")
@@ -421,11 +424,13 @@ async def update_host_group(
             raise HTTPException(status_code=500, detail="Failed to update host group - no data returned")
 
         # Get host count
-        count_result = db.execute(
-            text("SELECT COUNT(*) as host_count FROM host_group_memberships WHERE group_id = :group_id"),
-            {"group_id": group_id},
+        count_builder = (
+            QueryBuilder("host_group_memberships")
+            .select("COUNT(*) as host_count")
+            .where("group_id = :group_id", group_id, "group_id")
         )
-        count_row = count_result.fetchone()
+        count_query, count_params = count_builder.build()
+        count_row = db.execute(text(count_query), count_params).fetchone()
         host_count: int = count_row.host_count if count_row else 0
 
         return {
@@ -478,10 +483,9 @@ async def delete_host_group(
     """
     try:
         # Check if group exists
-        existing = db.execute(
-            text("SELECT id FROM host_groups WHERE id = :group_id"),
-            {"group_id": group_id},
-        ).fetchone()
+        exists_builder = QueryBuilder("host_groups").select("id").where("id = :group_id", group_id, "group_id")
+        query, params = exists_builder.build()
+        existing = db.execute(text(query), params).fetchone()
 
         if not existing:
             raise HTTPException(status_code=404, detail="Group not found")
@@ -540,16 +544,14 @@ async def assign_hosts_to_group(
     """
     try:
         # Check if group exists
-        existing = db.execute(
-            text("SELECT id FROM host_groups WHERE id = :group_id"),
-            {"group_id": group_id},
-        ).fetchone()
+        exists_builder = QueryBuilder("host_groups").select("id").where("id = :group_id", group_id, "group_id")
+        query, params = exists_builder.build()
+        existing = db.execute(text(query), params).fetchone()
 
         if not existing:
             raise HTTPException(status_code=404, detail="Group not found")
 
         # Remove hosts from any existing groups first (each host can only be in one group)
-        # Using parameterized query with array
         if request.host_ids:
             for host_id in request.host_ids:
                 db.execute(
@@ -842,10 +844,9 @@ async def validate_and_assign_hosts(
             hosts_to_assign = request.host_ids
 
         # Check if group exists
-        existing = db.execute(
-            text("SELECT id FROM host_groups WHERE id = :group_id"),
-            {"group_id": group_id},
-        ).fetchone()
+        exists_builder = QueryBuilder("host_groups").select("id").where("id = :group_id", group_id, "group_id")
+        query, params = exists_builder.build()
+        existing = db.execute(text(query), params).fetchone()
 
         if not existing:
             raise HTTPException(status_code=404, detail="Group not found")
