@@ -2,8 +2,8 @@ name: Automated Security & Dependency Triage
 
 on:
   schedule:
-    # Run every 6 hours
-    - cron: '0 */6 * * *'
+    # Run daily at 3 AM UTC (reduced from every 6 hours to save Actions minutes)
+    - cron: '0 3 * * *'
   workflow_dispatch:
     inputs:
       dry_run:
@@ -37,10 +37,11 @@ jobs:
           echo "Fetching Dependabot alerts..."
 
           # Try to fetch alerts, handle 403 gracefully
+          # --paginate returns one JSON array per page; merge with jq -s 'add'
           if gh api /repos/${{ github.repository }}/dependabot/alerts \
             --paginate \
             --jq 'map(select(.state == "open"))' \
-            > dependabot_alerts.json 2>/dev/null; then
+            2>/dev/null | jq -s 'add // []' > dependabot_alerts.json; then
 
             ALERT_COUNT=$(jq 'length' dependabot_alerts.json 2>/dev/null || echo "0")
             echo "Found $ALERT_COUNT open Dependabot alerts"
@@ -154,7 +155,7 @@ jobs:
 
       - name: Upload Assessment Results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: risk-assessment-results
           path: |
@@ -180,10 +181,11 @@ jobs:
         id: fetch-alerts
         run: |
           echo "Fetching code scanning alerts..."
+          # --paginate returns one JSON array per page; merge with jq -s 'add'
           gh api /repos/${{ github.repository }}/code-scanning/alerts \
             --paginate \
             --jq 'map(select(.state == "open"))' \
-            > code_scanning_alerts.json
+            | jq -s 'add // []' > code_scanning_alerts.json
 
           ALERT_COUNT=$(jq 'length' code_scanning_alerts.json)
           echo "Found $ALERT_COUNT open code scanning alerts"
@@ -238,7 +240,7 @@ jobs:
 
       - name: Upload Code Scanning Assessment
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: code-scanning-assessment
           path: |

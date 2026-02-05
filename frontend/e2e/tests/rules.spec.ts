@@ -8,14 +8,14 @@ import { test, expect } from '../fixtures/auth';
 test.describe('Rules / SCAP Content Page', () => {
   test('navigates to SCAP content page', async ({ authenticatedPage }) => {
     const page = authenticatedPage.page;
-    await page.goto('/scap-content');
+    await page.goto('/content');
     await page.waitForLoadState('networkidle');
-    await expect(page).toHaveURL(/\/scap-content/);
+    await expect(page).toHaveURL(/\/content/);
   });
 
   test('rules page renders content', async ({ authenticatedPage }) => {
     const page = authenticatedPage.page;
-    await page.goto('/scap-content');
+    await page.goto('/content');
     await page.waitForLoadState('networkidle');
 
     // Should show either rules table, content list, or some heading
@@ -27,7 +27,7 @@ test.describe('Rules / SCAP Content Page', () => {
 
   test('search input exists', async ({ authenticatedPage }) => {
     const page = authenticatedPage.page;
-    await page.goto('/scap-content');
+    await page.goto('/content');
     await page.waitForLoadState('networkidle');
 
     const searchInput = page.locator(
@@ -37,13 +37,13 @@ test.describe('Rules / SCAP Content Page', () => {
       await searchInput.first().fill('test-query');
       await page.waitForTimeout(500);
       // Page should remain stable
-      await expect(page).toHaveURL(/\/scap-content/);
+      await expect(page).toHaveURL(/\/content/);
     }
   });
 
   test('filter controls are present', async ({ authenticatedPage }) => {
     const page = authenticatedPage.page;
-    await page.goto('/scap-content');
+    await page.goto('/content');
     await page.waitForLoadState('networkidle');
 
     // Look for filter elements: selects, dropdowns, filter buttons, tabs

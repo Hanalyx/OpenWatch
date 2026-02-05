@@ -11,6 +11,18 @@ import {
   getAuthToken,
 } from '../useAuthHeaders';
 
+// Auth state type for testing (matches authSlice)
+interface AuthState {
+  user: { id: string; username: string; email: string; role: string; mfaEnabled: boolean } | null;
+  token: string | null;
+  refreshToken: string | null;
+  isAuthenticated: boolean;
+  isLoading: boolean;
+  error: string | null;
+  mfaRequired: boolean;
+  sessionExpiry: number | null;
+}
+
 // Mock storage module
 vi.mock('../../services/storage', () => ({
   storageGet: vi.fn(() => null),
@@ -32,13 +44,13 @@ vi.mock('../../services/storage', () => ({
 
 import { storageGet } from '../../services/storage';
 
-function makeWrapper(preloadedState: Record<string, unknown> = {}) {
+function makeWrapper(preloadedState: { auth: AuthState }) {
   const store = configureStore({
     reducer: { auth: authReducer },
     preloadedState,
   });
-  return function Wrapper({ children }: { children: React.ReactNode }) {
-    return React.createElement(Provider, { store }, children);
+  return function Wrapper({ children }: { children: React.ReactNode }): React.ReactElement {
+    return <Provider store={store}>{children}</Provider>;
   };
 }
 
