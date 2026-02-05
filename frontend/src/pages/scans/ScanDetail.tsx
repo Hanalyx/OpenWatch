@@ -37,7 +37,7 @@ import {
   Snackbar,
   Stack,
 } from '@mui/material';
-import Grid from '@mui/material/GridLegacy';
+import Grid from '@mui/material/Grid';
 import {
   ArrowBack as ArrowBackIcon,
   CheckCircle as CheckCircleIcon,
@@ -375,7 +375,7 @@ const ScanDetail: React.FC = () => {
         {/* Tab 4: Scan Information */}
         <TabPanel value={tabValue} index={4}>
           <Grid container spacing={3}>
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <Typography variant="h6" gutterBottom>
                 Scan Configuration
               </Typography>
@@ -416,7 +416,7 @@ const ScanDetail: React.FC = () => {
               </List>
             </Grid>
 
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <Typography variant="h6" gutterBottom>
                 Technical Details
               </Typography>

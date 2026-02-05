@@ -19,7 +19,7 @@ import {
   CircularProgress,
   Divider,
 } from '@mui/material';
-import Grid from '@mui/material/GridLegacy';
+import Grid from '@mui/material/Grid';
 import {
   Refresh as RefreshIcon,
   CheckCircle as CheckCircleIcon,
@@ -220,7 +220,7 @@ const IntegrationHealthDashboard: React.FC = () => {
       {/* Overall Health Status */}
       {healthMetrics && (
         <Grid container spacing={3} mb={4}>
-          <Grid item xs={12} md={3}>
+          <Grid size={{ xs: 12, md: 3 }}>
             <Card>
               <CardContent>
                 <Box display="flex" alignItems="center">
@@ -241,7 +241,7 @@ const IntegrationHealthDashboard: React.FC = () => {
             </Card>
           </Grid>
 
-          <Grid item xs={12} md={3}>
+          <Grid size={{ xs: 12, md: 3 }}>
             <Card>
               <CardContent>
                 <Box display="flex" alignItems="center">
@@ -258,7 +258,7 @@ const IntegrationHealthDashboard: React.FC = () => {
             </Card>
           </Grid>
 
-          <Grid item xs={12} md={3}>
+          <Grid size={{ xs: 12, md: 3 }}>
             <Card>
               <CardContent>
                 <Box display="flex" alignItems="center">
@@ -279,7 +279,7 @@ const IntegrationHealthDashboard: React.FC = () => {
             </Card>
           </Grid>
 
-          <Grid item xs={12} md={3}>
+          <Grid size={{ xs: 12, md: 3 }}>
             <Card>
               <CardContent>
                 <Box display="flex" alignItems="center">
@@ -311,7 +311,7 @@ const IntegrationHealthDashboard: React.FC = () => {
       {/* Performance Details */}
       {performanceData && (
         <Grid container spacing={3}>
-          <Grid item xs={12}>
+          <Grid size={{ xs: 12 }}>
             <Card>
               <CardContent>
                 <Typography variant="h6" gutterBottom>
@@ -394,7 +394,7 @@ const IntegrationHealthDashboard: React.FC = () => {
                   Summary Statistics
                 </Typography>
                 <Grid container spacing={2}>
-                  <Grid item xs={6} md={3}>
+                  <Grid size={{ xs: 6, md: 3 }}>
                     <Paper elevation={1} sx={{ p: 2, textAlign: 'center' }}>
                       <Typography variant="h4" color="primary">
                         {performanceData.summary.total_operations_1h}
@@ -402,7 +402,7 @@ const IntegrationHealthDashboard: React.FC = () => {
                       <Typography variant="caption">Total Operations (1h)</Typography>
                     </Paper>
                   </Grid>
-                  <Grid item xs={6} md={3}>
+                  <Grid size={{ xs: 6, md: 3 }}>
                     <Paper elevation={1} sx={{ p: 2, textAlign: 'center' }}>
                       <Typography variant="h4" color="primary">
                         {performanceData.summary.total_operations_24h}
@@ -410,7 +410,7 @@ const IntegrationHealthDashboard: React.FC = () => {
                       <Typography variant="caption">Total Operations (24h)</Typography>
                     </Paper>
                   </Grid>
-                  <Grid item xs={6} md={3}>
+                  <Grid size={{ xs: 6, md: 3 }}>
                     <Paper elevation={1} sx={{ p: 2, textAlign: 'center' }}>
                       <Typography
                         variant="h4"
@@ -421,7 +421,7 @@ const IntegrationHealthDashboard: React.FC = () => {
                       <Typography variant="caption">Avg Error Rate (1h)</Typography>
                     </Paper>
                   </Grid>
-                  <Grid item xs={6} md={3}>
+                  <Grid size={{ xs: 6, md: 3 }}>
                     <Paper elevation={1} sx={{ p: 2, textAlign: 'center' }}>
                       <Typography
                         variant="h4"

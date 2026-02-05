@@ -29,7 +29,7 @@ import {
   CircularProgress,
   Badge,
 } from '@mui/material';
-import Grid from '@mui/material/GridLegacy';
+import Grid from '@mui/material/Grid';
 import {
   Computer as ComputerIcon,
   Storage as StorageIcon,
@@ -361,7 +361,7 @@ const PlatformCapabilityView: React.FC<PlatformCapabilityViewProps> = ({ onRuleF
 
     return (
       <Grid container spacing={2}>
-        <Grid item xs={12} md={4}>
+        <Grid size={{ xs: 12, md: 4 }}>
           <Card sx={{ textAlign: 'center' }}>
             <CardContent>
               <Typography variant="h4" color="success.main" gutterBottom>
@@ -374,7 +374,7 @@ const PlatformCapabilityView: React.FC<PlatformCapabilityViewProps> = ({ onRuleF
           </Card>
         </Grid>
 
-        <Grid item xs={12} md={4}>
+        <Grid size={{ xs: 12, md: 4 }}>
           <Card sx={{ textAlign: 'center' }}>
             <CardContent>
               <Typography variant="h4" color="error.main" gutterBottom>
@@ -387,7 +387,7 @@ const PlatformCapabilityView: React.FC<PlatformCapabilityViewProps> = ({ onRuleF
           </Card>
         </Grid>
 
-        <Grid item xs={12} md={4}>
+        <Grid size={{ xs: 12, md: 4 }}>
           <Card sx={{ textAlign: 'center' }}>
             <CardContent>
               <Typography variant="h4" color="primary.main" gutterBottom>
@@ -400,7 +400,7 @@ const PlatformCapabilityView: React.FC<PlatformCapabilityViewProps> = ({ onRuleF
           </Card>
         </Grid>
 
-        <Grid item xs={12}>
+        <Grid size={{ xs: 12 }}>
           <Card>
             <CardContent>
               <Typography variant="subtitle2" gutterBottom>
@@ -455,7 +455,7 @@ const PlatformCapabilityView: React.FC<PlatformCapabilityViewProps> = ({ onRuleF
         </Typography>
 
         <Grid container spacing={2} alignItems="end">
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <TextField
               label="Target Host"
               value={targetHost}
@@ -465,7 +465,7 @@ const PlatformCapabilityView: React.FC<PlatformCapabilityViewProps> = ({ onRuleF
             />
           </Grid>
 
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <FormControl fullWidth size="small">
               <InputLabel>Platform</InputLabel>
               <Select
@@ -482,7 +482,7 @@ const PlatformCapabilityView: React.FC<PlatformCapabilityViewProps> = ({ onRuleF
             </FormControl>
           </Grid>
 
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <FormControl fullWidth size="small">
               <InputLabel>Version</InputLabel>
               <Select
@@ -499,7 +499,7 @@ const PlatformCapabilityView: React.FC<PlatformCapabilityViewProps> = ({ onRuleF
             </FormControl>
           </Grid>
 
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <Button
               variant="contained"
               onClick={handleDetection}
@@ -551,7 +551,7 @@ const PlatformCapabilityView: React.FC<PlatformCapabilityViewProps> = ({ onRuleF
                 {/* Filters */}
                 <Paper sx={{ p: 2 }}>
                   <Grid container spacing={2} alignItems="center">
-                    <Grid item xs={12} sm={6} md={4}>
+                    <Grid size={{ xs: 12, sm: 6, md: 4 }}>
                       <TextField
                         label="Search capabilities"
                         value={filter.search}
@@ -561,7 +561,7 @@ const PlatformCapabilityView: React.FC<PlatformCapabilityViewProps> = ({ onRuleF
                       />
                     </Grid>
 
-                    <Grid item xs={12} sm={3} md={2}>
+                    <Grid size={{ xs: 12, sm: 3, md: 2 }}>
                       <FormControl fullWidth size="small">
                         <InputLabel>Status</InputLabel>
                         <Select
@@ -582,7 +582,7 @@ const PlatformCapabilityView: React.FC<PlatformCapabilityViewProps> = ({ onRuleF
                       </FormControl>
                     </Grid>
 
-                    <Grid item xs={12} sm={3} md={2}>
+                    <Grid size={{ xs: 12, sm: 3, md: 2 }}>
                       <FormControl fullWidth size="small">
                         <InputLabel>Category</InputLabel>
                         <Select

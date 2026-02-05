@@ -23,7 +23,7 @@ import {
   MenuItem,
   Tooltip,
 } from '@mui/material';
-import Grid from '@mui/material/GridLegacy';
+import Grid from '@mui/material/Grid';
 import {
   CheckCircle as CheckCircleIcon,
   Cancel as CancelIcon,
@@ -105,7 +105,7 @@ const ScanRulesTable: React.FC<ScanRulesTableProps> = ({
     <>
       <Box mb={2}>
         <Grid container spacing={2} alignItems="center">
-          <Grid item xs={12} md={variant === 'all' ? 4 : 6}>
+          <Grid size={{ xs: 12, md: variant === 'all' ? 4 : 6 }}>
             <TextField
               fullWidth
               variant="outlined"
@@ -122,7 +122,7 @@ const ScanRulesTable: React.FC<ScanRulesTableProps> = ({
             />
           </Grid>
           {variant === 'all' && (
-            <Grid item xs={12} md={3}>
+            <Grid size={{ xs: 12, md: 3 }}>
               <TextField
                 fullWidth
                 select
@@ -138,7 +138,7 @@ const ScanRulesTable: React.FC<ScanRulesTableProps> = ({
               </TextField>
             </Grid>
           )}
-          <Grid item xs={12} md={3}>
+          <Grid size={{ xs: 12, md: 3 }}>
             <TextField
               fullWidth
               select
@@ -152,7 +152,7 @@ const ScanRulesTable: React.FC<ScanRulesTableProps> = ({
               <MenuItem value="low">Low</MenuItem>
             </TextField>
           </Grid>
-          <Grid item xs={12} md={variant === 'all' ? 2 : 3}>
+          <Grid size={{ xs: 12, md: variant === 'all' ? 2 : 3 }}>
             <Typography variant="body2" color="text.secondary">
               {variant === 'failed'
                 ? `Showing ${displayRules.length} failed rules`

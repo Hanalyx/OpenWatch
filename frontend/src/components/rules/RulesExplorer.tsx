@@ -12,7 +12,7 @@ import {
   IconButton,
   Fab,
 } from '@mui/material';
-import Grid from '@mui/material/GridLegacy';
+import Grid from '@mui/material/Grid';
 import {
   Download as DownloadIcon,
   Close as CloseIcon,
@@ -411,10 +411,11 @@ const RulesExplorer: React.FC<RulesExplorerProps> = ({ onRuleSelect }) => {
                 {isLoading
                   ? Array.from({ length: 8 }).map((_, index) => (
                       <Grid
-                        item
-                        xs={12}
-                        sm={viewMode === 'grid' ? 6 : 12}
-                        lg={viewMode === 'grid' ? 4 : 12}
+                        size={{
+                          xs: 12,
+                          sm: viewMode === 'grid' ? 6 : 12,
+                          lg: viewMode === 'grid' ? 4 : 12,
+                        }}
                         key={`skeleton-${index}`}
                       >
                         <Skeleton
@@ -426,10 +427,11 @@ const RulesExplorer: React.FC<RulesExplorerProps> = ({ onRuleSelect }) => {
                     ))
                   : displayRules.map((rule) => (
                       <Grid
-                        item
-                        xs={12}
-                        sm={viewMode === 'grid' ? 6 : 12}
-                        lg={viewMode === 'grid' ? 4 : 12}
+                        size={{
+                          xs: 12,
+                          sm: viewMode === 'grid' ? 6 : 12,
+                          lg: viewMode === 'grid' ? 4 : 12,
+                        }}
                         key={rule.rule_id}
                       >
                         <RuleCard

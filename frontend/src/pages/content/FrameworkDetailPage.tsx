@@ -25,7 +25,7 @@ import {
   TableHead,
   TableRow,
 } from '@mui/material';
-import Grid from '@mui/material/GridLegacy';
+import Grid from '@mui/material/Grid';
 import {
   Home as HomeIcon,
   Article as ArticleIcon,
@@ -131,7 +131,7 @@ export const FrameworkDetailPage: React.FC = () => {
       {/* Header */}
       <Paper sx={{ p: 3, mb: 3 }}>
         <Grid container spacing={2} alignItems="center">
-          <Grid item xs={12} md={8}>
+          <Grid size={{ xs: 12, md: 8 }}>
             <Typography variant="h4" gutterBottom>
               {details.display_name}
             </Typography>
@@ -144,7 +144,7 @@ export const FrameworkDetailPage: React.FC = () => {
               <Chip label={`${details.variable_count} Variables`} variant="outlined" />
             </Box>
           </Grid>
-          <Grid item xs={12} md={4} textAlign="right">
+          <Grid size={{ xs: 12, md: 4 }} textAlign="right">
             <Button
               variant="contained"
               startIcon={<AddIcon />}
@@ -175,19 +175,19 @@ export const FrameworkDetailPage: React.FC = () => {
               Framework Information
             </Typography>
             <Grid container spacing={2}>
-              <Grid item xs={12} sm={6}>
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <Typography variant="subtitle2" color="text.secondary">
                   Framework ID
                 </Typography>
                 <Typography variant="body1">{framework}</Typography>
               </Grid>
-              <Grid item xs={12} sm={6}>
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <Typography variant="subtitle2" color="text.secondary">
                   Version
                 </Typography>
                 <Typography variant="body1">{version}</Typography>
               </Grid>
-              <Grid item xs={12}>
+              <Grid size={{ xs: 12 }}>
                 <Typography variant="subtitle2" color="text.secondary">
                   Description
                 </Typography>

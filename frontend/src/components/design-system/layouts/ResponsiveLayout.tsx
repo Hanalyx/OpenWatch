@@ -10,7 +10,7 @@ import {
   Skeleton,
   Stack,
 } from '@mui/material';
-import Grid from '@mui/material/GridLegacy';
+import Grid from '@mui/material/Grid';
 import { type SxProps, type Theme } from '@mui/material/styles';
 
 interface ResponsiveLayoutProps {
@@ -114,7 +114,7 @@ const ResponsiveLayout: React.FC<ResponsiveLayoutProps> = ({
           <Skeleton variant="rectangular" height={60} sx={{ mb: 2, borderRadius: 2 }} />
           <Grid container spacing={2}>
             {[...Array(config.statisticsColumns)].map((_, index) => (
-              <Grid item xs={12} sm={6} md={3} key={index}>
+              <Grid size={{ xs: 12, sm: 6, md: 3 }} key={index}>
                 <Skeleton variant="rectangular" height={120} sx={{ borderRadius: 2 }} />
               </Grid>
             ))}
@@ -199,7 +199,7 @@ const ResponsiveLayout: React.FC<ResponsiveLayoutProps> = ({
           {statistics.loading ? (
             <Grid container spacing={2}>
               {[...Array(config.statisticsColumns)].map((_, index) => (
-                <Grid item xs={12} sm={6} md={12 / config.statisticsColumns} key={index}>
+                <Grid size={{ xs: 12, sm: 6, md: 12 / config.statisticsColumns }} key={index}>
                   <Skeleton variant="rectangular" height={120} sx={{ borderRadius: 2 }} />
                 </Grid>
               ))}
@@ -216,11 +216,12 @@ const ResponsiveLayout: React.FC<ResponsiveLayoutProps> = ({
           <Grid container spacing={3}>
             {/* Sidebar */}
             <Grid
-              item
-              xs={sidebar.width?.xs || 12}
-              sm={sidebar.width?.sm || 4}
-              md={sidebar.width?.md || 3}
-              lg={sidebar.width?.lg || 3}
+              size={{
+                xs: sidebar.width?.xs || 12,
+                sm: sidebar.width?.sm || 4,
+                md: sidebar.width?.md || 3,
+                lg: sidebar.width?.lg || 3,
+              }}
               order={sidebar.position === 'right' ? 2 : 1}
             >
               <Paper
@@ -238,11 +239,12 @@ const ResponsiveLayout: React.FC<ResponsiveLayoutProps> = ({
 
             {/* Main Content */}
             <Grid
-              item
-              xs={12 - (sidebar.width?.xs || 0)}
-              sm={12 - (sidebar.width?.sm || 4)}
-              md={12 - (sidebar.width?.md || 3)}
-              lg={12 - (sidebar.width?.lg || 3)}
+              size={{
+                xs: 12 - (sidebar.width?.xs || 0),
+                sm: 12 - (sidebar.width?.sm || 4),
+                md: 12 - (sidebar.width?.md || 3),
+                lg: 12 - (sidebar.width?.lg || 3),
+              }}
               order={sidebar.position === 'right' ? 1 : 2}
             >
               {children}

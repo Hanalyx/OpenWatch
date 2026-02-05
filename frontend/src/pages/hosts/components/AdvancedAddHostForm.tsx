@@ -34,7 +34,7 @@ import {
   ListItemText,
   LinearProgress,
 } from '@mui/material';
-import Grid from '@mui/material/GridLegacy';
+import Grid from '@mui/material/Grid';
 import {
   Computer,
   ExpandMore,
@@ -153,7 +153,7 @@ export const AdvancedAddHostForm: React.FC<AdvancedAddHostFormProps> = ({
         <StepLabel>Host Connection</StepLabel>
         <StepContent>
           <Grid container spacing={3}>
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
                 label="Hostname/FQDN"
@@ -163,7 +163,7 @@ export const AdvancedAddHostForm: React.FC<AdvancedAddHostFormProps> = ({
                 required
               />
             </Grid>
-            <Grid item xs={12} md={4}>
+            <Grid size={{ xs: 12, md: 4 }}>
               <TextField
                 fullWidth
                 label="IP Address (Optional)"
@@ -172,7 +172,7 @@ export const AdvancedAddHostForm: React.FC<AdvancedAddHostFormProps> = ({
                 placeholder="192.168.1.100"
               />
             </Grid>
-            <Grid item xs={12} md={2}>
+            <Grid size={{ xs: 12, md: 2 }}>
               <TextField
                 fullWidth
                 label="SSH Port"
@@ -181,7 +181,7 @@ export const AdvancedAddHostForm: React.FC<AdvancedAddHostFormProps> = ({
                 type="number"
               />
             </Grid>
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
                 label="Display Name"
@@ -190,7 +190,7 @@ export const AdvancedAddHostForm: React.FC<AdvancedAddHostFormProps> = ({
                 placeholder="Production Web Server"
               />
             </Grid>
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <FormControl fullWidth>
                 <InputLabel>Operating System</InputLabel>
                 <Select
@@ -207,7 +207,7 @@ export const AdvancedAddHostForm: React.FC<AdvancedAddHostFormProps> = ({
               </FormControl>
             </Grid>
 
-            <Grid item xs={12}>
+            <Grid size={{ xs: 12 }}>
               <FormControlLabel
                 control={
                   <Switch
@@ -221,7 +221,7 @@ export const AdvancedAddHostForm: React.FC<AdvancedAddHostFormProps> = ({
 
             {formData.useBastion && (
               <>
-                <Grid item xs={12} md={4}>
+                <Grid size={{ xs: 12, md: 4 }}>
                   <TextField
                     fullWidth
                     label="Bastion Host"
@@ -230,7 +230,7 @@ export const AdvancedAddHostForm: React.FC<AdvancedAddHostFormProps> = ({
                     placeholder="bastion.example.com"
                   />
                 </Grid>
-                <Grid item xs={12} md={4}>
+                <Grid size={{ xs: 12, md: 4 }}>
                   <TextField
                     fullWidth
                     label="Bastion Port"
@@ -239,7 +239,7 @@ export const AdvancedAddHostForm: React.FC<AdvancedAddHostFormProps> = ({
                     type="number"
                   />
                 </Grid>
-                <Grid item xs={12} md={4}>
+                <Grid size={{ xs: 12, md: 4 }}>
                   <TextField
                     fullWidth
                     label="Bastion User"
@@ -250,7 +250,7 @@ export const AdvancedAddHostForm: React.FC<AdvancedAddHostFormProps> = ({
               </>
             )}
 
-            <Grid item xs={12}>
+            <Grid size={{ xs: 12 }}>
               <Box sx={{ mt: 2, display: 'flex', gap: 2 }}>
                 <Button onClick={onCancel}>Cancel</Button>
                 <Button variant="contained" onClick={onNext}>
@@ -267,7 +267,7 @@ export const AdvancedAddHostForm: React.FC<AdvancedAddHostFormProps> = ({
         <StepLabel>Authentication</StepLabel>
         <StepContent>
           <Grid container spacing={3}>
-            <Grid item xs={12}>
+            <Grid size={{ xs: 12 }}>
               <FormControl component="fieldset">
                 <RadioGroup
                   value={formData.authMethod}
@@ -292,7 +292,7 @@ export const AdvancedAddHostForm: React.FC<AdvancedAddHostFormProps> = ({
               </FormControl>
             </Grid>
 
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
                 label="Username"
@@ -309,7 +309,7 @@ export const AdvancedAddHostForm: React.FC<AdvancedAddHostFormProps> = ({
             </Grid>
 
             {formData.authMethod === 'password' && (
-              <Grid item xs={12} md={6}>
+              <Grid size={{ xs: 12, md: 6 }}>
                 <TextField
                   fullWidth
                   type={showPassword ? 'text' : 'password'}
@@ -330,7 +330,7 @@ export const AdvancedAddHostForm: React.FC<AdvancedAddHostFormProps> = ({
             )}
 
             {formData.authMethod === 'system_default' && (
-              <Grid item xs={12}>
+              <Grid size={{ xs: 12 }}>
                 <SSHKeyDisplay
                   isSystemDefault={true}
                   systemDefaultLabel="This host will use the system default SSH credentials configured in system settings"
@@ -341,7 +341,7 @@ export const AdvancedAddHostForm: React.FC<AdvancedAddHostFormProps> = ({
             )}
 
             {formData.authMethod === 'ssh_key' && (
-              <Grid item xs={12}>
+              <Grid size={{ xs: 12 }}>
                 <TextField
                   fullWidth
                   label="SSH Private Key"
@@ -358,7 +358,7 @@ export const AdvancedAddHostForm: React.FC<AdvancedAddHostFormProps> = ({
             )}
 
             {formData.authMethod === 'certificate' && (
-              <Grid item xs={12} md={6}>
+              <Grid size={{ xs: 12, md: 6 }}>
                 <TextField
                   fullWidth
                   label="Certificate Path"
@@ -369,7 +369,7 @@ export const AdvancedAddHostForm: React.FC<AdvancedAddHostFormProps> = ({
             )}
 
             {formData.authMethod === 'agent' && (
-              <Grid item xs={12} md={6}>
+              <Grid size={{ xs: 12, md: 6 }}>
                 <TextField
                   fullWidth
                   label="Agent Token"
@@ -380,7 +380,7 @@ export const AdvancedAddHostForm: React.FC<AdvancedAddHostFormProps> = ({
               </Grid>
             )}
 
-            <Grid item xs={12}>
+            <Grid size={{ xs: 12 }}>
               <FormControlLabel
                 control={
                   <Switch
@@ -394,7 +394,7 @@ export const AdvancedAddHostForm: React.FC<AdvancedAddHostFormProps> = ({
 
             {formData.requireSudo && (
               <>
-                <Grid item xs={12} md={6}>
+                <Grid size={{ xs: 12, md: 6 }}>
                   <FormControl fullWidth>
                     <InputLabel>Privilege Escalation Method</InputLabel>
                     <Select
@@ -409,7 +409,7 @@ export const AdvancedAddHostForm: React.FC<AdvancedAddHostFormProps> = ({
                     </Select>
                   </FormControl>
                 </Grid>
-                <Grid item xs={12} md={6}>
+                <Grid size={{ xs: 12, md: 6 }}>
                   <TextField
                     fullWidth
                     type="password"
@@ -421,7 +421,7 @@ export const AdvancedAddHostForm: React.FC<AdvancedAddHostFormProps> = ({
               </>
             )}
 
-            <Grid item xs={12}>
+            <Grid size={{ xs: 12 }}>
               <Box sx={{ mt: 2, display: 'flex', gap: 2 }}>
                 <Button onClick={onBack}>Back</Button>
                 <Button variant="contained" onClick={onNext}>
@@ -438,7 +438,7 @@ export const AdvancedAddHostForm: React.FC<AdvancedAddHostFormProps> = ({
         <StepLabel>Classification</StepLabel>
         <StepContent>
           <Grid container spacing={3}>
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <FormControl fullWidth>
                 <InputLabel>Environment</InputLabel>
                 <Select
@@ -454,7 +454,7 @@ export const AdvancedAddHostForm: React.FC<AdvancedAddHostFormProps> = ({
               </FormControl>
             </Grid>
 
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
                 label="Host Group/Team"
@@ -464,7 +464,7 @@ export const AdvancedAddHostForm: React.FC<AdvancedAddHostFormProps> = ({
               />
             </Grid>
 
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
                 label="Owner/Responsible Team"
@@ -474,7 +474,7 @@ export const AdvancedAddHostForm: React.FC<AdvancedAddHostFormProps> = ({
               />
             </Grid>
 
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <Autocomplete
                 multiple
                 options={availableTags}
@@ -492,7 +492,7 @@ export const AdvancedAddHostForm: React.FC<AdvancedAddHostFormProps> = ({
               />
             </Grid>
 
-            <Grid item xs={12}>
+            <Grid size={{ xs: 12 }}>
               <Box sx={{ mt: 2, display: 'flex', gap: 2 }}>
                 <Button onClick={onBack}>Back</Button>
                 <Button variant="contained" onClick={onNext}>
@@ -509,7 +509,7 @@ export const AdvancedAddHostForm: React.FC<AdvancedAddHostFormProps> = ({
         <StepLabel>Scan Configuration</StepLabel>
         <StepContent>
           <Grid container spacing={3}>
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <FormControl fullWidth>
                 <InputLabel>Compliance Profile</InputLabel>
                 <Select
@@ -526,7 +526,7 @@ export const AdvancedAddHostForm: React.FC<AdvancedAddHostFormProps> = ({
               </FormControl>
             </Grid>
 
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <FormControl fullWidth>
                 <InputLabel>Scan Schedule</InputLabel>
                 <Select
@@ -544,7 +544,7 @@ export const AdvancedAddHostForm: React.FC<AdvancedAddHostFormProps> = ({
             </Grid>
 
             {formData.scanSchedule === 'custom' && (
-              <Grid item xs={12} md={6}>
+              <Grid size={{ xs: 12, md: 6 }}>
                 <TextField
                   fullWidth
                   label="Cron Expression"
@@ -556,7 +556,7 @@ export const AdvancedAddHostForm: React.FC<AdvancedAddHostFormProps> = ({
               </Grid>
             )}
 
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <FormControl fullWidth>
                 <InputLabel>Scan Intensity</InputLabel>
                 <Select
@@ -571,7 +571,7 @@ export const AdvancedAddHostForm: React.FC<AdvancedAddHostFormProps> = ({
               </FormControl>
             </Grid>
 
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <FormControl fullWidth>
                 <InputLabel>Scan Priority</InputLabel>
                 <Select
@@ -587,7 +587,7 @@ export const AdvancedAddHostForm: React.FC<AdvancedAddHostFormProps> = ({
             </Grid>
 
             {/* Advanced Options */}
-            <Grid item xs={12}>
+            <Grid size={{ xs: 12 }}>
               <Button
                 onClick={() => onShowAdvancedToggle(!showAdvanced)}
                 endIcon={showAdvanced ? <ExpandLess /> : <ExpandMore />}
@@ -598,7 +598,7 @@ export const AdvancedAddHostForm: React.FC<AdvancedAddHostFormProps> = ({
 
             <Collapse in={showAdvanced} timeout="auto" unmountOnExit>
               <Grid container spacing={3} sx={{ mt: 0 }}>
-                <Grid item xs={12} md={6}>
+                <Grid size={{ xs: 12, md: 6 }}>
                   <TextField
                     fullWidth
                     label="Bandwidth Limit (KB/s)"
@@ -609,7 +609,7 @@ export const AdvancedAddHostForm: React.FC<AdvancedAddHostFormProps> = ({
                   />
                 </Grid>
 
-                <Grid item xs={12} md={3}>
+                <Grid size={{ xs: 12, md: 3 }}>
                   <TextField
                     fullWidth
                     label="Connection Timeout (s)"
@@ -619,7 +619,7 @@ export const AdvancedAddHostForm: React.FC<AdvancedAddHostFormProps> = ({
                   />
                 </Grid>
 
-                <Grid item xs={12} md={3}>
+                <Grid size={{ xs: 12, md: 3 }}>
                   <TextField
                     fullWidth
                     label="Scan Timeout (s)"
@@ -629,7 +629,7 @@ export const AdvancedAddHostForm: React.FC<AdvancedAddHostFormProps> = ({
                   />
                 </Grid>
 
-                <Grid item xs={12}>
+                <Grid size={{ xs: 12 }}>
                   <TextField
                     fullWidth
                     label="Exclude Paths (one per line)"
@@ -641,7 +641,7 @@ export const AdvancedAddHostForm: React.FC<AdvancedAddHostFormProps> = ({
                   />
                 </Grid>
 
-                <Grid item xs={12} md={6}>
+                <Grid size={{ xs: 12, md: 6 }}>
                   <TextField
                     fullWidth
                     label="Proxy Host"
@@ -651,7 +651,7 @@ export const AdvancedAddHostForm: React.FC<AdvancedAddHostFormProps> = ({
                   />
                 </Grid>
 
-                <Grid item xs={12} md={6}>
+                <Grid size={{ xs: 12, md: 6 }}>
                   <TextField
                     fullWidth
                     label="Proxy Port"
@@ -661,7 +661,7 @@ export const AdvancedAddHostForm: React.FC<AdvancedAddHostFormProps> = ({
                   />
                 </Grid>
 
-                <Grid item xs={12} md={6}>
+                <Grid size={{ xs: 12, md: 6 }}>
                   <TextField
                     fullWidth
                     label="Pre-Scan Script"
@@ -673,7 +673,7 @@ export const AdvancedAddHostForm: React.FC<AdvancedAddHostFormProps> = ({
                   />
                 </Grid>
 
-                <Grid item xs={12} md={6}>
+                <Grid size={{ xs: 12, md: 6 }}>
                   <TextField
                     fullWidth
                     label="Post-Scan Script"
@@ -687,7 +687,7 @@ export const AdvancedAddHostForm: React.FC<AdvancedAddHostFormProps> = ({
               </Grid>
             </Collapse>
 
-            <Grid item xs={12}>
+            <Grid size={{ xs: 12 }}>
               <Box sx={{ mt: 2, display: 'flex', gap: 2 }}>
                 <Button onClick={onBack}>Back</Button>
                 <Button variant="contained" onClick={onNext}>
@@ -704,7 +704,7 @@ export const AdvancedAddHostForm: React.FC<AdvancedAddHostFormProps> = ({
         <StepLabel>Review & Test</StepLabel>
         <StepContent>
           <Grid container spacing={3}>
-            <Grid item xs={12}>
+            <Grid size={{ xs: 12 }}>
               <Card variant="outlined">
                 <CardContent>
                   <Typography variant="h6" gutterBottom>
@@ -713,7 +713,7 @@ export const AdvancedAddHostForm: React.FC<AdvancedAddHostFormProps> = ({
                   <Divider sx={{ my: 2 }} />
 
                   <Grid container spacing={2}>
-                    <Grid item xs={12} md={6}>
+                    <Grid size={{ xs: 12, md: 6 }}>
                       <List dense>
                         <ListItem>
                           <ListItemIcon>
@@ -754,7 +754,7 @@ export const AdvancedAddHostForm: React.FC<AdvancedAddHostFormProps> = ({
                       </List>
                     </Grid>
 
-                    <Grid item xs={12} md={6}>
+                    <Grid size={{ xs: 12, md: 6 }}>
                       <List dense>
                         <ListItem>
                           <ListItemIcon>
@@ -817,7 +817,7 @@ export const AdvancedAddHostForm: React.FC<AdvancedAddHostFormProps> = ({
             </Grid>
 
             {connectionStatus !== 'idle' && (
-              <Grid item xs={12}>
+              <Grid size={{ xs: 12 }}>
                 <Alert
                   severity={
                     connectionStatus === 'success'
@@ -855,7 +855,7 @@ export const AdvancedAddHostForm: React.FC<AdvancedAddHostFormProps> = ({
               </Grid>
             )}
 
-            <Grid item xs={12}>
+            <Grid size={{ xs: 12 }}>
               <Box sx={{ mt: 2, display: 'flex', gap: 2 }}>
                 <Button onClick={onBack}>Back</Button>
                 <Button onClick={onCancel}>Cancel</Button>

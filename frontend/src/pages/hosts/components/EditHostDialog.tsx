@@ -29,7 +29,7 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import Grid from '@mui/material/GridLegacy';
+import Grid from '@mui/material/Grid';
 import {
   CheckCircle,
   CheckCircleOutline,
@@ -148,7 +148,7 @@ function EditHostDialog({
       <DialogTitle>Edit Host</DialogTitle>
       <DialogContent>
         <Grid container spacing={3} sx={{ mt: 1 }}>
-          <Grid item xs={12} sm={6}>
+          <Grid size={{ xs: 12, sm: 6 }}>
             <TextField
               fullWidth
               label="Hostname"
@@ -156,7 +156,7 @@ function EditHostDialog({
               onChange={(e) => onFormChange((prev) => ({ ...prev, hostname: e.target.value }))}
             />
           </Grid>
-          <Grid item xs={12} sm={6}>
+          <Grid size={{ xs: 12, sm: 6 }}>
             <TextField
               fullWidth
               label="Display Name"
@@ -164,7 +164,7 @@ function EditHostDialog({
               onChange={(e) => onFormChange((prev) => ({ ...prev, displayName: e.target.value }))}
             />
           </Grid>
-          <Grid item xs={12} sm={6}>
+          <Grid size={{ xs: 12, sm: 6 }}>
             <TextField
               fullWidth
               label="IP Address"
@@ -172,7 +172,7 @@ function EditHostDialog({
               onChange={(e) => onFormChange((prev) => ({ ...prev, ipAddress: e.target.value }))}
             />
           </Grid>
-          <Grid item xs={12} sm={6}>
+          <Grid size={{ xs: 12, sm: 6 }}>
             <TextField
               fullWidth
               label="Operating System"
@@ -182,7 +182,7 @@ function EditHostDialog({
               }
             />
           </Grid>
-          <Grid item xs={12} sm={6}>
+          <Grid size={{ xs: 12, sm: 6 }}>
             <TextField
               fullWidth
               label="Port"
@@ -193,7 +193,7 @@ function EditHostDialog({
               }
             />
           </Grid>
-          <Grid item xs={12} sm={6}>
+          <Grid size={{ xs: 12, sm: 6 }}>
             <TextField
               fullWidth
               label="Username"
@@ -201,7 +201,7 @@ function EditHostDialog({
               onChange={(e) => onFormChange((prev) => ({ ...prev, username: e.target.value }))}
             />
           </Grid>
-          <Grid item xs={12}>
+          <Grid size={{ xs: 12 }}>
             <Box
               sx={{
                 display: 'flex',
@@ -251,7 +251,7 @@ function EditHostDialog({
 
           {/* SSH Key Input - Show when SSH Key authentication is selected and editing or not validated */}
           {editFormData.authMethod === 'ssh_key' && (editingAuthMethod || !sshKeyValidated) && (
-            <Grid item xs={12}>
+            <Grid size={{ xs: 12 }}>
               <TextField
                 fullWidth
                 label="SSH Private Key"
@@ -285,7 +285,7 @@ function EditHostDialog({
 
           {/* SSH Key Validated Display - Show when SSH key is validated and not editing */}
           {editFormData.authMethod === 'ssh_key' && sshKeyValidated && !editingAuthMethod && (
-            <Grid item xs={12}>
+            <Grid size={{ xs: 12 }}>
               <Card
                 sx={{
                   border: '2px solid',
@@ -311,7 +311,7 @@ function EditHostDialog({
 
           {/* Password Input - Show when Password authentication is selected */}
           {editFormData.authMethod === 'password' && (
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
                 type={showPassword ? 'text' : 'password'}
@@ -340,7 +340,7 @@ function EditHostDialog({
 
           {/* System Default Credentials Display */}
           {editFormData.authMethod === 'system_default' && (
-            <Grid item xs={12}>
+            <Grid size={{ xs: 12 }}>
               <Card
                 sx={{
                   border: '2px solid',

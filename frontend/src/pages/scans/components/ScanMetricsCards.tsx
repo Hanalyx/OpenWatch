@@ -5,7 +5,7 @@
 
 import React from 'react';
 import { Box, Card, CardContent, Typography, LinearProgress, Tooltip } from '@mui/material';
-import Grid from '@mui/material/GridLegacy';
+import Grid from '@mui/material/Grid';
 import {
   Computer as ComputerIcon,
   Security as SecurityIcon,
@@ -22,7 +22,7 @@ interface ScanMetricsCardsProps {
 const ScanMetricsCards: React.FC<ScanMetricsCardsProps> = ({ scan }) => {
   return (
     <Grid container spacing={3} mb={3}>
-      <Grid item xs={12} md={6} lg={3}>
+      <Grid size={{ xs: 12, md: 6, lg: 3 }}>
         <Card>
           <CardContent>
             <Box display="flex" alignItems="center" gap={1} mb={1}>
@@ -41,7 +41,7 @@ const ScanMetricsCards: React.FC<ScanMetricsCardsProps> = ({ scan }) => {
         </Card>
       </Grid>
 
-      <Grid item xs={12} md={6} lg={3}>
+      <Grid size={{ xs: 12, md: 6, lg: 3 }}>
         <Card>
           <CardContent>
             <Box display="flex" alignItems="center" gap={1} mb={1}>
@@ -69,7 +69,7 @@ const ScanMetricsCards: React.FC<ScanMetricsCardsProps> = ({ scan }) => {
         </Card>
       </Grid>
 
-      <Grid item xs={12} md={6} lg={3}>
+      <Grid size={{ xs: 12, md: 6, lg: 3 }}>
         <Card>
           <CardContent>
             <Box display="flex" alignItems="center" gap={1} mb={1}>
@@ -104,7 +104,7 @@ const ScanMetricsCards: React.FC<ScanMetricsCardsProps> = ({ scan }) => {
         </Card>
       </Grid>
 
-      <Grid item xs={12} md={6} lg={3}>
+      <Grid size={{ xs: 12, md: 6, lg: 3 }}>
         <Card>
           <CardContent>
             <Box display="flex" alignItems="center" gap={1} mb={1}>

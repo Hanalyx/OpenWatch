@@ -29,7 +29,7 @@ import {
   FormControl,
   InputLabel,
 } from '@mui/material';
-import Grid from '@mui/material/GridLegacy';
+import Grid from '@mui/material/Grid';
 import {
   Edit as EditIcon,
   Computer as HostIcon,
@@ -384,13 +384,13 @@ const GroupEditDialog: React.FC<GroupEditDialogProps> = ({
 
         <Grid container spacing={3}>
           {/* Basic Information */}
-          <Grid item xs={12}>
+          <Grid size={{ xs: 12 }}>
             <Typography variant="h6" gutterBottom>
               Basic Information
             </Typography>
           </Grid>
 
-          <Grid item xs={12} sm={6}>
+          <Grid size={{ xs: 12, sm: 6 }}>
             <TextField
               label="Group Name"
               value={name}
@@ -400,7 +400,7 @@ const GroupEditDialog: React.FC<GroupEditDialogProps> = ({
             />
           </Grid>
 
-          <Grid item xs={12} sm={6}>
+          <Grid size={{ xs: 12, sm: 6 }}>
             <TextField
               label="Description"
               value={description}
@@ -411,7 +411,7 @@ const GroupEditDialog: React.FC<GroupEditDialogProps> = ({
             />
           </Grid>
 
-          <Grid item xs={12}>
+          <Grid size={{ xs: 12 }}>
             <Box>
               <Typography variant="subtitle2" gutterBottom>
                 Group Color
@@ -439,18 +439,18 @@ const GroupEditDialog: React.FC<GroupEditDialogProps> = ({
             </Box>
           </Grid>
 
-          <Grid item xs={12}>
+          <Grid size={{ xs: 12 }}>
             <Divider />
           </Grid>
 
           {/* System Requirements */}
-          <Grid item xs={12}>
+          <Grid size={{ xs: 12 }}>
             <Typography variant="h6" gutterBottom>
               System Requirements
             </Typography>
           </Grid>
 
-          <Grid item xs={12} sm={4}>
+          <Grid size={{ xs: 12, sm: 4 }}>
             <FormControl fullWidth>
               <InputLabel>OS Family</InputLabel>
               <Select
@@ -477,7 +477,7 @@ const GroupEditDialog: React.FC<GroupEditDialogProps> = ({
             </FormControl>
           </Grid>
 
-          <Grid item xs={12} sm={4}>
+          <Grid size={{ xs: 12, sm: 4 }}>
             <TextField
               label="OS Version Pattern"
               value={osVersionPattern}
@@ -487,7 +487,7 @@ const GroupEditDialog: React.FC<GroupEditDialogProps> = ({
             />
           </Grid>
 
-          <Grid item xs={12} sm={4}>
+          <Grid size={{ xs: 12, sm: 4 }}>
             <FormControl fullWidth>
               <InputLabel>Architecture</InputLabel>
               <Select
@@ -514,18 +514,18 @@ const GroupEditDialog: React.FC<GroupEditDialogProps> = ({
             </FormControl>
           </Grid>
 
-          <Grid item xs={12}>
+          <Grid size={{ xs: 12 }}>
             <Divider />
           </Grid>
 
           {/* Compliance Configuration */}
-          <Grid item xs={12}>
+          <Grid size={{ xs: 12 }}>
             <Typography variant="h6" gutterBottom>
               Compliance Configuration
             </Typography>
           </Grid>
 
-          <Grid item xs={12} sm={6}>
+          <Grid size={{ xs: 12, sm: 6 }}>
             <Autocomplete
               options={availableScapContent}
               getOptionLabel={(option) => option.name}
@@ -589,7 +589,7 @@ const GroupEditDialog: React.FC<GroupEditDialogProps> = ({
             />
           </Grid>
 
-          <Grid item xs={12} sm={6}>
+          <Grid size={{ xs: 12, sm: 6 }}>
             {availableProfiles.length > 0 ? (
               <FormControl fullWidth>
                 <InputLabel>Default Profile</InputLabel>
@@ -630,7 +630,7 @@ const GroupEditDialog: React.FC<GroupEditDialogProps> = ({
             )}
           </Grid>
 
-          <Grid item xs={12} sm={6}>
+          <Grid size={{ xs: 12, sm: 6 }}>
             <FormControl fullWidth>
               <InputLabel>Compliance Framework</InputLabel>
               <Select
@@ -661,7 +661,7 @@ const GroupEditDialog: React.FC<GroupEditDialogProps> = ({
             </FormControl>
           </Grid>
 
-          <Grid item xs={12} sm={6}>
+          <Grid size={{ xs: 12, sm: 6 }}>
             <FormControlLabel
               control={
                 <Switch
@@ -721,12 +721,12 @@ const GroupEditDialog: React.FC<GroupEditDialogProps> = ({
             )}
           </Grid>
 
-          <Grid item xs={12}>
+          <Grid size={{ xs: 12 }}>
             <Divider />
           </Grid>
 
           {/* Host Management */}
-          <Grid item xs={12}>
+          <Grid size={{ xs: 12 }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <Typography variant="h6">Host Management ({groupHosts.length} hosts)</Typography>
               <Button variant="outlined" onClick={() => setShowHostManagement(!showHostManagement)}>
@@ -737,7 +737,7 @@ const GroupEditDialog: React.FC<GroupEditDialogProps> = ({
 
           {showHostManagement && (
             <>
-              <Grid item xs={12} sm={6}>
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <Paper sx={{ p: 2, maxHeight: 300, overflow: 'auto' }}>
                   <Typography variant="subtitle2" gutterBottom>
                     Hosts in Group
@@ -771,7 +771,7 @@ const GroupEditDialog: React.FC<GroupEditDialogProps> = ({
                 </Paper>
               </Grid>
 
-              <Grid item xs={12} sm={6}>
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <Paper sx={{ p: 2, maxHeight: 300, overflow: 'auto' }}>
                   <Typography variant="subtitle2" gutterBottom>
                     Available Hosts ({unassignedHosts.length})

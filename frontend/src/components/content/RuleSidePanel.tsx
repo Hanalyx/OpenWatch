@@ -12,7 +12,7 @@ import {
   Stack,
   Alert,
 } from '@mui/material';
-import Grid from '@mui/material/GridLegacy';
+import Grid from '@mui/material/Grid';
 import {
   Close as CloseIcon,
   Info as InfoIcon,
@@ -340,7 +340,7 @@ const RuleSidePanel: React.FC<RuleSidePanelProps> = ({ open, rule, onClose }) =>
 
                             <Grid container spacing={2}>
                               {impl.versions && impl.versions.length > 0 && (
-                                <Grid item xs={12}>
+                                <Grid size={{ xs: 12 }}>
                                   <Typography variant="body2" color="text.secondary" gutterBottom>
                                     Supported Versions
                                   </Typography>
@@ -354,7 +354,7 @@ const RuleSidePanel: React.FC<RuleSidePanelProps> = ({ open, rule, onClose }) =>
                               )}
 
                               {impl.check_command && (
-                                <Grid item xs={12}>
+                                <Grid size={{ xs: 12 }}>
                                   <Typography variant="body2" color="text.secondary" gutterBottom>
                                     Check Command
                                   </Typography>
@@ -376,7 +376,7 @@ const RuleSidePanel: React.FC<RuleSidePanelProps> = ({ open, rule, onClose }) =>
                               )}
 
                               {impl.enable_command && (
-                                <Grid item xs={12}>
+                                <Grid size={{ xs: 12 }}>
                                   <Typography variant="body2" color="text.secondary" gutterBottom>
                                     Enable Command
                                   </Typography>
