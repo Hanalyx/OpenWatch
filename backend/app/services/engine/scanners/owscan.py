@@ -1,9 +1,8 @@
 """
-Unified SCAP Scanner - MongoDB-Integrated Compliance Scanning
+OpenWatch Scanner (OWScanner) - MongoDB-Integrated Compliance Scanning
 
-This module provides the UnifiedSCAPScanner class, which combines functionality
-from mongodb_scap_scanner.py and scap_scanner.py into a single, cohesive scanner
-implementation for SCAP compliance scanning operations.
+This module provides the OWScanner class, OpenWatch's primary compliance scanner
+that integrates MongoDB rule management with SCAP execution capabilities.
 
 Key Features:
 - MongoDB-based rule selection and platform matching
@@ -12,10 +11,7 @@ Key Features:
 - Result enrichment with MongoDB rule intelligence
 - Platform-aware OVAL deduplication
 - Rule inheritance resolution
-
-Merged from:
-- backend/app/services/mongodb_scap_scanner.py (983 lines)
-- backend/app/services/scap_scanner.py (1,542 lines)
+- Delegates content operations to OSCAPScanner (no duplication)
 
 Design Philosophy:
 - Single scanner for all SCAP operations (unified API)
@@ -23,11 +19,12 @@ Design Philosophy:
 - Platform-specific OVAL for accurate compliance results
 - Security-first with input validation and safe XML generation
 - Defensive coding with comprehensive error handling
+- DRY: Delegates to OSCAPScanner for content validation/parsing
 
 Usage:
-    from app.services.engine.scanners import UnifiedSCAPScanner
+    from app.services.engine.scanners import OWScanner
 
-    scanner = UnifiedSCAPScanner()
+    scanner = OWScanner()
     await scanner.initialize()
 
     # Select platform-appropriate rules
@@ -52,6 +49,9 @@ Security Notes:
 - Command execution uses argument lists (no shell injection)
 - Profile IDs are validated against safe patterns
 - File paths validated to prevent traversal attacks
+
+Backward Compatibility:
+- UnifiedSCAPScanner is aliased to OWScanner for backward compatibility
 """
 
 import logging
@@ -70,16 +70,17 @@ from app.services.rules import RuleService
 from ..exceptions import ContentValidationError, ScanExecutionError, ScannerError
 from ..models import ExecutionContext, ScannerCapabilities, ScanProvider, ScanType
 from .base import BaseScanner
+from .oscap import OSCAPScanner
 
 logger = logging.getLogger(__name__)
 
 
-class UnifiedSCAPScanner(BaseScanner):
+class OWScanner(BaseScanner):
     """
-    Unified SCAP scanner with MongoDB rule integration.
+    OpenWatch Scanner - MongoDB-integrated SCAP compliance scanner.
 
-    This scanner combines MongoDB-based rule management with SCAP execution
-    capabilities, providing a complete solution for compliance scanning.
+    This is OpenWatch's primary scanner, combining MongoDB-based rule management
+    with SCAP execution capabilities for complete compliance scanning.
 
     The scanner supports:
     - Platform-specific rule selection from MongoDB
@@ -88,7 +89,11 @@ class UnifiedSCAPScanner(BaseScanner):
     - Result enrichment with rule intelligence
     - Rule inheritance resolution
 
+    Content operations (validation, profile extraction, result parsing) are
+    delegated to OSCAPScanner to avoid code duplication.
+
     Attributes:
+        oscap_scanner: OSCAPScanner instance for content operations
         mongo_service: MongoDB integration service for rule queries
         rule_service: Service for advanced rule operations
         platform_service: Platform capability detection service
@@ -97,7 +102,7 @@ class UnifiedSCAPScanner(BaseScanner):
         _initialized: Whether async services have been initialized
 
     Usage:
-        scanner = UnifiedSCAPScanner()
+        scanner = OWScanner()
         await scanner.initialize()
         rules = await scanner.select_platform_rules("rhel9", "9.0")
         result = await scanner.scan_with_rules(host_id, hostname, "rhel9", rules)
@@ -110,14 +115,14 @@ class UnifiedSCAPScanner(BaseScanner):
         encryption_service: Optional[Any] = None,
     ):
         """
-        Initialize the unified SCAP scanner.
+        Initialize the OpenWatch scanner.
 
         Args:
             content_dir: Directory for SCAP content (default: /app/data/scap)
             results_dir: Directory for scan results (default: /app/data/results)
             encryption_service: Encryption service for credential decryption
         """
-        super().__init__(name="UnifiedSCAPScanner")
+        super().__init__(name="OWScanner")
 
         # Use provided paths or defaults
         self.content_dir = Path(content_dir or "/openwatch/data/scap")
@@ -125,6 +130,9 @@ class UnifiedSCAPScanner(BaseScanner):
 
         # Encryption service for credential resolution
         self.encryption_service = encryption_service
+
+        # Delegate content operations to OSCAPScanner (DRY principle)
+        self.oscap_scanner = OSCAPScanner()
 
         # MongoDB integration services (initialized async)
         self.mongo_service: Optional[MongoIntegrationService] = None
@@ -207,7 +215,8 @@ class UnifiedSCAPScanner(BaseScanner):
         """
         Validate SCAP content file.
 
-        Uses oscap info to check content validity.
+        Delegates to OSCAPScanner for the actual validation to avoid
+        code duplication (DRY principle).
 
         Args:
             content_path: Path to SCAP content file.
@@ -218,55 +227,22 @@ class UnifiedSCAPScanner(BaseScanner):
         Raises:
             ContentValidationError: If validation fails.
         """
-        import subprocess
-
-        try:
-            if not content_path.exists():
-                raise ContentValidationError(
-                    message=f"Content file not found: {content_path}",
-                    content_path=str(content_path),
-                )
-
-            # Validate path to prevent traversal
-            if ".." in str(content_path):
-                raise ContentValidationError(
-                    message="Invalid path: directory traversal detected",
-                    content_path=str(content_path),
-                )
-
-            result = subprocess.run(
-                ["oscap", "info", str(content_path)],
-                capture_output=True,
-                text=True,
-                timeout=30,
-            )
-
-            if result.returncode != 0:
-                raise ContentValidationError(
-                    message=f"Invalid SCAP content: {result.stderr[:500]}",
-                    content_path=str(content_path),
-                )
-
-            self.log_validation_result(content_path, True)
-            return True
-
-        except subprocess.TimeoutExpired:
+        # Additional path traversal check before delegation
+        if ".." in str(content_path):
             raise ContentValidationError(
-                message="Timeout validating SCAP content",
+                message="Invalid path: directory traversal detected",
                 content_path=str(content_path),
             )
-        except ContentValidationError:
-            raise
-        except Exception as e:
-            raise ContentValidationError(
-                message=f"Content validation failed: {e}",
-                content_path=str(content_path),
-                cause=e,
-            )
+
+        # Delegate to OSCAPScanner
+        return self.oscap_scanner.validate_content(content_path)
 
     def extract_profiles(self, content_path: Path) -> List[Dict[str, Any]]:
         """
         Extract available profiles from SCAP content.
+
+        Delegates to OSCAPScanner for the actual extraction to avoid
+        code duplication (DRY principle).
 
         Args:
             content_path: Path to SCAP content file.
@@ -277,46 +253,8 @@ class UnifiedSCAPScanner(BaseScanner):
         Raises:
             ContentValidationError: If extraction fails.
         """
-        import subprocess
-
-        try:
-            if not content_path.exists():
-                raise ContentValidationError(
-                    message=f"Content file not found: {content_path}",
-                    content_path=str(content_path),
-                )
-
-            result = subprocess.run(
-                ["oscap", "info", "--profiles", str(content_path)],
-                capture_output=True,
-                text=True,
-                timeout=30,
-            )
-
-            if result.returncode != 0:
-                raise ContentValidationError(
-                    message=f"Failed to extract profiles: {result.stderr[:500]}",
-                    content_path=str(content_path),
-                )
-
-            profiles = self._parse_profiles_output(result.stdout)
-            self._logger.info("Extracted %d profiles from %s", len(profiles), content_path.name)
-
-            return profiles
-
-        except subprocess.TimeoutExpired:
-            raise ContentValidationError(
-                message="Timeout extracting profiles",
-                content_path=str(content_path),
-            )
-        except ContentValidationError:
-            raise
-        except Exception as e:
-            raise ContentValidationError(
-                message=f"Profile extraction failed: {e}",
-                content_path=str(content_path),
-                cause=e,
-            )
+        # Delegate to OSCAPScanner
+        return self.oscap_scanner.extract_profiles(content_path)
 
     def parse_results(self, result_path: Path, result_format: str = "xccdf") -> Dict[str, Any]:
         """
@@ -1426,34 +1364,6 @@ class UnifiedSCAPScanner(BaseScanner):
     # Utility Methods
     # =========================================================================
 
-    def _parse_profiles_output(self, output: str) -> List[Dict[str, Any]]:
-        """Parse oscap info --profiles output."""
-        profiles: List[Dict[str, Any]] = []
-        lines = output.split("\n")
-
-        current_profile: Optional[Dict[str, Any]] = None
-
-        for line in lines:
-            line = line.strip()
-
-            if line.startswith("Profile ID:"):
-                if current_profile:
-                    profiles.append(current_profile)
-                current_profile = {
-                    "id": line.split(":", 1)[1].strip(),
-                    "title": "",
-                    "description": "",
-                }
-            elif line.startswith("Title:") and current_profile:
-                current_profile["title"] = line.split(":", 1)[1].strip()
-            elif line.startswith("Description:") and current_profile:
-                current_profile["description"] = line.split(":", 1)[1].strip()
-
-        if current_profile:
-            profiles.append(current_profile)
-
-        return profiles
-
     def _parse_basic_results(self, result_path: Path) -> Dict[str, Any]:
         """Basic result parsing fallback."""
         try:
@@ -2129,3 +2039,12 @@ class UnifiedSCAPScanner(BaseScanner):
         except Exception as e:
             self._logger.error("Error parsing scan results: %s", e)
             return {"error": f"Failed to parse results: {str(e)}"}
+
+
+# =============================================================================
+# Backward Compatibility Alias
+# =============================================================================
+
+# Alias for backward compatibility with existing code that imports
+# UnifiedSCAPScanner. New code should use OWScanner directly.
+UnifiedSCAPScanner = OWScanner

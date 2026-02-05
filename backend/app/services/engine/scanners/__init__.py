@@ -12,26 +12,29 @@ Scanners are responsible for:
 
 Available Scanners:
 - BaseScanner: Abstract base class defining the scanner interface
-- UnifiedSCAPScanner: Primary SCAP scanner with MongoDB rule integration
+- OWScanner: OpenWatch's primary SCAP scanner with MongoDB rule integration
 - OSCAPScanner: OpenSCAP-based content validation and profile extraction
 - KubernetesScanner: Kubernetes/OpenShift compliance scanner
 
 Scanner Registry (ScannerFactory):
-- "scap" -> UnifiedSCAPScanner (primary, MongoDB-integrated)
+- "scap" or "owscan" -> OWScanner (primary, MongoDB-integrated)
 - "oscap" -> OSCAPScanner (content operations, validation)
 - "kubernetes" -> KubernetesScanner (K8s/OpenShift)
 
+Backward Compatibility:
+- UnifiedSCAPScanner is an alias for OWScanner
+
 Usage:
     from app.services.engine.scanners import (
-        UnifiedSCAPScanner,
+        OWScanner,
         OSCAPScanner,
         KubernetesScanner,
         ScannerFactory,
-        get_unified_scanner,
+        get_ow_scanner,
     )
 
-    # Get unified scanner for MongoDB-integrated scanning (recommended)
-    scanner = get_unified_scanner()
+    # Get OWScanner for MongoDB-integrated scanning (recommended)
+    scanner = get_ow_scanner()
     await scanner.initialize()
     result = await scanner.scan_with_rules(
         host_id=host_id,
@@ -53,7 +56,7 @@ Architecture Notes:
 - Scanners do NOT handle execution (that's the executor's job)
 - Scanners focus on content validation and result parsing
 - Scanner capabilities advertise what each scanner supports
-- UnifiedSCAPScanner is the primary scanner for compliance operations
+- OWScanner is the primary scanner for compliance operations
 """
 
 import logging
@@ -68,7 +71,7 @@ logger = logging.getLogger(__name__)
 from .base import BaseScanner  # noqa: F401, E402
 from .kubernetes import KubernetesScanner  # noqa: F401, E402
 from .oscap import OSCAPScanner  # noqa: F401, E402
-from .scap import UnifiedSCAPScanner  # noqa: F401, E402
+from .owscan import OWScanner, UnifiedSCAPScanner  # noqa: F401, E402
 
 
 def get_scanner(provider: ScanProvider) -> BaseScanner:
@@ -148,15 +151,15 @@ def get_scanner_for_content(content_path: str) -> Optional[BaseScanner]:
     return None
 
 
-def get_unified_scanner(
+def get_ow_scanner(
     content_dir: Optional[str] = None,
     results_dir: Optional[str] = None,
     encryption_service: Optional[object] = None,
-) -> "UnifiedSCAPScanner":
+) -> "OWScanner":
     """
-    Get the unified SCAP scanner with MongoDB integration.
+    Get the OpenWatch scanner with MongoDB integration.
 
-    The unified scanner combines all SCAP scanning capabilities including:
+    The OWScanner combines all SCAP scanning capabilities including:
     - MongoDB rule selection and generation
     - Dynamic XCCDF/OVAL content creation
     - Local and remote scan execution
@@ -171,10 +174,10 @@ def get_unified_scanner(
         encryption_service: Encryption service for credential decryption.
 
     Returns:
-        Configured UnifiedSCAPScanner instance (requires async initialization).
+        Configured OWScanner instance (requires async initialization).
 
     Usage:
-        >>> scanner = get_unified_scanner()
+        >>> scanner = get_ow_scanner()
         >>> await scanner.initialize()  # Required before MongoDB operations
         >>> result = await scanner.scan_with_rules(
         ...     host_id="uuid",
@@ -184,11 +187,15 @@ def get_unified_scanner(
         ...     connection_params=params,
         ... )
     """
-    return UnifiedSCAPScanner(
+    return OWScanner(
         content_dir=content_dir,
         results_dir=results_dir,
         encryption_service=encryption_service,
     )
+
+
+# Backward compatibility alias
+get_unified_scanner = get_ow_scanner
 
 
 # =============================================================================
@@ -233,7 +240,8 @@ class ScannerFactory:
     # Keys are lowercase identifiers used in rule metadata
     _scanners: dict[str, type[BaseScanner]] = {
         # Primary scanner for SCAP compliance (MongoDB-integrated)
-        "scap": UnifiedSCAPScanner,
+        "owscan": OWScanner,
+        "scap": OWScanner,  # Alias for backward compatibility
         # Legacy/content-only scanner (profile extraction, validation)
         "oscap": OSCAPScanner,
         # Kubernetes/OpenShift compliance
@@ -296,9 +304,10 @@ class ScannerFactory:
             ...     print(f"{name}: {desc}")
         """
         return {
-            "scap": "Unified SCAP Scanner - MongoDB-integrated compliance scanning with rule intelligence",
-            "oscap": "OpenSCAP - OVAL-based content validation and profile extraction",
-            "kubernetes": "Kubernetes - YAML-based checks for K8s/OpenShift clusters",
+            "owscan": "OWScanner - OpenWatch's primary MongoDB-integrated compliance scanner",
+            "scap": "OWScanner (alias) - MongoDB-integrated compliance scanning",
+            "oscap": "OSCAPScanner - OpenSCAP content validation and profile extraction",
+            "kubernetes": "KubernetesScanner - YAML-based checks for K8s/OpenShift clusters",
             # Future scanners will be documented here
         }
 
@@ -372,13 +381,16 @@ __all__ = [
     # Base class
     "BaseScanner",
     # Scanner implementations
+    "OWScanner",
     "OSCAPScanner",
-    "UnifiedSCAPScanner",
     "KubernetesScanner",
+    # Backward compatibility aliases
+    "UnifiedSCAPScanner",  # Alias for OWScanner
     # Factory class
     "ScannerFactory",
     # Factory functions
     "get_scanner",
     "get_scanner_for_content",
-    "get_unified_scanner",
+    "get_ow_scanner",
+    "get_unified_scanner",  # Alias for get_ow_scanner
 ]
