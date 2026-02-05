@@ -16,6 +16,7 @@ from app.config import get_settings
 from app.database import get_db_session
 from app.encryption import EncryptionConfig, create_encryption_service
 from app.services.monitoring import HostMonitoringStateMachine, get_host_monitor
+from app.utils.query_builder import QueryBuilder
 
 logger = logging.getLogger(__name__)
 
@@ -54,17 +55,23 @@ def check_host_connectivity(self, host_id: str, priority: int = 5) -> dict:
     try:
         with get_db_session() as db:
             # Get host details for comprehensive check
-            host_result = db.execute(
-                text(
-                    """
-                SELECT id, hostname, ip_address, port, username, auth_method,
-                       encrypted_credentials, status
-                FROM hosts
-                WHERE id = :host_id AND is_active = true
-            """
-                ),
-                {"host_id": host_id},
-            ).fetchone()
+            host_builder = (
+                QueryBuilder("hosts")
+                .select(
+                    "id",
+                    "hostname",
+                    "ip_address",
+                    "port",
+                    "username",
+                    "auth_method",
+                    "encrypted_credentials",
+                    "status",
+                )
+                .where("id = :host_id", host_id, "host_id")
+                .where("is_active = true")
+            )
+            host_query, host_params = host_builder.build()
+            host_result = db.execute(text(host_query), host_params).fetchone()
 
             if not host_result:
                 logger.warning(f"Host {host_id} not found or inactive for connectivity check")

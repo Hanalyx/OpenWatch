@@ -21,6 +21,7 @@ from ...services.auth import AuthMethod, CredentialData, CredentialMetadata, Cre
 
 # validate_ssh_key validates key format/security, extract_ssh_key_metadata extracts fingerprint/type
 from ...services.ssh import extract_ssh_key_metadata, validate_ssh_key
+from ...utils.query_builder import QueryBuilder
 
 logger = logging.getLogger(__name__)
 
@@ -78,14 +79,14 @@ def uuid_to_int(uuid_str: Any) -> int:
 
 def find_uuid_by_int(db: Session, target_int: int) -> Optional[str]:
     """Find UUID by matching the generated integer ID"""
-    result = db.execute(
-        text(
-            """
-        SELECT id FROM unified_credentials
-        WHERE scope = 'system' AND is_active = true
-    """
-        )
+    builder = (
+        QueryBuilder("unified_credentials")
+        .select("id")
+        .where("scope = :scope", "system", "scope")
+        .where("is_active = true")
     )
+    query, params = builder.build()
+    result = db.execute(text(query), params)
 
     for row in result:
         if uuid_to_int(row.id) == target_int:
@@ -894,15 +895,17 @@ def restore_scheduler_state() -> None:
 
         try:
             # Read scheduler configuration from database
-            result = db.execute(
-                text(
-                    """
-                SELECT enabled, interval_minutes, auto_start
-                FROM scheduler_config
-                WHERE service_name = 'host_monitoring'
-            """
+            config_builder = (
+                QueryBuilder("scheduler_config")
+                .select("enabled", "interval_minutes", "auto_start")
+                .where(
+                    "service_name = :service_name",
+                    "host_monitoring",
+                    "service_name",
                 )
             )
+            config_query, config_params = config_builder.build()
+            result = db.execute(text(config_query), config_params)
 
             config = result.fetchone()
             logger.info(f"Database config found: {config if config else 'None'}")
@@ -1040,15 +1043,17 @@ async def get_session_timeout(
     """
     try:
         # Try to get from system_settings table
-        result = db.execute(
-            text(
-                """
-                SELECT setting_value, modified_at, modified_by
-                FROM system_settings
-                WHERE setting_key = 'session_inactivity_timeout_minutes'
-            """
+        timeout_builder = (
+            QueryBuilder("system_settings")
+            .select("setting_value", "modified_at", "modified_by")
+            .where(
+                "setting_key = :key",
+                "session_inactivity_timeout_minutes",
+                "key",
             )
         )
+        timeout_query, timeout_params = timeout_builder.build()
+        result = db.execute(text(timeout_query), timeout_params)
         row = result.fetchone()
 
         if row:
@@ -1136,15 +1141,17 @@ async def update_session_timeout(
         logger.info(f"Session inactivity timeout updated to {settings.timeout_minutes} minutes by {username}")
 
         # Return updated settings
-        result = db.execute(
-            text(
-                """
-                SELECT setting_value, modified_at, modified_by
-                FROM system_settings
-                WHERE setting_key = 'session_inactivity_timeout_minutes'
-            """
+        result_builder = (
+            QueryBuilder("system_settings")
+            .select("setting_value", "modified_at", "modified_by")
+            .where(
+                "setting_key = :key",
+                "session_inactivity_timeout_minutes",
+                "key",
             )
         )
+        result_query, result_params = result_builder.build()
+        result = db.execute(text(result_query), result_params)
         row = result.fetchone()
 
         return SessionTimeoutSettings(

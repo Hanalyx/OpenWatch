@@ -4,7 +4,7 @@ Audit Log API Routes for OView Dashboard
 
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from ...auth import get_current_user
 from ...database import get_db
 from ...rbac import RBACManager, UserRole
+from ...utils.query_builder import QueryBuilder
 
 logger = logging.getLogger(__name__)
 
@@ -81,57 +82,46 @@ async def get_audit_events(
         if not RBACManager.can_access_resource(user_role, "audit", "read"):
             raise HTTPException(status_code=403, detail="Insufficient permissions to view audit logs")
 
-        # Build base query
-        query = """
-            SELECT al.*, u.username
-            FROM audit_logs al
-            LEFT JOIN users u ON al.user_id = u.id
-            WHERE 1=1
-        """
-
-        params: Dict[str, Union[str, int, datetime]] = {}
+        # Build query using QueryBuilder
+        builder = (
+            QueryBuilder("audit_logs al").select("al.*", "u.username").join("users u", "al.user_id = u.id", "LEFT")
+        )
 
         # Add filters
         if search:
-            query += (  # noqa: E501
-                " AND (al.action ILIKE :search OR al.details ILIKE :search OR "
-                "al.ip_address ILIKE :search OR u.username ILIKE :search)"
+            builder = builder.where(
+                "(al.action ILIKE :search OR al.details ILIKE :search OR "
+                "al.ip_address ILIKE :search OR u.username ILIKE :search)",
+                f"%{search}%",
+                "search",
             )
-            params["search"] = f"%{search}%"
 
         if action:
-            query += " AND al.action ILIKE :action"
-            params["action"] = f"%{action}%"
+            builder = builder.where("al.action ILIKE :action", f"%{action}%", "action")
 
         if resource_type:
-            query += " AND al.resource_type = :resource_type"
-            params["resource_type"] = resource_type
+            builder = builder.where("al.resource_type = :resource_type", resource_type, "resource_type")
 
         if user:
-            query += " AND u.username ILIKE :user"
-            params["user"] = f"%{user}%"
+            builder = builder.where("u.username ILIKE :user", f"%{user}%", "user")
 
         if date_from:
-            query += " AND al.timestamp >= :date_from"
-            params["date_from"] = date_from
+            builder = builder.where("al.timestamp >= :date_from", date_from, "date_from")
 
         if date_to:
-            query += " AND al.timestamp <= :date_to"
-            params["date_to"] = date_to
+            builder = builder.where("al.timestamp <= :date_to", date_to, "date_to")
 
         # Get total count
-        count_query = f"SELECT COUNT(*) as total FROM ({query}) as subquery"
-        count_result = db.execute(text(count_query), params)
+        count_sql, count_params = builder.count_query()
+        count_result = db.execute(text(count_sql), count_params)
         count_row = count_result.fetchone()
         total: int = count_row.total if count_row else 0
 
         # Add ordering and pagination
-        query += " ORDER BY al.timestamp DESC"
-        query += " LIMIT :limit OFFSET :offset"
-        params["limit"] = limit
-        params["offset"] = (page - 1) * limit
+        builder = builder.order_by("al.timestamp", "DESC").paginate(page=page, per_page=limit)
 
         # Execute query
+        query, params = builder.build()
         result = db.execute(text(query), params)
 
         events = []

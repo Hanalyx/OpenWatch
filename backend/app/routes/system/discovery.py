@@ -220,17 +220,15 @@ async def get_os_discovery_stats(
         total_hosts = total_result.fetchone().total
 
         # Count hosts with platform_identifier set
-        # Using raw parameterized query for COUNT with WHERE clause
-        # (QueryBuilder count_query doesn't support WHERE conditions)
-        with_platform_result = db.execute(
-            text(
-                """
-                SELECT COUNT(*) as count FROM hosts
-                WHERE platform_identifier IS NOT NULL AND platform_identifier != ''
-                """
-            )
+        with_platform_builder = (
+            QueryBuilder("hosts").where("platform_identifier IS NOT NULL").where("platform_identifier != ''")
         )
-        hosts_with_platform = with_platform_result.fetchone().count
+        with_platform_query, with_platform_params = with_platform_builder.count_query()
+        with_platform_result = db.execute(
+            text(with_platform_query),
+            with_platform_params,
+        )
+        hosts_with_platform = with_platform_result.fetchone().total
 
         # Get discovery failures from system_settings using QueryBuilder
         failures_builder = (

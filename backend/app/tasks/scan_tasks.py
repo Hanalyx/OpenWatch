@@ -23,6 +23,7 @@ from ..services.engine import ScanExecutionError, get_semantic_engine
 # and test_ssh_connection methods with legacy compatibility
 from ..services.engine.scanners import UnifiedSCAPScanner
 from ..services.validation import ErrorClassificationService
+from ..utils.query_builder import QueryBuilder
 from .webhook_tasks import send_scan_completed_webhook, send_scan_failed_webhook
 
 logger = logging.getLogger(__name__)
@@ -353,10 +354,9 @@ def execute_scan_task(
 
                 # Get scan result ID for linking
                 scan_result_id = None
-                result_query = db.execute(
-                    text("SELECT id FROM scan_results WHERE scan_id = :scan_id"),
-                    {"scan_id": scan_id},
-                ).fetchone()
+                sr_builder = QueryBuilder("scan_results").select("id").where("scan_id = :scan_id", scan_id, "scan_id")
+                sr_query, sr_params = sr_builder.build()
+                result_query = db.execute(text(sr_query), sr_params).fetchone()
                 if result_query:
                     scan_result_id = str(result_query.id)
 
@@ -440,17 +440,14 @@ def _update_scan_error(
                 # Continue with original error message
 
         # Get scan data for webhook notification and check for group scan
-        scan_result = db.execute(
-            text(
-                """
-            SELECT s.id, h.hostname, s.profile_id, s.scan_options, s.host_id
-            FROM scans s
-            JOIN hosts h ON s.host_id = h.id
-            WHERE s.id = :scan_id
-        """
-            ),
-            {"scan_id": scan_id},
+        scan_builder = (
+            QueryBuilder("scans s")
+            .select("s.id", "h.hostname", "s.profile_id", "s.scan_options", "s.host_id")
+            .join("hosts h", "s.host_id = h.id", "INNER")
+            .where("s.id = :scan_id", scan_id, "scan_id")
         )
+        scan_query, scan_params = scan_builder.build()
+        scan_result = db.execute(text(scan_query), scan_params)
 
         scan_data = scan_result.fetchone()
 
@@ -749,18 +746,16 @@ async def _send_enhanced_semantic_webhook(scan_id: str, intelligent_result: Any,
         # Get active webhook endpoints for semantic events
         db = SessionLocal()
         try:
-            result = db.execute(
-                text(
-                    """
-                SELECT id, url, secret_hash FROM webhook_endpoints
-                WHERE is_active = true
-                AND (
-                    event_types::jsonb ? 'semantic.analysis.completed'
-                    OR event_types::jsonb ? 'scan.completed'
-                )
-            """
+            wh_builder = (
+                QueryBuilder("webhook_endpoints")
+                .select("id", "url", "secret_hash")
+                .where("is_active = true")
+                .where(
+                    "(event_types::jsonb ? 'semantic.analysis.completed'" " OR event_types::jsonb ? 'scan.completed')"
                 )
             )
+            wh_query, wh_params = wh_builder.build()
+            result = db.execute(text(wh_query), wh_params)
 
             webhooks = result.fetchall()
         finally:

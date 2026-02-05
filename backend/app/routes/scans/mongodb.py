@@ -22,6 +22,7 @@ from app.services.engine.scanners import UnifiedSCAPScanner
 from app.services.framework import ComplianceFrameworkReporter
 from app.services.owca import SeverityCalculator, XCCDFParser
 from app.services.result_enrichment_service import ResultEnrichmentService
+from app.utils.query_builder import QueryBuilder
 
 logger = logging.getLogger(__name__)
 
@@ -417,8 +418,13 @@ async def start_mongodb_scan(
         from app.tasks.os_discovery_tasks import _normalize_platform_identifier
 
         try:
-            host_query = text("SELECT platform_identifier, os_family, os_version FROM hosts WHERE id = :host_id")
-            host_result = db.execute(host_query, {"host_id": scan_request.host_id}).fetchone()
+            host_builder = (
+                QueryBuilder("hosts")
+                .select("platform_identifier", "os_family", "os_version")
+                .where("id = :host_id", scan_request.host_id, "host_id")
+            )
+            host_query, host_params = host_builder.build()
+            host_result = db.execute(text(host_query), host_params).fetchone()
 
             if host_result:
                 db_platform_id = host_result[0]  # platform_identifier column
@@ -467,8 +473,13 @@ async def start_mongodb_scan(
                             auth_service = get_auth_service(db, encryption_service)
 
                             # Check host's auth_method to determine credential source
-                            auth_method_query = text("SELECT auth_method FROM hosts WHERE id = :host_id")
-                            auth_result = db.execute(auth_method_query, {"host_id": scan_request.host_id}).fetchone()
+                            auth_builder = (
+                                QueryBuilder("hosts")
+                                .select("auth_method")
+                                .where("id = :host_id", scan_request.host_id, "host_id")
+                            )
+                            auth_query, auth_params = auth_builder.build()
+                            auth_result = db.execute(text(auth_query), auth_params).fetchone()
                             host_auth_method = auth_result[0] if auth_result else "system_default"
                             use_default = host_auth_method in ["system_default", "default"]
                             target_id = None if use_default else scan_request.host_id
@@ -953,8 +964,13 @@ async def get_available_rules(
             try:
                 from app.tasks.os_discovery_tasks import _normalize_platform_identifier
 
-                host_query = text("SELECT platform_identifier, os_family, os_version FROM hosts WHERE id = :host_id")
-                host_result = db.execute(host_query, {"host_id": host_id}).fetchone()
+                host_builder = (
+                    QueryBuilder("hosts")
+                    .select("platform_identifier", "os_family", "os_version")
+                    .where("id = :host_id", host_id, "host_id")
+                )
+                host_query, host_params = host_builder.build()
+                host_result = db.execute(text(host_query), host_params).fetchone()
 
                 if host_result:
                     db_platform_id = host_result[0]  # platform_identifier column

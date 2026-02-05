@@ -14,6 +14,7 @@ from app.database import HostGroup, get_db_session
 
 # Import from new modular host_groups package (Phase 1 API Standardization)
 from app.routes.host_groups import execute_group_compliance_scan
+from app.utils.query_builder import QueryBuilder
 
 # GroupScanService removed - using group_compliance API instead
 
@@ -42,17 +43,15 @@ def scheduled_group_scan(self, group_id: int, config: Dict[str, Any]):
                 return
 
             # Get hosts in the group
-            hosts = db.execute(
-                text(
-                    """
-                SELECT h.id, h.hostname, h.ip_address, h.os_family, h.architecture
-                FROM hosts h
-                JOIN host_group_memberships hgm ON h.id = hgm.host_id
-                WHERE hgm.group_id = :group_id AND h.active = true
-            """
-                ),
-                {"group_id": group_id},
-            ).fetchall()
+            hosts_builder = (
+                QueryBuilder("hosts h")
+                .select("h.id", "h.hostname", "h.ip_address", "h.os_family", "h.architecture")
+                .join("host_group_memberships hgm", "h.id = hgm.host_id", "INNER")
+                .where("hgm.group_id = :group_id", group_id, "group_id")
+                .where("h.active = true")
+            )
+            hosts_query, hosts_params = hosts_builder.build()
+            hosts = db.execute(text(hosts_query), hosts_params).fetchall()
 
             if not hosts:
                 print(f"No active hosts found in group {group_id} for scheduled scan")
@@ -285,16 +284,16 @@ def send_compliance_notification(session_id: str, group_id: int, summary: Dict[s
     try:
         with get_db_session() as db:
             # Get group and session details
+            session_builder = (
+                QueryBuilder("group_scan_sessions gss")
+                .select("gss.*", "hg.name as group_name")
+                .join("host_groups hg", "gss.group_id = hg.id", "INNER")
+                .where("gss.session_id = :session_id", session_id, "session_id")
+            )
+            session_query, session_params = session_builder.build()
             session_info = db.execute(
-                text(
-                    """
-                SELECT gss.*, hg.name as group_name
-                FROM group_scan_sessions gss
-                JOIN host_groups hg ON gss.group_id = hg.id
-                WHERE gss.session_id = :session_id
-            """
-                ),
-                {"session_id": session_id},
+                text(session_query),
+                session_params,
             ).fetchone()
 
             if not session_info:
@@ -459,14 +458,11 @@ def compliance_monitoring_task():
     try:
         with get_db_session() as db:
             # Get all groups with auto-scan enabled
-            groups = db.execute(
-                text(
-                    """
-                SELECT id FROM host_groups
-                WHERE auto_scan_enabled = true AND active = true
-            """
-                )
-            ).fetchall()
+            groups_builder = (
+                QueryBuilder("host_groups").select("id").where("auto_scan_enabled = true").where("active = true")
+            )
+            groups_query, groups_params = groups_builder.build()
+            groups = db.execute(text(groups_query), groups_params).fetchall()
 
             # Check alerts for each group
             for group in groups:
