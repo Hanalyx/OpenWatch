@@ -20,6 +20,7 @@ from ..services.infrastructure import (
     get_webhook_client,
 )
 from ..services.monitoring import record_webhook_delivery
+from ..utils.query_builder import QueryBuilder
 
 logger = logging.getLogger(__name__)
 
@@ -177,15 +178,14 @@ def send_scan_completed_webhook(scan_id: str, scan_data: Dict[str, Any]):
         # Get active webhook endpoints that listen for scan.completed events
         db = next(get_db())
         try:
-            result = db.execute(
-                text(
-                    """
-                SELECT id, url, secret_hash FROM webhook_endpoints
-                WHERE is_active = true
-                AND event_types::jsonb ? 'scan.completed'
-            """
-                )
+            wh_builder = (
+                QueryBuilder("webhook_endpoints")
+                .select("id", "url", "secret_hash")
+                .where("is_active = true")
+                .where("event_types::jsonb ? 'scan.completed'")
             )
+            wh_query, wh_params = wh_builder.build()
+            result = db.execute(text(wh_query), wh_params)
 
             webhooks = result.fetchall()
         finally:
@@ -222,15 +222,14 @@ def send_scan_failed_webhook(scan_id: str, scan_data: Dict[str, Any], error_mess
         # Get active webhook endpoints that listen for scan.failed events
         db = next(get_db())
         try:
-            result = db.execute(
-                text(
-                    """
-                SELECT id, url, secret_hash FROM webhook_endpoints
-                WHERE is_active = true
-                AND event_types::jsonb ? 'scan.failed'
-            """
-                )
+            wh_builder = (
+                QueryBuilder("webhook_endpoints")
+                .select("id", "url", "secret_hash")
+                .where("is_active = true")
+                .where("event_types::jsonb ? 'scan.failed'")
             )
+            wh_query, wh_params = wh_builder.build()
+            result = db.execute(text(wh_query), wh_params)
 
             webhooks = result.fetchall()
         finally:

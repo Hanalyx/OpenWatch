@@ -42,6 +42,7 @@ from app.services.discovery import HostBasicDiscoveryService
 
 # SSHConnectionManager provides modular SSH connection handling with better testability
 from app.services.ssh import SSHConnectionManager
+from app.utils.query_builder import QueryBuilder
 
 logger = logging.getLogger(__name__)
 
@@ -122,8 +123,13 @@ def _record_discovery_failure(host_id: str, error_message: str) -> None:
 
         with get_db_session() as db:
             # Get current failures list
-            query = text("SELECT setting_value FROM system_settings WHERE setting_key = 'os_discovery_failures'")
-            result = db.execute(query).fetchone()
+            failures_builder = (
+                QueryBuilder("system_settings")
+                .select("setting_value")
+                .where("setting_key = :key", "os_discovery_failures", "key")
+            )
+            failures_query, failures_params = failures_builder.build()
+            result = db.execute(text(failures_query), failures_params).fetchone()
 
             if result and result[0]:
                 try:
@@ -214,15 +220,25 @@ def trigger_os_discovery(self, host_id: str) -> Dict[str, Any]:
     try:
         with get_db_session() as db:
             # Fetch host details including credentials
-            host_query = text(
-                """
-                SELECT id, hostname, ip_address, port, username, auth_method,
-                       encrypted_credentials, status, os_family, os_version
-                FROM hosts
-                WHERE id = :host_id AND is_active = true
-            """
+            host_builder = (
+                QueryBuilder("hosts")
+                .select(
+                    "id",
+                    "hostname",
+                    "ip_address",
+                    "port",
+                    "username",
+                    "auth_method",
+                    "encrypted_credentials",
+                    "status",
+                    "os_family",
+                    "os_version",
+                )
+                .where("id = :host_id", host_id, "host_id")
+                .where("is_active = true")
             )
-            host_row = db.execute(host_query, {"host_id": host_id}).fetchone()
+            host_query, host_params = host_builder.build()
+            host_row = db.execute(text(host_query), host_params).fetchone()
 
             if not host_row:
                 result["error"] = f"Host {host_id} not found or inactive"
@@ -469,10 +485,16 @@ def discover_all_hosts_os(self, force: bool = False) -> Dict[str, Any]:
         with get_db_session() as db:
             # Check system setting (unless force=True)
             if not force:
-                setting_query = text(
-                    "SELECT setting_value FROM system_settings WHERE setting_key = 'os_discovery_enabled'"
+                setting_builder = (
+                    QueryBuilder("system_settings")
+                    .select("setting_value")
+                    .where("setting_key = :key", "os_discovery_enabled", "key")
                 )
-                setting_result = db.execute(setting_query).fetchone()
+                setting_query, setting_params = setting_builder.build()
+                setting_result = db.execute(
+                    text(setting_query),
+                    setting_params,
+                ).fetchone()
 
                 # Default to enabled if setting doesn't exist
                 if setting_result:
@@ -483,30 +505,18 @@ def discover_all_hosts_os(self, force: bool = False) -> Dict[str, Any]:
                         )
                         result["disabled"] = True
                         return result
-            # Build query based on force flag
-            if force:
-                # Get all active hosts with credentials
-                query = text(
-                    """
-                    SELECT id, hostname, os_family, os_version
-                    FROM hosts
-                    WHERE is_active = true
-                      AND encrypted_credentials IS NOT NULL
-                """
-                )
-            else:
-                # Get only hosts missing OS information
-                query = text(
-                    """
-                    SELECT id, hostname, os_family, os_version
-                    FROM hosts
-                    WHERE is_active = true
-                      AND encrypted_credentials IS NOT NULL
-                      AND (os_family IS NULL OR os_version IS NULL)
-                """
-                )
 
-            hosts = db.execute(query).fetchall()
+            # Build query based on force flag
+            hosts_builder = (
+                QueryBuilder("hosts")
+                .select("id", "hostname", "os_family", "os_version")
+                .where("is_active = true")
+                .where("encrypted_credentials IS NOT NULL")
+            )
+            if not force:
+                hosts_builder = hosts_builder.where("(os_family IS NULL OR os_version IS NULL)")
+            hosts_query, hosts_params = hosts_builder.build()
+            hosts = db.execute(text(hosts_query), hosts_params).fetchall()
             result["total_active_hosts"] = len(hosts)
 
             if not hosts:
