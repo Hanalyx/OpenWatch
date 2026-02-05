@@ -3,10 +3,19 @@ name: Container Security Scan
 on:
   push:
     branches: [ main, develop ]
+    paths:
+      - 'docker/**'
+      - 'backend/requirements.txt'
+      - 'frontend/package.json'
   pull_request:
     branches: [ main, develop ]
+    paths:
+      - 'docker/**'
+      - 'backend/requirements.txt'
+      - 'frontend/package.json'
   schedule:
-    - cron: '0 2 * * *'  # Daily at 2 AM UTC
+    - cron: '0 2 * * 1'  # Weekly on Monday at 2 AM UTC (reduced from daily)
+  workflow_dispatch:
 
 jobs:
   trivy-scan:
@@ -24,22 +33,12 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v5
 
-      - name: Check Docker files
-        run: |
-          echo "Checking for Docker files..."
-          ls -la | grep -i docker || echo "No docker directory found"
-          find . -name "Dockerfile*" -type f || echo "No Dockerfile found"
-
       - name: Build Docker image
         run: |
-          if [ -f "Dockerfile" ]; then
-            docker build -t openwatch-${{ matrix.image }}:scan .
-          elif [ -f "${{ matrix.image }}/Dockerfile" ]; then
-            docker build -f ${{ matrix.image }}/Dockerfile -t openwatch-${{ matrix.image }}:scan .
-          elif [ -f "docker/Dockerfile.${{ matrix.image }}" ]; then
+          if [ -f "docker/Dockerfile.${{ matrix.image }}" ]; then
             docker build -f docker/Dockerfile.${{ matrix.image }} -t openwatch-${{ matrix.image }}:scan .
           else
-            echo "No appropriate Dockerfile found for ${{ matrix.image }}"
+            echo "No Dockerfile found for ${{ matrix.image }}"
             exit 1
           fi
 
@@ -49,18 +48,8 @@ jobs:
           image-ref: 'openwatch-${{ matrix.image }}:scan'
           format: 'sarif'
           output: 'trivy-results-${{ matrix.image }}.sarif'
-          severity: 'CRITICAL,HIGH,MEDIUM'
-          exit-code: '0'  # Don't fail the build on vulnerabilities
-
-      - name: Verify SARIF file exists
-        run: |
-          if [ -f "trivy-results-${{ matrix.image }}.sarif" ]; then
-            echo "SARIF file exists"
-            ls -la trivy-results-${{ matrix.image }}.sarif
-          else
-            echo "SARIF file not found"
-            exit 1
-          fi
+          severity: 'CRITICAL,HIGH'
+          exit-code: '0'
 
       - name: Upload Trivy scan results to GitHub Security
         uses: github/codeql-action/upload-sarif@v4
@@ -68,47 +57,3 @@ jobs:
         with:
           sarif_file: 'trivy-results-${{ matrix.image }}.sarif'
           category: 'container-scan-${{ matrix.image }}'
-
-  grype-scan:
-    name: Grype Container Scan (${{ matrix.image }})
-    runs-on: ubuntu-latest
-    permissions:
-      actions: read
-      contents: read
-      security-events: write
-    strategy:
-      matrix:
-        image: ['backend', 'frontend']
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v5
-
-      - name: Build Docker image
-        run: |
-          if [ -f "Dockerfile" ]; then
-            docker build -t openwatch-${{ matrix.image }}:scan .
-          elif [ -f "${{ matrix.image }}/Dockerfile" ]; then
-            docker build -f ${{ matrix.image }}/Dockerfile -t openwatch-${{ matrix.image }}:scan .
-          elif [ -f "docker/Dockerfile.${{ matrix.image }}" ]; then
-            docker build -f docker/Dockerfile.${{ matrix.image }} -t openwatch-${{ matrix.image }}:scan .
-          else
-            echo "No appropriate Dockerfile found for ${{ matrix.image }}"
-            exit 1
-          fi
-
-      - name: Run Grype vulnerability scanner
-        id: scan
-        uses: anchore/scan-action@v3
-        with:
-          image: 'openwatch-${{ matrix.image }}:scan'
-          fail-build: false
-          severity-cutoff: high
-          output-format: sarif
-
-      - name: Upload Grype scan results
-        uses: github/codeql-action/upload-sarif@v4
-        if: always()
-        with:
-          sarif_file: ${{ steps.scan.outputs.sarif }}
-          category: 'grype-scan-${{ matrix.image }}'

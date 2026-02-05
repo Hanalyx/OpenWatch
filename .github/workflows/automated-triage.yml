@@ -2,8 +2,8 @@ name: Automated Security & Dependency Triage
 
 on:
   schedule:
-    # Run every 6 hours
-    - cron: '0 */6 * * *'
+    # Run daily at 3 AM UTC (reduced from every 6 hours to save Actions minutes)
+    - cron: '0 3 * * *'
   workflow_dispatch:
     inputs:
       dry_run:
@@ -155,7 +155,7 @@ jobs:
 
       - name: Upload Assessment Results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: risk-assessment-results
           path: |
@@ -240,7 +240,7 @@ jobs:
 
       - name: Upload Code Scanning Assessment
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: code-scanning-assessment
           path: |

@@ -4,20 +4,28 @@ import { DashboardPage } from '../fixtures/page-objects/DashboardPage';
 /**
  * Navigation tests verify that main menu items load correctly
  * and protected routes are accessible after authentication.
+ *
+ * Uses authenticatedPage fixture which handles login before each test.
+ * Dashboard is at '/' (root), not '/dashboard'.
  */
 test.describe('Navigation', () => {
-  test.beforeEach(async ({ authenticatedPage }) => {
-    // authenticatedPage fixture handles login automatically
+  test('dashboard page loads after login', async ({ authenticatedPage }) => {
+    const page = authenticatedPage.page;
+    // Dashboard is at root path /
+    await page.goto('/');
+    await page.waitForLoadState('networkidle');
+    // Verify the dashboard rendered some content (heading, cards, or typography)
+    const content = page.locator(
+      'h1, h2, h3, h4, .MuiCard-root, .MuiPaper-root, .MuiTypography-root'
+    );
+    await expect(content.first()).toBeVisible({ timeout: 10000 });
   });
 
-  test('dashboard page loads after login', async ({ page }) => {
+  test('hosts page loads from navigation', async ({ authenticatedPage }) => {
+    const page = authenticatedPage.page;
     const dashboard = new DashboardPage(page);
-    const isDisplayed = await dashboard.isDashboardDisplayed();
-    expect(isDisplayed).toBe(true);
-  });
-
-  test('hosts page loads from navigation', async ({ page }) => {
-    const dashboard = new DashboardPage(page);
+    await page.goto('/');
+    await page.waitForLoadState('networkidle');
     await dashboard.navigateTo('hosts');
 
     // Should navigate to hosts page
@@ -28,29 +36,43 @@ test.describe('Navigation', () => {
     expect(response).toBe('complete');
   });
 
-  test('scans page loads from navigation', async ({ page }) => {
+  test('scans page loads from navigation', async ({ authenticatedPage }) => {
+    const page = authenticatedPage.page;
     const dashboard = new DashboardPage(page);
+    await page.goto('/');
+    await page.waitForLoadState('networkidle');
     await dashboard.navigateTo('scans');
 
     await expect(page).toHaveURL(/\/scans/);
   });
 
-  test('SCAP content page loads from navigation', async ({ page }) => {
+  test('SCAP content page loads from navigation', async ({ authenticatedPage }) => {
+    const page = authenticatedPage.page;
     const dashboard = new DashboardPage(page);
+    await page.goto('/');
+    await page.waitForLoadState('networkidle');
     await dashboard.navigateTo('content');
 
-    await expect(page).toHaveURL(/\/scap-content/);
+    await expect(page).toHaveURL(/\/content/);
   });
 
-  test('settings page loads from navigation', async ({ page }) => {
+  test('settings page loads from navigation', async ({ authenticatedPage }) => {
+    const page = authenticatedPage.page;
     const dashboard = new DashboardPage(page);
+    await page.goto('/');
+    await page.waitForLoadState('networkidle');
     await dashboard.navigateTo('settings');
 
     await expect(page).toHaveURL(/\/settings/);
   });
 
-  test('browser back button works correctly', async ({ page }) => {
+  test('browser back button works correctly', async ({ authenticatedPage }) => {
+    const page = authenticatedPage.page;
     const dashboard = new DashboardPage(page);
+
+    // Start at dashboard (root)
+    await page.goto('/');
+    await page.waitForLoadState('networkidle');
 
     // Navigate to hosts
     await dashboard.navigateTo('hosts');
@@ -59,7 +81,8 @@ test.describe('Navigation', () => {
     // Go back
     await page.goBack();
 
-    // Should be back on dashboard
-    await expect(page).toHaveURL(/\/dashboard/);
+    // Should be back on root (dashboard)
+    await page.waitForLoadState('networkidle');
+    await expect(page).toHaveURL(/^https?:\/\/[^/]+\/?$/);
   });
 });

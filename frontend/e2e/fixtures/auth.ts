@@ -2,26 +2,30 @@ import { test as base } from '@playwright/test';
 import { LoginPage } from './page-objects/LoginPage';
 import { DashboardPage } from './page-objects/DashboardPage';
 
-// Test user credentials
+// Test user credentials (NOT real secrets - test data only)
+// The 'admin' user is created by backend init_roles.py on startup
+// Other users are created via API in CI test data step
 export const TEST_USERS = {
+  // Default admin created by backend on startup (init_roles.py)
   admin: {
-    username: 'admin@openwatch.local',
-    password: 'Admin123!@#',
-    role: 'admin'
+    username: 'admin',
+    password: 'admin123', // pragma: allowlist secret
+    role: 'super_admin'
   },
-  user: {
-    username: 'user@openwatch.local', 
-    password: 'User123!@#',
-    role: 'user'
+  // Created via API in CI
+  analyst: {
+    username: 'analyst@example.com',
+    password: 'Analyst123!@#', // pragma: allowlist secret
+    role: 'security_analyst'
   },
-  readOnly: {
-    username: 'readonly@openwatch.local',
-    password: 'ReadOnly123!@#',
-    role: 'read_only'
+  auditor: {
+    username: 'auditor@example.com',
+    password: 'Auditor123!@#', // pragma: allowlist secret
+    role: 'auditor'
   },
   invalid: {
-    username: 'invalid@openwatch.local',
-    password: 'wrongpassword',
+    username: 'invalid@example.com',
+    password: 'wrongpassword', // pragma: allowlist secret
     role: 'none'
   }
 };
@@ -46,22 +50,32 @@ export const test = base.extend<{
   // Pre-authenticated page fixture
   authenticatedPage: async ({ page }, use) => {
     const loginPage = new LoginPage(page);
-    
+
     // Perform login before test
     await loginPage.goto();
     await loginPage.login(TEST_USERS.admin.username, TEST_USERS.admin.password);
-    
-    // Verify login was successful
-    const dashboardPage = new DashboardPage(page);
-    await dashboardPage.isDashboardDisplayed();
-    
+
+    // Wait for navigation to complete with extended timeout
+    const loginSuccessful = await loginPage.isLoginSuccessful();
+
+    if (!loginSuccessful) {
+      // Check if there's an error message
+      const errorMsg = await loginPage.getErrorMessage();
+      console.error(`Login failed. Error: ${errorMsg || 'Unknown error'}`);
+      console.error('This may indicate test user was not created in CI setup.');
+      // Still allow test to continue - it will fail with clear assertion
+    }
+
     await use(loginPage);
-    
-    // Cleanup: logout after test
-    try {
-      await dashboardPage.logout();
-    } catch {
-      // Ignore logout errors in cleanup
+
+    // Cleanup: logout after test (only if logged in)
+    if (loginSuccessful) {
+      try {
+        const dashboardPage = new DashboardPage(page);
+        await dashboardPage.logout();
+      } catch {
+        // Ignore logout errors in cleanup
+      }
     }
   }
 });
