@@ -260,11 +260,10 @@ async def create_user(
     try:
         # OW-REFACTOR-001B: Use QueryBuilder for existence check
         # Why: Consistent with Phase 1-3 pattern, reduces SQL injection risk
-        check_builder = QueryBuilder("users").select("id").where("username = :username OR email = :email", None, None)
-        # Note: QueryBuilder doesn't support OR with different param values, use custom params
+        check_builder = QueryBuilder("users").select("id").where("(username = :username OR email = :email)")
         check_query, _ = check_builder.build()
         result = db.execute(
-            text(check_query.replace(":username OR email = :email", ":username OR email = :email")),
+            text(check_query),
             {"username": user_data.username, "email": user_data.email},
         )
 
@@ -571,10 +570,9 @@ async def change_password(
         user_id = current_user.get("id")
 
         # Get current hashed password
-        result = db.execute(
-            text("SELECT hashed_password FROM users WHERE id = :user_id"),
-            {"user_id": user_id},
-        )
+        pw_builder = QueryBuilder("users").select("hashed_password").where("id = :user_id", user_id, "user_id")
+        pw_query, pw_params = pw_builder.build()
+        result = db.execute(text(pw_query), pw_params)
         user = result.fetchone()
         if not user:
             raise HTTPException(status_code=404, detail="User not found")

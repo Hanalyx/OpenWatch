@@ -33,6 +33,7 @@ from sqlalchemy.orm import Session
 from app.auth import get_current_user, require_permissions
 from app.database import get_db
 from app.services.bulk_scan_orchestrator import BulkScanOrchestrator
+from app.utils.query_builder import QueryBuilder
 
 from .models import (
     CancelScanResponse,
@@ -91,34 +92,27 @@ async def start_group_scan(
 
     try:
         # Verify group exists and get its details
-        group_result = db.execute(
-            text(
-                """
-                SELECT id, name, compliance_framework, default_profile_id
-                FROM host_groups
-                WHERE id = :group_id
-            """
-            ),
-            {"group_id": group_id},
+        group_builder = (
+            QueryBuilder("host_groups")
+            .select("id", "name", "compliance_framework", "default_profile_id")
+            .where("id = :group_id", group_id, "group_id")
         )
-        group = group_result.fetchone()
+        query, params = group_builder.build()
+        group = db.execute(text(query), params).fetchone()
 
         if not group:
             raise HTTPException(status_code=404, detail="Host group not found")
 
         # Get all active hosts in the group
-        hosts_result = db.execute(
-            text(
-                """
-                SELECT h.id, h.hostname, h.display_name, h.ip_address
-                FROM hosts h
-                JOIN host_group_memberships hgm ON h.id = hgm.host_id
-                WHERE hgm.group_id = :group_id AND h.active = true
-            """
-            ),
-            {"group_id": group_id},
+        hosts_builder = (
+            QueryBuilder("hosts h")
+            .select("h.id", "h.hostname", "h.display_name", "h.ip_address")
+            .join("host_group_memberships hgm", "h.id = hgm.host_id", "INNER")
+            .where("hgm.group_id = :group_id", group_id, "group_id")
+            .where("h.active = true")
         )
-        hosts = hosts_result.fetchall()
+        query, params = hosts_builder.build()
+        hosts = db.execute(text(query), params).fetchall()
 
         if not hosts:
             raise HTTPException(status_code=400, detail="No active hosts found in group")
@@ -248,37 +242,34 @@ async def get_group_scan_sessions(
     """
     try:
         # Verify group exists
-        group_check = db.execute(
-            text("SELECT id, name FROM host_groups WHERE id = :group_id"),
-            {"group_id": group_id},
-        ).fetchone()
+        group_builder = QueryBuilder("host_groups").select("id", "name").where("id = :group_id", group_id, "group_id")
+        query, params = group_builder.build()
+        group_check = db.execute(text(query), params).fetchone()
 
         if not group_check:
             raise HTTPException(status_code=404, detail="Host group not found")
 
         # Query scan sessions for this group
-        result = db.execute(
-            text(
-                """
-                SELECT
-                    gss.session_id,
-                    gss.total_hosts,
-                    gss.status,
-                    gss.scan_config,
-                    gss.created_at,
-                    gss.estimated_completion,
-                    ss.name as session_name,
-                    ss.completed_hosts,
-                    ss.failed_hosts
-                FROM group_scan_sessions gss
-                LEFT JOIN scan_sessions ss ON gss.session_id = ss.id
-                WHERE gss.group_id = :group_id
-                ORDER BY gss.created_at DESC
-                LIMIT :limit OFFSET :offset
-            """
-            ),
-            {"group_id": group_id, "limit": limit, "offset": offset},
+        sessions_builder = (
+            QueryBuilder("group_scan_sessions gss")
+            .select(
+                "gss.session_id",
+                "gss.total_hosts",
+                "gss.status",
+                "gss.scan_config",
+                "gss.created_at",
+                "gss.estimated_completion",
+                "ss.name as session_name",
+                "ss.completed_hosts",
+                "ss.failed_hosts",
+            )
+            .join("scan_sessions ss", "gss.session_id = ss.id")
+            .where("gss.group_id = :group_id", group_id, "group_id")
+            .order_by("gss.created_at", "DESC")
+            .paginate(page=(offset // limit) + 1, per_page=limit)
         )
+        query, params = sessions_builder.build()
+        result = db.execute(text(query), params)
 
         sessions = []
         for row in result:
@@ -407,16 +398,14 @@ async def cancel_group_scan(
 
     try:
         # Verify session exists and belongs to this group
-        session_check = db.execute(
-            text(
-                """
-                SELECT session_id, status, total_hosts
-                FROM group_scan_sessions
-                WHERE session_id = :session_id AND group_id = :group_id
-            """
-            ),
-            {"session_id": session_id, "group_id": group_id},
-        ).fetchone()
+        session_builder = (
+            QueryBuilder("group_scan_sessions")
+            .select("session_id", "status", "total_hosts")
+            .where("session_id = :session_id", session_id, "session_id")
+            .where("group_id = :group_id", group_id, "group_id")
+        )
+        query, params = session_builder.build()
+        session_check = db.execute(text(query), params).fetchone()
 
         if not session_check:
             raise HTTPException(
@@ -532,10 +521,9 @@ async def get_group_compliance_report(
 
     try:
         # Get group information
-        group = db.execute(
-            text("SELECT id, name FROM host_groups WHERE id = :group_id"),
-            {"group_id": group_id},
-        ).fetchone()
+        group_builder = QueryBuilder("host_groups").select("id", "name").where("id = :group_id", group_id, "group_id")
+        query, params = group_builder.build()
+        group = db.execute(text(query), params).fetchone()
 
         if not group:
             raise HTTPException(status_code=404, detail="Host group not found")
@@ -837,34 +825,31 @@ async def get_group_scan_history(
     require_permissions(current_user, "reports:view")
 
     try:
-        history = db.execute(
-            text(
-                """
-                SELECT
-                    gss.session_id,
-                    gss.status,
-                    gss.total_hosts,
-                    gss.created_at,
-                    gss.scan_config,
-                    ss.completed_at,
-                    COALESCE(ss.completed_hosts, 0) as hosts_scanned,
-                    COALESCE(ss.completed_hosts, 0) as successful_hosts,
-                    COALESCE(ss.failed_hosts, 0) as failed_hosts,
-                    COALESCE(
-                        CASE WHEN ss.total_hosts > 0
-                        THEN (ss.completed_hosts::float / ss.total_hosts) * 100
-                        ELSE 0 END,
-                        0
-                    ) as avg_progress
-                FROM group_scan_sessions gss
-                LEFT JOIN scan_sessions ss ON gss.session_id = ss.id
-                WHERE gss.group_id = :group_id
-                ORDER BY gss.created_at DESC
-                LIMIT :limit OFFSET :offset
-            """
-            ),
-            {"group_id": group_id, "limit": limit, "offset": offset},
-        ).fetchall()
+        history_builder = (
+            QueryBuilder("group_scan_sessions gss")
+            .select(
+                "gss.session_id",
+                "gss.status",
+                "gss.total_hosts",
+                "gss.created_at",
+                "gss.scan_config",
+                "ss.completed_at",
+                "COALESCE(ss.completed_hosts, 0) as hosts_scanned",
+                "COALESCE(ss.completed_hosts, 0) as successful_hosts",
+                "COALESCE(ss.failed_hosts, 0) as failed_hosts",
+                """COALESCE(
+                    CASE WHEN ss.total_hosts > 0
+                    THEN (ss.completed_hosts::float / ss.total_hosts) * 100
+                    ELSE 0 END, 0
+                ) as avg_progress""",
+            )
+            .join("scan_sessions ss", "gss.session_id = ss.id")
+            .where("gss.group_id = :group_id", group_id, "group_id")
+            .order_by("gss.created_at", "DESC")
+            .paginate(page=(offset // limit) + 1, per_page=limit)
+        )
+        query, params = history_builder.build()
+        history = db.execute(text(query), params).fetchall()
 
         return [
             GroupScanHistoryResponse(
@@ -913,10 +898,9 @@ async def schedule_group_compliance_scan(
 
     try:
         # Verify group exists
-        group = db.execute(
-            text("SELECT id FROM host_groups WHERE id = :group_id"),
-            {"group_id": group_id},
-        ).fetchone()
+        exists_builder = QueryBuilder("host_groups").select("id").where("id = :group_id", group_id, "group_id")
+        query, params = exists_builder.build()
+        group = db.execute(text(query), params).fetchone()
 
         if not group:
             raise HTTPException(status_code=404, detail="Host group not found")
@@ -1008,15 +992,13 @@ def execute_group_compliance_scan(
         for host_id in host_ids:
             try:
                 # Get host details
-                host_result = db.execute(
-                    text(
-                        """
-                        SELECT id, hostname, ip_address, platform, platform_version
-                        FROM hosts WHERE id = :host_id
-                    """
-                    ),
-                    {"host_id": host_id},
-                ).fetchone()
+                host_builder = (
+                    QueryBuilder("hosts")
+                    .select("id", "hostname", "ip_address", "platform", "platform_version")
+                    .where("id = :host_id", host_id, "host_id")
+                )
+                host_query, host_params = host_builder.build()
+                host_result = db.execute(text(host_query), host_params).fetchone()
 
                 if not host_result:
                     failed_hosts.append({"host_id": host_id, "error": "Host not found"})

@@ -36,6 +36,7 @@ from ...database import get_db
 from ...models.mongo_models import UploadHistory
 from ...services.compliance_rules import ComplianceRulesUploadService, DeduplicationStrategy
 from ...utils.file_security import sanitize_filename, validate_file_extension
+from ...utils.query_builder import QueryBuilder
 
 logger = logging.getLogger(__name__)
 
@@ -104,32 +105,39 @@ async def get_semantic_rules(
 ) -> Dict[str, Any]:
     """Get semantic rules from the rule intelligence database."""
     try:
-        # Build query with optional filters
-        query = """
-            SELECT
-                id, scap_rule_id, semantic_name, title, compliance_intent,
-                business_impact, risk_level, applicable_frameworks as frameworks,
-                remediation_complexity, estimated_fix_time, remediation_available,
-                confidence_score, created_at
-            FROM rule_intelligence
-            WHERE 1=1
-        """
-        params: Dict[str, Any] = {}
+        # Build query with optional filters using QueryBuilder
+        builder = QueryBuilder("rule_intelligence").select(
+            "id",
+            "scap_rule_id",
+            "semantic_name",
+            "title",
+            "compliance_intent",
+            "business_impact",
+            "risk_level",
+            "applicable_frameworks as frameworks",
+            "remediation_complexity",
+            "estimated_fix_time",
+            "remediation_available",
+            "confidence_score",
+            "created_at",
+        )
 
         if framework:
-            query += " AND :framework = ANY(applicable_frameworks)"
-            params["framework"] = framework
+            builder = builder.where(":framework = ANY(applicable_frameworks)", framework, "framework")
 
         if business_impact:
-            query += " AND business_impact = :business_impact"
-            params["business_impact"] = business_impact
+            builder = builder.where("business_impact = :business_impact", business_impact, "business_impact")
 
         if remediation_available is not None:
-            query += " AND remediation_available = :remediation_available"
-            params["remediation_available"] = remediation_available
+            builder = builder.where(
+                "remediation_available = :remediation_available",
+                remediation_available,
+                "remediation_available",
+            )
 
-        query += " ORDER BY created_at DESC"
+        builder = builder.order_by("created_at", "DESC")
 
+        query, params = builder.build()
         result = db.execute(text(query), params)
         rules = result.fetchall()
 
@@ -208,13 +216,18 @@ async def get_framework_intelligence(
                 continue
 
             # Get cross-framework mappings (rules that appear in multiple frameworks)
-            cross_framework_query = """
-                SELECT COUNT(*) as cross_framework_count
-                FROM rule_intelligence
-                WHERE :framework = ANY(applicable_frameworks)
-                AND array_length(applicable_frameworks, 1) > 1
-            """
-            cross_result = db.execute(text(cross_framework_query), {"framework": framework_key})
+            cross_builder = (
+                QueryBuilder("rule_intelligence")
+                .select("COUNT(*) as cross_framework_count")
+                .where(
+                    ":framework = ANY(applicable_frameworks)",
+                    framework_key,
+                    "framework",
+                )
+                .where("array_length(applicable_frameworks, 1) > 1")
+            )
+            cross_query, cross_params = cross_builder.build()
+            cross_result = db.execute(text(cross_query), cross_params)
             cross_row = cross_result.fetchone()
             cross_framework_count = cross_row.cross_framework_count if cross_row else 0
 
@@ -318,16 +331,24 @@ async def get_semantic_analysis(
 ) -> Dict[str, Any]:
     """Get semantic analysis results for a specific scan."""
     try:
-        query = """
-            SELECT
-                scan_id, host_id, semantic_rules_count, frameworks_analyzed,
-                remediation_available_count, processing_metadata, analysis_data,
-                created_at, updated_at
-            FROM semantic_scan_analysis
-            WHERE scan_id = :scan_id
-        """
+        builder = (
+            QueryBuilder("semantic_scan_analysis")
+            .select(
+                "scan_id",
+                "host_id",
+                "semantic_rules_count",
+                "frameworks_analyzed",
+                "remediation_available_count",
+                "processing_metadata",
+                "analysis_data",
+                "created_at",
+                "updated_at",
+            )
+            .where("scan_id = :scan_id", scan_id, "scan_id")
+        )
 
-        result = db.execute(text(query), {"scan_id": scan_id})
+        query, params = builder.build()
+        result = db.execute(text(query), params)
         analysis = result.fetchone()
 
         if not analysis:
@@ -360,23 +381,27 @@ async def get_compliance_matrix(
 ) -> Dict[str, Any]:
     """Get framework compliance matrix data."""
     try:
-        query = """
-            SELECT
-                host_id, framework, compliance_score, total_rules,
-                passed_rules, failed_rules, previous_score, trend,
-                last_scan_id, last_updated, predicted_next_score,
-                prediction_confidence
-            FROM framework_compliance_matrix
-            WHERE 1=1
-        """
-        params: Dict[str, Any] = {}
+        builder = QueryBuilder("framework_compliance_matrix").select(
+            "host_id",
+            "framework",
+            "compliance_score",
+            "total_rules",
+            "passed_rules",
+            "failed_rules",
+            "previous_score",
+            "trend",
+            "last_scan_id",
+            "last_updated",
+            "predicted_next_score",
+            "prediction_confidence",
+        )
 
         if host_id:
-            query += " AND host_id = :host_id"
-            params["host_id"] = host_id
+            builder = builder.where("host_id = :host_id", host_id, "host_id")
 
-        query += " ORDER BY last_updated DESC"
+        builder = builder.order_by("last_updated", "DESC")
 
+        query, params = builder.build()
         result = db.execute(text(query), params)
         matrix_data = result.fetchall()
 

@@ -39,6 +39,7 @@ from app.database import get_db
 from app.services.engine import get_aegis_mapper
 from app.services.framework import ComplianceFrameworkMapper
 from app.services.rules import RuleSpecificScanner
+from app.utils.query_builder import QueryBuilder
 
 logger = logging.getLogger(__name__)
 
@@ -288,10 +289,9 @@ async def scan_specific_rules(
         logger.info(f"Rule-specific scan requested by {current_user['username']} for {len(request.rule_ids)} rules")
 
         # Get SCAP content file path
-        content_result = db.execute(
-            text("SELECT file_path FROM scap_content WHERE id = :id"),
-            {"id": request.content_id},
-        ).fetchone()
+        content_builder = QueryBuilder("scap_content").select("file_path").where("id = :id", request.content_id, "id")
+        content_query, content_params = content_builder.build()
+        content_result = db.execute(text(content_query), content_params).fetchone()
 
         if not content_result:
             raise HTTPException(status_code=404, detail="SCAP content not found")
@@ -368,10 +368,9 @@ async def rescan_failed_rules(
     """
     try:
         # Get SCAP content file path
-        content_result = db.execute(
-            text("SELECT file_path FROM scap_content WHERE id = :id"),
-            {"id": content_id},
-        ).fetchone()
+        content_builder = QueryBuilder("scap_content").select("file_path").where("id = :id", content_id, "id")
+        content_query, content_params = content_builder.build()
+        content_result = db.execute(text(content_query), content_params).fetchone()
 
         if not content_result:
             raise HTTPException(status_code=404, detail="SCAP content not found")
@@ -429,10 +428,9 @@ async def verify_remediation(
     """
     try:
         # Get SCAP content file path
-        content_result = db.execute(
-            text("SELECT file_path FROM scap_content WHERE id = :id"),
-            {"id": request.content_id},
-        ).fetchone()
+        content_builder = QueryBuilder("scap_content").select("file_path").where("id = :id", request.content_id, "id")
+        content_query, content_params = content_builder.build()
+        content_result = db.execute(text(content_query), content_params).fetchone()
 
         if not content_result:
             raise HTTPException(status_code=404, detail="SCAP content not found")
@@ -488,20 +486,18 @@ async def get_rule_scan_history(
         - Requires authenticated user
     """
     try:
-        query = """
-            SELECT scan_id, host_id, result, severity, scan_timestamp, duration_ms
-            FROM rule_scan_history
-            WHERE rule_id = :rule_id
-        """
-        params: Dict[str, Any] = {"rule_id": rule_id}
+        history_builder = (
+            QueryBuilder("rule_scan_history")
+            .select("scan_id", "host_id", "result", "severity", "scan_timestamp", "duration_ms")
+            .where("rule_id = :rule_id", rule_id, "rule_id")
+        )
 
         if host_id:
-            query += " AND host_id = :host_id"
-            params["host_id"] = host_id
+            history_builder = history_builder.where("host_id = :host_id", host_id, "host_id")
 
-        query += " ORDER BY scan_timestamp DESC LIMIT :limit"
-        params["limit"] = limit
+        history_builder = history_builder.order_by("scan_timestamp", "DESC").paginate(page=1, per_page=limit)
 
+        query, params = history_builder.build()
         db_results = db.execute(text(query), params).fetchall()
 
         history = [
@@ -635,30 +631,31 @@ async def create_remediation_plan(
         failed_rules = []
 
         # First try to get from rule_scan_history
-        history_results = db.execute(
-            text(
-                """
-            SELECT rule_id, severity FROM rule_scan_history
-            WHERE scan_id = :scan_id AND result = 'fail'
-        """
-            ),
-            {"scan_id": request.scan_id},
-        ).fetchall()
+        history_builder = (
+            QueryBuilder("rule_scan_history")
+            .select("rule_id", "severity")
+            .where("scan_id = :scan_id", request.scan_id, "scan_id")
+            .where("result = 'fail'")
+        )
+        history_query, history_params = history_builder.build()
+        history_results = db.execute(text(history_query), history_params).fetchall()
 
         if history_results:
             failed_rules = [{"rule_id": row.rule_id, "severity": row.severity} for row in history_results]
         else:
             # Fallback to getting from scan results table
-            scan_result = db.execute(
-                text(
-                    """
-                SELECT sr.rule_details FROM scan_results sr
-                JOIN scans s ON sr.scan_id = s.id
-                WHERE s.id = :scan_id OR CAST(s.id AS TEXT) = :scan_id
-            """
-                ),
-                {"scan_id": request.scan_id},
-            ).fetchone()
+            fallback_builder = (
+                QueryBuilder("scan_results sr")
+                .select("sr.rule_details")
+                .join("scans s", "sr.scan_id = s.id", "INNER")
+                .where(
+                    "s.id = :scan_id OR CAST(s.id AS TEXT) = :scan_id",
+                    request.scan_id,
+                    "scan_id",
+                )
+            )
+            fallback_query, fallback_params = fallback_builder.build()
+            scan_result = db.execute(text(fallback_query), fallback_params).fetchone()
 
             if scan_result and scan_result.rule_details:
                 rule_details = json.loads(scan_result.rule_details)

@@ -17,6 +17,7 @@ from typing import Any, Dict, List, Optional, Set
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.security import HTTPBearer
 from pydantic import BaseModel, Field
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from ...auth import get_current_user
@@ -24,6 +25,7 @@ from ...database import get_db
 from ...models.authorization_models import ActionType, ResourceIdentifier, ResourceType
 from ...rbac import Permission, require_permission
 from ...services.authorization import get_authorization_service
+from ...utils.query_builder import QueryBuilder
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/authorization", tags=["authorization"])
@@ -286,27 +288,34 @@ async def get_host_permissions(
         HTTPException: 500 on server error.
     """
     try:
-        from sqlalchemy import text
-
-        result = db.execute(
-            text(
-                """
-            SELECT hp.id, hp.user_id, hp.group_id, hp.role_name, hp.host_id,
-                   hp.actions, hp.effect, hp.conditions, hp.granted_by,
-                   hp.granted_at, hp.expires_at, hp.is_active,
-                   u_granted.username as granted_by_username,
-                   u_target.username as target_username,
-                   ug.name as target_group_name
-            FROM host_permissions hp
-            LEFT JOIN users u_granted ON hp.granted_by = u_granted.id
-            LEFT JOIN users u_target ON hp.user_id = u_target.id
-            LEFT JOIN user_groups ug ON hp.group_id = ug.id
-            WHERE hp.host_id = :host_id AND hp.is_active = true
-            ORDER BY hp.granted_at DESC
-        """
-            ),
-            {"host_id": host_id},
+        builder = (
+            QueryBuilder("host_permissions hp")
+            .select(
+                "hp.id",
+                "hp.user_id",
+                "hp.group_id",
+                "hp.role_name",
+                "hp.host_id",
+                "hp.actions",
+                "hp.effect",
+                "hp.conditions",
+                "hp.granted_by",
+                "hp.granted_at",
+                "hp.expires_at",
+                "hp.is_active",
+                "u_granted.username as granted_by_username",
+                "u_target.username as target_username",
+                "ug.name as target_group_name",
+            )
+            .join("users u_granted", "hp.granted_by = u_granted.id", "LEFT")
+            .join("users u_target", "hp.user_id = u_target.id", "LEFT")
+            .join("user_groups ug", "hp.group_id = ug.id", "LEFT")
+            .where("hp.host_id = :host_id", host_id, "host_id")
+            .where("hp.is_active = true")
+            .order_by("hp.granted_at", "DESC")
         )
+        query, params = builder.build()
+        result = db.execute(text(query), params)
 
         permissions = []
         for row in result:
@@ -562,49 +571,59 @@ async def get_authorization_audit_log(
         HTTPException: 500 on server error.
     """
     try:
-        from sqlalchemy import text
-
-        # Build WHERE clause with typed params dict
-        conditions: List[str] = ["1=1"]  # Always true base condition
-        params: Dict[str, Any] = {"limit": limit, "offset": offset}
+        # Build query with QueryBuilder for parameterized filtering
+        builder = QueryBuilder("authorization_audit_log").select(
+            "id",
+            "event_type",
+            "user_id",
+            "resource_type",
+            "resource_id",
+            "action",
+            "decision",
+            "policies_evaluated",
+            "context",
+            "ip_address",
+            "user_agent",
+            "session_id",
+            "evaluation_time_ms",
+            "reason",
+            "risk_score",
+            "timestamp",
+        )
 
         if user_id:
-            conditions.append("user_id = :user_id")
-            params["user_id"] = user_id
+            builder = builder.where("user_id = :user_id", user_id, "user_id")
 
         if resource_type:
-            conditions.append("resource_type = :resource_type")
-            params["resource_type"] = resource_type
+            builder = builder.where(
+                "resource_type = :resource_type",
+                resource_type,
+                "resource_type",
+            )
 
         if decision:
-            conditions.append("decision = :decision")
-            params["decision"] = decision
+            builder = builder.where("decision = :decision", decision, "decision")
 
         if start_date:
-            conditions.append("timestamp >= :start_date")
-            params["start_date"] = start_date
+            builder = builder.where("timestamp >= :start_date", start_date, "start_date")
 
         if end_date:
-            conditions.append("timestamp <= :end_date")
-            params["end_date"] = end_date
+            builder = builder.where("timestamp <= :end_date", end_date, "end_date")
 
-        where_clause = " AND ".join(conditions)
+        # Get total count with null safety
+        count_sql, count_params = builder.count_query()
+        count_result = db.execute(text(count_sql), count_params)
+        count_row = count_result.fetchone()
+        total_count: int = count_row.total if count_row else 0
 
-        # Get audit log entries
-        result = db.execute(
-            text(
-                f"""
-            SELECT id, event_type, user_id, resource_type, resource_id, action, decision,
-                   policies_evaluated, context, ip_address, user_agent, session_id,
-                   evaluation_time_ms, reason, risk_score, timestamp
-            FROM authorization_audit_log
-            WHERE {where_clause}
-            ORDER BY timestamp DESC
-            LIMIT :limit OFFSET :offset
-        """
-            ),
-            params,
+        # Get paginated audit log entries
+        page = (offset // limit) + 1 if limit > 0 else 1
+        builder = builder.order_by("timestamp", "DESC").paginate(
+            page=page,
+            per_page=limit,
         )
+        query, params = builder.build()
+        result = db.execute(text(query), params)
 
         audit_entries: List[Dict[str, Any]] = []
         for row in result:
@@ -628,21 +647,6 @@ async def get_authorization_audit_log(
                     "timestamp": row.timestamp.isoformat() if row.timestamp else None,
                 }
             )
-
-        # Get total count with null safety
-        count_result = db.execute(
-            text(
-                f"""
-            SELECT COUNT(*) as total
-            FROM authorization_audit_log
-            WHERE {where_clause}
-        """
-            ),
-            params,
-        )
-
-        count_row = count_result.fetchone()
-        total_count: int = count_row.total if count_row else 0
 
         return {
             "audit_entries": audit_entries,
@@ -682,8 +686,6 @@ async def get_authorization_summary(
         HTTPException: 500 on server error.
     """
     try:
-        from sqlalchemy import text
-
         # Get permission statistics with null safety
         perm_stats_result = db.execute(
             text(

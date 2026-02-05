@@ -22,6 +22,7 @@ from sqlalchemy.orm import Session
 from ...auth import get_current_user
 from ...database import get_db
 from ...utils.logging_security import sanitize_id_for_log
+from ...utils.query_builder import QueryBuilder
 
 logger = logging.getLogger(__name__)
 security = HTTPBearer(auto_error=False)
@@ -112,17 +113,21 @@ async def get_host_credentials(
     """
     try:
         # Get host and its credentials
-        result = db.execute(
-            text(
-                """
-            SELECT h.id, h.hostname, h.username, h.auth_method, h.encrypted_credentials,
-                   h.updated_at
-            FROM hosts h
-            WHERE h.id = :host_id AND h.is_active = true
-        """
-            ),
-            {"host_id": host_id},
+        host_builder = (
+            QueryBuilder("hosts h")
+            .select(
+                "h.id",
+                "h.hostname",
+                "h.username",
+                "h.auth_method",
+                "h.encrypted_credentials",
+                "h.updated_at",
+            )
+            .where("h.id = :host_id", host_id, "host_id")
+            .where("h.is_active = true")
         )
+        host_query, host_params = host_builder.build()
+        result = db.execute(text(host_query), host_params)
 
         row = result.fetchone()
         if not row:
