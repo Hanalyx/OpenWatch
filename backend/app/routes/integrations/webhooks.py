@@ -31,6 +31,7 @@ from sqlalchemy.orm import Session
 
 from ...auth import get_current_user
 from ...database import get_db
+from ...utils.query_builder import QueryBuilder
 
 logger = logging.getLogger(__name__)
 
@@ -134,28 +135,27 @@ async def list_webhook_endpoints(
         Paginated list of webhook endpoints
     """
     try:
-        # Build query conditions
-        where_conditions: List[str] = []
-        params: Dict[str, Any] = {"limit": limit, "offset": offset}
+        # Build query using QueryBuilder
+        builder = QueryBuilder("webhook_endpoints").select(
+            "id", "name", "url", "event_types", "is_active", "created_by", "created_at", "updated_at"
+        )
 
         if is_active is not None:
-            where_conditions.append("is_active = :is_active")
-            params["is_active"] = is_active
+            builder = builder.where("is_active = :is_active", is_active, "is_active")
 
         if event_type:
-            where_conditions.append("event_types::jsonb ? :event_type")
-            params["event_type"] = event_type
+            builder = builder.where("event_types::jsonb ? :event_type", event_type, "event_type")
 
-        where_clause = "WHERE " + " AND ".join(where_conditions) if where_conditions else ""
+        # Get total count before pagination
+        count_sql, count_params = builder.count_query()
+        total_result = db.execute(text(count_sql), count_params).fetchone()
+        total_count: int = total_result.total if total_result else 0
 
-        query = f"""
-            SELECT id, name, url, event_types, is_active, created_by, created_at, updated_at
-            FROM webhook_endpoints
-            {where_clause}
-            ORDER BY created_at DESC
-            LIMIT :limit OFFSET :offset
-        """
+        # Add ordering and pagination
+        page = (offset // limit) + 1 if limit > 0 else 1
+        builder = builder.order_by("created_at", "DESC").paginate(page=page, per_page=limit)
 
+        query, params = builder.build()
         result = db.execute(text(query), params)
 
         webhooks = []
@@ -171,15 +171,6 @@ async def list_webhook_endpoints(
                 "updated_at": row.updated_at.isoformat() if row.updated_at else None,
             }
             webhooks.append(webhook_data)
-
-        # Get total count
-        count_query = f"""
-            SELECT COUNT(*) as total
-            FROM webhook_endpoints
-            {where_clause}
-        """
-        total_result = db.execute(text(count_query), params).fetchone()
-        total_count: int = total_result.total if total_result else 0
 
         return {
             "webhooks": webhooks,
@@ -280,15 +271,13 @@ async def get_webhook_endpoint(
         HTTPException: 404 if webhook not found
     """
     try:
-        result = db.execute(
-            text(
-                """
-            SELECT id, name, url, event_types, is_active, created_by, created_at, updated_at
-            FROM webhook_endpoints WHERE id = :id
-        """
-            ),
-            {"id": webhook_id},
-        ).fetchone()
+        detail_builder = (
+            QueryBuilder("webhook_endpoints")
+            .select("id", "name", "url", "event_types", "is_active", "created_by", "created_at", "updated_at")
+            .where("id = :id", webhook_id, "id")
+        )
+        detail_query, detail_params = detail_builder.build()
+        result = db.execute(text(detail_query), detail_params).fetchone()
 
         if not result:
             raise HTTPException(status_code=404, detail="Webhook endpoint not found")
@@ -337,10 +326,9 @@ async def update_webhook_endpoint(
     """
     try:
         # Check if webhook exists
-        existing = db.execute(
-            text("SELECT id FROM webhook_endpoints WHERE id = :id"),
-            {"id": webhook_id},
-        ).fetchone()
+        exists_builder = QueryBuilder("webhook_endpoints").select("id").where("id = :id", webhook_id, "id")
+        exists_query, exists_params = exists_builder.build()
+        existing = db.execute(text(exists_query), exists_params).fetchone()
 
         if not existing:
             raise HTTPException(status_code=404, detail="Webhook endpoint not found")
@@ -416,10 +404,9 @@ async def delete_webhook_endpoint(
     """
     try:
         # Check if webhook exists
-        result = db.execute(
-            text("SELECT id FROM webhook_endpoints WHERE id = :id"),
-            {"id": webhook_id},
-        ).fetchone()
+        exists_builder = QueryBuilder("webhook_endpoints").select("id").where("id = :id", webhook_id, "id")
+        exists_query, exists_params = exists_builder.build()
+        result = db.execute(text(exists_query), exists_params).fetchone()
 
         if not result:
             raise HTTPException(status_code=404, detail="Webhook endpoint not found")
@@ -476,37 +463,45 @@ async def get_webhook_deliveries(
     """
     try:
         # Verify webhook exists
-        webhook_result = db.execute(
-            text("SELECT id FROM webhook_endpoints WHERE id = :id"),
-            {"id": webhook_id},
-        ).fetchone()
+        webhook_exists = QueryBuilder("webhook_endpoints").select("id").where("id = :id", webhook_id, "id")
+        we_query, we_params = webhook_exists.build()
+        webhook_result = db.execute(text(we_query), we_params).fetchone()
 
         if not webhook_result:
             raise HTTPException(status_code=404, detail="Webhook endpoint not found")
 
-        # Build query conditions
-        where_conditions = ["webhook_id = :webhook_id"]
-        params: Dict[str, Any] = {
-            "webhook_id": webhook_id,
-            "limit": limit,
-            "offset": offset,
-        }
+        # Build query using QueryBuilder
+        delivery_builder = (
+            QueryBuilder("webhook_deliveries")
+            .select(
+                "id",
+                "event_type",
+                "event_data",
+                "delivery_status",
+                "http_status_code",
+                "response_body",
+                "error_message",
+                "created_at",
+                "delivered_at",
+            )
+            .where("webhook_id = :webhook_id", webhook_id, "webhook_id")
+        )
 
         if delivery_status:
-            where_conditions.append("delivery_status = :delivery_status")
-            params["delivery_status"] = delivery_status
+            delivery_builder = delivery_builder.where(
+                "delivery_status = :delivery_status", delivery_status, "delivery_status"
+            )
 
-        where_clause = "WHERE " + " AND ".join(where_conditions)
+        # Get total count before pagination
+        count_sql, count_params = delivery_builder.count_query()
+        total_result = db.execute(text(count_sql), count_params).fetchone()
+        total_count: int = total_result.total if total_result else 0
 
-        query = f"""
-            SELECT id, event_type, event_data, delivery_status, http_status_code,
-                   response_body, error_message, created_at, delivered_at
-            FROM webhook_deliveries
-            {where_clause}
-            ORDER BY created_at DESC
-            LIMIT :limit OFFSET :offset
-        """
+        # Add ordering and pagination
+        page = (offset // limit) + 1 if limit > 0 else 1
+        delivery_builder = delivery_builder.order_by("created_at", "DESC").paginate(page=page, per_page=limit)
 
+        query, params = delivery_builder.build()
         result = db.execute(text(query), params)
 
         deliveries = []
@@ -523,15 +518,6 @@ async def get_webhook_deliveries(
                 "delivered_at": (row.delivered_at.isoformat() if row.delivered_at else None),
             }
             deliveries.append(delivery_data)
-
-        # Get total count
-        count_query = f"""
-            SELECT COUNT(*) as total
-            FROM webhook_deliveries
-            {where_clause}
-        """
-        total_result = db.execute(text(count_query), params).fetchone()
-        total_count: int = total_result.total if total_result else 0
 
         return {
             "deliveries": deliveries,
@@ -569,15 +555,14 @@ async def test_webhook_endpoint(
     """
     try:
         # Get webhook details
-        webhook_result = db.execute(
-            text(
-                """
-            SELECT id, name, url, secret_hash FROM webhook_endpoints
-            WHERE id = :id AND is_active = true
-        """
-            ),
-            {"id": webhook_id},
-        ).fetchone()
+        test_builder = (
+            QueryBuilder("webhook_endpoints")
+            .select("id", "name", "url", "secret_hash")
+            .where("id = :id", webhook_id, "id")
+            .where("is_active = true")
+        )
+        test_query, test_params = test_builder.build()
+        webhook_result = db.execute(text(test_query), test_params).fetchone()
 
         if not webhook_result:
             raise HTTPException(status_code=404, detail="Webhook endpoint not found or inactive")

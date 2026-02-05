@@ -813,19 +813,25 @@ async def rescan_rule(
         logger.info(f"Rule rescan requested for scan {scan_id}, rule {rescan_request.rule_id}")
 
         # Get the original scan details
-        result = db.execute(
-            text(
-                """
-            SELECT s.id, s.host_id, s.profile_id, s.name,
-                   h.hostname, h.ip_address, h.port, h.username,
-                   h.auth_method, h.encrypted_credentials
-            FROM scans s
-            JOIN hosts h ON s.host_id = h.id
-            WHERE s.id = :scan_id
-        """
-            ),
-            {"scan_id": scan_id},
+        scan_builder = (
+            QueryBuilder("scans s")
+            .select(
+                "s.id",
+                "s.host_id",
+                "s.profile_id",
+                "s.name",
+                "h.hostname",
+                "h.ip_address",
+                "h.port",
+                "h.username",
+                "h.auth_method",
+                "h.encrypted_credentials",
+            )
+            .join("hosts h", "s.host_id = h.id", "INNER")
+            .where("s.id = :scan_id", scan_id, "scan_id")
         )
+        scan_query, scan_params = scan_builder.build()
+        result = db.execute(text(scan_query), scan_params)
 
         scan_data = result.fetchone()
         if not scan_data:
@@ -894,19 +900,26 @@ async def start_remediation(
     """
     try:
         # Get scan details and failed rules
-        scan_result = db.execute(
-            text(
-                """
-            SELECT s.id, s.name, s.host_id, h.hostname, h.ip_address,
-                   sr.failed_rules, sr.severity_high, sr.severity_medium, sr.severity_low
-            FROM scans s
-            JOIN hosts h ON s.host_id = h.id
-            LEFT JOIN scan_results sr ON s.id = sr.scan_id
-            WHERE s.id = :scan_id AND s.status = 'completed'
-        """
-            ),
-            {"scan_id": scan_id},
-        ).fetchone()
+        remediation_builder = (
+            QueryBuilder("scans s")
+            .select(
+                "s.id",
+                "s.name",
+                "s.host_id",
+                "h.hostname",
+                "h.ip_address",
+                "sr.failed_rules",
+                "sr.severity_high",
+                "sr.severity_medium",
+                "sr.severity_low",
+            )
+            .join("hosts h", "s.host_id = h.id", "INNER")
+            .join("scan_results sr", "s.id = sr.scan_id", "LEFT")
+            .where("s.id = :scan_id", scan_id, "scan_id")
+            .where("s.status = 'completed'")
+        )
+        rem_query, rem_params = remediation_builder.build()
+        scan_result = db.execute(text(rem_query), rem_params).fetchone()
 
         if not scan_result:
             raise HTTPException(status_code=404, detail="Completed scan not found")
@@ -1216,10 +1229,9 @@ async def pre_flight_check(
         from app.services.host_validator.readiness_validator import ReadinessValidatorService
 
         # Get scan
-        scan_result = db.execute(
-            text("SELECT id, host_id FROM scans WHERE id = :scan_id"),
-            {"scan_id": scan_id},
-        ).fetchone()
+        pf_builder = QueryBuilder("scans").select("id", "host_id").where("id = :scan_id", scan_id, "scan_id")
+        pf_query, pf_params = pf_builder.build()
+        scan_result = db.execute(text(pf_query), pf_params).fetchone()
 
         if not scan_result:
             raise HTTPException(status_code=404, detail="Scan not found")
