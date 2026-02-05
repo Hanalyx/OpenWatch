@@ -600,11 +600,11 @@ cache/
 !.env.example
 
 # ======================================
-# COMPLIANCE RULES
+# COMPLIANCE RULES DATA
 # ======================================
 
-# Compliance rules directory (1,584 JSON files, 14MB)
-compliance_rules/
+# Compliance rules data directory at repo root (not backend/app/services/compliance_rules/)
+/compliance_rules/
 
 # ======================================
 # PROJECT-SPECIFIC DEVELOPMENT FILES

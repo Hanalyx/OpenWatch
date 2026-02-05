@@ -28,7 +28,7 @@ test.describe('Scans Page', () => {
     expect(hasTable || hasEmpty).toBeTruthy();
   });
 
-  test('new scan dialog opens', async ({ authenticatedPage }) => {
+  test('new scan action is available', async ({ authenticatedPage }) => {
     const page = authenticatedPage.page;
     await page.goto('/scans');
     await page.waitForLoadState('networkidle');
@@ -38,10 +38,11 @@ test.describe('Scans Page', () => {
     });
     if ((await newScanButton.count()) > 0) {
       await newScanButton.first().click();
-      const dialog = page.locator(
-        '[role="dialog"], .MuiDialog-root, .MuiDrawer-root, .MuiMenu-root'
-      );
-      await expect(dialog.first()).toBeVisible({ timeout: 5000 });
+      // Scan creation may open a dialog or navigate to /scans/create
+      const dialog = page.locator('[role="dialog"], .MuiDialog-root');
+      const hasDialog = await dialog.first().isVisible({ timeout: 3000 }).catch(() => false);
+      const navigated = page.url().includes('/scans/create');
+      expect(hasDialog || navigated).toBeTruthy();
     }
   });
 

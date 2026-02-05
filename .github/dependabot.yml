@@ -8,7 +8,8 @@ updates:
       day: "monday"
       time: "09:00"
       timezone: "UTC"
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 3
+    rebase-strategy: "disabled"
     reviewers:
       - "Hanalyx/security-team"
     assignees:
@@ -31,6 +32,13 @@ updates:
     allow:
       - dependency-type: "all"
         update-type: "version-update:semver-patch"
+    ignore:
+      - dependency-name: "fastapi"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "sqlalchemy"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "*"
+        versions: ["*alpha*", "*beta*", "*rc*", "*pre*", "*dev*"]
 
   # JavaScript dependencies for frontend (regular updates)
   - package-ecosystem: "npm"
@@ -40,7 +48,8 @@ updates:
       day: "monday"
       time: "10:00"
       timezone: "UTC"
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 3
+    rebase-strategy: "disabled"
     reviewers:
       - "Hanalyx/frontend-team"
     assignees:
@@ -69,6 +78,13 @@ updates:
         update-type: "version-update:semver-patch"
       - dependency-type: "production"
         update-type: "version-update:semver-patch"
+    ignore:
+      - dependency-name: "react"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@mui/material"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "*"
+        versions: ["*alpha*", "*beta*", "*rc*", "*pre*", "*dev*"]
 
   # Docker base images
   - package-ecosystem: "docker"
@@ -78,7 +94,8 @@ updates:
       day: "tuesday"
       time: "09:00"
       timezone: "UTC"
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 3
+    rebase-strategy: "disabled"
     reviewers:
       - "Hanalyx/devops-team"
     assignees:
@@ -90,6 +107,13 @@ updates:
     commit-message:
       prefix: "docker"
       include: "scope"
+    ignore:
+      - dependency-name: "node"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "python"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "postgres"
+        update-types: ["version-update:semver-major"]
 
   # GitHub Actions
   - package-ecosystem: "github-actions"
@@ -99,7 +123,8 @@ updates:
       day: "tuesday"
       time: "10:00"
       timezone: "UTC"
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 3
+    rebase-strategy: "disabled"
     reviewers:
       - "Hanalyx/devops-team"
     assignees:
@@ -124,6 +149,7 @@ updates:
       time: "06:00"
       timezone: "UTC"
     target-branch: "main"
+    rebase-strategy: "disabled"
     labels:
       - "dependencies"
       - "security"
@@ -149,6 +175,7 @@ updates:
       time: "06:00"
       timezone: "UTC"
     target-branch: "main"
+    rebase-strategy: "disabled"
     labels:
       - "dependencies"
       - "security"
@@ -165,28 +192,3 @@ updates:
     allow:
       - dependency-type: "all"
         update-type: "security-update"
-
-# Global ignore patterns
-ignore:
-  # Ignore specific packages that require manual coordination
-  - dependency-name: "react"
-    update-types: ["version-update:semver-major"]
-  - dependency-name: "@mui/material"
-    update-types: ["version-update:semver-major"]
-  - dependency-name: "fastapi"
-    update-types: ["version-update:semver-major"]
-  - dependency-name: "sqlalchemy"
-    update-types: ["version-update:semver-major"]
-  - dependency-name: "node"
-    # Ignore Node.js base image major updates
-    update-types: ["version-update:semver-major"]
-  - dependency-name: "python"
-    # Ignore Python base image major updates
-    update-types: ["version-update:semver-major"]
-  - dependency-name: "postgres"
-    # Ignore PostgreSQL major version updates
-    update-types: ["version-update:semver-major"]
-
-  # Ignore beta/alpha releases globally
-  - dependency-name: "*"
-    versions: ["*alpha*", "*beta*", "*rc*", "*pre*", "*dev*"]

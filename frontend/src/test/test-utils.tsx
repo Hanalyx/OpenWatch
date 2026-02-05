@@ -9,10 +9,26 @@ import { configureStore, type EnhancedStore } from '@reduxjs/toolkit';
 import { Provider } from 'react-redux';
 import { MemoryRouter } from 'react-router-dom';
 import authReducer from '../store/slices/authSlice';
-import type { RootState } from '../store';
+
+// Auth state type for testing (matches authSlice)
+interface AuthState {
+  user: { id: string; username: string; email: string; role: string; mfaEnabled: boolean } | null;
+  token: string | null;
+  refreshToken: string | null;
+  isAuthenticated: boolean;
+  isLoading: boolean;
+  error: string | null;
+  mfaRequired: boolean;
+  sessionExpiry: number | null;
+}
+
+// Test-specific root state (subset of full RootState)
+interface TestRootState {
+  auth: AuthState;
+}
 
 interface ExtendedRenderOptions extends Omit<RenderOptions, 'queries'> {
-  preloadedState?: Partial<RootState>;
+  preloadedState?: Partial<TestRootState>;
   store?: EnhancedStore;
   route?: string;
 }
@@ -23,7 +39,7 @@ export function renderWithProviders(
     preloadedState = {},
     store = configureStore({
       reducer: { auth: authReducer },
-      preloadedState: preloadedState as Record<string, unknown>,
+      preloadedState: preloadedState as TestRootState,
     }),
     route = '/',
     ...renderOptions

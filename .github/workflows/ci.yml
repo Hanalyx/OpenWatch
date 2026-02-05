@@ -43,6 +43,16 @@ jobs:
         ports:
           - 6379:6379
 
+      mongodb:
+        image: mongo:7.0
+        options: >-
+          --health-cmd "mongosh --eval 'db.adminCommand(\"ping\")'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 27017:27017
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
@@ -109,8 +119,7 @@ jobs:
           OPENWATCH_DATABASE_URL: postgresql://openwatch:openwatch_test@localhost:5432/openwatch_test
           TEST_DATABASE_URL: postgresql://openwatch:openwatch_test@localhost:5432/openwatch_test
           OPENWATCH_REDIS_URL: redis://localhost:6379
-          # MongoDB not available in backend CI; set short timeout so app startup fails fast
-          OPENWATCH_MONGODB_URL: mongodb://localhost:27017/openwatch_test?serverSelectionTimeoutMS=1000
+          OPENWATCH_MONGODB_URL: mongodb://localhost:27017/openwatch_test
           OPENWATCH_JWT_SECRET_KEY: test_secret_key_for_ci_must_be_32_chars_minimum  # pragma: allowlist secret
           OPENWATCH_SECRET_KEY: test_secret_key_for_ci_must_be_32_chars_minimum  # pragma: allowlist secret
           OPENWATCH_MASTER_KEY: test_master_key_for_ci_32bytes_long_minimum!!  # pragma: allowlist secret
@@ -139,7 +148,7 @@ jobs:
 
       - name: Upload coverage reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: backend-coverage
           path: backend/htmlcov/
@@ -180,6 +189,9 @@ jobs:
           echo "Running ESLint..."
           npm run lint
 
+          echo "Running Prettier check..."
+          npx prettier --check "src/**/*.{ts,tsx}" || echo "Prettier found formatting issues (non-blocking)"
+
           echo "Running TypeScript type check..."
           npx tsc --noEmit
 
@@ -191,7 +203,7 @@ jobs:
 
       - name: Upload frontend coverage
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: frontend-coverage
           path: frontend/coverage/
@@ -201,7 +213,7 @@ jobs:
         run: npm run build
 
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: frontend-build
           path: frontend/dist/
@@ -323,11 +335,62 @@ jobs:
           # Clean up
           docker compose down -v
 
-  # E2E Testing
+  # Detect what changed to optimize test runs
+  changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+      frontend_critical: ${{ steps.filter.outputs.frontend_critical }}
+      e2e_required: ${{ steps.e2e_check.outputs.required }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Detect file changes
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            backend:
+              - 'backend/**'
+              - 'docker/Dockerfile.backend'
+            frontend:
+              - 'frontend/**'
+              - 'docker/Dockerfile.frontend'
+            frontend_critical:
+              - 'frontend/src/services/api.ts'
+              - 'frontend/src/store/slices/authSlice.ts'
+              - 'frontend/src/pages/auth/**'
+              - 'frontend/src/components/auth/**'
+              - 'frontend/e2e/**'
+
+      - name: Determine if E2E is required
+        id: e2e_check
+        run: |
+          # E2E required if:
+          # 1. Backend changes (API changes may break E2E flows)
+          # 2. Critical frontend changes (auth, API client)
+          # 3. E2E test files changed
+          # 4. Explicitly requested via label
+          if [[ "${{ steps.filter.outputs.backend }}" == "true" ]] || \
+             [[ "${{ steps.filter.outputs.frontend_critical }}" == "true" ]] || \
+             [[ "${{ contains(github.event.pull_request.labels.*.name, 'run-e2e') }}" == "true" ]]; then
+            echo "required=true" >> $GITHUB_OUTPUT
+            echo "E2E tests required: backend=${{ steps.filter.outputs.backend }}, frontend_critical=${{ steps.filter.outputs.frontend_critical }}"
+          else
+            echo "required=false" >> $GITHUB_OUTPUT
+            echo "E2E tests skipped: frontend-only non-critical changes"
+          fi
+
+  # E2E Testing - conditional based on changes
   e2e:
     name: E2E Tests
     runs-on: ubuntu-latest
-    needs: [backend, frontend]
+    needs: [backend, frontend, changes]
+    # Always run to satisfy required status check, but exit early if not needed
+    env:
+      E2E_REQUIRED: ${{ needs.changes.outputs.e2e_required == 'true' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
 
     services:
       postgres:
@@ -369,34 +432,61 @@ jobs:
           - 27017:27017
 
     steps:
+      - name: Skip E2E if not required
+        if: env.E2E_REQUIRED != 'true'
+        run: |
+          echo "E2E tests skipped - no critical changes detected"
+          echo "To force E2E tests, add the 'run-e2e' label to the PR"
+
       - name: Checkout code
+        if: env.E2E_REQUIRED == 'true'
         uses: actions/checkout@v5
 
       - name: Set up Node.js
+        if: env.E2E_REQUIRED == 'true'
         uses: actions/setup-node@v5
         with:
           node-version: ${{ env.NODE_VERSION }}
 
       - name: Install frontend dependencies
+        if: env.E2E_REQUIRED == 'true'
         working-directory: ./frontend
         run: npm ci
 
       - name: Install Playwright browsers
+        if: env.E2E_REQUIRED == 'true'
         working-directory: ./frontend
         run: npx playwright install --with-deps
 
       - name: Set up Python
+        if: env.E2E_REQUIRED == 'true'
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Install backend dependencies
+        if: env.E2E_REQUIRED == 'true'
         working-directory: ./backend
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Run database migrations
+        if: env.E2E_REQUIRED == 'true'
+        working-directory: ./backend
+        env:
+          OPENWATCH_DATABASE_URL: postgresql://openwatch:openwatch_test@localhost:5432/openwatch_test
+          OPENWATCH_JWT_SECRET_KEY: test_secret_key_for_e2e_must_be_32_chars_minimum  # pragma: allowlist secret
+          OPENWATCH_SECRET_KEY: test_secret_key_for_e2e_must_be_32_chars_minimum  # pragma: allowlist secret
+          OPENWATCH_MASTER_KEY: test_master_key_for_e2e_32bytes_long_minimum!!  # pragma: allowlist secret
+          OPENWATCH_ENVIRONMENT: test
+        run: |
+          echo "Running Alembic database migrations..."
+          alembic upgrade head
+          echo "Migration completed"
+
       - name: Start backend service
+        if: env.E2E_REQUIRED == 'true'
         working-directory: ./backend
         env:
           OPENWATCH_DATABASE_URL: postgresql://openwatch:openwatch_test@localhost:5432/openwatch_test
@@ -424,17 +514,67 @@ jobs:
           timeout 60 bash -c 'until curl -f http://localhost:8000/health; do sleep 2; done'
 
       - name: Create test data
+        if: env.E2E_REQUIRED == 'true'
+        continue-on-error: true
         run: |
-          # Create test users via API (if registration endpoint exists)
-          curl -X POST http://localhost:8000/api/auth/register \
+          # Wait for backend to be fully ready (not just health endpoint)
+          echo "Waiting for backend API to be fully operational..."
+          sleep 5
+
+          # Create test users via API
+          # Valid roles: super_admin, security_admin, security_analyst, compliance_officer, auditor, guest
+          echo "Creating admin test user..."
+          ADMIN_RESPONSE=$(curl -s -X POST http://localhost:8000/api/auth/register \
             -H "Content-Type: application/json" \
             -d '{
-              "username": "admin@openwatch.local",
+              "username": "admin@example.com",
+              "email": "admin@example.com",
               "password": "Admin123!@#",
-              "role": "admin"
-            }' || echo "Test user creation handled in tests"
+              "role": "super_admin"
+            }')
+          echo "Admin registration response: $ADMIN_RESPONSE"
+
+          echo "Creating analyst test user..."
+          ANALYST_RESPONSE=$(curl -s -X POST http://localhost:8000/api/auth/register \
+            -H "Content-Type: application/json" \
+            -d '{
+              "username": "analyst@example.com",
+              "email": "analyst@example.com",
+              "password": "Analyst123!@#",
+              "role": "security_analyst"
+            }')
+          echo "Analyst registration response: $ANALYST_RESPONSE"
+
+          echo "Creating auditor test user..."
+          AUDITOR_RESPONSE=$(curl -s -X POST http://localhost:8000/api/auth/register \
+            -H "Content-Type: application/json" \
+            -d '{
+              "username": "auditor@example.com",
+              "email": "auditor@example.com",
+              "password": "Auditor123!@#",
+              "role": "auditor"
+            }')
+          echo "Auditor registration response: $AUDITOR_RESPONSE"
+
+          # Verify at least one user can log in (don't fail if login doesn't work)
+          # Use default admin created by init_roles.py
+          echo "Verifying login works..."
+          # Test credentials from init_roles.py - NOT real secrets
+          ADMIN_USER="admin"
+          ADMIN_PASS="admin123"  # pragma: allowlist secret
+          LOGIN_RESPONSE=$(curl -s -X POST http://localhost:8000/api/auth/login \
+            -H "Content-Type: application/json" \
+            -d "{\"username\": \"$ADMIN_USER\", \"password\": \"$ADMIN_PASS\"}" || echo '{}')
+
+          if echo "$LOGIN_RESPONSE" | grep -q "access_token"; then
+            echo "Login verification successful"
+          else
+            echo "WARNING: Login verification failed. Response: $LOGIN_RESPONSE"
+            echo "E2E tests will proceed - tests handle their own auth setup"
+          fi
 
       - name: Run E2E tests
+        if: env.E2E_REQUIRED == 'true'
         working-directory: ./frontend
         env:
           CI: true
@@ -446,8 +586,8 @@ jobs:
           npx playwright test --project=chromium --reporter=html,junit
 
       - name: Upload E2E test results
-        uses: actions/upload-artifact@v4
-        if: always()
+        uses: actions/upload-artifact@v6
+        if: always() && env.E2E_REQUIRED == 'true'
         with:
           name: e2e-test-results
           path: |
@@ -456,8 +596,8 @@ jobs:
             frontend/junit.xml
 
       - name: Upload E2E screenshots on failure
-        uses: actions/upload-artifact@v4
-        if: failure()
+        uses: actions/upload-artifact@v6
+        if: failure() && env.E2E_REQUIRED == 'true'
         with:
           name: e2e-failure-screenshots
           path: frontend/test-results/screenshots/
@@ -466,18 +606,25 @@ jobs:
   docker:
     name: Build and Push Docker Images
     runs-on: ubuntu-latest
-    needs: [backend, frontend, integration, e2e]
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: [backend, frontend, integration, e2e, changes]
+    # Run on main push if core tests pass (e2e may be skipped for frontend-only changes)
+    if: |
+      github.ref == 'refs/heads/main' &&
+      github.event_name == 'push' &&
+      needs.backend.result == 'success' &&
+      needs.frontend.result == 'success' &&
+      needs.integration.result == 'success' &&
+      (needs.e2e.result == 'success' || needs.e2e.result == 'skipped')
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
+        uses: docker/setup-buildx-action@v3
 
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v4
+        uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}

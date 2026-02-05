@@ -76,8 +76,8 @@ export const usePerformanceMonitor = (options: PerformanceMonitorOptions = {}) =
   const lastFrameTimeRef = useRef(0); // Will be set when monitoring starts
   const renderStartTimeRef = useRef(0);
   const interactionStartTimeRef = useRef(0);
-  const frameRateIntervalRef = useRef<NodeJS.Timeout>();
-  const memoryIntervalRef = useRef<NodeJS.Timeout>();
+  const frameRateIntervalRef = useRef<NodeJS.Timeout | undefined>(undefined);
+  const memoryIntervalRef = useRef<NodeJS.Timeout | undefined>(undefined);
 
   // Measure render time
   const startRenderMeasure = useCallback(() => {
