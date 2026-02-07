@@ -35,6 +35,7 @@ from sqlalchemy.orm import Session
 from app.auth import get_current_user
 from app.database import get_db
 from app.services.validation import GroupValidationService, ValidationError
+from app.utils.mutation_builders import DeleteBuilder, InsertBuilder
 from app.utils.query_builder import QueryBuilder
 
 from .models import (
@@ -490,17 +491,17 @@ async def delete_host_group(
         if not existing:
             raise HTTPException(status_code=404, detail="Group not found")
 
-        # Remove all host assignments first
-        db.execute(
-            text("DELETE FROM host_group_memberships WHERE group_id = :group_id"),
-            {"group_id": group_id},
+        # Remove all host assignments first using DeleteBuilder
+        delete_memberships_builder = DeleteBuilder("host_group_memberships").where(
+            "group_id = :group_id", group_id, "group_id"
         )
+        delete_memberships_query, delete_memberships_params = delete_memberships_builder.build()
+        db.execute(text(delete_memberships_query), delete_memberships_params)
 
-        # Delete the group
-        db.execute(
-            text("DELETE FROM host_groups WHERE id = :group_id"),
-            {"group_id": group_id},
-        )
+        # Delete the group using DeleteBuilder
+        delete_group_builder = DeleteBuilder("host_groups").where("id = :group_id", group_id, "group_id")
+        delete_group_query, delete_group_params = delete_group_builder.build()
+        db.execute(text(delete_group_query), delete_group_params)
 
         db.commit()
 
@@ -554,27 +555,19 @@ async def assign_hosts_to_group(
         # Remove hosts from any existing groups first (each host can only be in one group)
         if request.host_ids:
             for host_id in request.host_ids:
-                db.execute(
-                    text("DELETE FROM host_group_memberships WHERE host_id = :host_id"),
-                    {"host_id": host_id},
-                )
+                delete_builder = DeleteBuilder("host_group_memberships").where("host_id = :host_id", host_id, "host_id")
+                delete_query, delete_params = delete_builder.build()
+                db.execute(text(delete_query), delete_params)
 
-        # Add hosts to the new group
+        # Add hosts to the new group using InsertBuilder
         for host_id in request.host_ids:
-            db.execute(
-                text(
-                    """
-                INSERT INTO host_group_memberships (host_id, group_id, assigned_by, assigned_at)
-                VALUES (:host_id, :group_id, :assigned_by, :assigned_at)
-            """
-                ),
-                {
-                    "host_id": host_id,
-                    "group_id": group_id,
-                    "assigned_by": current_user["id"],
-                    "assigned_at": datetime.utcnow(),
-                },
+            insert_builder = (
+                InsertBuilder("host_group_memberships")
+                .columns("host_id", "group_id", "assigned_by", "assigned_at")
+                .values(host_id, group_id, current_user["id"], datetime.utcnow())
             )
+            insert_query, insert_params = insert_builder.build()
+            db.execute(text(insert_query), insert_params)
 
         db.commit()
 
@@ -610,11 +603,14 @@ async def remove_host_from_group(
         HTTPException: 404 if host not in group, 500 if removal fails.
     """
     try:
-        # Remove the host from the group
-        result = db.execute(
-            text("DELETE FROM host_group_memberships WHERE group_id = :group_id AND host_id = :host_id"),
-            {"group_id": group_id, "host_id": host_id},
+        # Remove the host from the group using DeleteBuilder
+        delete_builder = (
+            DeleteBuilder("host_group_memberships")
+            .where("group_id = :group_id", group_id, "group_id")
+            .where("host_id = :host_id", host_id, "host_id")
         )
+        delete_query, delete_params = delete_builder.build()
+        result = db.execute(text(delete_query), delete_params)
 
         db.commit()
 
@@ -851,30 +847,22 @@ async def validate_and_assign_hosts(
         if not existing:
             raise HTTPException(status_code=404, detail="Group not found")
 
-        # Remove hosts from any existing groups first
+        # Remove hosts from any existing groups first using DeleteBuilder
         for host_id in hosts_to_assign:
-            db.execute(
-                text("DELETE FROM host_group_memberships WHERE host_id = :host_id"),
-                {"host_id": host_id},
-            )
+            delete_builder = DeleteBuilder("host_group_memberships").where("host_id = :host_id", host_id, "host_id")
+            delete_query, delete_params = delete_builder.build()
+            db.execute(text(delete_query), delete_params)
 
-        # Add hosts to the new group
+        # Add hosts to the new group using InsertBuilder
         assigned_count = 0
         for host_id in hosts_to_assign:
-            db.execute(
-                text(
-                    """
-                INSERT INTO host_group_memberships (host_id, group_id, assigned_by, assigned_at)
-                VALUES (:host_id, :group_id, :assigned_by, :assigned_at)
-            """
-                ),
-                {
-                    "host_id": host_id,
-                    "group_id": group_id,
-                    "assigned_by": current_user["id"],
-                    "assigned_at": datetime.utcnow(),
-                },
+            insert_builder = (
+                InsertBuilder("host_group_memberships")
+                .columns("host_id", "group_id", "assigned_by", "assigned_at")
+                .values(host_id, group_id, current_user["id"], datetime.utcnow())
             )
+            insert_query, insert_params = insert_builder.build()
+            db.execute(text(insert_query), insert_params)
             assigned_count += 1
 
         db.commit()

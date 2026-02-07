@@ -39,6 +39,7 @@ from ...auth import get_current_user
 from ...database import get_db
 from ...services.ssh import validate_ssh_key
 from ...utils.logging_security import sanitize_id_for_log
+from ...utils.mutation_builders import DeleteBuilder, InsertBuilder, UpdateBuilder
 from ...utils.query_builder import QueryBuilder
 from .helpers import validate_host_uuid
 from .models import Host, HostCreate, HostUpdate, OSDiscoveryResponse
@@ -323,41 +324,42 @@ async def create_host(
         # Keep NULL in hosts.encrypted_credentials (unified system uses unified_credentials table)
         encrypted_creds = None
 
-        # NOTE: QueryBuilder is for SELECT queries only (OW-REFACTOR-001B)
-        # For INSERT/UPDATE/DELETE, use raw SQL with parameterized queries
-        insert_query = text(
-            """
-            INSERT INTO hosts (
-                id, hostname, ip_address, display_name, operating_system,
-                status, port, username, auth_method, encrypted_credentials,
-                is_active, created_at, updated_at
+        # Use InsertBuilder for type-safe, parameterized INSERT
+        insert_builder = (
+            InsertBuilder("hosts")
+            .columns(
+                "id",
+                "hostname",
+                "ip_address",
+                "display_name",
+                "operating_system",
+                "status",
+                "port",
+                "username",
+                "auth_method",
+                "encrypted_credentials",
+                "is_active",
+                "created_at",
+                "updated_at",
             )
-            VALUES (
-                :id, :hostname, :ip_address, :display_name, :operating_system,
-                :status, :port, :username, :auth_method, :encrypted_credentials,
-                :is_active, :created_at, :updated_at
+            .values(
+                host_id,
+                host.hostname,
+                host.ip_address,
+                display_name,
+                host.operating_system,
+                "offline",
+                int(host.port) if host.port else 22,
+                host.username,
+                host.auth_method or "ssh_key",
+                encrypted_creds,
+                True,
+                current_time,
+                current_time,
             )
-        """
         )
-
-        db.execute(
-            insert_query,
-            {
-                "id": host_id,
-                "hostname": host.hostname,
-                "ip_address": host.ip_address,
-                "display_name": display_name,
-                "operating_system": host.operating_system,
-                "status": "offline",
-                "port": int(host.port) if host.port else 22,
-                "username": host.username,
-                "auth_method": host.auth_method or "ssh_key",
-                "encrypted_credentials": encrypted_creds,
-                "is_active": True,
-                "created_at": current_time,
-                "updated_at": current_time,
-            },
-        )
+        insert_query, insert_params = insert_builder.build()
+        db.execute(text(insert_query), insert_params)
 
         db.commit()
 
@@ -749,26 +751,23 @@ async def update_host(
         if encrypted_creds is not None or (host_update.auth_method == "system_default"):
             update_params["encrypted_credentials"] = encrypted_creds
 
-        # NOTE: QueryBuilder is for SELECT queries only (OW-REFACTOR-001B)
-        # For INSERT/UPDATE/DELETE, use raw SQL with parameterized queries
-        update_query = text(
-            """
-            UPDATE hosts
-            SET hostname = :hostname,
-                ip_address = :ip_address,
-                display_name = :display_name,
-                operating_system = :operating_system,
-                port = :port,
-                username = :username,
-                auth_method = :auth_method,
-                description = :description,
-                encrypted_credentials = :encrypted_credentials,
-                updated_at = :updated_at
-            WHERE id = :id
-        """
+        # Use UpdateBuilder for type-safe, parameterized UPDATE
+        update_builder = (
+            UpdateBuilder("hosts")
+            .set("hostname", update_params["hostname"])
+            .set("ip_address", update_params["ip_address"])
+            .set("display_name", update_params["display_name"])
+            .set("operating_system", update_params["operating_system"])
+            .set("port", update_params["port"])
+            .set("username", update_params["username"])
+            .set("auth_method", update_params["auth_method"])
+            .set("description", update_params["description"])
+            .set("encrypted_credentials", update_params.get("encrypted_credentials"))
+            .set("updated_at", update_params["updated_at"])
+            .where("id = :id", update_params["id"], "id")
         )
-
-        db.execute(update_query, update_params)
+        update_query, update_query_params = update_builder.build()
+        db.execute(text(update_query), update_query_params)
 
         db.commit()
 
@@ -878,35 +877,24 @@ async def delete_host(
         if scan_count > 0:
             # Cascade delete: Remove scan_results first (foreign key constraint)
             # Why: Must delete child records before parent to avoid FK violation
-            # NOTE: QueryBuilder is for SELECT queries only (OW-REFACTOR-001B)
-            # For INSERT/UPDATE/DELETE, use raw SQL with parameterized queries
-            delete_results_query = text(
-                """
-                DELETE FROM scan_results
-                WHERE scan_id IN (SELECT id FROM scans WHERE host_id = :host_id)
-            """
+            # Use DeleteBuilder with subquery for cascade delete
+            delete_results_builder = DeleteBuilder("scan_results").where_subquery(
+                "scan_id", "SELECT id FROM scans WHERE host_id = :host_id", {"host_id": host_uuid}
             )
-            db.execute(delete_results_query, {"host_id": host_uuid})
+            delete_results_query, delete_results_params = delete_results_builder.build()
+            db.execute(text(delete_results_query), delete_results_params)
 
             # Then delete scans
-            delete_scans_query = text(
-                """
-                DELETE FROM scans
-                WHERE host_id = :host_id
-            """
-            )
-            db.execute(delete_scans_query, {"host_id": host_uuid})
+            delete_scans_builder = DeleteBuilder("scans").where("host_id = :host_id", host_uuid, "host_id")
+            delete_scans_query, delete_scans_params = delete_scans_builder.build()
+            db.execute(text(delete_scans_query), delete_scans_params)
 
             logger.info(f"Deleted {scan_count} scans for host {host_id}")
 
         # Delete the host record
-        delete_host_query = text(
-            """
-            DELETE FROM hosts
-            WHERE id = :id
-        """
-        )
-        db.execute(delete_host_query, {"id": host_uuid})
+        delete_host_builder = DeleteBuilder("hosts").where("id = :id", host_uuid, "id")
+        delete_host_query, delete_host_params = delete_host_builder.build()
+        db.execute(text(delete_host_query), delete_host_params)
 
         db.commit()
 
@@ -953,20 +941,18 @@ async def delete_host_ssh_key(
             )
 
         # Clear SSH key fields (set to NULL)
-        # NOTE: QueryBuilder is for SELECT queries only (OW-REFACTOR-001B)
-        # For INSERT/UPDATE/DELETE, use raw SQL with parameterized queries
-        update_query = text(
-            """
-            UPDATE hosts
-            SET ssh_key_fingerprint = NULL,
-                ssh_key_type = NULL,
-                ssh_key_bits = NULL,
-                ssh_key_comment = NULL,
-                updated_at = :updated_at
-            WHERE id = :id
-        """
+        # Use UpdateBuilder for type-safe, parameterized UPDATE
+        update_builder = (
+            UpdateBuilder("hosts")
+            .set("ssh_key_fingerprint", None)
+            .set("ssh_key_type", None)
+            .set("ssh_key_bits", None)
+            .set("ssh_key_comment", None)
+            .set("updated_at", datetime.utcnow())
+            .where("id = :id", host_uuid, "id")
         )
-        db.execute(update_query, {"id": host_uuid, "updated_at": datetime.utcnow()})
+        update_query, update_params = update_builder.build()
+        db.execute(text(update_query), update_params)
 
         db.commit()
 
@@ -1363,33 +1349,21 @@ async def detect_platform_jit(
             )
 
         # Persist detected platform to database for future use
-        update_query = text(
-            """
-            UPDATE hosts
-            SET os_family = :os_family,
-                os_version = :os_version,
-                platform_identifier = :platform_identifier,
-                architecture = :architecture,
-                operating_system = :operating_system,
-                last_os_detection = :last_os_detection,
-                updated_at = :updated_at
-            WHERE id = :host_id
-        """
-        )
+        # Use UpdateBuilder for type-safe, parameterized UPDATE
         now = datetime.utcnow()
-        db.execute(
-            update_query,
-            {
-                "host_id": host_uuid,
-                "os_family": platform_info.platform,
-                "os_version": platform_info.platform_version,
-                "platform_identifier": platform_info.platform_identifier,
-                "architecture": platform_info.architecture,
-                "operating_system": platform_info.os_name,
-                "last_os_detection": now,
-                "updated_at": now,
-            },
+        update_builder = (
+            UpdateBuilder("hosts")
+            .set("os_family", platform_info.platform)
+            .set("os_version", platform_info.platform_version)
+            .set("platform_identifier", platform_info.platform_identifier)
+            .set("architecture", platform_info.architecture)
+            .set("operating_system", platform_info.os_name)
+            .set("last_os_detection", now)
+            .set("updated_at", now)
+            .where("id = :host_id", host_uuid, "host_id")
         )
+        update_query, update_params = update_builder.build()
+        db.execute(text(update_query), update_params)
         db.commit()
 
         logger.info(
