@@ -14,6 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from ...auth import get_current_user
 from ...database import User
 from ...models.health_models import ContentHealthDocument, HealthSummaryDocument, ServiceHealthDocument
+from ...repositories import ContentHealthRepository, ServiceHealthRepository
 from ...services.monitoring import HealthMonitoringService, get_health_monitoring_service
 
 logger = logging.getLogger(__name__)
@@ -168,16 +169,9 @@ async def get_service_health_history(
     try:
         cutoff_time = datetime.utcnow() - timedelta(hours=hours)
 
-        # Query historical data
-        # Use string-based sorting for Beanie (ascending by timestamp)
-        history = (
-            await ServiceHealthDocument.find(
-                ServiceHealthDocument.scanner_id == health_service.scanner_id,
-                ServiceHealthDocument.health_check_timestamp >= cutoff_time,
-            )
-            .sort("health_check_timestamp")
-            .to_list()
-        )
+        # Query historical data via repository
+        repo = ServiceHealthRepository()
+        history = await repo.get_health_history(health_service.scanner_id, hours=hours)
 
         return {
             "start_time": cutoff_time.isoformat(),
@@ -205,16 +199,9 @@ async def get_content_health_history(
     try:
         cutoff_time = datetime.utcnow() - timedelta(hours=hours)
 
-        # Query historical data
-        # Use string-based sorting for Beanie (ascending by timestamp)
-        history = (
-            await ContentHealthDocument.find(
-                ContentHealthDocument.scanner_id == health_service.scanner_id,
-                ContentHealthDocument.health_check_timestamp >= cutoff_time,
-            )
-            .sort("health_check_timestamp")
-            .to_list()
-        )
+        # Query historical data via repository
+        repo = ContentHealthRepository()
+        history = await repo.get_content_history(health_service.scanner_id, hours=hours)
 
         return {
             "start_time": cutoff_time.isoformat(),

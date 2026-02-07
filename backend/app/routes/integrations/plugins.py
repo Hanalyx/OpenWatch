@@ -28,12 +28,8 @@ from sqlalchemy.orm import Session
 from ...audit_db import log_security_event
 from ...auth import get_current_user
 from ...database import User, get_db
-from ...models.plugin_models import (
-    InstalledPlugin,
-    PluginExecutionRequest,
-    PluginStatus,
-    PluginTrustLevel,
-)
+from ...models.plugin_models import PluginExecutionRequest, PluginStatus, PluginTrustLevel
+from ...repositories import InstalledPluginRepository
 from ...services.plugins import PluginExecutionService, PluginImportService, PluginSecurityService
 
 logger = logging.getLogger(__name__)
@@ -213,13 +209,14 @@ async def list_plugins(
                 {"manifest.description": {"$regex": search, "$options": "i"}},
             ]
 
-        # Get total count
-        total = await InstalledPlugin.find(query_filters).count()
-
-        # Get paginated results
-        skip = (page - 1) * per_page
-        plugins_cursor = InstalledPlugin.find(query_filters).sort([("imported_at", -1)]).skip(skip).limit(per_page)
-        plugins = await plugins_cursor.to_list()
+        # Use repository for paginated query
+        repo = InstalledPluginRepository()
+        plugins, total, _ = await repo.find_with_pagination(
+            query=query_filters,
+            page=page,
+            per_page=per_page,
+            sort=[("imported_at", -1)],
+        )
 
         # Format response
         plugin_list: List[Dict[str, Any]] = []
@@ -288,7 +285,9 @@ async def get_plugin_statistics(
         high_risk_count = 0
         total_security_checks = 0
 
-        async for plugin in InstalledPlugin.find():
+        repo = InstalledPluginRepository()
+        all_plugins = await repo.find_many({}, limit=10000)
+        for plugin in all_plugins:
             risk_score = plugin.get_risk_score()
             if risk_score > 70:
                 high_risk_count += 1
@@ -338,7 +337,8 @@ async def get_plugin_details(
         HTTPException: 404 if plugin not found
     """
     try:
-        plugin = await InstalledPlugin.find_one(InstalledPlugin.plugin_id == plugin_id)
+        repo = InstalledPluginRepository()
+        plugin = await repo.find_by_plugin_id(plugin_id)
         if not plugin:
             raise HTTPException(status_code=http_status.HTTP_404_NOT_FOUND, detail="Plugin not found")
 
@@ -423,7 +423,8 @@ async def delete_plugin(
         HTTPException: 400 if plugin in use and force not specified
     """
     try:
-        plugin = await InstalledPlugin.find_one(InstalledPlugin.plugin_id == plugin_id)
+        repo = InstalledPluginRepository()
+        plugin = await repo.find_by_plugin_id(plugin_id)
         if not plugin:
             raise HTTPException(status_code=http_status.HTTP_404_NOT_FOUND, detail="Plugin not found")
 
@@ -439,7 +440,7 @@ async def delete_plugin(
             )
 
         # Delete plugin
-        await plugin.delete()
+        await repo.delete_one({"plugin_id": plugin_id})
 
         # Extract user_id for logging
         user_id: int = int(current_user.id) if current_user.id else 0

@@ -33,7 +33,7 @@ from sqlalchemy.orm import Session
 
 from ...auth import get_current_user
 from ...database import get_db
-from ...models.mongo_models import UploadHistory
+from ...repositories import UploadHistoryRepository
 from ...services.compliance_rules import ComplianceRulesUploadService, DeduplicationStrategy
 from ...utils.file_security import sanitize_filename, validate_file_extension
 from ...utils.query_builder import QueryBuilder
@@ -664,7 +664,8 @@ async def get_upload_history(
     """
     try:
         # Query MongoDB for upload history, sorted by most recent first
-        upload_records = await UploadHistory.find().sort("-uploaded_at").limit(limit).to_list()
+        repo = UploadHistoryRepository()
+        upload_records = await repo.find_recent(limit=limit)
 
         # Convert Beanie documents to dictionaries
         uploads = []
@@ -718,7 +719,8 @@ async def export_upload_report(
     """
     try:
         # Find upload record by upload_id
-        upload_record = await UploadHistory.find_one(UploadHistory.upload_id == upload_id)
+        repo = UploadHistoryRepository()
+        upload_record = await repo.find_by_upload_id(upload_id)
 
         if not upload_record:
             raise HTTPException(
