@@ -28,6 +28,17 @@ from .health_repository import ContentHealthRepository, HealthSummaryRepository,
 # Intelligence and Upload History
 from .intelligence_repository import RuleIntelligenceRepository, UploadHistoryRepository  # noqa: F401
 
+# Plugin Models (lifecycle, analytics, governance, orchestration, marketplace, development)
+from .plugin_models_repository import (  # noqa: F401
+    AuditEventRepository,
+    OptimizationJobRepository,
+    PluginInstallationResultRepository,
+    PluginUpdateExecutionRepository,
+    SystemWideAnalyticsRepository,
+    TestExecutionRepository,
+    TestSuiteRepository,
+)
+
 # Plugin Management
 from .plugin_repository import InstalledPluginRepository  # noqa: F401
 
@@ -52,6 +63,14 @@ __all__ = [
     "RemediationScriptRepository",
     # Plugins
     "InstalledPluginRepository",
+    # Plugin Models
+    "PluginUpdateExecutionRepository",
+    "SystemWideAnalyticsRepository",
+    "OptimizationJobRepository",
+    "AuditEventRepository",
+    "PluginInstallationResultRepository",
+    "TestSuiteRepository",
+    "TestExecutionRepository",
     # Health
     "ServiceHealthRepository",
     "ContentHealthRepository",
