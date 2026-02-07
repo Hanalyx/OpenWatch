@@ -12,6 +12,7 @@ from typing import Any, Dict, List, Optional
 
 from app.config import get_settings
 from app.models.plugin_models import InstalledPlugin, PluginStatus, PluginTrustLevel, PluginType
+from app.repositories import InstalledPluginRepository
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -26,6 +27,7 @@ class PluginRegistryService:
         self.plugin_storage_path.mkdir(parents=True, exist_ok=True)
         self._plugin_cache: Dict[str, Any] = {}
         self._dependency_graph: Dict[str, Any] = {}
+        self._repo = InstalledPluginRepository()
 
     async def register_plugin(self, plugin: InstalledPlugin) -> Dict[str, Any]:
         """
@@ -112,7 +114,7 @@ class PluginRegistryService:
             self._plugin_cache.pop(plugin_id, None)
 
             # Delete from database
-            await plugin.delete()
+            await self._repo.delete_one({"plugin_id": plugin_id})
 
             logger.info(f"Plugin unregistered: {plugin_id}")
 
@@ -134,8 +136,8 @@ class PluginRegistryService:
             result: Optional[InstalledPlugin] = cached
             return result
 
-        # Query database
-        plugin = await InstalledPlugin.find_one(InstalledPlugin.plugin_id == plugin_id)
+        # Query database via repository
+        plugin = await self._repo.find_by_plugin_id(plugin_id)
 
         if plugin:
             self._plugin_cache[plugin_id] = plugin
@@ -264,13 +266,18 @@ class PluginRegistryService:
                 return {"success": False, "error": "Plugin not found"}
 
             old_status = plugin.status
-            plugin.status = new_status
-            plugin.updated_at = datetime.utcnow()
 
-            await plugin.save()
+            # Update via repository
+            updated = await self._repo.update_one(
+                {"plugin_id": plugin_id},
+                {"$set": {"status": new_status.value, "updated_at": datetime.utcnow()}},
+            )
 
-            # Update cache
-            self._plugin_cache[plugin_id] = plugin
+            # Update cache with new status
+            if updated:
+                plugin.status = new_status
+                plugin.updated_at = datetime.utcnow()
+                self._plugin_cache[plugin_id] = plugin
 
             logger.info(
                 f"Plugin status updated: {plugin_id} {old_status.value} -> {new_status.value}",
@@ -291,30 +298,29 @@ class PluginRegistryService:
     async def get_plugin_statistics(self) -> Dict[str, Any]:
         """Get comprehensive plugin statistics"""
         try:
-            # Count by status
+            # Count by status using repository
             status_counts = {}
-            # PluginStatus is an Enum (str, Enum) which is iterable
             for status in list(PluginStatus):
-                count = await InstalledPlugin.find(InstalledPlugin.status == status).count()
+                count = await self._repo.count({"status": status.value})
                 status_counts[status.value] = count
 
             # Count by trust level
             trust_counts = {}
             for trust_level in PluginTrustLevel:
-                count = await InstalledPlugin.find(InstalledPlugin.trust_level == trust_level).count()
+                count = await self._repo.count({"trust_level": trust_level.value})
                 trust_counts[trust_level.value] = count
 
             # Count by type
             type_counts = {}
             for plugin_type in PluginType:
-                count = await InstalledPlugin.find(InstalledPlugin.manifest.type == plugin_type).count()
+                count = await self._repo.count({"manifest.type": plugin_type.value})
                 type_counts[plugin_type.value] = count
 
-            # Usage statistics
+            # Usage statistics - get top 10 by usage
+            top_plugins = await self._repo.find_many({}, limit=10, sort=[("usage_count", -1)])
             total_usage = 0
             most_used_plugins = []
-
-            async for plugin in InstalledPlugin.find().sort([("usage_count", -1)]).limit(10):
+            for plugin in top_plugins:
                 total_usage += plugin.usage_count
                 most_used_plugins.append(
                     {
@@ -325,10 +331,10 @@ class PluginRegistryService:
                 )
 
             # Recent activity
-            recent_imports = await InstalledPlugin.find().sort([("imported_at", -1)]).limit(5).to_list()
+            recent_imports = await self._repo.find_many({}, limit=5, sort=[("imported_at", -1)])
 
             return {
-                "total_plugins": await InstalledPlugin.count(),
+                "total_plugins": await self._repo.count(),
                 "by_status": status_counts,
                 "by_trust_level": trust_counts,
                 "by_type": type_counts,
@@ -421,7 +427,7 @@ class PluginRegistryService:
     async def _validate_plugin_registration(self, plugin: InstalledPlugin) -> Dict[str, Any]:
         """Validate plugin before registration"""
         # Check for duplicate plugin ID
-        existing = await InstalledPlugin.find_one(InstalledPlugin.plugin_id == plugin.plugin_id)
+        existing = await self._repo.find_by_plugin_id(plugin.plugin_id)
         if existing:
             return {
                 "valid": False,
@@ -429,10 +435,7 @@ class PluginRegistryService:
             }
 
         # Check for name/version conflicts
-        existing_name_version = await InstalledPlugin.find_one(
-            InstalledPlugin.manifest.name == plugin.manifest.name,
-            InstalledPlugin.manifest.version == plugin.manifest.version,
-        )
+        existing_name_version = await self._repo.find_by_name_and_version(plugin.manifest.name, plugin.manifest.version)
         if existing_name_version:
             return {
                 "valid": False,
