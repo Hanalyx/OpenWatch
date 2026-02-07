@@ -439,34 +439,31 @@ async def update_user(
             if user_data.role and user_data.role != UserRole(existing_user.role):
                 raise HTTPException(status_code=403, detail="Cannot change your own role")
 
-        # OW-REFACTOR-001B: Use QueryBuilder for conditional UPDATE
-        # Why: Eliminates manual SQL construction, maintains security through parameterization
-        # Type annotation: Dict with mixed value types (str, bool, etc.)
-        update_data: Dict[str, Any] = {}
-
-        if user_data.username:
-            update_data["username"] = user_data.username
-
-        if user_data.email:
-            update_data["email"] = user_data.email
-
-        if user_data.role:
-            update_data["role"] = user_data.role.value
-
-        if user_data.is_active is not None:
-            update_data["is_active"] = user_data.is_active
-
-        if user_data.password:
-            update_data["hashed_password"] = pwd_context.hash(user_data.password)
-
-        if not update_data:
-            raise HTTPException(status_code=400, detail="No fields to update")
-
-        # Use UpdateBuilder for type-safe, parameterized UPDATE
+        # OW-REFACTOR-001B: Use UpdateBuilder with explicit column names
+        # Why: Hardcoded column names prevent SQL injection (CodeQL requirement)
         # Note: users table does not have updated_at column, only created_at
         update_builder = UpdateBuilder("users")
-        for key, value in update_data.items():
-            update_builder.set(key, value)
+
+        # Use set_if() for optional fields - only sets if value is not None
+        update_builder.set_if("username", user_data.username)
+        update_builder.set_if("email", user_data.email)
+
+        # Role requires .value conversion from enum
+        if user_data.role:
+            update_builder.set("role", user_data.role.value)
+
+        # is_active can be False, so check explicitly for not None
+        if user_data.is_active is not None:
+            update_builder.set("is_active", user_data.is_active)
+
+        # Hash password before storing
+        if user_data.password:
+            update_builder.set("hashed_password", pwd_context.hash(user_data.password))
+
+        # Check if any fields were set
+        if not update_builder._set_clauses:
+            raise HTTPException(status_code=400, detail="No fields to update")
+
         update_builder.where("id = :user_id", user_id, "user_id")
         update_query, update_params = update_builder.build()
         db.execute(text(update_query), update_params)
