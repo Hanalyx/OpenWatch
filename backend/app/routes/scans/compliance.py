@@ -51,6 +51,7 @@ from app.routes.scans.models import (
     ScannerHealthResponse,
 )
 from app.tasks.background_tasks import enrich_scan_results_celery
+from app.utils.mutation_builders import InsertBuilder, UpdateBuilder
 from app.utils.query_builder import QueryBuilder
 
 logger = logging.getLogger(__name__)
@@ -86,37 +87,16 @@ def _update_scan_status(
         Errors are logged but not raised to avoid masking the original error.
     """
     try:
-        # Build UPDATE query with dynamic columns based on error_message presence
-        if error_message:
-            update_query = text(
-                """
-                UPDATE scans
-                SET status = :status, progress = :progress,
-                    completed_at = :completed_at, error_message = :error_message
-                WHERE id = :id
-                """
-            )
-            params = {
-                "status": status_value,
-                "progress": 100,
-                "completed_at": datetime.utcnow(),
-                "error_message": error_message,
-                "id": str(scan_uuid),
-            }
-        else:
-            update_query = text(
-                """
-                UPDATE scans
-                SET status = :status, progress = :progress, completed_at = :completed_at
-                WHERE id = :id
-                """
-            )
-            params = {
-                "status": status_value,
-                "progress": 100,
-                "completed_at": datetime.utcnow(),
-                "id": str(scan_uuid),
-            }
+        # Use UpdateBuilder for type-safe, parameterized UPDATE
+        update_builder = (
+            UpdateBuilder("scans")
+            .set("status", status_value)
+            .set("progress", 100)
+            .set("completed_at", datetime.utcnow())
+            .set_if("error_message", error_message)  # Only set if not None
+            .where("id = :id", str(scan_uuid), "id")
+        )
+        update_query, params = update_builder.build()
         db.execute(update_query, params)
         db.commit()
         logger.info(f"Updated scan {scan_uuid} status to {status_value}")
@@ -461,30 +441,31 @@ async def create_compliance_scan(
         started_at = datetime.utcnow()
 
         try:
-            insert_query = text(
-                """
-                INSERT INTO scans (
-                    id, name, host_id, profile_id, status, progress,
-                    scan_options, started_by, started_at, remediation_requested,
-                    verification_scan, scan_metadata
+            # Use InsertBuilder for type-safe, parameterized INSERT
+            insert_builder = (
+                InsertBuilder("scans")
+                .columns(
+                    "id",
+                    "name",
+                    "host_id",
+                    "profile_id",
+                    "status",
+                    "progress",
+                    "scan_options",
+                    "started_by",
+                    "started_at",
+                    "remediation_requested",
+                    "verification_scan",
+                    "scan_metadata",
                 )
-                VALUES (
-                    :id, :name, :host_id, :profile_id, :status, :progress,
-                    :scan_options, :started_by, :started_at, :remediation_requested,
-                    :verification_scan, :scan_metadata
-                )
-                """
-            )
-            db.execute(
-                insert_query,
-                {
-                    "id": str(scan_uuid),
-                    "name": scan_name,
-                    "host_id": scan_request.host_id,
-                    "profile_id": scan_request.framework or "compliance_custom",
-                    "status": "running",
-                    "progress": 0,
-                    "scan_options": json.dumps(
+                .values(
+                    str(scan_uuid),
+                    scan_name,
+                    scan_request.host_id,
+                    scan_request.framework or "compliance_custom",
+                    "running",
+                    0,
+                    json.dumps(
                         {
                             "platform": effective_platform,
                             "platform_version": effective_platform_version,
@@ -492,18 +473,20 @@ async def create_compliance_scan(
                             "severity_filter": scan_request.severity_filter,
                         }
                     ),
-                    "started_by": (int(current_user.get("id")) if current_user.get("id") else None),
-                    "started_at": started_at,
-                    "remediation_requested": False,
-                    "verification_scan": False,
-                    "scan_metadata": json.dumps(
+                    int(current_user.get("id")) if current_user.get("id") else None,
+                    started_at,
+                    False,
+                    False,
+                    json.dumps(
                         {
                             "scan_type": "compliance",
                             "rule_count": rule_count,
                         }
                     ),
-                },
+                )
             )
+            insert_query, insert_params = insert_builder.build()
+            db.execute(text(insert_query), insert_params)
             db.commit()
             logger.info(f"Created PostgreSQL scan record {scan_uuid}")
 
@@ -582,68 +565,63 @@ async def create_compliance_scan(
         )
 
         try:
-            # Update scans table with completion status
-            update_scan_query = text(
-                """
-                UPDATE scans
-                SET status = :status, progress = :progress, completed_at = :completed_at,
-                    result_file = :result_file, report_file = :report_file
-                WHERE id = :id
-                """
+            # Update scans table with completion status using UpdateBuilder
+            update_scan_builder = (
+                UpdateBuilder("scans")
+                .set("status", "completed")
+                .set("progress", 100)
+                .set("completed_at", completed_at)
+                .set("result_file", scan_result.get("result_file", ""))
+                .set("report_file", scan_result.get("report_file", ""))
+                .where("id = :id", str(scan_uuid), "id")
             )
-            db.execute(
-                update_scan_query,
-                {
-                    "status": "completed",
-                    "progress": 100,
-                    "completed_at": completed_at,
-                    "result_file": scan_result.get("result_file", ""),
-                    "report_file": scan_result.get("report_file", ""),
-                    "id": str(scan_uuid),
-                },
-            )
+            update_scan_query, update_scan_params = update_scan_builder.build()
+            db.execute(text(update_scan_query), update_scan_params)
 
-            # Insert scan_results record with all parsed data
-            insert_results_query = text(
-                """
-                INSERT INTO scan_results (
-                    scan_id, total_rules, passed_rules, failed_rules, error_rules,
-                    unknown_rules, not_applicable_rules, score,
-                    severity_high, severity_medium, severity_low,
-                    xccdf_score, xccdf_score_system, xccdf_score_max,
-                    risk_score, risk_level, created_at
+            # Insert scan_results record using InsertBuilder
+            insert_results_builder = (
+                InsertBuilder("scan_results")
+                .columns(
+                    "scan_id",
+                    "total_rules",
+                    "passed_rules",
+                    "failed_rules",
+                    "error_rules",
+                    "unknown_rules",
+                    "not_applicable_rules",
+                    "score",
+                    "severity_high",
+                    "severity_medium",
+                    "severity_low",
+                    "xccdf_score",
+                    "xccdf_score_system",
+                    "xccdf_score_max",
+                    "risk_score",
+                    "risk_level",
+                    "created_at",
                 )
-                VALUES (
-                    :scan_id, :total_rules, :passed_rules, :failed_rules, :error_rules,
-                    :unknown_rules, :not_applicable_rules, :score,
-                    :severity_high, :severity_medium, :severity_low,
-                    :xccdf_score, :xccdf_score_system, :xccdf_score_max,
-                    :risk_score, :risk_level, :created_at
+                .values(
+                    str(scan_uuid),
+                    parsed_results["rules_total"],
+                    parsed_results["rules_passed"],
+                    parsed_results["rules_failed"],
+                    parsed_results["rules_error"],
+                    parsed_results["rules_unknown"],
+                    parsed_results["rules_notapplicable"],
+                    f"{parsed_results['score']}%",
+                    parsed_results["severity_high"],
+                    parsed_results["severity_medium"],
+                    parsed_results["severity_low"],
+                    parsed_results.get("xccdf_score"),
+                    parsed_results.get("xccdf_score_system"),
+                    parsed_results.get("xccdf_score_max"),
+                    parsed_results.get("risk_score"),
+                    parsed_results.get("risk_level"),
+                    completed_at,
                 )
-                """
             )
-            db.execute(
-                insert_results_query,
-                {
-                    "scan_id": str(scan_uuid),
-                    "total_rules": parsed_results["rules_total"],
-                    "passed_rules": parsed_results["rules_passed"],
-                    "failed_rules": parsed_results["rules_failed"],
-                    "error_rules": parsed_results["rules_error"],
-                    "unknown_rules": parsed_results["rules_unknown"],
-                    "not_applicable_rules": parsed_results["rules_notapplicable"],
-                    "score": f"{parsed_results['score']}%",
-                    "severity_high": parsed_results["severity_high"],
-                    "severity_medium": parsed_results["severity_medium"],
-                    "severity_low": parsed_results["severity_low"],
-                    "xccdf_score": parsed_results.get("xccdf_score"),
-                    "xccdf_score_system": parsed_results.get("xccdf_score_system"),
-                    "xccdf_score_max": parsed_results.get("xccdf_score_max"),
-                    "risk_score": parsed_results.get("risk_score"),
-                    "risk_level": parsed_results.get("risk_level"),
-                    "created_at": completed_at,
-                },
-            )
+            insert_results_query, insert_results_params = insert_results_builder.build()
+            db.execute(text(insert_results_query), insert_results_params)
 
             db.commit()
             logger.info(f"Updated PostgreSQL scan record {scan_uuid} to completed with results")

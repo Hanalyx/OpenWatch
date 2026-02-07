@@ -17,6 +17,7 @@ from ...auth import get_current_user, pwd_context
 from ...database import get_db
 from ...rbac import Permission, RBACManager, UserRole, require_permission
 from ...utils.logging_security import sanitize_id_for_log
+from ...utils.mutation_builders import InsertBuilder, UpdateBuilder
 from ...utils.query_builder import QueryBuilder
 from ...utils.user_helpers import format_user_not_found_error, serialize_user_row
 
@@ -273,29 +274,35 @@ async def create_user(
         # Hash password
         hashed_password = pwd_context.hash(user_data.password)
 
-        # NOTE: QueryBuilder is for SELECT queries only (OW-REFACTOR-001B)
-        # For INSERT/UPDATE/DELETE, use raw SQL with parameterized queries
-        insert_query = text(
-            """
-            INSERT INTO users (username, email, hashed_password, role, is_active,
-                             created_at, failed_login_attempts, mfa_enabled)
-            VALUES (:username, :email, :hashed_password, :role, :is_active,
-                    CURRENT_TIMESTAMP, :failed_login_attempts, :mfa_enabled)
-            RETURNING id, created_at
-        """
+        # Use InsertBuilder for type-safe, parameterized INSERT
+        from datetime import datetime
+
+        insert_builder = (
+            InsertBuilder("users")
+            .columns(
+                "username",
+                "email",
+                "hashed_password",
+                "role",
+                "is_active",
+                "created_at",
+                "failed_login_attempts",
+                "mfa_enabled",
+            )
+            .values(
+                user_data.username,
+                user_data.email,
+                hashed_password,
+                user_data.role.value,
+                user_data.is_active,
+                datetime.utcnow(),
+                0,
+                False,
+            )
+            .returning("id", "created_at")
         )
-        insert_result = db.execute(
-            insert_query,
-            {
-                "username": user_data.username,
-                "email": user_data.email,
-                "hashed_password": hashed_password,
-                "role": user_data.role.value,
-                "is_active": user_data.is_active,
-                "failed_login_attempts": 0,
-                "mfa_enabled": False,
-            },
-        )
+        insert_query, insert_params = insert_builder.build()
+        insert_result = db.execute(text(insert_query), insert_params)
 
         row = insert_result.fetchone()
         db.commit()
@@ -455,20 +462,14 @@ async def update_user(
         if not update_data:
             raise HTTPException(status_code=400, detail="No fields to update")
 
-        # NOTE: QueryBuilder is for SELECT queries only (OW-REFACTOR-001B)
-        # For INSERT/UPDATE/DELETE, use raw SQL with parameterized queries
+        # Use UpdateBuilder for type-safe, parameterized UPDATE
         # Note: users table does not have updated_at column, only created_at
-        # Build dynamic SET clause based on update_data
-        set_clauses = ", ".join([f"{key} = :{key}" for key in update_data.keys()])
-        update_query = text(
-            f"""
-            UPDATE users
-            SET {set_clauses}
-            WHERE id = :user_id
-        """
-        )
-        update_params = {**update_data, "user_id": user_id}
-        db.execute(update_query, update_params)
+        update_builder = UpdateBuilder("users")
+        for key, value in update_data.items():
+            update_builder.set(key, value)
+        update_builder.where("id = :user_id", user_id, "user_id")
+        update_query, update_params = update_builder.build()
+        db.execute(text(update_query), update_params)
         db.commit()
 
         # Return updated user
@@ -521,18 +522,12 @@ async def delete_user(
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
 
-        # NOTE: QueryBuilder is for SELECT queries only (OW-REFACTOR-001B)
-        # For INSERT/UPDATE/DELETE, use raw SQL with parameterized queries
+        # Use UpdateBuilder for type-safe, parameterized UPDATE
         # Soft delete preserves audit trails
         # Note: users table does not have updated_at column, only created_at
-        update_query = text(
-            """
-            UPDATE users
-            SET is_active = :is_active
-            WHERE id = :user_id
-        """
-        )
-        db.execute(update_query, {"is_active": False, "user_id": user_id})
+        update_builder = UpdateBuilder("users").set("is_active", False).where("id = :user_id", user_id, "user_id")
+        update_query, update_params = update_builder.build()
+        db.execute(text(update_query), update_params)
         db.commit()
 
         logger.info(f"User {user.username} deactivated by {current_user.get('username')}")
@@ -584,18 +579,13 @@ async def change_password(
         # Hash new password
         new_hashed = pwd_context.hash(password_data.new_password)
 
-        # Update password
+        # Update password using UpdateBuilder
         # Note: users table does not have updated_at column, only created_at
-        db.execute(
-            text(
-                """
-            UPDATE users
-            SET hashed_password = :password
-            WHERE id = :user_id
-        """
-            ),
-            {"password": new_hashed, "user_id": user_id},
+        update_builder = (
+            UpdateBuilder("users").set("hashed_password", new_hashed).where("id = :user_id", user_id, "user_id")
         )
+        update_query, update_params = update_builder.build()
+        db.execute(text(update_query), update_params)
 
         db.commit()
 

@@ -35,6 +35,7 @@ from ..models.authorization_models import (
     ResourceIdentifier,
     ResourceType,
 )
+from ..utils.mutation_builders import InsertBuilder, UpdateBuilder
 from .authorization import get_authorization_service
 from .engine import HostInfo, ScanIntelligenceService
 
@@ -510,26 +511,32 @@ class BulkScanOrchestrator:
                 # Calculate staggered start time
                 start_delay = i * stagger_delay  # seconds
 
-                # Create scan record
-                self.db.execute(
-                    text(
-                        """
-                    INSERT INTO scans
-                    (id, name, host_id, content_id, profile_id, status, progress,
-                     scan_options, started_by, started_at, remediation_requested, verification_scan)
-                    VALUES (:id, :name, :host_id, :content_id, :profile_id, :status,
-                            :progress, :scan_options, :started_by, :started_at, :remediation_requested, :verification_scan)  # noqa: E501
-                """
-                    ),
-                    {
-                        "id": scan_id,
-                        "name": scan_name,
-                        "host_id": host.id,
-                        "content_id": batch.content_id,
-                        "profile_id": batch.profile_id,
-                        "status": "pending",
-                        "progress": 0,
-                        "scan_options": json.dumps(
+                # Create scan record using InsertBuilder
+                insert_builder = (
+                    InsertBuilder("scans")
+                    .columns(
+                        "id",
+                        "name",
+                        "host_id",
+                        "content_id",
+                        "profile_id",
+                        "status",
+                        "progress",
+                        "scan_options",
+                        "started_by",
+                        "started_at",
+                        "remediation_requested",
+                        "verification_scan",
+                    )
+                    .values(
+                        scan_id,
+                        scan_name,
+                        host.id,
+                        batch.content_id,
+                        batch.profile_id,
+                        "pending",
+                        0,
+                        json.dumps(
                             {
                                 "bulk_scan": True,
                                 "session_id": session_id,
@@ -537,12 +544,14 @@ class BulkScanOrchestrator:
                                 "start_delay": start_delay,
                             }
                         ),
-                        "started_by": user_id,
-                        "started_at": datetime.utcnow(),
-                        "remediation_requested": False,
-                        "verification_scan": False,
-                    },
+                        user_id,
+                        datetime.utcnow(),
+                        False,
+                        False,
+                    )
                 )
+                insert_query, insert_params = insert_builder.build()
+                self.db.execute(text(insert_query), insert_params)
 
                 scan_ids.append(scan_id)
 
@@ -556,34 +565,44 @@ class BulkScanOrchestrator:
     def _store_scan_session(self, session: ScanSession):
         """Store scan session in database"""
         try:
-            # Create a scan sessions table record (you'll need to create this table)
-            self.db.execute(
-                text(
-                    """
-                INSERT INTO scan_sessions
-                (id, name, total_hosts, completed_hosts, failed_hosts, running_hosts,
-                 status, created_by, created_at, started_at, completed_at, estimated_completion, scan_ids, error_message)  # noqa: E501
-                VALUES (:id, :name, :total_hosts, :completed_hosts, :failed_hosts, :running_hosts,
-                        :status, :created_by, :created_at, :started_at, :completed_at, :estimated_completion, :scan_ids, :error_message)  # noqa: E501
-            """
-                ),
-                {
-                    "id": session.id,
-                    "name": session.name,
-                    "total_hosts": session.total_hosts,
-                    "completed_hosts": session.completed_hosts,
-                    "failed_hosts": session.failed_hosts,
-                    "running_hosts": session.running_hosts,
-                    "status": session.status.value,
-                    "created_by": session.created_by,
-                    "created_at": session.created_at,
-                    "started_at": session.started_at,
-                    "completed_at": session.completed_at,
-                    "estimated_completion": session.estimated_completion,
-                    "scan_ids": json.dumps(session.scan_ids or []),
-                    "error_message": session.error_message,
-                },
+            # Create a scan sessions table record using InsertBuilder
+            insert_builder = (
+                InsertBuilder("scan_sessions")
+                .columns(
+                    "id",
+                    "name",
+                    "total_hosts",
+                    "completed_hosts",
+                    "failed_hosts",
+                    "running_hosts",
+                    "status",
+                    "created_by",
+                    "created_at",
+                    "started_at",
+                    "completed_at",
+                    "estimated_completion",
+                    "scan_ids",
+                    "error_message",
+                )
+                .values(
+                    session.id,
+                    session.name,
+                    session.total_hosts,
+                    session.completed_hosts,
+                    session.failed_hosts,
+                    session.running_hosts,
+                    session.status.value,
+                    session.created_by,
+                    session.created_at,
+                    session.started_at,
+                    session.completed_at,
+                    session.estimated_completion,
+                    json.dumps(session.scan_ids or []),
+                    session.error_message,
+                )
             )
+            insert_query, insert_params = insert_builder.build()
+            self.db.execute(text(insert_query), insert_params)
             self.db.commit()
         except Exception as e:
             logger.error(f"Error storing scan session: {e}")
@@ -592,33 +611,21 @@ class BulkScanOrchestrator:
     def _update_scan_session(self, session: ScanSession):
         """Update scan session in database"""
         try:
-            self.db.execute(
-                text(
-                    """
-                UPDATE scan_sessions SET
-                    completed_hosts = :completed_hosts,
-                    failed_hosts = :failed_hosts,
-                    running_hosts = :running_hosts,
-                    status = :status,
-                    started_at = :started_at,
-                    completed_at = :completed_at,
-                    scan_ids = :scan_ids,
-                    error_message = :error_message
-                WHERE id = :id
-            """
-                ),
-                {
-                    "id": session.id,
-                    "completed_hosts": session.completed_hosts,
-                    "failed_hosts": session.failed_hosts,
-                    "running_hosts": session.running_hosts,
-                    "status": session.status.value,
-                    "started_at": session.started_at,
-                    "completed_at": session.completed_at,
-                    "scan_ids": json.dumps(session.scan_ids or []),
-                    "error_message": session.error_message,
-                },
+            # Use UpdateBuilder for type-safe, parameterized UPDATE
+            update_builder = (
+                UpdateBuilder("scan_sessions")
+                .set("completed_hosts", session.completed_hosts)
+                .set("failed_hosts", session.failed_hosts)
+                .set("running_hosts", session.running_hosts)
+                .set("status", session.status.value)
+                .set("started_at", session.started_at)
+                .set("completed_at", session.completed_at)
+                .set("scan_ids", json.dumps(session.scan_ids or []))
+                .set("error_message", session.error_message)
+                .where("id = :id", session.id, "id")
             )
+            update_query, update_params = update_builder.build()
+            self.db.execute(text(update_query), update_params)
             self.db.commit()
         except Exception as e:
             logger.error(f"Error updating scan session: {e}")
@@ -717,18 +724,16 @@ class BulkScanOrchestrator:
             if not scan_ids:
                 return []
 
-            placeholders = ",".join([f"'{scan_id}'" for scan_id in scan_ids])
-
-            # Update scan status to running
-            self.db.execute(
-                text(
-                    f"""
-                UPDATE scans SET status = 'running', started_at = :started_at
-                WHERE id IN ({placeholders}) AND status = 'pending'
-            """
-                ),
-                {"started_at": datetime.utcnow()},
+            # Use UpdateBuilder with where_in for safe parameterized query
+            update_builder = (
+                UpdateBuilder("scans")
+                .set("status", "running")
+                .set("started_at", datetime.utcnow())
+                .where_in("id", scan_ids)
+                .where("status = :status", "pending", "status")
             )
+            update_query, update_params = update_builder.build()
+            self.db.execute(text(update_query), update_params)
 
             self.db.commit()
 
@@ -959,28 +964,34 @@ class BulkScanOrchestrator:
                 # Calculate staggered start time
                 start_delay = i * stagger_delay  # seconds
 
-                # Create scan record with authorization metadata
+                # Create scan record with authorization metadata using InsertBuilder
                 # Enable JIT platform detection and auto content selection for bulk scans
                 # This ensures each host gets the correct SCAP content for its platform
-                self.db.execute(
-                    text(
-                        """
-                    INSERT INTO scans
-                    (id, name, host_id, content_id, profile_id, status, progress,
-                     scan_options, started_by, started_at, remediation_requested, verification_scan)
-                    VALUES (:id, :name, :host_id, :content_id, :profile_id, :status,
-                            :progress, :scan_options, :started_by, :started_at, :remediation_requested, :verification_scan)  # noqa: E501
-                """
-                    ),
-                    {
-                        "id": scan_id,
-                        "name": scan_name,
-                        "host_id": host.id,
-                        "content_id": batch.content_id,
-                        "profile_id": batch.profile_id,
-                        "status": "pending",
-                        "progress": 0,
-                        "scan_options": json.dumps(
+                insert_builder = (
+                    InsertBuilder("scans")
+                    .columns(
+                        "id",
+                        "name",
+                        "host_id",
+                        "content_id",
+                        "profile_id",
+                        "status",
+                        "progress",
+                        "scan_options",
+                        "started_by",
+                        "started_at",
+                        "remediation_requested",
+                        "verification_scan",
+                    )
+                    .values(
+                        scan_id,
+                        scan_name,
+                        host.id,
+                        batch.content_id,
+                        batch.profile_id,
+                        "pending",
+                        0,
+                        json.dumps(
                             {
                                 "bulk_scan": True,
                                 "session_id": session_id,
@@ -993,12 +1004,14 @@ class BulkScanOrchestrator:
                                 "auto_select_content": True,  # Allow content switching based on detected platform
                             }
                         ),
-                        "started_by": user_id,
-                        "started_at": datetime.utcnow(),
-                        "remediation_requested": False,
-                        "verification_scan": False,
-                    },
+                        user_id,
+                        datetime.utcnow(),
+                        False,
+                        False,
+                    )
                 )
+                insert_query, insert_params = insert_builder.build()
+                self.db.execute(text(insert_query), insert_params)
 
                 scan_ids.append(scan_id)
 

@@ -25,6 +25,7 @@ from sqlalchemy.orm import Session
 from ...auth import get_current_user
 from ...database import get_db
 from ...rbac import Permission, require_permission
+from ...utils.mutation_builders import DeleteBuilder, UpdateBuilder
 from ...utils.query_builder import QueryBuilder
 
 logger = logging.getLogger(__name__)
@@ -333,11 +334,12 @@ async def acknowledge_discovery_failures(
     """
     try:
         if request.host_ids is None:
-            # Clear all failures using parameterized query
-            db.execute(
-                text("DELETE FROM system_settings WHERE setting_key = :key"),
-                {"key": "os_discovery_failures"},
+            # Clear all failures using DeleteBuilder
+            delete_builder = DeleteBuilder("system_settings").where(
+                "setting_key = :key", "os_discovery_failures", "key"
             )
+            delete_query, delete_params = delete_builder.build()
+            db.execute(text(delete_query), delete_params)
             cleared_count: Any = "all"
         else:
             # Get current failures using QueryBuilder
@@ -358,23 +360,22 @@ async def acknowledge_discovery_failures(
                     cleared_count = len(failures_data) - len(remaining)
 
                     if remaining:
-                        # Update with remaining failures
-                        db.execute(
-                            text(
-                                """
-                                UPDATE system_settings
-                                SET setting_value = :value, updated_at = CURRENT_TIMESTAMP
-                                WHERE setting_key = :key
-                                """
-                            ),
-                            {"value": json.dumps(remaining), "key": "os_discovery_failures"},
+                        # Update with remaining failures using UpdateBuilder
+                        update_builder = (
+                            UpdateBuilder("system_settings")
+                            .set("setting_value", json.dumps(remaining))
+                            .set_raw("updated_at", "CURRENT_TIMESTAMP")
+                            .where("setting_key = :key", "os_discovery_failures", "key")
                         )
+                        update_query, update_params = update_builder.build()
+                        db.execute(text(update_query), update_params)
                     else:
                         # No remaining failures, delete the setting
-                        db.execute(
-                            text("DELETE FROM system_settings WHERE setting_key = :key"),
-                            {"key": "os_discovery_failures"},
+                        delete_builder = DeleteBuilder("system_settings").where(
+                            "setting_key = :key", "os_discovery_failures", "key"
                         )
+                        delete_query, delete_params = delete_builder.build()
+                        db.execute(text(delete_query), delete_params)
                 except (json.JSONDecodeError, TypeError) as parse_error:
                     logger.warning(f"Failed to parse failures JSON: {parse_error}")
                     cleared_count = 0

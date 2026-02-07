@@ -45,6 +45,7 @@ from app.routes.scans.helpers import add_deprecation_header, error_service
 from app.routes.scans.models import AutomatedFixRequest, ScanRequest, ScanUpdate
 from app.tasks.scan_tasks import execute_scan_celery
 from app.utils.logging_security import sanitize_path_for_log
+from app.utils.mutation_builders import DeleteBuilder, InsertBuilder, UpdateBuilder
 from app.utils.query_builder import QueryBuilder
 
 logger = logging.getLogger(__name__)
@@ -324,19 +325,29 @@ async def get_scan(
 
         # Add results summary if scan is completed
         if result.status == "completed":
-            results = db.execute(
-                text(
-                    """
-                SELECT total_rules, passed_rules, failed_rules, error_rules,
-                       unknown_rules, not_applicable_rules, score,
-                       severity_high, severity_medium, severity_low,
-                       xccdf_score, xccdf_score_max, xccdf_score_system,
-                       risk_score, risk_level
-                FROM scan_results WHERE scan_id = :scan_id
-            """
-                ),
-                {"scan_id": scan_id},
-            ).fetchone()
+            results_builder = (
+                QueryBuilder("scan_results")
+                .select(
+                    "total_rules",
+                    "passed_rules",
+                    "failed_rules",
+                    "error_rules",
+                    "unknown_rules",
+                    "not_applicable_rules",
+                    "score",
+                    "severity_high",
+                    "severity_medium",
+                    "severity_low",
+                    "xccdf_score",
+                    "xccdf_score_max",
+                    "xccdf_score_system",
+                    "risk_score",
+                    "risk_level",
+                )
+                .where("scan_id = :scan_id", scan_id, "scan_id")
+            )
+            results_query, results_params = results_builder.build()
+            results = db.execute(text(results_query), results_params).fetchone()
 
             if results:
                 scan_data["results"] = {
@@ -450,37 +461,41 @@ async def create_scan_legacy(
             except json.JSONDecodeError:
                 raise HTTPException(status_code=400, detail="Invalid SCAP content profiles")
 
-        # Create scan record
+        # Create scan record using InsertBuilder
         scan_id = str(uuid.uuid4())
-        insert_query = text(
-            """
-            INSERT INTO scans (
-                id, name, host_id, content_id, profile_id, status, progress,
-                scan_options, started_by, started_at, remediation_requested, verification_scan
+        insert_builder = (
+            InsertBuilder("scans")
+            .columns(
+                "id",
+                "name",
+                "host_id",
+                "content_id",
+                "profile_id",
+                "status",
+                "progress",
+                "scan_options",
+                "started_by",
+                "started_at",
+                "remediation_requested",
+                "verification_scan",
             )
-            VALUES (
-                :id, :name, :host_id, :content_id, :profile_id, :status, :progress,
-                :scan_options, :started_by, :started_at, :remediation_requested, :verification_scan
+            .values(
+                scan_id,
+                scan_request.name,
+                scan_request.host_id,
+                scan_request.content_id,
+                scan_request.profile_id,
+                "pending",
+                0,
+                json.dumps(scan_request.scan_options),
+                current_user["id"],
+                datetime.utcnow(),
+                False,
+                False,
             )
-        """
         )
-        db.execute(
-            insert_query,
-            {
-                "id": scan_id,
-                "name": scan_request.name,
-                "host_id": scan_request.host_id,
-                "content_id": scan_request.content_id,
-                "profile_id": scan_request.profile_id,
-                "status": "pending",
-                "progress": 0,
-                "scan_options": json.dumps(scan_request.scan_options),
-                "started_by": current_user["id"],
-                "started_at": datetime.utcnow(),
-                "remediation_requested": False,
-                "verification_scan": False,
-            },
-        )
+        insert_query, insert_params = insert_builder.build()
+        db.execute(text(insert_query), insert_params)
 
         # Commit the scan record
         db.commit()
@@ -592,17 +607,13 @@ async def update_scan(
             update_data["completed_at"] = datetime.utcnow()
 
         if update_data:
-            # Build dynamic SET clause based on update_data
-            set_clauses = ", ".join([f"{key} = :{key}" for key in update_data.keys()])
-            update_query = text(
-                f"""
-                UPDATE scans
-                SET {set_clauses}
-                WHERE id = :id
-            """
-            )
-            update_params = {**update_data, "id": scan_id}
-            db.execute(update_query, update_params)
+            # Use UpdateBuilder for type-safe, parameterized UPDATE
+            update_builder = UpdateBuilder("scans")
+            for key, value in update_data.items():
+                update_builder.set(key, value)
+            update_builder.where("id = :id", scan_id, "id")
+            update_query, update_params = update_builder.build()
+            db.execute(text(update_query), update_params)
             db.commit()
 
         return {"message": "Scan updated successfully"}
@@ -668,22 +679,14 @@ async def delete_scan(
                     logger.warning(f"Failed to delete file {sanitize_path_for_log(file_path)}: " f"{type(e).__name__}")
 
         # Delete scan results first (foreign key constraint)
-        results_delete_query = text(
-            """
-            DELETE FROM scan_results
-            WHERE scan_id = :scan_id
-        """
-        )
-        db.execute(results_delete_query, {"scan_id": scan_id})
+        results_delete_builder = DeleteBuilder("scan_results").where("scan_id = :scan_id", scan_id, "scan_id")
+        results_delete_query, results_delete_params = results_delete_builder.build()
+        db.execute(text(results_delete_query), results_delete_params)
 
         # Delete scan record
-        scan_delete_query = text(
-            """
-            DELETE FROM scans
-            WHERE id = :id
-        """
-        )
-        db.execute(scan_delete_query, {"id": scan_id})
+        scan_delete_builder = DeleteBuilder("scans").where("id = :id", scan_id, "id")
+        scan_delete_query, scan_delete_params = scan_delete_builder.build()
+        db.execute(text(scan_delete_query), scan_delete_params)
 
         db.commit()
 
@@ -736,15 +739,10 @@ async def stop_scan(
         - Uses parameterized queries for SQL injection prevention
     """
     try:
-        # Check if scan exists and is running
-        result = db.execute(
-            text(
-                """
-            SELECT status, celery_task_id FROM scans WHERE id = :id
-        """
-            ),
-            {"id": scan_id},
-        ).fetchone()
+        # Check if scan exists and is running using QueryBuilder
+        check_builder = QueryBuilder("scans").select("status", "celery_task_id").where("id = :id", scan_id, "id")
+        check_query, check_params = check_builder.build()
+        result = db.execute(text(check_query), check_params).fetchone()
 
         if not result:
             raise HTTPException(status_code=404, detail="Scan not found")
@@ -761,18 +759,16 @@ async def stop_scan(
             except Exception as e:
                 logger.warning(f"Failed to revoke Celery task: {e}")
 
-        # Update scan status
-        db.execute(
-            text(
-                """
-            UPDATE scans
-            SET status = 'stopped', completed_at = :completed_at,
-                error_message = 'Scan stopped by user'
-            WHERE id = :id
-        """
-            ),
-            {"id": scan_id, "completed_at": datetime.utcnow()},
+        # Update scan status using UpdateBuilder
+        update_builder = (
+            UpdateBuilder("scans")
+            .set("status", "stopped")
+            .set("completed_at", datetime.utcnow())
+            .set("error_message", "Scan stopped by user")
+            .where("id = :id", scan_id, "id")
         )
+        update_query, update_params = update_builder.build()
+        db.execute(text(update_query), update_params)
         db.commit()
 
         logger.info(f"Scan stopped: {scan_id}")
@@ -815,19 +811,28 @@ async def recover_scan(
         - Classifies errors before attempting recovery
     """
     try:
-        # Get failed scan details
-        scan_result = db.execute(
-            text(
-                """
-            SELECT s.id, s.name, s.host_id, s.profile_id, s.status, s.error_message,
-                   s.content_id, h.hostname, h.port, h.username, h.auth_method
-            FROM scans s
-            JOIN hosts h ON s.host_id = h.id
-            WHERE s.id = :scan_id AND s.status = 'failed'
-        """
-            ),
-            {"scan_id": scan_id},
-        ).fetchone()
+        # Get failed scan details using QueryBuilder
+        scan_builder = (
+            QueryBuilder("scans s")
+            .select(
+                "s.id",
+                "s.name",
+                "s.host_id",
+                "s.profile_id",
+                "s.status",
+                "s.error_message",
+                "s.content_id",
+                "h.hostname",
+                "h.port",
+                "h.username",
+                "h.auth_method",
+            )
+            .join("hosts h", "s.host_id = h.id", "INNER")
+            .where("s.id = :scan_id", scan_id, "scan_id")
+            .where("s.status = :status", "failed", "status")
+        )
+        scan_query, scan_params = scan_builder.build()
+        scan_result = db.execute(text(scan_query), scan_params).fetchone()
 
         if not scan_result:
             raise HTTPException(status_code=404, detail="Failed scan not found")
@@ -850,31 +855,37 @@ async def recover_scan(
         # Calculate retry delay
         retry_delay = classified_error.retry_after or 60
 
-        # Create recovery scan
+        # Create recovery scan using InsertBuilder
         recovery_scan_id = str(uuid.uuid4())
-        db.execute(
-            text(
-                """
-            INSERT INTO scans
-            (id, name, host_id, content_id, profile_id, status, progress,
-             started_by, started_at, scan_options)
-            VALUES (:id, :name, :host_id, :content_id, :profile_id, :status,
-                    :progress, :started_by, :started_at, :scan_options)
-        """
-            ),
-            {
-                "id": recovery_scan_id,
-                "name": f"Recovery: {scan_result.name}",
-                "host_id": scan_result.host_id,
-                "content_id": scan_result.content_id,
-                "profile_id": scan_result.profile_id,
-                "status": "pending",
-                "progress": 0,
-                "started_by": current_user["id"],
-                "started_at": datetime.utcnow(),
-                "scan_options": json.dumps({"recovery_scan": True, "original_scan_id": scan_id}),
-            },
+        recovery_insert_builder = (
+            InsertBuilder("scans")
+            .columns(
+                "id",
+                "name",
+                "host_id",
+                "content_id",
+                "profile_id",
+                "status",
+                "progress",
+                "started_by",
+                "started_at",
+                "scan_options",
+            )
+            .values(
+                recovery_scan_id,
+                f"Recovery: {scan_result.name}",
+                scan_result.host_id,
+                scan_result.content_id,
+                scan_result.profile_id,
+                "pending",
+                0,
+                current_user["id"],
+                datetime.utcnow(),
+                json.dumps({"recovery_scan": True, "original_scan_id": scan_id}),
+            )
         )
+        recovery_insert_query, recovery_insert_params = recovery_insert_builder.build()
+        db.execute(text(recovery_insert_query), recovery_insert_params)
         db.commit()
 
         logger.info(f"Recovery scan created: {recovery_scan_id} for failed scan {scan_id}")
@@ -925,16 +936,15 @@ async def apply_automated_fix(
         - Validates host exists and is active before applying fix
     """
     try:
-        # Get host details
-        host_result = db.execute(
-            text(
-                """
-            SELECT id, display_name, hostname, port, username, auth_method
-            FROM hosts WHERE id = :id AND is_active = true
-        """
-            ),
-            {"id": host_id},
-        ).fetchone()
+        # Get host details using QueryBuilder
+        host_builder = (
+            QueryBuilder("hosts")
+            .select("id", "display_name", "hostname", "port", "username", "auth_method")
+            .where("id = :id", host_id, "id")
+            .where("is_active = :is_active", True, "is_active")
+        )
+        host_query, host_params = host_builder.build()
+        host_result = db.execute(text(host_query), host_params).fetchone()
 
         if not host_result:
             raise HTTPException(status_code=404, detail="Host not found or inactive")

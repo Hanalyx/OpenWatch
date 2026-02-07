@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from ...auth import get_current_user
 from ...database import get_db
 from ...rbac import RBACManager, UserRole
+from ...utils.mutation_builders import InsertBuilder
 from ...utils.query_builder import QueryBuilder
 
 logger = logging.getLogger(__name__)
@@ -251,28 +252,22 @@ async def create_audit_log(
         from datetime import datetime
 
         # This would typically be called internally by the system
-        # For now, we'll create a simple log entry
-        insert_query = text(
-            """
-            INSERT INTO audit_logs (
-                user_id, action, resource_type, resource_id, ip_address, details, timestamp
+        # Use InsertBuilder for type-safe, parameterized INSERT
+        insert_builder = (
+            InsertBuilder("audit_logs")
+            .columns("user_id", "action", "resource_type", "resource_id", "ip_address", "details", "timestamp")
+            .values(
+                current_user.get("id"),
+                action,
+                resource_type,
+                resource_id,
+                "127.0.0.1",  # This should come from request
+                details,
+                datetime.utcnow(),
             )
-            VALUES (:user_id, :action, :resource_type, :resource_id, :ip_address, :details, :timestamp)
-        """
         )
-
-        db.execute(
-            insert_query,
-            {
-                "user_id": current_user.get("id"),
-                "action": action,
-                "resource_type": resource_type,
-                "resource_id": resource_id,
-                "ip_address": "127.0.0.1",  # This should come from request
-                "details": details,
-                "timestamp": datetime.utcnow(),
-            },
-        )
+        insert_query, insert_params = insert_builder.build()
+        db.execute(text(insert_query), insert_params)
 
         db.commit()
         return {"message": "Audit log created successfully"}
@@ -298,28 +293,25 @@ def log_audit_event(
     Helper function to create audit log entries from middleware
     """
     try:
-        insert_query = text(
-            """
-            INSERT INTO audit_logs (
-                user_id, action, resource_type, resource_id, ip_address, user_agent, details, timestamp
+        # Use InsertBuilder for type-safe, parameterized INSERT
+        insert_builder = (
+            InsertBuilder("audit_logs")
+            .columns(
+                "user_id", "action", "resource_type", "resource_id", "ip_address", "user_agent", "details", "timestamp"
             )
-            VALUES (:user_id, :action, :resource_type, :resource_id, :ip_address, :user_agent, :details, :timestamp)
-        """
+            .values(
+                user_id,
+                action,
+                resource_type,
+                resource_id,
+                ip_address,
+                user_agent,
+                details,
+                datetime.utcnow(),
+            )
         )
-
-        db.execute(
-            insert_query,
-            {
-                "user_id": user_id,
-                "action": action,
-                "resource_type": resource_type,
-                "resource_id": resource_id,
-                "ip_address": ip_address,
-                "user_agent": user_agent,
-                "details": details,
-                "timestamp": datetime.utcnow(),
-            },
-        )
+        insert_query, insert_params = insert_builder.build()
+        db.execute(text(insert_query), insert_params)
 
         db.commit()
 

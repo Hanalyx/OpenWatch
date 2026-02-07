@@ -31,6 +31,7 @@ from sqlalchemy.orm import Session
 
 from ...auth import get_current_user
 from ...database import get_db
+from ...utils.mutation_builders import DeleteBuilder
 from ...utils.query_builder import QueryBuilder
 
 logger = logging.getLogger(__name__)
@@ -412,16 +413,16 @@ async def delete_webhook_endpoint(
             raise HTTPException(status_code=404, detail="Webhook endpoint not found")
 
         # Delete webhook deliveries first (foreign key constraint)
-        db.execute(
-            text("DELETE FROM webhook_deliveries WHERE webhook_id = :webhook_id"),
-            {"webhook_id": webhook_id},
+        deliveries_delete_builder = DeleteBuilder("webhook_deliveries").where(
+            "webhook_id = :webhook_id", webhook_id, "webhook_id"
         )
+        deliveries_delete_query, deliveries_delete_params = deliveries_delete_builder.build()
+        db.execute(text(deliveries_delete_query), deliveries_delete_params)
 
         # Delete webhook endpoint
-        db.execute(
-            text("DELETE FROM webhook_endpoints WHERE id = :id"),
-            {"id": webhook_id},
-        )
+        endpoint_delete_builder = DeleteBuilder("webhook_endpoints").where("id = :id", webhook_id, "id")
+        endpoint_delete_query, endpoint_delete_params = endpoint_delete_builder.build()
+        db.execute(text(endpoint_delete_query), endpoint_delete_params)
 
         db.commit()
 
