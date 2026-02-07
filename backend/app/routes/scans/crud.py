@@ -591,30 +591,26 @@ async def update_scan(
         if not existing:
             raise HTTPException(status_code=404, detail="Scan not found")
 
-        # Build update data
-        update_data: Dict[str, Any] = {}
+        # Use UpdateBuilder with explicit column names (CodeQL requirement)
+        update_builder = UpdateBuilder("scans")
 
-        if scan_update.status is not None:
-            update_data["status"] = scan_update.status
+        # Use set_if() for optional fields - only sets if value is not None
+        update_builder.set_if("status", scan_update.status)
+        update_builder.set_if("progress", scan_update.progress)
+        update_builder.set_if("error_message", scan_update.error_message)
 
-        if scan_update.progress is not None:
-            update_data["progress"] = scan_update.progress
-
-        if scan_update.error_message is not None:
-            update_data["error_message"] = scan_update.error_message
-
+        # Auto-set completed_at when status is "completed"
         if scan_update.status == "completed":
-            update_data["completed_at"] = datetime.utcnow()
+            update_builder.set("completed_at", datetime.utcnow())
 
-        if update_data:
-            # Use UpdateBuilder for type-safe, parameterized UPDATE
-            update_builder = UpdateBuilder("scans")
-            for key, value in update_data.items():
-                update_builder.set(key, value)
-            update_builder.where("id = :id", scan_id, "id")
-            update_query, update_params = update_builder.build()
-            db.execute(text(update_query), update_params)
-            db.commit()
+        # Check if any fields were set
+        if not update_builder._set_clauses:
+            return {"message": "No fields to update"}
+
+        update_builder.where("id = :id", scan_id, "id")
+        update_query, update_params = update_builder.build()
+        db.execute(text(update_query), update_params)
+        db.commit()
 
         return {"message": "Scan updated successfully"}
 
