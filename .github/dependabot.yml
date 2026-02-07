@@ -62,12 +62,52 @@ updates:
       prefix: "frontend"
       include: "scope"
     groups:
+      mui-packages:
+        patterns:
+          - "@mui/*"
+          - "@emotion/*"
+        update-types:
+          - "minor"
+          - "patch"
+      react-packages:
+        patterns:
+          - "react"
+          - "react-dom"
+          - "react-router*"
+          - "@types/react*"
+        update-types:
+          - "minor"
+          - "patch"
+      testing-packages:
+        patterns:
+          - "@playwright/*"
+          - "playwright"
+          - "vitest"
+          - "@vitest/*"
+        dependency-type: "development"
+        update-types:
+          - "minor"
+          - "patch"
       npm-production:
+        patterns:
+          - "*"
+        exclude-patterns:
+          - "@mui/*"
+          - "@emotion/*"
+          - "react*"
+          - "@types/react*"
         dependency-type: "production"
         update-types:
           - "minor"
           - "patch"
       npm-development:
+        patterns:
+          - "*"
+        exclude-patterns:
+          - "@playwright/*"
+          - "playwright"
+          - "vitest"
+          - "@vitest/*"
         dependency-type: "development"
         update-types:
           - "minor"
