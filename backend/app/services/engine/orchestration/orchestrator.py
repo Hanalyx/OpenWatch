@@ -33,13 +33,8 @@ from typing import Any, Dict, List, Optional
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from app.models.scan_models import (
-    RuleResult,
-    ScanConfiguration,
-    ScanResult,
-    ScanResultSummary,
-    ScanStatus,
-)
+from app.models.scan_models import RuleResult, ScanConfiguration, ScanResult, ScanResultSummary, ScanStatus
+from app.repositories import ComplianceRuleRepository, ScanResultRepository
 
 # Scanner factory from the parent engine module
 # Provides registry-based scanner instantiation for multi-scanner orchestration
@@ -85,8 +80,11 @@ class ScanOrchestrator:
             db: AsyncIOMotorDatabase instance for MongoDB operations.
         """
         self.db = db
-        self.collection = db.compliance_rules
         self.scanner_factory = ScannerFactory()
+
+        # Repository Pattern: Centralized MongoDB access
+        self._scan_result_repo = ScanResultRepository()
+        self._compliance_repo = ComplianceRuleRepository()
 
     async def execute_scan(
         self,
@@ -138,8 +136,8 @@ class ScanOrchestrator:
             started_by=started_by,
         )
 
-        # Save to MongoDB
-        await scan_result.insert()
+        # Repository Pattern: Use create() for new documents
+        await self._scan_result_repo.create(scan_result)
 
         try:
             # 1. Query rules from MongoDB
@@ -149,7 +147,17 @@ class ScanOrchestrator:
                 scan_result.status = ScanStatus.FAILED
                 scan_result.errors.append("No rules found matching scan configuration")
                 scan_result.completed_at = datetime.now(timezone.utc)
-                await scan_result.save()
+                # Repository Pattern: Use update_one() for updates
+                await self._scan_result_repo.update_one(
+                    {"scan_id": scan_result.scan_id},
+                    {
+                        "$set": {
+                            "status": scan_result.status.value,
+                            "errors": scan_result.errors,
+                            "completed_at": scan_result.completed_at,
+                        }
+                    },
+                )
                 return scan_result
 
             logger.info("Scan %s: Found %d rules", scan_id, len(rules))
@@ -203,7 +211,22 @@ class ScanOrchestrator:
             scan_result.errors = errors
             scan_result.warnings = warnings
 
-            await scan_result.save()
+            # Repository Pattern: Use update_one() for updates
+            await self._scan_result_repo.update_one(
+                {"scan_id": scan_result.scan_id},
+                {
+                    "$set": {
+                        "status": scan_result.status.value,
+                        "completed_at": scan_result.completed_at,
+                        "duration_seconds": scan_result.duration_seconds,
+                        "summary": scan_result.summary.model_dump(),
+                        "results_by_rule": [r.model_dump() for r in scan_result.results_by_rule],
+                        "scanner_versions": scan_result.scanner_versions,
+                        "errors": scan_result.errors,
+                        "warnings": scan_result.warnings,
+                    }
+                },
+            )
 
             logger.info(
                 "Scan %s completed: %d/%d passed (%.1f%%)",
@@ -222,7 +245,17 @@ class ScanOrchestrator:
             scan_result.status = ScanStatus.FAILED
             scan_result.completed_at = datetime.now(timezone.utc)
             scan_result.errors.append(str(e))
-            await scan_result.save()
+            # Repository Pattern: Use update_one() for updates
+            await self._scan_result_repo.update_one(
+                {"scan_id": scan_result.scan_id},
+                {
+                    "$set": {
+                        "status": scan_result.status.value,
+                        "completed_at": scan_result.completed_at,
+                        "errors": scan_result.errors,
+                    }
+                },
+            )
 
             raise
 
@@ -251,10 +284,11 @@ class ScanOrchestrator:
         if config.rule_filter:
             query.update(config.rule_filter)
 
-        # Query MongoDB
-        rules = await self.collection.find(query).to_list(length=None)
+        # Repository Pattern: Use find_many() for queries
+        rules = await self._compliance_repo.find_many(query, limit=10000)
 
-        return rules
+        # Convert Beanie documents to dicts for scanner consumption
+        return [rule.model_dump() if hasattr(rule, "model_dump") else rule for rule in rules]
 
     def _group_by_scanner(self, rules: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
         """
@@ -420,7 +454,8 @@ class ScanOrchestrator:
         Returns:
             ScanResult if found, None otherwise.
         """
-        return await ScanResult.find_one(ScanResult.scan_id == scan_id)
+        # Repository Pattern: Use find_by_scan_id() for lookup
+        return await self._scan_result_repo.find_by_scan_id(scan_id)
 
     async def list_scans(
         self,
@@ -444,9 +479,10 @@ class ScanOrchestrator:
         query: Dict[str, Any] = {}
 
         if status:
-            query["status"] = status
+            query["status"] = status.value
 
         if started_by:
             query["started_by"] = started_by
 
-        return await ScanResult.find(query).skip(skip).limit(limit).sort("-started_at").to_list()
+        # Repository Pattern: Use find_many() with pagination and sort
+        return await self._scan_result_repo.find_many(query, skip=skip, limit=limit, sort=[("started_at", -1)])

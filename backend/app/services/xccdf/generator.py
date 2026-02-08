@@ -20,6 +20,8 @@ from xml.dom import minidom  # nosec B408 - parsing trusted XCCDF output
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
+from app.repositories import ComplianceRuleRepository
+
 logger = logging.getLogger(__name__)
 
 
@@ -47,7 +49,8 @@ class XCCDFGeneratorService:
 
     def __init__(self, db: AsyncIOMotorDatabase):
         self.db = db
-        self.collection = db.compliance_rules
+        # Repository Pattern: Centralized MongoDB access
+        self._compliance_repo = ComplianceRuleRepository()
         # Phase 3: Target platform for platform-aware OVAL selection
         # Set during generate_benchmark() call, used by _create_xccdf_rule()
         self._target_platform: Optional[str] = None
@@ -132,8 +135,8 @@ class XCCDFGeneratorService:
         if framework and framework_version:
             query[f"frameworks.{framework}.{framework_version}"] = {"$exists": True}
 
-        # Fetch rules from MongoDB
-        rules = await self.collection.find(query).to_list(length=None)
+        # Repository Pattern: Fetch rules from MongoDB
+        rules = await self._compliance_repo.find_many(query, limit=10000)
         logger.info(f"Found {len(rules)} rules matching criteria")
 
         # Set default OVAL base path if not provided
