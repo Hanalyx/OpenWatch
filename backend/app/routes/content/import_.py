@@ -252,15 +252,20 @@ async def get_import_statistics(
 
     try:
         # Get collection statistics from MongoDB
-        from ..models.mongo_models import ComplianceRule, RemediationScript, RuleIntelligence
+        # OW-REFACTOR-002: Repository Pattern (MANDATORY)
+        from ...repositories import ComplianceRuleRepository, RemediationScriptRepository, RuleIntelligenceRepository
+
+        compliance_repo = ComplianceRuleRepository()
+        intelligence_repo = RuleIntelligenceRepository()
+        remediation_repo = RemediationScriptRepository()
 
         stats = {
-            "total_rules": await ComplianceRule.count(),
+            "total_rules": await compliance_repo.count(),
             "rules_by_severity": {},
             "rules_by_category": {},
-            "rules_with_fixes": await ComplianceRule.count(ComplianceRule.fix_available is True),
-            "total_intelligence_records": await RuleIntelligence.count(),
-            "total_remediation_scripts": await RemediationScript.count(),
+            "rules_with_fixes": await compliance_repo.count({"fix_available": True}),
+            "total_intelligence_records": await intelligence_repo.count(),
+            "total_remediation_scripts": await remediation_repo.count(),
         }
 
         # Get severity distribution
@@ -269,9 +274,7 @@ async def get_import_statistics(
             {"$sort": {"count": -1}},
         ]
 
-        collection = ComplianceRule.get_motor_collection()
-        cursor = collection.aggregate(severity_pipeline)
-        severity_results = await cursor.to_list(length=None)
+        severity_results = await compliance_repo.aggregate(severity_pipeline)
 
         for result in severity_results:
             stats["rules_by_severity"][result["_id"]] = result["count"]
@@ -283,8 +286,7 @@ async def get_import_statistics(
             {"$limit": 10},
         ]
 
-        cursor = collection.aggregate(category_pipeline)
-        category_results = await cursor.to_list(length=None)
+        category_results = await compliance_repo.aggregate(category_pipeline)
 
         for result in category_results:
             stats["rules_by_category"][result["_id"]] = result["count"]

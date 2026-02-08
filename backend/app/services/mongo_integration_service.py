@@ -26,7 +26,7 @@ try:
     )
 
     # OW-REFACTOR-002: Import Repository Pattern
-    from ..repositories import ComplianceRuleRepository
+    from ..repositories import ComplianceRuleRepository, RemediationScriptRepository, RuleIntelligenceRepository
 
     REPOSITORY_AVAILABLE = True
 except ImportError:
@@ -194,7 +194,9 @@ class MongoIntegrationService:
         )
 
         # Insert the rule
-        await test_rule.insert()
+        # OW-REFACTOR-002: Repository Pattern (MANDATORY)
+        repo = ComplianceRuleRepository()
+        await repo.create(test_rule)
         logger.info(f"Created test compliance rule: {test_rule.rule_id}")
         return test_rule
 
@@ -221,7 +223,9 @@ class MongoIntegrationService:
             usage_count=1,
         )
 
-        await intelligence.insert()
+        # OW-REFACTOR-002: Repository Pattern (MANDATORY)
+        repo = RuleIntelligenceRepository()
+        await repo.create(intelligence)
         logger.info(f"Created test rule intelligence for: {rule_id}")
         return intelligence
 
@@ -261,7 +265,9 @@ fi
             approval_date=datetime.utcnow(),
         )
 
-        await script.insert()
+        # OW-REFACTOR-002: Repository Pattern (MANDATORY)
+        repo = RemediationScriptRepository()
+        await repo.create(script)
         logger.info(f"Created test remediation script for: {rule_id}")
         return script
 
@@ -320,10 +326,14 @@ fi
             return {"error": "Rule not found"}
 
         # Get intelligence
-        intelligence = await RuleIntelligence.find_one(RuleIntelligence.rule_id == rule_id)
+        # OW-REFACTOR-002: Repository Pattern (MANDATORY)
+        intelligence_repo = RuleIntelligenceRepository()
+        intelligence = await intelligence_repo.find_one({"rule_id": rule_id})
 
         # Get remediation scripts
-        scripts = await RemediationScript.find(RemediationScript.rule_id == rule_id).to_list()
+        # OW-REFACTOR-002: Repository Pattern (MANDATORY)
+        remediation_repo = RemediationScriptRepository()
+        scripts = await remediation_repo.find_many({"rule_id": rule_id})
 
         return {
             "rule": rule.dict() if rule else None,
@@ -342,10 +352,13 @@ fi
         await repo.delete_many({"rule_id": {"$regex": "^ow-test-"}})
 
         # Clean up rule intelligence and remediation scripts
-        if RuleIntelligence is not None:
-            await RuleIntelligence.find({"rule_id": {"$regex": "^ow-test-"}}).delete()
-        if RemediationScript is not None:
-            await RemediationScript.find({"rule_id": {"$regex": "^ow-test-"}}).delete()
+        # OW-REFACTOR-002: Repository Pattern (MANDATORY)
+        if REPOSITORY_AVAILABLE:
+            intelligence_repo = RuleIntelligenceRepository()
+            await intelligence_repo.delete_many({"rule_id": {"$regex": "^ow-test-"}})
+
+            remediation_repo = RemediationScriptRepository()
+            await remediation_repo.delete_many({"rule_id": {"$regex": "^ow-test-"}})
 
         logger.info("Cleaned up test data")
 

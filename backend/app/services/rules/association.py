@@ -37,6 +37,7 @@ from beanie import Document
 from pydantic import BaseModel, Field
 
 from app.models.plugin_models import InstalledPlugin, PluginStatus
+from app.repositories import RulePluginMappingRepository
 from app.services.plugins import PluginRegistryService
 
 logger = logging.getLogger(__name__)
@@ -190,6 +191,8 @@ class RuleAssociationService:
         self.plugin_registry_service = PluginRegistryService()
         self._keyword_cache: Dict[str, Set[str]] = {}
         self._framework_mappings: Dict[str, Dict[str, str]] = self._load_framework_mappings()
+        # OW-REFACTOR-002: Repository Pattern (MANDATORY)
+        self._mapping_repo = RulePluginMappingRepository()
 
     def _load_framework_mappings(self) -> Dict[str, Dict[str, str]]:
         """Load predefined framework-specific rule mappings."""
@@ -252,7 +255,8 @@ class RuleAssociationService:
             created_by=created_by,
         )
 
-        await mapping.save()
+        # OW-REFACTOR-002: Repository Pattern (MANDATORY)
+        await self._mapping_repo.create(mapping)
 
         logger.info(f"Created rule mapping: {openwatch_rule_id} -> {plugin_id} " f"({platform}, {confidence.value})")
         return mapping
@@ -276,18 +280,16 @@ class RuleAssociationService:
         Returns:
             List of matching mappings
         """
-        query: Dict[str, Any] = {"openwatch_rule_id": rule_id}
-
-        if platform:
-            query["platform"] = platform
-        if framework:
-            query["framework"] = framework
-
         # Convert confidence to minimum score
         min_score = self._confidence_to_score(min_confidence)
-        query["confidence_score"] = {"$gte": min_score}
 
-        mappings = await RulePluginMapping.find(query).sort(-RulePluginMapping.confidence_score).to_list()
+        # OW-REFACTOR-002: Repository Pattern (MANDATORY)
+        mappings = await self._mapping_repo.find_by_rule_id(
+            rule_id=rule_id,
+            platform=platform,
+            framework=framework,
+            min_confidence_score=min_score,
+        )
 
         return mappings
 
@@ -308,15 +310,15 @@ class RuleAssociationService:
         Returns:
             List of matching mappings
         """
-        query: Dict[str, Any] = {"plugin_id": plugin_id}
-
-        if platform:
-            query["platform"] = platform
-
+        # Convert confidence to minimum score
         min_score = self._confidence_to_score(min_confidence)
-        query["confidence_score"] = {"$gte": min_score}
 
-        return await RulePluginMapping.find(query).sort(-RulePluginMapping.confidence_score).to_list()
+        # OW-REFACTOR-002: Repository Pattern (MANDATORY)
+        return await self._mapping_repo.find_by_plugin_id(
+            plugin_id=plugin_id,
+            platform=platform,
+            min_confidence_score=min_score,
+        )
 
     async def discover_mappings_for_rule(
         self,
@@ -464,55 +466,67 @@ class RuleAssociationService:
         Returns:
             Updated mapping
         """
-        mapping = await RulePluginMapping.find_one(RulePluginMapping.mapping_id == mapping_id)
+        # OW-REFACTOR-002: Repository Pattern (MANDATORY)
+        mapping = await self._mapping_repo.find_by_mapping_id(mapping_id)
 
         if not mapping:
             raise ValueError(f"Mapping not found: {mapping_id}")
 
-        # Update execution statistics
-        mapping.execution_count += 1
-        mapping.last_execution = datetime.utcnow()
+        # Calculate updated values
+        new_execution_count = mapping.execution_count + 1
+        new_success_count = mapping.success_count + (1 if success else 0)
+        new_effectiveness_score = new_success_count / new_execution_count if new_execution_count > 0 else None
+        new_is_validated = mapping.is_validated or (not mapping.is_validated and new_execution_count >= 3)
 
-        if success:
-            mapping.success_count += 1
-
-        # Calculate effectiveness score
-        if mapping.execution_count > 0:
-            mapping.effectiveness_score = mapping.success_count / mapping.execution_count
-
-        # Update validation status
-        if not mapping.is_validated and mapping.execution_count >= 3:
-            mapping.is_validated = True
-
-        # Update confidence based on effectiveness
-        if mapping.effectiveness_score is not None:
-            if mapping.effectiveness_score > 0.9:
-                mapping.confidence = MappingConfidence.VERY_HIGH
-            elif mapping.effectiveness_score > 0.7:
-                mapping.confidence = MappingConfidence.HIGH
-            elif mapping.effectiveness_score > 0.5:
-                mapping.confidence = MappingConfidence.MEDIUM
-            elif mapping.effectiveness_score > 0.3:
-                mapping.confidence = MappingConfidence.LOW
+        # Determine new confidence based on effectiveness
+        new_confidence = mapping.confidence
+        new_confidence_score = mapping.confidence_score
+        if new_effectiveness_score is not None:
+            if new_effectiveness_score > 0.9:
+                new_confidence = MappingConfidence.VERY_HIGH
+            elif new_effectiveness_score > 0.7:
+                new_confidence = MappingConfidence.HIGH
+            elif new_effectiveness_score > 0.5:
+                new_confidence = MappingConfidence.MEDIUM
+            elif new_effectiveness_score > 0.3:
+                new_confidence = MappingConfidence.LOW
             else:
-                mapping.confidence = MappingConfidence.VERY_LOW
+                new_confidence = MappingConfidence.VERY_LOW
+            new_confidence_score = new_effectiveness_score
 
-            mapping.confidence_score = mapping.effectiveness_score
-
-        # Store validation results
-        mapping.validation_results[str(datetime.utcnow())] = {
+        # Build validation result entry
+        validation_key = str(datetime.utcnow())
+        validation_entry = {
             "success": success,
             "execution_result": execution_result,
         }
 
-        mapping.updated_at = datetime.utcnow()
-        await mapping.save()
+        # Update via repository
+        await self._mapping_repo.update_one(
+            {"mapping_id": mapping_id},
+            {
+                "$set": {
+                    "execution_count": new_execution_count,
+                    "success_count": new_success_count,
+                    "last_execution": datetime.utcnow(),
+                    "effectiveness_score": new_effectiveness_score,
+                    "is_validated": new_is_validated,
+                    "confidence": new_confidence,
+                    "confidence_score": new_confidence_score,
+                    "updated_at": datetime.utcnow(),
+                    f"validation_results.{validation_key}": validation_entry,
+                }
+            },
+        )
+
+        # Fetch updated mapping
+        updated_mapping = await self._mapping_repo.find_by_mapping_id(mapping_id)
 
         logger.info(
             f"Updated mapping validation: {mapping_id} "
-            f"(success: {success}, effectiveness: {mapping.effectiveness_score})"
+            f"(success: {success}, effectiveness: {new_effectiveness_score})"
         )
-        return mapping
+        return updated_mapping
 
     async def get_mapping_statistics(self) -> Dict[str, Any]:
         """
@@ -521,22 +535,11 @@ class RuleAssociationService:
         Returns:
             Statistics dictionary
         """
-        total_mappings = await RulePluginMapping.count()
+        # OW-REFACTOR-002: Repository Pattern (MANDATORY)
+        stats = await self._mapping_repo.get_statistics()
 
-        # Get mappings by confidence
-        confidence_stats = {}
-        for confidence in MappingConfidence:
-            count = await RulePluginMapping.find({"confidence": confidence}).count()
-            confidence_stats[confidence.value] = count
-
-        # Get mappings by source
-        source_stats = {}
-        for source in MappingSource:
-            count = await RulePluginMapping.find({"mapping_source": source}).count()
-            source_stats[source.value] = count
-
-        # Get effectiveness statistics
-        validated_mappings = await RulePluginMapping.find({"is_validated": True}).to_list()
+        # Get validated mappings for effectiveness calculation
+        validated_mappings = await self._mapping_repo.find_validated()
 
         if validated_mappings:
             avg_effectiveness = sum(
@@ -546,18 +549,13 @@ class RuleAssociationService:
             avg_effectiveness = 0.0
 
         # Top performing mappings
-        top_mappings = (
-            await RulePluginMapping.find({"execution_count": {"$gt": 0}})
-            .sort(-RulePluginMapping.effectiveness_score)
-            .limit(10)
-            .to_list()
-        )
+        top_mappings = await self._mapping_repo.find_top_performing(min_executions=1, limit=10)
 
         return {
-            "total_mappings": total_mappings,
-            "confidence_distribution": confidence_stats,
-            "source_distribution": source_stats,
-            "validated_mappings": len(validated_mappings),
+            "total_mappings": stats["total_mappings"],
+            "confidence_distribution": stats["by_confidence"],
+            "source_distribution": stats["by_source"],
+            "validated_mappings": stats["validated_count"],
             "average_effectiveness": avg_effectiveness,
             "top_performing_mappings": [
                 {
@@ -785,13 +783,12 @@ class RuleAssociationService:
 
     async def _get_historical_effectiveness(self, rule_id: str, plugin_id: str, platform: str) -> Dict[str, Any]:
         """Get historical effectiveness data for a rule-plugin combination."""
-        mappings = await RulePluginMapping.find(
-            {
-                "openwatch_rule_id": rule_id,
-                "plugin_id": plugin_id,
-                "platform": platform,
-            }
-        ).to_list()
+        # OW-REFACTOR-002: Repository Pattern (MANDATORY)
+        mappings = await self._mapping_repo.find_for_rule_plugin_platform(
+            rule_id=rule_id,
+            plugin_id=plugin_id,
+            platform=platform,
+        )
 
         if not mappings:
             return {"success_rate": None, "usage_count": 0}

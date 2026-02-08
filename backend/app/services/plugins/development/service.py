@@ -428,7 +428,8 @@ class PluginDevelopmentFramework:
             created_by=created_by,
         )
 
-        await test_suite.save()
+        # OW-REFACTOR-002: Repository Pattern (MANDATORY)
+        await self._suite_repo.create(test_suite)
 
         logger.info(f"Created test suite: {test_suite.suite_id} for plugin {plugin_id}")
         return test_suite
