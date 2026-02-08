@@ -17,6 +17,7 @@ from beanie import Document
 from pydantic import BaseModel, Field
 
 from app.models.plugin_models import InstalledPlugin, PluginStatus
+from app.repositories import SystemWideAnalyticsRepository
 from app.services.plugins.registry.service import PluginRegistryService
 
 logger = logging.getLogger(__name__)
@@ -264,6 +265,8 @@ class PluginAnalyticsService:
         self.analytics_cache: Dict[str, Any] = {}
         self.monitoring_enabled = False
         self.collection_task: Optional[asyncio.Task[None]] = None
+        # OW-REFACTOR-002: Repository Pattern (MANDATORY)
+        self._analytics_repo = SystemWideAnalyticsRepository()
 
     async def start_metrics_collection(self) -> None:
         """Start real-time metrics collection."""
@@ -658,7 +661,8 @@ class PluginAnalyticsService:
             bottlenecks_detected=bottlenecks,
         )
 
-        await analytics.save()
+        # OW-REFACTOR-002: Repository Pattern (MANDATORY)
+        await self._analytics_repo.create(analytics)
         return analytics
 
     async def _metrics_collection_loop(self) -> None:

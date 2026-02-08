@@ -34,6 +34,7 @@ from .plugin_models_repository import (  # noqa: F401
     OptimizationJobRepository,
     PluginInstallationResultRepository,
     PluginUpdateExecutionRepository,
+    RulePluginMappingRepository,
     SystemWideAnalyticsRepository,
     TestExecutionRepository,
     TestSuiteRepository,
@@ -71,6 +72,7 @@ __all__ = [
     "PluginInstallationResultRepository",
     "TestSuiteRepository",
     "TestExecutionRepository",
+    "RulePluginMappingRepository",
     # Health
     "ServiceHealthRepository",
     "ContentHealthRepository",

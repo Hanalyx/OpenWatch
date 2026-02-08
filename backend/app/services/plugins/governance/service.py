@@ -54,6 +54,8 @@ import logging
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
+from app.repositories.plugin_models_repository import AuditEventRepository
+
 from .models import (
     AuditEvent,
     AuditEventType,
@@ -121,6 +123,9 @@ class PluginGovernanceService:
 
         # Service state
         self._started: bool = False
+
+        # Repository for audit events
+        self._audit_repo = AuditEventRepository()
 
         logger.info("PluginGovernanceService initialized")
 
@@ -1118,9 +1123,9 @@ class PluginGovernanceService:
             return
 
         try:
-            # In production, this would be a batch insert
+            # Insert audit events via repository
             for event in self._audit_buffer:
-                await event.insert()
+                await self._audit_repo.create(event)
 
             logger.debug("Flushed %d audit events to storage", len(self._audit_buffer))
             self._audit_buffer.clear()
@@ -1172,7 +1177,11 @@ class PluginGovernanceService:
                 query["timestamp"]["$lte"] = end_time
 
         try:
-            events = await AuditEvent.find(query).sort("-timestamp").limit(limit).to_list()
+            events = await self._audit_repo.find_many(
+                query=query,
+                limit=limit,
+                sort=[("timestamp", -1)],
+            )
             return events
         except Exception as e:
             logger.error("Failed to query audit events: %s", str(e))

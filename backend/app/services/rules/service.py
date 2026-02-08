@@ -27,10 +27,10 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set
 
-from app.models.mongo_models import ComplianceRule, RemediationScript, RuleIntelligence
+from app.models.mongo_models import ComplianceRule
 
 # OW-REFACTOR-002: Repository Pattern (MANDATORY)
-from app.repositories import ComplianceRuleRepository
+from app.repositories import ComplianceRuleRepository, RemediationScriptRepository, RuleIntelligenceRepository
 from app.services.platform_capability_service import PlatformCapabilityService
 from app.services.rules.cache import RuleCacheService
 
@@ -82,6 +82,10 @@ class RuleService:
             "cache_misses": 0,
             "avg_response_time": 0.0,
         }
+        # OW-REFACTOR-002: Repository Pattern (MANDATORY)
+        self._compliance_repo = ComplianceRuleRepository()
+        self._intelligence_repo = RuleIntelligenceRepository()
+        self._remediation_repo = RemediationScriptRepository()
 
     async def initialize(self):
         """Initialize the rule service and dependencies."""
@@ -148,10 +152,9 @@ class RuleService:
             # Execute query with proper indexing
             # OW-REFACTOR-002: Repository Pattern (MANDATORY)
             logger.debug(f"Using ComplianceRuleRepository for get_rules_by_platform ({platform})")
-            repo = ComplianceRuleRepository()
             # Retrieve all matching rules (limit=10000 to handle large rule sets)
             # For compliance scans, we need ALL applicable rules, not just first 100
-            rules = await repo.find_many(query_filter, limit=10000)
+            rules = await self._compliance_repo.find_many(query_filter, limit=10000)
 
             # Resolve inheritance for each rule
             resolved_rules = []
@@ -207,8 +210,7 @@ class RuleService:
         # Get base rule
         # OW-REFACTOR-002: Repository Pattern (MANDATORY)
         logger.debug(f"Using ComplianceRuleRepository for get_rule_with_dependencies ({rule_id})")
-        repo = ComplianceRuleRepository()
-        rule = await repo.find_one({"rule_id": rule_id})
+        rule = await self._compliance_repo.find_one({"rule_id": rule_id})
 
         if not rule:
             raise ValueError(f"Rule not found: {rule_id}")
@@ -340,15 +342,13 @@ class RuleService:
         pipeline.extend([{"$skip": offset}, {"$limit": limit}])
 
         # Execute search
-        collection = ComplianceRule.get_motor_collection()
-        cursor = collection.aggregate(pipeline)
-        results = await cursor.to_list(length=None)
+        # OW-REFACTOR-002: Repository Pattern (MANDATORY)
+        results = await self._compliance_repo.aggregate(pipeline)
 
         # Get total count for pagination
         count_pipeline: List[Dict[str, Any]] = pipeline[:-2]  # Remove skip/limit
         count_pipeline.append({"$count": "total"})
-        count_cursor = collection.aggregate(count_pipeline)
-        count_result = await count_cursor.to_list(length=1)
+        count_result = await self._compliance_repo.aggregate(count_pipeline)
         total_count = count_result[0]["total"] if count_result else 0
 
         return {
@@ -369,19 +369,16 @@ class RuleService:
         """
         # Basic counts
         # OW-REFACTOR-002: Repository Pattern (MANDATORY)
-        repo = ComplianceRuleRepository()
-        total_rules = await repo.count()
-        total_intelligence = await RuleIntelligence.count()
-        total_scripts = await RemediationScript.count()
+        total_rules = await self._compliance_repo.count()
+        total_intelligence = await self._intelligence_repo.count()
+        total_scripts = await self._remediation_repo.count()
 
         # Severity distribution
         severity_pipeline = [
             {"$group": {"_id": "$severity", "count": {"$sum": 1}}},
             {"$sort": {"count": -1}},
         ]
-        collection = ComplianceRule.get_motor_collection()
-        severity_cursor = collection.aggregate(severity_pipeline)
-        severity_stats = await severity_cursor.to_list(length=None)
+        severity_stats = await self._compliance_repo.aggregate(severity_pipeline)
 
         # Platform coverage
         platform_pipeline = [
@@ -394,8 +391,7 @@ class RuleService:
             {"$group": {"_id": "$platform_implementations.k", "count": {"$sum": 1}}},
             {"$sort": {"count": -1}},
         ]
-        platform_cursor = collection.aggregate(platform_pipeline)
-        platform_stats = await platform_cursor.to_list(length=None)
+        platform_stats = await self._compliance_repo.aggregate(platform_pipeline)
 
         # Framework coverage
         framework_pipeline = [
@@ -404,8 +400,7 @@ class RuleService:
             {"$group": {"_id": "$frameworks.k", "count": {"$sum": 1}}},
             {"$sort": {"count": -1}},
         ]
-        framework_cursor = collection.aggregate(framework_pipeline)
-        framework_stats = await framework_cursor.to_list(length=None)
+        framework_stats = await self._compliance_repo.aggregate(framework_pipeline)
 
         return {
             "totals": {
@@ -507,8 +502,7 @@ class RuleService:
         # Get parent rule
         # OW-REFACTOR-002: Repository Pattern (MANDATORY)
         logger.debug(f"Using ComplianceRuleRepository for _resolve_rule_inheritance " f"({rule.inherits_from})")
-        repo = ComplianceRuleRepository()
-        parent_rule = await repo.find_one({"rule_id": rule.inherits_from})
+        parent_rule = await self._compliance_repo.find_one({"rule_id": rule.inherits_from})
 
         if not parent_rule:
             logger.warning(f"Parent rule not found: {rule.inherits_from}")
@@ -657,12 +651,9 @@ class RuleService:
             "related": [],
         }
 
-        # OW-REFACTOR-002: Repository Pattern (MANDATORY)
-        repo = ComplianceRuleRepository()
-
-        # Process required dependencies
+        # Process required dependencies (OW-REFACTOR-002: Repository Pattern)
         for dep_id in dependencies.get("requires", []):
-            dep_rule = await repo.find_one({"rule_id": dep_id})
+            dep_rule = await self._compliance_repo.find_one({"rule_id": dep_id})
 
             if dep_rule:
                 dep_data = await self._resolve_rule_inheritance(dep_rule)
@@ -675,7 +666,7 @@ class RuleService:
         # Process conflicts if requested
         if include_conflicts:
             for conflict_id in dependencies.get("conflicts", []):
-                conflict_rule = await repo.find_one({"rule_id": conflict_id})
+                conflict_rule = await self._compliance_repo.find_one({"rule_id": conflict_id})
 
                 if conflict_rule:
                     conflict_data = await self._resolve_rule_inheritance(conflict_rule)
@@ -688,7 +679,7 @@ class RuleService:
 
         # Process related rules
         for related_id in dependencies.get("related", []):
-            related_rule = await repo.find_one({"rule_id": related_id})
+            related_rule = await self._compliance_repo.find_one({"rule_id": related_id})
 
             if related_rule:
                 related_data = await self._resolve_rule_inheritance(related_rule)

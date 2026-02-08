@@ -22,6 +22,7 @@ from beanie import Document
 from pydantic import BaseModel, Field
 
 from app.models.plugin_models import InstalledPlugin
+from app.repositories.plugin_models_repository import TestExecutionRepository, TestSuiteRepository
 from app.services.plugins.execution.service import PluginExecutionService
 from app.services.plugins.registry.service import PluginRegistryService
 
@@ -338,6 +339,8 @@ class PluginDevelopmentFramework:
         self.test_environments: Dict[str, Dict[str, Any]] = {}
         self.active_tests: Dict[str, TestExecution] = {}
         self.benchmark_baselines: Dict[str, BenchmarkResult] = {}
+        self._suite_repo = TestSuiteRepository()
+        self._execution_repo = TestExecutionRepository()
 
     async def validate_plugin_package(self, package_path: str) -> ValidationResult:
         """Comprehensive validation of a plugin package"""
@@ -425,7 +428,8 @@ class PluginDevelopmentFramework:
             created_by=created_by,
         )
 
-        await test_suite.save()
+        # OW-REFACTOR-002: Repository Pattern (MANDATORY)
+        await self._suite_repo.create(test_suite)
 
         logger.info(f"Created test suite: {test_suite.suite_id} for plugin {plugin_id}")
         return test_suite
@@ -439,7 +443,7 @@ class PluginDevelopmentFramework:
     ) -> TestExecution:
         """Execute a test suite in the specified environment"""
 
-        test_suite = await TestSuite.find_one(TestSuite.suite_id == suite_id)
+        test_suite = await self._suite_repo.find_by_suite_id(suite_id)
         if not test_suite:
             raise ValueError(f"Test suite not found: {suite_id}")
 
@@ -455,7 +459,7 @@ class PluginDevelopmentFramework:
             total_tests=len(test_suite.test_cases),
         )
 
-        await execution.save()
+        await self._execution_repo.create(execution)
         self.active_tests[execution.execution_id] = execution
 
         # Start test execution asynchronously
@@ -527,7 +531,7 @@ class PluginDevelopmentFramework:
             return self.active_tests[execution_id]
 
         # Query database
-        return await TestExecution.find_one(TestExecution.execution_id == execution_id)
+        return await self._execution_repo.find_by_execution_id(execution_id)
 
     async def generate_plugin_template(self, plugin_name: str, plugin_type: str, author: str, output_path: str) -> str:
         """Generate a plugin template with best practices"""
@@ -889,7 +893,10 @@ class PluginDevelopmentFramework:
         try:
             execution.overall_status = TestStatus.RUNNING
             execution.started_at = datetime.utcnow()
-            await execution.save()
+            await self._execution_repo.update_one(
+                {"execution_id": execution.execution_id},
+                {"$set": {"overall_status": TestStatus.RUNNING.value, "started_at": execution.started_at}},
+            )
 
             # Execute test cases
             for test_case in test_suite.test_cases:
@@ -933,7 +940,22 @@ class PluginDevelopmentFramework:
             if execution.started_at:
                 execution.duration_seconds = (execution.completed_at - execution.started_at).total_seconds()
 
-            await execution.save()
+            await self._execution_repo.update_one(
+                {"execution_id": execution.execution_id},
+                {
+                    "$set": {
+                        "overall_status": execution.overall_status.value,
+                        "completed_at": execution.completed_at,
+                        "duration_seconds": execution.duration_seconds,
+                        "test_results": [r.model_dump() for r in execution.test_results],
+                        "passed_tests": execution.passed_tests,
+                        "failed_tests": execution.failed_tests,
+                        "skipped_tests": execution.skipped_tests,
+                        "error_tests": execution.error_tests,
+                        "success_rate": execution.success_rate,
+                    }
+                },
+            )
 
             # Remove from active tests
             self.active_tests.pop(execution.execution_id, None)

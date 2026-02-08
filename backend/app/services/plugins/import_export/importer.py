@@ -18,6 +18,7 @@ from app.models.plugin_models import (
     PluginTrustLevel,
     SecurityCheckResult,
 )
+from app.repositories import InstalledPluginRepository
 from app.services.plugins.security.signature import PluginSignatureService
 from app.services.plugins.security.validator import PluginSecurityService
 
@@ -35,6 +36,7 @@ class PluginImportService:
         self.security_service = PluginSecurityService()
         self.signature_service = PluginSignatureService()
         self.max_package_size = 50 * 1024 * 1024  # 50MB maximum package size
+        self._plugin_repo = InstalledPluginRepository()
 
     async def import_plugin_from_file(
         self,
@@ -197,11 +199,12 @@ class PluginImportService:
 
             # Update source URL in result
             if import_result["success"]:
-                plugin = await InstalledPlugin.find_one(InstalledPlugin.plugin_id == import_result["plugin_id"])
+                plugin = await self._plugin_repo.find_by_plugin_id(import_result["plugin_id"])
                 if plugin:
-                    plugin.source_url = plugin_url
-                    plugin.import_method = "url"
-                    await plugin.save()
+                    await self._plugin_repo.update_one(
+                        {"plugin_id": plugin.plugin_id},
+                        {"$set": {"source_url": plugin_url, "import_method": "url"}},
+                    )
 
             return import_result
 
@@ -265,9 +268,11 @@ class PluginImportService:
 
     async def _check_existing_plugin(self, manifest: PluginManifest) -> Dict[str, Any]:
         """Check if plugin already exists"""
-        existing = await InstalledPlugin.find_one(
-            InstalledPlugin.manifest.name == manifest.name,
-            InstalledPlugin.manifest.version == manifest.version,
+        existing = await self._plugin_repo.find_one(
+            {
+                "manifest.name": manifest.name,
+                "manifest.version": manifest.version,
+            }
         )
 
         if existing:
@@ -346,7 +351,7 @@ class PluginImportService:
         )
 
         # Save to database
-        await plugin.save()
+        await self._plugin_repo.create(plugin)
 
         logger.info(
             f"Stored plugin {plugin.plugin_id}",
@@ -492,7 +497,11 @@ class PluginImportService:
         if user_id:
             query["imported_by"] = user_id
 
-        plugins = await InstalledPlugin.find(query).sort(-InstalledPlugin.imported_at).limit(limit).to_list()
+        plugins = await self._plugin_repo.find_many(
+            query=query,
+            limit=limit,
+            sort=[("imported_at", -1)],
+        )
 
         return [
             {
@@ -511,18 +520,18 @@ class PluginImportService:
 
     async def get_import_statistics(self) -> Dict[str, Any]:
         """Get plugin import statistics"""
-        total_plugins = await InstalledPlugin.count()
+        total_plugins = await self._plugin_repo.count()
 
         # Count by status
         status_counts = {}
         for status in PluginStatus:
-            count = await InstalledPlugin.find(InstalledPlugin.status == status).count()
+            count = await self._plugin_repo.count({"status": status.value})
             status_counts[status.value] = count
 
         # Count by trust level
         trust_counts = {}
         for trust_level in PluginTrustLevel:
-            count = await InstalledPlugin.find(InstalledPlugin.trust_level == trust_level).count()
+            count = await self._plugin_repo.count({"trust_level": trust_level.value})
             trust_counts[trust_level.value] = count
 
         return {
@@ -530,7 +539,7 @@ class PluginImportService:
             "by_status": status_counts,
             "by_trust_level": trust_counts,
             "import_methods": {
-                "upload": await InstalledPlugin.find(InstalledPlugin.import_method == "upload").count(),
-                "url": await InstalledPlugin.find(InstalledPlugin.import_method == "url").count(),
+                "upload": await self._plugin_repo.count({"import_method": "upload"}),
+                "url": await self._plugin_repo.count({"import_method": "url"}),
             },
         }

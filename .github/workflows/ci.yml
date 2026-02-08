@@ -620,6 +620,12 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v5
 
+      - name: Convert repository name to lowercase
+        id: repo
+        run: |
+          REPO_LOWER=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          echo "name=${REPO_LOWER}" >> $GITHUB_OUTPUT
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -637,8 +643,8 @@ jobs:
           file: ./docker/Dockerfile.backend
           push: true
           tags: |
-            ghcr.io/${{ github.repository }}-backend:latest
-            ghcr.io/${{ github.repository }}-backend:${{ github.sha }}
+            ghcr.io/${{ steps.repo.outputs.name }}-backend:latest
+            ghcr.io/${{ steps.repo.outputs.name }}-backend:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -649,7 +655,7 @@ jobs:
           file: ./docker/Dockerfile.frontend
           push: true
           tags: |
-            ghcr.io/${{ github.repository }}-frontend:latest
-            ghcr.io/${{ github.repository }}-frontend:${{ github.sha }}
+            ghcr.io/${{ steps.repo.outputs.name }}-frontend:latest
+            ghcr.io/${{ steps.repo.outputs.name }}-frontend:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

@@ -43,6 +43,9 @@ class RuleDependencyGraph:
         # Related rules (informational only)
         self.related: Dict[str, List[str]] = defaultdict(list)  # rule -> [related_rules]
 
+        # Repository Pattern: Centralized MongoDB access
+        self._compliance_repo = ComplianceRuleRepository()
+
     async def build_from_database(self):
         """
         Build dependency graph from all rules in MongoDB
@@ -53,8 +56,7 @@ class RuleDependencyGraph:
 
         try:
             # OW-REFACTOR-002: Repository Pattern (MANDATORY)
-            repo = ComplianceRuleRepository()
-            all_rules = await repo.find_many({})
+            all_rules = await self._compliance_repo.find_many({})
 
             for rule in all_rules:
                 self.add_rule(rule)
@@ -632,23 +634,22 @@ class InheritanceResolver:
             try:
                 # Get child rule from database
                 # OW-REFACTOR-002: Repository Pattern (MANDATORY)
-                repo = ComplianceRuleRepository()
-                child_rule = await repo.find_one({"rule_id": rule_id})
+                child_rule = await self._compliance_repo.find_one({"rule_id": rule_id})
 
                 if not child_rule:
                     results["failed"] += 1
                     results["errors"].append({"rule_id": rule_id, "error": "Rule not found in database"})
                     continue
 
-                # Apply updates
-                for field, new_value in updates_dict.items():
-                    setattr(child_rule, field, new_value)
+                # Build update document
+                update_fields = dict(updates_dict)
+                update_fields["updated_at"] = datetime.utcnow()
 
-                # Update metadata
-                child_rule.updated_at = datetime.utcnow()
-
-                # Save to database
-                await child_rule.save()
+                # Repository Pattern: Use update_one() for updates
+                await self._compliance_repo.update_one(
+                    {"rule_id": rule_id},
+                    {"$set": update_fields},
+                )
 
                 results["applied"] += 1
                 logger.info(f"Applied inheritance updates to {rule_id}")

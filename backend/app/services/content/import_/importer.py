@@ -32,7 +32,7 @@ from datetime import datetime
 from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 from app.models.mongo_models import ComplianceRule, RuleIntelligence
-from app.repositories import ComplianceRuleRepository
+from app.repositories import ComplianceRuleRepository, RuleIntelligenceRepository
 
 from ..exceptions import ContentImportError  # noqa: F401
 
@@ -244,7 +244,9 @@ class ContentImporter:
     def __init__(self) -> None:
         """Initialize the content importer."""
         self.progress: Optional[ImportProgress] = None
+        # Repository Pattern: Centralized MongoDB access
         self._repository = ComplianceRuleRepository()
+        self._intelligence_repo = RuleIntelligenceRepository()
 
     async def import_rules(
         self,
@@ -450,7 +452,8 @@ class ContentImporter:
                 return "updated"
 
             elif deduplication_strategy == "replace_all":
-                await existing_rule.delete()
+                # Repository Pattern: Use delete_one() for deletions
+                await self._repository.delete_one({"rule_id": rule_id})
                 await self._create_new_rule(rule_data)
                 return "updated"
 
@@ -468,8 +471,9 @@ class ContentImporter:
         Args:
             rule_data: Rule data dictionary
         """
+        # Repository Pattern: Use create() for new documents
         rule = ComplianceRule(**rule_data)
-        await rule.insert()
+        await self._repository.create(rule)
 
         # Create basic rule intelligence
         await self._create_rule_intelligence(rule_data)
@@ -486,16 +490,21 @@ class ContentImporter:
             existing_rule: Existing rule document
             rule_data: New rule data
         """
-        # Update fields that should be refreshed
-        existing_rule.metadata = rule_data["metadata"]
-        existing_rule.frameworks = rule_data["frameworks"]
-        existing_rule.platform_implementations = rule_data["platform_implementations"]
-        existing_rule.check_content = rule_data["check_content"]
-        existing_rule.fix_content = rule_data["fix_content"]
-        existing_rule.updated_at = datetime.utcnow()
-        existing_rule.version = rule_data.get("version", "1.0.0")
-
-        await existing_rule.replace()
+        # Repository Pattern: Use update_one() for updates
+        await self._repository.update_one(
+            {"rule_id": existing_rule.rule_id},
+            {
+                "$set": {
+                    "metadata": rule_data["metadata"],
+                    "frameworks": rule_data["frameworks"],
+                    "platform_implementations": rule_data["platform_implementations"],
+                    "check_content": rule_data["check_content"],
+                    "fix_content": rule_data["fix_content"],
+                    "updated_at": datetime.utcnow(),
+                    "version": rule_data.get("version", "1.0.0"),
+                }
+            },
+        )
 
     async def _create_rule_intelligence(self, rule_data: Dict[str, Any]) -> None:
         """
@@ -504,8 +513,8 @@ class ContentImporter:
         Args:
             rule_data: Rule data dictionary
         """
-        # Check if intelligence already exists
-        existing_intel = await RuleIntelligence.find_one(RuleIntelligence.rule_id == rule_data["rule_id"])
+        # Repository Pattern: Check if intelligence already exists
+        existing_intel = await self._intelligence_repo.find_one({"rule_id": rule_data["rule_id"]})
 
         if existing_intel:
             return  # Skip if already exists
@@ -523,7 +532,8 @@ class ContentImporter:
             resource_impact=rule_data.get("remediation_risk", "low"),
         )
 
-        await intelligence.insert()
+        # Repository Pattern: Use create() for new documents
+        await self._intelligence_repo.create(intelligence)
 
     def _generate_business_impact(self, rule_data: Dict[str, Any]) -> str:
         """Generate business impact description."""
@@ -664,9 +674,8 @@ class ContentImporter:
             {"$sort": {"last_imported": -1}},
         ]
 
-        collection = ComplianceRule.get_motor_collection()
-        cursor = collection.aggregate(pipeline)
-        results = await cursor.to_list(length=None)
+        # Repository Pattern: Use aggregate() for aggregation pipelines
+        results = await self._repository.aggregate(pipeline)
 
         files: List[Dict[str, Any]] = []
         for result in results:

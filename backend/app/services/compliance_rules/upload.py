@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from app.models.mongo_models import ComplianceRule, RuleIntelligence, UploadHistory
-from app.repositories import ComplianceRuleRepository
+from app.repositories import ComplianceRuleRepository, RuleIntelligenceRepository, UploadHistoryRepository
 
 from .dependency import InheritanceResolver, RuleDependencyGraph
 
@@ -44,6 +44,11 @@ class ComplianceRulesUploadService:
         self.dependency_graph = RuleDependencyGraph()
         self.inheritance_resolver: Optional[InheritanceResolver] = None
         self.versioning_service = RuleVersioningService()
+
+        # Repository Pattern: Centralized MongoDB access
+        self._compliance_repo = ComplianceRuleRepository()
+        self._intelligence_repo = RuleIntelligenceRepository()
+        self._upload_history_repo = UploadHistoryRepository()
 
         self.upload_id: Optional[str] = None
         self.current_phase = "initializing"
@@ -344,8 +349,7 @@ class ComplianceRulesUploadService:
         try:
             # Find all rules with inherits_from (child rules)
             # Repository Pattern: Use find_many() for bulk queries
-            repo = ComplianceRuleRepository()
-            child_rules = await repo.find_many({"inherits_from": {"$ne": None}, "is_latest": True})
+            child_rules = await self._compliance_repo.find_many({"inherits_from": {"$ne": None}, "is_latest": True})
 
             if not child_rules:
                 logger.debug(f"[{self.upload_id}] No child rules found, skipping derived_rules population")
@@ -361,7 +365,7 @@ class ComplianceRulesUploadService:
             # Repository Pattern: Use update_one() for individual updates
             update_count = 0
             for parent_id, child_ids in inheritance_map.items():
-                result = await repo.update_one(
+                result = await self._compliance_repo.update_one(
                     query={"rule_id": parent_id, "is_latest": True},
                     update={"$set": {"derived_rules": sorted(child_ids)}},
                 )
@@ -625,8 +629,7 @@ class ComplianceRulesUploadService:
                 # Check if latest version of rule exists (immutable versioning)
                 # Repository Pattern: Use find_one() for single record queries
                 rule_id = rule_data.get("rule_id")
-                repo = ComplianceRuleRepository()
-                existing_rule = await repo.find_one({"rule_id": rule_id, "is_latest": True})
+                existing_rule = await self._compliance_repo.find_one({"rule_id": rule_id, "is_latest": True})
 
                 # Process with smart deduplication
                 action, details = await self.deduplication_service.process_rule(rule_data, existing_rule)
@@ -727,8 +730,9 @@ class ComplianceRulesUploadService:
         )
 
         # Create ComplianceRule document
+        # Repository Pattern: Use create() for new documents
         rule = ComplianceRule(**versioned_rule)
-        await rule.insert()
+        await self._compliance_repo.create(rule)
 
         version_hash_display = rule.version_hash[:16] if rule.version_hash else "N/A"
         logger.info(f"Created new rule: {rule.rule_id} v{rule.version} (hash: {version_hash_display}...)")
@@ -758,8 +762,7 @@ class ComplianceRulesUploadService:
 
         # Step 1: Mark existing version as superseded (update is_latest flag only)
         # Repository Pattern: Use update_one() for targeted updates with MongoDB _id
-        repo = ComplianceRuleRepository()
-        await repo.update_one(
+        await self._compliance_repo.update_one(
             query={"_id": existing_rule.id},
             update={
                 "$set": {
@@ -806,8 +809,9 @@ class ComplianceRulesUploadService:
             )
             del versioned_rule["_id"]
 
+        # Repository Pattern: Use create() for new documents
         new_rule = ComplianceRule(**versioned_rule)
-        await new_rule.insert()
+        await self._compliance_repo.create(new_rule)
 
         version_hash_display = new_rule.version_hash[:16] if new_rule.version_hash else "N/A"
         logger.info(
@@ -824,8 +828,8 @@ class ComplianceRulesUploadService:
         Args:
             rule: ComplianceRule document
         """
-        # Check if intelligence already exists
-        existing_intel = await RuleIntelligence.find_one(RuleIntelligence.rule_id == rule.rule_id)
+        # Repository Pattern: Check if intelligence already exists
+        existing_intel = await self._intelligence_repo.find_one({"rule_id": rule.rule_id})
 
         if existing_intel:
             return  # Skip if already exists
@@ -841,7 +845,8 @@ class ComplianceRulesUploadService:
             resource_impact="low",
         )
 
-        await intelligence.insert()
+        # Repository Pattern: Use create() for new documents
+        await self._intelligence_repo.create(intelligence)
         logger.debug(f"Created intelligence for rule: {rule.rule_id}")
 
     def _assess_compliance_importance(self, rule: ComplianceRule) -> int:
@@ -920,7 +925,8 @@ class ComplianceRulesUploadService:
                 inheritance_impact=result.get("inheritance_impact"),
             )
 
-            await history_record.insert()
+            # Repository Pattern: Use create() for new documents
+            await self._upload_history_repo.create(history_record)
             logger.info(f"[{self.upload_id}] Upload history saved successfully")
 
             # Cleanup old history records (keep last 100)
@@ -936,23 +942,26 @@ class ComplianceRulesUploadService:
         Automatically deletes older records to prevent unlimited growth
         """
         try:
-            total_count = await UploadHistory.count()
+            # Repository Pattern: Use count() for total count
+            total_count = await self._upload_history_repo.count()
 
             if total_count > 100:
                 # Find records to delete (oldest ones beyond the 100 most recent)
-                total_count - 100
-
                 # Get the 100th most recent record's timestamp
-                records = await UploadHistory.find().sort("-uploaded_at").skip(99).limit(1).to_list()
+                # Repository Pattern: Use find_many() with sort, skip, limit
+                records = await self._upload_history_repo.find_many(
+                    query={}, skip=99, limit=1, sort=[("uploaded_at", -1)]
+                )
 
                 if records:
                     cutoff_date = records[0].uploaded_at
 
                     # Delete all records older than the cutoff
-                    result = await UploadHistory.find(UploadHistory.uploaded_at < cutoff_date).delete()
+                    # Repository Pattern: Use delete_many() for bulk deletion
+                    deleted_count = await self._upload_history_repo.delete_many({"uploaded_at": {"$lt": cutoff_date}})
 
-                    if result:
-                        logger.info(f"Cleaned up {result.deleted_count} old upload history records")
+                    if deleted_count:
+                        logger.info(f"Cleaned up {deleted_count} old upload history records")
 
         except Exception as e:
             logger.warning(f"Failed to cleanup old upload history: {e}")

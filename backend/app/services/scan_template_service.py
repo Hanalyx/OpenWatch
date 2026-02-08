@@ -13,6 +13,7 @@ from typing import Any, Dict, List, Optional
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from ..models.scan_config_models import ScanTargetType, ScanTemplate, TemplateStatistics
+from ..repositories import ScanTemplateRepository
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +39,8 @@ class ScanTemplateService:
             db: MongoDB database instance
         """
         self.db = db
+        # Repository Pattern: Centralized MongoDB access
+        self._template_repo = ScanTemplateRepository()
 
     async def create_template(
         self,
@@ -93,8 +96,8 @@ class ScanTemplateService:
             is_public=is_public,
         )
 
-        # Save to MongoDB
-        await template.insert()
+        # Repository Pattern: Use create() for new documents
+        await self._template_repo.create(template)
 
         logger.info(f"Created template {template_id}")
         return template
@@ -109,7 +112,8 @@ class ScanTemplateService:
         Returns:
             ScanTemplate or None if not found
         """
-        return await ScanTemplate.find_one(ScanTemplate.template_id == template_id)
+        # Repository Pattern: Use find_by_template_id() for lookup
+        return await self._template_repo.find_by_template_id(template_id)
 
     async def list_templates(
         self,
@@ -149,7 +153,8 @@ class ScanTemplateService:
         if is_public is not None:
             query["is_public"] = is_public
 
-        templates = await ScanTemplate.find(query).sort("-created_at").skip(skip).limit(limit).to_list()
+        # Repository Pattern: Use find_many() with pagination
+        templates = await self._template_repo.find_many(query, skip=skip, limit=limit, sort=[("created_at", -1)])
 
         return templates
 
@@ -187,34 +192,44 @@ class ScanTemplateService:
         if not template:
             raise ValueError(f"Template {template_id} not found")
 
-        # Update fields
+        # Build update document
+        update_fields: Dict[str, Any] = {}
+
         if name is not None:
-            template.name = name
+            update_fields["name"] = name
 
         if description is not None:
-            template.description = description
+            update_fields["description"] = description
 
         if variable_overrides is not None:
-            template.variable_overrides = variable_overrides
+            update_fields["variable_overrides"] = variable_overrides
 
         if rule_filter is not None:
-            template.rule_filter = rule_filter
+            update_fields["rule_filter"] = rule_filter
 
         if tags is not None:
-            template.tags = tags
+            update_fields["tags"] = tags
 
         if is_public is not None:
-            template.is_public = is_public
+            update_fields["is_public"] = is_public
 
         # Update timestamp and version
-        template.updated_at = datetime.utcnow()
-        template.version += 1
+        update_fields["updated_at"] = datetime.utcnow()
+        update_fields["version"] = template.version + 1
 
-        # Save
-        await template.save()
+        # Repository Pattern: Use update_one() for updates
+        await self._template_repo.update_one(
+            {"template_id": template_id},
+            {"$set": update_fields},
+        )
 
-        logger.info(f"Updated template {template_id} to version {template.version}")
-        return template
+        # Fetch updated template
+        updated_template = await self._template_repo.find_by_template_id(template_id)
+        if not updated_template:
+            raise ValueError(f"Template {template_id} not found after update")
+
+        logger.info(f"Updated template {template_id} to version {updated_template.version}")
+        return updated_template
 
     async def delete_template(self, template_id: str):
         """
@@ -232,7 +247,8 @@ class ScanTemplateService:
         if not template:
             raise ValueError(f"Template {template_id} not found")
 
-        await template.delete()
+        # Repository Pattern: Use delete_one() for deletions
+        await self._template_repo.delete_one({"template_id": template_id})
         logger.info(f"Deleted template {template_id}")
 
     async def apply_template(
@@ -300,19 +316,27 @@ class ScanTemplateService:
         if not template:
             raise ValueError(f"Template {template_id} not found")
 
-        # Clear existing defaults for this user/framework
-        await ScanTemplate.find(
-            ScanTemplate.created_by == created_by,
-            ScanTemplate.framework == template.framework,
-            ScanTemplate.is_default is True,
-        ).update({"$set": {"is_default": False}})
+        # Repository Pattern: Clear existing defaults for this user/framework
+        await self._template_repo.update_many(
+            {
+                "created_by": created_by,
+                "framework": template.framework,
+                "is_default": True,
+            },
+            {"$set": {"is_default": False}},
+        )
 
-        # Set this template as default
-        template.is_default = True
-        await template.save()
+        # Repository Pattern: Set this template as default
+        await self._template_repo.update_one(
+            {"template_id": template_id},
+            {"$set": {"is_default": True}},
+        )
+
+        # Fetch updated template
+        updated = await self._template_repo.find_by_template_id(template_id)
 
         logger.info(f"Set template {template_id} as default")
-        return template
+        return updated if updated else template
 
     async def get_default_template(self, framework: str, created_by: str) -> Optional[ScanTemplate]:
         """
@@ -325,10 +349,13 @@ class ScanTemplateService:
         Returns:
             Default ScanTemplate or None
         """
-        return await ScanTemplate.find_one(
-            ScanTemplate.created_by == created_by,
-            ScanTemplate.framework == framework,
-            ScanTemplate.is_default is True,
+        # Repository Pattern: Use find_one() with query
+        return await self._template_repo.find_one(
+            {
+                "created_by": created_by,
+                "framework": framework,
+                "is_default": True,
+            }
         )
 
     async def clone_template(self, template_id: str, new_name: str, created_by: str) -> ScanTemplate:
@@ -383,7 +410,8 @@ class ScanTemplateService:
         if created_by:
             query["created_by"] = created_by
 
-        templates = await ScanTemplate.find(query).to_list(length=None)
+        # Repository Pattern: Use find_many() for queries
+        templates = await self._template_repo.find_many(query, limit=10000)
 
         # Calculate statistics
         stats = TemplateStatistics()
@@ -429,8 +457,12 @@ class ScanTemplateService:
             raise ValueError(f"Template {template_id} not found")
 
         if username not in template.shared_with:
+            # Repository Pattern: Use update_one() with $addToSet
+            await self._template_repo.update_one(
+                {"template_id": template_id},
+                {"$addToSet": {"shared_with": username}},
+            )
             template.shared_with.append(username)
-            await template.save()
 
         logger.info(f"Shared template {template_id} with {username}")
         return template
@@ -456,8 +488,12 @@ class ScanTemplateService:
             raise ValueError(f"Template {template_id} not found")
 
         if username in template.shared_with:
+            # Repository Pattern: Use update_one() with $pull
+            await self._template_repo.update_one(
+                {"template_id": template_id},
+                {"$pull": {"shared_with": username}},
+            )
             template.shared_with.remove(username)
-            await template.save()
 
         logger.info(f"Unshared template {template_id} from {username}")
         return template

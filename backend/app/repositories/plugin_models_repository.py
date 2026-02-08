@@ -472,3 +472,152 @@ class TestExecutionRepository(BaseRepository):
             "total_executions": total,
             "by_status": status_counts,
         }
+
+
+class RulePluginMappingRepository(BaseRepository):
+    """
+    Repository for RulePluginMapping operations.
+
+    Provides rule-plugin mapping-specific query methods:
+    - Find by mapping_id
+    - Find by rule_id
+    - Find by plugin_id
+    - Find by platform
+    - Get mapping statistics
+
+    Example:
+        repo = RulePluginMappingRepository()
+        mappings = await repo.find_by_rule_id("xccdf_rule_123")
+    """
+
+    def __init__(self) -> None:
+        """Initialize the rule plugin mapping repository."""
+        from ..services.rules.association import RulePluginMapping
+
+        super().__init__(RulePluginMapping)
+
+    async def find_by_mapping_id(self, mapping_id: str) -> Optional[Any]:
+        """Find mapping by unique mapping_id."""
+        return await self.find_one({"mapping_id": mapping_id})
+
+    async def find_by_rule_id(
+        self,
+        rule_id: str,
+        platform: Optional[str] = None,
+        framework: Optional[str] = None,
+        min_confidence_score: float = 0.0,
+        limit: int = 100,
+    ) -> List[Any]:
+        """Find mappings for a rule with optional filters."""
+        query: Dict[str, Any] = {"openwatch_rule_id": rule_id}
+
+        if platform:
+            query["platform"] = platform
+        if framework:
+            query["framework"] = framework
+        if min_confidence_score > 0:
+            query["confidence_score"] = {"$gte": min_confidence_score}
+
+        return await self.find_many(
+            query,
+            limit=limit,
+            sort=[("confidence_score", -1)],
+        )
+
+    async def find_by_plugin_id(
+        self,
+        plugin_id: str,
+        platform: Optional[str] = None,
+        min_confidence_score: float = 0.0,
+        limit: int = 100,
+    ) -> List[Any]:
+        """Find mappings for a plugin."""
+        query: Dict[str, Any] = {"plugin_id": plugin_id}
+
+        if platform:
+            query["platform"] = platform
+        if min_confidence_score > 0:
+            query["confidence_score"] = {"$gte": min_confidence_score}
+
+        return await self.find_many(
+            query,
+            limit=limit,
+            sort=[("confidence_score", -1)],
+        )
+
+    async def find_validated(self, limit: int = 100) -> List[Any]:
+        """Find validated mappings."""
+        return await self.find_many(
+            {"is_validated": True},
+            limit=limit,
+            sort=[("effectiveness_score", -1)],
+        )
+
+    async def find_top_performing(self, min_executions: int = 1, limit: int = 10) -> List[Any]:
+        """Find top performing mappings by effectiveness."""
+        return await self.find_many(
+            {"execution_count": {"$gte": min_executions}},
+            limit=limit,
+            sort=[("effectiveness_score", -1)],
+        )
+
+    async def find_by_confidence(self, confidence: str, limit: int = 100) -> List[Any]:
+        """Find mappings by confidence level."""
+        return await self.find_many(
+            {"confidence": confidence},
+            limit=limit,
+            sort=[("confidence_score", -1)],
+        )
+
+    async def find_by_source(self, source: str, limit: int = 100) -> List[Any]:
+        """Find mappings by mapping source."""
+        return await self.find_many(
+            {"mapping_source": source},
+            limit=limit,
+            sort=[("created_at", -1)],
+        )
+
+    async def find_for_rule_plugin_platform(
+        self,
+        rule_id: str,
+        plugin_id: str,
+        platform: str,
+    ) -> List[Any]:
+        """Find mappings for specific rule-plugin-platform combination."""
+        return await self.find_many(
+            {
+                "openwatch_rule_id": rule_id,
+                "plugin_id": plugin_id,
+                "platform": platform,
+            }
+        )
+
+    async def get_statistics(self) -> Dict[str, Any]:
+        """Get mapping statistics."""
+        total = await self.count()
+
+        # By confidence
+        confidence_pipeline: List[Dict[str, Any]] = [
+            {"$group": {"_id": "$confidence", "count": {"$sum": 1}}},
+            {"$sort": {"count": -1}},
+        ]
+        confidence_results = await self.aggregate(confidence_pipeline)
+        confidence_counts = {item["_id"]: item["count"] for item in confidence_results}
+
+        # By source
+        source_pipeline: List[Dict[str, Any]] = [
+            {"$group": {"_id": "$mapping_source", "count": {"$sum": 1}}},
+            {"$sort": {"count": -1}},
+        ]
+        source_results = await self.aggregate(source_pipeline)
+        source_counts = {item["_id"]: item["count"] for item in source_results}
+
+        # Validated count
+        validated_count = await self.count({"is_validated": True})
+
+        return {
+            "total_mappings": total,
+            "by_confidence": confidence_counts,
+            "by_source": source_counts,
+            "validated_count": validated_count,
+        }

@@ -24,6 +24,7 @@ from beanie import Document
 from pydantic import BaseModel, Field, HttpUrl
 
 from app.models.plugin_models import InstalledPlugin, PluginManifest, PluginStatus
+from app.repositories.plugin_models_repository import PluginInstallationResultRepository
 from app.services.plugins.governance.service import PluginGovernanceService
 from app.services.plugins.lifecycle.service import PluginLifecycleService
 from app.services.plugins.registry.service import PluginRegistryService
@@ -299,6 +300,7 @@ class PluginMarketplaceService:
         self.plugin_registry_service = PluginRegistryService()
         self.plugin_lifecycle_service = PluginLifecycleService()
         self.plugin_governance_service = PluginGovernanceService()
+        self._installation_repo = PluginInstallationResultRepository()
 
         # Marketplace configurations
         self.marketplaces: Dict[str, MarketplaceConfig] = {}
@@ -437,7 +439,7 @@ class PluginMarketplaceService:
 
         # Create installation result record
         installation = PluginInstallationResult(request=request)
-        await installation.save()
+        await self._installation_repo.create(installation)
 
         # Add to active installations
         self.active_installations[installation.installation_id] = installation
@@ -455,10 +457,7 @@ class PluginMarketplaceService:
             return self.active_installations[installation_id]
 
         # Query database
-        result: Optional[PluginInstallationResult] = await PluginInstallationResult.find_one(
-            {"installation_id": installation_id}
-        )
-        return result
+        return await self._installation_repo.find_by_installation_id(installation_id)
 
     async def list_available_plugins(
         self,
@@ -858,6 +857,15 @@ class PluginMarketplaceService:
 
         return plugins
 
+    async def _update_installation_progress(
+        self, installation: PluginInstallationResult, update_data: Dict[str, Any]
+    ) -> None:
+        """Helper method to update installation progress via repository."""
+        await self._installation_repo.update_one(
+            {"installation_id": installation.installation_id},
+            {"$set": update_data},
+        )
+
     async def _execute_plugin_installation(self, installation: PluginInstallationResult) -> None:
         """Execute plugin installation process"""
 
@@ -865,7 +873,10 @@ class PluginMarketplaceService:
             installation.status = "downloading"
             installation.started_at = datetime.utcnow()
             installation.progress = 10.0
-            await installation.save()
+            await self._update_installation_progress(
+                installation,
+                {"status": "downloading", "started_at": installation.started_at, "progress": 10.0},
+            )
 
             request = installation.request
             marketplace = self.marketplaces.get(request.marketplace_id)
@@ -879,20 +890,29 @@ class PluginMarketplaceService:
                 raise ValueError(f"Plugin not found: {request.plugin_id}")
 
             installation.progress = 20.0
-            await installation.save()
+            await self._update_installation_progress(installation, {"progress": 20.0})
 
             # Download plugin
             plugin_package = await self._download_plugin(plugin_details, request.version)
             installation.download_url = str(plugin_details.download_url) if plugin_details.download_url else None
             installation.download_size_bytes = len(plugin_package) if plugin_package else 0
             installation.progress = 50.0
-            await installation.save()
+            await self._update_installation_progress(
+                installation,
+                {
+                    "download_url": installation.download_url,
+                    "download_size_bytes": installation.download_size_bytes,
+                    "progress": 50.0,
+                },
+            )
 
             # Verify plugin security and compliance
             verification_result = await self._verify_plugin_package(plugin_package, plugin_details)
             installation.verification_results = verification_result
             installation.progress = 70.0
-            await installation.save()
+            await self._update_installation_progress(
+                installation, {"verification_results": verification_result, "progress": 70.0}
+            )
 
             if not verification_result.get("secure", False):
                 raise ValueError("Plugin security verification failed")
@@ -901,7 +921,9 @@ class PluginMarketplaceService:
             governance_result = await self._check_installation_governance(plugin_details)
             installation.governance_checks = governance_result
             installation.progress = 80.0
-            await installation.save()
+            await self._update_installation_progress(
+                installation, {"governance_checks": governance_result, "progress": 80.0}
+            )
 
             if governance_result.get("policy_violations"):
                 installation.policy_violations = governance_result["policy_violations"]
@@ -929,7 +951,20 @@ class PluginMarketplaceService:
             if installation.started_at:
                 installation.duration_seconds = (installation.completed_at - installation.started_at).total_seconds()
 
-            await installation.save()
+            await self._update_installation_progress(
+                installation,
+                {
+                    "status": installation.status,
+                    "success": installation.success,
+                    "completed_at": installation.completed_at,
+                    "duration_seconds": installation.duration_seconds,
+                    "progress": installation.progress,
+                    "errors": installation.errors,
+                    "installed_plugin_id": installation.installed_plugin_id,
+                    "installed_version": installation.installed_version,
+                    "policy_violations": installation.policy_violations,
+                },
+            )
 
             # Remove from active installations
             self.active_installations.pop(installation.installation_id, None)
@@ -1216,11 +1251,11 @@ class PluginMarketplaceService:
             total_cached_plugins += len(plugins)
 
         # Count installations
-        total_installations = await PluginInstallationResult.count()
+        total_installations = await self._installation_repo.count()
 
-        successful_installations = await PluginInstallationResult.find({"success": True}).count()
+        successful_installations = await self._installation_repo.count({"success": True})
 
-        failed_installations = await PluginInstallationResult.find({"success": False}).count()
+        failed_installations = await self._installation_repo.count({"success": False})
 
         # Active operations
         active_installations = len(self.active_installations)

@@ -29,8 +29,13 @@ from ...models.health_models import (
     ServiceComponent,
     ServiceHealthDocument,
 )
-from ...models.mongo_models import ComplianceRule, RemediationScript
-from ...repositories import ComplianceRuleRepository
+from ...repositories import (
+    ComplianceRuleRepository,
+    ContentHealthRepository,
+    HealthSummaryRepository,
+    RemediationScriptRepository,
+    ServiceHealthRepository,
+)
 from ..mongo_integration_service import get_mongo_service
 
 logger = logging.getLogger(__name__)
@@ -45,6 +50,13 @@ class HealthMonitoringService:
         self.start_time = datetime.utcnow()
         self._initialized = False
         self.settings = get_settings()
+
+        # Repository Pattern: Centralized MongoDB access
+        self._compliance_repo = ComplianceRuleRepository()
+        self._remediation_repo = RemediationScriptRepository()
+        self._service_health_repo = ServiceHealthRepository()
+        self._content_health_repo = ContentHealthRepository()
+        self._health_summary_repo = HealthSummaryRepository()
 
     async def initialize(self) -> None:
         """Initialize health monitoring service asynchronously."""
@@ -126,7 +138,8 @@ class HealthMonitoringService:
 
         # Rule processor health
         await get_mongo_service()  # Ensure MongoDB is initialized
-        rule_count = await ComplianceRule.count()
+        # Repository Pattern: Use count() for counting
+        rule_count = await self._compliance_repo.count()
 
         services["rule_processor"] = ServiceComponent(
             status=HealthStatus.HEALTHY,
@@ -139,7 +152,8 @@ class HealthMonitoringService:
         )
 
         # Remediation engine health
-        remediation_count = await RemediationScript.count()
+        # Repository Pattern: Use count() for counting
+        remediation_count = await self._remediation_repo.count()
 
         services["remediation_engine"] = ServiceComponent(
             status=HealthStatus.HEALTHY,
@@ -503,10 +517,10 @@ class HealthMonitoringService:
         # Why: Centralized query logic, automatic performance monitoring, type safety
         # Consistent with CLAUDE.md best practices for MongoDB access
         logger.info("Using ComplianceRuleRepository for _collect_rule_statistics")
-        repo = ComplianceRuleRepository()
-        all_rules = await repo.find_many({})
+        all_rules = await self._compliance_repo.find_many({})
 
-        remediation_scripts = await RemediationScript.count()
+        # Repository Pattern: Use count() for counting
+        remediation_scripts = await self._remediation_repo.count()
 
         # Count by severity - explicit type annotations for mypy
         severity_counts: Dict[str, int] = {}
@@ -712,8 +726,8 @@ class HealthMonitoringService:
         Returns:
             The saved ServiceHealthDocument
         """
-        # Beanie .save() returns the document but is typed as Any
-        await health_data.save()
+        # Repository Pattern: Use create() for new documents
+        await self._service_health_repo.create(health_data)
         return health_data
 
     async def save_content_health(self, health_data: ContentHealthDocument) -> ContentHealthDocument:
@@ -725,8 +739,8 @@ class HealthMonitoringService:
         Returns:
             The saved ContentHealthDocument
         """
-        # Beanie .save() returns the document but is typed as Any
-        await health_data.save()
+        # Repository Pattern: Use create() for new documents
+        await self._content_health_repo.create(health_data)
         return health_data
 
     async def save_health_summary(self, summary: HealthSummaryDocument) -> HealthSummaryDocument:
@@ -738,26 +752,31 @@ class HealthMonitoringService:
         Returns:
             The saved HealthSummaryDocument
         """
-        # Upsert based on scanner_id
-        existing = await HealthSummaryDocument.find_one({"scanner_id": self.scanner_id})
+        # Repository Pattern: Upsert based on scanner_id
+        existing = await self._health_summary_repo.find_one({"scanner_id": self.scanner_id})
 
         if existing:
-            # Cast existing to proper type - Beanie find_one returns Any at runtime
-            # but we know it's HealthSummaryDocument if it exists
-            existing_doc: HealthSummaryDocument = existing
-            existing_doc.last_updated = summary.last_updated
-            existing_doc.service_health_status = summary.service_health_status
-            existing_doc.content_health_status = summary.content_health_status
-            existing_doc.overall_health_status = summary.overall_health_status
-            existing_doc.key_metrics = summary.key_metrics
-            existing_doc.active_issues_count = summary.active_issues_count
-            existing_doc.critical_alerts = summary.critical_alerts
-            # Beanie .save() returns the document but is typed as Any
-            await existing_doc.save()
-            return existing_doc
+            # Update existing document via repository
+            await self._health_summary_repo.update_one(
+                {"scanner_id": self.scanner_id},
+                {
+                    "$set": {
+                        "last_updated": summary.last_updated,
+                        "service_health_status": summary.service_health_status.value,
+                        "content_health_status": summary.content_health_status.value,
+                        "overall_health_status": summary.overall_health_status.value,
+                        "key_metrics": summary.key_metrics,
+                        "active_issues_count": summary.active_issues_count,
+                        "critical_alerts": [a.model_dump() for a in summary.critical_alerts],
+                    }
+                },
+            )
+            # Fetch updated document
+            updated = await self._health_summary_repo.find_one({"scanner_id": self.scanner_id})
+            return updated if updated else summary
         else:
-            # Beanie .save() returns the document but is typed as Any
-            await summary.save()
+            # Create new document
+            await self._health_summary_repo.create(summary)
             return summary
 
     # Query Methods
@@ -767,13 +786,11 @@ class HealthMonitoringService:
         Returns:
             Most recent ServiceHealthDocument or None if not found
         """
-        # Use string-based sorting (Beanie standard pattern)
-        # Prefix with "-" for descending order
-        results = (
-            await ServiceHealthDocument.find({"scanner_id": self.scanner_id})
-            .sort("-health_check_timestamp")
-            .limit(1)
-            .to_list()
+        # Repository Pattern: Use find_many() with sort and limit
+        results = await self._service_health_repo.find_many(
+            {"scanner_id": self.scanner_id},
+            limit=1,
+            sort=[("health_check_timestamp", -1)],
         )
         return results[0] if results else None
 
@@ -783,13 +800,11 @@ class HealthMonitoringService:
         Returns:
             Most recent ContentHealthDocument or None if not found
         """
-        # Use string-based sorting (Beanie standard pattern)
-        # Prefix with "-" for descending order
-        results = (
-            await ContentHealthDocument.find({"scanner_id": self.scanner_id})
-            .sort("-health_check_timestamp")
-            .limit(1)
-            .to_list()
+        # Repository Pattern: Use find_many() with sort and limit
+        results = await self._content_health_repo.find_many(
+            {"scanner_id": self.scanner_id},
+            limit=1,
+            sort=[("health_check_timestamp", -1)],
         )
         return results[0] if results else None
 
@@ -799,14 +814,8 @@ class HealthMonitoringService:
         Returns:
             Current HealthSummaryDocument or None if not found
         """
-        # Beanie find_one returns Any at type level, but Optional[Document] at runtime
-        # Cast to proper type for mypy type safety
-        result = await HealthSummaryDocument.find_one({"scanner_id": self.scanner_id})
-        if result is None:
-            return None
-        # Explicit cast for type safety - we know find_one returns the document type
-        summary: HealthSummaryDocument = result
-        return summary
+        # Repository Pattern: Use find_one() for lookup
+        return await self._health_summary_repo.find_one({"scanner_id": self.scanner_id})
 
 
 # Singleton instance

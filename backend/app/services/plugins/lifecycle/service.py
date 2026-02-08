@@ -16,6 +16,8 @@ from beanie import Document
 from pydantic import BaseModel, Field, validator
 
 from app.models.plugin_models import InstalledPlugin, PluginStatus
+from app.repositories import InstalledPluginRepository
+from app.repositories.plugin_models_repository import PluginUpdateExecutionRepository
 from app.services.plugins.execution.service import PluginExecutionService
 from app.services.plugins.registry.service import PluginRegistryService
 
@@ -251,6 +253,8 @@ class PluginLifecycleService:
         self.health_monitors: Dict[str, asyncio.Task[None]] = {}
         self.version_cache: Dict[str, List[PluginVersion]] = {}
         self.monitoring_enabled = False
+        self._execution_repo = PluginUpdateExecutionRepository()
+        self._plugin_repo = InstalledPluginRepository()
 
     async def start_health_monitoring(self) -> None:
         """Start continuous health monitoring for all plugins."""
@@ -425,7 +429,7 @@ class PluginLifecycleService:
 
         execution = PluginUpdateExecution(update_plan=update_plan, status=UpdateStatus.PENDING)
 
-        await execution.save()
+        await self._execution_repo.create(execution)
         self.active_updates[execution.execution_id] = execution
 
         # Start execution asynchronously
@@ -473,7 +477,16 @@ class PluginLifecycleService:
         execution.rollback_version = target_version
         execution.rollback_reason = rollback_reason
 
-        await execution.save()
+        await self._execution_repo.update_one(
+            {"execution_id": execution.execution_id},
+            {
+                "$set": {
+                    "rollback_performed": True,
+                    "rollback_version": target_version,
+                    "rollback_reason": rollback_reason,
+                }
+            },
+        )
 
         logger.info(f"Started plugin rollback: {plugin_id} {plugin.version} -> {target_version}")
         return execution
@@ -535,14 +548,14 @@ class PluginLifecycleService:
     async def get_update_history(self, plugin_id: Optional[str] = None, limit: int = 50) -> List[PluginUpdateExecution]:
         """Get plugin update execution history"""
 
-        query = {}
         if plugin_id:
-            query["update_plan.plugin_id"] = plugin_id
+            return await self._execution_repo.find_by_plugin_id(plugin_id, limit=limit)
 
-        result: List[PluginUpdateExecution] = (
-            await PluginUpdateExecution.find(query).sort([("started_at", -1)]).limit(limit).to_list()
+        return await self._execution_repo.find_many(
+            query={},
+            limit=limit,
+            sort=[("started_at", -1)],
         )
-        return result
 
     async def get_plugin_health_history(self, plugin_id: str, hours: int = 24) -> List[PluginHealthCheck]:
         """Get plugin health check history"""
@@ -557,7 +570,10 @@ class PluginLifecycleService:
         try:
             execution.status = UpdateStatus.IN_PROGRESS
             execution.started_at = datetime.utcnow()
-            await execution.save()
+            await self._execution_repo.update_one(
+                {"execution_id": execution.execution_id},
+                {"$set": {"status": UpdateStatus.IN_PROGRESS.value, "started_at": execution.started_at}},
+            )
 
             plan = execution.update_plan
 
@@ -621,7 +637,25 @@ class PluginLifecycleService:
             if execution.started_at:
                 execution.duration_seconds = (execution.completed_at - execution.started_at).total_seconds()
 
-            await execution.save()
+            await self._execution_repo.update_one(
+                {"execution_id": execution.execution_id},
+                {
+                    "$set": {
+                        "status": execution.status.value,
+                        "success": execution.success,
+                        "completed_at": execution.completed_at,
+                        "duration_seconds": execution.duration_seconds,
+                        "execution_errors": execution.execution_errors,
+                        "execution_steps": execution.execution_steps,
+                        "pre_update_health": (
+                            execution.pre_update_health.model_dump() if execution.pre_update_health else None
+                        ),
+                        "post_update_health": (
+                            execution.post_update_health.model_dump() if execution.post_update_health else None
+                        ),
+                    }
+                },
+            )
 
             # Remove from active updates
             self.active_updates.pop(execution.execution_id, None)
@@ -767,7 +801,10 @@ class PluginLifecycleService:
 
         execution.execution_steps.append(step)
         execution.current_step = step_name
-        await execution.save()
+        await self._execution_repo.update_one(
+            {"execution_id": execution.execution_id},
+            {"$set": {"execution_steps": execution.execution_steps, "current_step": step_name}},
+        )
 
     async def _run_validation_steps(self, validation_steps: List[str], execution: PluginUpdateExecution) -> None:
         """Run validation steps."""
@@ -820,25 +857,26 @@ class PluginLifecycleService:
         """Get plugin lifecycle management statistics"""
 
         # Update statistics
-        total_updates = await PluginUpdateExecution.count()
+        total_updates = await self._execution_repo.count()
 
         status_stats = {}
         for status in UpdateStatus:
-            count = await PluginUpdateExecution.find({"status": status}).count()
+            count = await self._execution_repo.count({"status": status.value})
             status_stats[status.value] = count
 
         # Success rate
-        completed_updates = await PluginUpdateExecution.find(
-            {
+        completed_updates = await self._execution_repo.find_many(
+            query={
                 "status": {
                     "$in": [
-                        UpdateStatus.COMPLETED,
-                        UpdateStatus.FAILED,
-                        UpdateStatus.ROLLED_BACK,
+                        UpdateStatus.COMPLETED.value,
+                        UpdateStatus.FAILED.value,
+                        UpdateStatus.ROLLED_BACK.value,
                     ]
                 }
-            }
-        ).to_list()
+            },
+            limit=10000,
+        )
 
         success_rate = 0.0
         if completed_updates:
