@@ -13,7 +13,6 @@ from enum import Enum
 from typing import Dict, List, Optional, Set, Tuple
 
 from app.services.ssh import SSHKeySecurityLevel, SSHKeyType, validate_ssh_key
-from app.services.validation import SecurityContext, classify_authentication_error
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +62,7 @@ class SecurityPolicyConfig:
 
     # Key type policies
     allowed_key_types: Set[SSHKeyType] = None
-    minimum_rsa_bits: int = 3072  # NIST recommends 3072+ for RSA
+    minimum_rsa_bits: int = 2048  # FIPS 140-2 minimum; NIST recommends 3072+ for new keys
     minimum_ecdsa_bits: int = 256
     allow_dsa_keys: bool = False
     allow_deprecated_curves: bool = False
@@ -523,9 +522,15 @@ def validate_credential_with_strict_policy(
         is_valid = audit_result["is_compliant"]
 
         if not is_valid:
-            error_context = SecurityContext(operation="credential_validation", severity="high", requires_admin=True)
-            classified_error = classify_authentication_error(error_context)
-            error_message = classified_error.user_guidance
+            # Return actual validation findings instead of generic error
+            findings = audit_result.get("findings", [])
+            recommendations = audit_result.get("recommendations", [])
+            if findings:
+                error_message = "; ".join(findings[:3])  # Limit to first 3 findings
+                if recommendations:
+                    error_message += f". Recommendations: {'; '.join(recommendations[:2])}"
+            else:
+                error_message = f"Credential validation failed (security level: {audit_result.get('overall_security_level', 'unknown')})"
         else:
             error_message = ""
 
