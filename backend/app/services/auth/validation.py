@@ -67,9 +67,9 @@ class SecurityPolicyConfig:
     allow_dsa_keys: bool = False
     allow_deprecated_curves: bool = False
 
-    # Password policies
-    minimum_password_length: int = 12
-    require_complex_passwords: bool = True
+    # Password policies (relaxed for SSH credentials - not user account passwords)
+    minimum_password_length: int = 8
+    require_complex_passwords: bool = False
 
     def __post_init__(self):
         if self.allowed_key_types is None:
