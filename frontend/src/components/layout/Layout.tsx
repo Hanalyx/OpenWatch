@@ -56,6 +56,7 @@ import {
   BookmarkAdd,
   AccountTree,
   Bookmark,
+  QueryStats,
 } from '@mui/icons-material';
 import { useAppDispatch, useAppSelector } from '../../hooks/redux';
 import { logout } from '../../store/slices/authSlice';
@@ -147,6 +148,12 @@ const menuItems = [
     text: 'OView',
     icon: <Security />,
     path: '/oview',
+    roles: ['super_admin', 'security_admin', 'compliance_officer', 'auditor'],
+  },
+  {
+    text: 'Audit Queries',
+    icon: <QueryStats />,
+    path: '/audit/queries',
     roles: ['super_admin', 'security_admin', 'compliance_officer', 'auditor'],
   },
   {

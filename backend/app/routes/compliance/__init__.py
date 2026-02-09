@@ -10,6 +10,7 @@ Package Structure:
     - drift.py: Compliance drift event endpoints
     - posture.py: Temporal compliance posture queries (Phase 2)
     - exceptions.py: Structured exception management (Phase 3)
+    - audit.py: Audit query builder and exports (Phase 6)
 
 Endpoint Structure:
     /compliance/                    - Intelligence endpoints (overview, semantic-rules, etc.)
@@ -19,6 +20,7 @@ Endpoint Structure:
     /compliance/posture/history     - Posture history over time
     /compliance/posture/drift       - Compliance drift analysis
     /compliance/exceptions          - Exception management (Phase 3)
+    /compliance/audit/*             - Audit query builder and exports (Phase 6)
 
 Migration Status:
     - compliance.py -> compliance/intelligence.py
@@ -27,6 +29,7 @@ Migration Status:
     - NEW: posture.py (Phase 2 Temporal Compliance)
     - NEW: exceptions.py (Phase 3 Governance Primitives)
     - NEW: remediation.py (Phase 4 Remediation + Subscription)
+    - NEW: audit.py (Phase 6 Audit Queries)
 """
 
 import logging
@@ -43,6 +46,7 @@ _modules_loaded = False
 
 try:
     # Import sub-routers from package modules
+    from .audit import router as audit_router
     from .drift import router as drift_router
     from .exceptions import router as exceptions_router
     from .intelligence import router as intelligence_router
@@ -68,6 +72,9 @@ try:
 
     # Remediation endpoints at /compliance/remediation/* (Phase 4 Remediation)
     router.include_router(remediation_router)
+
+    # Audit endpoints at /compliance/audit/* (Phase 6 Audit Queries)
+    router.include_router(audit_router)
 
     _modules_loaded = True
     logger.info("Compliance package: All modules loaded successfully")
