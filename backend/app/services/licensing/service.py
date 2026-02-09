@@ -70,6 +70,8 @@ class LicenseService:
         "openwatch_plus": [
             "remediation",
             "rollback",
+            "temporal_queries",
+            "structured_exceptions",
             "priority_updates",
             "advanced_analytics",
             "custom_rules",
@@ -81,9 +83,41 @@ class LicenseService:
         self._license_cache: Optional[Dict[str, Any]] = None
         self._cache_expires: Optional[datetime] = None
 
-    async def has_feature(self, feature: str) -> bool:
+    def has_feature(self, feature: str) -> bool:
         """
-        Check if the current license includes a specific feature.
+        Check if the current license includes a specific feature (sync version).
+
+        Args:
+            feature: The feature name to check.
+
+        Returns:
+            True if the feature is available, False otherwise.
+        """
+        # Core features are always available
+        if feature in self.FEATURES["core"]:
+            return True
+
+        # Check for OpenWatch+ license
+        license_info = self._get_active_license_sync()
+
+        if license_info is None:
+            # No license = free tier (core features only)
+            logger.debug("No active license, feature '%s' not available", feature)
+            return False
+
+        # Check if license tier includes the feature
+        tier = license_info.get("tier", "core")
+        if tier == "openwatch_plus":
+            # OpenWatch+ has all features
+            return True
+
+        # Check specific tier features
+        tier_features = self.FEATURES.get(tier, [])
+        return feature in tier_features
+
+    async def has_feature_async(self, feature: str) -> bool:
+        """
+        Check if the current license includes a specific feature (async version).
 
         Args:
             feature: The feature name to check.
@@ -164,9 +198,25 @@ class LicenseService:
             "message": "Contact support@hanalyx.com for license information",
         }
 
+    def _get_active_license_sync(self) -> Optional[Dict[str, Any]]:
+        """
+        Get the active license for the current organization (sync version).
+
+        Returns:
+            License details dict if active, None if no active license.
+        """
+        # Check cache first
+        if self._license_cache and self._cache_expires:
+            if datetime.now(timezone.utc) < self._cache_expires:
+                return self._license_cache
+
+        # TODO: Query database for license (sync version)
+        # For now, return None (free tier)
+        return None
+
     async def _get_active_license(self) -> Optional[Dict[str, Any]]:
         """
-        Get the active license for the current organization.
+        Get the active license for the current organization (async version).
 
         Returns:
             License details dict if active, None if no active license.
@@ -247,7 +297,7 @@ def requires_license(feature: str = "remediation") -> Callable[[F], F]:
         async def wrapper(*args: Any, **kwargs: Any) -> Any:
             license_service = LicenseService()
 
-            if not await license_service.has_feature(feature):
+            if not await license_service.has_feature_async(feature):
                 logger.warning(
                     "License check failed for feature '%s' in %s",
                     feature,
