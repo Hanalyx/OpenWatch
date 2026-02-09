@@ -15,7 +15,7 @@ from alembic import op
 
 # Revision identifiers
 revision = "019_posture_snapshots"
-down_revision = "20260209_1200_018_add_framework_mappings_table"
+down_revision = "20260209_1200_018"
 branch_labels = None
 depends_on = None
 
