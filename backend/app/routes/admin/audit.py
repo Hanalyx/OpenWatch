@@ -185,10 +185,10 @@ async def get_audit_stats(
         # Get statistics
         stats_query = text(
             """
-            SELECT  # noqa: E501
+            SELECT
                 COUNT(*) as total_events,
-                COUNT(CASE WHEN action LIKE '%LOGIN%' THEN 1 END) as login_attempts,  # noqa: E501
-                COUNT(CASE WHEN action LIKE '%LOGIN_FAILED%' OR action LIKE '%AUTH_FAILURE%' THEN 1 END)  # noqa: E501
+                COUNT(CASE WHEN action LIKE '%LOGIN%' THEN 1 END) as login_attempts,
+                COUNT(CASE WHEN action LIKE '%LOGIN_FAILED%' OR action LIKE '%AUTH_FAILURE%' THEN 1 END)
                     as failed_logins,
                 COUNT(CASE WHEN action LIKE '%SCAN%' THEN 1 END) as scan_operations,
                 COUNT(CASE WHEN action LIKE '%ADMIN%' OR action LIKE '%USER_%' OR action LIKE '%DELETE%'
