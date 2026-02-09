@@ -18,7 +18,7 @@ from alembic import op
 
 # Revision identifiers
 revision = "023_add_plugin_updates"
-down_revision = "022_add_remediation_jobs"
+down_revision = "022_remediation_jobs"
 branch_labels = None
 depends_on = None
 
