@@ -38,6 +38,7 @@ from .routes.hosts.bulk_operations import router as bulk_operations_router
 from .routes.hosts.monitoring import router as monitoring_router
 from .routes.integrations import router as integrations_router
 from .routes.integrations.metrics import router as integration_metrics_router
+from .routes.plugins import router as plugins_router
 from .routes.remediation import router as remediation_router
 from .routes.rules import router as rules_router
 from .routes.scans import router as scans_router
@@ -548,6 +549,7 @@ app.include_router(content_pkg_router, prefix="/api", tags=["Content"])
 app.include_router(host_groups_router, prefix="/api", tags=["Host Groups"])
 app.include_router(hosts_router, prefix="/api", tags=["Hosts"])
 app.include_router(integrations_router, prefix="/api", tags=["Integrations"])
+app.include_router(plugins_router, prefix="/api", tags=["Plugins"])
 app.include_router(remediation_router, prefix="/api", tags=["Remediation"])
 app.include_router(rules_router, prefix="/api", tags=["Rules"])
 app.include_router(scans_router, prefix="/api", tags=["Security Scans"])

@@ -3,12 +3,20 @@ Aegis Plugin Configuration
 
 Configuration settings for the Aegis compliance plugin integration.
 Settings can be overridden via environment variables with AEGIS_ prefix.
+
+Part of Phase 5: Control Plane (Aegis Integration Plan)
 """
 
+from pathlib import Path
 from typing import Optional
 
 from pydantic import Field
 from pydantic_settings import BaseSettings
+
+# Default paths relative to backend directory
+DEFAULT_AEGIS_PATH = Path(__file__).parent.parent.parent.parent / "aegis"
+DEFAULT_RULES_PATH = DEFAULT_AEGIS_PATH / "rules"
+DEFAULT_BACKUP_PATH = Path("/tmp/aegis_backups")
 
 
 class AegisConfig(BaseSettings):
@@ -86,6 +94,39 @@ class AegisConfig(BaseSettings):
     auto_update: bool = Field(
         default=False,
         description="Enable automatic updates (manual by default)",
+    )
+
+    offline_mode: bool = Field(
+        default=False,
+        description="Disable online update checks (air-gapped environments)",
+    )
+
+    # ==========================================================================
+    # Paths
+    # ==========================================================================
+
+    aegis_path: Path = Field(
+        default=DEFAULT_AEGIS_PATH,
+        description="Path to Aegis installation directory",
+    )
+
+    rules_path: Path = Field(
+        default=DEFAULT_RULES_PATH,
+        description="Path to Aegis rules directory",
+    )
+
+    backup_path: Path = Field(
+        default=DEFAULT_BACKUP_PATH,
+        description="Path for backup storage during updates",
+    )
+
+    # ==========================================================================
+    # Signing Key (Ed25519 public key for package verification)
+    # ==========================================================================
+
+    signing_public_key: str = Field(
+        default="",
+        description="Ed25519 public key for verifying package signatures (base64)",
     )
 
     # ==========================================================================
