@@ -208,6 +208,21 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.warning(f"Aegis rule sync failed: {sync_error}")
         # Non-fatal - scans still work with YAML rules directly
 
+    # Register Aegis ORSA plugin with the plugin registry
+    try:
+        from .plugins.aegis import register_aegis_orsa_plugin
+
+        aegis_info = await register_aegis_orsa_plugin()
+        logger.info(
+            "Aegis ORSA plugin registered: %s v%s (%d capabilities)",
+            aegis_info.name,
+            aegis_info.version,
+            len(aegis_info.capabilities),
+        )
+    except Exception as orsa_error:
+        logger.warning(f"Aegis ORSA plugin registration failed: {orsa_error}")
+        # Non-fatal - legacy scanner still works
+
     # Distributed tracing disabled for initial deployment
     logger.info("Distributed tracing disabled for initial deployment")
 
