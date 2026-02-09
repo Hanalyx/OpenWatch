@@ -40,6 +40,7 @@ import ComplianceScanWizard from './pages/scans/ComplianceScanWizard';
 import Users from './pages/users/Users';
 import OView from './pages/oview/OView';
 import Settings from './pages/settings/Settings';
+import { AuditQueriesPage, AuditQueryBuilderPage, AuditExportsPage } from './pages/audit';
 
 function App() {
   const dispatch = useAppDispatch();
@@ -104,6 +105,14 @@ function App() {
                   <Route path="/users" element={<Users />} />
                   <Route path="/oview" element={<OView />} />
                   <Route path="/settings" element={<Settings />} />
+                  <Route path="/audit/queries" element={<AuditQueriesPage />} />
+                  <Route path="/audit/queries/new" element={<AuditQueryBuilderPage />} />
+                  <Route path="/audit/queries/:queryId/edit" element={<AuditQueryBuilderPage />} />
+                  <Route
+                    path="/audit/queries/:queryId/execute"
+                    element={<AuditQueryBuilderPage />}
+                  />
+                  <Route path="/audit/exports" element={<AuditExportsPage />} />
                 </Route>
               </Route>
 

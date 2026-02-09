@@ -1,7 +1,7 @@
 """Add plugin_updates table for Phase 5
 
 Revision ID: 023_add_plugin_updates
-Revises: 022_add_remediation_jobs
+Revises: 022_remediation_jobs
 Create Date: 2026-02-09
 
 Phase 5: Control Plane - Plugin Update Tracking
