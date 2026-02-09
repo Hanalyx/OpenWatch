@@ -14,6 +14,7 @@ The aegis package (backend/aegis/) provides:
 
 This plugin provides:
     - AegisScanner: BaseScanner implementation for ScannerFactory integration
+    - AegisORSAPlugin: ORSA v2.0 compliant plugin for ORSAPluginRegistry
     - AegisRuleSyncService: Syncs YAML rules to PostgreSQL
     - FrameworkMapper: Maps rules to compliance framework controls
     - OpenWatchCredentialProvider: Bridges OpenWatch credentials to Aegis
@@ -24,14 +25,18 @@ Installation:
     The symlink backend/runner -> backend/aegis/runner enables imports.
 
 Usage:
+    # ScannerFactory integration (legacy)
     from app.plugins.aegis import AegisScanner, register_aegis_scanner
-
-    # Register on startup
     register_aegis_scanner()
-
-    # Via ScannerFactory
     scanner = ScannerFactory.get_scanner("aegis")
     result = await scanner.scan(host_id, db)
+
+    # ORSA v2.0 integration (recommended)
+    from app.plugins.aegis import AegisORSAPlugin, register_aegis_orsa_plugin
+    await register_aegis_orsa_plugin(db)
+    registry = ORSAPluginRegistry.instance()
+    plugin = await registry.get("aegis")
+    results = await plugin.check(host_id)
 
     # Sync rules to PostgreSQL
     from app.plugins.aegis import AegisRuleSyncService
@@ -43,7 +48,7 @@ Usage:
     mapper = FrameworkMapper(db)
     rules = await mapper.get_rules_for_framework("cis", "rhel9_v2")
 
-Version: 1.0.0
+Version: 1.1.0
 """
 
 import logging
@@ -51,7 +56,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 # Version info
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 __author__ = "Hanalyx"
 
 # Public API exports - noqa needed for module re-exports
@@ -66,6 +71,7 @@ from .exceptions import (  # noqa: E402
 )
 from .executor import AegisSessionFactory, OpenWatchCredentialProvider, secure_key_file  # noqa: E402
 from .framework_mapper import FrameworkMapper  # noqa: E402
+from .orsa_plugin import AegisORSAPlugin, register_aegis_orsa_plugin  # noqa: E402
 from .scanner import AegisScanner, register_aegis_scanner  # noqa: E402
 from .sync_service import AEGIS_VERSION, AegisRuleSyncService  # noqa: E402
 
@@ -76,9 +82,12 @@ __all__ = [
     # Config
     "AegisConfig",
     "get_aegis_config",
-    # Scanner
+    # Scanner (ScannerFactory integration)
     "AegisScanner",
     "register_aegis_scanner",
+    # ORSA v2.0 Plugin (ORSAPluginRegistry integration)
+    "AegisORSAPlugin",
+    "register_aegis_orsa_plugin",
     # Sync & Mapping Services (PostgreSQL-only)
     "AegisRuleSyncService",
     "FrameworkMapper",

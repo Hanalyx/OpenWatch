@@ -1,9 +1,20 @@
 # OpenWatch Production Readiness PRD
 
-**Version**: 1.0.0
-**Status**: Draft
-**Last Updated**: 2026-01-21
+**Version**: 2.0.0
+**Status**: Active
+**Last Updated**: 2026-02-09
 **Author**: Claude Opus 4.5 + Human Collaboration
+
+---
+
+## Strategic Direction: Aegis Integration
+
+OpenWatch is transitioning from XCCDF/OVAL-based scanning to **Aegis native checks**. This resolves the E0-SCAN-ACCURACY blocker (35% accuracy gap) and positions OpenWatch as a "Compliance Operating System."
+
+**Key Documents**:
+- [Aegis Integration Plan](../docs/aegis_integration_plan/00-EXECUTIVE-SUMMARY.md) - Executive summary
+- [Aegis Architecture](../docs/aegis_integration_plan/01-ARCHITECTURE.md) - Technical architecture
+- [Aegis Plugin](../docs/aegis_integration_plan/04-AEGIS-PLUGIN.md) - Plugin implementation
 
 ---
 
@@ -25,7 +36,7 @@ This PRD is organized into modular documents for focused reading and maintenance
 
 | Epic | Priority | Description |
 |------|----------|-------------|
-| [epics/E0-SCAN-ACCURACY.md](epics/E0-SCAN-ACCURACY.md) | **P0 BLOCKER** | Fix 35% scan discrepancy vs native OpenSCAP |
+| [epics/E0-SCAN-ACCURACY.md](epics/E0-SCAN-ACCURACY.md) | **P0 BLOCKER** | Fix 35% scan discrepancy via Aegis integration |
 | [epics/E1-ROUTE-CONSOLIDATION.md](epics/E1-ROUTE-CONSOLIDATION.md) | P0 | ~~Eliminate duplicate routes, complete modular migration~~ **Complete** |
 | [epics/E2-SERVICE-ORGANIZATION.md](epics/E2-SERVICE-ORGANIZATION.md) | P1 | ~~Consolidate 50 flat services into modules~~ **Complete** |
 | [epics/E3-DOCUMENTATION.md](epics/E3-DOCUMENTATION.md) | P1 | Reorganize 249 docs, create production guides |
@@ -33,7 +44,7 @@ This PRD is organized into modular documents for focused reading and maintenance
 | [epics/E5-TESTING.md](epics/E5-TESTING.md) | P2 | Achieve 80% coverage, add regression tests |
 | [epics/E6-PRODUCTION-HARDENING.md](epics/E6-PRODUCTION-HARDENING.md) | P1 | Deployment guides, monitoring, security audit |
 
-> **CRITICAL**: E0 (Scan Accuracy) must be resolved before production deployment. A 35% compliance score discrepancy is unacceptable for a compliance scanning platform.
+> **CRITICAL**: E0 (Scan Accuracy) is being resolved via Aegis integration. See [Aegis Integration Plan](../docs/aegis_integration_plan/).
 
 ### User Stories
 
@@ -49,24 +60,43 @@ Individual stories are located in [stories/](stories/) directory, organized by e
 
 ---
 
+## Aegis Integration Plan
+
+The new strategic direction for OpenWatch is documented in [docs/aegis_integration_plan/](../docs/aegis_integration_plan/):
+
+| Document | Description |
+|----------|-------------|
+| [00-EXECUTIVE-SUMMARY.md](../docs/aegis_integration_plan/00-EXECUTIVE-SUMMARY.md) | Vision, key decisions, phases |
+| [01-ARCHITECTURE.md](../docs/aegis_integration_plan/01-ARCHITECTURE.md) | System architecture |
+| [02-MONGODB-ELIMINATION.md](../docs/aegis_integration_plan/02-MONGODB-ELIMINATION.md) | PostgreSQL JSONB migration |
+| [03-ORSA-SPECIFICATION.md](../docs/aegis_integration_plan/03-ORSA-SPECIFICATION.md) | Plugin interface spec |
+| [04-AEGIS-PLUGIN.md](../docs/aegis_integration_plan/04-AEGIS-PLUGIN.md) | Aegis plugin implementation |
+| [05-UPDATE-MECHANISM.md](../docs/aegis_integration_plan/05-UPDATE-MECHANISM.md) | OTA update system |
+| [06-LICENSING-MODEL.md](../docs/aegis_integration_plan/06-LICENSING-MODEL.md) | OpenWatch+ subscription |
+| [07-OS-CLAIM-STACK.md](../docs/aegis_integration_plan/07-OS-CLAIM-STACK.md) | Compliance OS claims |
+
+---
+
 ## Quick Links
 
+- **Main README**: `README.md`
 - **Codebase Review**: [docs/CODEBASE_REVIEW_2026_01.md](../docs/CODEBASE_REVIEW_2026_01.md)
 - **AI Development Guide**: [CLAUDE.md](../CLAUDE.md)
 - **Context Files**: [context/](../context/)
+- **Aegis Plugin**: [backend/app/plugins/aegis/](../backend/app/plugins/aegis/)
 
 ---
 
 ## How to Use This PRD
 
 ### For Humans
-1. Start with [01-OVERVIEW.md](01-OVERVIEW.md) for context
-2. Review [04-TIMELINE.md](04-TIMELINE.md) for planning
+1. Start with [Aegis Executive Summary](../docs/aegis_integration_plan/00-EXECUTIVE-SUMMARY.md) for strategic context
+2. Review [E0-SCAN-ACCURACY.md](epics/E0-SCAN-ACCURACY.md) for current priority
 3. Pick stories from epics based on priority
 
 ### For AI Assistants
 1. Read [03-AI-COLLABORATION.md](03-AI-COLLABORATION.md) for guidelines
-2. Reference specific epic when working on related tasks
+2. Reference [Aegis Integration Plan](../docs/aegis_integration_plan/) for architecture
 3. Update story status as work progresses
 
 ### For Reviews
@@ -80,7 +110,7 @@ Individual stories are located in [stories/](stories/) directory, organized by e
 
 | Phase | Status | Target | Actual |
 |-------|--------|--------|--------|
-| Phase 0: Scan Accuracy | Not Started | Week 1-4 | - |
+| Phase 0: Aegis Integration (E0) | **In Progress** | Week 1-4 | - |
 | Phase 1: Critical Fixes (E1) | Complete | Week 2-3 | 2026-01-30 |
 | Phase 2: Consolidation (E2) | Complete | Week 4-5 | 2026-01-30 |
 | Phase 3: Documentation (E3) | Not Started | Week 6-7 | - |
@@ -88,7 +118,7 @@ Individual stories are located in [stories/](stories/) directory, organized by e
 | Phase 5: Testing (E5) | Not Started | Week 10-11 | - |
 | Phase 6: Hardening (E6) | Not Started | Week 12-14 | - |
 
-> **Note**: Phase 0 runs in parallel with Phase 1. Total timeline extended to 14 weeks to accommodate scan accuracy work.
+> **Note**: Phase 0 (Aegis Integration) is the current priority. See [Aegis Integration Plan](../docs/aegis_integration_plan/) for full timeline.
 
 ---
 
@@ -96,5 +126,6 @@ Individual stories are located in [stories/](stories/) directory, organized by e
 
 | Version | Date | Author | Changes |
 |---------|------|--------|---------|
+| 2.0.0 | 2026-02-09 | Claude Opus 4.5 | **Major**: Add Aegis Integration Plan as strategic direction; Update E0 for Aegis approach; Add Aegis document index |
 | 1.1.0 | 2026-01-30 | Claude Opus 4.5 | Mark E1, E2, E4 as Complete; update status tracking |
 | 1.0.0 | 2026-01-21 | Claude Opus 4.5 | Initial PRD creation |

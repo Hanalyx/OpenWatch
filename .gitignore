@@ -835,3 +835,11 @@ context/
 
 # Examples directory (do not commit, moved to docs/)
 examples/
+
+# ======================================
+# AEGIS COMPLIANCE ENGINE
+# ======================================
+
+# Aegis runner symlink (auto-generated in Dockerfile)
+# The symlink backend/runner -> backend/aegis/runner is created during container build
+backend/runner
