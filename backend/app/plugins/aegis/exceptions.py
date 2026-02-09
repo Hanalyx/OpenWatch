@@ -294,7 +294,9 @@ class AegisRollbackError(AegisError):
 
         message = f"Rollback failed for job {job_id}: {detail}"
         if partial_rollback:
-            message = f"{message} (partial rollback: {len(self.rolled_back_rules)} succeeded, {len(self.failed_rules)} failed)"
+            succeeded = len(self.rolled_back_rules)
+            failed = len(self.failed_rules)
+            message = f"{message} (partial rollback: {succeeded} succeeded, {failed} failed)"
 
         super().__init__(
             message=message,
