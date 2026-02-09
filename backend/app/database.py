@@ -637,6 +637,53 @@ class IntegrationAuditLog(Base):  # type: ignore[valid-type, misc]
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
 
+class PostureSnapshot(Base):  # type: ignore[valid-type, misc]
+    """
+    Daily compliance posture snapshots for historical queries.
+
+    Enables temporal compliance queries per NIST SP 800-137:
+    "What was the compliance posture on March 14?"
+
+    Part of Phase 2: Temporal Compliance (Aegis Integration Plan)
+    """
+
+    __tablename__ = "posture_snapshots"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4, index=True)
+    host_id = Column(UUID(as_uuid=True), ForeignKey("hosts.id", ondelete="CASCADE"), nullable=False, index=True)
+    snapshot_date = Column(DateTime, nullable=False, index=True)
+
+    # Aggregated compliance state
+    total_rules = Column(Integer, nullable=False)
+    passed = Column(Integer, nullable=False)
+    failed = Column(Integer, nullable=False)
+    error_count = Column(Integer, default=0, nullable=False)
+    not_applicable = Column(Integer, default=0, nullable=False)
+    compliance_score = Column(Float, nullable=False)
+
+    # Per-severity breakdown
+    severity_critical_passed = Column(Integer, default=0, nullable=False)
+    severity_critical_failed = Column(Integer, default=0, nullable=False)
+    severity_high_passed = Column(Integer, default=0, nullable=False)
+    severity_high_failed = Column(Integer, default=0, nullable=False)
+    severity_medium_passed = Column(Integer, default=0, nullable=False)
+    severity_medium_failed = Column(Integer, default=0, nullable=False)
+    severity_low_passed = Column(Integer, default=0, nullable=False)
+    severity_low_failed = Column(Integer, default=0, nullable=False)
+
+    # JSONB for per-rule state (enables drift detection)
+    rule_states = Column(JSON, nullable=False, default=dict)
+    # Format: {"rule_id": {"status": "pass", "severity": "high"}, ...}
+
+    # Source scan reference
+    source_scan_id = Column(UUID(as_uuid=True), ForeignKey("scans.id"), nullable=True)
+
+    # Metadata
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    __table_args__ = (UniqueConstraint("host_id", "snapshot_date", name="uq_host_snapshot_date"),)
+
+
 class AlertSettings(Base):  # type: ignore[valid-type, misc]
     """Alert settings for monitoring notifications"""
 

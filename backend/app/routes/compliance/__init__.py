@@ -8,16 +8,21 @@ Package Structure:
     - intelligence.py: Semantic SCAP intelligence and cross-framework compliance data
     - owca.py: OpenWatch Compliance Algorithm (OWCA) endpoints
     - drift.py: Compliance drift event endpoints
+    - posture.py: Temporal compliance posture queries (Phase 2)
 
 Endpoint Structure:
     /compliance/                    - Intelligence endpoints (overview, semantic-rules, etc.)
     /compliance/owca/*              - OWCA compliance scoring and analytics
     /compliance/drift/*             - Drift detection events
+    /compliance/posture             - Point-in-time posture queries
+    /compliance/posture/history     - Posture history over time
+    /compliance/posture/drift       - Compliance drift analysis
 
 Migration Status:
     - compliance.py -> compliance/intelligence.py
     - owca.py -> compliance/owca.py
     - drift_events.py -> compliance/drift.py
+    - NEW: posture.py (Phase 2 Temporal Compliance)
 """
 
 import logging
@@ -37,6 +42,7 @@ try:
     from .drift import router as drift_router
     from .intelligence import router as intelligence_router
     from .owca import router as owca_router
+    from .posture import router as posture_router
 
     # Include sub-routers
     # Intelligence endpoints are at the root of /compliance (no additional prefix)
@@ -47,6 +53,9 @@ try:
 
     # Drift endpoints at /compliance/drift/*
     router.include_router(drift_router)
+
+    # Posture endpoints at /compliance/posture/* (Phase 2 Temporal Compliance)
+    router.include_router(posture_router)
 
     _modules_loaded = True
     logger.info("Compliance package: All modules loaded successfully")
