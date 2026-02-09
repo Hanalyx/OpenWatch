@@ -12,6 +12,7 @@ This migration creates tables for:
 """
 
 import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 
 from alembic import op
@@ -61,7 +62,7 @@ def upgrade() -> None:
         sa.Column("to_version", sa.String(50), nullable=False),
         sa.Column(
             "status",
-            sa.Enum(
+            postgresql.ENUM(
                 "pending",
                 "downloading",
                 "verifying",
