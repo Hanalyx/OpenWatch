@@ -9,6 +9,7 @@ Package Structure:
     - owca.py: OpenWatch Compliance Algorithm (OWCA) endpoints
     - drift.py: Compliance drift event endpoints
     - posture.py: Temporal compliance posture queries (Phase 2)
+    - exceptions.py: Structured exception management (Phase 3)
 
 Endpoint Structure:
     /compliance/                    - Intelligence endpoints (overview, semantic-rules, etc.)
@@ -17,12 +18,14 @@ Endpoint Structure:
     /compliance/posture             - Point-in-time posture queries
     /compliance/posture/history     - Posture history over time
     /compliance/posture/drift       - Compliance drift analysis
+    /compliance/exceptions          - Exception management (Phase 3)
 
 Migration Status:
     - compliance.py -> compliance/intelligence.py
     - owca.py -> compliance/owca.py
     - drift_events.py -> compliance/drift.py
     - NEW: posture.py (Phase 2 Temporal Compliance)
+    - NEW: exceptions.py (Phase 3 Governance Primitives)
 """
 
 import logging
@@ -40,6 +43,7 @@ _modules_loaded = False
 try:
     # Import sub-routers from package modules
     from .drift import router as drift_router
+    from .exceptions import router as exceptions_router
     from .intelligence import router as intelligence_router
     from .owca import router as owca_router
     from .posture import router as posture_router
@@ -56,6 +60,9 @@ try:
 
     # Posture endpoints at /compliance/posture/* (Phase 2 Temporal Compliance)
     router.include_router(posture_router)
+
+    # Exception endpoints at /compliance/exceptions/* (Phase 3 Governance Primitives)
+    router.include_router(exceptions_router)
 
     _modules_loaded = True
     logger.info("Compliance package: All modules loaded successfully")

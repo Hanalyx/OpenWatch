@@ -684,6 +684,71 @@ class PostureSnapshot(Base):  # type: ignore[valid-type, misc]
     __table_args__ = (UniqueConstraint("host_id", "snapshot_date", name="uq_host_snapshot_date"),)
 
 
+class ComplianceException(Base):  # type: ignore[valid-type, misc]
+    """
+    Structured compliance exceptions with approval workflow.
+
+    Enables explicit exception management per OS claim:
+    "Exceptions are explicit state, not narrative artifacts"
+
+    Part of Phase 3: Governance Primitives (Aegis Integration Plan)
+    """
+
+    __tablename__ = "compliance_exceptions"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4, index=True)
+
+    # Scope - what rule and where
+    rule_id = Column(String(255), nullable=False, index=True)
+    host_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("hosts.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
+    host_group_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("host_groups.id", ondelete="CASCADE"),
+        nullable=True,
+    )
+
+    # Exception details
+    justification = Column(Text, nullable=False)
+    risk_acceptance = Column(Text, nullable=True)
+    compensating_controls = Column(Text, nullable=True)
+    business_impact = Column(Text, nullable=True)
+
+    # Lifecycle
+    status: Column[str] = Column(
+        Enum(
+            "pending",
+            "approved",
+            "rejected",
+            "expired",
+            "revoked",
+            name="exception_status",
+        ),
+        default="pending",
+        nullable=False,
+        index=True,
+    )
+    requested_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+    requested_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    approved_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    approved_at = Column(DateTime, nullable=True)
+    rejected_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    rejected_at = Column(DateTime, nullable=True)
+    rejection_reason = Column(Text, nullable=True)
+    expires_at = Column(DateTime, nullable=False, index=True)
+    revoked_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    revoked_at = Column(DateTime, nullable=True)
+    revocation_reason = Column(Text, nullable=True)
+
+    # Audit trail
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+
 class AlertSettings(Base):  # type: ignore[valid-type, misc]
     """Alert settings for monitoring notifications"""
 
