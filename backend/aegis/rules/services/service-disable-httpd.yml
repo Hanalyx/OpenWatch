@@ -1,0 +1,32 @@
+id: service-disable-httpd
+title: Disable HTTP server
+description: >
+  The Apache HTTP server provides web services. Unless the system is a
+  designated web server, this service should be disabled.
+rationale: >
+  Running an unnecessary web server increases the attack surface and could
+  expose sensitive information or provide a vector for attacks.
+severity: medium
+category: services
+tags: [service, web, attack-surface]
+
+references:
+  cis:
+    rhel8_v4:  { section: "2.2.10", level: "L1", type: "Automated" }
+    rhel9_v2:  { section: "2.2.10", level: "L1", type: "Automated" }
+  nist_800_53: ["CM-7"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - default: true
+    check:
+      method: service_state
+      name: "httpd"
+      state: "stopped"
+      enabled: false
+    remediation:
+      mechanism: service_masked
+      name: "httpd"

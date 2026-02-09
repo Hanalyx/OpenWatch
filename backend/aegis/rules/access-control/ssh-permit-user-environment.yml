@@ -1,0 +1,69 @@
+id: ssh-permit-user-environment
+title: Disable SSH user environment processing
+description: >
+  The SSH daemon must not process environment variables from user-controlled
+  files such as ~/.ssh/environment. When enabled, users can inject arbitrary
+  environment variables that may alter the behavior of shell sessions and
+  system commands.
+
+rationale: >
+  User environment processing allows an attacker who has compromised an SSH
+  authorized key to inject environment variables such as LD_PRELOAD or PATH
+  overrides, enabling privilege escalation or execution of malicious code
+  within the session context.
+
+severity: medium
+category: access-control
+tags: [ssh, authentication, environment]
+
+references:
+  cis:
+    rhel10_v1:  { section: "5.1.21", level: "L1", type: "Automated" }
+    rhel8_v4:  { section: "5.1.23", level: "L1", type: "Automated" }
+    rhel9_v2:  { section: "5.1.21", level: "L1", type: "Automated" }
+  stig:
+    rhel8_v2r6:
+      vuln_id: "V-230330"
+      stig_id: "RHEL-08-010830"
+      severity: "CAT II"
+      cci: ["CCI-000366"]
+    rhel9_v2r7:
+      vuln_id: "V-257993"
+      stig_id: "RHEL-09-255085"
+      severity: "CAT II"
+      cci: ["CCI-000366"]
+  nist_800_53: ["CM-6"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - when: sshd_config_d
+    check:
+      method: config_value
+      path: "/etc/ssh/sshd_config.d"
+      key: "PermitUserEnvironment"
+      expected: "no"
+      scan_pattern: "*.conf"
+    remediation:
+      mechanism: config_set_dropin
+      dir: "/etc/ssh/sshd_config.d"
+      file: "00-aegis-permit-user-environment.conf"
+      key: "PermitUserEnvironment"
+      value: "no"
+      reload: "sshd"
+
+  - default: true
+    check:
+      method: config_value
+      path: "/etc/ssh/sshd_config"
+      key: "PermitUserEnvironment"
+      expected: "no"
+    remediation:
+      mechanism: config_set
+      path: "/etc/ssh/sshd_config"
+      key: "PermitUserEnvironment"
+      value: "no"
+      separator: " "
+      reload: "sshd"

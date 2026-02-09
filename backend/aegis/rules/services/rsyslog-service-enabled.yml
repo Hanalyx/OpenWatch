@@ -1,0 +1,37 @@
+id: rsyslog-service-enabled
+title: Enable rsyslog service
+description: >
+  The rsyslog service must be enabled and running to provide
+  system logging capabilities.
+rationale: >
+  Rsyslog collects and processes system log messages which
+  are essential for security monitoring and incident response.
+severity: medium
+category: services
+tags: [service, logging, rsyslog]
+
+references:
+  cis:
+    rhel9_v2:  { section: "6.2.3.2", level: "L1", type: "Automated" }
+  stig:
+    rhel9_v2r7:
+      vuln_id: "V-258142"
+      stig_id: "RHEL-09-652020"
+      severity: "CAT II"
+  nist_800_53: ["AU-4", "AU-12"]
+
+platforms:
+  - family: rhel
+    min_version: 9
+
+implementations:
+  - default: true
+    check:
+      method: service_state
+      name: "rsyslog"
+      state: "running"
+      enabled: true
+    remediation:
+      mechanism: service_enabled
+      name: "rsyslog"
+      start: true

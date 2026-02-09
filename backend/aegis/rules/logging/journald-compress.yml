@@ -1,0 +1,37 @@
+id: journald-compress
+title: Configure journald to compress logs
+description: >
+  The systemd-journald service should be configured to compress log
+  files to conserve disk space while maintaining log integrity.
+rationale: >
+  Log compression reduces disk usage and extends the retention period
+  for logs within the same storage capacity, improving the ability
+  to maintain audit trails.
+severity: low
+category: logging
+tags: [journald, logging, compression, storage]
+
+references:
+  cis:
+    rhel8_v4:  { section: "4.2.1.2", level: "L1", type: "Automated" }
+    rhel9_v2:  { section: "4.2.1.2", level: "L1", type: "Automated" }
+  nist_800_53: ["AU-4"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - default: true
+    check:
+      method: config_value
+      path: "/etc/systemd/journald.conf"
+      key: "Compress"
+      expected: "yes"
+    remediation:
+      mechanism: config_set
+      path: "/etc/systemd/journald.conf"
+      key: "Compress"
+      value: "yes"
+      separator: "="
+      reload: "systemd-journald"

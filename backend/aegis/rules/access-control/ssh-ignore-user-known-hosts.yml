@@ -1,0 +1,65 @@
+id: ssh-ignore-user-known-hosts
+title: Disable SSH user known hosts for host-based auth
+description: >
+  The SSH daemon must ignore user-level known_hosts files when performing
+  host-based authentication. The IgnoreUserKnownHosts directive prevents
+  sshd from trusting host keys cached in individual user home directories
+  for host-based authentication decisions.
+
+rationale: >
+  User-managed known_hosts files can be modified to trust arbitrary hosts.
+  An attacker who gains write access to a user's .ssh/known_hosts file
+  could add a malicious host's key, causing the server to accept host-based
+  authentication from attacker-controlled systems.
+
+severity: medium
+category: access-control
+tags: [ssh, authentication, known-hosts]
+
+references:
+  stig:
+    rhel8_v2r6:
+      vuln_id: "V-230290"
+      stig_id: "RHEL-08-010520"
+      severity: "CAT II"
+      cci: ["CCI-000366"]
+    rhel9_v2r7:
+      vuln_id: "V-258006"
+      stig_id: "RHEL-09-255150"
+      severity: "CAT II"
+      cci: ["CCI-000366"]
+  nist_800_53: ["CM-6"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - when: sshd_config_d
+    check:
+      method: config_value
+      path: "/etc/ssh/sshd_config.d"
+      key: "IgnoreUserKnownHosts"
+      expected: "yes"
+      scan_pattern: "*.conf"
+    remediation:
+      mechanism: config_set_dropin
+      dir: "/etc/ssh/sshd_config.d"
+      file: "00-aegis-ignore-user-known-hosts.conf"
+      key: "IgnoreUserKnownHosts"
+      value: "yes"
+      reload: "sshd"
+
+  - default: true
+    check:
+      method: config_value
+      path: "/etc/ssh/sshd_config"
+      key: "IgnoreUserKnownHosts"
+      expected: "yes"
+    remediation:
+      mechanism: config_set
+      path: "/etc/ssh/sshd_config"
+      key: "IgnoreUserKnownHosts"
+      value: "yes"
+      separator: " "
+      reload: "sshd"

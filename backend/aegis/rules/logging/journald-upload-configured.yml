@@ -1,0 +1,35 @@
+id: journald-upload-configured
+title: Ensure systemd-journal-upload is configured
+description: >
+  If centralized logging is required, the systemd-journal-upload service
+  must be configured to send journal entries to a remote server. The
+  upload URL must be set to a valid log collection endpoint.
+rationale: >
+  Centralized logging enables correlation of events across multiple
+  systems and protects log integrity in case of system compromise.
+  Proper configuration ensures logs are forwarded securely.
+severity: low
+category: logging
+tags: [journald, remote, logging, configuration]
+
+references:
+  cis:
+    rhel9_v2:  { section: "6.2.2.1.2", level: "L2", type: "Automated" }
+  nist_800_53: ["AU-6", "AU-12"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - default: true
+    check:
+      method: command
+      run: "grep -E '^URL=' /etc/systemd/journal-upload.conf 2>/dev/null | grep -v '^#'"
+      expected_exit: 0
+    remediation:
+      mechanism: manual
+      description: >
+        Configure journal-upload by editing /etc/systemd/journal-upload.conf
+        and setting URL= to your log collection server. Example:
+        URL=https://logs.example.com:19532

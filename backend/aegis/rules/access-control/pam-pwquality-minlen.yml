@@ -1,0 +1,42 @@
+id: pam-pwquality-minlen
+title: Set minimum password length
+description: >
+  The minlen parameter in /etc/security/pwquality.conf sets the minimum
+  acceptable size for new passwords. Longer passwords are more resistant
+  to brute-force attacks.
+rationale: >
+  Password length is one of the most important factors in password strength.
+  A minimum of 14 characters is recommended for strong security.
+severity: high
+category: access-control
+tags: [pam, password, authentication, pwquality]
+
+references:
+  cis:
+    rhel8_v4:  { section: "5.4.1.1", level: "L1", type: "Automated" }
+    rhel9_v2:  { section: "5.4.1",   level: "L1", type: "Automated" }
+  stig:
+    rhel9_v2r7:
+      vuln_id: "V-258041"
+      stig_id: "RHEL-09-611010"
+      severity: "CAT II"
+  nist_800_53: ["IA-5(1)(a)"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - default: true
+    check:
+      method: config_value
+      path: "/etc/security/pwquality.conf"
+      key: "minlen"
+      expected: "{{ pam_pwquality_minlen }}"
+      comparator: ">="
+    remediation:
+      mechanism: config_set
+      path: "/etc/security/pwquality.conf"
+      key: "minlen"
+      value: "{{ pam_pwquality_minlen }}"
+      separator: " = "

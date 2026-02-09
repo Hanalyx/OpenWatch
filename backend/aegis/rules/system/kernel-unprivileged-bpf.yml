@@ -1,0 +1,35 @@
+id: kernel-unprivileged-bpf
+title: Disable unprivileged BPF
+description: >
+  The kernel.unprivileged_bpf_disabled sysctl must be set to prevent
+  unprivileged users from loading BPF programs.
+rationale: >
+  BPF (Berkeley Packet Filter) programs run in the kernel and could
+  be used for privilege escalation or other attacks. Restricting
+  BPF to privileged users limits this attack surface.
+severity: medium
+category: system
+tags: [sysctl, bpf, kernel, security, stig]
+
+references:
+  stig:
+    rhel9_v2r7:
+      vuln_id: "V-257821"
+      stig_id: "RHEL-09-213045"
+      severity: "CAT II"
+  nist_800_53: ["CM-6"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - default: true
+    check:
+      method: sysctl_value
+      key: "kernel.unprivileged_bpf_disabled"
+      expected: "1"
+    remediation:
+      mechanism: sysctl_set
+      key: "kernel.unprivileged_bpf_disabled"
+      value: "1"

@@ -1,0 +1,36 @@
+id: repo-gpgcheck-enabled
+title: Enable GPG checking for repository metadata
+description: >
+  The repo_gpgcheck option should be enabled to verify GPG signatures
+  on repository metadata in addition to individual packages.
+rationale: >
+  Verifying repository metadata ensures the package lists themselves
+  have not been tampered with, preventing downgrade attacks and
+  ensuring package integrity from source to installation.
+severity: medium
+category: system
+tags: [packages, gpg, dnf, repository, security]
+
+references:
+  cis:
+    rhel8_v4:  { section: "1.2.2", level: "L1", type: "Automated" }
+    rhel9_v2:  { section: "1.2.2", level: "L1", type: "Automated" }
+  nist_800_53: ["CM-11(a)", "SI-7"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - default: true
+    check:
+      method: config_value
+      path: "/etc/dnf/dnf.conf"
+      key: "repo_gpgcheck"
+      expected: "1"
+    remediation:
+      mechanism: config_set
+      path: "/etc/dnf/dnf.conf"
+      key: "repo_gpgcheck"
+      value: "1"
+      separator: "="

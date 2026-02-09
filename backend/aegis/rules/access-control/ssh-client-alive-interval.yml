@@ -1,0 +1,73 @@
+id: ssh-client-alive-interval
+title: Set SSH client alive interval
+description: >
+  The SSH daemon must send keepalive messages to detect idle or
+  unresponsive clients. ClientAliveInterval specifies the number of
+  seconds the server waits before sending a null packet to the client
+  to request a response.
+
+rationale: >
+  Idle SSH sessions that remain open indefinitely pose a security risk
+  because an unattended terminal can be used by anyone with physical or
+  logical access to the workstation. Setting ClientAliveInterval to 600
+  seconds ensures that sessions are terminated within 10 minutes of
+  becoming unresponsive, limiting the window of opportunity for session
+  hijacking.
+
+severity: medium
+category: access-control
+tags: [ssh, session-management, timeout, idle]
+
+references:
+  cis:
+    rhel10_v1:  { section: "5.1.7", level: "L1", type: "Automated" }
+    rhel8_v4:  { section: "5.1.9", level: "L1", type: "Automated" }
+    rhel9_v2:  { section: "5.1.9", level: "L1", type: "Automated" }
+  stig:
+    rhel8_v2r6:
+      vuln_id: "V-230244"
+      stig_id: "RHEL-08-010200"
+      severity: "CAT II"
+      cci: ["CCI-001133"]
+    rhel9_v2r7:
+      vuln_id: "V-257995"
+      stig_id: "RHEL-09-255095"
+      severity: "CAT II"
+      cci: ["CCI-001133", "CCI-002361"]
+  nist_800_53: ["AC-12", "SC-10"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - when: sshd_config_d
+    check:
+      method: config_value
+      path: "/etc/ssh/sshd_config.d"
+      key: "ClientAliveInterval"
+      expected: "{{ ssh_client_alive_interval }}"
+      comparator: "<="
+      scan_pattern: "*.conf"
+    remediation:
+      mechanism: config_set_dropin
+      dir: "/etc/ssh/sshd_config.d"
+      file: "00-aegis-client-alive-interval.conf"
+      key: "ClientAliveInterval"
+      value: "{{ ssh_client_alive_interval }}"
+      reload: "sshd"
+
+  - default: true
+    check:
+      method: config_value
+      path: "/etc/ssh/sshd_config"
+      key: "ClientAliveInterval"
+      expected: "{{ ssh_client_alive_interval }}"
+      comparator: "<="
+    remediation:
+      mechanism: config_set
+      path: "/etc/ssh/sshd_config"
+      key: "ClientAliveInterval"
+      value: "{{ ssh_client_alive_interval }}"
+      separator: " "
+      reload: "sshd"

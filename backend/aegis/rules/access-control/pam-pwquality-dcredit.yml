@@ -1,0 +1,42 @@
+id: pam-pwquality-dcredit
+title: Require digit in password
+description: >
+  The dcredit parameter in /etc/security/pwquality.conf controls the credit
+  given for having digits in the password. A negative value requires at least
+  that many digits.
+rationale: >
+  Requiring digits increases password complexity and makes passwords more
+  resistant to dictionary attacks.
+severity: medium
+category: access-control
+tags: [pam, password, authentication, pwquality]
+
+references:
+  cis:
+    rhel8_v4:  { section: "5.4.1.2", level: "L1", type: "Automated" }
+    rhel9_v2:  { section: "5.4.1",   level: "L1", type: "Automated" }
+  stig:
+    rhel9_v2r7:
+      vuln_id: "V-258044"
+      stig_id: "RHEL-09-611040"
+      severity: "CAT II"
+  nist_800_53: ["IA-5(1)(a)"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - default: true
+    check:
+      method: config_value
+      path: "/etc/security/pwquality.conf"
+      key: "dcredit"
+      expected: "-1"
+      comparator: "<="
+    remediation:
+      mechanism: config_set
+      path: "/etc/security/pwquality.conf"
+      key: "dcredit"
+      value: "-1"
+      separator: " = "

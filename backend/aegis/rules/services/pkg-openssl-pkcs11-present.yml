@@ -1,0 +1,33 @@
+id: pkg-openssl-pkcs11-present
+title: Ensure openssl-pkcs11 package is installed
+description: >
+  The openssl-pkcs11 package must be installed to enable PKCS#11
+  support for smart card authentication.
+rationale: >
+  PKCS#11 support is required for hardware token and smart card
+  based authentication mechanisms.
+severity: medium
+category: services
+tags: [package, smartcard, authentication]
+
+references:
+  stig:
+    rhel9_v2r7:
+      vuln_id: "V-257838"
+      stig_id: "RHEL-09-215075"
+      severity: "CAT II"
+  nist_800_53: ["IA-2", "IA-5"]
+
+platforms:
+  - family: rhel
+    min_version: 9
+
+implementations:
+  - default: true
+    check:
+      method: package_state
+      name: "openssl-pkcs11"
+      state: "present"
+    remediation:
+      mechanism: package_present
+      name: "openssl-pkcs11"

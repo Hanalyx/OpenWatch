@@ -1,0 +1,68 @@
+id: ssh-disable-root-login
+title: Disable SSH root login
+description: >
+  The SSH daemon must not permit direct login as the root account. Root access
+  must be obtained by authenticating as an individual user and then escalating
+  privileges via sudo or su, ensuring accountability.
+rationale: >
+  Direct root login over SSH exposes the highest-privilege account to network
+  brute-force attacks and eliminates the ability to attribute administrative
+  actions to individual users. Disabling it enforces the principle of individual
+  accountability and reduces the attack surface for remote compromise.
+severity: high
+category: access-control
+tags: [ssh, authentication, remote-access, privileged-access]
+
+references:
+  cis:
+    rhel8_v4:  { section: "5.1.22", level: "L1", type: "Automated" }
+    rhel9_v2:  { section: "5.1.20", level: "L1", type: "Automated" }
+    rhel10_v1: { section: "5.1.20", level: "L1", type: "Automated" }
+  stig:
+    rhel8_v2r6:
+      vuln_id: "V-230296"
+      stig_id: "RHEL-08-010550"
+      severity: "CAT II"
+      cci: ["CCI-000770"]
+    rhel9_v2r7:
+      vuln_id: "V-257947"
+      stig_id: "RHEL-09-255045"
+      severity: "CAT II"
+      cci: ["CCI-000770"]
+  nist_800_53: ["AC-6(2)", "AC-17(2)", "IA-2(5)"]
+  pci_dss_4: ["2.2.6", "8.6.1"]
+  srg: ["SRG-OS-000109-GPOS-00056"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - when: sshd_config_d
+    check:
+      method: config_value
+      path: "/etc/ssh/sshd_config.d"
+      key: "PermitRootLogin"
+      expected: "no"
+      scan_pattern: "*.conf"
+    remediation:
+      mechanism: config_set_dropin
+      dir: "/etc/ssh/sshd_config.d"
+      file: "00-aegis-permit-root-login.conf"
+      key: "PermitRootLogin"
+      value: "no"
+      reload: "sshd"
+
+  - default: true
+    check:
+      method: config_value
+      path: "/etc/ssh/sshd_config"
+      key: "PermitRootLogin"
+      expected: "no"
+    remediation:
+      mechanism: config_set
+      path: "/etc/ssh/sshd_config"
+      key: "PermitRootLogin"
+      value: "no"
+      separator: " "
+      reload: "sshd"

@@ -1,0 +1,33 @@
+id: audit-cmd-setfacl
+title: Audit uses of the setfacl command
+description: >
+  All uses of the setfacl command must be audited. The setfacl command
+  sets file access control lists which control permissions.
+rationale: >
+  Auditing setfacl usage allows detection of ACL modifications
+  that could grant unauthorized access to sensitive files.
+severity: medium
+category: audit
+tags: [audit, auditd, privileged, acl]
+
+references:
+  stig:
+    rhel9_v2r7:
+      vuln_id: "V-258182"
+      stig_id: "RHEL-09-654160"
+      severity: "CAT II"
+  nist_800_53: ["AU-2", "AU-12"]
+
+platforms:
+  - family: rhel
+    min_version: 9
+
+implementations:
+  - default: true
+    check:
+      method: audit_rule_exists
+      rule: "-a always,exit -F path=/usr/bin/setfacl -F perm=x -F auid>=1000 -F auid!=unset -k perm_chng"
+    remediation:
+      mechanism: audit_rule_set
+      rule: "-a always,exit -F path=/usr/bin/setfacl -F perm=x -F auid>=1000 -F auid!=unset -k perm_chng"
+      persist_file: "/etc/audit/rules.d/50-perm_chng.rules"

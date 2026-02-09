@@ -1,0 +1,37 @@
+id: ssh-kex-fips
+title: Configure SSH key exchange algorithms for FIPS
+description: >
+  The SSH daemon must be configured to use only FIPS 140-2 validated
+  key exchange algorithms.
+rationale: >
+  FIPS-approved key exchange algorithms ensure secure session key
+  negotiation. Using only validated algorithms prevents key compromise
+  during session establishment.
+severity: high
+category: access-control
+tags: [ssh, fips, key-exchange, cryptography, stig]
+
+references:
+  stig:
+    rhel9_v2r7:
+      vuln_id: "V-257815"
+      stig_id: "RHEL-09-255030"
+      severity: "CAT II"
+  nist_800_53: ["SC-12", "SC-13"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - default: true
+    check:
+      method: command
+      run: "grep -E '^KexAlgorithms' /etc/ssh/sshd_config | grep -qE 'ecdh-sha2|diffie-hellman-group-exchange-sha256'"
+      expected_exit: 0
+    remediation:
+      mechanism: config_set
+      path: "/etc/ssh/sshd_config"
+      key: "KexAlgorithms"
+      value: "ecdh-sha2-nistp256,ecdh-sha2-nistp384,ecdh-sha2-nistp521,diffie-hellman-group-exchange-sha256"
+      reload: "sshd"

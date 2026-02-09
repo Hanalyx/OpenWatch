@@ -1,0 +1,33 @@
+id: audit-cmd-userhelper
+title: Audit uses of the userhelper command
+description: >
+  All uses of the userhelper command must be audited. The userhelper
+  command is used by graphical user interface tools to change passwords.
+rationale: >
+  Auditing userhelper usage allows detection of password changes
+  initiated through graphical interfaces.
+severity: medium
+category: audit
+tags: [audit, auditd, privileged, user]
+
+references:
+  stig:
+    rhel9_v2r7:
+      vuln_id: "V-258208"
+      stig_id: "RHEL-09-654290"
+      severity: "CAT II"
+  nist_800_53: ["AU-2", "AU-12"]
+
+platforms:
+  - family: rhel
+    min_version: 9
+
+implementations:
+  - default: true
+    check:
+      method: audit_rule_exists
+      rule: "-a always,exit -F path=/usr/sbin/userhelper -F perm=x -F auid>=1000 -F auid!=unset -k privileged-userhelper"
+    remediation:
+      mechanism: audit_rule_set
+      rule: "-a always,exit -F path=/usr/sbin/userhelper -F perm=x -F auid>=1000 -F auid!=unset -k privileged-userhelper"
+      persist_file: "/etc/audit/rules.d/50-privileged.rules"

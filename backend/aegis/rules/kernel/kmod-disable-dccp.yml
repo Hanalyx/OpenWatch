@@ -1,0 +1,34 @@
+id: kmod-disable-dccp
+title: Disable DCCP kernel module
+description: >
+  The Datagram Congestion Control Protocol (DCCP) kernel module should
+  be disabled if not required.
+rationale: >
+  DCCP is a transport protocol that is rarely used on most systems.
+  Disabling unused protocols reduces the attack surface and potential
+  for exploitation of protocol vulnerabilities.
+severity: medium
+category: kernel
+tags: [kernel-module, dccp, network, attack-surface, stig]
+
+references:
+  stig:
+    rhel9_v2r7:
+      vuln_id: "V-257792"
+      stig_id: "RHEL-09-291020"
+      severity: "CAT II"
+  nist_800_53: ["CM-7"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - default: true
+    check:
+      method: kernel_module_state
+      name: "dccp"
+      state: "disabled"
+    remediation:
+      mechanism: kernel_module_disable
+      name: "dccp"

@@ -1,0 +1,32 @@
+id: service-disable-dhcpd
+title: Disable DHCP server
+description: >
+  The DHCP server provides IP address configuration to network clients. Unless
+  the system is a designated DHCP server, this service should be disabled.
+rationale: >
+  Running an unnecessary DHCP server could interfere with network operations
+  or be exploited to provide malicious configuration to clients.
+severity: high
+category: services
+tags: [service, networking, attack-surface]
+
+references:
+  cis:
+    rhel8_v4:  { section: "2.2.5", level: "L1", type: "Automated" }
+    rhel9_v2:  { section: "2.2.5", level: "L1", type: "Automated" }
+  nist_800_53: ["CM-7"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - default: true
+    check:
+      method: service_state
+      name: "dhcpd"
+      state: "stopped"
+      enabled: false
+    remediation:
+      mechanism: service_masked
+      name: "dhcpd"

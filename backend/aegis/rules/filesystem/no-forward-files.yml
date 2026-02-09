@@ -1,0 +1,37 @@
+id: no-forward-files
+title: Ensure no .forward files exist
+description: >
+  The .forward file in user home directories allows users to forward
+  their mail to external addresses. These files should not exist on
+  most systems.
+rationale: >
+  Forward files can be used to exfiltrate data or redirect sensitive
+  information to external addresses. On systems where mail forwarding
+  is not required, these files pose an unnecessary risk.
+severity: low
+category: filesystem
+tags: [mail, forward, user-files, security]
+
+references:
+  cis:
+    rhel9_v2:  { section: "7.2.8", level: "L1", type: "Automated" }
+  nist_800_53: ["CM-6", "AC-6"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - default: true
+    check:
+      method: command
+      run: "find /home -name '.forward' -type f 2>/dev/null | head -1"
+      expected_exit: 0
+      expected_stdout: ""
+    remediation:
+      mechanism: manual
+      note: >
+        Review and remove .forward files from user home directories.
+        Use 'find /home -name .forward -type f' to locate files.
+        Verify each file with the user before removal as they may
+        have legitimate mail forwarding requirements.

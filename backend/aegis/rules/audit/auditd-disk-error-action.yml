@@ -1,0 +1,39 @@
+id: auditd-disk-error-action
+title: Configure auditd disk_error_action
+description: >
+  The auditd daemon must take appropriate action when disk errors occur
+  during audit logging.
+rationale: >
+  Disk errors could indicate failing hardware or filesystem issues that
+  could lead to loss of audit data. Taking action on errors helps
+  preserve audit integrity.
+severity: medium
+category: audit
+tags: [audit, auditd, disk-error, stig]
+
+references:
+  stig:
+    rhel9_v2r7:
+      vuln_id: "V-257810"
+      stig_id: "RHEL-09-653025"
+      severity: "CAT II"
+  nist_800_53: ["AU-5"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - default: true
+    check:
+      method: config_value
+      path: "/etc/audit/auditd.conf"
+      key: "disk_error_action"
+      expected: "halt"
+    remediation:
+      mechanism: config_set
+      path: "/etc/audit/auditd.conf"
+      key: "disk_error_action"
+      value: "halt"
+      separator: " = "
+      reload: "auditd"

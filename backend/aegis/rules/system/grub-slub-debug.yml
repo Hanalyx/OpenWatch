@@ -1,0 +1,35 @@
+id: grub-slub-debug
+title: Enable SLUB debug poisoning in GRUB kernel parameters
+description: >
+  The slub_debug=P kernel parameter must be set to enable SLUB allocator
+  poisoning. This clears freed memory to prevent use-after-free attacks.
+rationale: >
+  SLUB poisoning fills freed memory with a poison value, making it harder
+  for attackers to exploit use-after-free vulnerabilities by corrupting
+  stale object data.
+severity: medium
+category: system
+tags: [grub, kernel, memory, security, boot]
+
+references:
+  stig:
+    rhel9_v2r7:
+      vuln_id: "V-257794"
+      stig_id: "RHEL-09-212045"
+      severity: "CAT II"
+  nist_800_53: ["CM-6", "SC-4"]
+
+platforms:
+  - family: rhel
+    min_version: 9
+
+implementations:
+  - default: true
+    check:
+      method: grub_parameter
+      key: "slub_debug"
+      expected: "P"
+    remediation:
+      mechanism: grub_parameter_set
+      key: "slub_debug"
+      value: "P"

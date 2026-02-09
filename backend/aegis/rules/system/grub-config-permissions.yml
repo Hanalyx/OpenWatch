@@ -1,0 +1,42 @@
+id: grub-config-permissions
+title: Set GRUB configuration file permissions
+description: >
+  The GRUB configuration file /boot/grub2/grub.cfg should have restrictive
+  permissions to prevent unauthorized modification.
+rationale: >
+  If the GRUB configuration can be modified by unauthorized users, they
+  could alter boot parameters to gain elevated privileges or disable
+  security features.
+severity: high
+category: system
+tags: [grub, bootloader, permissions, physical-security]
+
+references:
+  cis:
+    rhel8_v4:  { section: "1.4.2", level: "L1", type: "Automated" }
+    rhel9_v2:  { section: "1.4.2", level: "L1", type: "Automated" }
+  stig:
+    rhel9_v2r7:
+      vuln_id: "V-257778"
+      stig_id: "RHEL-09-212015"
+      severity: "CAT II"
+  nist_800_53: ["AC-3", "AC-6"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - default: true
+    check:
+      method: file_permission
+      path: "/boot/grub2/grub.cfg"
+      mode: "0600"
+      owner: "root"
+      group: "root"
+    remediation:
+      mechanism: file_permissions
+      path: "/boot/grub2/grub.cfg"
+      mode: "0600"
+      owner: "root"
+      group: "root"

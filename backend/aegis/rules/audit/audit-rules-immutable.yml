@@ -1,0 +1,32 @@
+id: audit-rules-immutable
+title: Ensure audit rules are immutable
+description: >
+  The audit configuration should be made immutable by adding '-e 2' as the
+  last rule. This prevents any modification of audit rules until the system
+  is rebooted.
+rationale: >
+  Making audit rules immutable prevents attackers from disabling or modifying
+  audit rules to hide their activities. Any attempt to change rules after
+  boot requires a reboot, making such tampering more detectable.
+severity: high
+category: audit
+tags: [audit, immutable, security, hardening]
+
+references:
+  cis:
+    rhel9_v2:  { section: "6.3.3.20", level: "L2", type: "Automated" }
+  nist_800_53: ["AU-9", "AC-6"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - default: true
+    check:
+      method: command
+      run: "grep -E '^\\s*-e\\s+2\\s*$' /etc/audit/rules.d/*.rules 2>/dev/null | tail -1"
+      expected_exit: 0
+    remediation:
+      mechanism: audit_rule_set
+      rule: "-e 2"

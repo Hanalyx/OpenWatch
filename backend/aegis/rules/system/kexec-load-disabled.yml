@@ -1,0 +1,35 @@
+id: kexec-load-disabled
+title: Disable kexec_load
+description: >
+  The kernel.kexec_load_disabled sysctl must be set to prevent loading
+  a new kernel for execution.
+rationale: >
+  kexec can be used to load and execute a new kernel, bypassing security
+  controls and potentially loading a malicious kernel. Disabling this
+  feature prevents such attacks.
+severity: medium
+category: system
+tags: [sysctl, kexec, kernel, security, stig]
+
+references:
+  stig:
+    rhel9_v2r7:
+      vuln_id: "V-257817"
+      stig_id: "RHEL-09-213025"
+      severity: "CAT II"
+  nist_800_53: ["CM-6"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - default: true
+    check:
+      method: sysctl_value
+      key: "kernel.kexec_load_disabled"
+      expected: "1"
+    remediation:
+      mechanism: sysctl_set
+      key: "kernel.kexec_load_disabled"
+      value: "1"

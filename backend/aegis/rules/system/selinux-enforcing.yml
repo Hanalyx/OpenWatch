@@ -1,0 +1,35 @@
+id: selinux-enforcing
+title: Set SELinux to enforcing mode
+description: >
+  SELinux must be configured in enforcing mode to provide mandatory
+  access control enforcement.
+rationale: >
+  Enforcing mode ensures SELinux policies are actively applied and
+  violations are blocked. Permissive mode only logs violations without
+  enforcing, leaving the system vulnerable.
+severity: high
+category: system
+tags: [selinux, mandatory-access-control, security, stig]
+
+references:
+  cis:
+    rhel9_v2:  { section: "1.6.1.2", level: "L1", type: "Automated" }
+  stig:
+    rhel9_v2r7:
+      vuln_id: "V-257811"
+      stig_id: "RHEL-09-431010"
+      severity: "CAT I"
+  nist_800_53: ["AC-3", "AC-25"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - default: true
+    check:
+      method: selinux_state
+      mode: "enforcing"
+    remediation:
+      mechanism: command_exec
+      run: "sed -i 's/^SELINUX=.*/SELINUX=enforcing/' /etc/selinux/config"

@@ -1,0 +1,69 @@
+id: ssh-hostbased-authentication
+title: Disable SSH host-based authentication
+description: >
+  The SSH daemon must not allow host-based authentication, which grants
+  access based on the identity of the connecting host rather than the
+  individual user. This authentication method trusts the remote system to
+  have already verified the user's identity.
+
+rationale: >
+  Host-based authentication delegates trust to the client machine, meaning
+  a compromised host can impersonate any of its users. An attacker who gains
+  control of a trusted host can authenticate as any user on that system
+  without knowing their credentials.
+
+severity: medium
+category: access-control
+tags: [ssh, authentication, host-based]
+
+references:
+  cis:
+    rhel10_v1:  { section: "5.1.10", level: "L1", type: "Automated" }
+    rhel8_v4:  { section: "5.1.12", level: "L1", type: "Automated" }
+    rhel9_v2:  { section: "5.1.12", level: "L1", type: "Automated" }
+  stig:
+    rhel8_v2r6:
+      vuln_id: "V-230332"
+      stig_id: "RHEL-08-010860"
+      severity: "CAT II"
+      cci: ["CCI-000366"]
+    rhel9_v2r7:
+      vuln_id: "V-257987"
+      stig_id: "RHEL-09-255055"
+      severity: "CAT II"
+      cci: ["CCI-000366"]
+  nist_800_53: ["CM-6", "AC-3"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - when: sshd_config_d
+    check:
+      method: config_value
+      path: "/etc/ssh/sshd_config.d"
+      key: "HostbasedAuthentication"
+      expected: "no"
+      scan_pattern: "*.conf"
+    remediation:
+      mechanism: config_set_dropin
+      dir: "/etc/ssh/sshd_config.d"
+      file: "00-aegis-hostbased-authentication.conf"
+      key: "HostbasedAuthentication"
+      value: "no"
+      reload: "sshd"
+
+  - default: true
+    check:
+      method: config_value
+      path: "/etc/ssh/sshd_config"
+      key: "HostbasedAuthentication"
+      expected: "no"
+    remediation:
+      mechanism: config_set
+      path: "/etc/ssh/sshd_config"
+      key: "HostbasedAuthentication"
+      value: "no"
+      separator: " "
+      reload: "sshd"

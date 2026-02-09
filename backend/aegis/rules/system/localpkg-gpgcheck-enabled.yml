@@ -1,0 +1,36 @@
+id: localpkg-gpgcheck-enabled
+title: Enable GPG checking for local packages
+description: >
+  The localpkg_gpgcheck option should be enabled to verify GPG signatures
+  on locally installed packages (RPM files not from repositories).
+rationale: >
+  Verifying local packages ensures that manually installed RPMs are
+  from trusted sources and have not been modified, preventing
+  installation of tampered or malicious packages.
+severity: medium
+category: system
+tags: [packages, gpg, dnf, local, security]
+
+references:
+  cis:
+    rhel8_v4:  { section: "1.2.3", level: "L1", type: "Automated" }
+    rhel9_v2:  { section: "1.2.3", level: "L1", type: "Automated" }
+  nist_800_53: ["CM-11(a)", "SI-7"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - default: true
+    check:
+      method: config_value
+      path: "/etc/dnf/dnf.conf"
+      key: "localpkg_gpgcheck"
+      expected: "1"
+    remediation:
+      mechanism: config_set
+      path: "/etc/dnf/dnf.conf"
+      key: "localpkg_gpgcheck"
+      value: "1"
+      separator: "="

@@ -1,0 +1,33 @@
+id: pkg-ypserv-absent
+title: Ensure ypserv package is not installed
+description: >
+  The ypserv (NIS server) package must not be installed. NIS
+  transmits data including credentials in clear text.
+rationale: >
+  NIS is an insecure directory service that has been superseded
+  by more secure alternatives like LDAP with TLS.
+severity: medium
+category: services
+tags: [package, nis, attack-surface]
+
+references:
+  stig:
+    rhel9_v2r7:
+      vuln_id: "V-257829"
+      stig_id: "RHEL-09-215030"
+      severity: "CAT II"
+  nist_800_53: ["CM-7", "SC-8"]
+
+platforms:
+  - family: rhel
+    min_version: 9
+
+implementations:
+  - default: true
+    check:
+      method: package_state
+      name: "ypserv"
+      state: "absent"
+    remediation:
+      mechanism: package_absent
+      name: "ypserv"

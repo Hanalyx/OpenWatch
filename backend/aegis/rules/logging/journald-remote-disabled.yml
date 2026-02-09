@@ -1,0 +1,32 @@
+id: journald-remote-disabled
+title: Ensure systemd-journal-remote socket is disabled
+description: >
+  The systemd-journal-remote service should be disabled unless the
+  system is specifically configured as a log collection server.
+rationale: >
+  Running a log collection service when not required increases the
+  attack surface. Only systems designated as log aggregators should
+  accept remote journal entries.
+severity: low
+category: logging
+tags: [journald, remote, logging, attack-surface]
+
+references:
+  cis:
+    rhel9_v2:  { section: "6.2.2.1.4", level: "L2", type: "Automated" }
+  nist_800_53: ["CM-7"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - default: true
+    check:
+      method: service_state
+      name: "systemd-journal-remote.socket"
+      enabled: false
+    remediation:
+      mechanism: service_masked
+      name: "systemd-journal-remote.socket"
+      stop: true

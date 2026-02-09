@@ -1,0 +1,32 @@
+id: sysctl-net-ipv6-conf-all-accept-redirects
+title: Disable IPv6 ICMP redirects on all interfaces
+description: >
+  IPv6 ICMP redirects are used by routers to inform hosts of better routes.
+  This feature should be disabled to prevent man-in-the-middle attacks.
+rationale: >
+  An attacker could send spoofed IPv6 ICMP redirect messages to divert
+  traffic through a malicious system.
+severity: medium
+category: network
+tags: [sysctl, networking, ipv6, icmp]
+
+references:
+  cis:
+    rhel8_v4:  { section: "3.3.3", level: "L1", type: "Automated" }
+    rhel9_v2:  { section: "3.3.3", level: "L1", type: "Automated" }
+  nist_800_53: ["CM-7", "SC-5"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - default: true
+    check:
+      method: sysctl_value
+      key: "net.ipv6.conf.all.accept_redirects"
+      expected: "0"
+    remediation:
+      mechanism: sysctl_set
+      key: "net.ipv6.conf.all.accept_redirects"
+      value: "0"

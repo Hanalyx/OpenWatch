@@ -1,0 +1,32 @@
+id: package-cyrus-imapd-removed
+title: Ensure cyrus-imapd is not installed
+description: >
+  The cyrus-imapd package provides IMAP mail server functionality.
+  Unless the system is a designated mail server, this package should not
+  be installed.
+rationale: >
+  IMAP servers provide network-accessible mail services and have been
+  targets of security vulnerabilities. Removing unnecessary mail server
+  software reduces the attack surface.
+severity: low
+category: services
+tags: [package, mail, imap, cyrus, attack-surface]
+
+references:
+  cis:
+    rhel9_v2:  { section: "2.1.8", level: "L1", type: "Automated" }
+  nist_800_53: ["CM-7"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - default: true
+    check:
+      method: package_state
+      name: "cyrus-imapd"
+      state: "absent"
+    remediation:
+      mechanism: package_absent
+      name: "cyrus-imapd"

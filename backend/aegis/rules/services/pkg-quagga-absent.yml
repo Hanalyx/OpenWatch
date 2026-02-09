@@ -1,0 +1,33 @@
+id: pkg-quagga-absent
+title: Ensure quagga package is not installed
+description: >
+  The quagga routing software package must not be installed unless
+  required for routing functionality.
+rationale: >
+  Routing daemons are rarely needed on general-purpose servers
+  and increase the attack surface if installed unnecessarily.
+severity: medium
+category: services
+tags: [package, routing, attack-surface]
+
+references:
+  stig:
+    rhel9_v2r7:
+      vuln_id: "V-257836"
+      stig_id: "RHEL-09-215065"
+      severity: "CAT II"
+  nist_800_53: ["CM-7"]
+
+platforms:
+  - family: rhel
+    min_version: 9
+
+implementations:
+  - default: true
+    check:
+      method: package_state
+      name: "quagga"
+      state: "absent"
+    remediation:
+      mechanism: package_absent
+      name: "quagga"

@@ -1,0 +1,31 @@
+id: package-nginx-removed
+title: Ensure nginx is not installed
+description: >
+  The nginx package provides web server functionality. Unless the system
+  is a designated web server, this package should not be installed.
+rationale: >
+  Web servers are high-profile targets for attacks. Installing nginx when
+  not needed increases the attack surface and may expose the system to
+  web-related vulnerabilities.
+severity: low
+category: services
+tags: [package, web, nginx, attack-surface]
+
+references:
+  cis:
+    rhel9_v2:  { section: "2.1.18", level: "L1", type: "Automated" }
+  nist_800_53: ["CM-7"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - default: true
+    check:
+      method: package_state
+      name: "nginx"
+      state: "absent"
+    remediation:
+      mechanism: package_absent
+      name: "nginx"

@@ -1,0 +1,33 @@
+id: audit-cmd-setfiles
+title: Audit uses of the setfiles command
+description: >
+  All uses of the setfiles command must be audited. The setfiles command
+  sets SELinux file security contexts based on policy.
+rationale: >
+  Auditing setfiles usage allows detection of bulk SELinux context
+  changes that could affect system security.
+severity: medium
+category: audit
+tags: [audit, auditd, privileged, selinux]
+
+references:
+  stig:
+    rhel9_v2r7:
+      vuln_id: "V-258185"
+      stig_id: "RHEL-09-654175"
+      severity: "CAT II"
+  nist_800_53: ["AU-2", "AU-12"]
+
+platforms:
+  - family: rhel
+    min_version: 9
+
+implementations:
+  - default: true
+    check:
+      method: audit_rule_exists
+      rule: "-a always,exit -F path=/usr/sbin/setfiles -F perm=x -F auid>=1000 -F auid!=unset -k privileged-setfiles"
+    remediation:
+      mechanism: audit_rule_set
+      rule: "-a always,exit -F path=/usr/sbin/setfiles -F perm=x -F auid>=1000 -F auid!=unset -k privileged-setfiles"
+      persist_file: "/etc/audit/rules.d/50-privileged.rules"

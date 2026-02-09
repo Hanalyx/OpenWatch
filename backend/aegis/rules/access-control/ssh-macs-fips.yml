@@ -1,0 +1,36 @@
+id: ssh-macs-fips
+title: Configure SSH to use FIPS-approved MACs
+description: >
+  The SSH daemon must be configured to use only FIPS 140-2 validated
+  Message Authentication Codes (MACs).
+rationale: >
+  FIPS-approved MACs ensure data integrity for SSH sessions. Using
+  only validated MACs prevents manipulation of encrypted traffic.
+severity: high
+category: access-control
+tags: [ssh, fips, macs, cryptography, stig]
+
+references:
+  stig:
+    rhel9_v2r7:
+      vuln_id: "V-257814"
+      stig_id: "RHEL-09-255025"
+      severity: "CAT II"
+  nist_800_53: ["SC-12", "SC-13"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - default: true
+    check:
+      method: command
+      run: "grep -E '^MACs' /etc/ssh/sshd_config | grep -qE 'hmac-sha2-256|hmac-sha2-512'"
+      expected_exit: 0
+    remediation:
+      mechanism: config_set
+      path: "/etc/ssh/sshd_config"
+      key: "MACs"
+      value: "hmac-sha2-512,hmac-sha2-256"
+      reload: "sshd"

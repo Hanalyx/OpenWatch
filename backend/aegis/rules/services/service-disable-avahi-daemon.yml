@@ -1,0 +1,32 @@
+id: service-disable-avahi-daemon
+title: Disable Avahi mDNS/DNS-SD daemon
+description: >
+  Avahi is a system daemon which implements Zeroconf networking. Unless
+  required for network discovery, this service should be disabled.
+rationale: >
+  Unnecessary services increase the attack surface. Avahi could expose
+  information about services running on the system to the local network.
+severity: medium
+category: services
+tags: [service, networking, attack-surface]
+
+references:
+  cis:
+    rhel8_v4:  { section: "2.2.2", level: "L1", type: "Automated" }
+    rhel9_v2:  { section: "2.2.2", level: "L1", type: "Automated" }
+  nist_800_53: ["CM-7"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - default: true
+    check:
+      method: service_state
+      name: "avahi-daemon"
+      state: "stopped"
+      enabled: false
+    remediation:
+      mechanism: service_masked
+      name: "avahi-daemon"

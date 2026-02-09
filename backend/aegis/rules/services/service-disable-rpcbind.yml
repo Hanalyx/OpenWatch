@@ -1,0 +1,32 @@
+id: service-disable-rpcbind
+title: Disable rpcbind service
+description: >
+  The rpcbind service maps RPC services to the ports they listen on. Unless
+  NFS or other RPC services are required, this should be disabled.
+rationale: >
+  rpcbind is required for NFS and other RPC-based services. If these are not
+  needed, rpcbind exposes unnecessary attack surface.
+severity: medium
+category: services
+tags: [service, networking, rpc, attack-surface]
+
+references:
+  cis:
+    rhel8_v4:  { section: "2.2.8", level: "L1", type: "Automated" }
+    rhel9_v2:  { section: "2.2.8", level: "L1", type: "Automated" }
+  nist_800_53: ["CM-7"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - default: true
+    check:
+      method: service_state
+      name: "rpcbind"
+      state: "stopped"
+      enabled: false
+    remediation:
+      mechanism: service_masked
+      name: "rpcbind"

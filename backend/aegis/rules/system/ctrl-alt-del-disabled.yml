@@ -1,0 +1,37 @@
+id: ctrl-alt-del-disabled
+title: Disable Ctrl-Alt-Delete reboot
+description: >
+  The Ctrl-Alt-Delete key combination should be disabled to prevent
+  unauthorized reboots from the console.
+rationale: >
+  Allowing users to reboot with Ctrl-Alt-Delete could cause denial of
+  service or allow attackers with physical access to disrupt operations
+  and potentially boot into single-user mode.
+severity: medium
+category: system
+tags: [console, reboot, physical-security]
+
+references:
+  cis:
+    rhel8_v4:  { section: "1.4.5", level: "L1", type: "Automated" }
+    rhel9_v2:  { section: "1.4.5", level: "L1", type: "Automated" }
+  stig:
+    rhel9_v2r7:
+      vuln_id: "V-257780"
+      stig_id: "RHEL-09-211045"
+      severity: "CAT I"
+  nist_800_53: ["AC-6"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - default: true
+    check:
+      method: command
+      run: "systemctl is-masked ctrl-alt-del.target"
+      expected_exit: 0
+    remediation:
+      mechanism: service_masked
+      name: "ctrl-alt-del.target"

@@ -1,0 +1,35 @@
+id: rsyslog-no-remote-receive
+title: Ensure rsyslog does not receive logs from remote clients
+description: >
+  Unless acting as a log aggregation server, rsyslog must not be
+  configured to receive log messages from remote clients.
+rationale: >
+  Receiving remote logs without proper authorization could allow
+  attackers to flood logs or inject false log entries.
+severity: medium
+category: logging
+tags: [logging, rsyslog, remote]
+
+references:
+  cis:
+    rhel9_v2:  { section: "6.2.3.7", level: "L1", type: "Automated" }
+  stig:
+    rhel9_v2r7:
+      vuln_id: "V-258143"
+      stig_id: "RHEL-09-652025"
+      severity: "CAT II"
+  nist_800_53: ["CM-7", "AU-9"]
+
+platforms:
+  - family: rhel
+    min_version: 9
+
+implementations:
+  - default: true
+    check:
+      method: command
+      run: 'grep -r "ModLoad imtcp\|InputTCPServerRun\|module(load=.imtcp.)\|input(type=.imtcp.)" /etc/rsyslog.conf /etc/rsyslog.d/*.conf 2>/dev/null | wc -l | grep -q "^0$"'
+      expected_exit: 0
+    remediation:
+      mechanism: manual
+      note: "Remove imtcp module loading and TCP input configuration from /etc/rsyslog.conf and /etc/rsyslog.d/"

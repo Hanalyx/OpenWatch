@@ -1,0 +1,30 @@
+id: package-openldap-clients-removed
+title: Ensure LDAP client is not installed
+description: >
+  The openldap-clients package should not be installed unless the
+  system requires LDAP client functionality for directory services.
+rationale: >
+  Unless the system authenticates against an LDAP directory, the LDAP
+  client tools are not needed and increase the attack surface.
+severity: low
+category: services
+tags: [package, ldap, client, attack-surface]
+
+references:
+  cis:
+    rhel9_v2:  { section: "2.2.4", level: "L1", type: "Automated" }
+  nist_800_53: ["CM-7"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - default: true
+    check:
+      method: package_state
+      name: "openldap-clients"
+      state: "absent"
+    remediation:
+      mechanism: package_absent
+      name: "openldap-clients"

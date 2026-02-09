@@ -1,0 +1,33 @@
+id: audit-cmd-poweroff
+title: Audit uses of the poweroff command
+description: >
+  All uses of the poweroff command must be audited. The poweroff
+  command halts the system.
+rationale: >
+  Auditing poweroff command usage allows detection of unauthorized
+  system shutdowns that could cause service disruption.
+severity: medium
+category: audit
+tags: [audit, auditd, privileged, system]
+
+references:
+  stig:
+    rhel9_v2r7:
+      vuln_id: "V-258212"
+      stig_id: "RHEL-09-654310"
+      severity: "CAT II"
+  nist_800_53: ["AU-2", "AU-12"]
+
+platforms:
+  - family: rhel
+    min_version: 9
+
+implementations:
+  - default: true
+    check:
+      method: audit_rule_exists
+      rule: "-a always,exit -F path=/usr/sbin/poweroff -F perm=x -F auid>=1000 -F auid!=unset -k privileged-poweroff"
+    remediation:
+      mechanism: audit_rule_set
+      rule: "-a always,exit -F path=/usr/sbin/poweroff -F perm=x -F auid>=1000 -F auid!=unset -k privileged-poweroff"
+      persist_file: "/etc/audit/rules.d/50-privileged.rules"

@@ -1,0 +1,41 @@
+id: pam-pwquality-dictcheck
+title: Enable dictionary check for passwords
+description: >
+  The dictcheck parameter in /etc/security/pwquality.conf enables checking
+  whether passwords are based on dictionary words.
+rationale: >
+  Dictionary words and common phrases are easily guessed by attackers using
+  dictionary attacks. Enabling dictionary checking prevents users from
+  using weak passwords based on common words.
+severity: medium
+category: access-control
+tags: [pam, password, authentication, pwquality]
+
+references:
+  cis:
+    rhel8_v4:  { section: "5.4.1.10", level: "L1", type: "Automated" }
+    rhel9_v2:  { section: "5.4.1",    level: "L1", type: "Automated" }
+  stig:
+    rhel9_v2r7:
+      vuln_id: "V-258048"
+      stig_id: "RHEL-09-611080"
+      severity: "CAT II"
+  nist_800_53: ["IA-5(1)(a)"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - default: true
+    check:
+      method: config_value
+      path: "/etc/security/pwquality.conf"
+      key: "dictcheck"
+      expected: "1"
+    remediation:
+      mechanism: config_set
+      path: "/etc/security/pwquality.conf"
+      key: "dictcheck"
+      value: "1"
+      separator: " = "

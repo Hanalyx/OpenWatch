@@ -1,0 +1,37 @@
+id: banner-dod-consent
+title: Configure DoD consent banner
+description: >
+  The system must display the Standard Mandatory DoD Notice and Consent
+  Banner before granting local or remote access.
+rationale: >
+  Display of a DoD-approved system use notification message provides
+  privacy and security notices consistent with applicable federal laws
+  and is a requirement for federal systems.
+severity: medium
+category: system
+tags: [banner, dod, compliance, stig]
+
+references:
+  stig:
+    rhel9_v2r7:
+      vuln_id: "V-257799"
+      stig_id: "RHEL-09-271010"
+      severity: "CAT II"
+  nist_800_53: ["AC-8"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - default: true
+    check:
+      method: command
+      run: "grep -Ei 'authorized|consent|monitoring|privacy' /etc/issue 2>/dev/null"
+      expected_exit: 0
+    remediation:
+      mechanism: manual
+      description: >
+        Configure /etc/issue with your organization's approved login
+        banner. For DoD systems, use the Standard Mandatory DoD Notice
+        and Consent Banner.

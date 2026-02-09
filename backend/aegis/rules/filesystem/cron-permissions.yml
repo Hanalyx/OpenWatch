@@ -1,0 +1,89 @@
+id: cron-permissions
+title: Set permissions on cron directories and files
+description: >
+  The /etc/crontab file and cron directories (/etc/cron.d, /etc/cron.hourly,
+  /etc/cron.daily, /etc/cron.weekly, /etc/cron.monthly) must have restrictive
+  permissions to prevent unauthorized modification of scheduled tasks.
+rationale: >
+  Cron jobs run with the privileges specified in the crontab or as root for
+  system cron directories. Unauthorized modification of these files could
+  allow privilege escalation or persistent backdoor access.
+severity: high
+category: filesystem
+tags: [cron, permissions, security, hardening]
+
+references:
+  cis:
+    rhel9_v2:  { section: "2.4.1.2", level: "L1", type: "Automated" }
+  nist_800_53: ["AC-6", "CM-6"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - default: true
+    check:
+      checks:
+        - method: file_permission
+          path: "/etc/crontab"
+          mode: "0600"
+          owner: "root"
+          group: "root"
+        - method: file_permission
+          path: "/etc/cron.d"
+          mode: "0700"
+          owner: "root"
+          group: "root"
+        - method: file_permission
+          path: "/etc/cron.hourly"
+          mode: "0700"
+          owner: "root"
+          group: "root"
+        - method: file_permission
+          path: "/etc/cron.daily"
+          mode: "0700"
+          owner: "root"
+          group: "root"
+        - method: file_permission
+          path: "/etc/cron.weekly"
+          mode: "0700"
+          owner: "root"
+          group: "root"
+        - method: file_permission
+          path: "/etc/cron.monthly"
+          mode: "0700"
+          owner: "root"
+          group: "root"
+    remediation:
+      steps:
+        - mechanism: file_permissions
+          path: "/etc/crontab"
+          mode: "0600"
+          owner: "root"
+          group: "root"
+        - mechanism: file_permissions
+          path: "/etc/cron.d"
+          mode: "0700"
+          owner: "root"
+          group: "root"
+        - mechanism: file_permissions
+          path: "/etc/cron.hourly"
+          mode: "0700"
+          owner: "root"
+          group: "root"
+        - mechanism: file_permissions
+          path: "/etc/cron.daily"
+          mode: "0700"
+          owner: "root"
+          group: "root"
+        - mechanism: file_permissions
+          path: "/etc/cron.weekly"
+          mode: "0700"
+          owner: "root"
+          group: "root"
+        - mechanism: file_permissions
+          path: "/etc/cron.monthly"
+          mode: "0700"
+          owner: "root"
+          group: "root"

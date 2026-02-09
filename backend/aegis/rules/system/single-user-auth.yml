@@ -1,0 +1,40 @@
+id: single-user-auth
+title: Require authentication for single-user mode
+description: >
+  Single-user mode (rescue mode) must require the root password for
+  authentication to prevent unauthorized access to the system.
+rationale: >
+  Single-user mode provides root access to the system. Without
+  authentication, anyone with physical access could boot into
+  single-user mode and gain full control of the system.
+severity: high
+category: system
+tags: [authentication, single-user, rescue, physical-security]
+
+references:
+  cis:
+    rhel8_v4:  { section: "1.4.4", level: "L1", type: "Automated" }
+    rhel9_v2:  { section: "1.4.4", level: "L1", type: "Automated" }
+  stig:
+    rhel9_v2r7:
+      vuln_id: "V-257779"
+      stig_id: "RHEL-09-611200"
+      severity: "CAT II"
+  nist_800_53: ["AC-3", "IA-2"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - default: true
+    check:
+      method: command
+      run: "grep -E '^ExecStart=' /usr/lib/systemd/system/rescue.service | grep -q 'sulogin'"
+      expected_exit: 0
+    remediation:
+      mechanism: manual
+      description: >
+        The rescue.service unit should use sulogin for authentication.
+        This is the default on RHEL 8/9. If modified, restore the default:
+        systemctl revert rescue.service

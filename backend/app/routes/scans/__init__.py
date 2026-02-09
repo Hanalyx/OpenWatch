@@ -109,6 +109,11 @@ Router Organization:
         GET  /rules/{rule_id}/history            - Get rule scan history
         GET  /rules/{rule_id}/compliance-info    - Get rule compliance info
         POST /rules/remediation-plan             - Generate remediation plan
+
+    Aegis Router (aegis.py) - E0-S5:
+        POST /aegis                              - Execute Aegis compliance scan
+        GET  /aegis/frameworks                   - List available frameworks
+        GET  /aegis/health                       - Aegis engine health check
 """
 
 from fastapi import APIRouter
@@ -142,6 +147,11 @@ router.include_router(rules_router)
 from app.routes.scans.mongodb import router as mongodb_router  # noqa: E402
 
 router.include_router(mongodb_router)
+
+# Aegis compliance engine router (E0-S5 API Endpoints)
+from app.routes.scans.aegis import router as aegis_router  # noqa: E402
+
+router.include_router(aegis_router)
 
 # Core routers (more generic patterns)
 router.include_router(compliance_router)

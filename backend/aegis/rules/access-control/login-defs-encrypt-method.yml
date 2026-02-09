@@ -1,0 +1,39 @@
+id: login-defs-encrypt-method
+title: Set password encryption algorithm to SHA-512
+description: >
+  The ENCRYPT_METHOD parameter in /etc/login.defs defines the encryption
+  algorithm used for hashing passwords in /etc/shadow.
+rationale: >
+  SHA-512 provides a stronger hash than MD5 or SHA-256, making it more
+  resistant to brute-force attacks. Modern systems should use SHA-512.
+severity: high
+category: access-control
+tags: [password, authentication, cryptography, login-defs]
+
+references:
+  cis:
+    rhel8_v4:  { section: "5.6.4", level: "L1", type: "Automated" }
+    rhel9_v2:  { section: "5.6.4", level: "L1", type: "Automated" }
+  stig:
+    rhel9_v2r7:
+      vuln_id: "V-258095"
+      stig_id: "RHEL-09-611195"
+      severity: "CAT II"
+  nist_800_53: ["IA-5(1)(c)"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - default: true
+    check:
+      method: config_value
+      path: "/etc/login.defs"
+      key: "ENCRYPT_METHOD"
+      expected: "SHA512"
+    remediation:
+      mechanism: config_set
+      path: "/etc/login.defs"
+      key: "ENCRYPT_METHOD"
+      value: "SHA512"

@@ -1,0 +1,35 @@
+id: pam-faillock-even-deny-root
+title: Apply account lockout to root account
+description: >
+  The account lockout policy must apply to the root account to prevent
+  brute-force attacks against the superuser.
+rationale: >
+  The root account is a high-value target for attackers. Applying
+  lockout policies prevents unlimited password guessing attempts
+  against the most privileged account.
+severity: high
+category: access-control
+tags: [pam, faillock, root, account-lockout, stig]
+
+references:
+  stig:
+    rhel9_v2r7:
+      vuln_id: "V-257816"
+      stig_id: "RHEL-09-411085"
+      severity: "CAT II"
+  nist_800_53: ["AC-7"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - default: true
+    check:
+      method: config_value
+      path: "/etc/security/faillock.conf"
+      key: "even_deny_root"
+      expected: ""
+    remediation:
+      mechanism: command_exec
+      run: "grep -q '^even_deny_root' /etc/security/faillock.conf || echo 'even_deny_root' >> /etc/security/faillock.conf"

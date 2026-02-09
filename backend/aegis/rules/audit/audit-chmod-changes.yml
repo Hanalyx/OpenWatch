@@ -1,0 +1,33 @@
+id: audit-chmod-changes
+title: Audit file permission modification syscalls
+description: >
+  The chmod, fchmod, and fchmodat system calls must be audited. These
+  syscalls change file permissions and can be used to weaken security.
+rationale: >
+  Auditing permission changes allows detection of unauthorized attempts
+  to modify file access controls and potential privilege escalation.
+severity: medium
+category: audit
+tags: [audit, auditd, permissions, chmod]
+
+references:
+  stig:
+    rhel9_v2r7:
+      vuln_id: "V-258177"
+      stig_id: "RHEL-09-654135"
+      severity: "CAT II"
+  nist_800_53: ["AU-2", "AU-12", "CM-6"]
+
+platforms:
+  - family: rhel
+    min_version: 9
+
+implementations:
+  - default: true
+    check:
+      method: audit_rule_exists
+      rule: "-a always,exit -F arch=b64 -S chmod,fchmod,fchmodat -F auid>=1000 -F auid!=unset -k perm_mod"
+    remediation:
+      mechanism: audit_rule_set
+      rule: "-a always,exit -F arch=b64 -S chmod,fchmod,fchmodat -F auid>=1000 -F auid!=unset -k perm_mod"
+      persist_file: "/etc/audit/rules.d/50-perm_mod.rules"

@@ -1,0 +1,33 @@
+id: audit-cmd-shutdown
+title: Audit uses of the shutdown command
+description: >
+  All uses of the shutdown command must be audited. The shutdown
+  command halts, powers off, or reboots the system.
+rationale: >
+  Auditing shutdown command usage allows detection of unauthorized
+  system state changes that could cause service disruption.
+severity: medium
+category: audit
+tags: [audit, auditd, privileged, system]
+
+references:
+  stig:
+    rhel9_v2r7:
+      vuln_id: "V-258214"
+      stig_id: "RHEL-09-654320"
+      severity: "CAT II"
+  nist_800_53: ["AU-2", "AU-12"]
+
+platforms:
+  - family: rhel
+    min_version: 9
+
+implementations:
+  - default: true
+    check:
+      method: audit_rule_exists
+      rule: "-a always,exit -F path=/usr/sbin/shutdown -F perm=x -F auid>=1000 -F auid!=unset -k privileged-shutdown"
+    remediation:
+      mechanism: audit_rule_set
+      rule: "-a always,exit -F path=/usr/sbin/shutdown -F perm=x -F auid>=1000 -F auid!=unset -k privileged-shutdown"
+      persist_file: "/etc/audit/rules.d/50-privileged.rules"

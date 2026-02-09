@@ -1,0 +1,32 @@
+id: service-disable-rsync
+title: Disable rsync daemon
+description: >
+  The rsync daemon allows remote file synchronization. Unless the system needs
+  to serve files via rsync, this service should be disabled.
+rationale: >
+  Running an unnecessary rsync daemon could allow unauthorized file access
+  if misconfigured.
+severity: medium
+category: services
+tags: [service, networking, rsync, attack-surface]
+
+references:
+  cis:
+    rhel8_v4:  { section: "2.2.20", level: "L1", type: "Automated" }
+    rhel9_v2:  { section: "2.2.20", level: "L1", type: "Automated" }
+  nist_800_53: ["CM-7"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - default: true
+    check:
+      method: service_state
+      name: "rsyncd"
+      state: "stopped"
+      enabled: false
+    remediation:
+      mechanism: service_masked
+      name: "rsyncd"

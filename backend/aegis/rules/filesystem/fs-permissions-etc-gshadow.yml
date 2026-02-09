@@ -1,0 +1,41 @@
+id: fs-permissions-etc-gshadow
+title: Set permissions on /etc/gshadow
+description: >
+  The /etc/gshadow file contains group password hashes and must have
+  restrictive permissions to prevent unauthorized access.
+rationale: >
+  The gshadow file contains encrypted group passwords. Unauthorized
+  access could allow offline password cracking or group impersonation.
+severity: high
+category: filesystem
+tags: [permissions, gshadow, password, security]
+
+references:
+  cis:
+    rhel8_v4:  { section: "6.1.6", level: "L1", type: "Automated" }
+    rhel9_v2:  { section: "6.1.6", level: "L1", type: "Automated" }
+  stig:
+    rhel9_v2r7:
+      vuln_id: "V-258134"
+      stig_id: "RHEL-09-232040"
+      severity: "CAT II"
+  nist_800_53: ["AC-3", "AC-6"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - default: true
+    check:
+      method: file_permission
+      path: "/etc/gshadow"
+      mode: "0000"
+      owner: "root"
+      group: "root"
+    remediation:
+      mechanism: file_permissions
+      path: "/etc/gshadow"
+      mode: "0000"
+      owner: "root"
+      group: "root"

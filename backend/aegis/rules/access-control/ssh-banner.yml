@@ -1,0 +1,70 @@
+id: ssh-banner
+title: Configure SSH warning banner
+description: >
+  The SSH daemon must display a warning banner before authentication. The
+  Banner directive specifies a file whose contents are sent to connecting
+  clients prior to authentication, providing legal notice that the system
+  is monitored and unauthorized access is prohibited.
+
+rationale: >
+  A pre-authentication banner establishes the legal basis for monitoring
+  and prosecution of unauthorized access. Without a warning banner, an
+  attacker may claim they were unaware the system was restricted, weakening
+  the organization's legal standing in the event of a security incident or
+  prosecution.
+
+severity: low
+category: access-control
+tags: [ssh, banner, notice]
+
+references:
+  cis:
+    rhel10_v1:  { section: "5.1.5", level: "L1", type: "Automated" }
+    rhel8_v4:  { section: "5.1.7", level: "L1", type: "Automated" }
+    rhel9_v2:  { section: "5.1.8", level: "L1", type: "Automated" }
+  stig:
+    rhel8_v2r6:
+      vuln_id: "V-230225"
+      stig_id: "RHEL-08-010040"
+      severity: "CAT II"
+      cci: ["CCI-000048"]
+    rhel9_v2r7:
+      vuln_id: "V-257981"
+      stig_id: "RHEL-09-255025"
+      severity: "CAT II"
+      cci: ["CCI-000048"]
+  nist_800_53: ["AC-8"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - when: sshd_config_d
+    check:
+      method: config_value
+      path: "/etc/ssh/sshd_config.d"
+      key: "Banner"
+      expected: "/etc/issue"
+      scan_pattern: "*.conf"
+    remediation:
+      mechanism: config_set_dropin
+      dir: "/etc/ssh/sshd_config.d"
+      file: "00-aegis-banner.conf"
+      key: "Banner"
+      value: "/etc/issue"
+      reload: "sshd"
+
+  - default: true
+    check:
+      method: config_value
+      path: "/etc/ssh/sshd_config"
+      key: "Banner"
+      expected: "/etc/issue"
+    remediation:
+      mechanism: config_set
+      path: "/etc/ssh/sshd_config"
+      key: "Banner"
+      value: "/etc/issue"
+      separator: " "
+      reload: "sshd"

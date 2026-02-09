@@ -1,0 +1,37 @@
+id: no-netrc-files
+title: Ensure no .netrc files exist
+description: >
+  The .netrc file stores FTP credentials in plaintext. These files
+  should not exist in user home directories as they pose a significant
+  security risk.
+rationale: >
+  Netrc files contain plaintext passwords for FTP servers. Attackers
+  who gain read access to a user's home directory can harvest these
+  credentials for further access.
+severity: medium
+category: filesystem
+tags: [ftp, credentials, user-files, security]
+
+references:
+  cis:
+    rhel9_v2:  { section: "7.2.9", level: "L1", type: "Automated" }
+  nist_800_53: ["IA-5", "AC-6"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - default: true
+    check:
+      method: command
+      run: "find /home -name '.netrc' -type f 2>/dev/null | head -1"
+      expected_exit: 0
+      expected_stdout: ""
+    remediation:
+      mechanism: manual
+      note: >
+        Review and remove .netrc files from user home directories.
+        Use 'find /home -name .netrc -type f' to locate files.
+        Work with users to migrate to more secure authentication
+        methods such as SSH keys or password managers.

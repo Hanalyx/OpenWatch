@@ -1,0 +1,32 @@
+id: package-telnet-removed
+title: Ensure telnet client is not installed
+description: >
+  The telnet package provides an insecure remote login client that
+  transmits credentials and data in cleartext. It should not be
+  installed.
+rationale: >
+  Telnet transmits all data including passwords in cleartext, making
+  it trivial to intercept credentials. SSH should be used for all
+  remote access needs.
+severity: medium
+category: services
+tags: [package, telnet, client, security]
+
+references:
+  cis:
+    rhel9_v2:  { section: "2.2.5", level: "L1", type: "Automated" }
+  nist_800_53: ["CM-7", "IA-5"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - default: true
+    check:
+      method: package_state
+      name: "telnet"
+      state: "absent"
+    remediation:
+      mechanism: package_absent
+      name: "telnet"

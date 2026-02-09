@@ -1,0 +1,32 @@
+id: service-disable-tftp
+title: Disable TFTP server
+description: >
+  TFTP (Trivial File Transfer Protocol) is a simple file transfer protocol
+  with no authentication. It should be disabled unless specifically required.
+rationale: >
+  TFTP provides no authentication or encryption. An attacker could download
+  sensitive files or upload malicious content.
+severity: high
+category: services
+tags: [service, networking, tftp, attack-surface]
+
+references:
+  cis:
+    rhel8_v4:  { section: "2.2.19", level: "L1", type: "Automated" }
+    rhel9_v2:  { section: "2.2.19", level: "L1", type: "Automated" }
+  nist_800_53: ["CM-7", "IA-5"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - default: true
+    check:
+      method: service_state
+      name: "tftp.socket"
+      state: "stopped"
+      enabled: false
+    remediation:
+      mechanism: service_masked
+      name: "tftp.socket"

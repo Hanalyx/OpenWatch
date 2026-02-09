@@ -1,0 +1,33 @@
+id: audit-cmd-postqueue
+title: Audit uses of the postqueue command
+description: >
+  All uses of the postqueue command must be audited. The postqueue command
+  provides queue management for the Postfix mail system.
+rationale: >
+  Auditing postqueue command usage allows detection of mail queue
+  operations that could be used to hide data exfiltration.
+severity: medium
+category: audit
+tags: [audit, auditd, privileged, postfix, mail]
+
+references:
+  stig:
+    rhel9_v2r7:
+      vuln_id: "V-258200"
+      stig_id: "RHEL-09-654250"
+      severity: "CAT II"
+  nist_800_53: ["AU-2", "AU-12"]
+
+platforms:
+  - family: rhel
+    min_version: 9
+
+implementations:
+  - default: true
+    check:
+      method: audit_rule_exists
+      rule: "-a always,exit -F path=/usr/sbin/postqueue -F perm=x -F auid>=1000 -F auid!=unset -k privileged-postqueue"
+    remediation:
+      mechanism: audit_rule_set
+      rule: "-a always,exit -F path=/usr/sbin/postqueue -F perm=x -F auid>=1000 -F auid!=unset -k privileged-postqueue"
+      persist_file: "/etc/audit/rules.d/50-privileged.rules"

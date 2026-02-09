@@ -1,0 +1,33 @@
+id: interactive-boot-disabled
+title: Disable interactive boot
+description: >
+  The ability to spawn an interactive boot process must be disabled.
+  Interactive boot allows bypassing normal security controls.
+rationale: >
+  Interactive boot mode could allow an attacker with physical access
+  to bypass authentication and access the system.
+severity: medium
+category: services
+tags: [boot, systemd, security]
+
+references:
+  stig:
+    rhel9_v2r7:
+      vuln_id: "V-257788"
+      stig_id: "RHEL-09-211035"
+      severity: "CAT II"
+  nist_800_53: ["CM-6", "AC-3"]
+
+platforms:
+  - family: rhel
+    min_version: 9
+
+implementations:
+  - default: true
+    check:
+      method: command
+      run: "grep -E '^[^#]*systemd.confirm_spawn' /proc/cmdline && exit 1 || exit 0"
+      expected_exit: 0
+    remediation:
+      mechanism: grub_parameter_remove
+      name: "systemd.confirm_spawn"

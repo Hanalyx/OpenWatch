@@ -1,0 +1,41 @@
+id: audit-network-changes
+title: Audit network environment changes
+description: >
+  Changes to the network environment must be audited. This includes modifications
+  to hostname, network configuration, and domain settings.
+rationale: >
+  Auditing network changes allows detection of unauthorized modifications that
+  could redirect traffic or change the system's network identity.
+severity: medium
+category: audit
+tags: [audit, auditd, network]
+
+references:
+  cis:
+    rhel8_v4:  { section: "4.1.3.6", level: "L2", type: "Automated" }
+    rhel9_v2:  { section: "4.1.3.6", level: "L2", type: "Automated" }
+  stig:
+    rhel9_v2r7:
+      vuln_id: "V-257872"
+      stig_id: "RHEL-09-654020"
+      severity: "CAT II"
+  nist_800_53: ["AU-2", "AU-12", "CM-6"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - default: true
+    check:
+      method: command
+      # Check network environment syscalls are audited (flexible format matching)
+      run: |
+        rules=$(auditctl -l 2>/dev/null)
+        echo "$rules" | grep -qE '^-a always,exit.*-S.*sethostname' && \
+        echo "$rules" | grep -qE '^-a always,exit.*-S.*setdomainname'
+      expected_exit: 0
+    remediation:
+      mechanism: audit_rule_set
+      rule: "-a always,exit -F arch=b64 -S sethostname,setdomainname -k system-locale"
+      persist_file: "/etc/audit/rules.d/50-system-locale.rules"

@@ -1,0 +1,33 @@
+id: kmod-disable-atm
+title: Disable ATM kernel module
+description: >
+  The ATM (Asynchronous Transfer Mode) kernel module must be
+  disabled. ATM is an obsolete networking protocol.
+rationale: >
+  Disabling unused kernel modules reduces the kernel attack
+  surface and eliminates potential vulnerabilities.
+severity: medium
+category: kernel
+tags: [kernel, module, atm, attack-surface]
+
+references:
+  stig:
+    rhel9_v2r7:
+      vuln_id: "V-257804"
+      stig_id: "RHEL-09-213035"
+      severity: "CAT II"
+  nist_800_53: ["CM-7"]
+
+platforms:
+  - family: rhel
+    min_version: 9
+
+implementations:
+  - default: true
+    check:
+      method: kernel_module_state
+      name: "atm"
+      state: "disabled"
+    remediation:
+      mechanism: kernel_module_disable
+      name: "atm"

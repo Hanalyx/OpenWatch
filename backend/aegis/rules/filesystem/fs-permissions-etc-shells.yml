@@ -1,0 +1,36 @@
+id: fs-permissions-etc-shells
+title: Set permissions on /etc/shells
+description: >
+  The /etc/shells file must have restrictive permissions to prevent
+  unauthorized modification of the list of valid login shells.
+rationale: >
+  The shells file controls which shells are valid for user login and
+  FTP access. Unauthorized modification could allow attackers to add
+  malicious shells or enable access through unexpected programs.
+severity: medium
+category: filesystem
+tags: [permissions, shells, authentication, security]
+
+references:
+  cis:
+    rhel9_v2:  { section: "7.1.9", level: "L1", type: "Automated" }
+  nist_800_53: ["AC-6", "CM-6"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - default: true
+    check:
+      method: file_permission
+      path: "/etc/shells"
+      mode: "0644"
+      owner: "root"
+      group: "root"
+    remediation:
+      mechanism: file_permissions
+      path: "/etc/shells"
+      mode: "0644"
+      owner: "root"
+      group: "root"

@@ -1,0 +1,42 @@
+id: pam-pwquality-difok
+title: Require changed characters from previous password
+description: >
+  The difok parameter in /etc/security/pwquality.conf sets the minimum
+  number of characters that must differ from the previous password.
+rationale: >
+  Requiring a minimum number of changed characters prevents users from
+  making trivial changes to their existing password, such as incrementing
+  a number at the end.
+severity: medium
+category: access-control
+tags: [pam, password, authentication, pwquality]
+
+references:
+  cis:
+    rhel8_v4:  { section: "5.4.1.9", level: "L1", type: "Automated" }
+    rhel9_v2:  { section: "5.4.1",   level: "L1", type: "Automated" }
+  stig:
+    rhel9_v2r7:
+      vuln_id: "V-258047"
+      stig_id: "RHEL-09-611070"
+      severity: "CAT II"
+  nist_800_53: ["IA-5(1)(b)"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - default: true
+    check:
+      method: config_value
+      path: "/etc/security/pwquality.conf"
+      key: "difok"
+      expected: "{{ pam_pwquality_difok }}"
+      comparator: ">="
+    remediation:
+      mechanism: config_set
+      path: "/etc/security/pwquality.conf"
+      key: "difok"
+      value: "{{ pam_pwquality_difok }}"
+      separator: " = "

@@ -1,0 +1,37 @@
+id: service-disable-telnet
+title: Disable telnet server
+description: >
+  Telnet is an insecure protocol that transmits data including passwords
+  in clear text. SSH should be used instead.
+rationale: >
+  Telnet transmits all data unencrypted, including credentials. An attacker
+  can intercept telnet sessions and capture passwords.
+severity: critical
+category: services
+tags: [service, networking, telnet, attack-surface]
+
+references:
+  cis:
+    rhel8_v4:  { section: "2.2.18", level: "L1", type: "Automated" }
+    rhel9_v2:  { section: "2.2.18", level: "L1", type: "Automated" }
+  stig:
+    rhel9_v2r7:
+      vuln_id: "V-257779"
+      stig_id: "RHEL-09-215015"
+      severity: "CAT I"
+  nist_800_53: ["CM-7", "IA-5"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - default: true
+    check:
+      method: service_state
+      name: "telnet.socket"
+      state: "stopped"
+      enabled: false
+    remediation:
+      mechanism: service_masked
+      name: "telnet.socket"

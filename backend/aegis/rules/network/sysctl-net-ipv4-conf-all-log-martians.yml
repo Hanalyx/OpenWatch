@@ -1,0 +1,32 @@
+id: sysctl-net-ipv4-conf-all-log-martians
+title: Enable logging of martian packets on all interfaces
+description: >
+  Martian packets are packets with impossible source addresses. Logging these
+  packets helps identify misconfigured systems or potential attacks.
+rationale: >
+  Logging packets with impossible addresses helps detect network
+  misconfigurations and potential spoofing attacks for forensic analysis.
+severity: low
+category: network
+tags: [sysctl, networking, ipv4, logging]
+
+references:
+  cis:
+    rhel8_v4:  { section: "3.3.6", level: "L1", type: "Automated" }
+    rhel9_v2:  { section: "3.3.6", level: "L1", type: "Automated" }
+  nist_800_53: ["AU-12", "SC-5"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - default: true
+    check:
+      method: sysctl_value
+      key: "net.ipv4.conf.all.log_martians"
+      expected: "1"
+    remediation:
+      mechanism: sysctl_set
+      key: "net.ipv4.conf.all.log_martians"
+      value: "1"

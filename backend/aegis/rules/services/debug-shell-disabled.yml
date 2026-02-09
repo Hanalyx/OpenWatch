@@ -1,0 +1,34 @@
+id: debug-shell-disabled
+title: Disable debug-shell systemd service
+description: >
+  The debug-shell service must be disabled. This service provides
+  an unauthenticated root shell for system debugging.
+rationale: >
+  The debug-shell service bypasses all authentication and provides
+  direct root access, creating a severe security vulnerability.
+severity: high
+category: services
+tags: [service, systemd, debug, security]
+
+references:
+  stig:
+    rhel9_v2r7:
+      vuln_id: "V-257786"
+      stig_id: "RHEL-09-211025"
+      severity: "CAT II"
+  nist_800_53: ["CM-7", "IA-2"]
+
+platforms:
+  - family: rhel
+    min_version: 9
+
+implementations:
+  - default: true
+    check:
+      method: service_state
+      name: "debug-shell"
+      state: "stopped"
+      enabled: false
+    remediation:
+      mechanism: service_masked
+      name: "debug-shell"

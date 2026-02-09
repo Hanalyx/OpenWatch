@@ -1,0 +1,34 @@
+id: crypto-policy-fips
+title: Set system-wide crypto policy to FIPS
+description: >
+  The system-wide cryptographic policy must be set to FIPS to ensure
+  all applications use FIPS-validated cryptographic algorithms.
+rationale: >
+  A FIPS crypto policy enforces the use of FIPS 140-2 validated algorithms
+  across all system applications, ensuring consistent cryptographic
+  security throughout the system.
+severity: high
+category: system
+tags: [crypto-policy, fips, cryptography, stig]
+
+references:
+  stig:
+    rhel9_v2r7:
+      vuln_id: "V-257788"
+      stig_id: "RHEL-09-671015"
+      severity: "CAT I"
+  nist_800_53: ["SC-12", "SC-13"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - default: true
+    check:
+      method: command
+      run: "update-crypto-policies --show | grep -qE '^FIPS'"
+      expected_exit: 0
+    remediation:
+      mechanism: command_exec
+      run: "update-crypto-policies --set FIPS"
