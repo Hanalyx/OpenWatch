@@ -1,0 +1,35 @@
+id: login-defs-pass-warn-age
+title: Set password expiration warning days
+description: >
+  The PASS_WARN_AGE parameter in /etc/login.defs defines the number of days
+  warning given before a password expires.
+rationale: >
+  Warning users in advance of password expiration gives them time to change
+  their password before it expires and avoids lockouts. 7 days is recommended.
+severity: low
+category: access-control
+tags: [password, authentication, user-accounts, login-defs]
+
+references:
+  cis:
+    rhel8_v4:  { section: "5.6.1.3", level: "L1", type: "Automated" }
+    rhel9_v2:  { section: "5.6.1.3", level: "L1", type: "Automated" }
+  nist_800_53: ["IA-5(1)(d)"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - default: true
+    check:
+      method: config_value
+      path: "/etc/login.defs"
+      key: "PASS_WARN_AGE"
+      expected: "7"
+      comparator: ">="
+    remediation:
+      mechanism: config_set
+      path: "/etc/login.defs"
+      key: "PASS_WARN_AGE"
+      value: "7"

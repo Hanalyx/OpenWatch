@@ -1,0 +1,33 @@
+id: pkg-nfs-utils-absent
+title: Ensure nfs-utils package is not installed
+description: >
+  The nfs-utils package must not be installed unless NFS is required.
+  NFS can expose sensitive data if not properly secured.
+rationale: >
+  Removing NFS when not required reduces the attack surface and
+  eliminates risk of misconfigured network shares.
+severity: medium
+category: services
+tags: [package, nfs, attack-surface]
+
+references:
+  stig:
+    rhel9_v2r7:
+      vuln_id: "V-257828"
+      stig_id: "RHEL-09-215025"
+      severity: "CAT II"
+  nist_800_53: ["CM-7"]
+
+platforms:
+  - family: rhel
+    min_version: 9
+
+implementations:
+  - default: true
+    check:
+      method: package_state
+      name: "nfs-utils"
+      state: "absent"
+    remediation:
+      mechanism: package_absent
+      name: "nfs-utils"

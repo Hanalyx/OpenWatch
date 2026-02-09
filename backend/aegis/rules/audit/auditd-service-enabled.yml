@@ -1,0 +1,37 @@
+id: auditd-service-enabled
+title: Enable and start auditd service
+description: >
+  The auditd service must be enabled and running to collect audit events.
+  Without auditd, security-relevant events are not logged.
+rationale: >
+  Auditd provides the kernel audit framework that records security-relevant
+  events. Without it, there is no forensic evidence of system activity.
+severity: high
+category: audit
+tags: [audit, auditd, service]
+
+references:
+  cis:
+    rhel8_v4:  { section: "4.1.1.1", level: "L2", type: "Automated" }
+    rhel9_v2:  { section: "4.1.1.1", level: "L2", type: "Automated" }
+  stig:
+    rhel9_v2r7:
+      vuln_id: "V-257868"
+      stig_id: "RHEL-09-653010"
+      severity: "CAT II"
+  nist_800_53: ["AU-2", "AU-3", "AU-12"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - default: true
+    check:
+      method: service_state
+      name: "auditd"
+      state: "running"
+      enabled: true
+    remediation:
+      mechanism: service_enabled
+      name: "auditd"

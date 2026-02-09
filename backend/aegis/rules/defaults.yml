@@ -1,0 +1,69 @@
+# Aegis Rule Variable Defaults
+#
+# This file defines default values for rule variables and framework-specific
+# overrides. Variables can be used in rules with {{ variable_name }} syntax.
+#
+# Priority (highest first):
+#   1. CLI --var KEY=VALUE
+#   2. rules/rules.d/*.yml (alphabetical, later overrides earlier)
+#   3. frameworks.<name> section (when --framework specified)
+#   4. variables section below
+#
+# To override values for your environment, create files in rules/rules.d/
+# Example: rules/rules.d/99-custom.yml
+
+variables:
+  # Password quality - pwquality.conf
+  # Default to STIG values (most restrictive)
+  pam_pwquality_minlen: 15
+  pam_pwquality_minclass: 4
+  pam_pwquality_difok: 8
+  pam_pwquality_maxrepeat: 3
+  pam_pwquality_maxclassrepeat: 4
+  pam_pwquality_dcredit: -1
+  pam_pwquality_ucredit: -1
+  pam_pwquality_lcredit: -1
+  pam_pwquality_ocredit: -1
+
+  # Password aging - login.defs
+  pam_faillock_deny: 3
+  pam_faillock_fail_interval: 900
+  pam_faillock_unlock_time: 0
+  login_defs_pass_max_days: 60
+  login_defs_pass_min_days: 1
+  login_defs_pass_warn_age: 7
+  login_defs_umask: "077"
+  password_remember: 5
+
+  # SSH settings
+  ssh_client_alive_interval: 600
+  ssh_client_alive_count_max: 1
+  ssh_max_auth_tries: 4
+  ssh_max_sessions: 10
+  ssh_login_grace_time: 60
+
+frameworks:
+  # CIS Benchmark values (generally less restrictive than STIG)
+  cis:
+    pam_pwquality_minlen: 14
+    pam_faillock_deny: 5
+    pam_faillock_unlock_time: 900
+    login_defs_pass_max_days: 365
+    login_defs_umask: "027"
+    ssh_client_alive_interval: 900
+    ssh_client_alive_count_max: 0
+
+  # DISA STIG values (most restrictive)
+  stig:
+    pam_pwquality_minlen: 15
+    pam_faillock_deny: 3
+    pam_faillock_unlock_time: 0
+    login_defs_pass_max_days: 60
+    login_defs_umask: "077"
+    ssh_client_alive_interval: 600
+    ssh_client_alive_count_max: 1
+
+  # NIST 800-53 (baseline values)
+  nist:
+    pam_pwquality_minlen: 8
+    login_defs_pass_max_days: 90

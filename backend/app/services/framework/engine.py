@@ -31,11 +31,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set, Tuple
 
-from app.models.unified_rule_models import (
-    Platform,
-    PlatformImplementation,
-    UnifiedComplianceRule,
-)
+from app.models.unified_rule_models import Platform, PlatformImplementation, UnifiedComplianceRule
 
 
 class MappingConfidence(str, Enum):
@@ -72,8 +68,8 @@ class ControlMapping:
     rationale: str
     evidence: List[str]
     implementation_notes: Optional[str] = None
-    exceptions: List[str] = None
-    created_at: datetime = None
+    exceptions: Optional[List[str]] = None
+    created_at: Optional[datetime] = None
     verified_by: Optional[str] = None
 
     def __post_init__(self):
@@ -216,17 +212,17 @@ class FrameworkMappingEngine:
         discovered_mappings = []
 
         # Build control relationship matrix from unified rules
-        control_relationships = defaultdict(lambda: defaultdict(set))
+        control_relationships: Dict[str, Dict[str, set]] = defaultdict(lambda: defaultdict(set))
 
         for rule in unified_rules:
             source_controls = set()
             target_controls = set()
 
-            for mapping in rule.framework_mappings:
-                if mapping.framework_id == source_framework:
-                    source_controls.update(mapping.control_ids)
-                elif mapping.framework_id == target_framework:
-                    target_controls.update(mapping.control_ids)
+            for fw_mapping in rule.framework_mappings:
+                if fw_mapping.framework_id == source_framework:
+                    source_controls.update(fw_mapping.control_ids)
+                elif fw_mapping.framework_id == target_framework:
+                    target_controls.update(fw_mapping.control_ids)
 
             # Create bidirectional relationships
             for source_control in source_controls:
@@ -279,10 +275,10 @@ class FrameworkMappingEngine:
         target_total_rules = 0
 
         for rule in unified_rules:
-            for mapping in rule.framework_mappings:
-                if mapping.framework_id == source_framework and source_control in mapping.control_ids:
+            for fw_mapping in rule.framework_mappings:
+                if fw_mapping.framework_id == source_framework and source_control in fw_mapping.control_ids:
                     source_total_rules += 1
-                elif mapping.framework_id == target_framework and target_control in mapping.control_ids:
+                elif fw_mapping.framework_id == target_framework and target_control in fw_mapping.control_ids:
                     target_total_rules += 1
 
         # Calculate overlap ratios
@@ -359,23 +355,23 @@ class FrameworkMappingEngine:
         framework_b_controls = set()
 
         for rule in unified_rules:
-            for mapping in rule.framework_mappings:
-                if mapping.framework_id == framework_a:
-                    framework_a_controls.update(mapping.control_ids)
-                elif mapping.framework_id == framework_b:
-                    framework_b_controls.update(mapping.control_ids)
+            for fw_mapping in rule.framework_mappings:
+                if fw_mapping.framework_id == framework_a:
+                    framework_a_controls.update(fw_mapping.control_ids)
+                elif fw_mapping.framework_id == framework_b:
+                    framework_b_controls.update(fw_mapping.control_ids)
 
         # Calculate relationship metrics
         mapped_a_controls = set()
         mapped_b_controls = set()
 
-        for mapping in all_mappings:
-            if mapping.source_framework == framework_a:
-                mapped_a_controls.add(mapping.source_control)
-                mapped_b_controls.add(mapping.target_control)
+        for ctrl_mapping in all_mappings:
+            if ctrl_mapping.source_framework == framework_a:
+                mapped_a_controls.add(ctrl_mapping.source_control)
+                mapped_b_controls.add(ctrl_mapping.target_control)
             else:
-                mapped_a_controls.add(mapping.target_control)
-                mapped_b_controls.add(mapping.source_control)
+                mapped_a_controls.add(ctrl_mapping.target_control)
+                mapped_b_controls.add(ctrl_mapping.source_control)
 
         common_controls = len(mapped_a_controls.intersection(mapped_b_controls))
         framework_a_unique = len(framework_a_controls - mapped_a_controls)
@@ -462,11 +458,11 @@ class FrameworkMappingEngine:
                 )
 
         # Identify exceeding compliance opportunities
-        exceeding_patterns = defaultdict(int)
+        exceeding_patterns: Dict[str, int] = defaultdict(int)
         for rule in unified_rules:
-            for mapping in rule.framework_mappings:
-                if mapping.implementation_status == "exceeds":
-                    exceeding_patterns[mapping.framework_id] += 1
+            for fw_mapping in rule.framework_mappings:
+                if fw_mapping.implementation_status == "exceeds":
+                    exceeding_patterns[fw_mapping.framework_id] += 1
 
         for framework_id, count in exceeding_patterns.items():
             if count >= 5:
@@ -494,12 +490,12 @@ class FrameworkMappingEngine:
             )
 
         # Look for implementation conflicts
-        conflicting_implementations = defaultdict(list)
+        conflicting_implementations: Dict[str, Dict[str, str]] = defaultdict(dict)
 
         for rule in unified_rules:
-            framework_statuses = {}
-            for mapping in rule.framework_mappings:
-                framework_statuses[mapping.framework_id] = mapping.implementation_status
+            framework_statuses: Dict[str, str] = {}
+            for fw_mapping in rule.framework_mappings:
+                framework_statuses[fw_mapping.framework_id] = fw_mapping.implementation_status
 
             # Check for status conflicts
             unique_statuses = set(framework_statuses.values())
@@ -557,6 +553,7 @@ class FrameworkMappingEngine:
                 },
                 platform_specifics={
                     platform: PlatformImplementation(
+                        platform=platform,
                         implementation_type="configuration",
                         commands=[],
                         files_modified=[],
@@ -581,11 +578,11 @@ class FrameworkMappingEngine:
         control_mappings = {}
         exceeds_frameworks = []
 
-        for mapping in best_rule.framework_mappings:
-            if mapping.framework_id in target_frameworks:
-                control_mappings[mapping.framework_id] = mapping.control_ids
-                if mapping.implementation_status == "exceeds":
-                    exceeds_frameworks.append(mapping.framework_id)
+        for fw_mapping in best_rule.framework_mappings:
+            if fw_mapping.framework_id in target_frameworks:
+                control_mappings[fw_mapping.framework_id] = fw_mapping.control_ids
+                if fw_mapping.implementation_status == "exceeds":
+                    exceeds_frameworks.append(fw_mapping.framework_id)
 
         # Create unified implementation
         implementation = UnifiedImplementation(
@@ -632,10 +629,10 @@ class FrameworkMappingEngine:
         framework_rules = defaultdict(set)
 
         for rule in unified_rules:
-            for mapping in rule.framework_mappings:
-                if mapping.framework_id in frameworks:
-                    framework_controls[mapping.framework_id].update(mapping.control_ids)
-                    framework_rules[mapping.framework_id].add(rule.rule_id)
+            for fw_mapping in rule.framework_mappings:
+                if fw_mapping.framework_id in frameworks:
+                    framework_controls[fw_mapping.framework_id].update(fw_mapping.control_ids)
+                    framework_rules[fw_mapping.framework_id].add(rule.rule_id)
 
         # Calculate coverage metrics
         coverage_analysis = {

@@ -168,14 +168,14 @@ jobs:
       - name: Welcome first-time contributors
         uses: actions/first-interaction@v3
         with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-          issue-message: |
-            👋 Thanks for opening your first issue! We're excited to have you contributing to OpenWatch.
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          issue_message: |
+            Thanks for opening your first issue! We're excited to have you contributing to OpenWatch.
 
             Please make sure you've provided enough details for us to understand the issue.
             If this is a bug report, please include steps to reproduce the issue.
-          pr-message: |
-            🎉 Thanks for your first pull request! We appreciate your contribution to OpenWatch.
+          pr_message: |
+            Thanks for your first pull request! We appreciate your contribution to OpenWatch.
 
             Please make sure:
             - [ ] Your code follows our style guidelines

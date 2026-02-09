@@ -1,0 +1,43 @@
+id: aide-cron-check
+title: Ensure AIDE runs periodically
+description: >
+  AIDE file integrity checks must be scheduled to run periodically via cron
+  or systemd timer. Regular integrity checks are essential for detecting
+  unauthorized file modifications.
+rationale: >
+  Installing AIDE is only useful if checks are run regularly. Without
+  periodic scans, file modifications by attackers may go undetected for
+  extended periods, allowing persistent access.
+severity: medium
+category: audit
+tags: [aide, file-integrity, cron, intrusion-detection]
+
+references:
+  cis:
+    rhel9_v2:  { section: "6.1.2", level: "L1", type: "Automated" }
+  nist_800_53: ["SI-7", "AU-2"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - when: systemd_timer
+    check:
+      method: service_state
+      name: "aidecheck.timer"
+      enabled: true
+    remediation:
+      mechanism: service_enabled
+      name: "aidecheck.timer"
+  - default: true
+    check:
+      method: command
+      run: "grep -rE 'aide\\s+(--check|--update|-C|-u)' /etc/crontab /etc/cron.d/ /etc/cron.daily/ /etc/cron.weekly/ /var/spool/cron/ 2>/dev/null"
+      expected_exit: 0
+    remediation:
+      mechanism: cron_job
+      schedule: "0 5 * * *"
+      command: "/usr/sbin/aide --check"
+      user: "root"
+      file: "/etc/cron.d/aide"

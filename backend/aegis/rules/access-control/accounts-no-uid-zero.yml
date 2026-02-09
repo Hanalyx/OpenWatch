@@ -1,0 +1,40 @@
+id: accounts-no-uid-zero
+title: Ensure only root has UID 0
+description: >
+  Only the root account should have UID 0. Any other accounts with UID 0
+  have superuser privileges which is a significant security risk.
+rationale: >
+  Any account with UID 0 has root privileges. Multiple accounts with UID 0
+  can be used by attackers to maintain hidden root access. Only the root
+  account should have UID 0.
+severity: critical
+category: access-control
+tags: [root, user-accounts, uid, security]
+
+references:
+  cis:
+    rhel8_v4:  { section: "5.6.2", level: "L1", type: "Automated" }
+    rhel9_v2:  { section: "5.6.2", level: "L1", type: "Automated" }
+  stig:
+    rhel9_v2r7:
+      vuln_id: "V-258089"
+      stig_id: "RHEL-09-411045"
+      severity: "CAT I"
+  nist_800_53: ["AC-6"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - default: true
+    check:
+      method: command
+      run: "awk -F: '$3 == 0 && $1 != \"root\" {exit 1}' /etc/passwd"
+      expected_exit: 0
+    remediation:
+      mechanism: manual
+      description: >
+        Review /etc/passwd for accounts with UID 0 other than root.
+        Either remove these accounts or assign them a different UID.
+        Run: awk -F: '$3 == 0 && $1 != \"root\" {print $1}' /etc/passwd

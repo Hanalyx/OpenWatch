@@ -1,0 +1,35 @@
+id: pkg-telnet-server-absent
+title: Ensure telnet-server package is not installed
+description: >
+  The telnet-server package provides the telnet daemon which allows
+  remote logins using the insecure telnet protocol. This package must
+  not be installed.
+rationale: >
+  Telnet transmits all data including authentication credentials in
+  cleartext. The telnet server must not be installed as it provides
+  an insecure remote access mechanism.
+severity: critical
+category: services
+tags: [package, telnet, server, attack-surface]
+
+references:
+  stig:
+    rhel9_v2r7:
+      vuln_id: "V-257837"
+      stig_id: "RHEL-09-215065"
+      severity: "CAT I"
+  nist_800_53: ["CM-7", "SC-8", "IA-5"]
+
+platforms:
+  - family: rhel
+    min_version: 9
+
+implementations:
+  - default: true
+    check:
+      method: package_state
+      name: "telnet-server"
+      state: "absent"
+    remediation:
+      mechanism: package_absent
+      name: "telnet-server"

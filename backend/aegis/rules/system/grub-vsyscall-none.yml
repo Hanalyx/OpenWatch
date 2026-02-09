@@ -1,0 +1,35 @@
+id: grub-vsyscall-none
+title: Disable virtual system calls in GRUB kernel parameters
+description: >
+  The vsyscall=none kernel parameter must be set to disable the legacy
+  virtual syscall mechanism. This prevents exploitation of the vsyscall
+  page for return-oriented programming (ROP) attacks.
+rationale: >
+  The vsyscall page is at a fixed address and can be used as a gadget
+  for ROP attacks. Disabling it eliminates this attack vector.
+severity: medium
+category: system
+tags: [grub, kernel, security, boot]
+
+references:
+  stig:
+    rhel9_v2r7:
+      vuln_id: "V-257792"
+      stig_id: "RHEL-09-212035"
+      severity: "CAT II"
+  nist_800_53: ["CM-6", "SI-16"]
+
+platforms:
+  - family: rhel
+    min_version: 9
+
+implementations:
+  - default: true
+    check:
+      method: grub_parameter
+      key: "vsyscall"
+      expected: "none"
+    remediation:
+      mechanism: grub_parameter_set
+      key: "vsyscall"
+      value: "none"

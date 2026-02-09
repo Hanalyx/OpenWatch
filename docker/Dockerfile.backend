@@ -166,6 +166,11 @@ RUN python3.12 -m pip install --no-cache-dir --upgrade pip && \
 COPY backend/ ./backend/
 COPY security/ ./security/
 
+# Create symlink for Aegis runner package imports
+# The Aegis package uses 'from runner.*' internally, but is located at backend/aegis/runner/
+# This symlink allows both 'from runner.*' and 'from aegis.runner.*' import patterns
+RUN ln -sf /openwatch/backend/aegis/runner /openwatch/backend/runner
+
 # Copy oscap-ssh wrapper script for remote SCAP scanning
 # This script wraps oscap-ssh command with authentication and error handling
 COPY backend/scripts/oscap-ssh /usr/local/bin/oscap-ssh

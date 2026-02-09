@@ -1,0 +1,39 @@
+id: auditd-disk-full-action
+title: Configure auditd disk_full_action
+description: >
+  The auditd daemon must halt the system when the audit storage disk
+  is full to prevent loss of audit data.
+rationale: >
+  When audit storage is completely full, the system must halt to prevent
+  security events from going unrecorded. This ensures audit continuity
+  for compliance and forensics.
+severity: medium
+category: audit
+tags: [audit, auditd, storage, stig]
+
+references:
+  stig:
+    rhel9_v2r7:
+      vuln_id: "V-257809"
+      stig_id: "RHEL-09-653020"
+      severity: "CAT II"
+  nist_800_53: ["AU-5"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - default: true
+    check:
+      method: config_value
+      path: "/etc/audit/auditd.conf"
+      key: "disk_full_action"
+      expected: "halt"
+    remediation:
+      mechanism: config_set
+      path: "/etc/audit/auditd.conf"
+      key: "disk_full_action"
+      value: "halt"
+      separator: " = "
+      reload: "auditd"

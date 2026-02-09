@@ -1,0 +1,32 @@
+id: package-xorg-x11-server-common-removed
+title: Ensure X Window server is not installed
+description: >
+  The xorg-x11-server-common package provides the X Window display
+  server. Unless a graphical interface is required, this should not
+  be installed on servers.
+rationale: >
+  X Window servers increase the attack surface and resource usage on
+  servers. Unless a GUI is specifically required, servers should run
+  in multi-user text mode.
+severity: low
+category: services
+tags: [package, xorg, gui, attack-surface]
+
+references:
+  cis:
+    rhel9_v2:  { section: "2.1.20", level: "L1", type: "Automated" }
+  nist_800_53: ["CM-7"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - default: true
+    check:
+      method: package_state
+      name: "xorg-x11-server-common"
+      state: "absent"
+    remediation:
+      mechanism: package_absent
+      name: "xorg-x11-server-common"

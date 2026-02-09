@@ -1,0 +1,39 @@
+id: aslr-enabled
+title: Enable Address Space Layout Randomization (ASLR)
+description: >
+  ASLR randomizes memory addresses used by system and application processes,
+  making it more difficult for attackers to exploit memory corruption
+  vulnerabilities.
+rationale: >
+  ASLR is a key defense against buffer overflow and memory corruption
+  attacks. By randomizing memory layout, attackers cannot reliably predict
+  target addresses for exploitation.
+severity: high
+category: system
+tags: [aslr, security, memory, sysctl]
+
+references:
+  cis:
+    rhel8_v4:  { section: "1.5.3", level: "L1", type: "Automated" }
+    rhel9_v2:  { section: "1.5.3", level: "L1", type: "Automated" }
+  stig:
+    rhel9_v2r7:
+      vuln_id: "V-257786"
+      stig_id: "RHEL-09-213020"
+      severity: "CAT II"
+  nist_800_53: ["SC-39"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - default: true
+    check:
+      method: sysctl_value
+      key: "kernel.randomize_va_space"
+      expected: "2"
+    remediation:
+      mechanism: sysctl_set
+      key: "kernel.randomize_va_space"
+      value: "2"

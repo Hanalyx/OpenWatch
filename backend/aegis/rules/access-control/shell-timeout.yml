@@ -1,0 +1,39 @@
+id: shell-timeout
+title: Set default shell timeout
+description: >
+  The TMOUT variable sets an automatic logout timer for interactive shells.
+  This ensures idle sessions are terminated after a period of inactivity.
+rationale: >
+  Automatic session timeout prevents unauthorized access to unattended
+  terminals. A timeout of 900 seconds (15 minutes) provides a balance
+  between security and usability.
+severity: medium
+category: access-control
+tags: [shell, session, timeout, security]
+
+references:
+  cis:
+    rhel8_v4:  { section: "5.6.3", level: "L1", type: "Automated" }
+    rhel9_v2:  { section: "5.6.3", level: "L1", type: "Automated" }
+  stig:
+    rhel9_v2r7:
+      vuln_id: "V-258100"
+      stig_id: "RHEL-09-412015"
+      severity: "CAT II"
+  nist_800_53: ["AC-11", "AC-12"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - default: true
+    check:
+      method: command
+      run: "grep -rE '^(export\\s+)?TMOUT=' /etc/profile /etc/profile.d/*.sh 2>/dev/null | grep -E 'TMOUT=[0-9]+' | head -1"
+      expected_exit: 0
+    remediation:
+      mechanism: config_set_dropin
+      directory: "/etc/profile.d"
+      filename: "aegis-tmout.sh"
+      content: "TMOUT=900\nreadonly TMOUT\nexport TMOUT"

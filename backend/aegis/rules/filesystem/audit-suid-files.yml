@@ -1,0 +1,37 @@
+id: audit-suid-files
+title: Audit SUID executables
+description: >
+  SUID (Set User ID) executables run with the file owner's privileges.
+  The list of SUID files should be reviewed regularly to ensure no
+  unauthorized SUID binaries exist.
+rationale: >
+  SUID binaries can be exploited to gain elevated privileges. Regular
+  auditing ensures only authorized programs have SUID set and helps
+  detect potential privilege escalation vectors.
+severity: medium
+category: filesystem
+tags: [permissions, suid, privilege-escalation, audit]
+
+references:
+  cis:
+    rhel8_v4:  { section: "6.1.12", level: "L1", type: "Manual" }
+    rhel9_v2:  { section: "6.1.12", level: "L1", type: "Manual" }
+  nist_800_53: ["AC-6", "CM-6"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - default: true
+    check:
+      method: command
+      run: "find / -xdev -type f -perm -4000 2>/dev/null | wc -l"
+      expected_exit: 0
+    remediation:
+      mechanism: manual
+      description: >
+        Review SUID files and remove SUID bit from unauthorized programs:
+        find / -xdev -type f -perm -4000
+        Compare against a known-good baseline. Remove SUID if not needed:
+        chmod u-s <file>

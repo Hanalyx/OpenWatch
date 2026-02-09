@@ -8,16 +8,25 @@ Package Structure:
     - intelligence.py: Semantic SCAP intelligence and cross-framework compliance data
     - owca.py: OpenWatch Compliance Algorithm (OWCA) endpoints
     - drift.py: Compliance drift event endpoints
+    - posture.py: Temporal compliance posture queries (Phase 2)
+    - exceptions.py: Structured exception management (Phase 3)
 
 Endpoint Structure:
     /compliance/                    - Intelligence endpoints (overview, semantic-rules, etc.)
     /compliance/owca/*              - OWCA compliance scoring and analytics
     /compliance/drift/*             - Drift detection events
+    /compliance/posture             - Point-in-time posture queries
+    /compliance/posture/history     - Posture history over time
+    /compliance/posture/drift       - Compliance drift analysis
+    /compliance/exceptions          - Exception management (Phase 3)
 
 Migration Status:
     - compliance.py -> compliance/intelligence.py
     - owca.py -> compliance/owca.py
     - drift_events.py -> compliance/drift.py
+    - NEW: posture.py (Phase 2 Temporal Compliance)
+    - NEW: exceptions.py (Phase 3 Governance Primitives)
+    - NEW: remediation.py (Phase 4 Remediation + Subscription)
 """
 
 import logging
@@ -35,8 +44,11 @@ _modules_loaded = False
 try:
     # Import sub-routers from package modules
     from .drift import router as drift_router
+    from .exceptions import router as exceptions_router
     from .intelligence import router as intelligence_router
     from .owca import router as owca_router
+    from .posture import router as posture_router
+    from .remediation import router as remediation_router
 
     # Include sub-routers
     # Intelligence endpoints are at the root of /compliance (no additional prefix)
@@ -48,28 +60,22 @@ try:
     # Drift endpoints at /compliance/drift/*
     router.include_router(drift_router)
 
+    # Posture endpoints at /compliance/posture/* (Phase 2 Temporal Compliance)
+    router.include_router(posture_router)
+
+    # Exception endpoints at /compliance/exceptions/* (Phase 3 Governance Primitives)
+    router.include_router(exceptions_router)
+
+    # Remediation endpoints at /compliance/remediation/* (Phase 4 Remediation)
+    router.include_router(remediation_router)
+
     _modules_loaded = True
     logger.info("Compliance package: All modules loaded successfully")
 
 except ImportError as e:
-    logger.warning(f"Compliance package: Failed to load modules: {e}")
-    logger.warning("Compliance package: Falling back to legacy routers")
-
-    # Fallback: Import from legacy locations if new modules aren't ready
-    try:
-        from ..compliance import router as legacy_intelligence_router
-        from ..drift_events import router as legacy_drift_router
-        from ..owca import router as legacy_owca_router
-
-        # Include legacy routers with adjusted prefixes
-        router.include_router(legacy_intelligence_router)
-        router.include_router(legacy_owca_router)
-        router.include_router(legacy_drift_router)
-
-        logger.info("Compliance package: Legacy routers loaded as fallback")
-    except ImportError as fallback_error:
-        logger.error(f"Compliance package: Fallback also failed: {fallback_error}")
-        raise
+    logger.error(f"Compliance package: Failed to load modules: {e}")
+    # Re-raise to get a clear error instead of failing silently
+    raise
 
 
 def is_fully_loaded() -> bool:

@@ -1,0 +1,37 @@
+id: kmod-disable-usb-storage
+title: Disable USB storage kernel module
+description: >
+  USB storage devices can be used to introduce malware or exfiltrate data.
+  The usb-storage kernel module should be disabled on systems where USB
+  storage is not required.
+rationale: >
+  Disabling USB storage prevents unauthorized data transfer via removable
+  media and reduces the risk of malware introduction.
+severity: medium
+category: kernel
+tags: [kernel-module, usb, data-protection]
+
+references:
+  cis:
+    rhel8_v4:  { section: "1.1.1.7", level: "L2", type: "Automated" }
+    rhel9_v2:  { section: "1.1.1.7", level: "L2", type: "Automated" }
+  stig:
+    rhel9_v2r7:
+      vuln_id: "V-257777"
+      stig_id: "RHEL-09-291010"
+      severity: "CAT II"
+  nist_800_53: ["CM-7", "MP-7"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - default: true
+    check:
+      method: kernel_module_state
+      name: "usb-storage"
+      state: "blacklisted"
+    remediation:
+      mechanism: kernel_module_disable
+      name: "usb-storage"

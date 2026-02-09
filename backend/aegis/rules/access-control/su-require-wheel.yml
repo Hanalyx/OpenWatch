@@ -1,0 +1,37 @@
+id: su-require-wheel
+title: Restrict su command to wheel group
+description: >
+  Access to the su command should be restricted to members of the wheel
+  group using the pam_wheel module in PAM configuration.
+rationale: >
+  Restricting su to the wheel group prevents unauthorized users from
+  attempting to switch to root or other accounts. This provides an
+  additional layer of access control beyond just knowing a password.
+severity: high
+category: access-control
+tags: [pam, su, privilege-escalation, wheel]
+
+references:
+  cis:
+    rhel8_v4:  { section: "5.3.5", level: "L1", type: "Automated" }
+    rhel9_v2:  { section: "5.3.5", level: "L1", type: "Automated" }
+  stig:
+    rhel9_v2r7:
+      vuln_id: "V-258039"
+      stig_id: "RHEL-09-432030"
+      severity: "CAT II"
+  nist_800_53: ["AC-3", "AC-6"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - default: true
+    check:
+      method: command
+      run: "grep -E '^auth\\s+required\\s+pam_wheel.so\\s+use_uid' /etc/pam.d/su"
+      expected_exit: 0
+    remediation:
+      mechanism: command_exec
+      run: "sed -i 's/^#\\(auth\\s\\+required\\s\\+pam_wheel.so\\s\\+use_uid\\)/\\1/' /etc/pam.d/su || echo 'auth required pam_wheel.so use_uid' >> /etc/pam.d/su"

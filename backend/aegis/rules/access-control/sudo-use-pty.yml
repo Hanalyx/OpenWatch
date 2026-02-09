@@ -1,0 +1,40 @@
+id: sudo-use-pty
+title: Ensure sudo commands use a pseudo terminal
+description: >
+  The use_pty option in sudoers configuration requires sudo to run commands
+  in a pseudo terminal (pty). This prevents a malicious program from
+  continuing to run after the main program has finished.
+rationale: >
+  Using a pseudo terminal with sudo prevents attackers from using background
+  processes that survive after sudo has completed. This closes a potential
+  attack vector where malware could fork and continue running.
+severity: medium
+category: access-control
+tags: [sudo, privilege-escalation, security]
+
+references:
+  cis:
+    rhel8_v4:  { section: "5.3.2", level: "L1", type: "Automated" }
+    rhel9_v2:  { section: "5.3.2", level: "L1", type: "Automated" }
+  stig:
+    rhel9_v2r7:
+      vuln_id: "V-258036"
+      stig_id: "RHEL-09-432015"
+      severity: "CAT II"
+  nist_800_53: ["CM-6"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - default: true
+    check:
+      method: command
+      run: "grep -rPh '^\\s*Defaults\\s+.*use_pty' /etc/sudoers /etc/sudoers.d/ 2>/dev/null | grep -v '!use_pty'"
+      expected_exit: 0
+    remediation:
+      mechanism: config_set_dropin
+      directory: "/etc/sudoers.d"
+      filename: "00-aegis-use-pty"
+      content: "Defaults use_pty"

@@ -1,0 +1,58 @@
+id: ssh-max-sessions
+title: Limit SSH maximum concurrent sessions
+description: >
+  The SSH daemon must limit the number of concurrent sessions permitted per
+  network connection. MaxSessions controls session multiplexing, which
+  allows multiple logical sessions over a single TCP connection.
+
+rationale: >
+  Unlimited session multiplexing allows a single authenticated connection
+  to spawn many sessions, which can be used to amplify the impact of a
+  compromised credential. An attacker with one valid login can open
+  numerous simultaneous sessions for parallel data exfiltration or to
+  consume system resources.
+
+severity: medium
+category: access-control
+tags: [ssh, session-management]
+
+references:
+  cis:
+    rhel10_v1:  { section: "5.1.18", level: "L1", type: "Automated" }
+    rhel8_v4:  { section: "5.1.19", level: "L1", type: "Automated" }
+    rhel9_v2:  { section: "5.1.18", level: "L1", type: "Automated" }
+  nist_800_53: ["AC-10", "CM-6"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - when: sshd_config_d
+    check:
+      method: config_value
+      path: "/etc/ssh/sshd_config.d"
+      key: "MaxSessions"
+      expected: "10"
+      scan_pattern: "*.conf"
+    remediation:
+      mechanism: config_set_dropin
+      dir: "/etc/ssh/sshd_config.d"
+      file: "00-aegis-max-sessions.conf"
+      key: "MaxSessions"
+      value: "10"
+      reload: "sshd"
+
+  - default: true
+    check:
+      method: config_value
+      path: "/etc/ssh/sshd_config"
+      key: "MaxSessions"
+      expected: "10"
+    remediation:
+      mechanism: config_set
+      path: "/etc/ssh/sshd_config"
+      key: "MaxSessions"
+      value: "10"
+      separator: " "
+      reload: "sshd"

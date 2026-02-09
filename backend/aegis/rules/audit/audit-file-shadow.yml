@@ -1,0 +1,33 @@
+id: audit-file-shadow
+title: Audit modifications to /etc/shadow
+description: >
+  Changes to /etc/shadow must be audited. This file contains
+  encrypted password hashes and account aging information.
+rationale: >
+  Auditing changes to shadow allows detection of password hash
+  modifications and account status changes.
+severity: high
+category: audit
+tags: [audit, auditd, accounts, shadow]
+
+references:
+  stig:
+    rhel9_v2r7:
+      vuln_id: "V-258223"
+      stig_id: "RHEL-09-654365"
+      severity: "CAT II"
+  nist_800_53: ["AU-2", "AU-12", "AC-6"]
+
+platforms:
+  - family: rhel
+    min_version: 9
+
+implementations:
+  - default: true
+    check:
+      method: audit_rule_exists
+      rule: "-w /etc/shadow -p wa -k identity"
+    remediation:
+      mechanism: audit_rule_set
+      rule: "-w /etc/shadow -p wa -k identity"
+      persist_file: "/etc/audit/rules.d/50-identity.rules"

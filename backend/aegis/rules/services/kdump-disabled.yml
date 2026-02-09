@@ -1,0 +1,34 @@
+id: kdump-disabled
+title: Disable kdump service
+description: >
+  The kdump service must be disabled unless crash dump analysis
+  is required. Kdump captures memory on system crash.
+rationale: >
+  Kernel crash dumps may contain sensitive data including
+  credentials and should only be enabled when necessary.
+severity: medium
+category: services
+tags: [service, systemd, kdump]
+
+references:
+  stig:
+    rhel9_v2r7:
+      vuln_id: "V-257818"
+      stig_id: "RHEL-09-211055"
+      severity: "CAT II"
+  nist_800_53: ["CM-7"]
+
+platforms:
+  - family: rhel
+    min_version: 9
+
+implementations:
+  - default: true
+    check:
+      method: service_state
+      name: "kdump"
+      state: "stopped"
+      enabled: false
+    remediation:
+      mechanism: service_masked
+      name: "kdump"

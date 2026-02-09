@@ -1,0 +1,33 @@
+id: pkg-s-nail-present
+title: Ensure s-nail package is installed
+description: >
+  The s-nail package must be installed to provide local mail
+  functionality for system notifications and cron job output.
+rationale: >
+  A mail client is required to receive system alerts and
+  notifications from scheduled tasks and services.
+severity: medium
+category: services
+tags: [package, mail, notification]
+
+references:
+  stig:
+    rhel9_v2r7:
+      vuln_id: "V-257842"
+      stig_id: "RHEL-09-215095"
+      severity: "CAT II"
+  nist_800_53: ["CM-6", "AU-5"]
+
+platforms:
+  - family: rhel
+    min_version: 9
+
+implementations:
+  - default: true
+    check:
+      method: package_state
+      name: "s-nail"
+      state: "present"
+    remediation:
+      mechanism: package_present
+      name: "s-nail"

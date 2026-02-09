@@ -1,0 +1,31 @@
+id: package-bind-removed
+title: Ensure bind (DNS server) is not installed
+description: >
+  The bind package provides DNS server functionality. Unless the system
+  is a designated DNS server, this package should not be installed.
+rationale: >
+  Running a DNS server increases the attack surface. DNS servers have
+  been historically targeted for cache poisoning, amplification attacks,
+  and other exploits. Remove if not required.
+severity: low
+category: services
+tags: [package, dns, bind, attack-surface]
+
+references:
+  cis:
+    rhel9_v2:  { section: "2.1.4", level: "L1", type: "Automated" }
+  nist_800_53: ["CM-7"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - default: true
+    check:
+      method: package_state
+      name: "bind"
+      state: "absent"
+    remediation:
+      mechanism: package_absent
+      name: "bind"

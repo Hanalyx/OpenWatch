@@ -1,0 +1,43 @@
+id: audit-permission-changes
+title: Audit discretionary access control changes
+description: >
+  Changes to file permissions and ownership must be audited. This includes
+  chmod, chown, fchmod, fchown, and related system calls.
+rationale: >
+  Auditing permission changes allows detection of privilege escalation attempts
+  and unauthorized modifications to file access controls.
+severity: medium
+category: audit
+tags: [audit, auditd, permissions]
+
+references:
+  cis:
+    rhel8_v4:  { section: "4.1.3.9", level: "L2", type: "Automated" }
+    rhel9_v2:  { section: "4.1.3.9", level: "L2", type: "Automated" }
+  stig:
+    rhel9_v2r7:
+      vuln_id: "V-257874"
+      stig_id: "RHEL-09-654030"
+      severity: "CAT II"
+  nist_800_53: ["AU-2", "AU-12", "AC-3"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - default: true
+    check:
+      method: command
+      # Check all DAC modification syscalls are audited (flexible format matching)
+      # Accepts comma-separated or individual rules, auid!=unset or auid!=4294967295
+      run: |
+        rules=$(auditctl -l 2>/dev/null)
+        echo "$rules" | grep -qE '^-a always,exit.*-S.*chmod.*auid>=' && \
+        echo "$rules" | grep -qE '^-a always,exit.*-S.*fchmod.*auid>=' && \
+        echo "$rules" | grep -qE '^-a always,exit.*-S.*fchmodat.*auid>='
+      expected_exit: 0
+    remediation:
+      mechanism: audit_rule_set
+      rule: "-a always,exit -F arch=b64 -S chmod,fchmod,fchmodat -F auid>=1000 -F auid!=unset -k perm_mod"
+      persist_file: "/etc/audit/rules.d/50-perm-mod.rules"

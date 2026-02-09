@@ -1,0 +1,34 @@
+id: audit-mount-operations
+title: Audit mount and unmount operations
+description: >
+  The system must audit all mount and unmount operations to track
+  filesystem changes.
+rationale: >
+  Unauthorized mounts could be used to access data or bypass security
+  controls. Auditing mount operations provides visibility into filesystem
+  changes and potential attack attempts.
+severity: medium
+category: audit
+tags: [audit, mount, filesystem, stig]
+
+references:
+  stig:
+    rhel9_v2r7:
+      vuln_id: "V-257806"
+      stig_id: "RHEL-09-654035"
+      severity: "CAT II"
+  nist_800_53: ["AU-2", "AU-12"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - default: true
+    check:
+      method: audit_rule_exists
+      rule: "-a always,exit -F arch=b64 -S mount -k mounts"
+    remediation:
+      mechanism: audit_rule_set
+      rule: "-a always,exit -F arch=b64 -S mount -k mounts"
+      persist_file: "/etc/audit/rules.d/50-mounts.rules"

@@ -1,0 +1,37 @@
+id: pam-faillock-fail-interval
+title: Set failed login counting interval
+description: >
+  The fail_interval parameter in /etc/security/faillock.conf sets the
+  interval in seconds during which failed login attempts are counted.
+rationale: >
+  Setting a fail interval ensures that failed login attempts are counted
+  within a defined window. This prevents attackers from spreading out
+  brute-force attempts over a long period to avoid lockout.
+severity: medium
+category: access-control
+tags: [pam, authentication, account-lockout, faillock]
+
+references:
+  cis:
+    rhel8_v4:  { section: "5.4.2.3", level: "L1", type: "Automated" }
+    rhel9_v2:  { section: "5.4.2",   level: "L1", type: "Automated" }
+  nist_800_53: ["AC-7(a)"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - default: true
+    check:
+      method: config_value
+      path: "/etc/security/faillock.conf"
+      key: "fail_interval"
+      expected: "900"
+      comparator: ">="
+    remediation:
+      mechanism: config_set
+      path: "/etc/security/faillock.conf"
+      key: "fail_interval"
+      value: "900"
+      separator: " = "

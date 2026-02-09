@@ -1,0 +1,47 @@
+id: crypto-policy-disable-sha1-signatures
+title: Disable SHA-1 in system-wide crypto policy
+description: >
+  The system-wide cryptographic policy must not allow SHA-1 for digital
+  signatures. SHA-1 is cryptographically broken for collision resistance
+  and must be excluded from all signature operations.
+rationale: >
+  SHA-1 collision attacks are practical and have been demonstrated publicly.
+  Allowing SHA-1 signatures enables forgery of certificates, code signatures,
+  and other authenticated data.
+severity: high
+category: system
+tags: [crypto-policy, hashing, tls, signatures]
+
+references:
+  stig:
+    rhel9_v2r7:
+      vuln_id: "V-257953"
+      stig_id: "RHEL-09-672020"
+      severity: "CAT II"
+      cci: ["CCI-000803"]
+  nist_800_53: ["SC-13", "MA-4(6)"]
+
+platforms:
+  - family: rhel
+    min_version: 9
+
+implementations:
+  - when: crypto_policy_modules
+    check:
+      method: command
+      run: "update-crypto-policies --show | grep -v SHA1"
+      expected_exit: 0
+    remediation:
+      mechanism: command_exec
+      run: "update-crypto-policies --set DEFAULT:NO-SHA1"
+      unless: "update-crypto-policies --show | grep -q NO-SHA1"
+
+  - default: true
+    check:
+      method: command
+      run: "update-crypto-policies --show"
+      expected_exit: 0
+    remediation:
+      mechanism: command_exec
+      run: "update-crypto-policies --set DEFAULT"
+      unless: "update-crypto-policies --show | grep -qE '^DEFAULT$'"

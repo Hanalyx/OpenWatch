@@ -1,0 +1,35 @@
+id: journald-forward-syslog
+title: Configure journald ForwardToSyslog setting
+description: >
+  The journald service must be configured to either forward to
+  syslog or not, depending on logging architecture requirements.
+rationale: >
+  When using rsyslog as the primary logging service, forwarding
+  journal entries ensures comprehensive log collection.
+severity: medium
+category: logging
+tags: [logging, journald, rsyslog]
+
+references:
+  cis:
+    rhel9_v2:  { section: "6.2.2.2", level: "L1", type: "Automated" }
+  nist_800_53: ["AU-4", "AU-12"]
+
+platforms:
+  - family: rhel
+    min_version: 9
+
+implementations:
+  - default: true
+    check:
+      method: config_value
+      path: "/etc/systemd/journald.conf"
+      key: "ForwardToSyslog"
+      expected: "yes"
+    remediation:
+      mechanism: config_set
+      path: "/etc/systemd/journald.conf"
+      key: "ForwardToSyslog"
+      value: "yes"
+      separator: "="
+      restart: "systemd-journald"

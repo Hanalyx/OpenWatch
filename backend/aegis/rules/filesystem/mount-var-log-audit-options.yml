@@ -1,0 +1,40 @@
+id: mount-var-log-audit-options
+title: Set mount options on /var/log/audit
+description: >
+  The /var/log/audit partition should have nodev, nosuid, and noexec
+  mount options set to prevent device files, setuid binaries, and
+  executable files in the audit log directory.
+rationale: >
+  Restrictive mount options on /var/log/audit prevent execution of
+  malicious code that might be placed in log files and limit potential
+  privilege escalation vectors.
+severity: medium
+category: filesystem
+tags: [mount, audit, logging, security]
+
+references:
+  cis:
+    rhel9_v2:  { section: "1.1.2.7.2", level: "L1", type: "Automated" }
+  nist_800_53: ["AC-6", "CM-6"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - default: true
+    check:
+      checks:
+        - method: mount_option
+          mount_point: "/var/log/audit"
+          options: ["nodev"]
+        - method: mount_option
+          mount_point: "/var/log/audit"
+          options: ["nosuid"]
+        - method: mount_option
+          mount_point: "/var/log/audit"
+          options: ["noexec"]
+    remediation:
+      mechanism: mount_option_set
+      mount_point: "/var/log/audit"
+      options: ["nodev", "nosuid", "noexec"]

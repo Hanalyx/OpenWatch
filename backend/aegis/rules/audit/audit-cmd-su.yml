@@ -1,0 +1,33 @@
+id: audit-cmd-su
+title: Audit uses of the su command
+description: >
+  All uses of the su command must be audited. The su command allows
+  users to switch to another user identity.
+rationale: >
+  Auditing su command usage allows detection of identity changes
+  and potential privilege escalation attempts.
+severity: medium
+category: audit
+tags: [audit, auditd, privileged, su]
+
+references:
+  stig:
+    rhel9_v2r7:
+      vuln_id: "V-258203"
+      stig_id: "RHEL-09-654265"
+      severity: "CAT II"
+  nist_800_53: ["AU-2", "AU-12"]
+
+platforms:
+  - family: rhel
+    min_version: 9
+
+implementations:
+  - default: true
+    check:
+      method: audit_rule_exists
+      rule: "-a always,exit -F path=/usr/bin/su -F perm=x -F auid>=1000 -F auid!=unset -k privileged-su"
+    remediation:
+      mechanism: audit_rule_set
+      rule: "-a always,exit -F path=/usr/bin/su -F perm=x -F auid>=1000 -F auid!=unset -k privileged-su"
+      persist_file: "/etc/audit/rules.d/50-privileged.rules"

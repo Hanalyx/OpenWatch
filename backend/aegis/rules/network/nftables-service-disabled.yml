@@ -1,0 +1,41 @@
+id: nftables-service-disabled
+title: Ensure nftables service is disabled when using firewalld
+description: >
+  When using firewalld as the firewall management tool, the nftables
+  service should be disabled to avoid conflicts. Firewalld manages
+  nftables rules directly.
+rationale: >
+  Running both firewalld and the nftables service can cause rule
+  conflicts and unpredictable behavior. Choose one management
+  interface and disable the other.
+severity: low
+category: network
+tags: [firewall, nftables, firewalld, service]
+
+references:
+  cis:
+    rhel9_v2:  { section: "4.1.2", level: "L1", type: "Automated" }
+  nist_800_53: ["CM-6"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - when: firewalld
+    check:
+      method: service_state
+      name: "nftables"
+      enabled: false
+    remediation:
+      mechanism: service_masked
+      name: "nftables"
+      stop: true
+  - default: true
+    check:
+      method: service_state
+      name: "nftables"
+      enabled: true
+    remediation:
+      mechanism: service_enabled
+      name: "nftables"

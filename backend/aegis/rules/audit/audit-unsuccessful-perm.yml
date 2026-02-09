@@ -1,0 +1,34 @@
+id: audit-unsuccessful-perm
+title: Audit unsuccessful permission change attempts
+description: >
+  The system must audit unsuccessful attempts to change file permissions
+  to detect potential unauthorized modification attempts.
+rationale: >
+  Failed permission change attempts may indicate an attacker attempting
+  to modify system files or escalate privileges. Auditing these events
+  aids in intrusion detection.
+severity: medium
+category: audit
+tags: [audit, permissions, failed, intrusion-detection, stig]
+
+references:
+  stig:
+    rhel9_v2r7:
+      vuln_id: "V-257803"
+      stig_id: "RHEL-09-654020"
+      severity: "CAT II"
+  nist_800_53: ["AU-2", "AU-12"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - default: true
+    check:
+      method: audit_rule_exists
+      rule: "-a always,exit -F arch=b64 -S chmod,fchmod,fchmodat -F exit=-EACCES -k perm_chng"
+    remediation:
+      mechanism: audit_rule_set
+      rule: "-a always,exit -F arch=b64 -S chmod,fchmod,fchmodat -F exit=-EACCES -k perm_chng"
+      persist_file: "/etc/audit/rules.d/50-perm-chng.rules"

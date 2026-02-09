@@ -1,0 +1,33 @@
+id: audit-cmd-crontab
+title: Audit uses of the crontab command
+description: >
+  All uses of the crontab command must be audited. The crontab command
+  manages scheduled tasks which can be abused for persistence.
+rationale: >
+  Auditing crontab command usage allows detection of unauthorized
+  scheduled task creation that could be used for malicious persistence.
+severity: medium
+category: audit
+tags: [audit, auditd, privileged, crontab]
+
+references:
+  stig:
+    rhel9_v2r7:
+      vuln_id: "V-258193"
+      stig_id: "RHEL-09-654215"
+      severity: "CAT II"
+  nist_800_53: ["AU-2", "AU-12"]
+
+platforms:
+  - family: rhel
+    min_version: 9
+
+implementations:
+  - default: true
+    check:
+      method: audit_rule_exists
+      rule: "-a always,exit -F path=/usr/bin/crontab -F perm=x -F auid>=1000 -F auid!=unset -k privileged-crontab"
+    remediation:
+      mechanism: audit_rule_set
+      rule: "-a always,exit -F path=/usr/bin/crontab -F perm=x -F auid>=1000 -F auid!=unset -k privileged-crontab"
+      persist_file: "/etc/audit/rules.d/50-privileged.rules"

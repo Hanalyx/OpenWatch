@@ -1,0 +1,33 @@
+id: audit-file-lastlog
+title: Audit modifications to /var/log/lastlog
+description: >
+  Changes to /var/log/lastlog must be audited. This file records
+  the last login time for each user account.
+rationale: >
+  Auditing changes to lastlog allows detection of attempts to
+  manipulate login records or hide unauthorized access.
+severity: medium
+category: audit
+tags: [audit, auditd, lastlog, logins]
+
+references:
+  stig:
+    rhel9_v2r7:
+      vuln_id: "V-258225"
+      stig_id: "RHEL-09-654375"
+      severity: "CAT II"
+  nist_800_53: ["AU-2", "AU-12", "AC-7"]
+
+platforms:
+  - family: rhel
+    min_version: 9
+
+implementations:
+  - default: true
+    check:
+      method: audit_rule_exists
+      rule: "-w /var/log/lastlog -p wa -k logins"
+    remediation:
+      mechanism: audit_rule_set
+      rule: "-w /var/log/lastlog -p wa -k logins"
+      persist_file: "/etc/audit/rules.d/50-logins.rules"

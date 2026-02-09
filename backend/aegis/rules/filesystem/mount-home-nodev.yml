@@ -1,0 +1,32 @@
+id: mount-home-nodev
+title: Ensure nodev option on /home partition
+description: >
+  The nodev mount option prevents device files from being interpreted on
+  /home. Device files should only exist in /dev.
+rationale: >
+  Allowing device files on /home could allow users to create special devices
+  that access hardware directly.
+severity: medium
+category: filesystem
+tags: [mount, home, hardening]
+
+references:
+  cis:
+    rhel8_v4:  { section: "1.1.4.2", level: "L1", type: "Automated" }
+    rhel9_v2:  { section: "1.1.4.2", level: "L1", type: "Automated" }
+  nist_800_53: ["CM-6", "AC-3"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - default: true
+    check:
+      method: mount_option
+      mount_point: "/home"
+      options: ["nodev"]
+    remediation:
+      mechanism: mount_option_set
+      mount_point: "/home"
+      options: ["nodev"]

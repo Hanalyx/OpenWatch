@@ -1,0 +1,33 @@
+id: audit-cmd-unix-update
+title: Audit uses of the unix_update command
+description: >
+  All uses of the unix_update command must be audited. The unix_update
+  helper is used by PAM to update password information.
+rationale: >
+  Auditing unix_update usage allows detection of password database
+  modifications outside of normal password change procedures.
+severity: medium
+category: audit
+tags: [audit, auditd, privileged, pam]
+
+references:
+  stig:
+    rhel9_v2r7:
+      vuln_id: "V-258207"
+      stig_id: "RHEL-09-654285"
+      severity: "CAT II"
+  nist_800_53: ["AU-2", "AU-12"]
+
+platforms:
+  - family: rhel
+    min_version: 9
+
+implementations:
+  - default: true
+    check:
+      method: audit_rule_exists
+      rule: "-a always,exit -F path=/usr/sbin/unix_update -F perm=x -F auid>=1000 -F auid!=unset -k privileged-unix_update"
+    remediation:
+      mechanism: audit_rule_set
+      rule: "-a always,exit -F path=/usr/sbin/unix_update -F perm=x -F auid>=1000 -F auid!=unset -k privileged-unix_update"
+      persist_file: "/etc/audit/rules.d/50-privileged.rules"

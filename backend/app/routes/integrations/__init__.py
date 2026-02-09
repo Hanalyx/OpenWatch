@@ -8,12 +8,14 @@ Package Structure:
     integrations/
     ├── __init__.py         # This file - public API and router aggregation
     ├── webhooks.py         # Webhook management endpoints
-    └── plugins.py          # Plugin management endpoints
+    ├── plugins.py          # Plugin management endpoints
+    └── orsa.py             # ORSA plugin management endpoints
 
 Migration Status (API Standardization - Phase 4):
     Phase 4: System & Integrations
     - webhooks.py endpoints consolidated under /webhooks
     - plugin_management.py endpoints consolidated under /plugins
+    - orsa.py endpoints added for ORSA v2.0 plugin interface
 
 Usage:
     # Import the router in main.py
@@ -40,6 +42,14 @@ Router Organization:
         DELETE /plugins/{plugin_id}            - Delete plugin
         POST   /plugins/{plugin_id}/execute    - Execute plugin
         GET    /plugins/{plugin_id}/executions - Get execution history
+
+    ORSA Router (orsa.py):
+        GET    /orsa/                          - List ORSA plugins
+        GET    /orsa/health                    - Health check for all plugins
+        GET    /orsa/{plugin_id}               - Get ORSA plugin details
+        GET    /orsa/{plugin_id}/capabilities  - Get plugin capabilities
+        GET    /orsa/{plugin_id}/rules         - Get available rules
+        GET    /orsa/{plugin_id}/frameworks    - Get supported frameworks
 """
 
 from fastapi import APIRouter
@@ -54,12 +64,14 @@ _modules_loaded = False
 
 try:
     # Core integration routers - use relative imports within package
+    from .orsa import router as orsa_router
     from .plugins import router as plugins_router
     from .webhooks import router as webhooks_router
 
     # Include all sub-routers into main router
     router.include_router(webhooks_router)
     router.include_router(plugins_router)
+    router.include_router(orsa_router)
 
     _modules_loaded = True
 

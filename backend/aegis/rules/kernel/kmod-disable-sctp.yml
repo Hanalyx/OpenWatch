@@ -1,0 +1,34 @@
+id: kmod-disable-sctp
+title: Disable SCTP kernel module
+description: >
+  The Stream Control Transmission Protocol (SCTP) kernel module should
+  be disabled if not required.
+rationale: >
+  SCTP is a transport layer protocol that is rarely used on most systems.
+  Disabling unused protocols reduces the attack surface and potential
+  for exploitation of protocol vulnerabilities.
+severity: medium
+category: kernel
+tags: [kernel-module, sctp, network, attack-surface, stig]
+
+references:
+  stig:
+    rhel9_v2r7:
+      vuln_id: "V-257791"
+      stig_id: "RHEL-09-291015"
+      severity: "CAT II"
+  nist_800_53: ["CM-7"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - default: true
+    check:
+      method: kernel_module_state
+      name: "sctp"
+      state: "disabled"
+    remediation:
+      mechanism: kernel_module_disable
+      name: "sctp"

@@ -1,0 +1,33 @@
+id: pkg-iprutils-absent
+title: Ensure iprutils package is not installed
+description: >
+  The iprutils package must not be installed unless required for
+  IBM Power RAID storage management.
+rationale: >
+  Removing unnecessary hardware-specific packages reduces the
+  attack surface on systems that do not use IBM Power RAID.
+severity: low
+category: services
+tags: [package, storage, attack-surface]
+
+references:
+  stig:
+    rhel9_v2r7:
+      vuln_id: "V-257833"
+      stig_id: "RHEL-09-215050"
+      severity: "CAT III"
+  nist_800_53: ["CM-7"]
+
+platforms:
+  - family: rhel
+    min_version: 9
+
+implementations:
+  - default: true
+    check:
+      method: package_state
+      name: "iprutils"
+      state: "absent"
+    remediation:
+      mechanism: package_absent
+      name: "iprutils"

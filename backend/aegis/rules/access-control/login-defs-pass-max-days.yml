@@ -1,0 +1,41 @@
+id: login-defs-pass-max-days
+title: Set maximum password age
+description: >
+  The PASS_MAX_DAYS parameter in /etc/login.defs defines the maximum number
+  of days a password may be used before it must be changed.
+rationale: >
+  Requiring regular password changes reduces the window of opportunity for an
+  attacker to use a compromised password. 365 days is a reasonable balance
+  between security and usability.
+severity: medium
+category: access-control
+tags: [password, authentication, user-accounts, login-defs]
+
+references:
+  cis:
+    rhel8_v4:  { section: "5.6.1.1", level: "L1", type: "Automated" }
+    rhel9_v2:  { section: "5.6.1.1", level: "L1", type: "Automated" }
+  stig:
+    rhel9_v2r7:
+      vuln_id: "V-258097"
+      stig_id: "RHEL-09-411025"
+      severity: "CAT II"
+  nist_800_53: ["IA-5(1)(d)"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - default: true
+    check:
+      method: config_value
+      path: "/etc/login.defs"
+      key: "PASS_MAX_DAYS"
+      expected: "{{ login_defs_pass_max_days }}"
+      comparator: "<="
+    remediation:
+      mechanism: config_set
+      path: "/etc/login.defs"
+      key: "PASS_MAX_DAYS"
+      value: "{{ login_defs_pass_max_days }}"

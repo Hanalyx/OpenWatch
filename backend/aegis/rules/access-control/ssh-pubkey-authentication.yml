@@ -1,0 +1,61 @@
+id: ssh-pubkey-authentication
+title: Enable SSH public key authentication
+description: >
+  The SSH daemon must support public key authentication as a primary
+  authentication method. Public key authentication uses asymmetric
+  cryptography to verify client identity without transmitting credentials
+  over the network.
+
+rationale: >
+  Public key authentication is significantly more resistant to brute-force
+  attacks than password-based authentication because private keys are
+  cryptographically infeasible to guess. Disabling this method forces
+  reliance on weaker authentication mechanisms, increasing the risk of
+  credential theft and unauthorized access.
+
+severity: medium
+category: access-control
+tags: [ssh, authentication, public-key]
+
+references:
+  stig:
+    rhel9_v2r7:
+      vuln_id: "V-257983"
+      stig_id: "RHEL-09-255035"
+      severity: "CAT II"
+      cci: ["CCI-000765"]
+  nist_800_53: ["IA-2(1)", "IA-5(2)"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - when: sshd_config_d
+    check:
+      method: config_value
+      path: "/etc/ssh/sshd_config.d"
+      key: "PubkeyAuthentication"
+      expected: "yes"
+      scan_pattern: "*.conf"
+    remediation:
+      mechanism: config_set_dropin
+      dir: "/etc/ssh/sshd_config.d"
+      file: "00-aegis-pubkey-authentication.conf"
+      key: "PubkeyAuthentication"
+      value: "yes"
+      reload: "sshd"
+
+  - default: true
+    check:
+      method: config_value
+      path: "/etc/ssh/sshd_config"
+      key: "PubkeyAuthentication"
+      expected: "yes"
+    remediation:
+      mechanism: config_set
+      path: "/etc/ssh/sshd_config"
+      key: "PubkeyAuthentication"
+      value: "yes"
+      separator: " "
+      reload: "sshd"

@@ -1,0 +1,35 @@
+id: kernel-dmesg-restrict
+title: Restrict access to kernel message buffer
+description: >
+  The kernel.dmesg_restrict sysctl must be set to prevent unprivileged
+  users from reading the kernel message buffer.
+rationale: >
+  The kernel message buffer (dmesg) may contain sensitive information
+  about system configuration and potential vulnerabilities. Restricting
+  access prevents information leakage.
+severity: low
+category: system
+tags: [sysctl, dmesg, kernel, privacy, stig]
+
+references:
+  stig:
+    rhel9_v2r7:
+      vuln_id: "V-257818"
+      stig_id: "RHEL-09-213030"
+      severity: "CAT II"
+  nist_800_53: ["SI-11"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - default: true
+    check:
+      method: sysctl_value
+      key: "kernel.dmesg_restrict"
+      expected: "1"
+    remediation:
+      mechanism: sysctl_set
+      key: "kernel.dmesg_restrict"
+      value: "1"

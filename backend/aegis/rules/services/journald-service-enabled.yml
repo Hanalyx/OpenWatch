@@ -1,0 +1,33 @@
+id: journald-service-enabled
+title: Enable journald service
+description: >
+  The systemd-journald service must be enabled and running to collect
+  system logs. Journald is the default logging service on modern Linux
+  systems using systemd.
+rationale: >
+  System logging is critical for security monitoring, incident response,
+  and troubleshooting. Without journald, security-relevant events may not
+  be recorded, hindering forensic analysis.
+severity: high
+category: services
+tags: [service, logging, journald, systemd]
+
+references:
+  cis:
+    rhel9_v2:  { section: "6.2.1.1", level: "L1", type: "Automated" }
+  nist_800_53: ["AU-2", "AU-3", "AU-12"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - default: true
+    check:
+      method: service_state
+      name: "systemd-journald"
+      state: "running"
+      enabled: true
+    remediation:
+      mechanism: service_enabled
+      name: "systemd-journald"

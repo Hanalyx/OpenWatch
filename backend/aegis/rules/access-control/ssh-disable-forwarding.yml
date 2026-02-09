@@ -1,0 +1,70 @@
+id: ssh-disable-forwarding
+title: Disable SSH forwarding
+description: >
+  The SSH daemon must disable all forwarding capabilities including X11,
+  TCP, StreamLocal, and tunnel forwarding. The DisableForwarding directive
+  provides a single control that supersedes individual forwarding settings,
+  preventing any use of the SSH connection as a network proxy.
+
+rationale: >
+  SSH forwarding allows authenticated users to tunnel arbitrary network
+  traffic through the encrypted connection, bypassing firewalls and network
+  segmentation controls. An attacker with valid SSH credentials could use
+  forwarding to pivot into restricted network segments, exfiltrate data
+  through encrypted tunnels, or relay attacks through the compromised host.
+
+severity: medium
+category: access-control
+tags: [ssh, forwarding, x11, tcp-forwarding]
+
+references:
+  cis:
+    rhel10_v1:  { section: "5.1.8", level: "L2", type: "Automated" }
+    rhel8_v4:  { section: "5.1.10", level: "L2", type: "Automated" }
+    rhel9_v2:  { section: "5.1.10", level: "L2", type: "Automated" }
+  stig:
+    rhel8_v2r6:
+      vuln_id: "V-230555"
+      stig_id: "RHEL-08-040340"
+      severity: "CAT II"
+      cci: ["CCI-000366"]
+    rhel9_v2r7:
+      vuln_id: "V-258007"
+      stig_id: "RHEL-09-255155"
+      severity: "CAT II"
+      cci: ["CCI-000366"]
+  nist_800_53: ["CM-6", "CM-7"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - when: sshd_config_d
+    check:
+      method: config_value
+      path: "/etc/ssh/sshd_config.d"
+      key: "DisableForwarding"
+      expected: "yes"
+      scan_pattern: "*.conf"
+    remediation:
+      mechanism: config_set_dropin
+      dir: "/etc/ssh/sshd_config.d"
+      file: "00-aegis-disable-forwarding.conf"
+      key: "DisableForwarding"
+      value: "yes"
+      reload: "sshd"
+
+  - default: true
+    check:
+      method: config_value
+      path: "/etc/ssh/sshd_config"
+      key: "DisableForwarding"
+      expected: "yes"
+    remediation:
+      mechanism: config_set
+      path: "/etc/ssh/sshd_config"
+      key: "DisableForwarding"
+      value: "yes"
+      separator: " "
+      reload: "sshd"

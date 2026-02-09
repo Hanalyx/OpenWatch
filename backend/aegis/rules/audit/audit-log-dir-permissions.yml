@@ -1,0 +1,36 @@
+id: audit-log-dir-permissions
+title: Set permissions on audit log directory
+description: >
+  The /var/log/audit directory must have restrictive permissions (0700 or
+  more restrictive) to prevent unauthorized access to audit logs.
+rationale: >
+  Audit logs contain sensitive security information about system activity.
+  Unrestricted access could allow attackers to read logs to understand
+  detection capabilities or modify/delete logs to cover their tracks.
+severity: high
+category: audit
+tags: [audit, permissions, logging, security]
+
+references:
+  cis:
+    rhel9_v2:  { section: "6.3.4.1", level: "L2", type: "Automated" }
+  nist_800_53: ["AU-9", "AC-6"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - default: true
+    check:
+      method: file_permission
+      path: "/var/log/audit"
+      mode: "0700"
+      owner: "root"
+      group: "root"
+    remediation:
+      mechanism: file_permissions
+      path: "/var/log/audit"
+      mode: "0700"
+      owner: "root"
+      group: "root"

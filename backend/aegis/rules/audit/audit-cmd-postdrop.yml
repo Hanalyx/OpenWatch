@@ -1,0 +1,33 @@
+id: audit-cmd-postdrop
+title: Audit uses of the postdrop command
+description: >
+  All uses of the postdrop command must be audited. The postdrop command
+  is used by the Postfix mail system for queue management.
+rationale: >
+  Auditing postdrop command usage allows detection of mail queue
+  manipulation that could be used for data exfiltration.
+severity: medium
+category: audit
+tags: [audit, auditd, privileged, postfix, mail]
+
+references:
+  stig:
+    rhel9_v2r7:
+      vuln_id: "V-258199"
+      stig_id: "RHEL-09-654245"
+      severity: "CAT II"
+  nist_800_53: ["AU-2", "AU-12"]
+
+platforms:
+  - family: rhel
+    min_version: 9
+
+implementations:
+  - default: true
+    check:
+      method: audit_rule_exists
+      rule: "-a always,exit -F path=/usr/sbin/postdrop -F perm=x -F auid>=1000 -F auid!=unset -k privileged-postdrop"
+    remediation:
+      mechanism: audit_rule_set
+      rule: "-a always,exit -F path=/usr/sbin/postdrop -F perm=x -F auid>=1000 -F auid!=unset -k privileged-postdrop"
+      persist_file: "/etc/audit/rules.d/50-privileged.rules"

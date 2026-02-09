@@ -1,0 +1,65 @@
+id: ssh-print-last-log
+title: Enable SSH PrintLastLog
+description: >
+  The SSH daemon must display the date and time of the last successful
+  login upon user authentication. This provides users with immediate
+  awareness of when their account was last accessed, enabling them to
+  detect unauthorized use.
+
+rationale: >
+  Displaying the last login timestamp alerts legitimate users to potential
+  unauthorized access. If an attacker has compromised an account, the user
+  will see an unexpected login time or source, providing an early warning
+  that their credentials may have been stolen.
+
+severity: low
+category: access-control
+tags: [ssh, logging, last-login]
+
+references:
+  stig:
+    rhel8_v2r6:
+      vuln_id: "V-230382"
+      stig_id: "RHEL-08-020350"
+      severity: "CAT II"
+      cci: ["CCI-000052"]
+    rhel9_v2r7:
+      vuln_id: "V-258009"
+      stig_id: "RHEL-09-255165"
+      severity: "CAT II"
+      cci: ["CCI-000366"]
+  nist_800_53: ["AC-9"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - when: sshd_config_d
+    check:
+      method: config_value
+      path: "/etc/ssh/sshd_config.d"
+      key: "PrintLastLog"
+      expected: "yes"
+      scan_pattern: "*.conf"
+    remediation:
+      mechanism: config_set_dropin
+      dir: "/etc/ssh/sshd_config.d"
+      file: "00-aegis-print-last-log.conf"
+      key: "PrintLastLog"
+      value: "yes"
+      reload: "sshd"
+
+  - default: true
+    check:
+      method: config_value
+      path: "/etc/ssh/sshd_config"
+      key: "PrintLastLog"
+      expected: "yes"
+    remediation:
+      mechanism: config_set
+      path: "/etc/ssh/sshd_config"
+      key: "PrintLastLog"
+      value: "yes"
+      separator: " "
+      reload: "sshd"

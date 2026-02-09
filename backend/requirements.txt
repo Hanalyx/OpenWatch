@@ -89,3 +89,6 @@ python-dateutil==2.9.0.post0
 pytz==2025.2
 chardet==4.0.0
 semver==3.0.4  # Semantic versioning library for plugin version management (Phase 5)
+
+# Note: Aegis is installed via git clone (not pip) due to v0.1.0 lacking setup.py
+# See: backend/aegis/ directory and docker/Dockerfile.backend for installation

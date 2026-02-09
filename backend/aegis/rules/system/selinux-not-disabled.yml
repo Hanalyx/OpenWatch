@@ -1,0 +1,34 @@
+id: selinux-not-disabled
+title: Ensure the SELinux mode is not disabled
+description: >
+  SELinux must be set to enforcing or permissive mode. The SELinux mode
+  must not be set to disabled in /etc/selinux/config.
+rationale: >
+  A system in SELinux disabled mode does not have any mandatory access
+  controls active. This significantly reduces security protections and
+  should never be configured on production systems.
+severity: high
+category: system
+tags: [selinux, security, access-control]
+
+references:
+  cis:
+    rhel9_v2:  { section: "1.3.1.4", level: "L1", type: "Automated" }
+  nist_800_53: ["AC-3", "AC-6"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - default: true
+    check:
+      method: command
+      run: "grep -E '^SELINUX=disabled' /etc/selinux/config 2>/dev/null | head -1"
+      expected_exit: 0
+      expected_stdout: ""
+    remediation:
+      mechanism: manual
+      description: >
+        Edit /etc/selinux/config and set SELINUX=enforcing or SELINUX=permissive.
+        A system reboot is required to change SELinux mode from disabled.

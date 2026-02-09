@@ -1,0 +1,36 @@
+id: grub-processor-mitigations
+title: Enable processor vulnerability mitigations in GRUB
+description: >
+  The pti=on kernel parameter must be set to enable Kernel Page Table
+  Isolation (KPTI) to mitigate processor-based vulnerabilities like
+  Meltdown and Spectre.
+rationale: >
+  Modern processors have speculative execution vulnerabilities that can
+  allow unauthorized access to kernel memory. KPTI separates kernel and
+  user page tables to mitigate these attacks.
+severity: low
+category: system
+tags: [grub, kernel, security, cpu, meltdown, spectre, boot]
+
+references:
+  stig:
+    rhel9_v2r7:
+      vuln_id: "V-257795"
+      stig_id: "RHEL-09-212050"
+      severity: "CAT III"
+  nist_800_53: ["CM-6", "SI-16"]
+
+platforms:
+  - family: rhel
+    min_version: 9
+
+implementations:
+  - default: true
+    check:
+      method: grub_parameter
+      key: "pti"
+      expected: "on"
+    remediation:
+      mechanism: grub_parameter_set
+      key: "pti"
+      value: "on"

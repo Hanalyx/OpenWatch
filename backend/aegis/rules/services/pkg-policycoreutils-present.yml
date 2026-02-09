@@ -1,0 +1,33 @@
+id: pkg-policycoreutils-present
+title: Ensure policycoreutils package is installed
+description: >
+  The policycoreutils package must be installed to provide
+  SELinux policy management utilities.
+rationale: >
+  SELinux policy tools are required for managing mandatory
+  access controls that protect system security.
+severity: medium
+category: services
+tags: [package, selinux, security]
+
+references:
+  stig:
+    rhel9_v2r7:
+      vuln_id: "V-258081"
+      stig_id: "RHEL-09-431015"
+      severity: "CAT II"
+  nist_800_53: ["AC-3", "CM-6"]
+
+platforms:
+  - family: rhel
+    min_version: 9
+
+implementations:
+  - default: true
+    check:
+      method: package_state
+      name: "policycoreutils"
+      state: "present"
+    remediation:
+      mechanism: package_present
+      name: "policycoreutils"

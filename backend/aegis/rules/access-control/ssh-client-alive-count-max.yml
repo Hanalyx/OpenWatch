@@ -1,0 +1,66 @@
+id: ssh-client-alive-count-max
+title: Set SSH client alive count maximum
+description: >
+  The SSH daemon must terminate sessions after a defined number of missed
+  keepalive responses. ClientAliveCountMax sets how many client-alive
+  messages can be sent without receiving a response before the server
+  disconnects the session.
+
+rationale: >
+  A high ClientAliveCountMax allows sessions to persist long after the
+  client has become unresponsive, leaving open sessions that an attacker
+  could hijack. Setting the count to 1 ensures that a session is terminated
+  promptly after the first missed keepalive, working in conjunction with
+  ClientAliveInterval to enforce a strict idle timeout.
+
+severity: medium
+category: access-control
+tags: [ssh, session-management, timeout, idle]
+
+references:
+  stig:
+    rhel8_v2r6:
+      vuln_id: "V-244525"
+      stig_id: "RHEL-08-010201"
+      severity: "CAT II"
+      cci: ["CCI-001133"]
+    rhel9_v2r7:
+      vuln_id: "V-257996"
+      stig_id: "RHEL-09-255100"
+      severity: "CAT II"
+      cci: ["CCI-001133", "CCI-002361", "CCI-002891"]
+  nist_800_53: ["AC-12", "SC-10"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - when: sshd_config_d
+    check:
+      method: config_value
+      path: "/etc/ssh/sshd_config.d"
+      key: "ClientAliveCountMax"
+      expected: "1"
+      scan_pattern: "*.conf"
+    remediation:
+      mechanism: config_set_dropin
+      dir: "/etc/ssh/sshd_config.d"
+      file: "00-aegis-client-alive-count-max.conf"
+      key: "ClientAliveCountMax"
+      value: "1"
+      reload: "sshd"
+
+  - default: true
+    check:
+      method: config_value
+      path: "/etc/ssh/sshd_config"
+      key: "ClientAliveCountMax"
+      expected: "1"
+    remediation:
+      mechanism: config_set
+      path: "/etc/ssh/sshd_config"
+      key: "ClientAliveCountMax"
+      value: "1"
+      separator: " "
+      reload: "sshd"

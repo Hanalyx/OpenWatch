@@ -1,0 +1,33 @@
+id: pkg-krb5-workstation-absent
+title: Ensure krb5-workstation package is not installed
+description: >
+  The krb5-workstation package provides Kerberos client utilities.
+  Unless required for authentication, this package should not be installed.
+rationale: >
+  Removing unnecessary packages reduces the attack surface and potential
+  vulnerabilities.
+severity: medium
+category: services
+tags: [package, kerberos, attack-surface]
+
+references:
+  stig:
+    rhel9_v2r7:
+      vuln_id: "V-257831"
+      stig_id: "RHEL-09-215035"
+      severity: "CAT II"
+  nist_800_53: ["CM-7", "AC-6"]
+
+platforms:
+  - family: rhel
+    min_version: 9
+
+implementations:
+  - default: true
+    check:
+      method: package_state
+      name: "krb5-workstation"
+      state: "absent"
+    remediation:
+      mechanism: package_absent
+      name: "krb5-workstation"

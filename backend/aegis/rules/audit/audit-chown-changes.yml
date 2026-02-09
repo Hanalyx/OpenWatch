@@ -1,0 +1,34 @@
+id: audit-chown-changes
+title: Audit file ownership changes
+description: >
+  The system must audit all uses of the chown, fchown, fchownat, and
+  lchown system calls to track ownership changes.
+rationale: >
+  Unauthorized ownership changes could allow attackers to take control
+  of system files. Auditing ownership changes provides accountability
+  and helps detect unauthorized modifications.
+severity: medium
+category: audit
+tags: [audit, ownership, chown, stig]
+
+references:
+  stig:
+    rhel9_v2r7:
+      vuln_id: "V-257804"
+      stig_id: "RHEL-09-654025"
+      severity: "CAT II"
+  nist_800_53: ["AU-2", "AU-12"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - default: true
+    check:
+      method: audit_rule_exists
+      rule: "-a always,exit -F arch=b64 -S chown,fchown,fchownat,lchown -k perm_mod"
+    remediation:
+      mechanism: audit_rule_set
+      rule: "-a always,exit -F arch=b64 -S chown,fchown,fchownat,lchown -k perm_mod"
+      persist_file: "/etc/audit/rules.d/50-perm-mod.rules"

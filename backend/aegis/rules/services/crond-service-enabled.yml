@@ -1,0 +1,32 @@
+id: crond-service-enabled
+title: Enable crond service
+description: >
+  The crond daemon must be enabled and running to execute scheduled jobs.
+  Cron is essential for many system maintenance and security tasks.
+rationale: >
+  Many security and maintenance tasks rely on cron scheduling, including
+  log rotation, AIDE integrity checks, and security updates. Without crond,
+  these automated tasks will not run.
+severity: medium
+category: services
+tags: [service, cron, scheduling]
+
+references:
+  cis:
+    rhel9_v2:  { section: "2.4.1.1", level: "L1", type: "Automated" }
+  nist_800_53: ["CM-6", "AU-4"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - default: true
+    check:
+      method: service_state
+      name: "crond"
+      state: "running"
+      enabled: true
+    remediation:
+      mechanism: service_enabled
+      name: "crond"

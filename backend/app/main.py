@@ -38,6 +38,7 @@ from .routes.hosts.bulk_operations import router as bulk_operations_router
 from .routes.hosts.monitoring import router as monitoring_router
 from .routes.integrations import router as integrations_router
 from .routes.integrations.metrics import router as integration_metrics_router
+from .routes.plugins import router as plugins_router
 from .routes.remediation import router as remediation_router
 from .routes.rules import router as rules_router
 from .routes.scans import router as scans_router
@@ -177,6 +178,51 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.warning(f"MongoDB initialization failed: {mongo_error}")
         if not settings.debug:
             raise
+
+    # Register Aegis scanner with ScannerFactory
+    try:
+        from .plugins.aegis import register_aegis_scanner
+
+        register_aegis_scanner()
+        logger.info("Aegis scanner registered with ScannerFactory")
+    except Exception as aegis_error:
+        logger.warning(f"Aegis scanner registration failed: {aegis_error}")
+        # Non-fatal - other scanners still work
+
+    # Sync Aegis rules to PostgreSQL (replaces MongoDB rule storage)
+    try:
+        from .database import SessionLocal
+        from .plugins.aegis import AegisRuleSyncService
+
+        db = SessionLocal()
+        try:
+            sync_service = AegisRuleSyncService(db)
+            sync_result = sync_service.sync_all_rules()
+            logger.info(
+                "Aegis rules synced to PostgreSQL: %d rules, %d mappings",
+                sync_result.get("rules_synced", 0),
+                sync_result.get("mappings_created", 0),
+            )
+        finally:
+            db.close()
+    except Exception as sync_error:
+        logger.warning(f"Aegis rule sync failed: {sync_error}")
+        # Non-fatal - scans still work with YAML rules directly
+
+    # Register Aegis ORSA plugin with the plugin registry
+    try:
+        from .plugins.aegis import register_aegis_orsa_plugin
+
+        aegis_info = await register_aegis_orsa_plugin()
+        logger.info(
+            "Aegis ORSA plugin registered: %s v%s (%d capabilities)",
+            aegis_info.name,
+            aegis_info.version,
+            len(aegis_info.capabilities),
+        )
+    except Exception as orsa_error:
+        logger.warning(f"Aegis ORSA plugin registration failed: {orsa_error}")
+        # Non-fatal - legacy scanner still works
 
     # Distributed tracing disabled for initial deployment
     logger.info("Distributed tracing disabled for initial deployment")
@@ -503,6 +549,7 @@ app.include_router(content_pkg_router, prefix="/api", tags=["Content"])
 app.include_router(host_groups_router, prefix="/api", tags=["Host Groups"])
 app.include_router(hosts_router, prefix="/api", tags=["Hosts"])
 app.include_router(integrations_router, prefix="/api", tags=["Integrations"])
+app.include_router(plugins_router, prefix="/api", tags=["Plugins"])
 app.include_router(remediation_router, prefix="/api", tags=["Remediation"])
 app.include_router(rules_router, prefix="/api", tags=["Rules"])
 app.include_router(scans_router, prefix="/api", tags=["Security Scans"])

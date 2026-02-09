@@ -1,0 +1,33 @@
+id: audit-cmd-sudo
+title: Audit uses of the sudo command
+description: >
+  All uses of the sudo command must be audited. The sudo command
+  allows privilege escalation to run commands as other users.
+rationale: >
+  Auditing sudo command usage is critical for detecting privilege
+  escalation and tracking privileged command execution.
+severity: medium
+category: audit
+tags: [audit, auditd, privileged, sudo]
+
+references:
+  stig:
+    rhel9_v2r7:
+      vuln_id: "V-258204"
+      stig_id: "RHEL-09-654270"
+      severity: "CAT II"
+  nist_800_53: ["AU-2", "AU-12"]
+
+platforms:
+  - family: rhel
+    min_version: 9
+
+implementations:
+  - default: true
+    check:
+      method: audit_rule_exists
+      rule: "-a always,exit -F path=/usr/bin/sudo -F perm=x -F auid>=1000 -F auid!=unset -k privileged-sudo"
+    remediation:
+      mechanism: audit_rule_set
+      rule: "-a always,exit -F path=/usr/bin/sudo -F perm=x -F auid>=1000 -F auid!=unset -k privileged-sudo"
+      persist_file: "/etc/audit/rules.d/50-privileged.rules"

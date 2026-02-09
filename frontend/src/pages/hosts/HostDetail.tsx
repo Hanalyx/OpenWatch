@@ -107,6 +107,34 @@ interface Scan {
   };
 }
 
+interface ComplianceFinding {
+  rule_id: string;
+  title: string;
+  severity: string;
+  status: string;
+  detail: string | null;
+  framework_section: string | null;
+}
+
+interface ComplianceState {
+  host_id: string;
+  hostname: string;
+  scan_id: string | null;
+  scan_date: string | null;
+  total_rules: number;
+  passed: number;
+  failed: number;
+  unknown: number;
+  compliance_score: number;
+  findings: ComplianceFinding[];
+  severity_summary: {
+    critical: { passed: number; failed: number };
+    high: { passed: number; failed: number };
+    medium: { passed: number; failed: number };
+    low: { passed: number; failed: number };
+  };
+}
+
 interface TabPanelProps {
   children?: React.ReactNode;
   index: number;
@@ -139,6 +167,10 @@ const HostDetail: React.FC = () => {
   const [deletingSSHKey, setDeletingSSHKey] = useState(false);
   const [baselineDialogOpen, setBaselineDialogOpen] = useState(false);
   const [_owcaScore, setOwcaScore] = useState<OWCAScore | null>(null);
+  const [complianceState, setComplianceState] = useState<ComplianceState | null>(null);
+  const [complianceLoading, setComplianceLoading] = useState(true);
+  const [findingsFilter, setFindingsFilter] = useState<'all' | 'pass' | 'fail'>('all');
+  const [findingsSearch, _setFindingsSearch] = useState('');
 
   // Fetch host data when component mounts or id changes
   // ESLint disable: Functions are not memoized to avoid complex dependency chain
@@ -149,8 +181,24 @@ const HostDetail: React.FC = () => {
     fetchOWCAScore();
     // Also try to get enhanced host data from hosts list
     fetchEnhancedHostData();
+    // Fetch Aegis compliance state
+    fetchComplianceState();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  const fetchComplianceState = async () => {
+    if (!id) return;
+    setComplianceLoading(true);
+    try {
+      const data = await api.get<ComplianceState>(`/api/scans/aegis/compliance-state/${id}`);
+      setComplianceState(data);
+    } catch (error) {
+      console.warn('Aegis compliance state not available:', error);
+      setComplianceState(null);
+    } finally {
+      setComplianceLoading(false);
+    }
+  };
 
   const fetchEnhancedHostData = async () => {
     try {
@@ -497,6 +545,7 @@ const HostDetail: React.FC = () => {
       {/* Tabs */}
       <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
         <Tabs value={tabValue} onChange={(_, newValue) => setTabValue(newValue)}>
+          <Tab label="Compliance State" icon={<SecurityIcon />} iconPosition="start" />
           <Tab label="Scan History" />
           <Tab label="Host Information" />
           <Tab label="System Details" />
@@ -506,6 +555,257 @@ const HostDetail: React.FC = () => {
 
       {/* Tab Panels */}
       <TabPanel value={tabValue} index={0}>
+        {/* Compliance State Panel */}
+        {complianceLoading ? (
+          <Box display="flex" justifyContent="center" alignItems="center" minHeight="200px">
+            <CircularProgress />
+          </Box>
+        ) : !complianceState || complianceState.total_rules === 0 ? (
+          <Alert severity="info" sx={{ mb: 2 }}>
+            No Aegis compliance scan has been performed on this host yet.
+            <Button
+              variant="contained"
+              size="small"
+              startIcon={<PlayArrowIcon />}
+              onClick={handleStartScan}
+              sx={{ ml: 2 }}
+            >
+              Run Aegis Scan
+            </Button>
+          </Alert>
+        ) : (
+          <Box>
+            {/* Compliance Summary */}
+            <Grid container spacing={2} sx={{ mb: 3 }}>
+              <Grid size={{ xs: 12, md: 3 }}>
+                <Card>
+                  <CardContent sx={{ textAlign: 'center' }}>
+                    <Typography
+                      variant="h3"
+                      color={
+                        complianceState.compliance_score >= 70
+                          ? 'success.main'
+                          : complianceState.compliance_score >= 40
+                            ? 'warning.main'
+                            : 'error.main'
+                      }
+                    >
+                      {complianceState.compliance_score.toFixed(1)}%
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Compliance Score
+                    </Typography>
+                    {complianceState.scan_date && (
+                      <Typography
+                        variant="caption"
+                        color="text.secondary"
+                        display="block"
+                        sx={{ mt: 1 }}
+                      >
+                        Last scanned: {new Date(complianceState.scan_date).toLocaleString()}
+                      </Typography>
+                    )}
+                  </CardContent>
+                </Card>
+              </Grid>
+              <Grid size={{ xs: 6, md: 2.25 }}>
+                <Card>
+                  <CardContent sx={{ textAlign: 'center' }}>
+                    <Typography variant="h4" color="success.main">
+                      {complianceState.passed}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Passed
+                    </Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+              <Grid size={{ xs: 6, md: 2.25 }}>
+                <Card>
+                  <CardContent sx={{ textAlign: 'center' }}>
+                    <Typography variant="h4" color="error.main">
+                      {complianceState.failed}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Failed
+                    </Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+              <Grid size={{ xs: 12, md: 4.5 }}>
+                <Card>
+                  <CardContent>
+                    <Typography variant="subtitle2" gutterBottom>
+                      Severity Breakdown
+                    </Typography>
+                    <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                      <Tooltip
+                        title={`${complianceState.severity_summary.critical.passed} passed, ${complianceState.severity_summary.critical.failed} failed`}
+                      >
+                        <Chip
+                          size="small"
+                          color="error"
+                          label={`Critical: ${complianceState.severity_summary.critical.failed}`}
+                        />
+                      </Tooltip>
+                      <Tooltip
+                        title={`${complianceState.severity_summary.high.passed} passed, ${complianceState.severity_summary.high.failed} failed`}
+                      >
+                        <Chip
+                          size="small"
+                          color="warning"
+                          label={`High: ${complianceState.severity_summary.high.failed}`}
+                        />
+                      </Tooltip>
+                      <Tooltip
+                        title={`${complianceState.severity_summary.medium.passed} passed, ${complianceState.severity_summary.medium.failed} failed`}
+                      >
+                        <Chip
+                          size="small"
+                          color="info"
+                          label={`Medium: ${complianceState.severity_summary.medium.failed}`}
+                        />
+                      </Tooltip>
+                      <Tooltip
+                        title={`${complianceState.severity_summary.low.passed} passed, ${complianceState.severity_summary.low.failed} failed`}
+                      >
+                        <Chip
+                          size="small"
+                          variant="outlined"
+                          label={`Low: ${complianceState.severity_summary.low.failed}`}
+                        />
+                      </Tooltip>
+                    </Box>
+                  </CardContent>
+                </Card>
+              </Grid>
+            </Grid>
+
+            {/* Filters */}
+            <Box sx={{ display: 'flex', gap: 2, mb: 2, alignItems: 'center' }}>
+              <Typography variant="h6">
+                Rule Findings (
+                {
+                  complianceState.findings
+                    .filter((f) => {
+                      if (findingsFilter === 'all') return true;
+                      return f.status === findingsFilter;
+                    })
+                    .filter((f) => {
+                      if (!findingsSearch) return true;
+                      return (
+                        f.title.toLowerCase().includes(findingsSearch.toLowerCase()) ||
+                        f.rule_id.toLowerCase().includes(findingsSearch.toLowerCase())
+                      );
+                    }).length
+                }
+                )
+              </Typography>
+              <Box sx={{ flexGrow: 1 }} />
+              <Chip
+                label="All"
+                variant={findingsFilter === 'all' ? 'filled' : 'outlined'}
+                onClick={() => setFindingsFilter('all')}
+                clickable
+              />
+              <Chip
+                label="Failed"
+                color="error"
+                variant={findingsFilter === 'fail' ? 'filled' : 'outlined'}
+                onClick={() => setFindingsFilter('fail')}
+                clickable
+              />
+              <Chip
+                label="Passed"
+                color="success"
+                variant={findingsFilter === 'pass' ? 'filled' : 'outlined'}
+                onClick={() => setFindingsFilter('pass')}
+                clickable
+              />
+            </Box>
+
+            {/* Findings Table */}
+            <TableContainer component={Paper}>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Status</TableCell>
+                    <TableCell>Severity</TableCell>
+                    <TableCell>Rule ID</TableCell>
+                    <TableCell>Title</TableCell>
+                    <TableCell>Detail</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {complianceState.findings
+                    .filter((f) => findingsFilter === 'all' || f.status === findingsFilter)
+                    .filter(
+                      (f) =>
+                        !findingsSearch ||
+                        f.title.toLowerCase().includes(findingsSearch.toLowerCase()) ||
+                        f.rule_id.toLowerCase().includes(findingsSearch.toLowerCase())
+                    )
+                    .map((finding, idx) => (
+                      <TableRow key={`${finding.rule_id}-${idx}`} hover>
+                        <TableCell>
+                          {finding.status === 'pass' ? (
+                            <CheckCircleIcon color="success" fontSize="small" />
+                          ) : finding.status === 'fail' ? (
+                            <ErrorIcon color="error" fontSize="small" />
+                          ) : (
+                            <InfoIcon color="disabled" fontSize="small" />
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <Chip
+                            size="small"
+                            label={finding.severity}
+                            color={
+                              finding.severity === 'critical'
+                                ? 'error'
+                                : finding.severity === 'high'
+                                  ? 'warning'
+                                  : finding.severity === 'medium'
+                                    ? 'info'
+                                    : 'default'
+                            }
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Typography
+                            variant="body2"
+                            sx={{ fontFamily: 'monospace', fontSize: '0.75rem' }}
+                          >
+                            {finding.rule_id}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2">{finding.title}</Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Typography
+                            variant="body2"
+                            color="text.secondary"
+                            sx={{
+                              maxWidth: 300,
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {finding.detail || '-'}
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Box>
+        )}
+      </TabPanel>
+
+      <TabPanel value={tabValue} index={1}>
         <Typography variant="h6" sx={{ mb: 2 }}>
           Scan History ({scans.length} scans)
         </Typography>
@@ -687,7 +987,7 @@ const HostDetail: React.FC = () => {
         )}
       </TabPanel>
 
-      <TabPanel value={tabValue} index={1}>
+      <TabPanel value={tabValue} index={2}>
         <Typography variant="h6" sx={{ mb: 2 }}>
           Host Information
         </Typography>
@@ -768,7 +1068,7 @@ const HostDetail: React.FC = () => {
         </List>
       </TabPanel>
 
-      <TabPanel value={tabValue} index={2}>
+      <TabPanel value={tabValue} index={3}>
         <Typography variant="h6" sx={{ mb: 2 }}>
           System Details
         </Typography>
@@ -777,7 +1077,7 @@ const HostDetail: React.FC = () => {
         </Alert>
       </TabPanel>
 
-      <TabPanel value={tabValue} index={3}>
+      <TabPanel value={tabValue} index={4}>
         <Box sx={{ height: '600px' }}>
           <HostTerminal hostId={host.id} hostname={host.hostname} ipAddress={host.ip_address} />
         </Box>

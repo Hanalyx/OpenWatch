@@ -1,0 +1,47 @@
+id: chrony-user
+title: Ensure chrony runs as non-root user
+description: >
+  The chronyd daemon should run as the chrony user, not as root. Running
+  time synchronization services as a non-privileged user limits the impact
+  of potential vulnerabilities.
+rationale: >
+  Running network-facing services as root increases the attack surface. If
+  chronyd is compromised, running as a non-root user limits the attacker's
+  ability to affect the rest of the system.
+severity: medium
+category: services
+tags: [service, chrony, time, privilege]
+
+references:
+  cis:
+    rhel9_v2:  { section: "2.3.3", level: "L1", type: "Automated" }
+  nist_800_53: ["AC-6", "CM-6"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - default: true
+    check:
+      method: command
+      # Operational check: verify chronyd runs as chrony user
+      # First try to check running process, then fall back to config if not running
+      run: |
+        if pgrep -x chronyd >/dev/null 2>&1; then
+          # Check actual running user (operational verification)
+          ps -o user= -C chronyd 2>/dev/null | head -1 | grep -qx 'chrony'
+        else
+          # Service not running - check if config specifies user
+          # RHEL 9+ runs as chrony by default, so also check if no override exists
+          grep -E '^OPTIONS=.*-u chrony' /etc/sysconfig/chronyd 2>/dev/null || \
+          grep -E '^\s*user\s+chrony' /etc/chrony.conf 2>/dev/null || \
+          ! grep -E '^\s*user\s+' /etc/chrony.conf 2>/dev/null
+        fi
+      expected_exit: 0
+    remediation:
+      mechanism: config_set
+      path: "/etc/sysconfig/chronyd"
+      key: "OPTIONS"
+      value: '"-u chrony"'
+      restart: "chronyd"

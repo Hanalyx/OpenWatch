@@ -1,0 +1,32 @@
+id: wireless-disabled
+title: Ensure wireless interfaces are disabled
+description: >
+  Wireless networking interfaces should be disabled unless specifically
+  required. This prevents unauthorized network connections via WiFi.
+rationale: >
+  Wireless interfaces can be exploited to establish unauthorized network
+  connections, potentially bypassing network security controls and enabling
+  unauthorized access to the system.
+severity: medium
+category: network
+tags: [wireless, wifi, network, security]
+
+references:
+  cis:
+    rhel9_v2:  { section: "3.1.2", level: "L1", type: "Automated" }
+  nist_800_53: ["CM-7", "SC-8"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - default: true
+    check:
+      method: command
+      run: "nmcli radio wifi 2>/dev/null | grep -q 'disabled' && echo 'disabled' || nmcli radio wifi 2>/dev/null"
+      expected_exit: 0
+      expected_stdout: "disabled"
+    remediation:
+      mechanism: command_exec
+      run: "nmcli radio all off"

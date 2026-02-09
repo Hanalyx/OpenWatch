@@ -1,0 +1,39 @@
+id: fips-mode-enabled
+title: Enable FIPS 140-2 mode
+description: >
+  The system must be configured to use FIPS 140-2 validated cryptographic
+  modules for all cryptographic operations.
+rationale: >
+  FIPS 140-2 compliance ensures that only validated cryptographic algorithms
+  are used, which is required for processing sensitive government data
+  and meeting federal security requirements.
+severity: high
+category: system
+tags: [fips, cryptography, compliance, stig]
+
+references:
+  stig:
+    rhel9_v2r7:
+      vuln_id: "V-257787"
+      stig_id: "RHEL-09-671010"
+      severity: "CAT I"
+  nist_800_53: ["SC-12", "SC-13"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - default: true
+    check:
+      method: command
+      run: "fips-mode-setup --check | grep -q 'FIPS mode is enabled'"
+      expected_exit: 0
+    remediation:
+      mechanism: manual
+      description: >
+        Enable FIPS mode using:
+        fips-mode-setup --enable
+        A system reboot is required after enabling FIPS mode.
+        WARNING: Enabling FIPS may break some applications that rely on
+        non-FIPS approved algorithms.

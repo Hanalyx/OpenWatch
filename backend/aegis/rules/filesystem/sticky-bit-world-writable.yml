@@ -1,0 +1,32 @@
+id: sticky-bit-world-writable
+title: Set sticky bit on world-writable directories
+description: >
+  World-writable directories should have the sticky bit set to prevent
+  users from deleting or renaming files owned by other users.
+rationale: >
+  Without the sticky bit, any user can delete or rename files in a
+  world-writable directory, even files they don't own. The sticky bit
+  ensures only the file owner can delete their files.
+severity: medium
+category: filesystem
+tags: [permissions, sticky-bit, world-writable, security]
+
+references:
+  cis:
+    rhel8_v4:  { section: "6.1.8", level: "L1", type: "Automated" }
+    rhel9_v2:  { section: "6.1.8", level: "L1", type: "Automated" }
+  nist_800_53: ["AC-6", "CM-6"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - default: true
+    check:
+      method: command
+      run: "find / -xdev -type d \\( -perm -0002 -a ! -perm -1000 \\) 2>/dev/null | head -1 | grep -q . && exit 1 || exit 0"
+      expected_exit: 0
+    remediation:
+      mechanism: command_exec
+      run: "find / -xdev -type d -perm -0002 ! -perm -1000 -exec chmod +t {} \\;"

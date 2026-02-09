@@ -1,0 +1,39 @@
+id: sysctl-net-ipv4-conf-all-send-redirects
+title: Disable sending ICMP redirects on all interfaces
+description: >
+  ICMP redirects are used by routers to inform hosts of a better route to a
+  destination. A system that is not acting as a router should not send ICMP
+  redirects.
+rationale: >
+  An attacker could use a compromised host to send ICMP redirects to other
+  hosts, potentially redirecting traffic through malicious systems for
+  interception or modification.
+severity: medium
+category: network
+tags: [sysctl, networking, ipv4, icmp]
+
+references:
+  cis:
+    rhel8_v4:  { section: "3.3.2", level: "L1", type: "Automated" }
+    rhel9_v2:  { section: "3.3.2", level: "L1", type: "Automated" }
+  stig:
+    rhel9_v2r7:
+      vuln_id: "V-257964"
+      stig_id: "RHEL-09-253015"
+      severity: "CAT II"
+  nist_800_53: ["CM-7", "SC-5"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - default: true
+    check:
+      method: sysctl_value
+      key: "net.ipv4.conf.all.send_redirects"
+      expected: "0"
+    remediation:
+      mechanism: sysctl_set
+      key: "net.ipv4.conf.all.send_redirects"
+      value: "0"

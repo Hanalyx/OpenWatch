@@ -1,0 +1,61 @@
+id: ssh-compression
+title: Disable SSH compression
+description: >
+  The SSH daemon must not use compression for data transmitted over the
+  encrypted channel. SSH compression can be exploited by oracle attacks
+  similar to CRIME and BREACH that infer plaintext content from compressed
+  ciphertext size variations.
+
+rationale: >
+  When compression is enabled before encryption, an attacker who can
+  influence part of the plaintext (such as through a web request reflected
+  in a terminal) can observe the compressed ciphertext size to extract
+  secrets byte by byte. Disabling compression eliminates this side-channel
+  attack vector entirely.
+
+severity: low
+category: access-control
+tags: [ssh, compression, performance]
+
+references:
+  stig:
+    rhel9_v2r7:
+      vuln_id: "V-258002"
+      stig_id: "RHEL-09-255130"
+      severity: "CAT II"
+      cci: ["CCI-000366"]
+  nist_800_53: ["CM-6"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - when: sshd_config_d
+    check:
+      method: config_value
+      path: "/etc/ssh/sshd_config.d"
+      key: "Compression"
+      expected: "no"
+      scan_pattern: "*.conf"
+    remediation:
+      mechanism: config_set_dropin
+      dir: "/etc/ssh/sshd_config.d"
+      file: "00-aegis-compression.conf"
+      key: "Compression"
+      value: "no"
+      reload: "sshd"
+
+  - default: true
+    check:
+      method: config_value
+      path: "/etc/ssh/sshd_config"
+      key: "Compression"
+      expected: "no"
+    remediation:
+      mechanism: config_set
+      path: "/etc/ssh/sshd_config"
+      key: "Compression"
+      value: "no"
+      separator: " "
+      reload: "sshd"

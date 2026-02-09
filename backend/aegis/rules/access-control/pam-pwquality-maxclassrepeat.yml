@@ -1,0 +1,42 @@
+id: pam-pwquality-maxclassrepeat
+title: Limit consecutive characters from same class
+description: >
+  The maxclassrepeat parameter in /etc/security/pwquality.conf sets the
+  maximum number of allowed consecutive characters from the same character
+  class (digits, uppercase, lowercase, special).
+rationale: >
+  Limiting consecutive characters from the same class prevents weak patterns
+  like "ABCD" or "1234" and ensures better character distribution in passwords.
+severity: medium
+category: access-control
+tags: [pam, password, authentication, pwquality]
+
+references:
+  cis:
+    rhel8_v4:  { section: "5.4.1.8", level: "L1", type: "Automated" }
+    rhel9_v2:  { section: "5.4.1",   level: "L1", type: "Automated" }
+  stig:
+    rhel9_v2r7:
+      vuln_id: "V-258050"
+      stig_id: "RHEL-09-611100"
+      severity: "CAT II"
+  nist_800_53: ["IA-5(1)(a)"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - default: true
+    check:
+      method: config_value
+      path: "/etc/security/pwquality.conf"
+      key: "maxclassrepeat"
+      expected: "4"
+      comparator: "<="
+    remediation:
+      mechanism: config_set
+      path: "/etc/security/pwquality.conf"
+      key: "maxclassrepeat"
+      value: "4"
+      separator: " = "

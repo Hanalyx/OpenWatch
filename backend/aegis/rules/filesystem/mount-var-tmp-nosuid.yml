@@ -1,0 +1,32 @@
+id: mount-var-tmp-nosuid
+title: Ensure nosuid option on /var/tmp partition
+description: >
+  The nosuid mount option prevents setuid/setgid bits from being honored on
+  /var/tmp. This prevents privilege escalation.
+rationale: >
+  Setuid programs on /var/tmp could allow privilege escalation when executed
+  by other users.
+severity: medium
+category: filesystem
+tags: [mount, var-tmp, hardening]
+
+references:
+  cis:
+    rhel8_v4:  { section: "1.1.3.3", level: "L1", type: "Automated" }
+    rhel9_v2:  { section: "1.1.3.3", level: "L1", type: "Automated" }
+  nist_800_53: ["CM-6", "AC-3", "AC-6"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - default: true
+    check:
+      method: mount_option
+      mount_point: "/var/tmp"
+      options: ["nosuid"]
+    remediation:
+      mechanism: mount_option_set
+      mount_point: "/var/tmp"
+      options: ["nosuid"]

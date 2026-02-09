@@ -1,0 +1,33 @@
+id: audit-config-permissions
+title: Set permissions on audit configuration files
+description: >
+  Audit configuration files in /etc/audit must have restrictive
+  permissions (0640 or more restrictive) to prevent unauthorized
+  modification of audit settings.
+rationale: >
+  Audit configuration controls what events are logged. Unauthorized
+  modification could allow attackers to disable auditing of their
+  activities or create blind spots.
+severity: high
+category: audit
+tags: [audit, permissions, configuration, security]
+
+references:
+  cis:
+    rhel9_v2:  { section: "6.3.4.5", level: "L2", type: "Automated" }
+  nist_800_53: ["AU-9", "AC-6"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - default: true
+    check:
+      method: command
+      run: "find /etc/audit -type f \\( ! -perm 640 -a ! -perm 600 -o ! -user root -o ! -group root \\) 2>/dev/null | head -1"
+      expected_exit: 0
+      expected_stdout: ""
+    remediation:
+      mechanism: command_exec
+      run: "find /etc/audit -type f -exec chmod 0640 {} \\; -exec chown root:root {} \\;"

@@ -1,0 +1,40 @@
+id: sudo-logfile
+title: Ensure sudo commands are logged
+description: >
+  The logfile option in sudoers configuration specifies a file where sudo
+  will log all sudo commands. This provides an audit trail of privileged
+  command execution.
+rationale: >
+  Logging sudo commands provides accountability and allows administrators
+  to track privileged access. This is essential for incident response and
+  compliance auditing.
+severity: medium
+category: access-control
+tags: [sudo, privilege-escalation, logging, audit]
+
+references:
+  cis:
+    rhel8_v4:  { section: "5.3.3", level: "L1", type: "Automated" }
+    rhel9_v2:  { section: "5.3.3", level: "L1", type: "Automated" }
+  stig:
+    rhel9_v2r7:
+      vuln_id: "V-258037"
+      stig_id: "RHEL-09-432020"
+      severity: "CAT II"
+  nist_800_53: ["AU-2", "AU-12"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - default: true
+    check:
+      method: command
+      run: "grep -rPh '^\\s*Defaults\\s+logfile=' /etc/sudoers /etc/sudoers.d/ 2>/dev/null"
+      expected_exit: 0
+    remediation:
+      mechanism: config_set_dropin
+      directory: "/etc/sudoers.d"
+      filename: "00-aegis-logfile"
+      content: "Defaults logfile=\"/var/log/sudo.log\""

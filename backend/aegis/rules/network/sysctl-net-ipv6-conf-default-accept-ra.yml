@@ -1,0 +1,32 @@
+id: sysctl-net-ipv6-conf-default-accept-ra
+title: Disable IPv6 router advertisements on new interfaces
+description: >
+  New network interfaces should not accept IPv6 router advertisements by
+  default unless specifically required.
+rationale: >
+  Accepting IPv6 router advertisements could allow an attacker to redirect
+  traffic or configure malicious default gateways.
+severity: medium
+category: network
+tags: [sysctl, networking, ipv6]
+
+references:
+  cis:
+    rhel8_v4:  { section: "3.3.10", level: "L1", type: "Automated" }
+    rhel9_v2:  { section: "3.3.10", level: "L1", type: "Automated" }
+  nist_800_53: ["CM-7", "SC-5"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - default: true
+    check:
+      method: sysctl_value
+      key: "net.ipv6.conf.default.accept_ra"
+      expected: "0"
+    remediation:
+      mechanism: sysctl_set
+      key: "net.ipv6.conf.default.accept_ra"
+      value: "0"

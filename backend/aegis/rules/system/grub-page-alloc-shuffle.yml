@@ -1,0 +1,36 @@
+id: grub-page-alloc-shuffle
+title: Enable page allocator clearing in GRUB kernel parameters
+description: >
+  The init_on_alloc=1 kernel parameter must be set to clear memory pages
+  when they are allocated. This prevents information disclosure from
+  previously used memory.
+rationale: >
+  When memory pages are reused without being cleared, sensitive data from
+  previous use may be accessible. Clearing pages on allocation prevents
+  use-after-free information leaks.
+severity: medium
+category: system
+tags: [grub, kernel, memory, security, boot]
+
+references:
+  stig:
+    rhel9_v2r7:
+      vuln_id: "V-257793"
+      stig_id: "RHEL-09-212040"
+      severity: "CAT II"
+  nist_800_53: ["CM-6", "SC-4"]
+
+platforms:
+  - family: rhel
+    min_version: 9
+
+implementations:
+  - default: true
+    check:
+      method: grub_parameter
+      key: "init_on_alloc"
+      expected: "1"
+    remediation:
+      mechanism: grub_parameter_set
+      key: "init_on_alloc"
+      value: "1"

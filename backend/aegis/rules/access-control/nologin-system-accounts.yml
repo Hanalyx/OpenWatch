@@ -1,0 +1,37 @@
+id: nologin-system-accounts
+title: Ensure system accounts are non-login
+description: >
+  System accounts (UID < 1000) that are not root should have a non-login
+  shell such as /sbin/nologin or /bin/false to prevent interactive access.
+rationale: >
+  System accounts are typically used for running services and should not
+  allow interactive login. Setting a non-login shell prevents potential
+  abuse of these accounts.
+severity: medium
+category: access-control
+tags: [user-accounts, system-accounts, shell, security]
+
+references:
+  cis:
+    rhel8_v4:  { section: "5.6.8", level: "L1", type: "Automated" }
+    rhel9_v2:  { section: "5.6.8", level: "L1", type: "Automated" }
+  nist_800_53: ["AC-6"]
+
+platforms:
+  - family: rhel
+    min_version: 8
+
+implementations:
+  - default: true
+    check:
+      method: command
+      run: "awk -F: '$3 < 1000 && $1 != \"root\" && $7 != \"/sbin/nologin\" && $7 != \"/bin/false\" && $7 != \"/usr/sbin/nologin\" {exit 1}' /etc/passwd"
+      expected_exit: 0
+    remediation:
+      mechanism: manual
+      description: >
+        Set shell to /sbin/nologin for system accounts that should not
+        have interactive login:
+        usermod -s /sbin/nologin <username>
+        Run this to find accounts needing update:
+        awk -F: '$3 < 1000 && $1 != "root" && $7 !~ /nologin|false/ {print $1}' /etc/passwd

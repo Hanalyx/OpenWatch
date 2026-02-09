@@ -1,0 +1,33 @@
+id: pkg-policycoreutils-python-utils-present
+title: Ensure policycoreutils-python-utils package is installed
+description: >
+  The policycoreutils-python-utils package must be installed to
+  provide Python-based SELinux policy utilities.
+rationale: >
+  Python SELinux utilities like semanage provide advanced policy
+  management capabilities for SELinux administration.
+severity: medium
+category: services
+tags: [package, selinux, security]
+
+references:
+  stig:
+    rhel9_v2r7:
+      vuln_id: "V-258082"
+      stig_id: "RHEL-09-431020"
+      severity: "CAT II"
+  nist_800_53: ["AC-3", "CM-6"]
+
+platforms:
+  - family: rhel
+    min_version: 9
+
+implementations:
+  - default: true
+    check:
+      method: package_state
+      name: "policycoreutils-python-utils"
+      state: "present"
+    remediation:
+      mechanism: package_present
+      name: "policycoreutils-python-utils"
