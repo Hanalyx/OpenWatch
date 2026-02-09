@@ -27,7 +27,7 @@ OS Claim 3.3: "Audits are queries over canonical evidence"
 
 import logging
 import os
-from typing import Optional
+from typing import Any, Dict, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -36,7 +36,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from ...auth import get_current_user
-from ...database import User, get_db
+from ...database import get_db
 from ...schemas.audit_query_schemas import (
     AuditExportCreate,
     AuditExportListResponse,
@@ -73,7 +73,7 @@ async def list_queries(
     per_page: int = Query(20, ge=1, le=100, description="Items per page"),
     include_shared: bool = Query(True, description="Include shared queries"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(get_current_user),
 ) -> SavedQueryListResponse:
     """
     List saved queries accessible to the current user.
@@ -82,7 +82,7 @@ async def list_queries(
     """
     service = AuditQueryService(db)
     return service.list_queries(
-        user_id=int(current_user.id),
+        user_id=int(current_user["id"]),
         page=page,
         per_page=per_page,
         include_shared=include_shared,
@@ -92,18 +92,18 @@ async def list_queries(
 @router.get("/queries/stats", response_model=QueryStatsSummary)
 async def get_query_stats(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(get_current_user),
 ) -> QueryStatsSummary:
     """Get query statistics for the current user."""
     service = AuditQueryService(db)
-    return service.get_stats(int(current_user.id))
+    return service.get_stats(int(current_user["id"]))
 
 
 @router.post("/queries", response_model=SavedQueryResponse)
 async def create_query(
     request: SavedQueryCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(get_current_user),
 ) -> SavedQueryResponse:
     """
     Create a new saved query.
@@ -114,7 +114,7 @@ async def create_query(
     query = service.create_query(
         name=request.name,
         query_definition=request.query_definition.model_dump(exclude_none=True),
-        owner_id=int(current_user.id),
+        owner_id=int(current_user["id"]),
         description=request.description,
         visibility=request.visibility,
     )
@@ -132,7 +132,7 @@ async def create_query(
 async def get_query(
     query_id: UUID,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(get_current_user),
 ) -> SavedQueryResponse:
     """Get saved query by ID."""
     service = AuditQueryService(db)
@@ -145,7 +145,7 @@ async def get_query(
         )
 
     # Check access (owner or shared)
-    if query.owner_id != int(current_user.id) and query.visibility != "shared":
+    if query.owner_id != int(current_user["id"]) and query.visibility != "shared":
         raise HTTPException(
             status_code=http_status.HTTP_403_FORBIDDEN,
             detail="You do not have access to this query",
@@ -159,7 +159,7 @@ async def update_query(
     query_id: UUID,
     request: SavedQueryUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(get_current_user),
 ) -> SavedQueryResponse:
     """
     Update a saved query.
@@ -169,7 +169,7 @@ async def update_query(
     service = AuditQueryService(db)
     query = service.update_query(
         query_id=query_id,
-        owner_id=int(current_user.id),
+        owner_id=int(current_user["id"]),
         name=request.name,
         description=request.description,
         query_definition=(request.query_definition.model_dump(exclude_none=True) if request.query_definition else None),
@@ -196,7 +196,7 @@ async def update_query(
 async def delete_query(
     query_id: UUID,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(get_current_user),
 ) -> None:
     """
     Delete a saved query.
@@ -204,7 +204,7 @@ async def delete_query(
     Only the query owner can delete it.
     """
     service = AuditQueryService(db)
-    deleted = service.delete_query(query_id, int(current_user.id))
+    deleted = service.delete_query(query_id, int(current_user["id"]))
 
     if not deleted:
         # Check if it exists
@@ -229,7 +229,7 @@ async def delete_query(
 async def preview_query(
     request: QueryPreviewRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(get_current_user),
 ) -> QueryPreviewResponse:
     """
     Preview query results (sample + count).
@@ -258,7 +258,7 @@ async def execute_saved_query(
     query_id: UUID,
     request: QueryExecuteRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(get_current_user),
 ) -> QueryExecuteResponse:
     """
     Execute a saved query with pagination.
@@ -285,7 +285,7 @@ async def execute_saved_query(
 
     result = service.execute_query(
         query_id=query_id,
-        user_id=int(current_user.id),
+        user_id=int(current_user["id"]),
         page=request.page,
         per_page=request.per_page,
     )
@@ -305,7 +305,7 @@ async def execute_adhoc_query(
     page: int = Query(1, ge=1),
     per_page: int = Query(50, ge=1, le=500),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(get_current_user),
 ) -> QueryExecuteResponse:
     """
     Execute an ad-hoc query with pagination.
@@ -340,12 +340,12 @@ async def list_exports(
     per_page: int = Query(20, ge=1, le=100, description="Items per page"),
     status: Optional[str] = Query(None, description="Filter by status"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(get_current_user),
 ) -> AuditExportListResponse:
     """List exports for the current user."""
     service = AuditExportService(db)
     return service.list_exports(
-        user_id=int(current_user.id),
+        user_id=int(current_user["id"]),
         page=page,
         per_page=per_page,
         status=status,
@@ -355,18 +355,18 @@ async def list_exports(
 @router.get("/exports/stats", response_model=ExportStatsSummary)
 async def get_export_stats(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(get_current_user),
 ) -> ExportStatsSummary:
     """Get export statistics for the current user."""
     service = AuditExportService(db)
-    return service.get_stats(int(current_user.id))
+    return service.get_stats(int(current_user["id"]))
 
 
 @router.post("/exports", response_model=AuditExportResponse)
 async def create_export(
     request: AuditExportCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(get_current_user),
 ) -> AuditExportResponse:
     """
     Create a new export request.
@@ -404,7 +404,7 @@ async def create_export(
 
     service = AuditExportService(db)
     export = service.create_export(
-        requested_by=int(current_user.id),
+        requested_by=int(current_user["id"]),
         export_format=request.format,
         query_id=request.query_id,
         query_definition=(request.query_definition.model_dump(exclude_none=True) if request.query_definition else None),
@@ -426,7 +426,7 @@ async def create_export(
 async def get_export(
     export_id: UUID,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(get_current_user),
 ) -> AuditExportResponse:
     """Get export by ID."""
     service = AuditExportService(db)
@@ -439,7 +439,7 @@ async def get_export(
         )
 
     # Check access
-    if export.requested_by != int(current_user.id):
+    if export.requested_by != int(current_user["id"]):
         raise HTTPException(
             status_code=http_status.HTTP_403_FORBIDDEN,
             detail="You can only access your own exports",
@@ -452,7 +452,7 @@ async def get_export(
 async def download_export(
     export_id: UUID,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(get_current_user),
 ) -> FileResponse:
     """
     Download export file.
@@ -469,7 +469,7 @@ async def download_export(
         )
 
     # Check access
-    if export.requested_by != int(current_user.id):
+    if export.requested_by != int(current_user["id"]):
         raise HTTPException(
             status_code=http_status.HTTP_403_FORBIDDEN,
             detail="You can only download your own exports",
