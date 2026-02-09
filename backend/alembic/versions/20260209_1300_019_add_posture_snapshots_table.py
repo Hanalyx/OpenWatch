@@ -21,7 +21,20 @@ depends_on = None
 
 
 def upgrade() -> None:
-    """Create posture_snapshots table."""
+    """Create posture_snapshots table (idempotent)."""
+    # Check if table already exists (idempotent migration)
+    conn = op.get_bind()
+    result = conn.execute(
+        sa.text("SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'posture_snapshots')")
+    )
+    if result.scalar():
+        # Table exists, just create indexes if not present
+        op.execute(
+            "CREATE INDEX IF NOT EXISTS ix_posture_snapshots_host_date_desc "
+            "ON posture_snapshots (host_id, snapshot_date DESC)"
+        )
+        return
+
     op.create_table(
         "posture_snapshots",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True, index=True),

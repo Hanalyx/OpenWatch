@@ -50,7 +50,7 @@ class ExceptionService:
         self,
         rule_id: str,
         host_id: Optional[UUID],
-        host_group_id: Optional[UUID],
+        host_group_id: Optional[int],
         justification: str,
         duration_days: int,
         requested_by: int,
@@ -498,7 +498,7 @@ class ExceptionService:
         self,
         rule_id: str,
         host_id: Optional[UUID],
-        host_group_id: Optional[UUID],
+        host_group_id: Optional[int],
     ) -> Optional[Row[Any]]:
         """Find existing active (approved or pending) exception."""
         query = """

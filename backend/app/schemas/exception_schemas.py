@@ -22,7 +22,7 @@ class ExceptionRequestCreate(BaseModel):
 
     rule_id: str = Field(..., description="Rule ID to except")
     host_id: Optional[UUID] = Field(None, description="Specific host (mutually exclusive with host_group_id)")
-    host_group_id: Optional[UUID] = Field(None, description="Host group (mutually exclusive with host_id)")
+    host_group_id: Optional[int] = Field(None, description="Host group (mutually exclusive with host_id)")
     justification: str = Field(..., min_length=20, description="Business justification for exception")
     risk_acceptance: Optional[str] = Field(None, description="Risk acceptance statement")
     compensating_controls: Optional[str] = Field(None, description="Compensating controls in place")
@@ -54,7 +54,7 @@ class ExceptionResponse(BaseModel):
     id: UUID
     rule_id: str
     host_id: Optional[UUID] = None
-    host_group_id: Optional[UUID] = None
+    host_group_id: Optional[int] = None
 
     # Exception details
     justification: str

@@ -707,7 +707,7 @@ class ComplianceException(Base):  # type: ignore[valid-type, misc]
         index=True,
     )
     host_group_id = Column(
-        UUID(as_uuid=True),
+        Integer,
         ForeignKey("host_groups.id", ondelete="CASCADE"),
         nullable=True,
     )

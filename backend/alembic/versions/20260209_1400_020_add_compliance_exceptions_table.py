@@ -23,7 +23,24 @@ depends_on = None
 
 
 def upgrade() -> None:
-    """Create compliance_exceptions table."""
+    """Create compliance_exceptions table (idempotent)."""
+    # Check if table already exists (idempotent migration)
+    conn = op.get_bind()
+    result = conn.execute(
+        sa.text("SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'compliance_exceptions')")
+    )
+    if result.scalar():
+        # Table exists, just create indexes if not present
+        op.execute(
+            "CREATE INDEX IF NOT EXISTS ix_exceptions_active "
+            "ON compliance_exceptions (rule_id, status) WHERE status = 'approved'"
+        )
+        op.execute(
+            "CREATE INDEX IF NOT EXISTS ix_exceptions_expiring "
+            "ON compliance_exceptions (expires_at) WHERE status = 'approved'"
+        )
+        return
+
     # Create status enum
     op.execute(
         """
@@ -51,7 +68,7 @@ def upgrade() -> None:
         ),
         sa.Column(
             "host_group_id",
-            postgresql.UUID(as_uuid=True),
+            sa.Integer,
             sa.ForeignKey("host_groups.id", ondelete="CASCADE"),
             nullable=True,
         ),
