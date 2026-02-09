@@ -6,7 +6,7 @@
  * Part of Phase 6: Audit Queries (Aegis Integration Plan)
  */
 
-import api from '../api';
+import { api } from '../api';
 import type {
   AuditExport,
   AuditExportCreate,
@@ -39,42 +39,37 @@ export const auditAdapter = {
     per_page?: number;
     include_shared?: boolean;
   }): Promise<SavedQueryListResponse> {
-    const response = await api.get<SavedQueryListResponse>(`${BASE_URL}/queries`, {
+    return api.get<SavedQueryListResponse>(`${BASE_URL}/queries`, {
       params,
     });
-    return response.data;
   },
 
   /**
    * Get query statistics for the current user.
    */
   async getQueryStats(): Promise<QueryStats> {
-    const response = await api.get<QueryStats>(`${BASE_URL}/queries/stats`);
-    return response.data;
+    return api.get<QueryStats>(`${BASE_URL}/queries/stats`);
   },
 
   /**
    * Create a new saved query.
    */
   async createQuery(data: SavedQueryCreate): Promise<SavedQuery> {
-    const response = await api.post<SavedQuery>(`${BASE_URL}/queries`, data);
-    return response.data;
+    return api.post<SavedQuery>(`${BASE_URL}/queries`, data);
   },
 
   /**
    * Get saved query by ID.
    */
   async getQuery(queryId: string): Promise<SavedQuery> {
-    const response = await api.get<SavedQuery>(`${BASE_URL}/queries/${queryId}`);
-    return response.data;
+    return api.get<SavedQuery>(`${BASE_URL}/queries/${queryId}`);
   },
 
   /**
    * Update a saved query.
    */
   async updateQuery(queryId: string, data: SavedQueryUpdate): Promise<SavedQuery> {
-    const response = await api.put<SavedQuery>(`${BASE_URL}/queries/${queryId}`, data);
-    return response.data;
+    return api.put<SavedQuery>(`${BASE_URL}/queries/${queryId}`, data);
   },
 
   /**
@@ -92,19 +87,14 @@ export const auditAdapter = {
    * Preview query results (sample + count).
    */
   async previewQuery(data: QueryPreviewRequest): Promise<QueryPreviewResponse> {
-    const response = await api.post<QueryPreviewResponse>(`${BASE_URL}/queries/preview`, data);
-    return response.data;
+    return api.post<QueryPreviewResponse>(`${BASE_URL}/queries/preview`, data);
   },
 
   /**
    * Execute a saved query with pagination.
    */
   async executeQuery(queryId: string, params?: QueryExecuteRequest): Promise<QueryExecuteResponse> {
-    const response = await api.post<QueryExecuteResponse>(
-      `${BASE_URL}/queries/${queryId}/execute`,
-      params || {}
-    );
-    return response.data;
+    return api.post<QueryExecuteResponse>(`${BASE_URL}/queries/${queryId}/execute`, params || {});
   },
 
   /**
@@ -114,12 +104,9 @@ export const auditAdapter = {
     queryDefinition: QueryDefinition,
     params?: { page?: number; per_page?: number }
   ): Promise<QueryExecuteResponse> {
-    const response = await api.post<QueryExecuteResponse>(
-      `${BASE_URL}/queries/execute`,
-      queryDefinition,
-      { params }
-    );
-    return response.data;
+    return api.post<QueryExecuteResponse>(`${BASE_URL}/queries/execute`, queryDefinition, {
+      params,
+    });
   },
 
   // ===========================================================================
@@ -134,34 +121,30 @@ export const auditAdapter = {
     per_page?: number;
     status?: string;
   }): Promise<AuditExportListResponse> {
-    const response = await api.get<AuditExportListResponse>(`${BASE_URL}/exports`, {
+    return api.get<AuditExportListResponse>(`${BASE_URL}/exports`, {
       params,
     });
-    return response.data;
   },
 
   /**
    * Get export statistics for the current user.
    */
   async getExportStats(): Promise<ExportStats> {
-    const response = await api.get<ExportStats>(`${BASE_URL}/exports/stats`);
-    return response.data;
+    return api.get<ExportStats>(`${BASE_URL}/exports/stats`);
   },
 
   /**
    * Create a new export request.
    */
   async createExport(data: AuditExportCreate): Promise<AuditExport> {
-    const response = await api.post<AuditExport>(`${BASE_URL}/exports`, data);
-    return response.data;
+    return api.post<AuditExport>(`${BASE_URL}/exports`, data);
   },
 
   /**
    * Get export by ID.
    */
   async getExport(exportId: string): Promise<AuditExport> {
-    const response = await api.get<AuditExport>(`${BASE_URL}/exports/${exportId}`);
-    return response.data;
+    return api.get<AuditExport>(`${BASE_URL}/exports/${exportId}`);
   },
 
   /**
@@ -176,10 +159,9 @@ export const auditAdapter = {
    * Returns a blob for file download.
    */
   async downloadExport(exportId: string): Promise<Blob> {
-    const response = await api.get(`${BASE_URL}/exports/${exportId}/download`, {
+    return api.get<Blob>(`${BASE_URL}/exports/${exportId}/download`, {
       responseType: 'blob',
     });
-    return response.data;
   },
 };
 
