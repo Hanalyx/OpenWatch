@@ -97,3 +97,11 @@ module = [
     "prometheus_client.*",
 ]
 ignore_missing_imports = true
+
+# Deprecated MongoDB files - exclude from type checking
+[[tool.mypy.overrides]]
+module = [
+    "app.routes.system.mongodb_test",
+    "app.services.utilities.csv_analyzer",
+]
+ignore_errors = true
