@@ -16,6 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from app.auth import get_current_user
 from app.database import get_db
 from app.rbac import Permission, require_permission
 
@@ -253,6 +254,7 @@ async def list_host_packages(
     limit: int = Query(100, ge=1, le=1000, description="Maximum items to return"),
     offset: int = Query(0, ge=0, description="Offset for pagination"),
     db: Session = Depends(get_db),
+    current_user: Dict[str, Any] = Depends(get_current_user),
 ) -> PackagesListResponse:
     """
     Get installed packages for a host.
@@ -289,6 +291,7 @@ async def list_host_services(
     limit: int = Query(100, ge=1, le=1000, description="Maximum items to return"),
     offset: int = Query(0, ge=0, description="Offset for pagination"),
     db: Session = Depends(get_db),
+    current_user: Dict[str, Any] = Depends(get_current_user),
 ) -> ServicesListResponse:
     """
     Get services for a host.
@@ -321,6 +324,7 @@ async def list_host_services(
 async def get_host_system_info(
     host_id: str,
     db: Session = Depends(get_db),
+    current_user: Dict[str, Any] = Depends(get_current_user),
 ) -> SystemInfoResponse:
     """
     Get system information for a host.
@@ -360,6 +364,7 @@ async def list_host_users(
     limit: int = Query(100, ge=1, le=1000, description="Maximum items to return"),
     offset: int = Query(0, ge=0, description="Offset for pagination"),
     db: Session = Depends(get_db),
+    current_user: Dict[str, Any] = Depends(get_current_user),
 ) -> UsersListResponse:
     """
     Get user accounts for a host.
@@ -400,6 +405,7 @@ async def list_host_users(
 async def get_server_intelligence_summary(
     host_id: str,
     db: Session = Depends(get_db),
+    current_user: Dict[str, Any] = Depends(get_current_user),
 ) -> ServerIntelligenceSummary:
     """
     Get server intelligence summary for a host.
@@ -528,6 +534,7 @@ async def list_host_network(
     limit: int = Query(100, ge=1, le=1000, description="Maximum items to return"),
     offset: int = Query(0, ge=0, description="Offset for pagination"),
     db: Session = Depends(get_db),
+    current_user: Dict[str, Any] = Depends(get_current_user),
 ) -> NetworkListResponse:
     """
     Get network interfaces for a host.
@@ -565,6 +572,7 @@ async def list_host_firewall(
     limit: int = Query(100, ge=1, le=1000, description="Maximum items to return"),
     offset: int = Query(0, ge=0, description="Offset for pagination"),
     db: Session = Depends(get_db),
+    current_user: Dict[str, Any] = Depends(get_current_user),
 ) -> FirewallListResponse:
     """
     Get firewall rules for a host.
@@ -602,6 +610,7 @@ async def list_host_routes(
     limit: int = Query(100, ge=1, le=1000, description="Maximum items to return"),
     offset: int = Query(0, ge=0, description="Offset for pagination"),
     db: Session = Depends(get_db),
+    current_user: Dict[str, Any] = Depends(get_current_user),
 ) -> RoutesListResponse:
     """
     Get network routes for a host.
