@@ -137,6 +137,8 @@ from .helpers import validate_host_uuid  # noqa: E402
 
 # Re-export intelligence models
 from .intelligence import (  # noqa: E402
+    AuditEventResponse,
+    AuditEventsListResponse,
     FirewallListResponse,
     FirewallRuleResponse,
     NetworkInterfaceResponse,
@@ -218,6 +220,8 @@ __all__ = [
     "FirewallListResponse",
     "RouteResponse",
     "RoutesListResponse",
+    "AuditEventResponse",
+    "AuditEventsListResponse",
     # Helpers
     "validate_host_uuid",
     # SSH validation (re-exported for backward compatibility)

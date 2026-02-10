@@ -166,6 +166,22 @@ class RouteInfo:
     is_default: bool = False
 
 
+@dataclass
+class AuditEventInfo:
+    """Information about a security audit event."""
+
+    event_type: str  # auth, sudo, service, login_failure
+    event_timestamp: datetime
+    username: Optional[str] = None
+    source_ip: Optional[str] = None
+    action: Optional[str] = None
+    target: Optional[str] = None
+    result: Optional[str] = None  # success, failure
+    raw_message: Optional[str] = None
+    source_process: Optional[str] = None
+    metadata: Dict[str, Any] = field(default_factory=dict)
+
+
 class SystemInfoCollector:
     """Collects system information from remote hosts via SSH."""
 
@@ -1091,6 +1107,304 @@ class SystemInfoCollector:
 
         logger.info(f"Collected {len(routes)} routes")
         return routes
+
+    def collect_audit_events(self, max_events: int = 1000, hours_back: int = 24) -> List[AuditEventInfo]:
+        """
+        Collect security audit events from the remote host.
+
+        Parses journalctl and /var/log/secure for auth events.
+
+        Args:
+            max_events: Maximum number of events to collect
+            hours_back: How many hours back to look
+
+        Returns:
+            List of AuditEventInfo dataclasses with event details
+        """
+        events: List[AuditEventInfo] = []
+
+        # Try journalctl first (modern systems)
+        # Get auth-related events from last N hours
+        journal_output = self._run_command(
+            f"journalctl --since '-{hours_back} hours' -o json "
+            f"_COMM=sshd _COMM=sudo _COMM=su _COMM=login "
+            f"--no-pager 2>/dev/null | head -n {max_events}"
+        )
+        if journal_output:
+            for line in journal_output.split("\n"):
+                if not line.strip():
+                    continue
+                try:
+                    entry = json.loads(line)
+                    event = self._parse_journal_entry(entry)
+                    if event:
+                        events.append(event)
+                except json.JSONDecodeError:
+                    continue
+
+        # Also check /var/log/secure if accessible
+        secure_output = self._run_command(f"tail -n {max_events} /var/log/secure 2>/dev/null | head -n {max_events}")
+        if secure_output and not journal_output:
+            for line in secure_output.split("\n"):
+                if not line.strip():
+                    continue
+                event = self._parse_secure_log_line(line)
+                if event:
+                    events.append(event)
+
+        # Get failed login attempts from lastb
+        lastb_output = self._run_command(f"lastb -n {max_events} 2>/dev/null | head -n {max_events}")
+        if lastb_output:
+            for line in lastb_output.split("\n"):
+                if not line.strip() or "btmp begins" in line:
+                    continue
+                event = self._parse_lastb_line(line)
+                if event:
+                    events.append(event)
+
+        # Sort by timestamp (most recent first)
+        events.sort(key=lambda e: e.event_timestamp, reverse=True)
+
+        # Limit to max_events
+        events = events[:max_events]
+
+        logger.info(f"Collected {len(events)} audit events")
+        return events
+
+    def _parse_journal_entry(self, entry: Dict[str, Any]) -> Optional[AuditEventInfo]:
+        """Parse a journalctl JSON entry into AuditEventInfo."""
+        try:
+            # Get timestamp
+            timestamp_us = entry.get("__REALTIME_TIMESTAMP")
+            if timestamp_us:
+                timestamp = datetime.fromtimestamp(int(timestamp_us) / 1_000_000, tz=timezone.utc)
+            else:
+                return None
+
+            comm = entry.get("_COMM", "")
+            message = entry.get("MESSAGE", "")
+
+            # Determine event type
+            if comm == "sshd":
+                event_type = "auth"
+                result = "success" if "Accepted" in message else "failure" if "Failed" in message else None
+                if result is None:
+                    return None  # Skip non-auth sshd messages
+
+                # Extract username and IP
+                username = None
+                source_ip = None
+
+                # Parse "Accepted publickey for user from IP port"
+                # or "Failed password for user from IP port"
+                parts = message.split()
+                for i, part in enumerate(parts):
+                    if part == "for" and i + 1 < len(parts):
+                        username = parts[i + 1]
+                    elif part == "from" and i + 1 < len(parts):
+                        source_ip = parts[i + 1]
+
+                return AuditEventInfo(
+                    event_type=event_type,
+                    event_timestamp=timestamp,
+                    username=username,
+                    source_ip=source_ip,
+                    action="ssh_login",
+                    result=result,
+                    raw_message=message[:500],  # Truncate
+                    source_process="sshd",
+                )
+
+            elif comm == "sudo":
+                # Parse sudo usage
+                event_type = "sudo"
+                username = entry.get("SUDO_USER")
+                result = "success"  # sudo logs are typically successful
+
+                # Parse the command
+                action = None
+                target = None
+                if "COMMAND=" in message:
+                    action = "command"
+                    cmd_start = message.find("COMMAND=")
+                    if cmd_start != -1:
+                        target = message[cmd_start + 8 : cmd_start + 200]  # Truncate long commands
+
+                return AuditEventInfo(
+                    event_type=event_type,
+                    event_timestamp=timestamp,
+                    username=username,
+                    action=action,
+                    target=target,
+                    result=result,
+                    raw_message=message[:500],
+                    source_process="sudo",
+                    metadata={"run_as": entry.get("SUDO_GID")},
+                )
+
+            elif comm in ("su", "login"):
+                event_type = "auth"
+                result = "success" if "session opened" in message.lower() else "failure"
+
+                return AuditEventInfo(
+                    event_type=event_type,
+                    event_timestamp=timestamp,
+                    action=f"{comm}_session",
+                    result=result,
+                    raw_message=message[:500],
+                    source_process=comm,
+                )
+
+            return None
+
+        except Exception as e:
+            logger.debug(f"Failed to parse journal entry: {e}")
+            return None
+
+    def _parse_secure_log_line(self, line: str) -> Optional[AuditEventInfo]:
+        """Parse a /var/log/secure line into AuditEventInfo."""
+        try:
+            # Format: "Month Day HH:MM:SS hostname process[pid]: message"
+            # Example: "Feb 10 10:15:23 server sshd[12345]: Accepted publickey for user from 1.2.3.4"
+            parts = line.split()
+            if len(parts) < 6:
+                return None
+
+            # Parse timestamp (assumes current year)
+            month_day_time = " ".join(parts[0:3])
+            try:
+                # Add current year since secure log doesn't include it
+                current_year = datetime.now().year
+                timestamp = datetime.strptime(f"{current_year} {month_day_time}", "%Y %b %d %H:%M:%S").replace(
+                    tzinfo=timezone.utc
+                )
+            except ValueError:
+                return None
+
+            # Get process name
+            process_part = parts[4]
+            process_name = process_part.split("[")[0]
+
+            # Get message
+            message = " ".join(parts[5:])
+
+            # Parse based on process
+            if process_name == "sshd":
+                if "Accepted" in message or "Failed" in message:
+                    result = "success" if "Accepted" in message else "failure"
+                    username = None
+                    source_ip = None
+
+                    msg_parts = message.split()
+                    for i, part in enumerate(msg_parts):
+                        if part == "for" and i + 1 < len(msg_parts):
+                            username = msg_parts[i + 1]
+                        elif part == "from" and i + 1 < len(msg_parts):
+                            source_ip = msg_parts[i + 1]
+
+                    return AuditEventInfo(
+                        event_type="auth",
+                        event_timestamp=timestamp,
+                        username=username,
+                        source_ip=source_ip,
+                        action="ssh_login",
+                        result=result,
+                        raw_message=line[:500],
+                        source_process="sshd",
+                    )
+
+            elif process_name == "sudo":
+                if "COMMAND=" in message:
+                    # Extract username
+                    username = None
+                    if ":" in message:
+                        user_part = message.split(":")[0].strip()
+                        if " " in user_part:
+                            username = user_part.split()[-1]
+                        else:
+                            username = user_part
+
+                    return AuditEventInfo(
+                        event_type="sudo",
+                        event_timestamp=timestamp,
+                        username=username,
+                        action="command",
+                        result="success",
+                        raw_message=line[:500],
+                        source_process="sudo",
+                    )
+
+            return None
+
+        except Exception as e:
+            logger.debug(f"Failed to parse secure log line: {e}")
+            return None
+
+    def _parse_lastb_line(self, line: str) -> Optional[AuditEventInfo]:
+        """Parse a lastb output line (failed logins) into AuditEventInfo."""
+        try:
+            # Format: "username pts/0 1.2.3.4 Day Mon DD HH:MM - HH:MM (duration)"
+            parts = line.split()
+            if len(parts) < 4:
+                return None
+
+            username = parts[0]
+            # Skip if it's a header or special entry
+            if username in ("reboot", "shutdown", "wtmp"):
+                return None
+
+            # Extract source IP if present
+            source_ip = None
+            for part in parts:
+                if re.match(r"^\d+\.\d+\.\d+\.\d+$", part):
+                    source_ip = part
+                    break
+
+            # Try to parse timestamp
+            # Format varies: "Day Mon DD HH:MM" or "Day Mon DD HH:MM:SS"
+            timestamp = None
+            for i, part in enumerate(parts):
+                # Look for month abbreviation
+                if part in [
+                    "Jan",
+                    "Feb",
+                    "Mar",
+                    "Apr",
+                    "May",
+                    "Jun",
+                    "Jul",
+                    "Aug",
+                    "Sep",
+                    "Oct",
+                    "Nov",
+                    "Dec",
+                ]:
+                    if i + 2 < len(parts):
+                        try:
+                            current_year = datetime.now().year
+                            time_str = f"{current_year} {part} {parts[i + 1]} {parts[i + 2]}"
+                            timestamp = datetime.strptime(time_str, "%Y %b %d %H:%M").replace(tzinfo=timezone.utc)
+                            break
+                        except ValueError:
+                            pass
+
+            if not timestamp:
+                timestamp = datetime.now(timezone.utc)
+
+            return AuditEventInfo(
+                event_type="login_failure",
+                event_timestamp=timestamp,
+                username=username,
+                source_ip=source_ip,
+                action="failed_login",
+                result="failure",
+                raw_message=line[:500],
+                source_process="login",
+            )
+
+        except Exception as e:
+            logger.debug(f"Failed to parse lastb line: {e}")
+            return None
 
 
 class SystemInfoService:
@@ -2189,3 +2503,160 @@ class SystemInfoService:
             )
 
         return {"items": routes, "total": total, "limit": limit, "offset": offset}
+
+    def save_audit_events(self, host_id: UUID, events: List[AuditEventInfo]) -> int:
+        """
+        Save audit events for a host.
+
+        Uses append pattern - new events are added without removing existing ones.
+        Duplicates are avoided using a compound check on timestamp + type + raw_message.
+
+        Args:
+            host_id: The host UUID
+            events: List of AuditEventInfo dataclasses
+
+        Returns:
+            Number of events saved
+        """
+        if not events:
+            return 0
+
+        now = datetime.now(timezone.utc)
+        saved_count = 0
+
+        for event in events:
+            # Use INSERT ... ON CONFLICT to avoid duplicates
+            # We consider an event duplicate if it has same host, timestamp, type, and message
+            try:
+                self.db.execute(
+                    text(
+                        """
+                        INSERT INTO host_audit_events (
+                            host_id, event_type, event_timestamp, username, source_ip,
+                            action, target, result, raw_message, source_process,
+                            metadata, collected_at
+                        )
+                        SELECT
+                            :host_id, :event_type, :event_timestamp, :username, :source_ip,
+                            :action, :target, :result, :raw_message, :source_process,
+                            :metadata, :collected_at
+                        WHERE NOT EXISTS (
+                            SELECT 1 FROM host_audit_events
+                            WHERE host_id = :host_id
+                              AND event_timestamp = :event_timestamp
+                              AND event_type = :event_type
+                              AND COALESCE(raw_message, '') = COALESCE(:raw_message, '')
+                        )
+                        """
+                    ),
+                    {
+                        "host_id": str(host_id),
+                        "event_type": event.event_type,
+                        "event_timestamp": event.event_timestamp,
+                        "username": event.username,
+                        "source_ip": event.source_ip,
+                        "action": event.action,
+                        "target": event.target,
+                        "result": event.result,
+                        "raw_message": event.raw_message,
+                        "source_process": event.source_process,
+                        "metadata": json.dumps(event.metadata) if event.metadata else None,
+                        "collected_at": now,
+                    },
+                )
+                saved_count += 1
+            except Exception as e:
+                logger.debug(f"Failed to insert audit event: {e}")
+                continue
+
+        self.db.commit()
+        logger.info(f"Saved {saved_count} audit events for host {host_id}")
+        return saved_count
+
+    def get_audit_events(
+        self,
+        host_id: UUID,
+        event_type: Optional[str] = None,
+        result: Optional[str] = None,
+        username: Optional[str] = None,
+        hours_back: Optional[int] = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> Dict[str, Any]:
+        """
+        Get audit events for a host with pagination and filtering.
+
+        Args:
+            host_id: The host UUID
+            event_type: Optional event type filter (auth, sudo, login_failure)
+            result: Optional result filter (success, failure)
+            username: Optional username filter
+            hours_back: Optional time filter (events from last N hours)
+            limit: Maximum events to return
+            offset: Offset for pagination
+
+        Returns:
+            Dictionary with events list and total count
+        """
+        # Build query
+        where_clause = "WHERE host_id = :host_id"
+        params: Dict[str, Any] = {"host_id": str(host_id), "limit": limit, "offset": offset}
+
+        if event_type:
+            where_clause += " AND event_type = :event_type"
+            params["event_type"] = event_type
+
+        if result:
+            where_clause += " AND result = :result"
+            params["result"] = result
+
+        if username:
+            where_clause += " AND username ILIKE :username"
+            params["username"] = f"%{username}%"
+
+        if hours_back:
+            where_clause += " AND event_timestamp >= NOW() - INTERVAL ':hours_back hours'"
+            params["hours_back"] = hours_back
+
+        # Get total count
+        count_result = self.db.execute(
+            text(f"SELECT COUNT(*) FROM host_audit_events {where_clause}"),
+            params,
+        )
+        total = count_result.scalar() or 0
+
+        # Get events
+        result_query = self.db.execute(
+            text(
+                f"""
+                SELECT event_type, event_timestamp, username, source_ip,
+                       action, target, result, raw_message, source_process,
+                       metadata, collected_at
+                FROM host_audit_events
+                {where_clause}
+                ORDER BY event_timestamp DESC
+                LIMIT :limit OFFSET :offset
+                """
+            ),
+            params,
+        )
+
+        events = []
+        for row in result_query.fetchall():
+            events.append(
+                {
+                    "event_type": row.event_type,
+                    "event_timestamp": row.event_timestamp.isoformat() if row.event_timestamp else None,
+                    "username": row.username,
+                    "source_ip": row.source_ip,
+                    "action": row.action,
+                    "target": row.target,
+                    "result": row.result,
+                    "raw_message": row.raw_message,
+                    "source_process": row.source_process,
+                    "metadata": row.metadata,
+                    "collected_at": row.collected_at.isoformat() if row.collected_at else None,
+                }
+            )
+
+        return {"items": events, "total": total, "limit": limit, "offset": offset}

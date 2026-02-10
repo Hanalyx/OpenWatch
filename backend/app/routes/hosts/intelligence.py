@@ -121,6 +121,7 @@ class ServerIntelligenceSummary(BaseModel):
     network_interfaces_count: int = 0
     firewall_rules_count: int = 0
     routes_count: int = 0
+    audit_events_count: int = 0
     last_collected_at: Optional[str] = None
 
 
@@ -228,6 +229,31 @@ class RoutesListResponse(BaseModel):
     """Response model for paginated routes list."""
 
     items: List[RouteResponse]
+    total: int
+    limit: int
+    offset: int
+
+
+class AuditEventResponse(BaseModel):
+    """Response model for a security audit event."""
+
+    event_type: str
+    event_timestamp: str
+    username: Optional[str] = None
+    source_ip: Optional[str] = None
+    action: Optional[str] = None
+    target: Optional[str] = None
+    result: Optional[str] = None
+    raw_message: Optional[str] = None
+    source_process: Optional[str] = None
+    metadata: Optional[Dict[str, Any]] = None
+    collected_at: Optional[str] = None
+
+
+class AuditEventsListResponse(BaseModel):
+    """Response model for paginated audit events list."""
+
+    items: List[AuditEventResponse]
     total: int
     limit: int
     offset: int
@@ -498,6 +524,13 @@ async def get_server_intelligence_summary(
     )
     routes_count = routes_result.scalar() or 0
 
+    # Get audit events count
+    audit_result = db.execute(
+        text("SELECT COUNT(*) FROM host_audit_events WHERE host_id = :host_id"),
+        {"host_id": str(host_uuid)},
+    )
+    audit_events_count = audit_result.scalar() or 0
+
     return ServerIntelligenceSummary(
         host_id=str(host_uuid),
         system_info_collected=system_info_collected,
@@ -510,6 +543,7 @@ async def get_server_intelligence_summary(
         network_interfaces_count=network_interfaces_count,
         firewall_rules_count=firewall_rules_count,
         routes_count=routes_count,
+        audit_events_count=audit_events_count,
         last_collected_at=last_collected.isoformat() if last_collected else None,
     )
 
@@ -624,6 +658,51 @@ async def list_host_routes(
     )
 
 
+@router.get(
+    "/{host_id}/audit-events",
+    response_model=AuditEventsListResponse,
+    summary="List security audit events",
+    description="Get security audit events for a host with pagination and filtering.",
+)
+@require_permission(Permission.HOST_READ)
+async def list_host_audit_events(
+    host_id: str,
+    event_type: Optional[str] = Query(None, description="Filter by event type (auth, sudo, service, login_failure)"),
+    result_filter: Optional[str] = Query(None, alias="result", description="Filter by result (success, failure)"),
+    username: Optional[str] = Query(None, description="Filter by username"),
+    limit: int = Query(100, ge=1, le=1000, description="Maximum items to return"),
+    offset: int = Query(0, ge=0, description="Offset for pagination"),
+    db: Session = Depends(get_db),
+) -> AuditEventsListResponse:
+    """
+    Get security audit events for a host.
+
+    Returns paginated list of audit events with optional filtering.
+    Events include authentication attempts, sudo usage, service changes, and login failures.
+    """
+    # Validate host exists
+    host_uuid = validate_host_uuid(host_id, db)
+
+    from app.services.system_info import SystemInfoService
+
+    service = SystemInfoService(db)
+    result = service.get_audit_events(
+        host_uuid,
+        event_type=event_type,
+        result=result_filter,
+        username=username,
+        limit=limit,
+        offset=offset,
+    )
+
+    return AuditEventsListResponse(
+        items=[AuditEventResponse(**event) for event in result["items"]],
+        total=result["total"],
+        limit=result["limit"],
+        offset=result["offset"],
+    )
+
+
 __all__ = [
     "router",
     "PackageResponse",
@@ -640,4 +719,6 @@ __all__ = [
     "FirewallListResponse",
     "RouteResponse",
     "RoutesListResponse",
+    "AuditEventResponse",
+    "AuditEventsListResponse",
 ]

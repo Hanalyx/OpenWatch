@@ -7,6 +7,7 @@ Part of OpenWatch OS Transformation - Server Intelligence.
 """
 
 from .collector import (
+    AuditEventInfo,
     FirewallRuleInfo,
     NetworkInterfaceInfo,
     PackageInfo,
@@ -19,6 +20,7 @@ from .collector import (
 )
 
 __all__ = [
+    "AuditEventInfo",
     "FirewallRuleInfo",
     "NetworkInterfaceInfo",
     "PackageInfo",
