@@ -5,7 +5,11 @@ Scheduled tasks that periodically collect and store health metrics.
 
 Note: All tasks are sync (def, not async def) because Celery does not
 natively support async tasks. Async service calls are executed via
-asyncio.run().
+asyncio.run() with a single event loop per task.
+
+IMPORTANT: Each task must use a single event loop for all async operations
+to avoid "Event loop is closed" errors. The HealthMonitoringService singleton
+and MongoDB connections are bound to the event loop that created them.
 """
 
 import asyncio
@@ -16,18 +20,30 @@ from typing import Any, Dict
 from celery.schedules import crontab
 
 from app.celery_app import celery_app
-from app.services.monitoring import get_health_monitoring_service
 
 logger = logging.getLogger(__name__)
 
 
-def _run_async(coro):
-    """Run an async coroutine synchronously for Celery task compatibility."""
-    loop = asyncio.new_event_loop()
-    try:
-        return loop.run_until_complete(coro)
-    finally:
-        loop.close()
+async def _collect_service_health_async() -> Dict[str, Any]:
+    """Async implementation of service health collection.
+
+    All async operations run within a single event loop to avoid
+    connection issues with MongoDB/Beanie.
+    """
+    from app.services.mongo_integration_service import reset_mongo_service
+    from app.services.monitoring import get_health_monitoring_service
+    from app.services.monitoring.health import reset_health_monitoring_service
+
+    # Reset singletons to ensure fresh MongoDB connections for this event loop
+    reset_mongo_service()
+    reset_health_monitoring_service()
+
+    health_service = await get_health_monitoring_service()
+    service_health = await health_service.collect_service_health()
+    await health_service.save_service_health(service_health)
+    return {
+        "overall_status": service_health.overall_status,
+    }
 
 
 @celery_app.task(name="collect_service_health", time_limit=300, soft_time_limit=240)
@@ -40,17 +56,20 @@ def collect_service_health_task() -> Dict[str, Any]:
     try:
         logger.info("Starting service health collection task")
 
-        health_service = _run_async(get_health_monitoring_service())
+        # Use a single event loop for all async operations
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            result = loop.run_until_complete(_collect_service_health_async())
+        finally:
+            loop.close()
 
-        service_health = _run_async(health_service.collect_service_health())
-        _run_async(health_service.save_service_health(service_health))
-
-        logger.info(f"Service health collected successfully: {service_health.overall_status}")
+        logger.info(f"Service health collected successfully: {result['overall_status']}")
 
         return {
             "status": "success",
             "timestamp": datetime.utcnow().isoformat(),
-            "overall_status": service_health.overall_status,
+            "overall_status": result["overall_status"],
         }
 
     except Exception as e:
@@ -60,6 +79,28 @@ def collect_service_health_task() -> Dict[str, Any]:
             "timestamp": datetime.utcnow().isoformat(),
             "error": str(e),
         }
+
+
+async def _collect_content_health_async() -> Dict[str, Any]:
+    """Async implementation of content health collection.
+
+    All async operations run within a single event loop to avoid
+    connection issues with MongoDB/Beanie.
+    """
+    from app.services.mongo_integration_service import reset_mongo_service
+    from app.services.monitoring import get_health_monitoring_service
+    from app.services.monitoring.health import reset_health_monitoring_service
+
+    # Reset singletons to ensure fresh MongoDB connections for this event loop
+    reset_mongo_service()
+    reset_health_monitoring_service()
+
+    health_service = await get_health_monitoring_service()
+    content_health = await health_service.collect_content_health()
+    await health_service.save_content_health(content_health)
+    return {
+        "alert_count": len(content_health.alerts_and_recommendations),
+    }
 
 
 @celery_app.task(name="collect_content_health", time_limit=600, soft_time_limit=540)
@@ -72,18 +113,20 @@ def collect_content_health_task() -> Dict[str, Any]:
     try:
         logger.info("Starting content health collection task")
 
-        health_service = _run_async(get_health_monitoring_service())
+        # Use a single event loop for all async operations
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            result = loop.run_until_complete(_collect_content_health_async())
+        finally:
+            loop.close()
 
-        content_health = _run_async(health_service.collect_content_health())
-        _run_async(health_service.save_content_health(content_health))
-
-        alert_count = len(content_health.alerts_and_recommendations)
-        logger.info(f"Content health collected successfully: {alert_count} alerts")
+        logger.info(f"Content health collected successfully: {result['alert_count']} alerts")
 
         return {
             "status": "success",
             "timestamp": datetime.utcnow().isoformat(),
-            "alert_count": alert_count,
+            "alert_count": result["alert_count"],
         }
 
     except Exception as e:
@@ -93,6 +136,29 @@ def collect_content_health_task() -> Dict[str, Any]:
             "timestamp": datetime.utcnow().isoformat(),
             "error": str(e),
         }
+
+
+async def _update_health_summary_async() -> Dict[str, Any]:
+    """Async implementation of health summary update.
+
+    All async operations run within a single event loop to avoid
+    connection issues with MongoDB/Beanie.
+    """
+    from app.services.mongo_integration_service import reset_mongo_service
+    from app.services.monitoring import get_health_monitoring_service
+    from app.services.monitoring.health import reset_health_monitoring_service
+
+    # Reset singletons to ensure fresh MongoDB connections for this event loop
+    reset_mongo_service()
+    reset_health_monitoring_service()
+
+    health_service = await get_health_monitoring_service()
+    summary = await health_service.create_health_summary()
+    await health_service.save_health_summary(summary)
+    return {
+        "overall_status": summary.overall_health_status,
+        "active_issues": summary.active_issues_count,
+    }
 
 
 @celery_app.task(name="update_health_summary", time_limit=300, soft_time_limit=240)
@@ -105,20 +171,21 @@ def update_health_summary_task() -> Dict[str, Any]:
     try:
         logger.info("Starting health summary update task")
 
-        health_service = _run_async(get_health_monitoring_service())
+        # Use a single event loop for all async operations
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            result = loop.run_until_complete(_update_health_summary_async())
+        finally:
+            loop.close()
 
-        summary = _run_async(health_service.create_health_summary())
-        _run_async(health_service.save_health_summary(summary))
-
-        logger.info(
-            f"Health summary updated: {summary.overall_health_status}, " f"{summary.active_issues_count} active issues"
-        )
+        logger.info(f"Health summary updated: {result['overall_status']}, {result['active_issues']} active issues")
 
         return {
             "status": "success",
             "timestamp": datetime.utcnow().isoformat(),
-            "overall_status": summary.overall_health_status,
-            "active_issues": summary.active_issues_count,
+            "overall_status": result["overall_status"],
+            "active_issues": result["active_issues"],
         }
 
     except Exception as e:
@@ -128,6 +195,42 @@ def update_health_summary_task() -> Dict[str, Any]:
             "timestamp": datetime.utcnow().isoformat(),
             "error": str(e),
         }
+
+
+async def _cleanup_old_health_data_async(retention_days: int) -> Dict[str, Any]:
+    """Async implementation of health data cleanup.
+
+    All async operations run within a single event loop to avoid
+    connection issues with MongoDB/Beanie.
+    """
+    from app.models.health_models import ContentHealthDocument, ServiceHealthDocument
+    from app.services.mongo_integration_service import reset_mongo_service
+    from app.services.monitoring import get_health_monitoring_service
+    from app.services.monitoring.health import reset_health_monitoring_service
+
+    # Reset singletons to ensure fresh MongoDB connections for this event loop
+    reset_mongo_service()
+    reset_health_monitoring_service()
+
+    # Ensure MongoDB is initialized
+    await get_health_monitoring_service()
+
+    cutoff_date = datetime.utcnow() - timedelta(days=retention_days)
+
+    # Delete old service health data
+    service_result = await ServiceHealthDocument.find(
+        ServiceHealthDocument.health_check_timestamp < cutoff_date
+    ).delete()
+
+    # Delete old content health data
+    content_result = await ContentHealthDocument.find(
+        ContentHealthDocument.health_check_timestamp < cutoff_date
+    ).delete()
+
+    return {
+        "service_records_deleted": service_result.deleted_count if service_result else 0,
+        "content_records_deleted": content_result.deleted_count if content_result else 0,
+    }
 
 
 @celery_app.task(name="cleanup_old_health_data", time_limit=600, soft_time_limit=540)
@@ -140,31 +243,25 @@ def cleanup_old_health_data_task(retention_days: int = 7) -> dict:
     try:
         logger.info(f"Starting health data cleanup task (retention: {retention_days} days)")
 
-        from app.models.health_models import ContentHealthDocument, ServiceHealthDocument
-
-        cutoff_date = datetime.utcnow() - timedelta(days=retention_days)
-
-        # Delete old service health data
-        service_result = _run_async(
-            ServiceHealthDocument.find(ServiceHealthDocument.health_check_timestamp < cutoff_date).delete()
-        )
-
-        # Delete old content health data
-        content_result = _run_async(
-            ContentHealthDocument.find(ContentHealthDocument.health_check_timestamp < cutoff_date).delete()
-        )
+        # Use a single event loop for all async operations
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            result = loop.run_until_complete(_cleanup_old_health_data_async(retention_days))
+        finally:
+            loop.close()
 
         logger.info(
             f"Health data cleanup completed: "
-            f"{service_result.deleted_count} service records, "
-            f"{content_result.deleted_count} content records deleted"
+            f"{result['service_records_deleted']} service records, "
+            f"{result['content_records_deleted']} content records deleted"
         )
 
         return {
             "status": "success",
             "timestamp": datetime.utcnow().isoformat(),
-            "service_records_deleted": service_result.deleted_count,
-            "content_records_deleted": content_result.deleted_count,
+            "service_records_deleted": result["service_records_deleted"],
+            "content_records_deleted": result["content_records_deleted"],
         }
 
     except Exception as e:

@@ -156,27 +156,30 @@ celery_app.conf.update(
                 "queue": "maintenance",
             },
         },
-        # Health monitoring tasks
-        "collect-service-health": {
-            "task": "collect_service_health",
-            "schedule": crontab(minute="*/5"),
-            "options": {"queue": "health_monitoring"},
-        },
-        "collect-content-health": {
-            "task": "collect_content_health",
-            "schedule": crontab(minute=0),
-            "options": {"queue": "health_monitoring"},
-        },
-        "update-health-summary": {
-            "task": "update_health_summary",
-            "schedule": crontab(minute="*/5"),
-            "options": {"queue": "health_monitoring"},
-        },
-        "cleanup-old-health-data": {
-            "task": "cleanup_old_health_data",
-            "schedule": crontab(hour=2, minute=0),
-            "options": {"queue": "health_monitoring"},
-        },
+        # Health monitoring tasks - DISABLED (MongoDB deprecated)
+        # These tasks depend on MongoDB which is being phased out.
+        # TODO: Migrate to PostgreSQL-based health monitoring or remove entirely.
+        # See: docs/plans/MONGODB_DEPRECATION_PLAN.md
+        # "collect-service-health": {
+        #     "task": "collect_service_health",
+        #     "schedule": crontab(minute="*/5"),
+        #     "options": {"queue": "health_monitoring"},
+        # },
+        # "collect-content-health": {
+        #     "task": "collect_content_health",
+        #     "schedule": crontab(minute=0),
+        #     "options": {"queue": "health_monitoring"},
+        # },
+        # "update-health-summary": {
+        #     "task": "update_health_summary",
+        #     "schedule": crontab(minute="*/5"),
+        #     "options": {"queue": "health_monitoring"},
+        # },
+        # "cleanup-old-health-data": {
+        #     "task": "cleanup_old_health_data",
+        #     "schedule": crontab(hour=2, minute=0),
+        #     "options": {"queue": "health_monitoring"},
+        # },
         # Adaptive compliance scheduler dispatcher
         "dispatch-compliance-scans-every-2-minutes": {
             "task": "app.tasks.dispatch_compliance_scans",

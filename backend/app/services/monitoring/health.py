@@ -822,6 +822,20 @@ class HealthMonitoringService:
 _health_monitoring_service: Optional[HealthMonitoringService] = None
 
 
+def reset_health_monitoring_service() -> None:
+    """Reset the health monitoring service singleton.
+
+    This should be called at the start of each Celery task to ensure
+    the service uses fresh MongoDB connections bound to the current
+    event loop. Necessary because each Celery task creates a new
+    event loop, but the singleton might hold stale connections from
+    a previous event loop.
+    """
+    global _health_monitoring_service
+    _health_monitoring_service = None
+    logger.debug("Health monitoring service singleton reset")
+
+
 async def get_health_monitoring_service() -> HealthMonitoringService:
     """Get health monitoring service instance"""
     global _health_monitoring_service

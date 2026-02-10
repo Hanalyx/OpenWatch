@@ -694,6 +694,20 @@ fi
 mongo_service = MongoIntegrationService()
 
 
+def reset_mongo_service() -> None:
+    """Reset the MongoDB service singleton.
+
+    This should be called at the start of each Celery task to ensure
+    the service uses fresh MongoDB connections bound to the current
+    event loop. Necessary because each Celery task creates a new
+    event loop, but the singleton might hold stale connections from
+    a previous event loop.
+    """
+    global mongo_service
+    mongo_service = MongoIntegrationService()
+    logger.debug("MongoDB service singleton reset")
+
+
 async def get_mongo_service() -> MongoIntegrationService:
     """Get MongoDB integration service instance"""
     if not mongo_service.initialized:
