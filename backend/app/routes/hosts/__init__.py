@@ -10,7 +10,8 @@ Package Structure:
     ├── models.py           # Pydantic request/response models
     ├── helpers.py          # Utility functions and validation helpers
     ├── crud.py             # Basic CRUD operations (list, get, create, update, delete)
-    └── discovery.py        # Host discovery operations (basic, network, security, compliance)
+    ├── discovery.py        # Host discovery operations (basic, network, security, compliance)
+    └── intelligence.py     # Server intelligence (packages, services, system info)
 
 Migration Status (API Standardization - Phase 3):
     Phase 3: Host Discovery Consolidation
@@ -46,6 +47,12 @@ Router Organization:
         DELETE /{host_id}/ssh-key          - Delete host SSH key
         POST /{host_id}/discover-os        - Trigger OS discovery
         GET  /{host_id}/os-info            - Get OS information
+
+    Intelligence Router (intelligence.py):
+        GET  /{host_id}/packages           - List installed packages
+        GET  /{host_id}/services           - List system services
+        GET  /{host_id}/system-info        - Get system information
+        GET  /{host_id}/intelligence/summary - Get server intelligence summary
 
     Discovery Router (discovery.py):
         # Basic System Discovery
@@ -87,11 +94,15 @@ try:
     from .baselines import router as baselines_router
     from .crud import router as crud_router
     from .discovery import router as discovery_router
+    from .intelligence import router as intelligence_router
 
     # Include all sub-routers into main router
     # Order matters for route matching - more specific routes first
     # Discovery router has specific prefixes, so include it first
     router.include_router(discovery_router)
+
+    # Intelligence router (/{host_id}/packages, /{host_id}/services, etc.)
+    router.include_router(intelligence_router)
 
     # Baselines endpoints (/{host_id}/baseline)
     router.include_router(baselines_router)
@@ -123,6 +134,16 @@ from ...services.ssh import validate_ssh_key  # noqa: E402, F401
 
 # Re-export helpers for convenient access - use relative imports
 from .helpers import validate_host_uuid  # noqa: E402
+
+# Re-export intelligence models
+from .intelligence import (  # noqa: E402
+    PackageResponse,
+    PackagesListResponse,
+    ServerIntelligenceSummary,
+    ServiceResponse,
+    ServicesListResponse,
+    SystemInfoResponse,
+)
 
 # Re-export models for convenient access - use relative imports
 from .models import (  # noqa: E402
@@ -174,6 +195,13 @@ __all__ = [
     "BulkComplianceDiscoveryRequest",
     "BulkComplianceDiscoveryResponse",
     "ComplianceCapabilityAssessment",
+    # Server intelligence models
+    "PackageResponse",
+    "PackagesListResponse",
+    "ServiceResponse",
+    "ServicesListResponse",
+    "SystemInfoResponse",
+    "ServerIntelligenceSummary",
     # Helpers
     "validate_host_uuid",
     # SSH validation (re-exported for backward compatibility)

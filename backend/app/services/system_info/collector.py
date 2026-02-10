@@ -7,11 +7,12 @@ Used during compliance scans to gather rich system data.
 Part of OpenWatch OS Transformation - Server Intelligence.
 """
 
+import json
 import logging
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from sqlalchemy import text
@@ -65,6 +66,31 @@ class SystemInfo:
     # System Uptime
     uptime_seconds: Optional[int] = None
     boot_time: Optional[datetime] = None
+
+
+@dataclass
+class PackageInfo:
+    """Information about an installed package."""
+
+    name: str
+    version: Optional[str] = None
+    release: Optional[str] = None
+    arch: Optional[str] = None
+    source_repo: Optional[str] = None
+    installed_at: Optional[datetime] = None
+
+
+@dataclass
+class ServiceInfo:
+    """Information about a system service."""
+
+    name: str
+    display_name: Optional[str] = None
+    status: Optional[str] = None  # running, stopped, failed
+    enabled: Optional[bool] = None
+    service_type: Optional[str] = None  # simple, forking, oneshot
+    run_as_user: Optional[str] = None
+    listening_ports: List[Dict[str, Any]] = field(default_factory=list)
 
 
 class SystemInfoCollector:
@@ -273,6 +299,176 @@ class SystemInfoCollector:
                 )
             except ValueError:
                 pass
+
+    def collect_packages(self) -> List[PackageInfo]:
+        """
+        Collect installed packages from the remote host.
+
+        Returns:
+            List of PackageInfo dataclasses with package details
+        """
+        packages: List[PackageInfo] = []
+
+        # Try RPM first (RHEL, CentOS, Fedora)
+        rpm_output = self._run_command(
+            "rpm -qa --queryformat '%{NAME}|%{VERSION}|%{RELEASE}|%{ARCH}|%{INSTALLTIME}\\n'"
+        )
+        if rpm_output:
+            for line in rpm_output.split("\n"):
+                if "|" in line:
+                    parts = line.strip().split("|")
+                    if len(parts) >= 4:
+                        installed_at = None
+                        if len(parts) >= 5 and parts[4]:
+                            try:
+                                installed_at = datetime.fromtimestamp(int(parts[4]), tz=timezone.utc)
+                            except (ValueError, OSError):
+                                pass
+
+                        packages.append(
+                            PackageInfo(
+                                name=parts[0],
+                                version=parts[1] if parts[1] else None,
+                                release=parts[2] if parts[2] else None,
+                                arch=parts[3] if parts[3] else None,
+                                installed_at=installed_at,
+                            )
+                        )
+            logger.info(f"Collected {len(packages)} RPM packages")
+            return packages
+
+        # Try dpkg for Debian/Ubuntu
+        dpkg_output = self._run_command("dpkg-query -W -f='${Package}|${Version}|${Architecture}|${Status}\\n'")
+        if dpkg_output:
+            for line in dpkg_output.split("\n"):
+                if "|" in line:
+                    parts = line.strip().split("|")
+                    if len(parts) >= 3:
+                        # Only include installed packages
+                        status = parts[3] if len(parts) >= 4 else ""
+                        if "installed" in status.lower():
+                            # Parse Debian version format (version-release)
+                            version = parts[1]
+                            release = None
+                            if "-" in version:
+                                version, release = version.rsplit("-", 1)
+
+                            packages.append(
+                                PackageInfo(
+                                    name=parts[0],
+                                    version=version,
+                                    release=release,
+                                    arch=parts[2] if parts[2] else None,
+                                )
+                            )
+            logger.info(f"Collected {len(packages)} DEB packages")
+            return packages
+
+        logger.warning("Could not collect packages - neither RPM nor dpkg available")
+        return packages
+
+    def collect_services(self) -> List[ServiceInfo]:
+        """
+        Collect running services from the remote host.
+
+        Returns:
+            List of ServiceInfo dataclasses with service details
+        """
+        services: List[ServiceInfo] = []
+
+        # Get systemd services
+        systemctl_output = self._run_command(
+            "systemctl list-units --type=service --all --no-legend --no-pager "
+            "--output=json 2>/dev/null || "
+            "systemctl list-units --type=service --all --no-legend --no-pager"
+        )
+
+        if not systemctl_output:
+            logger.warning("Could not collect services - systemctl not available")
+            return services
+
+        # Try to parse JSON output first (newer systemd)
+        try:
+            service_data = json.loads(systemctl_output)
+            for svc in service_data:
+                services.append(
+                    ServiceInfo(
+                        name=svc.get("unit", "").replace(".service", ""),
+                        display_name=svc.get("description"),
+                        status=svc.get("sub", "unknown"),
+                        enabled=None,  # Need separate query
+                    )
+                )
+        except json.JSONDecodeError:
+            # Fall back to text parsing
+            for line in systemctl_output.split("\n"):
+                parts = line.split()
+                if len(parts) >= 4:
+                    name = parts[0].replace(".service", "")
+                    # Format: UNIT LOAD ACTIVE SUB DESCRIPTION...
+                    status = parts[3] if len(parts) > 3 else "unknown"
+                    description = " ".join(parts[4:]) if len(parts) > 4 else None
+
+                    services.append(
+                        ServiceInfo(
+                            name=name,
+                            display_name=description,
+                            status=status,
+                        )
+                    )
+
+        # Get enabled status for services
+        enabled_output = self._run_command("systemctl list-unit-files --type=service --no-legend --no-pager")
+        if enabled_output:
+            enabled_map: Dict[str, bool] = {}
+            for line in enabled_output.split("\n"):
+                parts = line.split()
+                if len(parts) >= 2:
+                    name = parts[0].replace(".service", "")
+                    state = parts[1].lower()
+                    enabled_map[name] = state in ("enabled", "static")
+
+            for svc in services:
+                if svc.name in enabled_map:
+                    svc.enabled = enabled_map[svc.name]
+
+        # Get listening ports via ss
+        ports_output = self._run_command("ss -tlnp 2>/dev/null")
+        if ports_output:
+            # Parse ss output to map ports to processes
+            port_map: Dict[str, List[Dict[str, Any]]] = {}
+            for line in ports_output.split("\n")[1:]:  # Skip header
+                parts = line.split()
+                if len(parts) >= 6:
+                    # Format: State Recv-Q Send-Q Local Address:Port Peer Address:Port Process
+                    local_addr = parts[3]
+                    process_info = parts[-1] if len(parts) > 6 else ""
+
+                    # Parse address and port
+                    if ":" in local_addr:
+                        addr, port = local_addr.rsplit(":", 1)
+                        # Extract service name from process info
+                        # Format: users:(("sshd",pid=1234,fd=3))
+                        match = re.search(r'\("([^"]+)"', process_info)
+                        if match:
+                            service_name = match.group(1)
+                            if service_name not in port_map:
+                                port_map[service_name] = []
+                            port_map[service_name].append(
+                                {
+                                    "port": int(port) if port.isdigit() else port,
+                                    "protocol": "tcp",
+                                    "address": addr if addr != "*" else "0.0.0.0",
+                                }
+                            )
+
+            # Map ports to services
+            for svc in services:
+                if svc.name in port_map:
+                    svc.listening_ports = port_map[svc.name]
+
+        logger.info(f"Collected {len(services)} services")
+        return services
 
 
 class SystemInfoService:
@@ -498,3 +694,261 @@ class SystemInfoService:
             "collected_at": row.collected_at.isoformat() if row.collected_at else None,
             "updated_at": row.updated_at.isoformat() if row.updated_at else None,
         }
+
+    def save_packages(self, host_id: UUID, packages: List[PackageInfo]) -> int:
+        """
+        Save or update packages for a host.
+
+        Uses upsert pattern - existing packages are updated, new ones are inserted.
+
+        Args:
+            host_id: The host UUID
+            packages: List of PackageInfo dataclasses
+
+        Returns:
+            Number of packages saved
+        """
+        if not packages:
+            return 0
+
+        now = datetime.now(timezone.utc)
+
+        # Delete existing packages for this host (full refresh)
+        self.db.execute(
+            text("DELETE FROM host_packages WHERE host_id = :host_id"),
+            {"host_id": str(host_id)},
+        )
+
+        # Batch insert packages
+        for pkg in packages:
+            self.db.execute(
+                text(
+                    """
+                    INSERT INTO host_packages (
+                        host_id, name, version, release, arch,
+                        source_repo, installed_at, collected_at
+                    ) VALUES (
+                        :host_id, :name, :version, :release, :arch,
+                        :source_repo, :installed_at, :collected_at
+                    )
+                    ON CONFLICT (host_id, name, arch)
+                    DO UPDATE SET
+                        version = EXCLUDED.version,
+                        release = EXCLUDED.release,
+                        source_repo = EXCLUDED.source_repo,
+                        installed_at = EXCLUDED.installed_at,
+                        collected_at = EXCLUDED.collected_at
+                    """
+                ),
+                {
+                    "host_id": str(host_id),
+                    "name": pkg.name,
+                    "version": pkg.version,
+                    "release": pkg.release,
+                    "arch": pkg.arch,
+                    "source_repo": pkg.source_repo,
+                    "installed_at": pkg.installed_at,
+                    "collected_at": now,
+                },
+            )
+
+        self.db.commit()
+        logger.info(f"Saved {len(packages)} packages for host {host_id}")
+        return len(packages)
+
+    def save_services(self, host_id: UUID, services: List[ServiceInfo]) -> int:
+        """
+        Save or update services for a host.
+
+        Uses upsert pattern - existing services are updated, new ones are inserted.
+
+        Args:
+            host_id: The host UUID
+            services: List of ServiceInfo dataclasses
+
+        Returns:
+            Number of services saved
+        """
+        if not services:
+            return 0
+
+        now = datetime.now(timezone.utc)
+
+        # Delete existing services for this host (full refresh)
+        self.db.execute(
+            text("DELETE FROM host_services WHERE host_id = :host_id"),
+            {"host_id": str(host_id)},
+        )
+
+        # Batch insert services
+        for svc in services:
+            self.db.execute(
+                text(
+                    """
+                    INSERT INTO host_services (
+                        host_id, name, display_name, status, enabled,
+                        service_type, run_as_user, listening_ports, collected_at
+                    ) VALUES (
+                        :host_id, :name, :display_name, :status, :enabled,
+                        :service_type, :run_as_user, :listening_ports, :collected_at
+                    )
+                    ON CONFLICT (host_id, name)
+                    DO UPDATE SET
+                        display_name = EXCLUDED.display_name,
+                        status = EXCLUDED.status,
+                        enabled = EXCLUDED.enabled,
+                        service_type = EXCLUDED.service_type,
+                        run_as_user = EXCLUDED.run_as_user,
+                        listening_ports = EXCLUDED.listening_ports,
+                        collected_at = EXCLUDED.collected_at
+                    """
+                ),
+                {
+                    "host_id": str(host_id),
+                    "name": svc.name,
+                    "display_name": svc.display_name,
+                    "status": svc.status,
+                    "enabled": svc.enabled,
+                    "service_type": svc.service_type,
+                    "run_as_user": svc.run_as_user,
+                    "listening_ports": json.dumps(svc.listening_ports) if svc.listening_ports else None,
+                    "collected_at": now,
+                },
+            )
+
+        self.db.commit()
+        logger.info(f"Saved {len(services)} services for host {host_id}")
+        return len(services)
+
+    def get_packages(
+        self, host_id: UUID, search: Optional[str] = None, limit: int = 100, offset: int = 0
+    ) -> Dict[str, Any]:
+        """
+        Get packages for a host with pagination and search.
+
+        Args:
+            host_id: The host UUID
+            search: Optional package name search filter
+            limit: Maximum packages to return
+            offset: Offset for pagination
+
+        Returns:
+            Dictionary with packages list and total count
+        """
+        # Build query
+        where_clause = "WHERE host_id = :host_id"
+        params: Dict[str, Any] = {"host_id": str(host_id), "limit": limit, "offset": offset}
+
+        if search:
+            where_clause += " AND name ILIKE :search"
+            params["search"] = f"%{search}%"
+
+        # Get total count
+        count_result = self.db.execute(
+            text(f"SELECT COUNT(*) FROM host_packages {where_clause}"),
+            params,
+        )
+        total = count_result.scalar() or 0
+
+        # Get packages
+        result = self.db.execute(
+            text(
+                f"""
+                SELECT name, version, release, arch, source_repo,
+                       installed_at, collected_at
+                FROM host_packages
+                {where_clause}
+                ORDER BY name ASC
+                LIMIT :limit OFFSET :offset
+                """
+            ),
+            params,
+        )
+
+        packages = []
+        for row in result.fetchall():
+            packages.append(
+                {
+                    "name": row.name,
+                    "version": row.version,
+                    "release": row.release,
+                    "arch": row.arch,
+                    "source_repo": row.source_repo,
+                    "installed_at": row.installed_at.isoformat() if row.installed_at else None,
+                    "collected_at": row.collected_at.isoformat() if row.collected_at else None,
+                }
+            )
+
+        return {"items": packages, "total": total, "limit": limit, "offset": offset}
+
+    def get_services(
+        self,
+        host_id: UUID,
+        search: Optional[str] = None,
+        status: Optional[str] = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> Dict[str, Any]:
+        """
+        Get services for a host with pagination and filtering.
+
+        Args:
+            host_id: The host UUID
+            search: Optional service name search filter
+            status: Optional status filter (running, stopped, failed)
+            limit: Maximum services to return
+            offset: Offset for pagination
+
+        Returns:
+            Dictionary with services list and total count
+        """
+        # Build query
+        where_clause = "WHERE host_id = :host_id"
+        params: Dict[str, Any] = {"host_id": str(host_id), "limit": limit, "offset": offset}
+
+        if search:
+            where_clause += " AND (name ILIKE :search OR display_name ILIKE :search)"
+            params["search"] = f"%{search}%"
+
+        if status:
+            where_clause += " AND status = :status"
+            params["status"] = status
+
+        # Get total count
+        count_result = self.db.execute(
+            text(f"SELECT COUNT(*) FROM host_services {where_clause}"),
+            params,
+        )
+        total = count_result.scalar() or 0
+
+        # Get services
+        result = self.db.execute(
+            text(
+                f"""
+                SELECT name, display_name, status, enabled, service_type,
+                       run_as_user, listening_ports, collected_at
+                FROM host_services
+                {where_clause}
+                ORDER BY name ASC
+                LIMIT :limit OFFSET :offset
+                """
+            ),
+            params,
+        )
+
+        services = []
+        for row in result.fetchall():
+            services.append(
+                {
+                    "name": row.name,
+                    "display_name": row.display_name,
+                    "status": row.status,
+                    "enabled": row.enabled,
+                    "service_type": row.service_type,
+                    "run_as_user": row.run_as_user,
+                    "listening_ports": row.listening_ports,
+                    "collected_at": row.collected_at.isoformat() if row.collected_at else None,
+                }
+            )
+
+        return {"items": services, "total": total, "limit": limit, "offset": offset}

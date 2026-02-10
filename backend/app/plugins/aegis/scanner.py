@@ -207,6 +207,8 @@ class AegisScanner(BaseScanner):
         severity: Optional[List[str]] = None,
         dry_run: bool = False,
         collect_system_info: bool = False,
+        collect_packages: bool = False,
+        collect_services: bool = False,
     ) -> Dict[str, Any]:
         """
         Execute Aegis compliance scan on target host.
@@ -214,7 +216,7 @@ class AegisScanner(BaseScanner):
         This method:
         1. Retrieves credentials from OpenWatch
         2. Passes them to Aegis for scanning
-        3. Optionally collects system information
+        3. Optionally collects system information, packages, and services
         4. Returns results in OpenWatch format
 
         Args:
@@ -226,6 +228,8 @@ class AegisScanner(BaseScanner):
             severity: Optional severity filter (list of severity levels).
             dry_run: If True, only show what would be checked.
             collect_system_info: If True, collect system information during scan.
+            collect_packages: If True, collect installed packages during scan.
+            collect_services: If True, collect running services during scan.
 
         Returns:
             Scan results dictionary.
@@ -268,15 +272,36 @@ class AegisScanner(BaseScanner):
 
                 # Collect system information if requested
                 system_info = None
-                if collect_system_info:
+                packages = None
+                services = None
+
+                if collect_system_info or collect_packages or collect_services:
                     try:
                         from app.services.system_info import SystemInfoCollector
 
                         collector = SystemInfoCollector(session)
-                        system_info = collector.collect()
-                        logger.debug("Collected system info for host %s", host_id)
+
+                        if collect_system_info:
+                            system_info = collector.collect()
+                            logger.debug("Collected system info for host %s", host_id)
+
+                        if collect_packages:
+                            packages = collector.collect_packages()
+                            logger.debug(
+                                "Collected %d packages for host %s",
+                                len(packages) if packages else 0,
+                                host_id,
+                            )
+
+                        if collect_services:
+                            services = collector.collect_services()
+                            logger.debug(
+                                "Collected %d services for host %s",
+                                len(services) if services else 0,
+                                host_id,
+                            )
                     except Exception as e:
-                        logger.warning("Failed to collect system info: %s", e)
+                        logger.warning("Failed to collect system info/packages/services: %s", e)
 
                 return {
                     "status": "completed",
@@ -301,6 +326,8 @@ class AegisScanner(BaseScanner):
                     ],
                     "aegis_version": aegis_version,
                     "system_info": system_info,
+                    "packages": packages,
+                    "services": services,
                 }
 
         except Exception as e:

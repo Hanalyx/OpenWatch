@@ -165,18 +165,20 @@ def run_scheduled_aegis_scan(self: Any, host_id: str, priority: int = 5) -> Dict
                 logger.warning(f"Host {host_id} not found or inactive")
                 return {"status": "error", "error": "Host not found"}
 
-            # Run Aegis scan with system info collection
+            # Run Aegis scan with system info, packages, and services collection
             logger.info(f"Running Aegis scan on {host.hostname}")
 
             import asyncio
 
             async def run_scan():
-                """Initialize scanner and run scan with system info collection."""
+                """Initialize scanner and run scan with server intelligence collection."""
                 await scanner.initialize()
                 return await scanner.scan(
                     host_id=host_id,
                     db=db,
                     collect_system_info=True,
+                    collect_packages=True,
+                    collect_services=True,
                 )
 
             # Create event loop for async scan
@@ -207,17 +209,30 @@ def run_scheduled_aegis_scan(self: Any, host_id: str, priority: int = 5) -> Dict
 
             has_critical = critical_count > 0
 
-            # Save system info if collected
+            # Save system info, packages, and services if collected
             system_info = scan_result.get("system_info")
-            if system_info:
+            packages = scan_result.get("packages")
+            services = scan_result.get("services")
+
+            if system_info or packages or services:
                 try:
                     from app.services.system_info import SystemInfoService
 
                     system_info_service = SystemInfoService(db)
-                    system_info_service.save_system_info(UUID(host_id), system_info)
-                    logger.debug(f"Saved system info for {host.hostname}")
+
+                    if system_info:
+                        system_info_service.save_system_info(UUID(host_id), system_info)
+                        logger.debug(f"Saved system info for {host.hostname}")
+
+                    if packages:
+                        count = system_info_service.save_packages(UUID(host_id), packages)
+                        logger.debug(f"Saved {count} packages for {host.hostname}")
+
+                    if services:
+                        count = system_info_service.save_services(UUID(host_id), services)
+                        logger.debug(f"Saved {count} services for {host.hostname}")
                 except Exception as e:
-                    logger.warning(f"Failed to save system info: {e}")
+                    logger.warning(f"Failed to save server intelligence data: {e}")
 
             # Update schedule with new compliance state
             compliance_scheduler_service.update_host_schedule(
@@ -245,6 +260,8 @@ def run_scheduled_aegis_scan(self: Any, host_id: str, priority: int = 5) -> Dict
                 "has_critical": has_critical,
                 "critical_count": critical_count,
                 "system_info_collected": system_info is not None,
+                "packages_collected": len(packages) if packages else 0,
+                "services_collected": len(services) if services else 0,
             }
 
         finally:

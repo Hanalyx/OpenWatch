@@ -1,0 +1,322 @@
+"""
+Host Server Intelligence API
+
+Endpoints for retrieving server intelligence data:
+- Installed packages
+- Running services
+- System information
+
+Part of OpenWatch OS Transformation - Server Intelligence.
+"""
+
+import logging
+from typing import Any, Dict, List, Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
+
+from app.database import get_db
+from app.rbac import Permission, require_permission
+
+from .helpers import validate_host_uuid
+
+logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# Pydantic Models
+# =============================================================================
+
+
+class PackageResponse(BaseModel):
+    """Response model for a single package."""
+
+    name: str
+    version: Optional[str] = None
+    release: Optional[str] = None
+    arch: Optional[str] = None
+    source_repo: Optional[str] = None
+    installed_at: Optional[str] = None
+    collected_at: Optional[str] = None
+
+
+class PackagesListResponse(BaseModel):
+    """Response model for paginated packages list."""
+
+    items: List[PackageResponse]
+    total: int
+    limit: int
+    offset: int
+
+
+class ServiceResponse(BaseModel):
+    """Response model for a single service."""
+
+    name: str
+    display_name: Optional[str] = None
+    status: Optional[str] = None
+    enabled: Optional[bool] = None
+    service_type: Optional[str] = None
+    run_as_user: Optional[str] = None
+    listening_ports: Optional[List[Dict[str, Any]]] = None
+    collected_at: Optional[str] = None
+
+
+class ServicesListResponse(BaseModel):
+    """Response model for paginated services list."""
+
+    items: List[ServiceResponse]
+    total: int
+    limit: int
+    offset: int
+
+
+class SystemInfoResponse(BaseModel):
+    """Response model for host system information."""
+
+    os_name: Optional[str] = None
+    os_version: Optional[str] = None
+    os_version_full: Optional[str] = None
+    os_pretty_name: Optional[str] = None
+    os_id: Optional[str] = None
+    os_id_like: Optional[str] = None
+    kernel_version: Optional[str] = None
+    kernel_release: Optional[str] = None
+    kernel_name: Optional[str] = None
+    architecture: Optional[str] = None
+    cpu_model: Optional[str] = None
+    cpu_cores: Optional[int] = None
+    cpu_threads: Optional[int] = None
+    memory_total_mb: Optional[int] = None
+    memory_available_mb: Optional[int] = None
+    swap_total_mb: Optional[int] = None
+    disk_total_gb: Optional[float] = None
+    disk_used_gb: Optional[float] = None
+    disk_free_gb: Optional[float] = None
+    selinux_status: Optional[str] = None
+    selinux_mode: Optional[str] = None
+    firewall_status: Optional[str] = None
+    firewall_service: Optional[str] = None
+    hostname: Optional[str] = None
+    fqdn: Optional[str] = None
+    primary_ip: Optional[str] = None
+    uptime_seconds: Optional[int] = None
+    boot_time: Optional[str] = None
+    collected_at: Optional[str] = None
+    updated_at: Optional[str] = None
+
+
+class ServerIntelligenceSummary(BaseModel):
+    """Summary of server intelligence data for a host."""
+
+    host_id: str
+    system_info_collected: bool
+    packages_count: int
+    services_count: int
+    running_services_count: int
+    listening_ports_count: int
+    last_collected_at: Optional[str] = None
+
+
+# =============================================================================
+# Router
+# =============================================================================
+
+router = APIRouter(tags=["Host Intelligence"])
+
+
+@router.get(
+    "/{host_id}/packages",
+    response_model=PackagesListResponse,
+    summary="List installed packages",
+    description="Get installed packages for a host with pagination and search.",
+)
+@require_permission(Permission.HOST_READ)
+async def list_host_packages(
+    host_id: str,
+    search: Optional[str] = Query(None, description="Search by package name"),
+    limit: int = Query(100, ge=1, le=1000, description="Maximum items to return"),
+    offset: int = Query(0, ge=0, description="Offset for pagination"),
+    db: Session = Depends(get_db),
+) -> PackagesListResponse:
+    """
+    Get installed packages for a host.
+
+    Returns paginated list of packages with optional search filter.
+    """
+    # Validate host exists
+    host_uuid = validate_host_uuid(host_id, db)
+
+    from app.services.system_info import SystemInfoService
+
+    service = SystemInfoService(db)
+    result = service.get_packages(host_uuid, search=search, limit=limit, offset=offset)
+
+    return PackagesListResponse(
+        items=[PackageResponse(**pkg) for pkg in result["items"]],
+        total=result["total"],
+        limit=result["limit"],
+        offset=result["offset"],
+    )
+
+
+@router.get(
+    "/{host_id}/services",
+    response_model=ServicesListResponse,
+    summary="List system services",
+    description="Get running services for a host with pagination and filtering.",
+)
+@require_permission(Permission.HOST_READ)
+async def list_host_services(
+    host_id: str,
+    search: Optional[str] = Query(None, description="Search by service name"),
+    status: Optional[str] = Query(None, description="Filter by status (running, stopped, failed)"),
+    limit: int = Query(100, ge=1, le=1000, description="Maximum items to return"),
+    offset: int = Query(0, ge=0, description="Offset for pagination"),
+    db: Session = Depends(get_db),
+) -> ServicesListResponse:
+    """
+    Get services for a host.
+
+    Returns paginated list of services with optional search and status filter.
+    """
+    # Validate host exists
+    host_uuid = validate_host_uuid(host_id, db)
+
+    from app.services.system_info import SystemInfoService
+
+    service = SystemInfoService(db)
+    result = service.get_services(host_uuid, search=search, status=status, limit=limit, offset=offset)
+
+    return ServicesListResponse(
+        items=[ServiceResponse(**svc) for svc in result["items"]],
+        total=result["total"],
+        limit=result["limit"],
+        offset=result["offset"],
+    )
+
+
+@router.get(
+    "/{host_id}/system-info",
+    response_model=SystemInfoResponse,
+    summary="Get system information",
+    description="Get detailed system information for a host.",
+)
+@require_permission(Permission.HOST_READ)
+async def get_host_system_info(
+    host_id: str,
+    db: Session = Depends(get_db),
+) -> SystemInfoResponse:
+    """
+    Get system information for a host.
+
+    Returns OS, hardware, security, and network information.
+    """
+    # Validate host exists
+    host_uuid = validate_host_uuid(host_id, db)
+
+    from app.services.system_info import SystemInfoService
+
+    service = SystemInfoService(db)
+    result = service.get_system_info(host_uuid)
+
+    if not result:
+        raise HTTPException(
+            status_code=404,
+            detail="System information not collected for this host. "
+            "Run a compliance scan with system info collection enabled.",
+        )
+
+    return SystemInfoResponse(**result)
+
+
+@router.get(
+    "/{host_id}/intelligence/summary",
+    response_model=ServerIntelligenceSummary,
+    summary="Get server intelligence summary",
+    description="Get a summary of all server intelligence data for a host.",
+)
+@require_permission(Permission.HOST_READ)
+async def get_server_intelligence_summary(
+    host_id: str,
+    db: Session = Depends(get_db),
+) -> ServerIntelligenceSummary:
+    """
+    Get server intelligence summary for a host.
+
+    Returns counts and status of collected server intelligence data.
+    """
+    from sqlalchemy import text
+
+    # Validate host exists
+    host_uuid = validate_host_uuid(host_id, db)
+
+    # Get system info collected status
+    system_info_result = db.execute(
+        text("SELECT collected_at FROM host_system_info WHERE host_id = :host_id"),
+        {"host_id": str(host_uuid)},
+    )
+    system_info_row = system_info_result.fetchone()
+    system_info_collected = system_info_row is not None
+    last_collected = system_info_row.collected_at if system_info_row else None
+
+    # Get packages count
+    packages_result = db.execute(
+        text("SELECT COUNT(*) FROM host_packages WHERE host_id = :host_id"),
+        {"host_id": str(host_uuid)},
+    )
+    packages_count = packages_result.scalar() or 0
+
+    # Get services count and running count
+    services_result = db.execute(
+        text(
+            """
+            SELECT
+                COUNT(*) as total,
+                COUNT(*) FILTER (WHERE status = 'running') as running
+            FROM host_services
+            WHERE host_id = :host_id
+            """
+        ),
+        {"host_id": str(host_uuid)},
+    )
+    services_row = services_result.fetchone()
+    services_count = services_row.total if services_row else 0
+    running_services_count = services_row.running if services_row else 0
+
+    # Get listening ports count
+    ports_result = db.execute(
+        text(
+            """
+            SELECT COUNT(*)
+            FROM host_services
+            WHERE host_id = :host_id
+              AND listening_ports IS NOT NULL
+              AND jsonb_array_length(listening_ports) > 0
+            """
+        ),
+        {"host_id": str(host_uuid)},
+    )
+    listening_ports_count = ports_result.scalar() or 0
+
+    return ServerIntelligenceSummary(
+        host_id=str(host_uuid),
+        system_info_collected=system_info_collected,
+        packages_count=packages_count,
+        services_count=services_count,
+        running_services_count=running_services_count,
+        listening_ports_count=listening_ports_count,
+        last_collected_at=last_collected.isoformat() if last_collected else None,
+    )
+
+
+__all__ = [
+    "router",
+    "PackageResponse",
+    "PackagesListResponse",
+    "ServiceResponse",
+    "ServicesListResponse",
+    "SystemInfoResponse",
+    "ServerIntelligenceSummary",
+]
