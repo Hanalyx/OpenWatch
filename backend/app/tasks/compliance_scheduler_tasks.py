@@ -410,6 +410,25 @@ def run_scheduled_aegis_scan(self: Any, host_id: str, priority: int = 5) -> Dict
                         system_info_service.save_system_info(UUID(host_id), system_info)
                         logger.debug(f"Saved system info for {host.hostname}")
 
+                        # Sync OS info to hosts table for display consistency
+                        os_name = system_info.os_name if hasattr(system_info, "os_name") else system_info.get("os_name")
+                        os_ver = (
+                            system_info.os_version
+                            if hasattr(system_info, "os_version")
+                            else system_info.get("os_version")
+                        )
+                        if os_name:
+                            os_sync_builder = (
+                                UpdateBuilder("hosts")
+                                .set("operating_system", os_name)
+                                .set_if("os_version", os_ver)
+                                .where("id = :id", host_id, "id")
+                            )
+                            os_sync_query, os_sync_params = os_sync_builder.build()
+                            db.execute(text(os_sync_query), os_sync_params)
+                            db.commit()
+                            logger.debug(f"Synced OS info to hosts table: {os_name} {os_ver or ''}")
+
                     if packages:
                         count = system_info_service.save_packages(UUID(host_id), packages)
                         logger.debug(f"Saved {count} packages for {host.hostname}")
