@@ -206,6 +206,7 @@ class AegisScanner(BaseScanner):
         category: Optional[str] = None,
         severity: Optional[List[str]] = None,
         dry_run: bool = False,
+        collect_system_info: bool = False,
     ) -> Dict[str, Any]:
         """
         Execute Aegis compliance scan on target host.
@@ -213,7 +214,8 @@ class AegisScanner(BaseScanner):
         This method:
         1. Retrieves credentials from OpenWatch
         2. Passes them to Aegis for scanning
-        3. Returns results in OpenWatch format
+        3. Optionally collects system information
+        4. Returns results in OpenWatch format
 
         Args:
             host_id: OpenWatch host UUID.
@@ -223,6 +225,7 @@ class AegisScanner(BaseScanner):
             category: Optional category filter.
             severity: Optional severity filter (list of severity levels).
             dry_run: If True, only show what would be checked.
+            collect_system_info: If True, collect system information during scan.
 
         Returns:
             Scan results dictionary.
@@ -263,6 +266,18 @@ class AegisScanner(BaseScanner):
                 credentials = await factory.get_credentials(host_id)
                 hostname = credentials["hostname"]
 
+                # Collect system information if requested
+                system_info = None
+                if collect_system_info:
+                    try:
+                        from app.services.system_info import SystemInfoCollector
+
+                        collector = SystemInfoCollector(session)
+                        system_info = collector.collect()
+                        logger.debug("Collected system info for host %s", host_id)
+                    except Exception as e:
+                        logger.warning("Failed to collect system info: %s", e)
+
                 return {
                     "status": "completed",
                     "host_id": host_id,
@@ -285,6 +300,7 @@ class AegisScanner(BaseScanner):
                         for r in results
                     ],
                     "aegis_version": aegis_version,
+                    "system_info": system_info,
                 }
 
         except Exception as e:

@@ -7,7 +7,6 @@ import {
   Card,
   CardContent,
   Chip,
-  Button,
   IconButton,
   Table,
   TableBody,
@@ -35,7 +34,6 @@ import {
   NetworkCheck as NetworkCheckIcon,
   Security as SecurityIcon,
   Assessment as AssessmentIcon,
-  PlayArrow as PlayArrowIcon,
   Visibility as VisibilityIcon,
   Schedule as ScheduleIcon,
   CheckCircle as CheckCircleIcon,
@@ -43,12 +41,10 @@ import {
   Info as InfoIcon,
   Settings as SettingsIcon,
   Terminal as TerminalIcon,
-  Flag as FlagIcon,
 } from '@mui/icons-material';
 import { StatusChip, ComplianceRing, SSHKeyDisplay } from '../../components/design-system';
 import type { StatusType } from '../../components/design-system/StatusChip';
 import HostTerminal from '../../components/terminal/HostTerminal';
-import BaselineEstablishDialog from '../../components/baselines/BaselineEstablishDialog';
 import ComplianceTrendChart from '../../components/baselines/ComplianceTrendChart';
 import { api } from '../../services/api';
 import { owcaService, type ComplianceScore as OWCAScore } from '../../services/owcaService';
@@ -165,7 +161,6 @@ const HostDetail: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [tabValue, setTabValue] = useState(0);
   const [deletingSSHKey, setDeletingSSHKey] = useState(false);
-  const [baselineDialogOpen, setBaselineDialogOpen] = useState(false);
   const [_owcaScore, setOwcaScore] = useState<OWCAScore | null>(null);
   const [complianceState, setComplianceState] = useState<ComplianceState | null>(null);
   const [complianceLoading, setComplianceLoading] = useState(true);
@@ -342,10 +337,6 @@ const HostDetail: React.FC = () => {
     }
   };
 
-  const handleStartScan = () => {
-    navigate('/scans/create', { state: { preselectedHostId: id } });
-  };
-
   const handleDeleteSSHKey = async () => {
     if (!host) return;
 
@@ -411,21 +402,13 @@ const HostDetail: React.FC = () => {
             {host.hostname} • {host.ip_address}
           </Typography>
         </Box>
-        <Button
-          variant="outlined"
-          startIcon={<FlagIcon />}
-          onClick={() => setBaselineDialogOpen(true)}
-          sx={{ mr: 1 }}
-        >
-          Establish Baseline
-        </Button>
-        <Button
-          variant="contained"
-          startIcon={runningScan ? <VisibilityIcon /> : <PlayArrowIcon />}
-          onClick={runningScan ? () => navigate(`/scans/${runningScan.id}`) : handleStartScan}
-        >
-          {runningScan ? 'View Running Scan' : 'Start New Scan'}
-        </Button>
+        {/* Manual scan buttons removed - compliance scans run automatically */}
+        <StatusChip
+          status={
+            host.status === 'online' ? 'online' : host.status === 'offline' ? 'offline' : 'unknown'
+          }
+          label={host.status || 'Unknown'}
+        />
       </Box>
 
       {/* Host Overview Cards */}
@@ -562,16 +545,7 @@ const HostDetail: React.FC = () => {
           </Box>
         ) : !complianceState || complianceState.total_rules === 0 ? (
           <Alert severity="info" sx={{ mb: 2 }}>
-            No Aegis compliance scan has been performed on this host yet.
-            <Button
-              variant="contained"
-              size="small"
-              startIcon={<PlayArrowIcon />}
-              onClick={handleStartScan}
-              sx={{ ml: 2 }}
-            >
-              Run Aegis Scan
-            </Button>
+            Awaiting first compliance scan. Scans run automatically based on the adaptive schedule.
           </Alert>
         ) : (
           <Box>
@@ -947,16 +921,8 @@ const HostDetail: React.FC = () => {
           </TableContainer>
         ) : (
           <Alert severity="info">
-            No scans have been performed on this host yet.
-            <Button
-              variant="contained"
-              size="small"
-              startIcon={<PlayArrowIcon />}
-              onClick={handleStartScan}
-              sx={{ ml: 2 }}
-            >
-              Start First Scan
-            </Button>
+            No scans have been performed on this host yet. Compliance scans run automatically based
+            on the adaptive schedule.
           </Alert>
         )}
 
@@ -1082,18 +1048,6 @@ const HostDetail: React.FC = () => {
           <HostTerminal hostId={host.id} hostname={host.hostname} ipAddress={host.ip_address} />
         </Box>
       </TabPanel>
-
-      {/* Baseline Establish Dialog */}
-      <BaselineEstablishDialog
-        open={baselineDialogOpen}
-        onClose={() => setBaselineDialogOpen(false)}
-        hostId={host.id}
-        hostname={host.hostname}
-        onBaselineEstablished={() => {
-          // Refresh scan data to show updated baseline status
-          fetchHostScans();
-        }}
-      />
     </Box>
   );
 };

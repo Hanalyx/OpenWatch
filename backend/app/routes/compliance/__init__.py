@@ -53,6 +53,7 @@ try:
     from .owca import router as owca_router
     from .posture import router as posture_router
     from .remediation import router as remediation_router
+    from .scheduler import router as scheduler_router
 
     # Include sub-routers
     # Intelligence endpoints are at the root of /compliance (no additional prefix)
@@ -75,6 +76,9 @@ try:
 
     # Audit endpoints at /compliance/audit/* (Phase 6 Audit Queries)
     router.include_router(audit_router)
+
+    # Scheduler endpoints at /compliance/scheduler/* (OpenWatch OS)
+    router.include_router(scheduler_router)
 
     _modules_loaded = True
     logger.info("Compliance package: All modules loaded successfully")
