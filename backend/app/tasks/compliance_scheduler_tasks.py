@@ -176,12 +176,16 @@ def run_scheduled_aegis_scan(self: Any, host_id: str, priority: int = 5) -> Dict
             scan_name = f"Scheduled Aegis Scan - {host.hostname} - {start_time.strftime('%Y-%m-%d %H:%M')}"
             profile_id = "aegis_scheduled"
 
+            # Aegis content placeholder ID (created in scap_content table)
+            aegis_content_id = 1
+
             insert_builder = (
                 InsertBuilder("scans")
                 .columns(
                     "id",
                     "name",
                     "host_id",
+                    "content_id",
                     "profile_id",
                     "status",
                     "progress",
@@ -195,6 +199,7 @@ def run_scheduled_aegis_scan(self: Any, host_id: str, priority: int = 5) -> Dict
                     scan_id,
                     scan_name,
                     host_id,
+                    aegis_content_id,
                     profile_id,
                     "running",
                     0,

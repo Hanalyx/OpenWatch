@@ -262,7 +262,7 @@ async def list_host_packages(
     Returns paginated list of packages with optional search filter.
     """
     # Validate host exists
-    host_uuid = validate_host_uuid(host_id, db)
+    host_uuid = validate_host_uuid(host_id)
 
     from app.services.system_info import SystemInfoService
 
@@ -299,7 +299,7 @@ async def list_host_services(
     Returns paginated list of services with optional search and status filter.
     """
     # Validate host exists
-    host_uuid = validate_host_uuid(host_id, db)
+    host_uuid = validate_host_uuid(host_id)
 
     from app.services.system_info import SystemInfoService
 
@@ -332,7 +332,7 @@ async def get_host_system_info(
     Returns OS, hardware, security, and network information.
     """
     # Validate host exists
-    host_uuid = validate_host_uuid(host_id, db)
+    host_uuid = validate_host_uuid(host_id)
 
     from app.services.system_info import SystemInfoService
 
@@ -373,7 +373,7 @@ async def list_host_users(
     By default, system accounts (UID < 1000) are excluded.
     """
     # Validate host exists
-    host_uuid = validate_host_uuid(host_id, db)
+    host_uuid = validate_host_uuid(host_id)
 
     from app.services.system_info import SystemInfoService
 
@@ -415,7 +415,7 @@ async def get_server_intelligence_summary(
     from sqlalchemy import text
 
     # Validate host exists
-    host_uuid = validate_host_uuid(host_id, db)
+    host_uuid = validate_host_uuid(host_id)
 
     # Get system info collected status
     system_info_result = db.execute(
@@ -542,7 +542,7 @@ async def list_host_network(
     Returns paginated list of network interfaces with optional filtering.
     """
     # Validate host exists
-    host_uuid = validate_host_uuid(host_id, db)
+    host_uuid = validate_host_uuid(host_id)
 
     from app.services.system_info import SystemInfoService
 
@@ -580,7 +580,7 @@ async def list_host_firewall(
     Returns paginated list of firewall rules with optional filtering.
     """
     # Validate host exists
-    host_uuid = validate_host_uuid(host_id, db)
+    host_uuid = validate_host_uuid(host_id)
 
     from app.services.system_info import SystemInfoService
 
@@ -618,7 +618,7 @@ async def list_host_routes(
     Returns paginated list of routes with optional filtering.
     """
     # Validate host exists
-    host_uuid = validate_host_uuid(host_id, db)
+    host_uuid = validate_host_uuid(host_id)
 
     from app.services.system_info import SystemInfoService
 

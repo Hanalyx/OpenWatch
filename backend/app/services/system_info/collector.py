@@ -182,7 +182,9 @@ class SystemInfoCollector:
         """Run a command and return stdout, or None on error."""
         try:
             result = self.ssh.run(command)
-            if result.returncode == 0:
+            # Support both Aegis Result (exit_code) and subprocess-style (returncode)
+            exit_code = getattr(result, "exit_code", getattr(result, "returncode", None))
+            if exit_code == 0:
                 return result.stdout.strip()
             return None
         except Exception as e:
