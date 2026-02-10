@@ -165,7 +165,7 @@ def run_scheduled_aegis_scan(self: Any, host_id: str, priority: int = 5) -> Dict
                 logger.warning(f"Host {host_id} not found or inactive")
                 return {"status": "error", "error": "Host not found"}
 
-            # Run Aegis scan with system info, packages, and services collection
+            # Run Aegis scan with full server intelligence collection
             logger.info(f"Running Aegis scan on {host.hostname}")
 
             import asyncio
@@ -179,6 +179,7 @@ def run_scheduled_aegis_scan(self: Any, host_id: str, priority: int = 5) -> Dict
                     collect_system_info=True,
                     collect_packages=True,
                     collect_services=True,
+                    collect_users=True,
                 )
 
             # Create event loop for async scan
@@ -209,12 +210,13 @@ def run_scheduled_aegis_scan(self: Any, host_id: str, priority: int = 5) -> Dict
 
             has_critical = critical_count > 0
 
-            # Save system info, packages, and services if collected
+            # Save system info, packages, services, and users if collected
             system_info = scan_result.get("system_info")
             packages = scan_result.get("packages")
             services = scan_result.get("services")
+            users = scan_result.get("users")
 
-            if system_info or packages or services:
+            if system_info or packages or services or users:
                 try:
                     from app.services.system_info import SystemInfoService
 
@@ -231,6 +233,10 @@ def run_scheduled_aegis_scan(self: Any, host_id: str, priority: int = 5) -> Dict
                     if services:
                         count = system_info_service.save_services(UUID(host_id), services)
                         logger.debug(f"Saved {count} services for {host.hostname}")
+
+                    if users:
+                        count = system_info_service.save_users(UUID(host_id), users)
+                        logger.debug(f"Saved {count} users for {host.hostname}")
                 except Exception as e:
                     logger.warning(f"Failed to save server intelligence data: {e}")
 
@@ -262,6 +268,7 @@ def run_scheduled_aegis_scan(self: Any, host_id: str, priority: int = 5) -> Dict
                 "system_info_collected": system_info is not None,
                 "packages_collected": len(packages) if packages else 0,
                 "services_collected": len(services) if services else 0,
+                "users_collected": len(users) if users else 0,
             }
 
         finally:

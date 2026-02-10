@@ -93,6 +93,33 @@ class ServiceInfo:
     listening_ports: List[Dict[str, Any]] = field(default_factory=list)
 
 
+@dataclass
+class UserInfo:
+    """Information about a local user account."""
+
+    username: str
+    uid: Optional[int] = None
+    gid: Optional[int] = None
+    groups: List[str] = field(default_factory=list)
+    home_dir: Optional[str] = None
+    shell: Optional[str] = None
+    gecos: Optional[str] = None  # Full name/comment field
+    is_system_account: Optional[bool] = None
+    is_locked: Optional[bool] = None
+    has_password: Optional[bool] = None
+    password_last_changed: Optional[datetime] = None
+    password_expires: Optional[datetime] = None
+    password_max_days: Optional[int] = None
+    password_warn_days: Optional[int] = None
+    last_login: Optional[datetime] = None
+    last_login_ip: Optional[str] = None
+    ssh_keys_count: Optional[int] = None
+    ssh_key_types: List[str] = field(default_factory=list)
+    sudo_rules: List[str] = field(default_factory=list)
+    has_sudo_all: Optional[bool] = None
+    has_sudo_nopasswd: Optional[bool] = None
+
+
 class SystemInfoCollector:
     """Collects system information from remote hosts via SSH."""
 
@@ -469,6 +496,232 @@ class SystemInfoCollector:
 
         logger.info(f"Collected {len(services)} services")
         return services
+
+    def collect_users(self) -> List[UserInfo]:
+        """
+        Collect local user accounts from the remote host.
+
+        Returns:
+            List of UserInfo dataclasses with user account details
+        """
+        users: List[UserInfo] = []
+
+        # Get /etc/passwd for user accounts
+        passwd_output = self._run_command("cat /etc/passwd 2>/dev/null")
+        if not passwd_output:
+            logger.warning("Could not read /etc/passwd")
+            return users
+
+        # Get /etc/group for group memberships
+        group_output = self._run_command("cat /etc/group 2>/dev/null")
+        group_members: Dict[str, List[str]] = {}
+        group_names: Dict[int, str] = {}
+        if group_output:
+            for line in group_output.split("\n"):
+                parts = line.strip().split(":")
+                if len(parts) >= 4:
+                    group_name = parts[0]
+                    try:
+                        gid = int(parts[2])
+                        group_names[gid] = group_name
+                    except ValueError:
+                        pass
+                    members = parts[3].split(",") if parts[3] else []
+                    for member in members:
+                        if member:
+                            if member not in group_members:
+                                group_members[member] = []
+                            group_members[member].append(group_name)
+
+        # Get shadow file info for password aging (requires root/sudo)
+        shadow_info: Dict[str, Dict[str, Any]] = {}
+        shadow_output = self._run_command("cat /etc/shadow 2>/dev/null")
+        if shadow_output:
+            for line in shadow_output.split("\n"):
+                parts = line.strip().split(":")
+                if len(parts) >= 9:
+                    username = parts[0]
+                    password_hash = parts[1]
+                    shadow_info[username] = {
+                        "has_password": bool(password_hash and password_hash not in ("*", "!", "!!", "")),
+                        "is_locked": password_hash.startswith("!") or password_hash.startswith("*"),
+                        "last_changed_days": int(parts[2]) if parts[2].isdigit() else None,
+                        "max_days": int(parts[4]) if parts[4].isdigit() else None,
+                        "warn_days": int(parts[5]) if parts[5].isdigit() else None,
+                        "expire_days": int(parts[7]) if parts[7].isdigit() else None,
+                    }
+
+        # Get lastlog info
+        lastlog_info: Dict[str, Dict[str, Any]] = {}
+        lastlog_output = self._run_command("lastlog 2>/dev/null | tail -n +2")
+        if lastlog_output:
+            for line in lastlog_output.split("\n"):
+                if "**Never logged in**" in line:
+                    parts = line.split()
+                    if parts:
+                        lastlog_info[parts[0]] = {"never_logged_in": True}
+                else:
+                    # Format: Username Port From Latest
+                    parts = line.split()
+                    if len(parts) >= 4:
+                        username = parts[0]
+                        # Try to parse the date (last 4-5 parts usually)
+                        try:
+                            # Extract IP if present (From column)
+                            from_ip = parts[2] if len(parts) > 4 else None
+                            lastlog_info[username] = {
+                                "never_logged_in": False,
+                                "from_ip": from_ip,
+                            }
+                        except (ValueError, IndexError):
+                            pass
+
+        # Get sudo rules for users
+        sudo_info: Dict[str, Dict[str, Any]] = {}
+        sudo_output = self._run_command("cat /etc/sudoers /etc/sudoers.d/* 2>/dev/null | grep -v '^#' | grep -v '^$'")
+        if sudo_output:
+            for line in sudo_output.split("\n"):
+                line = line.strip()
+                if not line or line.startswith("#") or line.startswith("Defaults"):
+                    continue
+
+                # Simple parsing for user rules
+                # Format: username ALL=(ALL) ALL or %group ALL=(ALL) NOPASSWD: ALL
+                parts = line.split()
+                if len(parts) >= 2:
+                    subject = parts[0]
+                    rule = " ".join(parts[1:])
+
+                    if subject.startswith("%"):
+                        # Group rule - will be applied when processing users
+                        group_name = subject[1:]
+                        for user, groups in group_members.items():
+                            if group_name in groups:
+                                if user not in sudo_info:
+                                    sudo_info[user] = {"rules": [], "has_all": False, "nopasswd": False}
+                                sudo_info[user]["rules"].append(f"{subject} {rule}")
+                                if "ALL" in rule and "(ALL)" in rule:
+                                    sudo_info[user]["has_all"] = True
+                                if "NOPASSWD" in rule:
+                                    sudo_info[user]["nopasswd"] = True
+                    else:
+                        # User rule
+                        if subject not in sudo_info:
+                            sudo_info[subject] = {"rules": [], "has_all": False, "nopasswd": False}
+                        sudo_info[subject]["rules"].append(rule)
+                        if "ALL" in rule and "(ALL)" in rule:
+                            sudo_info[subject]["has_all"] = True
+                        if "NOPASSWD" in rule:
+                            sudo_info[subject]["nopasswd"] = True
+
+        # Process each user from /etc/passwd
+        for line in passwd_output.split("\n"):
+            parts = line.strip().split(":")
+            if len(parts) < 7:
+                continue
+
+            username = parts[0]
+            try:
+                uid = int(parts[2])
+                gid = int(parts[3])
+            except ValueError:
+                uid = None
+                gid = None
+
+            gecos = parts[4] if parts[4] else None
+            home_dir = parts[5] if parts[5] else None
+            shell = parts[6] if parts[6] else None
+
+            # Determine if system account (UID < 1000 on most systems)
+            is_system = uid is not None and uid < 1000
+
+            # Get user's groups
+            user_groups = group_members.get(username, [])
+            # Add primary group
+            if gid is not None and gid in group_names:
+                primary_group = group_names[gid]
+                if primary_group not in user_groups:
+                    user_groups.insert(0, primary_group)
+
+            # Get shadow info
+            shadow = shadow_info.get(username, {})
+            has_password = shadow.get("has_password")
+            is_locked = shadow.get("is_locked")
+
+            # Calculate password dates
+            password_last_changed = None
+            password_expires = None
+            last_changed_days = shadow.get("last_changed_days")
+            max_days = shadow.get("max_days")
+
+            if last_changed_days is not None and last_changed_days > 0:
+                # Days since Jan 1, 1970
+                password_last_changed = datetime.fromtimestamp(last_changed_days * 86400, tz=timezone.utc)
+                if max_days is not None and max_days > 0:
+                    password_expires = datetime.fromtimestamp((last_changed_days + max_days) * 86400, tz=timezone.utc)
+
+            # Get SSH keys count
+            ssh_keys_count = 0
+            ssh_key_types: List[str] = []
+            if home_dir:
+                auth_keys = self._run_command(
+                    f"cat {home_dir}/.ssh/authorized_keys 2>/dev/null | grep -c '^ssh-' || echo 0"
+                )
+                if auth_keys:
+                    try:
+                        ssh_keys_count = int(auth_keys.strip())
+                    except ValueError:
+                        pass
+
+                # Get key types
+                if ssh_keys_count > 0:
+                    key_types_output = self._run_command(
+                        f"cat {home_dir}/.ssh/authorized_keys 2>/dev/null | "
+                        f"grep '^ssh-' | awk '{{print $1}}' | sort -u"
+                    )
+                    if key_types_output:
+                        ssh_key_types = [
+                            kt.replace("ssh-", "") for kt in key_types_output.split("\n") if kt.startswith("ssh-")
+                        ]
+
+            # Get sudo info
+            sudo = sudo_info.get(username, {})
+
+            # Get lastlog info
+            last_login = None
+            last_login_ip = None
+            lastlog = lastlog_info.get(username, {})
+            if not lastlog.get("never_logged_in"):
+                last_login_ip = lastlog.get("from_ip")
+
+            users.append(
+                UserInfo(
+                    username=username,
+                    uid=uid,
+                    gid=gid,
+                    groups=user_groups,
+                    home_dir=home_dir,
+                    shell=shell,  # nosec B604 - this is login shell path, not subprocess
+                    gecos=gecos,
+                    is_system_account=is_system,
+                    is_locked=is_locked,
+                    has_password=has_password,
+                    password_last_changed=password_last_changed,
+                    password_expires=password_expires,
+                    password_max_days=shadow.get("max_days"),
+                    password_warn_days=shadow.get("warn_days"),
+                    last_login=last_login,
+                    last_login_ip=last_login_ip,
+                    ssh_keys_count=ssh_keys_count,
+                    ssh_key_types=ssh_key_types,
+                    sudo_rules=sudo.get("rules", []),
+                    has_sudo_all=sudo.get("has_all", False),
+                    has_sudo_nopasswd=sudo.get("nopasswd", False),
+                )
+            )
+
+        logger.info(f"Collected {len(users)} users")
+        return users
 
 
 class SystemInfoService:
@@ -952,3 +1205,199 @@ class SystemInfoService:
             )
 
         return {"items": services, "total": total, "limit": limit, "offset": offset}
+
+    def save_users(self, host_id: UUID, users: List[UserInfo]) -> int:
+        """
+        Save or update users for a host.
+
+        Uses upsert pattern - existing users are updated, new ones are inserted.
+
+        Args:
+            host_id: The host UUID
+            users: List of UserInfo dataclasses
+
+        Returns:
+            Number of users saved
+        """
+        if not users:
+            return 0
+
+        now = datetime.now(timezone.utc)
+
+        # Delete existing users for this host (full refresh)
+        self.db.execute(
+            text("DELETE FROM host_users WHERE host_id = :host_id"),
+            {"host_id": str(host_id)},
+        )
+
+        # Batch insert users
+        for user in users:
+            self.db.execute(
+                text(
+                    """
+                    INSERT INTO host_users (
+                        host_id, username, uid, gid, groups, home_dir, shell, gecos,
+                        is_system_account, is_locked, has_password,
+                        password_last_changed, password_expires, password_max_days, password_warn_days,
+                        last_login, last_login_ip, ssh_keys_count, ssh_key_types,
+                        sudo_rules, has_sudo_all, has_sudo_nopasswd, collected_at
+                    ) VALUES (
+                        :host_id, :username, :uid, :gid, :groups, :home_dir, :shell, :gecos,
+                        :is_system_account, :is_locked, :has_password,
+                        :password_last_changed, :password_expires, :password_max_days, :password_warn_days,
+                        :last_login, :last_login_ip, :ssh_keys_count, :ssh_key_types,
+                        :sudo_rules, :has_sudo_all, :has_sudo_nopasswd, :collected_at
+                    )
+                    ON CONFLICT (host_id, username)
+                    DO UPDATE SET
+                        uid = EXCLUDED.uid,
+                        gid = EXCLUDED.gid,
+                        groups = EXCLUDED.groups,
+                        home_dir = EXCLUDED.home_dir,
+                        shell = EXCLUDED.shell,
+                        gecos = EXCLUDED.gecos,
+                        is_system_account = EXCLUDED.is_system_account,
+                        is_locked = EXCLUDED.is_locked,
+                        has_password = EXCLUDED.has_password,
+                        password_last_changed = EXCLUDED.password_last_changed,
+                        password_expires = EXCLUDED.password_expires,
+                        password_max_days = EXCLUDED.password_max_days,
+                        password_warn_days = EXCLUDED.password_warn_days,
+                        last_login = EXCLUDED.last_login,
+                        last_login_ip = EXCLUDED.last_login_ip,
+                        ssh_keys_count = EXCLUDED.ssh_keys_count,
+                        ssh_key_types = EXCLUDED.ssh_key_types,
+                        sudo_rules = EXCLUDED.sudo_rules,
+                        has_sudo_all = EXCLUDED.has_sudo_all,
+                        has_sudo_nopasswd = EXCLUDED.has_sudo_nopasswd,
+                        collected_at = EXCLUDED.collected_at
+                    """
+                ),
+                {
+                    "host_id": str(host_id),
+                    "username": user.username,
+                    "uid": user.uid,
+                    "gid": user.gid,
+                    "groups": json.dumps(user.groups) if user.groups else None,
+                    "home_dir": user.home_dir,
+                    "shell": user.shell,
+                    "gecos": user.gecos,
+                    "is_system_account": user.is_system_account,
+                    "is_locked": user.is_locked,
+                    "has_password": user.has_password,
+                    "password_last_changed": user.password_last_changed,
+                    "password_expires": user.password_expires,
+                    "password_max_days": user.password_max_days,
+                    "password_warn_days": user.password_warn_days,
+                    "last_login": user.last_login,
+                    "last_login_ip": user.last_login_ip,
+                    "ssh_keys_count": user.ssh_keys_count,
+                    "ssh_key_types": json.dumps(user.ssh_key_types) if user.ssh_key_types else None,
+                    "sudo_rules": json.dumps(user.sudo_rules) if user.sudo_rules else None,
+                    "has_sudo_all": user.has_sudo_all,
+                    "has_sudo_nopasswd": user.has_sudo_nopasswd,
+                    "collected_at": now,
+                },
+            )
+
+        self.db.commit()
+        logger.info(f"Saved {len(users)} users for host {host_id}")
+        return len(users)
+
+    def get_users(
+        self,
+        host_id: UUID,
+        search: Optional[str] = None,
+        include_system: bool = False,
+        has_sudo: Optional[bool] = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> Dict[str, Any]:
+        """
+        Get users for a host with pagination and filtering.
+
+        Args:
+            host_id: The host UUID
+            search: Optional username search filter
+            include_system: Include system accounts (UID < 1000)
+            has_sudo: Filter by sudo access
+            limit: Maximum users to return
+            offset: Offset for pagination
+
+        Returns:
+            Dictionary with users list and total count
+        """
+        # Build query
+        where_clause = "WHERE host_id = :host_id"
+        params: Dict[str, Any] = {"host_id": str(host_id), "limit": limit, "offset": offset}
+
+        if search:
+            where_clause += " AND (username ILIKE :search OR gecos ILIKE :search)"
+            params["search"] = f"%{search}%"
+
+        if not include_system:
+            where_clause += " AND (is_system_account = false OR is_system_account IS NULL)"
+
+        if has_sudo is not None:
+            if has_sudo:
+                where_clause += " AND has_sudo_all = true"
+            else:
+                where_clause += " AND (has_sudo_all = false OR has_sudo_all IS NULL)"
+
+        # Get total count
+        count_result = self.db.execute(
+            text(f"SELECT COUNT(*) FROM host_users {where_clause}"),
+            params,
+        )
+        total = count_result.scalar() or 0
+
+        # Get users
+        result = self.db.execute(
+            text(
+                f"""
+                SELECT username, uid, gid, groups, home_dir, shell, gecos,
+                       is_system_account, is_locked, has_password,
+                       password_last_changed, password_expires, password_max_days, password_warn_days,
+                       last_login, last_login_ip, ssh_keys_count, ssh_key_types,
+                       sudo_rules, has_sudo_all, has_sudo_nopasswd, collected_at
+                FROM host_users
+                {where_clause}
+                ORDER BY uid ASC NULLS LAST, username ASC
+                LIMIT :limit OFFSET :offset
+                """
+            ),
+            params,
+        )
+
+        users = []
+        for row in result.fetchall():
+            users.append(
+                {
+                    "username": row.username,
+                    "uid": row.uid,
+                    "gid": row.gid,
+                    "groups": row.groups,
+                    "home_dir": row.home_dir,
+                    "shell": row.shell,
+                    "gecos": row.gecos,
+                    "is_system_account": row.is_system_account,
+                    "is_locked": row.is_locked,
+                    "has_password": row.has_password,
+                    "password_last_changed": (
+                        row.password_last_changed.isoformat() if row.password_last_changed else None
+                    ),
+                    "password_expires": (row.password_expires.isoformat() if row.password_expires else None),
+                    "password_max_days": row.password_max_days,
+                    "password_warn_days": row.password_warn_days,
+                    "last_login": row.last_login.isoformat() if row.last_login else None,
+                    "last_login_ip": row.last_login_ip,
+                    "ssh_keys_count": row.ssh_keys_count,
+                    "ssh_key_types": row.ssh_key_types,
+                    "sudo_rules": row.sudo_rules,
+                    "has_sudo_all": row.has_sudo_all,
+                    "has_sudo_nopasswd": row.has_sudo_nopasswd,
+                    "collected_at": row.collected_at.isoformat() if row.collected_at else None,
+                }
+            )
+
+        return {"items": users, "total": total, "limit": limit, "offset": offset}

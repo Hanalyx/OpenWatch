@@ -143,6 +143,8 @@ from .intelligence import (  # noqa: E402
     ServiceResponse,
     ServicesListResponse,
     SystemInfoResponse,
+    UserResponse,
+    UsersListResponse,
 )
 
 # Re-export models for convenient access - use relative imports
@@ -202,6 +204,8 @@ __all__ = [
     "ServicesListResponse",
     "SystemInfoResponse",
     "ServerIntelligenceSummary",
+    "UserResponse",
+    "UsersListResponse",
     # Helpers
     "validate_host_uuid",
     # SSH validation (re-exported for backward compatibility)

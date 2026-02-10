@@ -209,6 +209,7 @@ class AegisScanner(BaseScanner):
         collect_system_info: bool = False,
         collect_packages: bool = False,
         collect_services: bool = False,
+        collect_users: bool = False,
     ) -> Dict[str, Any]:
         """
         Execute Aegis compliance scan on target host.
@@ -216,7 +217,7 @@ class AegisScanner(BaseScanner):
         This method:
         1. Retrieves credentials from OpenWatch
         2. Passes them to Aegis for scanning
-        3. Optionally collects system information, packages, and services
+        3. Optionally collects system information, packages, services, and users
         4. Returns results in OpenWatch format
 
         Args:
@@ -230,6 +231,7 @@ class AegisScanner(BaseScanner):
             collect_system_info: If True, collect system information during scan.
             collect_packages: If True, collect installed packages during scan.
             collect_services: If True, collect running services during scan.
+            collect_users: If True, collect user accounts during scan.
 
         Returns:
             Scan results dictionary.
@@ -274,8 +276,9 @@ class AegisScanner(BaseScanner):
                 system_info = None
                 packages = None
                 services = None
+                users = None
 
-                if collect_system_info or collect_packages or collect_services:
+                if collect_system_info or collect_packages or collect_services or collect_users:
                     try:
                         from app.services.system_info import SystemInfoCollector
 
@@ -300,8 +303,16 @@ class AegisScanner(BaseScanner):
                                 len(services) if services else 0,
                                 host_id,
                             )
+
+                        if collect_users:
+                            users = collector.collect_users()
+                            logger.debug(
+                                "Collected %d users for host %s",
+                                len(users) if users else 0,
+                                host_id,
+                            )
                     except Exception as e:
-                        logger.warning("Failed to collect system info/packages/services: %s", e)
+                        logger.warning("Failed to collect server intelligence: %s", e)
 
                 return {
                     "status": "completed",
@@ -328,6 +339,7 @@ class AegisScanner(BaseScanner):
                     "system_info": system_info,
                     "packages": packages,
                     "services": services,
+                    "users": users,
                 }
 
         except Exception as e:

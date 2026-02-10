@@ -116,7 +116,45 @@ class ServerIntelligenceSummary(BaseModel):
     services_count: int
     running_services_count: int
     listening_ports_count: int
+    users_count: int = 0
+    sudo_users_count: int = 0
     last_collected_at: Optional[str] = None
+
+
+class UserResponse(BaseModel):
+    """Response model for a single user account."""
+
+    username: str
+    uid: Optional[int] = None
+    gid: Optional[int] = None
+    groups: Optional[List[str]] = None
+    home_dir: Optional[str] = None
+    shell: Optional[str] = None
+    gecos: Optional[str] = None
+    is_system_account: Optional[bool] = None
+    is_locked: Optional[bool] = None
+    has_password: Optional[bool] = None
+    password_last_changed: Optional[str] = None
+    password_expires: Optional[str] = None
+    password_max_days: Optional[int] = None
+    password_warn_days: Optional[int] = None
+    last_login: Optional[str] = None
+    last_login_ip: Optional[str] = None
+    ssh_keys_count: Optional[int] = None
+    ssh_key_types: Optional[List[str]] = None
+    sudo_rules: Optional[List[str]] = None
+    has_sudo_all: Optional[bool] = None
+    has_sudo_nopasswd: Optional[bool] = None
+    collected_at: Optional[str] = None
+
+
+class UsersListResponse(BaseModel):
+    """Response model for paginated users list."""
+
+    items: List[UserResponse]
+    total: int
+    limit: int
+    offset: int
 
 
 # =============================================================================
@@ -232,6 +270,51 @@ async def get_host_system_info(
 
 
 @router.get(
+    "/{host_id}/users",
+    response_model=UsersListResponse,
+    summary="List user accounts",
+    description="Get local user accounts for a host with pagination and filtering.",
+)
+@require_permission(Permission.HOST_READ)
+async def list_host_users(
+    host_id: str,
+    search: Optional[str] = Query(None, description="Search by username or full name"),
+    include_system: bool = Query(False, description="Include system accounts (UID < 1000)"),
+    has_sudo: Optional[bool] = Query(None, description="Filter by sudo access"),
+    limit: int = Query(100, ge=1, le=1000, description="Maximum items to return"),
+    offset: int = Query(0, ge=0, description="Offset for pagination"),
+    db: Session = Depends(get_db),
+) -> UsersListResponse:
+    """
+    Get user accounts for a host.
+
+    Returns paginated list of users with optional filtering.
+    By default, system accounts (UID < 1000) are excluded.
+    """
+    # Validate host exists
+    host_uuid = validate_host_uuid(host_id, db)
+
+    from app.services.system_info import SystemInfoService
+
+    service = SystemInfoService(db)
+    result = service.get_users(
+        host_uuid,
+        search=search,
+        include_system=include_system,
+        has_sudo=has_sudo,
+        limit=limit,
+        offset=offset,
+    )
+
+    return UsersListResponse(
+        items=[UserResponse(**user) for user in result["items"]],
+        total=result["total"],
+        limit=result["limit"],
+        offset=result["offset"],
+    )
+
+
+@router.get(
     "/{host_id}/intelligence/summary",
     response_model=ServerIntelligenceSummary,
     summary="Get server intelligence summary",
@@ -300,6 +383,24 @@ async def get_server_intelligence_summary(
     )
     listening_ports_count = ports_result.scalar() or 0
 
+    # Get users count and sudo users count
+    users_result = db.execute(
+        text(
+            """
+            SELECT
+                COUNT(*) as total,
+                COUNT(*) FILTER (WHERE has_sudo_all = true) as sudo_count
+            FROM host_users
+            WHERE host_id = :host_id
+              AND (is_system_account = false OR is_system_account IS NULL)
+            """
+        ),
+        {"host_id": str(host_uuid)},
+    )
+    users_row = users_result.fetchone()
+    users_count = users_row.total if users_row else 0
+    sudo_users_count = users_row.sudo_count if users_row else 0
+
     return ServerIntelligenceSummary(
         host_id=str(host_uuid),
         system_info_collected=system_info_collected,
@@ -307,6 +408,8 @@ async def get_server_intelligence_summary(
         services_count=services_count,
         running_services_count=running_services_count,
         listening_ports_count=listening_ports_count,
+        users_count=users_count,
+        sudo_users_count=sudo_users_count,
         last_collected_at=last_collected.isoformat() if last_collected else None,
     )
 
@@ -319,4 +422,6 @@ __all__ = [
     "ServicesListResponse",
     "SystemInfoResponse",
     "ServerIntelligenceSummary",
+    "UserResponse",
+    "UsersListResponse",
 ]
