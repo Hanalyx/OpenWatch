@@ -281,6 +281,27 @@ def run_scheduled_aegis_scan(self: Any, host_id: str, priority: int = 5) -> Dict
                 scan_id=None,  # Aegis doesn't create a scan record
             )
 
+            # Generate alerts based on scan results
+            alerts_generated = 0
+            try:
+                from app.services.compliance.alert_generator import AlertGenerator
+
+                alert_generator = AlertGenerator(db)
+                alerts = alert_generator.process_scan_results(
+                    host_id=UUID(host_id),
+                    scan_id=None,
+                    compliance_score=compliance_score,
+                    passed=pass_count,
+                    failed=fail_count,
+                    results=results_list,
+                    hostname=host.hostname,
+                )
+                alerts_generated = len(alerts)
+                if alerts_generated > 0:
+                    logger.info(f"Generated {alerts_generated} alerts for {host.hostname}")
+            except Exception as alert_error:
+                logger.warning(f"Failed to generate alerts for {host.hostname}: {alert_error}")
+
             logger.info(
                 f"Completed scheduled scan for {host.hostname}: "
                 f"score={compliance_score}%, pass={pass_count}, fail={fail_count}"
@@ -295,6 +316,7 @@ def run_scheduled_aegis_scan(self: Any, host_id: str, priority: int = 5) -> Dict
                 "fail_count": fail_count,
                 "has_critical": has_critical,
                 "critical_count": critical_count,
+                "alerts_generated": alerts_generated,
                 "system_info_collected": system_info is not None,
                 "packages_collected": len(packages) if packages else 0,
                 "services_collected": len(services) if services else 0,
