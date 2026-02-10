@@ -1,5 +1,5 @@
 """
-SCAP Scanning API Package
+Compliance Scanning API Package
 
 This package provides the REST API for compliance scanning operations.
 The package follows a modular architecture for maintainability.
@@ -9,25 +9,21 @@ Package Structure:
     ├── __init__.py         # This file - public API and router aggregation
     ├── models.py           # Pydantic request/response models
     ├── helpers.py          # Utility functions and scanner singletons
+    ├── aegis.py            # Aegis compliance engine (PRIMARY)
     ├── compliance.py       # Primary compliance scan endpoints
     ├── crud.py             # Basic CRUD operations
     ├── reports.py          # Report generation endpoints
     ├── bulk.py             # Bulk scan operations
     ├── validation.py       # Readiness/validation endpoints
     ├── config.py           # Framework discovery and configuration
-    ├── templates.py        # Scan template management
-    └── rules.py            # Rule-specific scanning operations
+    └── templates.py        # Scan template management
 
-Migration Status (API Standardization):
-    Phase 1: Extract models and helpers (COMPLETE)
-    Phase 2: Route separation (COMPLETE)
-    Phase 3: API Standardization Consolidation (COMPLETE)
-    Phase 4: Integration (COMPLETE)
-    Phase 5: MongoDB Router Consolidation (COMPLETE)
-    Phase 6: Legacy Router Removal (COMPLETE)
-    - Deprecated mongodb.py removed (2025-12-05)
-    - Legacy scans_routes.py removed (2025-12-05)
-    - All functionality now in modular sub-routers
+Migration Status:
+    Phase 1-6: API Standardization (COMPLETE)
+    Phase 7: MongoDB Deprecation (2026-02-10)
+    - Removed mongodb.py (1,115 LOC) - Legacy MongoDB SCAP scanning
+    - Removed rules.py (721 LOC) - MongoDB rule scanning
+    - Replaced by Aegis native compliance scanning at /aegis/*
 
 Usage:
     # Import the router in main.py
@@ -91,9 +87,9 @@ Router Organization:
         POST /config/frameworks/{framework}/{version}/validate  - Validate configuration
         GET  /config/statistics                              - Get framework statistics
 
-    Templates Router (templates.py) - Phase 2:
+    Templates Router (templates.py):
         GET  /templates/quick                    - Get quick/static templates
-        GET  /templates                          - List MongoDB templates
+        GET  /templates                          - List templates
         POST /templates                          - Create template
         GET  /templates/{template_id}            - Get template details
         PUT  /templates/{template_id}            - Update template
@@ -102,15 +98,7 @@ Router Organization:
         POST /templates/{template_id}/clone      - Clone template
         POST /templates/{template_id}/set-default - Set as default template
 
-    Rules Router (rules.py) - Phase 2:
-        POST /rules/scan                         - Execute rule-specific scan
-        POST /rules/rescan-failed                - Rescan failed rules
-        POST /rules/verify-remediation           - Verify remediation
-        GET  /rules/{rule_id}/history            - Get rule scan history
-        GET  /rules/{rule_id}/compliance-info    - Get rule compliance info
-        POST /rules/remediation-plan             - Generate remediation plan
-
-    Aegis Router (aegis.py) - E0-S5:
+    Aegis Router (aegis.py) - Primary Compliance Engine:
         POST /aegis                              - Execute Aegis compliance scan
         GET  /aegis/frameworks                   - List available frameworks
         GET  /aegis/health                       - Aegis engine health check
@@ -132,7 +120,6 @@ from app.routes.scans.compliance import router as compliance_router  # noqa: E40
 from app.routes.scans.config import router as config_router  # noqa: E402
 from app.routes.scans.crud import router as crud_router  # noqa: E402
 from app.routes.scans.reports import router as reports_router  # noqa: E402
-from app.routes.scans.rules import router as rules_router  # noqa: E402
 from app.routes.scans.templates import router as templates_router  # noqa: E402
 from app.routes.scans.validation import router as validation_router  # noqa: E402
 
@@ -141,12 +128,10 @@ from app.routes.scans.validation import router as validation_router  # noqa: E40
 # Phase 3 routers have specific prefixes, so include them first
 router.include_router(config_router)
 router.include_router(templates_router)
-router.include_router(rules_router)
 
-# MongoDB scanning router (E1-S9 Route Consolidation)
-from app.routes.scans.mongodb import router as mongodb_router  # noqa: E402
-
-router.include_router(mongodb_router)
+# NOTE: MongoDB routes removed during MongoDB deprecation (2026-02-10)
+# - mongodb.py (1,115 LOC) - Legacy MongoDB SCAP scanning - Replaced by Aegis
+# - rules.py (721 LOC) - MongoDB rule scanning - Replaced by Aegis frameworks
 
 # Aegis compliance engine router (E0-S5 API Endpoints)
 from app.routes.scans.aegis import router as aegis_router  # noqa: E402

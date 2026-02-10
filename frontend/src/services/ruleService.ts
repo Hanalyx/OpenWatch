@@ -1,5 +1,4 @@
 import { api } from './api';
-import { getAuthHeaders } from '../hooks/useAuthHeaders';
 import {
   type Rule,
   type SearchRequest,
@@ -124,75 +123,43 @@ export interface PlatformCapabilitiesResponse {
 class RuleService {
   private readonly baseUrl = '/api/rules';
 
+  /**
+   * Get compliance rules.
+   *
+   * DEPRECATED (2026-02-10): MongoDB compliance rules have been replaced by Aegis.
+   * Use the Aegis frameworks endpoint at /api/scans/aegis/frameworks instead.
+   *
+   * This method now returns empty results since the backend endpoints were removed.
+   * For compliance data, use the Aegis compliance state endpoint at
+   * /api/scans/aegis/compliance-state/{host_id}
+   */
   async getRules(params: RuleQueryParams = {}): Promise<RuleListResponse> {
-    // Debug: Connecting to MongoDB compliance rules database
-    try {
-      // Use our converted rules endpoint instead of MongoDB
-      const queryParams = new URLSearchParams();
-      if (params.offset) queryParams.append('offset', params.offset.toString());
-      if (params.limit) queryParams.append('limit', params.limit.toString());
-      if (params.platform) queryParams.append('platform', params.platform);
-      if (params.severity) queryParams.append('severity', params.severity);
-      if (params.category) queryParams.append('category', params.category);
-      if (params.framework) queryParams.append('framework', params.framework);
-      if (params.search) queryParams.append('search', params.search);
-      if (params.is_latest !== undefined)
-        queryParams.append('is_latest', params.is_latest.toString());
+    // MongoDB compliance rules endpoints have been deprecated
+    // Return empty response with migration message
+    console.warn(
+      '[DEPRECATED] ruleService.getRules() - MongoDB compliance rules removed. ' +
+        'Use Aegis frameworks at /api/scans/aegis/frameworks instead.'
+    );
 
-      const response = await fetch(`/api/compliance-rules/?${queryParams.toString()}`);
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const result = await response.json();
-
-      if (!result.success) {
-        throw new Error(result.message || 'Failed to fetch rules');
-      }
-
-      const rules = result.data.rules || [];
-      const totalCount = result.data.total_count || 0;
-
-      // Debug: MongoDB connection successful, retrieved {rules.length} rules
-
-      return {
-        success: true,
-        data: {
-          rules,
-          total_count: totalCount,
-          offset: params.offset || 0,
-          limit: params.limit || 25,
-          has_next: result.data.has_next,
-          has_prev: result.data.has_prev,
-          filters_applied: {
-            platform: params.platform,
-            severity: params.severity,
-            category: params.category,
-          },
+    return {
+      success: false,
+      data: {
+        rules: [],
+        total_count: 0,
+        offset: params.offset || 0,
+        limit: params.limit || 25,
+        has_next: false,
+        has_prev: false,
+        filters_applied: {
+          platform: params.platform,
+          severity: params.severity,
+          category: params.category,
         },
-        message: `MongoDB Connected: ${totalCount} compliance rules in database`,
-        timestamp: new Date().toISOString(),
-      };
-    } catch (error) {
-      console.error('Rules API connection failed:', error);
-
-      // Return empty state instead of mock data
-      return {
-        success: false,
-        data: {
-          rules: [],
-          total_count: 0,
-          offset: 0,
-          limit: 25,
-          has_next: false,
-          has_prev: false,
-          filters_applied: {},
-        },
-        message: 'Failed to load compliance rules',
-        timestamp: new Date().toISOString(),
-      };
-    }
+      },
+      message:
+        'MongoDB compliance rules deprecated. Use Aegis frameworks at /api/scans/aegis/frameworks',
+      timestamp: new Date().toISOString(),
+    };
   }
 
   // MongoDB-connected data simulating the actual 1,584 rules now in database
@@ -604,74 +571,70 @@ class RuleService {
     };
   }
 
+  /**
+   * Search compliance rules.
+   *
+   * DEPRECATED (2026-02-10): MongoDB compliance rules have been replaced by Aegis.
+   * This method now returns empty results.
+   */
   async searchRules(searchRequest: SearchRequest): Promise<RuleSearchResponse> {
-    try {
-      // Use the MongoDB compliance rules search endpoint
-      const params = {
-        search: searchRequest.query,
-        platform: searchRequest.filters?.platform?.join(','),
-        severity: searchRequest.filters?.severity?.join(','),
-        category: searchRequest.filters?.category?.join(','),
-        framework: searchRequest.filters?.framework?.join(','),
-        limit: searchRequest.limit || 50,
-        offset: searchRequest.offset || 0,
-      };
+    console.warn(
+      '[DEPRECATED] ruleService.searchRules() - MongoDB compliance rules removed. ' +
+        'Use Aegis frameworks at /api/scans/aegis/frameworks instead.'
+    );
 
-      interface RulesApiResponse {
-        rules?: Rule[];
-        total?: number;
-      }
-      const response = await api.get<RulesApiResponse | Rule[]>('/api/compliance-rules/', {
-        params,
-        headers: getAuthHeaders(),
-      });
-
-      // Transform to search response format - api returns data directly
-      const responseData = response as RulesApiResponse;
-      const rules = responseData.rules || (Array.isArray(response) ? response : []);
-      const totalCount = responseData.total || rules.length;
-
-      return {
-        success: true,
-        data: {
-          results: rules,
-          total_count: totalCount,
-          search_query: searchRequest.query,
-          search_time_ms: 10, // Mock search time for now
-          filters_applied: {
-            platform: searchRequest.filters?.platform,
-            severity: searchRequest.filters?.severity,
-            category: searchRequest.filters?.category,
-            framework: searchRequest.filters?.framework,
-          },
-        },
-        message: `Found ${totalCount} rules matching your search`,
-        timestamp: new Date().toISOString(),
-      };
-    } catch {
-      // Mock response for development - error details not needed for fallback
-      return this.getMockSearchResponse(searchRequest);
-    }
+    return {
+      success: false,
+      data: {
+        results: [],
+        total_count: 0,
+        search_query: searchRequest.query,
+        search_time_ms: 0,
+        filters_applied: searchRequest.filters || {},
+      },
+      message:
+        'MongoDB compliance rules deprecated. Use Aegis frameworks at /api/scans/aegis/frameworks',
+      timestamp: new Date().toISOString(),
+    };
   }
 
-  async getRuleDetails(ruleId: string, includeInheritance = true): Promise<RuleDetailsResponse> {
-    try {
-      // Use the MongoDB compliance rules endpoint with centralized auth
-      const response = await api.get<Rule>(`/api/compliance-rules/${ruleId}`, {
-        params: { include_inheritance: includeInheritance },
-        headers: getAuthHeaders(),
-      });
+  /**
+   * Get rule details.
+   *
+   * DEPRECATED (2026-02-10): MongoDB compliance rules have been replaced by Aegis.
+   * This method now returns an error response.
+   */
+  async getRuleDetails(ruleId: string, _includeInheritance = true): Promise<RuleDetailsResponse> {
+    console.warn(
+      '[DEPRECATED] ruleService.getRuleDetails() - MongoDB compliance rules removed. ' +
+        'Use Aegis compliance state endpoint instead.'
+    );
 
-      return {
-        success: true,
-        data: response, // api.get returns data directly
-        message: `Retrieved rule details for ${ruleId}`,
-        timestamp: new Date().toISOString(),
-      };
-    } catch {
-      // Mock response for development
-      return this.getMockRuleDetailsResponse(ruleId, includeInheritance);
-    }
+    return {
+      success: false,
+      data: {
+        rule_id: ruleId,
+        scap_rule_id: '',
+        metadata: {
+          name: 'Rule not available',
+          description: 'MongoDB compliance rules have been deprecated. Use Aegis instead.',
+          rationale: '',
+          source: '',
+        },
+        abstract: false,
+        severity: 'info',
+        category: '',
+        security_function: '',
+        tags: [],
+        frameworks: {},
+        platform_implementations: {},
+        dependencies: { requires: [], conflicts: [], related: [] },
+        created_at: '',
+        updated_at: '',
+      },
+      message: 'MongoDB compliance rules deprecated. Use Aegis frameworks.',
+      timestamp: new Date().toISOString(),
+    };
   }
 
   async getRuleDependencies(

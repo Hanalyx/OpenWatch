@@ -1,56 +1,44 @@
 """
 Scan Template Management Endpoints
 
-This module provides endpoints for creating, managing, and applying
-scan configuration templates. Consolidates functionality from
-scan_config_api.py and scan_templates.py as part of Phase 2 API Standardization.
+This module provides endpoints for scan configuration templates.
 
-Endpoints:
-    GET    /templates                      - List scan templates
-    POST   /templates                      - Create scan template
-    GET    /templates/quick                - Get predefined quick templates
+Active Endpoints:
+    GET    /templates/quick                - Get predefined quick templates (Aegis-based)
     GET    /templates/host/{host_id}       - Get templates for specific host
-    GET    /templates/{template_id}        - Get template by ID
-    PUT    /templates/{template_id}        - Update template
-    DELETE /templates/{template_id}        - Delete template
-    POST   /templates/{template_id}/apply  - Apply template to target
-    POST   /templates/{template_id}/clone  - Clone template
-    POST   /templates/{template_id}/set-default - Set as default template
 
-Architecture Notes:
-    - MongoDB-backed templates provide full CRUD with variable management
-    - Quick templates are predefined configurations for common use cases
-    - Templates can be shared (public) or private to users
-    - Default templates are per-user per-framework
+DEPRECATED (2026-02-10 - MongoDB removal):
+    MongoDB-backed template CRUD endpoints have been deprecated.
+    Use Aegis framework endpoints at /api/scans/aegis/frameworks instead.
+
+    The following endpoints return deprecation notices:
+    - GET    /templates                    - List templates (deprecated)
+    - POST   /templates                    - Create template (deprecated)
+    - GET    /templates/{template_id}      - Get template (deprecated)
+    - PUT    /templates/{template_id}      - Update template (deprecated)
+    - DELETE /templates/{template_id}      - Delete template (deprecated)
+    - POST   /templates/{template_id}/apply - Apply template (deprecated)
+    - POST   /templates/{template_id}/clone - Clone template (deprecated)
+    - POST   /templates/{template_id}/set-default - Set default (deprecated)
+
+Migration Path:
+    - Use quick templates for common scan configurations
+    - Use Aegis frameworks directly for compliance scanning
+    - PostgreSQL scan_templates table is available for future template storage
 
 Security Notes:
     - All endpoints require JWT authentication
-    - Users can only modify their own templates
-    - Admins can modify any template
-    - Authorization checks on template access
 """
 
 import logging
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from motor.motor_asyncio import AsyncIOMotorDatabase
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.auth import get_current_user
 from app.database import get_db
-from app.models.scan_config_models import (
-    ApplyTemplateRequest,
-    CreateTemplateRequest,
-    ScanTemplate,
-    UpdateTemplateRequest,
-)
-from app.services.mongo_integration_service import (
-    MongoIntegrationService,
-    get_mongo_service,
-)
-from app.services.scan_template_service import ScanTemplateService
 
 logger = logging.getLogger(__name__)
 
@@ -77,27 +65,11 @@ class QuickScanTemplate(BaseModel):
     ruleCount: Optional[int] = None
 
 
-# =============================================================================
-# HELPER FUNCTIONS
-# =============================================================================
-
-
-def _get_database(mongo_service: MongoIntegrationService) -> AsyncIOMotorDatabase:
-    """
-    Get MongoDB database from service with null safety.
-
-    Args:
-        mongo_service: The MongoIntegrationService instance.
-
-    Returns:
-        AsyncIOMotorDatabase instance.
-
-    Raises:
-        HTTPException: 503 if MongoDB connection unavailable.
-    """
-    if mongo_service.mongo_manager is None or mongo_service.mongo_manager.database is None:
-        raise HTTPException(status_code=503, detail="MongoDB connection unavailable")
-    return mongo_service.mongo_manager.database
+# Deprecation message for MongoDB template endpoints
+MONGODB_DEPRECATION_MESSAGE = (
+    "MongoDB templates deprecated (2026-02-10). "
+    "Use quick templates at /templates/quick or Aegis frameworks at /api/scans/aegis/frameworks"
+)
 
 
 # =============================================================================
@@ -111,11 +83,11 @@ async def list_quick_templates(
     current_user: Dict[str, Any] = Depends(get_current_user),
 ) -> Dict[str, List[Dict[str, Any]]]:
     """
-    List predefined quick scan templates.
+    List predefined quick scan templates using Aegis frameworks.
 
     Returns a list of predefined templates for common compliance and
-    security scanning use cases. These are static configurations that
-    provide quick access to common scan profiles.
+    security scanning use cases. These templates use Aegis native YAML
+    rules for accurate compliance checking.
 
     Args:
         db: SQLAlchemy database session.
@@ -128,12 +100,12 @@ async def list_quick_templates(
         {
           "templates": [
             {
-              "id": "quick-compliance",
-              "name": "Quick Compliance",
-              "description": "Essential compliance checks",
-              "profileId": "xccdf_org.ssgproject.content_profile_cui",
-              "estimatedDuration": "5-10 min",
-              "ruleCount": 120
+              "id": "aegis-cis-rhel9",
+              "name": "CIS RHEL 9 Benchmark",
+              "description": "CIS Level 1 Server benchmark",
+              "framework": "cis-rhel9-v2.0.0",
+              "estimatedDuration": "2-5 min",
+              "ruleCount": 271
             }
           ]
         }
@@ -141,39 +113,40 @@ async def list_quick_templates(
     Security:
         - Requires authenticated user
     """
+    # Aegis-based quick templates (replaces legacy SCAP profiles)
     templates = [
         {
-            "id": "quick-compliance",
-            "name": "Quick Compliance",
-            "description": "Essential compliance checks for regulatory requirements",
-            "contentId": 1,
-            "profileId": "xccdf_org.ssgproject.content_profile_cui",
+            "id": "aegis-cis-rhel9",
+            "name": "CIS RHEL 9 Benchmark",
+            "description": "CIS Level 1 Server benchmark for RHEL 9 (95.1% coverage)",
+            "framework": "cis-rhel9-v2.0.0",
             "scope": "system",
             "isDefault": True,
+            "estimatedDuration": "2-5 min",
+            "ruleCount": 271,
+            "scanEngine": "aegis",
+        },
+        {
+            "id": "aegis-stig-rhel9",
+            "name": "STIG RHEL 9",
+            "description": "DISA STIG for RHEL 9 V2R7 (75.8% coverage)",
+            "framework": "stig-rhel9-v2r7",
+            "scope": "system",
+            "isDefault": False,
+            "estimatedDuration": "3-7 min",
+            "ruleCount": 338,
+            "scanEngine": "aegis",
+        },
+        {
+            "id": "aegis-full-scan",
+            "name": "Full Compliance Scan",
+            "description": "All 338 Aegis canonical rules across frameworks",
+            "framework": "all",
+            "scope": "system",
+            "isDefault": False,
             "estimatedDuration": "5-10 min",
-            "ruleCount": 120,
-        },
-        {
-            "id": "security-audit",
-            "name": "Security Audit",
-            "description": "Comprehensive security configuration review",
-            "contentId": 1,
-            "profileId": "xccdf_org.ssgproject.content_profile_stig",
-            "scope": "system",
-            "isDefault": False,
-            "estimatedDuration": "15-25 min",
-            "ruleCount": 340,
-        },
-        {
-            "id": "vulnerability-scan",
-            "name": "Vulnerability Check",
-            "description": "Scan for known security vulnerabilities",
-            "contentId": 1,
-            "profileId": "xccdf_org.ssgproject.content_profile_cis",
-            "scope": "system",
-            "isDefault": False,
-            "estimatedDuration": "10-15 min",
-            "ruleCount": 200,
+            "ruleCount": 338,
+            "scanEngine": "aegis",
         },
     ]
 
@@ -209,432 +182,118 @@ async def get_host_templates(
 
 
 # =============================================================================
-# MONGODB-BACKED TEMPLATE ENDPOINTS
+# DEPRECATED MONGODB-BACKED TEMPLATE ENDPOINTS
 # =============================================================================
+# These endpoints are deprecated as part of MongoDB removal (2026-02-10).
+# Use quick templates or Aegis frameworks directly.
 
 
-@router.get("/templates", response_model=List[ScanTemplate])
+@router.get("/templates")
 async def list_templates(
     framework: Optional[str] = Query(None, description="Filter by framework"),
-    tags: Optional[str] = Query(None, description="Filter by tags (comma-separated)"),
-    is_public: Optional[bool] = Query(None, description="Filter by visibility"),
-    skip: int = Query(0, ge=0, description="Pagination offset"),
-    limit: int = Query(50, ge=1, le=100, description="Max results"),
-    mongo_service: MongoIntegrationService = Depends(get_mongo_service),
     current_user: Dict[str, Any] = Depends(get_current_user),
-) -> List[ScanTemplate]:
+) -> Dict[str, Any]:
     """
-    List scan templates with filters.
+    DEPRECATED: List scan templates.
 
-    Returns user's own templates and public templates.
-
-    Args:
-        framework: Filter by framework.
-        tags: Filter by tags (comma-separated).
-        is_public: Filter by visibility.
-        skip: Pagination offset.
-        limit: Max results (default: 50, max: 100).
-        mongo_service: MongoDB integration service.
-        current_user: Authenticated user from JWT token.
-
-    Returns:
-        List of ScanTemplate objects.
-
-    Security:
-        - Requires authenticated user
-        - Non-admin users see only their own + public templates
+    MongoDB templates have been deprecated. Use quick templates or Aegis frameworks.
     """
-    db = _get_database(mongo_service)
-    service = ScanTemplateService(db)
-
-    # Parse tags
-    tag_list = None
-    if tags:
-        tag_list = [t.strip() for t in tags.split(",")]
-
-    # Non-admin users see only their own + public templates
-    created_by = None
-    if current_user.get("role") != "admin":
-        created_by = current_user.get("username")
-
-    templates = await service.list_templates(
-        created_by=created_by,
-        framework=framework,
-        tags=tag_list,
-        is_public=is_public,
-        skip=skip,
-        limit=limit,
+    logger.warning("Deprecated endpoint called: GET /templates")
+    raise HTTPException(
+        status_code=410,
+        detail=MONGODB_DEPRECATION_MESSAGE,
     )
 
-    return templates
 
-
-@router.post("/templates", response_model=ScanTemplate)
+@router.post("/templates")
 async def create_template(
-    request: CreateTemplateRequest,
-    mongo_service: MongoIntegrationService = Depends(get_mongo_service),
     current_user: Dict[str, Any] = Depends(get_current_user),
-) -> ScanTemplate:
-    """
-    Create a scan configuration template.
-
-    Saves a reusable scan configuration with framework, variables,
-    and rule filters.
-
-    Args:
-        request: Template creation request.
-        mongo_service: MongoDB integration service.
-        current_user: Authenticated user from JWT token.
-
-    Returns:
-        Created ScanTemplate.
-
-    Example Request:
-        {
-          "name": "Production NIST 800-53r5 High Baseline",
-          "description": "NIST 800-53r5 high baseline for production servers",
-          "framework": "nist",
-          "framework_version": "rev5",
-          "target_type": "ssh_host",
-          "variable_overrides": {
-            "var_accounts_tmout": "300",
-            "var_password_pam_minlen": "16"
-          },
-          "rule_filter": {
-            "impact_level": ["high"]
-          },
-          "tags": ["production", "nist", "high-security"],
-          "is_public": false
-        }
-
-    Security:
-        - Requires authenticated user
-    """
-    db = _get_database(mongo_service)
-    service = ScanTemplateService(db)
-
-    username = str(current_user.get("username", ""))
-    template = await service.create_template(
-        name=request.name,
-        description=request.description,
-        framework=request.framework,
-        framework_version=request.framework_version,
-        target_type=request.target_type,
-        variable_overrides=request.variable_overrides,
-        rule_filter=request.rule_filter,
-        tags=request.tags,
-        created_by=username,
-        is_public=request.is_public,
+) -> Dict[str, Any]:
+    """DEPRECATED: Create a scan configuration template."""
+    logger.warning("Deprecated endpoint called: POST /templates")
+    raise HTTPException(
+        status_code=410,
+        detail=MONGODB_DEPRECATION_MESSAGE,
     )
 
-    return template
 
-
-@router.get("/templates/{template_id}", response_model=ScanTemplate)
+@router.get("/templates/{template_id}")
 async def get_template(
     template_id: str,
-    mongo_service: MongoIntegrationService = Depends(get_mongo_service),
     current_user: Dict[str, Any] = Depends(get_current_user),
-) -> ScanTemplate:
-    """
-    Get template by ID.
-
-    Args:
-        template_id: Template UUID.
-        mongo_service: MongoDB integration service.
-        current_user: Authenticated user from JWT token.
-
-    Returns:
-        ScanTemplate.
-
-    Raises:
-        HTTPException 404: Template not found.
-        HTTPException 403: Access denied.
-
-    Security:
-        - Requires authenticated user
-        - Users can access their own templates, public templates, and shared templates
-        - Admins can access all templates
-    """
-    db = _get_database(mongo_service)
-    service = ScanTemplateService(db)
-    template = await service.get_template(template_id)
-
-    if not template:
-        raise HTTPException(status_code=404, detail="Template not found")
-
-    # Authorization check
-    if current_user.get("role") != "admin":
-        if (
-            template.created_by != current_user.get("username")
-            and not template.is_public
-            and current_user.get("username") not in template.shared_with
-        ):
-            raise HTTPException(status_code=403, detail="Access denied")
-
-    return template
-
-
-@router.put("/templates/{template_id}", response_model=ScanTemplate)
-async def update_template(
-    template_id: str,
-    request: UpdateTemplateRequest,
-    mongo_service: MongoIntegrationService = Depends(get_mongo_service),
-    current_user: Dict[str, Any] = Depends(get_current_user),
-) -> ScanTemplate:
-    """
-    Update template fields.
-
-    Args:
-        template_id: Template UUID.
-        request: Update request with fields to modify.
-        mongo_service: MongoDB integration service.
-        current_user: Authenticated user from JWT token.
-
-    Returns:
-        Updated ScanTemplate.
-
-    Raises:
-        HTTPException 404: Template not found.
-        HTTPException 403: Access denied (not owner).
-
-    Security:
-        - Requires authenticated user
-        - Only template owner or admin can update
-    """
-    db = _get_database(mongo_service)
-    service = ScanTemplateService(db)
-
-    # Get template for authorization
-    template = await service.get_template(template_id)
-    if not template:
-        raise HTTPException(status_code=404, detail="Template not found")
-
-    # Authorization: only owner can update
-    if current_user.get("role") != "admin":
-        if template.created_by != current_user.get("username"):
-            raise HTTPException(status_code=403, detail="Only template owner can update")
-
-    # Update
-    updated = await service.update_template(
-        template_id=template_id,
-        name=request.name,
-        description=request.description,
-        variable_overrides=request.variable_overrides,
-        rule_filter=request.rule_filter,
-        tags=request.tags,
-        is_public=request.is_public,
+) -> Dict[str, Any]:
+    """DEPRECATED: Get template by ID."""
+    logger.warning(f"Deprecated endpoint called: GET /templates/{template_id}")
+    raise HTTPException(
+        status_code=410,
+        detail=MONGODB_DEPRECATION_MESSAGE,
     )
 
-    return updated
+
+@router.put("/templates/{template_id}")
+async def update_template(
+    template_id: str,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """DEPRECATED: Update template fields."""
+    logger.warning(f"Deprecated endpoint called: PUT /templates/{template_id}")
+    raise HTTPException(
+        status_code=410,
+        detail=MONGODB_DEPRECATION_MESSAGE,
+    )
 
 
 @router.delete("/templates/{template_id}")
 async def delete_template(
     template_id: str,
-    mongo_service: MongoIntegrationService = Depends(get_mongo_service),
     current_user: Dict[str, Any] = Depends(get_current_user),
 ) -> Dict[str, str]:
-    """
-    Delete template.
-
-    Args:
-        template_id: Template UUID.
-        mongo_service: MongoDB integration service.
-        current_user: Authenticated user from JWT token.
-
-    Returns:
-        Success message.
-
-    Raises:
-        HTTPException 404: Template not found.
-        HTTPException 403: Access denied (not owner).
-
-    Security:
-        - Requires authenticated user
-        - Owner can delete their templates
-        - Admins can delete any template
-    """
-    db = _get_database(mongo_service)
-    service = ScanTemplateService(db)
-
-    # Get template for authorization
-    template = await service.get_template(template_id)
-    if not template:
-        raise HTTPException(status_code=404, detail="Template not found")
-
-    # Authorization
-    if current_user.get("role") != "admin":
-        if template.created_by != current_user.get("username"):
-            raise HTTPException(status_code=403, detail="Only template owner can delete")
-
-    # Delete
-    await service.delete_template(template_id)
-
-    return {"message": f"Template {template_id} deleted"}
+    """DEPRECATED: Delete template."""
+    logger.warning(f"Deprecated endpoint called: DELETE /templates/{template_id}")
+    raise HTTPException(
+        status_code=410,
+        detail=MONGODB_DEPRECATION_MESSAGE,
+    )
 
 
 @router.post("/templates/{template_id}/apply")
 async def apply_template(
     template_id: str,
-    request: ApplyTemplateRequest,
-    mongo_service: MongoIntegrationService = Depends(get_mongo_service),
     current_user: Dict[str, Any] = Depends(get_current_user),
 ) -> Dict[str, Any]:
-    """
-    Apply template to target for scanning.
-
-    Merges template configuration with target to create ScanConfiguration
-    ready for the scan service.
-
-    Args:
-        template_id: Template UUID.
-        request: Apply request with target and optional overrides.
-        mongo_service: MongoDB integration service.
-        current_user: Authenticated user from JWT token.
-
-    Returns:
-        ScanConfiguration dict ready for /api/scans.
-
-    Raises:
-        HTTPException 404: Template not found.
-        HTTPException 403: Access denied.
-
-    Example Request:
-        {
-          "target": {
-            "type": "ssh_host",
-            "identifier": "prod-web-01.example.com",
-            "credentials": {
-              "username": "root",
-              "ssh_key": "..."
-            }
-          },
-          "variable_overrides": {
-            "var_accounts_tmout": "600"
-          }
-        }
-
-    Security:
-        - Requires authenticated user
-        - User must have access to the template
-    """
-    db = _get_database(mongo_service)
-    service = ScanTemplateService(db)
-
-    # Get template with authorization check
-    template = await service.get_template(template_id)
-    if not template:
-        raise HTTPException(status_code=404, detail="Template not found")
-
-    # Authorization
-    if current_user.get("role") != "admin":
-        if (
-            template.created_by != current_user.get("username")
-            and not template.is_public
-            and current_user.get("username") not in template.shared_with
-        ):
-            raise HTTPException(status_code=403, detail="Access denied")
-
-    # Apply template
-    scan_config = await service.apply_template(
-        template_id=template_id,
-        target=request.target,
-        additional_overrides=request.variable_overrides,
+    """DEPRECATED: Apply template to target for scanning."""
+    logger.warning(f"Deprecated endpoint called: POST /templates/{template_id}/apply")
+    raise HTTPException(
+        status_code=410,
+        detail=MONGODB_DEPRECATION_MESSAGE,
     )
 
-    return scan_config
 
-
-@router.post("/templates/{template_id}/clone", response_model=ScanTemplate)
+@router.post("/templates/{template_id}/clone")
 async def clone_template(
     template_id: str,
     new_name: str = Query(..., description="New template name"),
-    mongo_service: MongoIntegrationService = Depends(get_mongo_service),
     current_user: Dict[str, Any] = Depends(get_current_user),
-) -> ScanTemplate:
-    """
-    Clone an existing template.
-
-    Creates a copy of template owned by current user.
-
-    Args:
-        template_id: Source template UUID.
-        new_name: New template name (query param).
-        mongo_service: MongoDB integration service.
-        current_user: Authenticated user from JWT token.
-
-    Returns:
-        Cloned ScanTemplate.
-
-    Raises:
-        HTTPException 404: Template not found.
-
-    Security:
-        - Requires authenticated user
-        - New template is owned by current user
-    """
-    db = _get_database(mongo_service)
-    service = ScanTemplateService(db)
-
-    try:
-        clone = await service.clone_template(
-            template_id=template_id,
-            new_name=new_name,
-            created_by=str(current_user.get("username", "")),
-        )
-        return clone
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
-
-
-@router.post("/templates/{template_id}/set-default", response_model=ScanTemplate)
-async def set_default_template(
-    template_id: str,
-    mongo_service: MongoIntegrationService = Depends(get_mongo_service),
-    current_user: Dict[str, Any] = Depends(get_current_user),
-) -> ScanTemplate:
-    """
-    Set template as default for framework.
-
-    Marks template as default for current user and framework.
-    Clears any existing default.
-
-    Args:
-        template_id: Template UUID.
-        mongo_service: MongoDB integration service.
-        current_user: Authenticated user from JWT token.
-
-    Returns:
-        Updated ScanTemplate.
-
-    Raises:
-        HTTPException 404: Template not found.
-        HTTPException 403: Access denied (not owner).
-
-    Security:
-        - Requires authenticated user
-        - Only template owner can set as default
-    """
-    db = _get_database(mongo_service)
-    service = ScanTemplateService(db)
-
-    # Get template for authorization
-    template = await service.get_template(template_id)
-    if not template:
-        raise HTTPException(status_code=404, detail="Template not found")
-
-    # Authorization: only owner can set as default
-    if template.created_by != current_user.get("username"):
-        raise HTTPException(status_code=403, detail="Only template owner can set as default")
-
-    # Set default
-    updated = await service.set_as_default(
-        template_id=template_id,
-        created_by=str(current_user.get("username", "")),
+) -> Dict[str, Any]:
+    """DEPRECATED: Clone an existing template."""
+    logger.warning(f"Deprecated endpoint called: POST /templates/{template_id}/clone")
+    raise HTTPException(
+        status_code=410,
+        detail=MONGODB_DEPRECATION_MESSAGE,
     )
 
-    return updated
+
+@router.post("/templates/{template_id}/set-default")
+async def set_default_template(
+    template_id: str,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """DEPRECATED: Set template as default for framework."""
+    logger.warning(f"Deprecated endpoint called: POST /templates/{template_id}/set-default")
+    raise HTTPException(
+        status_code=410,
+        detail=MONGODB_DEPRECATION_MESSAGE,
+    )
 
 
 # =============================================================================
@@ -645,12 +304,4 @@ __all__ = [
     "router",
     "list_quick_templates",
     "get_host_templates",
-    "list_templates",
-    "create_template",
-    "get_template",
-    "update_template",
-    "delete_template",
-    "apply_template",
-    "clone_template",
-    "set_default_template",
 ]

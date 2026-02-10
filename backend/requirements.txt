@@ -9,16 +9,18 @@ uvicorn[standard]==0.40.0
 starlette==0.50.0  # Security: CVE-2025-62727 fixed (O(n²) DoS via HTTP Range header)
 python-multipart==0.0.22
 
-# Database
+# Database (PostgreSQL only - MongoDB deprecated 2026-02-10)
 SQLAlchemy==2.0.45
 alembic==1.17.2
 psycopg2-binary==2.9.11
 asyncpg==0.31.0
 
-# MongoDB / Beanie ODM
-motor==3.7.1
-pymongo==4.15.5
-beanie==1.26.0
+# MongoDB deprecated (2026-02-10) - Aegis + PostgreSQL is the primary data store
+# These packages are kept for backward compatibility with existing model imports
+# but MongoDB is no longer required as a runtime dependency
+motor==3.7.1       # Kept for import compatibility
+pymongo==4.15.5    # Kept for import compatibility
+beanie==1.26.0     # Kept for import compatibility (models still use Document base class)
 
 # Redis & Celery
 redis==7.1.0

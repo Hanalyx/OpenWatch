@@ -1,53 +1,35 @@
 """
 Content API Package
 
-Consolidates SCAP content management REST API endpoints.
+DEPRECATED (2026-02-10): This package has been deprecated as part of MongoDB removal.
+All SCAP content management endpoints have been replaced by Aegis native YAML rules.
 
-Package Structure:
-    content/
-    ├── __init__.py     # This file - router aggregation
-    ├── scap.py         # SCAP content management (/content/*)
-    ├── import_.py      # SCAP import (/scap-import/*)
-    └── xccdf.py        # XCCDF generation (/xccdf/*)
+The following routes were removed:
+    - scap.py (152 LOC) - SCAP content management (/content/*)
+    - import_.py (307 LOC) - SCAP import (/scap-import/*)
+    - xccdf.py (294 LOC) - XCCDF generation (/xccdf/*)
 
-Migration Status (E1-S7 - Route Consolidation):
-    - content.py -> content/scap.py
-    - scap_import.py -> content/import_.py
-    - xccdf_api.py -> content/xccdf.py
+Replacement:
+    Use Aegis compliance scanning endpoints at /api/scans/aegis/*
+    - GET /api/scans/aegis/frameworks - List available frameworks (CIS, STIG)
+    - POST /api/scans/aegis/ - Execute Aegis compliance scan
+    - GET /api/scans/aegis/compliance-state/{host_id} - Get compliance state
 
-Usage:
-    from app.routes.content import router
-    app.include_router(router, prefix="/api")
+For historical reference, see:
+    - docs/plans/MONGODB_DEPRECATION_PLAN.md
+    - .claude/plans/mongodb-deprecation-plan.md
 """
 
 from fastapi import APIRouter
 
-# Create main router that aggregates all sub-routers
-router = APIRouter(tags=["Content"])
+# Empty router for backward compatibility
+# This ensures existing includes don't break but routes return 404
+router = APIRouter(tags=["Content (Deprecated)"])
 
-# Import sub-routers from modular files
-try:
-    from .import_ import router as import_router
-    from .scap import router as scap_router
-    from .xccdf import router as xccdf_router
-
-    # SCAP content management endpoints (/content/*)
-    # scap.py has no prefix; apply it here to preserve /api/content/* URLs
-    router.include_router(scap_router, prefix="/content", tags=["Legacy Content"])
-
-    # SCAP import endpoints (/scap-import/*)
-    # import_.py already has prefix="/scap-import"
-    router.include_router(import_router)
-
-    # XCCDF generation endpoints (/xccdf/*)
-    # xccdf.py has no prefix; apply it here to preserve /api/xccdf/* URLs
-    router.include_router(xccdf_router, prefix="/xccdf", tags=["XCCDF Generator"])
-
-except ImportError as e:
-    import logging
-
-    logger = logging.getLogger(__name__)
-    logger.error(f"Failed to load content sub-routers: {e}")
+# NOTE: All content routes removed during MongoDB deprecation (2026-02-10)
+# - scap.py (152 LOC) - SCAP content management - Replaced by Aegis
+# - import_.py (307 LOC) - SCAP import - Replaced by Aegis
+# - xccdf.py (294 LOC) - XCCDF generation - Replaced by Aegis
 
 __all__ = [
     "router",
