@@ -210,6 +210,9 @@ class AegisScanner(BaseScanner):
         collect_packages: bool = False,
         collect_services: bool = False,
         collect_users: bool = False,
+        collect_network: bool = False,
+        collect_firewall: bool = False,
+        collect_routes: bool = False,
     ) -> Dict[str, Any]:
         """
         Execute Aegis compliance scan on target host.
@@ -217,7 +220,7 @@ class AegisScanner(BaseScanner):
         This method:
         1. Retrieves credentials from OpenWatch
         2. Passes them to Aegis for scanning
-        3. Optionally collects system information, packages, services, and users
+        3. Optionally collects system information, packages, services, users, and network
         4. Returns results in OpenWatch format
 
         Args:
@@ -232,6 +235,9 @@ class AegisScanner(BaseScanner):
             collect_packages: If True, collect installed packages during scan.
             collect_services: If True, collect running services during scan.
             collect_users: If True, collect user accounts during scan.
+            collect_network: If True, collect network interfaces during scan.
+            collect_firewall: If True, collect firewall rules during scan.
+            collect_routes: If True, collect routing table during scan.
 
         Returns:
             Scan results dictionary.
@@ -277,8 +283,21 @@ class AegisScanner(BaseScanner):
                 packages = None
                 services = None
                 users = None
+                network = None
+                firewall = None
+                routes = None
 
-                if collect_system_info or collect_packages or collect_services or collect_users:
+                collect_any = (
+                    collect_system_info
+                    or collect_packages
+                    or collect_services
+                    or collect_users
+                    or collect_network
+                    or collect_firewall
+                    or collect_routes
+                )
+
+                if collect_any:
                     try:
                         from app.services.system_info import SystemInfoCollector
 
@@ -311,6 +330,30 @@ class AegisScanner(BaseScanner):
                                 len(users) if users else 0,
                                 host_id,
                             )
+
+                        if collect_network:
+                            network = collector.collect_network()
+                            logger.debug(
+                                "Collected %d network interfaces for host %s",
+                                len(network) if network else 0,
+                                host_id,
+                            )
+
+                        if collect_firewall:
+                            firewall = collector.collect_firewall_rules()
+                            logger.debug(
+                                "Collected %d firewall rules for host %s",
+                                len(firewall) if firewall else 0,
+                                host_id,
+                            )
+
+                        if collect_routes:
+                            routes = collector.collect_routes()
+                            logger.debug(
+                                "Collected %d routes for host %s",
+                                len(routes) if routes else 0,
+                                host_id,
+                            )
                     except Exception as e:
                         logger.warning("Failed to collect server intelligence: %s", e)
 
@@ -340,6 +383,9 @@ class AegisScanner(BaseScanner):
                     "packages": packages,
                     "services": services,
                     "users": users,
+                    "network": network,
+                    "firewall": firewall,
+                    "routes": routes,
                 }
 
         except Exception as e:

@@ -180,6 +180,9 @@ def run_scheduled_aegis_scan(self: Any, host_id: str, priority: int = 5) -> Dict
                     collect_packages=True,
                     collect_services=True,
                     collect_users=True,
+                    collect_network=True,
+                    collect_firewall=True,
+                    collect_routes=True,
                 )
 
             # Create event loop for async scan
@@ -210,13 +213,16 @@ def run_scheduled_aegis_scan(self: Any, host_id: str, priority: int = 5) -> Dict
 
             has_critical = critical_count > 0
 
-            # Save system info, packages, services, and users if collected
+            # Save server intelligence data if collected
             system_info = scan_result.get("system_info")
             packages = scan_result.get("packages")
             services = scan_result.get("services")
             users = scan_result.get("users")
+            network = scan_result.get("network")
+            firewall = scan_result.get("firewall")
+            routes = scan_result.get("routes")
 
-            if system_info or packages or services or users:
+            if system_info or packages or services or users or network or firewall or routes:
                 try:
                     from app.services.system_info import SystemInfoService
 
@@ -237,6 +243,18 @@ def run_scheduled_aegis_scan(self: Any, host_id: str, priority: int = 5) -> Dict
                     if users:
                         count = system_info_service.save_users(UUID(host_id), users)
                         logger.debug(f"Saved {count} users for {host.hostname}")
+
+                    if network:
+                        count = system_info_service.save_network(UUID(host_id), network)
+                        logger.debug(f"Saved {count} network interfaces for {host.hostname}")
+
+                    if firewall:
+                        count = system_info_service.save_firewall_rules(UUID(host_id), firewall)
+                        logger.debug(f"Saved {count} firewall rules for {host.hostname}")
+
+                    if routes:
+                        count = system_info_service.save_routes(UUID(host_id), routes)
+                        logger.debug(f"Saved {count} routes for {host.hostname}")
                 except Exception as e:
                     logger.warning(f"Failed to save server intelligence data: {e}")
 
@@ -269,6 +287,9 @@ def run_scheduled_aegis_scan(self: Any, host_id: str, priority: int = 5) -> Dict
                 "packages_collected": len(packages) if packages else 0,
                 "services_collected": len(services) if services else 0,
                 "users_collected": len(users) if users else 0,
+                "network_collected": len(network) if network else 0,
+                "firewall_collected": len(firewall) if firewall else 0,
+                "routes_collected": len(routes) if routes else 0,
             }
 
         finally:

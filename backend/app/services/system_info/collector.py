@@ -120,6 +120,52 @@ class UserInfo:
     has_sudo_nopasswd: Optional[bool] = None
 
 
+@dataclass
+class NetworkInterfaceInfo:
+    """Information about a network interface."""
+
+    interface_name: str
+    mac_address: Optional[str] = None
+    ip_addresses: List[Dict[str, Any]] = field(default_factory=list)
+    is_up: Optional[bool] = None
+    mtu: Optional[int] = None
+    speed_mbps: Optional[int] = None
+    interface_type: Optional[str] = None  # ethernet, loopback, bridge, vlan
+
+
+@dataclass
+class FirewallRuleInfo:
+    """Information about a firewall rule."""
+
+    firewall_type: Optional[str] = None  # iptables, nftables, firewalld
+    chain: Optional[str] = None  # INPUT, OUTPUT, FORWARD
+    rule_number: Optional[int] = None
+    protocol: Optional[str] = None  # tcp, udp, icmp, all
+    source: Optional[str] = None
+    destination: Optional[str] = None
+    port: Optional[str] = None
+    action: Optional[str] = None  # ACCEPT, DROP, REJECT
+    interface_in: Optional[str] = None
+    interface_out: Optional[str] = None
+    state: Optional[str] = None
+    comment: Optional[str] = None
+    raw_rule: Optional[str] = None
+
+
+@dataclass
+class RouteInfo:
+    """Information about a network route."""
+
+    destination: str
+    gateway: Optional[str] = None
+    interface: Optional[str] = None
+    metric: Optional[int] = None
+    scope: Optional[str] = None  # link, host, global
+    route_type: Optional[str] = None  # unicast, local, broadcast
+    protocol: Optional[str] = None  # kernel, static, dhcp
+    is_default: bool = False
+
+
 class SystemInfoCollector:
     """Collects system information from remote hosts via SSH."""
 
@@ -722,6 +768,329 @@ class SystemInfoCollector:
 
         logger.info(f"Collected {len(users)} users")
         return users
+
+    def collect_network(self) -> List[NetworkInterfaceInfo]:
+        """
+        Collect network interface information from the remote host.
+
+        Returns:
+            List of NetworkInterfaceInfo dataclasses with interface details
+        """
+        interfaces: List[NetworkInterfaceInfo] = []
+
+        # Get interface information using ip addr
+        ip_output = self._run_command("ip -json addr show 2>/dev/null")
+        if ip_output:
+            try:
+                ifaces = json.loads(ip_output)
+                for iface in ifaces:
+                    interface_name = iface.get("ifname", "")
+                    if not interface_name:
+                        continue
+
+                    # Determine interface type
+                    link_type = iface.get("link_type", "")
+                    if interface_name == "lo":
+                        iface_type = "loopback"
+                    elif link_type == "ether":
+                        iface_type = "ethernet"
+                    elif link_type == "bridge":
+                        iface_type = "bridge"
+                    elif "." in interface_name:
+                        iface_type = "vlan"
+                    elif interface_name.startswith("bond"):
+                        iface_type = "bond"
+                    elif interface_name.startswith("veth"):
+                        iface_type = "veth"
+                    elif interface_name.startswith("docker") or interface_name.startswith("br-"):
+                        iface_type = "bridge"
+                    else:
+                        iface_type = link_type or "unknown"
+
+                    # Extract IP addresses
+                    ip_addresses = []
+                    addr_info = iface.get("addr_info", [])
+                    for addr in addr_info:
+                        ip_addresses.append(
+                            {
+                                "address": addr.get("local"),
+                                "prefix": addr.get("prefixlen"),
+                                "type": "ipv4" if addr.get("family") == "inet" else "ipv6",
+                                "scope": addr.get("scope"),
+                            }
+                        )
+
+                    # Get flags to determine if up
+                    flags = iface.get("flags", [])
+                    is_up = "UP" in flags
+
+                    interfaces.append(
+                        NetworkInterfaceInfo(
+                            interface_name=interface_name,
+                            mac_address=iface.get("address"),
+                            ip_addresses=ip_addresses,
+                            is_up=is_up,
+                            mtu=iface.get("mtu"),
+                            interface_type=iface_type,
+                        )
+                    )
+            except json.JSONDecodeError:
+                logger.warning("Failed to parse JSON output from ip addr")
+
+        # Fallback: non-JSON parsing if ip -json not available
+        if not interfaces:
+            ip_output = self._run_command("ip addr show 2>/dev/null")
+            if ip_output:
+                current_iface = None
+                for line in ip_output.split("\n"):
+                    # Interface line starts with number
+                    if re.match(r"^\d+:", line):
+                        # Save previous interface
+                        if current_iface:
+                            interfaces.append(current_iface)
+
+                        # Parse interface name and flags
+                        match = re.match(r"^\d+:\s+(\S+):\s+<([^>]*)>.*mtu\s+(\d+)", line)
+                        if match:
+                            iface_name = match.group(1).rstrip(":")
+                            flags = match.group(2).split(",")
+                            mtu = int(match.group(3))
+
+                            # Determine type
+                            if iface_name == "lo":
+                                iface_type = "loopback"
+                            elif "." in iface_name:
+                                iface_type = "vlan"
+                            else:
+                                iface_type = "ethernet"
+
+                            current_iface = NetworkInterfaceInfo(
+                                interface_name=iface_name,
+                                is_up="UP" in flags,
+                                mtu=mtu,
+                                interface_type=iface_type,
+                                ip_addresses=[],
+                            )
+
+                    elif current_iface:
+                        # MAC address line
+                        mac_match = re.search(r"link/\w+\s+([0-9a-f:]+)", line)
+                        if mac_match:
+                            current_iface.mac_address = mac_match.group(1)
+
+                        # IPv4 address
+                        ipv4_match = re.search(r"inet\s+(\d+\.\d+\.\d+\.\d+)/(\d+)", line)
+                        if ipv4_match:
+                            current_iface.ip_addresses.append(
+                                {
+                                    "address": ipv4_match.group(1),
+                                    "prefix": int(ipv4_match.group(2)),
+                                    "type": "ipv4",
+                                }
+                            )
+
+                        # IPv6 address
+                        ipv6_match = re.search(r"inet6\s+([0-9a-f:]+)/(\d+)", line)
+                        if ipv6_match:
+                            current_iface.ip_addresses.append(
+                                {
+                                    "address": ipv6_match.group(1),
+                                    "prefix": int(ipv6_match.group(2)),
+                                    "type": "ipv6",
+                                }
+                            )
+
+                # Don't forget the last interface
+                if current_iface:
+                    interfaces.append(current_iface)
+
+        logger.info(f"Collected {len(interfaces)} network interfaces")
+        return interfaces
+
+    def collect_firewall_rules(self) -> List[FirewallRuleInfo]:
+        """
+        Collect firewall rules from the remote host.
+
+        Supports iptables and firewalld.
+
+        Returns:
+            List of FirewallRuleInfo dataclasses with rule details
+        """
+        rules: List[FirewallRuleInfo] = []
+
+        # Try firewalld first (RHEL/CentOS preferred)
+        firewalld_status = self._run_command("systemctl is-active firewalld 2>/dev/null")
+        if firewalld_status == "active":
+            # Get firewalld rules using firewall-cmd
+            zones_output = self._run_command("firewall-cmd --list-all-zones 2>/dev/null")
+            if zones_output:
+                current_zone = None
+                for line in zones_output.split("\n"):
+                    # Zone name line
+                    zone_match = re.match(r"^(\S+)\s*(\(active\))?", line)
+                    if zone_match and not line.startswith(" "):
+                        current_zone = zone_match.group(1)
+                        continue
+
+                    if current_zone and line.strip().startswith("services:"):
+                        services = line.split(":", 1)[1].strip().split()
+                        for svc in services:
+                            rules.append(
+                                FirewallRuleInfo(
+                                    firewall_type="firewalld",
+                                    chain="INPUT",
+                                    action="ACCEPT",
+                                    comment=f"zone:{current_zone} service:{svc}",
+                                    raw_rule=f"firewalld service {svc} in zone {current_zone}",
+                                )
+                            )
+
+                    if current_zone and line.strip().startswith("ports:"):
+                        ports = line.split(":", 1)[1].strip().split()
+                        for port_spec in ports:
+                            if "/" in port_spec:
+                                port, proto = port_spec.split("/")
+                                rules.append(
+                                    FirewallRuleInfo(
+                                        firewall_type="firewalld",
+                                        chain="INPUT",
+                                        protocol=proto,
+                                        port=port,
+                                        action="ACCEPT",
+                                        comment=f"zone:{current_zone}",
+                                        raw_rule=f"firewalld port {port_spec} in zone {current_zone}",
+                                    )
+                                )
+
+        # Try iptables
+        iptables_output = self._run_command("iptables-save 2>/dev/null")
+        if iptables_output:
+            rule_num = 0
+            for line in iptables_output.split("\n"):
+                line = line.strip()
+
+                # Table declaration (e.g., *filter, *nat, *mangle)
+                if line.startswith("*"):
+                    # Reset rule counter for each table (table name not needed)
+                    rule_num = 0
+                    continue
+
+                # Skip comments and empty lines
+                if not line or line.startswith("#") or line.startswith(":"):
+                    continue
+
+                # Rule line starts with -A
+                if line.startswith("-A "):
+                    rule_num += 1
+                    parts = line.split()
+
+                    # Extract chain name
+                    chain = parts[1] if len(parts) > 1 else None
+
+                    # Parse rule options
+                    rule_info = FirewallRuleInfo(
+                        firewall_type="iptables",
+                        chain=chain,
+                        rule_number=rule_num,
+                        raw_rule=line,
+                    )
+
+                    # Parse common options
+                    for i, part in enumerate(parts):
+                        if part == "-p" and i + 1 < len(parts):
+                            rule_info.protocol = parts[i + 1]
+                        elif part == "-s" and i + 1 < len(parts):
+                            rule_info.source = parts[i + 1]
+                        elif part == "-d" and i + 1 < len(parts):
+                            rule_info.destination = parts[i + 1]
+                        elif part == "--dport" and i + 1 < len(parts):
+                            rule_info.port = parts[i + 1]
+                        elif part == "-i" and i + 1 < len(parts):
+                            rule_info.interface_in = parts[i + 1]
+                        elif part == "-o" and i + 1 < len(parts):
+                            rule_info.interface_out = parts[i + 1]
+                        elif part == "-j" and i + 1 < len(parts):
+                            rule_info.action = parts[i + 1]
+                        elif part == "--state" and i + 1 < len(parts):
+                            rule_info.state = parts[i + 1]
+                        elif part == "--comment" and i + 1 < len(parts):
+                            rule_info.comment = parts[i + 1].strip('"')
+
+                    rules.append(rule_info)
+
+        logger.info(f"Collected {len(rules)} firewall rules")
+        return rules
+
+    def collect_routes(self) -> List[RouteInfo]:
+        """
+        Collect routing table from the remote host.
+
+        Returns:
+            List of RouteInfo dataclasses with route details
+        """
+        routes: List[RouteInfo] = []
+
+        # Try JSON output first
+        ip_output = self._run_command("ip -json route show 2>/dev/null")
+        if ip_output:
+            try:
+                route_data = json.loads(ip_output)
+                for route in route_data:
+                    destination = route.get("dst", "default")
+                    is_default = destination == "default"
+
+                    routes.append(
+                        RouteInfo(
+                            destination=destination,
+                            gateway=route.get("gateway"),
+                            interface=route.get("dev"),
+                            metric=route.get("metric"),
+                            scope=route.get("scope"),
+                            route_type=route.get("type"),
+                            protocol=route.get("protocol"),
+                            is_default=is_default,
+                        )
+                    )
+            except json.JSONDecodeError:
+                logger.warning("Failed to parse JSON output from ip route")
+
+        # Fallback: non-JSON parsing
+        if not routes:
+            ip_output = self._run_command("ip route show 2>/dev/null")
+            if ip_output:
+                for line in ip_output.split("\n"):
+                    if not line.strip():
+                        continue
+
+                    parts = line.split()
+                    if not parts:
+                        continue
+
+                    destination = parts[0]
+                    is_default = destination == "default"
+
+                    route = RouteInfo(destination=destination, is_default=is_default)
+
+                    # Parse route options
+                    for i, part in enumerate(parts):
+                        if part == "via" and i + 1 < len(parts):
+                            route.gateway = parts[i + 1]
+                        elif part == "dev" and i + 1 < len(parts):
+                            route.interface = parts[i + 1]
+                        elif part == "metric" and i + 1 < len(parts):
+                            try:
+                                route.metric = int(parts[i + 1])
+                            except ValueError:
+                                pass
+                        elif part == "scope" and i + 1 < len(parts):
+                            route.scope = parts[i + 1]
+                        elif part == "proto" and i + 1 < len(parts):
+                            route.protocol = parts[i + 1]
+
+                    routes.append(route)
+
+        logger.info(f"Collected {len(routes)} routes")
+        return routes
 
 
 class SystemInfoService:
@@ -1401,3 +1770,422 @@ class SystemInfoService:
             )
 
         return {"items": users, "total": total, "limit": limit, "offset": offset}
+
+    def save_network(self, host_id: UUID, interfaces: List[NetworkInterfaceInfo]) -> int:
+        """
+        Save or update network interfaces for a host.
+
+        Uses upsert pattern - existing interfaces are updated, new ones are inserted.
+
+        Args:
+            host_id: The host UUID
+            interfaces: List of NetworkInterfaceInfo dataclasses
+
+        Returns:
+            Number of interfaces saved
+        """
+        if not interfaces:
+            return 0
+
+        now = datetime.now(timezone.utc)
+
+        # Delete existing interfaces for this host (full refresh)
+        self.db.execute(
+            text("DELETE FROM host_network WHERE host_id = :host_id"),
+            {"host_id": str(host_id)},
+        )
+
+        # Batch insert interfaces
+        for iface in interfaces:
+            self.db.execute(
+                text(
+                    """
+                    INSERT INTO host_network (
+                        host_id, interface_name, mac_address, ip_addresses,
+                        is_up, mtu, speed_mbps, interface_type, collected_at
+                    ) VALUES (
+                        :host_id, :interface_name, :mac_address, :ip_addresses,
+                        :is_up, :mtu, :speed_mbps, :interface_type, :collected_at
+                    )
+                    ON CONFLICT (host_id, interface_name)
+                    DO UPDATE SET
+                        mac_address = EXCLUDED.mac_address,
+                        ip_addresses = EXCLUDED.ip_addresses,
+                        is_up = EXCLUDED.is_up,
+                        mtu = EXCLUDED.mtu,
+                        speed_mbps = EXCLUDED.speed_mbps,
+                        interface_type = EXCLUDED.interface_type,
+                        collected_at = EXCLUDED.collected_at
+                    """
+                ),
+                {
+                    "host_id": str(host_id),
+                    "interface_name": iface.interface_name,
+                    "mac_address": iface.mac_address,
+                    "ip_addresses": json.dumps(iface.ip_addresses) if iface.ip_addresses else None,
+                    "is_up": iface.is_up,
+                    "mtu": iface.mtu,
+                    "speed_mbps": iface.speed_mbps,
+                    "interface_type": iface.interface_type,
+                    "collected_at": now,
+                },
+            )
+
+        self.db.commit()
+        logger.info(f"Saved {len(interfaces)} network interfaces for host {host_id}")
+        return len(interfaces)
+
+    def get_network(
+        self,
+        host_id: UUID,
+        interface_type: Optional[str] = None,
+        is_up: Optional[bool] = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> Dict[str, Any]:
+        """
+        Get network interfaces for a host with pagination and filtering.
+
+        Args:
+            host_id: The host UUID
+            interface_type: Optional interface type filter (ethernet, loopback, etc.)
+            is_up: Optional up/down status filter
+            limit: Maximum interfaces to return
+            offset: Offset for pagination
+
+        Returns:
+            Dictionary with interfaces list and total count
+        """
+        # Build query
+        where_clause = "WHERE host_id = :host_id"
+        params: Dict[str, Any] = {"host_id": str(host_id), "limit": limit, "offset": offset}
+
+        if interface_type:
+            where_clause += " AND interface_type = :interface_type"
+            params["interface_type"] = interface_type
+
+        if is_up is not None:
+            where_clause += " AND is_up = :is_up"
+            params["is_up"] = is_up
+
+        # Get total count
+        count_result = self.db.execute(
+            text(f"SELECT COUNT(*) FROM host_network {where_clause}"),
+            params,
+        )
+        total = count_result.scalar() or 0
+
+        # Get interfaces
+        result = self.db.execute(
+            text(
+                f"""
+                SELECT interface_name, mac_address, ip_addresses,
+                       is_up, mtu, speed_mbps, interface_type, collected_at
+                FROM host_network
+                {where_clause}
+                ORDER BY interface_name ASC
+                LIMIT :limit OFFSET :offset
+                """
+            ),
+            params,
+        )
+
+        interfaces = []
+        for row in result.fetchall():
+            interfaces.append(
+                {
+                    "interface_name": row.interface_name,
+                    "mac_address": row.mac_address,
+                    "ip_addresses": row.ip_addresses,
+                    "is_up": row.is_up,
+                    "mtu": row.mtu,
+                    "speed_mbps": row.speed_mbps,
+                    "interface_type": row.interface_type,
+                    "collected_at": row.collected_at.isoformat() if row.collected_at else None,
+                }
+            )
+
+        return {"items": interfaces, "total": total, "limit": limit, "offset": offset}
+
+    def save_firewall_rules(self, host_id: UUID, rules: List[FirewallRuleInfo]) -> int:
+        """
+        Save firewall rules for a host.
+
+        Uses full refresh pattern - existing rules are deleted and replaced.
+
+        Args:
+            host_id: The host UUID
+            rules: List of FirewallRuleInfo dataclasses
+
+        Returns:
+            Number of rules saved
+        """
+        if not rules:
+            # Delete existing rules even if new list is empty
+            self.db.execute(
+                text("DELETE FROM host_firewall_rules WHERE host_id = :host_id"),
+                {"host_id": str(host_id)},
+            )
+            self.db.commit()
+            return 0
+
+        now = datetime.now(timezone.utc)
+
+        # Delete existing rules for this host (full refresh)
+        self.db.execute(
+            text("DELETE FROM host_firewall_rules WHERE host_id = :host_id"),
+            {"host_id": str(host_id)},
+        )
+
+        # Batch insert rules
+        for rule in rules:
+            self.db.execute(
+                text(
+                    """
+                    INSERT INTO host_firewall_rules (
+                        host_id, firewall_type, chain, rule_number, protocol,
+                        source, destination, port, action, interface_in,
+                        interface_out, state, comment, raw_rule, collected_at
+                    ) VALUES (
+                        :host_id, :firewall_type, :chain, :rule_number, :protocol,
+                        :source, :destination, :port, :action, :interface_in,
+                        :interface_out, :state, :comment, :raw_rule, :collected_at
+                    )
+                    """
+                ),
+                {
+                    "host_id": str(host_id),
+                    "firewall_type": rule.firewall_type,
+                    "chain": rule.chain,
+                    "rule_number": rule.rule_number,
+                    "protocol": rule.protocol,
+                    "source": rule.source,
+                    "destination": rule.destination,
+                    "port": rule.port,
+                    "action": rule.action,
+                    "interface_in": rule.interface_in,
+                    "interface_out": rule.interface_out,
+                    "state": rule.state,
+                    "comment": rule.comment,
+                    "raw_rule": rule.raw_rule,
+                    "collected_at": now,
+                },
+            )
+
+        self.db.commit()
+        logger.info(f"Saved {len(rules)} firewall rules for host {host_id}")
+        return len(rules)
+
+    def get_firewall_rules(
+        self,
+        host_id: UUID,
+        chain: Optional[str] = None,
+        action: Optional[str] = None,
+        firewall_type: Optional[str] = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> Dict[str, Any]:
+        """
+        Get firewall rules for a host with pagination and filtering.
+
+        Args:
+            host_id: The host UUID
+            chain: Optional chain filter (INPUT, OUTPUT, FORWARD)
+            action: Optional action filter (ACCEPT, DROP, REJECT)
+            firewall_type: Optional firewall type filter (iptables, firewalld)
+            limit: Maximum rules to return
+            offset: Offset for pagination
+
+        Returns:
+            Dictionary with rules list and total count
+        """
+        # Build query
+        where_clause = "WHERE host_id = :host_id"
+        params: Dict[str, Any] = {"host_id": str(host_id), "limit": limit, "offset": offset}
+
+        if chain:
+            where_clause += " AND chain = :chain"
+            params["chain"] = chain
+
+        if action:
+            where_clause += " AND action = :action"
+            params["action"] = action
+
+        if firewall_type:
+            where_clause += " AND firewall_type = :firewall_type"
+            params["firewall_type"] = firewall_type
+
+        # Get total count
+        count_result = self.db.execute(
+            text(f"SELECT COUNT(*) FROM host_firewall_rules {where_clause}"),
+            params,
+        )
+        total = count_result.scalar() or 0
+
+        # Get rules
+        result = self.db.execute(
+            text(
+                f"""
+                SELECT firewall_type, chain, rule_number, protocol, source,
+                       destination, port, action, interface_in, interface_out,
+                       state, comment, raw_rule, collected_at
+                FROM host_firewall_rules
+                {where_clause}
+                ORDER BY chain ASC, rule_number ASC
+                LIMIT :limit OFFSET :offset
+                """
+            ),
+            params,
+        )
+
+        rules = []
+        for row in result.fetchall():
+            rules.append(
+                {
+                    "firewall_type": row.firewall_type,
+                    "chain": row.chain,
+                    "rule_number": row.rule_number,
+                    "protocol": row.protocol,
+                    "source": row.source,
+                    "destination": row.destination,
+                    "port": row.port,
+                    "action": row.action,
+                    "interface_in": row.interface_in,
+                    "interface_out": row.interface_out,
+                    "state": row.state,
+                    "comment": row.comment,
+                    "raw_rule": row.raw_rule,
+                    "collected_at": row.collected_at.isoformat() if row.collected_at else None,
+                }
+            )
+
+        return {"items": rules, "total": total, "limit": limit, "offset": offset}
+
+    def save_routes(self, host_id: UUID, routes: List[RouteInfo]) -> int:
+        """
+        Save routes for a host.
+
+        Uses full refresh pattern - existing routes are deleted and replaced.
+
+        Args:
+            host_id: The host UUID
+            routes: List of RouteInfo dataclasses
+
+        Returns:
+            Number of routes saved
+        """
+        if not routes:
+            # Delete existing routes even if new list is empty
+            self.db.execute(
+                text("DELETE FROM host_routes WHERE host_id = :host_id"),
+                {"host_id": str(host_id)},
+            )
+            self.db.commit()
+            return 0
+
+        now = datetime.now(timezone.utc)
+
+        # Delete existing routes for this host (full refresh)
+        self.db.execute(
+            text("DELETE FROM host_routes WHERE host_id = :host_id"),
+            {"host_id": str(host_id)},
+        )
+
+        # Batch insert routes
+        for route in routes:
+            self.db.execute(
+                text(
+                    """
+                    INSERT INTO host_routes (
+                        host_id, destination, gateway, interface, metric,
+                        scope, route_type, protocol, is_default, collected_at
+                    ) VALUES (
+                        :host_id, :destination, :gateway, :interface, :metric,
+                        :scope, :route_type, :protocol, :is_default, :collected_at
+                    )
+                    """
+                ),
+                {
+                    "host_id": str(host_id),
+                    "destination": route.destination,
+                    "gateway": route.gateway,
+                    "interface": route.interface,
+                    "metric": route.metric,
+                    "scope": route.scope,
+                    "route_type": route.route_type,
+                    "protocol": route.protocol,
+                    "is_default": route.is_default,
+                    "collected_at": now,
+                },
+            )
+
+        self.db.commit()
+        logger.info(f"Saved {len(routes)} routes for host {host_id}")
+        return len(routes)
+
+    def get_routes(
+        self,
+        host_id: UUID,
+        is_default: Optional[bool] = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> Dict[str, Any]:
+        """
+        Get routes for a host with pagination and filtering.
+
+        Args:
+            host_id: The host UUID
+            is_default: Optional filter for default routes only
+            limit: Maximum routes to return
+            offset: Offset for pagination
+
+        Returns:
+            Dictionary with routes list and total count
+        """
+        # Build query
+        where_clause = "WHERE host_id = :host_id"
+        params: Dict[str, Any] = {"host_id": str(host_id), "limit": limit, "offset": offset}
+
+        if is_default is not None:
+            where_clause += " AND is_default = :is_default"
+            params["is_default"] = is_default
+
+        # Get total count
+        count_result = self.db.execute(
+            text(f"SELECT COUNT(*) FROM host_routes {where_clause}"),
+            params,
+        )
+        total = count_result.scalar() or 0
+
+        # Get routes
+        result = self.db.execute(
+            text(
+                f"""
+                SELECT destination, gateway, interface, metric,
+                       scope, route_type, protocol, is_default, collected_at
+                FROM host_routes
+                {where_clause}
+                ORDER BY is_default DESC, destination ASC
+                LIMIT :limit OFFSET :offset
+                """
+            ),
+            params,
+        )
+
+        routes = []
+        for row in result.fetchall():
+            routes.append(
+                {
+                    "destination": row.destination,
+                    "gateway": row.gateway,
+                    "interface": row.interface,
+                    "metric": row.metric,
+                    "scope": row.scope,
+                    "route_type": row.route_type,
+                    "protocol": row.protocol,
+                    "is_default": row.is_default,
+                    "collected_at": row.collected_at.isoformat() if row.collected_at else None,
+                }
+            )
+
+        return {"items": routes, "total": total, "limit": limit, "offset": offset}

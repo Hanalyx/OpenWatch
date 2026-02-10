@@ -118,6 +118,9 @@ class ServerIntelligenceSummary(BaseModel):
     listening_ports_count: int
     users_count: int = 0
     sudo_users_count: int = 0
+    network_interfaces_count: int = 0
+    firewall_rules_count: int = 0
+    routes_count: int = 0
     last_collected_at: Optional[str] = None
 
 
@@ -152,6 +155,79 @@ class UsersListResponse(BaseModel):
     """Response model for paginated users list."""
 
     items: List[UserResponse]
+    total: int
+    limit: int
+    offset: int
+
+
+class NetworkInterfaceResponse(BaseModel):
+    """Response model for a network interface."""
+
+    interface_name: str
+    mac_address: Optional[str] = None
+    ip_addresses: Optional[List[Dict[str, Any]]] = None
+    is_up: Optional[bool] = None
+    mtu: Optional[int] = None
+    speed_mbps: Optional[int] = None
+    interface_type: Optional[str] = None
+    collected_at: Optional[str] = None
+
+
+class NetworkListResponse(BaseModel):
+    """Response model for paginated network interfaces list."""
+
+    items: List[NetworkInterfaceResponse]
+    total: int
+    limit: int
+    offset: int
+
+
+class FirewallRuleResponse(BaseModel):
+    """Response model for a firewall rule."""
+
+    firewall_type: Optional[str] = None
+    chain: Optional[str] = None
+    rule_number: Optional[int] = None
+    protocol: Optional[str] = None
+    source: Optional[str] = None
+    destination: Optional[str] = None
+    port: Optional[str] = None
+    action: Optional[str] = None
+    interface_in: Optional[str] = None
+    interface_out: Optional[str] = None
+    state: Optional[str] = None
+    comment: Optional[str] = None
+    raw_rule: Optional[str] = None
+    collected_at: Optional[str] = None
+
+
+class FirewallListResponse(BaseModel):
+    """Response model for paginated firewall rules list."""
+
+    items: List[FirewallRuleResponse]
+    total: int
+    limit: int
+    offset: int
+
+
+class RouteResponse(BaseModel):
+    """Response model for a network route."""
+
+    destination: str
+    gateway: Optional[str] = None
+    interface: Optional[str] = None
+    metric: Optional[int] = None
+    scope: Optional[str] = None
+    route_type: Optional[str] = None
+    protocol: Optional[str] = None
+    is_default: Optional[bool] = None
+    collected_at: Optional[str] = None
+
+
+class RoutesListResponse(BaseModel):
+    """Response model for paginated routes list."""
+
+    items: List[RouteResponse]
     total: int
     limit: int
     offset: int
@@ -401,6 +477,27 @@ async def get_server_intelligence_summary(
     users_count = users_row.total if users_row else 0
     sudo_users_count = users_row.sudo_count if users_row else 0
 
+    # Get network interfaces count
+    network_result = db.execute(
+        text("SELECT COUNT(*) FROM host_network WHERE host_id = :host_id"),
+        {"host_id": str(host_uuid)},
+    )
+    network_interfaces_count = network_result.scalar() or 0
+
+    # Get firewall rules count
+    firewall_result = db.execute(
+        text("SELECT COUNT(*) FROM host_firewall_rules WHERE host_id = :host_id"),
+        {"host_id": str(host_uuid)},
+    )
+    firewall_rules_count = firewall_result.scalar() or 0
+
+    # Get routes count
+    routes_result = db.execute(
+        text("SELECT COUNT(*) FROM host_routes WHERE host_id = :host_id"),
+        {"host_id": str(host_uuid)},
+    )
+    routes_count = routes_result.scalar() or 0
+
     return ServerIntelligenceSummary(
         host_id=str(host_uuid),
         system_info_collected=system_info_collected,
@@ -410,7 +507,120 @@ async def get_server_intelligence_summary(
         listening_ports_count=listening_ports_count,
         users_count=users_count,
         sudo_users_count=sudo_users_count,
+        network_interfaces_count=network_interfaces_count,
+        firewall_rules_count=firewall_rules_count,
+        routes_count=routes_count,
         last_collected_at=last_collected.isoformat() if last_collected else None,
+    )
+
+
+@router.get(
+    "/{host_id}/network",
+    response_model=NetworkListResponse,
+    summary="List network interfaces",
+    description="Get network interfaces for a host with pagination and filtering.",
+)
+@require_permission(Permission.HOST_READ)
+async def list_host_network(
+    host_id: str,
+    interface_type: Optional[str] = Query(None, description="Filter by interface type (ethernet, loopback, etc.)"),
+    is_up: Optional[bool] = Query(None, description="Filter by up/down status"),
+    limit: int = Query(100, ge=1, le=1000, description="Maximum items to return"),
+    offset: int = Query(0, ge=0, description="Offset for pagination"),
+    db: Session = Depends(get_db),
+) -> NetworkListResponse:
+    """
+    Get network interfaces for a host.
+
+    Returns paginated list of network interfaces with optional filtering.
+    """
+    # Validate host exists
+    host_uuid = validate_host_uuid(host_id, db)
+
+    from app.services.system_info import SystemInfoService
+
+    service = SystemInfoService(db)
+    result = service.get_network(host_uuid, interface_type=interface_type, is_up=is_up, limit=limit, offset=offset)
+
+    return NetworkListResponse(
+        items=[NetworkInterfaceResponse(**iface) for iface in result["items"]],
+        total=result["total"],
+        limit=result["limit"],
+        offset=result["offset"],
+    )
+
+
+@router.get(
+    "/{host_id}/firewall",
+    response_model=FirewallListResponse,
+    summary="List firewall rules",
+    description="Get firewall rules for a host with pagination and filtering.",
+)
+@require_permission(Permission.HOST_READ)
+async def list_host_firewall(
+    host_id: str,
+    chain: Optional[str] = Query(None, description="Filter by chain (INPUT, OUTPUT, FORWARD)"),
+    action: Optional[str] = Query(None, description="Filter by action (ACCEPT, DROP, REJECT)"),
+    firewall_type: Optional[str] = Query(None, description="Filter by firewall type (iptables, firewalld)"),
+    limit: int = Query(100, ge=1, le=1000, description="Maximum items to return"),
+    offset: int = Query(0, ge=0, description="Offset for pagination"),
+    db: Session = Depends(get_db),
+) -> FirewallListResponse:
+    """
+    Get firewall rules for a host.
+
+    Returns paginated list of firewall rules with optional filtering.
+    """
+    # Validate host exists
+    host_uuid = validate_host_uuid(host_id, db)
+
+    from app.services.system_info import SystemInfoService
+
+    service = SystemInfoService(db)
+    result = service.get_firewall_rules(
+        host_uuid, chain=chain, action=action, firewall_type=firewall_type, limit=limit, offset=offset
+    )
+
+    return FirewallListResponse(
+        items=[FirewallRuleResponse(**rule) for rule in result["items"]],
+        total=result["total"],
+        limit=result["limit"],
+        offset=result["offset"],
+    )
+
+
+@router.get(
+    "/{host_id}/routes",
+    response_model=RoutesListResponse,
+    summary="List network routes",
+    description="Get network routes for a host with pagination and filtering.",
+)
+@require_permission(Permission.HOST_READ)
+async def list_host_routes(
+    host_id: str,
+    is_default: Optional[bool] = Query(None, description="Filter for default routes only"),
+    limit: int = Query(100, ge=1, le=1000, description="Maximum items to return"),
+    offset: int = Query(0, ge=0, description="Offset for pagination"),
+    db: Session = Depends(get_db),
+) -> RoutesListResponse:
+    """
+    Get network routes for a host.
+
+    Returns paginated list of routes with optional filtering.
+    """
+    # Validate host exists
+    host_uuid = validate_host_uuid(host_id, db)
+
+    from app.services.system_info import SystemInfoService
+
+    service = SystemInfoService(db)
+    result = service.get_routes(host_uuid, is_default=is_default, limit=limit, offset=offset)
+
+    return RoutesListResponse(
+        items=[RouteResponse(**route) for route in result["items"]],
+        total=result["total"],
+        limit=result["limit"],
+        offset=result["offset"],
     )
 
 
@@ -424,4 +634,10 @@ __all__ = [
     "ServerIntelligenceSummary",
     "UserResponse",
     "UsersListResponse",
+    "NetworkInterfaceResponse",
+    "NetworkListResponse",
+    "FirewallRuleResponse",
+    "FirewallListResponse",
+    "RouteResponse",
+    "RoutesListResponse",
 ]
