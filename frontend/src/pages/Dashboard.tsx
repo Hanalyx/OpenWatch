@@ -12,6 +12,7 @@ import ActivityFeed, { type ActivityItem } from '../components/dashboard/Activit
 import ComplianceTrend from '../components/dashboard/ComplianceTrend';
 import PriorityHosts from '../components/dashboard/PriorityHosts';
 import DriftAlertsWidget from '../components/baselines/DriftAlertsWidget';
+import { SchedulerStatusWidget } from './Dashboard/widgets';
 import { api } from '../services/api';
 import { owcaService, type FleetStatistics } from '../services/owcaService';
 import DashboardErrorBoundary from '../components/dashboard/DashboardErrorBoundary';
@@ -724,6 +725,13 @@ const Dashboard: React.FC = () => {
         {/* Right Column - Activity Feed */}
         <Grid size={{ xs: 12, lg: 4 }}>
           <Grid container spacing={3}>
+            {/* Scheduler Status Widget */}
+            <Grid size={{ xs: 12 }}>
+              <DashboardErrorBoundary onRetry={fetchDashboardData}>
+                <SchedulerStatusWidget />
+              </DashboardErrorBoundary>
+            </Grid>
+
             {/* Drift Alerts Widget */}
             <Grid size={{ xs: 12 }}>
               <DashboardErrorBoundary onRetry={fetchDashboardData}>
