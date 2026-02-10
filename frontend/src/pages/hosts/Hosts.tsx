@@ -288,9 +288,18 @@ const Hosts: React.FC = () => {
                   </Box>
 
                   <Collapse in={expandedGroups.includes(groupName)}>
-                    <Grid container spacing={3}>
+                    <Grid container spacing={viewMode === 'compact' ? 2 : 3}>
                       {groupHosts.map((host) => (
-                        <Grid size={{ xs: 12, sm: 6, md: 3 }} key={host.id}>
+                        <Grid
+                          size={
+                            viewMode === 'list'
+                              ? { xs: 12 }
+                              : viewMode === 'compact'
+                                ? { xs: 6, sm: 4, md: 2 }
+                                : { xs: 12, sm: 6, md: 3 }
+                          }
+                          key={host.id}
+                        >
                           <HostCard
                             host={host}
                             viewMode={viewMode}
@@ -311,12 +320,21 @@ const Hosts: React.FC = () => {
               ))}
             </Box>
           ) : (
-            /* Grid/List View */
-            <Grid container spacing={3}>
+            /* Grid/List/Compact View */
+            <Grid container spacing={viewMode === 'compact' ? 2 : 3}>
               {Object.values(processedHosts)
                 .flat()
                 .map((host) => (
-                  <Grid size={{ xs: 12, sm: 6, md: 3 }} key={host.id}>
+                  <Grid
+                    size={
+                      viewMode === 'list'
+                        ? { xs: 12 }
+                        : viewMode === 'compact'
+                          ? { xs: 6, sm: 4, md: 2 }
+                          : { xs: 12, sm: 6, md: 3 }
+                    }
+                    key={host.id}
+                  >
                     <HostCard
                       host={host}
                       viewMode={viewMode}

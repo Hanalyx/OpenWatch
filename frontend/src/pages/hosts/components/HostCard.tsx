@@ -100,7 +100,7 @@ const HostCard: React.FC<HostCardProps> = ({
       <Card
         onClick={() => navigate(`/hosts/${host.id}`)}
         sx={{
-          height: 120,
+          height: 130,
           display: 'flex',
           flexDirection: 'column',
           position: 'relative',
@@ -136,12 +136,24 @@ const HostCard: React.FC<HostCardProps> = ({
             >
               <Computer fontSize="small" />
             </Avatar>
-            <Box sx={{ flexGrow: 1, minWidth: 0 }}>
-              <Typography variant="body2" fontWeight="bold" noWrap>
+            <Box sx={{ flexGrow: 1, minWidth: 0, overflow: 'hidden' }}>
+              <Typography
+                variant="body2"
+                fontWeight="bold"
+                noWrap
+                title={host.displayName}
+                sx={{ lineHeight: 1.3 }}
+              >
                 {host.displayName}
               </Typography>
-              <Typography variant="caption" color="text.secondary" noWrap>
-                {host.hostname}
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                noWrap
+                title={`${host.hostname} • ${host.ipAddress}`}
+                sx={{ lineHeight: 1.3 }}
+              >
+                {host.hostname} • {host.ipAddress}
               </Typography>
             </Box>
           </Box>
