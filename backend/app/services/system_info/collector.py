@@ -185,10 +185,14 @@ class SystemInfoCollector:
             # Support both Aegis Result (exit_code) and subprocess-style (returncode)
             exit_code = getattr(result, "exit_code", getattr(result, "returncode", None))
             if exit_code == 0:
-                return result.stdout.strip()
+                stdout = result.stdout.strip() if result.stdout else ""
+                return stdout if stdout else None
+            else:
+                stderr = getattr(result, "stderr", "")
+                logger.debug(f"Command '{command[:50]}...' failed with exit code {exit_code}: {stderr[:100]}")
             return None
         except Exception as e:
-            logger.debug(f"Command '{command}' failed: {e}")
+            logger.debug(f"Command '{command[:50]}...' exception: {e}")
             return None
 
     def collect(self) -> SystemInfo:
@@ -412,30 +416,31 @@ class SystemInfoCollector:
             logger.info(f"Collected {len(packages)} RPM packages")
             return packages
 
-        # Try dpkg for Debian/Ubuntu
-        dpkg_output = self._run_command("dpkg-query -W -f='${Package}|${Version}|${Architecture}|${Status}\\n'")
+        # Try dpkg for Debian/Ubuntu - use simpler command that works with sudo shell quoting
+        # dpkg -l format: ii  package-name  version  arch  description
+        dpkg_output = self._run_command("dpkg -l 2>/dev/null | grep ^ii")
         if dpkg_output:
             for line in dpkg_output.split("\n"):
-                if "|" in line:
-                    parts = line.strip().split("|")
-                    if len(parts) >= 3:
-                        # Only include installed packages
-                        status = parts[3] if len(parts) >= 4 else ""
-                        if "installed" in status.lower():
-                            # Parse Debian version format (version-release)
-                            version = parts[1]
-                            release = None
-                            if "-" in version:
-                                version, release = version.rsplit("-", 1)
+                # Format: ii  package  version  arch  description
+                parts = line.split()
+                if len(parts) >= 4 and parts[0] == "ii":
+                    name = parts[1]
+                    version = parts[2]
+                    arch = parts[3]
 
-                            packages.append(
-                                PackageInfo(
-                                    name=parts[0],
-                                    version=version,
-                                    release=release,
-                                    arch=parts[2] if parts[2] else None,
-                                )
-                            )
+                    # Parse Debian version format (version-release)
+                    release = None
+                    if "-" in version:
+                        version, release = version.rsplit("-", 1)
+
+                    packages.append(
+                        PackageInfo(
+                            name=name,
+                            version=version,
+                            release=release,
+                            arch=arch,
+                        )
+                    )
             logger.info(f"Collected {len(packages)} DEB packages")
             return packages
 
@@ -451,46 +456,39 @@ class SystemInfoCollector:
         """
         services: List[ServiceInfo] = []
 
-        # Get systemd services
+        # Get systemd services - use simple text output that works across distros
         systemctl_output = self._run_command(
-            "systemctl list-units --type=service --all --no-legend --no-pager "
-            "--output=json 2>/dev/null || "
-            "systemctl list-units --type=service --all --no-legend --no-pager"
+            "systemctl list-units --type=service --all --no-legend --no-pager 2>/dev/null"
         )
 
         if not systemctl_output:
             logger.warning("Could not collect services - systemctl not available")
             return services
 
-        # Try to parse JSON output first (newer systemd)
-        try:
-            service_data = json.loads(systemctl_output)
-            for svc in service_data:
+        # Parse text output - works on both RHEL and Ubuntu
+        # Format: UNIT LOAD ACTIVE SUB DESCRIPTION...
+        for line in systemctl_output.split("\n"):
+            line = line.strip()
+            if not line:
+                continue
+            parts = line.split(None, 4)  # Split into max 5 parts
+            if len(parts) >= 4:
+                unit_name = parts[0]
+                # Only process .service units
+                if not unit_name.endswith(".service"):
+                    continue
+                name = unit_name.replace(".service", "")
+                # LOAD ACTIVE SUB
+                status = parts[3] if len(parts) > 3 else "unknown"
+                description = parts[4] if len(parts) > 4 else None
+
                 services.append(
                     ServiceInfo(
-                        name=svc.get("unit", "").replace(".service", ""),
-                        display_name=svc.get("description"),
-                        status=svc.get("sub", "unknown"),
-                        enabled=None,  # Need separate query
+                        name=name,
+                        display_name=description,
+                        status=status,
                     )
                 )
-        except json.JSONDecodeError:
-            # Fall back to text parsing
-            for line in systemctl_output.split("\n"):
-                parts = line.split()
-                if len(parts) >= 4:
-                    name = parts[0].replace(".service", "")
-                    # Format: UNIT LOAD ACTIVE SUB DESCRIPTION...
-                    status = parts[3] if len(parts) > 3 else "unknown"
-                    description = " ".join(parts[4:]) if len(parts) > 4 else None
-
-                    services.append(
-                        ServiceInfo(
-                            name=name,
-                            display_name=description,
-                            status=status,
-                        )
-                    )
 
         # Get enabled status for services
         enabled_output = self._run_command("systemctl list-unit-files --type=service --no-legend --no-pager")

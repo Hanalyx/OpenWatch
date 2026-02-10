@@ -301,59 +301,63 @@ class AegisScanner(BaseScanner):
                     try:
                         from app.services.system_info import SystemInfoCollector
 
-                        collector = SystemInfoCollector(session)
+                        # Create a non-sudo session for collection commands
+                        # Most collection commands don't need sudo and work better without it
+                        # (especially on Ubuntu where passwordless sudo may not be configured)
+                        async with factory.create_session(host_id, use_sudo=False) as collection_session:
+                            collector = SystemInfoCollector(collection_session)
 
-                        if collect_system_info:
-                            system_info = collector.collect()
-                            logger.debug("Collected system info for host %s", host_id)
+                            if collect_system_info:
+                                system_info = collector.collect()
+                                logger.debug("Collected system info for host %s", host_id)
 
-                        if collect_packages:
-                            packages = collector.collect_packages()
-                            logger.debug(
-                                "Collected %d packages for host %s",
-                                len(packages) if packages else 0,
-                                host_id,
-                            )
+                            if collect_packages:
+                                packages = collector.collect_packages()
+                                logger.debug(
+                                    "Collected %d packages for host %s",
+                                    len(packages) if packages else 0,
+                                    host_id,
+                                )
 
-                        if collect_services:
-                            services = collector.collect_services()
-                            logger.debug(
-                                "Collected %d services for host %s",
-                                len(services) if services else 0,
-                                host_id,
-                            )
+                            if collect_services:
+                                services = collector.collect_services()
+                                logger.debug(
+                                    "Collected %d services for host %s",
+                                    len(services) if services else 0,
+                                    host_id,
+                                )
 
-                        if collect_users:
-                            users = collector.collect_users()
-                            logger.debug(
-                                "Collected %d users for host %s",
-                                len(users) if users else 0,
-                                host_id,
-                            )
+                            if collect_users:
+                                users = collector.collect_users()
+                                logger.debug(
+                                    "Collected %d users for host %s",
+                                    len(users) if users else 0,
+                                    host_id,
+                                )
 
-                        if collect_network:
-                            network = collector.collect_network()
-                            logger.debug(
-                                "Collected %d network interfaces for host %s",
-                                len(network) if network else 0,
-                                host_id,
-                            )
+                            if collect_network:
+                                network = collector.collect_network()
+                                logger.debug(
+                                    "Collected %d network interfaces for host %s",
+                                    len(network) if network else 0,
+                                    host_id,
+                                )
 
-                        if collect_firewall:
-                            firewall = collector.collect_firewall_rules()
-                            logger.debug(
-                                "Collected %d firewall rules for host %s",
-                                len(firewall) if firewall else 0,
-                                host_id,
-                            )
+                            if collect_firewall:
+                                firewall = collector.collect_firewall_rules()
+                                logger.debug(
+                                    "Collected %d firewall rules for host %s",
+                                    len(firewall) if firewall else 0,
+                                    host_id,
+                                )
 
-                        if collect_routes:
-                            routes = collector.collect_routes()
-                            logger.debug(
-                                "Collected %d routes for host %s",
-                                len(routes) if routes else 0,
-                                host_id,
-                            )
+                            if collect_routes:
+                                routes = collector.collect_routes()
+                                logger.debug(
+                                    "Collected %d routes for host %s",
+                                    len(routes) if routes else 0,
+                                    host_id,
+                                )
                     except Exception as e:
                         logger.warning("Failed to collect server intelligence: %s", e)
 
