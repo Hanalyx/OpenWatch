@@ -373,10 +373,13 @@ function HistoryView({ hostId }: HistoryViewProps) {
             <XAxis dataKey="date" />
             <YAxis domain={[0, 100]} />
             <ChartTooltip
-              formatter={(value: number, name: string) => [
-                name === 'score' ? `${value.toFixed(1)}%` : value,
-                name === 'score' ? 'Compliance Score' : name,
-              ]}
+              formatter={(value, name) => {
+                const numValue = typeof value === 'number' ? value : 0;
+                return [
+                  name === 'score' ? `${numValue.toFixed(1)}%` : numValue,
+                  name === 'score' ? 'Compliance Score' : String(name),
+                ];
+              }}
               labelFormatter={(label) => `Date: ${label}`}
             />
             <Legend />
