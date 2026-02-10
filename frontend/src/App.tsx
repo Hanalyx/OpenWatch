@@ -41,6 +41,7 @@ import Users from './pages/users/Users';
 import OView from './pages/oview/OView';
 import Settings from './pages/settings/Settings';
 import { AuditQueriesPage, AuditQueryBuilderPage, AuditExportsPage } from './pages/audit';
+import { TemporalPosture } from './pages/compliance';
 
 function App() {
   const dispatch = useAppDispatch();
@@ -113,6 +114,7 @@ function App() {
                     element={<AuditQueryBuilderPage />}
                   />
                   <Route path="/audit/exports" element={<AuditExportsPage />} />
+                  <Route path="/compliance/posture" element={<TemporalPosture />} />
                 </Route>
               </Route>
 

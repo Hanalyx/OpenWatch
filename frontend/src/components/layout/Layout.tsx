@@ -57,6 +57,7 @@ import {
   AccountTree,
   Bookmark,
   QueryStats,
+  Timeline,
 } from '@mui/icons-material';
 import { useAppDispatch, useAppSelector } from '../../hooks/redux';
 import { logout } from '../../store/slices/authSlice';
@@ -154,6 +155,12 @@ const menuItems = [
     text: 'Audit Queries',
     icon: <QueryStats />,
     path: '/audit/queries',
+    roles: ['super_admin', 'security_admin', 'compliance_officer', 'auditor'],
+  },
+  {
+    text: 'Posture History',
+    icon: <Timeline />,
+    path: '/compliance/posture',
     roles: ['super_admin', 'security_admin', 'compliance_officer', 'auditor'],
   },
   {
