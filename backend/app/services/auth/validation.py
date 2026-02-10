@@ -530,7 +530,8 @@ def validate_credential_with_strict_policy(
                 if recommendations:
                     error_message += f". Recommendations: {'; '.join(recommendations[:2])}"
             else:
-                error_message = f"Credential validation failed (security level: {audit_result.get('overall_security_level', 'unknown')})"
+                security_level = audit_result.get("overall_security_level", "unknown")
+                error_message = f"Credential validation failed (security level: {security_level})"
         else:
             error_message = ""
 
