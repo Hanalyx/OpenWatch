@@ -605,10 +605,10 @@ const Dashboard: React.FC = () => {
         <Grid container spacing={3}>
           <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <QuickActionCard
-              title="New Scan"
-              subtitle="Start a compliance scan"
+              title="Manual Scan"
+              subtitle="Run ad-hoc compliance check"
               icon={<Scanner />}
-              color="primary"
+              color="secondary"
               onClick={() => navigate('/scans/create')}
               badge={0}
             />
@@ -635,8 +635,8 @@ const Dashboard: React.FC = () => {
           </Grid>
           <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <QuickActionCard
-              title="Critical Issues"
-              subtitle="High priority alerts"
+              title="Active Alerts"
+              subtitle="Compliance drift & issues"
               icon={<Warning />}
               color="error"
               onClick={() => navigate('/hosts')}

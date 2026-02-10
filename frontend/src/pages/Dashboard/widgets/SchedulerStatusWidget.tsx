@@ -36,8 +36,12 @@ import { useSchedulerStatus } from '../../../hooks/useHostDetail';
 /**
  * Format relative time for next scan
  */
-function formatTimeUntil(nextScan: string): string {
+function formatTimeUntil(nextScan: string | null | undefined): string {
+  if (!nextScan) return 'Not scheduled';
+
   const next = new Date(nextScan);
+  if (isNaN(next.getTime())) return 'Not scheduled';
+
   const now = new Date();
   const diffMs = next.getTime() - now.getTime();
 
