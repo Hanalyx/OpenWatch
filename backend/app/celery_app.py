@@ -54,6 +54,7 @@ celery_app = Celery(
         "app.tasks.monitoring_tasks",
         "app.tasks.compliance_tasks",
         "app.tasks.adaptive_monitoring_dispatcher",
+        "app.tasks.compliance_scheduler_tasks",
     ],
 )
 
@@ -108,6 +109,11 @@ celery_app.conf.update(
         "app.tasks.import_scap_content": {"queue": "default"},
         "app.tasks.deliver_webhook": {"queue": "default"},
         "app.tasks.execute_host_discovery": {"queue": "default"},
+        # Compliance scheduling tasks
+        "app.tasks.dispatch_compliance_scans": {"queue": "compliance_scanning"},
+        "app.tasks.run_scheduled_aegis_scan": {"queue": "compliance_scanning"},
+        "app.tasks.initialize_compliance_schedules": {"queue": "compliance_scanning"},
+        "app.tasks.expire_compliance_maintenance": {"queue": "compliance_scanning"},
     },
     # Queue configuration
     task_default_queue="default",
@@ -119,6 +125,7 @@ celery_app.conf.update(
         Queue("monitoring", routing_key="monitoring"),
         Queue("host_monitoring", routing_key="host_monitoring"),  # Dedicated queue for adaptive monitoring
         Queue("health_monitoring", routing_key="health_monitoring"),
+        Queue("compliance_scanning", routing_key="compliance_scanning"),  # Adaptive compliance scheduling
     ],
     # Celery Beat schedule for periodic tasks
     beat_schedule={
@@ -170,6 +177,23 @@ celery_app.conf.update(
             "schedule": crontab(hour=2, minute=0),
             "options": {"queue": "health_monitoring"},
         },
+        # Adaptive compliance scheduler dispatcher
+        "dispatch-compliance-scans-every-2-minutes": {
+            "task": "app.tasks.dispatch_compliance_scans",
+            "schedule": 120.0,  # Run every 2 minutes
+            "options": {
+                "queue": "compliance_scanning",
+                "priority": 8,  # High priority for dispatcher
+            },
+        },
+        # Expire compliance maintenance windows hourly
+        "expire-compliance-maintenance-hourly": {
+            "task": "app.tasks.expire_compliance_maintenance",
+            "schedule": crontab(minute=0),  # Every hour on the hour
+            "options": {
+                "queue": "compliance_scanning",
+            },
+        },
     },
     # Result backend settings
     result_expires=3600,  # 1 hour
@@ -191,6 +215,7 @@ celery_app.conf.update(
         "app.tasks.adaptive_monitoring_dispatcher",
         "app.tasks.health_monitoring_tasks",
         "app.tasks.compliance_tasks",
+        "app.tasks.compliance_scheduler_tasks",
         "app.tasks.os_discovery_tasks",
         "app.tasks.stale_scan_detection",
         "app.tasks.scan_tasks",

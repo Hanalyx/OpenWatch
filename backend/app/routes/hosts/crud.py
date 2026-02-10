@@ -1392,3 +1392,61 @@ async def detect_platform_jit(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Platform detection failed: {str(e)}",
         )
+
+
+# =============================================================================
+# SYSTEM INFORMATION
+# =============================================================================
+
+
+@router.get("/{host_id}/system-info")
+async def get_host_system_info(
+    host_id: str,
+    db: Session = Depends(get_db),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """
+    Get detailed system information for a host.
+
+    Returns system info collected during compliance scans including:
+    - OS details (name, version, kernel)
+    - Hardware info (CPU, memory, disk)
+    - Security status (SELinux, firewall)
+    - Network info (hostname, FQDN, primary IP)
+    - System uptime
+
+    Returns 404 if no system info has been collected yet.
+    """
+    try:
+        # Use centralized UUID validation
+        host_uuid = validate_host_uuid(host_id)
+
+        # Verify host exists
+        check_builder = QueryBuilder("hosts").select("id").where("id = :id", host_uuid, "id")
+        check_query, check_params = check_builder.build()
+        result = db.execute(text(check_query), check_params)
+        if not result.fetchone():
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Host not found")
+
+        # Get system info
+        from ...services.system_info import SystemInfoService
+
+        service = SystemInfoService(db)
+        system_info = service.get_system_info(host_uuid)
+
+        if not system_info:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No system information collected yet. System info is collected during compliance scans.",
+            )
+
+        return system_info
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get system info for host {host_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve system information",
+        )

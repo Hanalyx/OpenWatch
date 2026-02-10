@@ -43,6 +43,7 @@ import { SSHKeyDisplay } from '../../components/design-system';
 import { useSelector } from 'react-redux';
 import { type RootState } from '../../store';
 import AdaptiveSchedulerSettings from '../../components/settings/AdaptiveSchedulerSettings';
+import ComplianceSchedulerSettings from '../../components/settings/ComplianceSchedulerSettings';
 import OSDiscoverySettings from '../../components/settings/OSDiscoverySettings';
 import { VersionDisplay } from '../../components/common/VersionDisplay';
 
@@ -517,7 +518,10 @@ const Settings: React.FC = () => {
         </Box>
 
         <TabPanel value={tabValue} index={0}>
-          {/* Adaptive Scheduler Configuration Section */}
+          {/* Adaptive Compliance Scheduler Configuration Section */}
+          <ComplianceSchedulerSettings onSuccess={setSuccess} onError={setError} />
+
+          {/* Adaptive Host Monitoring Scheduler Configuration Section */}
           <AdaptiveSchedulerSettings onSuccess={setSuccess} onError={setError} />
 
           {/* OS Discovery Configuration Section */}
