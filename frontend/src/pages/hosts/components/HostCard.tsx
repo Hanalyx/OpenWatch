@@ -34,7 +34,7 @@ import {
   Info,
   Visibility,
 } from '@mui/icons-material';
-import { StatusChip, ComplianceRing, type ViewMode } from '../../../components/design-system';
+import { StatusChip, type ViewMode } from '../../../components/design-system';
 import type { Host } from '../../../types/host';
 import { getComplianceScoreColor } from '../../../utils/hostStatus';
 
@@ -219,10 +219,17 @@ const HostCard: React.FC<HostCardProps> = ({
           <StatusChip status={host.status} size="small" variant="filled" />
           <Chip label={host.operatingSystem} size="small" variant="outlined" />
           {host.complianceScore !== null && (
-            <ComplianceRing
-              score={host.complianceScore}
+            <Chip
+              label={`${host.complianceScore.toFixed(0)}%`}
               size="small"
-              trend={host.complianceTrend}
+              color={
+                host.complianceScore >= 70
+                  ? 'success'
+                  : host.complianceScore >= 40
+                    ? 'warning'
+                    : 'error'
+              }
+              sx={{ height: 20, fontSize: '0.7rem', fontWeight: 'bold' }}
             />
           )}
           <IconButton
@@ -407,34 +414,6 @@ const HostCard: React.FC<HostCardProps> = ({
         <Box sx={{ display: 'flex', gap: 1, mb: 2, flexWrap: 'wrap' }}>
           <StatusChip status={host.status} size="small" variant="filled" />
           <Chip label={host.operatingSystem} size="small" variant="outlined" />
-        </Box>
-
-        {/* Compliance Score - Always show (empty ring if no data) */}
-        <Box sx={{ mb: 2 }}>
-          <ComplianceRing
-            score={host.complianceScore || 0}
-            size="large"
-            showLabel={false}
-            // Failed rule counts by severity
-            criticalIssues={host.criticalIssues || 0}
-            highIssues={host.highIssues || 0}
-            mediumIssues={host.mediumIssues || 0}
-            lowIssues={host.lowIssues || 0}
-            // Per-severity pass/fail breakdown for accurate visualization
-            criticalPassed={host.criticalPassed}
-            criticalFailed={host.criticalFailed}
-            highPassed={host.highPassed}
-            highFailed={host.highFailed}
-            mediumPassed={host.mediumPassed}
-            mediumFailed={host.mediumFailed}
-            lowPassed={host.lowPassed}
-            lowFailed={host.lowFailed}
-            tooltip={
-              host.complianceScore !== null
-                ? `${host.complianceScore}% compliant - ${host.passedRules || 0} passed, ${(host.totalRules || 0) - (host.passedRules || 0)} failed`
-                : 'No scan data available'
-            }
-          />
         </Box>
 
         {/* System Resources - Only show if data is available */}
