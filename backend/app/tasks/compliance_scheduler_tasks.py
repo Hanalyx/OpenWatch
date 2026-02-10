@@ -183,6 +183,8 @@ def run_scheduled_aegis_scan(self: Any, host_id: str, priority: int = 5) -> Dict
                     collect_network=True,
                     collect_firewall=True,
                     collect_routes=True,
+                    collect_audit_events=True,
+                    collect_metrics=True,
                 )
 
             # Create event loop for async scan
@@ -221,8 +223,10 @@ def run_scheduled_aegis_scan(self: Any, host_id: str, priority: int = 5) -> Dict
             network = scan_result.get("network")
             firewall = scan_result.get("firewall")
             routes = scan_result.get("routes")
+            audit_events = scan_result.get("audit_events")
+            metrics = scan_result.get("metrics")
 
-            if system_info or packages or services or users or network or firewall or routes:
+            if system_info or packages or services or users or network or firewall or routes or audit_events or metrics:
                 try:
                     from app.services.system_info import SystemInfoService
 
@@ -255,6 +259,14 @@ def run_scheduled_aegis_scan(self: Any, host_id: str, priority: int = 5) -> Dict
                     if routes:
                         count = system_info_service.save_routes(UUID(host_id), routes)
                         logger.debug(f"Saved {count} routes for {host.hostname}")
+
+                    if audit_events:
+                        count = system_info_service.save_audit_events(UUID(host_id), audit_events)
+                        logger.debug(f"Saved {count} audit events for {host.hostname}")
+
+                    if metrics:
+                        system_info_service.save_metrics(UUID(host_id), metrics)
+                        logger.debug(f"Saved metrics for {host.hostname}")
                 except Exception as e:
                     logger.warning(f"Failed to save server intelligence data: {e}")
 
@@ -268,6 +280,27 @@ def run_scheduled_aegis_scan(self: Any, host_id: str, priority: int = 5) -> Dict
                 fail_count=fail_count,
                 scan_id=None,  # Aegis doesn't create a scan record
             )
+
+            # Generate alerts based on scan results
+            alerts_generated = 0
+            try:
+                from app.services.compliance.alert_generator import AlertGenerator
+
+                alert_generator = AlertGenerator(db)
+                alerts = alert_generator.process_scan_results(
+                    host_id=UUID(host_id),
+                    scan_id=None,
+                    compliance_score=compliance_score,
+                    passed=pass_count,
+                    failed=fail_count,
+                    results=results_list,
+                    hostname=host.hostname,
+                )
+                alerts_generated = len(alerts)
+                if alerts_generated > 0:
+                    logger.info(f"Generated {alerts_generated} alerts for {host.hostname}")
+            except Exception as alert_error:
+                logger.warning(f"Failed to generate alerts for {host.hostname}: {alert_error}")
 
             logger.info(
                 f"Completed scheduled scan for {host.hostname}: "
@@ -283,6 +316,7 @@ def run_scheduled_aegis_scan(self: Any, host_id: str, priority: int = 5) -> Dict
                 "fail_count": fail_count,
                 "has_critical": has_critical,
                 "critical_count": critical_count,
+                "alerts_generated": alerts_generated,
                 "system_info_collected": system_info is not None,
                 "packages_collected": len(packages) if packages else 0,
                 "services_collected": len(services) if services else 0,
@@ -290,6 +324,8 @@ def run_scheduled_aegis_scan(self: Any, host_id: str, priority: int = 5) -> Dict
                 "network_collected": len(network) if network else 0,
                 "firewall_collected": len(firewall) if firewall else 0,
                 "routes_collected": len(routes) if routes else 0,
+                "audit_events_collected": len(audit_events) if audit_events else 0,
+                "metrics_collected": metrics is not None,
             }
 
         finally:
