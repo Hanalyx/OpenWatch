@@ -182,6 +182,31 @@ class AuditEventInfo:
     metadata: Dict[str, Any] = field(default_factory=dict)
 
 
+@dataclass
+class MetricsInfo:
+    """System resource metrics snapshot."""
+
+    collected_at: datetime
+    # CPU metrics
+    cpu_usage_percent: Optional[float] = None
+    load_avg_1m: Optional[float] = None
+    load_avg_5m: Optional[float] = None
+    load_avg_15m: Optional[float] = None
+    # Memory metrics (in bytes)
+    memory_total_bytes: Optional[int] = None
+    memory_used_bytes: Optional[int] = None
+    memory_available_bytes: Optional[int] = None
+    swap_total_bytes: Optional[int] = None
+    swap_used_bytes: Optional[int] = None
+    # Disk metrics (primary mount, in bytes)
+    disk_total_bytes: Optional[int] = None
+    disk_used_bytes: Optional[int] = None
+    disk_available_bytes: Optional[int] = None
+    # System metrics
+    uptime_seconds: Optional[int] = None
+    process_count: Optional[int] = None
+
+
 class SystemInfoCollector:
     """Collects system information from remote hosts via SSH."""
 
@@ -1405,6 +1430,139 @@ class SystemInfoCollector:
         except Exception as e:
             logger.debug(f"Failed to parse lastb line: {e}")
             return None
+
+    def collect_metrics(self) -> MetricsInfo:
+        """
+        Collect current system resource metrics.
+
+        Gathers CPU, memory, disk, load average, and uptime metrics from
+        /proc filesystem and df command.
+
+        Returns:
+            MetricsInfo dataclass with collected metrics
+        """
+        collected_at = datetime.now(timezone.utc)
+
+        # Get load average from /proc/loadavg
+        # Format: "0.10 0.15 0.20 1/234 5678"
+        load_avg_1m = None
+        load_avg_5m = None
+        load_avg_15m = None
+        output = self._run_command("cat /proc/loadavg")
+        if output:
+            parts = output.split()
+            if len(parts) >= 3:
+                try:
+                    load_avg_1m = float(parts[0])
+                    load_avg_5m = float(parts[1])
+                    load_avg_15m = float(parts[2])
+                except ValueError:
+                    pass
+
+        # Get CPU usage from /proc/stat
+        # Calculate CPU usage percent from idle time
+        cpu_usage_percent = None
+        output = self._run_command("cat /proc/stat | head -1 | awk '{print $2,$3,$4,$5,$6,$7,$8}'")
+        if output:
+            try:
+                parts = output.split()
+                if len(parts) >= 4:
+                    user = int(parts[0])
+                    nice = int(parts[1])
+                    system = int(parts[2])
+                    idle = int(parts[3])
+                    iowait = int(parts[4]) if len(parts) > 4 else 0
+                    irq = int(parts[5]) if len(parts) > 5 else 0
+                    softirq = int(parts[6]) if len(parts) > 6 else 0
+
+                    total = user + nice + system + idle + iowait + irq + softirq
+                    if total > 0:
+                        cpu_usage_percent = round((1 - idle / total) * 100, 2)
+            except (ValueError, ZeroDivisionError):
+                pass
+
+        # Get memory info from /proc/meminfo
+        memory_total_bytes = None
+        memory_available_bytes = None
+        memory_used_bytes = None
+        swap_total_bytes = None
+        swap_used_bytes = None
+
+        output = self._run_command("cat /proc/meminfo | grep -E '^(MemTotal|MemAvailable|SwapTotal|SwapFree):'")
+        if output:
+            mem_data = {}
+            for line in output.split("\n"):
+                if ":" in line:
+                    key, value = line.split(":", 1)
+                    # Value is in kB, convert to bytes
+                    try:
+                        kb_value = int(value.strip().split()[0])
+                        mem_data[key.strip()] = kb_value * 1024
+                    except (ValueError, IndexError):
+                        pass
+
+            memory_total_bytes = mem_data.get("MemTotal")
+            memory_available_bytes = mem_data.get("MemAvailable")
+            if memory_total_bytes and memory_available_bytes:
+                memory_used_bytes = memory_total_bytes - memory_available_bytes
+
+            swap_total_bytes = mem_data.get("SwapTotal")
+            swap_free = mem_data.get("SwapFree")
+            if swap_total_bytes and swap_free is not None:
+                swap_used_bytes = swap_total_bytes - swap_free
+
+        # Get disk usage for root filesystem
+        disk_total_bytes = None
+        disk_used_bytes = None
+        disk_available_bytes = None
+
+        output = self._run_command("df -B1 / | tail -1")
+        if output:
+            parts = output.split()
+            if len(parts) >= 4:
+                try:
+                    disk_total_bytes = int(parts[1])
+                    disk_used_bytes = int(parts[2])
+                    disk_available_bytes = int(parts[3])
+                except (ValueError, IndexError):
+                    pass
+
+        # Get uptime from /proc/uptime
+        # Format: "123456.78 234567.89" (uptime idle_time in seconds)
+        uptime_seconds = None
+        output = self._run_command("cat /proc/uptime")
+        if output:
+            try:
+                uptime_seconds = int(float(output.split()[0]))
+            except (ValueError, IndexError):
+                pass
+
+        # Get process count
+        process_count = None
+        output = self._run_command("ls -1d /proc/[0-9]* 2>/dev/null | wc -l")
+        if output:
+            try:
+                process_count = int(output)
+            except ValueError:
+                pass
+
+        return MetricsInfo(
+            collected_at=collected_at,
+            cpu_usage_percent=cpu_usage_percent,
+            load_avg_1m=load_avg_1m,
+            load_avg_5m=load_avg_5m,
+            load_avg_15m=load_avg_15m,
+            memory_total_bytes=memory_total_bytes,
+            memory_used_bytes=memory_used_bytes,
+            memory_available_bytes=memory_available_bytes,
+            swap_total_bytes=swap_total_bytes,
+            swap_used_bytes=swap_used_bytes,
+            disk_total_bytes=disk_total_bytes,
+            disk_used_bytes=disk_used_bytes,
+            disk_available_bytes=disk_available_bytes,
+            uptime_seconds=uptime_seconds,
+            process_count=process_count,
+        )
 
 
 class SystemInfoService:
@@ -2660,3 +2818,191 @@ class SystemInfoService:
             )
 
         return {"items": events, "total": total, "limit": limit, "offset": offset}
+
+    def save_metrics(self, host_id: UUID, metrics: MetricsInfo) -> None:
+        """
+        Save resource metrics snapshot for a host.
+
+        Unlike other intelligence data, metrics are stored as time-series data
+        (not upserted). Each call creates a new record.
+
+        Args:
+            host_id: The host UUID
+            metrics: MetricsInfo dataclass with collected metrics
+        """
+        from sqlalchemy import text
+
+        insert_query = text(
+            """
+            INSERT INTO host_metrics (
+                host_id, collected_at,
+                cpu_usage_percent, load_avg_1m, load_avg_5m, load_avg_15m,
+                memory_total_bytes, memory_used_bytes, memory_available_bytes,
+                swap_total_bytes, swap_used_bytes,
+                disk_total_bytes, disk_used_bytes, disk_available_bytes,
+                uptime_seconds, process_count
+            ) VALUES (
+                :host_id, :collected_at,
+                :cpu_usage_percent, :load_avg_1m, :load_avg_5m, :load_avg_15m,
+                :memory_total_bytes, :memory_used_bytes, :memory_available_bytes,
+                :swap_total_bytes, :swap_used_bytes,
+                :disk_total_bytes, :disk_used_bytes, :disk_available_bytes,
+                :uptime_seconds, :process_count
+            )
+            """
+        )
+
+        self.db.execute(
+            insert_query,
+            {
+                "host_id": str(host_id),
+                "collected_at": metrics.collected_at,
+                "cpu_usage_percent": metrics.cpu_usage_percent,
+                "load_avg_1m": metrics.load_avg_1m,
+                "load_avg_5m": metrics.load_avg_5m,
+                "load_avg_15m": metrics.load_avg_15m,
+                "memory_total_bytes": metrics.memory_total_bytes,
+                "memory_used_bytes": metrics.memory_used_bytes,
+                "memory_available_bytes": metrics.memory_available_bytes,
+                "swap_total_bytes": metrics.swap_total_bytes,
+                "swap_used_bytes": metrics.swap_used_bytes,
+                "disk_total_bytes": metrics.disk_total_bytes,
+                "disk_used_bytes": metrics.disk_used_bytes,
+                "disk_available_bytes": metrics.disk_available_bytes,
+                "uptime_seconds": metrics.uptime_seconds,
+                "process_count": metrics.process_count,
+            },
+        )
+        self.db.commit()
+        logger.info(f"Saved metrics for host {host_id}")
+
+    def get_metrics(
+        self,
+        host_id: UUID,
+        hours_back: int = 24,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> Dict[str, Any]:
+        """
+        Get resource metrics for a host with time filtering and pagination.
+
+        Args:
+            host_id: The host UUID
+            hours_back: Number of hours to look back (default 24)
+            limit: Maximum metrics to return
+            offset: Offset for pagination
+
+        Returns:
+            Dictionary with metrics list and total count
+        """
+        from sqlalchemy import text
+
+        # Build query
+        where_clause = "WHERE host_id = :host_id"
+        params: Dict[str, Any] = {"host_id": str(host_id), "limit": limit, "offset": offset}
+
+        if hours_back:
+            where_clause += " AND collected_at >= NOW() - INTERVAL ':hours_back hours'"
+            params["hours_back"] = hours_back
+
+        # Get total count
+        count_result = self.db.execute(
+            text(f"SELECT COUNT(*) FROM host_metrics {where_clause}"),
+            params,
+        )
+        total = count_result.scalar() or 0
+
+        # Get metrics
+        result_query = self.db.execute(
+            text(
+                f"""
+                SELECT collected_at,
+                       cpu_usage_percent, load_avg_1m, load_avg_5m, load_avg_15m,
+                       memory_total_bytes, memory_used_bytes, memory_available_bytes,
+                       swap_total_bytes, swap_used_bytes,
+                       disk_total_bytes, disk_used_bytes, disk_available_bytes,
+                       uptime_seconds, process_count
+                FROM host_metrics
+                {where_clause}
+                ORDER BY collected_at DESC
+                LIMIT :limit OFFSET :offset
+                """
+            ),
+            params,
+        )
+
+        metrics = []
+        for row in result_query.fetchall():
+            metrics.append(
+                {
+                    "collected_at": row.collected_at.isoformat() if row.collected_at else None,
+                    "cpu_usage_percent": row.cpu_usage_percent,
+                    "load_avg_1m": row.load_avg_1m,
+                    "load_avg_5m": row.load_avg_5m,
+                    "load_avg_15m": row.load_avg_15m,
+                    "memory_total_bytes": row.memory_total_bytes,
+                    "memory_used_bytes": row.memory_used_bytes,
+                    "memory_available_bytes": row.memory_available_bytes,
+                    "swap_total_bytes": row.swap_total_bytes,
+                    "swap_used_bytes": row.swap_used_bytes,
+                    "disk_total_bytes": row.disk_total_bytes,
+                    "disk_used_bytes": row.disk_used_bytes,
+                    "disk_available_bytes": row.disk_available_bytes,
+                    "uptime_seconds": row.uptime_seconds,
+                    "process_count": row.process_count,
+                }
+            )
+
+        return {"items": metrics, "total": total, "limit": limit, "offset": offset}
+
+    def get_latest_metrics(self, host_id: UUID) -> Optional[Dict[str, Any]]:
+        """
+        Get the most recent metrics for a host.
+
+        Args:
+            host_id: The host UUID
+
+        Returns:
+            Dictionary with latest metrics, or None if no metrics collected
+        """
+        from sqlalchemy import text
+
+        result = self.db.execute(
+            text(
+                """
+                SELECT collected_at,
+                       cpu_usage_percent, load_avg_1m, load_avg_5m, load_avg_15m,
+                       memory_total_bytes, memory_used_bytes, memory_available_bytes,
+                       swap_total_bytes, swap_used_bytes,
+                       disk_total_bytes, disk_used_bytes, disk_available_bytes,
+                       uptime_seconds, process_count
+                FROM host_metrics
+                WHERE host_id = :host_id
+                ORDER BY collected_at DESC
+                LIMIT 1
+                """
+            ),
+            {"host_id": str(host_id)},
+        )
+
+        row = result.fetchone()
+        if not row:
+            return None
+
+        return {
+            "collected_at": row.collected_at.isoformat() if row.collected_at else None,
+            "cpu_usage_percent": row.cpu_usage_percent,
+            "load_avg_1m": row.load_avg_1m,
+            "load_avg_5m": row.load_avg_5m,
+            "load_avg_15m": row.load_avg_15m,
+            "memory_total_bytes": row.memory_total_bytes,
+            "memory_used_bytes": row.memory_used_bytes,
+            "memory_available_bytes": row.memory_available_bytes,
+            "swap_total_bytes": row.swap_total_bytes,
+            "swap_used_bytes": row.swap_used_bytes,
+            "disk_total_bytes": row.disk_total_bytes,
+            "disk_used_bytes": row.disk_used_bytes,
+            "disk_available_bytes": row.disk_available_bytes,
+            "uptime_seconds": row.uptime_seconds,
+            "process_count": row.process_count,
+        }

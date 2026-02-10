@@ -184,6 +184,7 @@ def run_scheduled_aegis_scan(self: Any, host_id: str, priority: int = 5) -> Dict
                     collect_firewall=True,
                     collect_routes=True,
                     collect_audit_events=True,
+                    collect_metrics=True,
                 )
 
             # Create event loop for async scan
@@ -223,8 +224,9 @@ def run_scheduled_aegis_scan(self: Any, host_id: str, priority: int = 5) -> Dict
             firewall = scan_result.get("firewall")
             routes = scan_result.get("routes")
             audit_events = scan_result.get("audit_events")
+            metrics = scan_result.get("metrics")
 
-            if system_info or packages or services or users or network or firewall or routes or audit_events:
+            if system_info or packages or services or users or network or firewall or routes or audit_events or metrics:
                 try:
                     from app.services.system_info import SystemInfoService
 
@@ -261,6 +263,10 @@ def run_scheduled_aegis_scan(self: Any, host_id: str, priority: int = 5) -> Dict
                     if audit_events:
                         count = system_info_service.save_audit_events(UUID(host_id), audit_events)
                         logger.debug(f"Saved {count} audit events for {host.hostname}")
+
+                    if metrics:
+                        system_info_service.save_metrics(UUID(host_id), metrics)
+                        logger.debug(f"Saved metrics for {host.hostname}")
                 except Exception as e:
                     logger.warning(f"Failed to save server intelligence data: {e}")
 
@@ -297,6 +303,7 @@ def run_scheduled_aegis_scan(self: Any, host_id: str, priority: int = 5) -> Dict
                 "firewall_collected": len(firewall) if firewall else 0,
                 "routes_collected": len(routes) if routes else 0,
                 "audit_events_collected": len(audit_events) if audit_events else 0,
+                "metrics_collected": metrics is not None,
             }
 
         finally:

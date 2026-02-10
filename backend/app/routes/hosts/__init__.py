@@ -141,6 +141,8 @@ from .intelligence import (  # noqa: E402
     AuditEventsListResponse,
     FirewallListResponse,
     FirewallRuleResponse,
+    MetricsListResponse,
+    MetricsResponse,
     NetworkInterfaceResponse,
     NetworkListResponse,
     PackageResponse,
@@ -222,6 +224,8 @@ __all__ = [
     "RoutesListResponse",
     "AuditEventResponse",
     "AuditEventsListResponse",
+    "MetricsResponse",
+    "MetricsListResponse",
     # Helpers
     "validate_host_uuid",
     # SSH validation (re-exported for backward compatibility)

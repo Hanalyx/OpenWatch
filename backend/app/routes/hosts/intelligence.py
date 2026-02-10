@@ -259,6 +259,35 @@ class AuditEventsListResponse(BaseModel):
     offset: int
 
 
+class MetricsResponse(BaseModel):
+    """Response model for resource metrics snapshot."""
+
+    collected_at: Optional[str] = None
+    cpu_usage_percent: Optional[float] = None
+    load_avg_1m: Optional[float] = None
+    load_avg_5m: Optional[float] = None
+    load_avg_15m: Optional[float] = None
+    memory_total_bytes: Optional[int] = None
+    memory_used_bytes: Optional[int] = None
+    memory_available_bytes: Optional[int] = None
+    swap_total_bytes: Optional[int] = None
+    swap_used_bytes: Optional[int] = None
+    disk_total_bytes: Optional[int] = None
+    disk_used_bytes: Optional[int] = None
+    disk_available_bytes: Optional[int] = None
+    uptime_seconds: Optional[int] = None
+    process_count: Optional[int] = None
+
+
+class MetricsListResponse(BaseModel):
+    """Response model for paginated metrics list."""
+
+    items: List[MetricsResponse]
+    total: int
+    limit: int
+    offset: int
+
+
 # =============================================================================
 # Router
 # =============================================================================
@@ -703,6 +732,80 @@ async def list_host_audit_events(
     )
 
 
+@router.get(
+    "/{host_id}/metrics",
+    response_model=MetricsListResponse,
+    summary="List resource metrics",
+    description="Get time-series resource metrics for a host with pagination and time filtering.",
+)
+@require_permission(Permission.HOST_READ)
+async def list_host_metrics(
+    host_id: str,
+    hours_back: int = Query(24, ge=1, le=720, description="Hours of metrics to return (max 30 days)"),
+    limit: int = Query(100, ge=1, le=1000, description="Maximum items to return"),
+    offset: int = Query(0, ge=0, description="Offset for pagination"),
+    db: Session = Depends(get_db),
+) -> MetricsListResponse:
+    """
+    Get resource metrics for a host.
+
+    Returns time-series metrics including CPU, memory, disk, and load average.
+    Metrics are collected during compliance scans and stored for historical analysis.
+    """
+    # Validate host exists
+    host_uuid = validate_host_uuid(host_id, db)
+
+    from app.services.system_info import SystemInfoService
+
+    service = SystemInfoService(db)
+    result = service.get_metrics(
+        host_uuid,
+        hours_back=hours_back,
+        limit=limit,
+        offset=offset,
+    )
+
+    return MetricsListResponse(
+        items=[MetricsResponse(**m) for m in result["items"]],
+        total=result["total"],
+        limit=result["limit"],
+        offset=result["offset"],
+    )
+
+
+@router.get(
+    "/{host_id}/metrics/latest",
+    response_model=MetricsResponse,
+    summary="Get latest resource metrics",
+    description="Get the most recent resource metrics for a host.",
+)
+@require_permission(Permission.HOST_READ)
+async def get_host_latest_metrics(
+    host_id: str,
+    db: Session = Depends(get_db),
+) -> MetricsResponse:
+    """
+    Get the most recent metrics for a host.
+
+    Returns the latest collected CPU, memory, disk, and system metrics.
+    """
+    # Validate host exists
+    host_uuid = validate_host_uuid(host_id, db)
+
+    from app.services.system_info import SystemInfoService
+
+    service = SystemInfoService(db)
+    result = service.get_latest_metrics(host_uuid)
+
+    if not result:
+        raise HTTPException(
+            status_code=404,
+            detail="No metrics collected for this host. " "Run a compliance scan with metrics collection enabled.",
+        )
+
+    return MetricsResponse(**result)
+
+
 __all__ = [
     "router",
     "PackageResponse",
@@ -721,4 +824,6 @@ __all__ = [
     "RoutesListResponse",
     "AuditEventResponse",
     "AuditEventsListResponse",
+    "MetricsResponse",
+    "MetricsListResponse",
 ]

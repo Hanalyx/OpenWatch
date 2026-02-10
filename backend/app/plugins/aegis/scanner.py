@@ -214,6 +214,7 @@ class AegisScanner(BaseScanner):
         collect_firewall: bool = False,
         collect_routes: bool = False,
         collect_audit_events: bool = False,
+        collect_metrics: bool = False,
     ) -> Dict[str, Any]:
         """
         Execute Aegis compliance scan on target host.
@@ -221,7 +222,7 @@ class AegisScanner(BaseScanner):
         This method:
         1. Retrieves credentials from OpenWatch
         2. Passes them to Aegis for scanning
-        3. Optionally collects system information, packages, services, users, network, audit
+        3. Optionally collects system information, packages, services, users, network, audit, metrics
         4. Returns results in OpenWatch format
 
         Args:
@@ -240,6 +241,7 @@ class AegisScanner(BaseScanner):
             collect_firewall: If True, collect firewall rules during scan.
             collect_routes: If True, collect routing table during scan.
             collect_audit_events: If True, collect security audit events during scan.
+            collect_metrics: If True, collect resource metrics during scan.
 
         Returns:
             Scan results dictionary.
@@ -289,6 +291,7 @@ class AegisScanner(BaseScanner):
                 firewall = None
                 routes = None
                 audit_events = None
+                metrics = None
 
                 collect_any = (
                     collect_system_info
@@ -299,6 +302,7 @@ class AegisScanner(BaseScanner):
                     or collect_firewall
                     or collect_routes
                     or collect_audit_events
+                    or collect_metrics
                 )
 
                 if collect_any:
@@ -366,6 +370,13 @@ class AegisScanner(BaseScanner):
                                 len(audit_events) if audit_events else 0,
                                 host_id,
                             )
+
+                        if collect_metrics:
+                            metrics = collector.collect_metrics()
+                            logger.debug(
+                                "Collected metrics for host %s",
+                                host_id,
+                            )
                     except Exception as e:
                         logger.warning("Failed to collect server intelligence: %s", e)
 
@@ -399,6 +410,7 @@ class AegisScanner(BaseScanner):
                     "firewall": firewall,
                     "routes": routes,
                     "audit_events": audit_events,
+                    "metrics": metrics,
                 }
 
         except Exception as e:
