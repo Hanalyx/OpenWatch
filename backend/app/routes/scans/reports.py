@@ -136,9 +136,7 @@ async def _get_scan_details(
                 """
             SELECT total_rules, passed_rules, failed_rules, error_rules,
                    unknown_rules, not_applicable_rules, score,
-                   severity_high, severity_medium, severity_low,
-                   xccdf_score, xccdf_score_max, xccdf_score_system,
-                   risk_score, risk_level
+                   severity_high, severity_medium, severity_low
             FROM scan_results WHERE scan_id = :scan_id
         """
             ),
@@ -157,11 +155,6 @@ async def _get_scan_details(
                 "severity_high": results.severity_high,
                 "severity_medium": results.severity_medium,
                 "severity_low": results.severity_low,
-                "xccdf_score": results.xccdf_score,
-                "xccdf_score_max": results.xccdf_score_max,
-                "xccdf_score_system": results.xccdf_score_system,
-                "risk_score": results.risk_score,
-                "risk_level": results.risk_level,
             }
 
     return scan_data
@@ -223,10 +216,6 @@ async def get_scan_results(
                 "severity_high": 5,
                 "severity_medium": 4,
                 "severity_low": 3,
-                "xccdf_score": 85.0,
-                "xccdf_score_max": 100.0,
-                "risk_score": 45.0,
-                "risk_level": "medium"
             },
             "timing": {
                 "started_at": "2025-12-03T10:00:00Z",
@@ -298,9 +287,7 @@ async def get_scan_results(
                     """
                 SELECT total_rules, passed_rules, failed_rules, error_rules,
                        unknown_rules, not_applicable_rules, score,
-                       severity_high, severity_medium, severity_low,
-                       xccdf_score, xccdf_score_max, xccdf_score_system,
-                       risk_score, risk_level
+                       severity_high, severity_medium, severity_low
                 FROM scan_results WHERE scan_id = :scan_id
             """
                 ),
@@ -319,11 +306,6 @@ async def get_scan_results(
                     "severity_high": results_query.severity_high,
                     "severity_medium": results_query.severity_medium,
                     "severity_low": results_query.severity_low,
-                    "xccdf_score": results_query.xccdf_score,
-                    "xccdf_score_max": results_query.xccdf_score_max,
-                    "xccdf_score_system": results_query.xccdf_score_system,
-                    "risk_score": results_query.risk_score,
-                    "risk_level": results_query.risk_level,
                 }
             else:
                 response["results"] = None

@@ -559,9 +559,7 @@ async def create_compliance_scan(
             f"total={parsed_results['rules_total']}, "
             f"passed={parsed_results['rules_passed']}, "
             f"failed={parsed_results['rules_failed']}, "
-            f"score={parsed_results['score']}%, "
-            f"risk_score={parsed_results.get('risk_score')} "
-            f"({parsed_results.get('risk_level')})"
+            f"score={parsed_results['score']}%"
         )
 
         try:
@@ -593,11 +591,6 @@ async def create_compliance_scan(
                     "severity_high",
                     "severity_medium",
                     "severity_low",
-                    "xccdf_score",
-                    "xccdf_score_system",
-                    "xccdf_score_max",
-                    "risk_score",
-                    "risk_level",
                     "created_at",
                 )
                 .values(
@@ -612,11 +605,6 @@ async def create_compliance_scan(
                     parsed_results["severity_high"],
                     parsed_results["severity_medium"],
                     parsed_results["severity_low"],
-                    parsed_results.get("xccdf_score"),
-                    parsed_results.get("xccdf_score_system"),
-                    parsed_results.get("xccdf_score_max"),
-                    parsed_results.get("risk_score"),
-                    parsed_results.get("risk_level"),
                     completed_at,
                 )
             )
