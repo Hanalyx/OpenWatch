@@ -222,6 +222,7 @@ celery_app.conf.update(
         "app.tasks.os_discovery_tasks",
         "app.tasks.stale_scan_detection",
         "app.tasks.scan_tasks",
+        "app.tasks.aegis_scan_tasks",
         "app.tasks.background_tasks",
     ],
 )

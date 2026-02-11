@@ -22,6 +22,8 @@ import {
   SpeedDialIcon,
   Skeleton,
   Toolbar,
+  Snackbar,
+  Alert,
 } from '@mui/material';
 import Grid from '@mui/material/Grid';
 import {
@@ -95,6 +97,10 @@ const Hosts: React.FC = () => {
     setBulkScanDialog,
     bulkScanProgress,
     setBulkScanProgress,
+
+    // Notification state
+    notification,
+    setNotification,
 
     // Computed data
     stats,
@@ -529,6 +535,23 @@ const Hosts: React.FC = () => {
           onClick={() => setEnhancedImportDialogOpen(true)}
         />
       </SpeedDial>
+
+      {/* Quick Scan Notification Snackbar */}
+      <Snackbar
+        open={notification.open}
+        autoHideDuration={4000}
+        onClose={() => setNotification((prev) => ({ ...prev, open: false }))}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert
+          onClose={() => setNotification((prev) => ({ ...prev, open: false }))}
+          severity={notification.severity}
+          variant="filled"
+          sx={{ width: '100%' }}
+        >
+          {notification.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };

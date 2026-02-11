@@ -102,6 +102,10 @@ Router Organization:
         POST /aegis                              - Execute Aegis compliance scan
         GET  /aegis/frameworks                   - List available frameworks
         GET  /aegis/health                       - Aegis engine health check
+
+    Quick Scan Router (quick.py) - One-Click Scanning:
+        POST /quick                              - Quick scan for host(s) or host group
+        GET  /quick/{scan_id}                    - Get quick scan status
 """
 
 from fastapi import APIRouter
@@ -136,7 +140,11 @@ router.include_router(templates_router)
 # Aegis compliance engine router (E0-S5 API Endpoints)
 from app.routes.scans.aegis import router as aegis_router  # noqa: E402
 
+# Quick scan router - one-click scanning from /hosts and /host-groups
+from app.routes.scans.quick import router as quick_router  # noqa: E402
+
 router.include_router(aegis_router)
+router.include_router(quick_router)
 
 # Core routers (more generic patterns)
 router.include_router(compliance_router)
