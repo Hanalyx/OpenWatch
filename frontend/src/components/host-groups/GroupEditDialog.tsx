@@ -13,7 +13,6 @@ import {
   Switch,
   Alert,
   CircularProgress,
-  Autocomplete,
   Divider,
   Chip,
   Paper,
@@ -52,30 +51,6 @@ interface Host {
   os_version?: string;
 }
 
-/**
- * SCAP profile definition from compliance content
- * Contains profile metadata and rule selection information
- */
-interface Profile {
-  id: string;
-  title: string;
-  description?: string;
-  extends?: string;
-  // Selected rules - array of rule IDs or rule selection criteria
-  selected_rules?: string[] | Record<string, boolean>;
-  // Profile metadata - extensible key-value pairs from SCAP content
-  metadata?: Record<string, string | number | boolean>;
-}
-
-interface SCAPContent {
-  id: number;
-  name: string;
-  os_family?: string;
-  os_version?: string;
-  compliance_framework?: string;
-  profiles: (string | Profile)[];
-}
-
 interface HostGroup {
   id: number;
   name: string;
@@ -88,15 +63,12 @@ interface HostGroup {
   os_family?: string;
   os_version_pattern?: string;
   architecture?: string;
-  scap_content_id?: number;
-  default_profile_id?: string;
   compliance_framework?: string;
   auto_scan_enabled: boolean;
   scan_schedule?: string;
   // Flexible validation rules object from backend - structure varies by validation type
   // May include: required_fields, pattern_matchers, custom_validators, etc.
   validation_rules?: Record<string, unknown>;
-  scap_content_name?: string;
 }
 
 interface GroupEditDialogProps {
@@ -133,15 +105,11 @@ const GroupEditDialog: React.FC<GroupEditDialogProps> = ({
   const [osFamily, setOsFamily] = useState(group.os_family || '');
   const [osVersionPattern, setOsVersionPattern] = useState(group.os_version_pattern || '');
   const [architecture, setArchitecture] = useState(group.architecture || '');
-  const [scapContent, setScapContent] = useState<SCAPContent | null>(null);
-  const [defaultProfile, setDefaultProfile] = useState(group.default_profile_id || '');
   const [complianceFramework, setComplianceFramework] = useState(group.compliance_framework || '');
   const [autoScanEnabled, setAutoScanEnabled] = useState(group.auto_scan_enabled);
   const [scanSchedule, setScanSchedule] = useState(group.scan_schedule || '');
-  const [availableProfiles, setAvailableProfiles] = useState<(string | Profile)[]>([]);
 
   // Available data
-  const [availableScapContent, setAvailableScapContent] = useState<SCAPContent[]>([]);
   const [groupHosts, setGroupHosts] = useState<Host[]>([]);
   const [availableHosts, setAvailableHosts] = useState<Host[]>([]);
 
@@ -150,7 +118,6 @@ const GroupEditDialog: React.FC<GroupEditDialogProps> = ({
 
   useEffect(() => {
     if (open && group) {
-      fetchScapContent();
       fetchGroupHosts();
       fetchAvailableHosts();
       resetForm();
@@ -166,47 +133,10 @@ const GroupEditDialog: React.FC<GroupEditDialogProps> = ({
     setOsFamily(group.os_family || '');
     setOsVersionPattern(group.os_version_pattern || '');
     setArchitecture(group.architecture || '');
-    setDefaultProfile(group.default_profile_id || '');
     setComplianceFramework(group.compliance_framework || '');
     setAutoScanEnabled(group.auto_scan_enabled);
     setScanSchedule(group.scan_schedule || '');
-    setAvailableProfiles([]);
     setError(null);
-  };
-
-  const fetchScapContent = async () => {
-    try {
-      // MongoDB compliance rules endpoint - returns bundles that can be used for scanning
-      const response = await fetch('/api/compliance-rules/?view_mode=bundles', {
-        headers: {
-          Authorization: `Bearer ${storageGet(StorageKeys.AUTH_TOKEN)}`,
-        },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        // MongoDB returns bundles in 'bundles' field
-        const contentList = Array.isArray(data.bundles)
-          ? data.bundles
-          : Array.isArray(data)
-            ? data
-            : [];
-        setAvailableScapContent(contentList);
-
-        // Find and set current SCAP content
-        if (group.scap_content_id) {
-          const currentContent = contentList.find(
-            (c: SCAPContent) => c.id === group.scap_content_id
-          );
-          setScapContent(currentContent || null);
-          if (currentContent && currentContent.profiles) {
-            setAvailableProfiles(currentContent.profiles);
-          }
-        }
-      }
-    } catch (err) {
-      console.error('Error fetching SCAP content:', err);
-    }
   };
 
   const fetchGroupHosts = async () => {
@@ -257,8 +187,6 @@ const GroupEditDialog: React.FC<GroupEditDialogProps> = ({
         os_family: osFamily.trim() || null,
         os_version_pattern: osVersionPattern.trim() || null,
         architecture: architecture.trim() || null,
-        scap_content_id: scapContent?.id || null,
-        default_profile_id: defaultProfile.trim() || null,
         compliance_framework: complianceFramework.trim() || null,
         auto_scan_enabled: autoScanEnabled,
         scan_schedule: scanSchedule.trim() || null,
@@ -523,111 +451,6 @@ const GroupEditDialog: React.FC<GroupEditDialogProps> = ({
             <Typography variant="h6" gutterBottom>
               Compliance Configuration
             </Typography>
-          </Grid>
-
-          <Grid size={{ xs: 12, sm: 6 }}>
-            <Autocomplete
-              options={availableScapContent}
-              getOptionLabel={(option) => option.name}
-              value={scapContent}
-              onChange={(_, newValue) => {
-                setScapContent(newValue);
-                if (newValue && newValue.profiles) {
-                  setAvailableProfiles(newValue.profiles);
-                  // Reset default profile if it's not in the new content's profiles
-                  const profileIds = newValue.profiles.map((p) =>
-                    typeof p === 'string' ? p : p.id
-                  );
-                  if (!profileIds.includes(defaultProfile)) {
-                    setDefaultProfile('');
-                  }
-                } else {
-                  setAvailableProfiles([]);
-                  setDefaultProfile('');
-                }
-              }}
-              renderOption={(props, option) => (
-                <Box component="li" {...props} key={option.id}>
-                  <ListItemText
-                    primary={option.name}
-                    secondary={
-                      <Box>
-                        {option.os_family && (
-                          <Chip
-                            label={`OS: ${option.os_family}`}
-                            size="small"
-                            sx={{ mr: 0.5, fontSize: '0.7rem' }}
-                          />
-                        )}
-                        {option.os_version && (
-                          <Chip
-                            label={`Version: ${option.os_version}`}
-                            size="small"
-                            sx={{ mr: 0.5, fontSize: '0.7rem' }}
-                          />
-                        )}
-                        {option.compliance_framework && (
-                          <Chip
-                            label={option.compliance_framework}
-                            size="small"
-                            color="primary"
-                            sx={{ fontSize: '0.7rem' }}
-                          />
-                        )}
-                      </Box>
-                    }
-                  />
-                </Box>
-              )}
-              renderInput={(params) => (
-                <TextField
-                  {...params}
-                  label="SCAP Content"
-                  helperText="Choose compliance content for scanning"
-                />
-              )}
-            />
-          </Grid>
-
-          <Grid size={{ xs: 12, sm: 6 }}>
-            {availableProfiles.length > 0 ? (
-              <FormControl fullWidth>
-                <InputLabel>Default Profile</InputLabel>
-                <Select
-                  value={defaultProfile}
-                  onChange={(e) => setDefaultProfile(e.target.value)}
-                  label="Default Profile"
-                  disabled={!scapContent}
-                >
-                  <MenuItem value="">
-                    <em>None</em>
-                  </MenuItem>
-                  {availableProfiles.map((profile) => {
-                    const profileId = typeof profile === 'string' ? profile : profile.id;
-                    const profileTitle =
-                      typeof profile === 'string' ? profile : profile.title || profile.id;
-                    return (
-                      <MenuItem key={profileId} value={profileId}>
-                        {profileTitle}
-                      </MenuItem>
-                    );
-                  })}
-                </Select>
-              </FormControl>
-            ) : (
-              <TextField
-                label="Default Profile"
-                value={defaultProfile}
-                onChange={(e) => setDefaultProfile(e.target.value)}
-                fullWidth
-                disabled={!scapContent}
-                helperText={
-                  scapContent
-                    ? 'Profile ID from selected SCAP content'
-                    : 'Select SCAP content first'
-                }
-              />
-            )}
           </Grid>
 
           <Grid size={{ xs: 12, sm: 6 }}>

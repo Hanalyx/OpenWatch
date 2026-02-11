@@ -50,14 +50,11 @@ interface HostGroup {
   os_family?: string;
   os_version_pattern?: string;
   architecture?: string;
-  scap_content_id?: number;
-  default_profile_id?: string;
   compliance_framework?: string;
   auto_scan_enabled: boolean;
   scan_schedule?: string;
   // Validation rules structure from backend (varies by compliance framework)
   validation_rules?: Record<string, unknown>;
-  scap_content_name?: string;
   compatibility_summary?: {
     total_hosts: number;
     compatible_hosts: number;
@@ -76,6 +73,7 @@ const ComplianceGroups: React.FC = () => {
   const [selectedGroup, setSelectedGroup] = useState<HostGroup | null>(null);
   const [showCreateWizard, setShowCreateWizard] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
+  const [editingGroup, setEditingGroup] = useState<HostGroup | null>(null);
   const [showComplianceReport, setShowComplianceReport] = useState(false);
   const [complianceGroup, setComplianceGroup] = useState<HostGroup | null>(null);
 
@@ -122,7 +120,10 @@ const ComplianceGroups: React.FC = () => {
   };
 
   const handleEditGroup = () => {
-    setShowEditDialog(true);
+    if (selectedGroup) {
+      setEditingGroup(selectedGroup);
+      setShowEditDialog(true);
+    }
     handleMenuClose();
   };
 
@@ -503,11 +504,14 @@ const ComplianceGroups: React.FC = () => {
       />
 
       {/* Group Edit Dialog */}
-      {selectedGroup && (
+      {editingGroup && (
         <GroupEditDialog
           open={showEditDialog}
-          onClose={() => setShowEditDialog(false)}
-          group={selectedGroup}
+          onClose={() => {
+            setShowEditDialog(false);
+            setEditingGroup(null);
+          }}
+          group={editingGroup}
           onGroupUpdated={fetchGroups}
         />
       )}

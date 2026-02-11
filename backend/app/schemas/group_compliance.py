@@ -44,11 +44,11 @@ class RemediationMode(str, Enum):
 
 # Request Schemas
 class GroupComplianceScanRequest(BaseModel):
-    """Request schema for starting group compliance scan"""
+    """Request schema for starting group compliance scan (Aegis-based)"""
 
-    scap_content_id: Optional[int] = Field(None, description="SCAP content ID (uses group default if not specified)")
-    profile_id: Optional[str] = Field(None, description="Compliance profile ID (uses group default if not specified)")
-    compliance_framework: Optional[ComplianceFramework] = Field(None, description="Target compliance framework")
+    compliance_framework: Optional[ComplianceFramework] = Field(
+        None, description="Target compliance framework (cis or disa-stig)"
+    )
     remediation_mode: RemediationMode = Field(RemediationMode.REPORT_ONLY, description="Remediation handling mode")
     scan_options: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Additional scan options")
     email_notifications: bool = Field(False, description="Send email notifications on completion")
@@ -62,8 +62,7 @@ class GroupScanScheduleRequest(BaseModel):
 
     enabled: bool = Field(True, description="Enable/disable scheduled scanning")
     cron_expression: str = Field(..., description="Cron expression for schedule")
-    scap_content_id: int = Field(..., description="SCAP content ID for scheduled scans")
-    profile_id: str = Field(..., description="Compliance profile ID")
+    profile_id: Optional[str] = Field(None, description="Compliance profile ID (deprecated, Aegis uses framework)")
     compliance_framework: ComplianceFramework = Field(..., description="Target compliance framework")
     scan_options: Optional[Dict[str, Any]] = Field(default_factory=dict)
     email_notifications: bool = Field(True, description="Send notifications for scheduled scans")
@@ -73,9 +72,7 @@ class GroupScanScheduleRequest(BaseModel):
             "example": {
                 "enabled": True,
                 "cron_expression": "0 2 * * 0",  # Weekly on Sunday at 2 AM
-                "scap_content_id": 1,
-                "profile_id": "stig_rhel8_disa",
-                "compliance_framework": "disa-stig",
+                "compliance_framework": "cis",
                 "email_notifications": True,
             }
         }
