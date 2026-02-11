@@ -296,31 +296,50 @@ class ComplianceSchedulerService:
             limit = config["max_concurrent_scans"]
 
         try:
+            # Join to scans table to get latest compliance data
             query = """
                 SELECT
                     h.id as host_id,
                     h.hostname,
                     h.ip_address,
                     h.status as host_status,
-                    hcs.compliance_score,
-                    hcs.compliance_state,
-                    hcs.has_critical_findings,
-                    hcs.next_scheduled_scan,
-                    hcs.scan_priority,
-                    hcs.maintenance_mode,
-                    hcs.last_scan_completed
+                    hs.next_scheduled_scan,
+                    hs.scan_priority,
+                    hs.maintenance_mode,
+                    hs.last_scan_completed,
+                    latest_scan.compliance_score,
+                    latest_scan.compliance_state,
+                    latest_scan.has_critical_findings
                 FROM hosts h
-                LEFT JOIN host_compliance_schedule hcs ON h.id = hcs.host_id
+                LEFT JOIN host_schedule hs ON h.id = hs.host_id
+                LEFT JOIN LATERAL (
+                    SELECT
+                        sr.score::float as compliance_score,
+                        CASE
+                            WHEN sr.severity_critical_failed > 0 OR sr.severity_high_failed > 0 THEN 'critical'
+                            WHEN sr.score::float >= 100 THEN 'compliant'
+                            WHEN sr.score::float >= 80 THEN 'mostly_compliant'
+                            WHEN sr.score::float >= 50 THEN 'partial'
+                            WHEN sr.score::float >= 20 THEN 'low'
+                            ELSE 'critical'
+                        END as compliance_state,
+                        (sr.severity_critical_failed > 0 OR sr.severity_high_failed > 0) as has_critical_findings
+                    FROM scans s
+                    JOIN scan_results sr ON s.id = sr.scan_id
+                    WHERE s.host_id = h.id AND s.status = 'completed'
+                    ORDER BY s.completed_at DESC
+                    LIMIT 1
+                ) latest_scan ON true
                 WHERE h.is_active = true
                   AND h.status != 'down'
-                  AND (hcs.maintenance_mode IS NULL OR hcs.maintenance_mode = false)
+                  AND (hs.maintenance_mode IS NULL OR hs.maintenance_mode = false)
                   AND (
-                    hcs.next_scheduled_scan IS NULL
-                    OR hcs.next_scheduled_scan <= :now
+                    hs.next_scheduled_scan IS NULL
+                    OR hs.next_scheduled_scan <= :now
                   )
                 ORDER BY
-                    COALESCE(hcs.scan_priority, 10) DESC,
-                    hcs.next_scheduled_scan ASC NULLS FIRST
+                    COALESCE(hs.scan_priority, 10) DESC,
+                    hs.next_scheduled_scan ASC NULLS FIRST
                 LIMIT :limit
             """
 
@@ -355,20 +374,19 @@ class ComplianceSchedulerService:
         host_id: UUID,
         compliance_score: Optional[float],
         has_critical_findings: bool,
-        pass_count: int,
-        fail_count: int,
         scan_id: Optional[UUID] = None,
     ) -> None:
         """
-        Update a host's compliance schedule after a scan completes.
+        Update a host's schedule after a scan completes.
+
+        Note: Compliance data (score, pass/fail counts) is stored in the scans
+        and scan_findings tables. This method only updates scheduling state.
 
         Args:
             db: Database session
             host_id: Host UUID
-            compliance_score: New compliance score
-            has_critical_findings: Whether scan found critical issues
-            pass_count: Number of passing rules
-            fail_count: Number of failing rules
+            compliance_score: Used to calculate next scan interval
+            has_critical_findings: Used to calculate next scan interval
             scan_id: ID of the completed scan
         """
         try:
@@ -379,27 +397,18 @@ class ComplianceSchedulerService:
 
             now = datetime.now(timezone.utc)
 
-            # Upsert: insert or update
+            # Upsert: insert or update (scheduling state only)
             query = """
-                INSERT INTO host_compliance_schedule (
-                    host_id, compliance_score, compliance_state,
-                    has_critical_findings, pass_count, fail_count,
-                    current_interval_minutes, next_scheduled_scan,
+                INSERT INTO host_schedule (
+                    host_id, current_interval_minutes, next_scheduled_scan,
                     last_scan_completed, last_scan_id, scan_priority,
                     consecutive_scan_failures, updated_at
                 ) VALUES (
-                    :host_id, :score, :state,
-                    :has_critical, :pass_count, :fail_count,
-                    :interval, :next_scan,
+                    :host_id, :interval, :next_scan,
                     :now, :scan_id, :priority,
                     0, :now
                 )
                 ON CONFLICT (host_id) DO UPDATE SET
-                    compliance_score = :score,
-                    compliance_state = :state,
-                    has_critical_findings = :has_critical,
-                    pass_count = :pass_count,
-                    fail_count = :fail_count,
                     current_interval_minutes = :interval,
                     next_scheduled_scan = :next_scan,
                     last_scan_completed = :now,
@@ -413,11 +422,6 @@ class ComplianceSchedulerService:
                 text(query),
                 {
                     "host_id": str(host_id),
-                    "score": compliance_score,
-                    "state": state,
-                    "has_critical": has_critical_findings,
-                    "pass_count": pass_count,
-                    "fail_count": fail_count,
                     "interval": interval,
                     "next_scan": next_scan,
                     "now": now,
@@ -427,13 +431,10 @@ class ComplianceSchedulerService:
             )
             db.commit()
 
-            logger.info(
-                f"Updated compliance schedule for host {host_id}: "
-                f"score={compliance_score}, state={state}, next_scan={next_scan}"
-            )
+            logger.info(f"Updated schedule for host {host_id}: " f"state={state}, next_scan={next_scan}")
 
         except Exception as e:
-            logger.error(f"Error updating host compliance schedule: {e}")
+            logger.error(f"Error updating host schedule: {e}")
             db.rollback()
             raise
 
@@ -449,7 +450,7 @@ class ComplianceSchedulerService:
         try:
             # Increment failure count and set retry time (5 minutes)
             query = """
-                UPDATE host_compliance_schedule
+                UPDATE host_schedule
                 SET consecutive_scan_failures = consecutive_scan_failures + 1,
                     next_scheduled_scan = :next_scan,
                     updated_at = :now
@@ -474,7 +475,7 @@ class ComplianceSchedulerService:
 
     def initialize_host_schedule(self, db: Session, host_id: UUID) -> None:
         """
-        Initialize compliance schedule for a new host (immediate scan).
+        Initialize schedule for a new host (immediate scan).
 
         Args:
             db: Database session
@@ -482,11 +483,11 @@ class ComplianceSchedulerService:
         """
         try:
             query = """
-                INSERT INTO host_compliance_schedule (
-                    host_id, compliance_state, scan_priority,
+                INSERT INTO host_schedule (
+                    host_id, scan_priority,
                     next_scheduled_scan, current_interval_minutes
                 ) VALUES (
-                    :host_id, 'unknown', 10,
+                    :host_id, 10,
                     :now, 0
                 )
                 ON CONFLICT (host_id) DO NOTHING
@@ -498,7 +499,7 @@ class ComplianceSchedulerService:
             )
             db.commit()
 
-            logger.info(f"Initialized compliance schedule for new host {host_id}")
+            logger.info(f"Initialized schedule for new host {host_id}")
 
         except Exception as e:
             logger.error(f"Error initializing host schedule: {e}")
@@ -522,7 +523,7 @@ class ComplianceSchedulerService:
         """
         try:
             query = """
-                UPDATE host_compliance_schedule
+                UPDATE host_schedule
                 SET maintenance_mode = :enabled,
                     maintenance_until = :until,
                     updated_at = :now
@@ -555,17 +556,35 @@ class ComplianceSchedulerService:
             dict: Stats including hosts per state, overdue scans, etc.
         """
         try:
-            # Get hosts by compliance state
+            # Get hosts by compliance state (from latest scan results)
             state_result = db.execute(
                 text(
                     """
                 SELECT
-                    COALESCE(hcs.compliance_state, 'unknown') as state,
+                    COALESCE(
+                        CASE
+                            WHEN sr.severity_critical_failed > 0 OR sr.severity_high_failed > 0 THEN 'critical'
+                            WHEN sr.score::float >= 100 THEN 'compliant'
+                            WHEN sr.score::float >= 80 THEN 'mostly_compliant'
+                            WHEN sr.score::float >= 50 THEN 'partial'
+                            WHEN sr.score::float >= 20 THEN 'low'
+                            WHEN sr.score IS NOT NULL THEN 'critical'
+                            ELSE 'unknown'
+                        END,
+                        'unknown'
+                    ) as state,
                     COUNT(*) as count
                 FROM hosts h
-                LEFT JOIN host_compliance_schedule hcs ON h.id = hcs.host_id
+                LEFT JOIN LATERAL (
+                    SELECT sr2.score, sr2.severity_critical_failed, sr2.severity_high_failed
+                    FROM scans s
+                    JOIN scan_results sr2 ON s.id = sr2.scan_id
+                    WHERE s.host_id = h.id AND s.status = 'completed'
+                    ORDER BY s.completed_at DESC
+                    LIMIT 1
+                ) sr ON true
                 WHERE h.is_active = true
-                GROUP BY hcs.compliance_state
+                GROUP BY state
             """
                 )
             )
@@ -577,11 +596,11 @@ class ComplianceSchedulerService:
                 text(
                     """
                 SELECT COUNT(*) as count
-                FROM host_compliance_schedule hcs
-                JOIN hosts h ON h.id = hcs.host_id
+                FROM host_schedule hs
+                JOIN hosts h ON h.id = hs.host_id
                 WHERE h.is_active = true
-                  AND hcs.maintenance_mode = false
-                  AND hcs.next_scheduled_scan < :now
+                  AND hs.maintenance_mode = false
+                  AND hs.next_scheduled_scan < :now
             """
                 ),
                 {"now": datetime.now(timezone.utc)},
@@ -593,12 +612,12 @@ class ComplianceSchedulerService:
             next_scan_result = db.execute(
                 text(
                     """
-                SELECT MIN(hcs.next_scheduled_scan) as next_scan
-                FROM host_compliance_schedule hcs
-                JOIN hosts h ON h.id = hcs.host_id
+                SELECT MIN(hs.next_scheduled_scan) as next_scan
+                FROM host_schedule hs
+                JOIN hosts h ON h.id = hs.host_id
                 WHERE h.is_active = true
-                  AND hcs.maintenance_mode = false
-                  AND hcs.next_scheduled_scan IS NOT NULL
+                  AND hs.maintenance_mode = false
+                  AND hs.next_scheduled_scan IS NOT NULL
             """
                 )
             )
@@ -611,7 +630,7 @@ class ComplianceSchedulerService:
                 text(
                     """
                 SELECT COUNT(*) as count
-                FROM host_compliance_schedule
+                FROM host_schedule
                 WHERE maintenance_mode = true
             """
                 )
@@ -654,21 +673,40 @@ class ComplianceSchedulerService:
             stats = self.get_scheduler_stats(db)
             config = self.get_config(db)
 
-            # Get next scheduled scans
+            # Get next scheduled scans with compliance state from latest scan
             next_scans_result = db.execute(
                 text(
                     """
                 SELECT
                     h.id as host_id,
                     h.hostname,
-                    hcs.compliance_state,
-                    hcs.next_scheduled_scan
-                FROM host_compliance_schedule hcs
-                JOIN hosts h ON h.id = hcs.host_id
+                    hs.next_scheduled_scan,
+                    COALESCE(
+                        CASE
+                            WHEN sr.severity_critical_failed > 0 OR sr.severity_high_failed > 0 THEN 'critical'
+                            WHEN sr.score::float >= 100 THEN 'compliant'
+                            WHEN sr.score::float >= 80 THEN 'mostly_compliant'
+                            WHEN sr.score::float >= 50 THEN 'partial'
+                            WHEN sr.score::float >= 20 THEN 'low'
+                            WHEN sr.score IS NOT NULL THEN 'critical'
+                            ELSE 'unknown'
+                        END,
+                        'unknown'
+                    ) as compliance_state
+                FROM host_schedule hs
+                JOIN hosts h ON h.id = hs.host_id
+                LEFT JOIN LATERAL (
+                    SELECT sr2.score, sr2.severity_critical_failed, sr2.severity_high_failed
+                    FROM scans s
+                    JOIN scan_results sr2 ON s.id = sr2.scan_id
+                    WHERE s.host_id = h.id AND s.status = 'completed'
+                    ORDER BY s.completed_at DESC
+                    LIMIT 1
+                ) sr ON true
                 WHERE h.is_active = true
-                  AND hcs.maintenance_mode = false
-                  AND hcs.next_scheduled_scan IS NOT NULL
-                ORDER BY hcs.next_scheduled_scan ASC
+                  AND hs.maintenance_mode = false
+                  AND hs.next_scheduled_scan IS NOT NULL
+                ORDER BY hs.next_scheduled_scan ASC
                 LIMIT 5
             """
                 )
@@ -706,14 +744,17 @@ class ComplianceSchedulerService:
 
     def get_host_schedule(self, db: Session, host_id: UUID) -> Optional[Dict[str, Any]]:
         """
-        Get compliance schedule details for a specific host.
+        Get schedule details for a specific host.
+
+        Compliance data (score, pass/fail, state) is fetched from the latest
+        completed scan in the scans/scan_results tables.
 
         Args:
             db: Database session
             host_id: Host UUID
 
         Returns:
-            dict: Schedule details or None if not found
+            dict: Schedule details with compliance from scans table, or None if not found
         """
         try:
             result = db.execute(
@@ -722,20 +763,37 @@ class ComplianceSchedulerService:
                 SELECT
                     h.id as host_id,
                     h.hostname,
-                    hcs.compliance_score,
-                    hcs.compliance_state,
-                    hcs.has_critical_findings,
-                    hcs.pass_count,
-                    hcs.fail_count,
-                    hcs.current_interval_minutes,
-                    hcs.next_scheduled_scan,
-                    hcs.last_scan_completed,
-                    hcs.maintenance_mode,
-                    hcs.maintenance_until,
-                    hcs.scan_priority,
-                    hcs.consecutive_scan_failures
+                    hs.current_interval_minutes,
+                    hs.next_scheduled_scan,
+                    hs.last_scan_completed,
+                    hs.maintenance_mode,
+                    hs.maintenance_until,
+                    hs.scan_priority,
+                    hs.consecutive_scan_failures,
+                    sr.score::float as compliance_score,
+                    sr.passed_rules as pass_count,
+                    sr.failed_rules as fail_count,
+                    (sr.severity_critical_failed > 0 OR sr.severity_high_failed > 0) as has_critical_findings,
+                    CASE
+                        WHEN sr.severity_critical_failed > 0 OR sr.severity_high_failed > 0 THEN 'critical'
+                        WHEN sr.score::float >= 100 THEN 'compliant'
+                        WHEN sr.score::float >= 80 THEN 'mostly_compliant'
+                        WHEN sr.score::float >= 50 THEN 'partial'
+                        WHEN sr.score::float >= 20 THEN 'low'
+                        WHEN sr.score IS NOT NULL THEN 'critical'
+                        ELSE 'unknown'
+                    END as compliance_state
                 FROM hosts h
-                LEFT JOIN host_compliance_schedule hcs ON h.id = hcs.host_id
+                LEFT JOIN host_schedule hs ON h.id = hs.host_id
+                LEFT JOIN LATERAL (
+                    SELECT sr2.score, sr2.passed_rules, sr2.failed_rules,
+                           sr2.severity_critical_failed, sr2.severity_high_failed
+                    FROM scans s
+                    JOIN scan_results sr2 ON s.id = sr2.scan_id
+                    WHERE s.host_id = h.id AND s.status = 'completed'
+                    ORDER BY s.completed_at DESC
+                    LIMIT 1
+                ) sr ON true
                 WHERE h.id = :host_id
             """
                 ),

@@ -455,14 +455,12 @@ def run_scheduled_aegis_scan(self: Any, host_id: str, priority: int = 5) -> Dict
                 except Exception as e:
                     logger.warning(f"Failed to save server intelligence data: {e}")
 
-            # Update schedule with new compliance state (now with scan_id)
+            # Update schedule with scan timing (compliance data stored in scans table)
             compliance_scheduler_service.update_host_schedule(
                 db=db,
                 host_id=UUID(host_id),
                 compliance_score=compliance_score,
                 has_critical_findings=has_critical,
-                pass_count=pass_count,
-                fail_count=fail_count,
                 scan_id=UUID(scan_id),
             )
 
@@ -550,9 +548,9 @@ def initialize_compliance_schedules(self: Any) -> Dict[str, Any]:
                     """
                     SELECT h.id
                     FROM hosts h
-                    LEFT JOIN host_compliance_schedule hcs ON h.id = hcs.host_id
+                    LEFT JOIN host_schedule hs ON h.id = hs.host_id
                     WHERE h.is_active = true
-                      AND hcs.id IS NULL
+                      AND hs.id IS NULL
                 """
                 )
             )
@@ -605,7 +603,7 @@ def expire_compliance_maintenance(self: Any) -> Dict[str, Any]:
             result = db.execute(
                 text(
                     """
-                    UPDATE host_compliance_schedule
+                    UPDATE host_schedule
                     SET maintenance_mode = false,
                         maintenance_until = NULL,
                         updated_at = :now
