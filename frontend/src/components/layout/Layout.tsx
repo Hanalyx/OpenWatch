@@ -54,8 +54,6 @@ import {
   Download,
   ContentCopy,
   BookmarkAdd,
-  AccountTree,
-  Bookmark,
   QueryStats,
   Timeline,
 } from '@mui/icons-material';
@@ -113,25 +111,6 @@ const menuItems = [
       'auditor',
       'guest',
     ],
-  },
-  {
-    text: 'Frameworks',
-    icon: <AccountTree />,
-    path: '/content/frameworks',
-    roles: [
-      'super_admin',
-      'security_admin',
-      'security_analyst',
-      'compliance_officer',
-      'auditor',
-      'guest',
-    ],
-  },
-  {
-    text: 'Templates',
-    icon: <Bookmark />,
-    path: '/content/templates',
-    roles: ['super_admin', 'security_admin', 'security_analyst', 'compliance_officer', 'auditor'],
   },
   {
     text: 'Scans',
