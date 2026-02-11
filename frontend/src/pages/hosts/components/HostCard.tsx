@@ -255,7 +255,8 @@ const HostCard: React.FC<HostCardProps> = ({
           </IconButton>
           <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={() => setAnchorEl(null)}>
             <MenuItem
-              onClick={() => {
+              onClick={(e) => {
+                e.stopPropagation();
                 setQuickScanDialog({ open: true, host });
                 setAnchorEl(null);
               }}
@@ -265,7 +266,12 @@ const HostCard: React.FC<HostCardProps> = ({
               </ListItemIcon>
               <ListItemText>Quick Scan</ListItemText>
             </MenuItem>
-            <MenuItem onClick={() => handleEditHost(host)}>
+            <MenuItem
+              onClick={(e) => {
+                e.stopPropagation();
+                handleEditHost(host);
+              }}
+            >
               <ListItemIcon>
                 <Edit fontSize="small" />
               </ListItemIcon>
@@ -290,14 +296,25 @@ const HostCard: React.FC<HostCardProps> = ({
               <ListItemText>View History</ListItemText>
             </MenuItem>
             <Divider />
-            <MenuItem onClick={() => checkHostStatus(host.id)}>
+            <MenuItem
+              onClick={(e) => {
+                e.stopPropagation();
+                checkHostStatus(host.id);
+              }}
+            >
               <ListItemIcon>
                 <NetworkCheck fontSize="small" />
               </ListItemIcon>
               <ListItemText>Check Status</ListItemText>
             </MenuItem>
             <Divider />
-            <MenuItem onClick={() => handleDeleteHost(host)} sx={{ color: 'error.main' }}>
+            <MenuItem
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDeleteHost(host);
+              }}
+              sx={{ color: 'error.main' }}
+            >
               <ListItemIcon>
                 <Delete fontSize="small" color="error" />
               </ListItemIcon>
@@ -371,7 +388,8 @@ const HostCard: React.FC<HostCardProps> = ({
           </IconButton>
           <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={() => setAnchorEl(null)}>
             <MenuItem
-              onClick={() => {
+              onClick={(e) => {
+                e.stopPropagation();
                 setQuickScanDialog({ open: true, host });
                 setAnchorEl(null);
               }}
@@ -381,7 +399,12 @@ const HostCard: React.FC<HostCardProps> = ({
               </ListItemIcon>
               <ListItemText>Quick Scan</ListItemText>
             </MenuItem>
-            <MenuItem onClick={() => handleEditHost(host)}>
+            <MenuItem
+              onClick={(e) => {
+                e.stopPropagation();
+                handleEditHost(host);
+              }}
+            >
               <ListItemIcon>
                 <Edit fontSize="small" />
               </ListItemIcon>
@@ -406,14 +429,25 @@ const HostCard: React.FC<HostCardProps> = ({
               <ListItemText>View History</ListItemText>
             </MenuItem>
             <Divider />
-            <MenuItem onClick={() => checkHostStatus(host.id)}>
+            <MenuItem
+              onClick={(e) => {
+                e.stopPropagation();
+                checkHostStatus(host.id);
+              }}
+            >
               <ListItemIcon>
                 <NetworkCheck fontSize="small" />
               </ListItemIcon>
               <ListItemText>Check Status</ListItemText>
             </MenuItem>
             <Divider />
-            <MenuItem onClick={() => handleDeleteHost(host)} sx={{ color: 'error.main' }}>
+            <MenuItem
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDeleteHost(host);
+              }}
+              sx={{ color: 'error.main' }}
+            >
               <ListItemIcon>
                 <Delete fontSize="small" color="error" />
               </ListItemIcon>
