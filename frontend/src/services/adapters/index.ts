@@ -68,3 +68,15 @@ export {
   fetchRoutes,
   fetchScanHistory,
 } from './hostDetailAdapter';
+
+// Rule Reference adapters for Rule Reference page
+export {
+  fetchRules,
+  fetchRuleDetail,
+  fetchRuleStatistics,
+  fetchFrameworks,
+  fetchCategories,
+  fetchVariables,
+  fetchCapabilities,
+  refreshRuleCache,
+} from './ruleReferenceAdapter';
