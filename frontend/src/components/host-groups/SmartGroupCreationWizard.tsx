@@ -26,10 +26,8 @@ import {
   Chip,
   Alert,
   CircularProgress,
-  Autocomplete,
   Card,
   CardContent,
-  Switch,
   FormHelperText,
 } from '@mui/material';
 import Grid from '@mui/material/Grid';
@@ -37,7 +35,6 @@ import {
   CheckCircle as SuccessIcon,
   Group as GroupIcon,
   Add as AddIcon,
-  SmartToy as SmartIcon,
 } from '@mui/icons-material';
 import {
   OS_FAMILY_OPTIONS,
@@ -54,21 +51,6 @@ interface Host {
   os_family?: string;
   os_version?: string;
   architecture?: string;
-}
-
-interface Profile {
-  id: string;
-  title: string;
-  description: string;
-}
-
-interface SCAPContent {
-  id: number;
-  name: string;
-  os_family?: string;
-  os_version?: string;
-  compliance_framework?: string;
-  profiles: Profile[] | string[];
 }
 
 /**
@@ -95,7 +77,7 @@ interface SmartGroupCreationWizardProps {
   onGroupCreated: () => void;
 }
 
-const steps = ['Select Hosts', 'Configure Group', 'Validation & Review', 'Create Group'];
+const steps = ['Select Hosts', 'Configure Group', 'Review & Create'];
 
 const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
   open,
@@ -118,25 +100,16 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
   const [osFamily, setOsFamily] = useState('');
   const [osVersionPattern, setOsVersionPattern] = useState('');
   const [architecture, setArchitecture] = useState('');
-  const [scapContent, setScapContent] = useState<SCAPContent | null>(null);
-  const [defaultProfile, setDefaultProfile] = useState('');
   const [complianceFramework, setComplianceFramework] = useState('');
   const [autoScanEnabled, setAutoScanEnabled] = useState(false);
   const [scanSchedule, setScanSchedule] = useState('');
-  const [useSmartConfiguration, setUseSmartConfiguration] = useState(true);
 
   // Step 3: Validation Results
   const [validation, setValidation] = useState<GroupValidation | null>(null);
 
-  // Available data
-  const [availableScapContent, setAvailableScapContent] = useState<SCAPContent[]>([]);
-  const [scapContentLoading, setScapContentLoading] = useState(false);
-  const [scapContentError, setScapContentError] = useState<string | null>(null);
-
   useEffect(() => {
     if (open) {
       fetchHosts();
-      fetchScapContent();
       resetWizard();
     }
   }, [open]);
@@ -149,15 +122,11 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
     setOsFamily('');
     setOsVersionPattern('');
     setArchitecture('');
-    setScapContent(null);
-    setDefaultProfile('');
     setComplianceFramework('');
     setAutoScanEnabled(false);
     setScanSchedule('');
-    setUseSmartConfiguration(true);
     setValidation(null);
     setError(null);
-    setScapContentError(null);
     setCreatedGroupId(null);
     setHostAssignmentLoading(false);
   };
@@ -186,46 +155,6 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
     }
   };
 
-  const fetchScapContent = async () => {
-    try {
-      setScapContentLoading(true);
-      setScapContentError(null);
-
-      // MongoDB compliance rules endpoint - returns bundles that can be used for scanning
-      const response = await fetch('/api/compliance-rules/?view_mode=bundles', {
-        headers: {
-          Authorization: `Bearer ${storageGet(StorageKeys.AUTH_TOKEN)}`,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch SCAP content: ${response.status} ${response.statusText}`);
-      }
-
-      const data = await response.json();
-      // SCAP Content API response received successfully
-
-      // MongoDB returns bundles in 'bundles' field
-      let contentList: SCAPContent[] = [];
-      if (Array.isArray(data.bundles)) {
-        contentList = data.bundles;
-      } else if (Array.isArray(data)) {
-        // Fallback for array response
-        contentList = data;
-      }
-
-      // SCAP content bundles parsed and loaded successfully
-      setAvailableScapContent(contentList);
-    } catch (err) {
-      console.error('Error fetching SCAP content:', err);
-      const errorMessage = err instanceof Error ? err.message : 'Failed to load SCAP content';
-      setScapContentError(errorMessage);
-      setError(`SCAP Content loading failed: ${errorMessage}`);
-    } finally {
-      setScapContentLoading(false);
-    }
-  };
-
   const handleHostSelection = (host: Host, selected: boolean) => {
     if (selected) {
       setSelectedHosts([...selectedHosts, host]);
@@ -235,7 +164,7 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
   };
 
   const analyzeSelectedHosts = async () => {
-    if (selectedHosts.length === 0 || !useSmartConfiguration) return;
+    if (selectedHosts.length === 0) return;
 
     try {
       setLoading(true);
@@ -248,7 +177,7 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
         },
         body: JSON.stringify({
           host_ids: selectedHosts.map((h) => h.id),
-          group_name: groupName || 'Smart Group',
+          group_name: groupName || 'New Group',
           auto_configure: false, // Just get analysis
         }),
       });
@@ -259,7 +188,7 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
 
       const analysis = await response.json();
 
-      // Apply smart configuration
+      // Apply smart configuration from analysis
       if (analysis.analysis?.recommendations) {
         const rec = analysis.analysis.recommendations;
 
@@ -287,23 +216,15 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
           }
         }
 
-        if (rec.scap_content) {
-          const content = availableScapContent.find((c) => c.id === rec.scap_content.id);
-          if (content) {
-            setScapContent(content);
-
-            // Set compliance framework from content or recommendation
-            const framework = rec.scap_content.compliance_framework || content.compliance_framework;
-            if (framework) {
-              const frameworkOption = COMPLIANCE_FRAMEWORK_OPTIONS.find(
-                (opt) =>
-                  opt.value === framework ||
-                  opt.label.toLowerCase().includes(framework.toLowerCase())
-              );
-              if (frameworkOption) {
-                setComplianceFramework(frameworkOption.value);
-              }
-            }
+        // Set compliance framework if recommended
+        if (rec.compliance_framework) {
+          const frameworkOption = COMPLIANCE_FRAMEWORK_OPTIONS.find(
+            (opt) =>
+              opt.value === rec.compliance_framework ||
+              opt.label.toLowerCase().includes(rec.compliance_framework.toLowerCase())
+          );
+          if (frameworkOption) {
+            setComplianceFramework(frameworkOption.value);
           }
         }
       }
@@ -329,8 +250,6 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
         os_family: osFamily,
         os_version_pattern: osVersionPattern,
         architecture,
-        scap_content_id: scapContent?.id,
-        default_profile_id: defaultProfile,
         compliance_framework: complianceFramework,
         auto_scan_enabled: autoScanEnabled,
         scan_schedule: scanSchedule,
@@ -396,8 +315,6 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
         os_family: osFamily,
         os_version_pattern: osVersionPattern,
         architecture,
-        scap_content_id: scapContent?.id,
-        default_profile_id: defaultProfile,
         compliance_framework: complianceFramework,
         auto_scan_enabled: autoScanEnabled,
         scan_schedule: scanSchedule,
@@ -493,20 +410,23 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
 
   const handleNext = async () => {
     // Validate current step before proceeding
-    const validation = validateCurrentStep();
-    if (!validation.valid) {
-      setError(validation.message);
+    const stepValidation = validateCurrentStep();
+    if (!stepValidation.valid) {
+      setError(stepValidation.message);
       return;
     }
 
     // Clear any previous errors
     setError(null);
 
-    if (activeStep === 1) {
+    if (activeStep === 0) {
+      // Moving from host selection to configuration - analyze hosts
       await analyzeSelectedHosts();
-    } else if (activeStep === 2) {
+    } else if (activeStep === 1) {
+      // Moving from configuration to review - validate configuration
       await validateGroupConfiguration();
-    } else if (activeStep === 3) {
+    } else if (activeStep === 2) {
+      // Final step - create group
       await createGroup();
       return;
     }
@@ -529,8 +449,6 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
         const errors = [];
         if (!groupName.trim()) errors.push('Group name is required');
         if (groupName.trim().length < 3) errors.push('Group name must be at least 3 characters');
-        if (scapContent && !defaultProfile)
-          errors.push('Default profile is required when SCAP content is selected');
 
         return {
           valid: errors.length === 0,
@@ -538,9 +456,7 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
         };
       }
       case 2:
-        return { valid: true, message: null }; // Can always review
-      case 3:
-        return { valid: true, message: null };
+        return { valid: true, message: null }; // Review step - can always proceed
       default:
         return { valid: false, message: 'Invalid step' };
     }
@@ -612,20 +528,12 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
       <Typography variant="h6" gutterBottom>
         Configure Group Settings
       </Typography>
-
-      <Box sx={{ mb: 3 }}>
-        <FormControlLabel
-          control={
-            <Switch
-              checked={useSmartConfiguration}
-              onChange={(e) => setUseSmartConfiguration(e.target.checked)}
-            />
-          }
-          label="Use smart configuration (analyze selected hosts)"
-        />
-      </Box>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+        Configure basic information and optional filtering criteria for this group
+      </Typography>
 
       <Grid container spacing={3}>
+        {/* Basic Info */}
         <Grid size={{ xs: 12, sm: 6 }}>
           <TextField
             label="Group Name"
@@ -649,6 +557,13 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
           />
         </Grid>
 
+        {/* Platform Filtering (Optional) */}
+        <Grid size={12}>
+          <Typography variant="subtitle2" color="text.secondary" sx={{ mt: 1, mb: 1 }}>
+            Platform Filtering (Optional)
+          </Typography>
+        </Grid>
+
         <Grid size={{ xs: 12, sm: 4 }}>
           <FormControl fullWidth>
             <InputLabel>OS Family</InputLabel>
@@ -658,7 +573,7 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
               label="OS Family"
             >
               <MenuItem value="">
-                <em>Select OS Family</em>
+                <em>Any</em>
               </MenuItem>
               {OS_FAMILY_OPTIONS.map((option) => (
                 <MenuItem key={option.value} value={option.value}>
@@ -666,7 +581,7 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
                 </MenuItem>
               ))}
             </Select>
-            <FormHelperText>Choose the operating system family</FormHelperText>
+            <FormHelperText>Filter by operating system</FormHelperText>
           </FormControl>
         </Grid>
 
@@ -676,8 +591,8 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
             value={osVersionPattern}
             onChange={(e) => setOsVersionPattern(e.target.value)}
             fullWidth
-            helperText="e.g., 8.*, 22.04, 2019"
-            placeholder="Enter version pattern"
+            helperText="e.g., 9.*, 22.04"
+            placeholder="Any version"
           />
         </Grid>
 
@@ -690,7 +605,7 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
               label="Architecture"
             >
               <MenuItem value="">
-                <em>Select Architecture</em>
+                <em>Any</em>
               </MenuItem>
               {ARCHITECTURE_OPTIONS.map((option) => (
                 <MenuItem key={option.value} value={option.value}>
@@ -698,118 +613,15 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
                 </MenuItem>
               ))}
             </Select>
-            <FormHelperText>Choose the system architecture</FormHelperText>
+            <FormHelperText>Filter by CPU architecture</FormHelperText>
           </FormControl>
         </Grid>
 
-        <Grid size={{ xs: 12, sm: 6 }}>
-          <Autocomplete
-            options={availableScapContent}
-            getOptionLabel={(option) => option.name}
-            value={scapContent}
-            onChange={(_, newValue) => {
-              setScapContent(newValue);
-              // Reset default profile when content changes
-              setDefaultProfile('');
-            }}
-            loading={scapContentLoading}
-            renderInput={(params) => (
-              <TextField
-                {...params}
-                label="SCAP Content"
-                helperText={
-                  scapContentError
-                    ? `Error: ${scapContentError}`
-                    : scapContentLoading
-                      ? 'Loading content...'
-                      : availableScapContent.length === 0
-                        ? 'No content available - upload content first'
-                        : 'Choose compliance content for scanning'
-                }
-                error={!!scapContentError}
-                InputProps={{
-                  ...params.InputProps,
-                  endAdornment: (
-                    <>
-                      {scapContentLoading ? <CircularProgress color="inherit" size={20} /> : null}
-                      {params.InputProps.endAdornment}
-                    </>
-                  ),
-                }}
-              />
-            )}
-            renderOption={(props, option) => (
-              <Box component="li" {...props}>
-                <Box>
-                  <Typography variant="body2" fontWeight="medium">
-                    {option.name}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    {option.os_family?.toUpperCase()} {option.os_version} •{' '}
-                    {option.compliance_framework}
-                  </Typography>
-                </Box>
-              </Box>
-            )}
-            noOptionsText={
-              scapContentLoading
-                ? 'Loading...'
-                : scapContentError
-                  ? 'Failed to load content'
-                  : 'No SCAP content available - upload content first'
-            }
-          />
-        </Grid>
-
-        <Grid size={{ xs: 12, sm: 6 }}>
-          {scapContent && scapContent.profiles && scapContent.profiles.length > 0 ? (
-            <FormControl fullWidth>
-              <InputLabel>Default Profile</InputLabel>
-              <Select
-                value={defaultProfile}
-                onChange={(e) => setDefaultProfile(e.target.value)}
-                label="Default Profile"
-              >
-                <MenuItem value="">
-                  <em>Select Profile</em>
-                </MenuItem>
-                {scapContent.profiles.map((profile, index) => {
-                  // Handle both object and string profiles
-                  const profileId = typeof profile === 'object' ? profile.id : profile;
-                  const profileTitle = typeof profile === 'object' ? profile.title : profile;
-                  const profileDescription = typeof profile === 'object' ? profile.description : '';
-
-                  return (
-                    <MenuItem key={profileId || index} value={profileId}>
-                      <Box>
-                        <Typography variant="body2">{profileTitle}</Typography>
-                        {profileDescription && (
-                          <Typography variant="caption" color="text.secondary">
-                            {profileDescription}
-                          </Typography>
-                        )}
-                      </Box>
-                    </MenuItem>
-                  );
-                })}
-              </Select>
-              <FormHelperText>Choose the default scanning profile</FormHelperText>
-            </FormControl>
-          ) : (
-            <TextField
-              label="Default Profile"
-              value={defaultProfile}
-              onChange={(e) => setDefaultProfile(e.target.value)}
-              fullWidth
-              disabled={!scapContent}
-              helperText={
-                scapContent
-                  ? 'No profiles available in selected content'
-                  : 'Select SCAP content first'
-              }
-              placeholder="Enter profile ID"
-            />
-          )}
+        {/* Compliance Settings */}
+        <Grid size={12}>
+          <Typography variant="subtitle2" color="text.secondary" sx={{ mt: 1, mb: 1 }}>
+            Compliance Settings
+          </Typography>
         </Grid>
 
         <Grid size={{ xs: 12, sm: 6 }}>
@@ -821,20 +633,15 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
               label="Compliance Framework"
             >
               <MenuItem value="">
-                <em>Select Framework</em>
+                <em>Default (CIS)</em>
               </MenuItem>
               {COMPLIANCE_FRAMEWORK_OPTIONS.map((option) => (
                 <MenuItem key={option.value} value={option.value}>
-                  <Box>
-                    <Typography variant="body2">{option.label}</Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {option.description}
-                    </Typography>
-                  </Box>
+                  {option.label}
                 </MenuItem>
               ))}
             </Select>
-            <FormHelperText>Choose the compliance standard</FormHelperText>
+            <FormHelperText>Framework used for compliance scanning</FormHelperText>
           </FormControl>
         </Grid>
 
@@ -846,7 +653,7 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
                 onChange={(e) => setAutoScanEnabled(e.target.checked)}
               />
             }
-            label="Enable automatic scanning"
+            label="Enable scheduled scanning"
           />
 
           {autoScanEnabled && (
@@ -859,197 +666,133 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
               >
                 {SCAN_SCHEDULE_OPTIONS.map((option) => (
                   <MenuItem key={option.value} value={option.value}>
-                    <Box>
-                      <Typography variant="body2">{option.label}</Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        {option.description}
-                      </Typography>
-                    </Box>
+                    {option.label}
                   </MenuItem>
                 ))}
               </Select>
-              <FormHelperText>
-                {scanSchedule === 'custom'
-                  ? 'Enter custom cron expression below'
-                  : 'Choose when to run automatic scans'}
-              </FormHelperText>
+              <FormHelperText>When to run automatic scans</FormHelperText>
             </FormControl>
-          )}
-
-          {autoScanEnabled && scanSchedule === 'custom' && (
-            <TextField
-              label="Custom Cron Expression"
-              value={scanSchedule === 'custom' ? '' : scanSchedule}
-              onChange={(e) => setScanSchedule(e.target.value)}
-              fullWidth
-              size="small"
-              sx={{ mt: 1 }}
-              helperText="e.g., 0 2 * * * (daily at 2 AM)"
-              placeholder="0 2 * * *"
-            />
           )}
         </Grid>
       </Grid>
     </Box>
   );
 
-  const renderValidationResults = () => (
+  const renderReviewAndCreate = () => (
     <Box>
-      <Typography variant="h6" gutterBottom>
-        Validation Results
-      </Typography>
+      {!createdGroupId ? (
+        <>
+          <Typography variant="h6" gutterBottom>
+            Review & Create Group
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+            Review your configuration before creating the group
+          </Typography>
 
-      {loading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}>
-          <CircularProgress />
-        </Box>
-      ) : validation ? (
-        <Box>
-          {/* Summary */}
+          {/* Summary Card */}
           <Card sx={{ mb: 3 }}>
             <CardContent>
               <Grid container spacing={2}>
                 <Grid size={{ xs: 6, sm: 3 }}>
-                  <Box sx={{ textAlign: 'center' }}>
-                    <Typography variant="h4" color="primary">
-                      {validation.summary.total_hosts}
-                    </Typography>
-                    <Typography variant="caption">Total Hosts</Typography>
-                  </Box>
+                  <Typography variant="overline" color="text.secondary">
+                    Group Name
+                  </Typography>
+                  <Typography variant="body1">{groupName}</Typography>
                 </Grid>
                 <Grid size={{ xs: 6, sm: 3 }}>
-                  <Box sx={{ textAlign: 'center' }}>
-                    <Typography variant="h4" color="success.main">
-                      {validation.summary.compatible_count}
-                    </Typography>
-                    <Typography variant="caption">Compatible</Typography>
-                  </Box>
+                  <Typography variant="overline" color="text.secondary">
+                    Hosts
+                  </Typography>
+                  <Typography variant="body1">{selectedHosts.length} selected</Typography>
                 </Grid>
                 <Grid size={{ xs: 6, sm: 3 }}>
-                  <Box sx={{ textAlign: 'center' }}>
-                    <Typography variant="h4" color="error.main">
-                      {validation.summary.incompatible_count}
-                    </Typography>
-                    <Typography variant="caption">Incompatible</Typography>
-                  </Box>
+                  <Typography variant="overline" color="text.secondary">
+                    Framework
+                  </Typography>
+                  <Typography variant="body1">{complianceFramework || 'Default (CIS)'}</Typography>
                 </Grid>
                 <Grid size={{ xs: 6, sm: 3 }}>
-                  <Box sx={{ textAlign: 'center' }}>
-                    <Typography variant="h4" color="info.main">
-                      {validation.summary.compatibility_score.toFixed(1)}%
-                    </Typography>
-                    <Typography variant="caption">Compatibility</Typography>
-                  </Box>
+                  <Typography variant="overline" color="text.secondary">
+                    Auto-Scan
+                  </Typography>
+                  <Typography variant="body1">
+                    {autoScanEnabled ? 'Enabled' : 'Disabled'}
+                  </Typography>
                 </Grid>
               </Grid>
             </CardContent>
           </Card>
 
-          {/* Warnings */}
-          {validation.warnings.length > 0 && (
-            <Alert severity="warning" sx={{ mb: 2 }}>
-              <Typography variant="subtitle2" gutterBottom>
-                Warnings:
-              </Typography>
-              <ul>
-                {validation.warnings.map((warning, index) => (
-                  <li key={index}>{warning}</li>
-                ))}
-              </ul>
-            </Alert>
-          )}
-
-          {/* Incompatible Hosts */}
-          {validation.incompatible.length > 0 && (
-            <Alert severity="error" sx={{ mb: 2 }}>
-              <Typography variant="subtitle2" gutterBottom>
-                Incompatible Hosts ({validation.incompatible.length}):
-              </Typography>
-              <Box component="div" sx={{ mt: 1 }}>
-                {validation.incompatible.slice(0, 3).map((host) => (
-                  <Chip
-                    key={host.id}
-                    label={host.hostname}
-                    size="small"
-                    color="error"
-                    sx={{ mr: 1, mb: 1 }}
-                  />
-                ))}
-                {validation.incompatible.length > 3 && (
-                  <Box component="span" sx={{ display: 'block', mt: 1 }}>
-                    <Typography variant="caption" color="text.secondary" component="span">
-                      ... and {validation.incompatible.length - 3} more
-                    </Typography>
-                  </Box>
-                )}
-              </Box>
-            </Alert>
-          )}
-
-          {/* Compatible Hosts */}
-          <Alert severity="success">
-            <Typography variant="subtitle2" gutterBottom>
-              Compatible Hosts ({validation.compatible.length}):
-            </Typography>
-            <Box component="div" sx={{ mt: 1 }}>
-              {validation.compatible.slice(0, 5).map((host) => (
-                <Chip
-                  key={host.id}
-                  label={host.hostname}
-                  size="small"
-                  color="success"
-                  sx={{ mr: 1, mb: 1 }}
-                />
-              ))}
-              {validation.compatible.length > 5 && (
-                <Box component="span" sx={{ display: 'block', mt: 1 }}>
-                  <Typography variant="caption" color="text.secondary" component="span">
-                    ... and {validation.compatible.length - 5} more
-                  </Typography>
-                </Box>
-              )}
+          {/* Validation Results */}
+          {loading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}>
+              <CircularProgress />
+              <Typography sx={{ ml: 2 }}>Validating configuration...</Typography>
             </Box>
-          </Alert>
-        </Box>
-      ) : (
-        <Typography color="text.secondary">
-          Click Next to validate the group configuration
-        </Typography>
-      )}
-    </Box>
-  );
+          ) : validation ? (
+            <Box>
+              {/* Warnings */}
+              {validation.warnings.length > 0 && (
+                <Alert severity="warning" sx={{ mb: 2 }}>
+                  <Typography variant="subtitle2" gutterBottom>
+                    Warnings:
+                  </Typography>
+                  <ul style={{ margin: 0, paddingLeft: 20 }}>
+                    {validation.warnings.map((warning, index) => (
+                      <li key={index}>{warning}</li>
+                    ))}
+                  </ul>
+                </Alert>
+              )}
 
-  const renderCreateGroup = () => (
-    <Box sx={{ textAlign: 'center', py: 4 }}>
-      {!createdGroupId ? (
-        <>
-          <GroupIcon sx={{ fontSize: 64, color: 'primary.main', mb: 2 }} />
-          <Typography variant="h6" gutterBottom>
-            Ready to Create Group
-          </Typography>
-          <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
-            Group {groupName} will be created with {selectedHosts.length} hosts
-          </Typography>
+              {/* Incompatible Hosts */}
+              {validation.incompatible.length > 0 && (
+                <Alert severity="info" sx={{ mb: 2 }}>
+                  <Typography variant="subtitle2" gutterBottom>
+                    {validation.summary.incompatible_count} host(s) may have compatibility issues:
+                  </Typography>
+                  <Box component="div" sx={{ mt: 1 }}>
+                    {validation.incompatible.slice(0, 3).map((host) => (
+                      <Chip
+                        key={host.id}
+                        label={host.hostname}
+                        size="small"
+                        sx={{ mr: 1, mb: 1 }}
+                      />
+                    ))}
+                    {validation.incompatible.length > 3 && (
+                      <Typography variant="caption" color="text.secondary">
+                        ... and {validation.incompatible.length - 3} more
+                      </Typography>
+                    )}
+                  </Box>
+                </Alert>
+              )}
 
-          {validation && validation.summary.incompatible_count > 0 && (
-            <Alert severity="info" sx={{ mb: 2 }}>
-              {validation.summary.compatible_count} compatible hosts will be assigned. Incompatible
-              hosts will be skipped.
+              {/* Ready to create */}
+              <Alert severity="success" icon={<GroupIcon />}>
+                Ready to create group <strong>{groupName}</strong> with{' '}
+                {validation.summary.compatible_count} compatible host(s)
+              </Alert>
+            </Box>
+          ) : (
+            <Alert severity="info">
+              Configuration will be validated when you click Create Group
             </Alert>
           )}
         </>
       ) : (
-        <>
+        <Box sx={{ textAlign: 'center', py: 4 }}>
           <SuccessIcon sx={{ fontSize: 64, color: 'success.main', mb: 2 }} />
           <Typography variant="h6" gutterBottom>
             Group Created Successfully
           </Typography>
           <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
-            Group {groupName} has been created.
+            Group <strong>{groupName}</strong> has been created.
           </Typography>
 
           {hostAssignmentLoading ? (
-            <Box sx={{ mb: 2 }}>
+            <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <CircularProgress size={24} sx={{ mr: 1 }} />
               <Typography variant="body2" color="text.secondary">
                 Assigning hosts to group...
@@ -1080,7 +823,7 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
               </Button>
             </Box>
           ) : null}
-        </>
+        </Box>
       )}
     </Box>
   );
@@ -1092,9 +835,7 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
       case 1:
         return renderGroupConfiguration();
       case 2:
-        return renderValidationResults();
-      case 3:
-        return renderCreateGroup();
+        return renderReviewAndCreate();
       default:
         return null;
     }
@@ -1106,17 +847,17 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
       onClose={onClose}
       maxWidth="md"
       fullWidth
-      PaperProps={{ sx: { minHeight: '70vh' } }}
+      PaperProps={{ sx: { minHeight: '60vh' } }}
     >
       <DialogTitle>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <SmartIcon color="primary" />
-          <Typography variant="h6">Smart Group Creation Wizard</Typography>
+          <GroupIcon color="primary" />
+          <Typography variant="h6">Create Host Group</Typography>
         </Box>
       </DialogTitle>
 
       <DialogContent>
-        {error && (
+        {error && !error.includes('Group was created successfully') && (
           <Alert severity="error" sx={{ mb: 2 }}>
             {error}
           </Alert>
@@ -1133,16 +874,18 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
       </DialogContent>
 
       <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
+        <Button onClick={onClose} disabled={loading || hostAssignmentLoading}>
+          Cancel
+        </Button>
 
         <Button
           onClick={handleBack}
-          disabled={activeStep === 0 || loading || hostAssignmentLoading}
+          disabled={activeStep === 0 || loading || hostAssignmentLoading || !!createdGroupId}
         >
           Back
         </Button>
 
-        {/* Show Create Group button only if group hasn't been created yet */}
+        {/* Show Create Group button on final step if group hasn't been created yet */}
         {activeStep === steps.length - 1 && !createdGroupId && (
           <Button variant="contained" onClick={handleNext} disabled={!canProceed() || loading}>
             {loading ? <CircularProgress size={20} /> : 'Create Group'}
@@ -1157,18 +900,20 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
         )}
 
         {/* Show Done button when group is created and assignment is complete */}
-        {createdGroupId && !hostAssignmentLoading && !error && (
-          <Button
-            variant="contained"
-            color="success"
-            onClick={() => {
-              onGroupCreated();
-              onClose();
-            }}
-          >
-            Done
-          </Button>
-        )}
+        {createdGroupId &&
+          !hostAssignmentLoading &&
+          !error?.includes('Group was created successfully') && (
+            <Button
+              variant="contained"
+              color="success"
+              onClick={() => {
+                onGroupCreated();
+                onClose();
+              }}
+            >
+              Done
+            </Button>
+          )}
       </DialogActions>
     </Dialog>
   );
