@@ -69,7 +69,7 @@ psutil==7.2.1  # System and process utilities for health monitoring
 # File handling
 aiofiles==24.1.0
 python-magic==0.4.27
-Pillow==12.1.0  # Updated for Python 3.12+ (from 11.3.0, Dependabot PR #170)
+Pillow==12.1.1  # Updated for Python 3.12+ (from 11.3.0, Dependabot PR #170)
                 # Breaking change: Requires Python 3.10+, compatible with Python 3.12
                 # Security: CVE-2024-28219 (buffer overflow) fixed
 lxml==5.3.0
