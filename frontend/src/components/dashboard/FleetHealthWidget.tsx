@@ -1,7 +1,24 @@
 import React from 'react';
-import { Card, CardContent, Box, Typography, Chip, useTheme, alpha } from '@mui/material';
+import { useNavigate } from 'react-router-dom';
+import {
+  Card,
+  CardContent,
+  Box,
+  Typography,
+  Chip,
+  IconButton,
+  Tooltip as MuiTooltip,
+  useTheme,
+  alpha,
+} from '@mui/material';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
-import { CheckCircle, Error, Warning, Schedule } from '@mui/icons-material';
+import {
+  CheckCircle,
+  Error,
+  Warning,
+  Schedule,
+  OpenInFull as OpenInFullIcon,
+} from '@mui/icons-material';
 
 interface FleetHealthData {
   online: number;
@@ -53,6 +70,11 @@ interface FleetHealthWidgetProps {
 
 const FleetHealthWidget: React.FC<FleetHealthWidgetProps> = ({ data, groups, onSegmentClick }) => {
   const theme = useTheme();
+  const navigate = useNavigate();
+
+  const handleExpand = () => {
+    navigate('/oview?tab=1'); // Navigate to Host Monitoring tab
+  };
 
   // Ensure data integrity with all adaptive monitoring states
   const safeData = {
@@ -157,9 +179,14 @@ const FleetHealthWidget: React.FC<FleetHealthWidgetProps> = ({ data, groups, onS
   return (
     <Card sx={{ height: '100%' }}>
       <CardContent>
-        <Typography variant="h6" gutterBottom>
-          Fleet Health Overview
-        </Typography>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+          <Typography variant="h6">Fleet Health Overview</Typography>
+          <MuiTooltip title="View Host Monitoring">
+            <IconButton size="small" onClick={handleExpand}>
+              <OpenInFullIcon fontSize="small" />
+            </IconButton>
+          </MuiTooltip>
+        </Box>
 
         <Box
           sx={{
