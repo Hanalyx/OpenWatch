@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Container, Box, Skeleton, Alert, Button, Typography } from '@mui/material';
 import Grid from '@mui/material/Grid';
 import { useNavigate } from 'react-router-dom';
-import { Scanner, AddCircle, Warning, Assessment } from '@mui/icons-material';
+import { AddCircle, Assessment, Storage as StorageIcon } from '@mui/icons-material';
 
 // Dashboard components
 import SmartAlertBar from '../components/dashboard/SmartAlertBar';
@@ -12,10 +12,22 @@ import ActivityFeed, { type ActivityItem } from '../components/dashboard/Activit
 import ComplianceTrend from '../components/dashboard/ComplianceTrend';
 import PriorityHosts from '../components/dashboard/PriorityHosts';
 import DriftAlertsWidget from '../components/baselines/DriftAlertsWidget';
-import { SchedulerStatusWidget } from './Dashboard/widgets';
+import {
+  SchedulerStatusWidget,
+  SummaryBar,
+  SecurityEventsWidget,
+  PostureWidget,
+  SavedQueriesWidget,
+} from './Dashboard/widgets';
 import { api } from '../services/api';
-import { owcaService, type FleetStatistics } from '../services/owcaService';
+import {
+  owcaService,
+  type FleetStatistics,
+  type FleetComplianceTrend,
+} from '../services/owcaService';
 import DashboardErrorBoundary from '../components/dashboard/DashboardErrorBoundary';
+import { useSecurityStats } from '../hooks/useSecurityStats';
+import { useMonitoringStats } from '../hooks/useMonitoringStats';
 
 /**
  * Compliance trend data point for dashboard charts
@@ -155,6 +167,16 @@ interface NormalizedHost {
   status: string;
 }
 
+/**
+ * Command Center Dashboard
+ *
+ * Unified visibility dashboard consolidating:
+ * - Security Audit (from OView)
+ * - Temporal Compliance (from /compliance/posture)
+ * - Saved Audit Queries (from /audit/queries)
+ *
+ * Provides single-glance metrics and drill-down navigation.
+ */
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
@@ -164,6 +186,10 @@ const Dashboard: React.FC = () => {
   const [timeRange, setTimeRange] = useState<'7d' | '30d' | '90d'>('30d');
   const [_fleetStats, setFleetStats] = useState<FleetStatistics | null>(null);
 
+  // Command Center: Security and Monitoring stats from hooks
+  const { data: securityStats } = useSecurityStats();
+  const { data: monitoringStats } = useMonitoringStats();
+
   // Dashboard data state - adaptive monitoring states
   const [onlineHosts, setOnlineHosts] = useState(0);
   const [degradedHosts, setDegradedHosts] = useState(0);
@@ -171,7 +197,7 @@ const Dashboard: React.FC = () => {
   const [downHosts, setDownHosts] = useState(0);
   const [scanningHosts, setScanningHosts] = useState(0);
   const [maintenanceHosts, setMaintenanceHosts] = useState(0);
-  const [_totalHosts, setTotalHosts] = useState(0);
+  const [totalHosts, setTotalHosts] = useState(0);
   const [criticalIssues, setCriticalIssues] = useState(0);
   const [trendData, setTrendData] = useState<ComplianceTrendData[]>([]);
   const [activities, setActivities] = useState<ActivityItem[]>([]);
@@ -319,28 +345,56 @@ const Dashboard: React.FC = () => {
       const totalPassed = 0; // TODO: Add total_passed_rules to FleetStatistics model
       const overallCompliance = Math.round(owcaFleetStats.average_compliance);
 
-      // Generate trend data showing current compliance state
-      // Use ComplianceTrendData interface for type-safe trend chart data
-      // TODO(feature): Implement historical trend data from OWCA trend analysis API
-      // Currently showing single data point (current state)
-      // Future: Replace with actual historical data from /api/compliance/owca/host/{id}/trend
-      const today = new Date().toISOString().split('T')[0];
-      const trendDataArray: ComplianceTrendData[] =
-        normalizedHosts.length > 0
-          ? [
-              {
-                date: today,
-                overall: Math.max(0, Math.min(100, overallCompliance)),
-                critical: Math.max(0, totalCritical),
-                high: Math.max(0, totalHigh),
-                medium: Math.max(0, totalMedium),
-                low: Math.max(0, totalLow),
-              },
-            ]
-          : [
-              // Fallback data when no hosts exist
-              { date: today, overall: 0, critical: 0, high: 0, medium: 0, low: 0 },
-            ];
+      // Fetch historical trend data from OWCA fleet trend API
+      // This uses posture_snapshots as the single source of truth
+      // for historical fleet compliance data
+      let trendDataArray: ComplianceTrendData[] = [];
+
+      // Convert time range to days for API call
+      const trendDays = timeRange === '7d' ? 7 : timeRange === '90d' ? 90 : 30;
+
+      try {
+        const fleetTrend: FleetComplianceTrend | null = await owcaService.getFleetTrend(trendDays);
+
+        if (fleetTrend && fleetTrend.data_points && fleetTrend.data_points.length > 0) {
+          // Map fleet trend data points to chart format
+          // Note: Chart shows overall compliance over time (not severity counts)
+          trendDataArray = fleetTrend.data_points.map((point) => ({
+            date: point.date,
+            overall: Math.max(0, Math.min(100, point.average_compliance)),
+            // Issue counts are available but we show them as indicators, not percentages
+            // The chart Y-axis is 0-100% so we normalize these as percentage contributions
+            critical: point.total_critical_issues,
+            high: point.total_high_issues,
+            medium: point.total_medium_issues,
+            low: point.total_low_issues,
+          }));
+        }
+      } catch (trendError) {
+        // Log but don't fail the whole dashboard if trend data fails
+        console.warn('Failed to fetch fleet trend data, using current state only:', trendError);
+      }
+
+      // Fallback to current state if no historical data available
+      if (trendDataArray.length === 0) {
+        const today = new Date().toISOString().split('T')[0];
+        trendDataArray =
+          normalizedHosts.length > 0
+            ? [
+                {
+                  date: today,
+                  overall: Math.max(0, Math.min(100, overallCompliance)),
+                  critical: Math.max(0, totalCritical),
+                  high: Math.max(0, totalHigh),
+                  medium: Math.max(0, totalMedium),
+                  low: Math.max(0, totalLow),
+                },
+              ]
+            : [
+                // Fallback data when no hosts exist
+                { date: today, overall: 0, critical: 0, high: 0, medium: 0, low: 0 },
+              ];
+      }
 
       // Generate activity items from recent scans
       // Use RawScanData type for backend scan data with snake_case/camelCase fields
@@ -497,9 +551,6 @@ const Dashboard: React.FC = () => {
     } finally {
       setLoading(false);
     }
-    // ESLint disable: timeRange is intentionally included as useCallback dependency for data refresh
-    // This is correct - we want to refetch when timeRange changes
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navigate, timeRange]);
 
   // Load data on component mount
@@ -520,6 +571,8 @@ const Dashboard: React.FC = () => {
           <Skeleton variant="rectangular" height={32} width="40%" sx={{ mb: 2 }} />
           <Skeleton variant="rectangular" height={20} width="60%" />
         </Box>
+        {/* Summary Bar skeleton */}
+        <Skeleton variant="rectangular" height={80} sx={{ mb: 3 }} />
         <Grid container spacing={3}>
           {[1, 2, 3, 4].map((i) => (
             <Grid size={{ xs: 12, sm: 6, md: 3 }} key={i}>
@@ -555,14 +608,14 @@ const Dashboard: React.FC = () => {
           gutterBottom
           sx={{ overflow: 'visible', wordBreak: 'normal', whiteSpace: 'normal' }}
         >
-          Security Compliance Dashboard
+          Command Center
         </Typography>
         <Typography
           variant="body1"
           color="text.secondary"
           sx={{ overflow: 'visible', wordBreak: 'normal', whiteSpace: 'normal' }}
         >
-          Monitor your infrastructure security posture and compliance status
+          Unified security, compliance, and infrastructure visibility
         </Typography>
       </Box>
 
@@ -580,6 +633,18 @@ const Dashboard: React.FC = () => {
           </Button>
         </Alert>
       )}
+
+      {/* Summary Bar - Command Center key metrics */}
+      <SummaryBar
+        compliancePercent={dashboardData?.stats?.avgCompliance ?? null}
+        onlineHosts={onlineHosts}
+        totalHosts={totalHosts}
+        failedLogins={securityStats?.failed_logins ?? 0}
+        totalEvents={securityStats?.total_events ?? 0}
+        activeAlerts={criticalIssues}
+        avgResponseMs={monitoringStats?.avg_response_time_ms ?? null}
+        isLoading={loading}
+      />
 
       {/* Smart Alert Bar */}
       <SmartAlertBar
@@ -600,19 +665,9 @@ const Dashboard: React.FC = () => {
         onFilterClick={handleFilterClick}
       />
 
-      {/* Quick Actions */}
+      {/* Quick Actions - Updated for Command Center */}
       <Box sx={{ mb: 4 }}>
         <Grid container spacing={3}>
-          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-            <QuickActionCard
-              title="Manual Scan"
-              subtitle="Run ad-hoc compliance check"
-              icon={<Scanner />}
-              color="secondary"
-              onClick={() => navigate('/scans/create')}
-              badge={0}
-            />
-          </Grid>
           <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <QuickActionCard
               title="Add Host"
@@ -626,7 +681,7 @@ const Dashboard: React.FC = () => {
           <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <QuickActionCard
               title="View Reports"
-              subtitle="Compliance reports"
+              subtitle="Security audit & monitoring"
               icon={<Assessment />}
               color="info"
               onClick={() => navigate('/oview')}
@@ -635,9 +690,19 @@ const Dashboard: React.FC = () => {
           </Grid>
           <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <QuickActionCard
+              title="Saved Queries"
+              subtitle="Audit query builder"
+              icon={<StorageIcon />}
+              color="secondary"
+              onClick={() => navigate('/audit/queries')}
+              badge={0}
+            />
+          </Grid>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+            <QuickActionCard
               title="Active Alerts"
               subtitle="Compliance drift & issues"
-              icon={<Warning />}
+              icon={<Assessment />}
               color="error"
               onClick={() => navigate('/hosts')}
               badge={criticalIssues}
@@ -646,11 +711,18 @@ const Dashboard: React.FC = () => {
         </Grid>
       </Box>
 
-      {/* Main Content Grid */}
+      {/* Main Content Grid - Command Center Layout */}
       <Grid container spacing={3}>
-        {/* Left Column - Fleet Health & Compliance */}
+        {/* Left Column (8/12) - Primary widgets */}
         <Grid size={{ xs: 12, lg: 8 }}>
           <Grid container spacing={3}>
+            {/* Security Events Widget - NEW */}
+            <Grid size={{ xs: 12, md: 6 }}>
+              <DashboardErrorBoundary onRetry={fetchDashboardData}>
+                <SecurityEventsWidget />
+              </DashboardErrorBoundary>
+            </Grid>
+
             {/* Fleet Health Widget */}
             <Grid size={{ xs: 12, md: 6 }}>
               <DashboardErrorBoundary onRetry={fetchDashboardData}>
@@ -668,18 +740,7 @@ const Dashboard: React.FC = () => {
               </DashboardErrorBoundary>
             </Grid>
 
-            {/* Compliance Trend */}
-            <Grid size={{ xs: 12, md: 6 }}>
-              <DashboardErrorBoundary onRetry={fetchDashboardData}>
-                <ComplianceTrend
-                  data={trendData}
-                  timeRange={timeRange}
-                  onTimeRangeChange={setTimeRange}
-                />
-              </DashboardErrorBoundary>
-            </Grid>
-
-            {/* Priority Hosts */}
+            {/* Priority Hosts - Hosts Needing Attention */}
             <Grid size={{ xs: 12 }}>
               <DashboardErrorBoundary onRetry={fetchDashboardData}>
                 <PriorityHosts
@@ -719,10 +780,21 @@ const Dashboard: React.FC = () => {
                 />
               </DashboardErrorBoundary>
             </Grid>
+
+            {/* Compliance Trend */}
+            <Grid size={{ xs: 12 }}>
+              <DashboardErrorBoundary onRetry={fetchDashboardData}>
+                <ComplianceTrend
+                  data={trendData}
+                  timeRange={timeRange}
+                  onTimeRangeChange={setTimeRange}
+                />
+              </DashboardErrorBoundary>
+            </Grid>
           </Grid>
         </Grid>
 
-        {/* Right Column - Activity Feed */}
+        {/* Right Column (4/12) - Secondary widgets */}
         <Grid size={{ xs: 12, lg: 4 }}>
           <Grid container spacing={3}>
             {/* Scheduler Status Widget */}
@@ -732,10 +804,24 @@ const Dashboard: React.FC = () => {
               </DashboardErrorBoundary>
             </Grid>
 
+            {/* Compliance Posture Widget - NEW */}
+            <Grid size={{ xs: 12 }}>
+              <DashboardErrorBoundary onRetry={fetchDashboardData}>
+                <PostureWidget />
+              </DashboardErrorBoundary>
+            </Grid>
+
             {/* Drift Alerts Widget */}
             <Grid size={{ xs: 12 }}>
               <DashboardErrorBoundary onRetry={fetchDashboardData}>
                 <DriftAlertsWidget limit={5} autoRefresh={true} refreshInterval={30000} />
+              </DashboardErrorBoundary>
+            </Grid>
+
+            {/* Saved Queries Widget - NEW */}
+            <Grid size={{ xs: 12 }}>
+              <DashboardErrorBoundary onRetry={fetchDashboardData}>
+                <SavedQueriesWidget />
               </DashboardErrorBoundary>
             </Grid>
 

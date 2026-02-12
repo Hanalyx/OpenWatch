@@ -24,14 +24,19 @@ import { format } from 'date-fns';
 /**
  * Compliance data point for trend visualization
  * Represents compliance scores at a specific point in time
+ *
+ * Note: The trend chart now shows overall compliance score over time.
+ * Severity counts (critical, high, medium, low) are available for
+ * tooltip display but are NOT shown as chart lines since they represent
+ * issue counts (0-n) not percentages (0-100%).
  */
 interface ComplianceDataPoint {
   date: string;
-  overall: number;
-  critical: number;
-  high: number;
-  medium: number;
-  low: number;
+  overall: number; // Overall compliance percentage (0-100)
+  critical?: number; // Critical issue count (for tooltip only)
+  high?: number; // High issue count (for tooltip only)
+  medium?: number; // Medium issue count (for tooltip only)
+  low?: number; // Low issue count (for tooltip only)
 }
 
 /**
@@ -84,6 +89,7 @@ const ComplianceTrend: React.FC<ComplianceTrendProps> = ({
   const CustomTooltip = React.useCallback(
     ({ active, payload, label }: CustomTooltipProps) => {
       if (active && payload && payload.length) {
+        const dataPoint = payload[0]?.payload;
         return (
           <Box
             sx={{
@@ -97,6 +103,7 @@ const ComplianceTrend: React.FC<ComplianceTrendProps> = ({
             <Typography variant="subtitle2" gutterBottom>
               {format(new Date(label || ''), 'MMM dd, yyyy')}
             </Typography>
+            {/* Overall compliance percentage */}
             {payload.map((entry: TooltipPayloadEntry) => (
               <Box key={entry.name} sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
                 <Box
@@ -108,10 +115,28 @@ const ComplianceTrend: React.FC<ComplianceTrendProps> = ({
                   }}
                 />
                 <Typography variant="caption">
-                  {entry.name}: <strong>{entry.value}%</strong>
+                  {entry.name}: <strong>{entry.value.toFixed(1)}%</strong>
                 </Typography>
               </Box>
             ))}
+            {/* Issue counts (if available) */}
+            {dataPoint && (dataPoint.critical !== undefined || dataPoint.high !== undefined) && (
+              <Box sx={{ mt: 1, pt: 1, borderTop: `1px solid ${theme.palette.divider}` }}>
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  sx={{ display: 'block', mb: 0.5 }}
+                >
+                  Issues:
+                </Typography>
+                <Typography variant="caption" sx={{ display: 'block' }}>
+                  Critical: {dataPoint.critical ?? 0} | High: {dataPoint.high ?? 0}
+                </Typography>
+                <Typography variant="caption" sx={{ display: 'block' }}>
+                  Medium: {dataPoint.medium ?? 0} | Low: {dataPoint.low ?? 0}
+                </Typography>
+              </Box>
+            )}
           </Box>
         );
       }
@@ -125,12 +150,10 @@ const ComplianceTrend: React.FC<ComplianceTrendProps> = ({
     return format(date, 'MMM d');
   };
 
+  // Colors for chart visualization
+  // Only 'overall' is used for the chart line; others kept for potential future use
   const colors = {
     overall: theme.palette.mode === 'dark' ? '#90caf9' : theme.palette.primary.main,
-    critical: theme.palette.mode === 'dark' ? '#f44336' : theme.palette.error.main,
-    high: theme.palette.mode === 'dark' ? '#ff9800' : theme.palette.warning.dark,
-    medium: theme.palette.mode === 'dark' ? '#ffb74d' : theme.palette.warning.main,
-    low: theme.palette.mode === 'dark' ? '#64b5f6' : theme.palette.info.main,
   };
 
   return (
@@ -199,41 +222,24 @@ const ComplianceTrend: React.FC<ComplianceTrendProps> = ({
                 {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                 <Tooltip content={CustomTooltip as any} />
                 <Legend wrapperStyle={{ fontSize: '0.875rem' }} iconType="circle" />
+                {/* Overall compliance trend - the primary metric */}
                 <Area
                   type="monotone"
                   dataKey="overall"
-                  name="Overall"
+                  name="Overall Compliance"
                   stroke={colors.overall}
                   fillOpacity={1}
                   fill="url(#colorOverall)"
                   strokeWidth={3}
                 />
-                <Area
-                  type="monotone"
-                  dataKey="critical"
-                  name="Critical"
-                  stroke={colors.critical}
-                  strokeWidth={3}
-                  fill="none"
-                />
-                <Area
-                  type="monotone"
-                  dataKey="high"
-                  name="High"
-                  stroke={colors.high}
-                  strokeWidth={3}
-                  fill="none"
-                  strokeDasharray="5 5"
-                />
-                <Area
-                  type="monotone"
-                  dataKey="medium"
-                  name="Medium"
-                  stroke={colors.medium}
-                  strokeWidth={2}
-                  fill="none"
-                  strokeDasharray="3 3"
-                />
+                {/*
+                  NOTE: Severity issue counts (critical, high, medium, low) are NOT shown as
+                  chart lines because they are raw counts (0-n), not percentages (0-100%).
+                  These values are available in the tooltip when hovering data points.
+
+                  The trend chart focuses on overall compliance percentage over time,
+                  which is the key metric for understanding fleet compliance health.
+                */}
               </AreaChart>
             </ResponsiveContainer>
           ) : (

@@ -10,11 +10,14 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
+from celery.exceptions import SoftTimeLimitExceeded
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.celery_app import celery_app
 from app.database import SessionLocal
+from app.services.compliance import TemporalComplianceService
+from app.services.monitoring import DriftDetectionService
 from app.utils.mutation_builders import InsertBuilder, UpdateBuilder
 
 logger = logging.getLogger(__name__)
@@ -115,8 +118,6 @@ def execute_aegis_scan_task(
     Returns:
         Dict with scan results summary.
     """
-    from celery.exceptions import SoftTimeLimitExceeded
-
     db = SessionLocal()
     start_time = datetime.now(timezone.utc)
 
@@ -316,6 +317,43 @@ def execute_aegis_scan_task(
             duration_ms,
         )
 
+        # Post-scan processing: drift detection and posture snapshot
+        # These are non-critical - failures are logged but don't fail the scan
+        drift_result = None
+        baseline_created = False
+        snapshot_created = False
+
+        try:
+            # Drift detection with auto-baseline creation
+            drift_service = DriftDetectionService()
+            drift_event, new_baseline = drift_service.detect_drift(
+                db, uuid.UUID(host_id), uuid.UUID(scan_id), auto_baseline=True
+            )
+
+            if new_baseline:
+                baseline_created = True
+                logger.info(f"Auto-baseline created for host {host_id}: {new_baseline.baseline_score:.1f}%")
+            elif drift_event:
+                drift_result = drift_event.drift_type
+                logger.info(
+                    f"Drift detected for host {host_id}: {drift_event.drift_type} "
+                    f"({drift_event.score_delta:+.1f}pp)"
+                )
+
+        except Exception as drift_exc:
+            logger.warning(f"Drift detection failed for scan {scan_id}: {drift_exc}")
+
+        try:
+            # Create posture snapshot for historical tracking
+            temporal_service = TemporalComplianceService(db)
+            snapshot = temporal_service.create_snapshot(uuid.UUID(host_id))
+            if snapshot:
+                snapshot_created = True
+                logger.info(f"Posture snapshot created for host {host_id}")
+
+        except Exception as snapshot_exc:
+            logger.warning(f"Posture snapshot creation failed for host {host_id}: {snapshot_exc}")
+
         return {
             "scan_id": scan_id,
             "status": "completed",
@@ -328,6 +366,9 @@ def execute_aegis_scan_task(
             "compliance_score": round(score, 2),
             "aegis_version": aegis_version,
             "duration_ms": duration_ms,
+            "drift_result": drift_result,
+            "baseline_created": baseline_created,
+            "snapshot_created": snapshot_created,
         }
 
     except SoftTimeLimitExceeded:

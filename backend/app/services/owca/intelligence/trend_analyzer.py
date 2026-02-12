@@ -4,6 +4,11 @@ OWCA Intelligence Layer - Trend Analysis
 Analyzes compliance trends over time to identify patterns and improvement/decline rates.
 Provides historical compliance data for dashboard visualizations and reporting.
 
+Unified Data Source:
+    This analyzer now reads from posture_snapshots as the primary source for historical
+    compliance data, with fallback to live scans for hosts without snapshots.
+    This unifies OWCA's intelligence layer with Temporal Compliance.
+
 Security: All database queries use QueryBuilder for SQL injection protection.
 """
 
@@ -109,8 +114,11 @@ class TrendAnalyzer:
         """
         Retrieve historical compliance data points.
 
-        Queries scan results over the specified time period and aggregates
-        by date to create trend data points.
+        PRIMARY SOURCE: posture_snapshots table (daily compliance snapshots)
+        FALLBACK: live scans table (for hosts without snapshots)
+
+        This unified approach ensures TrendAnalyzer uses the same historical
+        data source as Temporal Compliance, providing consistent trend analysis.
 
         Args:
             host_id: UUID of the host
@@ -120,15 +128,107 @@ class TrendAnalyzer:
             List of TrendDataPoint objects sorted by date (oldest first)
 
         Security:
-            Uses parameterized SQL queries via QueryBuilder to prevent
-            SQL injection attacks.
+            Uses parameterized SQL queries to prevent SQL injection attacks.
         """
-        # Calculate date range
+        # Try posture_snapshots first (unified data source)
+        data_points = await self._get_historical_data_from_snapshots(host_id, days)
+
+        # Fallback to scan-based data if no snapshots exist
+        if not data_points:
+            logger.debug(f"No snapshots found for host {host_id}, falling back to scan-based data")
+            data_points = await self._get_historical_data_from_scans(host_id, days)
+
+        logger.info(f"Retrieved {len(data_points)} historical data points for trend analysis")
+        return data_points
+
+    async def _get_historical_data_from_snapshots(self, host_id: UUID, days: int) -> List[TrendDataPoint]:
+        """
+        Retrieve historical compliance data from posture_snapshots table.
+
+        This is the PRIMARY data source for trend analysis, providing consistent
+        daily snapshots of compliance posture.
+
+        Args:
+            host_id: UUID of the host
+            days: Number of days to retrieve
+
+        Returns:
+            List of TrendDataPoint objects sorted by date (oldest first)
+        """
         end_date = datetime.utcnow()
         start_date = end_date - timedelta(days=days)
 
-        # Query historical scan results
-        # Note: This aggregates by date, taking the most recent scan per day
+        query = text(
+            """
+            SELECT
+                DATE(snapshot_date) AS snapshot_day,
+                compliance_score AS overall_score,
+                severity_critical_passed,
+                severity_critical_failed,
+                severity_high_passed,
+                severity_high_failed,
+                severity_medium_passed,
+                severity_medium_failed,
+                severity_low_passed,
+                severity_low_failed,
+                source_scan_id
+            FROM posture_snapshots
+            WHERE host_id = :host_id
+              AND snapshot_date >= :start_date
+              AND snapshot_date <= :end_date
+            ORDER BY snapshot_day ASC
+            """
+        )
+
+        results = self.db.execute(
+            query,
+            {
+                "host_id": str(host_id),
+                "start_date": start_date,
+                "end_date": end_date,
+            },
+        ).fetchall()
+
+        data_points = []
+        for row in results:
+            data_points.append(
+                TrendDataPoint(
+                    date=row.snapshot_day.strftime("%Y-%m-%d"),
+                    overall_score=float(row.overall_score),
+                    critical_passed=row.severity_critical_passed or 0,
+                    critical_failed=row.severity_critical_failed or 0,
+                    high_passed=row.severity_high_passed or 0,
+                    high_failed=row.severity_high_failed or 0,
+                    medium_passed=row.severity_medium_passed or 0,
+                    medium_failed=row.severity_medium_failed or 0,
+                    low_passed=row.severity_low_passed or 0,
+                    low_failed=row.severity_low_failed or 0,
+                    source_scan_id=row.source_scan_id,
+                )
+            )
+
+        if data_points:
+            logger.debug(f"Retrieved {len(data_points)} data points from posture_snapshots")
+
+        return data_points
+
+    async def _get_historical_data_from_scans(self, host_id: UUID, days: int) -> List[TrendDataPoint]:
+        """
+        Retrieve historical compliance data from scans table (FALLBACK).
+
+        Used when posture_snapshots don't exist for a host (e.g., new hosts
+        or hosts that haven't had daily snapshot task run).
+
+        Args:
+            host_id: UUID of the host
+            days: Number of days to retrieve
+
+        Returns:
+            List of TrendDataPoint objects sorted by date (oldest first)
+        """
+        end_date = datetime.utcnow()
+        start_date = end_date - timedelta(days=days)
+
         query = text(
             """
             WITH daily_scans AS (
@@ -187,7 +287,6 @@ class TrendAnalyzer:
             },
         ).fetchall()
 
-        # Convert to TrendDataPoint objects
         data_points = []
         for row in results:
             data_points.append(
@@ -205,7 +304,9 @@ class TrendAnalyzer:
                 )
             )
 
-        logger.info(f"Retrieved {len(data_points)} historical data points for trend analysis")
+        if data_points:
+            logger.debug(f"Retrieved {len(data_points)} data points from scans (fallback)")
+
         return data_points
 
     def _calculate_trend(self, data_points: List[TrendDataPoint]) -> tuple[TrendDirection, Optional[float]]:
@@ -272,6 +373,9 @@ class TrendAnalyzer:
         Aggregates compliance trends across all hosts in the organization
         to provide an overall fleet trend analysis.
 
+        PRIMARY SOURCE: posture_snapshots table (daily compliance snapshots)
+        FALLBACK: live scans table (for systems without snapshots)
+
         Args:
             days: Number of days to analyze (default: 30)
 
@@ -283,11 +387,110 @@ class TrendAnalyzer:
             >>> fleet_trend = await analyzer.get_fleet_trend(days=90)
             >>> print(f"Fleet trending: {fleet_trend.trend_direction}")
         """
-        # Calculate date range
+        # Try posture_snapshots first (unified data source)
+        data_points = await self._get_fleet_trend_from_snapshots(days)
+
+        # Fallback to scan-based data if no snapshots exist
+        if not data_points:
+            logger.debug("No fleet snapshots found, falling back to scan-based data")
+            data_points = await self._get_fleet_trend_from_scans(days)
+
+        if len(data_points) < 2:
+            logger.info(f"Insufficient fleet data for trend analysis: {len(data_points)} points")
+            return None
+
+        # Calculate trend
+        trend_direction, improvement_rate = self._calculate_trend(data_points)
+
+        # Use a placeholder UUID for fleet-level (could be organization ID)
+        fleet_id = UUID("00000000-0000-0000-0000-000000000000")
+
+        return TrendData(
+            entity_id=fleet_id,
+            entity_type="organization",
+            time_period_days=days,
+            data_points=data_points,
+            trend_direction=trend_direction,
+            improvement_rate=improvement_rate,
+            calculated_at=datetime.utcnow(),
+        )
+
+    async def _get_fleet_trend_from_snapshots(self, days: int) -> List[TrendDataPoint]:
+        """
+        Retrieve fleet-wide trend data from posture_snapshots table.
+
+        This is the PRIMARY data source for fleet trend analysis.
+
+        Args:
+            days: Number of days to retrieve
+
+        Returns:
+            List of TrendDataPoint objects sorted by date (oldest first)
+        """
         end_date = datetime.utcnow()
         start_date = end_date - timedelta(days=days)
 
-        # Query fleet-wide daily averages
+        query = text(
+            """
+            SELECT
+                DATE(snapshot_date) AS snapshot_day,
+                COUNT(*) AS total_hosts,
+                AVG(compliance_score) AS avg_score,
+                SUM(severity_critical_passed) AS critical_passed,
+                SUM(severity_critical_failed) AS critical_failed,
+                SUM(severity_high_passed) AS high_passed,
+                SUM(severity_high_failed) AS high_failed,
+                SUM(severity_medium_passed) AS medium_passed,
+                SUM(severity_medium_failed) AS medium_failed,
+                SUM(severity_low_passed) AS low_passed,
+                SUM(severity_low_failed) AS low_failed
+            FROM posture_snapshots
+            WHERE snapshot_date >= :start_date
+              AND snapshot_date <= :end_date
+            GROUP BY DATE(snapshot_date)
+            ORDER BY snapshot_day ASC
+            """
+        )
+
+        results = self.db.execute(query, {"start_date": start_date, "end_date": end_date}).fetchall()
+
+        data_points = []
+        for row in results:
+            data_points.append(
+                TrendDataPoint(
+                    date=row.snapshot_day.strftime("%Y-%m-%d"),
+                    overall_score=round(float(row.avg_score), 2),
+                    critical_passed=int(row.critical_passed or 0),
+                    critical_failed=int(row.critical_failed or 0),
+                    high_passed=int(row.high_passed or 0),
+                    high_failed=int(row.high_failed or 0),
+                    medium_passed=int(row.medium_passed or 0),
+                    medium_failed=int(row.medium_failed or 0),
+                    low_passed=int(row.low_passed or 0),
+                    low_failed=int(row.low_failed or 0),
+                )
+            )
+
+        if data_points:
+            logger.debug(f"Retrieved {len(data_points)} fleet trend points from posture_snapshots")
+
+        return data_points
+
+    async def _get_fleet_trend_from_scans(self, days: int) -> List[TrendDataPoint]:
+        """
+        Retrieve fleet-wide trend data from scans table (FALLBACK).
+
+        Used when posture_snapshots don't exist.
+
+        Args:
+            days: Number of days to retrieve
+
+        Returns:
+            List of TrendDataPoint objects sorted by date (oldest first)
+        """
+        end_date = datetime.utcnow()
+        start_date = end_date - timedelta(days=days)
+
         query = text(
             """
             WITH daily_fleet_scores AS (
@@ -322,11 +525,6 @@ class TrendAnalyzer:
 
         results = self.db.execute(query, {"start_date": start_date, "end_date": end_date}).fetchall()
 
-        if len(results) < 2:
-            logger.info(f"Insufficient fleet data for trend analysis: {len(results)} points")
-            return None
-
-        # Convert to TrendDataPoint objects
         data_points = []
         for row in results:
             data_points.append(
@@ -344,18 +542,7 @@ class TrendAnalyzer:
                 )
             )
 
-        # Calculate trend
-        trend_direction, improvement_rate = self._calculate_trend(data_points)
+        if data_points:
+            logger.debug(f"Retrieved {len(data_points)} fleet trend points from scans (fallback)")
 
-        # Use a placeholder UUID for fleet-level (could be organization ID)
-        fleet_id = UUID("00000000-0000-0000-0000-000000000000")
-
-        return TrendData(
-            entity_id=fleet_id,
-            entity_type="organization",
-            time_period_days=days,
-            data_points=data_points,
-            trend_direction=trend_direction,
-            improvement_rate=improvement_rate,
-            calculated_at=datetime.utcnow(),
-        )
+        return data_points

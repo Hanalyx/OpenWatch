@@ -14,10 +14,17 @@ Drift Types:
 Drift Calculation:
     Uses percentage points (absolute change), NOT percent change
     Example: 80% → 70% = 10pp (major drift), NOT 12.5% change
+
+Auto-Baseline (Hybrid Approach):
+    - First scan automatically creates baseline (no drift event)
+    - Subsequent scans compare against baseline
+    - Users can manually re-baseline via UI
+    - Future: Auto-update on sustained improvement (configurable)
 """
 
 import logging
-from typing import Dict, Optional
+from datetime import datetime
+from typing import Dict, Optional, Tuple
 from uuid import UUID
 
 from sqlalchemy import text
@@ -37,34 +44,52 @@ class DriftDetectionService:
     significant deviations in compliance posture.
     """
 
-    def detect_drift(self, db: Session, host_id: UUID, scan_id: UUID) -> Optional[ScanDriftEvent]:
+    def detect_drift(
+        self, db: Session, host_id: UUID, scan_id: UUID, auto_baseline: bool = True
+    ) -> Tuple[Optional[ScanDriftEvent], Optional[ScanBaseline]]:
         """
         Detect compliance drift for a completed scan.
 
         Compares scan results against active baseline and creates
         drift event if significant deviation detected.
 
+        If no baseline exists and auto_baseline=True, automatically creates
+        a baseline from this scan (Hybrid Auto-Baseline approach).
+
         Args:
             db: Database session
             host_id: Host UUID
             scan_id: Completed scan UUID
+            auto_baseline: If True, auto-create baseline on first scan (default: True)
 
         Returns:
-            ScanDriftEvent if drift detected, None if no baseline or stable
+            Tuple of (ScanDriftEvent or None, ScanBaseline or None)
+            - (None, new_baseline) if baseline was auto-created (first scan)
+            - (drift_event, None) if drift was detected
+            - (None, None) if stable (no significant drift)
 
         Raises:
             ValueError: If scan not found or not completed
         """
-        # Get active baseline
-        baseline = self._get_active_baseline(db, host_id)
-        if not baseline:
-            logger.info(f"No active baseline for host {host_id}, skipping drift detection")
-            return None
-
-        # Get current scan results
+        # Get current scan results first (needed for both baseline creation and drift detection)
         scan_data = self._get_scan_results(db, scan_id, host_id)
         if not scan_data:
             raise ValueError(f"Scan {scan_id} not found or not completed for host {host_id}")
+
+        # Get active baseline
+        baseline = self._get_active_baseline(db, host_id)
+        if not baseline:
+            if auto_baseline:
+                # Auto-create baseline from first scan
+                new_baseline = self._create_auto_baseline(db, host_id, scan_id, scan_data)
+                logger.info(
+                    f"Auto-created baseline for host {host_id} from scan {scan_id}: "
+                    f"{new_baseline.baseline_score:.1f}% compliance"
+                )
+                return (None, new_baseline)
+            else:
+                logger.info(f"No active baseline for host {host_id}, skipping drift detection")
+                return (None, None)
 
         # Calculate drift metrics
         drift_metrics = self._calculate_drift_metrics(baseline, scan_data)
@@ -82,7 +107,7 @@ class DriftDetectionService:
                 f"Stable compliance for host {host_id}: "
                 f"{drift_metrics['score_delta']:+.2f}pp change (within threshold)"
             )
-            return None
+            return (None, None)
 
         # Create drift event
         drift_event = ScanDriftEvent(
@@ -120,7 +145,7 @@ class DriftDetectionService:
             },
         )
 
-        return drift_event
+        return (drift_event, None)
 
     def _get_active_baseline(self, db: Session, host_id: UUID) -> Optional[ScanBaseline]:
         """
@@ -148,6 +173,67 @@ class DriftDetectionService:
             return None
 
         baseline = db.query(ScanBaseline).filter(ScanBaseline.id == baseline_row.id).first()
+
+        return baseline
+
+    def _create_auto_baseline(self, db: Session, host_id: UUID, scan_id: UUID, scan_data) -> ScanBaseline:
+        """
+        Auto-create baseline from first scan (Hybrid Auto-Baseline approach).
+
+        Creates a baseline with type 'auto' when no baseline exists for a host.
+        This establishes the initial known state per NIST SP 800-137 requirements.
+
+        Args:
+            db: Database session
+            host_id: Host UUID
+            scan_id: Scan UUID that triggered baseline creation
+            scan_data: Scan results row with compliance data
+
+        Returns:
+            Newly created ScanBaseline
+
+        Note:
+            - Sets baseline_type to 'auto' to distinguish from manual baselines
+            - established_by is NULL for auto-created baselines
+            - Default drift thresholds: major=10pp, minor=5pp
+        """
+        baseline = ScanBaseline(
+            host_id=host_id,
+            baseline_type="auto",
+            established_at=datetime.utcnow(),
+            established_by=None,  # Auto-created, no user
+            baseline_score=scan_data.score,
+            baseline_passed_rules=scan_data.passed_rules,
+            baseline_failed_rules=scan_data.failed_rules,
+            baseline_total_rules=scan_data.total_rules,
+            baseline_critical_passed=scan_data.severity_critical_passed or 0,
+            baseline_critical_failed=scan_data.severity_critical_failed or 0,
+            baseline_high_passed=scan_data.severity_high_passed or 0,
+            baseline_high_failed=scan_data.severity_high_failed or 0,
+            baseline_medium_passed=scan_data.severity_medium_passed or 0,
+            baseline_medium_failed=scan_data.severity_medium_failed or 0,
+            baseline_low_passed=scan_data.severity_low_passed or 0,
+            baseline_low_failed=scan_data.severity_low_failed or 0,
+            drift_threshold_major=10.0,
+            drift_threshold_minor=5.0,
+            is_active=True,
+        )
+
+        db.add(baseline)
+        db.commit()
+        db.refresh(baseline)
+
+        logger.info(
+            f"Auto-baseline created for host {host_id}: "
+            f"score={baseline.baseline_score:.1f}%, "
+            f"passed={baseline.baseline_passed_rules}/{baseline.baseline_total_rules}",
+            extra={
+                "host_id": str(host_id),
+                "scan_id": str(scan_id),
+                "baseline_id": str(baseline.id),
+                "baseline_type": "auto",
+            },
+        )
 
         return baseline
 

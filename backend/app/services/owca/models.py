@@ -189,6 +189,7 @@ class TrendDataPoint(BaseModel):
     medium_failed: int = Field(0, ge=0, description="Medium rules failed")
     low_passed: int = Field(0, ge=0, description="Low rules passed")
     low_failed: int = Field(0, ge=0, description="Low rules failed")
+    source_scan_id: Optional[UUID] = Field(None, description="Source scan UUID (from posture_snapshots)")
 
 
 class TrendData(BaseModel):
@@ -325,6 +326,50 @@ class FrameworkCompliance(BaseModel):
     critical_total: int = Field(0, ge=0)
     high_compliant: int = Field(0, ge=0)
     high_total: int = Field(0, ge=0)
+
+    class Config:
+        json_encoders = {datetime: lambda v: v.isoformat()}
+
+
+class FleetTrendDataPoint(BaseModel):
+    """
+    Single data point in fleet-wide compliance trend.
+
+    Represents daily aggregated compliance across all hosts.
+    """
+
+    date: str = Field(..., description="Date in YYYY-MM-DD format")
+    average_compliance: float = Field(..., ge=0, le=100, description="Fleet average compliance")
+    median_compliance: Optional[float] = Field(None, ge=0, le=100, description="Fleet median compliance")
+    total_hosts: int = Field(0, ge=0, description="Number of hosts with data")
+
+    hosts_excellent: int = Field(0, ge=0, description="Hosts with excellent compliance (90+%)")
+    hosts_good: int = Field(0, ge=0, description="Hosts with good compliance (75-89%)")
+    hosts_fair: int = Field(0, ge=0, description="Hosts with fair compliance (60-74%)")
+    hosts_poor: int = Field(0, ge=0, description="Hosts with poor compliance (<60%)")
+
+    total_critical_issues: int = Field(0, ge=0, description="Total critical failures across fleet")
+    total_high_issues: int = Field(0, ge=0, description="Total high failures across fleet")
+    total_medium_issues: int = Field(0, ge=0, description="Total medium failures across fleet")
+    total_low_issues: int = Field(0, ge=0, description="Total low failures across fleet")
+
+
+class FleetComplianceTrend(BaseModel):
+    """
+    Fleet-wide compliance trend over time.
+
+    Provides historical daily fleet statistics for dashboard visualizations.
+    Uses posture_snapshots as the primary data source.
+    """
+
+    start_date: str = Field(..., description="Start date in YYYY-MM-DD format")
+    end_date: str = Field(..., description="End date in YYYY-MM-DD format")
+    data_points: List[FleetTrendDataPoint] = Field(..., description="Daily fleet statistics")
+
+    trend_direction: TrendDirection = Field(..., description="Overall trend direction")
+    improvement_rate: Optional[float] = Field(None, description="Rate of improvement (percentage points per day)")
+
+    calculated_at: datetime = Field(default_factory=datetime.utcnow, description="When trend was calculated")
 
     class Config:
         json_encoders = {datetime: lambda v: v.isoformat()}
