@@ -11,6 +11,7 @@ Package Structure:
     - exceptions.py: Structured exception management (Phase 3)
     - audit.py: Audit query builder and exports (Phase 6)
     - scheduler.py: Adaptive compliance scheduler (OpenWatch OS)
+    - alerts.py: Alert thresholds and management (OpenWatch OS)
     - remediation.py: Remediation endpoints (Phase 4)
 
 Endpoint Structure:
@@ -22,6 +23,7 @@ Endpoint Structure:
     /compliance/exceptions          - Exception management (Phase 3)
     /compliance/audit/*             - Audit query builder and exports (Phase 6)
     /compliance/scheduler/*         - Adaptive compliance scheduling
+    /compliance/alerts/*            - Alert thresholds and management
 
 Migration Status:
     - owca.py -> compliance/owca.py
@@ -47,6 +49,7 @@ _modules_loaded = False
 
 try:
     # Import sub-routers from package modules
+    from .alerts import router as alerts_router
     from .audit import router as audit_router
     from .drift import router as drift_router
     from .exceptions import router as exceptions_router
@@ -58,6 +61,9 @@ try:
     # Include sub-routers
     # NOTE: intelligence_router removed during MongoDB deprecation (2026-02-10)
     # Semantic SCAP intelligence was MongoDB-dependent and replaced by Aegis
+    # Alert endpoints at /compliance/alerts/* (OpenWatch OS Alert Thresholds)
+    router.include_router(alerts_router)
+
     # OWCA endpoints at /compliance/owca/*
     router.include_router(owca_router)
 
