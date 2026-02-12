@@ -26,7 +26,7 @@ import {
   type FleetComplianceTrend,
 } from '../services/owcaService';
 import DashboardErrorBoundary from '../components/dashboard/DashboardErrorBoundary';
-import { useSecurityStats } from '../hooks/useSecurityStats';
+import { useSecurityStats, type AuditEvent } from '../hooks/useSecurityStats';
 import { useMonitoringStats } from '../hooks/useMonitoringStats';
 
 /**
@@ -396,33 +396,87 @@ const Dashboard: React.FC = () => {
               ];
       }
 
-      // Generate activity items from recent scans
-      // Use RawScanData type for backend scan data with snake_case/camelCase fields
-      const activitiesArray: ActivityItem[] = scans
+      // Generate activity items from multiple sources
+      const activitiesArray: ActivityItem[] = [];
+
+      // 1. Add scan activities (don't group - show individual scans)
+      scans
         .filter((scan: RawScanData) => scan.completed_at && scan.id)
-        .slice(0, 10)
-        .map((scan: RawScanData): ActivityItem => {
-          const scanId = scan.id as string; // Safe due to filter above
+        .slice(0, 5)
+        .forEach((scan: RawScanData) => {
+          const scanId = scan.id as string;
+          const hostname = scan.host_name || scan.hostname || 'Unknown';
           const activityType: ActivityItem['type'] =
             scan.status === 'completed' ? 'scan_completed' : 'scan_failed';
           const activitySeverity: ActivityItem['severity'] =
             scan.status === 'completed' ? 'success' : 'error';
-          return {
-            id: scanId,
+          activitiesArray.push({
+            id: `scan-${scanId}`,
             type: activityType,
-            message: `Scan ${scan.status} for ${scan.host_name || scan.hostname || 'Unknown host'}`,
+            message:
+              scan.status === 'completed'
+                ? `Scan completed on ${hostname}`
+                : `Scan failed on ${hostname}`,
             timestamp: new Date(scan.completed_at || scan.started_at || new Date().toISOString()),
             severity: activitySeverity,
             metadata: {
               scanId,
+              hostname,
               complianceScore: scan.results?.score,
             },
             action: {
-              label: 'View Report',
+              label: 'View',
               onClick: () => navigate(`/scans/${scanId}`),
             },
-          };
+          });
         });
+
+      // 2. Fetch and add security events (login failures, warnings, errors)
+      try {
+        const eventsResponse = await api.get<{ events: AuditEvent[]; total: number }>(
+          '/api/audit/events?page=1&limit=10'
+        );
+        const securityEvents = eventsResponse?.events || [];
+
+        securityEvents.slice(0, 5).forEach((event: AuditEvent) => {
+          // Determine activity type and message based on event action
+          let activityType: ActivityItem['type'] = 'security_event';
+          let message = event.action;
+          let severity: ActivityItem['severity'] = 'info';
+
+          if (event.action.includes('LOGIN_FAILED') || event.action.includes('FAILED_LOGIN')) {
+            activityType = 'login_failed';
+            message = `Failed login attempt`;
+            severity = 'warning';
+          } else if (event.severity === 'error' || event.severity === 'critical') {
+            severity = 'error';
+            message = event.details || event.action.replace(/_/g, ' ').toLowerCase();
+          } else if (event.severity === 'warning') {
+            severity = 'warning';
+            message = event.details || event.action.replace(/_/g, ' ').toLowerCase();
+          } else {
+            severity = 'info';
+            message = event.details || event.action.replace(/_/g, ' ').toLowerCase();
+          }
+
+          activitiesArray.push({
+            id: `event-${event.id}`,
+            type: activityType,
+            message,
+            timestamp: new Date(event.timestamp),
+            severity,
+            metadata: {
+              username: event.username,
+            },
+          });
+        });
+      } catch (eventsError) {
+        console.warn('Failed to fetch security events for activity feed:', eventsError);
+      }
+
+      // Sort all activities by timestamp (newest first) and limit to 10
+      activitiesArray.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+      const sortedActivities = activitiesArray.slice(0, 10);
 
       // Identify priority hosts using normalized data
       // Type definition for priority host array (used by both OWCA and fallback)
@@ -505,7 +559,7 @@ const Dashboard: React.FC = () => {
       setTotalHosts(totalCount);
       setCriticalIssues(totalCritical);
       setTrendData(trendDataArray);
-      setActivities(activitiesArray);
+      setActivities(sortedActivities);
       setPriorityHosts(priorityHostsArray);
 
       // Store complete dashboard data
@@ -527,7 +581,7 @@ const Dashboard: React.FC = () => {
         },
         hosts: normalizedHosts,
         scans,
-        activities: activitiesArray,
+        activities: sortedActivities,
         priorityHosts: priorityHostsArray,
         trendData: trendDataArray,
       });
