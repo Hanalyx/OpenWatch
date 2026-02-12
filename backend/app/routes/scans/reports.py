@@ -540,6 +540,54 @@ async def get_scan_json_report(
                 # Maintain backward compatibility - don't break if enhancement fails
                 scan_data["rule_results"] = []
 
+        # For Aegis scans (no result_file), fetch findings from scan_findings table
+        if scan_data.get("status") == "completed" and not scan_data.get("result_file"):
+            try:
+                findings_query = text(
+                    """
+                    SELECT
+                        rule_id,
+                        title,
+                        severity,
+                        status,
+                        detail,
+                        framework_section
+                    FROM scan_findings
+                    WHERE scan_id = :scan_id
+                    ORDER BY
+                        CASE severity
+                            WHEN 'critical' THEN 1
+                            WHEN 'high' THEN 2
+                            WHEN 'medium' THEN 3
+                            WHEN 'low' THEN 4
+                            ELSE 5
+                        END,
+                        rule_id
+                    """
+                )
+                findings = db.execute(findings_query, {"scan_id": scan_id}).fetchall()
+
+                if findings:
+                    rule_results = [
+                        {
+                            "rule_id": f.rule_id,
+                            "result": f.status,  # 'pass', 'fail', 'skipped'
+                            "severity": f.severity or "medium",
+                            "title": f.title or f.rule_id,
+                            "description": f.detail or "",
+                            "rationale": "",
+                            "remediation": {},
+                            "references": [],
+                            "framework_section": f.framework_section,
+                        }
+                        for f in findings
+                    ]
+                    scan_data["rule_results"] = rule_results
+                    logger.info(f"Added {len(rule_results)} Aegis scan findings from database")
+            except Exception as e:
+                logger.error(f"Error fetching Aegis scan findings: {e}")
+                scan_data["rule_results"] = []
+
         return dict(scan_data)
 
     except HTTPException:
