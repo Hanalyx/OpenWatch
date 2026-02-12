@@ -1,7 +1,7 @@
 """Remove SCAP fields from host_groups table
 
 Revision ID: 034_remove_scap_fields
-Revises: 033_alerts
+Revises: 032_rename_host_schedule
 Create Date: 2026-02-11 01:00:00.000000
 
 This migration removes the deprecated SCAP-related fields from the host_groups table.
@@ -19,7 +19,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "034_remove_scap_fields"
-down_revision = "033_alerts"
+down_revision = "032_rename_host_schedule"
 branch_labels = None
 depends_on = None
 
