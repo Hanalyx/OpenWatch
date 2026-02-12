@@ -41,24 +41,31 @@ def upgrade() -> None:
         # Table doesn't exist, nothing to migrate
         return
 
-    # 1. Drop indexes that reference columns we're removing
-    op.drop_index("ix_compliance_schedule_state", table_name="host_compliance_schedule")
+    # 1. Drop indexes that reference columns we're removing (use IF EXISTS for safety)
+    conn.execute(sa.text("DROP INDEX IF EXISTS ix_compliance_schedule_state"))
 
-    # 2. Drop the compliance cache columns
-    op.drop_column("host_compliance_schedule", "compliance_score")
-    op.drop_column("host_compliance_schedule", "compliance_state")
-    op.drop_column("host_compliance_schedule", "has_critical_findings")
-    op.drop_column("host_compliance_schedule", "pass_count")
-    op.drop_column("host_compliance_schedule", "fail_count")
+    # 2. Drop the compliance cache columns (check if they exist first)
+    for column in ["compliance_score", "compliance_state", "has_critical_findings", "pass_count", "fail_count"]:
+        result = conn.execute(
+            sa.text(
+                "SELECT EXISTS (SELECT FROM information_schema.columns "
+                "WHERE table_name = 'host_compliance_schedule' AND column_name = :col)"
+            ),
+            {"col": column},
+        )
+        if result.scalar():
+            op.drop_column("host_compliance_schedule", column)
 
     # 3. Rename the table
     op.rename_table("host_compliance_schedule", "host_schedule")
 
     # 4. Rename remaining indexes to match new table name
-    op.execute(
+    conn.execute(
         sa.text("ALTER INDEX IF EXISTS ix_compliance_schedule_next_scan " "RENAME TO ix_host_schedule_next_scan")
     )
-    op.execute(sa.text("ALTER INDEX IF EXISTS ix_compliance_schedule_priority " "RENAME TO ix_host_schedule_priority"))
+    conn.execute(
+        sa.text("ALTER INDEX IF EXISTS ix_compliance_schedule_priority " "RENAME TO ix_host_schedule_priority")
+    )
 
 
 def downgrade() -> None:
