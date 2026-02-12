@@ -202,7 +202,7 @@ const ActivityFeed: React.FC<ActivityFeedProps> = ({
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                         <Typography variant="body2" sx={{ wordBreak: 'break-word' }}>
                           {isGrouped
-                            ? `${group.items.length} ${firstItem.type.replace('_', ' ')}s`
+                            ? `${group.items.length} ${firstItem.type.replace('_', 's ')}`
                             : firstItem.message}
                         </Typography>
                         {firstItem.metadata?.complianceScore !== undefined &&
