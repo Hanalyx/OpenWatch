@@ -10,7 +10,8 @@ OpenWatch OS: Adaptive Compliance Scheduler
 OpenWatch OS: Alert Thresholds
 """
 
-from .alerts import AlertService, AlertSeverity, AlertStatus, AlertType
+from .alert_generator import AlertGenerator, get_alert_generator
+from .alerts import AlertService, AlertSeverity, AlertStatus, AlertType, get_alert_service
 from .compliance_scheduler import ComplianceSchedulerService, compliance_scheduler_service
 from .exceptions import ExceptionService
 from .temporal import TemporalComplianceService
@@ -24,6 +25,9 @@ __all__ = [
     "AlertType",
     "AlertSeverity",
     "AlertStatus",
+    "get_alert_service",
+    "AlertGenerator",
+    "get_alert_generator",
 ]
 
 # Phase 6 Audit Queries - imports added when Phase 6 is complete

@@ -186,6 +186,47 @@ class RouteInfo:
     is_default: bool = False
 
 
+@dataclass
+class AuditEventInfo:
+    """Information about a security audit event."""
+
+    event_type: str  # auth, sudo, service, login_failure
+    event_timestamp: datetime
+    username: Optional[str] = None
+    source_ip: Optional[str] = None
+    action: Optional[str] = None
+    target: Optional[str] = None
+    result: Optional[str] = None  # success, failure
+    raw_message: Optional[str] = None
+    source_process: Optional[str] = None
+    metadata: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class MetricsInfo:
+    """System resource metrics snapshot."""
+
+    collected_at: datetime
+    # CPU metrics
+    cpu_usage_percent: Optional[float] = None
+    load_avg_1m: Optional[float] = None
+    load_avg_5m: Optional[float] = None
+    load_avg_15m: Optional[float] = None
+    # Memory metrics (in bytes)
+    memory_total_bytes: Optional[int] = None
+    memory_used_bytes: Optional[int] = None
+    memory_available_bytes: Optional[int] = None
+    swap_total_bytes: Optional[int] = None
+    swap_used_bytes: Optional[int] = None
+    # Disk metrics (primary mount, in bytes)
+    disk_total_bytes: Optional[int] = None
+    disk_used_bytes: Optional[int] = None
+    disk_available_bytes: Optional[int] = None
+    # System metrics
+    uptime_seconds: Optional[int] = None
+    process_count: Optional[int] = None
+
+
 class SystemInfoCollector:
     """
     Collects system information from remote hosts via SSH.
@@ -1277,6 +1318,437 @@ class SystemInfoCollector:
 
         logger.info(f"Collected {len(routes)} routes")
         return routes
+
+    def collect_audit_events(self, max_events: int = 1000, hours_back: int = 24) -> List[AuditEventInfo]:
+        """
+        Collect security audit events from the remote host.
+
+        Parses journalctl and /var/log/secure for auth events.
+
+        Args:
+            max_events: Maximum number of events to collect
+            hours_back: How many hours back to look
+
+        Returns:
+            List of AuditEventInfo dataclasses with event details
+        """
+        events: List[AuditEventInfo] = []
+
+        # Try journalctl first (modern systems)
+        # Get auth-related events from last N hours
+        journal_output = self._run_command(
+            f"journalctl --since '-{hours_back} hours' -o json "
+            f"_COMM=sshd _COMM=sudo _COMM=su _COMM=login "
+            f"--no-pager 2>/dev/null | head -n {max_events}"
+        )
+        if journal_output:
+            for line in journal_output.split("\n"):
+                if not line.strip():
+                    continue
+                try:
+                    entry = json.loads(line)
+                    event = self._parse_journal_entry(entry)
+                    if event:
+                        events.append(event)
+                except json.JSONDecodeError:
+                    continue
+
+        # Also check /var/log/secure if accessible
+        secure_output = self._run_command(f"tail -n {max_events} /var/log/secure 2>/dev/null | head -n {max_events}")
+        if secure_output and not journal_output:
+            for line in secure_output.split("\n"):
+                if not line.strip():
+                    continue
+                event = self._parse_secure_log_line(line)
+                if event:
+                    events.append(event)
+
+        # Get failed login attempts from lastb
+        lastb_output = self._run_command(f"lastb -n {max_events} 2>/dev/null | head -n {max_events}")
+        if lastb_output:
+            for line in lastb_output.split("\n"):
+                if not line.strip() or "btmp begins" in line:
+                    continue
+                event = self._parse_lastb_line(line)
+                if event:
+                    events.append(event)
+
+        # Sort by timestamp (most recent first)
+        events.sort(key=lambda e: e.event_timestamp, reverse=True)
+
+        # Limit to max_events
+        events = events[:max_events]
+
+        logger.info(f"Collected {len(events)} audit events")
+        return events
+
+    def _parse_journal_entry(self, entry: Dict[str, Any]) -> Optional[AuditEventInfo]:
+        """Parse a journalctl JSON entry into AuditEventInfo."""
+        try:
+            # Get timestamp
+            timestamp_us = entry.get("__REALTIME_TIMESTAMP")
+            if timestamp_us:
+                timestamp = datetime.fromtimestamp(int(timestamp_us) / 1_000_000, tz=timezone.utc)
+            else:
+                return None
+
+            comm = entry.get("_COMM", "")
+            message = entry.get("MESSAGE", "")
+
+            # Determine event type
+            if comm == "sshd":
+                event_type = "auth"
+                result = "success" if "Accepted" in message else "failure" if "Failed" in message else None
+                if result is None:
+                    return None  # Skip non-auth sshd messages
+
+                # Extract username and IP
+                username = None
+                source_ip = None
+
+                # Parse "Accepted publickey for user from IP port"
+                # or "Failed password for user from IP port"
+                parts = message.split()
+                for i, part in enumerate(parts):
+                    if part == "for" and i + 1 < len(parts):
+                        username = parts[i + 1]
+                    elif part == "from" and i + 1 < len(parts):
+                        source_ip = parts[i + 1]
+
+                return AuditEventInfo(
+                    event_type=event_type,
+                    event_timestamp=timestamp,
+                    username=username,
+                    source_ip=source_ip,
+                    action="ssh_login",
+                    result=result,
+                    raw_message=message[:500],  # Truncate
+                    source_process="sshd",
+                )
+
+            elif comm == "sudo":
+                # Parse sudo usage
+                event_type = "sudo"
+                username = entry.get("SUDO_USER")
+                result = "success"  # sudo logs are typically successful
+
+                # Parse the command
+                action = None
+                target = None
+                if "COMMAND=" in message:
+                    action = "command"
+                    cmd_start = message.find("COMMAND=")
+                    if cmd_start != -1:
+                        target = message[cmd_start + 8 : cmd_start + 200]  # Truncate long commands
+
+                return AuditEventInfo(
+                    event_type=event_type,
+                    event_timestamp=timestamp,
+                    username=username,
+                    action=action,
+                    target=target,
+                    result=result,
+                    raw_message=message[:500],
+                    source_process="sudo",
+                    metadata={"run_as": entry.get("SUDO_GID")},
+                )
+
+            elif comm in ("su", "login"):
+                event_type = "auth"
+                result = "success" if "session opened" in message.lower() else "failure"
+
+                return AuditEventInfo(
+                    event_type=event_type,
+                    event_timestamp=timestamp,
+                    action=f"{comm}_session",
+                    result=result,
+                    raw_message=message[:500],
+                    source_process=comm,
+                )
+
+            return None
+
+        except Exception as e:
+            logger.debug(f"Failed to parse journal entry: {e}")
+            return None
+
+    def _parse_secure_log_line(self, line: str) -> Optional[AuditEventInfo]:
+        """Parse a /var/log/secure line into AuditEventInfo."""
+        try:
+            # Format: "Month Day HH:MM:SS hostname process[pid]: message"
+            # Example: "Feb 10 10:15:23 server sshd[12345]: Accepted publickey for user from 1.2.3.4"
+            parts = line.split()
+            if len(parts) < 6:
+                return None
+
+            # Parse timestamp (assumes current year)
+            month_day_time = " ".join(parts[0:3])
+            try:
+                # Add current year since secure log doesn't include it
+                current_year = datetime.now().year
+                timestamp = datetime.strptime(f"{current_year} {month_day_time}", "%Y %b %d %H:%M:%S").replace(
+                    tzinfo=timezone.utc
+                )
+            except ValueError:
+                return None
+
+            # Get process name
+            process_part = parts[4]
+            process_name = process_part.split("[")[0]
+
+            # Get message
+            message = " ".join(parts[5:])
+
+            # Parse based on process
+            if process_name == "sshd":
+                if "Accepted" in message or "Failed" in message:
+                    result = "success" if "Accepted" in message else "failure"
+                    username = None
+                    source_ip = None
+
+                    msg_parts = message.split()
+                    for i, part in enumerate(msg_parts):
+                        if part == "for" and i + 1 < len(msg_parts):
+                            username = msg_parts[i + 1]
+                        elif part == "from" and i + 1 < len(msg_parts):
+                            source_ip = msg_parts[i + 1]
+
+                    return AuditEventInfo(
+                        event_type="auth",
+                        event_timestamp=timestamp,
+                        username=username,
+                        source_ip=source_ip,
+                        action="ssh_login",
+                        result=result,
+                        raw_message=line[:500],
+                        source_process="sshd",
+                    )
+
+            elif process_name == "sudo":
+                if "COMMAND=" in message:
+                    # Extract username
+                    username = None
+                    if ":" in message:
+                        user_part = message.split(":")[0].strip()
+                        if " " in user_part:
+                            username = user_part.split()[-1]
+                        else:
+                            username = user_part
+
+                    return AuditEventInfo(
+                        event_type="sudo",
+                        event_timestamp=timestamp,
+                        username=username,
+                        action="command",
+                        result="success",
+                        raw_message=line[:500],
+                        source_process="sudo",
+                    )
+
+            return None
+
+        except Exception as e:
+            logger.debug(f"Failed to parse secure log line: {e}")
+            return None
+
+    def _parse_lastb_line(self, line: str) -> Optional[AuditEventInfo]:
+        """Parse a lastb output line (failed logins) into AuditEventInfo."""
+        try:
+            # Format: "username pts/0 1.2.3.4 Day Mon DD HH:MM - HH:MM (duration)"
+            parts = line.split()
+            if len(parts) < 4:
+                return None
+
+            username = parts[0]
+            # Skip if it's a header or special entry
+            if username in ("reboot", "shutdown", "wtmp"):
+                return None
+
+            # Extract source IP if present
+            source_ip = None
+            for part in parts:
+                if re.match(r"^\d+\.\d+\.\d+\.\d+$", part):
+                    source_ip = part
+                    break
+
+            # Try to parse timestamp
+            # Format varies: "Day Mon DD HH:MM" or "Day Mon DD HH:MM:SS"
+            timestamp = None
+            for i, part in enumerate(parts):
+                # Look for month abbreviation
+                if part in [
+                    "Jan",
+                    "Feb",
+                    "Mar",
+                    "Apr",
+                    "May",
+                    "Jun",
+                    "Jul",
+                    "Aug",
+                    "Sep",
+                    "Oct",
+                    "Nov",
+                    "Dec",
+                ]:
+                    if i + 2 < len(parts):
+                        try:
+                            current_year = datetime.now().year
+                            time_str = f"{current_year} {part} {parts[i + 1]} {parts[i + 2]}"
+                            timestamp = datetime.strptime(time_str, "%Y %b %d %H:%M").replace(tzinfo=timezone.utc)
+                            break
+                        except ValueError:
+                            pass
+
+            if not timestamp:
+                timestamp = datetime.now(timezone.utc)
+
+            return AuditEventInfo(
+                event_type="login_failure",
+                event_timestamp=timestamp,
+                username=username,
+                source_ip=source_ip,
+                action="failed_login",
+                result="failure",
+                raw_message=line[:500],
+                source_process="login",
+            )
+
+        except Exception as e:
+            logger.debug(f"Failed to parse lastb line: {e}")
+            return None
+
+    def collect_metrics(self) -> MetricsInfo:
+        """
+        Collect current system resource metrics.
+
+        Gathers CPU, memory, disk, load average, and uptime metrics from
+        /proc filesystem and df command.
+
+        Returns:
+            MetricsInfo dataclass with collected metrics
+        """
+        collected_at = datetime.now(timezone.utc)
+
+        # Get load average from /proc/loadavg
+        # Format: "0.10 0.15 0.20 1/234 5678"
+        load_avg_1m = None
+        load_avg_5m = None
+        load_avg_15m = None
+        output = self._run_command("cat /proc/loadavg")
+        if output:
+            parts = output.split()
+            if len(parts) >= 3:
+                try:
+                    load_avg_1m = float(parts[0])
+                    load_avg_5m = float(parts[1])
+                    load_avg_15m = float(parts[2])
+                except ValueError:
+                    pass
+
+        # Get CPU usage from /proc/stat
+        # Calculate CPU usage percent from idle time
+        cpu_usage_percent = None
+        output = self._run_command("cat /proc/stat | head -1 | awk '{print $2,$3,$4,$5,$6,$7,$8}'")
+        if output:
+            try:
+                parts = output.split()
+                if len(parts) >= 4:
+                    user = int(parts[0])
+                    nice = int(parts[1])
+                    system = int(parts[2])
+                    idle = int(parts[3])
+                    iowait = int(parts[4]) if len(parts) > 4 else 0
+                    irq = int(parts[5]) if len(parts) > 5 else 0
+                    softirq = int(parts[6]) if len(parts) > 6 else 0
+
+                    total = user + nice + system + idle + iowait + irq + softirq
+                    if total > 0:
+                        cpu_usage_percent = round((1 - idle / total) * 100, 2)
+            except (ValueError, ZeroDivisionError):
+                pass
+
+        # Get memory info from /proc/meminfo
+        memory_total_bytes = None
+        memory_available_bytes = None
+        memory_used_bytes = None
+        swap_total_bytes = None
+        swap_used_bytes = None
+
+        output = self._run_command("cat /proc/meminfo | grep -E '^(MemTotal|MemAvailable|SwapTotal|SwapFree):'")
+        if output:
+            mem_data = {}
+            for line in output.split("\n"):
+                if ":" in line:
+                    key, value = line.split(":", 1)
+                    # Value is in kB, convert to bytes
+                    try:
+                        kb_value = int(value.strip().split()[0])
+                        mem_data[key.strip()] = kb_value * 1024
+                    except (ValueError, IndexError):
+                        pass
+
+            memory_total_bytes = mem_data.get("MemTotal")
+            memory_available_bytes = mem_data.get("MemAvailable")
+            if memory_total_bytes and memory_available_bytes:
+                memory_used_bytes = memory_total_bytes - memory_available_bytes
+
+            swap_total_bytes = mem_data.get("SwapTotal")
+            swap_free = mem_data.get("SwapFree")
+            if swap_total_bytes and swap_free is not None:
+                swap_used_bytes = swap_total_bytes - swap_free
+
+        # Get disk usage for root filesystem
+        disk_total_bytes = None
+        disk_used_bytes = None
+        disk_available_bytes = None
+
+        output = self._run_command("df -B1 / | tail -1")
+        if output:
+            parts = output.split()
+            if len(parts) >= 4:
+                try:
+                    disk_total_bytes = int(parts[1])
+                    disk_used_bytes = int(parts[2])
+                    disk_available_bytes = int(parts[3])
+                except (ValueError, IndexError):
+                    pass
+
+        # Get uptime from /proc/uptime
+        # Format: "123456.78 234567.89" (uptime idle_time in seconds)
+        uptime_seconds = None
+        output = self._run_command("cat /proc/uptime")
+        if output:
+            try:
+                uptime_seconds = int(float(output.split()[0]))
+            except (ValueError, IndexError):
+                pass
+
+        # Get process count
+        process_count = None
+        output = self._run_command("ls -1d /proc/[0-9]* 2>/dev/null | wc -l")
+        if output:
+            try:
+                process_count = int(output)
+            except ValueError:
+                pass
+
+        return MetricsInfo(
+            collected_at=collected_at,
+            cpu_usage_percent=cpu_usage_percent,
+            load_avg_1m=load_avg_1m,
+            load_avg_5m=load_avg_5m,
+            load_avg_15m=load_avg_15m,
+            memory_total_bytes=memory_total_bytes,
+            memory_used_bytes=memory_used_bytes,
+            memory_available_bytes=memory_available_bytes,
+            swap_total_bytes=swap_total_bytes,
+            swap_used_bytes=swap_used_bytes,
+            disk_total_bytes=disk_total_bytes,
+            disk_used_bytes=disk_used_bytes,
+            disk_available_bytes=disk_available_bytes,
+            uptime_seconds=uptime_seconds,
+            process_count=process_count,
+        )
 
 
 class SystemInfoService:
@@ -2375,3 +2847,348 @@ class SystemInfoService:
             )
 
         return {"items": routes, "total": total, "limit": limit, "offset": offset}
+
+    def save_audit_events(self, host_id: UUID, events: List[AuditEventInfo]) -> int:
+        """
+        Save audit events for a host.
+
+        Uses append pattern - new events are added without removing existing ones.
+        Duplicates are avoided using a compound check on timestamp + type + raw_message.
+
+        Args:
+            host_id: The host UUID
+            events: List of AuditEventInfo dataclasses
+
+        Returns:
+            Number of events saved
+        """
+        if not events:
+            return 0
+
+        now = datetime.now(timezone.utc)
+        saved_count = 0
+
+        for event in events:
+            # Use INSERT ... ON CONFLICT to avoid duplicates
+            # We consider an event duplicate if it has same host, timestamp, type, and message
+            try:
+                self.db.execute(
+                    text(
+                        """
+                        INSERT INTO host_audit_events (
+                            host_id, event_type, event_timestamp, username, source_ip,
+                            action, target, result, raw_message, source_process,
+                            metadata, collected_at
+                        )
+                        SELECT
+                            :host_id, :event_type, :event_timestamp, :username, :source_ip,
+                            :action, :target, :result, :raw_message, :source_process,
+                            :metadata, :collected_at
+                        WHERE NOT EXISTS (
+                            SELECT 1 FROM host_audit_events
+                            WHERE host_id = :host_id
+                              AND event_timestamp = :event_timestamp
+                              AND event_type = :event_type
+                              AND COALESCE(raw_message, '') = COALESCE(:raw_message, '')
+                        )
+                        """
+                    ),
+                    {
+                        "host_id": str(host_id),
+                        "event_type": event.event_type,
+                        "event_timestamp": event.event_timestamp,
+                        "username": event.username,
+                        "source_ip": event.source_ip,
+                        "action": event.action,
+                        "target": event.target,
+                        "result": event.result,
+                        "raw_message": event.raw_message,
+                        "source_process": event.source_process,
+                        "metadata": json.dumps(event.metadata) if event.metadata else None,
+                        "collected_at": now,
+                    },
+                )
+                saved_count += 1
+            except Exception as e:
+                logger.debug(f"Failed to insert audit event: {e}")
+                continue
+
+        self.db.commit()
+        logger.info(f"Saved {saved_count} audit events for host {host_id}")
+        return saved_count
+
+    def get_audit_events(
+        self,
+        host_id: UUID,
+        event_type: Optional[str] = None,
+        result: Optional[str] = None,
+        username: Optional[str] = None,
+        hours_back: Optional[int] = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> Dict[str, Any]:
+        """
+        Get audit events for a host with pagination and filtering.
+
+        Args:
+            host_id: The host UUID
+            event_type: Optional event type filter (auth, sudo, login_failure)
+            result: Optional result filter (success, failure)
+            username: Optional username filter
+            hours_back: Optional time filter (events from last N hours)
+            limit: Maximum events to return
+            offset: Offset for pagination
+
+        Returns:
+            Dictionary with events list and total count
+        """
+        # Build query
+        where_clause = "WHERE host_id = :host_id"
+        params: Dict[str, Any] = {"host_id": str(host_id), "limit": limit, "offset": offset}
+
+        if event_type:
+            where_clause += " AND event_type = :event_type"
+            params["event_type"] = event_type
+
+        if result:
+            where_clause += " AND result = :result"
+            params["result"] = result
+
+        if username:
+            where_clause += " AND username ILIKE :username"
+            params["username"] = f"%{username}%"
+
+        if hours_back:
+            where_clause += " AND event_timestamp >= NOW() - INTERVAL ':hours_back hours'"
+            params["hours_back"] = hours_back
+
+        # Get total count
+        count_result = self.db.execute(
+            text(f"SELECT COUNT(*) FROM host_audit_events {where_clause}"),
+            params,
+        )
+        total = count_result.scalar() or 0
+
+        # Get events
+        result_query = self.db.execute(
+            text(
+                f"""
+                SELECT event_type, event_timestamp, username, source_ip,
+                       action, target, result, raw_message, source_process,
+                       metadata, collected_at
+                FROM host_audit_events
+                {where_clause}
+                ORDER BY event_timestamp DESC
+                LIMIT :limit OFFSET :offset
+                """
+            ),
+            params,
+        )
+
+        events = []
+        for row in result_query.fetchall():
+            events.append(
+                {
+                    "event_type": row.event_type,
+                    "event_timestamp": row.event_timestamp.isoformat() if row.event_timestamp else None,
+                    "username": row.username,
+                    "source_ip": row.source_ip,
+                    "action": row.action,
+                    "target": row.target,
+                    "result": row.result,
+                    "raw_message": row.raw_message,
+                    "source_process": row.source_process,
+                    "metadata": row.metadata,
+                    "collected_at": row.collected_at.isoformat() if row.collected_at else None,
+                }
+            )
+
+        return {"items": events, "total": total, "limit": limit, "offset": offset}
+
+    def save_metrics(self, host_id: UUID, metrics: MetricsInfo) -> None:
+        """
+        Save resource metrics snapshot for a host.
+
+        Unlike other intelligence data, metrics are stored as time-series data
+        (not upserted). Each call creates a new record.
+
+        Args:
+            host_id: The host UUID
+            metrics: MetricsInfo dataclass with collected metrics
+        """
+        from sqlalchemy import text
+
+        insert_query = text(
+            """
+            INSERT INTO host_metrics (
+                host_id, collected_at,
+                cpu_usage_percent, load_avg_1m, load_avg_5m, load_avg_15m,
+                memory_total_bytes, memory_used_bytes, memory_available_bytes,
+                swap_total_bytes, swap_used_bytes,
+                disk_total_bytes, disk_used_bytes, disk_available_bytes,
+                uptime_seconds, process_count
+            ) VALUES (
+                :host_id, :collected_at,
+                :cpu_usage_percent, :load_avg_1m, :load_avg_5m, :load_avg_15m,
+                :memory_total_bytes, :memory_used_bytes, :memory_available_bytes,
+                :swap_total_bytes, :swap_used_bytes,
+                :disk_total_bytes, :disk_used_bytes, :disk_available_bytes,
+                :uptime_seconds, :process_count
+            )
+            """
+        )
+
+        self.db.execute(
+            insert_query,
+            {
+                "host_id": str(host_id),
+                "collected_at": metrics.collected_at,
+                "cpu_usage_percent": metrics.cpu_usage_percent,
+                "load_avg_1m": metrics.load_avg_1m,
+                "load_avg_5m": metrics.load_avg_5m,
+                "load_avg_15m": metrics.load_avg_15m,
+                "memory_total_bytes": metrics.memory_total_bytes,
+                "memory_used_bytes": metrics.memory_used_bytes,
+                "memory_available_bytes": metrics.memory_available_bytes,
+                "swap_total_bytes": metrics.swap_total_bytes,
+                "swap_used_bytes": metrics.swap_used_bytes,
+                "disk_total_bytes": metrics.disk_total_bytes,
+                "disk_used_bytes": metrics.disk_used_bytes,
+                "disk_available_bytes": metrics.disk_available_bytes,
+                "uptime_seconds": metrics.uptime_seconds,
+                "process_count": metrics.process_count,
+            },
+        )
+        self.db.commit()
+        logger.info(f"Saved metrics for host {host_id}")
+
+    def get_metrics(
+        self,
+        host_id: UUID,
+        hours_back: int = 24,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> Dict[str, Any]:
+        """
+        Get resource metrics for a host with time filtering and pagination.
+
+        Args:
+            host_id: The host UUID
+            hours_back: Number of hours to look back (default 24)
+            limit: Maximum metrics to return
+            offset: Offset for pagination
+
+        Returns:
+            Dictionary with metrics list and total count
+        """
+        from sqlalchemy import text
+
+        # Build query
+        where_clause = "WHERE host_id = :host_id"
+        params: Dict[str, Any] = {"host_id": str(host_id), "limit": limit, "offset": offset}
+
+        if hours_back:
+            where_clause += " AND collected_at >= NOW() - INTERVAL ':hours_back hours'"
+            params["hours_back"] = hours_back
+
+        # Get total count
+        count_result = self.db.execute(
+            text(f"SELECT COUNT(*) FROM host_metrics {where_clause}"),
+            params,
+        )
+        total = count_result.scalar() or 0
+
+        # Get metrics
+        result_query = self.db.execute(
+            text(
+                f"""
+                SELECT collected_at,
+                       cpu_usage_percent, load_avg_1m, load_avg_5m, load_avg_15m,
+                       memory_total_bytes, memory_used_bytes, memory_available_bytes,
+                       swap_total_bytes, swap_used_bytes,
+                       disk_total_bytes, disk_used_bytes, disk_available_bytes,
+                       uptime_seconds, process_count
+                FROM host_metrics
+                {where_clause}
+                ORDER BY collected_at DESC
+                LIMIT :limit OFFSET :offset
+                """
+            ),
+            params,
+        )
+
+        metrics = []
+        for row in result_query.fetchall():
+            metrics.append(
+                {
+                    "collected_at": row.collected_at.isoformat() if row.collected_at else None,
+                    "cpu_usage_percent": row.cpu_usage_percent,
+                    "load_avg_1m": row.load_avg_1m,
+                    "load_avg_5m": row.load_avg_5m,
+                    "load_avg_15m": row.load_avg_15m,
+                    "memory_total_bytes": row.memory_total_bytes,
+                    "memory_used_bytes": row.memory_used_bytes,
+                    "memory_available_bytes": row.memory_available_bytes,
+                    "swap_total_bytes": row.swap_total_bytes,
+                    "swap_used_bytes": row.swap_used_bytes,
+                    "disk_total_bytes": row.disk_total_bytes,
+                    "disk_used_bytes": row.disk_used_bytes,
+                    "disk_available_bytes": row.disk_available_bytes,
+                    "uptime_seconds": row.uptime_seconds,
+                    "process_count": row.process_count,
+                }
+            )
+
+        return {"items": metrics, "total": total, "limit": limit, "offset": offset}
+
+    def get_latest_metrics(self, host_id: UUID) -> Optional[Dict[str, Any]]:
+        """
+        Get the most recent metrics for a host.
+
+        Args:
+            host_id: The host UUID
+
+        Returns:
+            Dictionary with latest metrics, or None if no metrics collected
+        """
+        from sqlalchemy import text
+
+        result = self.db.execute(
+            text(
+                """
+                SELECT collected_at,
+                       cpu_usage_percent, load_avg_1m, load_avg_5m, load_avg_15m,
+                       memory_total_bytes, memory_used_bytes, memory_available_bytes,
+                       swap_total_bytes, swap_used_bytes,
+                       disk_total_bytes, disk_used_bytes, disk_available_bytes,
+                       uptime_seconds, process_count
+                FROM host_metrics
+                WHERE host_id = :host_id
+                ORDER BY collected_at DESC
+                LIMIT 1
+                """
+            ),
+            {"host_id": str(host_id)},
+        )
+
+        row = result.fetchone()
+        if not row:
+            return None
+
+        return {
+            "collected_at": row.collected_at.isoformat() if row.collected_at else None,
+            "cpu_usage_percent": row.cpu_usage_percent,
+            "load_avg_1m": row.load_avg_1m,
+            "load_avg_5m": row.load_avg_5m,
+            "load_avg_15m": row.load_avg_15m,
+            "memory_total_bytes": row.memory_total_bytes,
+            "memory_used_bytes": row.memory_used_bytes,
+            "memory_available_bytes": row.memory_available_bytes,
+            "swap_total_bytes": row.swap_total_bytes,
+            "swap_used_bytes": row.swap_used_bytes,
+            "disk_total_bytes": row.disk_total_bytes,
+            "disk_used_bytes": row.disk_used_bytes,
+            "disk_available_bytes": row.disk_available_bytes,
+            "uptime_seconds": row.uptime_seconds,
+            "process_count": row.process_count,
+        }

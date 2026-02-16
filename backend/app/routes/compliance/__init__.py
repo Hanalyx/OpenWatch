@@ -9,6 +9,7 @@ Package Structure:
     - drift.py: Compliance drift event endpoints
     - posture.py: Temporal compliance posture queries (Phase 2)
     - exceptions.py: Structured exception management (Phase 3)
+    - alerts.py: Compliance alert management (OpenWatch OS doc 03)
     - audit.py: Audit query builder and exports (Phase 6)
     - scheduler.py: Adaptive compliance scheduler (OpenWatch OS)
     - alerts.py: Alert thresholds and management (OpenWatch OS)
@@ -21,6 +22,7 @@ Endpoint Structure:
     /compliance/posture/history     - Posture history over time
     /compliance/posture/drift       - Compliance drift analysis
     /compliance/exceptions          - Exception management (Phase 3)
+    /compliance/alerts              - Alert management (OpenWatch OS)
     /compliance/audit/*             - Audit query builder and exports (Phase 6)
     /compliance/scheduler/*         - Adaptive compliance scheduling
     /compliance/alerts/*            - Alert thresholds and management
@@ -31,6 +33,7 @@ Migration Status:
     - NEW: posture.py (Phase 2 Temporal Compliance)
     - NEW: exceptions.py (Phase 3 Governance Primitives)
     - NEW: remediation.py (Phase 4 Remediation + Subscription)
+    - NEW: alerts.py (OpenWatch OS Alert Thresholds)
     - NEW: audit.py (Phase 6 Audit Queries)
     - REMOVED: intelligence.py (MongoDB deprecation 2026-02-10)
 """
@@ -75,6 +78,9 @@ try:
 
     # Exception endpoints at /compliance/exceptions/* (Phase 3 Governance Primitives)
     router.include_router(exceptions_router)
+
+    # Alert endpoints at /compliance/alerts/* (OpenWatch OS Alert Thresholds)
+    router.include_router(alerts_router)
 
     # Remediation endpoints at /compliance/remediation/* (Phase 4 Remediation)
     router.include_router(remediation_router)
