@@ -322,7 +322,7 @@ class FleetAggregator:
                 "critical_issues": row.critical_failed,
                 "high_issues": row.high_failed,
                 "priority_score": row.priority_score,
-                "last_scan": row.completed_at.isoformat() if row.completed_at else None,
+                "last_scan": (row.completed_at.isoformat() + "Z") if row.completed_at else None,
             }
             for row in results
         ]
@@ -497,7 +497,7 @@ class FleetAggregator:
                 SUM(severity_medium_failed) AS total_medium,
                 SUM(severity_low_failed) AS total_low
             FROM posture_snapshots
-            WHERE snapshot_date >= :start_date AND snapshot_date <= :end_date
+            WHERE DATE(snapshot_date) >= :start_date AND DATE(snapshot_date) <= :end_date
             GROUP BY DATE(snapshot_date)
             ORDER BY snapshot_day ASC
             """
