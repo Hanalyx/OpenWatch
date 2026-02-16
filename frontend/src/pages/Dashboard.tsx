@@ -222,6 +222,38 @@ const Dashboard: React.FC = () => {
     }>
   >([]);
 
+  // Fetch trend data only (called when time range changes)
+  const fetchTrendData = useCallback(async (range: '7d' | '30d' | '90d') => {
+    const trendDays = range === '7d' ? 7 : range === '90d' ? 90 : 30;
+
+    try {
+      const fleetTrend: FleetComplianceTrend | null = await owcaService.getFleetTrend(trendDays);
+
+      if (fleetTrend && fleetTrend.data_points && fleetTrend.data_points.length > 0) {
+        const trendDataArray = fleetTrend.data_points.map((point) => ({
+          date: point.date,
+          overall: Math.max(0, Math.min(100, point.average_compliance)),
+          critical: point.total_critical_issues,
+          high: point.total_high_issues,
+          medium: point.total_medium_issues,
+          low: point.total_low_issues,
+        }));
+        setTrendData(trendDataArray);
+      }
+    } catch (trendError) {
+      console.warn('Failed to fetch fleet trend data:', trendError);
+    }
+  }, []);
+
+  // Handle time range change without reloading the whole dashboard
+  const handleTimeRangeChange = useCallback(
+    (range: '7d' | '30d' | '90d') => {
+      setTimeRange(range);
+      fetchTrendData(range);
+    },
+    [fetchTrendData]
+  );
+
   // Fetch dashboard data
   const fetchDashboardData = useCallback(async () => {
     try {
@@ -350,8 +382,8 @@ const Dashboard: React.FC = () => {
       // for historical fleet compliance data
       let trendDataArray: ComplianceTrendData[] = [];
 
-      // Convert time range to days for API call
-      const trendDays = timeRange === '7d' ? 7 : timeRange === '90d' ? 90 : 30;
+      // Initial load uses default 30-day range; time range changes handled by handleTimeRangeChange
+      const trendDays = 30;
 
       try {
         const fleetTrend: FleetComplianceTrend | null = await owcaService.getFleetTrend(trendDays);
@@ -605,9 +637,9 @@ const Dashboard: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [navigate, timeRange]);
+  }, [navigate]);
 
-  // Load data on component mount
+  // Load data on component mount only
   useEffect(() => {
     fetchDashboardData();
   }, [fetchDashboardData]);
@@ -841,7 +873,7 @@ const Dashboard: React.FC = () => {
                 <ComplianceTrend
                   data={trendData}
                   timeRange={timeRange}
-                  onTimeRangeChange={setTimeRange}
+                  onTimeRangeChange={handleTimeRangeChange}
                 />
               </DashboardErrorBoundary>
             </Grid>

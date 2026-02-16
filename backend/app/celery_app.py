@@ -56,6 +56,7 @@ celery_app = Celery(
         "app.tasks.adaptive_monitoring_dispatcher",
         "app.tasks.compliance_scheduler_tasks",
         "app.tasks.posture_tasks",
+        "app.tasks.backfill_posture_snapshots",
     ],
 )
 
