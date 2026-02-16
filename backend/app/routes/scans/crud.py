@@ -178,13 +178,13 @@ async def list_scans(
                     "ip_address": row.ip_address,
                     "operating_system": row.operating_system,
                     "status": row.host_status,
-                    "last_check": (row.last_check.isoformat() if row.last_check else None),
+                    "last_check": (row.last_check.isoformat() + "Z" if row.last_check else None),
                 },
                 "profile_id": row.profile_id,
                 "status": row.status,
                 "progress": row.progress,
-                "started_at": row.started_at.isoformat() if row.started_at else None,
-                "completed_at": (row.completed_at.isoformat() if row.completed_at else None),
+                "started_at": (row.started_at.isoformat() + "Z") if row.started_at else None,
+                "completed_at": (row.completed_at.isoformat() + "Z") if row.completed_at else None,
                 "started_by": row.started_by,
                 "error_message": row.error_message,
                 "result_file": row.result_file,
@@ -205,7 +205,7 @@ async def list_scans(
                     "severity_high": row.severity_high,
                     "severity_medium": row.severity_medium,
                     "severity_low": row.severity_low,
-                    "created_at": (row.completed_at.isoformat() if row.completed_at else None),
+                    "created_at": (row.completed_at.isoformat() + "Z") if row.completed_at else None,
                 }
 
             scans.append(scan_data)
@@ -317,8 +317,8 @@ async def get_scan(
             "report_file": result.report_file,
             "error_message": result.error_message,
             "scan_options": scan_options,
-            "started_at": result.started_at.isoformat() if result.started_at else None,
-            "completed_at": (result.completed_at.isoformat() if result.completed_at else None),
+            "started_at": (result.started_at.isoformat() + "Z") if result.started_at else None,
+            "completed_at": (result.completed_at.isoformat() + "Z") if result.completed_at else None,
             "started_by": result.started_by,
             "celery_task_id": result.celery_task_id,
         }

@@ -827,6 +827,7 @@ backend/scripts/
 
 # Documentation directories (user-generated, do not commit)
 docs/
+PRD/
 backend/docs/
 frontend/docs/
 

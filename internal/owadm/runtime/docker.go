@@ -1,3 +1,5 @@
+//go:build container
+
 package runtime
 
 import (

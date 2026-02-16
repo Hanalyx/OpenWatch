@@ -1,3 +1,5 @@
+//go:build container
+
 package utils
 
 import (
@@ -119,7 +121,7 @@ JWT_SECRET=%s
 POSTGRES_PASSWORD=%s
 POSTGRES_USER=openwatch
 POSTGRES_DB=openwatch
-DATABASE_URL=postgresql://openwatch:%s@database:5432/openwatch
+DATABASE_URL=postgresql://openwatch:%s@database:5432/openwatch  # pragma: allowlist secret
 
 # Redis Configuration
 REDIS_PASSWORD=%s

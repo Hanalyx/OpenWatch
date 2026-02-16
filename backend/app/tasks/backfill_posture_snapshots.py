@@ -9,8 +9,8 @@ Usage:
     docker exec openwatch-worker celery -A app.celery_app call backfill_posture_snapshots
 
     # Or run directly
-    docker exec openwatch-backend python -c \\
-        "from app.tasks.backfill_posture_snapshots import backfill_posture_snapshots; \\
+    docker exec openwatch-backend python -c \
+        "from app.tasks.backfill_posture_snapshots import backfill_posture_snapshots; \
         backfill_posture_snapshots()"
 """
 
