@@ -26,16 +26,22 @@ depends_on = None
 
 def upgrade():
     """Remove SCAP-related columns from host_groups table."""
-    # Drop foreign key constraint first if it exists
-    try:
-        op.drop_constraint("host_groups_scap_content_id_fkey", "host_groups", type_="foreignkey")
-    except Exception:
-        # Constraint may not exist in all environments
-        pass
+    conn = op.get_bind()
 
-    # Drop the columns
-    op.drop_column("host_groups", "scap_content_id")
-    op.drop_column("host_groups", "default_profile_id")
+    # Drop foreign key constraint if it exists (using raw SQL to avoid transaction abort)
+    conn.execute(sa.text("ALTER TABLE host_groups " "DROP CONSTRAINT IF EXISTS host_groups_scap_content_id_fkey"))
+
+    # Drop columns if they exist (defensive for idempotent migrations)
+    for column in ["scap_content_id", "default_profile_id"]:
+        result = conn.execute(
+            sa.text(
+                "SELECT EXISTS (SELECT FROM information_schema.columns "
+                "WHERE table_name = 'host_groups' AND column_name = :col)"
+            ),
+            {"col": column},
+        )
+        if result.scalar():
+            op.drop_column("host_groups", column)
 
 
 def downgrade():
