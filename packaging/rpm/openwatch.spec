@@ -1,12 +1,22 @@
-# OpenWatch RPM Package Specification
-# Enterprise SCAP compliance scanning platform
+# OpenWatch Native RPM Package Specification
+# Enterprise SCAP compliance scanning platform - Native systemd deployment
+#
+# This package installs OpenWatch to run directly on the host via systemd,
+# without requiring Docker or Podman containers.
+#
+# Package naming convention:
+#   openwatch-*.rpm        - Native (this package)
+#   openwatch-po-*.rpm     - Podman container deployment
+#   openwatch-do-*.rpm     - Docker container deployment
+#   openwatch-ko-*.rpm     - Kubernetes deployment
 
 %global commit %(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+%global python_version 3.12
 
 Name:           openwatch
-Version:        1.2.1
-Release:        8%{?dist}
-Summary:        Enterprise SCAP compliance scanning and remediation platform
+Version:        2.0.0
+Release:        1%{?dist}
+Summary:        Enterprise SCAP compliance scanning platform - Native deployment
 License:        Apache-2.0
 URL:            https://github.com/hanalyx/openwatch
 Source0:        %{name}-%{version}.tar.gz
@@ -19,51 +29,69 @@ ExclusiveArch:  x86_64 aarch64
 BuildRequires:  golang >= 1.21
 BuildRequires:  git
 BuildRequires:  make
+BuildRequires:  python%{python_version}-devel
+BuildRequires:  npm >= 18
 
-# Runtime requirements - Prefer Podman for RHEL-based systems
-Requires:       podman >= 4.0
-Requires:       podman-compose >= 1.0
+# Runtime requirements - Native deployment (NO container runtime)
+Requires:       python%{python_version}
+Requires:       python%{python_version}-pip
+Requires:       postgresql >= 15
+Requires:       postgresql-server >= 15
+Requires:       redis >= 6
+Requires:       nginx >= 1.20
+Requires:       openssl >= 1.1
 
 # System requirements
-Requires:       openscap-scanner >= 1.3.0
 Requires:       openssh-clients
 Requires:       systemd
 Requires:       shadow-utils
 Requires:       policycoreutils
 Requires:       policycoreutils-python-utils
-Requires:       selinux-policy-devel
 
 # Optional security enhancements
-Recommends:     podman >= 4.0
+Recommends:     selinux-policy-devel
 Recommends:     fapolicyd
 Recommends:     aide
 
+# Conflicts with container-based packages
+Conflicts:      openwatch-po
+Conflicts:      openwatch-do
+Conflicts:      openwatch-ko
+
 %description
-OpenWatch is an enterprise-grade SCAP (Security Content Automation Protocol)
-compliance scanning and remediation platform. It provides automated security
-compliance monitoring, vulnerability assessment, and remediation capabilities
-for enterprise Linux environments.
+OpenWatch is an enterprise-grade compliance scanning platform powered by
+Aegis v0.1.0. This package provides native systemd deployment without
+requiring Docker or Podman containers.
 
 Key features:
-- SCAP-compliant security scanning
-- Multi-host fleet management
-- Automated remediation workflows
+- Aegis-powered compliance scanning (338 YAML rules)
+- Multi-host fleet management via SSH
+- CIS, STIG, NIST 800-53, PCI-DSS framework support
 - Real-time compliance dashboards
 - Role-based access control
 - Audit logging and reporting
-- Container-based deployment
+- Native systemd service management
 
-Supports RHEL 8+, Oracle Linux 8+, and other enterprise Linux distributions.
+Deployment:
+- Backend API: uvicorn (FastAPI)
+- Workers: Celery with Redis broker
+- Database: PostgreSQL 15+
+- Frontend: nginx serving React SPA
+- Services managed via systemctl
+
+Supports RHEL 8+, Rocky Linux 8+, Oracle Linux 8+, AlmaLinux 8+,
+CentOS Stream 8+, and Fedora 38+.
 
 %prep
 %autosetup -n %{name}-%{version}
 
 %build
-# Build owadm CLI tool
+# =============================================================================
+# Build owadm CLI tool (native build - excludes container commands)
+# =============================================================================
 export CGO_ENABLED=0
 export GOOS=linux
 
-# Set build-time variables and correct architecture
 if [ "%{_arch}" = "x86_64" ]; then
     export GOARCH=amd64
 else
@@ -73,362 +101,521 @@ fi
 export BUILD_TIME=$(date -u '+%%Y-%%m-%%d_%%H:%%M:%%S')
 export LDFLAGS="-s -w -X github.com/hanalyx/openwatch/internal/owadm/cmd.Version=%{version} -X github.com/hanalyx/openwatch/internal/owadm/cmd.Commit=%{commit} -X github.com/hanalyx/openwatch/internal/owadm/cmd.BuildTime=$BUILD_TIME"
 
-go build -ldflags "$LDFLAGS" -o bin/owadm ./cmd/owadm
+# Build with native tag (excludes container-specific commands)
+go build -tags native -ldflags "$LDFLAGS" -o bin/owadm ./cmd/owadm
 
+# =============================================================================
+# Build frontend (React application)
+# =============================================================================
+cd frontend
+npm ci --production=false
+npm run build
+cd ..
+
+# =============================================================================
 # Build SELinux policy if tools are available
+# =============================================================================
 if command -v make >/dev/null 2>&1 && [ -f /usr/share/selinux/devel/Makefile ]; then
     cd packaging/selinux
-    make -f /usr/share/selinux/devel/Makefile openwatch.pp
+    make -f /usr/share/selinux/devel/Makefile openwatch.pp || true
     cd ../..
 fi
 
 %install
+# =============================================================================
 # Create directory structure
+# =============================================================================
+
+# Binary directory
 install -d %{buildroot}%{_bindir}
+
+# Application directory
+install -d %{buildroot}/opt/openwatch
+install -d %{buildroot}/opt/openwatch/venv
+install -d %{buildroot}/opt/openwatch/backend
+install -d %{buildroot}/opt/openwatch/backend/app
+install -d %{buildroot}/opt/openwatch/backend/aegis
+install -d %{buildroot}/opt/openwatch/backend/alembic
+install -d %{buildroot}/opt/openwatch/frontend
+
+# Configuration directory
 install -d %{buildroot}%{_sysconfdir}/openwatch
 install -d %{buildroot}%{_sysconfdir}/openwatch/ssh
-install -d %{buildroot}%{_datadir}/openwatch
-install -d %{buildroot}%{_datadir}/openwatch/compose
-install -d %{buildroot}%{_datadir}/openwatch/scripts
-install -d %{buildroot}/lib/systemd/system
-install -d %{buildroot}%{_localstatedir}/lib/openwatch
-install -d %{buildroot}%{_localstatedir}/log/openwatch
-install -d %{buildroot}%{_localstatedir}/cache/openwatch
+install -d %{buildroot}%{_sysconfdir}/openwatch/ssl
 
-# Install owadm binary
+# Nginx configuration
+install -d %{buildroot}%{_sysconfdir}/nginx/conf.d
+
+# Systemd services
+install -d %{buildroot}/lib/systemd/system
+
+# Runtime directories
+install -d %{buildroot}%{_localstatedir}/lib/openwatch
+install -d %{buildroot}%{_localstatedir}/lib/openwatch/celery
+install -d %{buildroot}%{_localstatedir}/lib/openwatch/exports
+install -d %{buildroot}%{_localstatedir}/lib/openwatch/ssh
+install -d %{buildroot}%{_localstatedir}/log/openwatch
+
+# SELinux policy directory
+install -d %{buildroot}%{_datadir}/selinux/packages
+
+# Scripts directory
+install -d %{buildroot}%{_datadir}/openwatch/scripts
+
+# =============================================================================
+# Install owadm binary (native build)
+# =============================================================================
 install -m 0755 bin/owadm %{buildroot}%{_bindir}/owadm
 
-# Install container orchestration files
-install -m 0644 docker-compose.yml %{buildroot}%{_datadir}/openwatch/compose/docker-compose.yml
-install -m 0644 podman-compose.yml %{buildroot}%{_datadir}/openwatch/compose/podman-compose.yml
+# =============================================================================
+# Install backend application
+# =============================================================================
+cp -r backend/app %{buildroot}/opt/openwatch/backend/
+cp -r backend/aegis %{buildroot}/opt/openwatch/backend/
+cp -r backend/alembic %{buildroot}/opt/openwatch/backend/
+cp backend/requirements.txt %{buildroot}/opt/openwatch/backend/
+cp backend/alembic.ini %{buildroot}/opt/openwatch/backend/
 
-# Install docker build files
-install -d %{buildroot}%{_datadir}/openwatch/docker
-install -d %{buildroot}%{_datadir}/openwatch/docker/database
-install -d %{buildroot}%{_datadir}/openwatch/docker/frontend
-install -m 0644 docker/Containerfile.backend %{buildroot}%{_datadir}/openwatch/docker/Containerfile.backend
-install -m 0644 docker/Containerfile.frontend %{buildroot}%{_datadir}/openwatch/docker/Containerfile.frontend
-install -m 0644 docker/Dockerfile.backend %{buildroot}%{_datadir}/openwatch/docker/Dockerfile.backend
-install -m 0644 docker/Dockerfile.frontend %{buildroot}%{_datadir}/openwatch/docker/Dockerfile.frontend
-install -m 0644 docker/README.md %{buildroot}%{_datadir}/openwatch/docker/README.md
-install -m 0644 docker/database/init.sql %{buildroot}%{_datadir}/openwatch/docker/database/init.sql
-install -m 0644 docker/frontend/default.conf %{buildroot}%{_datadir}/openwatch/docker/frontend/default.conf
-install -m 0644 docker/frontend/nginx.conf %{buildroot}%{_datadir}/openwatch/docker/frontend/nginx.conf
+# Create runner symlink for Aegis imports
+ln -s aegis/runner %{buildroot}/opt/openwatch/backend/runner
 
-# Install configuration templates
+# =============================================================================
+# Install frontend (pre-built React application)
+# =============================================================================
+cp -r frontend/dist/* %{buildroot}/opt/openwatch/frontend/
+
+# =============================================================================
+# Install configuration files
+# =============================================================================
+
+# Main configuration file
 cat > %{buildroot}%{_sysconfdir}/openwatch/ow.yml << 'EOF'
-# OpenWatch Configuration
-# Generated by RPM package installation
+# OpenWatch Native Installation Configuration
+# Version: 2.0.0
 
+# Runtime mode
 runtime:
-  engine: "podman"              # podman (default), docker, auto
-  rootless: false               # Use system-level containers for systemd services
-  compose_file: "/usr/share/openwatch/compose/podman-compose.yml"
-  compose_command: "podman-compose"  # podman-compose or podman compose or docker-compose
-  working_directory: "/usr/share/openwatch/compose"  # Directory containing compose files
+  mode: native                    # native (systemd) deployment
 
+# Database configuration (system PostgreSQL)
 database:
-  host: "localhost"
+  host: localhost
   port: 5432
-  name: "openwatch"
-  user: "openwatch"
-  ssl_mode: "require"
-  # Password loaded from secrets.env
+  name: openwatch
+  user: openwatch
+  # Password from secrets.env: OPENWATCH_DATABASE_PASSWORD
+  ssl_mode: prefer
+  pool_size: 25
+  max_overflow: 10
 
-web:
-  port: 3001
-  bind_address: "0.0.0.0"
-  ssl:
-    enabled: false              # Set to true for production
-    cert_path: "/etc/ssl/certs/openwatch.crt"
-    key_path: "/etc/ssl/private/openwatch.key"
+# Redis configuration (system Redis)
+redis:
+  host: localhost
+  port: 6379
+  db: 0
+  # Password from secrets.env: OPENWATCH_REDIS_PASSWORD
 
+# API configuration
+api:
+  host: 127.0.0.1                 # Bind to localhost (nginx proxies)
+  port: 8000
+  workers: 4
+
+# Celery configuration
+celery:
+  worker_concurrency: 4
+  worker_instances: 2
+  queues:
+    - default
+    - scans
+    - results
+    - maintenance
+    - monitoring
+    - compliance_scanning
+
+# Scanning configuration (Aegis-based)
 scanning:
-  ssh_key_path: "/etc/openwatch/ssh/openwatch_rsa"
+  ssh_key_path: /etc/openwatch/ssh/openwatch_rsa
   concurrent_scans: 5
-  timeout: 300
-  scap_content_dir: "/var/lib/openwatch/scap"
-  results_dir: "/var/lib/openwatch/results"
+  timeout_seconds: 600
 
+# Aegis compliance engine
+aegis:
+  rules_path: /opt/openwatch/backend/aegis/rules
+  config_path: /opt/openwatch/backend/aegis/config
+
+# Logging configuration
 logging:
-  level: "INFO"
-  file: "/var/log/openwatch/openwatch.log"
-  audit_file: "/var/log/openwatch/audit.log"
-  max_size: "100MB"
-  max_age: 30
+  level: INFO
+  format: json
+  api_log: /var/log/openwatch/api.log
+  worker_log: /var/log/openwatch/worker.log
+  audit_log: /var/log/openwatch/audit.log
+  max_size_mb: 100
+  max_age_days: 30
 
+# Security configuration
 security:
-  fips_mode: false              # Enable for FIPS 140-2 compliance
-  audit_logging: true
-  rate_limiting: true
-  session_timeout: 3600
+  fips_mode: false
+  require_https: true
+  session_timeout_minutes: 60
+  jwt_algorithm: RS256
+  jwt_private_key: /etc/openwatch/jwt_private.pem
+  jwt_public_key: /etc/openwatch/jwt_public.pem
 EOF
 
-# Install secrets template (will be configured by admin)
+# Secrets template
 cat > %{buildroot}%{_sysconfdir}/openwatch/secrets.env << 'EOF'
 # OpenWatch Secrets Configuration
-# IMPORTANT: Secure this file with chmod 600 and set proper ownership
+# IMPORTANT: This file must have chmod 600 permissions
+#
+# After installation, run: /usr/share/openwatch/scripts/generate-secrets.sh
+# to generate secure random values for all secrets.
 
-# Database password
-POSTGRES_PASSWORD=CHANGEME_SECURE_DB_PASSWORD
+# Database credentials
+OPENWATCH_DATABASE_PASSWORD=CHANGEME_SECURE_DB_PASSWORD
 
-# Redis password
-REDIS_PASSWORD=CHANGEME_SECURE_REDIS_PASSWORD
+# Redis credentials
+OPENWATCH_REDIS_PASSWORD=CHANGEME_SECURE_REDIS_PASSWORD
 
 # Application secrets
-SECRET_KEY=CHANGEME_64_CHAR_SECRET_KEY
-MASTER_KEY=CHANGEME_32_CHAR_MASTER_KEY
+OPENWATCH_SECRET_KEY=CHANGEME_64_CHAR_SECRET_KEY
+OPENWATCH_MASTER_KEY=CHANGEME_32_CHAR_MASTER_KEY
+OPENWATCH_ENCRYPTION_KEY=CHANGEME_32_CHAR_ENCRYPTION_KEY
 
-# JWT signing keys (auto-generated by post-install script)
+# JWT key paths
 JWT_PRIVATE_KEY_PATH=/etc/openwatch/jwt_private.pem
 JWT_PUBLIC_KEY_PATH=/etc/openwatch/jwt_public.pem
+
+# Database URL (constructed from above)
+DATABASE_URL=postgresql://openwatch:${OPENWATCH_DATABASE_PASSWORD}@localhost:5432/openwatch
+
+# Redis URL (constructed from above)
+REDIS_URL=redis://:${OPENWATCH_REDIS_PASSWORD}@localhost:6379/0
+
+# Celery broker and backend
+CELERY_BROKER_URL=redis://:${OPENWATCH_REDIS_PASSWORD}@localhost:6379/1
+CELERY_RESULT_BACKEND=redis://:${OPENWATCH_REDIS_PASSWORD}@localhost:6379/2
 EOF
 
+# Logging configuration
+cat > %{buildroot}%{_sysconfdir}/openwatch/logging.yml << 'EOF'
+version: 1
+disable_existing_loggers: false
+
+formatters:
+  json:
+    format: '{"timestamp": "%(asctime)s", "level": "%(levelname)s", "logger": "%(name)s", "message": "%(message)s"}'
+    datefmt: '%Y-%m-%dT%H:%M:%S%z'
+  standard:
+    format: '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+
+handlers:
+  console:
+    class: logging.StreamHandler
+    level: INFO
+    formatter: standard
+    stream: ext://sys.stdout
+
+  api_file:
+    class: logging.handlers.RotatingFileHandler
+    level: INFO
+    formatter: json
+    filename: /var/log/openwatch/api.log
+    maxBytes: 104857600  # 100MB
+    backupCount: 5
+
+  audit_file:
+    class: logging.handlers.RotatingFileHandler
+    level: INFO
+    formatter: json
+    filename: /var/log/openwatch/audit.log
+    maxBytes: 104857600
+    backupCount: 10
+
+loggers:
+  uvicorn:
+    level: INFO
+    handlers: [console, api_file]
+    propagate: false
+
+  openwatch:
+    level: INFO
+    handlers: [console, api_file]
+    propagate: false
+
+  openwatch.audit:
+    level: INFO
+    handlers: [audit_file]
+    propagate: false
+
+root:
+  level: INFO
+  handlers: [console]
+EOF
+
+# =============================================================================
 # Install systemd service files
-cat > %{buildroot}/lib/systemd/system/openwatch.service << 'EOF'
+# =============================================================================
+
+# OpenWatch API service
+cat > %{buildroot}/lib/systemd/system/openwatch-api.service << 'EOF'
 [Unit]
-Description=OpenWatch SCAP Compliance Platform
+Description=OpenWatch API Server
 Documentation=https://github.com/hanalyx/openwatch
-Requires=openwatch-db.service
-After=network-online.target openwatch-db.service
+After=network-online.target postgresql.service redis.service
+Requires=postgresql.service redis.service
 Wants=network-online.target
 
 [Service]
-Type=forking
-User=root
-Group=root
-WorkingDirectory=/usr/share/openwatch/compose
+Type=notify
+User=openwatch
+Group=openwatch
+WorkingDirectory=/opt/openwatch/backend
+
+# Environment
 EnvironmentFile=/etc/openwatch/secrets.env
-EnvironmentFile=-/etc/openwatch/.env
-Environment="COMPOSE_PROJECT_NAME=openwatch"
-Environment="CONTAINER_RUNTIME=podman"
-Environment="OPENWATCH_CONFIG_DIR=/etc/openwatch"
-Environment="OPENWATCH_USER=openwatch"
-Environment="OPENWATCH_GROUP=openwatch"
-ExecStartPre=/usr/bin/owadm validate-config --config /etc/openwatch/ow.yml
-ExecStart=/usr/bin/owadm start --daemon --config /etc/openwatch/ow.yml
-ExecStop=/usr/bin/owadm stop --config /etc/openwatch/ow.yml
-ExecReload=/usr/bin/owadm restart --config /etc/openwatch/ow.yml
+Environment=PYTHONPATH=/opt/openwatch/backend
+Environment=OPENWATCH_CONFIG_FILE=/etc/openwatch/ow.yml
+
+# Start command
+ExecStart=/opt/openwatch/venv/bin/uvicorn \
+    app.main:app \
+    --host 127.0.0.1 \
+    --port 8000 \
+    --workers 4 \
+    --log-config /etc/openwatch/logging.yml
+
+# Lifecycle
+ExecReload=/bin/kill -HUP $MAINPID
 Restart=on-failure
 RestartSec=10
-KillMode=mixed
-TimeoutStartSec=300
-TimeoutStopSec=120
-
-# Security settings for system containers
-ProtectKernelTunables=true
-ProtectControlGroups=true
-RestrictRealtime=true
-LockPersonality=true
-PrivateDevices=false
-CapabilityBoundingSet=CAP_NET_ADMIN CAP_SYS_ADMIN CAP_DAC_OVERRIDE
-AmbientCapabilities=CAP_NET_ADMIN
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-cat > %{buildroot}/lib/systemd/system/openwatch-db.service << 'EOF'
-[Unit]
-Description=OpenWatch Database Container
-Documentation=https://github.com/hanalyx/openwatch
-After=network-online.target
-Wants=network-online.target
-
-[Service]
-Type=forking
-User=root
-Group=root
-WorkingDirectory=/usr/share/openwatch/compose
-EnvironmentFile=/etc/openwatch/secrets.env
-EnvironmentFile=-/etc/openwatch/.env
-Environment="COMPOSE_PROJECT_NAME=openwatch"
-Environment="CONTAINER_RUNTIME=podman"
-Environment="OPENWATCH_CONFIG_DIR=/etc/openwatch"
-Environment="OPENWATCH_USER=openwatch"
-Environment="OPENWATCH_GROUP=openwatch"
-ExecStartPre=/usr/bin/owadm validate-config --config /etc/openwatch/ow.yml
-ExecStart=/usr/bin/owadm start --daemon --service database --config /etc/openwatch/ow.yml
-ExecStop=/usr/bin/owadm stop --service database --config /etc/openwatch/ow.yml
-Restart=on-failure
-RestartSec=5
-TimeoutStartSec=60
+TimeoutStartSec=120
 TimeoutStopSec=30
 
-# Security settings for system containers
-ProtectKernelTunables=true
-ProtectControlGroups=true
-RestrictRealtime=true
-LockPersonality=true
-PrivateDevices=false
-CapabilityBoundingSet=CAP_NET_ADMIN CAP_SYS_ADMIN CAP_DAC_OVERRIDE
-AmbientCapabilities=CAP_NET_ADMIN
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/openwatch /var/log/openwatch
+ReadOnlyPaths=/opt/openwatch /etc/openwatch
+
+# Resource limits
+LimitNOFILE=65536
+TasksMax=4096
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
-# Install SELinux policy files (if available)
-install -d %{buildroot}%{_datadir}/selinux/packages
-if [ -f packaging/selinux/openwatch.pp ]; then
-    install -m 0644 packaging/selinux/openwatch.pp %{buildroot}%{_datadir}/selinux/packages/openwatch.pp
-else
-    # Create empty policy file as placeholder
-    touch %{buildroot}%{_datadir}/selinux/packages/openwatch.pp
-fi
+# OpenWatch Worker service (template for multiple instances)
+cat > %{buildroot}/lib/systemd/system/openwatch-worker@.service << 'EOF'
+[Unit]
+Description=OpenWatch Celery Worker %i
+Documentation=https://github.com/hanalyx/openwatch
+After=network-online.target postgresql.service redis.service openwatch-api.service
+Requires=postgresql.service redis.service
+PartOf=openwatch-api.service
 
-# Install fapolicyd configuration scripts
-install -m 0755 packaging/rpm/scripts/configure-fapolicyd.sh %{buildroot}%{_datadir}/openwatch/scripts/configure-fapolicyd.sh
-install -m 0755 packaging/rpm/scripts/fapolicyd-troubleshoot.sh %{buildroot}%{_datadir}/openwatch/scripts/fapolicyd-troubleshoot.sh
+[Service]
+Type=notify
+User=openwatch
+Group=openwatch
+WorkingDirectory=/opt/openwatch/backend
 
-# Install comprehensive cleanup script
-install -m 0755 packaging/rpm/scripts/cleanup-openwatch.sh %{buildroot}%{_datadir}/openwatch/scripts/cleanup-openwatch.sh
+# Environment
+EnvironmentFile=/etc/openwatch/secrets.env
+Environment=PYTHONPATH=/opt/openwatch/backend
+Environment=OPENWATCH_CONFIG_FILE=/etc/openwatch/ow.yml
+Environment=C_FORCE_ROOT=false
 
-# Install Podman permission fix script
-install -m 0755 packaging/rpm/scripts/fix-podman-permissions.sh %{buildroot}%{_datadir}/openwatch/scripts/fix-podman-permissions.sh
+# Celery worker command
+ExecStart=/opt/openwatch/venv/bin/celery \
+    -A app.celery_app worker \
+    --loglevel=info \
+    --hostname=worker-%i@%%h \
+    --queues=default,scans,results,maintenance,monitoring,host_monitoring,health_monitoring,compliance_scanning \
+    --concurrency=4 \
+    --logfile=/var/log/openwatch/worker-%i.log
 
-# Install Podman troubleshooting script
-install -m 0755 packaging/rpm/scripts/podman-troubleshoot.sh %{buildroot}%{_datadir}/openwatch/scripts/podman-troubleshoot.sh
+# Lifecycle
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+RestartSec=10
 
-# Install fapolicyd rules template
-install -d %{buildroot}%{_datadir}/openwatch/templates
-install -m 0644 packaging/rpm/templates/90-openwatch.rules %{buildroot}%{_datadir}/openwatch/templates/90-openwatch.rules
+# Security (less restrictive for SSH scanning)
+NoNewPrivileges=true
+ProtectSystem=strict
+PrivateTmp=false
+ReadWritePaths=/var/lib/openwatch /var/log/openwatch /tmp
+ReadOnlyPaths=/opt/openwatch /etc/openwatch /etc/ssl
 
-# Create owadm required directories (matching prerequisites.go expectations)
-install -d %{buildroot}%{_datadir}/openwatch/compose/logs
-install -d %{buildroot}%{_datadir}/openwatch/compose/data/scap
-install -d %{buildroot}%{_datadir}/openwatch/compose/data/results
-install -d %{buildroot}%{_datadir}/openwatch/compose/data/uploads
-install -d %{buildroot}%{_datadir}/openwatch/compose/security/certs
-install -d %{buildroot}%{_datadir}/openwatch/compose/security/keys
-install -d %{buildroot}%{_datadir}/openwatch/compose/backend/logs
-install -d %{buildroot}%{_datadir}/openwatch/compose/backend/security/keys
+# Resource limits
+LimitNOFILE=16384
+TasksMax=2048
 
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# OpenWatch Beat service (Celery scheduler)
+cat > %{buildroot}/lib/systemd/system/openwatch-beat.service << 'EOF'
+[Unit]
+Description=OpenWatch Celery Beat Scheduler
+Documentation=https://github.com/hanalyx/openwatch
+After=network-online.target postgresql.service redis.service
+Requires=postgresql.service redis.service
+
+[Service]
+Type=simple
+User=openwatch
+Group=openwatch
+WorkingDirectory=/opt/openwatch/backend
+
+# Environment
+EnvironmentFile=/etc/openwatch/secrets.env
+Environment=PYTHONPATH=/opt/openwatch/backend
+Environment=OPENWATCH_CONFIG_FILE=/etc/openwatch/ow.yml
+
+# Celery beat command
+ExecStart=/opt/openwatch/venv/bin/celery \
+    -A app.celery_app beat \
+    --loglevel=info \
+    --logfile=/var/log/openwatch/beat.log \
+    --schedule=/var/lib/openwatch/celery/celerybeat-schedule
+
+Restart=on-failure
+RestartSec=10
+
+# Security
+NoNewPrivileges=true
+ProtectSystem=strict
+PrivateTmp=true
+ReadWritePaths=/var/lib/openwatch /var/log/openwatch
+ReadOnlyPaths=/opt/openwatch /etc/openwatch
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# OpenWatch target (starts all services)
+cat > %{buildroot}/lib/systemd/system/openwatch.target << 'EOF'
+[Unit]
+Description=OpenWatch Compliance Platform
+Documentation=https://github.com/hanalyx/openwatch
+Requires=openwatch-api.service openwatch-worker@1.service openwatch-beat.service
+After=openwatch-api.service openwatch-worker@1.service openwatch-beat.service
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# =============================================================================
+# Install nginx configuration
+# =============================================================================
+cat > %{buildroot}%{_sysconfdir}/nginx/conf.d/openwatch.conf << 'EOF'
+# OpenWatch Nginx Configuration
+# Reverse proxy for API + static file serving for frontend
+
+upstream openwatch_backend {
+    server 127.0.0.1:8000;
+    keepalive 32;
+}
+
+server {
+    listen 80;
+    server_name _;
+
+    # Redirect HTTP to HTTPS
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name _;
+
+    # TLS Configuration
+    ssl_certificate /etc/openwatch/ssl/openwatch.crt;
+    ssl_certificate_key /etc/openwatch/ssl/openwatch.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384;
+    ssl_prefer_server_ciphers off;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_timeout 1d;
+
+    # Security Headers
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+    add_header Strict-Transport-Security "max-age=31536000" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+
+    # Frontend (React SPA)
+    root /opt/openwatch/frontend;
+    index index.html;
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    # API Proxy
+    location /api/ {
+        proxy_pass http://openwatch_backend;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Connection "";
+        proxy_read_timeout 300s;
+        proxy_connect_timeout 75s;
+        proxy_buffering off;
+    }
+
+    # Health check (no auth required)
+    location /health {
+        proxy_pass http://openwatch_backend/health;
+        proxy_http_version 1.1;
+    }
+
+    # Metrics (internal only)
+    location /metrics {
+        allow 127.0.0.1;
+        deny all;
+        proxy_pass http://openwatch_backend/metrics;
+    }
+
+    # Static assets caching
+    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+}
+EOF
+
+# =============================================================================
 # Install helper scripts
-cat > %{buildroot}%{_datadir}/openwatch/scripts/generate-secrets.sh << 'EOF'
+# =============================================================================
+
+# Secret generation script
+cat > %{buildroot}%{_datadir}/openwatch/scripts/generate-secrets.sh << 'EOFSCRIPT'
 #!/bin/bash
-# OpenWatch Secret Generation Script
+# OpenWatch Secret Generation Script for Native Installation
 
 set -euo pipefail
 
 SECRETS_FILE="/etc/openwatch/secrets.env"
 CONFIG_DIR="/etc/openwatch"
 
-# Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
-log_info() {
-    echo -e "${GREEN}INFO: $1${NC}"
-}
-
-log_warning() {
-    echo -e "${YELLOW}WARNING: $1${NC}"
-}
-
-log_error() {
-    echo -e "${RED}ERROR: $1${NC}"
-}
-
-# Check prerequisites
-check_prerequisites() {
-    log_info "Checking prerequisites..."
-
-    # Check if OpenSSL is installed
-    if ! command -v openssl >/dev/null 2>&1; then
-        log_error "OpenSSL is not installed!"
-        echo ""
-        echo "Please install OpenSSL first:"
-        echo "  RHEL/Fedora/Oracle Linux: sudo dnf install openssl"
-        echo "  Ubuntu/Debian:             sudo apt install openssl"
-        echo "  SLES/openSUSE:             sudo zypper install openssl"
-        echo ""
-        exit 1
-    fi
-
-    # Check OpenSSL version
-    local openssl_version
-    openssl_version=$(openssl version | cut -d' ' -f2)
-    log_info "OpenSSL version: $openssl_version"
-
-    # Check if we have required tools
-    local missing_tools=()
-    for tool in sed chown chmod; do
-        if ! command -v "$tool" >/dev/null 2>&1; then
-            missing_tools+=("$tool")
-        fi
-    done
-
-    if [ ${#missing_tools[@]} -gt 0 ]; then
-        log_error "Missing required tools: ${missing_tools[*]}"
-        exit 1
-    fi
-
-    log_info "Prerequisites check passed"
-}
-
-# Generate secure random passwords
-generate_password() {
-    # Try different methods based on what's available
-    if command -v openssl >/dev/null 2>&1; then
-        openssl rand -base64 32 | tr -d "=+/" | cut -c1-32
-    elif [ -f /dev/urandom ]; then
-        tr -dc 'A-Za-z0-9' </dev/urandom | head -c 32
-    else
-        log_error "Cannot generate secure random passwords - no entropy source available"
-        exit 1
-    fi
-}
-
-# Generate JWT key pair with compatibility
-generate_jwt_keys() {
-    local private_key="$CONFIG_DIR/jwt_private.pem"
-    local public_key="$CONFIG_DIR/jwt_public.pem"
-
-    log_info "Generating JWT key pair..."
-
-    # Try modern OpenSSL syntax first, fall back to older syntax
-    if openssl genpkey -algorithm RSA -out "$private_key" -pkeyopt rsa_keygen_bits:2048 2>/dev/null; then
-        log_info "Generated private key using modern OpenSSL"
-    elif openssl genrsa -out "$private_key" 2048 2>/dev/null; then
-        log_info "Generated private key using legacy OpenSSL"
-    else
-        log_error "Failed to generate RSA private key"
-        log_info "Trying alternative method..."
-
-        # Alternative method for very old OpenSSL versions
-        if ! openssl genrsa 2048 > "$private_key" 2>/dev/null; then
-            log_error "All RSA key generation methods failed"
-            exit 1
-        fi
-        log_info "Generated private key using alternative method"
-    fi
-
-    # Extract public key (try different methods)
-    if openssl pkey -in "$private_key" -pubout -out "$public_key" 2>/dev/null; then
-        log_info "Extracted public key using modern OpenSSL"
-    elif openssl rsa -in "$private_key" -pubout -out "$public_key" 2>/dev/null; then
-        log_info "Extracted public key using legacy OpenSSL"
-    else
-        log_error "Failed to extract public key from private key"
-        exit 1
-    fi
-
-    # Set proper permissions
-    chmod 600 "$private_key"
-    chmod 644 "$public_key"
-
-    # Only change ownership if openwatch user exists
-    if id "openwatch" >/dev/null 2>&1; then
-        chown openwatch:openwatch "$private_key" "$public_key"
-    else
-        log_warning "openwatch user not found - keeping root ownership"
-    fi
-
-    log_info "JWT keys generated successfully"
-}
+log_info() { echo -e "${GREEN}[INFO]${NC} $1"; }
+log_warning() { echo -e "${YELLOW}[WARNING]${NC} $1"; }
+log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
 # Check if running as root
 if [[ $EUID -ne 0 ]]; then
@@ -436,40 +623,58 @@ if [[ $EUID -ne 0 ]]; then
     exit 1
 fi
 
-# Check if secrets file exists
-if [ ! -f "$SECRETS_FILE" ]; then
-    log_error "Secrets file not found: $SECRETS_FILE"
-    log_info "Please ensure OpenWatch is properly installed"
-    exit 1
-fi
+# Generate secure random password
+generate_password() {
+    openssl rand -base64 32 | tr -d "=+/" | cut -c1-32
+}
 
-echo "OpenWatch Secret Generation Script"
-echo "====================================="
+# Generate JWT key pair
+generate_jwt_keys() {
+    local private_key="$CONFIG_DIR/jwt_private.pem"
+    local public_key="$CONFIG_DIR/jwt_public.pem"
 
-check_prerequisites
+    log_info "Generating JWT key pair..."
 
+    # Generate private key
+    if openssl genpkey -algorithm RSA -out "$private_key" -pkeyopt rsa_keygen_bits:2048 2>/dev/null; then
+        log_info "Generated private key"
+    elif openssl genrsa -out "$private_key" 2048 2>/dev/null; then
+        log_info "Generated private key (legacy method)"
+    else
+        log_error "Failed to generate RSA private key"
+        exit 1
+    fi
+
+    # Extract public key
+    if openssl pkey -in "$private_key" -pubout -out "$public_key" 2>/dev/null; then
+        log_info "Extracted public key"
+    elif openssl rsa -in "$private_key" -pubout -out "$public_key" 2>/dev/null; then
+        log_info "Extracted public key (legacy method)"
+    else
+        log_error "Failed to extract public key"
+        exit 1
+    fi
+
+    chmod 600 "$private_key"
+    chmod 644 "$public_key"
+    chown openwatch:openwatch "$private_key" "$public_key"
+}
+
+# Main
 log_info "Generating OpenWatch secrets..."
 
-# Generate secrets with error handling
-log_info "Generating database password..."
-DB_PASSWORD=$(generate_password)
-
-log_info "Generating Redis password..."
-REDIS_PASSWORD=$(generate_password)
-
-log_info "Generating application secret key..."
-if command -v openssl >/dev/null 2>&1; then
-    SECRET_KEY=$(openssl rand -base64 48 | tr -d "=+/" | cut -c1-64)
-else
-    SECRET_KEY=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 64)
+# Backup existing secrets
+if [ -f "$SECRETS_FILE" ] && ! grep -q "CHANGEME" "$SECRETS_FILE"; then
+    cp "$SECRETS_FILE" "$SECRETS_FILE.backup.$(date +%Y%m%d_%H%M%S)"
+    log_info "Backed up existing secrets file"
 fi
 
-log_info "Generating master key..."
+# Generate passwords
+DB_PASSWORD=$(generate_password)
+REDIS_PASSWORD=$(generate_password)
+SECRET_KEY=$(openssl rand -base64 48 | tr -d "=+/" | cut -c1-64)
 MASTER_KEY=$(generate_password)
-
-# Backup original secrets file
-cp "$SECRETS_FILE" "$SECRETS_FILE.backup.$(date +%%Y%%m%%d_%%H%%M%%S)"
-log_info "Backed up original secrets file"
+ENCRYPTION_KEY=$(generate_password)
 
 # Update secrets file
 log_info "Updating secrets file..."
@@ -477,505 +682,293 @@ sed -i "s/CHANGEME_SECURE_DB_PASSWORD/$DB_PASSWORD/" "$SECRETS_FILE"
 sed -i "s/CHANGEME_SECURE_REDIS_PASSWORD/$REDIS_PASSWORD/" "$SECRETS_FILE"
 sed -i "s/CHANGEME_64_CHAR_SECRET_KEY/$SECRET_KEY/" "$SECRETS_FILE"
 sed -i "s/CHANGEME_32_CHAR_MASTER_KEY/$MASTER_KEY/" "$SECRETS_FILE"
+sed -i "s/CHANGEME_32_CHAR_ENCRYPTION_KEY/$ENCRYPTION_KEY/" "$SECRETS_FILE"
 
 # Generate JWT keys
 generate_jwt_keys
 
 # Secure the secrets file
 chmod 600 "$SECRETS_FILE"
-if id "openwatch" >/dev/null 2>&1; then
-    chown openwatch:openwatch "$SECRETS_FILE"
-else
-    log_warning "openwatch user not found - keeping root ownership"
-fi
+chown openwatch:openwatch "$SECRETS_FILE"
 
-echo ""
-echo "Secrets generated successfully!"
-echo ""
-echo "Files created/updated:"
-echo "  - $SECRETS_FILE"
-echo "  - $CONFIG_DIR/jwt_private.pem"
-echo "  - $CONFIG_DIR/jwt_public.pem"
+log_info "Secrets generated successfully!"
 echo ""
 echo "Next steps:"
-echo "  1. Review and customize /etc/openwatch/ow.yml"
-echo "  2. Generate SSH keys if needed: ssh-keygen -t rsa -f /etc/openwatch/ssh/openwatch_rsa"
-echo "  3. Start OpenWatch: systemctl start openwatch"
-echo ""
-echo "Secrets stored securely with restricted permissions"
-EOF
+echo "  1. Initialize PostgreSQL: /usr/share/openwatch/scripts/setup-database.sh"
+echo "  2. Configure Redis password in /etc/redis/redis.conf"
+echo "  3. Configure TLS certificates in /etc/openwatch/ssl/"
+echo "  4. Start services: systemctl start openwatch.target"
+EOFSCRIPT
+
+# Database setup script
+cat > %{buildroot}%{_datadir}/openwatch/scripts/setup-database.sh << 'EOFSCRIPT'
+#!/bin/bash
+# OpenWatch Database Setup Script
+
+set -euo pipefail
+
+source /etc/openwatch/secrets.env
+
+log_info() { echo -e "\033[0;32m[INFO]\033[0m $1"; }
+log_error() { echo -e "\033[0;31m[ERROR]\033[0m $1"; }
+
+# Check if running as root or postgres user
+if [[ $EUID -ne 0 ]] && [[ "$(whoami)" != "postgres" ]]; then
+    log_error "This script must be run as root or postgres user"
+    exit 1
+fi
+
+log_info "Setting up OpenWatch database..."
+
+# Create database user and database
+sudo -u postgres psql << EOSQL
+-- Create user if not exists
+DO \$\$
+BEGIN
+    IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'openwatch') THEN
+        CREATE USER openwatch WITH PASSWORD '${OPENWATCH_DATABASE_PASSWORD}';
+    END IF;
+END
+\$\$;
+
+-- Create database if not exists
+SELECT 'CREATE DATABASE openwatch OWNER openwatch'
+WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'openwatch')\gexec
+
+-- Grant privileges
+GRANT ALL PRIVILEGES ON DATABASE openwatch TO openwatch;
+EOSQL
+
+log_info "Database created successfully"
+
+# Run migrations
+log_info "Running database migrations..."
+cd /opt/openwatch/backend
+sudo -u openwatch /opt/openwatch/venv/bin/alembic upgrade head
+
+log_info "Database setup complete!"
+EOFSCRIPT
 
 chmod +x %{buildroot}%{_datadir}/openwatch/scripts/generate-secrets.sh
+chmod +x %{buildroot}%{_datadir}/openwatch/scripts/setup-database.sh
 
+# =============================================================================
+# Install SELinux policy (if available)
+# =============================================================================
+if [ -f packaging/selinux/openwatch.pp ]; then
+    install -m 0644 packaging/selinux/openwatch.pp %{buildroot}%{_datadir}/selinux/packages/openwatch.pp
+else
+    touch %{buildroot}%{_datadir}/selinux/packages/openwatch.pp
+fi
+
+# =============================================================================
+# Pre-installation script
+# =============================================================================
 %pre
 # Create openwatch user and group
 getent group openwatch >/dev/null || groupadd -r openwatch
 getent passwd openwatch >/dev/null || \
-    useradd -r -g openwatch -d /var/lib/openwatch -s /sbin/nologin \
+    useradd -r -g openwatch -d /opt/openwatch -s /sbin/nologin \
     -c "OpenWatch service account" openwatch
 
-# Note: Using system-level containers - openwatch user for file ownership only
-
+# =============================================================================
+# Post-installation script
+# =============================================================================
 %post
-# Create log directory and log file with proper permissions
+# Create log directory
 mkdir -p /var/log/openwatch
 touch /var/log/openwatch/install.log
 chmod 640 /var/log/openwatch/install.log
 
-# Redirect all output to log file
 exec 1>>/var/log/openwatch/install.log 2>&1
 
-echo "=== OpenWatch Post-Installation Script ==="
+echo "=== OpenWatch Native Post-Installation ==="
 echo "=== $(date) ==="
 
-# Set proper ownership and permissions
+# Set ownership and permissions
 echo "Setting ownership and permissions..."
+chown -R openwatch:openwatch /opt/openwatch
 chown -R openwatch:openwatch /etc/openwatch
 chown -R openwatch:openwatch /var/lib/openwatch
 chown -R openwatch:openwatch /var/log/openwatch
 
-# Set restrictive permissions on config directory
 chmod 750 /etc/openwatch
 chmod 700 /etc/openwatch/ssh
+chmod 700 /etc/openwatch/ssl
 chmod 600 /etc/openwatch/secrets.env
 
-# Generate initial secrets if they don't exist
-if grep -q "CHANGEME" /etc/openwatch/secrets.env; then
+# Make application read-only for service user
+chmod -R 755 /opt/openwatch
+chmod 644 /opt/openwatch/backend/requirements.txt
+
+# Create Python virtual environment
+echo "Creating Python virtual environment..."
+if [ ! -d /opt/openwatch/venv/bin ]; then
+    python%{python_version} -m venv /opt/openwatch/venv
+    /opt/openwatch/venv/bin/pip install --upgrade pip wheel
+    /opt/openwatch/venv/bin/pip install -r /opt/openwatch/backend/requirements.txt
+    chown -R openwatch:openwatch /opt/openwatch/venv
+fi
+
+# Generate secrets if they contain defaults
+if grep -q "CHANGEME" /etc/openwatch/secrets.env 2>/dev/null; then
     echo "Generating initial secrets..."
-    /usr/share/openwatch/scripts/generate-secrets.sh
+    /usr/share/openwatch/scripts/generate-secrets.sh || true
 fi
 
-# Create .env file for container services from secrets.env
-echo "Creating .env file for container services..."
-create_env_file() {
-    local env_file="/etc/openwatch/.env"
-    local secrets_file="/etc/openwatch/secrets.env"
-
-    # Source the secrets file to get the values
-    if [ -f "$secrets_file" ]; then
-        # Create .env file with required environment variables
-        cat > "$env_file" << EOF
-# Auto-generated from secrets.env - DO NOT EDIT DIRECTLY
-# Generated on $(date)
-
-# Database Configuration
-$(grep "POSTGRES_PASSWORD=" "$secrets_file" || echo "POSTGRES_PASSWORD=changeme")
-
-# Redis Configuration
-$(grep "REDIS_PASSWORD=" "$secrets_file" || echo "REDIS_PASSWORD=changeme")
-
-# Application Secrets
-$(grep "SECRET_KEY=" "$secrets_file" || echo "SECRET_KEY=changeme")
-$(grep "MASTER_KEY=" "$secrets_file" || echo "MASTER_KEY=changeme")
-
-# JWT Keys
-$(grep "JWT_PRIVATE_KEY_PATH=" "$secrets_file" || echo "JWT_PRIVATE_KEY_PATH=/etc/openwatch/jwt_private.pem")
-$(grep "JWT_PUBLIC_KEY_PATH=" "$secrets_file" || echo "JWT_PUBLIC_KEY_PATH=/etc/openwatch/jwt_public.pem")
-
-# Container Settings
-COMPOSE_PROJECT_NAME=openwatch
-CONTAINER_RUNTIME=podman
-EOF
-
-        # Set proper permissions
-        chmod 600 "$env_file"
-        chown openwatch:openwatch "$env_file"
-        echo "Created .env file at $env_file"
-    else
-        echo "Warning: secrets.env not found, .env file not created"
-    fi
-}
-
-create_env_file
-
-# Create symbolic link for .env file in compose directory
-echo "Configuring compose directory..."
-if [ -f /etc/openwatch/.env ]; then
-    ln -sf /etc/openwatch/.env /usr/share/openwatch/compose/.env
-fi
-
-# Create symbolic link for docker directory to be accessible from compose directory
-ln -sf /usr/share/openwatch/docker /usr/share/openwatch/compose/docker
-
-# Create all directories that owadm expects in its working directory
-echo "Creating owadm required directories..."
-create_owadm_directories() {
-    local base_dir="/usr/share/openwatch/compose"
-
-    # Create all directories that owadm expects (from prerequisites.go)
-    local directories=(
-        "logs"
-        "data/scap"
-        "data/results"
-        "data/uploads"
-        "security/certs"
-        "security/keys"
-        "backend/logs"
-        "backend/security/keys"
-    )
-
-    for dir in "${directories[@]}"; do
-        mkdir -p "$base_dir/$dir"
-        echo "Created directory: $base_dir/$dir"
-    done
-
-    # Set proper ownership on all directories
-    chown -R openwatch:openwatch "$base_dir/logs" "$base_dir/data" "$base_dir/backend" 2>/dev/null || true
-
-    # Set restrictive permissions on security directories (matching owadm expectations)
-    chmod 700 "$base_dir/security/keys" 2>/dev/null || true
-    chmod 700 "$base_dir/backend/security/keys" 2>/dev/null || true
-    chown -R openwatch:openwatch "$base_dir/security" 2>/dev/null || true
-
-    echo "All owadm directories created and configured"
-}
-
-create_owadm_directories
-
-# Set proper ownership for compose directory
-chown -R openwatch:openwatch /usr/share/openwatch/compose
-echo "Compose directory configured"
-
-# Check and configure SELinux policy for RHEL/Oracle Linux
-check_and_configure_selinux() {
-    # Check if SELinux tools are available
-    if ! command -v semanage >/dev/null 2>&1; then
-        echo "INFO: SELinux management tools not found - skipping SELinux policy installation"
-        return 0
-    fi
-
-    # Check if SELinux is installed and enabled
-    if ! command -v getenforce >/dev/null 2>&1; then
-        echo "INFO: SELinux not installed - skipping SELinux policy installation"
-        return 0
-    fi
-
-    local selinux_status
-    selinux_status=$(getenforce 2>/dev/null || echo "Disabled")
-
-    if [ "$selinux_status" = "Disabled" ]; then
-        echo "INFO: SELinux is disabled - skipping SELinux policy installation"
-        return 0
-    fi
-
-    echo "Installing OpenWatch SELinux policy (SELinux status: $selinux_status)..."
-
-    # Install policy module only if the file exists and is valid
+# Configure SELinux if enabled
+if command -v getenforce >/dev/null 2>&1 && [ "$(getenforce 2>/dev/null)" != "Disabled" ]; then
+    echo "Configuring SELinux..."
     if [ -f /usr/share/selinux/packages/openwatch.pp ] && [ -s /usr/share/selinux/packages/openwatch.pp ]; then
-        if semodule -i /usr/share/selinux/packages/openwatch.pp 2>/dev/null; then
-            echo "SELinux policy module installed successfully"
-        else
-            echo "WARNING: SELinux policy installation failed - this is expected if policy wasn't built"
-        fi
-    else
-        echo "WARNING: SELinux policy file not found or empty - skipping policy installation"
+        semodule -i /usr/share/selinux/packages/openwatch.pp 2>/dev/null || true
     fi
-
-    # Apply file contexts regardless of policy installation
-    echo "Applying SELinux file contexts..."
-    if [ -d /etc/openwatch ]; then
-        restorecon -R /etc/openwatch 2>/dev/null || true
-    fi
-    if [ -d /var/lib/openwatch ]; then
-        restorecon -R /var/lib/openwatch 2>/dev/null || true
-    fi
-    if [ -d /var/log/openwatch ]; then
-        restorecon -R /var/log/openwatch 2>/dev/null || true
-    fi
-    if [ -f /usr/bin/owadm ]; then
-        restorecon /usr/bin/owadm 2>/dev/null || true
-    fi
-
-    echo "SELinux contexts configured"
-}
-
-# Check and configure fapolicyd for OpenWatch
-check_and_configure_fapolicyd() {
-    # Check if fapolicyd is installed
-    if ! command -v fapolicyd >/dev/null 2>&1; then
-        echo "INFO: fapolicyd not installed - skipping fapolicyd configuration"
-        return 0
-    fi
-
-    # Check if fapolicyd service exists
-    if ! systemctl list-unit-files fapolicyd.service >/dev/null 2>&1; then
-        echo "INFO: fapolicyd service not available - skipping fapolicyd configuration"
-        return 0
-    fi
-
-    # Check if fapolicyd is enabled and running
-    local fapolicyd_enabled=false
-    local fapolicyd_active=false
-
-    if systemctl is-enabled fapolicyd >/dev/null 2>&1; then
-        fapolicyd_enabled=true
-    fi
-
-    if systemctl is-active --quiet fapolicyd 2>/dev/null; then
-        fapolicyd_active=true
-    fi
-
-    if [ "$fapolicyd_enabled" = "false" ] && [ "$fapolicyd_active" = "false" ]; then
-        echo "INFO: fapolicyd is not enabled or running - skipping automatic configuration"
-        echo "INFO: To configure fapolicyd later: /usr/share/openwatch/scripts/configure-fapolicyd.sh configure"
-        return 0
-    fi
-
-    echo "Configuring fapolicyd for OpenWatch (enabled: $fapolicyd_enabled, active: $fapolicyd_active)..."
-
-    # Check if configuration script exists
-    if [ -f /usr/share/openwatch/scripts/configure-fapolicyd.sh ]; then
-        if /usr/share/openwatch/scripts/configure-fapolicyd.sh configure 2>/dev/null; then
-            echo "fapolicyd rules configured successfully"
-        else
-            echo "WARNING: fapolicyd configuration failed - manual configuration may be needed"
-        fi
-        echo "INFO: Troubleshooting: /usr/share/openwatch/scripts/fapolicyd-troubleshoot.sh"
-    else
-        echo "WARNING: fapolicyd configuration script not found"
-    fi
-}
-
-# Run security configurations
-check_and_configure_selinux
-check_and_configure_fapolicyd
-
-# Enable but don't start services (let admin control startup)
-if command -v systemctl >/dev/null 2>&1; then
-    echo "Enabling systemd services..."
-    systemctl daemon-reload
-    systemctl enable openwatch.service openwatch-db.service
+    restorecon -R /opt/openwatch 2>/dev/null || true
+    restorecon -R /etc/openwatch 2>/dev/null || true
+    restorecon -R /var/lib/openwatch 2>/dev/null || true
+    restorecon -R /var/log/openwatch 2>/dev/null || true
 fi
+
+# Reload systemd
+systemctl daemon-reload
+
+# Enable services (but don't start)
+systemctl enable openwatch-api.service
+systemctl enable openwatch-worker@1.service
+systemctl enable openwatch-beat.service
+systemctl enable openwatch.target
 
 echo ""
 echo "=== Installation Summary ==="
-echo "OpenWatch installed successfully!"
+echo "OpenWatch Native installed successfully!"
 echo ""
 echo "Next steps:"
-echo "1. Review configuration: /etc/openwatch/ow.yml"
-echo "2. Configure SSL certificates (recommended)"
-echo "3. Start services: systemctl start openwatch"
-echo "4. Check status: owadm status"
+echo "  1. Initialize PostgreSQL: postgresql-setup --initdb && systemctl enable --now postgresql"
+echo "  2. Setup database: /usr/share/openwatch/scripts/setup-database.sh"
+echo "  3. Start Redis: systemctl enable --now redis"
+echo "  4. Configure TLS certificates in /etc/openwatch/ssl/"
+echo "  5. Configure nginx: systemctl enable nginx"
+echo "  6. Start OpenWatch: systemctl start openwatch.target"
+echo ""
+echo "Service management:"
+echo "  systemctl start openwatch.target     # Start all services"
+echo "  systemctl stop openwatch.target      # Stop all services"
+echo "  systemctl status openwatch-api       # Check API status"
+echo "  journalctl -u openwatch-api -f       # View API logs"
+echo ""
+echo "Admin commands:"
+echo "  owadm validate-config                # Validate configuration"
+echo "  owadm health                         # Health check"
+echo "  owadm backup                         # Create backup"
 echo ""
 
-# Show runtime environment info
-echo "Runtime Configuration:"
-echo "  - Container runtime: Podman (System-level containers)"
-echo "  - Compose command: podman-compose"
-echo "  - Config file: /etc/openwatch/ow.yml"
-echo "  - Environment file: /etc/openwatch/.env"
-echo "  - Execution mode: System containers (root with security constraints)"
-echo ""
-
-# Show security configuration status
-echo "Security Configuration Status:"
-if command -v getenforce >/dev/null 2>&1 && [ "$(getenforce 2>/dev/null || echo Disabled)" != "Disabled" ]; then
-    echo "  - SELinux: Enabled and configured"
-else
-    echo "  - SELinux: Not enabled"
-fi
-
-if command -v fapolicyd >/dev/null 2>&1 && systemctl is-enabled fapolicyd >/dev/null 2>&1; then
-    echo "  - fapolicyd: Detected and configured"
-    echo "    Troubleshooting: /usr/share/openwatch/scripts/fapolicyd-troubleshoot.sh"
-else
-    echo "  - fapolicyd: Not enabled"
-fi
-echo ""
-
-echo "Documentation: https://github.com/hanalyx/openwatch"
-echo ""
-echo "=== Post-installation log saved to /var/log/openwatch/install.log ==="
-
-# Show minimal output to screen (stdout is still redirected to log)
-# Use file descriptor 3 to write to terminal
+# Output to terminal
 exec 3>&2
 echo >&3
-echo "OpenWatch installation completed successfully." >&3
+echo "OpenWatch Native installation completed successfully." >&3
 echo "Installation log: /var/log/openwatch/install.log" >&3
 echo >&3
 
+# =============================================================================
+# Pre-uninstallation script
+# =============================================================================
 %preun
-if command -v systemctl >/dev/null 2>&1; then
-    systemctl stop openwatch.service openwatch-db.service || true
-    systemctl disable openwatch.service openwatch-db.service || true
+if [ $1 -eq 0 ]; then
+    # Stop and disable services
+    systemctl stop openwatch.target 2>/dev/null || true
+    systemctl stop openwatch-api.service 2>/dev/null || true
+    systemctl stop openwatch-worker@1.service 2>/dev/null || true
+    systemctl stop openwatch-beat.service 2>/dev/null || true
+    systemctl disable openwatch.target 2>/dev/null || true
+    systemctl disable openwatch-api.service 2>/dev/null || true
+    systemctl disable openwatch-worker@1.service 2>/dev/null || true
+    systemctl disable openwatch-beat.service 2>/dev/null || true
 fi
 
+# =============================================================================
+# Post-uninstallation script
+# =============================================================================
 %postun
-if command -v systemctl >/dev/null 2>&1; then
-    systemctl daemon-reload || true
-fi
+systemctl daemon-reload || true
 
-# Handle package removal (not upgrade)
 if [ $1 -eq 0 ]; then
     echo ""
-    echo "OpenWatch RPM package has been removed."
+    echo "OpenWatch has been removed."
     echo ""
-    echo "IMPORTANT: Application data and containers have been preserved."
+    echo "The following data has been preserved:"
+    echo "  - Configuration: /etc/openwatch/"
+    echo "  - Database: PostgreSQL 'openwatch' database"
+    echo "  - Logs: /var/log/openwatch/"
     echo ""
-    echo "To completely remove all OpenWatch data, run:"
-    echo "  /usr/share/openwatch/scripts/cleanup-openwatch.sh --help"
-    echo ""
-    echo "Cleanup options:"
-    echo "  Basic cleanup:     /usr/share/openwatch/scripts/cleanup-openwatch.sh"
-    echo "  With backup:       /usr/share/openwatch/scripts/cleanup-openwatch.sh --backup"
-    echo "  Preview cleanup:   /usr/share/openwatch/scripts/cleanup-openwatch.sh --dry-run"
-    echo ""
-    echo "WARNING: Complete cleanup is irreversible without backup!"
+    echo "To completely remove all data:"
+    echo "  rm -rf /etc/openwatch /var/lib/openwatch /var/log/openwatch"
+    echo "  sudo -u postgres dropdb openwatch"
+    echo "  sudo -u postgres dropuser openwatch"
+    echo "  userdel openwatch"
     echo ""
 
-    # Basic cleanup - only user accounts and system integration
-    # Data directories are preserved for safety
-
-    # Remove openwatch user (but preserve data directories)
-    userdel openwatch 2>/dev/null || true
-
-    # Remove SELinux policy module
+    # Remove SELinux policy
     if command -v semodule >/dev/null 2>&1; then
         semodule -r openwatch 2>/dev/null || true
-        echo "Removed OpenWatch SELinux policy"
-    fi
-
-    # Clean up fapolicyd rules
-    if command -v fapolicyd >/dev/null 2>&1 && [ -f /usr/share/openwatch/scripts/configure-fapolicyd.sh ]; then
-        /usr/share/openwatch/scripts/configure-fapolicyd.sh cleanup 2>/dev/null || true
-        echo "Removed OpenWatch fapolicyd rules"
     fi
 fi
 
+# =============================================================================
+# File list
+# =============================================================================
 %files
-# Main binary
+# Binary
 %{_bindir}/owadm
 
-# Configuration files
+# Application
+%dir %attr(755,openwatch,openwatch) /opt/openwatch
+%dir %attr(755,openwatch,openwatch) /opt/openwatch/venv
+%attr(755,openwatch,openwatch) /opt/openwatch/backend
+%attr(755,openwatch,openwatch) /opt/openwatch/frontend
+
+# Configuration
 %dir %attr(750,openwatch,openwatch) %{_sysconfdir}/openwatch
 %dir %attr(700,openwatch,openwatch) %{_sysconfdir}/openwatch/ssh
+%dir %attr(700,openwatch,openwatch) %{_sysconfdir}/openwatch/ssl
 %config(noreplace) %attr(640,openwatch,openwatch) %{_sysconfdir}/openwatch/ow.yml
 %config(noreplace) %attr(600,openwatch,openwatch) %{_sysconfdir}/openwatch/secrets.env
-%ghost %attr(600,openwatch,openwatch) %{_sysconfdir}/openwatch/.env
+%config(noreplace) %attr(644,openwatch,openwatch) %{_sysconfdir}/openwatch/logging.yml
 
-# Systemd service files
-/lib/systemd/system/openwatch.service
-/lib/systemd/system/openwatch-db.service
+# Nginx configuration
+%config(noreplace) %attr(644,root,root) %{_sysconfdir}/nginx/conf.d/openwatch.conf
 
-# Application data
-%dir %attr(755,root,root) %{_datadir}/openwatch
-%dir %attr(755,openwatch,openwatch) %{_datadir}/openwatch/compose
-%dir %attr(755,root,root) %{_datadir}/openwatch/scripts
-%dir %attr(755,root,root) %{_datadir}/openwatch/templates
-%dir %attr(755,root,root) %{_datadir}/openwatch/docker
-%dir %attr(755,root,root) %{_datadir}/openwatch/docker/database
-%dir %attr(755,root,root) %{_datadir}/openwatch/docker/frontend
-
-# owadm required directories (created by post-install script)
-%dir %attr(755,openwatch,openwatch) %{_datadir}/openwatch/compose/logs
-%dir %attr(755,openwatch,openwatch) %{_datadir}/openwatch/compose/data
-%dir %attr(755,openwatch,openwatch) %{_datadir}/openwatch/compose/data/scap
-%dir %attr(755,openwatch,openwatch) %{_datadir}/openwatch/compose/data/results
-%dir %attr(755,openwatch,openwatch) %{_datadir}/openwatch/compose/data/uploads
-%dir %attr(755,openwatch,openwatch) %{_datadir}/openwatch/compose/security
-%dir %attr(700,openwatch,openwatch) %{_datadir}/openwatch/compose/security/keys
-%dir %attr(755,openwatch,openwatch) %{_datadir}/openwatch/compose/security/certs
-%dir %attr(755,openwatch,openwatch) %{_datadir}/openwatch/compose/backend
-%dir %attr(755,openwatch,openwatch) %{_datadir}/openwatch/compose/backend/logs
-%dir %attr(755,openwatch,openwatch) %{_datadir}/openwatch/compose/backend/security
-%dir %attr(700,openwatch,openwatch) %{_datadir}/openwatch/compose/backend/security/keys
-%{_datadir}/openwatch/compose/docker-compose.yml
-%{_datadir}/openwatch/compose/podman-compose.yml
-%ghost %{_datadir}/openwatch/compose/.env
-%ghost %{_datadir}/openwatch/compose/docker
-%{_datadir}/openwatch/docker/Containerfile.backend
-%{_datadir}/openwatch/docker/Containerfile.frontend
-%{_datadir}/openwatch/docker/Dockerfile.backend
-%{_datadir}/openwatch/docker/Dockerfile.frontend
-%{_datadir}/openwatch/docker/README.md
-%{_datadir}/openwatch/docker/database/init.sql
-%{_datadir}/openwatch/docker/frontend/default.conf
-%{_datadir}/openwatch/docker/frontend/nginx.conf
-%attr(755,root,root) %{_datadir}/openwatch/scripts/generate-secrets.sh
-%attr(755,root,root) %{_datadir}/openwatch/scripts/configure-fapolicyd.sh
-%attr(755,root,root) %{_datadir}/openwatch/scripts/fapolicyd-troubleshoot.sh
-%attr(755,root,root) %{_datadir}/openwatch/scripts/cleanup-openwatch.sh
-%attr(755,root,root) %{_datadir}/openwatch/scripts/fix-podman-permissions.sh
-%attr(755,root,root) %{_datadir}/openwatch/scripts/podman-troubleshoot.sh
-%{_datadir}/openwatch/templates/90-openwatch.rules
-
-# SELinux policy files
-%{_datadir}/selinux/packages/openwatch.pp
+# Systemd services
+/lib/systemd/system/openwatch-api.service
+/lib/systemd/system/openwatch-worker@.service
+/lib/systemd/system/openwatch-beat.service
+/lib/systemd/system/openwatch.target
 
 # Runtime directories
-%dir %attr(755,openwatch,openwatch) %{_localstatedir}/lib/openwatch
-%dir %attr(755,openwatch,openwatch) %{_localstatedir}/log/openwatch
-%dir %attr(755,openwatch,openwatch) %{_localstatedir}/cache/openwatch
+%dir %attr(750,openwatch,openwatch) %{_localstatedir}/lib/openwatch
+%dir %attr(750,openwatch,openwatch) %{_localstatedir}/lib/openwatch/celery
+%dir %attr(750,openwatch,openwatch) %{_localstatedir}/lib/openwatch/exports
+%dir %attr(750,openwatch,openwatch) %{_localstatedir}/lib/openwatch/ssh
+%dir %attr(750,openwatch,openwatch) %{_localstatedir}/log/openwatch
 
+# Scripts
+%dir %attr(755,root,root) %{_datadir}/openwatch
+%dir %attr(755,root,root) %{_datadir}/openwatch/scripts
+%attr(755,root,root) %{_datadir}/openwatch/scripts/generate-secrets.sh
+%attr(755,root,root) %{_datadir}/openwatch/scripts/setup-database.sh
+
+# SELinux policy
+%{_datadir}/selinux/packages/openwatch.pp
+
+# =============================================================================
+# Changelog
+# =============================================================================
 %changelog
-* Sat Sep 21 2024 OpenWatch Team <admin@hanalyx.com> - 1.2.1-8
-- NEW: Added comprehensive Podman permission fix scripts
-- NEW: Added Podman troubleshooting tool for container build issues
-- FIXED: Container image unpacking failures with "operation not permitted"
-- IMPROVED: SELinux detection with fallback for non-SELinux systems
-- IMPROVED: Storage driver configuration for better compatibility
-- ADDED: Systemd service override recommendations for container permissions
-
-* Sat Sep 21 2024 OpenWatch Team <admin@hanalyx.com> - 1.2.1-7
-- FIXED: Git repository properly initialized to include committed owladm fixes
-- FIXED: RPM build now uses git archive with committed source code changes
-- RESOLVED: "operation not permitted" errors in production installations
-- RESOLVED: "missing backend/app/main.py" environment detection issues
-- Enhanced directory permission handling with graceful fallback for constrained environments
-
-* Sat Sep 21 2024 OpenWatch Team <admin@hanalyx.com> - 1.2.1-6
-- FIXED: owadm source code changes properly included in RPM package
-- FIXED: Directory permission handling now works correctly in production
-- FIXED: Environment detection properly identifies production vs development
-- Remove all emoji characters from owadm terminal output
-- Comprehensive cleanup script with backup capabilities included
-
-* Sat Sep 21 2024 OpenWatch Team <admin@hanalyx.com> - 1.2.1-5
-- Add comprehensive cleanup script for complete OpenWatch removal
-- Implement cleanup with backup options for data preservation
-- Fix directory permission handling to work in production environments
-- Improve environment detection for RPM vs development installations
-- Enhanced removal process with clear administrator guidance
-- Remove all emoji characters from owadm terminal output for compatibility
-
-* Fri Sep 20 2024 OpenWatch Team <admin@hanalyx.com> - 1.2.1-4
-- Fix owadm directory creation logic for production installations
-- Resolve security/keys permission errors during service startup
-- Improve environment file detection for RPM installations
-- Add graceful handling of missing source files in production
-- Skip directory chmod operations when permissions are already correct
-
-* Fri Sep 20 2024 OpenWatch Team <admin@hanalyx.com> - 1.2.1-3
-- Pre-create all owadm required directories to prevent permission errors
-- Fix "operation not permitted" chmod failures on security directories
-- Ensure consistent owadm behavior across all deployment environments
-- Add proper directory structure matching owadm prerequisites.go expectations
-- Set correct ownership and permissions on security key directories
-
-* Fri Sep 20 2024 OpenWatch Team <admin@hanalyx.com> - 1.2.1-2
-- Switch to system-level containers for systemd service reliability
-- Resolve user namespace UID/GID mapping issues
-- Fix SELinux transition denials for container operations
-- Enhance systemd service security with capability restrictions
-- Improve container build process compatibility
-- Add comprehensive docker directory structure to RPM
-- Remove emoji characters for terminal compatibility
-
-* Wed Sep 18 2024 OpenWatch Team <admin@hanalyx.com> - 1.2.1-1
-- Update to version 1.2.1
-- Add fapolicyd integration for application whitelisting
-- Include comprehensive fapolicyd rules for all OpenWatch components
-- Add fapolicyd troubleshooting and diagnostic tools
-- Automatic fapolicyd configuration during package installation
-- Enhanced security for RHEL/Oracle Linux deployments
-
-* Tue Sep 17 2024 OpenWatch Team <admin@hanalyx.com> - 1.0.0-1
-- Initial RPM package for OpenWatch
-- Support for RHEL 8+, Oracle Linux 8+
-- Container runtime abstraction (Podman/Docker)
-- Enterprise security defaults
-- SELinux integration
-- Systemd service management
-- Automated secret generation
-- FIPS compliance ready
+* Wed Feb 12 2026 OpenWatch Team <admin@hanalyx.com> - 2.0.0-1
+- Initial native RPM package (non-containerized deployment)
+- Aegis v0.1.0 compliance engine with 338 YAML rules
+- Native systemd service management
+- Support for RHEL 8/9/10, Rocky Linux, Oracle Linux, AlmaLinux
+- owadm CLI built with native tag (admin commands only)
+- PostgreSQL 15+, Redis 6+, nginx reverse proxy
+- Pre-built React frontend
+- SELinux policy support
+- FIPS 140-2/140-3 ready
