@@ -60,7 +60,7 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'
@@ -213,7 +213,7 @@ jobs:
 
       - name: Set up Python
         if: matrix.test-suite == 'backend' || matrix.test-suite == 'integration'
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'
@@ -441,7 +441,7 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'

@@ -48,7 +48,7 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
@@ -322,7 +322,7 @@ jobs:
 
       - name: Set up Python
         if: env.E2E_REQUIRED == 'true'
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
