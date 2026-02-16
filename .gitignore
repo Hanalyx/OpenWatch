@@ -799,6 +799,8 @@ docs/HOST_STATUS*.md
 CLAUDE.md
 backend/CLAUDE.md
 frontend/CLAUDE.md
+SESSION_LOG.md
+BACKLOG.md
 MONGODB_INDEX_MIGRATION_PLAN.md
 
 # Dependency upgrade analysis documents (generated during updates)

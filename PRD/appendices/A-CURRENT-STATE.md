@@ -1,7 +1,7 @@
 # Appendix A: Current State Analysis
 
 **Document**: A-CURRENT-STATE.md
-**Last Updated**: 2026-01-21
+**Last Updated**: 2026-02-16
 **Source**: Codebase Review 2026-01-21
 
 ---
@@ -73,8 +73,8 @@
 
 | Database | Purpose | ORM | Pattern |
 |----------|---------|-----|---------|
-| PostgreSQL | Relational data | SQLAlchemy | QueryBuilder (94%) |
-| MongoDB | Documents | Beanie | Repository (100%) |
+| PostgreSQL | Relational data | SQLAlchemy | QueryBuilder (100%) |
+| MongoDB | **DEPRECATED** (removed from CI/docker-compose) | Beanie | Legacy only |
 | Redis | Cache/Queue | redis-py | Direct |
 
 ### 2.4 Key Configuration
@@ -176,7 +176,7 @@ docs/ (249 files)
 | backend | Python 3.12 UBI9 | 8000 | Yes |
 | frontend | Node + Nginx | 3000 | Yes |
 | db | PostgreSQL 15.14 | 5432 | Yes |
-| mongodb | MongoDB 7.0.25 | 27017 | Yes |
+| mongodb | **REMOVED** (deprecated) | - | - |
 | redis | Redis 7.4.6 | 6379 | Yes |
 | worker | Celery | - | Yes |
 | beat | Celery Beat | - | Yes |
@@ -224,23 +224,23 @@ docs/ (249 files)
 
 ## 7. Test Coverage
 
-### 7.1 Backend
+### 7.1 Backend (Updated 2026-02-16)
 
-| Area | Coverage | Target |
-|------|----------|--------|
-| Overall | Unknown | 80% |
-| Auth | Unknown | 100% |
-| Encryption | Unknown | 100% |
-| Scan Engine | Unknown | 80% |
+| Area | Coverage | Target | Notes |
+|------|----------|--------|-------|
+| Overall | 32% | 80% | 290+ tests, CI threshold 31% |
+| Auth | Partial | 100% | 67 tests (credential, MFA, validation, security) |
+| Encryption | 90% | 100% | 48 tests (encrypt/decrypt, config, FIPS) |
+| Scan Engine | Partial | 80% | 94 unit tests (models, executors, parsers) |
 
-### 7.2 Frontend
+### 7.2 Frontend (Updated 2026-02-16)
 
-| Area | Coverage | Target |
-|------|----------|--------|
-| Overall | Unknown | 60% |
-| Components | Low | 60% |
-| Hooks | Unknown | 80% |
-| E2E | Exists | Critical flows |
+| Area | Coverage | Target | Notes |
+|------|----------|--------|-------|
+| Overall | 1.5% | 60% | 88 unit tests across 8 files |
+| Components | Low | 60% | authSlice tests (20) |
+| Hooks | Partial | 80% | useDebounce (5), useAuthHeaders (10) |
+| E2E | 35 tests | Critical flows | hosts, scans, rules, dashboard, auth |
 
 ---
 
