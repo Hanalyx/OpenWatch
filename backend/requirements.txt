@@ -36,7 +36,7 @@ argon2-cffi==25.1.0  # Updated for Python 3.12+ (from 23.1.0, Dependabot PR reco
 python-multipart==0.0.22
 pyotp==2.9.0
 qrcode==7.4.2
-cryptography==46.0.3  # Security: CVE-2024-26130, CVE-2024-0727 fixed (latest stable)
+cryptography==46.0.5  # Security: CVE-2024-26130, CVE-2024-0727 fixed (latest stable)
 
 # SSH / Remote execution
 paramiko==3.5.0
