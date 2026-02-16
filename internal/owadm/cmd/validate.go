@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -65,7 +64,7 @@ func runValidateConfig(cmd *cobra.Command, args []string) error {
 	}
 
 	// Read configuration file
-	data, err := ioutil.ReadFile(configPath)
+	data, err := os.ReadFile(configPath)
 	if err != nil {
 		return fmt.Errorf("failed to read configuration: %v", err)
 	}
@@ -178,7 +177,7 @@ func runValidateConfig(cmd *cobra.Command, args []string) error {
 		}
 
 		// Check for default passwords
-		content, _ := ioutil.ReadFile(secretsPath)
+		content, _ := os.ReadFile(secretsPath)
 		if strings.Contains(string(content), "CHANGEME") {
 			errors = append(errors, "default passwords detected in secrets.env")
 			fmt.Printf("  %s Default passwords detected - run generate-secrets.sh\n", red("ERROR:"))
