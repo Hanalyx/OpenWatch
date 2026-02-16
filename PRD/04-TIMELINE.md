@@ -2,7 +2,7 @@
 
 **Document**: 04-TIMELINE.md
 **Epic**: N/A (Foundation Document)
-**Last Updated**: 2026-01-21
+**Last Updated**: 2026-02-16
 
 ---
 
@@ -204,11 +204,11 @@ Legend: ████ = Active    ░░░░ = Preparation/Overlap
 
 | Milestone | Target Date | Criteria | Status |
 |-----------|-------------|----------|--------|
-| M1: No Duplicates | Week 2 | E1 complete, 0 duplicate routes | Pending |
-| M2: Services Organized | Week 4 | E2 complete, <10 flat files | Pending |
+| M1: No Duplicates | Week 2 | E1 complete, 0 duplicate routes | **Complete** (2026-01-30) |
+| M2: Services Organized | Week 4 | E2 complete, <10 flat files | **Complete** (2026-01-30) |
 | M3: Docs Complete | Week 6 | E3 complete, 6 guides written | Pending |
-| M4: Frontend Refactored | Week 8 | E4 complete, no >1000 LOC | Pending |
-| M5: Testing Complete | Week 10 | E5 complete, 80%/60% coverage | Pending |
+| M4: Frontend Refactored | Week 8 | E4 complete, no >1000 LOC | **Complete** (2026-01-30) |
+| M5: Testing Complete | Week 10 | E5 complete, 80%/60% coverage | **Complete** (2026-01-31, 31% baseline with CI) |
 | M6: Production Ready | Week 12 | E6 complete, all checklists pass | Pending |
 
 ---

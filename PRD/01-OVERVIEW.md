@@ -2,7 +2,7 @@
 
 **Document**: 01-OVERVIEW.md
 **Epic**: N/A (Foundation Document)
-**Last Updated**: 2026-01-21
+**Last Updated**: 2026-02-16
 
 ---
 
@@ -26,7 +26,7 @@ This PRD defines the work required to:
 ### 2.1 Current State
 
 OpenWatch has strong foundations:
-- Modern architecture (FastAPI, React 18, TypeScript 5)
+- Modern architecture (FastAPI, React 19, TypeScript 5)
 - Security-first design (FIPS 140-2, AES-256-GCM)
 - Excellent modular services (engine/, content/, ssh/, owca/)
 
@@ -74,7 +74,7 @@ However, rapid development created organizational debt:
 | Kubernetes deployment | Docker/Podman sufficient for now |
 | Mobile app | Web-first approach |
 | Feature additions | Focus on quality, not new features |
-| Database migration to different tech | PostgreSQL + MongoDB architecture works |
+| Database migration to different tech | PostgreSQL primary; MongoDB deprecated and removed from CI |
 
 ---
 
@@ -86,8 +86,8 @@ However, rapid development created organizational debt:
 |--------|---------|--------|-------------|
 | Duplicate routes | 3 pairs | 0 | `grep -r "router.get\|router.post" routes/` |
 | Flat service files | 50 | <10 | `ls services/*.py \| wc -l` |
-| Test coverage (backend) | Unknown | 80% | `pytest --cov` |
-| Test coverage (frontend) | Unknown | 60% | `npm run test:coverage` |
+| Test coverage (backend) | 32% | 80% | `pytest --cov` |
+| Test coverage (frontend) | 1.5% | 60% | `npm run test:coverage` |
 | Documentation files in archive | 0 | 200+ | After reorganization |
 | Components >1000 LOC | 3 | 0 | LOC analysis |
 | Production guides | 1 | 6 | Count in docs/guides/ |
@@ -172,7 +172,7 @@ graph TD
 |------------|-------|--------|------|
 | Docker/Podman runtime | Infrastructure | Available | Low |
 | PostgreSQL 15+ | Database team | Available | Low |
-| MongoDB 7+ | Database team | Available | Low |
+| MongoDB 7+ | Database team | **Deprecated** (removed from CI/docker-compose) | Low |
 | CI/CD pipeline | DevOps | Working | Low |
 
 ---
