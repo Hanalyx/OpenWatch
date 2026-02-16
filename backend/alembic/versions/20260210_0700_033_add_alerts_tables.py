@@ -1,6 +1,6 @@
 """Add alerts and alert_notifications tables
 
-Revision ID: 033_alerts
+Revision ID: 033b_alerts_full
 Revises: 032_host_metrics
 Create Date: 2026-02-10
 
@@ -18,7 +18,7 @@ from sqlalchemy.dialects import postgresql
 from alembic import op
 
 # Revision identifiers
-revision = "033_alerts"
+revision = "033b_alerts_full"
 down_revision = "032_host_metrics"
 branch_labels = None
 depends_on = None
