@@ -39,7 +39,6 @@ class HostGroupCreate(BaseModel):
         os_family: Optional OS family filter (rhel, debian, etc.).
         os_version_pattern: Optional regex pattern for OS version matching.
         architecture: Optional CPU architecture filter (x86_64, aarch64).
-        default_profile_id: Default compliance profile ID for scans.
         compliance_framework: Compliance framework (nist_800_53, cis, stig).
         auto_scan_enabled: Enable automatic scheduled scanning.
         scan_schedule: Cron expression for scan schedule.
@@ -52,7 +51,6 @@ class HostGroupCreate(BaseModel):
     os_family: Optional[str] = Field(None, max_length=50)
     os_version_pattern: Optional[str] = Field(None, max_length=100)
     architecture: Optional[str] = Field(None, max_length=20)
-    default_profile_id: Optional[str] = Field(None, max_length=255)
     compliance_framework: Optional[str] = Field(None, max_length=50)
     auto_scan_enabled: Optional[bool] = False
     scan_schedule: Optional[str] = Field(None, max_length=100)
@@ -72,7 +70,6 @@ class HostGroupUpdate(BaseModel):
     os_family: Optional[str] = Field(None, max_length=50)
     os_version_pattern: Optional[str] = Field(None, max_length=100)
     architecture: Optional[str] = Field(None, max_length=20)
-    default_profile_id: Optional[str] = Field(None, max_length=255)
     compliance_framework: Optional[str] = Field(None, max_length=50)
     auto_scan_enabled: Optional[bool] = None
     scan_schedule: Optional[str] = Field(None, max_length=100)
@@ -97,7 +94,6 @@ class HostGroupResponse(BaseModel):
     os_family: Optional[str]
     os_version_pattern: Optional[str]
     architecture: Optional[str]
-    default_profile_id: Optional[str]
     compliance_framework: Optional[str]
     auto_scan_enabled: bool
     scan_schedule: Optional[str]

@@ -54,9 +54,8 @@ import {
   Download,
   ContentCopy,
   BookmarkAdd,
-  AccountTree,
-  Bookmark,
   QueryStats,
+  Timeline,
 } from '@mui/icons-material';
 import { useAppDispatch, useAppSelector } from '../../hooks/redux';
 import { logout } from '../../store/slices/authSlice';
@@ -114,25 +113,6 @@ const menuItems = [
     ],
   },
   {
-    text: 'Frameworks',
-    icon: <AccountTree />,
-    path: '/content/frameworks',
-    roles: [
-      'super_admin',
-      'security_admin',
-      'security_analyst',
-      'compliance_officer',
-      'auditor',
-      'guest',
-    ],
-  },
-  {
-    text: 'Templates',
-    icon: <Bookmark />,
-    path: '/content/templates',
-    roles: ['super_admin', 'security_admin', 'security_analyst', 'compliance_officer', 'auditor'],
-  },
-  {
     text: 'Scans',
     icon: <Scanner />,
     path: '/scans',
@@ -154,6 +134,12 @@ const menuItems = [
     text: 'Audit Queries',
     icon: <QueryStats />,
     path: '/audit/queries',
+    roles: ['super_admin', 'security_admin', 'compliance_officer', 'auditor'],
+  },
+  {
+    text: 'Posture History',
+    icon: <Timeline />,
+    path: '/compliance/posture',
     roles: ['super_admin', 'security_admin', 'compliance_officer', 'auditor'],
   },
   {

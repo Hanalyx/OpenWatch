@@ -529,9 +529,7 @@ class HostGroup(Base):  # type: ignore[valid-type, misc]
     os_family = Column(String(50), nullable=True)
     os_version_pattern = Column(String(100), nullable=True)
     architecture = Column(String(20), nullable=True)
-    # SCAP configuration fields
-    scap_content_id = Column(Integer, ForeignKey("scap_content.id"), nullable=True)
-    default_profile_id = Column(String(100), nullable=True)
+    # Compliance configuration (Aegis-based, SCAP fields removed)
     compliance_framework = Column(String(50), nullable=True)
     auto_scan_enabled = Column(Boolean, default=False, nullable=False)
     scan_schedule = Column(String(100), nullable=True)

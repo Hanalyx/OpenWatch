@@ -5,16 +5,17 @@ This package consolidates all compliance-related endpoints into a modular struct
 Part of Phase 4 API Standardization: System & Integrations.
 
 Package Structure:
-    - intelligence.py: Semantic SCAP intelligence and cross-framework compliance data
     - owca.py: OpenWatch Compliance Algorithm (OWCA) endpoints
     - drift.py: Compliance drift event endpoints
     - posture.py: Temporal compliance posture queries (Phase 2)
     - exceptions.py: Structured exception management (Phase 3)
     - alerts.py: Compliance alert management (OpenWatch OS doc 03)
     - audit.py: Audit query builder and exports (Phase 6)
+    - scheduler.py: Adaptive compliance scheduler (OpenWatch OS)
+    - alerts.py: Alert thresholds and management (OpenWatch OS)
+    - remediation.py: Remediation endpoints (Phase 4)
 
 Endpoint Structure:
-    /compliance/                    - Intelligence endpoints (overview, semantic-rules, etc.)
     /compliance/owca/*              - OWCA compliance scoring and analytics
     /compliance/drift/*             - Drift detection events
     /compliance/posture             - Point-in-time posture queries
@@ -23,9 +24,10 @@ Endpoint Structure:
     /compliance/exceptions          - Exception management (Phase 3)
     /compliance/alerts              - Alert management (OpenWatch OS)
     /compliance/audit/*             - Audit query builder and exports (Phase 6)
+    /compliance/scheduler/*         - Adaptive compliance scheduling
+    /compliance/alerts/*            - Alert thresholds and management
 
 Migration Status:
-    - compliance.py -> compliance/intelligence.py
     - owca.py -> compliance/owca.py
     - drift_events.py -> compliance/drift.py
     - NEW: posture.py (Phase 2 Temporal Compliance)
@@ -33,6 +35,7 @@ Migration Status:
     - NEW: remediation.py (Phase 4 Remediation + Subscription)
     - NEW: alerts.py (OpenWatch OS Alert Thresholds)
     - NEW: audit.py (Phase 6 Audit Queries)
+    - REMOVED: intelligence.py (MongoDB deprecation 2026-02-10)
 """
 
 import logging
@@ -53,15 +56,16 @@ try:
     from .audit import router as audit_router
     from .drift import router as drift_router
     from .exceptions import router as exceptions_router
-    from .intelligence import router as intelligence_router
     from .owca import router as owca_router
     from .posture import router as posture_router
     from .remediation import router as remediation_router
     from .scheduler import router as scheduler_router
 
     # Include sub-routers
-    # Intelligence endpoints are at the root of /compliance (no additional prefix)
-    router.include_router(intelligence_router)
+    # NOTE: intelligence_router removed during MongoDB deprecation (2026-02-10)
+    # Semantic SCAP intelligence was MongoDB-dependent and replaced by Aegis
+    # Alert endpoints at /compliance/alerts/* (OpenWatch OS Alert Thresholds)
+    router.include_router(alerts_router)
 
     # OWCA endpoints at /compliance/owca/*
     router.include_router(owca_router)

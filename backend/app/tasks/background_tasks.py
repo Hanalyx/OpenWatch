@@ -129,15 +129,15 @@ def execute_remediation_celery(
 
 
 # ---------------------------------------------------------------------------
-# Task 3: SCAP content import
+# Task 3: SCAP content import (DEPRECATED)
 # ---------------------------------------------------------------------------
 
 
 @celery_app.task(
     bind=True,
     name="app.tasks.import_scap_content",
-    time_limit=3600,
-    soft_time_limit=3300,
+    time_limit=60,
+    soft_time_limit=30,
 )
 def import_scap_content_celery(
     self,
@@ -147,53 +147,29 @@ def import_scap_content_celery(
     batch_size: int,
 ) -> Dict[str, Any]:
     """
-    Import SCAP content into MongoDB.
+    DEPRECATED (2026-02-10): SCAP content import has been replaced by Aegis.
 
-    Progress is tracked via Celery's update_state() so callers can poll
-    via AsyncResult(task_id).
+    Aegis uses native YAML rules and doesn't require MongoDB storage.
+    This task now returns a deprecation notice.
     """
-    try:
-        self.update_state(state="PROGRESS", meta={"current_phase": "starting", "import_id": import_id})
+    logger.warning(
+        "DEPRECATED: import_scap_content_celery called for import_id=%s. "
+        "SCAP content import has been replaced by Aegis native rules.",
+        import_id,
+    )
 
-        from app.services.content import ImportProgress, process_scap_content
-
-        def progress_callback(progress: ImportProgress) -> None:
-            self.update_state(
-                state="PROGRESS",
-                meta={
-                    "import_id": import_id,
-                    "current_phase": progress.stage.value if progress.stage else "processing",
-                    "processed_rules": progress.processed_count,
-                    "total_rules": progress.total_count,
-                    "progress_percentage": progress.percent_complete,
-                },
-            )
-
-        result = process_scap_content(
-            source_path=file_path,
-            progress_callback=progress_callback,
-            batch_size=batch_size,
-            deduplication=deduplication_strategy,
-        )
-
-        return {
-            "status": "completed",
-            "import_id": import_id,
-            "statistics": {
-                "imported": result.imported_count,
-                "updated": result.updated_count,
-                "skipped": result.skipped_count,
-                "errors": result.failed_count,
-            },
-        }
-
-    except Exception as e:
-        logger.error("SCAP import failed for %s: %s", import_id, e)
-        return {
-            "status": "failed",
-            "import_id": import_id,
-            "error": str(e),
-        }
+    # Return deprecation message instead of processing
+    return {
+        "status": "deprecated",
+        "import_id": import_id,
+        "message": (
+            "SCAP content import is deprecated. "
+            "Aegis uses native YAML rules at aegis/rules/. "
+            "Use /api/scans/aegis/frameworks to list available frameworks."
+        ),
+        "rules_imported": 0,
+        "rules_skipped": 0,
+    }
 
 
 # ---------------------------------------------------------------------------

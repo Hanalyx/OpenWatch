@@ -119,6 +119,12 @@ export interface UseHostsPageReturn {
     React.SetStateAction<{ open: boolean; sessionId: string; sessionName: string }>
   >;
 
+  // Notification state for snackbar
+  notification: { open: boolean; message: string; severity: 'success' | 'error' | 'info' };
+  setNotification: React.Dispatch<
+    React.SetStateAction<{ open: boolean; message: string; severity: 'success' | 'error' | 'info' }>
+  >;
+
   // Computed data
   stats: {
     online: number;
@@ -221,6 +227,13 @@ export function useHostsPage(): UseHostsPageReturn {
     sessionId: string;
     sessionName: string;
   }>({ open: false, sessionId: '', sessionName: '' });
+
+  // Notification state for snackbar
+  const [notification, setNotification] = useState<{
+    open: boolean;
+    message: string;
+    severity: 'success' | 'error' | 'info';
+  }>({ open: false, message: '', severity: 'info' });
 
   // Fetch hosts from API
   const fetchHosts = async (silent: boolean = false) => {
@@ -384,23 +397,96 @@ export function useHostsPage(): UseHostsPageReturn {
 
   const handleBulkAction = (action: string) => {
     if (action === 'scan') {
-      // Open Phase 2 bulk scan dialog
-      setBulkScanDialog(true);
+      // Trigger bulk quick scan directly (one-click)
+      handleBulkQuickScan();
     } else {
       setSelectedBulkAction(action);
       setBulkActionDialog(true);
     }
   };
 
+  // Bulk quick scan using Aegis one-click scan API
+  const handleBulkQuickScan = async () => {
+    if (selectedHosts.length === 0) return;
+
+    try {
+      // Call quick scan API endpoint with host_ids array
+      interface QuickScanResponse {
+        message: string;
+        scan_count: number;
+        scans: Array<{
+          host_id: string;
+          hostname: string;
+          scan_id: string;
+          status: string;
+        }>;
+        queued_at: string;
+      }
+
+      const response = await api.post<QuickScanResponse>('/api/scans/quick', {
+        host_ids: selectedHosts,
+      });
+
+      // Check if scans were queued successfully
+      const successCount = response.scans.filter((s) => s.status === 'queued').length;
+      if (successCount > 0) {
+        // Show success notification
+        setNotification({
+          open: true,
+          message: `Started ${successCount} scan(s) for ${selectedHosts.length} host(s)`,
+          severity: 'success',
+        });
+
+        // Clear selection
+        setSelectedHosts([]);
+
+        // Refresh hosts list to show running scan status after brief delay
+        setTimeout(() => fetchHosts(true), 1500);
+      } else {
+        console.error('Bulk quick scan failed:', response);
+        setNotification({
+          open: true,
+          message: 'Failed to start bulk scans',
+          severity: 'error',
+        });
+      }
+    } catch (error) {
+      console.error('Bulk quick scan error:', error);
+
+      // Type-safe error message extraction
+      const errorMessage =
+        error &&
+        typeof error === 'object' &&
+        'response' in error &&
+        error.response &&
+        typeof error.response === 'object' &&
+        'data' in error.response &&
+        error.response.data &&
+        typeof error.response.data === 'object' &&
+        'detail' in error.response.data &&
+        typeof error.response.data.detail === 'string'
+          ? error.response.data.detail
+          : error instanceof Error
+            ? error.message
+            : 'Failed to start bulk scans';
+
+      setNotification({
+        open: true,
+        message: `Bulk scan failed: ${errorMessage}`,
+        severity: 'error',
+      });
+    }
+  };
+
   const executeBulkAction = () => {
-    // Execute bulk action on selected hosts
+    // Execute bulk action on selected hosts (for non-scan actions)
     void selectedBulkAction; // Action type for backend API call
     void selectedHosts; // Host IDs for bulk operation
     setBulkActionDialog(false);
     setSelectedHosts([]);
   };
 
-  // Phase 2: Handle bulk scan start
+  // Phase 2: Handle bulk scan start (legacy - kept for BulkScanDialog compatibility)
   const handleBulkScanStarted = (sessionId: string, sessionName: string) => {
     // Bulk scan session initiated for multiple hosts
     setBulkScanProgress({
@@ -412,50 +498,73 @@ export function useHostsPage(): UseHostsPageReturn {
     setSelectedHosts([]); // Clear selection
   };
 
-  // WEEK 2 PHASE 1: Pre-scan JIT validation (silent, compliance-focused)
+  // Quick scan using Aegis one-click scan API
   const handleQuickScanWithValidation = async (host: Host) => {
     try {
-      // Silent JIT connectivity check (no UI blocking) before scan execution
-      const _jitCheck = await api.post(`/api/monitoring/hosts/${host.id}/check-connectivity`);
-
-      // Wait 3 seconds for check to complete
-      await new Promise((resolve) => setTimeout(resolve, 3000));
-
-      // Get updated state
-      interface HostState {
-        current_state: string;
-        recent_history?: Array<{ error_message?: string }>;
-      }
-      const stateResponse = await api.get<HostState>(`/api/monitoring/hosts/${host.id}/state`);
-      const state = stateResponse;
-
-      // ONLY block scan if host is DOWN (completely unreachable)
-      // Compliance priority: allow scans unless host is definitively down
-      if (state.current_state === 'DOWN') {
-        alert(
-          `Cannot start scan: Host ${host.hostname} is unreachable.\n\n` +
-            `Last error: ${state.recent_history?.[0]?.error_message || 'Connection failed'}\n\n` +
-            `Please check network connectivity and SSH credentials.`
-        );
-        setQuickScanDialog({ open: false, host: null });
-        return;
-      }
-
-      // For DEGRADED/CRITICAL: Log warning but proceed silently (don't confuse user)
-      if (state.current_state === 'DEGRADED' || state.current_state === 'CRITICAL') {
-        console.warn(
-          `Host ${host.hostname} has connectivity issues (${state.current_state}), proceeding with scan anyway`
-        );
-      }
-
-      // Proceed with scan - navigate to unified scan wizard
+      // Close dialog immediately
       setQuickScanDialog({ open: false, host: null });
-      navigate('/scans/create', { state: { preselectedHostId: host.id } });
+
+      // Call quick scan API endpoint
+      interface QuickScanResponse {
+        message: string;
+        scan_count: number;
+        scans: Array<{
+          host_id: string;
+          hostname: string;
+          scan_id: string;
+          status: string;
+        }>;
+        queued_at: string;
+      }
+
+      const response = await api.post<QuickScanResponse>('/api/scans/quick', {
+        host_id: host.id,
+      });
+
+      // Check if scan was queued successfully
+      if (response.scan_count > 0 && response.scans[0]?.status === 'queued') {
+        // Show success notification
+        setNotification({
+          open: true,
+          message: `Scan started for ${host.displayName}`,
+          severity: 'success',
+        });
+
+        // Refresh hosts list to show running scan status after brief delay
+        setTimeout(() => fetchHosts(true), 1500);
+      } else {
+        console.error('Quick scan failed:', response);
+        setNotification({
+          open: true,
+          message: `Failed to start scan for ${host.displayName}`,
+          severity: 'error',
+        });
+      }
     } catch (error) {
-      console.error('Pre-scan JIT check failed:', error);
-      // Fallback: if JIT check fails, proceed anyway (don't block compliance workflow)
-      setQuickScanDialog({ open: false, host: null });
-      navigate('/scans/create', { state: { preselectedHostId: host.id } });
+      console.error('Quick scan error:', error);
+
+      // Type-safe error message extraction
+      const errorMessage =
+        error &&
+        typeof error === 'object' &&
+        'response' in error &&
+        error.response &&
+        typeof error.response === 'object' &&
+        'data' in error.response &&
+        error.response.data &&
+        typeof error.response.data === 'object' &&
+        'detail' in error.response.data &&
+        typeof error.response.data.detail === 'string'
+          ? error.response.data.detail
+          : error instanceof Error
+            ? error.message
+            : 'Failed to start scan';
+
+      setNotification({
+        open: true,
+        message: `Scan failed: ${errorMessage}`,
+        severity: 'error',
+      });
     }
   };
 
@@ -763,6 +872,10 @@ export function useHostsPage(): UseHostsPageReturn {
     setBulkScanDialog,
     bulkScanProgress,
     setBulkScanProgress,
+
+    // Notification state
+    notification,
+    setNotification,
 
     // Computed data
     stats,

@@ -136,9 +136,7 @@ async def _get_scan_details(
                 """
             SELECT total_rules, passed_rules, failed_rules, error_rules,
                    unknown_rules, not_applicable_rules, score,
-                   severity_high, severity_medium, severity_low,
-                   xccdf_score, xccdf_score_max, xccdf_score_system,
-                   risk_score, risk_level
+                   severity_high, severity_medium, severity_low
             FROM scan_results WHERE scan_id = :scan_id
         """
             ),
@@ -157,11 +155,6 @@ async def _get_scan_details(
                 "severity_high": results.severity_high,
                 "severity_medium": results.severity_medium,
                 "severity_low": results.severity_low,
-                "xccdf_score": results.xccdf_score,
-                "xccdf_score_max": results.xccdf_score_max,
-                "xccdf_score_system": results.xccdf_score_system,
-                "risk_score": results.risk_score,
-                "risk_level": results.risk_level,
             }
 
     return scan_data
@@ -223,10 +216,6 @@ async def get_scan_results(
                 "severity_high": 5,
                 "severity_medium": 4,
                 "severity_low": 3,
-                "xccdf_score": 85.0,
-                "xccdf_score_max": 100.0,
-                "risk_score": 45.0,
-                "risk_level": "medium"
             },
             "timing": {
                 "started_at": "2025-12-03T10:00:00Z",
@@ -298,9 +287,7 @@ async def get_scan_results(
                     """
                 SELECT total_rules, passed_rules, failed_rules, error_rules,
                        unknown_rules, not_applicable_rules, score,
-                       severity_high, severity_medium, severity_low,
-                       xccdf_score, xccdf_score_max, xccdf_score_system,
-                       risk_score, risk_level
+                       severity_high, severity_medium, severity_low
                 FROM scan_results WHERE scan_id = :scan_id
             """
                 ),
@@ -319,11 +306,6 @@ async def get_scan_results(
                     "severity_high": results_query.severity_high,
                     "severity_medium": results_query.severity_medium,
                     "severity_low": results_query.severity_low,
-                    "xccdf_score": results_query.xccdf_score,
-                    "xccdf_score_max": results_query.xccdf_score_max,
-                    "xccdf_score_system": results_query.xccdf_score_system,
-                    "risk_score": results_query.risk_score,
-                    "risk_level": results_query.risk_level,
                 }
             else:
                 response["results"] = None
@@ -556,6 +538,54 @@ async def get_scan_json_report(
             except Exception as e:
                 logger.error(f"Error extracting enhanced rule data: {e}")
                 # Maintain backward compatibility - don't break if enhancement fails
+                scan_data["rule_results"] = []
+
+        # For Aegis scans (no result_file), fetch findings from scan_findings table
+        if scan_data.get("status") == "completed" and not scan_data.get("result_file"):
+            try:
+                findings_query = text(
+                    """
+                    SELECT
+                        rule_id,
+                        title,
+                        severity,
+                        status,
+                        detail,
+                        framework_section
+                    FROM scan_findings
+                    WHERE scan_id = :scan_id
+                    ORDER BY
+                        CASE severity
+                            WHEN 'critical' THEN 1
+                            WHEN 'high' THEN 2
+                            WHEN 'medium' THEN 3
+                            WHEN 'low' THEN 4
+                            ELSE 5
+                        END,
+                        rule_id
+                    """
+                )
+                findings = db.execute(findings_query, {"scan_id": scan_id}).fetchall()
+
+                if findings:
+                    rule_results = [
+                        {
+                            "rule_id": f.rule_id,
+                            "result": f.status,  # 'pass', 'fail', 'skipped'
+                            "severity": f.severity or "medium",
+                            "title": f.title or f.rule_id,
+                            "description": f.detail or "",
+                            "rationale": "",
+                            "remediation": {},
+                            "references": [],
+                            "framework_section": f.framework_section,
+                        }
+                        for f in findings
+                    ]
+                    scan_data["rule_results"] = rule_results
+                    logger.info(f"Added {len(rule_results)} Aegis scan findings from database")
+            except Exception as e:
+                logger.error(f"Error fetching Aegis scan findings: {e}")
                 scan_data["rule_results"] = []
 
         return dict(scan_data)

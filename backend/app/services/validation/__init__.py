@@ -28,8 +28,6 @@ from .errors import (  # noqa: F401
     ErrorClassificationService,
     SecurityContext,
     classify_authentication_error,
-    convert_readiness_result_to_validation,
-    convert_readiness_to_error,
     get_error_classification_service,
 )
 from .group import GroupValidationService, OSFamily, ValidationError  # noqa: F401
@@ -46,8 +44,6 @@ __all__ = [
     "ErrorClassificationService",
     "SecurityContext",
     "classify_authentication_error",
-    "convert_readiness_to_error",
-    "convert_readiness_result_to_validation",
     "get_error_classification_service",
     # group
     "GroupValidationService",

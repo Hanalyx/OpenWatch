@@ -74,7 +74,7 @@ async def get_posture(
     # Historical queries require OpenWatch+ subscription
     if as_of:
         license_service = LicenseService()
-        if not await license_service.has_feature("temporal_queries"):
+        if not license_service.has_feature("temporal_queries"):
             raise HTTPException(
                 status_code=http_status.HTTP_403_FORBIDDEN,
                 detail="Historical posture queries require OpenWatch+ subscription",
@@ -126,7 +126,7 @@ async def get_posture_history(
     """
     # History queries require OpenWatch+ subscription
     license_service = LicenseService()
-    if not await license_service.has_feature("temporal_queries"):
+    if not license_service.has_feature("temporal_queries"):
         raise HTTPException(
             status_code=http_status.HTTP_403_FORBIDDEN,
             detail="Posture history queries require OpenWatch+ subscription",
@@ -175,7 +175,7 @@ async def analyze_drift(
 
     # Drift analysis requires OpenWatch+ subscription
     license_service = LicenseService()
-    if not await license_service.has_feature("temporal_queries"):
+    if not license_service.has_feature("temporal_queries"):
         raise HTTPException(
             status_code=http_status.HTTP_403_FORBIDDEN,
             detail="Drift analysis requires OpenWatch+ subscription",

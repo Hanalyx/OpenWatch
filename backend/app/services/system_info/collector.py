@@ -5,6 +5,24 @@ Collects detailed system information from remote hosts via SSH.
 Used during compliance scans to gather rich system data.
 
 Part of OpenWatch OS Transformation - Server Intelligence.
+
+Supported Linux Distributions:
+    - RHEL-based: RHEL, CentOS, Fedora, Rocky Linux, AlmaLinux, Oracle Linux
+    - Debian-based: Debian, Ubuntu
+    - SUSE-based: SLES (SUSE Linux Enterprise Server), openSUSE
+
+Package Detection:
+    - RPM-based (RHEL, SUSE): Uses `rpm -qa` or `zypper` (SUSE preferred)
+    - DEB-based: Uses `dpkg -l`
+
+Security Framework Detection:
+    - SELinux: RHEL, CentOS, Fedora (default)
+    - AppArmor: Ubuntu, Debian, SUSE (default)
+
+Firewall Detection:
+    - firewalld: RHEL 7+, CentOS 7+, Fedora, SUSE (modern)
+    - ufw: Ubuntu (default)
+    - iptables/nftables: All distributions (fallback)
 """
 
 import json
@@ -55,6 +73,8 @@ class SystemInfo:
     # Security Status
     selinux_status: Optional[str] = None
     selinux_mode: Optional[str] = None
+    apparmor_status: Optional[str] = None  # enabled, disabled, not_installed
+    apparmor_profiles_loaded: Optional[int] = None
     firewall_status: Optional[str] = None
     firewall_service: Optional[str] = None
 
@@ -208,7 +228,23 @@ class MetricsInfo:
 
 
 class SystemInfoCollector:
-    """Collects system information from remote hosts via SSH."""
+    """
+    Collects system information from remote hosts via SSH.
+
+    Supported Linux Distributions:
+        - RHEL family: RHEL, CentOS, Fedora, Rocky Linux, AlmaLinux, Oracle Linux
+        - Debian family: Debian, Ubuntu
+        - SUSE family: SLES (SUSE Linux Enterprise Server), openSUSE
+
+    Collection Methods:
+        - collect(): Basic system info (OS, kernel, hardware, security)
+        - collect_packages(): Installed packages (rpm, zypper, dpkg)
+        - collect_services(): Running services (systemd)
+        - collect_users(): Local user accounts (/etc/passwd, /etc/shadow)
+        - collect_network(): Network interfaces (ip addr)
+        - collect_firewall_rules(): Firewall rules (firewalld, ufw, iptables)
+        - collect_routes(): Routing table (ip route)
+    """
 
     def __init__(self, ssh_session: Any):
         """
@@ -223,11 +259,17 @@ class SystemInfoCollector:
         """Run a command and return stdout, or None on error."""
         try:
             result = self.ssh.run(command)
-            if result.returncode == 0:
-                return result.stdout.strip()
+            # Support both Aegis Result (exit_code) and subprocess-style (returncode)
+            exit_code = getattr(result, "exit_code", getattr(result, "returncode", None))
+            if exit_code == 0:
+                stdout = result.stdout.strip() if result.stdout else ""
+                return stdout if stdout else None
+            else:
+                stderr = getattr(result, "stderr", "")
+                logger.debug(f"Command '{command[:50]}...' failed with exit code {exit_code}: {stderr[:100]}")
             return None
         except Exception as e:
-            logger.debug(f"Command '{command}' failed: {e}")
+            logger.debug(f"Command '{command[:50]}...' exception: {e}")
             return None
 
     def collect(self) -> SystemInfo:
@@ -352,44 +394,100 @@ class SystemInfoCollector:
                     pass
 
     def _collect_security_status(self, info: SystemInfo) -> None:
-        """Collect SELinux and firewall status."""
-        # SELinux status
+        """
+        Collect security framework and firewall status.
+
+        Detects:
+            - SELinux: RHEL, CentOS, Fedora
+            - AppArmor: Ubuntu, Debian, SUSE, openSUSE
+            - Firewalls: firewalld, ufw, iptables, nftables
+        """
+        # SELinux status (RHEL family)
         selinux_status = self._run_command("getenforce 2>/dev/null")
         if selinux_status:
             info.selinux_status = selinux_status.lower()
 
-        # SELinux mode (targeted, mls, etc.)
-        selinux_config = self._run_command("grep '^SELINUXTYPE=' /etc/selinux/config 2>/dev/null")
-        if selinux_config:
-            match = re.search(r"SELINUXTYPE=(\w+)", selinux_config)
-            if match:
-                info.selinux_mode = match.group(1)
+            # SELinux mode (targeted, mls, etc.)
+            selinux_config = self._run_command("grep '^SELINUXTYPE=' /etc/selinux/config 2>/dev/null")
+            if selinux_config:
+                match = re.search(r"SELINUXTYPE=(\w+)", selinux_config)
+                if match:
+                    info.selinux_mode = match.group(1)
 
-        # Firewall status - try firewalld first
+        # AppArmor status (Ubuntu, Debian, SUSE)
+        # Check if AppArmor is available and get status
+        aa_status = self._run_command("aa-status --enabled 2>/dev/null && echo enabled || echo disabled")
+        if aa_status:
+            if "enabled" in aa_status:
+                info.apparmor_status = "enabled"
+                # Get count of loaded profiles
+                profiles_output = self._run_command(
+                    "aa-status 2>/dev/null | grep 'profiles are loaded' | awk '{print $1}'"
+                )
+                if profiles_output:
+                    try:
+                        info.apparmor_profiles_loaded = int(profiles_output)
+                    except ValueError:
+                        pass
+            elif "disabled" in aa_status:
+                info.apparmor_status = "disabled"
+        else:
+            # Check if AppArmor is installed but not available via aa-status
+            apparmor_check = self._run_command("systemctl is-active apparmor 2>/dev/null")
+            if apparmor_check == "active":
+                info.apparmor_status = "enabled"
+            elif apparmor_check == "inactive":
+                info.apparmor_status = "disabled"
+            else:
+                info.apparmor_status = "not_installed"
+
+        # Firewall status - try multiple options in order of preference
+
+        # 1. firewalld (RHEL 7+, Fedora, SUSE)
         firewalld_status = self._run_command("systemctl is-active firewalld 2>/dev/null")
         if firewalld_status == "active":
             info.firewall_status = "active"
             info.firewall_service = "firewalld"
-        else:
-            # Try iptables
-            iptables_rules = self._run_command("iptables -L -n 2>/dev/null | grep -c '^[A-Z]'")
-            if iptables_rules and int(iptables_rules) > 3:  # More than default chains
-                info.firewall_status = "active"
-                info.firewall_service = "iptables"
-            else:
-                # Try nftables
-                nft_rules = self._run_command("nft list tables 2>/dev/null | wc -l")
-                if nft_rules and int(nft_rules) > 0:
+            return
+
+        # 2. ufw (Ubuntu default)
+        ufw_status = self._run_command("ufw status 2>/dev/null | head -1")
+        if ufw_status and "active" in ufw_status.lower():
+            info.firewall_status = "active"
+            info.firewall_service = "ufw"
+            return
+
+        # 3. SuSEfirewall2 (older SUSE)
+        susefirewall_status = self._run_command("systemctl is-active SuSEfirewall2 2>/dev/null")
+        if susefirewall_status == "active":
+            info.firewall_status = "active"
+            info.firewall_service = "SuSEfirewall2"
+            return
+
+        # 4. nftables (modern replacement for iptables)
+        nft_rules = self._run_command("nft list tables 2>/dev/null | wc -l")
+        if nft_rules:
+            try:
+                if int(nft_rules) > 0:
                     info.firewall_status = "active"
                     info.firewall_service = "nftables"
-                else:
-                    # Try ufw (Ubuntu)
-                    ufw_status = self._run_command("ufw status 2>/dev/null | head -1")
-                    if ufw_status and "active" in ufw_status.lower():
-                        info.firewall_status = "active"
-                        info.firewall_service = "ufw"
-                    else:
-                        info.firewall_status = "inactive"
+                    return
+            except ValueError:
+                pass
+
+        # 5. iptables (legacy fallback)
+        iptables_rules = self._run_command("iptables -L -n 2>/dev/null | grep -c '^[A-Z]'")
+        if iptables_rules:
+            try:
+                if int(iptables_rules) > 3:  # More than default chains
+                    info.firewall_status = "active"
+                    info.firewall_service = "iptables"
+                    return
+            except ValueError:
+                pass
+
+        # No active firewall detected
+        info.firewall_status = "inactive"
 
     def _collect_network_info(self, info: SystemInfo) -> None:
         """Collect hostname and network information."""
@@ -418,12 +516,39 @@ class SystemInfoCollector:
         """
         Collect installed packages from the remote host.
 
+        Supports:
+            - RPM-based: RHEL, CentOS, Fedora, Rocky, Alma, Oracle Linux, SUSE, openSUSE
+            - DEB-based: Debian, Ubuntu
+
         Returns:
             List of PackageInfo dataclasses with package details
         """
         packages: List[PackageInfo] = []
 
-        # Try RPM first (RHEL, CentOS, Fedora)
+        # Try zypper first for SUSE/openSUSE (provides better metadata)
+        # zypper is SUSE-specific and gives us repo information
+        zypper_output = self._run_command("zypper packages --installed-only 2>/dev/null | grep '^i' | tail -n +3")
+        if zypper_output:
+            for line in zypper_output.split("\n"):
+                line = line.strip()
+                if not line or not line.startswith("i"):
+                    continue
+                # Format: i | repo | name | version | arch
+                parts = [p.strip() for p in line.split("|")]
+                if len(parts) >= 5:
+                    packages.append(
+                        PackageInfo(
+                            name=parts[2],
+                            version=parts[3],
+                            arch=parts[4] if parts[4] else None,
+                            source_repo=parts[1] if parts[1] else None,
+                        )
+                    )
+            if packages:
+                logger.info(f"Collected {len(packages)} packages via zypper (SUSE)")
+                return packages
+
+        # Try RPM for RHEL-based and SUSE fallback
         rpm_output = self._run_command(
             "rpm -qa --queryformat '%{NAME}|%{VERSION}|%{RELEASE}|%{ARCH}|%{INSTALLTIME}\\n'"
         )
@@ -448,37 +573,40 @@ class SystemInfoCollector:
                                 installed_at=installed_at,
                             )
                         )
-            logger.info(f"Collected {len(packages)} RPM packages")
-            return packages
+            if packages:
+                logger.info(f"Collected {len(packages)} RPM packages")
+                return packages
 
-        # Try dpkg for Debian/Ubuntu
-        dpkg_output = self._run_command("dpkg-query -W -f='${Package}|${Version}|${Architecture}|${Status}\\n'")
+        # Try dpkg for Debian/Ubuntu - use simpler command that works with sudo shell quoting
+        # dpkg -l format: ii  package-name  version  arch  description
+        dpkg_output = self._run_command("dpkg -l 2>/dev/null | grep ^ii")
         if dpkg_output:
             for line in dpkg_output.split("\n"):
-                if "|" in line:
-                    parts = line.strip().split("|")
-                    if len(parts) >= 3:
-                        # Only include installed packages
-                        status = parts[3] if len(parts) >= 4 else ""
-                        if "installed" in status.lower():
-                            # Parse Debian version format (version-release)
-                            version = parts[1]
-                            release = None
-                            if "-" in version:
-                                version, release = version.rsplit("-", 1)
+                # Format: ii  package  version  arch  description
+                parts = line.split()
+                if len(parts) >= 4 and parts[0] == "ii":
+                    name = parts[1]
+                    version = parts[2]
+                    arch = parts[3]
 
-                            packages.append(
-                                PackageInfo(
-                                    name=parts[0],
-                                    version=version,
-                                    release=release,
-                                    arch=parts[2] if parts[2] else None,
-                                )
-                            )
-            logger.info(f"Collected {len(packages)} DEB packages")
-            return packages
+                    # Parse Debian version format (version-release)
+                    release = None
+                    if "-" in version:
+                        version, release = version.rsplit("-", 1)
 
-        logger.warning("Could not collect packages - neither RPM nor dpkg available")
+                    packages.append(
+                        PackageInfo(
+                            name=name,
+                            version=version,
+                            release=release,
+                            arch=arch,
+                        )
+                    )
+            if packages:
+                logger.info(f"Collected {len(packages)} DEB packages")
+                return packages
+
+        logger.warning("Could not collect packages - no supported package manager found (rpm, zypper, dpkg)")
         return packages
 
     def collect_services(self) -> List[ServiceInfo]:
@@ -490,46 +618,39 @@ class SystemInfoCollector:
         """
         services: List[ServiceInfo] = []
 
-        # Get systemd services
+        # Get systemd services - use simple text output that works across distros
         systemctl_output = self._run_command(
-            "systemctl list-units --type=service --all --no-legend --no-pager "
-            "--output=json 2>/dev/null || "
-            "systemctl list-units --type=service --all --no-legend --no-pager"
+            "systemctl list-units --type=service --all --no-legend --no-pager 2>/dev/null"
         )
 
         if not systemctl_output:
             logger.warning("Could not collect services - systemctl not available")
             return services
 
-        # Try to parse JSON output first (newer systemd)
-        try:
-            service_data = json.loads(systemctl_output)
-            for svc in service_data:
+        # Parse text output - works on both RHEL and Ubuntu
+        # Format: UNIT LOAD ACTIVE SUB DESCRIPTION...
+        for line in systemctl_output.split("\n"):
+            line = line.strip()
+            if not line:
+                continue
+            parts = line.split(None, 4)  # Split into max 5 parts
+            if len(parts) >= 4:
+                unit_name = parts[0]
+                # Only process .service units
+                if not unit_name.endswith(".service"):
+                    continue
+                name = unit_name.replace(".service", "")
+                # LOAD ACTIVE SUB
+                status = parts[3] if len(parts) > 3 else "unknown"
+                description = parts[4] if len(parts) > 4 else None
+
                 services.append(
                     ServiceInfo(
-                        name=svc.get("unit", "").replace(".service", ""),
-                        display_name=svc.get("description"),
-                        status=svc.get("sub", "unknown"),
-                        enabled=None,  # Need separate query
+                        name=name,
+                        display_name=description,
+                        status=status,
                     )
                 )
-        except json.JSONDecodeError:
-            # Fall back to text parsing
-            for line in systemctl_output.split("\n"):
-                parts = line.split()
-                if len(parts) >= 4:
-                    name = parts[0].replace(".service", "")
-                    # Format: UNIT LOAD ACTIVE SUB DESCRIPTION...
-                    status = parts[3] if len(parts) > 3 else "unknown"
-                    description = " ".join(parts[4:]) if len(parts) > 4 else None
-
-                    services.append(
-                        ServiceInfo(
-                            name=name,
-                            display_name=description,
-                            status=status,
-                        )
-                    )
 
         # Get enabled status for services
         enabled_output = self._run_command("systemctl list-unit-files --type=service --no-legend --no-pager")
@@ -952,14 +1073,79 @@ class SystemInfoCollector:
         """
         Collect firewall rules from the remote host.
 
-        Supports iptables and firewalld.
+        Supports:
+            - firewalld: RHEL 7+, CentOS 7+, Fedora, SUSE (modern)
+            - ufw: Ubuntu, Debian (default on Ubuntu)
+            - iptables: All distributions (legacy/fallback)
 
         Returns:
             List of FirewallRuleInfo dataclasses with rule details
         """
         rules: List[FirewallRuleInfo] = []
 
-        # Try firewalld first (RHEL/CentOS preferred)
+        # Try ufw first (Ubuntu/Debian) - check before firewalld
+        ufw_status = self._run_command("ufw status verbose 2>/dev/null")
+        if ufw_status and "Status: active" in ufw_status:
+            # Parse ufw rules
+            in_rules_section = False
+            for line in ufw_status.split("\n"):
+                line = line.strip()
+
+                # Skip until we get to the rules
+                if line.startswith("--"):
+                    in_rules_section = True
+                    continue
+
+                if not in_rules_section or not line:
+                    continue
+
+                # Parse rule line: "22/tcp ALLOW IN Anywhere"
+                # or "Anywhere ALLOW OUT 443/tcp"
+                parts = line.split()
+                if len(parts) >= 3:
+                    # Determine direction and parse accordingly
+                    action = None
+                    port = None
+                    protocol = None
+                    source = None
+                    destination = None
+
+                    for i, part in enumerate(parts):
+                        if part in ("ALLOW", "DENY", "REJECT", "LIMIT"):
+                            action = part
+                        elif "/" in part and any(p in part for p in ("tcp", "udp")):
+                            port, protocol = part.split("/")
+                        elif part == "IN":
+                            # Inbound rule
+                            pass
+                        elif part == "OUT":
+                            # Outbound rule
+                            pass
+                        elif part == "Anywhere":
+                            if action is None:
+                                source = "0.0.0.0/0"
+                            else:
+                                destination = "0.0.0.0/0"
+
+                    if action:
+                        rules.append(
+                            FirewallRuleInfo(
+                                firewall_type="ufw",
+                                chain="INPUT" if "IN" in line else "OUTPUT",
+                                protocol=protocol,
+                                port=port,
+                                source=source,
+                                destination=destination,
+                                action=action,
+                                raw_rule=line,
+                            )
+                        )
+
+            if rules:
+                logger.info(f"Collected {len(rules)} ufw firewall rules")
+                return rules
+
+        # Try firewalld (RHEL/CentOS/Fedora/SUSE)
         firewalld_status = self._run_command("systemctl is-active firewalld 2>/dev/null")
         if firewalld_status == "active":
             # Get firewalld rules using firewall-cmd

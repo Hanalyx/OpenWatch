@@ -205,7 +205,7 @@ class AegisSessionFactory:
         return await self._credential_provider.get_credentials_for_host(host_id)
 
     @asynccontextmanager
-    async def create_session(self, host_id: str):
+    async def create_session(self, host_id: str, use_sudo: bool | None = None):
         """
         Create and connect an Aegis SSH session for a host.
 
@@ -216,6 +216,8 @@ class AegisSessionFactory:
 
         Args:
             host_id: OpenWatch host UUID.
+            use_sudo: Override sudo setting. If None, uses credential default (True).
+                      Set to False for commands that don't require sudo.
 
         Yields:
             Connected Aegis SSHSession.
@@ -223,6 +225,9 @@ class AegisSessionFactory:
         from aegis import SSHSession
 
         credentials = await self.get_credentials(host_id)
+
+        # Allow overriding sudo setting (useful for collection commands)
+        sudo_enabled = use_sudo if use_sudo is not None else credentials["use_sudo"]
 
         # Handle key-based or password-based auth
         if credentials.get("private_key"):
@@ -233,7 +238,7 @@ class AegisSessionFactory:
                     user=credentials["username"],
                     key_path=key_path,
                     password=credentials.get("passphrase"),
-                    sudo=credentials["use_sudo"],
+                    sudo=sudo_enabled,
                 )
                 try:
                     session.connect()
@@ -247,7 +252,7 @@ class AegisSessionFactory:
                 port=credentials["port"],
                 user=credentials["username"],
                 password=credentials.get("password"),
-                sudo=credentials["use_sudo"],
+                sudo=sudo_enabled,
             )
             try:
                 session.connect()

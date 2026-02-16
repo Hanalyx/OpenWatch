@@ -18,7 +18,6 @@ router = APIRouter()
 from .capabilities import router as capabilities_router  # noqa: E402
 from .discovery import router as discovery_router  # noqa: E402
 from .health import router as health_router  # noqa: E402
-from .mongodb_test import router as mongodb_test_router  # noqa: E402
 from .scheduler import router as scheduler_router  # noqa: E402
 from .settings import router as settings_router  # noqa: E402
 from .version import router as version_router  # noqa: E402
@@ -36,7 +35,7 @@ router.include_router(scheduler_router, tags=["Adaptive Scheduler"])
 router.include_router(discovery_router, tags=["OS Discovery"])
 router.include_router(settings_router, tags=["System Settings"])
 
-# MongoDB test endpoints (was registered with prefix="/api/mongodb" in main.py)
-router.include_router(mongodb_test_router, prefix="/mongodb", tags=["MongoDB Integration Test"])
+# NOTE: MongoDB test endpoints removed during MongoDB deprecation (2026-02-10)
+# - mongodb_test.py (199 LOC) - MongoDB integration tests - No longer needed
 
 __all__ = ["router"]

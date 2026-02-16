@@ -1,51 +1,32 @@
 """
 Rules API Package
 
-Consolidates all rule-related REST API endpoints.
+This package provides API endpoints for browsing and exploring Aegis
+compliance rules. Replaces the deprecated MongoDB-based rule management.
 
-Package Structure:
-    rules/
-    ├── __init__.py         # This file - router aggregation
-    ├── management.py       # Enhanced rule CRUD (/rules/*)
-    ├── scanning.py         # Rule-specific scanning (/rule-scanning/*)
-    └── compliance.py       # MongoDB compliance rules (/compliance-rules/*)
+Endpoint Structure:
+    /api/rules/reference/*  - Rule Reference API for browsing Aegis rules
 
-Migration Status (E1-S5 - Route Consolidation):
-    - rule_management.py -> rules/management.py
-    - rule_scanning.py -> rules/scanning.py
-    - compliance_rules_api.py -> rules/compliance.py
+The Rule Reference API provides:
+    - Rule listing with search and filtering
+    - Full rule details with rationale and framework mappings
+    - Framework, category, and capability metadata
+    - Configurable variable documentation
 
-Usage:
-    from app.routes.rules import router
-    app.include_router(router, prefix="/api")
+For compliance scanning, use:
+    /api/scans/aegis/*  - Aegis compliance scanning endpoints
 """
 
 from fastapi import APIRouter
 
-# Create main router that aggregates all sub-routers
-router = APIRouter(tags=["Rules"])
+from .reference import router as reference_router
 
-# Import sub-routers from modular files
-try:
-    from .compliance import router as compliance_router
-    from .management import router as management_router
-    from .scanning import router as scanning_router
+# Main router that combines all sub-routers
+router = APIRouter(prefix="/rules", tags=["Rules"])
 
-    # Include all sub-routers into main router
-    # Rule management endpoints (/rules/*)
-    router.include_router(management_router)
-
-    # Rule scanning endpoints (/rule-scanning/*)
-    router.include_router(scanning_router)
-
-    # MongoDB compliance rules endpoints (/compliance-rules/*)
-    router.include_router(compliance_router)
-
-except ImportError as e:
-    import logging
-
-    logger = logging.getLogger(__name__)
-    logger.error(f"Failed to load rules sub-routers: {e}")
+# Include the reference router
+# Full path: /api/rules/reference/*
+router.include_router(reference_router)
 
 __all__ = [
     "router",

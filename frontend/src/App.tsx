@@ -30,10 +30,6 @@ import HostDetail from './pages/hosts/HostDetail';
 import AddHost from './pages/hosts/AddHost';
 import ComplianceGroups from './pages/host-groups/ComplianceGroups';
 import Content from './pages/content/Content';
-import { FrameworksPage } from './pages/content/FrameworksPage';
-import { FrameworkDetailPage } from './pages/content/FrameworkDetailPage';
-import { TemplatesPage } from './pages/content/TemplatesPage';
-import { TemplateEditorPage } from './pages/content/TemplateEditorPage';
 import Scans from './pages/scans/Scans';
 import ScanDetail from './pages/scans/ScanDetail';
 import ComplianceScanWizard from './pages/scans/ComplianceScanWizard';
@@ -41,6 +37,7 @@ import Users from './pages/users/Users';
 import OView from './pages/oview/OView';
 import Settings from './pages/settings/Settings';
 import { AuditQueriesPage, AuditQueryBuilderPage, AuditExportsPage } from './pages/audit';
+import { TemporalPosture } from './pages/compliance';
 
 function App() {
   const dispatch = useAppDispatch();
@@ -91,14 +88,6 @@ function App() {
                   <Route path="/hosts/:id" element={<HostDetail />} />
                   <Route path="/host-groups" element={<ComplianceGroups />} />
                   <Route path="/content" element={<Content />} />
-                  <Route path="/content/frameworks" element={<FrameworksPage />} />
-                  <Route
-                    path="/content/frameworks/:framework/:version"
-                    element={<FrameworkDetailPage />}
-                  />
-                  <Route path="/content/templates" element={<TemplatesPage />} />
-                  <Route path="/content/templates/new" element={<TemplateEditorPage />} />
-                  <Route path="/content/templates/:id" element={<TemplateEditorPage />} />
                   <Route path="/scans" element={<Scans />} />
                   <Route path="/scans/create" element={<ComplianceScanWizard />} />
                   <Route path="/scans/:id" element={<ScanDetail />} />
@@ -113,6 +102,7 @@ function App() {
                     element={<AuditQueryBuilderPage />}
                   />
                   <Route path="/audit/exports" element={<AuditExportsPage />} />
+                  <Route path="/compliance/posture" element={<TemporalPosture />} />
                 </Route>
               </Route>
 

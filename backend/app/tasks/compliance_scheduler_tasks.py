@@ -18,12 +18,16 @@ This design ensures:
 """
 
 import logging
+import uuid as uuid_module
 from datetime import datetime, timezone
 from typing import Any, Dict
 from uuid import UUID
 
+from sqlalchemy import text
+
 from app.celery_app import celery_app
 from app.database import get_db
+from app.utils.mutation_builders import InsertBuilder, UpdateBuilder
 
 logger = logging.getLogger(__name__)
 
@@ -118,20 +122,25 @@ def run_scheduled_aegis_scan(self: Any, host_id: str, priority: int = 5) -> Dict
     Execute an Aegis compliance scan for a host (scheduled by dispatcher).
 
     This task is dispatched by the compliance scheduler when a host is due
-    for scanning. It runs the Aegis scan and updates the compliance schedule.
+    for scanning. It runs the Aegis scan, stores results in the scans and
+    scan_findings tables (for frontend compatibility), and updates the
+    compliance schedule.
 
     Args:
         host_id: UUID of the host to scan
         priority: Scan priority (1-10)
 
     Returns:
-        dict: Scan results including compliance score
+        dict: Scan results including compliance score and scan_id
     """
-    # Import here to avoid circular imports
     from app.services.compliance.compliance_scheduler import compliance_scheduler_service
 
+    scan_uuid = uuid_module.uuid4()
+    scan_id = str(scan_uuid)
+    start_time = datetime.now(timezone.utc)
+
     try:
-        logger.info(f"Starting scheduled Aegis scan for host {host_id}")
+        logger.info(f"Starting scheduled Aegis scan {scan_id} for host {host_id}")
 
         db = next(get_db())
 
@@ -147,12 +156,10 @@ def run_scheduled_aegis_scan(self: Any, host_id: str, priority: int = 5) -> Dict
                 return {"status": "error", "error": "Aegis scanner not available"}
 
             # Get host details
-            from sqlalchemy import text
-
             result = db.execute(
                 text(
                     """
-                    SELECT id, hostname, ip_address, port, username
+                    SELECT id, hostname, display_name, ip_address, port, username
                     FROM hosts
                     WHERE id = :host_id AND is_active = true
                 """
@@ -164,6 +171,48 @@ def run_scheduled_aegis_scan(self: Any, host_id: str, priority: int = 5) -> Dict
             if not host:
                 logger.warning(f"Host {host_id} not found or inactive")
                 return {"status": "error", "error": "Host not found"}
+
+            # Create scan record in database BEFORE running scan
+            scan_name = f"Scheduled Aegis Scan - {host.hostname} - {start_time.strftime('%Y-%m-%d %H:%M')}"
+            profile_id = "aegis_scheduled"
+
+            # Aegis content placeholder ID (created in scap_content table)
+            aegis_content_id = 1
+
+            insert_builder = (
+                InsertBuilder("scans")
+                .columns(
+                    "id",
+                    "name",
+                    "host_id",
+                    "content_id",
+                    "profile_id",
+                    "status",
+                    "progress",
+                    "started_at",
+                    "started_by",
+                    "scan_options",
+                    "remediation_requested",
+                    "verification_scan",
+                )
+                .values(
+                    scan_id,
+                    scan_name,
+                    host_id,
+                    aegis_content_id,
+                    profile_id,
+                    "running",
+                    0,
+                    start_time,
+                    None,  # started_by is NULL for scheduled scans
+                    '{"scanner": "aegis", "source": "scheduler"}',
+                    False,
+                    False,
+                )
+            )
+            insert_query, insert_params = insert_builder.build()
+            db.execute(text(insert_query), insert_params)
+            db.commit()
 
             # Run Aegis scan with full server intelligence collection
             logger.info(f"Running Aegis scan on {host.hostname}")
@@ -195,25 +244,154 @@ def run_scheduled_aegis_scan(self: Any, host_id: str, priority: int = 5) -> Dict
             finally:
                 loop.close()
 
+            end_time = datetime.now(timezone.utc)
+
             # Check if scan failed
             if scan_result.get("status") == "error":
                 error_msg = scan_result.get("error", "Unknown error")
                 logger.error(f"Aegis scan failed for {host.hostname}: {error_msg}")
+
+                # Update scan status to failed
+                update_builder = (
+                    UpdateBuilder("scans")
+                    .set("status", "failed")
+                    .set("error_message", error_msg[:500] if error_msg else None)
+                    .set("completed_at", end_time)
+                    .where("id = :id", scan_id, "id")
+                )
+                update_query, update_params = update_builder.build()
+                db.execute(text(update_query), update_params)
+                db.commit()
+
                 compliance_scheduler_service.record_scan_failure(db, UUID(host_id), error_msg)
-                return {"status": "error", "host_id": host_id, "error": error_msg}
+                return {"status": "error", "host_id": host_id, "scan_id": scan_id, "error": error_msg}
 
             # Extract results - Aegis returns 'passed' and 'failed', not 'pass_count'
             compliance_score = scan_result.get("compliance_score", 0.0)
             pass_count = scan_result.get("passed", 0)
             fail_count = scan_result.get("failed", 0)
+            skipped_count = scan_result.get("skipped", 0)
+            total_count = pass_count + fail_count + skipped_count
 
             # Count critical findings from results list
             results_list = scan_result.get("results", [])
-            critical_count = sum(
-                1 for r in results_list if not r.get("passed") and r.get("severity") in ["critical", "high"]
-            )
 
-            has_critical = critical_count > 0
+            # Calculate severity breakdown
+            severity_counts = {"critical": 0, "high": 0, "medium": 0, "low": 0}
+            severity_passed = {"critical": 0, "high": 0, "medium": 0, "low": 0}
+            severity_failed = {"critical": 0, "high": 0, "medium": 0, "low": 0}
+
+            for r in results_list:
+                if r.get("skipped"):
+                    continue
+                sev = (r.get("severity") or "medium").lower()
+                if sev not in severity_counts:
+                    sev = "medium"
+                severity_counts[sev] += 1
+                if r.get("passed"):
+                    severity_passed[sev] += 1
+                else:
+                    severity_failed[sev] += 1
+
+            has_critical = severity_failed["critical"] > 0 or severity_failed["high"] > 0
+
+            # Update scan record with completed status
+            update_builder = (
+                UpdateBuilder("scans")
+                .set("status", "completed")
+                .set("completed_at", end_time)
+                .set("progress", 100)
+                .where("id = :id", scan_id, "id")
+            )
+            update_query, update_params = update_builder.build()
+            db.execute(text(update_query), update_params)
+
+            # Insert scan results summary
+            results_insert = (
+                InsertBuilder("scan_results")
+                .columns(
+                    "scan_id",
+                    "total_rules",
+                    "passed_rules",
+                    "failed_rules",
+                    "error_rules",
+                    "unknown_rules",
+                    "not_applicable_rules",
+                    "score",
+                    "severity_high",
+                    "severity_medium",
+                    "severity_low",
+                    "severity_critical",
+                    "severity_critical_passed",
+                    "severity_critical_failed",
+                    "severity_high_passed",
+                    "severity_high_failed",
+                    "severity_medium_passed",
+                    "severity_medium_failed",
+                    "severity_low_passed",
+                    "severity_low_failed",
+                    "created_at",
+                )
+                .values(
+                    scan_id,
+                    total_count,
+                    pass_count,
+                    fail_count,
+                    skipped_count,
+                    0,
+                    0,
+                    f"{compliance_score:.2f}",
+                    severity_counts["high"],
+                    severity_counts["medium"],
+                    severity_counts["low"],
+                    severity_counts["critical"],
+                    severity_passed["critical"],
+                    severity_failed["critical"],
+                    severity_passed["high"],
+                    severity_failed["high"],
+                    severity_passed["medium"],
+                    severity_failed["medium"],
+                    severity_passed["low"],
+                    severity_failed["low"],
+                    end_time,
+                )
+            )
+            results_query, results_params = results_insert.build()
+            db.execute(text(results_query), results_params)
+
+            # Insert individual rule findings into scan_findings table
+            for r in results_list:
+                status_str = "pass" if r.get("passed") else "fail"
+                if r.get("skipped"):
+                    status_str = "skipped"
+
+                finding_insert = (
+                    InsertBuilder("scan_findings")
+                    .columns(
+                        "scan_id",
+                        "rule_id",
+                        "title",
+                        "severity",
+                        "status",
+                        "detail",
+                        "framework_section",
+                        "created_at",
+                    )
+                    .values(
+                        scan_id,
+                        r.get("rule_id", "unknown"),
+                        (r.get("title") or "Unknown")[:500],
+                        r.get("severity") or "medium",
+                        status_str,
+                        (r.get("detail") or "")[:2000] if r.get("detail") else None,
+                        r.get("framework_section"),
+                        end_time,
+                    )
+                )
+                finding_query, finding_params = finding_insert.build()
+                db.execute(text(finding_query), finding_params)
+
+            db.commit()
 
             # Save server intelligence data if collected
             system_info = scan_result.get("system_info")
@@ -235,6 +413,25 @@ def run_scheduled_aegis_scan(self: Any, host_id: str, priority: int = 5) -> Dict
                     if system_info:
                         system_info_service.save_system_info(UUID(host_id), system_info)
                         logger.debug(f"Saved system info for {host.hostname}")
+
+                        # Sync OS info to hosts table for display consistency
+                        os_name = system_info.os_name if hasattr(system_info, "os_name") else system_info.get("os_name")
+                        os_ver = (
+                            system_info.os_version
+                            if hasattr(system_info, "os_version")
+                            else system_info.get("os_version")
+                        )
+                        if os_name:
+                            os_sync_builder = (
+                                UpdateBuilder("hosts")
+                                .set("operating_system", os_name)
+                                .set_if("os_version", os_ver)
+                                .where("id = :id", host_id, "id")
+                            )
+                            os_sync_query, os_sync_params = os_sync_builder.build()
+                            db.execute(text(os_sync_query), os_sync_params)
+                            db.commit()
+                            logger.debug(f"Synced OS info to hosts table: {os_name} {os_ver or ''}")
 
                     if packages:
                         count = system_info_service.save_packages(UUID(host_id), packages)
@@ -270,15 +467,13 @@ def run_scheduled_aegis_scan(self: Any, host_id: str, priority: int = 5) -> Dict
                 except Exception as e:
                     logger.warning(f"Failed to save server intelligence data: {e}")
 
-            # Update schedule with new compliance state
+            # Update schedule with scan timing (compliance data stored in scans table)
             compliance_scheduler_service.update_host_schedule(
                 db=db,
                 host_id=UUID(host_id),
                 compliance_score=compliance_score,
                 has_critical_findings=has_critical,
-                pass_count=pass_count,
-                fail_count=fail_count,
-                scan_id=None,  # Aegis doesn't create a scan record
+                scan_id=UUID(scan_id),
             )
 
             # Generate alerts based on scan results
@@ -303,19 +498,20 @@ def run_scheduled_aegis_scan(self: Any, host_id: str, priority: int = 5) -> Dict
                 logger.warning(f"Failed to generate alerts for {host.hostname}: {alert_error}")
 
             logger.info(
-                f"Completed scheduled scan for {host.hostname}: "
+                f"Completed scheduled scan {scan_id} for {host.hostname}: "
                 f"score={compliance_score}%, pass={pass_count}, fail={fail_count}"
             )
 
             return {
                 "status": "ok",
                 "host_id": host_id,
+                "scan_id": scan_id,
                 "hostname": host.hostname,
                 "compliance_score": compliance_score,
                 "pass_count": pass_count,
                 "fail_count": fail_count,
                 "has_critical": has_critical,
-                "critical_count": critical_count,
+                "critical_count": severity_failed["critical"],
                 "alerts_generated": alerts_generated,
                 "system_info_collected": system_info is not None,
                 "packages_collected": len(packages) if packages else 0,
@@ -334,17 +530,26 @@ def run_scheduled_aegis_scan(self: Any, host_id: str, priority: int = 5) -> Dict
     except Exception as e:
         logger.error(f"Error in scheduled Aegis scan for host {host_id}: {e}")
 
-        # Record failure
+        # Update scan status to failed if we created one
         try:
             db = next(get_db())
-            from app.services.compliance.compliance_scheduler import compliance_scheduler_service
+            update_builder = (
+                UpdateBuilder("scans")
+                .set("status", "failed")
+                .set("error_message", str(e)[:500])
+                .set("completed_at", datetime.now(timezone.utc))
+                .where("id = :id", scan_id, "id")
+            )
+            update_query, update_params = update_builder.build()
+            db.execute(text(update_query), update_params)
+            db.commit()
 
             compliance_scheduler_service.record_scan_failure(db, UUID(host_id), str(e))
             db.close()
         except Exception:
             pass
 
-        return {"status": "error", "host_id": host_id, "error": str(e)}
+        return {"status": "error", "host_id": host_id, "scan_id": scan_id, "error": str(e)}
 
 
 @celery_app.task(
@@ -379,9 +584,9 @@ def initialize_compliance_schedules(self: Any) -> Dict[str, Any]:
                     """
                     SELECT h.id
                     FROM hosts h
-                    LEFT JOIN host_compliance_schedule hcs ON h.id = hcs.host_id
+                    LEFT JOIN host_schedule hs ON h.id = hs.host_id
                     WHERE h.is_active = true
-                      AND hcs.id IS NULL
+                      AND hs.id IS NULL
                 """
                 )
             )
@@ -434,7 +639,7 @@ def expire_compliance_maintenance(self: Any) -> Dict[str, Any]:
             result = db.execute(
                 text(
                     """
-                    UPDATE host_compliance_schedule
+                    UPDATE host_schedule
                     SET maintenance_mode = false,
                         maintenance_until = NULL,
                         updated_at = :now

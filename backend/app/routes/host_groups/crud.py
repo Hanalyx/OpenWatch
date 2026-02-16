@@ -86,14 +86,14 @@ async def list_host_groups(
             SELECT
                 hg.id, hg.name, hg.description, hg.color, hg.created_by, hg.created_at, hg.updated_at,
                 hg.os_family, hg.os_version_pattern, hg.architecture,
-                hg.default_profile_id, hg.compliance_framework, hg.auto_scan_enabled,
+                hg.compliance_framework, hg.auto_scan_enabled,
                 hg.scan_schedule, hg.validation_rules,
                 COALESCE(COUNT(hgm.host_id), 0) as host_count
             FROM host_groups hg
             LEFT JOIN host_group_memberships hgm ON hg.id = hgm.group_id
             GROUP BY hg.id, hg.name, hg.description, hg.color, hg.created_by, hg.created_at,
                      hg.updated_at, hg.os_family, hg.os_version_pattern, hg.architecture,
-                     hg.default_profile_id, hg.compliance_framework,
+                     hg.compliance_framework,
                      hg.auto_scan_enabled, hg.scan_schedule, hg.validation_rules
             ORDER BY hg.name
         """
@@ -114,7 +114,6 @@ async def list_host_groups(
                 "os_family": row.os_family,
                 "os_version_pattern": row.os_version_pattern,
                 "architecture": row.architecture,
-                "default_profile_id": row.default_profile_id,
                 "compliance_framework": row.compliance_framework,
                 "auto_scan_enabled": (row.auto_scan_enabled if row.auto_scan_enabled is not None else False),
                 "scan_schedule": row.scan_schedule,
@@ -156,7 +155,7 @@ async def get_host_group(
             SELECT
                 hg.id, hg.name, hg.description, hg.color, hg.created_by, hg.created_at, hg.updated_at,
                 hg.os_family, hg.os_version_pattern, hg.architecture,
-                hg.default_profile_id, hg.compliance_framework, hg.auto_scan_enabled,
+                hg.compliance_framework, hg.auto_scan_enabled,
                 hg.scan_schedule, hg.validation_rules,
                 COALESCE(COUNT(hgm.host_id), 0) as host_count
             FROM host_groups hg
@@ -164,7 +163,7 @@ async def get_host_group(
             WHERE hg.id = :group_id
             GROUP BY hg.id, hg.name, hg.description, hg.color, hg.created_by, hg.created_at,
                      hg.updated_at, hg.os_family, hg.os_version_pattern, hg.architecture,
-                     hg.default_profile_id, hg.compliance_framework,
+                     hg.compliance_framework,
                      hg.auto_scan_enabled, hg.scan_schedule, hg.validation_rules
         """
             ),
@@ -188,7 +187,6 @@ async def get_host_group(
             "os_family": row.os_family,
             "os_version_pattern": row.os_version_pattern,
             "architecture": row.architecture,
-            "default_profile_id": row.default_profile_id,
             "compliance_framework": row.compliance_framework,
             "auto_scan_enabled": (row.auto_scan_enabled if row.auto_scan_enabled is not None else False),
             "scan_schedule": row.scan_schedule,
@@ -238,18 +236,18 @@ async def create_host_group(
             INSERT INTO host_groups (
                 name, description, color, created_by, created_at, updated_at,
                 os_family, os_version_pattern, architecture,
-                default_profile_id, compliance_framework, auto_scan_enabled,
+                compliance_framework, auto_scan_enabled,
                 scan_schedule, validation_rules
             )
             VALUES (
                 :name, :description, :color, :created_by, :created_at, :updated_at,
                 :os_family, :os_version_pattern, :architecture,
-                :default_profile_id, :compliance_framework, :auto_scan_enabled,
+                :compliance_framework, :auto_scan_enabled,
                 :scan_schedule, :validation_rules
             )
             RETURNING id, name, description, color, created_by, created_at, updated_at,
                       os_family, os_version_pattern, architecture,
-                      default_profile_id, compliance_framework, auto_scan_enabled,
+                      compliance_framework, auto_scan_enabled,
                       scan_schedule, validation_rules
         """
             ),
@@ -263,7 +261,6 @@ async def create_host_group(
                 "os_family": group_data.os_family,
                 "os_version_pattern": group_data.os_version_pattern,
                 "architecture": group_data.architecture,
-                "default_profile_id": group_data.default_profile_id,
                 "compliance_framework": group_data.compliance_framework,
                 "auto_scan_enabled": group_data.auto_scan_enabled or False,
                 "scan_schedule": group_data.scan_schedule,
@@ -289,7 +286,6 @@ async def create_host_group(
             "os_family": group.os_family,
             "os_version_pattern": group.os_version_pattern,
             "architecture": group.architecture,
-            "default_profile_id": group.default_profile_id,
             "compliance_framework": group.compliance_framework,
             "auto_scan_enabled": (group.auto_scan_enabled if group.auto_scan_enabled is not None else False),
             "scan_schedule": group.scan_schedule,
@@ -376,10 +372,6 @@ async def update_host_group(
             update_fields.append("architecture = :architecture")
             update_params["architecture"] = group_data.architecture
 
-        if group_data.default_profile_id is not None:
-            update_fields.append("default_profile_id = :default_profile_id")
-            update_params["default_profile_id"] = group_data.default_profile_id
-
         if group_data.compliance_framework is not None:
             update_fields.append("compliance_framework = :compliance_framework")
             update_params["compliance_framework"] = group_data.compliance_framework
@@ -411,7 +403,7 @@ async def update_host_group(
             WHERE id = :group_id
             RETURNING id, name, description, color, created_by, created_at, updated_at,
                       os_family, os_version_pattern, architecture,
-                      default_profile_id, compliance_framework, auto_scan_enabled,
+                      compliance_framework, auto_scan_enabled,
                       scan_schedule, validation_rules
         """
             ),
@@ -446,7 +438,6 @@ async def update_host_group(
             "os_family": group.os_family,
             "os_version_pattern": group.os_version_pattern,
             "architecture": group.architecture,
-            "default_profile_id": group.default_profile_id,
             "compliance_framework": group.compliance_framework,
             "auto_scan_enabled": (group.auto_scan_enabled if group.auto_scan_enabled is not None else False),
             "scan_schedule": group.scan_schedule,

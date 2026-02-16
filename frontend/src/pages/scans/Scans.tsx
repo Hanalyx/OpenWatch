@@ -28,7 +28,6 @@ import {
   Tooltip,
 } from '@mui/material';
 import {
-  Add as AddIcon,
   MoreVert as MoreVertIcon,
   ExpandMore as ExpandMoreIcon,
   Computer as ComputerIcon,
@@ -40,13 +39,11 @@ import {
   Error as ErrorIcon,
   Cancel as CancelIcon,
   Flag as FlagIcon,
-  FactCheck as FactCheckIcon,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../../services/api';
 import StatusChip from '../../components/design-system/StatusChip';
 import { DEFAULT_FRAMEWORK } from '../../constants/complianceFrameworks';
-import ReadinessDialog from '../../components/ReadinessDialog';
 import type { HostStatus } from '../../types/host';
 
 interface Scan {
@@ -107,13 +104,6 @@ const Scans: React.FC = () => {
   // Phase 1 UX Improvements: Filter state
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [severityFilter, setSeverityFilter] = useState<string>('all');
-
-  // Readiness validation state
-  const [readinessDialogOpen, setReadinessDialogOpen] = useState(false);
-  const [selectedHostForReadiness, setSelectedHostForReadiness] = useState<{
-    id: string;
-    name: string;
-  } | null>(null);
 
   // Transform backend scan data to frontend format
   const transformScanData = (
@@ -467,19 +457,6 @@ const Scans: React.FC = () => {
     navigate(`/hosts/${hostGroup.host_id}`);
   };
 
-  const handleValidateReadiness = (hostGroup: HostWithScans) => {
-    setSelectedHostForReadiness({
-      id: hostGroup.host_id,
-      name: hostGroup.host_name,
-    });
-    setReadinessDialogOpen(true);
-  };
-
-  const handleCloseReadinessDialog = () => {
-    setReadinessDialogOpen(false);
-    setSelectedHostForReadiness(null);
-  };
-
   const handleExportReports = (event: React.MouseEvent<HTMLElement>, hostName: string) => {
     setExportMenuAnchor(event.currentTarget);
     setSelectedHostForExport(hostName);
@@ -564,37 +541,11 @@ const Scans: React.FC = () => {
       {/* Header */}
       <Box sx={{ mb: 3 }}>
         <Typography variant="h4" component="h1" gutterBottom>
-          Compliance Scans
+          Scan History
         </Typography>
         <Typography variant="body1" color="text.secondary">
-          Monitor and manage security compliance scans across your infrastructure
+          View compliance scan history and results across your infrastructure
         </Typography>
-      </Box>
-
-      {/* Actions Bar */}
-      <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Box sx={{ display: 'flex', gap: 2 }}>
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={() => navigate('/scans/create')}
-            size="large"
-          >
-            New Scan
-          </Button>
-          <Button
-            variant="outlined"
-            color="primary"
-            startIcon={<FactCheckIcon />}
-            onClick={() => navigate('/scans/validate-readiness')}
-            size="large"
-          >
-            Validate Readiness
-          </Button>
-        </Box>
-        <Button variant="text" disabled sx={{ color: 'text.secondary' }}>
-          Start All Pending
-        </Button>
       </Box>
 
       {/* Phase 1 UX Improvement: Quick Filters */}
@@ -690,15 +641,6 @@ const Scans: React.FC = () => {
                   ? 'No scans match the selected filters'
                   : 'No scans found in the last 30 days'}
               </Typography>
-              {statusFilter === 'all' && severityFilter === 'all' && (
-                <Button
-                  variant="contained"
-                  startIcon={<AddIcon />}
-                  onClick={() => navigate('/scans/create')}
-                >
-                  Create Your First Scan
-                </Button>
-              )}
             </Box>
           </Paper>
         ) : (
@@ -788,7 +730,7 @@ const Scans: React.FC = () => {
                               ? (hostGroup.completedCount / hostGroup.totalCount) * 100
                               : 0;
                           return (
-                            <Tooltip title={`${successRate.toFixed(1)}% Compliance Rate`}>
+                            <Tooltip title={`${successRate.toFixed(1)}% Scan Success Rate`}>
                               <Avatar
                                 sx={{
                                   bgcolor: getHealthColor(successRate),
@@ -816,7 +758,7 @@ const Scans: React.FC = () => {
                             })()}
                           >
                             {hostGroup.totalCount > 0
-                              ? `${((hostGroup.completedCount / hostGroup.totalCount) * 100).toFixed(1)}% Compliant`
+                              ? `${((hostGroup.completedCount / hostGroup.totalCount) * 100).toFixed(1)}% Completed`
                               : 'No Data'}
                           </Typography>
                         </Box>
@@ -882,18 +824,6 @@ const Scans: React.FC = () => {
                       }}
                     >
                       Rescan
-                    </Button>
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      color="primary"
-                      startIcon={<FactCheckIcon />}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleValidateReadiness(hostGroup);
-                      }}
-                    >
-                      Validate Readiness
                     </Button>
                     <Button
                       size="small"
@@ -1020,16 +950,6 @@ const Scans: React.FC = () => {
           <MenuItem onClick={() => handleExportScans('failed')}>Export Failed Scans</MenuItem>
         </Menu>
       </Box>
-
-      {/* Readiness Validation Dialog */}
-      {selectedHostForReadiness && (
-        <ReadinessDialog
-          open={readinessDialogOpen}
-          onClose={handleCloseReadinessDialog}
-          hostId={selectedHostForReadiness.id}
-          hostname={selectedHostForReadiness.name}
-        />
-      )}
     </Box>
   );
 };

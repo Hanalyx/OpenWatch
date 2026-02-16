@@ -142,6 +142,47 @@ export interface PriorityHost {
 }
 
 /**
+ * Trend direction for compliance analysis
+ */
+export type TrendDirection = 'improving' | 'declining' | 'stable';
+
+/**
+ * Single data point in fleet compliance trend
+ *
+ * Represents daily aggregated compliance across all hosts.
+ * Data sourced from posture_snapshots table.
+ */
+export interface FleetTrendDataPoint {
+  date: string;
+  average_compliance: number;
+  median_compliance: number | null;
+  total_hosts: number;
+  hosts_excellent: number;
+  hosts_good: number;
+  hosts_fair: number;
+  hosts_poor: number;
+  total_critical_issues: number;
+  total_high_issues: number;
+  total_medium_issues: number;
+  total_low_issues: number;
+}
+
+/**
+ * Fleet-wide compliance trend over time
+ *
+ * Provides historical daily fleet statistics for dashboard visualizations.
+ * Uses posture_snapshots as the single source of truth.
+ */
+export interface FleetComplianceTrend {
+  start_date: string;
+  end_date: string;
+  data_points: FleetTrendDataPoint[];
+  trend_direction: TrendDirection;
+  improvement_rate: number | null;
+  calculated_at: string;
+}
+
+/**
  * OWCA Service Class
  *
  * Provides methods to interact with OWCA REST API.
@@ -289,6 +330,36 @@ class OWCAService {
       }>('/api/compliance/owca/version');
     } catch (error) {
       console.error('Failed to fetch OWCA version:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get fleet-wide compliance trend over time
+   *
+   * Uses posture_snapshots as the single source of truth for historical
+   * fleet compliance data, unifying OWCA with Temporal Compliance.
+   *
+   * Provides daily fleet statistics including:
+   * - Average/median compliance scores
+   * - Host distribution by compliance tier (excellent/good/fair/poor)
+   * - Total issues by severity
+   * - Trend direction and improvement rate
+   *
+   * Security: Requires authentication and read permission for fleet data.
+   *
+   * @param days - Number of days of history (7, 30, or 90, default: 30)
+   * @returns FleetComplianceTrend with daily statistics, or null if no data
+   * @throws Error if API request fails
+   */
+  async getFleetTrend(days: number = 30): Promise<FleetComplianceTrend | null> {
+    try {
+      const response = await api.get<FleetComplianceTrend>(
+        `/api/compliance/owca/fleet/trend?days=${days}`
+      );
+      return response || null;
+    } catch (error) {
+      console.error(`Failed to fetch fleet trend (${days} days):`, error);
       throw error;
     }
   }

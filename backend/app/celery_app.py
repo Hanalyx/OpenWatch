@@ -55,6 +55,8 @@ celery_app = Celery(
         "app.tasks.compliance_tasks",
         "app.tasks.adaptive_monitoring_dispatcher",
         "app.tasks.compliance_scheduler_tasks",
+        "app.tasks.posture_tasks",
+        "app.tasks.backfill_posture_snapshots",
     ],
 )
 
@@ -197,6 +199,24 @@ celery_app.conf.update(
                 "queue": "compliance_scanning",
             },
         },
+        # Daily posture snapshots for Temporal Compliance
+        # Creates snapshots of compliance posture for all hosts
+        # Enables historical trend queries via OWCA fleet trend API
+        "create-daily-posture-snapshots": {
+            "task": "create_daily_posture_snapshots",
+            "schedule": crontab(hour=0, minute=30),  # Run at 00:30 UTC daily
+            "options": {
+                "queue": "default",
+            },
+        },
+        # Clean up old posture snapshots (30-day retention for free tier)
+        "cleanup-old-posture-snapshots": {
+            "task": "cleanup_old_posture_snapshots",
+            "schedule": crontab(hour=3, minute=0),  # Run at 3 AM UTC daily
+            "options": {
+                "queue": "maintenance",
+            },
+        },
     },
     # Result backend settings
     result_expires=3600,  # 1 hour
@@ -222,6 +242,7 @@ celery_app.conf.update(
         "app.tasks.os_discovery_tasks",
         "app.tasks.stale_scan_detection",
         "app.tasks.scan_tasks",
+        "app.tasks.aegis_scan_tasks",
         "app.tasks.background_tasks",
     ],
 )

@@ -7,6 +7,7 @@ Part of Phase 4 API Standardization: System & Integrations.
 Endpoint Structure:
     GET  /owca/host/{host_id}/score              - Get host compliance score
     GET  /owca/fleet/statistics                  - Get fleet statistics
+    GET  /owca/fleet/trend                       - Get fleet compliance trend (NEW)
     GET  /owca/host/{host_id}/drift              - Detect baseline drift
     GET  /owca/fleet/drift                       - Get hosts with drift
     GET  /owca/fleet/priority-hosts              - Get top priority hosts
@@ -21,9 +22,14 @@ Endpoint Structure:
 
 Migration Status:
     - owca.py -> compliance/owca.py
+
+Unified Data Source:
+    Fleet trend endpoint uses posture_snapshots as single source of truth,
+    unifying OWCA with Temporal Compliance for historical fleet data.
 """
 
 import logging
+from datetime import date, timedelta
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
@@ -33,7 +39,7 @@ from sqlalchemy.orm import Session
 from ...auth import get_current_user
 from ...database import get_db
 from ...services.owca import get_owca_service
-from ...services.owca.models import BaselineDrift, ComplianceScore, DriftSeverity, FleetStatistics
+from ...services.owca.models import BaselineDrift, ComplianceScore, DriftSeverity, FleetComplianceTrend, FleetStatistics
 
 logger = logging.getLogger(__name__)
 
@@ -107,6 +113,79 @@ async def get_fleet_statistics(
     except Exception as e:
         logger.error(f"Error calculating fleet statistics: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to calculate fleet statistics")
+
+
+@router.get(
+    "/fleet/trend",
+    response_model=Optional[FleetComplianceTrend],
+    summary="Get fleet compliance trend",
+    description="Get fleet-wide compliance trend over time from posture snapshots",
+)
+async def get_fleet_trend(
+    start_date: Optional[date] = Query(None, description="Start date (default: 30 days ago)"),
+    end_date: Optional[date] = Query(None, description="End date (default: today)"),
+    days: int = Query(30, ge=7, le=365, description="Number of days if start_date not provided"),
+    db: Session = Depends(get_db),
+    _current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Optional[FleetComplianceTrend]:
+    """
+    Get fleet-wide compliance trend over time.
+
+    Uses posture_snapshots as the single source of truth for historical
+    compliance data, unifying OWCA with Temporal Compliance.
+
+    Provides daily fleet statistics including:
+    - Average/median compliance scores
+    - Host distribution by compliance tier (excellent/good/fair/poor)
+    - Total issues by severity
+    - Trend direction and improvement rate
+
+    License Note:
+        Historical queries (non-current dates) require OpenWatch+ subscription.
+        For now, this endpoint is available to all users.
+
+    Args:
+        start_date: Start of date range (default: 30 days ago)
+        end_date: End of date range (default: today)
+        days: Number of days to analyze if start_date not provided
+
+    Returns:
+        FleetComplianceTrend with daily statistics and trend analysis
+    """
+    try:
+        # Calculate dates if not provided
+        if end_date is None:
+            end_date = date.today()
+        if start_date is None:
+            start_date = end_date - timedelta(days=days)
+
+        # Validate date range
+        if start_date > end_date:
+            raise HTTPException(status_code=400, detail="start_date must be before end_date")
+
+        # Check if this is a historical query (not just current data)
+        # License check would go here for OpenWatch+ gating
+        # For now, allow all queries
+        # is_historical = start_date < date.today() - timedelta(days=1)
+        # if is_historical:
+        #     license_service = LicenseService()
+        #     if not await license_service.has_feature("temporal_queries"):
+        #         raise HTTPException(403, "Fleet trends require OpenWatch+ subscription")
+
+        owca = get_owca_service(db)
+        trend = await owca.get_fleet_trend(start_date, end_date)
+
+        if not trend:
+            logger.info(f"No fleet trend data available for {start_date} to {end_date}")
+            return None
+
+        return trend
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting fleet trend: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to get fleet compliance trend")
 
 
 @router.get(

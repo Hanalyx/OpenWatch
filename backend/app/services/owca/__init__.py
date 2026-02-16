@@ -38,6 +38,7 @@ Usage:
     >>> print(f"Host compliance: {score.overall_score}% ({score.tier})")
 """
 
+from datetime import date
 from typing import Optional, Union
 from uuid import UUID
 
@@ -54,7 +55,9 @@ from .models import (
     ComplianceForecast,
     ComplianceScore,
     ComplianceTier,
+    FleetComplianceTrend,
     FleetStatistics,
+    FleetTrendDataPoint,
     RiskScore,
     TrendData,
 )
@@ -73,6 +76,8 @@ __all__ = [
     "ComplianceScore",
     "ComplianceTier",
     "FleetStatistics",
+    "FleetComplianceTrend",
+    "FleetTrendDataPoint",
     "BaselineDrift",
     "TrendData",
     "RiskScore",
@@ -140,6 +145,34 @@ class OWCAService:
             FleetStatistics with all aggregated metrics
         """
         return await self.fleet_aggregator.get_fleet_statistics()
+
+    async def get_fleet_trend(
+        self,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
+    ) -> Optional[FleetComplianceTrend]:
+        """
+        Get fleet-wide compliance trend over a date range.
+
+        Uses posture_snapshots as the single source of truth for historical
+        fleet compliance data.
+
+        Args:
+            start_date: Start date (default: 30 days ago)
+            end_date: End date (default: today)
+
+        Returns:
+            FleetComplianceTrend with daily statistics, or None if no data
+
+        Example:
+            >>> owca = get_owca_service(db)
+            >>> trend = await owca.get_fleet_trend(
+            ...     start_date=date(2026, 1, 1),
+            ...     end_date=date(2026, 2, 1)
+            ... )
+            >>> print(f"Fleet trend: {trend.trend_direction}")
+        """
+        return await self.fleet_aggregator.get_fleet_trend(start_date, end_date)
 
     async def detect_baseline_drift(self, host_id: Union[str, UUID]) -> Optional[BaselineDrift]:
         """

@@ -7,23 +7,12 @@ import {
   List,
   ListItem,
   ListItemText,
-  ListItemIcon,
   IconButton,
   Chip,
   useTheme,
   alpha,
 } from '@mui/material';
-import {
-  CheckCircle,
-  Error,
-  Warning,
-  Info,
-  Computer,
-  Security,
-  Settings,
-  ArrowForward,
-  Refresh,
-} from '@mui/icons-material';
+import { ArrowForward, Refresh } from '@mui/icons-material';
 import { formatDistanceToNow } from 'date-fns';
 
 export interface ActivityItem {
@@ -33,16 +22,25 @@ export interface ActivityItem {
     | 'scan_failed'
     | 'host_added'
     | 'host_offline'
-    | 'rule_failed'
+    | 'host_online'
+    | 'drift_detected'
+    | 'baseline_created'
+    | 'exception_approved'
+    | 'exception_rejected'
+    | 'login_failed'
+    | 'security_event'
     | 'settings_changed';
   message: string;
   timestamp: Date;
   severity?: 'success' | 'error' | 'warning' | 'info';
   metadata?: {
     hostId?: string;
+    hostname?: string;
     scanId?: string;
     ruleCount?: number;
     complianceScore?: number;
+    previousScore?: number;
+    username?: string;
   };
   action?: {
     label: string;
@@ -73,26 +71,8 @@ const ActivityFeed: React.FC<ActivityFeedProps> = ({
       )
     : [];
 
-  const getIcon = (type: ActivityItem['type']) => {
-    switch (type) {
-      case 'scan_completed':
-        return <CheckCircle sx={{ color: theme.palette.success.main }} />;
-      case 'scan_failed':
-        return <Error sx={{ color: theme.palette.error.main }} />;
-      case 'host_added':
-        return <Computer sx={{ color: theme.palette.info.main }} />;
-      case 'host_offline':
-        return <Warning sx={{ color: theme.palette.warning.main }} />;
-      case 'rule_failed':
-        return <Security sx={{ color: theme.palette.error.main }} />;
-      case 'settings_changed':
-        return <Settings sx={{ color: theme.palette.grey[600] }} />;
-      default:
-        return <Info />;
-    }
-  };
-
-  const _getSeverityColor = (severity?: ActivityItem['severity']) => {
+  // Get severity color for the status dot
+  const getSeverityColor = (severity?: ActivityItem['severity']) => {
     switch (severity) {
       case 'success':
         return theme.palette.success.main;
@@ -105,6 +85,25 @@ const ActivityFeed: React.FC<ActivityFeedProps> = ({
       default:
         return theme.palette.text.secondary;
     }
+  };
+
+  // Get plural label for grouped activities
+  const getGroupedLabel = (type: ActivityItem['type'], count: number): string => {
+    const labels: Record<string, string> = {
+      scan_completed: 'scans completed',
+      scan_failed: 'scans failed',
+      host_added: 'hosts added',
+      host_offline: 'hosts went offline',
+      host_online: 'hosts came online',
+      drift_detected: 'drift events',
+      baseline_created: 'baselines created',
+      exception_approved: 'exceptions approved',
+      exception_rejected: 'exceptions rejected',
+      login_failed: 'failed logins',
+      security_event: 'security events',
+      settings_changed: 'settings changes',
+    };
+    return `${count} ${labels[type] || type.replace(/_/g, ' ')}`;
   };
 
   const displayActivities = safeActivities.slice(0, maxItems);
@@ -179,7 +178,7 @@ const ActivityFeed: React.FC<ActivityFeedProps> = ({
                   key={`group-${groupIndex}`}
                   sx={{
                     px: 0,
-                    py: 1,
+                    py: 0.75,
                     '&:hover': {
                       bgcolor: alpha(theme.palette.action.hover, 0.04),
                     },
@@ -196,13 +195,23 @@ const ActivityFeed: React.FC<ActivityFeedProps> = ({
                     )
                   }
                 >
-                  <ListItemIcon sx={{ minWidth: 40 }}>{getIcon(firstItem.type)}</ListItemIcon>
+                  {/* Status dot */}
+                  <Box
+                    sx={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: '50%',
+                      bgcolor: getSeverityColor(firstItem.severity),
+                      mr: 1.5,
+                      flexShrink: 0,
+                    }}
+                  />
                   <ListItemText
                     primary={
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                         <Typography variant="body2" sx={{ wordBreak: 'break-word' }}>
                           {isGrouped
-                            ? `${group.items.length} ${firstItem.type.replace('_', ' ')}s`
+                            ? getGroupedLabel(firstItem.type, group.items.length)
                             : firstItem.message}
                         </Typography>
                         {firstItem.metadata?.complianceScore !== undefined &&
@@ -225,8 +234,8 @@ const ActivityFeed: React.FC<ActivityFeedProps> = ({
                     secondary={
                       <Typography variant="caption" color="text.secondary">
                         {formatDistanceToNow(firstItem.timestamp, { addSuffix: true })}
-                        {firstItem.metadata?.ruleCount &&
-                          ` • ${firstItem.metadata.ruleCount} rules`}
+                        {firstItem.metadata?.hostname && ` • ${firstItem.metadata.hostname}`}
+                        {firstItem.metadata?.username && ` • ${firstItem.metadata.username}`}
                       </Typography>
                     }
                   />

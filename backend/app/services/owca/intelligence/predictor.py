@@ -237,14 +237,14 @@ class CompliancePredictor:
                     f"deviations {direction} than expected ({mean:.1f}%)"
                 )
 
-                # Note: We don't have scan_id in TrendDataPoint, so use placeholder
-                # In production, would need to query scans table to get scan_id
-                placeholder_scan_id = UUID("00000000-0000-0000-0000-000000000001")
+                # Use actual scan_id from TrendDataPoint if available (from posture_snapshots)
+                # Fallback to placeholder if not available (scan-based data)
+                scan_id = point.source_scan_id or UUID("00000000-0000-0000-0000-000000000001")
 
                 anomalies.append(
                     ComplianceAnomaly(
                         host_id=entity_id,
-                        scan_id=placeholder_scan_id,
+                        scan_id=scan_id,
                         actual_score=score,
                         expected_score=round(mean, 2),
                         deviation=round(z_score, 2),

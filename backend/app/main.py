@@ -164,20 +164,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Initialize JWT keys
     logger.info("JWT manager initialized with RSA keys")
 
-    # Initialize MongoDB
-    try:
-        from .services.mongo_integration_service import get_mongo_service
-
-        _ = await get_mongo_service()  # Initialize but don't store reference
-        logger.info("MongoDB integration service initialized successfully")
-
-        # Health monitoring models are initialized with other Beanie models
-        logger.info("Health monitoring models ready")
-
-    except Exception as mongo_error:
-        logger.warning(f"MongoDB initialization failed: {mongo_error}")
-        if not settings.debug:
-            raise
+    # MongoDB deprecated (2026-02-10) - using PostgreSQL + Aegis only
+    logger.info("MongoDB deprecated - using PostgreSQL + Aegis for compliance data")
 
     # Register Aegis scanner with ScannerFactory
     try:
@@ -471,36 +459,11 @@ async def health_check() -> JSONResponse:
         if redis_healthy:
             logger.info("Redis health check successful - inline version")
 
-        # Check MongoDB connectivity
-        mongodb_configured = bool(settings.mongodb_url and "mongodb://" in settings.mongodb_url)
-        mongodb_healthy = True
-
-        if mongodb_configured:
-            try:
-                from .services.mongo_integration_service import get_mongo_service
-
-                mongo_service = await get_mongo_service()
-                mongo_health = await mongo_service.health_check()
-                health_status["mongodb"] = mongo_health.get("status", "unknown")
-                mongodb_healthy = mongo_health.get("status") == "healthy"
-                if mongodb_healthy:
-                    logger.info("MongoDB health check successful")
-                else:
-                    logger.warning(f"MongoDB health check failed: {mongo_health.get('message', 'Unknown error')}")
-            except Exception as e:
-                # Return actual error status
-                health_status["mongodb"] = "unhealthy"
-                health_status["mongodb_error"] = str(e)
-                logger.error(f"MongoDB health check failed: {e}")
-                mongodb_healthy = False
-        else:
-            # MongoDB not configured - this is acceptable
-            health_status["mongodb"] = "not_configured"
-            logger.info("MongoDB not configured - skipping health check")
-            mongodb_healthy = True  # Don't fail overall health for unconfigured service
+        # MongoDB deprecated (2026-02-10) - removed health check
+        health_status["mongodb"] = "deprecated"
 
         # Overall status
-        if not (db_healthy and redis_healthy and mongodb_healthy):
+        if not (db_healthy and redis_healthy):
             health_status["status"] = "degraded"
             return JSONResponse(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, content=health_status)
 

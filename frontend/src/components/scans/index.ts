@@ -7,4 +7,3 @@ export { default as ScanRecommendationCard } from './ScanRecommendationCard';
 // Existing components
 export { default as QuickScanDialog } from './QuickScanDialog';
 export { default as QuickScanMenu } from './QuickScanMenu';
-export { default as ScanTemplateManager } from './ScanTemplateManager';

@@ -34,7 +34,7 @@ import {
   Info,
   Visibility,
 } from '@mui/icons-material';
-import { StatusChip, ComplianceRing, type ViewMode } from '../../../components/design-system';
+import { StatusChip, type ViewMode } from '../../../components/design-system';
 import type { Host } from '../../../types/host';
 import { getComplianceScoreColor } from '../../../utils/hostStatus';
 
@@ -100,7 +100,7 @@ const HostCard: React.FC<HostCardProps> = ({
       <Card
         onClick={() => navigate(`/hosts/${host.id}`)}
         sx={{
-          height: 120,
+          height: 130,
           display: 'flex',
           flexDirection: 'column',
           position: 'relative',
@@ -136,12 +136,24 @@ const HostCard: React.FC<HostCardProps> = ({
             >
               <Computer fontSize="small" />
             </Avatar>
-            <Box sx={{ flexGrow: 1, minWidth: 0 }}>
-              <Typography variant="body2" fontWeight="bold" noWrap>
+            <Box sx={{ flexGrow: 1, minWidth: 0, overflow: 'hidden' }}>
+              <Typography
+                variant="body2"
+                fontWeight="bold"
+                noWrap
+                title={host.displayName}
+                sx={{ lineHeight: 1.3 }}
+              >
                 {host.displayName}
               </Typography>
-              <Typography variant="caption" color="text.secondary" noWrap>
-                {host.hostname}
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                noWrap
+                title={`${host.hostname} • ${host.ipAddress}`}
+                sx={{ lineHeight: 1.3 }}
+              >
+                {host.hostname} • {host.ipAddress}
               </Typography>
             </Box>
           </Box>
@@ -219,10 +231,17 @@ const HostCard: React.FC<HostCardProps> = ({
           <StatusChip status={host.status} size="small" variant="filled" />
           <Chip label={host.operatingSystem} size="small" variant="outlined" />
           {host.complianceScore !== null && (
-            <ComplianceRing
-              score={host.complianceScore}
+            <Chip
+              label={`${host.complianceScore.toFixed(0)}%`}
               size="small"
-              trend={host.complianceTrend}
+              color={
+                host.complianceScore >= 70
+                  ? 'success'
+                  : host.complianceScore >= 40
+                    ? 'warning'
+                    : 'error'
+              }
+              sx={{ height: 20, fontSize: '0.7rem', fontWeight: 'bold' }}
             />
           )}
           <IconButton
@@ -236,7 +255,8 @@ const HostCard: React.FC<HostCardProps> = ({
           </IconButton>
           <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={() => setAnchorEl(null)}>
             <MenuItem
-              onClick={() => {
+              onClick={(e) => {
+                e.stopPropagation();
                 setQuickScanDialog({ open: true, host });
                 setAnchorEl(null);
               }}
@@ -246,7 +266,12 @@ const HostCard: React.FC<HostCardProps> = ({
               </ListItemIcon>
               <ListItemText>Quick Scan</ListItemText>
             </MenuItem>
-            <MenuItem onClick={() => handleEditHost(host)}>
+            <MenuItem
+              onClick={(e) => {
+                e.stopPropagation();
+                handleEditHost(host);
+              }}
+            >
               <ListItemIcon>
                 <Edit fontSize="small" />
               </ListItemIcon>
@@ -271,14 +296,25 @@ const HostCard: React.FC<HostCardProps> = ({
               <ListItemText>View History</ListItemText>
             </MenuItem>
             <Divider />
-            <MenuItem onClick={() => checkHostStatus(host.id)}>
+            <MenuItem
+              onClick={(e) => {
+                e.stopPropagation();
+                checkHostStatus(host.id);
+              }}
+            >
               <ListItemIcon>
                 <NetworkCheck fontSize="small" />
               </ListItemIcon>
               <ListItemText>Check Status</ListItemText>
             </MenuItem>
             <Divider />
-            <MenuItem onClick={() => handleDeleteHost(host)} sx={{ color: 'error.main' }}>
+            <MenuItem
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDeleteHost(host);
+              }}
+              sx={{ color: 'error.main' }}
+            >
               <ListItemIcon>
                 <Delete fontSize="small" color="error" />
               </ListItemIcon>
@@ -352,7 +388,8 @@ const HostCard: React.FC<HostCardProps> = ({
           </IconButton>
           <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={() => setAnchorEl(null)}>
             <MenuItem
-              onClick={() => {
+              onClick={(e) => {
+                e.stopPropagation();
                 setQuickScanDialog({ open: true, host });
                 setAnchorEl(null);
               }}
@@ -362,7 +399,12 @@ const HostCard: React.FC<HostCardProps> = ({
               </ListItemIcon>
               <ListItemText>Quick Scan</ListItemText>
             </MenuItem>
-            <MenuItem onClick={() => handleEditHost(host)}>
+            <MenuItem
+              onClick={(e) => {
+                e.stopPropagation();
+                handleEditHost(host);
+              }}
+            >
               <ListItemIcon>
                 <Edit fontSize="small" />
               </ListItemIcon>
@@ -387,14 +429,25 @@ const HostCard: React.FC<HostCardProps> = ({
               <ListItemText>View History</ListItemText>
             </MenuItem>
             <Divider />
-            <MenuItem onClick={() => checkHostStatus(host.id)}>
+            <MenuItem
+              onClick={(e) => {
+                e.stopPropagation();
+                checkHostStatus(host.id);
+              }}
+            >
               <ListItemIcon>
                 <NetworkCheck fontSize="small" />
               </ListItemIcon>
               <ListItemText>Check Status</ListItemText>
             </MenuItem>
             <Divider />
-            <MenuItem onClick={() => handleDeleteHost(host)} sx={{ color: 'error.main' }}>
+            <MenuItem
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDeleteHost(host);
+              }}
+              sx={{ color: 'error.main' }}
+            >
               <ListItemIcon>
                 <Delete fontSize="small" color="error" />
               </ListItemIcon>
@@ -407,34 +460,6 @@ const HostCard: React.FC<HostCardProps> = ({
         <Box sx={{ display: 'flex', gap: 1, mb: 2, flexWrap: 'wrap' }}>
           <StatusChip status={host.status} size="small" variant="filled" />
           <Chip label={host.operatingSystem} size="small" variant="outlined" />
-        </Box>
-
-        {/* Compliance Score - Always show (empty ring if no data) */}
-        <Box sx={{ mb: 2 }}>
-          <ComplianceRing
-            score={host.complianceScore || 0}
-            size="large"
-            showLabel={false}
-            // Failed rule counts by severity
-            criticalIssues={host.criticalIssues || 0}
-            highIssues={host.highIssues || 0}
-            mediumIssues={host.mediumIssues || 0}
-            lowIssues={host.lowIssues || 0}
-            // Per-severity pass/fail breakdown for accurate visualization
-            criticalPassed={host.criticalPassed}
-            criticalFailed={host.criticalFailed}
-            highPassed={host.highPassed}
-            highFailed={host.highFailed}
-            mediumPassed={host.mediumPassed}
-            mediumFailed={host.mediumFailed}
-            lowPassed={host.lowPassed}
-            lowFailed={host.lowFailed}
-            tooltip={
-              host.complianceScore !== null
-                ? `${host.complianceScore}% compliant - ${host.passedRules || 0} passed, ${(host.totalRules || 0) - (host.passedRules || 0)} failed`
-                : 'No scan data available'
-            }
-          />
         </Box>
 
         {/* System Resources - Only show if data is available */}
