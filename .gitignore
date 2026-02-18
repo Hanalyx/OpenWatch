@@ -800,6 +800,7 @@ docs/HOST_STATUS*.md
 !/docs/api/
 !/docs/decisions/
 !/docs/runbooks/
+!/docs/openwatchos/
 
 # OpenWatch internal documentation (do not commit)
 CLAUDE.md

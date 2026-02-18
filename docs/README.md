@@ -27,6 +27,19 @@ Production documentation for deploying, operating, and maintaining OpenWatch.
 | [Disk Full](runbooks/DISK_FULL.md) | Disk space critically low |
 | [Security Incident](runbooks/SECURITY_INCIDENT.md) | Unauthorized access, data breach |
 
+## OpenWatch OS Transformation
+
+Design documentation for the Compliance Operating System initiative.
+
+| Document | Description |
+|----------|-------------|
+| [Assessment Summary](openwatchos/01-ASSESSMENT-SUMMARY.md) | Vision, components, and status overview |
+| [Adaptive Compliance Scheduler](openwatchos/02-ADAPTIVE-COMPLIANCE-SCHEDULER.md) | Auto-scan with state-based intervals |
+| [Alert Thresholds](openwatchos/03-ALERT-THRESHOLDS.md) | Compliance, operational, and drift alerts |
+| [Server Intelligence](openwatchos/04-SERVER-INTELLIGENCE.md) | Package, service, user, network collection |
+| [MongoDB Deprecation Plan](openwatchos/05-DEPRECATION-PLAN.md) | 5-phase legacy code removal |
+| [Host Detail Page Redesign](openwatchos/06-HOST-DETAIL-PAGE-REDESIGN.md) | Auto-scan centric UI redesign |
+
 ## Architecture
 
 | Document | Description |
