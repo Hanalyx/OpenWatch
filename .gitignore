@@ -788,12 +788,18 @@ docs/COMPREHENSIVE_CHECK*.md
 docs/HOST_STATUS*.md
 
 # ======================================
-# ROOT DOCS DIRECTORY - DO NOT COMMIT
+# ROOT DOCS DIRECTORY
 # ======================================
 
-# All documentation files in root docs/ directory
+# Ignore loose/temporary docs but track production documentation
 /docs/*
 !/docs/.gitkeep
+!/docs/README.md
+!/docs/guides/
+!/docs/architecture/
+!/docs/api/
+!/docs/decisions/
+!/docs/runbooks/
 
 # OpenWatch internal documentation (do not commit)
 CLAUDE.md
