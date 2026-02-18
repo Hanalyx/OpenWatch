@@ -12,6 +12,20 @@ Production documentation for deploying, operating, and maintaining OpenWatch.
 | [Monitoring Setup](guides/MONITORING_SETUP.md) | Prometheus, Grafana, and health checks |
 | [Security Hardening](guides/SECURITY_HARDENING.md) | TLS, FIPS, rate limiting, audit logging |
 | [Scaling Guide](guides/SCALING_GUIDE.md) | Horizontal scaling and performance tuning |
+| [Backup & Recovery](guides/BACKUP_RECOVERY.md) | PostgreSQL backup, restore, and disaster recovery |
+| [Secret Rotation](guides/SECRET_ROTATION.md) | Rotating database, Redis, JWT, and encryption keys |
+| [Upgrade Procedure](guides/UPGRADE_PROCEDURE.md) | Upgrading OpenWatch with rollback procedures |
+| [Compliance Controls](guides/COMPLIANCE_CONTROLS.md) | NIST, CIS, CMMC, FedRAMP control mapping |
+
+## Incident Response Runbooks
+
+| Runbook | Trigger |
+|---------|---------|
+| [Service Down](runbooks/SERVICE_DOWN.md) | Health check failure, service unavailable |
+| [Database Issues](runbooks/DATABASE_ISSUES.md) | Connection errors, slow queries, replication lag |
+| [High CPU](runbooks/HIGH_CPU.md) | CPU utilization above threshold |
+| [Disk Full](runbooks/DISK_FULL.md) | Disk space critically low |
+| [Security Incident](runbooks/SECURITY_INCIDENT.md) | Unauthorized access, data breach |
 
 ## Architecture
 
@@ -34,3 +48,4 @@ Production documentation for deploying, operating, and maintaining OpenWatch.
 - **Health Check**: `GET /health`
 - **Start Services**: `./start-openwatch.sh --runtime docker --build`
 - **Stop Services**: `./stop-openwatch.sh`
+- **Load Tests**: See [k6/README.md](../k6/README.md)
