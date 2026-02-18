@@ -1,0 +1,116 @@
+# Prometheus Alert Rules for OpenWatch
+# Uses secureops_ prefixed metrics from backend/app/services/infrastructure/prometheus.py
+
+groups:
+  - name: openwatch_application
+    rules:
+      # High HTTP error rate (5xx responses exceed 5% of total traffic)
+      - alert: HighErrorRate
+        expr: |
+          (
+            sum(rate(secureops_http_requests_total{status=~"5.."}[5m]))
+            /
+            sum(rate(secureops_http_requests_total[5m]))
+          ) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High HTTP error rate detected"
+          description: "More than 5% of HTTP requests are returning 5xx errors over the last 5 minutes."
+
+      # High request latency (p95 exceeds 2 seconds)
+      - alert: HighLatency
+        expr: |
+          histogram_quantile(0.95, sum(rate(secureops_http_request_duration_seconds_bucket[5m])) by (le))
+          > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High request latency detected"
+          description: "The 95th percentile request latency exceeds 2 seconds over the last 5 minutes."
+
+      # OpenWatch service is down
+      - alert: ServiceDown
+        expr: secureops_service_up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "OpenWatch service is down"
+          description: "The service {{ $labels.service }} has been reporting down for more than 1 minute."
+
+      # High scan failure rate (failed scans increasing rapidly)
+      - alert: HighScanFailureRate
+        expr: |
+          sum(rate(secureops_scans_total{status="failed"}[15m]))
+          /
+          sum(rate(secureops_scans_total[15m]))
+          > 0.3
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High scan failure rate"
+          description: "More than 30% of scans are failing over the last 15 minutes."
+
+      # Too many active scans running concurrently
+      - alert: ActiveScansHigh
+        expr: secureops_scans_active > 10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High number of active scans"
+          description: "There are {{ $value }} active scans running concurrently, which may degrade performance."
+
+  - name: openwatch_infrastructure
+    rules:
+      # Any scrape target is unreachable
+      - alert: HostUnreachable
+        expr: up == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Scrape target unreachable"
+          description: "The target {{ $labels.instance }} in job {{ $labels.job }} has been unreachable for more than 2 minutes."
+
+      # High process memory usage (above 80% of system memory)
+      - alert: HighMemoryUsage
+        expr: |
+          process_resident_memory_bytes
+          /
+          node_memory_MemTotal_bytes
+          > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High process memory usage"
+          description: "Process memory usage exceeds 80% of total system memory for more than 5 minutes."
+
+      # PostgreSQL connection count is high
+      - alert: DatabaseConnectionsHigh
+        expr: pg_stat_activity_count > 150
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High database connection count"
+          description: "PostgreSQL has {{ $value }} active connections, which is above the threshold of 150."
+
+      # Redis memory usage above 80% of max
+      - alert: RedisMemoryHigh
+        expr: |
+          redis_memory_used_bytes
+          /
+          redis_memory_max_bytes
+          > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High Redis memory usage"
+          description: "Redis memory usage is above 80% of the configured maximum."

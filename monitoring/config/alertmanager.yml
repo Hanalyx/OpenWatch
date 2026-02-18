@@ -1,0 +1,27 @@
+# Alertmanager Configuration for OpenWatch Monitoring Stack
+# Routes, receivers, and inhibition rules for alert processing.
+
+global:
+  resolve_timeout: 5m
+
+route:
+  group_by: ["alertname", "severity"]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  receiver: "default"
+
+receivers:
+  - name: "default"
+    webhook_configs:
+      # TODO: Configure a real webhook URL for your alerting destination.
+      # Examples: Slack incoming webhook, PagerDuty, Opsgenie, or a custom endpoint.
+      - url: "http://localhost:5001/alerts/webhook"
+        send_resolved: true
+
+inhibit_rules:
+  - source_matchers:
+      - severity="critical"
+    target_matchers:
+      - severity="warning"
+    equal: ["alertname"]
