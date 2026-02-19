@@ -18,7 +18,6 @@ from app.models.plugin_models import (
     PluginTrustLevel,
     SecurityCheckResult,
 )
-from app.repositories import InstalledPluginRepository
 from app.services.plugins.security.signature import PluginSignatureService
 from app.services.plugins.security.validator import PluginSecurityService
 
@@ -36,7 +35,6 @@ class PluginImportService:
         self.security_service = PluginSecurityService()
         self.signature_service = PluginSignatureService()
         self.max_package_size = 50 * 1024 * 1024  # 50MB maximum package size
-        self._plugin_repo = InstalledPluginRepository()
 
     async def import_plugin_from_file(
         self,
@@ -199,12 +197,10 @@ class PluginImportService:
 
             # Update source URL in result
             if import_result["success"]:
-                plugin = await self._plugin_repo.find_by_plugin_id(import_result["plugin_id"])
-                if plugin:
-                    await self._plugin_repo.update_one(
-                        {"plugin_id": plugin.plugin_id},
-                        {"$set": {"source_url": plugin_url, "import_method": "url"}},
-                    )
+                logger.warning(
+                    "MongoDB storage removed - skipping source_url update for plugin %s",
+                    import_result["plugin_id"],
+                )
 
             return import_result
 
@@ -268,20 +264,11 @@ class PluginImportService:
 
     async def _check_existing_plugin(self, manifest: PluginManifest) -> Dict[str, Any]:
         """Check if plugin already exists"""
-        existing = await self._plugin_repo.find_one(
-            {
-                "manifest.name": manifest.name,
-                "manifest.version": manifest.version,
-            }
+        logger.warning(
+            "MongoDB storage removed - cannot check for existing plugin %s@%s",
+            manifest.name,
+            manifest.version,
         )
-
-        if existing:
-            return {
-                "exists": True,
-                "plugin_id": existing.plugin_id,
-                "message": f"Plugin {manifest.name}@{manifest.version} already installed",
-            }
-
         return {"exists": False}
 
     def _calculate_trust_level(
@@ -350,8 +337,8 @@ class PluginImportService:
             enabled_platforms=package.manifest.platforms,
         )
 
-        # Save to database
-        await self._plugin_repo.create(plugin)
+        # MongoDB storage removed - plugin not persisted to database
+        logger.warning("MongoDB storage removed - plugin not persisted")
 
         logger.info(
             f"Stored plugin {plugin.plugin_id}",
@@ -493,53 +480,22 @@ class PluginImportService:
 
     async def list_import_history(self, user_id: Optional[str] = None, limit: int = 50) -> List[Dict[str, Any]]:
         """Get plugin import history"""
-        query = {}
-        if user_id:
-            query["imported_by"] = user_id
-
-        plugins = await self._plugin_repo.find_many(
-            query=query,
-            limit=limit,
-            sort=[("imported_at", -1)],
-        )
-
-        return [
-            {
-                "plugin_id": plugin.plugin_id,
-                "name": plugin.manifest.name,
-                "version": plugin.manifest.version,
-                "imported_by": plugin.imported_by,
-                "imported_at": plugin.imported_at.isoformat(),
-                "trust_level": plugin.trust_level.value,
-                "status": plugin.status.value,
-                "source_url": plugin.source_url,
-                "import_method": plugin.import_method,
-            }
-            for plugin in plugins
-        ]
+        logger.warning("MongoDB storage removed - import history unavailable")
+        return []
 
     async def get_import_statistics(self) -> Dict[str, Any]:
         """Get plugin import statistics"""
-        total_plugins = await self._plugin_repo.count()
+        logger.warning("MongoDB storage removed - import statistics unavailable")
 
-        # Count by status
-        status_counts = {}
-        for status in PluginStatus:
-            count = await self._plugin_repo.count({"status": status.value})
-            status_counts[status.value] = count
-
-        # Count by trust level
-        trust_counts = {}
-        for trust_level in PluginTrustLevel:
-            count = await self._plugin_repo.count({"trust_level": trust_level.value})
-            trust_counts[trust_level.value] = count
+        status_counts = {status.value: 0 for status in PluginStatus}
+        trust_counts = {trust_level.value: 0 for trust_level in PluginTrustLevel}
 
         return {
-            "total_plugins": total_plugins,
+            "total_plugins": 0,
             "by_status": status_counts,
             "by_trust_level": trust_counts,
             "import_methods": {
-                "upload": await self._plugin_repo.count({"import_method": "upload"}),
-                "url": await self._plugin_repo.count({"import_method": "url"}),
+                "upload": 0,
+                "url": 0,
             },
         }

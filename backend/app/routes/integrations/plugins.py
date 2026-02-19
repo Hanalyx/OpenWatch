@@ -29,7 +29,6 @@ from ...audit_db import log_security_event
 from ...auth import get_current_user
 from ...database import User, get_db
 from ...models.plugin_models import PluginExecutionRequest, PluginStatus, PluginTrustLevel
-from ...repositories import InstalledPluginRepository
 from ...services.plugins import PluginExecutionService, PluginImportService, PluginSecurityService
 
 logger = logging.getLogger(__name__)
@@ -189,78 +188,19 @@ async def list_plugins(
     Returns:
         Paginated list of plugins with metadata
     """
-    try:
-        # Build query filters
-        query_filters: Dict[str, Any] = {}
-
-        if plugin_status:
-            query_filters["status"] = plugin_status
-
-        if trust_level:
-            query_filters["trust_level"] = trust_level
-
-        if platform:
-            query_filters["enabled_platforms"] = {"$in": [platform]}
-
-        # Text search in name/description
-        if search:
-            query_filters["$or"] = [
-                {"manifest.name": {"$regex": search, "$options": "i"}},
-                {"manifest.description": {"$regex": search, "$options": "i"}},
-            ]
-
-        # Use repository for paginated query
-        repo = InstalledPluginRepository()
-        plugins, total, _ = await repo.find_with_pagination(
-            query=query_filters,
-            page=page,
-            per_page=per_page,
-            sort=[("imported_at", -1)],
-        )
-
-        # Format response
-        plugin_list: List[Dict[str, Any]] = []
-        for plugin in plugins:
-            plugin_dict: Dict[str, Any] = {
-                "plugin_id": plugin.plugin_id,
-                "name": plugin.manifest.name,
-                "version": plugin.manifest.version,
-                "author": plugin.manifest.author,
-                "description": plugin.manifest.description,
-                "type": plugin.manifest.type.value,
-                "status": plugin.status.value,
-                "trust_level": plugin.trust_level.value,
-                "platforms": plugin.enabled_platforms,
-                "capabilities": [cap.value for cap in plugin.manifest.capabilities],
-                "imported_at": plugin.imported_at.isoformat(),
-                "imported_by": plugin.imported_by,
-                "usage_count": plugin.usage_count,
-                "last_used": plugin.last_used.isoformat() if plugin.last_used else None,
-                "security_score": 100 - plugin.get_risk_score(),
-                "applied_to_rules": len(plugin.applied_to_rules),
-                "source_url": plugin.source_url,
-            }
-            plugin_list.append(plugin_dict)
-
-        return {
-            "plugins": plugin_list,
-            "total": total,
-            "page": page,
-            "per_page": per_page,
-            "filters_applied": {
-                "status": plugin_status.value if plugin_status else None,
-                "trust_level": trust_level.value if trust_level else None,
-                "platform": platform,
-                "search": search,
-            },
-        }
-
-    except Exception as e:
-        logger.error(f"Plugin listing error: {e}")
-        raise HTTPException(
-            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve plugins",
-        )
+    # Plugin storage unavailable (MongoDB removed) - return empty results
+    return {
+        "plugins": [],
+        "total": 0,
+        "page": page,
+        "per_page": per_page,
+        "filters_applied": {
+            "status": plugin_status.value if plugin_status else None,
+            "trust_level": trust_level.value if trust_level else None,
+            "platform": platform,
+            "search": search,
+        },
+    }
 
 
 @router.get("/statistics/overview")
@@ -278,39 +218,17 @@ async def get_plugin_statistics(
     Returns:
         Plugin statistics including security metrics
     """
-    try:
-        stats = await plugin_import_service.get_import_statistics()
-
-        # Add additional security metrics
-        high_risk_count = 0
-        total_security_checks = 0
-
-        repo = InstalledPluginRepository()
-        all_plugins = await repo.find_many({}, limit=10000)
-        for plugin in all_plugins:
-            risk_score = plugin.get_risk_score()
-            if risk_score > 70:
-                high_risk_count += 1
-            total_security_checks += len(plugin.security_checks)
-
-        stats.update(
-            {
-                "security_metrics": {
-                    "high_risk_plugins": high_risk_count,
-                    "total_security_checks": total_security_checks,
-                    "average_checks_per_plugin": total_security_checks / max(stats["total_plugins"], 1),
-                }
-            }
-        )
-
-        return stats
-
-    except Exception as e:
-        logger.error(f"Plugin statistics error: {e}")
-        raise HTTPException(
-            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve plugin statistics",
-        )
+    # Plugin storage unavailable (MongoDB removed) - return zero stats
+    return {
+        "total_plugins": 0,
+        "active_plugins": 0,
+        "disabled_plugins": 0,
+        "security_metrics": {
+            "high_risk_plugins": 0,
+            "total_security_checks": 0,
+            "average_checks_per_plugin": 0,
+        },
+    }
 
 
 @router.get("/{plugin_id}")
@@ -336,64 +254,10 @@ async def get_plugin_details(
     Raises:
         HTTPException: 404 if plugin not found
     """
-    try:
-        repo = InstalledPluginRepository()
-        plugin = await repo.find_by_plugin_id(plugin_id)
-        if not plugin:
-            raise HTTPException(status_code=http_status.HTTP_404_NOT_FOUND, detail="Plugin not found")
-
-        # Build detailed response
-        plugin_details = {
-            "plugin_id": plugin.plugin_id,
-            "manifest": plugin.manifest.dict(),
-            "status": plugin.status.value,
-            "trust_level": plugin.trust_level.value,
-            "security": {
-                "signature_verified": plugin.signature_verified,
-                "security_checks": [check.dict() for check in plugin.security_checks],
-                "risk_score": plugin.get_risk_score(),
-                "security_score": 100 - plugin.get_risk_score(),
-            },
-            "import_info": {
-                "imported_by": plugin.imported_by,
-                "imported_at": plugin.imported_at.isoformat(),
-                "import_method": plugin.import_method,
-                "source_url": plugin.source_url,
-                "source_hash": plugin.source_hash,
-            },
-            "configuration": {
-                "user_config": plugin.user_config,
-                "enabled_platforms": plugin.enabled_platforms,
-                "executors": {name: executor.dict() for name, executor in plugin.executors.items()},
-            },
-            "usage": {
-                "usage_count": plugin.usage_count,
-                "last_used": plugin.last_used.isoformat() if plugin.last_used else None,
-                "applied_to_rules": plugin.applied_to_rules,
-                "execution_history": plugin.execution_history[-10:],
-            },
-        }
-
-        # Include files if requested (admin only for security)
-        if include_files and current_user.is_admin:
-            plugin_details["files"] = plugin.files
-        elif include_files:
-            plugin_details["files"] = {
-                "note": "File contents available to administrators only",
-                "file_count": len(plugin.files),
-                "file_names": list(plugin.files.keys()),
-            }
-
-        return plugin_details
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Plugin details error: {e}")
-        raise HTTPException(
-            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve plugin details",
-        )
+    raise HTTPException(
+        status_code=http_status.HTTP_501_NOT_IMPLEMENTED,
+        detail="Plugin storage unavailable (MongoDB removed)",
+    )
 
 
 @router.delete("/{plugin_id}")
@@ -422,54 +286,10 @@ async def delete_plugin(
         HTTPException: 404 if plugin not found
         HTTPException: 400 if plugin in use and force not specified
     """
-    try:
-        repo = InstalledPluginRepository()
-        plugin = await repo.find_by_plugin_id(plugin_id)
-        if not plugin:
-            raise HTTPException(status_code=http_status.HTTP_404_NOT_FOUND, detail="Plugin not found")
-
-        # Check if plugin is in use
-        if plugin.applied_to_rules and not force:
-            raise HTTPException(
-                status_code=http_status.HTTP_400_BAD_REQUEST,
-                detail={
-                    "message": "Plugin is associated with rules",
-                    "applied_to_rules": plugin.applied_to_rules,
-                    "suggestion": "Use force=true to delete anyway",
-                },
-            )
-
-        # Delete plugin
-        await repo.delete_one({"plugin_id": plugin_id})
-
-        # Extract user_id for logging
-        user_id: int = int(current_user.id) if current_user.id else 0
-
-        # Log deletion
-        log_security_event(
-            db=db,
-            event_type="PLUGIN_DELETED",
-            user_id=user_id,
-            ip_address="127.0.0.1",
-            details=f"Plugin deleted: {plugin_id} (force={force})",
-        )
-
-        logger.info(f"Plugin {plugin_id} deleted by user {user_id}")
-
-        return {
-            "success": True,
-            "plugin_id": plugin_id,
-            "message": "Plugin deleted successfully",
-        }
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Plugin deletion error: {e}")
-        raise HTTPException(
-            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to delete plugin",
-        )
+    raise HTTPException(
+        status_code=http_status.HTTP_501_NOT_IMPLEMENTED,
+        detail="Plugin storage unavailable (MongoDB removed)",
+    )
 
 
 @router.post("/{plugin_id}/execute")

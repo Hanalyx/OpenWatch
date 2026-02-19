@@ -43,7 +43,6 @@ class ScanType(str, Enum):
         XCCDF_RULE: Single rule scan for targeted evaluation
         OVAL_DEFINITIONS: OVAL-only scan for vulnerability detection
         DATASTREAM: SCAP 1.3 datastream scan (bundled content)
-        MONGODB_GENERATED: MongoDB-generated content from rule builder
         OWSCAN_CUSTOM: Future OWScan custom scan format
 
     Usage:
@@ -56,7 +55,6 @@ class ScanType(str, Enum):
     XCCDF_RULE = "xccdf_rule"
     OVAL_DEFINITIONS = "oval_definitions"
     DATASTREAM = "datastream"
-    MONGODB_GENERATED = "mongodb_generated"
     OWSCAN_CUSTOM = "owscan_custom"
 
 

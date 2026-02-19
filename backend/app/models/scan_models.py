@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-MongoDB Models for Scan Results
+Models for Scan Results
 
 Stores scan execution results with rule-level details, variable overrides,
 and scanner metadata.
@@ -10,7 +10,6 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-from beanie import Document
 from pydantic import BaseModel, Field
 
 
@@ -120,7 +119,7 @@ class ScanResultSummary(BaseModel):
     by_scanner: Dict[str, Dict[str, int]] = Field(default_factory=dict, description="Breakdown by scanner type")
 
 
-class ScanResult(Document):
+class ScanResult(BaseModel):
     """
     Complete scan execution result
 
@@ -164,21 +163,8 @@ class ScanResult(Document):
         default=None, description="Raw scanner outputs (XCCDF XML, JSON, etc.)"
     )
 
-    class Settings:
-        name = "scan_results"
-        use_state_management = True
-        validate_on_save = True
-        indexes = [
-            "scan_id",
-            "status",
-            "started_by",
-            "started_at",
-            [("config.framework", 1), ("config.framework_version", 1)],
-            [("config.target.type", 1), ("config.target.identifier", 1)],
-        ]
 
-
-class ScanSchedule(Document):
+class ScanSchedule(BaseModel):
     """
     Scheduled scan configuration for recurring scans
 
@@ -209,14 +195,3 @@ class ScanSchedule(Document):
     created_by: str
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
-
-    class Settings:
-        name = "scan_schedules"
-        use_state_management = True
-        validate_on_save = True
-        indexes = [
-            "schedule_id",
-            "enabled",
-            "next_run_at",
-            "created_by",
-        ]

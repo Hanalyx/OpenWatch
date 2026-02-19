@@ -24,7 +24,6 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
-from beanie import Document
 from pydantic import BaseModel, Field
 
 # =============================================================================
@@ -417,11 +416,9 @@ class PluginPerformanceReport(BaseModel):
 # =============================================================================
 
 
-class SystemWideAnalytics(Document):
+class SystemWideAnalytics(BaseModel):
     """
     System-wide plugin analytics snapshot.
-
-    MongoDB document storing aggregate analytics across all plugins.
 
     Attributes:
         snapshot_id: Unique identifier.
@@ -439,13 +436,9 @@ class SystemWideAnalytics(Document):
         overall_system_health: System health score (0.0-100.0).
         bottlenecks_detected: List of detected bottlenecks.
         system_recommendations: System-wide recommendations.
-
-    Example:
-        >>> analytics = await analytics_service.get_system_wide_analytics()
-        >>> print(f"System health: {analytics.overall_system_health}/100")
     """
 
-    snapshot_id: str = Field(default_factory=lambda: str(uuid.uuid4()), unique=True)
+    snapshot_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     snapshot_time: datetime = Field(default_factory=datetime.utcnow)
 
     # Overall system metrics
@@ -470,9 +463,3 @@ class SystemWideAnalytics(Document):
 
     # Recommendations
     system_recommendations: List[OptimizationRecommendation] = Field(default_factory=list)
-
-    class Settings:
-        """MongoDB collection settings."""
-
-        collection = "system_wide_analytics"
-        indexes = ["snapshot_id", "snapshot_time"]

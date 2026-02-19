@@ -1,17 +1,13 @@
 """
-XCCDF Generation Module - Generate XCCDF 1.2 Content from MongoDB Rules
+XCCDF Generation Module - Generate XCCDF 1.2 Content
 
 This module provides a comprehensive API for generating XCCDF (Extensible
-Configuration Checklist Description Format) compliant XML from MongoDB
-compliance rules.
+Configuration Checklist Description Format) compliant XML from compliance
+rules.
 
 Architecture Overview:
     The xccdf module follows a single-responsibility principle:
     - XCCDFGeneratorService: Core generation logic for XCCDF 1.2 XML
-
-    This is conceptually the INVERSE of the content/ module:
-    - content/ = Parse SCAP files -> Transform -> Import to MongoDB
-    - xccdf/   = Read MongoDB -> Generate XCCDF XML output
 
 Design Philosophy:
     - XCCDF 1.2 Compliance: Follows NIST SP 7275 Rev 4 specification
@@ -27,8 +23,8 @@ Supported Output Formats:
 Quick Start:
     from app.services.xccdf import XCCDFGeneratorService
 
-    # Initialize with MongoDB connection
-    generator = XCCDFGeneratorService(mongo_db)
+    # Initialize generator
+    generator = XCCDFGeneratorService()
 
     # Generate benchmark for specific framework
     xml_content = await generator.generate_benchmark(
@@ -36,9 +32,10 @@ Quick Start:
         title="NIST 800-53 Rev 5 Benchmark",
         description="OpenWatch generated benchmark for NIST compliance",
         version="1.0.0",
+        rules=rules,
         framework="nist",
         framework_version="800-53r5",
-        target_platform="rhel9",  # Platform-aware OVAL selection
+        target_platform="rhel9",
     )
 
     # Generate tailoring file for variable customization
@@ -59,10 +56,9 @@ Module Structure:
     └── generator.py    # XCCDFGeneratorService implementation
 
 Related Modules:
-    - services.content: SCAP parsing and MongoDB import (inverse operation)
+    - services.content: SCAP parsing and content processing
     - services.engine: SCAP scan execution
     - services.owca.extraction: XCCDF result parsing
-    - repositories.compliance_repository: MongoDB access layer
 
 Security Notes:
     - Uses ElementTree with nosec comments for trusted content
@@ -71,7 +67,6 @@ Security Notes:
 
 Performance Notes:
     - Lazy OVAL file reading (only when needed)
-    - Efficient MongoDB queries with framework filtering
     - Component-based rule filtering for reduced output size
 
 XCCDF 1.2 Specification:
@@ -94,26 +89,20 @@ __version__ = "1.0.0"
 # =============================================================================
 
 
-def get_xccdf_generator(db) -> XCCDFGeneratorService:
+def get_xccdf_generator() -> XCCDFGeneratorService:
     """
     Get an XCCDF generator instance.
 
     Factory function for creating XCCDFGeneratorService instances.
 
-    Args:
-        db: MongoDB database connection (Motor AsyncIOMotorDatabase).
-
     Returns:
         Configured XCCDFGeneratorService instance.
 
     Example:
-        >>> from motor.motor_asyncio import AsyncIOMotorClient
-        >>> client = AsyncIOMotorClient("mongodb://localhost:27017")
-        >>> db = client.openwatch_rules
-        >>> generator = get_xccdf_generator(db)
+        >>> generator = get_xccdf_generator()
         >>> xml = await generator.generate_benchmark(...)
     """
-    return XCCDFGeneratorService(db)
+    return XCCDFGeneratorService()
 
 
 # =============================================================================

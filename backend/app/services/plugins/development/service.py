@@ -18,11 +18,9 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import yaml
-from beanie import Document
 from pydantic import BaseModel, Field
 
 from app.models.plugin_models import InstalledPlugin
-from app.repositories.plugin_models_repository import TestExecutionRepository, TestSuiteRepository
 from app.services.plugins.execution.service import PluginExecutionService
 from app.services.plugins.registry.service import PluginRegistryService
 
@@ -235,10 +233,10 @@ class BenchmarkResult(BaseModel):
     meets_criteria: bool = Field(default=False)
 
 
-class TestSuite(Document):
+class TestSuite(BaseModel):
     """Complete test suite for a plugin"""
 
-    suite_id: str = Field(default_factory=lambda: str(uuid.uuid4()), unique=True)
+    suite_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     plugin_id: str
     name: str
     description: str
@@ -261,15 +259,11 @@ class TestSuite(Document):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
-    class Settings:
-        collection = "plugin_test_suites"
-        indexes = ["suite_id", "plugin_id", "created_by"]
 
-
-class TestExecution(Document):
+class TestExecution(BaseModel):
     """Test suite execution record"""
 
-    execution_id: str = Field(default_factory=lambda: str(uuid.uuid4()), unique=True)
+    execution_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     suite_id: str
     plugin_id: str
 
@@ -305,16 +299,6 @@ class TestExecution(Document):
     # Benchmarking (if applicable)
     benchmark_results: List[BenchmarkResult] = Field(default_factory=list)
 
-    class Settings:
-        collection = "plugin_test_executions"
-        indexes = [
-            "execution_id",
-            "suite_id",
-            "plugin_id",
-            "started_at",
-            "overall_status",
-        ]
-
 
 # ============================================================================
 # PLUGIN DEVELOPMENT FRAMEWORK SERVICE
@@ -339,8 +323,6 @@ class PluginDevelopmentFramework:
         self.test_environments: Dict[str, Dict[str, Any]] = {}
         self.active_tests: Dict[str, TestExecution] = {}
         self.benchmark_baselines: Dict[str, BenchmarkResult] = {}
-        self._suite_repo = TestSuiteRepository()
-        self._execution_repo = TestExecutionRepository()
 
     async def validate_plugin_package(self, package_path: str) -> ValidationResult:
         """Comprehensive validation of a plugin package"""
@@ -428,8 +410,8 @@ class PluginDevelopmentFramework:
             created_by=created_by,
         )
 
-        # OW-REFACTOR-002: Repository Pattern (MANDATORY)
-        await self._suite_repo.create(test_suite)
+        # MongoDB storage removed - test suite not persisted
+        logger.warning("MongoDB storage removed - create test suite operation skipped")
 
         logger.info(f"Created test suite: {test_suite.suite_id} for plugin {plugin_id}")
         return test_suite
@@ -443,7 +425,8 @@ class PluginDevelopmentFramework:
     ) -> TestExecution:
         """Execute a test suite in the specified environment"""
 
-        test_suite = await self._suite_repo.find_by_suite_id(suite_id)
+        logger.warning("MongoDB storage removed - find test suite operation skipped")
+        test_suite = None
         if not test_suite:
             raise ValueError(f"Test suite not found: {suite_id}")
 
@@ -459,7 +442,7 @@ class PluginDevelopmentFramework:
             total_tests=len(test_suite.test_cases),
         )
 
-        await self._execution_repo.create(execution)
+        logger.warning("MongoDB storage removed - create test execution operation skipped")
         self.active_tests[execution.execution_id] = execution
 
         # Start test execution asynchronously
@@ -530,8 +513,9 @@ class PluginDevelopmentFramework:
         if execution_id in self.active_tests:
             return self.active_tests[execution_id]
 
-        # Query database
-        return await self._execution_repo.find_by_execution_id(execution_id)
+        # MongoDB storage removed - cannot query database
+        logger.warning("MongoDB storage removed - find test execution operation skipped")
+        return None
 
     async def generate_plugin_template(self, plugin_name: str, plugin_type: str, author: str, output_path: str) -> str:
         """Generate a plugin template with best practices"""
@@ -893,10 +877,7 @@ class PluginDevelopmentFramework:
         try:
             execution.overall_status = TestStatus.RUNNING
             execution.started_at = datetime.utcnow()
-            await self._execution_repo.update_one(
-                {"execution_id": execution.execution_id},
-                {"$set": {"overall_status": TestStatus.RUNNING.value, "started_at": execution.started_at}},
-            )
+            logger.warning("MongoDB storage removed - update test execution operation skipped")
 
             # Execute test cases
             for test_case in test_suite.test_cases:
@@ -940,22 +921,7 @@ class PluginDevelopmentFramework:
             if execution.started_at:
                 execution.duration_seconds = (execution.completed_at - execution.started_at).total_seconds()
 
-            await self._execution_repo.update_one(
-                {"execution_id": execution.execution_id},
-                {
-                    "$set": {
-                        "overall_status": execution.overall_status.value,
-                        "completed_at": execution.completed_at,
-                        "duration_seconds": execution.duration_seconds,
-                        "test_results": [r.model_dump() for r in execution.test_results],
-                        "passed_tests": execution.passed_tests,
-                        "failed_tests": execution.failed_tests,
-                        "skipped_tests": execution.skipped_tests,
-                        "error_tests": execution.error_tests,
-                        "success_rate": execution.success_rate,
-                    }
-                },
-            )
+            logger.warning("MongoDB storage removed - update test execution operation skipped")
 
             # Remove from active tests
             self.active_tests.pop(execution.execution_id, None)

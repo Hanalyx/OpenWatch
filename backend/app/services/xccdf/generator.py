@@ -1,14 +1,12 @@
 #!/usr/bin/env python3
 """
-XCCDF Generator Service - Generate XCCDF 1.2 Data-Streams from MongoDB Rules
+XCCDF Generator Service - Generate XCCDF 1.2 Data-Streams from Compliance Rules
 
 This service generates compliant XCCDF 1.2 XML content for scanning:
 - Benchmarks with rules, groups, profiles
 - XCCDF Value elements for scan-time customization
 - Tailoring files for variable overrides
 - Integration with OVAL definitions
-
-Part of Phase 1, Issue #3: XCCDF Data-Stream Generator from MongoDB
 """
 
 import logging
@@ -18,16 +16,12 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
 from xml.dom import minidom  # nosec B408 - parsing trusted XCCDF output
 
-from motor.motor_asyncio import AsyncIOMotorDatabase
-
-from app.repositories import ComplianceRuleRepository
-
 logger = logging.getLogger(__name__)
 
 
 class XCCDFGeneratorService:
     """
-    Generates XCCDF 1.2 compliant XML from MongoDB compliance rules
+    Generates XCCDF 1.2 compliant XML from compliance rules.
 
     XCCDF (Extensible Configuration Checklist Description Format) is the
     standard format for security configuration checklists.
@@ -47,10 +41,7 @@ class XCCDFGeneratorService:
     for prefix, uri in NAMESPACES.items():
         ET.register_namespace(prefix, uri)
 
-    def __init__(self, db: AsyncIOMotorDatabase):
-        self.db = db
-        # Repository Pattern: Centralized MongoDB access
-        self._compliance_repo = ComplianceRuleRepository()
+    def __init__(self):
         # Phase 3: Target platform for platform-aware OVAL selection
         # Set during generate_benchmark() call, used by _create_xccdf_rule()
         self._target_platform: Optional[str] = None
@@ -61,24 +52,24 @@ class XCCDFGeneratorService:
         title: str,
         description: str,
         version: str,
+        rules: List[Dict[str, Any]],
         framework: Optional[str] = None,
         framework_version: Optional[str] = None,
-        rule_filter: Optional[Dict] = None,
         target_capabilities: Optional[Set[str]] = None,
         oval_base_path: Optional[Path] = None,
         target_platform: Optional[str] = None,
     ) -> str:
         """
-        Generate XCCDF Benchmark XML from MongoDB rules.
+        Generate XCCDF Benchmark XML from compliance rules.
 
         Args:
             benchmark_id: Unique benchmark identifier (e.g., "openwatch-nist-800-53r5")
             title: Human-readable benchmark title
             description: Detailed description of the benchmark
             version: Benchmark version string
+            rules: List of rule dictionaries to include in the benchmark
             framework: Framework to filter by (nist, cis, stig, etc.)
             framework_version: Specific framework version (e.g., "800-53r5")
-            rule_filter: Additional MongoDB query filter
             target_capabilities: Set of components available on target system
                                (e.g., {'gnome', 'openssh', 'audit'})
                                Rules requiring missing components will be excluded
@@ -94,31 +85,6 @@ class XCCDFGeneratorService:
 
         Returns:
             XCCDF Benchmark XML as string
-
-        Platform-Aware OVAL Selection (Phase 3):
-            When target_platform is provided:
-            1. Uses platform_implementations.{platform}.oval_filename for OVAL lookup
-            2. Rules without platform-specific OVAL are skipped (not applicable)
-            3. No fallback to rule-level oval_filename (compliance accuracy)
-
-            This ensures compliance scans use platform-correct OVAL definitions,
-            preventing false positives/negatives from cross-platform OVAL mismatches.
-
-        Component Filtering Strategy:
-            If target_capabilities is provided, rules are filtered by:
-            1. Component applicability: Rules with components not in target_capabilities
-               are excluded (marked as "notapplicable" in native OpenSCAP terms)
-            2. OVAL check availability: Rules without OVAL definition files are excluded
-               (marked as "notchecked" in native OpenSCAP terms)
-
-            This filtering replicates native OpenSCAP behavior and reduces scan errors
-            from checking inapplicable rules (e.g., GUI rules on headless systems).
-
-            Expected Impact:
-            - Reduce errors by 20-30 (from ~149 to ~120)
-            - Improve pass rate by 4-7% (from 77% to ~81-84%)
-            - Exclude ~16 GUI rules on headless systems
-            - Exclude ~24 rules without OVAL checks
         """
         logger.info(f"Generating XCCDF Benchmark: {benchmark_id}")
 
@@ -126,18 +92,7 @@ class XCCDFGeneratorService:
         # Used by _create_xccdf_rule() to look up platform-specific OVAL
         self._target_platform = target_platform
 
-        # Build query filter
-        query = {"is_latest": True}
-        if rule_filter:
-            query.update(rule_filter)
-
-        # Framework-specific filtering
-        if framework and framework_version:
-            query[f"frameworks.{framework}.{framework_version}"] = {"$exists": True}
-
-        # Repository Pattern: Fetch rules from MongoDB
-        rules = await self._compliance_repo.find_many(query, limit=10000)
-        logger.info(f"Found {len(rules)} rules matching criteria")
+        logger.info(f"Processing {len(rules)} rules for benchmark")
 
         # Set default OVAL base path if not provided
         if oval_base_path is None:
@@ -616,7 +571,7 @@ class XCCDFGeneratorService:
 
     def _create_xccdf_rule(self, rule: Dict[str, Any]) -> ET.Element:
         """
-        Create XCCDF Rule element from MongoDB ComplianceRule
+        Create XCCDF Rule element from a compliance rule dict
 
         Example output:
         <xccdf:Rule id="ow-accounts_tmout" severity="medium" selected="true">
@@ -884,7 +839,7 @@ class XCCDFGeneratorService:
             - Pass rate improvement: +4-7% (from 77% to 81-84%)
 
         Args:
-            rules: List of rule documents from MongoDB
+            rules: List of rule documents
             target_capabilities: Set of available components on target
                                (e.g., {'filesystem', 'openssh', 'audit'})
             oval_base_path: Base path to OVAL definitions directory
@@ -987,7 +942,7 @@ class XCCDFGeneratorService:
             - Ensures compliance accuracy by using correct platform OVAL
 
         Args:
-            rules: List of rule documents from MongoDB
+            rules: List of rule documents
             oval_base_path: Base path to OVAL definitions directory
             target_platform: Target host platform identifier (e.g., "rhel9")
 
@@ -1053,7 +1008,7 @@ class XCCDFGeneratorService:
             - Returns False if platform-specific OVAL not found
 
         Args:
-            rule: Rule document from MongoDB
+            rule: Rule document dict
             oval_base_path: Base path to OVAL definitions directory
                           (e.g., /app/data/oval_definitions)
             target_platform: Target host platform identifier (e.g., "rhel9", "ubuntu2204").
@@ -1107,7 +1062,7 @@ class XCCDFGeneratorService:
         exists = oval_path.exists()
 
         if not exists:
-            # File path is in MongoDB but file missing from disk
+            # File path referenced but file missing from disk
             # This should be rare - log as warning for investigation
             logger.warning(f"OVAL file referenced but missing for rule {rule.get('rule_id')}: {oval_path}")
 
@@ -1122,7 +1077,7 @@ class XCCDFGeneratorService:
         without any fallback to rule-level oval_filename.
 
         Args:
-            rule: Rule document from MongoDB
+            rule: Rule document dict
             target_platform: Target host platform identifier (e.g., "rhel9", "ubuntu2204")
 
         Returns:

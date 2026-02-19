@@ -8,37 +8,37 @@ Components:
     - ScanOrchestrator: Central coordinator for multi-scanner compliance scanning
 
 The orchestration layer sits above the scanner layer and coordinates:
-1. Rule selection from MongoDB based on scan configuration
+1. Rule selection based on scan configuration
 2. Routing rules to appropriate scanners based on scanner_type
 3. Parallel execution of multiple scanners
 4. Result aggregation and summary calculation
 5. Persistence of scan results
 
 Architecture:
-    ┌─────────────────────────────────────────────────────────┐
-    │                   Orchestration Layer                    │
-    │  ┌─────────────────────────────────────────────────────┐│
-    │  │                  ScanOrchestrator                   ││
-    │  │  - Query rules from MongoDB                         ││
-    │  │  - Group rules by scanner_type                      ││
-    │  │  - Execute scanners in parallel                     ││
-    │  │  - Aggregate and store results                      ││
-    │  └─────────────────────────────────────────────────────┘│
-    └─────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-    ┌─────────────────────────────────────────────────────────┐
-    │                    Scanner Layer                         │
-    │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  │
-    │  │ OSCAPScanner │  │  K8sScanner  │  │ CustomScanner│  │
-    │  └──────────────┘  └──────────────┘  └──────────────┘  │
-    └─────────────────────────────────────────────────────────┘
+    +-------------------------------------------------------------+
+    |                   Orchestration Layer                         |
+    |  +----------------------------------------------------------+|
+    |  |                  ScanOrchestrator                         ||
+    |  |  - Query rules based on scan configuration               ||
+    |  |  - Group rules by scanner_type                           ||
+    |  |  - Execute scanners in parallel                          ||
+    |  |  - Aggregate and store results                           ||
+    |  +----------------------------------------------------------+|
+    +-------------------------------------------------------------+
+                              |
+                              v
+    +-------------------------------------------------------------+
+    |                    Scanner Layer                              |
+    |  +--------------+  +--------------+  +--------------+        |
+    |  | OSCAPScanner |  |  K8sScanner  |  | CustomScanner|        |
+    |  +--------------+  +--------------+  +--------------+        |
+    +-------------------------------------------------------------+
 
 Usage:
     from app.services.engine import ScanOrchestrator
 
-    # Create orchestrator with MongoDB connection
-    orchestrator = ScanOrchestrator(db=mongodb)
+    # Create orchestrator
+    orchestrator = ScanOrchestrator(db=database)
 
     # Execute scan
     result = await orchestrator.execute_scan(
@@ -59,7 +59,7 @@ Why Orchestration is Part of Engine:
 Security Notes:
     - Orchestrator does not handle credentials directly
     - Credentials passed through to scanners via configuration
-    - MongoDB queries use proper query construction (no injection)
+    - Queries use proper parameterized construction (no injection)
     - Results stored with proper access controls
 """
 

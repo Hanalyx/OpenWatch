@@ -1,8 +1,8 @@
 """
-MongoDB models for remediation tracking and execution results.
+Models for remediation tracking and execution results.
 
 This module defines the data structures for tracking remediation execution,
-status, and results in MongoDB. Part of the ORSA (OpenWatch Remediation and
+status, and results. Part of the ORSA (OpenWatch Remediation and
 Security Automation) plugin architecture.
 """
 
@@ -10,7 +10,6 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-from beanie import Document
 from pydantic import BaseModel, Field
 
 
@@ -60,9 +59,9 @@ class RemediationExecutionResult(BaseModel):
     error_message: Optional[str] = None
 
 
-class RemediationResult(Document):
+class RemediationResult(BaseModel):
     """
-    MongoDB document storing complete remediation execution record.
+    Remediation execution record.
 
     Tracks remediation execution status, content, results, and rollback capability.
     Supports audit logging and compliance reporting.
@@ -114,18 +113,6 @@ class RemediationResult(Document):
         default_factory=list, description="Audit trail of status changes and actions"
     )
 
-    class Settings:
-        name = "remediation_results"
-        indexes = [
-            "remediation_id",
-            "rule_id",
-            "status",
-            "executed_by",
-            "scan_id",
-            "created_at",
-            [("rule_id", 1), ("created_at", -1)],  # Composite index
-        ]
-
     def add_audit_entry(self, action: str, details: Optional[Dict[str, Any]] = None) -> None:
         """
         Add entry to audit log.
@@ -149,12 +136,12 @@ class RemediationResult(Document):
         return None
 
 
-class BulkRemediationJob(Document):
+class BulkRemediationJob(BaseModel):
     """
-    MongoDB document for tracking bulk remediation jobs.
+    Bulk remediation job tracker.
 
     When multiple remediations are executed together (e.g., all failed rules
-    from a scan), this document tracks the overall job status.
+    from a scan), this tracks the overall job status.
     """
 
     job_id: str = Field(..., description="Unique bulk job ID")
@@ -179,10 +166,6 @@ class BulkRemediationJob(Document):
 
     # User tracking
     executed_by: str
-
-    class Settings:
-        name = "bulk_remediation_jobs"
-        indexes = ["job_id", "scan_id", "status", "executed_by", "created_at"]
 
     def calculate_success_rate(self) -> float:
         """Calculate percentage of successful remediations."""

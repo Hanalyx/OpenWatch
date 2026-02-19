@@ -20,7 +20,6 @@ from app.models.plugin_models import (
     PluginExecutionResult,
     PluginStatus,
 )
-from app.repositories import InstalledPluginRepository
 from app.services.infrastructure import CommandSandbox
 from app.services.plugins.registry.service import PluginRegistryService
 
@@ -36,8 +35,6 @@ class PluginExecutionService:
         self.registry_service = PluginRegistryService()
         self.execution_history: Dict[str, Any] = {}
         self.active_executions: Dict[str, Any] = {}
-        # OW-REFACTOR-002: Repository Pattern (MANDATORY)
-        self._plugin_repo = InstalledPluginRepository()
 
     async def execute_plugin(self, request: PluginExecutionRequest) -> PluginExecutionResult:
         """
@@ -495,16 +492,10 @@ class PluginExecutionService:
         if len(plugin.execution_history) > 100:
             plugin.execution_history = plugin.execution_history[-100:]
 
-        # OW-REFACTOR-002: Repository Pattern (MANDATORY)
-        await self._plugin_repo.update_one(
-            {"plugin_id": plugin.plugin_id},
-            {
-                "$set": {
-                    "usage_count": plugin.usage_count,
-                    "last_used": plugin.last_used,
-                    "execution_history": plugin.execution_history,
-                }
-            },
+        # MongoDB storage removed - usage statistics not persisted
+        logger.warning(
+            "MongoDB storage removed - usage statistics not persisted for plugin %s",
+            plugin.plugin_id,
         )
 
     async def _cleanup_execution_environment(self, execution_env: Dict[str, Any]) -> None:

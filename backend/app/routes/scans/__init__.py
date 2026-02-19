@@ -15,7 +15,6 @@ Package Structure:
     ├── reports.py          # Report generation endpoints
     ├── bulk.py             # Bulk scan operations
     ├── validation.py       # Readiness/validation endpoints
-    ├── config.py           # Framework discovery and configuration
     └── templates.py        # Scan template management
 
 Migration Status:
@@ -80,13 +79,6 @@ Router Organization:
         GET  /summary                       - Get scan summary
         GET  /profiles                      - Get available profiles
 
-    Config Router (config.py) - Phase 2:
-        GET  /config/frameworks                              - List frameworks
-        GET  /config/frameworks/{framework}/{version}        - Get framework details
-        GET  /config/frameworks/{framework}/{version}/variables - Get framework variables
-        POST /config/frameworks/{framework}/{version}/validate  - Validate configuration
-        GET  /config/statistics                              - Get framework statistics
-
     Templates Router (templates.py):
         GET  /templates/quick                    - Get quick/static templates
         GET  /templates                          - List templates
@@ -121,7 +113,6 @@ from app.routes.scans.bulk import router as bulk_router  # noqa: E402
 from app.routes.scans.compliance import router as compliance_router  # noqa: E402
 
 # API Standardization routers (Phase 3)
-from app.routes.scans.config import router as config_router  # noqa: E402
 from app.routes.scans.crud import router as crud_router  # noqa: E402
 from app.routes.scans.reports import router as reports_router  # noqa: E402
 from app.routes.scans.templates import router as templates_router  # noqa: E402
@@ -130,7 +121,6 @@ from app.routes.scans.validation import router as validation_router  # noqa: E40
 # Include all sub-routers into main router
 # Order matters for route matching - more specific routes first
 # Phase 3 routers have specific prefixes, so include them first
-router.include_router(config_router)
 router.include_router(templates_router)
 
 # NOTE: MongoDB routes removed during MongoDB deprecation (2026-02-10)

@@ -6,7 +6,7 @@ and combined health summaries.
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any, Dict
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -14,7 +14,6 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from ...auth import get_current_user
 from ...database import User
 from ...models.health_models import ContentHealthDocument, HealthSummaryDocument, ServiceHealthDocument
-from ...repositories import ContentHealthRepository, ServiceHealthRepository
 from ...services.monitoring import HealthMonitoringService, get_health_monitoring_service
 
 logger = logging.getLogger(__name__)
@@ -27,32 +26,11 @@ async def get_service_health(
     current_user: User = Depends(get_current_user),
     health_service: HealthMonitoringService = Depends(get_health_monitoring_service),
 ) -> ServiceHealthDocument:
-    """
-    Get current service health metrics.
-
-    Returns operational health data including:
-    - Core service statuses
-    - Database connection health
-    - Resource usage (CPU, memory, storage)
-    - Recent operation statistics
-    - Active alerts
-    """
+    """Get current service health metrics."""
     try:
-        # Get latest or collect new
-        health_data = await health_service.get_latest_service_health()
-
-        # If no data or data is older than 5 minutes, collect fresh
-        if not health_data or (datetime.utcnow() - health_data.health_check_timestamp) > timedelta(minutes=5):
-            health_data = await health_service.collect_service_health()
-            await health_service.save_service_health(health_data)
-
-        return health_data
-
+        return await health_service.collect_service_health()
     except Exception as e:
-        logger.error(f"Error retrieving service health: {type(e).__name__}: {str(e)}")
-        import traceback
-
-        logger.error(f"Traceback: {traceback.format_exc()}")
+        logger.error(f"Error retrieving service health: {e}")
         raise HTTPException(status_code=500, detail="Failed to retrieve service health")
 
 
@@ -61,33 +39,15 @@ async def get_content_health(
     current_user: User = Depends(get_current_user),
     health_service: HealthMonitoringService = Depends(get_health_monitoring_service),
 ) -> ContentHealthDocument:
-    """
-    Get current content health metrics.
+    """Get content health metrics.
 
-    Returns compliance content health data including:
-    - Framework coverage statistics
-    - Benchmark implementation status
-    - Rule distribution and statistics
-    - Content integrity validation
-    - Performance metrics
-    - Content-related alerts
+    Note: Detailed content health is now available via the
+    Aegis Rule Reference API at /api/rules/reference/stats.
     """
     try:
-        # Get latest or collect new
-        health_data = await health_service.get_latest_content_health()
-
-        # If no data or data is older than 1 hour, collect fresh
-        if not health_data or (datetime.utcnow() - health_data.health_check_timestamp) > timedelta(hours=1):
-            health_data = await health_service.collect_content_health()
-            await health_service.save_content_health(health_data)
-
-        return health_data
-
+        return await health_service.collect_content_health()
     except Exception as e:
-        logger.error(f"Error retrieving content health: {type(e).__name__}: {str(e)}")
-        import traceback
-
-        logger.error(f"Traceback: {traceback.format_exc()}")
+        logger.error(f"Error retrieving content health: {e}")
         raise HTTPException(status_code=500, detail="Failed to retrieve content health")
 
 
@@ -96,27 +56,11 @@ async def get_health_summary(
     current_user: User = Depends(get_current_user),
     health_service: HealthMonitoringService = Depends(get_health_monitoring_service),
 ) -> HealthSummaryDocument:
-    """
-    Get combined health summary.
-
-    Returns a quick overview including:
-    - Overall system status
-    - Key metrics
-    - Active issue count
-    - Critical alerts
-    """
+    """Get combined health summary."""
     try:
-        # Always generate fresh summary
-        summary = await health_service.create_health_summary()
-        await health_service.save_health_summary(summary)
-
-        return summary
-
+        return await health_service.create_health_summary()
     except Exception as e:
-        logger.error(f"Error retrieving health summary: {type(e).__name__}: {str(e)}")
-        import traceback
-
-        logger.error(f"Traceback: {traceback.format_exc()}")
+        logger.error(f"Error retrieving health summary: {e}")
         raise HTTPException(status_code=500, detail="Failed to retrieve health summary")
 
 
@@ -125,31 +69,14 @@ async def refresh_health_data(
     current_user: User = Depends(get_current_user),
     health_service: HealthMonitoringService = Depends(get_health_monitoring_service),
 ) -> Dict[str, str]:
-    """
-    Force refresh of all health data.
-
-    Triggers immediate collection of:
-    - Service health metrics
-    - Content health metrics
-    - Health summary
-    """
+    """Force refresh of all health data."""
     try:
-        # Collect all health data
-        service_health = await health_service.collect_service_health()
-        content_health = await health_service.collect_content_health()
-        summary = await health_service.create_health_summary()
-
-        # Save all data
-        await health_service.save_service_health(service_health)
-        await health_service.save_content_health(content_health)
-        await health_service.save_health_summary(summary)
-
+        await health_service.collect_service_health()
         return {
             "status": "success",
             "message": "Health data refreshed successfully",
             "timestamp": datetime.utcnow().isoformat(),
         }
-
     except Exception as e:
         logger.error(f"Error refreshing health data: {e}")
         raise HTTPException(status_code=500, detail="Failed to refresh health data")
@@ -157,59 +84,39 @@ async def refresh_health_data(
 
 @router.get("/health/history/service")
 async def get_service_health_history(
-    hours: int = Query(default=24, ge=1, le=168, description="Hours of history to retrieve"),
+    hours: int = Query(default=24, ge=1, le=168, description="Hours of history"),
     current_user: User = Depends(get_current_user),
-    health_service: HealthMonitoringService = Depends(get_health_monitoring_service),
 ) -> Dict[str, Any]:
+    """Get service health history.
+
+    Note: Historical health data storage has been removed with MongoDB.
+    This endpoint returns an empty history.
     """
-    Get service health history.
+    from datetime import timedelta
 
-    Returns historical service health data for trending and analysis.
-    """
-    try:
-        cutoff_time = datetime.utcnow() - timedelta(hours=hours)
-
-        # Query historical data via repository
-        repo = ServiceHealthRepository()
-        history = await repo.get_health_history(health_service.scanner_id, hours=hours)
-
-        return {
-            "start_time": cutoff_time.isoformat(),
-            "end_time": datetime.utcnow().isoformat(),
-            "data_points": len(history),
-            "history": [h.dict() for h in history],
-        }
-
-    except Exception as e:
-        logger.error(f"Error retrieving service health history: {e}")
-        raise HTTPException(status_code=500, detail="Failed to retrieve health history")
+    return {
+        "start_time": (datetime.utcnow() - timedelta(hours=hours)).isoformat(),
+        "end_time": datetime.utcnow().isoformat(),
+        "data_points": 0,
+        "history": [],
+    }
 
 
 @router.get("/health/history/content")
 async def get_content_health_history(
-    hours: int = Query(default=24, ge=1, le=168, description="Hours of history to retrieve"),
+    hours: int = Query(default=24, ge=1, le=168, description="Hours of history"),
     current_user: User = Depends(get_current_user),
-    health_service: HealthMonitoringService = Depends(get_health_monitoring_service),
 ) -> Dict[str, Any]:
+    """Get content health history.
+
+    Note: Historical health data storage has been removed with MongoDB.
+    This endpoint returns an empty history.
     """
-    Get content health history.
+    from datetime import timedelta
 
-    Returns historical content health data for trending and analysis.
-    """
-    try:
-        cutoff_time = datetime.utcnow() - timedelta(hours=hours)
-
-        # Query historical data via repository
-        repo = ContentHealthRepository()
-        history = await repo.get_content_history(health_service.scanner_id, hours=hours)
-
-        return {
-            "start_time": cutoff_time.isoformat(),
-            "end_time": datetime.utcnow().isoformat(),
-            "data_points": len(history),
-            "history": [h.dict() for h in history],
-        }
-
-    except Exception as e:
-        logger.error(f"Error retrieving content health history: {e}")
-        raise HTTPException(status_code=500, detail="Failed to retrieve health history")
+    return {
+        "start_time": (datetime.utcnow() - timedelta(hours=hours)).isoformat(),
+        "end_time": datetime.utcnow().isoformat(),
+        "data_points": 0,
+        "history": [],
+    }

@@ -1,6 +1,6 @@
 """
 Result Enrichment Service for OpenWatch
-Enhances SCAP scan results with MongoDB rule intelligence and compliance framework data
+Enhances SCAP scan results with compliance framework data and OWCA scoring
 """
 
 import logging
@@ -13,8 +13,6 @@ from sqlalchemy.orm import Session
 
 from ..services.owca import get_owca_service
 from ..services.owca.models import SeverityBreakdown
-from .mongo_integration_service import MongoIntegrationService, get_mongo_service
-from .rules import RuleService
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +23,7 @@ class ScanResultEnrichmentError(Exception):
 
 class ResultEnrichmentService:
     """
-    Service for enriching SCAP scan results with MongoDB intelligence.
+    Service for enriching SCAP scan results with compliance data.
 
     Uses OWCA (OpenWatch Compliance Algorithm) as the single source of truth
     for all compliance score calculations, ensuring consistency across the platform.
@@ -39,8 +37,6 @@ class ResultEnrichmentService:
             db: SQLAlchemy database session for OWCA integration
         """
         self.db = db
-        self.mongo_service: Optional[MongoIntegrationService] = None
-        self.rule_service: Optional[RuleService] = None
         self._initialized = False
         self.enrichment_stats = {
             "total_enrichments": 0,
@@ -58,10 +54,6 @@ class ResultEnrichmentService:
             return
 
         try:
-            self.mongo_service = await get_mongo_service()
-            self.rule_service = RuleService()
-            await self.rule_service.initialize()
-
             self._initialized = True
             logger.info("Result Enrichment Service initialized successfully with OWCA integration")
 
@@ -73,7 +65,7 @@ class ResultEnrichmentService:
         self, result_file_path: str, scan_metadata: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """
-        Main method to enrich SCAP scan results with MongoDB intelligence
+        Main method to enrich SCAP scan results with compliance data
 
         Args:
             result_file_path: Path to SCAP XML results file
@@ -247,129 +239,38 @@ class ResultEnrichmentService:
         return fix_content
 
     async def _gather_rule_intelligence(self, rule_results: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """Gather MongoDB intelligence data for each rule"""
-        intelligence_data: Dict[str, Any] = {}
+        """Gather intelligence data for each rule.
 
-        if not self.mongo_service:
-            logger.warning("MongoDB service not available, skipping rule intelligence gathering")
-            return intelligence_data
-
-        for rule_result in rule_results:
-            rule_id = rule_result["rule_id"]
-
-            try:
-                # Get MongoDB rule intelligence
-                intel_data = await self.mongo_service.get_rule_with_intelligence(rule_id)
-
-                if intel_data and "intelligence" in intel_data:
-                    intelligence_info = intel_data["intelligence"]
-                    rule_info = intel_data.get("rule", {})
-
-                    intelligence_data[rule_id] = {
-                        "business_impact": intelligence_info.get("business_impact"),
-                        "compliance_importance": intelligence_info.get("compliance_importance", 5),
-                        "false_positive_rate": intelligence_info.get("false_positive_rate", 0.0),
-                        "common_exceptions": intelligence_info.get("common_exceptions", []),
-                        "implementation_notes": intelligence_info.get("implementation_notes"),
-                        "testing_guidance": intelligence_info.get("testing_guidance"),
-                        "rollback_procedure": intelligence_info.get("rollback_procedure"),
-                        "scan_duration_avg_ms": intelligence_info.get("scan_duration_avg_ms", 0),
-                        "success_rate": intelligence_info.get("success_rate", 0.0),
-                        "usage_count": intelligence_info.get("usage_count", 0),
-                        "rule_metadata": rule_info.get("metadata", {}),
-                        "frameworks": rule_info.get("frameworks", {}),
-                        "platform_implementations": rule_info.get("platform_implementations", {}),
-                        "remediation_scripts": intel_data.get("remediation_scripts", []),
-                    }
-                else:
-                    # Create basic intelligence entry for rules without MongoDB data
-                    intelligence_data[rule_id] = {
-                        "business_impact": "Unknown impact - MongoDB rule data not available",
-                        "compliance_importance": 3,
-                        "false_positive_rate": 0.1,
-                        "implementation_notes": "No specific implementation guidance available",
-                        "frameworks": {},
-                        "remediation_scripts": [],
-                    }
-
-            except Exception as e:
-                logger.warning(f"Failed to gather intelligence for rule {rule_id}: {e}")
-                continue
-
-        return intelligence_data
+        Note: Rule intelligence was previously sourced from MongoDB.
+        This now returns an empty dict. Aegis rules provide their own
+        metadata via the Rule Reference API.
+        """
+        return {}
 
     async def _generate_framework_mapping(
         self, rule_results: List[Dict[str, Any]], scan_metadata: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
-        """Generate compliance framework mapping for the scan"""
-        framework_mapping: Dict[str, Any] = {
+        """Generate compliance framework mapping for the scan.
+
+        Note: Framework mapping was previously sourced from MongoDB rules.
+        Aegis provides framework mappings via the Temporal Compliance service
+        and Rule Reference API. This returns an empty mapping structure.
+        """
+        return {
             "nist": {"controls": {}, "coverage": 0.0, "compliance_rate": 0.0},
             "cis": {"controls": {}, "coverage": 0.0, "compliance_rate": 0.0},
             "stig": {"controls": {}, "coverage": 0.0, "compliance_rate": 0.0},
             "pci": {"controls": {}, "coverage": 0.0, "compliance_rate": 0.0},
         }
 
-        if not self.mongo_service:
-            logger.warning("MongoDB service not available, skipping framework mapping")
-            return framework_mapping
-
-        try:
-            # Get framework mappings from MongoDB rules
-            for rule_result in rule_results:
-                rule_id = rule_result["rule_id"]
-                rule_status = rule_result["result"]
-
-                # Get MongoDB rule data to extract framework mappings
-                try:
-                    rule_data = await self.mongo_service.get_rule_with_intelligence(rule_id)
-                    if rule_data and "rule" in rule_data:
-                        frameworks = rule_data["rule"].get("frameworks", {})
-
-                        for framework_name, framework_versions in frameworks.items():
-                            if framework_name.lower() in framework_mapping:
-                                fw_mapping = framework_mapping[framework_name.lower()]
-
-                                for version, controls in framework_versions.items():
-                                    for control in controls:
-                                        if control not in fw_mapping["controls"]:
-                                            fw_mapping["controls"][control] = {
-                                                "rules": [],
-                                                "passed": 0,
-                                                "failed": 0,
-                                                "status": "unknown",
-                                            }
-
-                                        fw_mapping["controls"][control]["rules"].append(rule_id)
-
-                                        if rule_status == "pass":
-                                            fw_mapping["controls"][control]["passed"] += 1
-                                            fw_mapping["controls"][control]["status"] = "compliant"
-                                        elif rule_status == "fail":
-                                            fw_mapping["controls"][control]["failed"] += 1
-                                            fw_mapping["controls"][control]["status"] = "non_compliant"
-
-                except Exception as e:
-                    logger.warning(f"Failed to get framework mapping for rule {rule_id}: {e}")
-                    continue
-
-            # Calculate coverage and compliance rates
-            for framework_name, fw_data in framework_mapping.items():
-                total_controls = len(fw_data["controls"])
-                if total_controls > 0:
-                    compliant_controls = sum(
-                        1 for control in fw_data["controls"].values() if control["status"] == "compliant"
-                    )
-                    fw_data["coverage"] = total_controls  # This would need baseline data
-                    fw_data["compliance_rate"] = (compliant_controls / total_controls) * 100
-
-        except Exception as e:
-            logger.error(f"Failed to generate framework mapping: {e}")
-
-        return framework_mapping
-
     async def _generate_remediation_guidance(self, rule_results: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """Generate remediation guidance for failed rules"""
-        remediation_guidance: Dict[str, List[Any]] = {
+        """Generate remediation guidance for failed rules.
+
+        Note: Remediation guidance was previously sourced from MongoDB.
+        Aegis provides native remediation via the ORSA plugin interface.
+        This returns an empty guidance structure.
+        """
+        return {
             "critical_failures": [],
             "high_priority": [],
             "medium_priority": [],
@@ -377,63 +278,6 @@ class ResultEnrichmentService:
             "automated_fixes_available": [],
             "manual_intervention_required": [],
         }
-
-        if not self.mongo_service:
-            logger.warning("MongoDB service not available, skipping remediation guidance")
-            return remediation_guidance
-
-        try:
-            for rule_result in rule_results:
-                if rule_result["result"] == "fail":
-                    rule_id = rule_result["rule_id"]
-                    severity = rule_result.get("severity", "medium")
-
-                    # Get remediation scripts from MongoDB
-                    try:
-                        rule_data = await self.mongo_service.get_rule_with_intelligence(rule_id)
-                        if rule_data and "remediation_scripts" in rule_data:
-                            scripts = rule_data["remediation_scripts"]
-
-                            guidance_item = {
-                                "rule_id": rule_id,
-                                "severity": severity,
-                                "remediation_scripts": scripts,
-                                "automated_available": len(scripts) > 0,
-                                "estimated_time": self._estimate_remediation_time(scripts),
-                                "risk_level": rule_data.get("rule", {}).get("remediation_risk", "medium"),
-                            }
-
-                            # Categorize by severity
-                            if severity == "high":
-                                if any(script.get("approved", False) for script in scripts):
-                                    remediation_guidance["automated_fixes_available"].append(guidance_item)
-                                else:
-                                    remediation_guidance["manual_intervention_required"].append(guidance_item)
-                                remediation_guidance["high_priority"].append(guidance_item)
-                            elif severity == "medium":
-                                remediation_guidance["medium_priority"].append(guidance_item)
-                            else:
-                                remediation_guidance["low_priority"].append(guidance_item)
-
-                    except Exception as e:
-                        logger.warning(f"Failed to get remediation guidance for rule {rule_id}: {e}")
-                        continue
-
-        except Exception as e:
-            logger.error(f"Failed to generate remediation guidance: {e}")
-
-        return remediation_guidance
-
-    def _estimate_remediation_time(self, scripts: List[Dict[str, Any]]) -> int:
-        """Estimate remediation time based on available scripts"""
-        if not scripts:
-            return 30  # Default 30 minutes for manual fixes
-
-        total_time = 0
-        for script in scripts:
-            total_time += script.get("estimated_duration_seconds", 300)  # Default 5 minutes
-
-        return total_time // 60  # Return minutes
 
     async def _calculate_compliance_scores(
         self, rule_results: List[Dict[str, Any]], framework_mapping: Dict[str, Any]
@@ -657,11 +501,7 @@ class ResultEnrichmentService:
             "rules_processed": len(rule_results),
             "rules_enriched": len(intelligence_data),
             "enrichment_coverage": ((len(intelligence_data) / len(rule_results) * 100) if rule_results else 0),
-            "mongodb_data_available": sum(
-                1
-                for data in intelligence_data.values()
-                if data.get("business_impact") != "Unknown impact - MongoDB rule data not available"
-            ),
+            "intelligence_data_available": len(intelligence_data),
             "remediation_scripts_found": sum(
                 len(data.get("remediation_scripts", [])) for data in intelligence_data.values()
             ),

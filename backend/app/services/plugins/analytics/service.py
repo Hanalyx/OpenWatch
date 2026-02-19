@@ -13,11 +13,9 @@ from datetime import datetime, timedelta
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
-from beanie import Document
 from pydantic import BaseModel, Field
 
 from app.models.plugin_models import InstalledPlugin, PluginStatus
-from app.repositories import SystemWideAnalyticsRepository
 from app.services.plugins.registry.service import PluginRegistryService
 
 logger = logging.getLogger(__name__)
@@ -207,10 +205,10 @@ class PluginPerformanceReport(BaseModel):
     efficiency_score: Optional[float] = None
 
 
-class SystemWideAnalytics(Document):
+class SystemWideAnalytics(BaseModel):
     """System-wide plugin analytics snapshot"""
 
-    snapshot_id: str = Field(default_factory=lambda: str(uuid.uuid4()), unique=True)
+    snapshot_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     snapshot_time: datetime = Field(default_factory=datetime.utcnow)
 
     # Overall system metrics
@@ -235,10 +233,6 @@ class SystemWideAnalytics(Document):
 
     # Recommendations
     system_recommendations: List[OptimizationRecommendation] = Field(default_factory=list)
-
-    class Settings:
-        collection = "system_wide_analytics"
-        indexes = ["snapshot_id", "snapshot_time"]
 
 
 # ============================================================================
@@ -265,8 +259,6 @@ class PluginAnalyticsService:
         self.analytics_cache: Dict[str, Any] = {}
         self.monitoring_enabled = False
         self.collection_task: Optional[asyncio.Task[None]] = None
-        # OW-REFACTOR-002: Repository Pattern (MANDATORY)
-        self._analytics_repo = SystemWideAnalyticsRepository()
 
     async def start_metrics_collection(self) -> None:
         """Start real-time metrics collection."""
@@ -661,8 +653,8 @@ class PluginAnalyticsService:
             bottlenecks_detected=bottlenecks,
         )
 
-        # OW-REFACTOR-002: Repository Pattern (MANDATORY)
-        await self._analytics_repo.create(analytics)
+        # MongoDB storage removed - analytics snapshot not persisted
+        logger.warning("MongoDB storage removed - analytics snapshot not persisted")
         return analytics
 
     async def _metrics_collection_loop(self) -> None:

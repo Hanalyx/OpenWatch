@@ -1,5 +1,5 @@
 """
-MongoDB models for scan configuration and templates.
+Models for scan configuration and templates.
 
 This module defines data structures for managing scan configurations,
 templates, and framework metadata for the OpenWatch compliance platform.
@@ -9,7 +9,6 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-from beanie import Document
 from pydantic import BaseModel, Field
 
 
@@ -24,7 +23,7 @@ class ScanTargetType(str, Enum):
     GCP_PROJECT = "gcp_project"
 
 
-class ScanTemplate(Document):
+class ScanTemplate(BaseModel):
     """
     Saved scan configuration template.
 
@@ -64,18 +63,6 @@ class ScanTemplate(Document):
     shared_with: List[str] = Field(default_factory=list, description="Usernames with read access")
 
     is_public: bool = Field(default=False, description="Template visible to all users")
-
-    class Settings:
-        name = "scan_templates"
-        indexes = [
-            "template_id",
-            "created_by",
-            "framework",
-            "is_default",
-            "is_public",
-            [("created_by", 1), ("framework", 1)],
-            [("tags", 1), ("created_by", 1)],
-        ]
 
 
 class VariableConstraint(BaseModel):

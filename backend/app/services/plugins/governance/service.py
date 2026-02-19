@@ -54,8 +54,6 @@ import logging
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
-from app.repositories.plugin_models_repository import AuditEventRepository
-
 from .models import (
     AuditEvent,
     AuditEventType,
@@ -124,10 +122,10 @@ class PluginGovernanceService:
         # Service state
         self._started: bool = False
 
-        # Repository for audit events
-        self._audit_repo = AuditEventRepository()
+        # In-memory storage for audit events (MongoDB removed)
+        self._audit_events: List[AuditEvent] = []
 
-        logger.info("PluginGovernanceService initialized")
+        logger.info("PluginGovernanceService initialized - " "Audit events stored in-memory only (MongoDB removed)")
 
     async def start(self) -> None:
         """
@@ -1115,24 +1113,19 @@ class PluginGovernanceService:
 
     async def _flush_audit_buffer(self) -> None:
         """
-        Flush the audit event buffer to persistent storage.
+        Flush the audit event buffer to in-memory storage.
 
-        Writes all buffered audit events to MongoDB in a batch operation.
+        Moves buffered audit events to the persistent in-memory list.
+        MongoDB has been removed; events are retained in-memory only.
         """
         if not self._audit_buffer:
             return
 
-        try:
-            # Insert audit events via repository
-            for event in self._audit_buffer:
-                await self._audit_repo.create(event)
+        # Move events from buffer to in-memory storage
+        self._audit_events.extend(self._audit_buffer)
 
-            logger.debug("Flushed %d audit events to storage", len(self._audit_buffer))
-            self._audit_buffer.clear()
-
-        except Exception as e:
-            # Log error but don't lose events
-            logger.error("Failed to flush audit events: %s", str(e))
+        logger.debug("Flushed %d audit events to in-memory storage", len(self._audit_buffer))
+        self._audit_buffer.clear()
 
     async def get_audit_events(
         self,
@@ -1146,6 +1139,8 @@ class PluginGovernanceService:
         """
         Query audit events with optional filtering.
 
+        Filters in-memory audit events (MongoDB removed).
+
         Args:
             plugin_id: Filter by plugin ID.
             event_type: Filter by event type.
@@ -1157,35 +1152,32 @@ class PluginGovernanceService:
         Returns:
             List of matching audit events.
         """
-        # Build query
-        query: Dict[str, Any] = {}
+        # Include any unflushed events from the buffer
+        all_events = self._audit_events + self._audit_buffer
+
+        # Apply filters in-memory
+        filtered = all_events
 
         if plugin_id:
-            query["plugin_id"] = plugin_id
+            filtered = [e for e in filtered if e.plugin_id == plugin_id]
 
         if event_type:
-            query["event_type"] = event_type.value
+            filtered = [e for e in filtered if e.event_type == event_type]
 
         if actor:
-            query["actor"] = actor
+            filtered = [e for e in filtered if e.actor == actor]
 
-        if start_time or end_time:
-            query["timestamp"] = {}
-            if start_time:
-                query["timestamp"]["$gte"] = start_time
-            if end_time:
-                query["timestamp"]["$lte"] = end_time
+        if start_time:
+            filtered = [e for e in filtered if e.timestamp >= start_time]
 
-        try:
-            events = await self._audit_repo.find_many(
-                query=query,
-                limit=limit,
-                sort=[("timestamp", -1)],
-            )
-            return events
-        except Exception as e:
-            logger.error("Failed to query audit events: %s", str(e))
-            return []
+        if end_time:
+            filtered = [e for e in filtered if e.timestamp <= end_time]
+
+        # Sort by timestamp descending (most recent first)
+        filtered.sort(key=lambda e: e.timestamp, reverse=True)
+
+        # Apply limit
+        return filtered[:limit]
 
     # =========================================================================
     # CONFIGURATION

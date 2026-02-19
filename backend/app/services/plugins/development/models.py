@@ -22,7 +22,6 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-from beanie import Document
 from pydantic import BaseModel, Field
 
 # ============================================================================
@@ -729,11 +728,11 @@ class BenchmarkResult(BaseModel):
 # ============================================================================
 
 
-class TestSuite(Document):
+class TestSuite(BaseModel):
     """
-    Complete test suite for a plugin (MongoDB Document).
+    Complete test suite for a plugin.
 
-    Persisted test suite definition including test cases,
+    Test suite definition including test cases,
     execution settings, and quality gates.
 
     Attributes:
@@ -827,22 +826,12 @@ class TestSuite(Document):
         description="Last update timestamp",
     )
 
-    class Settings:
-        """Beanie settings for MongoDB collection configuration."""
 
-        name = "plugin_test_suites"
-        indexes = [
-            "suite_id",
-            "plugin_id",
-            "created_by",
-        ]
-
-
-class TestExecution(Document):
+class TestExecution(BaseModel):
     """
-    Test suite execution record (MongoDB Document).
+    Test suite execution record.
 
-    Persisted record of a test suite execution including
+    Record of a test suite execution including
     individual test results and aggregate statistics.
 
     Attributes:
@@ -977,15 +966,3 @@ class TestExecution(Document):
         default_factory=list,
         description="Performance benchmark results",
     )
-
-    class Settings:
-        """Beanie settings for MongoDB collection configuration."""
-
-        name = "plugin_test_executions"
-        indexes = [
-            "execution_id",
-            "suite_id",
-            "plugin_id",
-            "started_at",
-            "overall_status",
-        ]

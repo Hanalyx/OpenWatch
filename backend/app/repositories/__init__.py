@@ -1,90 +1,10 @@
 """
-Repository Pattern for MongoDB Operations
-OW-REFACTOR-002: Centralized MongoDB query logic
+Repository Pattern - DEPRECATED
 
-This module provides the repository pattern implementation for all MongoDB
-Document models in OpenWatch. Using repositories:
-- Centralizes query logic
-- Provides consistent error handling
-- Enables easier testing via dependency injection
-- Supports audit logging and performance monitoring
+MongoDB repositories have been removed. All data access now goes through
+PostgreSQL via SQL Builders (see app/utils/query_builder.py) or
+Aegis for compliance rules.
 
-Usage:
-    from app.repositories import ComplianceRuleRepository
-
-    repo = ComplianceRuleRepository()
-    rules = await repo.find_by_framework("CIS")
+This module is kept as an empty package for import compatibility.
+Repository classes no longer exist.
 """
-
-from .base_repository import BaseRepository
-from .compliance_repository import ComplianceRuleRepository
-
-# Enhanced Models
-from .enhanced_repository import FrameworkControlRepository, UnifiedComplianceRuleRepository  # noqa: F401
-
-# Health Monitoring
-from .health_repository import ContentHealthRepository, HealthSummaryRepository, ServiceHealthRepository  # noqa: F401
-
-# Intelligence and Upload History
-from .intelligence_repository import RuleIntelligenceRepository, UploadHistoryRepository  # noqa: F401
-
-# Plugin Models (lifecycle, analytics, governance, orchestration, marketplace, development)
-from .plugin_models_repository import (  # noqa: F401
-    AuditEventRepository,
-    OptimizationJobRepository,
-    PluginInstallationResultRepository,
-    PluginUpdateExecutionRepository,
-    RulePluginMappingRepository,
-    SystemWideAnalyticsRepository,
-    TestExecutionRepository,
-    TestSuiteRepository,
-)
-
-# Plugin Management
-from .plugin_repository import InstalledPluginRepository  # noqa: F401
-
-# Remediation Jobs
-from .remediation_job_repository import BulkRemediationJobRepository, RemediationResultRepository  # noqa: F401
-
-# Remediation Scripts
-from .remediation_repository import RemediationScriptRepository  # noqa: F401
-
-# Scan Management
-from .scan_repository import ScanResultRepository, ScanScheduleRepository, ScanTemplateRepository  # noqa: F401
-
-__all__ = [
-    # Base
-    "BaseRepository",
-    # Compliance
-    "ComplianceRuleRepository",
-    # Intelligence
-    "RuleIntelligenceRepository",
-    "UploadHistoryRepository",
-    # Remediation Scripts
-    "RemediationScriptRepository",
-    # Plugins
-    "InstalledPluginRepository",
-    # Plugin Models
-    "PluginUpdateExecutionRepository",
-    "SystemWideAnalyticsRepository",
-    "OptimizationJobRepository",
-    "AuditEventRepository",
-    "PluginInstallationResultRepository",
-    "TestSuiteRepository",
-    "TestExecutionRepository",
-    "RulePluginMappingRepository",
-    # Health
-    "ServiceHealthRepository",
-    "ContentHealthRepository",
-    "HealthSummaryRepository",
-    # Scans
-    "ScanTemplateRepository",
-    "ScanResultRepository",
-    "ScanScheduleRepository",
-    # Remediation Jobs
-    "RemediationResultRepository",
-    "BulkRemediationJobRepository",
-    # Enhanced
-    "UnifiedComplianceRuleRepository",
-    "FrameworkControlRepository",
-]

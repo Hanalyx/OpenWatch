@@ -25,12 +25,8 @@ Example:
 import logging
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional
 
-from app.models.mongo_models import ComplianceRule
-
-# OW-REFACTOR-002: Repository Pattern (MANDATORY)
-from app.repositories import ComplianceRuleRepository, RemediationScriptRepository, RuleIntelligenceRepository
 from app.services.platform_capability_service import PlatformCapabilityService
 from app.services.rules.cache import RuleCacheService
 
@@ -82,10 +78,6 @@ class RuleService:
             "cache_misses": 0,
             "avg_response_time": 0.0,
         }
-        # OW-REFACTOR-002: Repository Pattern (MANDATORY)
-        self._compliance_repo = ComplianceRuleRepository()
-        self._intelligence_repo = RuleIntelligenceRepository()
-        self._remediation_repo = RemediationScriptRepository()
 
     async def initialize(self):
         """Initialize the rule service and dependencies."""
@@ -139,45 +131,14 @@ class RuleService:
                     self._update_query_stats(start_time, cache_hit=True)
                     return cached_result
 
-            # Build database query
-            query_filter = await self._build_platform_query(
-                platform,
-                platform_version,
-                framework,
-                framework_version,
-                severity_filter,
-                category_filter,
+            # MongoDB rule storage has been removed. Use Aegis Rule Reference
+            # service for rule queries instead.
+            logger.warning(
+                "RuleService.get_rules_by_platform: MongoDB removed. " "Use Aegis Rule Reference service instead."
             )
 
-            # Execute query with proper indexing
-            # OW-REFACTOR-002: Repository Pattern (MANDATORY)
-            logger.debug(f"Using ComplianceRuleRepository for get_rules_by_platform ({platform})")
-            # Retrieve all matching rules (limit=10000 to handle large rule sets)
-            # For compliance scans, we need ALL applicable rules, not just first 100
-            rules = await self._compliance_repo.find_many(query_filter, limit=10000)
-
-            # Resolve inheritance for each rule
-            resolved_rules = []
-            for rule in rules:
-                resolved_rule = await self._resolve_rule_inheritance(rule)
-                resolved_rules.append(resolved_rule)
-
-            # Apply parameter overrides
-            final_rules = []
-            for rule_data in resolved_rules:
-                final_rule = await self._apply_parameter_overrides(
-                    rule_data, platform, platform_version, framework, framework_version
-                )
-                final_rules.append(final_rule)
-
-            # Cache the result
-            cache_ttl = self._get_cache_ttl(priority)
-            await self.cache_service.set(cache_key, final_rules, ttl=cache_ttl)
-
             self._update_query_stats(start_time, cache_hit=False)
-            logger.info(f"Retrieved {len(final_rules)} rules for platform {platform}")
-
-            return final_rules
+            return []
 
         except Exception as e:
             logger.error(f"Failed to retrieve rules for platform {platform}: {str(e)}")
@@ -207,30 +168,11 @@ class RuleService:
         if cached:
             return cached
 
-        # Get base rule
-        # OW-REFACTOR-002: Repository Pattern (MANDATORY)
-        logger.debug(f"Using ComplianceRuleRepository for get_rule_with_dependencies ({rule_id})")
-        rule = await self._compliance_repo.find_one({"rule_id": rule_id})
-
-        if not rule:
-            raise ValueError(f"Rule not found: {rule_id}")
-
-        # Resolve dependencies
-        dependency_graph = await self._build_dependency_graph(rule, resolve_depth, include_conflicts)
-
-        result = {
-            "rule": await self._resolve_rule_inheritance(rule),
-            "dependencies": dependency_graph,
-            "resolution_depth": resolve_depth,
-            "total_dependencies": len(dependency_graph.get("requires", [])),
-            "total_conflicts": len(dependency_graph.get("conflicts", [])),
-            "resolution_time": datetime.utcnow().isoformat(),
-        }
-
-        # Cache result
-        await self.cache_service.set(cache_key, result, ttl=1800)  # 30 minutes
-
-        return result
+        # MongoDB rule storage has been removed. Use Aegis Rule Reference
+        # service for rule queries instead.
+        raise NotImplementedError(
+            "Rule dependency resolution requires MongoDB (removed). " "Use Aegis Rule Reference service instead."
+        )
 
     async def detect_platform_capabilities(
         self,
@@ -312,52 +254,16 @@ class RuleService:
         Returns:
             Search results with pagination metadata
         """
-        # Build search pipeline
-        pipeline: List[Dict[str, Any]] = []
-
-        # Text search stage
-        if search_query.strip():
-            pipeline.append({"$match": {"$text": {"$search": search_query}}})
-
-            # Add text score for relevance
-            pipeline.append({"$addFields": {"search_score": {"$meta": "textScore"}}})
-
-        # Platform filter
-        if platform_filter:
-            pipeline.append({"$match": {f"platform_implementations.{platform_filter}": {"$exists": True}}})
-
-        # Framework filter
-        if framework_filter:
-            pipeline.append({"$match": {f"frameworks.{framework_filter}": {"$exists": True}}})
-
-        # Sort by relevance and severity
-        sort_stage: Dict[str, Any] = {"$sort": {}}
-        if search_query.strip():
-            sort_stage["$sort"]["search_score"] = {"$meta": "textScore"}
-        sort_stage["$sort"]["severity_weight"] = -1
-        sort_stage["$sort"]["updated_at"] = -1
-        pipeline.append(sort_stage)
-
-        # Pagination
-        pipeline.extend([{"$skip": offset}, {"$limit": limit}])
-
-        # Execute search
-        # OW-REFACTOR-002: Repository Pattern (MANDATORY)
-        results = await self._compliance_repo.aggregate(pipeline)
-
-        # Get total count for pagination
-        count_pipeline: List[Dict[str, Any]] = pipeline[:-2]  # Remove skip/limit
-        count_pipeline.append({"$count": "total"})
-        count_result = await self._compliance_repo.aggregate(count_pipeline)
-        total_count = count_result[0]["total"] if count_result else 0
-
+        # MongoDB rule storage has been removed. Use Aegis Rule Reference
+        # service (/api/rules/reference) for rule search instead.
+        logger.warning("RuleService.search_rules: MongoDB removed. Use Aegis Rule Reference API.")
         return {
-            "results": results,
-            "total_count": total_count,
+            "results": [],
+            "total_count": 0,
             "offset": offset,
             "limit": limit,
-            "has_next": (offset + limit) < total_count,
-            "has_prev": offset > 0,
+            "has_next": False,
+            "has_prev": False,
         }
 
     async def get_rule_statistics(self) -> Dict[str, Any]:
@@ -367,50 +273,18 @@ class RuleService:
         Returns:
             Statistics dictionary with counts and distributions
         """
-        # Basic counts
-        # OW-REFACTOR-002: Repository Pattern (MANDATORY)
-        total_rules = await self._compliance_repo.count()
-        total_intelligence = await self._intelligence_repo.count()
-        total_scripts = await self._remediation_repo.count()
-
-        # Severity distribution
-        severity_pipeline = [
-            {"$group": {"_id": "$severity", "count": {"$sum": 1}}},
-            {"$sort": {"count": -1}},
-        ]
-        severity_stats = await self._compliance_repo.aggregate(severity_pipeline)
-
-        # Platform coverage
-        platform_pipeline = [
-            {
-                "$unwind": {
-                    "path": "$platform_implementations",
-                    "preserveNullAndEmptyArrays": False,
-                }
-            },
-            {"$group": {"_id": "$platform_implementations.k", "count": {"$sum": 1}}},
-            {"$sort": {"count": -1}},
-        ]
-        platform_stats = await self._compliance_repo.aggregate(platform_pipeline)
-
-        # Framework coverage
-        framework_pipeline = [
-            {"$project": {"frameworks": {"$objectToArray": "$frameworks"}}},
-            {"$unwind": "$frameworks"},
-            {"$group": {"_id": "$frameworks.k", "count": {"$sum": 1}}},
-            {"$sort": {"count": -1}},
-        ]
-        framework_stats = await self._compliance_repo.aggregate(framework_pipeline)
-
+        # MongoDB rule storage has been removed. Use Aegis Rule Reference
+        # service (/api/rules/reference/stats) for rule statistics instead.
+        logger.warning("RuleService.get_rule_statistics: MongoDB removed. Use Aegis Rule Reference API.")
         return {
             "totals": {
-                "rules": total_rules,
-                "intelligence_records": total_intelligence,
-                "remediation_scripts": total_scripts,
+                "rules": 0,
+                "intelligence_records": 0,
+                "remediation_scripts": 0,
             },
-            "severity_distribution": {item["_id"]: item["count"] for item in severity_stats},
-            "platform_coverage": {item["_id"]: item["count"] for item in platform_stats},
-            "framework_coverage": {item["_id"]: item["count"] for item in framework_stats},
+            "severity_distribution": {},
+            "platform_coverage": {},
+            "framework_coverage": {},
             "query_performance": self.query_stats,
             "last_updated": datetime.utcnow().isoformat(),
         }
@@ -426,145 +300,6 @@ class RuleService:
                     v = ",".join(sorted(v))
                 key_parts.append(f"{k}:{v}")
         return ":".join(key_parts)
-
-    async def _build_platform_query(
-        self,
-        platform: str,
-        platform_version: Optional[str],
-        framework: Optional[str],
-        framework_version: Optional[str],
-        severity_filter: Optional[List[str]],
-        category_filter: Optional[List[str]],
-    ) -> Dict[str, Any]:
-        """Build optimized MongoDB query for platform rules."""
-        query: Dict[str, Any] = {}
-
-        # CRITICAL: Filter by is_latest=True to get only active rule versions
-        # MongoDB uses deduplication system with versioning (7221 total, 2013 latest)
-        # Without this filter: rhel8+disa_stig returns 1581 rules (includes old versions)
-        # With this filter: rhel8+disa_stig returns 402 rules (correct, deduplicated)
-        query["is_latest"] = True
-
-        # Platform implementation filter
-        # MongoDB compliance rules use combined platform+version keys (e.g., "rhel8")
-        # NOT separate platform and version fields
-        #
-        # CRITICAL: Check if platform is already normalized (e.g., "rhel8", "ubuntu2204")
-        # If the platform already contains digits, it's pre-normalized
-        # This prevents double-concatenation bugs like "rhel8" + "8" = "rhel88"
-        platform_already_normalized = any(char.isdigit() for char in platform)
-
-        if platform_already_normalized:
-            # Platform is already in combined format (e.g., "rhel8", "ubuntu2204")
-            # Use it directly without further processing
-            platform_key = f"platform_implementations.{platform}"
-            query[platform_key] = {"$exists": True}
-        elif platform_version:
-            # Construct combined platform identifier (rhel8, ubuntu2204, etc.)
-            combined_platform = f"{platform}{platform_version.replace('.', '')}"
-            platform_key = f"platform_implementations.{combined_platform}"
-            query[platform_key] = {"$exists": True}
-        else:
-            # No version specified - query all versions of this platform
-            platform_key = f"platform_implementations.{platform}"
-            query[platform_key] = {"$exists": True}
-
-        # Framework filter
-        if framework:
-            framework_key = f"frameworks.{framework}"
-            if framework_version:
-                query[f"{framework_key}.{framework_version}"] = {"$exists": True}
-            else:
-                query[framework_key] = {"$exists": True}
-
-        # Severity filter
-        if severity_filter:
-            query["severity"] = {"$in": severity_filter}
-
-        # Category filter
-        if category_filter:
-            query["category"] = {"$in": category_filter}
-
-        return query
-
-    async def _resolve_rule_inheritance(self, rule: ComplianceRule) -> Dict[str, Any]:
-        """
-        Resolve rule inheritance chain.
-
-        OW-REFACTOR-002: Supports Repository Pattern.
-        """
-        rule_data = rule.dict()
-
-        # If rule doesn't inherit, return as-is
-        if not rule.inherits_from:
-            return rule_data
-
-        # Get parent rule
-        # OW-REFACTOR-002: Repository Pattern (MANDATORY)
-        logger.debug(f"Using ComplianceRuleRepository for _resolve_rule_inheritance " f"({rule.inherits_from})")
-        parent_rule = await self._compliance_repo.find_one({"rule_id": rule.inherits_from})
-
-        if not parent_rule:
-            logger.warning(f"Parent rule not found: {rule.inherits_from}")
-            return rule_data
-
-        # Recursively resolve parent inheritance
-        parent_data = await self._resolve_rule_inheritance(parent_rule)
-
-        # Merge parent properties with child overrides
-        resolved = self._merge_rule_properties(parent_data, rule_data)
-
-        return resolved
-
-    def _merge_rule_properties(self, parent: Dict[str, Any], child: Dict[str, Any]) -> Dict[str, Any]:
-        """Merge parent and child rule properties."""
-        merged = parent.copy()
-
-        # Child properties override parent
-        for key, value in child.items():
-            if key in ["inherits_from", "abstract"]:
-                continue  # Skip inheritance metadata
-
-            if key == "platform_implementations":
-                # Merge platform implementations
-                merged[key] = {**parent.get(key, {}), **value}
-            elif key == "frameworks":
-                # Merge framework mappings
-                merged[key] = self._merge_frameworks(parent.get(key, {}), value)
-            elif key == "dependencies":
-                # Merge dependencies
-                merged[key] = self._merge_dependencies(parent.get(key, {}), value)
-            else:
-                # Direct override
-                merged[key] = value
-
-        return merged
-
-    def _merge_frameworks(self, parent_fw: Dict, child_fw: Dict) -> Dict[str, Any]:
-        """Merge framework mappings from parent and child."""
-        merged = parent_fw.copy()
-
-        for framework, versions in child_fw.items():
-            if framework in merged:
-                # Merge versions
-                if isinstance(versions, dict) and isinstance(merged[framework], dict):
-                    merged[framework] = {**merged[framework], **versions}
-                else:
-                    merged[framework] = versions
-            else:
-                merged[framework] = versions
-
-        return merged
-
-    def _merge_dependencies(self, parent_deps: Dict, child_deps: Dict) -> Dict[str, List[str]]:
-        """Merge dependency lists from parent and child."""
-        merged = {
-            "requires": list(set(parent_deps.get("requires", []) + child_deps.get("requires", []))),
-            "conflicts": list(set(parent_deps.get("conflicts", []) + child_deps.get("conflicts", []))),
-            "related": list(set(parent_deps.get("related", []) + child_deps.get("related", []))),
-        }
-
-        return merged
 
     async def _apply_parameter_overrides(
         self,
@@ -622,71 +357,6 @@ class RuleService:
             current = current[key]
 
         current[keys[-1]] = value
-
-    async def _build_dependency_graph(
-        self,
-        rule: ComplianceRule,
-        max_depth: int,
-        include_conflicts: bool,
-        current_depth: int = 0,
-        visited: Optional[Set[str]] = None,
-    ) -> Dict[str, List[Dict[str, Any]]]:
-        """
-        Build dependency graph for a rule.
-
-        OW-REFACTOR-002: Supports Repository Pattern.
-        """
-        if visited is None:
-            visited = set()
-
-        if current_depth >= max_depth or rule.rule_id in visited:
-            return {"requires": [], "conflicts": [], "related": []}
-
-        visited.add(rule.rule_id)
-        dependencies = rule.dependencies or {}
-
-        result: Dict[str, List[Any]] = {
-            "requires": [],
-            "conflicts": [],
-            "related": [],
-        }
-
-        # Process required dependencies (OW-REFACTOR-002: Repository Pattern)
-        for dep_id in dependencies.get("requires", []):
-            dep_rule = await self._compliance_repo.find_one({"rule_id": dep_id})
-
-            if dep_rule:
-                dep_data = await self._resolve_rule_inheritance(dep_rule)
-                dep_graph = await self._build_dependency_graph(
-                    dep_rule, max_depth, include_conflicts, current_depth + 1, visited
-                )
-
-                result["requires"].append({"rule": dep_data, "dependencies": dep_graph})
-
-        # Process conflicts if requested
-        if include_conflicts:
-            for conflict_id in dependencies.get("conflicts", []):
-                conflict_rule = await self._compliance_repo.find_one({"rule_id": conflict_id})
-
-                if conflict_rule:
-                    conflict_data = await self._resolve_rule_inheritance(conflict_rule)
-                    result["conflicts"].append(
-                        {
-                            "rule": conflict_data,
-                            "reason": f"Conflicts with {rule.rule_id}",
-                        }
-                    )
-
-        # Process related rules
-        for related_id in dependencies.get("related", []):
-            related_rule = await self._compliance_repo.find_one({"rule_id": related_id})
-
-            if related_rule:
-                related_data = await self._resolve_rule_inheritance(related_rule)
-                result["related"].append({"rule": related_data, "relationship": "related"})
-
-        visited.remove(rule.rule_id)
-        return result
 
     async def _is_rule_applicable(self, rule: Dict[str, Any], capabilities: Dict[str, Any]) -> bool:
         """Check if rule is applicable to detected capabilities."""

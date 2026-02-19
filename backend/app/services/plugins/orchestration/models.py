@@ -29,7 +29,6 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-from beanie import Document
 from pydantic import BaseModel, Field
 
 # =============================================================================
@@ -454,7 +453,7 @@ class RouteResponse(BaseModel):
 # =============================================================================
 
 
-class OptimizationJob(Document):
+class OptimizationJob(BaseModel):
     """
     Optimization job for plugin performance.
 
@@ -477,13 +476,6 @@ class OptimizationJob(Document):
         result_summary: Summary of optimization results.
         error_message: Error message if job failed.
         metadata: Additional job metadata.
-
-    Example:
-        >>> job = OptimizationJob(
-        ...     plugin_id="scanner@1.0.0",
-        ...     target=OptimizationTarget.LATENCY,
-        ... )
-        >>> await job.insert()
     """
 
     job_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -508,18 +500,6 @@ class OptimizationJob(Document):
 
     # Metadata
     metadata: Dict[str, Any] = Field(default_factory=dict)
-
-    class Settings:
-        """MongoDB collection settings."""
-
-        collection = "plugin_optimization_jobs"
-        indexes = [
-            "job_id",
-            "plugin_id",
-            "status",
-            "target",
-            "started_at",
-        ]
 
 
 # =============================================================================

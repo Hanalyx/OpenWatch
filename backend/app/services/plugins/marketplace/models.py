@@ -23,7 +23,6 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-from beanie import Document
 from pydantic import BaseModel, Field, HttpUrl
 
 # ============================================================================
@@ -576,15 +575,12 @@ class PluginInstallationRequest(BaseModel):
     )
 
 
-class PluginInstallationResult(Document):
+class PluginInstallationResult(BaseModel):
     """
-    Plugin installation result tracking document.
+    Plugin installation result tracking.
 
-    Persisted to MongoDB for tracking installation history, status,
-    and outcomes including verification and governance checks.
-
-    This is a Beanie Document for MongoDB persistence, enabling
-    queries on installation history and audit trails.
+    Tracks installation history, status, and outcomes
+    including verification and governance checks.
 
     Attributes:
         installation_id: Unique identifier for this installation
@@ -690,18 +686,6 @@ class PluginInstallationResult(Document):
         default_factory=list,
         description="List of policy violations found",
     )
-
-    class Settings:
-        """Beanie settings for MongoDB collection configuration."""
-
-        name = "plugin_installations"
-        indexes = [
-            "installation_id",
-            "request.marketplace_id",
-            "request.plugin_id",
-            "status",
-            "started_at",
-        ]
 
 
 # ============================================================================

@@ -22,8 +22,6 @@ import logging
 import re
 from typing import Any, Dict, List, Optional, Tuple
 
-from motor.motor_asyncio import AsyncIOMotorDatabase
-
 from app.models.scan_config_models import (
     FrameworkMetadata,
     FrameworkVersion,
@@ -46,156 +44,53 @@ class FrameworkMetadataService:
     - Query framework statistics
     """
 
-    def __init__(self, db: AsyncIOMotorDatabase):
+    def __init__(self) -> None:
         """
         Initialize framework metadata service.
 
-        Args:
-            db: MongoDB database instance
+        .. deprecated::
+            This service is deprecated. Use the Aegis Rule Reference API
+            at /api/rules/reference/ instead.
         """
-        self.db = db
-        self.collection = db.compliance_rules
+        logger.warning("FrameworkMetadataService is deprecated - use Aegis Rule Reference API")
 
     async def list_frameworks(self) -> List[FrameworkMetadata]:
         """
         List all available compliance frameworks with metadata.
 
-        Queries compliance_rules collection and aggregates framework information.
+        .. deprecated::
+            MongoDB has been removed. Use /api/rules/reference/frameworks instead.
 
         Returns:
-            List of FrameworkMetadata objects
+            Empty list (MongoDB removed).
         """
-        logger.info("Listing available frameworks")
-
-        # Get all rules with frameworks field
-        all_rules = await self.collection.find({"frameworks": {"$exists": True, "$ne": {}}}, {"frameworks": 1}).to_list(
-            length=None
-        )
-
-        # Parse nested frameworks structure
-        framework_data = {}
-        for rule in all_rules:
-            frameworks_obj = rule.get("frameworks", {})
-
-            for fw_name, fw_versions in frameworks_obj.items():
-                if not isinstance(fw_versions, dict):
-                    continue
-
-                if fw_name not in framework_data:
-                    framework_data[fw_name] = {"versions": set(), "rule_count": 0}
-
-                # Add versions from this framework
-                framework_data[fw_name]["versions"].update(fw_versions.keys())
-                framework_data[fw_name]["rule_count"] += 1
-
-        # Build framework metadata list
-        frameworks = []
-        for fw_name, fw_info in sorted(framework_data.items()):
-            # Get variable count (placeholder for now)
-            var_count = 0  # TODO: Extract from XCCDF variables when available
-
-            # Create metadata
-            metadata = FrameworkMetadata(
-                framework=fw_name,
-                display_name=self._get_display_name(fw_name),
-                versions=sorted(fw_info["versions"]),
-                description=self._get_description(fw_name),
-                rule_count=fw_info["rule_count"],
-                variable_count=var_count,
-            )
-
-            frameworks.append(metadata)
-
-        logger.info(f"Found {len(frameworks)} frameworks from nested structure")
-        return frameworks
+        logger.info("list_frameworks called on deprecated FrameworkMetadataService - " "returning empty list")
+        return []
 
     async def get_framework_details(self, framework: str, version: str) -> FrameworkVersion:
         """
         Get detailed information about a specific framework version.
 
-        Args:
-            framework: Framework identifier
-            version: Framework version
-
-        Returns:
-            FrameworkVersion with complete metadata
+        .. deprecated::
+            MongoDB has been removed. Use /api/rules/reference/frameworks instead.
 
         Raises:
-            ValueError: Framework/version not found
+            ValueError: Always raised - MongoDB is deprecated.
         """
-        logger.info(f"Getting details for {framework}/{version}")
-
-        # Count rules
-        rule_count = await self.collection.count_documents({"framework": framework, "framework_version": version})
-
-        if rule_count == 0:
-            raise ValueError(f"Framework {framework}/{version} not found")
-
-        # Get variables
-        variables = await self.get_variables(framework, version)
-
-        # Get categories
-        categories = await self._get_categories(framework, version)
-
-        # Get supported target types
-        target_types = await self._get_target_types(framework, version)
-
-        framework_version = FrameworkVersion(
-            framework=framework,
-            version=version,
-            display_name=f"{self._get_display_name(framework)} {version}",
-            description=self._get_description(framework),
-            rule_count=rule_count,
-            variable_count=len(variables),
-            variables=variables,
-            categories=categories,
-            target_types=target_types,
-        )
-
-        return framework_version
+        raise ValueError("Framework metadata from MongoDB is deprecated. " "Use /api/rules/reference/frameworks")
 
     async def get_variables(self, framework: str, version: str) -> List[VariableDefinition]:
         """
         Get all variable definitions for a framework/version.
 
-        Queries rules with xccdf_variables field, extracts and deduplicates
-        variables, and returns sorted list.
-
-        Args:
-            framework: Framework identifier
-            version: Framework version
+        .. deprecated::
+            MongoDB has been removed. Use /api/rules/reference/variables instead.
 
         Returns:
-            List of VariableDefinition objects
+            Empty list (MongoDB removed).
         """
-        logger.info(f"Getting variables for {framework}/{version}")
-
-        # Query rules with variables
-        query = {
-            "framework": framework,
-            "framework_version": version,
-            "xccdf_variables": {"$exists": True, "$ne": {}},
-        }
-
-        rules = await self.collection.find(query).to_list(length=None)
-
-        # Extract and deduplicate variables
-        variables_dict = {}
-
-        for rule in rules:
-            xccdf_vars = rule.get("xccdf_variables", {})
-
-            for var_id, var_def in xccdf_vars.items():
-                if var_id not in variables_dict:
-                    # Convert to VariableDefinition
-                    var_definition = self._parse_variable_definition(var_id, var_def)
-                    variables_dict[var_id] = var_definition
-
-        # Convert to sorted list
-        variables = sorted(variables_dict.values(), key=lambda v: (v.category or "", v.title))
-
-        logger.info(f"Found {len(variables)} variables for {framework}/{version}")
-        return variables
+        logger.info("get_variables called on deprecated FrameworkMetadataService - " "returning empty list")
+        return []
 
     async def validate_variable_value(self, variable_def: VariableDefinition, value: Any) -> Tuple[bool, Optional[str]]:
         """
@@ -294,47 +189,16 @@ class FrameworkMetadataService:
         return descriptions.get(framework, f"{framework} compliance framework")
 
     async def _count_variables(self, framework: str) -> int:
-        """Count unique variables for a framework."""
-        pipeline = [
-            {"$match": {"framework": framework, "xccdf_variables": {"$exists": True}}},
-            {"$project": {"vars": {"$objectToArray": "$xccdf_variables"}}},
-            {"$unwind": "$vars"},
-            {"$group": {"_id": "$vars.k"}},
-            {"$count": "total"},
-        ]
-
-        result = await self.collection.aggregate(pipeline).to_list(length=1)
-        return result[0]["total"] if result else 0
+        """Count unique variables for a framework (deprecated - MongoDB removed)."""
+        return 0
 
     async def _get_categories(self, framework: str, version: str) -> List[str]:
-        """Get distinct rule categories."""
-        categories = await self.collection.distinct("category", {"framework": framework, "framework_version": version})
-        return sorted([c for c in categories if c])
+        """Get distinct rule categories (deprecated - MongoDB removed)."""
+        return []
 
     async def _get_target_types(self, framework: str, version: str) -> List[ScanTargetType]:
-        """Get supported target types for framework."""
-        # Query scanner_type field
-        scanner_types = await self.collection.distinct(
-            "scanner_type", {"framework": framework, "framework_version": version}
-        )
-
-        # Map scanner types to target types
-        target_types = set()
-
-        for scanner_type in scanner_types:
-            if scanner_type == "oscap":
-                target_types.add(ScanTargetType.SSH_HOST)
-                target_types.add(ScanTargetType.LOCAL)
-            elif scanner_type == "kubernetes":
-                target_types.add(ScanTargetType.KUBERNETES)
-            elif scanner_type == "aws_api":
-                target_types.add(ScanTargetType.AWS_ACCOUNT)
-            elif scanner_type == "azure_api":
-                target_types.add(ScanTargetType.AZURE_SUBSCRIPTION)
-            elif scanner_type == "gcp_api":
-                target_types.add(ScanTargetType.GCP_PROJECT)
-
-        return sorted(list(target_types), key=lambda t: t.value)
+        """Get supported target types for framework (deprecated - MongoDB removed)."""
+        return []
 
     def _parse_variable_definition(self, var_id: str, var_def: Dict[str, Any]) -> VariableDefinition:
         """
