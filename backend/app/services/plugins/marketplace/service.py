@@ -20,11 +20,9 @@ from typing import Any, Dict, List, Optional
 
 import aiohttp
 import semver
-from beanie import Document
 from pydantic import BaseModel, Field, HttpUrl
 
 from app.models.plugin_models import InstalledPlugin, PluginManifest, PluginStatus
-from app.repositories.plugin_models_repository import PluginInstallationResultRepository
 from app.services.plugins.governance.service import PluginGovernanceService
 from app.services.plugins.lifecycle.service import PluginLifecycleService
 from app.services.plugins.registry.service import PluginRegistryService
@@ -195,7 +193,7 @@ class PluginInstallationRequest(BaseModel):
     approved_at: Optional[datetime] = None
 
 
-class PluginInstallationResult(Document):
+class PluginInstallationResult(BaseModel):
     """Plugin installation result from marketplace"""
 
     installation_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -227,16 +225,6 @@ class PluginInstallationResult(Document):
     # Compliance and governance
     governance_checks: Dict[str, Any] = Field(default_factory=dict)
     policy_violations: List[str] = Field(default_factory=list)
-
-    class Settings:
-        collection = "plugin_installations"
-        indexes = [
-            "installation_id",
-            "request.marketplace_id",
-            "request.plugin_id",
-            "status",
-            "started_at",
-        ]
 
 
 class MarketplaceSearchQuery(BaseModel):
@@ -300,7 +288,6 @@ class PluginMarketplaceService:
         self.plugin_registry_service = PluginRegistryService()
         self.plugin_lifecycle_service = PluginLifecycleService()
         self.plugin_governance_service = PluginGovernanceService()
-        self._installation_repo = PluginInstallationResultRepository()
 
         # Marketplace configurations
         self.marketplaces: Dict[str, MarketplaceConfig] = {}
@@ -439,7 +426,7 @@ class PluginMarketplaceService:
 
         # Create installation result record
         installation = PluginInstallationResult(request=request)
-        await self._installation_repo.create(installation)
+        logger.warning("MongoDB storage removed - create installation result operation skipped")
 
         # Add to active installations
         self.active_installations[installation.installation_id] = installation
@@ -456,8 +443,9 @@ class PluginMarketplaceService:
         if installation_id in self.active_installations:
             return self.active_installations[installation_id]
 
-        # Query database
-        return await self._installation_repo.find_by_installation_id(installation_id)
+        # MongoDB storage removed - cannot query database
+        logger.warning("MongoDB storage removed - find installation result operation skipped")
+        return None
 
     async def list_available_plugins(
         self,
@@ -861,10 +849,7 @@ class PluginMarketplaceService:
         self, installation: PluginInstallationResult, update_data: Dict[str, Any]
     ) -> None:
         """Helper method to update installation progress via repository."""
-        await self._installation_repo.update_one(
-            {"installation_id": installation.installation_id},
-            {"$set": update_data},
-        )
+        logger.warning("MongoDB storage removed - update installation progress operation skipped")
 
     async def _execute_plugin_installation(self, installation: PluginInstallationResult) -> None:
         """Execute plugin installation process"""
@@ -1250,12 +1235,11 @@ class PluginMarketplaceService:
             plugins_by_marketplace[marketplace_name] = len(plugins)
             total_cached_plugins += len(plugins)
 
-        # Count installations
-        total_installations = await self._installation_repo.count()
-
-        successful_installations = await self._installation_repo.count({"success": True})
-
-        failed_installations = await self._installation_repo.count({"success": False})
+        # Count installations (MongoDB storage removed - returning defaults)
+        logger.warning("MongoDB storage removed - installation count operations skipped")
+        total_installations = 0
+        successful_installations = 0
+        failed_installations = 0
 
         # Active operations
         active_installations = len(self.active_installations)

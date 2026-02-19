@@ -65,8 +65,6 @@ import time
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 
-from app.repositories.plugin_models_repository import OptimizationJobRepository
-
 from .models import (
     CircuitState,
     InstanceStatus,
@@ -143,8 +141,8 @@ class PluginOrchestrationService:
         # Service state
         self._started: bool = False
 
-        # Repository for optimization jobs
-        self._optimization_repo = OptimizationJobRepository()
+        # In-memory storage for optimization jobs (MongoDB removed)
+        self._optimization_jobs: Dict[str, Any] = {}
 
         logger.info("PluginOrchestrationService initialized")
 
@@ -1217,8 +1215,8 @@ class PluginOrchestrationService:
             metadata=metadata or {},
         )
 
-        # Persist via repository
-        await self._optimization_repo.create(job)
+        # Store in memory (MongoDB removed)
+        self._optimization_jobs[job.job_id] = job
 
         logger.info(
             "Created optimization job %s for plugin %s (target=%s)",
@@ -1230,22 +1228,8 @@ class PluginOrchestrationService:
         return job
 
     async def _update_optimization_job(self, job: OptimizationJob) -> None:
-        """Helper to update optimization job via repository."""
-        await self._optimization_repo.update_one(
-            {"job_id": job.job_id},
-            {
-                "$set": {
-                    "status": job.status,
-                    "progress": job.progress,
-                    "started_at": job.started_at,
-                    "completed_at": job.completed_at,
-                    "current_metrics": job.current_metrics,
-                    "recommendations": job.recommendations,
-                    "result_summary": job.result_summary,
-                    "error_message": job.error_message,
-                }
-            },
-        )
+        """Helper to update optimization job in memory."""
+        self._optimization_jobs[job.job_id] = job
 
     async def run_optimization(self, job_id: str) -> Optional[OptimizationJob]:
         """
@@ -1261,7 +1245,7 @@ class PluginOrchestrationService:
             Updated job with results, or None if not found.
         """
         try:
-            job = await self._optimization_repo.find_by_job_id(job_id)
+            job = self._optimization_jobs.get(job_id)
             if not job:
                 logger.warning("Optimization job not found: %s", job_id)
                 return None
@@ -1308,7 +1292,7 @@ class PluginOrchestrationService:
         except Exception as e:
             logger.error("Optimization job %s failed: %s", job_id, str(e))
             try:
-                job = await self._optimization_repo.find_by_job_id(job_id)
+                job = self._optimization_jobs.get(job_id)
                 if job:
                     job.status = "failed"
                     job.error_message = str(e)

@@ -88,7 +88,6 @@ Module Structure:
 Related Modules:
     - services.compliance_rules: Rule upload and versioning
     - services.owca: Compliance intelligence and scoring
-    - repositories.compliance_repository: MongoDB access layer
     - models.scan_config_models: Framework configuration models
 
 Backward Compatibility:
@@ -117,12 +116,7 @@ from .engine import (  # noqa: F401
 # =============================================================================
 # Framework Mapper
 # =============================================================================
-from .mapper import (
-    ComplianceControl,
-    ComplianceFramework,
-    ComplianceFrameworkMapper,
-    FrameworkMapping,
-)  # noqa: F401
+from .mapper import ComplianceControl, ComplianceFramework, ComplianceFrameworkMapper, FrameworkMapping  # noqa: F401
 
 # =============================================================================
 # Framework Metadata Service

@@ -25,7 +25,6 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-from beanie import Document
 from pydantic import BaseModel, Field, validator
 
 # Optional semver import - graceful fallback if not installed
@@ -339,12 +338,12 @@ class PluginUpdatePlan(BaseModel):
     notify_on_failure: bool = Field(default=True)
 
 
-class PluginUpdateExecution(Document):
+class PluginUpdateExecution(BaseModel):
     """
     Plugin update execution record.
 
-    MongoDB document storing the complete execution history of a plugin
-    update including status, timing, steps, results, and rollback info.
+    Stores the complete execution history of a plugin update
+    including status, timing, steps, results, and rollback info.
 
     Attributes:
         execution_id: Unique identifier for this execution.
@@ -364,16 +363,9 @@ class PluginUpdateExecution(Document):
         rollback_version: Version rolled back to (if rolled back).
         rollback_reason: Reason for rollback (if rolled back).
         rollback_completed_at: When rollback completed.
-
-    Example:
-        >>> execution = PluginUpdateExecution(
-        ...     update_plan=plan,
-        ...     status=UpdateStatus.IN_PROGRESS,
-        ... )
-        >>> await execution.save()
     """
 
-    execution_id: str = Field(default_factory=lambda: str(uuid.uuid4()), unique=True)
+    execution_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     update_plan: PluginUpdatePlan
 
     # Execution status
@@ -404,17 +396,6 @@ class PluginUpdateExecution(Document):
     rollback_version: Optional[str] = None
     rollback_reason: Optional[str] = None
     rollback_completed_at: Optional[datetime] = None
-
-    class Settings:
-        """MongoDB collection settings."""
-
-        collection = "plugin_update_executions"
-        indexes = [
-            "execution_id",
-            "update_plan.plugin_id",
-            "status",
-            "started_at",
-        ]
 
 
 # =============================================================================

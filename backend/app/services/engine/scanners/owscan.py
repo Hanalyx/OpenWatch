@@ -1,47 +1,26 @@
 """
-OpenWatch Scanner (OWScanner) - MongoDB-Integrated Compliance Scanning
+OpenWatch Scanner (OWScanner) - SCAP Compliance Scanning
 
-This module provides the OWScanner class, OpenWatch's primary compliance scanner
-that integrates MongoDB rule management with SCAP execution capabilities.
+This module provides the OWScanner class, OpenWatch's SCAP compliance scanner
+with XCCDF/OVAL generation and execution capabilities.
 
 Key Features:
-- MongoDB-based rule selection and platform matching
-- Dynamic XCCDF and OVAL generation from MongoDB rules
+- Dynamic XCCDF and OVAL generation from compliance rules
 - Local and remote scan execution via engine executors
-- Result enrichment with MongoDB rule intelligence
 - Platform-aware OVAL deduplication
 - Rule inheritance resolution
 - Delegates content operations to OSCAPScanner (no duplication)
 
 Design Philosophy:
 - Single scanner for all SCAP operations (unified API)
-- MongoDB as the source of truth for compliance rules
 - Platform-specific OVAL for accurate compliance results
 - Security-first with input validation and safe XML generation
 - Defensive coding with comprehensive error handling
 - DRY: Delegates to OSCAPScanner for content validation/parsing
 
-Usage:
-    from app.services.engine.scanners import OWScanner
-
-    scanner = OWScanner()
-    await scanner.initialize()
-
-    # Select platform-appropriate rules
-    rules = await scanner.select_platform_rules(
-        platform="rhel9",
-        platform_version="9.0",
-        framework="NIST_800_53"
-    )
-
-    # Generate SCAP content and execute scan
-    result = await scanner.scan_with_rules(
-        host_id=host_id,
-        hostname="192.168.1.100",
-        platform="rhel9",
-        rules=rules,
-        connection_params=conn_params,
-    )
+Note:
+    This scanner is part of the legacy OpenSCAP pipeline. Aegis is now the
+    primary compliance engine. See app/plugins/aegis/ for the current approach.
 
 Security Notes:
 - XML generation uses ElementTree (safe against XXE)
@@ -63,7 +42,6 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from app.services.auth import get_auth_service
-from app.services.mongo_integration_service import MongoIntegrationService, get_mongo_service
 from app.services.platform_capability_service import PlatformCapabilityService
 from app.services.rules import RuleService
 
@@ -77,16 +55,15 @@ logger = logging.getLogger(__name__)
 
 class OWScanner(BaseScanner):
     """
-    OpenWatch Scanner - MongoDB-integrated SCAP compliance scanner.
+    OpenWatch Scanner - SCAP compliance scanner.
 
-    This is OpenWatch's primary scanner, combining MongoDB-based rule management
-    with SCAP execution capabilities for complete compliance scanning.
+    This scanner provides XCCDF/OVAL generation and execution capabilities
+    for SCAP compliance scanning. Note: Aegis is now the primary compliance
+    engine; this scanner is part of the legacy OpenSCAP pipeline.
 
     The scanner supports:
-    - Platform-specific rule selection from MongoDB
     - Dynamic XCCDF/OVAL generation
     - Local and remote scan execution
-    - Result enrichment with rule intelligence
     - Rule inheritance resolution
 
     Content operations (validation, profile extraction, result parsing) are
@@ -94,18 +71,11 @@ class OWScanner(BaseScanner):
 
     Attributes:
         oscap_scanner: OSCAPScanner instance for content operations
-        mongo_service: MongoDB integration service for rule queries
         rule_service: Service for advanced rule operations
         platform_service: Platform capability detection service
         content_dir: Directory for SCAP content files
         results_dir: Directory for scan result files
         _initialized: Whether async services have been initialized
-
-    Usage:
-        scanner = OWScanner()
-        await scanner.initialize()
-        rules = await scanner.select_platform_rules("rhel9", "9.0")
-        result = await scanner.scan_with_rules(host_id, hostname, "rhel9", rules)
     """
 
     def __init__(
@@ -134,8 +104,7 @@ class OWScanner(BaseScanner):
         # Delegate content operations to OSCAPScanner (DRY principle)
         self.oscap_scanner = OSCAPScanner()
 
-        # MongoDB integration services (initialized async)
-        self.mongo_service: Optional[MongoIntegrationService] = None
+        # Services (initialized async)
         self.rule_service: Optional[RuleService] = None
         self.platform_service: Optional[PlatformCapabilityService] = None
 
@@ -164,9 +133,8 @@ class OWScanner(BaseScanner):
                 ScanType.XCCDF_RULE,
                 ScanType.OVAL_DEFINITIONS,
                 ScanType.DATASTREAM,
-                ScanType.MONGODB_GENERATED,
             ],
-            supported_formats=["xccdf", "oval", "datastream", "mongodb"],
+            supported_formats=["xccdf", "oval", "datastream"],
             supports_remote=True,
             supports_local=True,
             max_concurrent=0,
@@ -174,9 +142,9 @@ class OWScanner(BaseScanner):
 
     async def initialize(self) -> None:
         """
-        Initialize async MongoDB integration services.
+        Initialize async services.
 
-        Must be called before using MongoDB-dependent methods like
+        Must be called before using methods like
         select_platform_rules() or scan_with_rules().
 
         Raises:
@@ -186,10 +154,6 @@ class OWScanner(BaseScanner):
             return
 
         try:
-            # Initialize MongoDB service
-            self.mongo_service = await get_mongo_service()
-            self._logger.info("MongoDB service initialized")
-
             # Initialize rule service
             self.rule_service = RuleService()
             await self.rule_service.initialize()
@@ -201,12 +165,12 @@ class OWScanner(BaseScanner):
             self._logger.info("Platform service initialized")
 
             self._initialized = True
-            self._logger.info("Unified SCAP scanner fully initialized")
+            self._logger.info("OWScanner fully initialized")
 
         except Exception as e:
             self._logger.error("Scanner initialization failed: %s", e)
             raise ScannerError(
-                message=f"MongoDB integration initialization failed: {e}",
+                message=f"Scanner initialization failed: {e}",
                 error_code="SCANNER_INIT_ERROR",
                 cause=e,
             )
@@ -279,7 +243,7 @@ class OWScanner(BaseScanner):
             return self._parse_basic_results(result_path)
 
     # =========================================================================
-    # MongoDB Rule Selection Methods
+    # Rule Selection Methods
     # =========================================================================
 
     async def select_platform_rules(
@@ -290,10 +254,13 @@ class OWScanner(BaseScanner):
         severity_filter: Optional[List[str]] = None,
     ) -> List[Any]:
         """
-        Select MongoDB rules applicable to a specific platform.
+        Select rules applicable to a specific platform.
 
-        Uses the rule service to query MongoDB for rules that match
+        Uses the rule service to query for rules that match
         the target platform and optional framework/severity filters.
+
+        Note: MongoDB rule storage has been removed. This method now returns
+        an empty list. Use Aegis for compliance scanning instead.
 
         Args:
             platform: Target platform (e.g., "rhel9", "ubuntu2204")
@@ -302,7 +269,7 @@ class OWScanner(BaseScanner):
             severity_filter: Optional list of severity levels
 
         Returns:
-            List of ComplianceRule objects matching the criteria.
+            List of rule dicts matching the criteria.
 
         Raises:
             ScannerError: If rule selection fails.
@@ -321,32 +288,13 @@ class OWScanner(BaseScanner):
                 severity_filter=severity_filter,
             )
 
-            # Convert dict responses to rule objects if needed
-            from app.models.mongo_models import ComplianceRule
-
-            mongodb_rules = []
-            for rule_data in rules:
-                if isinstance(rule_data, dict):
-                    try:
-                        rule = ComplianceRule(**rule_data)
-                        mongodb_rules.append(rule)
-                    except Exception as e:
-                        self._logger.warning(
-                            "Failed to convert rule %s: %s",
-                            rule_data.get("rule_id", "unknown"),
-                            e,
-                        )
-                        continue
-                else:
-                    mongodb_rules.append(rule_data)
-
             self._logger.info(
                 "Selected %d rules for %s %s",
-                len(mongodb_rules),
+                len(rules),
                 platform,
                 platform_version,
             )
-            return mongodb_rules
+            return rules
 
         except Exception as e:
             self._logger.error("Failed to select platform rules: %s", e)
@@ -358,48 +306,22 @@ class OWScanner(BaseScanner):
 
     async def get_rules_by_ids(self, rule_ids: List[str]) -> List[Any]:
         """
-        Get specific rules by their MongoDB ObjectIds.
+        Get specific rules by their IDs.
+
+        Note: MongoDB rule storage has been removed. This method returns
+        an empty list. Use Aegis for compliance scanning instead.
 
         Args:
-            rule_ids: List of MongoDB ObjectId strings.
+            rule_ids: List of rule ID strings.
 
         Returns:
-            List of ComplianceRule objects.
+            Empty list (MongoDB removed).
         """
-        if not self._initialized:
-            await self.initialize()
-
-        try:
-            from bson import ObjectId
-
-            from app.repositories import ComplianceRuleRepository
-
-            self._logger.info("Fetching %d specific rules from MongoDB", len(rule_ids))
-
-            repo = ComplianceRuleRepository()
-            rules = []
-
-            for rule_id in rule_ids:
-                try:
-                    rule = await repo.find_one({"_id": ObjectId(rule_id)})
-                    if rule:
-                        rules.append(rule)
-                    else:
-                        self._logger.warning("Rule not found: %s", rule_id)
-                except Exception as e:
-                    self._logger.warning("Failed to fetch rule %s: %s", rule_id, e)
-                    continue
-
-            self._logger.info("Successfully fetched %d rules by ID", len(rules))
-            return rules
-
-        except Exception as e:
-            self._logger.error("Failed to get rules by IDs: %s", e)
-            raise ScannerError(
-                message=f"Rule retrieval failed: {e}",
-                error_code="RULE_RETRIEVAL_ERROR",
-                cause=e,
-            )
+        self._logger.warning(
+            "get_rules_by_ids: MongoDB removed. Cannot fetch %d rules. " "Use Aegis for compliance scanning instead.",
+            len(rule_ids),
+        )
+        return []
 
     # =========================================================================
     # SCAP Content Generation Methods
@@ -412,14 +334,14 @@ class OWScanner(BaseScanner):
         platform: str,
     ) -> Tuple[str, Optional[str]]:
         """
-        Generate SCAP profile XML and OVAL definitions from MongoDB rules.
+        Generate SCAP profile XML and OVAL definitions from compliance rules.
 
         Creates a temporary directory with:
         - xccdf-profile.xml: XCCDF benchmark with profile and rules
         - oval-definitions.xml: Combined OVAL definitions (if available)
 
         Args:
-            rules: List of ComplianceRule objects
+            rules: List of rule objects
             profile_name: Name for the generated profile
             platform: Target platform for OVAL selection
 
@@ -431,7 +353,7 @@ class OWScanner(BaseScanner):
         """
         try:
             self._logger.info(
-                "Generating SCAP profile '%s' from %d MongoDB rules",
+                "Generating SCAP profile '%s' from %d rules",
                 profile_name,
                 len(rules),
             )
@@ -473,7 +395,7 @@ class OWScanner(BaseScanner):
         temp_dir: Path,
     ) -> Tuple[Optional[str], Dict[str, str]]:
         """
-        Generate combined OVAL definitions document from MongoDB rules.
+        Generate combined OVAL definitions document from compliance rules.
 
         Platform-aware OVAL Selection:
             Uses platform_implementations.{platform}.oval_filename
@@ -482,7 +404,7 @@ class OWScanner(BaseScanner):
             correct compliance results.
 
         Args:
-            rules: List of ComplianceRule objects
+            rules: List of rule objects
             platform: Target platform (e.g., "rhel9")
             temp_dir: Directory to store generated OVAL file
 
@@ -691,7 +613,7 @@ class OWScanner(BaseScanner):
         without fallback to ensure correct platform OVAL.
 
         Args:
-            rule: ComplianceRule object
+            rule: rule object
             target_platform: Target platform identifier
 
         Returns:
@@ -722,10 +644,10 @@ class OWScanner(BaseScanner):
         rule_to_oval_map: Optional[Dict[str, str]] = None,
     ) -> str:
         """
-        Generate XCCDF XML from MongoDB rules.
+        Generate XCCDF XML from compliance rules.
 
         Args:
-            rules: List of ComplianceRule objects
+            rules: List of rule objects
             profile_name: Profile name
             platform: Target platform
             rule_to_oval_map: Mapping of rule_id to OVAL definition ID
@@ -747,13 +669,13 @@ class OWScanner(BaseScanner):
             f'id="{benchmark_id}" resolved="1" xml:lang="en-US">',
             "  <xccdf:status>incomplete</xccdf:status>",
             f"  <xccdf:title>OpenWatch Generated Profile - {profile_name}</xccdf:title>",
-            "  <xccdf:description>Profile generated from MongoDB compliance rules</xccdf:description>",
+            "  <xccdf:description>Profile generated from compliance rules</xccdf:description>",
             f'  <xccdf:version>{datetime.now().strftime("%Y.%m.%d")}</xccdf:version>',
             '  <xccdf:model system="urn:xccdf:scoring:default"/>',
             "",
             f'  <xccdf:Profile id="{profile_id}">',
             f"    <xccdf:title>{profile_name}</xccdf:title>",
-            f"    <xccdf:description>MongoDB-based compliance profile for {platform}</xccdf:description>",
+            f"    <xccdf:description>Compliance profile for {platform}</xccdf:description>",
         ]
 
         # Add rule selections
@@ -856,14 +778,14 @@ class OWScanner(BaseScanner):
         rule_ids: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         """
-        Execute SCAP scan using MongoDB rules.
+        Execute SCAP scan using compliance rules.
 
         Complete workflow:
         1. Select rules (by IDs or platform/framework)
         2. Resolve rule inheritance
         3. Generate SCAP profile
         4. Execute scan (local or remote)
-        5. Enrich results with rule intelligence
+        5. Enrich results
 
         Args:
             host_id: UUID of the target host
@@ -926,7 +848,7 @@ class OWScanner(BaseScanner):
             resolved_rules = await self._resolve_rule_inheritance(rules, platform)
 
             # Step 3: Generate SCAP profile
-            profile_name = f"MongoDB {framework or 'Standard'} Profile"
+            profile_name = f"{framework or 'Standard'} Profile"
             profile_path, oval_path = await self.generate_scan_profile(resolved_rules, profile_name, platform)
 
             # Step 4: Execute scan
@@ -962,7 +884,7 @@ class OWScanner(BaseScanner):
         Resolve rule inheritance and parameter overrides.
 
         Args:
-            rules: List of ComplianceRule objects
+            rules: List of rule objects
             platform: Target platform
 
         Returns:
@@ -1013,18 +935,16 @@ class OWScanner(BaseScanner):
         Merge child rule with parent rule data.
 
         Args:
-            child_rule: Child ComplianceRule
+            child_rule: Child rule
             parent_data: Parent rule data dict
             platform: Target platform
 
         Returns:
-            Merged ComplianceRule.
+            Merged rule data.
         """
         try:
-            from app.models.mongo_models import ComplianceRule
-
             parent_rule_data = parent_data.get("rule", {})
-            merged_data = child_rule.dict()
+            merged_data = child_rule.dict() if hasattr(child_rule, "dict") else dict(child_rule)
 
             # Merge platform implementations
             if "platform_implementations" in parent_rule_data:
@@ -1059,7 +979,7 @@ class OWScanner(BaseScanner):
                 child_tags = set(merged_data.get("tags", []))
                 merged_data["tags"] = list(parent_tags.union(child_tags))
 
-            return ComplianceRule(**merged_data)
+            return merged_data
 
         except Exception as e:
             self._logger.error("Failed to merge inherited rule: %s", e)
@@ -1246,7 +1166,7 @@ class OWScanner(BaseScanner):
             # Create execution context
             context = ExecutionContext(
                 scan_id=scan_id,
-                scan_type=ScanType.MONGODB_GENERATED,
+                scan_type=ScanType.XCCDF_PROFILE,
                 hostname=hostname,
                 port=connection_params.get("port", 22),
                 username=credential_data.username,
@@ -1284,11 +1204,11 @@ class OWScanner(BaseScanner):
         rules: List[Any],
     ) -> Dict[str, Any]:
         """
-        Enrich scan results with MongoDB rule intelligence.
+        Enrich scan results with rule metadata.
 
         Args:
             scan_result: Raw scan results
-            rules: ComplianceRule objects used in scan
+            rules: Rule objects used in scan
 
         Returns:
             Enriched result dictionary.
@@ -1302,63 +1222,14 @@ class OWScanner(BaseScanner):
                 self._logger.warning("Result file not found: %s", result_file)
                 return scan_result
 
-            # Create rule lookup
-            rule_lookup = {getattr(rule, "scap_rule_id", None) or rule.rule_id: rule for rule in rules}
-
-            # Gather intelligence
-            enrichment_data = await self._gather_rule_intelligence(rule_lookup)
-
-            scan_result["enrichment"] = enrichment_data
-            scan_result["mongodb_rules_used"] = len(rules)
+            scan_result["rules_used"] = len(rules)
             scan_result["enriched_at"] = datetime.utcnow().isoformat()
-
-            self._logger.info(
-                "Enriched results with %d rule intelligence entries",
-                len(enrichment_data),
-            )
 
             return scan_result
 
         except Exception as e:
             self._logger.error("Failed to enrich results: %s", e)
             return scan_result
-
-    async def _gather_rule_intelligence(
-        self,
-        rule_lookup: Dict[str, Any],
-    ) -> Dict[str, Any]:
-        """
-        Gather intelligence data for rules.
-
-        Args:
-            rule_lookup: Dictionary mapping rule_id to ComplianceRule
-
-        Returns:
-            Dictionary of intelligence data by rule_id.
-        """
-        intelligence_data = {}
-
-        for rule_id, rule in rule_lookup.items():
-            try:
-                intel_result = await self.mongo_service.get_rule_with_intelligence(rule.rule_id)
-
-                if intel_result and "intelligence" in intel_result:
-                    intelligence_data[rule_id] = {
-                        "rule_id": rule.rule_id,
-                        "business_impact": intel_result["intelligence"].get("business_impact"),
-                        "compliance_importance": intel_result["intelligence"].get("compliance_importance"),
-                        "false_positive_rate": intel_result["intelligence"].get("false_positive_rate"),
-                        "remediation_complexity": getattr(rule, "remediation_complexity", None),
-                        "remediation_risk": getattr(rule, "remediation_risk", None),
-                        "frameworks": getattr(rule, "frameworks", {}),
-                        "tags": getattr(rule, "tags", []),
-                    }
-
-            except Exception as e:
-                self._logger.warning("Failed to gather intelligence for %s: %s", rule_id, e)
-                continue
-
-        return intelligence_data
 
     # =========================================================================
     # Utility Methods

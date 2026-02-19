@@ -6,13 +6,12 @@ Manages plugin lifecycle, dependencies, and storage operations
 import json
 import logging
 import shutil
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from app.config import get_settings
 from app.models.plugin_models import InstalledPlugin, PluginStatus, PluginTrustLevel, PluginType
-from app.repositories import InstalledPluginRepository
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -27,7 +26,6 @@ class PluginRegistryService:
         self.plugin_storage_path.mkdir(parents=True, exist_ok=True)
         self._plugin_cache: Dict[str, Any] = {}
         self._dependency_graph: Dict[str, Any] = {}
-        self._repo = InstalledPluginRepository()
 
     async def register_plugin(self, plugin: InstalledPlugin) -> Dict[str, Any]:
         """
@@ -113,8 +111,8 @@ class PluginRegistryService:
             # Remove from cache
             self._plugin_cache.pop(plugin_id, None)
 
-            # Delete from database
-            await self._repo.delete_one({"plugin_id": plugin_id})
+            # MongoDB storage removed - delete operation skipped
+            logger.warning("MongoDB storage removed - plugin delete skipped for %s", plugin_id)
 
             logger.info(f"Plugin unregistered: {plugin_id}")
 
@@ -136,14 +134,9 @@ class PluginRegistryService:
             result: Optional[InstalledPlugin] = cached
             return result
 
-        # Query database via repository
-        plugin = await self._repo.find_by_plugin_id(plugin_id)
-
-        if plugin:
-            self._plugin_cache[plugin_id] = plugin
-
-        found: Optional[InstalledPlugin] = plugin
-        return found
+        # MongoDB storage removed - cannot query database
+        logger.warning("MongoDB storage removed - cannot look up plugin %s", plugin_id)
+        return None
 
     async def find_plugins(
         self,
@@ -162,57 +155,8 @@ class PluginRegistryService:
         Returns:
             List of matching plugins
         """
-        query = {}
-
-        if filters:
-            # Status filter
-            if "status" in filters:
-                query["status"] = filters["status"]
-
-            # Trust level filter
-            if "trust_level" in filters:
-                query["trust_level"] = filters["trust_level"]
-
-            # Platform filter
-            if "platform" in filters:
-                query["enabled_platforms"] = {"$in": [filters["platform"]]}
-
-            # Type filter
-            if "type" in filters:
-                query["manifest.type"] = filters["type"]
-
-            # Capability filter
-            if "capability" in filters:
-                query["manifest.capabilities"] = {"$in": [filters["capability"]]}
-
-            # Search in name/description
-            if "search" in filters:
-                search_term = filters["search"]
-                query["$or"] = [
-                    {"manifest.name": {"$regex": search_term, "$options": "i"}},
-                    {"manifest.description": {"$regex": search_term, "$options": "i"}},
-                    {"manifest.author": {"$regex": search_term, "$options": "i"}},
-                ]
-
-        # Build query
-        cursor = InstalledPlugin.find(query)
-
-        # Apply sorting
-        if sort_by == "name":
-            cursor = cursor.sort("manifest.name")
-        elif sort_by == "version":
-            cursor = cursor.sort("manifest.version")
-        elif sort_by == "imported_at":
-            cursor = cursor.sort([("imported_at", -1)])  # Descending
-        elif sort_by == "usage":
-            cursor = cursor.sort([("usage_count", -1)])  # Descending
-
-        # Apply limit
-        if limit:
-            cursor = cursor.limit(limit)
-
-        result: List[InstalledPlugin] = await cursor.to_list()
-        return result
+        logger.warning("MongoDB storage removed - find_plugins returns empty list")
+        return []
 
     async def get_plugins_for_rule(
         self,
@@ -267,17 +211,11 @@ class PluginRegistryService:
 
             old_status = plugin.status
 
-            # Update via repository
-            updated = await self._repo.update_one(
-                {"plugin_id": plugin_id},
-                {"$set": {"status": new_status.value, "updated_at": datetime.utcnow()}},
-            )
-
-            # Update cache with new status
-            if updated:
-                plugin.status = new_status
-                plugin.updated_at = datetime.utcnow()
-                self._plugin_cache[plugin_id] = plugin
+            # MongoDB storage removed - update cache only
+            logger.warning("MongoDB storage removed - plugin status update not persisted for %s", plugin_id)
+            plugin.status = new_status
+            plugin.updated_at = datetime.utcnow()
+            self._plugin_cache[plugin_id] = plugin
 
             logger.info(
                 f"Plugin status updated: {plugin_id} {old_status.value} -> {new_status.value}",
@@ -298,58 +236,22 @@ class PluginRegistryService:
     async def get_plugin_statistics(self) -> Dict[str, Any]:
         """Get comprehensive plugin statistics"""
         try:
-            # Count by status using repository
-            status_counts = {}
-            for status in list(PluginStatus):
-                count = await self._repo.count({"status": status.value})
-                status_counts[status.value] = count
+            logger.warning("MongoDB storage removed - plugin statistics unavailable")
 
-            # Count by trust level
-            trust_counts = {}
-            for trust_level in PluginTrustLevel:
-                count = await self._repo.count({"trust_level": trust_level.value})
-                trust_counts[trust_level.value] = count
-
-            # Count by type
-            type_counts = {}
-            for plugin_type in PluginType:
-                count = await self._repo.count({"manifest.type": plugin_type.value})
-                type_counts[plugin_type.value] = count
-
-            # Usage statistics - get top 10 by usage
-            top_plugins = await self._repo.find_many({}, limit=10, sort=[("usage_count", -1)])
-            total_usage = 0
-            most_used_plugins = []
-            for plugin in top_plugins:
-                total_usage += plugin.usage_count
-                most_used_plugins.append(
-                    {
-                        "plugin_id": plugin.plugin_id,
-                        "name": plugin.manifest.name,
-                        "usage_count": plugin.usage_count,
-                    }
-                )
-
-            # Recent activity
-            recent_imports = await self._repo.find_many({}, limit=5, sort=[("imported_at", -1)])
+            status_counts = {status.value: 0 for status in PluginStatus}
+            trust_counts = {trust_level.value: 0 for trust_level in PluginTrustLevel}
+            type_counts = {plugin_type.value: 0 for plugin_type in PluginType}
 
             return {
-                "total_plugins": await self._repo.count(),
+                "total_plugins": 0,
                 "by_status": status_counts,
                 "by_trust_level": trust_counts,
                 "by_type": type_counts,
                 "usage_stats": {
-                    "total_executions": total_usage,
-                    "most_used": most_used_plugins,
+                    "total_executions": 0,
+                    "most_used": [],
                 },
-                "recent_activity": [
-                    {
-                        "plugin_id": p.plugin_id,
-                        "name": p.manifest.name,
-                        "imported_at": p.imported_at.isoformat(),
-                    }
-                    for p in recent_imports
-                ],
+                "recent_activity": [],
                 "storage_info": await self._get_storage_statistics(),
             }
 
@@ -369,27 +271,9 @@ class PluginRegistryService:
             Cleanup results
         """
         try:
-            cutoff_date = datetime.utcnow() - timedelta(days=older_than_days)
-
             # Find candidates for cleanup
-            cleanup_candidates = []
-
-            async for plugin in InstalledPlugin.find():
-                should_cleanup = (
-                    len(plugin.applied_to_rules) == 0  # Not applied to any rules
-                    and plugin.usage_count == 0  # Never used
-                    and plugin.imported_at < cutoff_date  # Old enough
-                )
-
-                if should_cleanup:
-                    cleanup_candidates.append(
-                        {
-                            "plugin_id": plugin.plugin_id,
-                            "name": plugin.manifest.name,
-                            "imported_at": plugin.imported_at.isoformat(),
-                            "size_mb": await self._get_plugin_storage_size(plugin.plugin_id),
-                        }
-                    )
+            cleanup_candidates: List[Dict[str, Any]] = []
+            logger.warning("MongoDB storage removed - cannot query plugins for cleanup")
 
             if dry_run:
                 return {
@@ -426,20 +310,13 @@ class PluginRegistryService:
 
     async def _validate_plugin_registration(self, plugin: InstalledPlugin) -> Dict[str, Any]:
         """Validate plugin before registration"""
-        # Check for duplicate plugin ID
-        existing = await self._repo.find_by_plugin_id(plugin.plugin_id)
-        if existing:
-            return {
-                "valid": False,
-                "error": f"Plugin with ID {plugin.plugin_id} already exists",
-            }
+        logger.warning("MongoDB storage removed - skipping duplicate check for plugin %s", plugin.plugin_id)
 
-        # Check for name/version conflicts
-        existing_name_version = await self._repo.find_by_name_and_version(plugin.manifest.name, plugin.manifest.version)
-        if existing_name_version:
+        # Check cache for duplicate plugin ID
+        if plugin.plugin_id in self._plugin_cache:
             return {
                 "valid": False,
-                "error": f"Plugin {plugin.manifest.name}@{plugin.manifest.version} already exists",
+                "error": f"Plugin with ID {plugin.plugin_id} already exists (cached)",
             }
 
         # Validate executors

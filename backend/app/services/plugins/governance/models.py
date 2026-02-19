@@ -34,7 +34,6 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-from beanie import Document
 from pydantic import BaseModel, Field
 
 # =============================================================================
@@ -465,13 +464,12 @@ class ComplianceReport(BaseModel):
 # =============================================================================
 
 
-class AuditEvent(Document):
+class AuditEvent(BaseModel):
     """
     Audit event for plugin governance.
 
     Audit events provide an immutable record of all governance-related
-    actions for compliance reporting and forensic analysis. Events are
-    stored in MongoDB and indexed for efficient querying.
+    actions for compliance reporting and forensic analysis.
 
     Attributes:
         event_id: Unique identifier for the event.
@@ -486,17 +484,6 @@ class AuditEvent(Document):
         user_agent: User agent string (if applicable).
         correlation_id: ID for correlating related events.
         metadata: Additional event metadata.
-
-    Example:
-        >>> event = AuditEvent(
-        ...     event_type=AuditEventType.PLUGIN_INSTALL,
-        ...     plugin_id="new-plugin@1.0.0",
-        ...     actor="admin@example.com",
-        ...     action="Installed new security scanning plugin",
-        ...     details={"version": "1.0.0", "source": "marketplace"},
-        ...     outcome="success",
-        ... )
-        >>> await event.insert()
     """
 
     event_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -515,19 +502,6 @@ class AuditEvent(Document):
 
     # Additional metadata
     metadata: Dict[str, Any] = Field(default_factory=dict)
-
-    class Settings:
-        """MongoDB collection settings."""
-
-        collection = "plugin_audit_events"
-        indexes = [
-            "event_id",
-            "event_type",
-            "plugin_id",
-            "actor",
-            "timestamp",
-            "correlation_id",
-        ]
 
 
 # =============================================================================

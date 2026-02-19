@@ -12,12 +12,9 @@ from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
 import semver
-from beanie import Document
 from pydantic import BaseModel, Field, validator
 
 from app.models.plugin_models import InstalledPlugin, PluginStatus
-from app.repositories import InstalledPluginRepository
-from app.repositories.plugin_models_repository import PluginUpdateExecutionRepository
 from app.services.plugins.execution.service import PluginExecutionService
 from app.services.plugins.registry.service import PluginRegistryService
 
@@ -161,10 +158,10 @@ class PluginUpdatePlan(BaseModel):
     notify_on_failure: bool = Field(default=True)
 
 
-class PluginUpdateExecution(Document):
+class PluginUpdateExecution(BaseModel):
     """Plugin update execution record"""
 
-    execution_id: str = Field(default_factory=lambda: str(uuid.uuid4()), unique=True)
+    execution_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     update_plan: PluginUpdatePlan
 
     # Execution status
@@ -195,10 +192,6 @@ class PluginUpdateExecution(Document):
     rollback_version: Optional[str] = None
     rollback_reason: Optional[str] = None
     rollback_completed_at: Optional[datetime] = None
-
-    class Settings:
-        collection = "plugin_update_executions"
-        indexes = ["execution_id", "update_plan.plugin_id", "status", "started_at"]
 
 
 class PluginRollbackPlan(BaseModel):
@@ -253,8 +246,6 @@ class PluginLifecycleService:
         self.health_monitors: Dict[str, asyncio.Task[None]] = {}
         self.version_cache: Dict[str, List[PluginVersion]] = {}
         self.monitoring_enabled = False
-        self._execution_repo = PluginUpdateExecutionRepository()
-        self._plugin_repo = InstalledPluginRepository()
 
     async def start_health_monitoring(self) -> None:
         """Start continuous health monitoring for all plugins."""
@@ -429,7 +420,7 @@ class PluginLifecycleService:
 
         execution = PluginUpdateExecution(update_plan=update_plan, status=UpdateStatus.PENDING)
 
-        await self._execution_repo.create(execution)
+        logger.warning("MongoDB storage removed - create update execution operation skipped")
         self.active_updates[execution.execution_id] = execution
 
         # Start execution asynchronously
@@ -477,16 +468,7 @@ class PluginLifecycleService:
         execution.rollback_version = target_version
         execution.rollback_reason = rollback_reason
 
-        await self._execution_repo.update_one(
-            {"execution_id": execution.execution_id},
-            {
-                "$set": {
-                    "rollback_performed": True,
-                    "rollback_version": target_version,
-                    "rollback_reason": rollback_reason,
-                }
-            },
-        )
+        logger.warning("MongoDB storage removed - update rollback execution operation skipped")
 
         logger.info(f"Started plugin rollback: {plugin_id} {plugin.version} -> {target_version}")
         return execution
@@ -547,15 +529,8 @@ class PluginLifecycleService:
 
     async def get_update_history(self, plugin_id: Optional[str] = None, limit: int = 50) -> List[PluginUpdateExecution]:
         """Get plugin update execution history"""
-
-        if plugin_id:
-            return await self._execution_repo.find_by_plugin_id(plugin_id, limit=limit)
-
-        return await self._execution_repo.find_many(
-            query={},
-            limit=limit,
-            sort=[("started_at", -1)],
-        )
+        logger.warning("MongoDB storage removed - get update history operation skipped")
+        return []
 
     async def get_plugin_health_history(self, plugin_id: str, hours: int = 24) -> List[PluginHealthCheck]:
         """Get plugin health check history"""
@@ -570,10 +545,7 @@ class PluginLifecycleService:
         try:
             execution.status = UpdateStatus.IN_PROGRESS
             execution.started_at = datetime.utcnow()
-            await self._execution_repo.update_one(
-                {"execution_id": execution.execution_id},
-                {"$set": {"status": UpdateStatus.IN_PROGRESS.value, "started_at": execution.started_at}},
-            )
+            logger.warning("MongoDB storage removed - update execution status operation skipped")
 
             plan = execution.update_plan
 
@@ -637,25 +609,7 @@ class PluginLifecycleService:
             if execution.started_at:
                 execution.duration_seconds = (execution.completed_at - execution.started_at).total_seconds()
 
-            await self._execution_repo.update_one(
-                {"execution_id": execution.execution_id},
-                {
-                    "$set": {
-                        "status": execution.status.value,
-                        "success": execution.success,
-                        "completed_at": execution.completed_at,
-                        "duration_seconds": execution.duration_seconds,
-                        "execution_errors": execution.execution_errors,
-                        "execution_steps": execution.execution_steps,
-                        "pre_update_health": (
-                            execution.pre_update_health.model_dump() if execution.pre_update_health else None
-                        ),
-                        "post_update_health": (
-                            execution.post_update_health.model_dump() if execution.post_update_health else None
-                        ),
-                    }
-                },
-            )
+            logger.warning("MongoDB storage removed - update execution result operation skipped")
 
             # Remove from active updates
             self.active_updates.pop(execution.execution_id, None)
@@ -801,10 +755,7 @@ class PluginLifecycleService:
 
         execution.execution_steps.append(step)
         execution.current_step = step_name
-        await self._execution_repo.update_one(
-            {"execution_id": execution.execution_id},
-            {"$set": {"execution_steps": execution.execution_steps, "current_step": step_name}},
-        )
+        logger.warning("MongoDB storage removed - update execution step operation skipped")
 
     async def _run_validation_steps(self, validation_steps: List[str], execution: PluginUpdateExecution) -> None:
         """Run validation steps."""
@@ -856,32 +807,15 @@ class PluginLifecycleService:
     async def get_lifecycle_statistics(self) -> Dict[str, Any]:
         """Get plugin lifecycle management statistics"""
 
-        # Update statistics
-        total_updates = await self._execution_repo.count()
+        # MongoDB storage removed - returning defaults
+        logger.warning("MongoDB storage removed - lifecycle statistics operations skipped")
+        total_updates = 0
 
         status_stats = {}
         for status in UpdateStatus:
-            count = await self._execution_repo.count({"status": status.value})
-            status_stats[status.value] = count
-
-        # Success rate
-        completed_updates = await self._execution_repo.find_many(
-            query={
-                "status": {
-                    "$in": [
-                        UpdateStatus.COMPLETED.value,
-                        UpdateStatus.FAILED.value,
-                        UpdateStatus.ROLLED_BACK.value,
-                    ]
-                }
-            },
-            limit=10000,
-        )
+            status_stats[status.value] = 0
 
         success_rate = 0.0
-        if completed_updates:
-            successful = len([u for u in completed_updates if u.success])
-            success_rate = successful / len(completed_updates)
 
         # Active monitoring
         monitored_plugins = len(self.health_monitors)

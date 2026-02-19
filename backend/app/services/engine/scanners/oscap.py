@@ -105,7 +105,6 @@ class OSCAPScanner(BaseScanner):
                 ScanType.XCCDF_RULE,
                 ScanType.OVAL_DEFINITIONS,
                 ScanType.DATASTREAM,
-                ScanType.MONGODB_GENERATED,
             ],
             supported_formats=["xccdf", "oval", "datastream", "sds"],
             supports_remote=True,

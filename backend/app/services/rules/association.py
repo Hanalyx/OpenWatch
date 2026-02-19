@@ -33,11 +33,9 @@ from difflib import SequenceMatcher
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set
 
-from beanie import Document
 from pydantic import BaseModel, Field
 
 from app.models.plugin_models import InstalledPlugin, PluginStatus
-from app.repositories import RulePluginMappingRepository
 from app.services.plugins import PluginRegistryService
 
 logger = logging.getLogger(__name__)
@@ -68,10 +66,10 @@ class MappingSource(str, Enum):
     VERIFIED = "verified"  # Verified through execution results
 
 
-class RulePluginMapping(Document):
+class RulePluginMapping(BaseModel):
     """Association between OpenWatch rule and remediation plugin."""
 
-    mapping_id: str = Field(default_factory=lambda: str(uuid.uuid4()), unique=True)
+    mapping_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
 
     # Rule identification
     openwatch_rule_id: str = Field(..., description="OpenWatch rule identifier")
@@ -115,20 +113,6 @@ class RulePluginMapping(Document):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     tags: List[str] = Field(default_factory=list)
-
-    class Settings:
-        collection = "rule_plugin_mappings"
-        indexes = [
-            "mapping_id",
-            "openwatch_rule_id",
-            "plugin_id",
-            "platform",
-            "framework",
-            "confidence",
-            "mapping_source",
-            ("openwatch_rule_id", "platform"),
-            ("plugin_id", "platform"),
-        ]
 
 
 class RuleMappingRecommendation(BaseModel):
@@ -191,8 +175,6 @@ class RuleAssociationService:
         self.plugin_registry_service = PluginRegistryService()
         self._keyword_cache: Dict[str, Set[str]] = {}
         self._framework_mappings: Dict[str, Dict[str, str]] = self._load_framework_mappings()
-        # OW-REFACTOR-002: Repository Pattern (MANDATORY)
-        self._mapping_repo = RulePluginMappingRepository()
 
     def _load_framework_mappings(self) -> Dict[str, Dict[str, str]]:
         """Load predefined framework-specific rule mappings."""
@@ -255,8 +237,8 @@ class RuleAssociationService:
             created_by=created_by,
         )
 
-        # OW-REFACTOR-002: Repository Pattern (MANDATORY)
-        await self._mapping_repo.create(mapping)
+        # TODO: Migrate to PostgreSQL storage
+        logger.warning("Rule-plugin mapping storage not available (MongoDB removed)")
 
         logger.info(f"Created rule mapping: {openwatch_rule_id} -> {plugin_id} " f"({platform}, {confidence.value})")
         return mapping
@@ -280,18 +262,9 @@ class RuleAssociationService:
         Returns:
             List of matching mappings
         """
-        # Convert confidence to minimum score
-        min_score = self._confidence_to_score(min_confidence)
-
-        # OW-REFACTOR-002: Repository Pattern (MANDATORY)
-        mappings = await self._mapping_repo.find_by_rule_id(
-            rule_id=rule_id,
-            platform=platform,
-            framework=framework,
-            min_confidence_score=min_score,
-        )
-
-        return mappings
+        # TODO: Migrate to PostgreSQL storage
+        logger.debug("Rule-plugin mapping lookup not available (MongoDB removed)")
+        return []
 
     async def get_mappings_for_plugin(
         self,
@@ -310,15 +283,9 @@ class RuleAssociationService:
         Returns:
             List of matching mappings
         """
-        # Convert confidence to minimum score
-        min_score = self._confidence_to_score(min_confidence)
-
-        # OW-REFACTOR-002: Repository Pattern (MANDATORY)
-        return await self._mapping_repo.find_by_plugin_id(
-            plugin_id=plugin_id,
-            platform=platform,
-            min_confidence_score=min_score,
-        )
+        # TODO: Migrate to PostgreSQL storage
+        logger.debug("Rule-plugin mapping lookup not available (MongoDB removed)")
+        return []
 
     async def discover_mappings_for_rule(
         self,
@@ -466,67 +433,8 @@ class RuleAssociationService:
         Returns:
             Updated mapping
         """
-        # OW-REFACTOR-002: Repository Pattern (MANDATORY)
-        mapping = await self._mapping_repo.find_by_mapping_id(mapping_id)
-
-        if not mapping:
-            raise ValueError(f"Mapping not found: {mapping_id}")
-
-        # Calculate updated values
-        new_execution_count = mapping.execution_count + 1
-        new_success_count = mapping.success_count + (1 if success else 0)
-        new_effectiveness_score = new_success_count / new_execution_count if new_execution_count > 0 else None
-        new_is_validated = mapping.is_validated or (not mapping.is_validated and new_execution_count >= 3)
-
-        # Determine new confidence based on effectiveness
-        new_confidence = mapping.confidence
-        new_confidence_score = mapping.confidence_score
-        if new_effectiveness_score is not None:
-            if new_effectiveness_score > 0.9:
-                new_confidence = MappingConfidence.VERY_HIGH
-            elif new_effectiveness_score > 0.7:
-                new_confidence = MappingConfidence.HIGH
-            elif new_effectiveness_score > 0.5:
-                new_confidence = MappingConfidence.MEDIUM
-            elif new_effectiveness_score > 0.3:
-                new_confidence = MappingConfidence.LOW
-            else:
-                new_confidence = MappingConfidence.VERY_LOW
-            new_confidence_score = new_effectiveness_score
-
-        # Build validation result entry
-        validation_key = str(datetime.utcnow())
-        validation_entry = {
-            "success": success,
-            "execution_result": execution_result,
-        }
-
-        # Update via repository
-        await self._mapping_repo.update_one(
-            {"mapping_id": mapping_id},
-            {
-                "$set": {
-                    "execution_count": new_execution_count,
-                    "success_count": new_success_count,
-                    "last_execution": datetime.utcnow(),
-                    "effectiveness_score": new_effectiveness_score,
-                    "is_validated": new_is_validated,
-                    "confidence": new_confidence,
-                    "confidence_score": new_confidence_score,
-                    "updated_at": datetime.utcnow(),
-                    f"validation_results.{validation_key}": validation_entry,
-                }
-            },
-        )
-
-        # Fetch updated mapping
-        updated_mapping = await self._mapping_repo.find_by_mapping_id(mapping_id)
-
-        logger.info(
-            f"Updated mapping validation: {mapping_id} "
-            f"(success: {success}, effectiveness: {new_effectiveness_score})"
-        )
-        return updated_mapping
+        # TODO: Migrate to PostgreSQL storage
+        raise NotImplementedError("Rule-plugin mapping storage not available (MongoDB removed)")
 
     async def get_mapping_statistics(self) -> Dict[str, Any]:
         """
@@ -535,38 +443,14 @@ class RuleAssociationService:
         Returns:
             Statistics dictionary
         """
-        # OW-REFACTOR-002: Repository Pattern (MANDATORY)
-        stats = await self._mapping_repo.get_statistics()
-
-        # Get validated mappings for effectiveness calculation
-        validated_mappings = await self._mapping_repo.find_validated()
-
-        if validated_mappings:
-            avg_effectiveness = sum(
-                m.effectiveness_score for m in validated_mappings if m.effectiveness_score is not None
-            ) / len(validated_mappings)
-        else:
-            avg_effectiveness = 0.0
-
-        # Top performing mappings
-        top_mappings = await self._mapping_repo.find_top_performing(min_executions=1, limit=10)
-
+        # TODO: Migrate to PostgreSQL storage
         return {
-            "total_mappings": stats["total_mappings"],
-            "confidence_distribution": stats["by_confidence"],
-            "source_distribution": stats["by_source"],
-            "validated_mappings": stats["validated_count"],
-            "average_effectiveness": avg_effectiveness,
-            "top_performing_mappings": [
-                {
-                    "mapping_id": m.mapping_id,
-                    "rule_id": m.openwatch_rule_id,
-                    "plugin_id": m.plugin_id,
-                    "effectiveness": m.effectiveness_score,
-                    "executions": m.execution_count,
-                }
-                for m in top_mappings[:5]
-            ],
+            "total_mappings": 0,
+            "confidence_distribution": {},
+            "source_distribution": {},
+            "validated_mappings": 0,
+            "average_effectiveness": 0.0,
+            "top_performing_mappings": [],
         }
 
     async def bulk_import_mappings(
@@ -783,22 +667,8 @@ class RuleAssociationService:
 
     async def _get_historical_effectiveness(self, rule_id: str, plugin_id: str, platform: str) -> Dict[str, Any]:
         """Get historical effectiveness data for a rule-plugin combination."""
-        # OW-REFACTOR-002: Repository Pattern (MANDATORY)
-        mappings = await self._mapping_repo.find_for_rule_plugin_platform(
-            rule_id=rule_id,
-            plugin_id=plugin_id,
-            platform=platform,
-        )
-
-        if not mappings:
-            return {"success_rate": None, "usage_count": 0}
-
-        total_executions = sum(m.execution_count for m in mappings)
-        total_successes = sum(m.success_count for m in mappings)
-
-        success_rate = total_successes / total_executions if total_executions > 0 else None
-
-        return {"success_rate": success_rate, "usage_count": total_executions}
+        # TODO: Migrate to PostgreSQL storage
+        return {"success_rate": None, "usage_count": 0}
 
     def _confidence_to_score(self, confidence: MappingConfidence) -> float:
         """Convert confidence enum to numeric score."""

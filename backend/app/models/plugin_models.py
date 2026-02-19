@@ -9,9 +9,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional, Union
 
-from beanie import Document
 from pydantic import BaseModel, Field, root_validator, validator
-from pymongo import ASCENDING, IndexModel
 
 
 class PluginType(str, Enum):
@@ -251,7 +249,7 @@ class PluginPackage(BaseModel):
         return values
 
 
-class InstalledPlugin(Document):
+class InstalledPlugin(BaseModel):
     """Installed plugin registry with full tracking"""
 
     # Identity
@@ -292,41 +290,9 @@ class InstalledPlugin(Document):
     previous_versions: List[str] = Field(default_factory=list, description="Previous version IDs")
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
-    class Settings:
-        collection = "installed_plugins"
-        indexes = [
-            IndexModel(
-                [("manifest.name", ASCENDING), ("manifest.version", ASCENDING)],
-                unique=True,
-            ),
-            IndexModel([("status", ASCENDING)]),
-            IndexModel([("trust_level", ASCENDING)]),
-            IndexModel([("imported_at", ASCENDING)]),
-        ]
-
     def generate_plugin_id(self) -> str:
         """Generate unique plugin ID from name and version"""
         return f"{self.manifest.name}@{self.manifest.version}"
-
-    async def save(self, *args: Any, **kwargs: Any) -> "InstalledPlugin":
-        """
-        Override save to set plugin_id and updated_at.
-
-        Sets plugin_id from manifest if not already set, and updates
-        the updated_at timestamp before saving.
-
-        Args:
-            *args: Positional arguments passed to parent save method.
-            **kwargs: Keyword arguments passed to parent save method.
-
-        Returns:
-            The saved InstalledPlugin document.
-        """
-        if not self.plugin_id:
-            self.plugin_id = self.generate_plugin_id()
-        self.updated_at = datetime.utcnow()
-        result: InstalledPlugin = await super().save(*args, **kwargs)
-        return result
 
     def is_active(self) -> bool:
         """Check if plugin is active and ready for use"""

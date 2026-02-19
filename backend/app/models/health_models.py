@@ -1,5 +1,5 @@
 """
-MongoDB models for health monitoring data.
+Models for health monitoring data.
 
 This module defines the schema for both service health (operational monitoring)
 and content health (compliance rule effectiveness) data structures.
@@ -9,7 +9,6 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-from beanie import Document
 from pydantic import BaseModel, Field, validator
 
 
@@ -134,8 +133,8 @@ class OperationalAlert(BaseModel):
     resolution_timestamp: Optional[datetime] = Field(default=None, description="Resolution timestamp")
 
 
-class ServiceHealthDocument(Document):
-    """Service health monitoring document"""
+class ServiceHealthDocument(BaseModel):
+    """Service health monitoring data."""
 
     scanner_id: str = Field(description="Scanner instance ID")
     health_check_timestamp: datetime = Field(description="Health check timestamp")
@@ -161,14 +160,6 @@ class ServiceHealthDocument(Document):
 
     # Alerts
     alerts: List[OperationalAlert] = Field(default_factory=list, description="Active operational alerts")
-
-    class Settings:
-        name = "service_health"
-        indexes = [
-            "scanner_id",
-            "health_check_timestamp",
-            [("scanner_id", 1), ("health_check_timestamp", -1)],
-        ]
 
 
 # Content Health Models
@@ -234,8 +225,8 @@ class ContentAlert(BaseModel):
     urgency: str = Field(description="Urgency level")
 
 
-class ContentHealthDocument(Document):
-    """Content health monitoring document"""
+class ContentHealthDocument(BaseModel):
+    """Content health monitoring data."""
 
     scanner_id: str = Field(description="Scanner instance ID")
     health_check_timestamp: datetime = Field(description="Health check timestamp")
@@ -263,18 +254,10 @@ class ContentHealthDocument(Document):
         default_factory=list, description="Content alerts and recommendations"
     )
 
-    class Settings:
-        name = "content_health"
-        indexes = [
-            "scanner_id",
-            "health_check_timestamp",
-            [("scanner_id", 1), ("health_check_timestamp", -1)],
-        ]
-
 
 # Health Summary Model (combines both)
-class HealthSummaryDocument(Document):
-    """Combined health summary for quick access"""
+class HealthSummaryDocument(BaseModel):
+    """Combined health summary for quick access."""
 
     scanner_id: str = Field(description="Scanner instance ID")
     last_updated: datetime = Field(description="Last update timestamp")
@@ -290,7 +273,3 @@ class HealthSummaryDocument(Document):
     # Active issues
     active_issues_count: int = Field(0, description="Active issue count")
     critical_alerts: List[str] = Field(default_factory=list, description="Critical alert messages")
-
-    class Settings:
-        name = "health_summary"
-        indexes = ["scanner_id", "last_updated"]

@@ -1,7 +1,7 @@
 """
 Compliance Framework Reporting Service
 
-Generates detailed compliance reports based on MongoDB rules and scan results.
+Generates detailed compliance reports based on scan results.
 
 Classes:
     - ComplianceFrameworkReporter: Service for generating compliance framework reports
@@ -20,10 +20,6 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from jinja2 import Template
 
-from app.services.mongo_integration_service import (
-    MongoIntegrationService,
-    get_mongo_service,
-)
 from app.services.result_enrichment_service import ResultEnrichmentService
 
 if TYPE_CHECKING:
@@ -37,7 +33,6 @@ class ComplianceFrameworkReporter:
 
     def __init__(self) -> None:
         """Initialize the compliance framework reporter."""
-        self.mongo_service: Optional[MongoIntegrationService] = None
         self.enrichment_service: Optional[ResultEnrichmentService] = None
         self._initialized = False
 
@@ -99,7 +94,6 @@ class ComplianceFrameworkReporter:
             return
 
         try:
-            self.mongo_service = await get_mongo_service()
             # ResultEnrichmentService requires db session - only initialize if provided
             if db is not None:
                 self.enrichment_service = ResultEnrichmentService(db)
@@ -625,7 +619,7 @@ class ComplianceFrameworkReporter:
     async def _get_methodology_notes(self) -> List[str]:
         """Get methodology notes for the appendix."""
         return [
-            "Compliance assessment based on MongoDB rule definitions and SCAP scanning",
+            "Compliance assessment based on Aegis rule definitions and SCAP scanning",
             "Rule inheritance and platform-specific configurations applied",
             "Results enriched with business impact and remediation guidance",
             "Framework mappings derived from rule metadata and control associations",

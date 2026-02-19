@@ -943,36 +943,9 @@ async def get_scanner_health(
             scanner_details["error"] = str(scanner_err)
             overall_status = "degraded"
 
-        # Check rule repository (MongoDB) connection
-        repo_status = "unknown"
-        repo_details: Dict[str, Any] = {}
-        try:
-            from app.services.mongo_integration_service import get_mongo_service
-
-            mongo_service = await get_mongo_service()
-            mongo_health = await mongo_service.health_check()
-            repo_status = mongo_health.get("status", "unknown")
-
-            if repo_status == "healthy":
-                repo_details = {
-                    "database": mongo_health.get("database"),
-                    "collections": mongo_health.get("collections", []),
-                    "document_count": mongo_health.get("document_count", {}),
-                }
-            else:
-                repo_details = {"error": mongo_health.get("message", "Unknown error")}
-                overall_status = "degraded"
-        except Exception as repo_err:
-            repo_status = "error"
-            repo_details = {"error": str(repo_err)}
-            overall_status = "degraded"
-
         components["compliance_scanner"] = ComponentHealth(
             status=scanner_status,
-            details={
-                "rule_repository_connection": repo_status,
-                "rule_repository_details": repo_details,
-            },
+            details=scanner_details if scanner_details else None,
         )
 
         # Check enrichment service

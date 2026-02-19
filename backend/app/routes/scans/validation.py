@@ -27,8 +27,8 @@ Security Notes:
     - Audit logging for security-relevant operations
 
 Legacy Endpoints:
-    Endpoints marked (LEGACY) use SCAP content files instead of the
-    compliance rules database. For compliance scanning, use /api/scans/ endpoints.
+    Endpoints marked (LEGACY) use SCAP content files for scanning.
+    For compliance scanning, use /api/scans/ or /api/scans/aegis/ endpoints.
 """
 
 import json
@@ -82,19 +82,14 @@ async def validate_scan_configuration(
     """
     Pre-flight validation for scan configuration.
 
-    Supports two validation modes:
-    1. Legacy SCAP content: Validates against SCAP content files
-    2. MongoDB scanning: Validates host readiness for MongoDB-based scans
-
     Validates that a host is ready for scanning by checking:
     - Host exists and is active
-    - SCAP content exists and contains requested profile (legacy mode)
-    - Compliance rules exist for platform/framework (MongoDB mode)
+    - SCAP content exists and contains requested profile
     - Credentials are available and valid
     - SSH connectivity and prerequisites
 
     Args:
-        validation_request: Host, content/profile OR platform/framework to validate.
+        validation_request: Host, content/profile to validate.
         request: FastAPI request for client context.
         response: FastAPI response for deprecation headers.
         db: Database session.
@@ -108,7 +103,7 @@ async def validate_scan_configuration(
         HTTPException 400: Profile not in content or credentials unavailable.
         HTTPException 500: Validation system error.
 
-    Example (Legacy):
+    Example:
         POST /api/scans/validate
         {
             "host_id": "550e8400-e29b-41d4-a716-446655440000",
@@ -116,37 +111,18 @@ async def validate_scan_configuration(
             "profile_id": "xccdf_org.ssgproject.content_profile_stig"
         }
 
-    Example (MongoDB):
-        POST /api/scans/validate
-        {
-            "host_id": "550e8400-e29b-41d4-a716-446655440000",
-            "platform": "rhel",
-            "platform_version": "8",
-            "framework": "disa_stig"
-        }
-
     Security:
         - Requires authenticated user
         - Credentials resolved via AuthService (never exposed)
         - Error messages sanitized for non-admin users
     """
-    # Detect validation mode
-    is_mongodb_mode = (
-        validation_request.platform is not None
-        and validation_request.platform_version is not None
-        and validation_request.framework is not None
-    )
-
-    # Add deprecation header only for legacy SCAP content mode
-    if not is_mongodb_mode:
-        add_deprecation_header(response, "validate_scan_configuration")
+    add_deprecation_header(response, "validate_scan_configuration")
 
     try:
         logger.info(
             "Pre-flight validation requested",
             extra={
                 "host_id": validation_request.host_id,
-                "mode": "mongodb" if is_mongodb_mode else "legacy",
             },
         )
 
@@ -171,53 +147,27 @@ async def validate_scan_configuration(
         if not host_result:
             raise HTTPException(status_code=404, detail="Host not found or inactive")
 
-        # Mode-specific validation
-        if is_mongodb_mode:
-            # MongoDB mode: Validate compliance rules exist for platform/framework
-            from app.repositories.compliance_repository import ComplianceRuleRepository
+        # Get SCAP content details using QueryBuilder
+        content_builder = (
+            QueryBuilder("scap_content")
+            .select("id", "name", "file_path", "profiles")
+            .where("id = :id", validation_request.content_id, "id")
+        )
+        query, params = content_builder.build()
+        content_result = db.execute(text(query), params).fetchone()
 
+        if not content_result:
+            raise HTTPException(status_code=404, detail="SCAP content not found")
+
+        # Validate profile exists in content
+        if content_result.profiles:
             try:
-                repo = ComplianceRuleRepository()
-                # Check if rules exist for the specified framework
-                rule_count = await repo.count({f"frameworks.{validation_request.framework}": {"$exists": True}})
-
-                if rule_count == 0:
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"No compliance rules found for framework: {validation_request.framework}",
-                    )
-
-                logger.info(
-                    f"MongoDB validation: Found {rule_count} rules for " f"framework={validation_request.framework}"
-                )
-            except HTTPException:
-                raise
-            except Exception as e:
-                logger.warning(
-                    f"MongoDB rule lookup failed (non-critical): {e}. " "Proceeding with host validation only."
-                )
-        else:
-            # Legacy mode: Get SCAP content details using QueryBuilder
-            content_builder = (
-                QueryBuilder("scap_content")
-                .select("id", "name", "file_path", "profiles")
-                .where("id = :id", validation_request.content_id, "id")
-            )
-            query, params = content_builder.build()
-            content_result = db.execute(text(query), params).fetchone()
-
-            if not content_result:
-                raise HTTPException(status_code=404, detail="SCAP content not found")
-
-            # Validate profile exists in content
-            if content_result.profiles:
-                try:
-                    profiles = json.loads(content_result.profiles)
-                    profile_ids = [p.get("id") for p in profiles if p.get("id")]
-                    if validation_request.profile_id not in profile_ids:
-                        raise HTTPException(status_code=400, detail="Profile not found in SCAP content")
-                except json.JSONDecodeError:
-                    raise HTTPException(status_code=400, detail="Invalid SCAP content profiles")
+                profiles = json.loads(content_result.profiles)
+                profile_ids = [p.get("id") for p in profiles if p.get("id")]
+                if validation_request.profile_id not in profile_ids:
+                    raise HTTPException(status_code=400, detail="Profile not found in SCAP content")
+            except json.JSONDecodeError:
+                raise HTTPException(status_code=400, detail="Invalid SCAP content profiles")
 
         # Resolve credentials using auth service
         try:
@@ -312,9 +262,6 @@ async def validate_scan_configuration(
         }
         if validation_request.content_id is not None:
             error_context["content_id"] = validation_request.content_id
-        if validation_request.framework is not None:
-            error_context["framework"] = validation_request.framework
-            error_context["platform"] = validation_request.platform
 
         classified_error = await error_service.classify_error(
             e,
@@ -784,8 +731,7 @@ async def rescan_rule(
     """
     Rescan a specific rule from a completed scan (DISABLED).
 
-    This endpoint is no longer supported for MongoDB-based scanning.
-    For MongoDB scans, create a new full scan instead.
+    This endpoint is no longer supported. Create a new full scan instead.
 
     Args:
         scan_id: UUID of the original scan.
@@ -835,11 +781,11 @@ async def rescan_rule(
         if not scan_data.encrypted_credentials:
             raise HTTPException(status_code=400, detail="Host credentials not available")
 
-        # Rule rescanning is a legacy SCAP feature that's no longer supported
-        # with MongoDB-based scanning. For MongoDB scans, create a new full scan.
+        # Rule rescanning is a legacy SCAP feature that's no longer supported.
+        # Create a new full scan instead.
         raise HTTPException(
             status_code=400,
-            detail="Rule rescanning is not supported for MongoDB-based scans. " "Please create a new scan instead.",
+            detail="Rule rescanning is not supported. Please create a new scan instead.",
         )
 
     except HTTPException:
@@ -1154,7 +1100,7 @@ async def get_available_profiles(
 
     Note:
         Currently returns static profile data. Full implementation would
-        query SCAP content and MongoDB compliance rules.
+        query SCAP content and Aegis YAML rules.
     """
     # Placeholder implementation - full version would query databases
     return {
