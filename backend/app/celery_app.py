@@ -236,7 +236,6 @@ celery_app.conf.update(
     imports=[
         "app.tasks.monitoring_tasks",
         "app.tasks.adaptive_monitoring_dispatcher",
-        "app.tasks.health_monitoring_tasks",
         "app.tasks.compliance_tasks",
         "app.tasks.compliance_scheduler_tasks",
         "app.tasks.os_discovery_tasks",
