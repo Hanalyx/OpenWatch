@@ -42,6 +42,30 @@ def _get_rules_path() -> Path:
         return Path("rules")
 
 
+def _get_mappings_path() -> Optional[str]:
+    """Get the Kensa mappings path using runner.paths discovery."""
+    try:
+        from runner.paths import get_mappings_path
+
+        return str(get_mappings_path())
+    except ImportError:
+        logger.warning("runner.paths not available, cannot discover mappings path")
+        return None
+
+
+# Translate mapping IDs to framework_version strings used in DB.
+# Must match the version keys in framework_mapper.py FRAMEWORKS dict.
+MAPPING_VERSION_MAP = {
+    "cis-rhel8-v4.0.0": "rhel8_v4",
+    "cis-rhel9-v2.0.0": "rhel9_v2",
+    "stig-rhel8-v2r6": "rhel8_v2r6",
+    "stig-rhel9-v2r7": "rhel9_v2r7",
+    "nist-800-53-r5": "r5",
+    "pci-dss-v4.0": "v4",
+    "fedramp-moderate": "moderate",
+}
+
+
 def _get_kensa_version() -> str:
     """Get the Kensa version from the installed package."""
     try:
@@ -131,15 +155,20 @@ class KensaRuleSyncService:
                     }
                 )
 
+        # Sync mapping files (additive — fills gaps left by inline refs)
+        mapping_file_count = self._sync_mapping_files()
+        stats["mapping_file_mappings"] = mapping_file_count
+
         # Commit all changes
         self.db.commit()
 
         stats["duration_ms"] = int((datetime.utcnow() - start_time).total_seconds() * 1000)
         logger.info(
-            "Kensa rule sync complete: %d synced, %d skipped, %d mappings",
+            "Kensa rule sync complete: %d synced, %d skipped, " "%d inline mappings, %d mapping file mappings",
             stats["rules_synced"],
             stats["rules_skipped"],
             stats["mappings_created"],
+            stats["mapping_file_mappings"],
         )
 
         return stats
@@ -300,6 +329,144 @@ class KensaRuleSyncService:
                 mappings_count += 1
 
         return mappings_count
+
+    def _sync_mapping_files(self) -> int:
+        """
+        Sync framework mappings from Kensa mapping files.
+
+        Mapping files are the authoritative source for framework coverage.
+        They supplement inline rule references which are sparse for PCI/NIST/FedRAMP.
+
+        Uses ON CONFLICT DO NOTHING so inline refs (already inserted per-rule)
+        take priority and mapping file data fills gaps.
+
+        Returns:
+            Number of mapping rows inserted from mapping files.
+        """
+        mappings_path = _get_mappings_path()
+        if not mappings_path:
+            logger.info("Kensa mappings path not available, skipping mapping file sync")
+            return 0
+
+        try:
+            from runner.mappings import load_all_mappings
+        except ImportError:
+            logger.warning("runner.mappings not available, skipping mapping file sync")
+            return 0
+
+        try:
+            all_mappings = load_all_mappings(mappings_path)
+        except Exception as e:
+            logger.error("Failed to load Kensa mapping files: %s", e)
+            return 0
+
+        count = 0
+        for mapping_id, framework_mapping in all_mappings.items():
+            framework = framework_mapping.framework
+            version = MAPPING_VERSION_MAP.get(mapping_id)
+            if version is None:
+                logger.warning(
+                    "Unknown mapping ID %s (framework=%s), skipping",
+                    mapping_id,
+                    framework,
+                )
+                continue
+
+            for control_id, entry in framework_mapping.sections.items():
+                rule_ids = entry.metadata.get("rules", [])
+                title = entry.title or ""
+
+                for rule_id in rule_ids:
+                    try:
+                        count += self._insert_mapping_file_entry(
+                            framework=framework,
+                            version=version,
+                            control_id=control_id,
+                            control_title=title,
+                            rule_id=rule_id,
+                            entry=entry,
+                        )
+                    except Exception as e:
+                        logger.debug(
+                            "Mapping file insert failed for %s/%s/%s: %s",
+                            framework,
+                            control_id,
+                            rule_id,
+                            e,
+                        )
+
+        logger.info(
+            "Mapping file sync: loaded %d mapping files, inserted %d rows",
+            len(all_mappings),
+            count,
+        )
+        return count
+
+    def _insert_mapping_file_entry(
+        self,
+        framework: str,
+        version: str,
+        control_id: str,
+        control_title: str,
+        rule_id: str,
+        entry: Any,
+    ) -> int:
+        """
+        Insert a single mapping file entry with ON CONFLICT DO NOTHING.
+
+        Populates framework-specific columns (CIS, STIG) from entry metadata.
+
+        Returns:
+            1 if inserted, 0 if conflict (already exists from inline refs).
+        """
+        metadata = entry.metadata or {}
+
+        # Build framework-specific column values
+        cis_section = None
+        cis_level = None
+        cis_type = None
+        severity = None
+
+        if framework == "cis":
+            cis_section = control_id
+            cis_level = metadata.get("level")
+            cis_type = metadata.get("type")
+        elif framework == "stig":
+            severity = metadata.get("severity")
+
+        query = text(
+            """
+            INSERT INTO framework_mappings (
+                framework, framework_version, control_id, control_title,
+                cis_section, cis_level, cis_type, severity,
+                kensa_rule_id, created_at
+            )
+            VALUES (
+                :framework, :version, :control_id, :control_title,
+                :cis_section, :cis_level, :cis_type, :severity,
+                :rule_id, NOW()
+            )
+            ON CONFLICT (framework, framework_version, control_id, kensa_rule_id)
+            DO NOTHING
+        """
+        )
+
+        result = self.db.execute(
+            query,
+            {
+                "framework": framework,
+                "version": version,
+                "control_id": control_id,
+                "control_title": control_title,
+                "cis_section": cis_section,
+                "cis_level": cis_level,
+                "cis_type": cis_type,
+                "severity": severity,
+                "rule_id": rule_id,
+            },
+        )
+
+        return result.rowcount
 
     def _insert_cis_mapping(self, rule_id: str, version: str, mapping: Dict[str, Any]) -> None:
         """Insert a CIS framework mapping."""

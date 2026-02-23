@@ -63,6 +63,9 @@ class FrameworkMapper:
         "pci_dss": {
             "v4": "PCI-DSS v4.0",
         },
+        "fedramp": {
+            "moderate": "FedRAMP Moderate",
+        },
     }
 
     def __init__(self, db: Session):

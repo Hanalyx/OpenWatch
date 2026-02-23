@@ -212,6 +212,21 @@ FRAMEWORK_INFO = {
         "description": "Security Requirements Guides for operating systems",
         "versions": [],
     },
+    "fedramp": {
+        "name": "FedRAMP Moderate",
+        "description": "Federal Risk and Authorization Management Program - Moderate baseline",
+        "versions": ["moderate"],
+    },
+}
+
+# Maps Kensa mapping file framework names to FRAMEWORK_INFO keys.
+# Kensa uses e.g. "pci_dss" but FRAMEWORK_INFO uses "pci_dss_4".
+_MAPPING_FRAMEWORK_TO_INFO_KEY = {
+    "cis": "cis",
+    "stig": "stig",
+    "nist_800_53": "nist_800_53",
+    "pci_dss": "pci_dss_4",
+    "fedramp": "fedramp",
 }
 
 
@@ -237,6 +252,7 @@ class RuleReferenceService:
         self.rules_path = rules_path or KENSA_RULES_PATH
         self._rules_cache: Optional[List[Dict[str, Any]]] = None
         self._variables_cache: Optional[Dict[str, Any]] = None
+        self._mapping_index: Optional[Dict[str, set]] = None
 
     def _load_rules(self) -> List[Dict[str, Any]]:
         """Load all rules from YAML files."""
@@ -287,10 +303,59 @@ class RuleReferenceService:
             logger.warning("Failed to load defaults.yml: %s", e)
             return {"variables": {}, "frameworks": {}}
 
+    def _load_mapping_index(self) -> Dict[str, set]:
+        """
+        Load mapping index from Kensa mapping files.
+
+        Builds a dict mapping FRAMEWORK_INFO key -> set of rule_ids
+        that belong to that framework according to mapping files.
+
+        This supplements inline rule references which are sparse for
+        PCI DSS, NIST, and FedRAMP.
+        """
+        if self._mapping_index is not None:
+            return self._mapping_index
+
+        index: Dict[str, set] = {}
+
+        try:
+            from runner.mappings import load_all_mappings
+            from runner.paths import get_mappings_path
+
+            all_mappings = load_all_mappings(get_mappings_path())
+        except ImportError:
+            logger.info("runner.mappings not available, mapping index empty")
+            self._mapping_index = index
+            return index
+        except Exception as e:
+            logger.warning("Failed to load mapping files: %s", e)
+            self._mapping_index = index
+            return index
+
+        for _mapping_id, framework_mapping in all_mappings.items():
+            fw_key = _MAPPING_FRAMEWORK_TO_INFO_KEY.get(framework_mapping.framework)
+            if fw_key is None:
+                continue
+
+            if fw_key not in index:
+                index[fw_key] = set()
+
+            for _control_id, entry in framework_mapping.sections.items():
+                rule_ids = entry.metadata.get("rules", [])
+                index[fw_key].update(rule_ids)
+
+        logger.info(
+            "Mapping index loaded: %s",
+            {k: len(v) for k, v in index.items()},
+        )
+        self._mapping_index = index
+        return index
+
     def clear_cache(self) -> None:
         """Clear cached rules and variables."""
         self._rules_cache = None
         self._variables_cache = None
+        self._mapping_index = None
 
     # =========================================================================
     # Rule Listing and Search
@@ -348,10 +413,13 @@ class RuleReferenceService:
                 ):
                     continue
 
-            # Framework filter
+            # Framework filter — check inline refs AND mapping files
             if framework:
                 refs = rule.get("references", {})
-                if framework.lower() not in [k.lower() for k in refs.keys()]:
+                inline_match = framework.lower() in [k.lower() for k in refs.keys()]
+                mapping_index = self._load_mapping_index()
+                mapping_match = rule.get("id", "") in mapping_index.get(framework, set())
+                if not inline_match and not mapping_match:
                     continue
 
             # Category filter
@@ -431,19 +499,29 @@ class RuleReferenceService:
         """
         List available frameworks with rule counts.
 
+        Counts include rules from both inline references and mapping files.
+
         Returns:
             List of framework info dicts
         """
         rules = self._load_rules()
+        mapping_index = self._load_mapping_index()
+
+        # Collect all known rule IDs for validation
+        all_rule_ids = {rule.get("id") for rule in rules}
 
         frameworks = []
         for fw_id, fw_info in FRAMEWORK_INFO.items():
-            # Count rules with this framework
-            count = 0
+            # Count rules with inline refs for this framework
+            inline_rule_ids = set()
             for rule in rules:
                 refs = rule.get("references", {})
                 if fw_id in refs:
-                    count += 1
+                    inline_rule_ids.add(rule.get("id"))
+
+            # Union with mapping file rule IDs (only count rules that exist)
+            mapping_rule_ids = mapping_index.get(fw_id, set()) & all_rule_ids
+            combined = inline_rule_ids | mapping_rule_ids
 
             frameworks.append(
                 {
@@ -451,7 +529,7 @@ class RuleReferenceService:
                     "name": fw_info["name"],
                     "description": fw_info["description"],
                     "versions": fw_info["versions"],
-                    "rule_count": count,
+                    "rule_count": len(combined),
                 }
             )
 
@@ -642,8 +720,12 @@ class RuleReferenceService:
             Statistics dict with counts by severity, category, framework
         """
         rules = self._load_rules()
+        mapping_index = self._load_mapping_index()
 
-        stats = {
+        # Collect all known rule IDs
+        all_rule_ids = {rule.get("id") for rule in rules}
+
+        stats: Dict[str, Any] = {
             "total_rules": len(rules),
             "by_severity": {},
             "by_category": {},
@@ -651,6 +733,9 @@ class RuleReferenceService:
             "with_remediation": 0,
             "without_remediation": 0,
         }
+
+        # Track rule IDs per framework from inline refs
+        fw_rule_ids: Dict[str, set] = {}
 
         for rule in rules:
             # Severity
@@ -661,10 +746,12 @@ class RuleReferenceService:
             cat = rule.get("category", "unknown")
             stats["by_category"][cat] = stats["by_category"].get(cat, 0) + 1
 
-            # Frameworks
+            # Frameworks (inline refs)
             refs = rule.get("references", {})
             for fw in refs.keys():
-                stats["by_framework"][fw] = stats["by_framework"].get(fw, 0) + 1
+                if fw not in fw_rule_ids:
+                    fw_rule_ids[fw] = set()
+                fw_rule_ids[fw].add(rule.get("id"))
 
             # Remediation
             implementations = rule.get("implementations", [])
@@ -673,6 +760,15 @@ class RuleReferenceService:
                 stats["with_remediation"] += 1
             else:
                 stats["without_remediation"] += 1
+
+        # Merge mapping index counts into by_framework
+        for fw_key, mapping_rule_ids in mapping_index.items():
+            existing = fw_rule_ids.get(fw_key, set())
+            valid_mapping_ids = mapping_rule_ids & all_rule_ids
+            combined = existing | valid_mapping_ids
+            fw_rule_ids[fw_key] = combined
+
+        stats["by_framework"] = {fw: len(ids) for fw, ids in fw_rule_ids.items()}
 
         return stats
 
