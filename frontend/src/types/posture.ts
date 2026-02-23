@@ -4,7 +4,7 @@
  * TypeScript types for compliance posture queries and responses.
  * Matches backend schemas from backend/app/schemas/posture_schemas.py.
  *
- * Part of Phase 2: Temporal Compliance (Aegis Integration Plan)
+ * Part of Phase 2: Temporal Compliance (Kensa Integration Plan)
  *
  * @module types/posture
  */

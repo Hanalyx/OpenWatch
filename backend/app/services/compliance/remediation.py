@@ -4,7 +4,7 @@ Remediation Service for Phase 4
 Orchestrates remediation execution with license validation, rollback support,
 and audit logging.
 
-Part of Phase 4: Remediation + Subscription (Aegis Integration Plan)
+Part of Phase 4: Remediation + Subscription (Kensa Integration Plan)
 """
 
 import logging
@@ -263,7 +263,7 @@ class RemediationService:
         # Validate rules and get details
         rules_query = """
             SELECT rule_id, title, severity, handler
-            FROM aegis_rules
+            FROM kensa_rules
             WHERE rule_id = ANY(:rule_ids)
         """
         result = self.db.execute(text(rules_query), {"rule_ids": rule_ids})
@@ -556,7 +556,7 @@ class RemediationService:
     def _validate_rules(self, rule_ids: List[str]) -> List[str]:
         """Validate rules exist and return valid ones."""
         query = """
-            SELECT rule_id FROM aegis_rules
+            SELECT rule_id FROM kensa_rules
             WHERE rule_id = ANY(:rule_ids)
         """
         result = self.db.execute(text(query), {"rule_ids": rule_ids})

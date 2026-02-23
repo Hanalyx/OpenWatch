@@ -3,7 +3,7 @@ Remediation API Routes for Phase 4
 
 Endpoints for managing remediation jobs with license enforcement.
 
-Part of Phase 4: Remediation + Subscription (Aegis Integration Plan)
+Part of Phase 4: Remediation + Subscription (Kensa Integration Plan)
 """
 
 import logging

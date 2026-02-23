@@ -337,7 +337,7 @@ class VerificationScanRequest(BaseModel):
     )
     profile_id: str = Field(..., description="XCCDF profile ID to apply")
     original_scan_id: Optional[str] = Field(None, description="ID of the original failed scan")
-    remediation_job_id: Optional[str] = Field(None, description="AEGIS remediation job ID")
+    remediation_job_id: Optional[str] = Field(None, description="Kensa remediation job ID")
     name: Optional[str] = Field(None, description="Optional scan name")
 
 

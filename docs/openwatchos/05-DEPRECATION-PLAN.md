@@ -4,13 +4,13 @@
 
 ## Background
 
-OpenWatch originally used MongoDB for compliance rules, rule intelligence, remediation scripts, and upload history. With the Aegis integration (338 YAML rules replacing SCAP/OVAL content), MongoDB's purpose has been eliminated:
+OpenWatch originally used MongoDB for compliance rules, rule intelligence, remediation scripts, and upload history. With the Kensa integration (338 YAML rules replacing SCAP/OVAL content), MongoDB's purpose has been eliminated:
 
 | Former MongoDB Collection | Replacement |
 |--------------------------|-------------|
-| `compliance_rules` | Aegis YAML rules in `backend/aegis/rules/` |
+| `compliance_rules` | Kensa YAML rules (pip-installed) |
 | `rule_intelligence` | PostgreSQL JSONB columns |
-| `remediation_scripts` | Aegis native remediation |
+| `remediation_scripts` | Kensa native remediation |
 | `upload_history` | PostgreSQL table |
 
 ## Current State
@@ -79,8 +79,8 @@ These are standalone scripts with no callers.
 Delete services that exist solely for MongoDB operations:
 - `app/services/mongo_integration_service.py` -- Legacy bridge, no callers
 - `app/services/content/transformation/transformer.py` -- MongoDB document transform
-- `app/services/compliance_rules/upload.py` -- SCAP content upload (replaced by Aegis)
-- `app/services/compliance_rules/dependency/graph.py` -- Rule dependency (not used with Aegis)
+- `app/services/compliance_rules/upload.py` -- SCAP content upload (replaced by Kensa)
+- `app/services/compliance_rules/dependency/graph.py` -- Rule dependency (not used with Kensa)
 - `app/services/compliance_rules/validation/deduplication.py` -- MongoDB dedup
 
 Update `__init__.py` files to remove re-exports.
@@ -91,14 +91,14 @@ Remove or refactor repositories that have MongoDB paths:
 - `app/repositories/compliance_repository.py` -- Remove MongoDB query methods
 - `app/repositories/enhanced_repository.py` -- Delete if fully MongoDB-based
 - `app/repositories/intelligence_repository.py` -- Delete (replaced by PostgreSQL JSONB)
-- `app/repositories/remediation_repository.py` -- Delete (replaced by Aegis)
+- `app/repositories/remediation_repository.py` -- Delete (replaced by Kensa)
 
 Verify no active code paths call the removed methods.
 
 ### Phase 4: Clean Routes and Services (Medium Risk)
 
 Remove MongoDB fallback paths in services that have dual PostgreSQL/MongoDB code:
-- `app/services/rules/service.py` -- Remove mongo fallback, keep Aegis path
+- `app/services/rules/service.py` -- Remove mongo fallback, keep Kensa path
 - `app/services/engine/scanners/owscan.py` -- Remove MongoDB result storage
 - `app/routes/scans/compliance.py` -- Remove MongoDB references
 - `app/routes/scans/config.py` -- Remove MongoDB references
@@ -131,7 +131,7 @@ After Phase 5:
 - `pip install -r requirements.txt` should not install MongoDB packages
 - Application starts without any MongoDB-related log messages
 - All API endpoints functional
-- Compliance scanning via Aegis works end-to-end
+- Compliance scanning via Kensa works end-to-end
 
 ## Risk Assessment
 

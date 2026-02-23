@@ -3,7 +3,7 @@ Exception Management Tasks
 
 Celery tasks for managing compliance exception lifecycle.
 
-Part of Phase 3: Governance Primitives (Aegis Integration Plan)
+Part of Phase 3: Governance Primitives (Kensa Integration Plan)
 """
 
 import logging

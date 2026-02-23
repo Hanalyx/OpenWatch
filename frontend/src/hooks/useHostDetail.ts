@@ -74,7 +74,7 @@ export const schedulerKeys = {
  * Fetch and cache compliance state for a host.
  *
  * Provides rule findings, pass/fail counts, and severity breakdown
- * from the most recent Aegis scan.
+ * from the most recent Kensa scan.
  *
  * @param hostId - UUID of the host
  * @param enabled - Whether the query should run (default: true)

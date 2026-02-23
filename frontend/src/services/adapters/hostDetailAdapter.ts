@@ -536,7 +536,7 @@ function adaptScanHistoryItem(item: ApiScanHistoryItem): ScanHistoryItem {
  * Fetch compliance state for a host
  */
 export async function fetchComplianceState(hostId: string): Promise<ComplianceState> {
-  const data = await api.get<ApiComplianceState>(`/api/scans/aegis/compliance-state/${hostId}`);
+  const data = await api.get<ApiComplianceState>(`/api/scans/kensa/compliance-state/${hostId}`);
   return adaptComplianceState(data);
 }
 

@@ -3,7 +3,7 @@ Remediation Celery Tasks for Phase 4
 
 Async tasks for remediation and rollback execution.
 
-Part of Phase 4: Remediation + Subscription (Aegis Integration Plan)
+Part of Phase 4: Remediation + Subscription (Kensa Integration Plan)
 """
 
 import logging
@@ -32,7 +32,7 @@ def execute_remediation_job(self, job_id: str) -> Dict[str, Any]:
 
     This task:
     1. Marks job as running
-    2. Executes each rule remediation via Aegis
+    2. Executes each rule remediation via Kensa
     3. Captures pre-state for rollback
     4. Updates progress and results
     5. Marks job complete/failed
@@ -301,14 +301,14 @@ def _execute_rule_remediation(
     """
     Execute remediation for a single rule.
 
-    Uses Aegis runner to execute the remediation.
+    Uses Kensa runner to execute the remediation.
     """
     service = RemediationService(db)
     start_time = time.time()
 
     try:
         # Get rule details
-        rule_query = "SELECT * FROM aegis_rules WHERE rule_id = :rule_id"
+        rule_query = "SELECT * FROM kensa_rules WHERE rule_id = :rule_id"
         rule_result = db.execute(text(rule_query), {"rule_id": rule_id})
         rule = rule_result.fetchone()
 
@@ -337,8 +337,8 @@ def _execute_rule_remediation(
             )
             return {"status": "completed", "dry_run": True}
 
-        # Execute actual remediation via Aegis
-        # TODO: Integrate with actual Aegis remediation engine
+        # Execute actual remediation via Kensa
+        # TODO: Integrate with actual Kensa remediation engine
         # For now, simulate execution
         logger.info(f"Executing remediation for rule {rule_id} on host {host_info['hostname']}")
 
@@ -388,7 +388,7 @@ def _execute_rule_rollback(
     start_time = time.time()
 
     try:
-        # TODO: Integrate with actual Aegis rollback engine
+        # TODO: Integrate with actual Kensa rollback engine
         # from runner._rollback import _execute_rollback
         # result = _execute_rollback(ssh_session, rule_id, pre_state)
 

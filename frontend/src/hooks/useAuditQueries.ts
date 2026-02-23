@@ -3,7 +3,7 @@
  *
  * React Query hooks for audit query builder and exports.
  *
- * Part of Phase 6: Audit Queries (Aegis Integration Plan)
+ * Part of Phase 6: Audit Queries (Kensa Integration Plan)
  */
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';

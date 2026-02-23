@@ -6,7 +6,7 @@ Service for point-in-time compliance posture queries and drift detection.
 Enables queries like: "What was the posture on March 14?"
 Supports compliance drift detection over time.
 
-Part of Phase 2: Temporal Compliance (Aegis Integration Plan)
+Part of Phase 2: Temporal Compliance (Kensa Integration Plan)
 
 OS Claim Enabled:
     "Compliance posture is queryable at any point in time"

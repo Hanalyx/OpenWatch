@@ -2,7 +2,7 @@
 Remediation API Package
 
 Provides endpoints for automated fix management, remediation provider
-interfaces, and AEGIS webhook callbacks.
+interfaces, and Kensa webhook callbacks.
 
 Usage:
     from app.routes.remediation import router
@@ -28,6 +28,6 @@ router.include_router(provider_router, prefix="/remediation", tags=["Remediation
 
 # callback.py has no prefix; endpoint is /webhooks/remediation-complete
 # Was registered with prefix="/api" in main.py, so no additional prefix needed
-router.include_router(callback_router, tags=["AEGIS Integration"])
+router.include_router(callback_router, tags=["Kensa Integration"])
 
 __all__ = ["router"]

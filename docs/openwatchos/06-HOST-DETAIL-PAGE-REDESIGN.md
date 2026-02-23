@@ -30,7 +30,7 @@ The Host Detail Page Redesign is a core part of the OpenWatch OS Transformation,
 OpenWatch from a manual-scan SCAP scanner into an auto-scan centric Compliance Operating System.
 
 The old Host Detail page was built around manual scan workflows. It had prominent "Start New Scan",
-"Establish Baseline", and "Run Aegis Scan" buttons, a basic compliance state view, and a scan
+"Establish Baseline", and "Run Kensa Scan" buttons, a basic compliance state view, and a scan
 history table with a "Start First Scan" call-to-action. It treated each host as a passive target
 that operators triggered scans against.
 
@@ -98,7 +98,7 @@ layout shift and communicates loading progress without spinners on every card.
 
 - "Start New Scan" button from header
 - "Establish Baseline" button from header
-- "Run Aegis Scan" button from Compliance State tab
+- "Run Kensa Scan" button from Compliance State tab
 - "Start First Scan" button from Scan History tab
 - Monolithic single-component page structure
 
@@ -193,7 +193,7 @@ fetched and graceful empty states when no data is available.
 
 **File**: `frontend/src/pages/hosts/HostDetail/cards/ComplianceCard.tsx`
 
-Displays compliance posture from the most recent Aegis scan.
+Displays compliance posture from the most recent Kensa scan.
 
 | Field | Source |
 |-------|--------|
@@ -312,7 +312,7 @@ A dashboard-style overview with four content cards in a 2x2 grid:
 
 **File**: `frontend/src/pages/hosts/HostDetail/tabs/ComplianceTab.tsx`
 
-Detailed compliance findings from the most recent Aegis scan.
+Detailed compliance findings from the most recent Kensa scan.
 
 **Summary section** (top): Four cards showing compliance score, passed count, failed count,
 and severity breakdown (Critical/High/Medium/Low as chips with tooltips showing pass/fail counts).
@@ -440,7 +440,7 @@ Renders the terminal in a fixed 600px height container. Passes `hostId`, `hostna
 | Data | Endpoint | Method | Adapter Function |
 |------|----------|--------|------------------|
 | Basic host info | `/api/hosts/{id}` | GET | Direct `api.get()` in component |
-| Compliance state | `/api/scans/aegis/compliance-state/{hostId}` | GET | `fetchComplianceState()` |
+| Compliance state | `/api/scans/kensa/compliance-state/{hostId}` | GET | `fetchComplianceState()` |
 | Host schedule | `/api/compliance/scheduler/hosts/{hostId}` | GET | `fetchHostSchedule()` |
 | System info | `/api/hosts/{id}/system-info` | GET | `fetchSystemInfo()` |
 | Intelligence summary | `/api/hosts/{id}/intelligence/summary` | GET | `fetchIntelligenceSummary()` |
@@ -568,8 +568,8 @@ This is used after a scan completes or when data is known to have changed.
 
 ### Phase 0: Backend Data Fix
 
-Established a single source of truth for host compliance data. The Aegis compliance state
-endpoint (`/api/scans/aegis/compliance-state/{hostId}`) became the authoritative source for
+Established a single source of truth for host compliance data. The Kensa compliance state
+endpoint (`/api/scans/kensa/compliance-state/{hostId}`) became the authoritative source for
 compliance score, findings, and severity breakdown.
 
 ### Phase 1: Page Structure and Header

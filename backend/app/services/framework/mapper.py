@@ -65,7 +65,7 @@ class ComplianceControl:
     tags: List[str]
     categories: List[str]
     automated_remediation: bool
-    aegis_rule_id: Optional[str]
+    kensa_rule_id: Optional[str]
 
 
 class ComplianceFrameworkMapper:
@@ -511,7 +511,7 @@ class ComplianceFrameworkMapper:
             tags=list(tags),
             categories=list(categories),
             automated_remediation=self._check_automated_remediation(scap_rule_id),
-            aegis_rule_id=self._get_aegis_rule_id(scap_rule_id),
+            kensa_rule_id=self._get_kensa_rule_id(scap_rule_id),
         )
 
     def _infer_mappings_from_rule_id(self, scap_rule_id: str, rule_title: str) -> List[FrameworkMapping]:
@@ -620,7 +620,7 @@ class ComplianceFrameworkMapper:
 
     def _check_automated_remediation(self, scap_rule_id: str) -> bool:
         """Check if automated remediation is available for this rule."""
-        # This would check against AEGIS rule database
+        # This would check against Kensa rule database
         automated_rules = {
             "xccdf_mil.disa.stig_rule_SV-230221r792832_rule",  # SSH root login
             "xccdf_mil.disa.stig_rule_SV-230365r792936_rule",  # Password length
@@ -628,14 +628,14 @@ class ComplianceFrameworkMapper:
         }
         return scap_rule_id in automated_rules
 
-    def _get_aegis_rule_id(self, scap_rule_id: str) -> Optional[str]:
-        """Get corresponding AEGIS rule ID for automated remediation."""
-        aegis_mappings = {
+    def _get_kensa_rule_id(self, scap_rule_id: str) -> Optional[str]:
+        """Get corresponding Kensa rule ID for automated remediation."""
+        kensa_mappings = {
             "xccdf_mil.disa.stig_rule_SV-230221r792832_rule": "ssh_disable_root_login",
             "xccdf_mil.disa.stig_rule_SV-230365r792936_rule": "password_minimum_length",
             "xccdf_mil.disa.stig_rule_SV-230423r793041_rule": "auditd_service_enabled",
         }
-        return aegis_mappings.get(scap_rule_id)
+        return kensa_mappings.get(scap_rule_id)
 
     def get_framework_summary(self, scap_rules: List[str]) -> Dict[str, Any]:
         """Get compliance summary across all frameworks for a list of SCAP rules."""
@@ -730,7 +730,7 @@ class ComplianceFrameworkMapper:
                     "severity": max_severity,
                     "frameworks_affected": frameworks_affected,
                     "automated_remediation": control.automated_remediation,
-                    "aegis_rule_id": control.aegis_rule_id,
+                    "kensa_rule_id": control.kensa_rule_id,
                     "remediation_effort": self._estimate_remediation_effort(control),
                 }
             )

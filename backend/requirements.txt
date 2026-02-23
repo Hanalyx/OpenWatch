@@ -85,5 +85,5 @@ pytz==2025.2
 chardet==4.0.0
 semver==3.0.4  # Semantic versioning library for plugin version management (Phase 5)
 
-# Note: Aegis is installed via git clone (not pip) due to v0.1.0 lacking setup.py
-# See: backend/aegis/ directory and docker/Dockerfile.backend for installation
+# Kensa compliance engine (rebranded from Aegis)
+kensa @ git+https://github.com/Hanalyx/kensa.git@v1.1.0

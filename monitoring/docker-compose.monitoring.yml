@@ -1,5 +1,5 @@
 # SecureOps Monitoring Stack - Prometheus, Grafana, Jaeger
-# Designed for comprehensive observability across OpenWatch and AEGIS
+# Designed for comprehensive observability across OpenWatch and Kensa
 # Last Updated: 2025-08-18
 version: '3.8'
 
@@ -28,7 +28,7 @@ services:
     networks:
       - monitoring-network
       - openwatch-network
-      - aegis-network
+      - kensa-network
     user: "1000:1000"
     security_opt:
       - no-new-privileges:true
@@ -120,7 +120,7 @@ services:
     networks:
       - monitoring-network
       - openwatch-network
-      - aegis-network
+      - kensa-network
     user: "10001:10001"
     security_opt:
       - no-new-privileges:true
@@ -234,6 +234,6 @@ networks:
   openwatch-network:
     external: true
     name: openwatch_openwatch-network
-  aegis-network:
+  kensa-network:
     external: true
-    name: aegis_aegis-network
+    name: kensa_kensa-network

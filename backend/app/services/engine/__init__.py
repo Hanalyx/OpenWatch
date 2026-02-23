@@ -21,7 +21,7 @@ Architecture Overview:
        - Scanner capability metadata
 
     3. Integration Layer (engine.integration)
-       - AEGIS remediation system mapping
+       - Kensa remediation system mapping
        - Semantic SCAP analysis engine
        - Cross-framework compliance intelligence
 
@@ -74,10 +74,10 @@ Quick Start:
         print(f"Scan completed with exit code {result.exit_code}")
         print(f"Results at: {result.result_files}")
 
-    # Use AEGIS integration for remediation
-    from app.services.engine import AegisMapper, get_aegis_mapper
+    # Use Kensa integration for remediation
+    from app.services.engine import KensaMapper, get_kensa_mapper
 
-    mapper = get_aegis_mapper()
+    mapper = get_kensa_mapper()
     plan = mapper.create_remediation_plan(
         scan_id="scan-123",
         host_id="host-456",
@@ -116,7 +116,7 @@ Module Structure:
     │   └── orchestrator.py   # Multi-scanner coordinator
     ├── integration/          # External system integrations
     │   ├── __init__.py       # Integration exports
-    │   ├── aegis_mapper.py   # AEGIS remediation mapping
+    │   ├── kensa_mapper.py   # Kensa remediation mapping
     │   └── semantic_engine.py # Semantic SCAP analysis
     ├── providers/            # Cloud provider integrations (future)
     │   ├── __init__.py       # Provider exports
@@ -142,7 +142,7 @@ Security Notes:
     - SSH connections use SSHConnectionManager policies
     - Content validation prevents XXE attacks
     - Error messages sanitized to prevent info disclosure
-    - AEGIS commands stored but not executed by this module
+    - Kensa commands stored but not executed by this module
 
 Performance Notes:
     - Executors are stateless (create per-scan)
@@ -185,14 +185,14 @@ from .exceptions import (  # Base exceptions; Executor exceptions; Scanner excep
 from .executors import BaseExecutor, LocalExecutor, SSHExecutor, get_executor
 
 # Re-export integrations
-from .integration import (  # AEGIS Mapper; Semantic Engine
-    AegisMapper,
-    AEGISMapping,
+from .integration import (  # Kensa Mapper; Semantic Engine
     IntelligentScanResult,
+    KensaMapper,
+    KensaMapping,
     RemediationPlan,
     SemanticEngine,
     SemanticRule,
-    get_aegis_mapper,
+    get_kensa_mapper,
     get_semantic_engine,
 )
 
@@ -251,7 +251,7 @@ logger = logging.getLogger(__name__)
 # 1.5.0 - Added discovery layer (PlatformDetector for JIT platform detection)
 # 1.4.0 - Added orchestration layer (ScanOrchestrator)
 # 1.3.0 - Added SCAPDependencyResolver for SCAP content dependency analysis
-# 1.2.0 - Added integration layer (AegisMapper, SemanticEngine) and providers layer
+# 1.2.0 - Added integration layer (KensaMapper, SemanticEngine) and providers layer
 __version__ = "1.5.0"
 
 
@@ -418,11 +418,11 @@ __all__ = [
     "ARFResultParser",
     "get_parser_for_file",
     "get_parser",
-    # Integration Layer - AEGIS Mapper
-    "AegisMapper",
-    "AEGISMapping",
+    # Integration Layer - Kensa Mapper
+    "KensaMapper",
+    "KensaMapping",
     "RemediationPlan",
-    "get_aegis_mapper",
+    "get_kensa_mapper",
     # Integration Layer - Semantic Engine
     "SemanticEngine",
     "SemanticRule",

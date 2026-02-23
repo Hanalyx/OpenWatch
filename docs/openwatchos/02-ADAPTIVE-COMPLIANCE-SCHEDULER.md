@@ -14,7 +14,7 @@
 5. [Database Schema](#database-schema)
 6. [Celery Tasks](#celery-tasks)
 7. [API Endpoints](#api-endpoints)
-8. [Integration with Aegis and AlertGenerator](#integration-with-aegis-and-alertgenerator)
+8. [Integration with Kensa and AlertGenerator](#integration-with-kensa-and-alertgenerator)
 9. [Workflow Diagram](#workflow-diagram)
 10. [Maintenance Mode](#maintenance-mode)
 11. [Failure Handling](#failure-handling)
@@ -45,8 +45,8 @@ The scheduler uses a dispatcher pattern built on Celery Beat:
 
 1. **Celery Beat** calls the `dispatch_compliance_scans` task every **120 seconds** (2 minutes).
 2. The **dispatcher** queries the `host_schedule` table for hosts where `next_scheduled_scan <= NOW()`, up to the `max_concurrent_scans` limit (default: 5).
-3. For each host due, the dispatcher sends an individual `run_scheduled_aegis_scan` task to the `compliance_scanning` Celery queue, with a priority derived from the host's compliance state.
-4. Each scan task runs Aegis against the target host via SSH, stores results in the `scans`, `scan_results`, and `scan_findings` PostgreSQL tables, and then updates the `host_schedule` row with a new `next_scheduled_scan` time based on the resulting compliance score.
+3. For each host due, the dispatcher sends an individual `run_scheduled_kensa_scan` task to the `compliance_scanning` Celery queue, with a priority derived from the host's compliance state.
+4. Each scan task runs Kensa against the target host via SSH, stores results in the `scans`, `scan_results`, and `scan_findings` PostgreSQL tables, and then updates the `host_schedule` row with a new `next_scheduled_scan` time based on the resulting compliance score.
 
 A separate Celery Beat task, `expire_compliance_maintenance`, runs hourly to automatically end expired maintenance windows.
 
@@ -71,13 +71,13 @@ A separate Celery Beat task, `expire_compliance_maintenance`, runs hourly to aut
         +----------+  +----------+  +----------+
         | run_     |  | run_     |  | run_     |
         | scheduled|  | scheduled|  | scheduled|
-        | aegis_   |  | aegis_   |  | aegis_   |
+        | kensa_   |  | kensa_   |  | kensa_   |
         | scan     |  | scan     |  | scan     |
         +----+-----+  +----------+  +----------+
              |
              v
      +----------------+
-     | Aegis Scanner  |---> SSH ---> Target Host
+     | Kensa Scanner  |---> SSH ---> Target Host
      +-------+--------+
              |
      +-------v--------+
@@ -245,22 +245,22 @@ All scheduler tasks are defined in `backend/app/tasks/compliance_scheduler_tasks
 - **Queue**: `compliance_scanning`
 - **Beat priority**: 8
 
-Queries `host_schedule` for hosts where `next_scheduled_scan <= NOW()`, excludes hosts in maintenance mode and inactive/down hosts. Results are ordered by `scan_priority DESC, next_scheduled_scan ASC NULLS FIRST`, limited to `max_concurrent_scans`. For each host, it dispatches a `run_scheduled_aegis_scan` task to the `compliance_scanning` queue.
+Queries `host_schedule` for hosts where `next_scheduled_scan <= NOW()`, excludes hosts in maintenance mode and inactive/down hosts. Results are ordered by `scan_priority DESC, next_scheduled_scan ASC NULLS FIRST`, limited to `max_concurrent_scans`. For each host, it dispatches a `run_scheduled_kensa_scan` task to the `compliance_scanning` queue.
 
 If the scheduler is disabled (`enabled = false` in config), the task returns immediately without dispatching any scans.
 
-### run_scheduled_aegis_scan
+### run_scheduled_kensa_scan
 
-- **Task name**: `app.tasks.run_scheduled_aegis_scan`
+- **Task name**: `app.tasks.run_scheduled_kensa_scan`
 - **Schedule**: On-demand (dispatched by the dispatcher)
 - **Time limit**: 660 seconds hard (11 minutes) / 600 seconds soft (10 minutes)
 - **Queue**: `compliance_scanning`
 - **Arguments**: `host_id` (str), `priority` (int, default 5)
 
-Executes a full Aegis compliance scan for a single host. The task performs the following steps in order:
+Executes a full Kensa compliance scan for a single host. The task performs the following steps in order:
 
-1. Creates a scan record in the `scans` table with status `running` and `scan_options` set to `{"scanner": "aegis", "source": "scheduler"}`.
-2. Initializes the AegisScanner and runs the scan with full server intelligence collection enabled (system info, packages, services, users, network, firewall, routes, audit events, metrics).
+1. Creates a scan record in the `scans` table with status `running` and `scan_options` set to `{"scanner": "kensa", "source": "scheduler"}`.
+2. Initializes the KensaScanner and runs the scan with full server intelligence collection enabled (system info, packages, services, users, network, firewall, routes, audit events, metrics).
 3. On completion, inserts results into `scan_results` (summary with severity breakdown) and `scan_findings` (individual rule results).
 4. Saves server intelligence data via `SystemInfoService` and syncs OS information back to the `hosts` table.
 5. Calls `compliance_scheduler_service.update_host_schedule()` to compute the next scan time based on the new compliance score.
@@ -344,11 +344,11 @@ All endpoints are mounted under `/api/compliance/scheduler/`. The scheduler rout
 
 ---
 
-## Integration with Aegis and AlertGenerator
+## Integration with Kensa and AlertGenerator
 
-### Aegis Scanner Integration
+### Kensa Scanner Integration
 
-Each scheduled scan uses the `AegisScanner` class from `app.plugins.aegis.scanner`. The scanner is initialized and executed asynchronously. The task enables full server intelligence collection by passing the following flags:
+Each scheduled scan uses the `KensaScanner` class from `app.plugins.kensa.scanner`. The scanner is initialized and executed asynchronously. The task enables full server intelligence collection by passing the following flags:
 
 - `collect_system_info=True`
 - `collect_packages=True`
@@ -406,9 +406,9 @@ host_schedule row created
 |     LIMIT max_concurrent_scans
 |       |
 |       v
-|     run_scheduled_aegis_scan (per host)
+|     run_scheduled_kensa_scan (per host)
 |       |
-|       +---> Aegis SSH scan + server intelligence
+|       +---> Kensa SSH scan + server intelligence
 |       |
 |       +---> Store results in scans/scan_results/scan_findings
 |       |
@@ -427,7 +427,7 @@ host_schedule row created
 ### Failure Recovery
 
 ```
-run_scheduled_aegis_scan
+run_scheduled_kensa_scan
         |
      [ERROR]
         |
@@ -481,7 +481,7 @@ When maintenance mode is disabled, the host becomes eligible for scanning on the
 
 ## Failure Handling
 
-When a scheduled scan fails (Aegis error, SSH connection failure, timeout, etc.):
+When a scheduled scan fails (Kensa error, SSH connection failure, timeout, etc.):
 
 1. The scan record in the `scans` table is updated to `status = 'failed'` with the error message (truncated to 500 characters).
 2. The `record_scan_failure()` method increments `consecutive_scan_failures` on the `host_schedule` row.

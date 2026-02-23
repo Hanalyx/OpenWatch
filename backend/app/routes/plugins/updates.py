@@ -3,7 +3,7 @@ Plugin Update API Routes for Phase 5
 
 Endpoints for checking and installing plugin updates.
 
-Part of Phase 5: Control Plane (Aegis Integration Plan)
+Part of Phase 5: Control Plane (Kensa Integration Plan)
 """
 
 import logging
@@ -13,8 +13,8 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, 
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.plugins.aegis.config import get_aegis_config
-from app.plugins.aegis.updater import AegisUpdater
+from app.plugins.kensa.config import get_kensa_config
+from app.plugins.kensa.updater import KensaUpdater
 from app.schemas.plugin_update_schemas import (
     ChangelogResponse,
     DismissNotificationRequest,
@@ -35,7 +35,7 @@ from ...rbac import UserRole, require_role
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/aegis", tags=["aegis-updates"])
+router = APIRouter(prefix="/kensa", tags=["kensa-updates"])
 
 
 # =============================================================================
@@ -46,8 +46,8 @@ router = APIRouter(prefix="/aegis", tags=["aegis-updates"])
 @router.get(
     "/updates/check",
     response_model=UpdateCheckResponse,
-    summary="Check for Aegis updates",
-    description="Check the registry for available Aegis updates.",
+    summary="Check for Kensa updates",
+    description="Check the registry for available Kensa updates.",
 )
 @require_role([UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 async def check_for_updates(
@@ -55,12 +55,12 @@ async def check_for_updates(
     current_user: dict = Depends(get_current_user),
 ):
     """
-    Check the Aegis update registry for available updates.
+    Check the Kensa update registry for available updates.
 
     Returns version information, compatibility status, and changelog.
     """
-    config = get_aegis_config()
-    updater = AegisUpdater(db, config)
+    config = get_kensa_config()
+    updater = KensaUpdater(db, config)
 
     result = await updater.check_for_updates()
 
@@ -75,20 +75,20 @@ async def check_for_updates(
 
 @router.get(
     "/version",
-    summary="Get current Aegis version",
-    description="Get the currently installed Aegis version.",
+    summary="Get current Kensa version",
+    description="Get the currently installed Kensa version.",
 )
 @require_role([UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 async def get_current_version(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    """Get the currently installed Aegis version."""
-    config = get_aegis_config()
-    updater = AegisUpdater(db, config)
+    """Get the currently installed Kensa version."""
+    config = get_kensa_config()
+    updater = KensaUpdater(db, config)
 
     return {
-        "plugin_id": "aegis",
+        "plugin_id": "kensa",
         "version": updater._get_current_version(),
         "rules_path": str(config.rules_path),
     }
@@ -103,8 +103,8 @@ async def get_current_version(
     "/updates/install",
     response_model=UpdateInstallResponse,
     status_code=status.HTTP_202_ACCEPTED,
-    summary="Install Aegis update",
-    description="Download and install an Aegis update. Requires SUPER_ADMIN role.",
+    summary="Install Kensa update",
+    description="Download and install a Kensa update. Requires SUPER_ADMIN role.",
 )
 @require_role([UserRole.SUPER_ADMIN])
 async def install_update(
@@ -113,7 +113,7 @@ async def install_update(
     current_user: dict = Depends(get_current_user),
 ):
     """
-    Install an Aegis update.
+    Install a Kensa update.
 
     This will:
     1. Download the update package
@@ -125,8 +125,8 @@ async def install_update(
 
     If any step fails, automatic rollback is attempted.
     """
-    config = get_aegis_config()
-    updater = AegisUpdater(db, config)
+    config = get_kensa_config()
+    updater = KensaUpdater(db, config)
 
     result = await updater.perform_update(
         version=request.version,
@@ -146,7 +146,7 @@ async def install_update(
         )
 
     logger.info(
-        f"User {current_user['username']} installed Aegis update " f"from {result.from_version} to {result.to_version}"
+        f"User {current_user['username']} installed Kensa update " f"from {result.from_version} to {result.to_version}"
     )
 
     return result
@@ -156,18 +156,18 @@ async def install_update(
     "/updates/install-offline",
     response_model=UpdateInstallResponse,
     status_code=status.HTTP_202_ACCEPTED,
-    summary="Install offline Aegis update",
-    description="Install Aegis update from uploaded package (air-gapped mode).",
+    summary="Install offline Kensa update",
+    description="Install Kensa update from uploaded package (air-gapped mode).",
 )
 @require_role([UserRole.SUPER_ADMIN])
 async def install_offline_update(
-    package: UploadFile = File(..., description="Aegis update package (.tar.gz)"),
+    package: UploadFile = File(..., description="Kensa update package (.tar.gz)"),
     checksum: str = Query(..., description="Expected SHA256 checksum"),
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
     """
-    Install an Aegis update from an uploaded package.
+    Install a Kensa update from an uploaded package.
 
     For air-gapped environments where the server cannot reach the update registry.
 
@@ -184,8 +184,8 @@ async def install_offline_update(
         content = await package.read()
         f.write(content)
 
-    config = get_aegis_config()
-    updater = AegisUpdater(db, config)
+    config = get_kensa_config()
+    updater = KensaUpdater(db, config)
 
     result = await updater.install_offline_package(
         package_path=package_path,
@@ -207,7 +207,7 @@ async def install_offline_update(
         )
 
     logger.info(
-        f"User {current_user['username']} installed offline Aegis update "
+        f"User {current_user['username']} installed offline Kensa update "
         f"from {result.from_version} to {result.to_version}"
     )
 
@@ -223,7 +223,7 @@ async def install_offline_update(
     "/updates/history",
     response_model=UpdateHistoryResponse,
     summary="Get update history",
-    description="Get history of Aegis updates.",
+    description="Get history of Kensa updates.",
 )
 @require_role([UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 async def get_update_history(
@@ -232,7 +232,7 @@ async def get_update_history(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    """Get history of Aegis updates."""
+    """Get history of Kensa updates."""
     from sqlalchemy import text
 
     offset = (page - 1) * per_page
@@ -241,14 +241,14 @@ async def get_update_history(
         SELECT id, from_version, to_version, status, changes,
                initiated_by, created_at, completed_at, error_message
         FROM plugin_updates
-        WHERE plugin_id = 'aegis'
+        WHERE plugin_id = 'kensa'
         ORDER BY created_at DESC
         LIMIT :limit OFFSET :offset
     """
     result = db.execute(text(query), {"limit": per_page, "offset": offset})
     rows = result.fetchall()
 
-    count_query = "SELECT COUNT(*) FROM plugin_updates WHERE plugin_id = 'aegis'"
+    count_query = "SELECT COUNT(*) FROM plugin_updates WHERE plugin_id = 'kensa'"
     total = db.execute(text(count_query)).scalar() or 0
 
     items = [
@@ -339,23 +339,23 @@ async def get_update_progress(
 @router.get(
     "/changelog",
     response_model=ChangelogResponse,
-    summary="Get Aegis changelog",
-    description="Get the changelog for the installed Aegis version.",
+    summary="Get Kensa changelog",
+    description="Get the changelog for the installed Kensa version.",
 )
 @require_role([UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 async def get_changelog(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    """Get the Aegis changelog."""
-    config = get_aegis_config()
-    updater = AegisUpdater(db, config)
+    """Get the Kensa changelog."""
+    config = get_kensa_config()
+    updater = KensaUpdater(db, config)
 
     changelog = updater.get_changelog()
     current_version = updater._get_current_version()
 
     return ChangelogResponse(
-        plugin_id="aegis",
+        plugin_id="kensa",
         current_version=current_version,
         changelog_markdown=changelog,
     )
@@ -395,7 +395,7 @@ async def get_update_notifications(
         UpdateNotification(
             id=row.id,
             plugin_id=row.plugin_id,
-            plugin_name="Aegis Compliance Engine" if row.plugin_id == "aegis" else row.plugin_id,
+            plugin_name="Kensa Compliance Engine" if row.plugin_id == "kensa" else row.plugin_id,
             current_version=row.current_version,
             available_version=row.available_version,
             changes=row.changes or [],
@@ -457,19 +457,19 @@ async def dismiss_notification(
 @router.get(
     "/health",
     response_model=PluginHealthResponse,
-    summary="Get Aegis health",
-    description="Get health status of the Aegis plugin.",
+    summary="Get Kensa health",
+    description="Get health status of the Kensa plugin.",
 )
 @require_role([UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
-async def get_aegis_health(
+async def get_kensa_health(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    """Get health status of the Aegis plugin."""
+    """Get health status of the Kensa plugin."""
     from datetime import datetime, timezone
 
-    config = get_aegis_config()
-    updater = AegisUpdater(db, config)
+    config = get_kensa_config()
+    updater = KensaUpdater(db, config)
 
     current_version = updater._get_current_version()
     healthy = True
@@ -494,7 +494,7 @@ async def get_aegis_health(
 
         details = {
             "rules_path": str(config.rules_path),
-            "aegis_path": str(config.aegis_path),
+            "kensa_path": str(config.kensa_path),
             "rules_path_exists": config.rules_path.exists(),
         }
 
@@ -509,13 +509,13 @@ async def get_aegis_health(
         UPDATE plugin_registry
         SET health_status = :status,
             last_health_check = CURRENT_TIMESTAMP
-        WHERE plugin_id = 'aegis'
+        WHERE plugin_id = 'kensa'
     """
     db.execute(text(query), {"status": "healthy" if healthy else "unhealthy"})
     db.commit()
 
     return PluginHealthResponse(
-        plugin_id="aegis",
+        plugin_id="kensa",
         healthy=healthy,
         version=current_version,
         rules_loaded=rules_loaded,

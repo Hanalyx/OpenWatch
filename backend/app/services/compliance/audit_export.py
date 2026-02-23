@@ -3,7 +3,7 @@ Audit Export Service
 
 Manages export generation for audit queries in JSON, CSV, and PDF formats.
 
-Part of Phase 6: Audit Queries (Aegis Integration Plan)
+Part of Phase 6: Audit Queries (Kensa Integration Plan)
 
 OS Claim 3.3: "Audits are queries over canonical evidence"
 """

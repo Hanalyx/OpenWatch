@@ -1,9 +1,9 @@
 """
 Rule Reference API Endpoints
 
-API endpoints for browsing Aegis compliance rules in the Rule Reference UI.
+API endpoints for browsing Kensa compliance rules in the Rule Reference UI.
 Provides a user-friendly interface for Auditors, System Administrators,
-and Aegis developers to explore rules, framework mappings, and configuration.
+and Kensa developers to explore rules, framework mappings, and configuration.
 
 Endpoint Structure:
     GET /api/rules/reference           - List rules with search/filter
@@ -182,7 +182,7 @@ async def list_rules(
     current_user: User = Depends(get_current_user),
 ) -> RuleListResponse:
     """
-    List Aegis compliance rules with search and filtering.
+    List Kensa compliance rules with search and filtering.
 
     This endpoint provides the main rule browser functionality for the
     Rule Reference UI. Supports full-text search and multiple filters.
@@ -276,7 +276,7 @@ async def list_frameworks(
     """
     List available compliance frameworks.
 
-    Returns all frameworks that Aegis rules map to, along with
+    Returns all frameworks that Kensa rules map to, along with
     rule counts and version information.
 
     Args:
@@ -400,7 +400,7 @@ async def list_capabilities(
     """
     List capability probes.
 
-    Returns the 22 capability probes that Aegis uses to detect host
+    Returns the 22 capability probes that Kensa uses to detect host
     configuration, along with descriptions and rule counts.
 
     Args:
@@ -485,7 +485,7 @@ async def refresh_rules_cache(
     """
     Refresh the rules cache.
 
-    Forces a reload of all Aegis YAML rules from disk. Use this after
+    Forces a reload of all Kensa YAML rules from disk. Use this after
     updating rule files to see the changes immediately.
 
     Args:

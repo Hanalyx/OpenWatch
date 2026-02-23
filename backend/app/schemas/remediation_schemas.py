@@ -3,7 +3,7 @@ Remediation Schemas for Phase 4
 
 Pydantic models for remediation job requests and responses.
 
-Part of Phase 4: Remediation + Subscription (Aegis Integration Plan)
+Part of Phase 4: Remediation + Subscription (Kensa Integration Plan)
 """
 
 from datetime import datetime

@@ -246,9 +246,9 @@ class Scan(Base):  # type: ignore[valid-type, misc]
     completed_at = Column(DateTime, nullable=True)
     celery_task_id = Column(String(100), nullable=True)
 
-    # AEGIS Integration Fields
+    # Kensa Integration Fields
     remediation_requested = Column(Boolean, default=False, nullable=False)
-    aegis_remediation_id = Column(UUID(as_uuid=True), nullable=True)  # Link to AEGIS remediation job
+    kensa_remediation_id = Column(UUID(as_uuid=True), nullable=True)  # Link to Kensa remediation job
     verification_scan = Column(Boolean, default=False, nullable=False)  # True if this is a verification scan
     remediation_status = Column(String(20), nullable=True)  # completed, failed, partial
     remediation_completed_at = Column(DateTime, nullable=True)
@@ -529,7 +529,7 @@ class HostGroup(Base):  # type: ignore[valid-type, misc]
     os_family = Column(String(50), nullable=True)
     os_version_pattern = Column(String(100), nullable=True)
     architecture = Column(String(20), nullable=True)
-    # Compliance configuration (Aegis-based, SCAP fields removed)
+    # Compliance configuration (Kensa-based, SCAP fields removed)
     compliance_framework = Column(String(50), nullable=True)
     auto_scan_enabled = Column(Boolean, default=False, nullable=False)
     scan_schedule = Column(String(100), nullable=True)
@@ -565,7 +565,7 @@ class AuditLog(Base):  # type: ignore[valid-type, misc]
 
 
 class WebhookEndpoint(Base):  # type: ignore[valid-type, misc]
-    """Webhook endpoint management for AEGIS integration"""
+    """Webhook endpoint management for Kensa integration"""
 
     __tablename__ = "webhook_endpoints"
 
@@ -623,7 +623,7 @@ class IntegrationAuditLog(Base):  # type: ignore[valid-type, misc]
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4, index=True)
     event_type = Column(String(50), nullable=False)  # scan.completed, remediation.requested, etc.
-    source_service = Column(String(20), nullable=False)  # openwatch, aegis
+    source_service = Column(String(20), nullable=False)  # openwatch, kensa
     target_service = Column(String(20), nullable=True)
     scan_id = Column(UUID(as_uuid=True), ForeignKey("scans.id"), nullable=True)
     host_id = Column(UUID(as_uuid=True), ForeignKey("hosts.id"), nullable=True)
@@ -642,7 +642,7 @@ class PostureSnapshot(Base):  # type: ignore[valid-type, misc]
     Enables temporal compliance queries per NIST SP 800-137:
     "What was the compliance posture on March 14?"
 
-    Part of Phase 2: Temporal Compliance (Aegis Integration Plan)
+    Part of Phase 2: Temporal Compliance (Kensa Integration Plan)
     """
 
     __tablename__ = "posture_snapshots"
@@ -689,7 +689,7 @@ class ComplianceException(Base):  # type: ignore[valid-type, misc]
     Enables explicit exception management per OS claim:
     "Exceptions are explicit state, not narrative artifacts"
 
-    Part of Phase 3: Governance Primitives (Aegis Integration Plan)
+    Part of Phase 3: Governance Primitives (Kensa Integration Plan)
     """
 
     __tablename__ = "compliance_exceptions"

@@ -2,7 +2,7 @@
  * Rule Reference API Adapter
  *
  * Transforms snake_case backend API responses to camelCase frontend types
- * for the Rule Reference page. Provides access to Aegis compliance rules,
+ * for the Rule Reference page. Provides access to Kensa compliance rules,
  * frameworks, categories, variables, and capability probes.
  *
  * Part of OpenWatch OS Transformation.

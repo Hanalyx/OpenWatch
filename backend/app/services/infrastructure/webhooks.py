@@ -1,7 +1,7 @@
 """
 OpenWatch Webhook Security
 HMAC-SHA256 signature generation and verification for webhooks
-Compatible with AEGIS webhook security implementation
+Compatible with Kensa webhook security implementation
 """
 
 import hashlib

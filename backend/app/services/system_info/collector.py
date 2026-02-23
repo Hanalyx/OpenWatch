@@ -251,7 +251,7 @@ class SystemInfoCollector:
         Initialize with an SSH session.
 
         Args:
-            ssh_session: An SSH session object with run() method (Aegis SSHSession or similar)
+            ssh_session: An SSH session object with run() method (Kensa SSHSession or similar)
         """
         self.ssh = ssh_session
 
@@ -259,7 +259,7 @@ class SystemInfoCollector:
         """Run a command and return stdout, or None on error."""
         try:
             result = self.ssh.run(command)
-            # Support both Aegis Result (exit_code) and subprocess-style (returncode)
+            # Support both Kensa Result (exit_code) and subprocess-style (returncode)
             exit_code = getattr(result, "exit_code", getattr(result, "returncode", None))
             if exit_code == 0:
                 stdout = result.stdout.strip() if result.stdout else ""

@@ -1,7 +1,7 @@
 /**
  * Content Page
  *
- * Entry point for the Rule Reference feature. Provides access to Aegis
+ * Entry point for the Rule Reference feature. Provides access to Kensa
  * compliance rules with browsing, filtering, and detailed information.
  *
  * Part of OpenWatch OS Transformation - replaces MongoDB-based Content Library.

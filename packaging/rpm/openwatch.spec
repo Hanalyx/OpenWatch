@@ -60,11 +60,11 @@ Conflicts:      openwatch-ko
 
 %description
 OpenWatch is an enterprise-grade compliance scanning platform powered by
-Aegis v0.1.0. This package provides native systemd deployment without
+Kensa. This package provides native systemd deployment without
 requiring Docker or Podman containers.
 
 Key features:
-- Aegis-powered compliance scanning (338 YAML rules)
+- Kensa-powered compliance scanning (338 YAML rules)
 - Multi-host fleet management via SSH
 - CIS, STIG, NIST 800-53, PCI-DSS framework support
 - Real-time compliance dashboards
@@ -134,7 +134,7 @@ install -d %{buildroot}/opt/openwatch
 install -d %{buildroot}/opt/openwatch/venv
 install -d %{buildroot}/opt/openwatch/backend
 install -d %{buildroot}/opt/openwatch/backend/app
-install -d %{buildroot}/opt/openwatch/backend/aegis
+install -d %{buildroot}/opt/openwatch/backend/kensa
 install -d %{buildroot}/opt/openwatch/backend/alembic
 install -d %{buildroot}/opt/openwatch/frontend
 
@@ -171,13 +171,10 @@ install -m 0755 bin/owadm %{buildroot}%{_bindir}/owadm
 # Install backend application
 # =============================================================================
 cp -r backend/app %{buildroot}/opt/openwatch/backend/
-cp -r backend/aegis %{buildroot}/opt/openwatch/backend/
+cp -r backend/kensa %{buildroot}/opt/openwatch/backend/
 cp -r backend/alembic %{buildroot}/opt/openwatch/backend/
 cp backend/requirements.txt %{buildroot}/opt/openwatch/backend/
 cp backend/alembic.ini %{buildroot}/opt/openwatch/backend/
-
-# Create runner symlink for Aegis imports
-ln -s aegis/runner %{buildroot}/opt/openwatch/backend/runner
 
 # =============================================================================
 # Install frontend (pre-built React application)
@@ -233,16 +230,16 @@ celery:
     - monitoring
     - compliance_scanning
 
-# Scanning configuration (Aegis-based)
+# Scanning configuration (Kensa-based)
 scanning:
   ssh_key_path: /etc/openwatch/ssh/openwatch_rsa
   concurrent_scans: 5
   timeout_seconds: 600
 
-# Aegis compliance engine
-aegis:
-  rules_path: /opt/openwatch/backend/aegis/rules
-  config_path: /opt/openwatch/backend/aegis/config
+# Kensa compliance engine
+kensa:
+  rules_path: /opt/openwatch/backend/kensa/rules
+  config_path: /opt/openwatch/backend/kensa/config
 
 # Logging configuration
 logging:
@@ -964,7 +961,7 @@ fi
 %changelog
 * Wed Feb 12 2026 OpenWatch Team <admin@hanalyx.com> - 2.0.0-1
 - Initial native RPM package (non-containerized deployment)
-- Aegis v0.1.0 compliance engine with 338 YAML rules
+- Kensa compliance engine with 338 YAML rules
 - Native systemd service management
 - Support for RHEL 8/9/10, Rocky Linux, Oracle Linux, AlmaLinux
 - owadm CLI built with native tag (admin commands only)
