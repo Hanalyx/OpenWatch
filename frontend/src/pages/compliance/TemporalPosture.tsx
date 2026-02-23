@@ -6,7 +6,7 @@
  * - Historical posture chart
  * - Drift analysis between dates
  *
- * Part of Phase 2: Temporal Compliance (Aegis Integration Plan)
+ * Part of Phase 2: Temporal Compliance (Kensa Integration Plan)
  *
  * @module pages/compliance/TemporalPosture
  */
@@ -157,7 +157,7 @@ function CurrentPostureView({ hostId }: CurrentPostureViewProps) {
   if (!posture) {
     return (
       <Alert severity="info">
-        No compliance data available for this host. Run an Aegis scan to collect posture data.
+        No compliance data available for this host. Run a Kensa scan to collect posture data.
       </Alert>
     );
   }

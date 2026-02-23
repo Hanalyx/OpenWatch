@@ -3,7 +3,7 @@ Posture Schemas for Temporal Compliance
 
 Pydantic models for compliance posture queries and responses.
 
-Part of Phase 2: Temporal Compliance (Aegis Integration Plan)
+Part of Phase 2: Temporal Compliance (Kensa Integration Plan)
 """
 
 from datetime import date, datetime

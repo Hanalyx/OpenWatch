@@ -705,21 +705,21 @@ async def create_stig_mappings(service: RuleAssociationService, created_by: str)
     stig_mappings = [
         {
             "rule_id": "ssh-disable-root-login",
-            "plugin_id": "aegis-remediation-plugin",
+            "plugin_id": "kensa-remediation-plugin",
             "plugin_rule_id": "RHEL-08-010550",
             "platform": "rhel8",
             "confidence": "high",
         },
         {
             "rule_id": "password-complexity-requirements",
-            "plugin_id": "aegis-remediation-plugin",
+            "plugin_id": "kensa-remediation-plugin",
             "plugin_rule_id": "RHEL-08-020280",
             "platform": "rhel8",
             "confidence": "high",
         },
         {
             "rule_id": "firewall-default-deny",
-            "plugin_id": "aegis-remediation-plugin",
+            "plugin_id": "kensa-remediation-plugin",
             "plugin_rule_id": "RHEL-08-040010",
             "platform": "rhel8",
             "confidence": "high",

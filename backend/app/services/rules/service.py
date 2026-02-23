@@ -131,10 +131,10 @@ class RuleService:
                     self._update_query_stats(start_time, cache_hit=True)
                     return cached_result
 
-            # MongoDB rule storage has been removed. Use Aegis Rule Reference
+            # MongoDB rule storage has been removed. Use Kensa Rule Reference
             # service for rule queries instead.
             logger.warning(
-                "RuleService.get_rules_by_platform: MongoDB removed. " "Use Aegis Rule Reference service instead."
+                "RuleService.get_rules_by_platform: MongoDB removed. " "Use Kensa Rule Reference service instead."
             )
 
             self._update_query_stats(start_time, cache_hit=False)
@@ -168,10 +168,10 @@ class RuleService:
         if cached:
             return cached
 
-        # MongoDB rule storage has been removed. Use Aegis Rule Reference
+        # MongoDB rule storage has been removed. Use Kensa Rule Reference
         # service for rule queries instead.
         raise NotImplementedError(
-            "Rule dependency resolution requires MongoDB (removed). " "Use Aegis Rule Reference service instead."
+            "Rule dependency resolution requires MongoDB (removed). " "Use Kensa Rule Reference service instead."
         )
 
     async def detect_platform_capabilities(
@@ -254,9 +254,9 @@ class RuleService:
         Returns:
             Search results with pagination metadata
         """
-        # MongoDB rule storage has been removed. Use Aegis Rule Reference
+        # MongoDB rule storage has been removed. Use Kensa Rule Reference
         # service (/api/rules/reference) for rule search instead.
-        logger.warning("RuleService.search_rules: MongoDB removed. Use Aegis Rule Reference API.")
+        logger.warning("RuleService.search_rules: MongoDB removed. Use Kensa Rule Reference API.")
         return {
             "results": [],
             "total_count": 0,
@@ -273,9 +273,9 @@ class RuleService:
         Returns:
             Statistics dictionary with counts and distributions
         """
-        # MongoDB rule storage has been removed. Use Aegis Rule Reference
+        # MongoDB rule storage has been removed. Use Kensa Rule Reference
         # service (/api/rules/reference/stats) for rule statistics instead.
-        logger.warning("RuleService.get_rule_statistics: MongoDB removed. Use Aegis Rule Reference API.")
+        logger.warning("RuleService.get_rule_statistics: MongoDB removed. Use Kensa Rule Reference API.")
         return {
             "totals": {
                 "rules": 0,

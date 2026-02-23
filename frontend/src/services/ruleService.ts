@@ -126,19 +126,19 @@ class RuleService {
   /**
    * Get compliance rules.
    *
-   * DEPRECATED (2026-02-10): MongoDB compliance rules have been replaced by Aegis.
-   * Use the Aegis frameworks endpoint at /api/scans/aegis/frameworks instead.
+   * DEPRECATED (2026-02-10): MongoDB compliance rules have been replaced by Kensa.
+   * Use the Kensa frameworks endpoint at /api/scans/kensa/frameworks instead.
    *
    * This method now returns empty results since the backend endpoints were removed.
-   * For compliance data, use the Aegis compliance state endpoint at
-   * /api/scans/aegis/compliance-state/{host_id}
+   * For compliance data, use the Kensa compliance state endpoint at
+   * /api/scans/kensa/compliance-state/{host_id}
    */
   async getRules(params: RuleQueryParams = {}): Promise<RuleListResponse> {
     // MongoDB compliance rules endpoints have been deprecated
     // Return empty response with migration message
     console.warn(
       '[DEPRECATED] ruleService.getRules() - MongoDB compliance rules removed. ' +
-        'Use Aegis frameworks at /api/scans/aegis/frameworks instead.'
+        'Use Kensa frameworks at /api/scans/kensa/frameworks instead.'
     );
 
     return {
@@ -157,7 +157,7 @@ class RuleService {
         },
       },
       message:
-        'MongoDB compliance rules deprecated. Use Aegis frameworks at /api/scans/aegis/frameworks',
+        'MongoDB compliance rules deprecated. Use Kensa frameworks at /api/scans/kensa/frameworks',
       timestamp: new Date().toISOString(),
     };
   }
@@ -574,13 +574,13 @@ class RuleService {
   /**
    * Search compliance rules.
    *
-   * DEPRECATED (2026-02-10): MongoDB compliance rules have been replaced by Aegis.
+   * DEPRECATED (2026-02-10): MongoDB compliance rules have been replaced by Kensa.
    * This method now returns empty results.
    */
   async searchRules(searchRequest: SearchRequest): Promise<RuleSearchResponse> {
     console.warn(
       '[DEPRECATED] ruleService.searchRules() - MongoDB compliance rules removed. ' +
-        'Use Aegis frameworks at /api/scans/aegis/frameworks instead.'
+        'Use Kensa frameworks at /api/scans/kensa/frameworks instead.'
     );
 
     return {
@@ -593,7 +593,7 @@ class RuleService {
         filters_applied: searchRequest.filters || {},
       },
       message:
-        'MongoDB compliance rules deprecated. Use Aegis frameworks at /api/scans/aegis/frameworks',
+        'MongoDB compliance rules deprecated. Use Kensa frameworks at /api/scans/kensa/frameworks',
       timestamp: new Date().toISOString(),
     };
   }
@@ -601,13 +601,13 @@ class RuleService {
   /**
    * Get rule details.
    *
-   * DEPRECATED (2026-02-10): MongoDB compliance rules have been replaced by Aegis.
+   * DEPRECATED (2026-02-10): MongoDB compliance rules have been replaced by Kensa.
    * This method now returns an error response.
    */
   async getRuleDetails(ruleId: string, _includeInheritance = true): Promise<RuleDetailsResponse> {
     console.warn(
       '[DEPRECATED] ruleService.getRuleDetails() - MongoDB compliance rules removed. ' +
-        'Use Aegis compliance state endpoint instead.'
+        'Use Kensa compliance state endpoint instead.'
     );
 
     return {
@@ -617,7 +617,7 @@ class RuleService {
         scap_rule_id: '',
         metadata: {
           name: 'Rule not available',
-          description: 'MongoDB compliance rules have been deprecated. Use Aegis instead.',
+          description: 'MongoDB compliance rules have been deprecated. Use Kensa instead.',
           rationale: '',
           source: '',
         },
@@ -632,7 +632,7 @@ class RuleService {
         created_at: '',
         updated_at: '',
       },
-      message: 'MongoDB compliance rules deprecated. Use Aegis frameworks.',
+      message: 'MongoDB compliance rules deprecated. Use Kensa frameworks.',
       timestamp: new Date().toISOString(),
     };
   }

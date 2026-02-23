@@ -4,12 +4,12 @@ Scan Template Management Endpoints
 This module provides endpoints for scan configuration templates.
 
 Active Endpoints:
-    GET    /templates/quick                - Get predefined quick templates (Aegis-based)
+    GET    /templates/quick                - Get predefined quick templates (Kensa-based)
     GET    /templates/host/{host_id}       - Get templates for specific host
 
 DEPRECATED (2026-02-10 - MongoDB removal):
     MongoDB-backed template CRUD endpoints have been deprecated.
-    Use Aegis framework endpoints at /api/scans/aegis/frameworks instead.
+    Use Kensa framework endpoints at /api/scans/kensa/frameworks instead.
 
     The following endpoints return deprecation notices:
     - GET    /templates                    - List templates (deprecated)
@@ -23,7 +23,7 @@ DEPRECATED (2026-02-10 - MongoDB removal):
 
 Migration Path:
     - Use quick templates for common scan configurations
-    - Use Aegis frameworks directly for compliance scanning
+    - Use Kensa frameworks directly for compliance scanning
     - PostgreSQL scan_templates table is available for future template storage
 
 Security Notes:
@@ -68,7 +68,7 @@ class QuickScanTemplate(BaseModel):
 # Deprecation message for MongoDB template endpoints
 MONGODB_DEPRECATION_MESSAGE = (
     "MongoDB templates deprecated (2026-02-10). "
-    "Use quick templates at /templates/quick or Aegis frameworks at /api/scans/aegis/frameworks"
+    "Use quick templates at /templates/quick or Kensa frameworks at /api/scans/kensa/frameworks"
 )
 
 
@@ -83,10 +83,10 @@ async def list_quick_templates(
     current_user: Dict[str, Any] = Depends(get_current_user),
 ) -> Dict[str, List[Dict[str, Any]]]:
     """
-    List predefined quick scan templates using Aegis frameworks.
+    List predefined quick scan templates using Kensa frameworks.
 
     Returns a list of predefined templates for common compliance and
-    security scanning use cases. These templates use Aegis native YAML
+    security scanning use cases. These templates use Kensa native YAML
     rules for accurate compliance checking.
 
     Args:
@@ -100,7 +100,7 @@ async def list_quick_templates(
         {
           "templates": [
             {
-              "id": "aegis-cis-rhel9",
+              "id": "kensa-cis-rhel9",
               "name": "CIS RHEL 9 Benchmark",
               "description": "CIS Level 1 Server benchmark",
               "framework": "cis-rhel9-v2.0.0",
@@ -113,10 +113,10 @@ async def list_quick_templates(
     Security:
         - Requires authenticated user
     """
-    # Aegis-based quick templates (replaces legacy SCAP profiles)
+    # Kensa-based quick templates (replaces legacy SCAP profiles)
     templates = [
         {
-            "id": "aegis-cis-rhel9",
+            "id": "kensa-cis-rhel9",
             "name": "CIS RHEL 9 Benchmark",
             "description": "CIS Level 1 Server benchmark for RHEL 9 (95.1% coverage)",
             "framework": "cis-rhel9-v2.0.0",
@@ -124,10 +124,10 @@ async def list_quick_templates(
             "isDefault": True,
             "estimatedDuration": "2-5 min",
             "ruleCount": 271,
-            "scanEngine": "aegis",
+            "scanEngine": "kensa",
         },
         {
-            "id": "aegis-stig-rhel9",
+            "id": "kensa-stig-rhel9",
             "name": "STIG RHEL 9",
             "description": "DISA STIG for RHEL 9 V2R7 (75.8% coverage)",
             "framework": "stig-rhel9-v2r7",
@@ -135,18 +135,18 @@ async def list_quick_templates(
             "isDefault": False,
             "estimatedDuration": "3-7 min",
             "ruleCount": 338,
-            "scanEngine": "aegis",
+            "scanEngine": "kensa",
         },
         {
-            "id": "aegis-full-scan",
+            "id": "kensa-full-scan",
             "name": "Full Compliance Scan",
-            "description": "All 338 Aegis canonical rules across frameworks",
+            "description": "All 338 Kensa canonical rules across frameworks",
             "framework": "all",
             "scope": "system",
             "isDefault": False,
             "estimatedDuration": "5-10 min",
             "ruleCount": 338,
-            "scanEngine": "aegis",
+            "scanEngine": "kensa",
         },
     ]
 
@@ -185,7 +185,7 @@ async def get_host_templates(
 # DEPRECATED MONGODB-BACKED TEMPLATE ENDPOINTS
 # =============================================================================
 # These endpoints are deprecated as part of MongoDB removal (2026-02-10).
-# Use quick templates or Aegis frameworks directly.
+# Use quick templates or Kensa frameworks directly.
 
 
 @router.get("/templates")
@@ -196,7 +196,7 @@ async def list_templates(
     """
     DEPRECATED: List scan templates.
 
-    MongoDB templates have been deprecated. Use quick templates or Aegis frameworks.
+    MongoDB templates have been deprecated. Use quick templates or Kensa frameworks.
     """
     logger.warning("Deprecated endpoint called: GET /templates")
     raise HTTPException(

@@ -4,7 +4,7 @@
 **Priority**: P0 (CRITICAL BLOCKER)
 **Phase**: 0 (Immediate - Before All Other Work)
 **Owner**: Human (lead) with AI support
-**Status**: Complete - Aegis Integration (2026-02-09)
+**Status**: Complete - Kensa Integration (2026-02-09)
 **Blocks**: E6 (Production Hardening), Production Deployment
 
 ---
@@ -13,7 +13,7 @@
 
 Resolve the 35% compliance score discrepancy between OpenWatch (61.94%) and native OpenSCAP (97%) when scanning the same RHEL 9 system with the same STIG profile.
 
-**Solution**: Integrate Aegis as the default compliance scanning engine, eliminating the XCCDF/OVAL transformation chain that causes accuracy issues.
+**Solution**: Integrate Kensa as the default compliance scanning engine, eliminating the XCCDF/OVAL transformation chain that causes accuracy issues.
 
 **This is the highest priority issue** - OpenWatch cannot be deployed to production if scan results are inaccurate.
 
@@ -52,20 +52,20 @@ Each step in this chain introduces potential for data loss and transformation er
 
 ---
 
-## 3. Solution: Aegis Integration
+## 3. Solution: Kensa Integration
 
-Instead of fixing the XCCDF/OVAL transformation chain, we are integrating **Aegis** - an SSH-based compliance engine with native check handlers.
+Instead of fixing the XCCDF/OVAL transformation chain, we are integrating **Kensa** - an SSH-based compliance engine with native check handlers.
 
-See: [Aegis Integration Plan](../../docs/aegis_integration_plan/README.md)
+See: [Kensa Integration Plan](../../docs/kensa_integration_plan/README.md)
 
-### Why Aegis?
+### Why Kensa?
 
 | Approach | Pros | Cons |
 |----------|------|------|
 | **Fix OVAL Transformation** | Uses existing OpenSCAP | Endless bug fixes, OVAL interpretation issues persist |
-| **Aegis Native Checks** | No OVAL interpretation, native accuracy | New integration work |
+| **Kensa Native Checks** | No OVAL interpretation, native accuracy | New integration work |
 
-### Aegis v0.1.0 Capabilities
+### Kensa v0.1.0 Capabilities
 
 | Feature | Details |
 |---------|---------|
@@ -82,32 +82,32 @@ See: [Aegis Integration Plan](../../docs/aegis_integration_plan/README.md)
 
 ### Completed
 
-- [x] Aegis plugin structure created (`backend/app/plugins/aegis/`)
+- [x] Kensa plugin structure created (`backend/app/plugins/kensa/`)
 - [x] OpenWatch credential bridge (`executor.py`)
 - [x] Scanner wrapper for ScannerFactory (`scanner.py`)
 - [x] Plugin lifecycle management (`plugin.py`)
 - [x] Scanner registration in `main.py`
-- [x] Aegis v0.1.0 released on GitHub
-- [x] **E0-S1**: Aegis v0.1.0 installed in `backend/aegis/` (339 rule files)
+- [x] Kensa v0.1.0 released on GitHub
+- [x] **E0-S1**: Kensa v0.1.0 installed in `backend/kensa/` (339 rule files)
 - [x] **E0-S2**: Integration testing with real hosts (2026-02-09)
-  - Aegis scan triggered via OpenWatch API
+  - Kensa scan triggered via OpenWatch API
   - Credentials retrieved via CentralizedAuthService
   - Scan completes successfully (338 rules, ~53 seconds)
-  - Results match native Aegis CLI: **244 pass, 94 fail (72.2%)**
+  - Results match native Kensa CLI: **244 pass, 94 fail (72.2%)**
   - Variable resolution bug fixed in `check_rules_from_path()`
 - [x] **E0-S3**: Result storage in PostgreSQL (2026-02-09)
   - Created `scan_findings` table for per-rule results
   - Severity breakdown stored (critical/high/medium/low)
-  - API endpoint: `GET /api/scans/aegis/compliance-state/{host_id}`
+  - API endpoint: `GET /api/scans/kensa/compliance-state/{host_id}`
   - Frontend "Compliance State" tab in host detail page
-- [x] **E0-S4**: Compare accuracy with native OpenSCAP (N/A - Aegis team responsibility)
-  - OpenWatch Aegis results match Aegis CLI exactly (72.2%)
-  - Aegis vs OpenSCAP comparison is outside OpenWatch scope
-- [x] **E0-S5**: API endpoints for Aegis scans (2026-02-09)
-  - `POST /api/scans/aegis/` - Trigger Aegis scan
-  - `GET /api/scans/aegis/frameworks` - List available frameworks
-  - `GET /api/scans/aegis/health` - Aegis health check
-  - `GET /api/scans/aegis/compliance-state/{host_id}` - Get compliance state
+- [x] **E0-S4**: Compare accuracy with native OpenSCAP (N/A - Kensa team responsibility)
+  - OpenWatch Kensa results match Kensa CLI exactly (72.2%)
+  - Kensa vs OpenSCAP comparison is outside OpenWatch scope
+- [x] **E0-S5**: API endpoints for Kensa scans (2026-02-09)
+  - `POST /api/scans/kensa/` - Trigger Kensa scan
+  - `GET /api/scans/kensa/frameworks` - List available frameworks
+  - `GET /api/scans/kensa/health` - Kensa health check
+  - `GET /api/scans/kensa/compliance-state/{host_id}` - Get compliance state
 
 ### Not Started
 
@@ -131,23 +131,23 @@ See: [Aegis Integration Plan](../../docs/aegis_integration_plan/README.md)
 
 ## 6. Updated User Stories
 
-### Story E0-S1: Install Aegis Package
+### Story E0-S1: Install Kensa Package
 **Priority**: P0 | **Points**: 1 | **Status**: Complete
 
 **As a** developer,
-**I want** Aegis installed in the OpenWatch environment,
+**I want** Kensa installed in the OpenWatch environment,
 **So that** the plugin can use it for scanning.
 
 **Acceptance Criteria**:
-- [x] Aegis package available in backend container (`backend/aegis/`)
-- [x] `import aegis` succeeds (via namespace wrapper)
+- [x] Kensa package available in backend container (`backend/kensa/`)
+- [x] `import kensa` succeeds (via namespace wrapper)
 - [x] `check_rules_from_path()` callable
-- [x] Aegis version logged on startup
+- [x] Kensa version logged on startup
 
 **Implementation** (Complete):
 ```bash
-# Aegis v0.1.0 cloned to backend/aegis/
-# Symlink created: backend/runner -> backend/aegis/runner
+# Kensa v0.1.0 cloned to backend/kensa/
+# Symlink created: backend/runner -> backend/kensa/runner
 # Dockerfile updated to create symlink in container
 ```
 
@@ -157,20 +157,20 @@ See: [Aegis Integration Plan](../../docs/aegis_integration_plan/README.md)
 **Priority**: P0 | **Points**: 3 | **Status**: Complete (2026-02-09)
 
 **As a** developer,
-**I want** to run an Aegis scan on a test host via OpenWatch,
+**I want** to run an Kensa scan on a test host via OpenWatch,
 **So that** I can verify the integration works.
 
 **Acceptance Criteria**:
-- [x] Aegis scan triggered via OpenWatch API
+- [x] Kensa scan triggered via OpenWatch API
 - [x] Credentials retrieved from OpenWatch (CentralizedAuthService)
 - [x] Scan completes successfully (338 rules, ~53 seconds)
 - [x] Results returned in expected format
-- [x] Compliance score matches native Aegis CLI (72.2% = 244 pass, 94 fail)
+- [x] Compliance score matches native Kensa CLI (72.2% = 244 pass, 94 fail)
 
 **Test**:
 ```bash
 # Via OpenWatch API
-curl -X POST http://localhost:8000/api/scans/aegis/ \
+curl -X POST http://localhost:8000/api/scans/kensa/ \
   -H "Authorization: Bearer $TOKEN" \
   -d '{"host_id": "9994a7e7-6752-4d6b-a65b-f4d96e4c1e18"}'
 ```
@@ -183,60 +183,60 @@ curl -X POST http://localhost:8000/api/scans/aegis/ \
 **Priority**: P0 | **Points**: 3 | **Status**: Complete (2026-02-09)
 
 **As a** developer,
-**I want** Aegis scan results stored in PostgreSQL,
+**I want** Kensa scan results stored in PostgreSQL,
 **So that** results are queryable and persistent.
 
 **Acceptance Criteria**:
-- [x] Aegis results stored in `scan_results` table (aggregate stats)
+- [x] Kensa results stored in `scan_results` table (aggregate stats)
 - [x] Individual rule results stored with metadata (`scan_findings` table)
 - [x] Framework mappings preserved (framework_section column)
 - [x] Historical queries work (by scan_id, severity, status)
-- [x] Dashboard displays Aegis results (Compliance State tab in host detail)
+- [x] Dashboard displays Kensa results (Compliance State tab in host detail)
 
 **Implementation**:
 - Created `scan_findings` table (migration: `20260209_1000_016`)
 - Columns: scan_id, rule_id, title, severity, status, detail, framework_section
 - Indexes: scan_id, rule_id, severity+status, status
-- API endpoint: `GET /api/scans/aegis/compliance-state/{host_id}`
+- API endpoint: `GET /api/scans/kensa/compliance-state/{host_id}`
 - Frontend: "Compliance State" tab with filterable findings table
 
 ---
 
 ### Story E0-S4: Compare with Native OpenSCAP
-**Priority**: P0 | **Points**: 2 | **Status**: Complete (N/A - Aegis Team Responsibility)
+**Priority**: P0 | **Points**: 2 | **Status**: Complete (N/A - Kensa Team Responsibility)
 
 **As a** developer,
-**I want** to compare Aegis accuracy with native OpenSCAP,
+**I want** to compare Kensa accuracy with native OpenSCAP,
 **So that** I can verify the accuracy improvement.
 
 **Acceptance Criteria**:
-- [x] OpenWatch Aegis results match Aegis CLI exactly (verified 72.2%)
-- [N/A] Aegis vs OpenSCAP comparison is the Aegis team's responsibility
+- [x] OpenWatch Kensa results match Kensa CLI exactly (verified 72.2%)
+- [N/A] Kensa vs OpenSCAP comparison is the Kensa team's responsibility
 - [N/A] This comparison is outside OpenWatch integration scope
 
-**Note**: The Aegis team maintains accuracy against OpenSCAP as part of Aegis development. OpenWatch's responsibility is to integrate Aegis correctly, which has been verified by matching CLI output exactly.
+**Note**: The Kensa team maintains accuracy against OpenSCAP as part of Kensa development. OpenWatch's responsibility is to integrate Kensa correctly, which has been verified by matching CLI output exactly.
 
 ---
 
-### Story E0-S5: API Endpoints for Aegis Scans
+### Story E0-S5: API Endpoints for Kensa Scans
 **Priority**: P1 | **Points**: 3 | **Status**: Complete (2026-02-09)
 
 **As a** user,
-**I want** API endpoints for Aegis scanning,
+**I want** API endpoints for Kensa scanning,
 **So that** I can trigger scans programmatically.
 
 **Acceptance Criteria**:
-- [x] `POST /api/scans/aegis/` - Trigger Aegis scan
-- [x] `GET /api/scans/aegis/compliance-state/{host_id}` - Get compliance state for host
-- [x] `GET /api/scans/aegis/frameworks` - List available frameworks
-- [x] `GET /api/scans/aegis/health` - Aegis health check
-- [ ] `GET /api/scans/aegis/coverage` - Get framework coverage (future)
+- [x] `POST /api/scans/kensa/` - Trigger Kensa scan
+- [x] `GET /api/scans/kensa/compliance-state/{host_id}` - Get compliance state for host
+- [x] `GET /api/scans/kensa/frameworks` - List available frameworks
+- [x] `GET /api/scans/kensa/health` - Kensa health check
+- [ ] `GET /api/scans/kensa/coverage` - Get framework coverage (future)
 - [ ] OpenAPI documentation updated (auto-generated by FastAPI)
 
 **Implementation**:
-- Created `backend/app/routes/scans/aegis.py` with all endpoints
+- Created `backend/app/routes/scans/kensa.py` with all endpoints
 - Registered router in `backend/app/routes/scans/__init__.py`
-- Response models: AegisScanResponse, ComplianceStateResponse, AegisFrameworksResponse
+- Response models: KensaScanResponse, ComplianceStateResponse, KensaFrameworksResponse
 
 ---
 
@@ -244,7 +244,7 @@ curl -X POST http://localhost:8000/api/scans/aegis/ \
 
 ```mermaid
 graph TD
-    S1[E0-S1: Install Aegis] --> S2[E0-S2: Integration Test]
+    S1[E0-S1: Install Kensa] --> S2[E0-S2: Integration Test]
     S2 --> S3[E0-S3: Result Storage]
     S2 --> S4[E0-S4: Compare Accuracy]
     S3 --> S5[E0-S5: API Endpoints]
@@ -255,11 +255,11 @@ graph TD
 
 ## 8. Acceptance Criteria (Epic Level)
 
-- [x] Aegis package installed and functional
+- [x] Kensa package installed and functional
 - [x] Integration test passes on real host (72.2% = 244/338 pass)
 - [x] Results stored in PostgreSQL (scan_findings table)
-- [x] Accuracy matches Aegis CLI exactly (OpenSCAP comparison is Aegis team's scope)
-- [x] API endpoints for Aegis scans (POST, GET compliance-state, frameworks, health)
+- [x] Accuracy matches Kensa CLI exactly (OpenSCAP comparison is Kensa team's scope)
+- [x] API endpoints for Kensa scans (POST, GET compliance-state, frameworks, health)
 - [ ] Documentation updated (partial - inline docs complete, user docs pending)
 
 ---
@@ -267,16 +267,16 @@ graph TD
 ## 9. Definition of Done
 
 - [x] All stories completed (E0-S1 through E0-S5)
-- [x] Scan accuracy verified (matches Aegis CLI: 244/338 = 72.2%)
+- [x] Scan accuracy verified (matches Kensa CLI: 244/338 = 72.2%)
 - [ ] Automated tests in CI/CD (future)
 - [ ] Documentation updated (partial)
-- [x] Stakeholder sign-off on accuracy (OpenWatch matches Aegis CLI exactly)
+- [x] Stakeholder sign-off on accuracy (OpenWatch matches Kensa CLI exactly)
 
 ---
 
 ## 10. Timeline
 
-**Target**: 2-4 weeks (Phase 0 of Aegis Integration Plan)
+**Target**: 2-4 weeks (Phase 0 of Kensa Integration Plan)
 
 | Week | Focus | Milestone |
 |------|-------|-----------|
@@ -289,9 +289,9 @@ graph TD
 
 ## 11. Reference Documents
 
-- [Aegis Integration Plan](../../docs/aegis_integration_plan/00-EXECUTIVE-SUMMARY.md) - Overall plan
-- [Aegis Plugin Implementation](../../docs/aegis_integration_plan/04-AEGIS-PLUGIN.md) - Plugin details
-- [Aegis v0.1.0 Release](https://github.com/Hanalyx/aegis/releases/tag/v0.1.0) - Aegis package
+- [Kensa Integration Plan](../../docs/kensa_integration_plan/00-EXECUTIVE-SUMMARY.md) - Overall plan
+- [Kensa Plugin Implementation](../../docs/kensa_integration_plan/04-KENSA-PLUGIN.md) - Plugin details
+- [Kensa v0.1.0 Release](https://github.com/Hanalyx/kensa/releases/tag/v0.1.0) - Kensa package
 - [SCAN_DISCREPANCY_ANALYSIS.md](../../docs/SCAN_DISCREPANCY_ANALYSIS.md) - Original analysis
 
 ---
@@ -320,6 +320,6 @@ The following stories were designed for the "fix OVAL transformation" approach. 
 ### Story E0-S9 (Archived): Validate on Multiple Systems
 ### Story E0-S10 (Archived): Document Scanning Accuracy
 
-These stories are superseded by the Aegis integration approach.
+These stories are superseded by the Kensa integration approach.
 
 </details>

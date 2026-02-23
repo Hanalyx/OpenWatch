@@ -3,7 +3,7 @@
  *
  * Export all audit-related pages for easy importing.
  *
- * Part of Phase 6: Audit Queries (Aegis Integration Plan)
+ * Part of Phase 6: Audit Queries (Kensa Integration Plan)
  */
 
 export { default as AuditQueriesPage } from './AuditQueriesPage';

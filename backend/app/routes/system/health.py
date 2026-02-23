@@ -42,7 +42,7 @@ async def get_content_health(
     """Get content health metrics.
 
     Note: Detailed content health is now available via the
-    Aegis Rule Reference API at /api/rules/reference/stats.
+    Kensa Rule Reference API at /api/rules/reference/stats.
     """
     try:
         return await health_service.collect_content_health()

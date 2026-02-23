@@ -1,7 +1,7 @@
 """
-AEGIS Remediation Callback Routes
+Kensa Remediation Callback Routes
 
-Handles remediation completion notifications from AEGIS, processing webhook
+Handles remediation completion notifications from Kensa, processing webhook
 callbacks with signature verification and updating scan records.
 """
 
@@ -33,7 +33,7 @@ class RemediationResult(BaseModel):
 
 
 class RemediationCallbackRequest(BaseModel):
-    """Request model for AEGIS remediation completion webhook."""
+    """Request model for Kensa remediation completion webhook."""
 
     remediation_job_id: UUID4
     scan_id: UUID4
@@ -57,7 +57,7 @@ async def handle_remediation_callback(
     x_hub_signature_256: Optional[str] = Header(None),
     db: Session = Depends(get_db),
 ) -> Dict[str, Any]:
-    """Handle remediation completion callback from AEGIS"""
+    """Handle remediation completion callback from Kensa"""
 
     # Verify webhook signature
     signature = x_openwatch_signature or x_hub_signature_256
@@ -65,17 +65,17 @@ async def handle_remediation_callback(
         logger.warning("Remediation callback received without signature")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing webhook signature")
 
-    # Get webhook secret from environment (AEGIS integration not currently implemented)
-    # When AEGIS integration is activated, webhook_secret should be configured in settings
-    webhook_secret = getattr(settings, "aegis_webhook_secret", None)
+    # Get webhook secret from environment (Kensa integration not currently implemented)
+    # When Kensa integration is activated, webhook_secret should be configured in settings
+    webhook_secret = getattr(settings, "kensa_webhook_secret", None)
 
     if not webhook_secret:
-        # AEGIS webhooks not configured - this endpoint should not be accessible
-        # In production, configure AEGIS_WEBHOOK_SECRET environment variable
-        logger.warning("AEGIS webhook callback received but webhook secret not configured")
+        # Kensa webhooks not configured - this endpoint should not be accessible
+        # In production, configure KENSA_WEBHOOK_SECRET environment variable
+        logger.warning("Kensa webhook callback received but webhook secret not configured")
         raise HTTPException(
             status_code=status.HTTP_501_NOT_IMPLEMENTED,
-            detail="AEGIS webhook integration not configured",
+            detail="Kensa webhook integration not configured",
         )
 
     # Get raw body for signature verification
@@ -105,7 +105,7 @@ async def handle_remediation_callback(
         # Update scan with remediation information
         # Note: Direct attribute assignment to SQLAlchemy columns works at runtime
         # mypy doesn't understand SQLAlchemy's descriptor protocol
-        scan.aegis_remediation_id = str(callback.remediation_job_id)
+        scan.kensa_remediation_id = str(callback.remediation_job_id)
         scan.remediation_status = callback.status
         scan.remediation_completed_at = callback.completed_at
 

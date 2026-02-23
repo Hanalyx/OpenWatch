@@ -9,7 +9,7 @@ Package Structure:
     ├── __init__.py         # This file - public API and router aggregation
     ├── models.py           # Pydantic request/response models
     ├── helpers.py          # Utility functions and scanner singletons
-    ├── aegis.py            # Aegis compliance engine (PRIMARY)
+    ├── kensa.py            # Kensa compliance engine (PRIMARY)
     ├── compliance.py       # Primary compliance scan endpoints
     ├── crud.py             # Basic CRUD operations
     ├── reports.py          # Report generation endpoints
@@ -22,7 +22,7 @@ Migration Status:
     Phase 7: MongoDB Deprecation (2026-02-10)
     - Removed mongodb.py (1,115 LOC) - Legacy MongoDB SCAP scanning
     - Removed rules.py (721 LOC) - MongoDB rule scanning
-    - Replaced by Aegis native compliance scanning at /aegis/*
+    - Replaced by Kensa native compliance scanning at /kensa/*
 
 Usage:
     # Import the router in main.py
@@ -72,7 +72,7 @@ Router Organization:
         POST /hosts/{host_id}/quick-scan    - Quick scan (legacy)
         POST /verify                        - Verification scan (legacy)
         POST /{scan_id}/rescan/rule         - Rescan rule (disabled)
-        POST /{scan_id}/remediate           - Start AEGIS remediation
+        POST /{scan_id}/remediate           - Start Kensa remediation
         POST /readiness/validate-bulk       - Bulk host readiness
         GET  /{scan_id}/pre-flight-check    - Pre-flight check
         GET  /capabilities                  - Get scan capabilities
@@ -90,10 +90,10 @@ Router Organization:
         POST /templates/{template_id}/clone      - Clone template
         POST /templates/{template_id}/set-default - Set as default template
 
-    Aegis Router (aegis.py) - Primary Compliance Engine:
-        POST /aegis                              - Execute Aegis compliance scan
-        GET  /aegis/frameworks                   - List available frameworks
-        GET  /aegis/health                       - Aegis engine health check
+    Kensa Router (kensa.py) - Primary Compliance Engine:
+        POST /kensa                              - Execute Kensa compliance scan
+        GET  /kensa/frameworks                   - List available frameworks
+        GET  /kensa/health                       - Kensa engine health check
 
     Quick Scan Router (quick.py) - One-Click Scanning:
         POST /quick                              - Quick scan for host(s) or host group
@@ -124,16 +124,16 @@ from app.routes.scans.validation import router as validation_router  # noqa: E40
 router.include_router(templates_router)
 
 # NOTE: MongoDB routes removed during MongoDB deprecation (2026-02-10)
-# - mongodb.py (1,115 LOC) - Legacy MongoDB SCAP scanning - Replaced by Aegis
-# - rules.py (721 LOC) - MongoDB rule scanning - Replaced by Aegis frameworks
+# - mongodb.py (1,115 LOC) - Legacy MongoDB SCAP scanning - Replaced by Kensa
+# - rules.py (721 LOC) - MongoDB rule scanning - Replaced by Kensa frameworks
 
-# Aegis compliance engine router (E0-S5 API Endpoints)
-from app.routes.scans.aegis import router as aegis_router  # noqa: E402
+# Kensa compliance engine router (E0-S5 API Endpoints)
+from app.routes.scans.kensa import router as kensa_router  # noqa: E402
 
 # Quick scan router - one-click scanning from /hosts and /host-groups
 from app.routes.scans.quick import router as quick_router  # noqa: E402
 
-router.include_router(aegis_router)
+router.include_router(kensa_router)
 router.include_router(quick_router)
 
 # Core routers (more generic patterns)

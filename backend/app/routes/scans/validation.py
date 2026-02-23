@@ -9,7 +9,7 @@ Endpoints:
     POST /hosts/{host_id}/quick-scan      - Quick scan with defaults (LEGACY)
     POST /verify                          - Verification scan (LEGACY)
     POST /{scan_id}/rescan/rule           - Rescan specific rule (DISABLED)
-    POST /{scan_id}/remediate             - Start AEGIS remediation
+    POST /{scan_id}/remediate             - Start Kensa remediation
     GET  /capabilities                    - Get scanning capabilities
     GET  /summary                         - Get scan summary statistics
     GET  /profiles                        - Get available SCAP profiles
@@ -28,7 +28,7 @@ Security Notes:
 
 Legacy Endpoints:
     Endpoints marked (LEGACY) use SCAP content files for scanning.
-    For compliance scanning, use /api/scans/ or /api/scans/aegis/ endpoints.
+    For compliance scanning, use /api/scans/ or /api/scans/kensa/ endpoints.
 """
 
 import json
@@ -548,7 +548,7 @@ async def create_verification_scan(
     current_user: Dict[str, Any] = Depends(get_current_user),
 ) -> Dict[str, Any]:
     """
-    Create a verification scan after AEGIS remediation (LEGACY).
+    Create a verification scan after Kensa remediation (LEGACY).
 
     DEPRECATION NOTICE: This endpoint uses SCAP content files for scanning.
     For compliance scanning, use /api/scans/ endpoints instead.
@@ -577,7 +577,7 @@ async def create_verification_scan(
             "content_id": 1,
             "profile_id": "xccdf_org.ssgproject.content_profile_stig",
             "original_scan_id": "another-uuid",
-            "remediation_job_id": "aegis-job-id"
+            "remediation_job_id": "kensa-job-id"
         }
 
     Security:
@@ -802,10 +802,10 @@ async def start_remediation(
     current_user: Dict[str, Any] = Depends(get_current_user),
 ) -> Dict[str, Any]:
     """
-    Send failed rules to AEGIS for automated remediation.
+    Send failed rules to Kensa for automated remediation.
 
     Initiates remediation workflow for all failed rules from a completed scan.
-    Requires AEGIS integration to be configured.
+    Requires Kensa integration to be configured.
 
     Args:
         scan_id: UUID of the completed scan with failed rules.
@@ -836,7 +836,7 @@ async def start_remediation(
 
     Security:
         - Requires authenticated user
-        - Audit trail created via aegis_remediation_id
+        - Audit trail created via kensa_remediation_id
     """
     try:
         # Get scan details and failed rules
@@ -880,7 +880,7 @@ async def start_remediation(
             {"scan_id": scan_id},
         ).fetchall()
 
-        # Create remediation job (in production, this calls AEGIS API)
+        # Create remediation job (in production, this calls Kensa API)
         remediation_job_id = str(uuid.uuid4())
 
         # Update scan with remediation request
@@ -889,7 +889,7 @@ async def start_remediation(
                 """
             UPDATE scans
             SET remediation_requested = true,
-                aegis_remediation_id = :job_id,
+                kensa_remediation_id = :job_id,
                 remediation_status = 'pending'
             WHERE id = :scan_id
         """
@@ -1100,7 +1100,7 @@ async def get_available_profiles(
 
     Note:
         Currently returns static profile data. Full implementation would
-        query SCAP content and Aegis YAML rules.
+        query SCAP content and Kensa YAML rules.
     """
     # Placeholder implementation - full version would query databases
     return {

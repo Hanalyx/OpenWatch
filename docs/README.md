@@ -44,7 +44,7 @@ Design documentation for the Compliance Operating System initiative.
 
 | Document | Description |
 |----------|-------------|
-| [Aegis Integration](architecture/AEGIS_INTEGRATION.md) | Aegis compliance engine integration manual |
+| [Kensa Integration](architecture/KENSA_INTEGRATION.md) | Kensa compliance engine integration manual |
 | [Native RPM Installation](architecture/NATIVE_RPM_INSTALLATION.md) | RPM-based deployment design |
 
 ## Architecture Decision Records
@@ -52,7 +52,7 @@ Design documentation for the Compliance Operating System initiative.
 | ADR | Title | Status |
 |-----|-------|--------|
 | [ADR-001](decisions/ADR-001-postgresql-primary-database.md) | PostgreSQL as primary database | Accepted |
-| [ADR-002](decisions/ADR-002-aegis-compliance-engine.md) | Aegis replaces OpenSCAP | Accepted |
+| [ADR-002](decisions/ADR-002-kensa-compliance-engine.md) | Kensa (formerly Aegis) replaces OpenSCAP | Accepted |
 | [ADR-003](decisions/ADR-003-modular-service-architecture.md) | Modular service package pattern | Accepted |
 
 ## Quick Links

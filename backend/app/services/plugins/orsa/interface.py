@@ -5,7 +5,7 @@ OpenWatch Remediation System Adapter - the standard interface that all complianc
 scanning and remediation plugins must implement to integrate with OpenWatch.
 
 ORSA v2.0 provides:
-- Generalized plugin interface (not Aegis-specific)
+- Generalized plugin interface (not Kensa-specific)
 - Embedded library support (not just HTTP API)
 - License-aware remediation
 - Capability-based implementation selection
@@ -94,7 +94,7 @@ class CanonicalRule:
     platform support, and implementation details.
     """
 
-    id: str  # aegis.ssh.root_login_disabled
+    id: str  # kensa.ssh.root_login_disabled
     title: str
     description: str
     rationale: str
@@ -270,11 +270,11 @@ class ORSAPlugin(ABC):
         - remediate(), rollback(): Requires OpenWatch+ license
 
     Example:
-        class AegisPlugin(ORSAPlugin):
+        class KensaPlugin(ORSAPlugin):
             async def get_info(self) -> PluginInfo:
                 return PluginInfo(
-                    plugin_id="aegis",
-                    name="Aegis Compliance Engine",
+                    plugin_id="kensa",
+                    name="Kensa Compliance Engine",
                     version="0.1.0",
                     description="SSH-based compliance scanning",
                     vendor="Hanalyx",

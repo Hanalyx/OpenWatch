@@ -51,6 +51,7 @@ LABEL maintainer="OpenWatch Security Team" \
 # - gcc: C compiler needed for some Python packages (cryptography, psycopg2-binary)
 # - postgresql-devel: PostgreSQL client library headers
 # - curl: Health check endpoint verification
+# - git: Required for pip install of Kensa from git+https://github.com/Hanalyx/kensa.git
 #
 # Security considerations:
 # - Using dnf (UBI9 standard package manager) for Python 3.12 installation
@@ -70,7 +71,8 @@ RUN dnf update -y && \
         openssl-devel \
         gcc \
         postgresql-devel \
-        curl && \
+        curl \
+        git && \
     dnf clean all && \
     rm -rf /var/cache/dnf
 
@@ -166,11 +168,6 @@ RUN python3.12 -m pip install --no-cache-dir --upgrade pip && \
 COPY backend/ ./backend/
 COPY security/ ./security/
 
-# Create symlink for Aegis runner package imports
-# The Aegis package uses 'from runner.*' internally, but is located at backend/aegis/runner/
-# This symlink allows both 'from runner.*' and 'from aegis.runner.*' import patterns
-RUN ln -sf /openwatch/backend/aegis/runner /openwatch/backend/runner
-
 # Copy oscap-ssh wrapper script for remote SCAP scanning
 # This script wraps oscap-ssh command with authentication and error handling
 COPY backend/scripts/oscap-ssh /usr/local/bin/oscap-ssh
@@ -261,7 +258,8 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 ENV PYTHONPATH=/openwatch/backend \
     OPENWATCH_FIPS_MODE=true \
     OPENWATCH_LOG_LEVEL=INFO \
-    PYTHON_VERSION=3.12.1
+    PYTHON_VERSION=3.12.1 \
+    KENSA_RULES_PATH=/openwatch/backend/kensa-rules
 
 # Set entrypoint script
 # Entrypoint runs before CMD and handles initialization

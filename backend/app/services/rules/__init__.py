@@ -64,7 +64,7 @@ Module Structure:
 Related Modules:
     - services.framework: Framework mapping and reporting
     - services.compliance_rules: Rule upload and versioning
-    - services.rule_reference_service: Aegis rule reference (replaces MongoDB)
+    - services.rule_reference_service: Kensa rule reference (replaces MongoDB)
 
 Security Notes:
     - Path injection prevention in scanner operations

@@ -3,12 +3,12 @@
 Engine Integration Module
 
 Provides external system integrations for the SCAP processing engine, including:
-- AEGIS remediation system mapping and job generation
+- Kensa remediation system mapping and job generation
 - Semantic analysis engine for intelligent compliance insights
 - Cross-framework compliance intelligence
 
 This module enables:
-1. Automated remediation workflows via AEGIS integration
+1. Automated remediation workflows via Kensa integration
 2. Rich semantic understanding of SCAP compliance rules
 3. Intelligent trend prediction and analysis
 4. Universal framework mapping (NIST, CIS, STIG, etc.)
@@ -20,14 +20,14 @@ Security Considerations:
 
 Usage:
     from app.services.engine.integration import (
-        AegisMapper,
+        KensaMapper,
         SemanticEngine,
-        get_aegis_mapper,
+        get_kensa_mapper,
         get_semantic_engine,
     )
 
-    # AEGIS remediation mapping
-    mapper = get_aegis_mapper()
+    # Kensa remediation mapping
+    mapper = get_kensa_mapper()
     plan = mapper.create_remediation_plan(failed_rules, host_id)
 
     # Semantic analysis
@@ -35,12 +35,7 @@ Usage:
     result = await engine.process_scan_with_intelligence(scan_id)
 """
 
-from app.services.engine.integration.aegis_mapper import (
-    AegisMapper,
-    AEGISMapping,
-    RemediationPlan,
-    get_aegis_mapper,
-)
+from app.services.engine.integration.kensa_mapper import KensaMapper, KensaMapping, RemediationPlan, get_kensa_mapper
 from app.services.engine.integration.semantic_engine import (
     IntelligentScanResult,
     SemanticEngine,
@@ -49,11 +44,11 @@ from app.services.engine.integration.semantic_engine import (
 )
 
 __all__ = [
-    # AEGIS Integration
-    "AegisMapper",
-    "AEGISMapping",
+    # Kensa Integration
+    "KensaMapper",
+    "KensaMapping",
     "RemediationPlan",
-    "get_aegis_mapper",
+    "get_kensa_mapper",
     # Semantic Engine
     "SemanticEngine",
     "SemanticRule",

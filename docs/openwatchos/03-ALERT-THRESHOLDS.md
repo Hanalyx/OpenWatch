@@ -7,7 +7,7 @@ The alert system generates actionable notifications when compliance posture degr
 ## Architecture
 
 ```
-Aegis Scan Completes
+Kensa Scan Completes
        |
        v
 AlertGenerator.process_scan_results()
@@ -154,7 +154,7 @@ All endpoints are under `/api/compliance/alerts`.
 
 ## Integration Points
 
-- **Compliance Scheduler**: `AlertGenerator.process_scan_results()` is called after each scheduled Aegis scan completes
+- **Compliance Scheduler**: `AlertGenerator.process_scan_results()` is called after each scheduled Kensa scan completes
 - **Exception Service**: Celery tasks check for expiring/expired exceptions and generate alerts
 - **Temporal Compliance**: Score drop detection uses posture snapshot history
 

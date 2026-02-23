@@ -3,7 +3,7 @@ Compliance Posture API Endpoints
 
 Endpoints for querying compliance posture at current or historical points in time.
 
-Part of Phase 2: Temporal Compliance (Aegis Integration Plan)
+Part of Phase 2: Temporal Compliance (Kensa Integration Plan)
 
 Endpoint Structure:
     GET    /posture                     - Get current or historical posture

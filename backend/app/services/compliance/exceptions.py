@@ -3,7 +3,7 @@ Compliance Exception Service
 
 Manages structured exceptions with approval workflows.
 
-Part of Phase 3: Governance Primitives (Aegis Integration Plan)
+Part of Phase 3: Governance Primitives (Kensa Integration Plan)
 
 OS Claim: "Exceptions are explicit state, not narrative artifacts"
 """

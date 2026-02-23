@@ -1,11 +1,11 @@
 """
 Rules API Package
 
-This package provides API endpoints for browsing and exploring Aegis
+This package provides API endpoints for browsing and exploring Kensa
 compliance rules. Replaces the deprecated MongoDB-based rule management.
 
 Endpoint Structure:
-    /api/rules/reference/*  - Rule Reference API for browsing Aegis rules
+    /api/rules/reference/*  - Rule Reference API for browsing Kensa rules
 
 The Rule Reference API provides:
     - Rule listing with search and filtering
@@ -14,7 +14,7 @@ The Rule Reference API provides:
     - Configurable variable documentation
 
 For compliance scanning, use:
-    /api/scans/aegis/*  - Aegis compliance scanning endpoints
+    /api/scans/kensa/*  - Kensa compliance scanning endpoints
 """
 
 from fastapi import APIRouter

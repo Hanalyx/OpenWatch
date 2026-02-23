@@ -63,7 +63,7 @@ try:
 
     # Include sub-routers
     # NOTE: intelligence_router removed during MongoDB deprecation (2026-02-10)
-    # Semantic SCAP intelligence was MongoDB-dependent and replaced by Aegis
+    # Semantic SCAP intelligence was MongoDB-dependent and replaced by Kensa
     # Alert endpoints at /compliance/alerts/* (OpenWatch OS Alert Thresholds)
     router.include_router(alerts_router)
 

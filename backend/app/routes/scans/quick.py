@@ -25,7 +25,7 @@ from sqlalchemy.orm import Session
 
 from app.auth import get_current_user
 from app.database import get_db
-from app.tasks.aegis_scan_tasks import create_aegis_scan_record, execute_aegis_scan_task
+from app.tasks.kensa_scan_tasks import create_kensa_scan_record, execute_kensa_scan_task
 
 logger = logging.getLogger(__name__)
 
@@ -60,12 +60,12 @@ class QuickScanRequest(BaseModel):
     @field_validator("framework")
     @classmethod
     def validate_framework(cls, v: Optional[str]) -> Optional[str]:
-        """Validate framework is supported by Aegis."""
+        """Validate framework is supported by Kensa."""
         if v is None:
             return None
         allowed = {"cis", "stig", "cis-rhel9-v2.0.0", "stig-rhel9-v2r7"}
         if v.lower() not in allowed:
-            raise ValueError(f"Framework '{v}' not supported. Aegis supports: cis, stig")
+            raise ValueError(f"Framework '{v}' not supported. Kensa supports: cis, stig")
         return v.lower()
 
 
@@ -168,7 +168,7 @@ async def quick_scan(
     current_user: Dict[str, Any] = Depends(get_current_user),
 ) -> QuickScanResponse:
     """
-    Trigger a quick Aegis compliance scan.
+    Trigger a quick Kensa compliance scan.
 
     This endpoint provides one-click scanning functionality:
     - Auto-detects platform from host_system_info
@@ -275,7 +275,7 @@ async def quick_scan(
     for host in hosts_to_scan:
         try:
             # Create scan record
-            scan_id = create_aegis_scan_record(
+            scan_id = create_kensa_scan_record(
                 db=db,
                 host_id=host["id"],
                 user_id=user_id,
@@ -283,7 +283,7 @@ async def quick_scan(
             )
 
             # Queue Celery task
-            execute_aegis_scan_task.delay(
+            execute_kensa_scan_task.delay(
                 scan_id=scan_id,
                 host_id=host["id"],
                 framework=framework,

@@ -405,7 +405,7 @@ export function useHostsPage(): UseHostsPageReturn {
     }
   };
 
-  // Bulk quick scan using Aegis one-click scan API
+  // Bulk quick scan using Kensa one-click scan API
   const handleBulkQuickScan = async () => {
     if (selectedHosts.length === 0) return;
 
@@ -498,7 +498,7 @@ export function useHostsPage(): UseHostsPageReturn {
     setSelectedHosts([]); // Clear selection
   };
 
-  // Quick scan using Aegis one-click scan API
+  // Quick scan using Kensa one-click scan API
   const handleQuickScanWithValidation = async (host: Host) => {
     try {
       // Close dialog immediately

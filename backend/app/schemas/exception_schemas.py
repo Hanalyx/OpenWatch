@@ -3,7 +3,7 @@ Exception Schemas for Governance Primitives
 
 Pydantic models for compliance exception requests and responses.
 
-Part of Phase 3: Governance Primitives (Aegis Integration Plan)
+Part of Phase 3: Governance Primitives (Kensa Integration Plan)
 """
 
 from datetime import datetime

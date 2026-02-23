@@ -3,7 +3,7 @@
  *
  * Displays export history with status polling and download links.
  *
- * Part of Phase 6: Audit Queries (Aegis Integration Plan)
+ * Part of Phase 6: Audit Queries (Kensa Integration Plan)
  */
 
 import React, { useState } from 'react';

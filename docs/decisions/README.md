@@ -15,5 +15,5 @@ Each ADR follows this structure:
 | ADR | Title | Status | Date |
 |-----|-------|--------|------|
 | [ADR-001](ADR-001-postgresql-primary-database.md) | PostgreSQL as primary database | Accepted | 2026-02-10 |
-| [ADR-002](ADR-002-aegis-compliance-engine.md) | Aegis replaces OpenSCAP | Accepted | 2026-02-09 |
+| [ADR-002](ADR-002-kensa-compliance-engine.md) | Kensa (formerly Aegis) replaces OpenSCAP | Accepted | 2026-02-09 |
 | [ADR-003](ADR-003-modular-service-architecture.md) | Modular service package pattern | Accepted | 2025-12-02 |

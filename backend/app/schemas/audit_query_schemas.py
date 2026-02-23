@@ -3,7 +3,7 @@ Audit Query Schemas
 
 Pydantic models for audit query builder requests and responses.
 
-Part of Phase 6: Audit Queries (Aegis Integration Plan)
+Part of Phase 6: Audit Queries (Kensa Integration Plan)
 
 OS Claim 3.3: "Audits are queries over canonical evidence"
 """

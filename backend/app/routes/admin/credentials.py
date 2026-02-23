@@ -1,7 +1,7 @@
 """
 Credential Sharing API Routes
 
-API endpoints for sharing SSH credentials with AEGIS for remediation.
+API endpoints for sharing SSH credentials with Kensa for remediation.
 """
 
 import base64
@@ -30,8 +30,8 @@ security = HTTPBearer(auto_error=False)
 router = APIRouter(prefix="/credentials", tags=["Credential Sharing"])
 
 
-def verify_aegis_signature(payload: bytes, signature: str, secret_key: str) -> bool:
-    """Verify HMAC-SHA256 signature from AEGIS."""
+def verify_kensa_signature(payload: bytes, signature: str, secret_key: str) -> bool:
+    """Verify HMAC-SHA256 signature from Kensa."""
     try:
         expected_signature = hmac.new(secret_key.encode("utf-8"), payload, hashlib.sha256).hexdigest()
 
@@ -45,26 +45,26 @@ def verify_aegis_signature(payload: bytes, signature: str, secret_key: str) -> b
         return False
 
 
-def validate_aegis_request(signature: Optional[str] = Header(None, alias="X-AEGIS-Signature")) -> bool:
-    """Validate incoming AEGIS request signature."""
+def validate_kensa_request(signature: Optional[str] = Header(None, alias="X-Kensa-Signature")) -> bool:
+    """Validate incoming Kensa request signature."""
     if not signature:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Missing AEGIS signature header",
+            detail="Missing Kensa signature header",
         )
 
-    # AEGIS integration secrets removed - not currently implemented
-    # AEGIS integration is optional and only active when AEGIS_URL is configured
-    # When AEGIS integration is activated, proper secret configuration should be added
+    # Kensa integration secrets removed - not currently implemented
+    # Kensa integration is optional and only active when KENSA_URL is configured
+    # When Kensa integration is activated, proper secret configuration should be added
     # via environment variables (never hardcoded)
 
-    # For now, skip signature verification if AEGIS_URL is not configured
-    aegis_url = os.environ.get("AEGIS_URL")
-    if not aegis_url:
-        # AEGIS not configured, skip verification
+    # For now, skip signature verification if KENSA_URL is not configured
+    kensa_url = os.environ.get("KENSA_URL")
+    if not kensa_url:
+        # Kensa not configured, skip verification
         return True
 
-    # Note: When AEGIS is implemented, add proper signature verification here
+    # Note: When Kensa is implemented, add proper signature verification here
     # using secrets from environment variables, never hardcoded values
     return True
 
@@ -73,7 +73,7 @@ class HostCredentialsRequest(BaseModel):
     """Request for host credentials."""
 
     host_ids: List[str]
-    requesting_service: str = "aegis"
+    requesting_service: str = "kensa"
 
 
 class SSHCredential(BaseModel):
@@ -102,13 +102,13 @@ class CredentialsResponse(BaseModel):
 async def get_host_credentials(
     host_id: str,
     db: Session = Depends(get_db),
-    _: bool = Depends(validate_aegis_request),
+    _: bool = Depends(validate_kensa_request),
     current_user: Dict[str, Any] = Depends(get_current_user),
 ) -> SSHCredential:
     """
-    Get SSH credentials for a specific host (AEGIS integration).
+    Get SSH credentials for a specific host (Kensa integration).
 
-    This endpoint allows AEGIS to retrieve SSH credentials for a host
+    This endpoint allows Kensa to retrieve SSH credentials for a host
     to perform remediation tasks.
     """
     try:
@@ -178,7 +178,7 @@ async def get_host_credentials(
             last_updated=(row.updated_at.isoformat() if row.updated_at else datetime.utcnow().isoformat()),
         )
 
-        logger.info(f"Provided SSH credentials for host {row.hostname} to AEGIS")
+        logger.info(f"Provided SSH credentials for host {row.hostname} to Kensa")
         return credential
 
     except HTTPException:
@@ -195,11 +195,11 @@ async def get_host_credentials(
 async def get_multiple_host_credentials(
     request: HostCredentialsRequest,
     db: Session = Depends(get_db),
-    _: bool = Depends(validate_aegis_request),
+    _: bool = Depends(validate_kensa_request),
     current_user: Dict[str, Any] = Depends(get_current_user),
 ) -> CredentialsResponse:
     """
-    Get SSH credentials for multiple hosts (AEGIS integration).
+    Get SSH credentials for multiple hosts (Kensa integration).
 
     Batch endpoint for retrieving SSH credentials for multiple hosts
     to perform remediation tasks efficiently.
@@ -272,7 +272,7 @@ async def get_multiple_host_credentials(
 
             credentials.append(credential)
 
-        logger.info(f"Provided SSH credentials for {len(credentials)} hosts to AEGIS")
+        logger.info(f"Provided SSH credentials for {len(credentials)} hosts to Kensa")
 
         return CredentialsResponse(
             credentials=credentials,
@@ -294,11 +294,11 @@ async def get_multiple_host_credentials(
 async def get_default_system_credentials(
     response: Response,
     db: Session = Depends(get_db),
-    _: bool = Depends(validate_aegis_request),
+    _: bool = Depends(validate_kensa_request),
     current_user: Dict[str, Any] = Depends(get_current_user),
 ) -> SSHCredential:
     """
-    Get default system SSH credentials (AEGIS integration).
+    Get default system SSH credentials (Kensa integration).
 
     Retrieves the default system-wide SSH credentials that can be used
     for hosts that don't have specific credentials configured.
@@ -342,7 +342,7 @@ async def get_default_system_credentials(
             last_updated=datetime.utcnow().isoformat(),
         )
 
-        logger.info("Provided default system SSH credentials to AEGIS")
+        logger.info("Provided default system SSH credentials to Kensa")
         return credential
 
     except HTTPException:

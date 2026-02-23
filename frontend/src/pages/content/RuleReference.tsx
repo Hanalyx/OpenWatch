@@ -1,7 +1,7 @@
 /**
  * Rule Reference Page
  *
- * Browse and explore Aegis compliance rules with filtering, search, and
+ * Browse and explore Kensa compliance rules with filtering, search, and
  * detailed rule information. Replaces the MongoDB-based Content Library
  * with a clean YAML-based rule reference.
  *
@@ -883,7 +883,7 @@ const RuleReference: React.FC = () => {
           Rule Reference
         </Typography>
         <Typography variant="body1" color="text.secondary">
-          Browse Aegis compliance rules with framework mappings, implementation details, and
+          Browse Kensa compliance rules with framework mappings, implementation details, and
           remediation guidance
         </Typography>
       </Box>

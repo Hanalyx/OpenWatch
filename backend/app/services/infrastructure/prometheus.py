@@ -114,7 +114,7 @@ integration_call_duration_seconds = Histogram(
     registry=registry,
 )
 
-# Remediation Metrics (for AEGIS integration)
+# Remediation Metrics (for Kensa integration)
 remediations_total = Counter(
     "secureops_remediations_total",
     "Total remediation attempts",

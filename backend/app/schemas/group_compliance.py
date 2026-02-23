@@ -44,7 +44,7 @@ class RemediationMode(str, Enum):
 
 # Request Schemas
 class GroupComplianceScanRequest(BaseModel):
-    """Request schema for starting group compliance scan (Aegis-based)"""
+    """Request schema for starting group compliance scan (Kensa-based)"""
 
     compliance_framework: Optional[ComplianceFramework] = Field(
         None, description="Target compliance framework (cis or disa-stig)"
@@ -62,7 +62,7 @@ class GroupScanScheduleRequest(BaseModel):
 
     enabled: bool = Field(True, description="Enable/disable scheduled scanning")
     cron_expression: str = Field(..., description="Cron expression for schedule")
-    profile_id: Optional[str] = Field(None, description="Compliance profile ID (deprecated, Aegis uses framework)")
+    profile_id: Optional[str] = Field(None, description="Compliance profile ID (deprecated, Kensa uses framework)")
     compliance_framework: ComplianceFramework = Field(..., description="Target compliance framework")
     scan_options: Optional[Dict[str, Any]] = Field(default_factory=dict)
     email_notifications: bool = Field(True, description="Send notifications for scheduled scans")

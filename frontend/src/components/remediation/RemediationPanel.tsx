@@ -121,7 +121,7 @@ const RemediationPanel: React.FC<RemediationPanelProps> = ({
       setLoading(true);
       setActiveStep(1);
 
-      // Send remediation request to AEGIS
+      // Send remediation request to Kensa
       const response = await fetch('http://localhost:8000/api/remediation/jobs', {
         method: 'POST',
         headers: {
@@ -260,7 +260,7 @@ const RemediationPanel: React.FC<RemediationPanelProps> = ({
               <StepLabel>Execute Remediation</StepLabel>
               <StepContent>
                 <Typography variant="body2" color="text.secondary">
-                  AEGIS is applying fixes to the selected security rules...
+                  Kensa is applying fixes to the selected security rules...
                 </Typography>
               </StepContent>
             </Step>

@@ -13,7 +13,7 @@ Endpoint Structure:
     GET    /orsa/{plugin_id}/rules      - Get available rules from plugin
     GET    /orsa/{plugin_id}/frameworks - Get supported frameworks
 
-Phase 1: Aegis Integration (ORSA v2.0 Interface)
+Phase 1: Kensa Integration (ORSA v2.0 Interface)
 """
 
 import logging
@@ -232,7 +232,7 @@ async def get_orsa_plugin(
     Get detailed information about a specific ORSA plugin.
 
     Args:
-        plugin_id: The plugin identifier (e.g., "aegis")
+        plugin_id: The plugin identifier (e.g., "kensa")
         current_user: Authenticated user
 
     Returns:

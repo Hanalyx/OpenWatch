@@ -164,52 +164,52 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Initialize JWT keys
     logger.info("JWT manager initialized with RSA keys")
 
-    # MongoDB deprecated (2026-02-10) - using PostgreSQL + Aegis only
-    logger.info("MongoDB deprecated - using PostgreSQL + Aegis for compliance data")
+    # MongoDB deprecated (2026-02-10) - using PostgreSQL + Kensa only
+    logger.info("MongoDB deprecated - using PostgreSQL + Kensa for compliance data")
 
-    # Register Aegis scanner with ScannerFactory
+    # Register Kensa scanner with ScannerFactory
     try:
-        from .plugins.aegis import register_aegis_scanner
+        from .plugins.kensa import register_kensa_scanner
 
-        register_aegis_scanner()
-        logger.info("Aegis scanner registered with ScannerFactory")
-    except Exception as aegis_error:
-        logger.warning(f"Aegis scanner registration failed: {aegis_error}")
+        register_kensa_scanner()
+        logger.info("Kensa scanner registered with ScannerFactory")
+    except Exception as kensa_error:
+        logger.warning(f"Kensa scanner registration failed: {kensa_error}")
         # Non-fatal - other scanners still work
 
-    # Sync Aegis rules to PostgreSQL (replaces MongoDB rule storage)
+    # Sync Kensa rules to PostgreSQL (replaces MongoDB rule storage)
     try:
         from .database import SessionLocal
-        from .plugins.aegis import AegisRuleSyncService
+        from .plugins.kensa import KensaRuleSyncService
 
         db = SessionLocal()
         try:
-            sync_service = AegisRuleSyncService(db)
+            sync_service = KensaRuleSyncService(db)
             sync_result = sync_service.sync_all_rules()
             logger.info(
-                "Aegis rules synced to PostgreSQL: %d rules, %d mappings",
+                "Kensa rules synced to PostgreSQL: %d rules, %d mappings",
                 sync_result.get("rules_synced", 0),
                 sync_result.get("mappings_created", 0),
             )
         finally:
             db.close()
     except Exception as sync_error:
-        logger.warning(f"Aegis rule sync failed: {sync_error}")
+        logger.warning(f"Kensa rule sync failed: {sync_error}")
         # Non-fatal - scans still work with YAML rules directly
 
-    # Register Aegis ORSA plugin with the plugin registry
+    # Register Kensa ORSA plugin with the plugin registry
     try:
-        from .plugins.aegis import register_aegis_orsa_plugin
+        from .plugins.kensa import register_kensa_orsa_plugin
 
-        aegis_info = await register_aegis_orsa_plugin()
+        kensa_info = await register_kensa_orsa_plugin()
         logger.info(
-            "Aegis ORSA plugin registered: %s v%s (%d capabilities)",
-            aegis_info.name,
-            aegis_info.version,
-            len(aegis_info.capabilities),
+            "Kensa ORSA plugin registered: %s v%s (%d capabilities)",
+            kensa_info.name,
+            kensa_info.version,
+            len(kensa_info.capabilities),
         )
     except Exception as orsa_error:
-        logger.warning(f"Aegis ORSA plugin registration failed: {orsa_error}")
+        logger.warning(f"Kensa ORSA plugin registration failed: {orsa_error}")
         # Non-fatal - legacy scanner still works
 
     # Distributed tracing disabled for initial deployment

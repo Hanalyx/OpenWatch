@@ -8,7 +8,7 @@ Traditional compliance scanning is reactive: an operator runs a scan, reviews re
 
 ## Core Principles
 
-1. **Auto-scan centric** -- Aegis compliance checks run automatically on adaptive schedules (max 48-hour interval). Manual scan buttons are removed from the primary workflow.
+1. **Auto-scan centric** -- Kensa compliance checks run automatically on adaptive schedules (max 48-hour interval). Manual scan buttons are removed from the primary workflow.
 2. **Server Intelligence** -- Collect packages, services, users, network configuration, firewall rules, and audit events via SSH during every scan.
 3. **Clean UI** -- Purposeful icons only, minimal color, readability first. No decorative elements.
 4. **Temporal compliance** -- Point-in-time posture queries, drift analysis, and historical trend tracking.
@@ -21,13 +21,13 @@ Traditional compliance scanning is reactive: an operator runs a scan, reviews re
 | Temporal Compliance | Point-in-time posture, history, drift analysis | Complete | #275 |
 | Governance Primitives | Compliance exceptions with approval workflow | Complete | -- |
 | Audit Queries | Saved queries, export (CSV/JSON/PDF) | Complete | -- |
-| Rule Reference UI | Browse 338 Aegis YAML rules with filtering | Complete | #276 |
+| Rule Reference UI | Browse 338 Kensa YAML rules with filtering | Complete | #276 |
 | Alert Thresholds | Compliance/operational/drift alerts | Complete | #281 |
 | Server Intelligence | Packages, services, users, network collection | Complete | #274 |
 | Adaptive Compliance Scheduler | State-based scan intervals, auto-dispatch | Complete | #274 |
 | Host Detail Page Redesign | Auto-scan centric UI, server intelligence tabs | In Progress | -- |
-| Remediation + Subscription | Aegis Phase 4 -- automated remediation | Not Started | -- |
-| OTA Updates | Aegis Phase 5 -- over-the-air rule updates | Not Started | -- |
+| Remediation + Subscription | Kensa Phase 4 -- automated remediation | Not Started | -- |
+| OTA Updates | Kensa Phase 5 -- over-the-air rule updates | Not Started | -- |
 
 ## Architecture
 
@@ -47,7 +47,7 @@ Traditional compliance scanning is reactive: an operator runs a scan, reviews re
                     +--------------+--------------+
                     |              |              |
             +-------v--+  +-------v--+  +-------v--+
-            | Aegis    |  | Aegis    |  | Aegis    |
+            | Kensa    |  | Kensa    |  | Kensa    |
             | Scan     |  | Scan     |  | Scan     |
             | (Host A) |  | (Host B) |  | (Host C) |
             +----+-----+  +----+-----+  +----+-----+
@@ -69,7 +69,7 @@ Traditional compliance scanning is reactive: an operator runs a scan, reviews re
                     +-------------------+
 ```
 
-## Aegis Integration Phases
+## Kensa Integration Phases
 
 | Phase | Feature | Status |
 |-------|---------|--------|
