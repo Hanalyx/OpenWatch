@@ -106,8 +106,8 @@ def execute_remediation_celery(
         logger.info("Starting remediation job %s with provider %s", job_id, provider)
 
         from app.routes.remediation_provider import (
-            _execute_aegis_remediation,
             _execute_ansible_remediation,
+            _execute_kensa_remediation,
             _execute_manual_remediation,
         )
 
@@ -115,8 +115,8 @@ def execute_remediation_celery(
         uid_scan = UUID(scan_id)
         uid_host = UUID(host_id)
 
-        if provider == "aegis":
-            _run_async(_execute_aegis_remediation(uid_job, uid_scan, uid_host, failed_rules, options))
+        if provider == "kensa":
+            _run_async(_execute_kensa_remediation(uid_job, uid_scan, uid_host, failed_rules, options))
         elif provider == "ansible":
             _run_async(_execute_ansible_remediation(uid_job, uid_scan, uid_host, failed_rules, options))
         elif provider == "manual":
@@ -147,14 +147,14 @@ def import_scap_content_celery(
     batch_size: int,
 ) -> Dict[str, Any]:
     """
-    DEPRECATED (2026-02-10): SCAP content import has been replaced by Aegis.
+    DEPRECATED (2026-02-10): SCAP content import has been replaced by Kensa.
 
-    Aegis uses native YAML rules and doesn't require MongoDB storage.
+    Kensa uses native YAML rules and doesn't require MongoDB storage.
     This task now returns a deprecation notice.
     """
     logger.warning(
         "DEPRECATED: import_scap_content_celery called for import_id=%s. "
-        "SCAP content import has been replaced by Aegis native rules.",
+        "SCAP content import has been replaced by Kensa native rules.",
         import_id,
     )
 
@@ -164,8 +164,8 @@ def import_scap_content_celery(
         "import_id": import_id,
         "message": (
             "SCAP content import is deprecated. "
-            "Aegis uses native YAML rules at aegis/rules/. "
-            "Use /api/scans/aegis/frameworks to list available frameworks."
+            "Kensa uses native YAML rules at kensa/rules/. "
+            "Use /api/scans/kensa/frameworks to list available frameworks."
         ),
         "rules_imported": 0,
         "rules_skipped": 0,

@@ -3,7 +3,7 @@ Audit Query API Endpoints
 
 Endpoints for managing saved queries and audit exports.
 
-Part of Phase 6: Audit Queries (Aegis Integration Plan)
+Part of Phase 6: Audit Queries (Kensa Integration Plan)
 
 Endpoint Structure:
     GET    /audit/queries                    - List saved queries

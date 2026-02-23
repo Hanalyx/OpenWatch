@@ -159,7 +159,7 @@ class ErrorClassificationService:
         The readiness validation feature has been deprecated as host information
         is now available on the Host Detail page.
 
-        For Aegis compliance scanning, hosts are validated during scan execution.
+        For Kensa compliance scanning, hosts are validated during scan execution.
 
         Args:
             hostname: Target hostname or IP

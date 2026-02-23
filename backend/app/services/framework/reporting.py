@@ -619,7 +619,7 @@ class ComplianceFrameworkReporter:
     async def _get_methodology_notes(self) -> List[str]:
         """Get methodology notes for the appendix."""
         return [
-            "Compliance assessment based on Aegis rule definitions and SCAP scanning",
+            "Compliance assessment based on Kensa rule definitions and SCAP scanning",
             "Rule inheritance and platform-specific configurations applied",
             "Results enriched with business impact and remediation guidance",
             "Framework mappings derived from rule metadata and control associations",

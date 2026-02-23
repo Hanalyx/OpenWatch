@@ -2,12 +2,12 @@
 Adaptive Compliance Scheduler Tasks for Celery Beat
 
 This module implements the dispatcher pattern for the adaptive compliance scanning scheduler.
-The dispatcher is called periodically by Celery Beat and queues individual Aegis scan tasks.
+The dispatcher is called periodically by Celery Beat and queues individual Kensa scan tasks.
 
 Architecture:
 1. Celery Beat calls dispatch_compliance_scans() every 2 minutes
 2. Dispatcher queries host_compliance_schedule WHERE next_scheduled_scan <= NOW()
-3. Individual Aegis scan tasks dispatched with state-based priority
+3. Individual Kensa scan tasks dispatched with state-based priority
 4. Each task updates compliance state and calculates next_scheduled_scan (max 48 hours)
 
 This design ensures:
@@ -43,7 +43,7 @@ def dispatch_compliance_scans(self: Any) -> Dict[str, Any]:
     Dispatcher task that runs every 2 minutes via Celery Beat.
 
     Queries hosts that are due for compliance scanning and dispatches
-    individual Aegis scan tasks with appropriate priorities.
+    individual Kensa scan tasks with appropriate priorities.
 
     Returns:
         dict: Dispatch results including number of hosts dispatched
@@ -78,9 +78,9 @@ def dispatch_compliance_scans(self: Any) -> Dict[str, Any]:
                 try:
                     priority = host["scan_priority"]
 
-                    # Dispatch individual Aegis scan task
+                    # Dispatch individual Kensa scan task
                     celery_app.send_task(
-                        "app.tasks.run_scheduled_aegis_scan",
+                        "app.tasks.run_scheduled_kensa_scan",
                         args=[host["host_id"], priority],
                         priority=priority,
                         queue="compliance_scanning",
@@ -113,16 +113,16 @@ def dispatch_compliance_scans(self: Any) -> Dict[str, Any]:
 
 @celery_app.task(
     bind=True,
-    name="app.tasks.run_scheduled_aegis_scan",
+    name="app.tasks.run_scheduled_kensa_scan",
     time_limit=660,  # 11 minutes (scan timeout + buffer)
     soft_time_limit=600,  # 10 minutes
 )
-def run_scheduled_aegis_scan(self: Any, host_id: str, priority: int = 5) -> Dict[str, Any]:
+def run_scheduled_kensa_scan(self: Any, host_id: str, priority: int = 5) -> Dict[str, Any]:
     """
-    Execute an Aegis compliance scan for a host (scheduled by dispatcher).
+    Execute a Kensa compliance scan for a host (scheduled by dispatcher).
 
     This task is dispatched by the compliance scheduler when a host is due
-    for scanning. It runs the Aegis scan, stores results in the scans and
+    for scanning. It runs the Kensa scan, stores results in the scans and
     scan_findings tables (for frontend compatibility), and updates the
     compliance schedule.
 
@@ -140,20 +140,20 @@ def run_scheduled_aegis_scan(self: Any, host_id: str, priority: int = 5) -> Dict
     start_time = datetime.now(timezone.utc)
 
     try:
-        logger.info(f"Starting scheduled Aegis scan {scan_id} for host {host_id}")
+        logger.info(f"Starting scheduled Kensa scan {scan_id} for host {host_id}")
 
         db = next(get_db())
 
         try:
-            # Import Aegis scanner
+            # Import Kensa scanner
             try:
-                from app.plugins.aegis.scanner import AegisScanner
+                from app.plugins.kensa.scanner import KensaScanner
 
-                scanner = AegisScanner()
+                scanner = KensaScanner()
             except ImportError:
-                logger.error("Aegis scanner not available")
-                compliance_scheduler_service.record_scan_failure(db, UUID(host_id), "Aegis scanner not available")
-                return {"status": "error", "error": "Aegis scanner not available"}
+                logger.error("Kensa scanner not available")
+                compliance_scheduler_service.record_scan_failure(db, UUID(host_id), "Kensa scanner not available")
+                return {"status": "error", "error": "Kensa scanner not available"}
 
             # Get host details
             result = db.execute(
@@ -173,11 +173,11 @@ def run_scheduled_aegis_scan(self: Any, host_id: str, priority: int = 5) -> Dict
                 return {"status": "error", "error": "Host not found"}
 
             # Create scan record in database BEFORE running scan
-            scan_name = f"Scheduled Aegis Scan - {host.hostname} - {start_time.strftime('%Y-%m-%d %H:%M')}"
-            profile_id = "aegis_scheduled"
+            scan_name = f"Scheduled Kensa Scan - {host.hostname} - {start_time.strftime('%Y-%m-%d %H:%M')}"
+            profile_id = "kensa_scheduled"
 
-            # Aegis content placeholder ID (created in scap_content table)
-            aegis_content_id = 1
+            # Kensa content placeholder ID (created in scap_content table)
+            kensa_content_id = 1
 
             insert_builder = (
                 InsertBuilder("scans")
@@ -199,13 +199,13 @@ def run_scheduled_aegis_scan(self: Any, host_id: str, priority: int = 5) -> Dict
                     scan_id,
                     scan_name,
                     host_id,
-                    aegis_content_id,
+                    kensa_content_id,
                     profile_id,
                     "running",
                     0,
                     start_time,
                     None,  # started_by is NULL for scheduled scans
-                    '{"scanner": "aegis", "source": "scheduler"}',
+                    '{"scanner": "kensa", "source": "scheduler"}',
                     False,
                     False,
                 )
@@ -214,8 +214,8 @@ def run_scheduled_aegis_scan(self: Any, host_id: str, priority: int = 5) -> Dict
             db.execute(text(insert_query), insert_params)
             db.commit()
 
-            # Run Aegis scan with full server intelligence collection
-            logger.info(f"Running Aegis scan on {host.hostname}")
+            # Run Kensa scan with full server intelligence collection
+            logger.info(f"Running Kensa scan on {host.hostname}")
 
             import asyncio
 
@@ -249,7 +249,7 @@ def run_scheduled_aegis_scan(self: Any, host_id: str, priority: int = 5) -> Dict
             # Check if scan failed
             if scan_result.get("status") == "error":
                 error_msg = scan_result.get("error", "Unknown error")
-                logger.error(f"Aegis scan failed for {host.hostname}: {error_msg}")
+                logger.error(f"Kensa scan failed for {host.hostname}: {error_msg}")
 
                 # Update scan status to failed
                 update_builder = (
@@ -266,7 +266,7 @@ def run_scheduled_aegis_scan(self: Any, host_id: str, priority: int = 5) -> Dict
                 compliance_scheduler_service.record_scan_failure(db, UUID(host_id), error_msg)
                 return {"status": "error", "host_id": host_id, "scan_id": scan_id, "error": error_msg}
 
-            # Extract results - Aegis returns 'passed' and 'failed', not 'pass_count'
+            # Extract results - Kensa returns 'passed' and 'failed', not 'pass_count'
             compliance_score = scan_result.get("compliance_score", 0.0)
             pass_count = scan_result.get("passed", 0)
             fail_count = scan_result.get("failed", 0)
@@ -528,7 +528,7 @@ def run_scheduled_aegis_scan(self: Any, host_id: str, priority: int = 5) -> Dict
             db.close()
 
     except Exception as e:
-        logger.error(f"Error in scheduled Aegis scan for host {host_id}: {e}")
+        logger.error(f"Error in scheduled Kensa scan for host {host_id}: {e}")
 
         # Update scan status to failed if we created one
         try:

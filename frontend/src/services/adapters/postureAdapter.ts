@@ -4,7 +4,7 @@
  * API adapter for temporal compliance posture endpoints.
  * Provides type-safe access to posture, history, and drift analysis.
  *
- * Part of Phase 2: Temporal Compliance (Aegis Integration Plan)
+ * Part of Phase 2: Temporal Compliance (Kensa Integration Plan)
  *
  * @module services/adapters/postureAdapter
  */

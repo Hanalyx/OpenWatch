@@ -366,7 +366,7 @@ class PluginExecutionRequest(BaseModel):
     class Config:
         json_schema_extra = {
             "example": {
-                "plugin_id": "aegis-ssh-remediation@1.2.0",
+                "plugin_id": "kensa-ssh-remediation@1.2.0",
                 "rule_id": "ow-ssh-disable-root",
                 "host_id": "host-123",
                 "platform": "rhel",

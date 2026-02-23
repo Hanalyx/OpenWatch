@@ -1,7 +1,7 @@
 /**
  * Compliance Tab
  *
- * Displays detailed compliance findings from the most recent Aegis scan
+ * Displays detailed compliance findings from the most recent Kensa scan
  * with filtering and search capabilities.
  *
  * Part of OpenWatch OS Transformation - Host Detail Page Redesign.

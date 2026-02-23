@@ -6,7 +6,7 @@ Enables targeted scanning of specific SCAP rules for efficient remediation verif
 This module provides capabilities to:
 - Scan specific SCAP rules on local or remote hosts
 - Re-scan only failed rules from previous scans
-- Verify remediation effectiveness after AEGIS fixes
+- Verify remediation effectiveness after Kensa fixes
 - Track rule scan history over time
 - Provide remediation guidance for failed rules
 
@@ -202,7 +202,7 @@ class RuleSpecificScanner:
                             }
                         )
                     rule_entry["automated_remediation_available"] = framework_info.automated_remediation
-                    rule_entry["aegis_rule_id"] = framework_info.aegis_rule_id
+                    rule_entry["kensa_rule_id"] = framework_info.kensa_rule_id
 
                 # Count results
                 if rule_result.get("result") == "pass":
@@ -299,12 +299,12 @@ class RuleSpecificScanner:
         self,
         host_id: str,
         content_path: str,
-        aegis_remediation_id: str,
+        kensa_remediation_id: str,
         remediated_rules: List[str],
         connection_params: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
-        Verify specific rules after AEGIS remediation.
+        Verify specific rules after Kensa remediation.
 
         Scans the specified rules and generates a verification report
         showing remediation effectiveness.
@@ -312,13 +312,13 @@ class RuleSpecificScanner:
         Args:
             host_id: Target host identifier
             content_path: Path to SCAP content
-            aegis_remediation_id: AEGIS remediation job ID for tracking
+            kensa_remediation_id: Kensa remediation job ID for tracking
             remediated_rules: List of rule IDs that were remediated
             connection_params: Optional connection parameters for remote scanning
 
         Returns:
             Dict containing verification report with:
-                - remediation_id: AEGIS remediation ID
+                - remediation_id: Kensa remediation ID
                 - verification_scan_id: Scan ID for this verification
                 - timestamp: ISO format timestamp
                 - total_rules_remediated: Count of rules checked
@@ -329,7 +329,7 @@ class RuleSpecificScanner:
                 - successful_rules: List of now-passing rules
         """
         try:
-            logger.info(f"Verifying remediation {aegis_remediation_id} for {len(remediated_rules)} rules")
+            logger.info(f"Verifying remediation {kensa_remediation_id} for {len(remediated_rules)} rules")
 
             # Create verification scan
             scan_results = await self.scan_specific_rules(
@@ -342,7 +342,7 @@ class RuleSpecificScanner:
 
             # Analyze remediation effectiveness
             verification_report = {
-                "remediation_id": aegis_remediation_id,
+                "remediation_id": kensa_remediation_id,
                 "verification_scan_id": scan_results["scan_id"],
                 "timestamp": datetime.now().isoformat(),
                 "total_rules_remediated": len(remediated_rules),
@@ -760,7 +760,7 @@ class RuleSpecificScanner:
                 - rule_id: The rule ID
                 - title: Rule title
                 - automated_remediation: Whether auto-remediation is available
-                - aegis_rule_id: AEGIS remediation rule ID if available
+                - kensa_rule_id: Kensa remediation rule ID if available
                 - implementation_guidance: List of framework-specific guidance
                 - assessment_objectives: Combined assessment objectives
                 - references: Related control references
@@ -777,7 +777,7 @@ class RuleSpecificScanner:
                 "rule_id": rule_id,
                 "title": control.title,
                 "automated_remediation": control.automated_remediation,
-                "aegis_rule_id": control.aegis_rule_id,
+                "kensa_rule_id": control.kensa_rule_id,
                 "implementation_guidance": [],
                 "assessment_objectives": [],
                 "references": [],

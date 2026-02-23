@@ -3,7 +3,7 @@ Health monitoring service for collecting system health metrics.
 
 This service collects operational health data (CPU, memory, services)
 for the health dashboard. Content health metrics (frameworks, benchmarks,
-rules) are now provided by the Aegis Rule Reference API.
+rules) are now provided by the Kensa Rule Reference API.
 
 Note: MongoDB-based health storage and content health collection have been
 removed. Health data is now collected fresh on each request.
@@ -87,7 +87,7 @@ class HealthMonitoringService:
             errors_last_hour=0,
         )
 
-        services["aegis_engine"] = ServiceComponent(
+        services["kensa_engine"] = ServiceComponent(
             status=HealthStatus.HEALTHY,
             version="0.1.0",
             custom_metrics={
@@ -131,10 +131,10 @@ class HealthMonitoringService:
         """Collect health metrics for integration services."""
         services = {}
 
-        services["aegis_integration"] = ServiceComponent(
+        services["kensa_integration"] = ServiceComponent(
             status=HealthStatus.HEALTHY,
             custom_metrics={
-                "last_scan_engine": "aegis",
+                "last_scan_engine": "kensa",
                 "rule_reference_cached": True,
             },
         )
@@ -234,7 +234,7 @@ class HealthMonitoringService:
     async def collect_content_health(self) -> ContentHealthDocument:
         """Collect content health metrics.
 
-        Note: Content health is now provided by Aegis Rule Reference API.
+        Note: Content health is now provided by Kensa Rule Reference API.
         This returns a minimal document for API compatibility.
         """
         return ContentHealthDocument(

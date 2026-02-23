@@ -4,8 +4,8 @@ Compliance Services Package
 Services for compliance posture management, temporal queries, drift detection,
 exception management, adaptive compliance scheduling, and alert management.
 
-Part of Phase 2: Temporal Compliance (Aegis Integration Plan)
-Part of Phase 3: Governance Primitives (Aegis Integration Plan)
+Part of Phase 2: Temporal Compliance (Kensa Integration Plan)
+Part of Phase 3: Governance Primitives (Kensa Integration Plan)
 OpenWatch OS: Adaptive Compliance Scheduler
 OpenWatch OS: Alert Thresholds
 """

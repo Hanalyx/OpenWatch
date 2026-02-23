@@ -19,8 +19,8 @@ Design Philosophy:
 - DRY: Delegates to OSCAPScanner for content validation/parsing
 
 Note:
-    This scanner is part of the legacy OpenSCAP pipeline. Aegis is now the
-    primary compliance engine. See app/plugins/aegis/ for the current approach.
+    This scanner is part of the legacy OpenSCAP pipeline. Kensa is now the
+    primary compliance engine. See app/plugins/kensa/ for the current approach.
 
 Security Notes:
 - XML generation uses ElementTree (safe against XXE)
@@ -58,7 +58,7 @@ class OWScanner(BaseScanner):
     OpenWatch Scanner - SCAP compliance scanner.
 
     This scanner provides XCCDF/OVAL generation and execution capabilities
-    for SCAP compliance scanning. Note: Aegis is now the primary compliance
+    for SCAP compliance scanning. Note: Kensa is now the primary compliance
     engine; this scanner is part of the legacy OpenSCAP pipeline.
 
     The scanner supports:
@@ -260,7 +260,7 @@ class OWScanner(BaseScanner):
         the target platform and optional framework/severity filters.
 
         Note: MongoDB rule storage has been removed. This method now returns
-        an empty list. Use Aegis for compliance scanning instead.
+        an empty list. Use Kensa for compliance scanning instead.
 
         Args:
             platform: Target platform (e.g., "rhel9", "ubuntu2204")
@@ -309,7 +309,7 @@ class OWScanner(BaseScanner):
         Get specific rules by their IDs.
 
         Note: MongoDB rule storage has been removed. This method returns
-        an empty list. Use Aegis for compliance scanning instead.
+        an empty list. Use Kensa for compliance scanning instead.
 
         Args:
             rule_ids: List of rule ID strings.
@@ -318,7 +318,7 @@ class OWScanner(BaseScanner):
             Empty list (MongoDB removed).
         """
         self._logger.warning(
-            "get_rules_by_ids: MongoDB removed. Cannot fetch %d rules. " "Use Aegis for compliance scanning instead.",
+            "get_rules_by_ids: MongoDB removed. Cannot fetch %d rules. " "Use Kensa for compliance scanning instead.",
             len(rule_ids),
         )
         return []

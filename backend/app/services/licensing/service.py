@@ -271,7 +271,7 @@ def requires_license(feature: str = "remediation") -> Callable[[F], F]:
         Decorated function that checks license before execution.
 
     Example:
-        class AegisPlugin(ORSAPlugin):
+        class KensaPlugin(ORSAPlugin):
             async def check(self, host_id: str) -> List[CheckResult]:
                 # Checks are always free - no license check
                 return await self._execute_checks(host_id)

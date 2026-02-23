@@ -4,8 +4,8 @@ Rule Reference API Schemas
 Pydantic models for the Rule Reference API endpoints that power the
 frontend Rule Browser / Rule Reference page.
 
-These schemas provide a user-friendly view of Aegis compliance rules
-for Auditors, System Administrators, and Aegis developers.
+These schemas provide a user-friendly view of Kensa compliance rules
+for Auditors, System Administrators, and Kensa developers.
 """
 
 from typing import Any, Dict, List, Optional

@@ -3,7 +3,7 @@ Plugin Update Celery Tasks for Phase 5
 
 Scheduled tasks for checking plugin updates and notifications.
 
-Part of Phase 5: Control Plane (Aegis Integration Plan)
+Part of Phase 5: Control Plane (Kensa Integration Plan)
 """
 
 import asyncio
@@ -14,16 +14,16 @@ from celery import shared_task
 from sqlalchemy import text
 
 from app.database import SessionLocal
-from app.plugins.aegis.config import get_aegis_config
-from app.plugins.aegis.updater import AegisUpdater
+from app.plugins.kensa.config import get_kensa_config
+from app.plugins.kensa.updater import KensaUpdater
 
 logger = logging.getLogger(__name__)
 
 
-@shared_task(name="app.tasks.check_aegis_updates")
-def check_aegis_updates() -> Dict[str, Any]:
+@shared_task(name="app.tasks.check_kensa_updates")
+def check_kensa_updates() -> Dict[str, Any]:
     """
-    Check for Aegis updates (scheduled daily).
+    Check for Kensa updates (scheduled daily).
 
     This task:
     1. Queries the update registry for new versions
@@ -33,22 +33,22 @@ def check_aegis_updates() -> Dict[str, Any]:
     Returns:
         Update check result summary
     """
-    logger.info("Starting scheduled Aegis update check")
+    logger.info("Starting scheduled Kensa update check")
 
     async def _check():
         db = SessionLocal()
         try:
-            config = get_aegis_config()
+            config = get_kensa_config()
 
             # Skip if offline mode
             if config.offline_mode:
-                logger.info("Aegis update check skipped (offline mode)")
+                logger.info("Kensa update check skipped (offline mode)")
                 return {
                     "status": "skipped",
                     "reason": "offline_mode",
                 }
 
-            updater = AegisUpdater(db, config)
+            updater = KensaUpdater(db, config)
             result = await updater.check_for_updates()
 
             if result.error:
@@ -60,7 +60,7 @@ def check_aegis_updates() -> Dict[str, Any]:
                 }
 
             if result.update_available:
-                logger.info(f"Aegis update available: {result.current_version} -> " f"{result.latest_version}")
+                logger.info(f"Kensa update available: {result.current_version} -> " f"{result.latest_version}")
 
                 # Send admin notification
                 await _notify_admins_of_update(db, result)
@@ -72,7 +72,7 @@ def check_aegis_updates() -> Dict[str, Any]:
                     "changes_count": len(result.changes),
                 }
 
-            logger.info(f"Aegis is up to date (v{result.current_version})")
+            logger.info(f"Kensa is up to date (v{result.current_version})")
             return {
                 "status": "up_to_date",
                 "current_version": result.current_version,
@@ -142,7 +142,7 @@ def cleanup_old_update_records(retention_days: int = 90) -> Dict[str, Any]:
 @shared_task(name="app.tasks.perform_auto_update")
 def perform_auto_update() -> Dict[str, Any]:
     """
-    Perform automatic Aegis update if enabled.
+    Perform automatic Kensa update if enabled.
 
     This task:
     1. Checks if auto-update is enabled
@@ -157,7 +157,7 @@ def perform_auto_update() -> Dict[str, Any]:
     async def _auto_update():
         db = SessionLocal()
         try:
-            config = get_aegis_config()
+            config = get_kensa_config()
 
             # Check if auto-update is enabled
             if not config.auto_update:
@@ -166,7 +166,7 @@ def perform_auto_update() -> Dict[str, Any]:
                     "reason": "auto_update_disabled",
                 }
 
-            updater = AegisUpdater(db, config)
+            updater = KensaUpdater(db, config)
 
             # Check for updates
             check_result = await updater.check_for_updates()
@@ -198,7 +198,7 @@ def perform_auto_update() -> Dict[str, Any]:
             system_user_id = 1
 
             # Perform update
-            logger.info(f"Auto-updating Aegis from {check_result.current_version} " f"to {check_result.latest_version}")
+            logger.info(f"Auto-updating Kensa from {check_result.current_version} " f"to {check_result.latest_version}")
 
             result = await updater.perform_update(
                 version=check_result.latest_version,
@@ -252,7 +252,7 @@ async def _notify_admins_of_update(db, update_result) -> None:
     # Log notification (actual email sending would use NotificationService)
     for admin in admins:
         logger.info(
-            f"Notifying admin {admin.username} about Aegis update "
+            f"Notifying admin {admin.username} about Kensa update "
             f"({update_result.current_version} -> {update_result.latest_version})"
         )
 
@@ -260,9 +260,9 @@ async def _notify_admins_of_update(db, update_result) -> None:
     # from app.services.notification import NotificationService
     # notification_service = NotificationService()
     # await notification_service.notify_admins(
-    #     title="Aegis Update Available",
-    #     message=f"Aegis v{update_result.latest_version} is available...",
-    #     link="/settings/plugins/aegis",
+    #     title="Kensa Update Available",
+    #     message=f"Kensa v{update_result.latest_version} is available...",
+    #     link="/settings/plugins/kensa",
     # )
 
 
@@ -288,8 +288,8 @@ async def _notify_admins_of_auto_update(db, from_version: str, to_version: str) 
 # Example schedule:
 #
 # celery_app.conf.beat_schedule = {
-#     "check-aegis-updates-daily": {
-#         "task": "app.tasks.check_aegis_updates",
+#     "check-kensa-updates-daily": {
+#         "task": "app.tasks.check_kensa_updates",
 #         "schedule": 86400.0,  # 24 hours
 #     },
 #     "cleanup-old-update-records-weekly": {

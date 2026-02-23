@@ -113,7 +113,7 @@ celery_app.conf.update(
         "app.tasks.execute_host_discovery": {"queue": "default"},
         # Compliance scheduling tasks
         "app.tasks.dispatch_compliance_scans": {"queue": "compliance_scanning"},
-        "app.tasks.run_scheduled_aegis_scan": {"queue": "compliance_scanning"},
+        "app.tasks.run_scheduled_kensa_scan": {"queue": "compliance_scanning"},
         "app.tasks.initialize_compliance_schedules": {"queue": "compliance_scanning"},
         "app.tasks.expire_compliance_maintenance": {"queue": "compliance_scanning"},
     },
@@ -241,7 +241,7 @@ celery_app.conf.update(
         "app.tasks.os_discovery_tasks",
         "app.tasks.stale_scan_detection",
         "app.tasks.scan_tasks",
-        "app.tasks.aegis_scan_tasks",
+        "app.tasks.kensa_scan_tasks",
         "app.tasks.background_tasks",
     ],
 )

@@ -1,6 +1,6 @@
 """
 Webhook Delivery Tasks
-Background tasks for delivering webhooks to AEGIS and other integrations
+Background tasks for delivering webhooks to Kensa and other integrations
 """
 
 import json

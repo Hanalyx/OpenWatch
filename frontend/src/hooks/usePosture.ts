@@ -4,7 +4,7 @@
  * Provides cached, automatically-refreshing data for temporal compliance features.
  * Uses React Query for optimal data fetching with background updates.
  *
- * Part of Phase 2: Temporal Compliance (Aegis Integration Plan)
+ * Part of Phase 2: Temporal Compliance (Kensa Integration Plan)
  *
  * @module hooks/usePosture
  */

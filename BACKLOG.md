@@ -32,7 +32,7 @@
 | E3-S6 | Database Migration Guide | P1 | Complete | `docs/guides/DATABASE_MIGRATIONS.md` |
 | E3-S7 | Security Hardening Guide | P1 | Complete | `docs/guides/SECURITY_HARDENING.md` |
 | E3-S8 | Scaling Guide | P2 | Complete | `docs/guides/SCALING_GUIDE.md` |
-| E3-S9 | Architecture Decision Records | P2 | Complete | 3 ADRs: PostgreSQL, Aegis, modular services |
+| E3-S9 | Architecture Decision Records | P2 | Complete | 3 ADRs: PostgreSQL, Kensa, modular services |
 | E3-S10 | Update Context Files | P1 | Complete | `context/QUICK_REFERENCE.md`, `DEBUGGING_GUIDE.md` |
 | E3-S11 | Categorize and Move Active Docs | P1 | Complete | 2 docs relocated to `docs/architecture/` |
 
@@ -82,8 +82,8 @@ Items from the OpenWatch OS transformation initiative that are not yet complete.
 | Adaptive Compliance Scheduler | P1 | Planned | Auto-scan with state-based intervals (max 48h) |
 | Host Detail Page Redesign | P1 | In Progress | Phase 0 done (backend data fix), Phases 1-6 pending |
 | MongoDB Legacy Code Removal | P2 | Planned | 5-phase plan in [`docs/openwatchos/05-DEPRECATION-PLAN.md`](docs/openwatchos/05-DEPRECATION-PLAN.md) (26 files, ~5-7h) |
-| Remediation + Subscription (Phase 4) | P3 | Not Started | Aegis integration Phase 4 |
-| OTA Updates (Phase 5) | P3 | Not Started | Aegis integration Phase 5 |
+| Remediation + Subscription (Phase 4) | P3 | Not Started | Kensa integration Phase 4 |
+| OTA Updates (Phase 5) | P3 | Not Started | Kensa integration Phase 5 |
 
 ---
 

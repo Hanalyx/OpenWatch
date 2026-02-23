@@ -37,7 +37,7 @@ export interface SeveritySummary {
 }
 
 /**
- * Compliance state for a host from latest Aegis scan
+ * Compliance state for a host from latest Kensa scan
  */
 export interface ComplianceState {
   hostId: string;

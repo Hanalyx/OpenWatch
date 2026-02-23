@@ -3,7 +3,7 @@ Posture Snapshot Tasks
 
 Celery tasks for creating and managing compliance posture snapshots.
 
-Part of Phase 2: Temporal Compliance (Aegis Integration Plan)
+Part of Phase 2: Temporal Compliance (Kensa Integration Plan)
 """
 
 import logging

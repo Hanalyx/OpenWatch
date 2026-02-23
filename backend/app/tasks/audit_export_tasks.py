@@ -3,7 +3,7 @@ Audit Export Tasks
 
 Celery tasks for generating and managing audit exports.
 
-Part of Phase 6: Audit Queries (Aegis Integration Plan)
+Part of Phase 6: Audit Queries (Kensa Integration Plan)
 """
 
 import logging

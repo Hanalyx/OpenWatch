@@ -3,7 +3,7 @@ Compliance Exception API Endpoints
 
 Endpoints for managing structured compliance exceptions with approval workflows.
 
-Part of Phase 3: Governance Primitives (Aegis Integration Plan)
+Part of Phase 3: Governance Primitives (Kensa Integration Plan)
 
 Endpoint Structure:
     GET    /exceptions                  - List exceptions (paginated)

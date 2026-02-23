@@ -40,7 +40,7 @@ interface HostSummaryCardsProps {
     lastCheck?: string | null;
   };
 
-  /** Compliance state from Aegis scan */
+  /** Compliance state from Kensa scan */
   complianceState: ComplianceState | null | undefined;
   complianceLoading?: boolean;
 

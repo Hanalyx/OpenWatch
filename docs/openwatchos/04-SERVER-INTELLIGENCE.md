@@ -8,7 +8,7 @@
 
 ## Overview
 
-Server Intelligence is a data collection system that gathers detailed information about managed hosts during Aegis compliance scans. When a compliance scan runs against a host via SSH, the system automatically collects information about the host's operating system, installed packages, running services, user accounts, network configuration, firewall rules, routing table, security audit events, and resource metrics.
+Server Intelligence is a data collection system that gathers detailed information about managed hosts during Kensa compliance scans. When a compliance scan runs against a host via SSH, the system automatically collects information about the host's operating system, installed packages, running services, user accounts, network configuration, firewall rules, routing table, security audit events, and resource metrics.
 
 The collected data serves multiple purposes:
 
@@ -17,7 +17,7 @@ The collected data serves multiple purposes:
 - **Drift Detection**: Enables detection of unauthorized changes between scans by comparing current state to previously collected data.
 - **Security Posture**: Surfaces security-relevant details such as users with unrestricted sudo access, services listening on unexpected ports, and weak firewall configurations.
 
-Data is collected via SSH using the same session established for the Aegis compliance scan. No additional agents or tools need to be installed on the target host.
+Data is collected via SSH using the same session established for the Kensa compliance scan. No additional agents or tools need to be installed on the target host.
 
 ---
 
@@ -253,7 +253,7 @@ Point-in-time system resource utilization. Stored as time-series data (each coll
 
 ### SSH Session
 
-All data is collected through the existing SSH session established by the Aegis compliance scanner. The `SystemInfoCollector` class accepts any SSH session object that has a `run()` method returning a result with `stdout`, `stderr`, and `exit_code` (or `returncode`) attributes.
+All data is collected through the existing SSH session established by the Kensa compliance scanner. The `SystemInfoCollector` class accepts any SSH session object that has a `run()` method returning a result with `stdout`, `stderr`, and `exit_code` (or `returncode`) attributes.
 
 ```python
 class SystemInfoCollector:
@@ -738,9 +738,9 @@ Returns a `ServerIntelligenceSummary` with aggregate counts:
 
 ---
 
-## Integration with Aegis Compliance Scans
+## Integration with Kensa Compliance Scans
 
-Server intelligence collection is triggered automatically during Aegis compliance scans via the compliance scheduler task.
+Server intelligence collection is triggered automatically during Kensa compliance scans via the compliance scheduler task.
 
 ### Collection Flow
 

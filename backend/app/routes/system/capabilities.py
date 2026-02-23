@@ -55,8 +55,8 @@ class SystemLimits(BaseModel):
 class IntegrationStatus(BaseModel):
     """Status of external integrations."""
 
-    aegis_available: bool = False
-    aegis_version: Optional[str] = None
+    kensa_available: bool = False
+    kensa_version: Optional[str] = None
     ldap_enabled: bool = False
     smtp_configured: bool = False
     prometheus_enabled: bool = False
@@ -179,7 +179,7 @@ async def get_integration_status(
     Get status of external integrations
 
     Returns the current status of all external system integrations
-    including AEGIS, LDAP, SMTP, and container runtime information.
+    including Kensa, LDAP, SMTP, and container runtime information.
     """
     try:
         integrations = await _check_integrations()
@@ -235,9 +235,9 @@ async def _determine_feature_flags(license_info: Dict[str, Any], settings: Any) 
     # Check configuration-dependent features
     features.mfa = getattr(settings, "mfa_enabled", True)
 
-    # Check if AEGIS is available (affects remediation)
-    if _check_aegis_availability():
-        # Even in OSS, basic remediation might be available if AEGIS is configured
+    # Check if Kensa is available (affects remediation)
+    if _check_kensa_availability():
+        # Even in OSS, basic remediation might be available if Kensa is configured
         features.remediation = license_info.get("type") == "enterprise"
 
     return features
@@ -274,10 +274,10 @@ async def _check_integrations() -> IntegrationStatus:
 
     integrations = IntegrationStatus()
 
-    # Check AEGIS availability
-    integrations.aegis_available = _check_aegis_availability()
-    if integrations.aegis_available:
-        integrations.aegis_version = _get_aegis_version()
+    # Check Kensa availability
+    integrations.kensa_available = _check_kensa_availability()
+    if integrations.kensa_available:
+        integrations.kensa_version = _get_kensa_version()
 
     # Check LDAP configuration
     integrations.ldap_enabled = _check_ldap_config()
@@ -297,21 +297,21 @@ async def _check_integrations() -> IntegrationStatus:
     return integrations
 
 
-def _check_aegis_availability() -> bool:
-    """Check if AEGIS remediation service is available"""
+def _check_kensa_availability() -> bool:
+    """Check if Kensa remediation service is available"""
     try:
-        # In a real implementation, this would check AEGIS connectivity
-        # For now, check if AEGIS configuration exists
-        aegis_url = os.environ.get("AEGIS_URL")
-        return aegis_url is not None
+        # In a real implementation, this would check Kensa connectivity
+        # For now, check if Kensa configuration exists
+        kensa_url = os.environ.get("KENSA_URL")
+        return kensa_url is not None
     except Exception:
         return False
 
 
-def _get_aegis_version() -> Optional[str]:
-    """Get AEGIS version if available."""
+def _get_kensa_version() -> Optional[str]:
+    """Get Kensa version if available."""
     try:
-        # In a real implementation, this would query AEGIS API
+        # In a real implementation, this would query Kensa API
         return "1.0.0"
     except Exception:
         return None

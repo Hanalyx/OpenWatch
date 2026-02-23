@@ -16,10 +16,10 @@ Usage:
     registry = ORSAPluginRegistry.instance()
 
     # Register a plugin
-    await registry.register(aegis_plugin)
+    await registry.register(kensa_plugin)
 
     # Get plugin by ID
-    plugin = await registry.get("aegis")
+    plugin = await registry.get("kensa")
 
     # Get plugins with specific capability
     scanners = await registry.get_by_capability(Capability.COMPLIANCE_CHECK)
@@ -71,13 +71,13 @@ class ORSAPluginRegistry:
         async def initialize_plugins():
             registry = ORSAPluginRegistry.instance()
 
-            # Register built-in Aegis plugin
-            from app.plugins.aegis import AegisORSAPlugin
-            aegis = AegisORSAPlugin()
-            await registry.register(aegis)
+            # Register built-in Kensa plugin
+            from app.plugins.kensa import KensaORSAPlugin
+            kensa = KensaORSAPlugin()
+            await registry.register(kensa)
 
         # In scan execution
-        async def execute_scan(host_id: str, plugin_id: str = "aegis"):
+        async def execute_scan(host_id: str, plugin_id: str = "kensa"):
             registry = ORSAPluginRegistry.instance()
             plugin = await registry.get(plugin_id)
             if not plugin:

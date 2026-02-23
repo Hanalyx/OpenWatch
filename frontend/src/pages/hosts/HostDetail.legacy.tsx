@@ -176,7 +176,7 @@ const HostDetail: React.FC = () => {
     fetchOWCAScore();
     // Also try to get enhanced host data from hosts list
     fetchEnhancedHostData();
-    // Fetch Aegis compliance state
+    // Fetch Kensa compliance state
     fetchComplianceState();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
@@ -185,10 +185,10 @@ const HostDetail: React.FC = () => {
     if (!id) return;
     setComplianceLoading(true);
     try {
-      const data = await api.get<ComplianceState>(`/api/scans/aegis/compliance-state/${id}`);
+      const data = await api.get<ComplianceState>(`/api/scans/kensa/compliance-state/${id}`);
       setComplianceState(data);
     } catch (error) {
-      console.warn('Aegis compliance state not available:', error);
+      console.warn('Kensa compliance state not available:', error);
       setComplianceState(null);
     } finally {
       setComplianceLoading(false);

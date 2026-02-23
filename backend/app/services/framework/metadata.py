@@ -49,10 +49,10 @@ class FrameworkMetadataService:
         Initialize framework metadata service.
 
         .. deprecated::
-            This service is deprecated. Use the Aegis Rule Reference API
+            This service is deprecated. Use the Kensa Rule Reference API
             at /api/rules/reference/ instead.
         """
-        logger.warning("FrameworkMetadataService is deprecated - use Aegis Rule Reference API")
+        logger.warning("FrameworkMetadataService is deprecated - use Kensa Rule Reference API")
 
     async def list_frameworks(self) -> List[FrameworkMetadata]:
         """

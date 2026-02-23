@@ -1,6 +1,6 @@
 """
 Integration Performance Metrics Service
-Collects and tracks performance metrics for OpenWatch-AEGIS integration
+Collects and tracks performance metrics for OpenWatch-Kensa integration
 """
 
 import json

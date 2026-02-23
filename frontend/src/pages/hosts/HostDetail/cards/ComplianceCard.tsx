@@ -2,7 +2,7 @@
  * Compliance Summary Card
  *
  * Displays compliance score, pass/fail counts, and critical findings
- * from the most recent Aegis scan.
+ * from the most recent Kensa scan.
  *
  * Part of OpenWatch OS Transformation - Host Detail Page Redesign.
  *

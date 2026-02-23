@@ -3,7 +3,7 @@
  *
  * Displays a list of saved audit queries with options to create, edit, and execute.
  *
- * Part of Phase 6: Audit Queries (Aegis Integration Plan)
+ * Part of Phase 6: Audit Queries (Kensa Integration Plan)
  */
 
 import React, { useState } from 'react';

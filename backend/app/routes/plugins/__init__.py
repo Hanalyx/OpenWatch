@@ -3,7 +3,7 @@ Plugin Routes Package
 
 API endpoints for plugin management and updates.
 
-Part of Phase 5: Control Plane (Aegis Integration Plan)
+Part of Phase 5: Control Plane (Kensa Integration Plan)
 """
 
 from fastapi import APIRouter

@@ -1,11 +1,11 @@
 """
 Rule Reference Service
 
-Service for reading and parsing Aegis YAML compliance rules.
+Service for reading and parsing Kensa YAML compliance rules.
 Provides rule browsing, search, and metadata extraction for the
 Rule Reference UI.
 
-This service reads directly from the Aegis YAML files to provide
+This service reads directly from the Kensa YAML files to provide
 a live view of the current rule definitions.
 """
 
@@ -17,8 +17,13 @@ import yaml
 
 logger = logging.getLogger(__name__)
 
-# Path to Aegis rules directory
-AEGIS_RULES_PATH = Path(__file__).parent.parent.parent / "aegis" / "rules"
+# Path to Kensa rules directory - use runner.paths if available, fallback to pip-installed location
+try:
+    from runner.paths import get_rules_path
+
+    KENSA_RULES_PATH = get_rules_path()
+except ImportError:
+    KENSA_RULES_PATH = Path(__file__).parent.parent.parent / "kensa" / "rules"
 
 
 # =============================================================================
@@ -212,7 +217,7 @@ FRAMEWORK_INFO = {
 
 class RuleReferenceService:
     """
-    Service for reading and parsing Aegis compliance rules.
+    Service for reading and parsing Kensa compliance rules.
 
     Provides methods for:
     - Listing and searching rules
@@ -227,9 +232,9 @@ class RuleReferenceService:
         Initialize the Rule Reference Service.
 
         Args:
-            rules_path: Path to Aegis rules directory. Defaults to AEGIS_RULES_PATH.
+            rules_path: Path to Kensa rules directory. Defaults to KENSA_RULES_PATH.
         """
-        self.rules_path = rules_path or AEGIS_RULES_PATH
+        self.rules_path = rules_path or KENSA_RULES_PATH
         self._rules_cache: Optional[List[Dict[str, Any]]] = None
         self._variables_cache: Optional[Dict[str, Any]] = None
 
@@ -241,7 +246,7 @@ class RuleReferenceService:
         rules = []
 
         if not self.rules_path.exists():
-            logger.warning("Aegis rules path does not exist: %s", self.rules_path)
+            logger.warning("Kensa rules path does not exist: %s", self.rules_path)
             return rules
 
         # Find all YAML files in rules directory (excluding defaults.yml)
@@ -260,7 +265,7 @@ class RuleReferenceService:
                 logger.warning("Failed to load rule from %s: %s", yaml_file, e)
 
         self._rules_cache = rules
-        logger.info("Loaded %d Aegis rules from %s", len(rules), self.rules_path)
+        logger.info("Loaded %d Kensa rules from %s", len(rules), self.rules_path)
         return rules
 
     def _load_variables(self) -> Dict[str, Any]:

@@ -403,7 +403,7 @@ async def force_host_scan(
 
         # Queue an immediate scan
         task = celery_app.send_task(
-            "app.tasks.run_scheduled_aegis_scan",
+            "app.tasks.run_scheduled_kensa_scan",
             args=[str(host_id), 10],  # Priority 10 = highest
             priority=10,
             queue="compliance_scanning",

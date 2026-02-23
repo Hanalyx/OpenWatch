@@ -23,7 +23,7 @@ Architecture:
 - Single Responsibility: Transforms SCAP results to semantic intelligence
 - Uses httpx for async HTTP with proper timeouts
 - Caches rule mappings and framework data for performance
-- Graceful fallback when AEGIS integration unavailable
+- Graceful fallback when Kensa integration unavailable
 
 Usage:
     from app.services.engine.integration import (
@@ -189,7 +189,7 @@ class SemanticEngine:
     Transform static SCAP processing into intelligent semantic analysis.
 
     This engine provides the intelligence layer between OpenWatch scanning
-    and AEGIS remediation, enabling universal compliance understanding.
+    and Kensa remediation, enabling universal compliance understanding.
 
     The engine performs:
     1. Semantic extraction from SCAP rule identifiers
@@ -199,7 +199,7 @@ class SemanticEngine:
     5. Compliance trend prediction
 
     Attributes:
-        aegis_base_url: Base URL for AEGIS API integration
+        kensa_base_url: Base URL for Kensa API integration
         _rule_mappings_cache: Cache for semantic rule mappings
         _framework_cache: Cache for framework information
         _cache_ttl: Time-to-live for cached data in seconds
@@ -221,10 +221,10 @@ class SemanticEngine:
         rule mappings and framework data.
         """
         self.settings = get_settings()
-        # Get AEGIS base URL with fallback to local development URL
-        self.aegis_base_url = getattr(
+        # Get Kensa base URL with fallback to local development URL
+        self.kensa_base_url = getattr(
             self.settings,
-            "aegis_api_url",
+            "kensa_api_url",
             "http://localhost:8001",
         )
         # Initialize caches for performance optimization
@@ -378,7 +378,7 @@ class SemanticEngine:
         """
         Extract semantic meaning from SCAP rule identifiers.
 
-        Uses pattern matching and AEGIS integration to derive
+        Uses pattern matching and Kensa integration to derive
         semantic understanding from cryptic SCAP rule IDs.
 
         Args:
@@ -447,7 +447,7 @@ class SemanticEngine:
         """
         Map a SCAP rule ID to semantic understanding.
 
-        First attempts to query AEGIS for authoritative mapping,
+        First attempts to query Kensa for authoritative mapping,
         then falls back to pattern-based extraction.
 
         Args:
@@ -459,8 +459,8 @@ class SemanticEngine:
         Returns:
             SemanticRule if mapping successful, None otherwise.
         """
-        # Try to get mapping from AEGIS first (authoritative source)
-        semantic_mapping = await self._query_aegis_for_semantic_mapping(
+        # Try to get mapping from Kensa first (authoritative source)
+        semantic_mapping = await self._query_kensa_for_semantic_mapping(
             scap_rule_id,
             host_info,
         )
@@ -681,15 +681,15 @@ class SemanticEngine:
         }
         return time_mapping.get(complexity, 10)
 
-    async def _query_aegis_for_semantic_mapping(
+    async def _query_kensa_for_semantic_mapping(
         self,
         scap_rule_id: str,
         host_info: Dict[str, Any],
     ) -> Optional[SemanticRule]:
         """
-        Query AEGIS for authoritative semantic rule mapping.
+        Query Kensa for authoritative semantic rule mapping.
 
-        AEGIS provides curated semantic mappings for rules that
+        Kensa provides curated semantic mappings for rules that
         have automated remediation available.
 
         Args:
@@ -697,14 +697,14 @@ class SemanticEngine:
             host_info: Host information for platform context.
 
         Returns:
-            SemanticRule if AEGIS has mapping, None otherwise.
+            SemanticRule if Kensa has mapping, None otherwise.
         """
         try:
             distribution_key = self._build_distribution_key(host_info)
 
             async with httpx.AsyncClient() as client:
                 response = await client.get(
-                    f"{self.aegis_base_url}/api/rules/scap-mapping",
+                    f"{self.kensa_base_url}/api/rules/scap-mapping",
                     params={
                         "scap_rule_id": scap_rule_id,
                         "distribution": distribution_key,
@@ -734,17 +734,17 @@ class SemanticEngine:
                         )
 
         except httpx.TimeoutException:
-            logger.debug(f"AEGIS query timed out for rule {scap_rule_id}")
+            logger.debug(f"Kensa query timed out for rule {scap_rule_id}")
         except httpx.RequestError as e:
-            logger.debug(f"AEGIS request error for rule {scap_rule_id}: {e}")
+            logger.debug(f"Kensa request error for rule {scap_rule_id}: {e}")
         except Exception as e:
-            logger.debug(f"Could not query AEGIS for semantic mapping: {e}")
+            logger.debug(f"Could not query Kensa for semantic mapping: {e}")
 
         return None
 
     def _build_distribution_key(self, host_info: Dict[str, Any]) -> str:
         """
-        Build distribution key for AEGIS queries.
+        Build distribution key for Kensa queries.
 
         Creates a normalized distribution identifier for
         platform-specific rule mappings.
@@ -789,11 +789,11 @@ class SemanticEngine:
         """
         framework_mappings: Dict[str, List[SemanticRule]] = {}
 
-        # Try to get framework information from AEGIS
+        # Try to get framework information from Kensa
         try:
             async with httpx.AsyncClient() as client:
                 response = await client.get(
-                    f"{self.aegis_base_url}/api/frameworks",
+                    f"{self.kensa_base_url}/api/frameworks",
                     timeout=HTTP_TIMEOUT_SECONDS,
                 )
 
@@ -808,7 +808,7 @@ class SemanticEngine:
                             framework_mappings[framework_name] = applicable_rules
 
         except (httpx.TimeoutException, httpx.RequestError) as e:
-            logger.debug(f"Could not query AEGIS frameworks: {e}")
+            logger.debug(f"Could not query Kensa frameworks: {e}")
 
             # Fallback to basic framework mapping from rule data
             for rule in semantic_rules:

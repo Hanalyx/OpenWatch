@@ -3,7 +3,7 @@
  *
  * TypeScript interfaces for the Audit Query Builder feature.
  *
- * Part of Phase 6: Audit Queries (Aegis Integration Plan)
+ * Part of Phase 6: Audit Queries (Kensa Integration Plan)
  */
 
 // =============================================================================

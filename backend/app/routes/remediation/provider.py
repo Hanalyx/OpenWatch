@@ -1,6 +1,6 @@
 """
 OpenWatch API v1 - Remediation Provider Interface
-Enhanced remediation interface for AEGIS integration and other remediation providers
+Enhanced remediation interface for Kensa integration and other remediation providers
 """
 
 import asyncio
@@ -29,7 +29,7 @@ class RemediationRequest(BaseModel):
     scan_id: UUID4
     host_id: UUID4
     failed_rules: List[str] = Field(..., min_length=1)
-    provider: str = Field(default="aegis", pattern="^(aegis|ansible|manual)$")
+    provider: str = Field(default="kensa", pattern="^(kensa|ansible|manual)$")
     priority: str = Field(default="medium", pattern="^(low|medium|high|critical)$")
     schedule: Optional[datetime] = None
     options: Dict[str, Any] = Field(default_factory=dict)
@@ -89,7 +89,7 @@ async def start_remediation(
     Start remediation for failed scan rules
 
     Initiates a remediation job for the specified failed rules using
-    the configured remediation provider (AEGIS, Ansible, etc.).
+    the configured remediation provider (Kensa, Ansible, etc.).
     """
     try:
         # Verify scan exists and user has access
@@ -132,7 +132,7 @@ async def start_remediation(
         # Update scan status using setattr for ORM compatibility
         setattr(scan, "remediation_requested", True)
         setattr(scan, "remediation_status", "pending")
-        setattr(scan, "aegis_remediation_id", str(job_id))
+        setattr(scan, "kensa_remediation_id", str(job_id))
 
         # Store job information in scan metadata
         if not scan.metadata:
@@ -202,7 +202,7 @@ async def get_remediation_job(
     """
     try:
         # Find scan with this remediation job ID
-        scan = db.query(Scan).filter(Scan.aegis_remediation_id == str(job_id)).first()
+        scan = db.query(Scan).filter(Scan.kensa_remediation_id == str(job_id)).first()
 
         if not scan or not scan.metadata or "remediation_job" not in scan.metadata:
             raise HTTPException(
@@ -244,7 +244,7 @@ async def cancel_remediation_job(
     """
     try:
         # Find scan with this remediation job ID
-        scan = db.query(Scan).filter(Scan.aegis_remediation_id == str(job_id)).first()
+        scan = db.query(Scan).filter(Scan.kensa_remediation_id == str(job_id)).first()
 
         if not scan:
             raise HTTPException(
@@ -307,7 +307,7 @@ async def retry_remediation_job(
     """
     try:
         # Find original scan
-        scan = db.query(Scan).filter(Scan.aegis_remediation_id == str(job_id)).first()
+        scan = db.query(Scan).filter(Scan.kensa_remediation_id == str(job_id)).first()
 
         if not scan:
             raise HTTPException(
@@ -341,7 +341,7 @@ async def retry_remediation_job(
             scan_id=UUID4(str(scan.id)),
             host_id=UUID4(str(scan.host_id)),
             failed_rules=failed_rules,
-            provider=original_job.get("provider", "aegis"),
+            provider=original_job.get("provider", "kensa"),
             priority=original_job.get("priority", "medium"),
         )
 
@@ -380,13 +380,13 @@ async def get_remediation_providers(
     try:
         providers = []
 
-        # AEGIS Provider (not async, call directly)
-        aegis_status = _check_aegis_status()
+        # Kensa Provider (not async, call directly)
+        kensa_status = _check_kensa_status()
         providers.append(
             RemediationProvider(
-                name="aegis",
+                name="kensa",
                 version="1.0.0",
-                status=aegis_status["status"],
+                status=kensa_status["status"],
                 capabilities=[
                     "automated_remediation",
                     "rule_based_fixes",
@@ -402,7 +402,7 @@ async def get_remediation_providers(
                     "debian11",
                 ],
                 supported_frameworks=["STIG", "CIS", "PCI-DSS"],
-                configuration=aegis_status["config"],
+                configuration=kensa_status["config"],
             )
         )
 
@@ -513,8 +513,8 @@ async def _execute_remediation_job(
     try:
         logger.info(f"Starting remediation job {job_id} with provider {provider}")
 
-        if provider == "aegis":
-            await _execute_aegis_remediation(job_id, scan_id, host_id, failed_rules, options)
+        if provider == "kensa":
+            await _execute_kensa_remediation(job_id, scan_id, host_id, failed_rules, options)
         elif provider == "ansible":
             await _execute_ansible_remediation(job_id, scan_id, host_id, failed_rules, options)
         elif provider == "manual":
@@ -526,18 +526,18 @@ async def _execute_remediation_job(
         logger.error(f"Error executing remediation job {job_id}: {e}")
 
 
-async def _execute_aegis_remediation(
+async def _execute_kensa_remediation(
     job_id: UUID4,
     scan_id: UUID4,
     host_id: UUID4,
     failed_rules: List[str],
     options: Dict[str, Any],
 ) -> None:
-    """Execute AEGIS-based remediation.
+    """Execute Kensa-based remediation.
 
-    STUB: Not implemented. Replace with actual AEGIS API integration.
+    STUB: Not implemented. Replace with actual Kensa API integration.
     """
-    logger.info(f"AEGIS remediation job {job_id} - STUB: no-op (AEGIS API not integrated)")
+    logger.info(f"Kensa remediation job {job_id} - STUB: no-op (Kensa API not integrated)")
     await asyncio.sleep(2)
 
 
@@ -571,21 +571,21 @@ async def _execute_manual_remediation(
     await asyncio.sleep(1)
 
 
-def _check_aegis_status() -> Dict[str, Any]:
-    """Check AEGIS provider status"""
+def _check_kensa_status() -> Dict[str, Any]:
+    """Check Kensa provider status"""
     settings = get_settings()
-    aegis_url = getattr(settings, "aegis_url", None)
+    kensa_url = getattr(settings, "kensa_url", None)
 
-    if not aegis_url:
+    if not kensa_url:
         return {
             "status": "unavailable",
-            "config": {"error": "AEGIS_URL not configured"},
+            "config": {"error": "KENSA_URL not configured"},
         }
 
-    # Would check actual AEGIS connectivity here
+    # Would check actual Kensa connectivity here
     return {
         "status": "available",
-        "config": {"url": aegis_url, "webhook_configured": True, "api_version": "v1"},
+        "config": {"url": kensa_url, "webhook_configured": True, "api_version": "v1"},
     }
 
 

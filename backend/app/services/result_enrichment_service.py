@@ -242,7 +242,7 @@ class ResultEnrichmentService:
         """Gather intelligence data for each rule.
 
         Note: Rule intelligence was previously sourced from MongoDB.
-        This now returns an empty dict. Aegis rules provide their own
+        This now returns an empty dict. Kensa rules provide their own
         metadata via the Rule Reference API.
         """
         return {}
@@ -253,7 +253,7 @@ class ResultEnrichmentService:
         """Generate compliance framework mapping for the scan.
 
         Note: Framework mapping was previously sourced from MongoDB rules.
-        Aegis provides framework mappings via the Temporal Compliance service
+        Kensa provides framework mappings via the Temporal Compliance service
         and Rule Reference API. This returns an empty mapping structure.
         """
         return {
@@ -267,7 +267,7 @@ class ResultEnrichmentService:
         """Generate remediation guidance for failed rules.
 
         Note: Remediation guidance was previously sourced from MongoDB.
-        Aegis provides native remediation via the ORSA plugin interface.
+        Kensa provides native remediation via the ORSA plugin interface.
         This returns an empty guidance structure.
         """
         return {

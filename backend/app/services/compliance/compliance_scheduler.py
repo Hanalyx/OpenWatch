@@ -8,7 +8,7 @@ resource usage while ensuring continuous compliance visibility.
 Architecture:
 - Celery Beat schedules periodic dispatcher task (every 2 minutes)
 - Dispatcher queries host_compliance_schedule WHERE next_scheduled_scan <= NOW()
-- Individual Aegis scan tasks dispatched with state-based priority
+- Individual Kensa scan tasks dispatched with state-based priority
 - Results update compliance state and calculate next scan time (max 48 hours)
 
 Compliance States & Intervals:
