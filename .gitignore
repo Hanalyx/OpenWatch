@@ -835,7 +835,10 @@ backend/debug_*.py
 backend/scripts/
 
 # Documentation directories (user-generated, do not commit)
-docs/
+docs/*
+!docs/images/
+docs/images/*
+!docs/images/*.png
 PRD/
 backend/docs/
 frontend/docs/
