@@ -89,7 +89,7 @@ def enrich_scan_results_celery(
 
 
 @celery_app.task(
-    name="app.tasks.execute_remediation",
+    name="app.tasks.execute_remediation_legacy",
     time_limit=3600,
     soft_time_limit=3300,
 )

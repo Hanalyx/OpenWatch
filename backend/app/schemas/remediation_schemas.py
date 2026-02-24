@@ -72,6 +72,26 @@ class RemediationJobResponse(BaseModel):
         from_attributes = True
 
 
+class RemediationStepResponse(BaseModel):
+    """Per-step result within a rule remediation."""
+
+    id: UUID
+    result_id: UUID
+    step_index: int
+    mechanism: str
+    success: bool
+    detail: Optional[str] = None
+    pre_state_data: Optional[Dict[str, Any]] = None
+    pre_state_capturable: Optional[bool] = None
+    verified: Optional[bool] = None
+    verify_detail: Optional[str] = None
+    risk_level: Optional[str] = None
+    created_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
 class RemediationResultResponse(BaseModel):
     """Response model for individual rule remediation result."""
 
@@ -89,6 +109,53 @@ class RemediationResultResponse(BaseModel):
     created_at: datetime
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
+
+    # Kensa-specific fields
+    remediated: Optional[bool] = None
+    remediation_detail: Optional[str] = None
+    rolled_back: Optional[bool] = None
+    step_count: Optional[int] = None
+    risk_level: Optional[str] = None
+
+    # Kensa evidence (K-1)
+    evidence: Optional[List[Dict[str, Any]]] = None
+    framework_refs: Optional[Dict[str, str]] = None
+
+    class Config:
+        from_attributes = True
+
+
+class RemediationResultDetailResponse(BaseModel):
+    """Result response including step-level detail."""
+
+    id: UUID
+    job_id: UUID
+    rule_id: str
+    status: RemediationStatus
+    exit_code: Optional[int] = None
+    stdout: Optional[str] = None
+    stderr: Optional[str] = None
+    duration_ms: Optional[int] = None
+    error_message: Optional[str] = None
+    rollback_available: bool
+    rollback_executed: bool
+    created_at: datetime
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+
+    # Kensa-specific fields
+    remediated: Optional[bool] = None
+    remediation_detail: Optional[str] = None
+    rolled_back: Optional[bool] = None
+    step_count: Optional[int] = None
+    risk_level: Optional[str] = None
+
+    # Kensa evidence (K-1)
+    evidence: Optional[List[Dict[str, Any]]] = None
+    framework_refs: Optional[Dict[str, str]] = None
+
+    # Steps
+    steps: List[RemediationStepResponse] = []
 
     class Config:
         from_attributes = True
@@ -146,16 +213,33 @@ class RemediationSummary(BaseModel):
     rollback_available_count: int = 0
 
 
+class RemediationPlanRuleDetail(BaseModel):
+    """Per-rule detail in a dry-run plan."""
+
+    rule_id: str
+    title: str
+    severity: str
+    risk_level: str
+    steps: List[Dict[str, Any]]
+    estimated_duration_seconds: int
+    requires_reboot: bool = False
+    warnings: List[str] = []
+
+
 class RemediationPlanResponse(BaseModel):
     """Response for remediation plan (dry-run preview)."""
 
     host_id: UUID
     rule_count: int
-    rules: List[Dict[str, Any]]
+    rules: List[RemediationPlanRuleDetail]
     estimated_duration_seconds: int
     warnings: List[str] = []
     requires_reboot: bool = False
     dependencies: List[str] = []
+    risk_summary: Dict[str, int] = Field(
+        default_factory=dict,
+        description="Count of rules per risk level",
+    )
 
 
 class RemediationAuditEntry(BaseModel):
@@ -173,12 +257,15 @@ __all__ = [
     "RemediationStatus",
     "RemediationJobCreate",
     "RemediationJobResponse",
+    "RemediationStepResponse",
     "RemediationResultResponse",
+    "RemediationResultDetailResponse",
     "RemediationJobListResponse",
     "RemediationJobDetailResponse",
     "RollbackRequest",
     "RollbackResponse",
     "RemediationSummary",
+    "RemediationPlanRuleDetail",
     "RemediationPlanResponse",
     "RemediationAuditEntry",
 ]

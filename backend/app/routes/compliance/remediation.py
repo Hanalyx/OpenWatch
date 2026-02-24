@@ -7,7 +7,7 @@ Part of Phase 4: Remediation + Subscription (Kensa Integration Plan)
 """
 
 import logging
-from typing import Optional
+from typing import List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -20,6 +20,7 @@ from app.schemas.remediation_schemas import (
     RemediationJobListResponse,
     RemediationJobResponse,
     RemediationPlanResponse,
+    RemediationStepResponse,
     RemediationSummary,
     RollbackRequest,
     RollbackResponse,
@@ -145,10 +146,36 @@ async def get_remediation_summary(
 
 
 @router.post(
+    "/check-rules",
+    summary="Check which rules support auto-remediation",
+    description="Returns remediation availability for a list of rule IDs.",
+)
+@require_role([UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
+async def check_rules_remediation(
+    rule_ids: List[str],
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """Check which rules have auto-remediation steps defined."""
+    from sqlalchemy import text
+
+    query = """
+        SELECT rule_id, has_remediation
+        FROM kensa_rules
+        WHERE rule_id = ANY(:rule_ids)
+    """
+    result = db.execute(text(query), {"rule_ids": rule_ids})
+    rows = result.fetchall()
+    lookup = {row.rule_id: row.has_remediation for row in rows}
+
+    return {rule_id: lookup.get(rule_id, False) for rule_id in rule_ids}
+
+
+@router.post(
     "/plan",
     response_model=RemediationPlanResponse,
     summary="Get remediation plan",
-    description="Preview a remediation plan without executing.",
+    description="Preview a remediation plan with real Kensa dry-run data.",
 )
 @require_role([UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 async def get_remediation_plan(
@@ -159,8 +186,8 @@ async def get_remediation_plan(
     """
     Get a remediation plan preview.
 
-    This is essentially a dry-run that shows what would be remediated
-    without actually making changes.
+    Connects to the host via SSH and runs each rule in dry-run mode to
+    generate real step-level preview data with risk classification.
     """
     service = RemediationService(db)
 
@@ -194,6 +221,39 @@ async def get_remediation_job(
     results = service.get_job_results(job_id)
 
     return RemediationJobDetailResponse(job=job, results=results)
+
+
+@router.get(
+    "/{job_id}/results/{result_id}/steps",
+    response_model=List[RemediationStepResponse],
+    summary="Get step-level remediation results",
+    description="Returns per-step detail for a specific rule remediation result.",
+)
+@require_role([UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
+async def get_remediation_steps(
+    job_id: UUID,
+    result_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Get step-level results for a specific rule remediation.
+
+    Each step shows the mechanism used, success/failure, pre-state data
+    for rollback, verification status, and risk classification.
+    """
+    service = RemediationService(db)
+
+    # Verify the job exists
+    job = service.get_job(job_id)
+    if not job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Job {job_id} not found",
+        )
+
+    steps = service.get_step_results(result_id)
+    return steps
 
 
 @router.post(

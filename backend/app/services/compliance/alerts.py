@@ -565,26 +565,11 @@ class AlertService:
         Returns:
             Merged threshold settings (defaults + overrides)
         """
-        # Start with defaults
-        thresholds = DEFAULT_THRESHOLDS.copy()
-
-        # Check for host-specific overrides
-        if host_id:
-            query = text("SELECT settings FROM alert_settings WHERE host_id = :host_id")
-            result = self.db.execute(query, {"host_id": str(host_id)})
-            row = result.fetchone()
-            if row and row.settings:
-                thresholds = self._merge_settings(thresholds, row.settings)
-
-        # Check for group-specific overrides (if no host override found)
-        elif host_group_id:
-            query = text("SELECT settings FROM alert_settings WHERE host_group_id = :host_group_id")
-            result = self.db.execute(query, {"host_group_id": host_group_id})
-            row = result.fetchone()
-            if row and row.settings:
-                thresholds = self._merge_settings(thresholds, row.settings)
-
-        return thresholds
+        # alert_settings table currently uses user-scoped schema
+        # (user_id, alert_type) and has no settings, host_id, or
+        # host_group_id columns. Host-scoped threshold overrides will be
+        # added in a future migration. Return defaults for now.
+        return DEFAULT_THRESHOLDS.copy()
 
     def _merge_settings(self, defaults: Dict[str, Any], overrides: Dict[str, Any]) -> Dict[str, Any]:
         """Recursively merge override settings into defaults."""

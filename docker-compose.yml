@@ -54,6 +54,8 @@ services:
       OPENWATCH_FIPS_MODE: "false"
       OPENWATCH_REQUIRE_HTTPS: "false"
       OPENWATCH_DEBUG: "true"
+      # License tier for development (enables all OpenWatch+ features)
+      OPENWATCH_LICENSE_TIER: "${OPENWATCH_LICENSE_TIER:-openwatch_plus}"
       # Version info for CI/CD (read from VERSION file)
       BUILD_DATE: "${BUILD_DATE:-}"
       # Feature Flags - OW-REFACTOR
@@ -100,6 +102,7 @@ services:
       OPENWATCH_ENCRYPTION_KEY: ${OPENWATCH_ENCRYPTION_KEY}
       OPENWATCH_FIPS_MODE: "false"
       OPENWATCH_DEBUG: "true"
+      OPENWATCH_LICENSE_TIER: "${OPENWATCH_LICENSE_TIER:-openwatch_plus}"
       # SSH Configuration - Unified SSH Service
       OPENWATCH_SSH_STRICT_MODE: "false"
       # OPENWATCH_STRICT_SSH: "false"        # Uncomment to force RejectPolicy
@@ -140,6 +143,7 @@ services:
       OPENWATCH_ENCRYPTION_KEY: ${OPENWATCH_ENCRYPTION_KEY}
       OPENWATCH_FIPS_MODE: "false"
       OPENWATCH_DEBUG: "true"
+      OPENWATCH_LICENSE_TIER: "${OPENWATCH_LICENSE_TIER:-openwatch_plus}"
     volumes:
       - app_data:/openwatch/data
       - app_logs:/openwatch/logs

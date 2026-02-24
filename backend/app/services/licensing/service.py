@@ -15,6 +15,7 @@ Future Implementation:
 """
 
 import logging
+import os
 from datetime import datetime, timezone
 from functools import wraps
 from typing import Any, Callable, Dict, List, Optional, TypeVar
@@ -210,6 +211,11 @@ class LicenseService:
             if datetime.now(timezone.utc) < self._cache_expires:
                 return self._license_cache
 
+        # Environment-based license override for development
+        tier = os.environ.get("OPENWATCH_LICENSE_TIER")
+        if tier:
+            return {"tier": tier}
+
         # TODO: Query database for license (sync version)
         # For now, return None (free tier)
         return None
@@ -232,6 +238,11 @@ class LicenseService:
         if self._license_cache and self._cache_expires:
             if datetime.now(timezone.utc) < self._cache_expires:
                 return self._license_cache
+
+        # Environment-based license override for development
+        tier = os.environ.get("OPENWATCH_LICENSE_TIER")
+        if tier:
+            return {"tier": tier}
 
         # TODO: Query database for license
         # async with get_session() as session:

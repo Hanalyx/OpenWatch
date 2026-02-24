@@ -92,6 +92,7 @@ const ScanDetail: React.FC = () => {
   const {
     navigate,
     scan,
+    ruleResults,
     filteredRules,
     loading,
     refreshing,
@@ -366,8 +367,16 @@ const ScanDetail: React.FC = () => {
             scanId={scan.id?.toString() || ''}
             hostId={scan.host_id || ''}
             scanStatus={scan.status || ''}
+            failedFindings={ruleResults
+              .filter((r) => r.result === 'fail')
+              .map((r) => ({
+                ruleId: r.rule_id,
+                title: r.title,
+                severity: r.severity,
+                status: r.result,
+              }))}
             onRemediationStarted={() => {
-              fetchScanDetails();
+              fetchScanDetails(true);
             }}
           />
         </TabPanel>

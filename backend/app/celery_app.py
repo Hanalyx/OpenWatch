@@ -243,6 +243,7 @@ celery_app.conf.update(
         "app.tasks.scan_tasks",
         "app.tasks.kensa_scan_tasks",
         "app.tasks.background_tasks",
+        "app.tasks.remediation_tasks",
     ],
 )
 
