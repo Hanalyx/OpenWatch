@@ -86,7 +86,7 @@ export interface UseScanDetailReturn {
   handleRescan: () => Promise<void>;
   handleRescanRule: (rule: RuleResult) => Promise<void>;
   handleExportRuleDetails: (format: 'json' | 'csv') => void;
-  fetchScanDetails: () => Promise<void>;
+  fetchScanDetails: (quiet?: boolean) => Promise<void>;
 }
 
 export function useScanDetail(): UseScanDetailReturn {
