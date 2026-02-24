@@ -1,235 +1,130 @@
-# OpenWatch - Open Source SCAP Compliance Scanner
+# OpenWatch
+
+**Know whether your servers are compliant — without logging into each one.**
 
 [![License: AGPLv3 + MSE](https://img.shields.io/badge/License-AGPLv3%20%2B%20MSE-blue.svg)](LICENSE)
-[![Container Support](https://img.shields.io/badge/Container-Docker%20%7C%20Podman-green)](https://podman.io/)
+[![Backend CI](https://github.com/Hanalyx/OpenWatch/actions/workflows/ci.yml/badge.svg)](https://github.com/Hanalyx/OpenWatch/actions/workflows/ci.yml)
 [![Documentation](https://img.shields.io/badge/docs-latest-brightgreen)](https://hanalyx.github.io/OpenWatch/)
-[![codecov](https://codecov.io/gh/Hanalyx/OpenWatch/branch/main/graph/badge.svg)](https://codecov.io/gh/Hanalyx/OpenWatch)
+[![GitHub Discussions](https://img.shields.io/github/discussions/Hanalyx/OpenWatch)](https://github.com/Hanalyx/OpenWatch/discussions)
 
-OpenWatch is an open-source SCAP (Security Content Automation Protocol) compliance scanner for automated security assessments. Scan your infrastructure against STIG, CIS, and custom security profiles.
+OpenWatch connects to your Linux servers over SSH, runs 338 compliance checks against STIG, CIS, NIST 800-53, PCI DSS, and FedRAMP baselines, and shows you exactly what's passing, what's failing, and what to fix — all from a single dashboard.
 
-## Quick Start
+![OpenWatch Host Management Dashboard](docs/images/dashboard-preview.png)
 
-### Prerequisites
-- Docker or Podman
-- Linux system (RHEL/Ubuntu recommended)
-- 4GB RAM, 2 CPU cores minimum
+## The Problem
 
-### Installation
+You manage 5, 50, or 500 Linux servers. An auditor asks: *"Are these systems compliant with STIG?"* You don't know. Finding out means SSHing into each one, running checks manually, and assembling spreadsheets. It takes days. Results are stale before you finish.
+
+## What OpenWatch Does
+
+- **Scans your servers automatically** over SSH — no agents to install
+- **Checks against real frameworks** — DISA STIG, CIS Benchmarks, NIST 800-53, PCI DSS 4.0, FedRAMP Moderate
+- **Shows compliance scores per host** — 73.8%, 69.7%, instantly visible
+- **Flags critical issues** — know which servers need attention right now
+- **Stores evidence** — every check records what command ran, what it expected, what it found
+
+### How It Compares
+
+| | OpenWatch | Manual Checks | OpenSCAP CLI |
+|---|---|---|---|
+| Multi-host scanning | One click | SSH into each server | Script it yourself |
+| Dashboard & history | Built-in | Spreadsheets | None |
+| Framework coverage | STIG + CIS + NIST + PCI + FedRAMP | Whatever you remember | STIG/CIS only |
+| Accuracy vs CLI | 72.2% match | Depends on you | 62% (OVAL interpretation gaps) |
+| Agents required | No (SSH) | No | No |
+| Setup time | 10 minutes | N/A | Hours of scripting |
+
+## Deploy in 10 Minutes
+
+**Requirements:** Docker (or Podman), Linux host, 4GB RAM
 
 ```bash
-# Clone and start
 git clone https://github.com/hanalyx/openwatch.git
 cd openwatch
 ./start-openwatch.sh --runtime docker --build
-
-# Wait 60-90 seconds for services to start
-# Access web interface at http://localhost:3000
-# Default credentials: admin / admin
 ```
 
-**Important**: Change the default admin password immediately after first login.
+Wait ~90 seconds, then open **http://localhost:3000**. Default login: `admin` / `admin`.
 
-### First Scan
+**Change the default password immediately.**
 
-1. **Add SSH credentials** (Settings → System Credentials)
-   - Name: `default-ssh`
-   - Username: Your SSH user
-   - Authentication: Password or SSH key
+### Run Your First Scan
 
-2. **Add a host** (Hosts → Add Host)
-   - Hostname/IP: Your target system
-   - SSH Port: 22 (default)
-   - Credentials: Select `default-ssh`
+1. **Add credentials** — Settings > System Credentials > add your SSH user/key
+2. **Add a host** — Hosts > Add Host > enter IP, select credentials
+3. **Scan** — Click the play button on the host card
 
-3. **Upload SCAP content** (Content → Upload)
-   - Download SCAP content from [NIST NCP](https://ncp.nist.gov/repository)
-   - Upload the `.xml` data-stream file
-
-4. **Run a scan** (Scanning → New Scan)
-   - Select host and SCAP profile
-   - Click "Start Scan"
-   - View results in real-time
+Results appear in under a minute. No SCAP content to download, no XML to wrangle — OpenWatch ships with 338 built-in Kensa rules.
 
 ## Architecture
 
 ```
-┌─────────────┬─────────────┬─────────────┐
-│  Frontend   │   Backend   │   Scanner   │
-│   (React)   │  (FastAPI)  │  (OpenSCAP) │
-└──────┬──────┴──────┬──────┴──────┬──────┘
-       │             │             │
-   ┌───▼───┬────────▼────────┬────▼────┐
-   │ NGINX │   PostgreSQL    │  Redis  │
-   └───────┴─────────────────┴─────────┘
+You  -->  OpenWatch UI (React)  -->  OpenWatch API (FastAPI)
+                                          |
+                                    Kensa Engine (338 YAML rules)
+                                          |
+                                     SSH to targets
+                                          |
+                                   Your Linux Servers
 ```
 
-**Components:**
-- **Frontend**: React with Material Design 3
-- **Backend**: FastAPI with OpenSCAP integration
-- **Database**: PostgreSQL for compliance data
-- **Task Queue**: Celery with Redis
-- **Web Server**: NGINX with TLS
-
-## Features
-
-- **Multi-host scanning**: Scan 100+ hosts in parallel
-- **STIG/CIS profiles**: Pre-configured security baselines
-- **Real-time results**: Live scan progress and results
-- **SSH authentication**: Password and key-based auth
-- **Container deployment**: Docker/Podman ready
-- **REST API**: Full automation support
-
-## Configuration
-
-### Environment Variables
-
-Create `backend/.env` with required settings:
-
-```bash
-# Generate secure keys
-SECRET_KEY=$(openssl rand -hex 32)
-MASTER_KEY=$(openssl rand -hex 32)
-
-# Database connection
-DATABASE_URL=postgresql://openwatch:password@db:5432/openwatch
-
-# Optional settings
-OPENWATCH_DEBUG=false
-OPENWATCH_REQUIRE_HTTPS=true
-```
-
-See [`backend/.env.example`](backend/.env.example) for complete configuration options.
-
-### Container Runtime
-
-**Docker:**
-```bash
-./start-openwatch.sh --runtime docker
-./stop-openwatch.sh                # Safe stop (preserves data)
-```
-
-**Podman (rootless):**
-```bash
-./start-openwatch.sh --runtime podman
-./stop-openwatch.sh                # Safe stop (preserves data)
-```
-
-**⚠️ IMPORTANT:** By default, `./stop-openwatch.sh` preserves all data. Use `OPENWATCH_CLEAN_STOP=true ./stop-openwatch.sh` only when you want to delete all data.
-
-## Troubleshooting
-
-### Services won't start
-```bash
-# Check container logs
-docker logs openwatch-backend
-docker logs openwatch-frontend
-
-# Restart services (preserves data)
-./stop-openwatch.sh
-./start-openwatch.sh --runtime docker --build
-```
-
-### Data disappeared after restart
-```bash
-# This is caused by running old versions of stop-openwatch.sh
-# Update to latest version (safe by default):
-git pull origin main
-
-# Data is lost and must be re-entered
-# Future restarts will preserve data
-```
-
-### Database connection errors
-```bash
-# Verify database is running
-docker-compose ps
-
-# Check database logs
-docker-compose logs db
-```
-
-### Scan failures
-- Verify SSH credentials are correct
-- Ensure target host is reachable
-- Check target host has `oscap` installed (for remote scans)
-- Review scan logs in Scanning → Scan History
-
-See [docs/FIRST_RUN_SETUP.md](docs/FIRST_RUN_SETUP.md) for detailed troubleshooting.
-
-## Development
-
-### Backend Development
-```bash
-cd backend
-python -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-
-# Set environment variables
-export SECRET_KEY="your-secret-key"
-export MASTER_KEY="your-master-key"
-
-# Start backend
-uvicorn app.main:app --reload --port 8000
-```
-
-### Frontend Development
-```bash
-cd frontend
-npm install
-npm run dev  # Runs on port 3001
-```
-
-### Running Tests
-```bash
-# Backend tests
-cd backend
-pip install pytest pytest-asyncio pytest-cov
-pytest tests/ -v
-
-# Frontend tests
-cd frontend
-npm test
-```
-
-**Important:** Always run tests before committing. See [docs/STOP_BREAKING_THINGS.md](docs/STOP_BREAKING_THINGS.md) for testing strategy.
+**Stack:** React 19, FastAPI, PostgreSQL, Redis/Celery, Kensa compliance engine, Docker
 
 ## Security
 
-- **Encryption**: AES-256-GCM for credentials, TLS for transport
-- **Authentication**: JWT with RS256 signing, Argon2id password hashing
-- **FIPS compliance**: FIPS 140-2 Level 1 cryptography
-- **Audit logging**: All security events logged
-- **MFA Support**: TOTP with SHA-256 backup codes
+OpenWatch is built for environments where security is the requirement, not an afterthought:
 
-### Security Audits
+- **AES-256-GCM** encryption for stored credentials
+- **RS256 JWT** authentication with Argon2id password hashing
+- **FIPS 140-2** compliant cryptography (RHEL 9 validated OpenSSL)
+- **RBAC** with 6 roles (Viewer through Superadmin)
+- **Audit logging** on all security events
+- **No agents** — scans over SSH, nothing installed on targets
 
-OpenWatch undergoes regular security audits. Latest audit reports:
-- **[Security Audit Report](SECURITY_AUDIT_REPORT.md)** - Comprehensive cryptographic and dependency analysis
-- **[Security Findings Summary](SECURITY_FINDINGS_SUMMARY.md)** - Executive summary with remediation steps
+Report vulnerabilities to security@hanalyx.com.
 
-**Report vulnerabilities**: security@hanalyx.com
+## Documentation
+
+| Topic | Link |
+|-------|------|
+| API Reference | [Swagger UI](http://localhost:8000/api/docs) (when running) |
+| Full Documentation | [hanalyx.github.io/OpenWatch](https://hanalyx.github.io/OpenWatch/) |
+| First Run Setup | [docs/FIRST_RUN_SETUP.md](docs/FIRST_RUN_SETUP.md) |
+| Development Guide | [docs/DEVELOPMENT_WORKFLOW.md](docs/DEVELOPMENT_WORKFLOW.md) |
+| Security Audit | [SECURITY_AUDIT_REPORT.md](SECURITY_AUDIT_REPORT.md) |
+
+## Community
+
+Have a question, idea, or want to share how you're using OpenWatch?
+
+**[Join the Discussion](https://github.com/Hanalyx/OpenWatch/discussions)**
+
+- **Q&A** — Get help with setup, scanning, and configuration
+- **Ideas** — Propose features and integrations
+- **Show and Tell** — Share your compliance workflows
+
+Found a bug? [Open an issue](https://github.com/Hanalyx/OpenWatch/issues/new).
+
+## Contributing
+
+```bash
+# Backend
+cd backend && pip install -r requirements.txt
+pytest tests/ -v
+
+# Frontend
+cd frontend && npm install
+npm run dev    # http://localhost:3001
+npm test
+```
+
+See [docs/STOP_BREAKING_THINGS.md](docs/STOP_BREAKING_THINGS.md) before submitting a PR.
 
 ## License
 
-OpenWatch Community License (AGPLv3 + Managed Service Exception)
+**OpenWatch Community License (AGPLv3 + Managed Service Exception)**
 
-OpenWatch is licensed under the GNU Affero General Public License v3.0 with a Managed Service Exception. This means:
+- Free to use, modify, and self-host
+- Cannot offer as SaaS without a commercial license
 
-- ✅ **Free to use** for internal business purposes
-- ✅ **Free to modify** and distribute (with source code)
-- ✅ **Self-hosted deployment** permitted
-- ❌ **Cannot offer as SaaS** to third parties without commercial license
-
-**Commercial licensing** available for managed service providers and SaaS offerings.
-
-For details, see [LICENSE](LICENSE) or contact [legal@hanalyx.com](mailto:legal@hanalyx.com)
-
-## Acknowledgments
-
-Built with:
-- [OpenSCAP](https://www.open-scap.org/) - SCAP scanning engine
-- [FastAPI](https://fastapi.tiangolo.com/) - Python web framework
-- [React](https://reactjs.org/) - Frontend framework
-- [Material-UI](https://mui.com/) - UI components
-- [Podman](https://podman.io/) - Container runtime
+See [LICENSE](LICENSE) for details. Commercial licensing: [legal@hanalyx.com](mailto:legal@hanalyx.com)
