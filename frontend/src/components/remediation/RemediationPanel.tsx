@@ -725,6 +725,13 @@ const RemediationPanel: React.FC<RemediationPanelProps> = ({
             ) : phase === 'done' ? (
               <Button
                 onClick={() => {
+                  // Remove rules that were successfully remediated from selection
+                  if (jobDetail?.results) {
+                    const completedRuleIds = new Set(
+                      jobDetail.results.filter((r) => r.status === 'completed').map((r) => r.ruleId)
+                    );
+                    setSelectedRules((prev) => prev.filter((id) => !completedRuleIds.has(id)));
+                  }
                   setPhase('select');
                   setActiveJobId(null);
                   setPlan(null);

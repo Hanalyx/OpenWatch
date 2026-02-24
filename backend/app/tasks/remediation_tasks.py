@@ -299,6 +299,12 @@ def _execute_rule_remediation(
             rule_status = "manual"
         elif result.remediated or dry_run:
             rule_status = "completed"
+        elif getattr(result, "passed", False):
+            # Already compliant — Kensa remediation is idempotent by
+            # design (check-before-fix pattern).  On repeat runs the
+            # initial check passes so no changes are made, returning
+            # passed=True, remediated=False.  Safe for scheduled runs.
+            rule_status = "completed"
         else:
             rule_status = "failed"
 
