@@ -354,6 +354,11 @@ class AuditExportService:
             "status",
             "detail",
             "framework_section",
+            "evidence_command",
+            "evidence_expected",
+            "evidence_actual",
+            "framework_refs",
+            "skip_reason",
             "scanned_at",
         ]
 
@@ -362,6 +367,20 @@ class AuditExportService:
             writer.writeheader()
 
             for finding in findings:
+                # Flatten primary evidence item for CSV readability
+                ev_command = ""
+                ev_expected = ""
+                ev_actual = ""
+                if finding.evidence and len(finding.evidence) > 0:
+                    primary = finding.evidence[0]
+                    ev_command = primary.get("command", "")
+                    ev_expected = primary.get("expected", "")
+                    ev_actual = primary.get("actual", "")
+
+                fw_refs = ""
+                if finding.framework_refs:
+                    fw_refs = json.dumps(finding.framework_refs)
+
                 writer.writerow(
                     {
                         "scan_id": str(finding.scan_id),
@@ -373,6 +392,11 @@ class AuditExportService:
                         "status": finding.status,
                         "detail": finding.detail or "",
                         "framework_section": finding.framework_section or "",
+                        "evidence_command": ev_command,
+                        "evidence_expected": ev_expected,
+                        "evidence_actual": ev_actual,
+                        "framework_refs": fw_refs,
+                        "skip_reason": finding.skip_reason or "",
                         "scanned_at": finding.scanned_at.isoformat(),
                     }
                 )

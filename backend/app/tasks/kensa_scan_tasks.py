@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 
 from app.celery_app import celery_app
 from app.database import SessionLocal
+from app.plugins.kensa.evidence import serialize_evidence, serialize_framework_refs
 from app.services.compliance import TemporalComplianceService
 from app.services.monitoring import DriftDetectionService
 from app.utils.mutation_builders import InsertBuilder, UpdateBuilder
@@ -294,6 +295,9 @@ def execute_kensa_scan_task(
                     "status",
                     "detail",
                     "framework_section",
+                    "evidence",
+                    "framework_refs",
+                    "skip_reason",
                     "created_at",
                 )
                 .values(
@@ -304,6 +308,9 @@ def execute_kensa_scan_task(
                     status_str,
                     r.detail[:2000] if r.detail else None,
                     r.framework_section,
+                    serialize_evidence(r),
+                    serialize_framework_refs(r),
+                    r.skip_reason if r.skipped else None,
                     end_time,
                 )
             )

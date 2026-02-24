@@ -25,6 +25,7 @@ import {
   History as HistoryIcon,
   Terminal as TerminalIcon,
   EventNote as AuditIcon,
+  Build as RemediationIcon,
 } from '@mui/icons-material';
 
 import HostDetailHeader from './HostDetailHeader';
@@ -49,6 +50,7 @@ import {
   useScanHistory,
 } from '../../../hooks/useHostDetail';
 import { api } from '../../../services/api';
+import RemediationPanel from '../../../components/remediation/RemediationPanel';
 
 interface Host {
   id: string;
@@ -202,6 +204,7 @@ const HostDetail: React.FC = () => {
           <Tab label="Network" icon={<NetworkIcon />} iconPosition="start" />
           <Tab label="Audit Log" icon={<AuditIcon />} iconPosition="start" />
           <Tab label="History" icon={<HistoryIcon />} iconPosition="start" />
+          <Tab label="Remediation" icon={<RemediationIcon />} iconPosition="start" />
           <Tab label="Terminal" icon={<TerminalIcon />} iconPosition="start" />
         </Tabs>
       </Box>
@@ -247,6 +250,13 @@ const HostDetail: React.FC = () => {
       </TabPanel>
 
       <TabPanel value={tabValue} index={8}>
+        <RemediationPanel
+          hostId={host.id}
+          failedFindings={complianceState?.findings?.filter((f) => f.status === 'fail') || []}
+        />
+      </TabPanel>
+
+      <TabPanel value={tabValue} index={9}>
         <TerminalTab hostId={host.id} hostname={host.hostname} ipAddress={host.ip_address} />
       </TabPanel>
     </Container>

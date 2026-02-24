@@ -48,6 +48,7 @@ from sqlalchemy.orm import Session
 
 from app.auth import get_current_user
 from app.database import get_db
+from app.plugins.kensa.evidence import serialize_evidence, serialize_framework_refs
 from app.utils.mutation_builders import InsertBuilder, UpdateBuilder
 
 logger = logging.getLogger(__name__)
@@ -131,6 +132,9 @@ class ComplianceFinding(BaseModel):
     status: str
     detail: Optional[str] = None
     framework_section: Optional[str] = None
+    evidence: Optional[List[Dict[str, Any]]] = None
+    framework_refs: Optional[Dict[str, str]] = None
+    skip_reason: Optional[str] = None
 
 
 class ComplianceStateResponse(BaseModel):
@@ -368,7 +372,17 @@ async def execute_kensa_scan(
             finding_insert = (
                 InsertBuilder("scan_findings")
                 .columns(
-                    "scan_id", "rule_id", "title", "severity", "status", "detail", "framework_section", "created_at"
+                    "scan_id",
+                    "rule_id",
+                    "title",
+                    "severity",
+                    "status",
+                    "detail",
+                    "framework_section",
+                    "evidence",
+                    "framework_refs",
+                    "skip_reason",
+                    "created_at",
                 )
                 .values(
                     scan_id,
@@ -378,6 +392,9 @@ async def execute_kensa_scan(
                     status_str,
                     r.detail[:2000] if r.detail else None,  # Truncate long details
                     r.framework_section,
+                    serialize_evidence(r),
+                    serialize_framework_refs(r),
+                    r.skip_reason if r.skipped else None,
                     end_time,
                 )
             )
@@ -1053,7 +1070,8 @@ async def get_compliance_state(
     # Get all findings for this scan
     findings_query = text(
         """
-        SELECT rule_id, title, severity, status, detail, framework_section
+        SELECT rule_id, title, severity, status, detail, framework_section,
+               evidence, framework_refs, skip_reason
         FROM scan_findings
         WHERE scan_id = :scan_id
         ORDER BY
@@ -1090,6 +1108,9 @@ async def get_compliance_state(
             status=row.status,
             detail=row.detail,
             framework_section=row.framework_section,
+            evidence=getattr(row, "evidence", None),
+            framework_refs=getattr(row, "framework_refs", None),
+            skip_reason=getattr(row, "skip_reason", None),
         )
         findings.append(finding)
 

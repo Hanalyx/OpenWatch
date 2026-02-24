@@ -79,6 +79,31 @@ def _get_kensa_version() -> str:
 KENSA_VERSION = _get_kensa_version()
 
 
+def _has_automated_remediation(rule_data: Dict[str, Any]) -> bool:
+    """
+    Check whether a Kensa rule has automated (non-manual) remediation.
+
+    Kensa stores remediation inside implementations[].remediation in two formats:
+      - Single-step: { mechanism: "config_set", ... }
+      - Multi-step:  { steps: [{ mechanism: "sysctl_set", ... }, ...] }
+
+    Rules with mechanism="manual" (or only a note:) are truly manual
+    and should return False.
+    """
+    for impl in rule_data.get("implementations", []):
+        rem = impl.get("remediation")
+        if not rem:
+            continue
+        # Multi-step: at least one non-manual step means automated
+        if "steps" in rem:
+            return any(step.get("mechanism") and step["mechanism"] != "manual" for step in rem["steps"])
+        # Single-step: mechanism present and not manual
+        mechanism = rem.get("mechanism", "")
+        if mechanism and mechanism != "manual":
+            return True
+    return False
+
+
 class KensaRuleSyncService:
     """
     Synchronizes Kensa YAML rules to PostgreSQL.
@@ -233,12 +258,14 @@ class KensaRuleSyncService:
             INSERT INTO kensa_rules (
                 rule_id, title, description, rationale, severity, category,
                 tags, platforms, "references", implementations,
-                kensa_version, file_path, file_hash, created_at, updated_at
+                kensa_version, file_path, file_hash, has_remediation,
+                created_at, updated_at
             )
             VALUES (
                 :rule_id, :title, :description, :rationale, :severity, :category,
                 :tags, :platforms, :references, :implementations,
-                :kensa_version, :file_path, :file_hash, NOW(), NOW()
+                :kensa_version, :file_path, :file_hash, :has_remediation,
+                NOW(), NOW()
             )
             ON CONFLICT (rule_id) DO UPDATE SET
                 title = EXCLUDED.title,
@@ -253,6 +280,7 @@ class KensaRuleSyncService:
                 kensa_version = EXCLUDED.kensa_version,
                 file_path = EXCLUDED.file_path,
                 file_hash = EXCLUDED.file_hash,
+                has_remediation = EXCLUDED.has_remediation,
                 updated_at = NOW()
         """
         )
@@ -273,6 +301,7 @@ class KensaRuleSyncService:
                 "kensa_version": KENSA_VERSION,
                 "file_path": rule_data.get("_file_path"),
                 "file_hash": rule_data.get("_file_hash"),
+                "has_remediation": _has_automated_remediation(rule_data),
             },
         )
 

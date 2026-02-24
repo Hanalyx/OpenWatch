@@ -1,14 +1,16 @@
 """
 Remediation Celery Tasks for Phase 4
 
-Async tasks for remediation and rollback execution.
+Async tasks for remediation and rollback execution using the Kensa
+compliance engine. Replaces stub implementations with real Kensa API calls.
 
 Part of Phase 4: Remediation + Subscription (Kensa Integration Plan)
 """
 
+import asyncio
 import logging
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from celery import shared_task
@@ -18,6 +20,28 @@ from app.database import SessionLocal
 from app.services.compliance.remediation import RemediationService
 
 logger = logging.getLogger(__name__)
+
+
+def _get_rules_path() -> str:
+    """Get the Kensa rules directory path."""
+    try:
+        from runner.paths import get_rules_path
+
+        return str(get_rules_path())
+    except ImportError:
+        import os
+
+        return os.environ.get("KENSA_RULES_PATH", "/opt/kensa/rules")
+
+
+def _load_and_resolve_rules(rules_path: str) -> List[Dict]:
+    """Load Kensa rules and resolve template variables."""
+    from runner._config import load_config, resolve_variables
+    from runner._loading import load_rules
+
+    rules = load_rules(rules_path)
+    config = load_config(rules_path)
+    return [resolve_variables(r, config, strict=False) for r in rules]
 
 
 @shared_task(
@@ -30,12 +54,8 @@ def execute_remediation_job(self, job_id: str) -> Dict[str, Any]:
     """
     Execute a remediation job asynchronously.
 
-    This task:
-    1. Marks job as running
-    2. Executes each rule remediation via Kensa
-    3. Captures pre-state for rollback
-    4. Updates progress and results
-    5. Marks job complete/failed
+    Establishes a single SSH session to the host, loads and resolves all rules
+    once, then iterates through requested rules calling Kensa's remediate_rule.
 
     Args:
         job_id: Remediation job ID
@@ -60,77 +80,38 @@ def execute_remediation_job(self, job_id: str) -> Dict[str, Any]:
             logger.error(f"Job {job_id} not found")
             return {"status": "error", "reason": "job_not_found"}
 
-        # Get host credentials for SSH
-        host_info = _get_host_info(db, job.host_id)
-        if not host_info:
-            service.complete_job(UUID(job_id), "failed", "Host not found")
-            return {"status": "failed", "reason": "host_not_found"}
-
-        # Execute remediation for each rule
-        completed = 0
-        failed = 0
-        skipped = 0
-        rollback_available = False
-
-        for rule_id in job.rule_ids:
-            try:
-                result = _execute_rule_remediation(
-                    db,
-                    job_id,
-                    rule_id,
-                    host_info,
-                    job.dry_run,
-                )
-
-                if result["status"] == "completed":
-                    completed += 1
-                    if result.get("rollback_available"):
-                        rollback_available = True
-                elif result["status"] == "failed":
-                    failed += 1
-                else:
-                    skipped += 1
-
-                # Update progress
-                service.update_job_progress(UUID(job_id), completed, failed, skipped)
-
-            except Exception as e:
-                logger.exception(f"Error remediating rule {rule_id}: {e}")
-                failed += 1
-
-                # Record failure
-                service.add_result(
-                    job_id=UUID(job_id),
-                    rule_id=rule_id,
-                    status="failed",
-                    error_message=str(e),
-                )
-                service.update_job_progress(UUID(job_id), completed, failed, skipped)
+        # Execute via Kensa with shared SSH session
+        try:
+            result = asyncio.run(_run_remediation(db, job, service))
+        except ImportError as e:
+            logger.error(f"Kensa runner not available: {e}")
+            service.complete_job(UUID(job_id), "failed", "Kensa runner not available")
+            return {"status": "failed", "reason": "kensa_unavailable"}
 
         # Determine final status
-        if failed == len(job.rule_ids):
+        if result["failed"] == len(job.rule_ids):
             final_status = "failed"
-        elif failed > 0:
-            final_status = "completed"  # Partial success
         else:
             final_status = "completed"
 
         service.complete_job(
             UUID(job_id),
             status=final_status,
-            rollback_available=rollback_available,
+            rollback_available=result["rollback_available"],
         )
 
         logger.info(
-            f"Remediation job {job_id} completed: " f"{completed} completed, {failed} failed, {skipped} skipped"
+            f"Remediation job {job_id} completed: "
+            f"{result['completed']} completed, {result['failed']} failed, "
+            f"{result['skipped']} skipped"
         )
 
         return {
             "status": final_status,
-            "completed": completed,
-            "failed": failed,
-            "skipped": skipped,
-            "rollback_available": rollback_available,
+            "completed": result["completed"],
+            "failed": result["failed"],
+            "skipped": result["skipped"],
+            "rollback_available": result["rollback_available"],
         }
 
     except Exception as e:
@@ -148,6 +129,246 @@ def execute_remediation_job(self, job_id: str) -> Dict[str, Any]:
         db.close()
 
 
+async def _run_remediation(db, job, service) -> Dict[str, Any]:
+    """
+    Core remediation logic with shared SSH session.
+
+    Runs inside asyncio.run() from the Celery task. Creates a single SSH
+    session via KensaSessionFactory and processes all rules sequentially.
+    """
+    from runner.detect import detect_capabilities
+
+    from app.plugins.kensa import KensaSessionFactory
+
+    rules_path = _get_rules_path()
+    rules = _load_and_resolve_rules(rules_path)
+    rule_map = {r["id"]: r for r in rules}
+
+    factory = KensaSessionFactory(db)
+    job_id = str(job.id)
+
+    completed = 0
+    failed = 0
+    skipped = 0
+    rollback_available = False
+
+    async with factory.create_session(str(job.host_id)) as ssh:
+        caps = detect_capabilities(ssh)
+
+        for rule_id in job.rule_ids:
+            try:
+                result = _execute_rule_remediation(
+                    db,
+                    job_id,
+                    rule_id,
+                    ssh,
+                    caps,
+                    rule_map,
+                    job.dry_run,
+                    service,
+                )
+
+                if result["status"] == "completed":
+                    completed += 1
+                    if result.get("rollback_available"):
+                        rollback_available = True
+                elif result["status"] == "failed":
+                    failed += 1
+                elif result["status"] == "manual":
+                    # Manual steps count as "completed" for progress
+                    # but the individual result keeps "manual" status
+                    completed += 1
+                else:
+                    skipped += 1
+
+                service.update_job_progress(UUID(job_id), completed, failed, skipped)
+
+            except Exception as e:
+                logger.exception(f"Error remediating rule {rule_id}: {e}")
+                failed += 1
+
+                service.add_result(
+                    job_id=UUID(job_id),
+                    rule_id=rule_id,
+                    status="failed",
+                    error_message=str(e),
+                )
+                service.update_job_progress(UUID(job_id), completed, failed, skipped)
+
+    return {
+        "completed": completed,
+        "failed": failed,
+        "skipped": skipped,
+        "rollback_available": rollback_available,
+    }
+
+
+def _execute_rule_remediation(
+    db,
+    job_id: str,
+    rule_id: str,
+    ssh,
+    caps: Dict[str, bool],
+    rule_map: Dict[str, Dict],
+    dry_run: bool,
+    service: RemediationService,
+) -> Dict[str, Any]:
+    """
+    Execute remediation for a single rule using Kensa.
+
+    Calls remediate_rule() with the shared SSH session, then stores the
+    rule-level result and individual step results.
+
+    Args:
+        db: Database session
+        job_id: Remediation job ID (str)
+        rule_id: Kensa rule ID
+        ssh: Connected Kensa SSHSession
+        caps: Host capabilities from detect_capabilities()
+        rule_map: Pre-loaded and resolved rules keyed by ID
+        dry_run: Whether to simulate remediation
+        service: RemediationService instance
+
+    Returns:
+        Status dict with rollback_available flag
+    """
+    from runner._orchestration import remediate_rule
+    from runner.risk import classify_step_risk
+
+    from app.plugins.kensa.evidence import serialize_evidence, serialize_framework_refs
+
+    start_time = time.time()
+
+    rule = rule_map.get(rule_id)
+    if not rule:
+        service.add_result(
+            job_id=UUID(job_id),
+            rule_id=rule_id,
+            status="failed",
+            error_message=f"Rule {rule_id} not found in Kensa rules",
+        )
+        return {"status": "failed", "reason": "rule_not_found"}
+
+    try:
+        result = remediate_rule(
+            ssh,
+            rule,
+            caps,
+            dry_run=dry_run,
+            rollback_on_failure=True,
+            snapshot=True,
+        )
+
+        duration_ms = int((time.time() - start_time) * 1000)
+
+        # Classify risk and determine max risk across steps
+        risk_order = {"high": 3, "medium": 2, "low": 1, "na": 0}
+        max_risk = "na"
+        step_count = len(result.step_results) if result.step_results else 0
+
+        # Build pre-state aggregate for rollback
+        pre_state_steps = []
+        has_rollback = False
+        for step in result.step_results or []:
+            risk = classify_step_risk(step.mechanism, rule.get("remediation", {}))
+            if risk_order.get(risk, 0) > risk_order.get(max_risk, 0):
+                max_risk = risk
+            if step.pre_state and step.pre_state.capturable:
+                has_rollback = True
+                pre_state_steps.append(
+                    {
+                        "step_index": step.step_index,
+                        "mechanism": step.mechanism,
+                        "data": step.pre_state.data if step.pre_state else None,
+                        "capturable": step.pre_state.capturable if step.pre_state else False,
+                    }
+                )
+
+        pre_state = {"steps": pre_state_steps} if pre_state_steps else None
+
+        # Determine rule-level status from step outcomes
+        # - "completed": all steps succeeded (or rule was remediated)
+        # - "manual":    at least one step requires manual intervention
+        # - "failed":    at least one non-manual step failed
+        any_manual = any(not s.success and s.mechanism == "manual" for s in (result.step_results or []))
+        any_failed = any(not s.success and s.mechanism != "manual" for s in (result.step_results or []))
+
+        if any_failed:
+            rule_status = "failed"
+        elif any_manual:
+            rule_status = "manual"
+        elif result.remediated or dry_run:
+            rule_status = "completed"
+        elif getattr(result, "passed", False):
+            # Already compliant — Kensa remediation is idempotent by
+            # design (check-before-fix pattern).  On repeat runs the
+            # initial check passes so no changes are made, returning
+            # passed=True, remediated=False.  Safe for scheduled runs.
+            rule_status = "completed"
+        else:
+            rule_status = "failed"
+
+        # Serialize Kensa evidence and framework refs
+        evidence_json = serialize_evidence(result)
+        framework_refs_json = serialize_framework_refs(result)
+
+        # Store rule-level result
+        result_id = service.add_result(
+            job_id=UUID(job_id),
+            rule_id=rule_id,
+            status=rule_status,
+            exit_code=0 if rule_status == "completed" else 1,
+            duration_ms=duration_ms,
+            stdout=result.remediation_detail,
+            pre_state=pre_state,
+            remediated=result.remediated,
+            remediation_detail=result.remediation_detail,
+            rolled_back=result.rolled_back,
+            step_count=step_count,
+            risk_level=max_risk,
+            evidence=evidence_json,
+            framework_refs=framework_refs_json,
+        )
+
+        # Store step-level results
+        for step in result.step_results or []:
+            risk = classify_step_risk(step.mechanism, rule.get("remediation", {}))
+            pre_state_data = None
+            pre_state_capturable = None
+            if step.pre_state:
+                pre_state_data = step.pre_state.data if hasattr(step.pre_state, "data") else None
+                pre_state_capturable = step.pre_state.capturable if hasattr(step.pre_state, "capturable") else None
+
+            service.add_step_result(
+                result_id=result_id,
+                step_index=step.step_index,
+                mechanism=step.mechanism,
+                success=step.success,
+                detail=step.detail,
+                pre_state_data=pre_state_data,
+                pre_state_capturable=pre_state_capturable,
+                verified=step.verified,
+                verify_detail=step.verify_detail if hasattr(step, "verify_detail") else None,
+                risk_level=risk,
+            )
+
+        return {
+            "status": rule_status,
+            "rollback_available": has_rollback and not dry_run,
+        }
+
+    except Exception as e:
+        duration_ms = int((time.time() - start_time) * 1000)
+        service.add_result(
+            job_id=UUID(job_id),
+            rule_id=rule_id,
+            status="failed",
+            duration_ms=duration_ms,
+            error_message=str(e),
+        )
+        return {"status": "failed", "error": str(e)}
+
+
 @shared_task(
     name="app.tasks.execute_rollback",
     bind=True,
@@ -158,10 +379,8 @@ def execute_rollback_job(self, rollback_job_id: str) -> Dict[str, Any]:
     """
     Execute a rollback job asynchronously.
 
-    This task:
-    1. Gets the original job's pre-state snapshots
-    2. Executes rollback for each rule
-    3. Updates the original job status to rolled_back
+    Establishes a single SSH session, reconstructs RemediationStepRecord
+    objects from stored pre-state data, and calls Kensa's rollback_from_stored.
 
     Args:
         rollback_job_id: Rollback job ID
@@ -190,63 +409,33 @@ def execute_rollback_job(self, rollback_job_id: str) -> Dict[str, Any]:
             service.complete_job(UUID(rollback_job_id), "failed", "No original job linked")
             return {"status": "failed", "reason": "no_original_job"}
 
-        # Get host info
-        host_info = _get_host_info(db, job.host_id)
-        if not host_info:
-            service.complete_job(UUID(rollback_job_id), "failed", "Host not found")
-            return {"status": "failed", "reason": "host_not_found"}
-
         # Get original job results with pre-state
         original_results = _get_results_with_prestate(db, job.rollback_job_id)
 
-        completed = 0
-        failed = 0
-
-        for result in original_results:
-            if result["rule_id"] not in job.rule_ids:
-                continue
-
-            if not result.get("pre_state"):
-                logger.warning(f"No pre-state for rule {result['rule_id']}, skipping")
-                continue
-
-            try:
-                rollback_result = _execute_rule_rollback(
-                    db,
-                    rollback_job_id,
-                    result["rule_id"],
-                    result["pre_state"],
-                    host_info,
-                )
-
-                if rollback_result["status"] == "completed":
-                    completed += 1
-                    # Mark original result as rolled back
-                    _mark_result_rolled_back(db, result["id"])
-                else:
-                    failed += 1
-
-                service.update_job_progress(UUID(rollback_job_id), completed, failed)
-
-            except Exception as e:
-                logger.exception(f"Error rolling back rule {result['rule_id']}: {e}")
-                failed += 1
-                service.update_job_progress(UUID(rollback_job_id), completed, failed)
+        try:
+            result = asyncio.run(_run_rollback(db, job, service, original_results, rollback_job_id))
+        except ImportError as e:
+            logger.error(f"Kensa runner not available for rollback: {e}")
+            service.complete_job(UUID(rollback_job_id), "failed", "Kensa runner not available")
+            return {"status": "failed", "reason": "kensa_unavailable"}
 
         # Complete rollback job
-        final_status = "completed" if failed == 0 else "failed"
+        final_status = "completed" if result["failed"] == 0 else "failed"
         service.complete_job(UUID(rollback_job_id), final_status)
 
         # Mark original job as rolled back
-        if completed > 0:
+        if result["completed"] > 0:
             _mark_job_rolled_back(db, job.rollback_job_id)
 
-        logger.info(f"Rollback job {rollback_job_id} completed: " f"{completed} rolled back, {failed} failed")
+        logger.info(
+            f"Rollback job {rollback_job_id} completed: "
+            f"{result['completed']} rolled back, {result['failed']} failed"
+        )
 
         return {
             "status": final_status,
-            "rolled_back": completed,
-            "failed": failed,
+            "rolled_back": result["completed"],
+            "failed": result["failed"],
         }
 
     except Exception as e:
@@ -262,6 +451,146 @@ def execute_rollback_job(self, rollback_job_id: str) -> Dict[str, Any]:
 
     finally:
         db.close()
+
+
+async def _run_rollback(db, job, service, original_results, rollback_job_id) -> Dict[str, Any]:
+    """Core rollback logic with shared SSH session."""
+    from app.plugins.kensa import KensaSessionFactory
+
+    factory = KensaSessionFactory(db)
+
+    completed = 0
+    failed = 0
+
+    async with factory.create_session(str(job.host_id)) as ssh:
+        for result in original_results:
+            if result["rule_id"] not in job.rule_ids:
+                continue
+
+            if not result.get("pre_state"):
+                logger.warning(f"No pre-state for rule {result['rule_id']}, skipping")
+                continue
+
+            try:
+                rollback_result = _execute_rule_rollback(
+                    db,
+                    rollback_job_id,
+                    result["rule_id"],
+                    result["pre_state"],
+                    ssh,
+                    service,
+                )
+
+                if rollback_result["status"] == "completed":
+                    completed += 1
+                    _mark_result_rolled_back(db, result["id"])
+                else:
+                    failed += 1
+
+                service.update_job_progress(UUID(rollback_job_id), completed, failed)
+
+            except Exception as e:
+                logger.exception(f"Error rolling back rule {result['rule_id']}: {e}")
+                failed += 1
+                service.update_job_progress(UUID(rollback_job_id), completed, failed)
+
+    return {"completed": completed, "failed": failed}
+
+
+def _execute_rule_rollback(
+    db,
+    job_id: str,
+    rule_id: str,
+    pre_state: Dict[str, Any],
+    ssh,
+    service: RemediationService,
+) -> Dict[str, Any]:
+    """
+    Execute rollback for a single rule using Kensa.
+
+    Reconstructs RemediationStepRecord objects from stored pre-state data
+    and calls rollback_from_stored().
+
+    Args:
+        db: Database session
+        job_id: Rollback job ID
+        rule_id: Rule to rollback
+        pre_state: Stored pre-state dict with 'steps' key
+        ssh: Connected Kensa SSHSession
+        service: RemediationService instance
+
+    Returns:
+        Status dict
+    """
+    from runner._orchestration import rollback_from_stored
+    from runner.storage import RemediationStepRecord
+
+    start_time = time.time()
+
+    try:
+        # Reconstruct step records from stored pre-state
+        step_records = []
+        for step_data in pre_state.get("steps", []):
+            step_records.append(
+                RemediationStepRecord(
+                    id=None,
+                    remediation_id=None,
+                    step_index=step_data["step_index"],
+                    mechanism=step_data["mechanism"],
+                    success=True,
+                    detail="",
+                    pre_state_data=step_data.get("data"),
+                    pre_state_capturable=step_data.get("capturable", False),
+                )
+            )
+
+        if not step_records:
+            logger.warning(f"No rollback steps for rule {rule_id}")
+            service.add_result(
+                job_id=UUID(job_id),
+                rule_id=rule_id,
+                status="failed",
+                error_message="No rollback step records available",
+            )
+            return {"status": "failed", "reason": "no_step_records"}
+
+        # Execute rollback via Kensa
+        logger.info(f"Rolling back rule {rule_id} ({len(step_records)} steps)")
+        rollback_results = rollback_from_stored(ssh, step_records)
+
+        duration_ms = int((time.time() - start_time) * 1000)
+
+        # Check overall success
+        all_success = all(r.success for r in rollback_results)
+
+        # Build detail message
+        details = []
+        for r in rollback_results:
+            status_str = "OK" if r.success else "FAILED"
+            details.append(f"Step {r.step_index}: {status_str} - {r.detail}")
+        detail_text = "; ".join(details)
+
+        service.add_result(
+            job_id=UUID(job_id),
+            rule_id=rule_id,
+            status="completed" if all_success else "failed",
+            exit_code=0 if all_success else 1,
+            duration_ms=duration_ms,
+            stdout=detail_text,
+        )
+
+        return {"status": "completed" if all_success else "failed"}
+
+    except Exception as e:
+        duration_ms = int((time.time() - start_time) * 1000)
+        service.add_result(
+            job_id=UUID(job_id),
+            rule_id=rule_id,
+            status="failed",
+            duration_ms=duration_ms,
+            error_message=str(e),
+        )
+        return {"status": "failed", "error": str(e)}
 
 
 def _get_host_info(db, host_id: UUID) -> Optional[Dict[str, Any]]:
@@ -288,145 +617,6 @@ def _get_host_info(db, host_id: UUID) -> Optional[Dict[str, Any]]:
         "auth_method": row.auth_method,
         "password": row.ssh_password,
         "private_key": row.ssh_private_key,
-    }
-
-
-def _execute_rule_remediation(
-    db,
-    job_id: str,
-    rule_id: str,
-    host_info: Dict[str, Any],
-    dry_run: bool,
-) -> Dict[str, Any]:
-    """
-    Execute remediation for a single rule.
-
-    Uses Kensa runner to execute the remediation.
-    """
-    service = RemediationService(db)
-    start_time = time.time()
-
-    try:
-        # Get rule details
-        rule_query = "SELECT * FROM kensa_rules WHERE rule_id = :rule_id"
-        rule_result = db.execute(text(rule_query), {"rule_id": rule_id})
-        rule = rule_result.fetchone()
-
-        if not rule:
-            service.add_result(
-                job_id=UUID(job_id),
-                rule_id=rule_id,
-                status="failed",
-                error_message=f"Rule {rule_id} not found",
-            )
-            return {"status": "failed", "reason": "rule_not_found"}
-
-        # Capture pre-state for rollback
-        pre_state = _capture_pre_state(host_info, rule)
-
-        if dry_run:
-            # Dry run - just record what would happen
-            duration_ms = int((time.time() - start_time) * 1000)
-            service.add_result(
-                job_id=UUID(job_id),
-                rule_id=rule_id,
-                status="completed",
-                duration_ms=duration_ms,
-                stdout="DRY RUN: No changes made",
-                pre_state=pre_state,
-            )
-            return {"status": "completed", "dry_run": True}
-
-        # Execute actual remediation via Kensa
-        # TODO: Integrate with actual Kensa remediation engine
-        # For now, simulate execution
-        logger.info(f"Executing remediation for rule {rule_id} on host {host_info['hostname']}")
-
-        # Simulate remediation execution
-        # In production, this would call:
-        # from runner.engine import remediate_rule
-        # result = remediate_rule(ssh_session, rule)
-
-        duration_ms = int((time.time() - start_time) * 1000)
-
-        service.add_result(
-            job_id=UUID(job_id),
-            rule_id=rule_id,
-            status="completed",
-            exit_code=0,
-            duration_ms=duration_ms,
-            stdout=f"Remediation applied for {rule_id}",
-            pre_state=pre_state,
-        )
-
-        return {
-            "status": "completed",
-            "rollback_available": pre_state is not None,
-        }
-
-    except Exception as e:
-        duration_ms = int((time.time() - start_time) * 1000)
-        service.add_result(
-            job_id=UUID(job_id),
-            rule_id=rule_id,
-            status="failed",
-            duration_ms=duration_ms,
-            error_message=str(e),
-        )
-        return {"status": "failed", "error": str(e)}
-
-
-def _execute_rule_rollback(
-    db,
-    job_id: str,
-    rule_id: str,
-    pre_state: Dict[str, Any],
-    host_info: Dict[str, Any],
-) -> Dict[str, Any]:
-    """Execute rollback for a single rule."""
-    service = RemediationService(db)
-    start_time = time.time()
-
-    try:
-        # TODO: Integrate with actual Kensa rollback engine
-        # from runner._rollback import _execute_rollback
-        # result = _execute_rollback(ssh_session, rule_id, pre_state)
-
-        logger.info(f"Rolling back rule {rule_id} on host {host_info['hostname']}")
-
-        duration_ms = int((time.time() - start_time) * 1000)
-
-        service.add_result(
-            job_id=UUID(job_id),
-            rule_id=rule_id,
-            status="completed",
-            exit_code=0,
-            duration_ms=duration_ms,
-            stdout=f"Rollback applied for {rule_id}",
-        )
-
-        return {"status": "completed"}
-
-    except Exception as e:
-        duration_ms = int((time.time() - start_time) * 1000)
-        service.add_result(
-            job_id=UUID(job_id),
-            rule_id=rule_id,
-            status="failed",
-            duration_ms=duration_ms,
-            error_message=str(e),
-        )
-        return {"status": "failed", "error": str(e)}
-
-
-def _capture_pre_state(host_info: Dict[str, Any], rule) -> Optional[Dict[str, Any]]:
-    """Capture pre-remediation state for rollback."""
-    # TODO: Implement actual state capture based on rule handler
-    # For now, return a placeholder
-    return {
-        "captured_at": time.time(),
-        "handler": rule.handler if hasattr(rule, "handler") else "unknown",
-        "host": host_info["hostname"],
     }
 
 

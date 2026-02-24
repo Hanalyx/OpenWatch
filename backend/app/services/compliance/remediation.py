@@ -2,11 +2,14 @@
 Remediation Service for Phase 4
 
 Orchestrates remediation execution with license validation, rollback support,
-and audit logging.
+and audit logging. Provides step-level result tracking and real Kensa dry-run
+plan previews.
 
 Part of Phase 4: Remediation + Subscription (Kensa Integration Plan)
 """
 
+import asyncio
+import json
 import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
@@ -20,8 +23,10 @@ from app.schemas.remediation_schemas import (
     RemediationJobCreate,
     RemediationJobResponse,
     RemediationPlanResponse,
+    RemediationPlanRuleDetail,
     RemediationResultResponse,
     RemediationStatus,
+    RemediationStepResponse,
     RemediationSummary,
     RollbackResponse,
 )
@@ -40,6 +45,8 @@ class RemediationService:
     - Job creation with OpenWatch+ license validation
     - Async execution via Celery tasks
     - Rollback support with state snapshots
+    - Step-level result tracking
+    - Real Kensa dry-run plan previews
     - Audit logging for compliance
     """
 
@@ -70,7 +77,10 @@ class RemediationService:
         """
         # Check license
         if not self.license_service.has_feature("remediation"):
-            raise LicenseRequiredError("remediation", "Remediation requires an OpenWatch+ subscription")
+            raise LicenseRequiredError(
+                "remediation",
+                "Remediation requires an OpenWatch+ subscription",
+            )
 
         # Validate host exists
         host = self._get_host(request.host_id)
@@ -101,7 +111,7 @@ class RemediationService:
                 job_id,
                 request.host_id,
                 request.scan_id,
-                valid_rules,  # JSONB
+                json.dumps(valid_rules),  # JSONB requires json.dumps()
                 request.dry_run,
                 request.framework,
                 "pending",
@@ -251,18 +261,124 @@ class RemediationService:
         rule_ids: List[str],
     ) -> RemediationPlanResponse:
         """
-        Get a remediation plan preview (dry-run).
+        Get a remediation plan via Kensa dry-run.
+
+        Connects to the host via SSH, runs each requested rule in dry-run mode,
+        and returns step-level preview data with risk classification.
 
         Args:
             host_id: Target host
             rule_ids: Rules to include in plan
 
         Returns:
-            Remediation plan with estimated impact
+            Remediation plan with real step-level preview and risk summary
         """
-        # Validate rules and get details
+        try:
+            from runner._config import load_config, resolve_variables
+            from runner._loading import load_rules
+            from runner._orchestration import remediate_rule
+            from runner.detect import detect_capabilities
+            from runner.paths import get_rules_path
+            from runner.risk import classify_step_risk
+
+            from app.plugins.kensa import KensaSessionFactory
+
+            rules_path = get_rules_path()
+            factory = KensaSessionFactory(self.db)
+
+            async def _run_dry_run():
+                async with factory.create_session(str(host_id)) as ssh:
+                    caps = detect_capabilities(ssh)
+                    rules = load_rules(rules_path)
+                    config = load_config(rules_path)
+                    rules = [resolve_variables(r, config, strict=False) for r in rules]
+                    rule_map = {r["id"]: r for r in rules}
+
+                    plan_rules = []
+                    all_warnings = []
+                    requires_reboot = False
+                    risk_counts: Dict[str, int] = {"high": 0, "medium": 0, "low": 0, "na": 0}
+
+                    for rule_id in rule_ids:
+                        rule = rule_map.get(rule_id)
+                        if not rule:
+                            all_warnings.append(f"Rule {rule_id} not found in Kensa rules")
+                            continue
+
+                        result = remediate_rule(ssh, rule, caps, dry_run=True)
+
+                        # Classify risk for each step
+                        steps = []
+                        max_risk = "na"
+                        risk_order = {"high": 3, "medium": 2, "low": 1, "na": 0}
+                        for step in result.step_results:
+                            risk = classify_step_risk(step.mechanism, rule.get("remediation", {}))
+                            steps.append(
+                                {
+                                    "step_index": step.step_index,
+                                    "mechanism": step.mechanism,
+                                    "detail": step.detail,
+                                    "risk_level": risk,
+                                    "verified": step.verified,
+                                }
+                            )
+                            if risk_order.get(risk, 0) > risk_order.get(max_risk, 0):
+                                max_risk = risk
+
+                        risk_counts[max_risk] = risk_counts.get(max_risk, 0) + 1
+
+                        rule_warnings = []
+                        if any(s["mechanism"] in ("grub_parameter_set", "kernel_module_disable") for s in steps):
+                            requires_reboot = True
+                            rule_warnings.append(f"Rule {rule_id} may require a system reboot")
+
+                        plan_rules.append(
+                            RemediationPlanRuleDetail(
+                                rule_id=rule_id,
+                                title=rule.get("title", ""),
+                                severity=rule.get("severity", "medium"),
+                                risk_level=max_risk,
+                                steps=steps,
+                                estimated_duration_seconds=max(5, len(steps) * 3),
+                                requires_reboot=any(
+                                    s["mechanism"] in ("grub_parameter_set", "kernel_module_disable") for s in steps
+                                ),
+                                warnings=rule_warnings,
+                            )
+                        )
+                        all_warnings.extend(rule_warnings)
+
+                    total_duration = sum(r.estimated_duration_seconds for r in plan_rules) + 10
+
+                    return RemediationPlanResponse(
+                        host_id=host_id,
+                        rule_count=len(plan_rules),
+                        rules=plan_rules,
+                        estimated_duration_seconds=total_duration,
+                        warnings=all_warnings,
+                        requires_reboot=requires_reboot,
+                        dependencies=[],
+                        risk_summary=risk_counts,
+                    )
+
+            import concurrent.futures
+
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                future = pool.submit(asyncio.run, _run_dry_run())
+                return future.result(timeout=120)
+
+        except ImportError:
+            logger.warning("Kensa runner not available, falling back to static plan")
+            return self._static_remediation_plan(host_id, rule_ids)
+
+    def _static_remediation_plan(
+        self,
+        host_id: UUID,
+        rule_ids: List[str],
+    ) -> RemediationPlanResponse:
+        """Fallback static plan when Kensa runner is not available."""
         rules_query = """
-            SELECT rule_id, title, severity, handler
+            SELECT rule_id, title, severity, category
             FROM kensa_rules
             WHERE rule_id = ANY(:rule_ids)
         """
@@ -274,23 +390,33 @@ class RemediationService:
         warnings = []
 
         for rule in rules:
-            rule_info = {
-                "rule_id": rule.rule_id,
-                "title": rule.title,
-                "severity": rule.severity,
-                "handler": rule.handler,
-                "estimated_duration_seconds": 5,  # Default estimate
-            }
-
-            # Check for reboot requirements
-            if rule.handler in ["grub_parameter_set", "kernel_module_disable"]:
+            rule_warnings = []
+            reboot = False
+            # Check category for rules that likely need reboot
+            if rule.category in ("boot-settings", "kernel-modules"):
                 requires_reboot = True
-                rule_info["requires_reboot"] = True
-                warnings.append(f"Rule {rule.rule_id} may require a system reboot")
+                reboot = True
+                rule_warnings.append(f"Rule {rule.rule_id} may require a system reboot")
 
-            rule_details.append(rule_info)
+            rule_details.append(
+                RemediationPlanRuleDetail(
+                    rule_id=rule.rule_id,
+                    title=rule.title,
+                    severity=rule.severity,
+                    risk_level="medium",
+                    steps=[
+                        {
+                            "mechanism": "unknown",
+                            "detail": "Static preview (Kensa unavailable)",
+                        }
+                    ],
+                    estimated_duration_seconds=5,
+                    requires_reboot=reboot,
+                    warnings=rule_warnings,
+                )
+            )
+            warnings.extend(rule_warnings)
 
-        # Estimate total duration (5 seconds per rule + 10 seconds overhead)
         estimated_duration = len(rules) * 5 + 10
 
         return RemediationPlanResponse(
@@ -301,6 +427,7 @@ class RemediationService:
             warnings=warnings,
             requires_reboot=requires_reboot,
             dependencies=[],
+            risk_summary={"medium": len(rules)},
         )
 
     def start_job(self, job_id: UUID) -> bool:
@@ -393,6 +520,13 @@ class RemediationService:
         duration_ms: Optional[int] = None,
         error_message: Optional[str] = None,
         pre_state: Optional[Dict] = None,
+        remediated: Optional[bool] = None,
+        remediation_detail: Optional[str] = None,
+        rolled_back: Optional[bool] = None,
+        step_count: Optional[int] = None,
+        risk_level: Optional[str] = None,
+        evidence: Optional[str] = None,
+        framework_refs: Optional[str] = None,
     ) -> UUID:
         """Add a remediation result for a rule."""
         result_id = uuid4()
@@ -412,6 +546,13 @@ class RemediationService:
                 "error_message",
                 "pre_state",
                 "rollback_available",
+                "remediated",
+                "remediation_detail",
+                "rolled_back",
+                "step_count",
+                "risk_level",
+                "evidence",
+                "framework_refs",
                 "started_at",
                 "completed_at",
             )
@@ -425,8 +566,15 @@ class RemediationService:
                 stderr,
                 duration_ms,
                 error_message,
-                pre_state,  # JSONB
+                json.dumps(pre_state) if pre_state is not None else None,
                 rollback_available,
+                remediated,
+                remediation_detail,
+                rolled_back,
+                step_count,
+                risk_level,
+                evidence,
+                framework_refs,
                 datetime.utcnow(),
                 datetime.utcnow() if status in ("completed", "failed") else None,
             )
@@ -437,6 +585,87 @@ class RemediationService:
         self.db.commit()
 
         return result_id
+
+    def add_step_result(
+        self,
+        result_id: UUID,
+        step_index: int,
+        mechanism: str,
+        success: bool,
+        detail: Optional[str] = None,
+        pre_state_data: Optional[Dict] = None,
+        pre_state_capturable: Optional[bool] = None,
+        verified: Optional[bool] = None,
+        verify_detail: Optional[str] = None,
+        risk_level: Optional[str] = None,
+    ) -> UUID:
+        """
+        Add a step-level result for a rule remediation.
+
+        Args:
+            result_id: Parent remediation_results ID
+            step_index: Order within rule (0-indexed)
+            mechanism: Kensa mechanism type (config_set, service_enabled, etc.)
+            success: Whether this step succeeded
+            detail: Step-level detail message
+            pre_state_data: PreState.data dict for rollback
+            pre_state_capturable: Whether pre-state is capturable (False for command_exec)
+            verified: Post-step verification result
+            verify_detail: Verification detail message
+            risk_level: Risk classification (high/medium/low/na)
+
+        Returns:
+            UUID of the created step record
+        """
+        step_id = uuid4()
+        builder = (
+            InsertBuilder("remediation_steps")
+            .columns(
+                "id",
+                "result_id",
+                "step_index",
+                "mechanism",
+                "success",
+                "detail",
+                "pre_state_data",
+                "pre_state_capturable",
+                "verified",
+                "verify_detail",
+                "risk_level",
+            )
+            .values(
+                step_id,
+                result_id,
+                step_index,
+                mechanism,
+                success,
+                detail,
+                json.dumps(pre_state_data) if pre_state_data is not None else None,
+                pre_state_capturable,
+                verified,
+                verify_detail,
+                risk_level,
+            )
+        )
+
+        query, params = builder.build()
+        self.db.execute(text(query), params)
+        self.db.commit()
+
+        return step_id
+
+    def get_step_results(self, result_id: UUID) -> List[RemediationStepResponse]:
+        """Get step-level results for a specific rule remediation."""
+        builder = (
+            QueryBuilder("remediation_steps")
+            .where("result_id = :result_id", result_id, "result_id")
+            .order_by("step_index", "ASC")
+        )
+        query, params = builder.build()
+        result = self.db.execute(text(query), params)
+        rows = result.fetchall()
+
+        return [self._row_to_step_response(row) for row in rows]
 
     def rollback_job(
         self,
@@ -493,7 +722,7 @@ class RemediationService:
                 rollback_job_id,
                 job.host_id,
                 job.scan_id,
-                target_rules,
+                json.dumps(target_rules),  # JSONB requires json.dumps()
                 False,
                 "pending",
                 len(target_rules),
@@ -573,11 +802,11 @@ class RemediationService:
         """Log remediation audit event."""
         query = """
             INSERT INTO audit_logs (
-                event_type, user_id, resource_type, resource_id,
-                action, details, ip_address, created_at
+                action, user_id, resource_type, resource_id,
+                details, ip_address, timestamp
             ) VALUES (
-                'remediation', :user_id, 'remediation_job', :job_id,
-                :action, :details, '0.0.0.0', CURRENT_TIMESTAMP
+                :action, :user_id, 'remediation_job', :job_id,
+                :details, '0.0.0.0', CURRENT_TIMESTAMP
             )
         """
         self.db.execute(
@@ -586,7 +815,7 @@ class RemediationService:
                 "job_id": str(job_id),
                 "user_id": user_id,
                 "action": action,
-                "details": details,
+                "details": json.dumps(details),
             },
         )
 
@@ -635,4 +864,28 @@ class RemediationService:
             created_at=row.created_at,
             started_at=row.started_at,
             completed_at=row.completed_at,
+            remediated=getattr(row, "remediated", None),
+            remediation_detail=getattr(row, "remediation_detail", None),
+            rolled_back=getattr(row, "rolled_back", None),
+            step_count=getattr(row, "step_count", None),
+            risk_level=getattr(row, "risk_level", None),
+            evidence=getattr(row, "evidence", None),
+            framework_refs=getattr(row, "framework_refs", None),
+        )
+
+    def _row_to_step_response(self, row: Row) -> RemediationStepResponse:
+        """Convert database row to step response."""
+        return RemediationStepResponse(
+            id=row.id,
+            result_id=row.result_id,
+            step_index=row.step_index,
+            mechanism=row.mechanism,
+            success=row.success,
+            detail=row.detail,
+            pre_state_data=row.pre_state_data,
+            pre_state_capturable=row.pre_state_capturable,
+            verified=row.verified,
+            verify_detail=row.verify_detail,
+            risk_level=row.risk_level,
+            created_at=row.created_at,
         )
