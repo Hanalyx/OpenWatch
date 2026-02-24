@@ -410,6 +410,8 @@ class KensaScanner(BaseScanner):
                             "skipped": r.skipped,
                             "skip_reason": r.skip_reason,
                             "detail": r.detail,
+                            "evidence": getattr(r, "evidence", None),
+                            "framework_refs": getattr(r, "framework_refs", {}),
                         }
                         for r in results
                     ],

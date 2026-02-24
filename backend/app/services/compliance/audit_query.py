@@ -515,6 +515,9 @@ class AuditQueryService:
             sf.status,
             sf.detail,
             sf.framework_section,
+            sf.evidence,
+            sf.framework_refs,
+            sf.skip_reason,
             sf.created_at as scanned_at
         """
 
@@ -675,6 +678,9 @@ class AuditQueryService:
             status=row.status or "unknown",
             detail=row.detail,
             framework_section=row.framework_section,
+            evidence=getattr(row, "evidence", None),
+            framework_refs=getattr(row, "framework_refs", None),
+            skip_reason=getattr(row, "skip_reason", None),
             scanned_at=row.scanned_at,
         )
 

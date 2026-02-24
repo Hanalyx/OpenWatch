@@ -141,6 +141,9 @@ class FindingResult(BaseModel):
     status: str
     detail: Optional[str] = None
     framework_section: Optional[str] = None
+    evidence: Optional[List[Dict[str, Any]]] = None
+    framework_refs: Optional[Dict[str, str]] = None
+    skip_reason: Optional[str] = None
     scanned_at: datetime
 
 
