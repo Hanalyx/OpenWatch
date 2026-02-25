@@ -20,6 +20,7 @@ This design ensures:
 import logging
 import uuid as uuid_module
 from datetime import datetime, timezone
+from types import SimpleNamespace
 from typing import Any, Dict
 from uuid import UUID
 
@@ -27,6 +28,7 @@ from sqlalchemy import text
 
 from app.celery_app import celery_app
 from app.database import get_db
+from app.plugins.kensa.evidence import serialize_evidence, serialize_framework_refs
 from app.utils.mutation_builders import InsertBuilder, UpdateBuilder
 
 logger = logging.getLogger(__name__)
@@ -365,6 +367,13 @@ def run_scheduled_kensa_scan(self: Any, host_id: str, priority: int = 5) -> Dict
                 if r.get("skipped"):
                     status_str = "skipped"
 
+                # Wrap dict as namespace so serialize_evidence/serialize_framework_refs
+                # can use getattr() on it (they expect object attributes, not dict keys)
+                r_obj = SimpleNamespace(
+                    evidence=r.get("evidence"),
+                    framework_refs=r.get("framework_refs"),
+                )
+
                 finding_insert = (
                     InsertBuilder("scan_findings")
                     .columns(
@@ -375,6 +384,9 @@ def run_scheduled_kensa_scan(self: Any, host_id: str, priority: int = 5) -> Dict
                         "status",
                         "detail",
                         "framework_section",
+                        "evidence",
+                        "framework_refs",
+                        "skip_reason",
                         "created_at",
                     )
                     .values(
@@ -385,6 +397,9 @@ def run_scheduled_kensa_scan(self: Any, host_id: str, priority: int = 5) -> Dict
                         status_str,
                         (r.get("detail") or "")[:2000] if r.get("detail") else None,
                         r.get("framework_section"),
+                        serialize_evidence(r_obj),
+                        serialize_framework_refs(r_obj),
+                        r.get("skip_reason") if r.get("skipped") else None,
                         end_time,
                     )
                 )

@@ -14,9 +14,11 @@ import type {
   PostureResponse,
   PostureHistoryResponse,
   DriftAnalysisResponse,
+  GroupDriftResponse,
   PostureQueryParams,
   PostureHistoryParams,
   DriftAnalysisParams,
+  GroupDriftParams,
   SnapshotCreateRequest,
   SnapshotCreateResponse,
 } from '../../types/posture';
@@ -92,8 +94,33 @@ export async function fetchDriftAnalysis(
   queryParams.set('start_date', params.start_date);
   queryParams.set('end_date', params.end_date);
 
+  if (params.include_value_drift !== undefined) {
+    queryParams.set('include_value_drift', String(params.include_value_drift));
+  }
+
   // api.get() already returns response.data, not the full Axios response
   return api.get<DriftAnalysisResponse>(`/api/compliance/posture/drift?${queryParams.toString()}`);
+}
+
+/**
+ * Fetch group-level drift analysis.
+ *
+ * Aggregates drift across all hosts in a group by rule.
+ * Requires OpenWatch+ subscription.
+ *
+ * @param params - Query parameters including group_id and date range
+ * @returns GroupDriftResponse with per-rule summaries across hosts
+ * @throws Error if subscription required
+ */
+export async function fetchGroupDrift(params: GroupDriftParams): Promise<GroupDriftResponse> {
+  const queryParams = new URLSearchParams();
+  queryParams.set('group_id', String(params.group_id));
+  queryParams.set('start_date', params.start_date);
+  queryParams.set('end_date', params.end_date);
+
+  return api.get<GroupDriftResponse>(
+    `/api/compliance/posture/drift/group?${queryParams.toString()}`
+  );
 }
 
 /**

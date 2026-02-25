@@ -40,6 +40,8 @@ import {
   ToggleButton,
   ToggleButtonGroup,
   TextField,
+  Collapse,
+  Button,
 } from '@mui/material';
 import Grid from '@mui/material/Grid';
 import {
@@ -52,6 +54,9 @@ import {
   Cancel as CancelIcon,
   Info as InfoIcon,
   Refresh as RefreshIcon,
+  ExpandMore as ExpandMoreIcon,
+  ExpandLess as ExpandLessIcon,
+  SwapHoriz as SwapHorizIcon,
 } from '@mui/icons-material';
 import {
   LineChart,
@@ -66,7 +71,7 @@ import {
 import { format, subDays, parseISO } from 'date-fns';
 import { useHosts } from '../../hooks/useHosts';
 import { useCurrentPosture, usePostureHistory, useDriftAnalysis } from '../../hooks/usePosture';
-import type { DriftEvent } from '../../types/posture';
+import type { DriftEvent, ValueDriftEvent } from '../../types/posture';
 
 // =============================================================================
 // Tab Panel Component
@@ -414,6 +419,7 @@ interface DriftViewProps {
 function DriftView({ hostId }: DriftViewProps) {
   const [startDate, setStartDate] = useState<string>(format(subDays(new Date(), 7), 'yyyy-MM-dd'));
   const [endDate, setEndDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
+  const [valueDriftOpen, setValueDriftOpen] = useState(false);
 
   const {
     data: drift,
@@ -582,6 +588,17 @@ function DriftView({ hostId }: DriftViewProps) {
                         size="small"
                       />
                     </Tooltip>
+                    {drift.rules_value_changed > 0 && (
+                      <Tooltip title="Rules with value changes (config drift)">
+                        <Chip
+                          icon={<SwapHorizIcon />}
+                          label={drift.rules_value_changed}
+                          color="info"
+                          size="small"
+                          variant="outlined"
+                        />
+                      </Tooltip>
+                    )}
                   </Box>
                 </CardContent>
               </Card>
@@ -599,6 +616,7 @@ function DriftView({ hostId }: DriftViewProps) {
                       <TableCell>Severity</TableCell>
                       <TableCell>Previous</TableCell>
                       <TableCell>Current</TableCell>
+                      <TableCell>What Changed?</TableCell>
                       <TableCell>Direction</TableCell>
                       <TableCell>Detected</TableCell>
                     </TableRow>
@@ -644,6 +662,27 @@ function DriftView({ hostId }: DriftViewProps) {
                           )}
                         </TableCell>
                         <TableCell>
+                          {event.previous_value || event.current_value ? (
+                            <Typography variant="caption" component="span">
+                              <span
+                                style={{
+                                  textDecoration: 'line-through',
+                                  color: 'gray',
+                                  marginRight: 4,
+                                }}
+                              >
+                                {event.previous_value || '--'}
+                              </span>
+                              {' \u2192 '}
+                              <span style={{ fontWeight: 500 }}>{event.current_value || '--'}</span>
+                            </Typography>
+                          ) : (
+                            <Typography variant="caption" color="text.disabled">
+                              --
+                            </Typography>
+                          )}
+                        </TableCell>
+                        <TableCell>
                           <Chip
                             label={event.direction}
                             size="small"
@@ -664,11 +703,109 @@ function DriftView({ hostId }: DriftViewProps) {
             </Paper>
           )}
 
-          {drift.drift_events.length === 0 && (
-            <Alert severity="success" icon={<TrendingFlatIcon />}>
-              No drift detected between the selected dates. Compliance posture remained stable.
-            </Alert>
-          )}
+          {/* Value-Only Drift Section (collapsible) */}
+          {drift.value_drift_events &&
+            drift.value_drift_events.filter((e: ValueDriftEvent) => !e.status_changed).length >
+              0 && (
+              <Box sx={{ mt: 2 }}>
+                <Button
+                  onClick={() => setValueDriftOpen(!valueDriftOpen)}
+                  endIcon={valueDriftOpen ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                  size="small"
+                  sx={{ mb: 1, textTransform: 'none' }}
+                >
+                  Value-Only Changes (
+                  {
+                    drift.value_drift_events.filter((e: ValueDriftEvent) => !e.status_changed)
+                      .length
+                  }{' '}
+                  rules)
+                </Button>
+                <Collapse in={valueDriftOpen}>
+                  <Paper>
+                    <TableContainer>
+                      <Table size="small">
+                        <TableHead>
+                          <TableRow>
+                            <TableCell>Rule</TableCell>
+                            <TableCell>Severity</TableCell>
+                            <TableCell>Status</TableCell>
+                            <TableCell>Previous Value</TableCell>
+                            <TableCell>Current Value</TableCell>
+                            <TableCell>Detected</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {drift.value_drift_events
+                            .filter((e: ValueDriftEvent) => !e.status_changed)
+                            .map((event: ValueDriftEvent, index: number) => (
+                              <TableRow key={`val-${event.rule_id}-${index}`}>
+                                <TableCell>
+                                  <Typography variant="body2" fontWeight="medium">
+                                    {event.rule_id}
+                                  </Typography>
+                                  {event.rule_title && (
+                                    <Typography variant="caption" color="text.secondary">
+                                      {event.rule_title}
+                                    </Typography>
+                                  )}
+                                </TableCell>
+                                <TableCell>
+                                  <Chip
+                                    label={event.severity}
+                                    size="small"
+                                    color={
+                                      event.severity === 'critical'
+                                        ? 'error'
+                                        : event.severity === 'high'
+                                          ? 'warning'
+                                          : 'default'
+                                    }
+                                  />
+                                </TableCell>
+                                <TableCell>
+                                  {event.status === 'pass' ? (
+                                    <CheckCircleIcon color="success" fontSize="small" />
+                                  ) : (
+                                    <CancelIcon color="error" fontSize="small" />
+                                  )}
+                                </TableCell>
+                                <TableCell>
+                                  <Typography
+                                    variant="caption"
+                                    sx={{ textDecoration: 'line-through', color: 'text.disabled' }}
+                                  >
+                                    {event.previous_value || '--'}
+                                  </Typography>
+                                </TableCell>
+                                <TableCell>
+                                  <Typography variant="caption" fontWeight={500}>
+                                    {event.current_value || '--'}
+                                  </Typography>
+                                </TableCell>
+                                <TableCell>
+                                  <Typography variant="caption">
+                                    {format(parseISO(event.detected_at), 'PP')}
+                                  </Typography>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  </Paper>
+                </Collapse>
+              </Box>
+            )}
+
+          {drift.drift_events.length === 0 &&
+            (!drift.value_drift_events ||
+              drift.value_drift_events.filter((e: ValueDriftEvent) => !e.status_changed).length ===
+                0) && (
+              <Alert severity="success" icon={<TrendingFlatIcon />}>
+                No drift detected between the selected dates. Compliance posture remained stable.
+              </Alert>
+            )}
         </>
       )}
     </Box>

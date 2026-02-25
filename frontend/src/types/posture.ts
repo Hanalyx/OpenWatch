@@ -26,6 +26,7 @@ export interface RuleState {
   severity: string;
   title?: string;
   category?: string;
+  actual?: string | string[];
 }
 
 /**
@@ -68,7 +69,7 @@ export interface PostureHistoryResponse {
 }
 
 /**
- * A single compliance drift event.
+ * A single compliance drift event (status changed).
  */
 export interface DriftEvent {
   rule_id: string;
@@ -78,6 +79,22 @@ export interface DriftEvent {
   severity: string;
   detected_at: string; // ISO 8601 datetime
   direction: 'improvement' | 'regression';
+  previous_value?: string;
+  current_value?: string;
+}
+
+/**
+ * A drift event where only the actual value changed (status unchanged).
+ */
+export interface ValueDriftEvent {
+  rule_id: string;
+  rule_title?: string;
+  severity: string;
+  status: string;
+  previous_value?: string;
+  current_value?: string;
+  status_changed: boolean;
+  detected_at: string; // ISO 8601 datetime
 }
 
 /**
@@ -100,8 +117,12 @@ export interface DriftAnalysisResponse {
   rules_regressed: number;
   rules_unchanged: number;
 
-  // Detailed drift events
+  // Detailed drift events (status changed)
   drift_events: DriftEvent[];
+
+  // Value-level drift events
+  value_drift_events: ValueDriftEvent[];
+  rules_value_changed: number;
 }
 
 /**
@@ -130,6 +151,43 @@ export interface DriftAnalysisParams {
   host_id: string;
   start_date: string; // ISO 8601 date
   end_date: string; // ISO 8601 date
+  include_value_drift?: boolean;
+}
+
+/**
+ * Per-rule drift summary across a host group.
+ */
+export interface GroupDriftRuleSummary {
+  rule_id: string;
+  rule_title?: string;
+  severity: string;
+  affected_host_count: number;
+  total_host_count: number;
+  status_changes: number;
+  value_changes: number;
+  sample_changes: Record<string, unknown>[];
+}
+
+/**
+ * Response model for group-level drift analysis.
+ */
+export interface GroupDriftResponse {
+  group_id: number;
+  group_name: string;
+  start_date: string;
+  end_date: string;
+  total_hosts: number;
+  hosts_with_drift: number;
+  rule_summaries: GroupDriftRuleSummary[];
+}
+
+/**
+ * Request parameters for group drift analysis.
+ */
+export interface GroupDriftParams {
+  group_id: number;
+  start_date: string;
+  end_date: string;
 }
 
 /**

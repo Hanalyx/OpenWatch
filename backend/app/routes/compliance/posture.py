@@ -12,6 +12,8 @@ Endpoint Structure:
     POST   /posture/snapshot            - Manually create a snapshot
 """
 
+import csv
+import io
 import logging
 from datetime import date
 from typing import Any, Dict, Optional
@@ -19,12 +21,14 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi import status as http_status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from ...auth import get_current_user
 from ...database import User, get_db
 from ...schemas.posture_schemas import (
     DriftAnalysisResponse,
+    GroupDriftResponse,
     PostureHistoryResponse,
     PostureResponse,
     SnapshotCreateRequest,
@@ -143,6 +147,7 @@ async def analyze_drift(
     host_id: UUID = Query(..., description="Host UUID"),
     start_date: date = Query(..., description="Start date for comparison"),
     end_date: date = Query(..., description="End date for comparison"),
+    include_value_drift: bool = Query(False, description="Include value-level drift events"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> DriftAnalysisResponse:
@@ -150,12 +155,16 @@ async def analyze_drift(
     Analyze compliance drift between two dates.
 
     Returns rules that changed status and overall drift metrics.
+    When include_value_drift is True, also returns rules where only
+    the actual configuration value changed (e.g., PermitRootLogin
+    changed from 'no' to 'yes') even if the pass/fail status did not change.
     Requires OpenWatch+ subscription.
 
     Args:
         host_id: Target host UUID
         start_date: Start date for comparison
         end_date: End date for comparison
+        include_value_drift: Include field-level value changes
         db: Database session
         current_user: Authenticated user
 
@@ -182,7 +191,7 @@ async def analyze_drift(
         )
 
     service = TemporalComplianceService(db)
-    drift = service.detect_drift(host_id, start_date, end_date)
+    drift = service.detect_drift(host_id, start_date, end_date, include_value_drift=include_value_drift)
 
     return drift
 
@@ -226,6 +235,159 @@ async def create_snapshot(
         "snapshot_date": snapshot.snapshot_date.isoformat(),
         "compliance_score": snapshot.compliance_score,
     }
+
+
+@router.get("/drift/group", response_model=GroupDriftResponse)
+async def analyze_group_drift(
+    group_id: int = Query(..., description="Host group ID"),
+    start_date: date = Query(..., description="Start date for comparison"),
+    end_date: date = Query(..., description="End date for comparison"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> GroupDriftResponse:
+    """
+    Analyze compliance drift across all hosts in a host group.
+
+    Aggregates drift results by rule_id to show which rules drifted
+    across the most hosts. Requires OpenWatch+ subscription.
+
+    Args:
+        group_id: Host group ID
+        start_date: Start date for comparison
+        end_date: End date for comparison
+        db: Database session
+        current_user: Authenticated user
+
+    Returns:
+        GroupDriftResponse with per-rule summaries across hosts
+
+    Raises:
+        HTTPException: 400 if dates are invalid
+        HTTPException: 403 if no subscription
+    """
+    if start_date > end_date:
+        raise HTTPException(
+            status_code=http_status.HTTP_400_BAD_REQUEST,
+            detail="start_date must be before or equal to end_date",
+        )
+
+    license_service = LicenseService()
+    if not license_service.has_feature("temporal_queries"):
+        raise HTTPException(
+            status_code=http_status.HTTP_403_FORBIDDEN,
+            detail="Group drift analysis requires OpenWatch+ subscription",
+        )
+
+    service = TemporalComplianceService(db)
+    return service.detect_group_drift(group_id, start_date, end_date)
+
+
+@router.get("/drift/export")
+async def export_drift(
+    host_id: UUID = Query(..., description="Host UUID"),
+    start_date: date = Query(..., description="Start date for comparison"),
+    end_date: date = Query(..., description="End date for comparison"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> StreamingResponse:
+    """
+    Export drift analysis as CSV.
+
+    Generates a CSV file with all drift events including value changes.
+    Requires OpenWatch+ subscription.
+
+    Args:
+        host_id: Target host UUID
+        start_date: Start date for comparison
+        end_date: End date for comparison
+        db: Database session
+        current_user: Authenticated user
+
+    Returns:
+        StreamingResponse with CSV content
+
+    Raises:
+        HTTPException: 400 if dates are invalid
+        HTTPException: 403 if no subscription
+    """
+    if start_date > end_date:
+        raise HTTPException(
+            status_code=http_status.HTTP_400_BAD_REQUEST,
+            detail="start_date must be before or equal to end_date",
+        )
+
+    license_service = LicenseService()
+    if not license_service.has_feature("temporal_queries"):
+        raise HTTPException(
+            status_code=http_status.HTTP_403_FORBIDDEN,
+            detail="Drift export requires OpenWatch+ subscription",
+        )
+
+    service = TemporalComplianceService(db)
+    drift = service.detect_drift(host_id, start_date, end_date, include_value_drift=True)
+
+    # Build CSV
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(
+        [
+            "rule_id",
+            "rule_title",
+            "severity",
+            "previous_status",
+            "current_status",
+            "direction",
+            "previous_value",
+            "current_value",
+            "status_changed",
+            "detected_at",
+        ]
+    )
+
+    # Status drift events
+    for event in drift.drift_events:
+        writer.writerow(
+            [
+                event.rule_id,
+                event.rule_title or "",
+                event.severity,
+                event.previous_status,
+                event.current_status,
+                event.direction,
+                event.previous_value or "",
+                event.current_value or "",
+                "true",
+                event.detected_at.isoformat(),
+            ]
+        )
+
+    # Value-only drift events (not already included above)
+    for event in drift.value_drift_events:
+        if event.status_changed:
+            continue
+        writer.writerow(
+            [
+                event.rule_id,
+                event.rule_title or "",
+                event.severity,
+                event.status,
+                event.status,
+                "value_change",
+                event.previous_value or "",
+                event.current_value or "",
+                "false",
+                event.detected_at.isoformat(),
+            ]
+        )
+
+    output.seek(0)
+    filename = f"drift_{host_id}_{start_date}_{end_date}.csv"
+
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 __all__ = ["router"]

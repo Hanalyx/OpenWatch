@@ -7,7 +7,7 @@ Part of Phase 2: Temporal Compliance (Kensa Integration Plan)
 """
 
 from datetime import date, datetime
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -33,6 +33,10 @@ class RuleState(BaseModel):
     severity: str
     title: Optional[str] = None
     category: Optional[str] = None
+    actual: Optional[Any] = Field(
+        None,
+        description="Actual value from Kensa evidence (clean parsed value)",
+    )
 
 
 class PostureResponse(BaseModel):
@@ -70,7 +74,7 @@ class PostureHistoryResponse(BaseModel):
 
 
 class DriftEvent(BaseModel):
-    """A single compliance drift event."""
+    """A single compliance drift event (status changed)."""
 
     rule_id: str
     rule_title: Optional[str] = None
@@ -79,6 +83,21 @@ class DriftEvent(BaseModel):
     severity: str
     detected_at: datetime
     direction: str = Field(description="improvement or regression")
+    previous_value: Optional[str] = Field(None, description="Previous actual value from evidence")
+    current_value: Optional[str] = Field(None, description="Current actual value from evidence")
+
+
+class ValueDriftEvent(BaseModel):
+    """A drift event where only the actual value changed (status unchanged)."""
+
+    rule_id: str
+    rule_title: Optional[str] = None
+    severity: str
+    status: str = Field(description="Status (unchanged)")
+    previous_value: Optional[str] = None
+    current_value: Optional[str] = None
+    status_changed: bool = False
+    detected_at: datetime
 
 
 class DriftAnalysisResponse(BaseModel):
@@ -100,8 +119,40 @@ class DriftAnalysisResponse(BaseModel):
     rules_regressed: int = 0
     rules_unchanged: int = 0
 
-    # Detailed drift events
+    # Detailed drift events (status changed)
     drift_events: List[DriftEvent] = Field(default_factory=list)
+
+    # Value-level drift events (actual value changed, status may or may not have changed)
+    value_drift_events: List[ValueDriftEvent] = Field(default_factory=list)
+    rules_value_changed: int = Field(0, description="Number of rules where actual value changed")
+
+
+class GroupDriftRuleSummary(BaseModel):
+    """Per-rule drift summary across a host group."""
+
+    rule_id: str
+    rule_title: Optional[str] = None
+    severity: str
+    affected_host_count: int = Field(description="Hosts where this rule drifted")
+    total_host_count: int = Field(description="Total hosts in group")
+    status_changes: int = Field(0, description="Count of status changes")
+    value_changes: int = Field(0, description="Count of value-only changes")
+    sample_changes: List[Dict[str, Any]] = Field(
+        default_factory=list,
+        description="Sample host changes for preview",
+    )
+
+
+class GroupDriftResponse(BaseModel):
+    """Response model for group-level drift analysis."""
+
+    group_id: int
+    group_name: str
+    start_date: datetime
+    end_date: datetime
+    total_hosts: int
+    hosts_with_drift: int
+    rule_summaries: List[GroupDriftRuleSummary] = Field(default_factory=list)
 
 
 class PostureQueryRequest(BaseModel):
@@ -142,7 +193,10 @@ __all__ = [
     "PostureResponse",
     "PostureHistoryResponse",
     "DriftEvent",
+    "ValueDriftEvent",
     "DriftAnalysisResponse",
+    "GroupDriftRuleSummary",
+    "GroupDriftResponse",
     "PostureQueryRequest",
     "PostureHistoryRequest",
     "DriftAnalysisRequest",
