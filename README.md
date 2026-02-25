@@ -13,7 +13,7 @@ An auditor asks: *"Were these 200 servers compliant with STIG on January 15th?"*
 
 With manual processes, that question takes a week to answer. With point-in-time scanning tools, you can only answer if you happened to scan that day. With OpenWatch, it is a query — executed in seconds, backed by machine-verifiable evidence, exportable as CSV, JSON, or PDF.
 
-OpenWatch is the compliance operating system for teams managing Linux infrastructure under STIG, CIS, NIST 800-53, PCI-DSS, and FedRAMP. It connects to your servers over SSH, runs 338 compliance checks via the [Kensa](https://github.com/Hanalyx/kensa) engine, and provides continuous visibility into compliance posture — not just what's passing now, but what was passing last Tuesday, what drifted since your last assessment, and what needs attention before your next one.
+OpenWatch is the compliance operating system for teams managing Linux infrastructure under STIG, CIS, NIST 800-53, PCI-DSS, and FedRAMP. It connects to your servers over SSH, runs 508 compliance checks via the [Kensa](https://github.com/Hanalyx/kensa) engine, and provides continuous visibility into compliance posture — not just what's passing now, but what was passing last Tuesday, what drifted since your last assessment, and what needs attention before your next one.
 
 ![OpenWatch Compliance Dashboard](docs/images/dashboard-preview.png)
 
@@ -57,18 +57,22 @@ One scan maps findings to STIG, CIS, NIST 800-53, PCI-DSS, and FedRAMP simultane
 
 ## How It Compares
 
-| | OpenWatch | Manual Checks | OpenSCAP CLI | Nessus / Tenable |
+OpenWatch is a compliance *platform* — it manages the lifecycle of compliance across a fleet, not just the scan itself. This table compares approaches to managing ongoing compliance posture:
+
+| | OpenWatch | Manual Processes | Point-in-Time Scanners | Enterprise Platforms (Tenable, etc.) |
 |---|---|---|---|---|
 | Multi-host scanning | One click, 100+ hosts | SSH into each server | Script it yourself | Agent or credentialed scan |
 | Dashboard and history | Built-in | Spreadsheets | None | Commercial dashboard |
-| Temporal compliance | Query any date | Impossible | None | Limited |
-| Drift detection | Automatic alerts | Manual discovery | None | Partial |
-| Exception workflows | Structured with audit trail | Spreadsheets and email | None | None |
-| Framework coverage | STIG + CIS + NIST + PCI + FedRAMP | Whatever you check | STIG/CIS | CIS/STIG/PCI |
-| Remediation | 23 typed mechanisms with rollback | Run commands by hand | Bash scripts | None |
-| Evidence model | Structured JSON per check | Screenshots | XML | PDF reports |
-| Setup time | 10 minutes | N/A | Hours | Days + licensing |
-| Cost | Free (Community) / Paid (Pro) | Labor | Free | $50K+/year |
+| Temporal compliance | Query any date | Impossible | Not available | Limited |
+| Drift detection | Automatic alerts | Manual discovery | Not available | Partial |
+| Exception workflows | Structured with audit trail | Spreadsheets and email | Not available | Not available |
+| Framework coverage | STIG + CIS + NIST + PCI + FedRAMP | Whatever you check | Per-benchmark profiles | CIS/STIG/PCI |
+| Remediation | 23 typed mechanisms with rollback | Run commands by hand | Basic scripts | Not available |
+| Evidence model | Structured JSON per check | Screenshots | Varies by tool | PDF reports |
+| Setup time | 10 minutes | N/A | Varies | Days + licensing |
+| Cost | Free (Community) / Paid (Pro) | Labor | Free - varies | $50K+/year |
+
+**Note:** OpenWatch's scanning engine is [Kensa](https://github.com/Hanalyx/kensa), which takes a different architectural approach than SCAP-based tools. Kensa separates rules from implementations, treats frameworks as metadata, and detects host capabilities at runtime. Organizations with SCAP mandate requirements can use SCAP tools for assessment alongside OpenWatch for remediation, governance, and continuous monitoring.
 
 ## Deploy in 10 Minutes
 
@@ -90,7 +94,7 @@ Wait ~90 seconds, then open **http://localhost:3000**. Default login: `admin` / 
 2. **Add a host** — Hosts > Add Host > enter IP, select credentials
 3. **Scan** — Click the play button on the host card
 
-Results appear in under a minute. No SCAP content to download, no XML to wrangle — OpenWatch ships with 338 built-in [Kensa](https://github.com/Hanalyx/kensa) rules ready to go.
+Results appear in under a minute. OpenWatch ships with 508 built-in [Kensa](https://github.com/Hanalyx/kensa) rules — human-readable YAML, not XML — ready to go.
 
 ## Architecture
 
@@ -107,7 +111,7 @@ Results appear in under a minute. No SCAP content to download, no XML to wrangle
 │  Auth · RBAC · Scheduling · Audit · Exports                 │
 ├────────────────────────┬────────────────────────────────────┤
 │  Kensa Engine          │  Celery Workers                    │
-│  338 YAML rules        │  Async scanning                   │
+│  508 YAML rules        │  Async scanning                   │
 │  23 remediation types  │  Adaptive scheduling              │
 │  Evidence capture      │  Drift detection                  │
 ├────────────────────────┴────────────────────────────────────┤

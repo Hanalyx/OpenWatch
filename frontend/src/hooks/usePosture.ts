@@ -14,14 +14,17 @@ import {
   fetchPosture,
   fetchPostureHistory,
   fetchDriftAnalysis,
+  fetchGroupDrift,
   createSnapshot,
 } from '../services/adapters/postureAdapter';
 import type {
   PostureResponse,
   PostureHistoryResponse,
   DriftAnalysisResponse,
+  GroupDriftResponse,
   PostureHistoryParams,
   DriftAnalysisParams,
+  GroupDriftParams,
   SnapshotCreateRequest,
   SnapshotCreateResponse,
 } from '../types/posture';
@@ -38,6 +41,8 @@ export const postureKeys = {
     ['posture', 'history', hostId, params] as const,
   drift: (hostId: string, startDate: string, endDate: string) =>
     ['posture', 'drift', hostId, startDate, endDate] as const,
+  groupDrift: (groupId: number, startDate: string, endDate: string) =>
+    ['posture', 'groupDrift', groupId, startDate, endDate] as const,
 };
 
 // =============================================================================
@@ -138,8 +143,38 @@ export function useDriftAnalysis(params: DriftAnalysisParams | undefined, enable
       params?.start_date ?? '',
       params?.end_date ?? ''
     ),
-    queryFn: () => fetchDriftAnalysis(params!),
+    queryFn: () =>
+      fetchDriftAnalysis({
+        ...params!,
+        include_value_drift: params?.include_value_drift ?? true,
+      }),
     enabled: !!params?.host_id && !!params?.start_date && !!params?.end_date && enabled,
+    staleTime: 300_000, // 5 minutes
+    refetchOnWindowFocus: false,
+  });
+}
+
+// =============================================================================
+// Group Drift Analysis Hook
+// =============================================================================
+
+/**
+ * Analyze compliance drift across all hosts in a group.
+ *
+ * Requires OpenWatch+ subscription.
+ *
+ * @param params - Query parameters including group_id and date range
+ * @param enabled - Whether the query should run (default: true)
+ */
+export function useGroupDrift(params: GroupDriftParams | undefined, enabled: boolean = true) {
+  return useQuery<GroupDriftResponse>({
+    queryKey: postureKeys.groupDrift(
+      params?.group_id ?? 0,
+      params?.start_date ?? '',
+      params?.end_date ?? ''
+    ),
+    queryFn: () => fetchGroupDrift(params!),
+    enabled: !!params?.group_id && !!params?.start_date && !!params?.end_date && enabled,
     staleTime: 300_000, // 5 minutes
     refetchOnWindowFocus: false,
   });
