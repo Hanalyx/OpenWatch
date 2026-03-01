@@ -9,6 +9,7 @@ Generate or regenerate an operator-facing document from the documentation spec.
 ```
 
 Where `<doc-name>` is one of:
+- `docs-readme` — docs/README.md (documentation index)
 - `intro` — docs/INTRODUCTION.md
 - `installation` — docs/guides/INSTALLATION.md
 - `quickstart` — docs/guides/QUICKSTART.md
@@ -44,6 +45,7 @@ Based on the document being generated, read the relevant source files to populat
 
 | Document | Source Files |
 |----------|-------------|
+| docs-readme | docs/ directory listing (verify all linked files exist) |
 | intro | docker-compose.yml, architecture.spec.yaml |
 | installation | docker-compose.yml, docker-compose.prod.yml, docker/Dockerfile.backend, docker/Dockerfile.frontend, start-openwatch.sh, docs/guides/PRODUCTION_DEPLOYMENT.md, docs/guides/ENVIRONMENT_REFERENCE.md |
 | quickstart | backend/app/main.py (route registrations), backend/app/routes/auth/login.py, backend/app/routes/scans/kensa.py |
