@@ -830,16 +830,16 @@ backend/scripts/
 
 # Documentation directories (user-generated, do not commit)
 docs/*
-!/docs/.gitkeep
-!/docs/README.md
-!/docs/INTRODUCTION.md
-!/docs/guides/
-!/docs/architecture/
-!/docs/api/
-!/docs/decisions/
-!/docs/runbooks/
-!/docs/openwatchos/
-!/docs/images/
+!docs/.gitkeep
+!docs/README.md
+!docs/INTRODUCTION.md
+!docs/guides/
+!docs/architecture/
+!docs/api/
+!docs/decisions/
+!docs/runbooks/
+!docs/openwatchos/
+!docs/images/
 docs/images/*
 !docs/images/*.png
 !docs/images/quickstart/

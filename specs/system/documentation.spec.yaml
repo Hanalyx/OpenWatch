@@ -1,5 +1,5 @@
 # System Spec: Documentation
-# Status: PLANNED (operator documentation suite)
+# Status: COMPLETE (operator documentation suite)
 # Date: 2026-03-01
 # Sources:
 #   - docs/ directory inventory (94 files, ~41400 lines)
@@ -12,7 +12,7 @@
 
 spec: system-documentation
 version: "1.0"
-status: planned
+status: complete
 
 # ---------------------------------------------------------------------------
 # CONTEXT — What exists now
@@ -56,6 +56,21 @@ context:
 # ---------------------------------------------------------------------------
 objective:
   documents:
+    - id: docs-readme
+      file: "docs/README.md"
+      purpose: "Documentation index — links to all operator-facing docs organized by audience journey"
+      estimated_lines: 80
+      outline:
+        - "Getting Started (Introduction, Quickstart, Installation)"
+        - "Operator Guides (Scanning, Hosts/Remediation, Roles, API)"
+        - "Operations (Production Deployment, Environment Reference, Migrations, Monitoring, Hardening, Scaling, Backup, Secrets, Upgrades, Compliance Controls)"
+        - "Incident Response Runbooks"
+        - "Architecture and Design Documents"
+        - "Quick Links"
+      acceptance_criteria: "Every link resolves to an existing file. Document groupings match the documentation suite. No stale links to deleted files."
+      sources:
+        - "docs/ directory listing"
+
     - id: intro
       file: "docs/INTRODUCTION.md"
       purpose: "Platform philosophy, problem statement, architecture overview"
