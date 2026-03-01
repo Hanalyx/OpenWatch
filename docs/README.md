@@ -2,11 +2,32 @@
 
 Production documentation for deploying, operating, and maintaining OpenWatch.
 
-## Guides
+Start here: [Introduction](INTRODUCTION.md) | [Quickstart](guides/QUICKSTART.md)
+
+---
+
+## Getting Started
 
 | Document | Description |
 |----------|-------------|
-| [Production Deployment](guides/PRODUCTION_DEPLOYMENT.md) | Deploy OpenWatch with Docker/Podman |
+| [Introduction](INTRODUCTION.md) | Platform philosophy, architecture overview, supported frameworks |
+| [Quickstart](guides/QUICKSTART.md) | First 15 minutes: log in, add a host, run a scan, read results |
+| [Installation](guides/INSTALLATION.md) | Deploy with Docker, Podman, RPM, or from source |
+
+## Operator Guides
+
+| Document | Description |
+|----------|-------------|
+| [Scanning and Compliance](guides/SCANNING_AND_COMPLIANCE.md) | Run scans, read posture scores, detect drift, manage alerts |
+| [Hosts and Remediation](guides/HOSTS_AND_REMEDIATION.md) | Add hosts, configure credentials, remediate findings, rollback |
+| [User Roles](guides/USER_ROLES.md) | 6 roles, 33 permissions, workflows per role |
+| [API Guide](guides/API_GUIDE.md) | REST API reference for automation and CI/CD integration |
+
+## Operations
+
+| Document | Description |
+|----------|-------------|
+| [Production Deployment](guides/PRODUCTION_DEPLOYMENT.md) | Production Docker/Podman deployment procedures |
 | [Environment Reference](guides/ENVIRONMENT_REFERENCE.md) | All environment variables and configuration |
 | [Database Migrations](guides/DATABASE_MIGRATIONS.md) | Alembic migration procedures and rollback |
 | [Monitoring Setup](guides/MONITORING_SETUP.md) | Prometheus, Grafana, and health checks |
@@ -27,9 +48,14 @@ Production documentation for deploying, operating, and maintaining OpenWatch.
 | [Disk Full](runbooks/DISK_FULL.md) | Disk space critically low |
 | [Security Incident](runbooks/SECURITY_INCIDENT.md) | Unauthorized access, data breach |
 
-## OpenWatch OS Transformation
+## Architecture
 
-Design documentation for the Compliance Operating System initiative.
+| Document | Description |
+|----------|-------------|
+| [Kensa Integration](architecture/KENSA_INTEGRATION.md) | Kensa compliance engine integration manual |
+| [Native RPM Installation](architecture/NATIVE_RPM_INSTALLATION.md) | RPM-based deployment design |
+
+## Design Documents
 
 | Document | Description |
 |----------|-------------|
@@ -40,20 +66,7 @@ Design documentation for the Compliance Operating System initiative.
 | [MongoDB Deprecation Plan](openwatchos/05-DEPRECATION-PLAN.md) | 5-phase legacy code removal |
 | [Host Detail Page Redesign](openwatchos/06-HOST-DETAIL-PAGE-REDESIGN.md) | Auto-scan centric UI redesign |
 
-## Architecture
-
-| Document | Description |
-|----------|-------------|
-| [Kensa Integration](architecture/KENSA_INTEGRATION.md) | Kensa compliance engine integration manual |
-| [Native RPM Installation](architecture/NATIVE_RPM_INSTALLATION.md) | RPM-based deployment design |
-
-## Architecture Decision Records
-
-| ADR | Title | Status |
-|-----|-------|--------|
-| [ADR-001](decisions/ADR-001-postgresql-primary-database.md) | PostgreSQL as primary database | Accepted |
-| [ADR-002](decisions/ADR-002-kensa-compliance-engine.md) | Kensa (formerly Aegis) replaces OpenSCAP | Accepted |
-| [ADR-003](decisions/ADR-003-modular-service-architecture.md) | Modular service package pattern | Accepted |
+---
 
 ## Quick Links
 
@@ -61,4 +74,3 @@ Design documentation for the Compliance Operating System initiative.
 - **Health Check**: `GET /health`
 - **Start Services**: `./start-openwatch.sh --runtime docker --build`
 - **Stop Services**: `./stop-openwatch.sh`
-- **Load Tests**: See [k6/README.md](../k6/README.md)
