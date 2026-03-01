@@ -136,11 +136,11 @@ Create a **native installation path** using `openwatch-2.0.0-*.rpm` packages tha
 | Simpler debugging | Direct access to logs, processes, files |
 | Lower overhead | No container layer, direct kernel access |
 
-### Aegis-Based Architecture (No SCAP Content Required)
+### Kensa-Based Architecture (No SCAP Content Required)
 
-OpenWatch has migrated from OpenSCAP/XCCDF to **Aegis v0.1.0** as the compliance engine:
+OpenWatch has migrated from OpenSCAP/XCCDF to **Kensa v1.1.0** as the compliance engine:
 
-| Legacy (OpenSCAP) | Current (Aegis) |
+| Legacy (OpenSCAP) | Current (Kensa) |
 |-------------------|-----------------|
 | Upload SCAP content bundles | Rules bundled with application |
 | XCCDF/OVAL XML parsing | Native YAML rule format |
@@ -148,7 +148,7 @@ OpenWatch has migrated from OpenSCAP/XCCDF to **Aegis v0.1.0** as the compliance
 | Content library management | Rule Reference UI (read-only) |
 
 **Storage Simplification**:
-- **No `/var/lib/openwatch/scap/`** - Aegis rules at `/opt/openwatch/backend/aegis/rules/`
+- **No `/var/lib/openwatch/scap/`** - Kensa rules pip-installed (path from `KENSA_RULES_PATH` env var)
 - **No `/var/lib/openwatch/results/`** - Results in PostgreSQL `scan_findings` table
 - **No `/var/lib/openwatch/uploads/`** - SCAP upload deprecated
 - **Minimal runtime data** - Only Celery state, exports, SSH cache
@@ -192,7 +192,7 @@ The current `openwatch.spec` (v1.2.1-8) provides:
 | SELinux policy | `packaging/selinux/` | Extend for native paths |
 | Secret generation | `packaging/rpm/scripts/generate-secrets.sh` | Use as-is |
 | Python requirements | `backend/requirements.txt` | Use as-is |
-| Aegis rules | `backend/aegis/` | Copy to package |
+| Kensa rules | pip-installed via `kensa` package | Installed in virtualenv |
 
 ---
 
@@ -227,7 +227,7 @@ The current `openwatch.spec` (v1.2.1-8) provides:
 │  │  ├── venv/               ←── Python 3.12 virtualenv                 │ │
 │  │  ├── backend/            ←── FastAPI application code               │ │
 │  │  │   ├── app/                                                        │ │
-│  │  │   └── aegis/          ←── Aegis compliance engine + rules        │ │
+│  │  │   └── plugins/kensa/   ←── Kensa integration plugin               │ │
 │  │  └── frontend/           ←── Built React static files               │ │
 │  │                                                                      │ │
 │  │  /etc/openwatch/                                                     │ │
@@ -241,7 +241,7 @@ The current `openwatch.spec` (v1.2.1-8) provides:
 │  │  ├── celery/             ←── Celery scheduler state                 │ │
 │  │  ├── exports/            ←── Audit query exports (temporary)        │ │
 │  │  └── ssh/                ←── SSH known hosts cache                  │ │
-│  │  # NOTE: No SCAP/uploads dirs - Aegis rules bundled, results in DB  │ │
+│  │  # NOTE: No SCAP/uploads dirs - Kensa rules pip-installed, results in DB │ │
 │  │                                                                      │ │
 │  │  /var/log/openwatch/                                                 │ │
 │  │  ├── api.log             ←── Backend application logs               │ │
@@ -297,9 +297,9 @@ Create multiple RPM packages for modularity:
 | Package | Contents | Dependencies |
 |---------|----------|--------------|
 | `openwatch-common` | User/group, directories, base config | - |
-| `openwatch-backend` | Python app, virtualenv, Aegis | common, python3.12 |
+| `openwatch-backend` | Python app, virtualenv, Kensa | common, python3.12 |
 | `openwatch-frontend` | Built React app, nginx config | common, nginx |
-| `openwatch-aegis` | Aegis rules only (for updates) | common |
+| `openwatch-kensa` | Kensa rules only (for updates) | common |
 | `openwatch` | Metapackage | backend, frontend |
 
 ### Alternative: Single Package
@@ -684,19 +684,19 @@ celery:
     - monitoring
     - compliance_scanning
 
-# Scanning configuration (Aegis-based, no SCAP files needed)
+# Scanning configuration (Kensa-based, no SCAP files needed)
 scanning:
   ssh_key_path: /etc/openwatch/ssh/openwatch_rsa
   concurrent_scans: 5
   timeout_seconds: 600
   # NOTE: No scap_content_dir or results_dir needed
-  # - Aegis rules are bundled with the application
+  # - Kensa rules are pip-installed (path from KENSA_RULES_PATH env var)
   # - Scan results are stored in PostgreSQL (scan_findings table)
 
-# Aegis compliance engine (bundled with application)
-aegis:
-  rules_path: /opt/openwatch/backend/aegis/rules    # 338 YAML rules (bundled)
-  config_path: /opt/openwatch/backend/aegis/config  # Variable definitions
+# Kensa compliance engine (pip-installed)
+kensa:
+  rules_path: ${KENSA_RULES_PATH}    # 338 YAML rules (pip-installed)
+  config_path: ${KENSA_RULES_PATH}/../config  # Variable definitions
 
 # Logging configuration
 logging:
@@ -867,15 +867,15 @@ firewall-cmd --reload
 
 | Path | Owner | Mode | Purpose |
 |------|-------|------|---------|
-| `/opt/openwatch/` | root:openwatch | 755 | Application + Aegis rules (read-only) |
-| `/opt/openwatch/backend/aegis/` | root:openwatch | 755 | Aegis engine + 338 YAML rules |
+| `/opt/openwatch/` | root:openwatch | 755 | Application (read-only) |
+| `/opt/openwatch/venv/lib/python3.12/site-packages/kensa/` | root:openwatch | 755 | Kensa engine + 338 YAML rules (pip-installed) |
 | `/etc/openwatch/` | root:openwatch | 750 | Configuration |
 | `/etc/openwatch/secrets.env` | openwatch:openwatch | 600 | Secrets |
 | `/etc/openwatch/ssl/` | openwatch:openwatch | 700 | TLS keys |
 | `/var/lib/openwatch/` | openwatch:openwatch | 750 | Runtime data (minimal) |
 | `/var/log/openwatch/` | openwatch:openwatch | 750 | Logs |
 
-**Note**: No SCAP content or scan result directories needed - Aegis rules are bundled with the application and scan results are stored in PostgreSQL.
+**Note**: No SCAP content or scan result directories needed - Kensa rules are pip-installed and scan results are stored in PostgreSQL.
 
 ---
 
@@ -1303,10 +1303,10 @@ These files remain unchanged and are included in all builds:
 │   │   ├── models/
 │   │   ├── tasks/
 │   │   └── ...
-│   ├── aegis/                        # Aegis engine + rules
-│   │   ├── runner/
-│   │   ├── rules/
-│   │   └── config/
+│   ├── app/plugins/kensa/            # Kensa integration plugin
+│   │   ├── scanner.py
+│   │   ├── sync_service.py
+│   │   └── ...
 │   ├── alembic/                      # Database migrations
 │   └── requirements.txt
 └── frontend/                         # Built React application
@@ -1338,7 +1338,7 @@ These files remain unchanged and are included in all builds:
 ├── exports/                          # Audit query exports (temporary)
 └── ssh/                              # SSH known hosts cache
 # NOTE: No SCAP content or results directories needed
-# - Aegis rules bundled at /opt/openwatch/backend/aegis/rules/
+# - Kensa rules pip-installed (path from KENSA_RULES_PATH env var)
 # - Scan results stored in PostgreSQL scan_findings table
 # - No user uploads required (SCAP import deprecated)
 

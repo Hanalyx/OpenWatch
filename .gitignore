@@ -791,16 +791,10 @@ docs/HOST_STATUS*.md
 # ROOT DOCS DIRECTORY
 # ======================================
 
-# Ignore loose/temporary docs but track production documentation
-/docs/*
-!/docs/.gitkeep
-!/docs/README.md
-!/docs/guides/
-!/docs/architecture/
-!/docs/api/
-!/docs/decisions/
-!/docs/runbooks/
-!/docs/openwatchos/
+# NOTE: Production docs un-ignores are defined alongside the docs/* rule below (line ~841)
+
+# OpenWatch internal SDD documents (do not commit)
+internal/sdd/
 
 # OpenWatch internal documentation (do not commit)
 CLAUDE.md
@@ -836,9 +830,21 @@ backend/scripts/
 
 # Documentation directories (user-generated, do not commit)
 docs/*
-!docs/images/
+!/docs/.gitkeep
+!/docs/README.md
+!/docs/INTRODUCTION.md
+!/docs/guides/
+!/docs/architecture/
+!/docs/api/
+!/docs/decisions/
+!/docs/runbooks/
+!/docs/openwatchos/
+!/docs/images/
 docs/images/*
 !docs/images/*.png
+!docs/images/quickstart/
+!docs/images/scanning/
+!docs/images/hosts/
 PRD/
 backend/docs/
 frontend/docs/

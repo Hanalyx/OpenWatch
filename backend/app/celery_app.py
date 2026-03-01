@@ -109,6 +109,7 @@ celery_app.conf.update(
         "app.tasks.execute_scan": {"queue": "scans"},
         "app.tasks.enrich_scan_results": {"queue": "default"},
         "app.tasks.execute_remediation": {"queue": "default"},
+        "app.tasks.execute_rollback": {"queue": "default"},
         "app.tasks.import_scap_content": {"queue": "default"},
         "app.tasks.deliver_webhook": {"queue": "default"},
         "app.tasks.execute_host_discovery": {"queue": "default"},

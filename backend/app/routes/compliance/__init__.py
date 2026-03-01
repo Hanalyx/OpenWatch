@@ -79,9 +79,6 @@ try:
     # Exception endpoints at /compliance/exceptions/* (Phase 3 Governance Primitives)
     router.include_router(exceptions_router)
 
-    # Alert endpoints at /compliance/alerts/* (OpenWatch OS Alert Thresholds)
-    router.include_router(alerts_router)
-
     # Remediation endpoints at /compliance/remediation/* (Phase 4 Remediation)
     router.include_router(remediation_router)
 

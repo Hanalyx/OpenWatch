@@ -23,6 +23,7 @@ class RemediationStatus(str, Enum):
     FAILED = "failed"
     ROLLED_BACK = "rolled_back"
     CANCELLED = "cancelled"
+    MANUAL = "manual"
 
 
 class RemediationJobCreate(BaseModel):
