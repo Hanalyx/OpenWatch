@@ -41,7 +41,7 @@ This document maps OpenWatch's security controls to industry frameworks, providi
 
 | Control | Title | OpenWatch Implementation | Evidence |
 |---------|-------|-------------------------|----------|
-| CM-2 | Baseline Configuration | Aegis YAML rules define expected configurations | `backend/aegis/rules/` (338 rules) |
+| CM-2 | Baseline Configuration | Kensa YAML rules define expected configurations | Kensa rules (pip-installed, 338 YAML rules) |
 | CM-3 | Configuration Change Control | Alembic migration tracking, git version control | `backend/alembic/versions/` |
 | CM-6 | Configuration Settings | Environment variable validation via Pydantic | `backend/app/config.py` (Settings class) |
 | CM-8 | System Component Inventory | Host management with discovery and metadata | `backend/app/services/system_info/` |
@@ -59,8 +59,8 @@ This document maps OpenWatch's security controls to industry frameworks, providi
 
 | Control | Title | OpenWatch Implementation | Evidence |
 |---------|-------|-------------------------|----------|
-| RA-5 | Vulnerability Monitoring | Automated compliance scanning via Aegis | `backend/app/plugins/aegis/` |
-| RA-5(2) | Update Vulnerabilities | Aegis rule updates via plugin updater | `backend/app/plugins/aegis/updater.py` |
+| RA-5 | Vulnerability Monitoring | Automated compliance scanning via Kensa | `backend/app/plugins/kensa/` |
+| RA-5(2) | Update Vulnerabilities | Kensa rule updates via plugin sync | `backend/app/plugins/kensa/sync_service.py` |
 
 ### System and Communications Protection (SC)
 
@@ -89,7 +89,7 @@ This document maps OpenWatch's security controls to industry frameworks, providi
 | 1.1 | Enterprise Asset Inventory | Host management with system info collection |
 | 2.1 | Software Inventory | Server intelligence (package collection) |
 | 3.3 | Data Encryption | AES-256-GCM at rest, TLS 1.2+ in transit |
-| 4.1 | Secure Configuration | Aegis compliance scanning (338 rules) |
+| 4.1 | Secure Configuration | Kensa compliance scanning (338 rules) |
 | 4.2 | Baseline Network Configuration | Network discovery and topology mapping |
 | 5.2 | Unique Passwords | Argon2id hashing, 12-char minimum, complexity enforced |
 | 5.4 | MFA | TOTP-based MFA with backup codes |
@@ -120,7 +120,7 @@ This document maps OpenWatch's security controls to industry frameworks, providi
 | AU.L2-3.3.2 | Audit | User accountability through audit trails |
 | CA.L2-3.12.1 | Assessment | Compliance posture assessment |
 | CA.L2-3.12.3 | Assessment | Continuous monitoring via scheduled scans |
-| CM.L2-3.4.1 | Configuration | Baseline configurations (Aegis rules) |
+| CM.L2-3.4.1 | Configuration | Baseline configurations (Kensa rules) |
 | CM.L2-3.4.2 | Configuration | Security configuration enforcement |
 | CM.L2-3.4.5 | Configuration | Access restrictions for configuration changes |
 | IA.L2-3.5.1 | Identification | User identification and authentication |
@@ -160,6 +160,6 @@ curl http://localhost:8000/api/compliance/posture \
   -H "Authorization: Bearer $TOKEN" > posture_evidence.json
 
 # List frameworks and rules
-curl http://localhost:8000/api/scans/aegis/frameworks \
+curl http://localhost:8000/api/scans/kensa/frameworks \
   -H "Authorization: Bearer $TOKEN" > frameworks_evidence.json
 ```

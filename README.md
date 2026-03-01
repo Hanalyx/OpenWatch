@@ -160,8 +160,8 @@ HOST_ID=$(curl -s -X POST http://localhost:8000/api/hosts/ \
   -H "Content-Type: application/json" \
   -d '{"hostname":"web-01","ip_address":"192.168.1.10","ssh_port":22}' | jq -r '.id')
 
-# Run an Aegis compliance scan
-SCAN_ID=$(curl -s -X POST http://localhost:8000/api/scans/aegis \
+# Run a Kensa compliance scan
+SCAN_ID=$(curl -s -X POST http://localhost:8000/api/scans/kensa \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d "{\"host_id\":\"$HOST_ID\",\"framework\":\"cis-rhel9-v2.0.0\"}" | jq -r '.scan_id')

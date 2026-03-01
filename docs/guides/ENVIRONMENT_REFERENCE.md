@@ -65,6 +65,7 @@ OPENWATCH_REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
 | `OPENWATCH_APP_VERSION` | `1.2.0` | Application version string |
 | `OPENWATCH_MAX_UPLOAD_SIZE` | `104857600` | Max file upload size in bytes (100MB) |
 | `OPENWATCH_ALLOWED_FILE_TYPES` | `.xml,.zip,.bz2,.gz` | Allowed upload file extensions |
+| `OPENWATCH_LICENSE_TIER` | `community` | License tier: `community` or `openwatch_plus` |
 
 ## Security and JWT
 
@@ -127,6 +128,9 @@ Docker-compose also supports (commented out by default):
 | `OPENWATCH_MAX_CONCURRENT_SCANS` | `5` | Maximum simultaneous scans |
 | `SCAP_CONTENT_DIR` | `/openwatch/data/scap` | SCAP content storage directory |
 | `SCAN_RESULTS_DIR` | `/openwatch/data/results` | Scan results storage directory |
+| `KENSA_RULES_PATH` | (auto-detected) | Path to Kensa YAML rules directory (set in Docker) |
+
+> **Note**: `OPENWATCH_OPENSCAP_TIMEOUT` and `SCAP_CONTENT_DIR` are legacy variables from the OpenSCAP era. Kensa scans use SSH-based checks with their own timeout handling. These variables are retained for backward compatibility but have no effect on Kensa scans.
 
 ## Container Runtime
 

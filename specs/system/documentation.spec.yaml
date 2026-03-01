@@ -1,0 +1,227 @@
+# System Spec: Documentation
+# Status: PLANNED (operator documentation suite)
+# Date: 2026-03-01
+# Sources:
+#   - docs/ directory inventory (94 files, ~41400 lines)
+#   - CLAUDE.md (developer-facing documentation references)
+#   - context/ directory (12 modular context files)
+#   - backend/app/main.py (router registration, endpoint inventory)
+#   - backend/app/rbac.py (role definitions, permissions)
+#   - docker-compose.yml, docker-compose.prod.yml
+#   - architecture.spec.yaml (framework IDs and rule counts)
+
+spec: system-documentation
+version: "1.0"
+status: planned
+
+# ---------------------------------------------------------------------------
+# CONTEXT — What exists now
+# ---------------------------------------------------------------------------
+context:
+  current_state:
+    total_doc_files: 94
+    total_doc_lines: ~41400
+    developer_facing: "CLAUDE.md, context/, PRD/ — comprehensive but developer-only"
+    operator_facing: "PRODUCTION_DEPLOYMENT.md, ENVIRONMENT_REFERENCE.md — sparse"
+    outdated_docs: 4  # Aegis references needing Kensa update
+    role_mismatch: "CLAUDE.md said VIEWER/ANALYST/ENGINEER; code defines SUPER_ADMIN/SECURITY_ADMIN/etc."
+
+  gaps:
+    - "No quickstart guide for new operators"
+    - "No role guide mapping permissions to daily tasks"
+    - "No curated API guide (Swagger exists but is overwhelming)"
+    - "No scanning workflow guide explaining posture/drift/alerts"
+    - "No host management or remediation guide"
+    - "No platform introduction document"
+    - "No unified installation guide (Docker/Podman/RPM/source)"
+
+  audience: "Platform operators — SysAdmins and engineers who deploy, configure, and maintain OpenWatch"
+
+  interaction_model: |
+    OpenWatch is a GUI-first platform. Operators perform 90% of their daily work
+    in the web UI — managing hosts, viewing dashboards, reading scan results,
+    acknowledging alerts, creating exceptions, and running remediations. CLI and
+    API usage is limited to:
+      - Installation and initial setup (Docker/Podman/RPM commands)
+      - Automation and CI/CD integration (REST API with curl or scripts)
+      - Health checks and troubleshooting (curl /health, docker logs)
+    Documentation must reflect this reality. Workflow guides (quickstart,
+    scanning, hosts, remediation) should describe the UI flow first, with
+    screenshots, and offer API examples only as an "Automation" alternative.
+    The API Guide is the one document where curl examples are the primary
+    content — it exists specifically for operators who want to script tasks.
+
+# ---------------------------------------------------------------------------
+# OBJECTIVE — Documents to produce
+# ---------------------------------------------------------------------------
+objective:
+  documents:
+    - id: intro
+      file: "docs/INTRODUCTION.md"
+      purpose: "Platform philosophy, problem statement, architecture overview"
+      estimated_lines: 150
+      outline:
+        - "What is OpenWatch (1 paragraph)"
+        - "The problem: compliance is manual, fragmented, reactive"
+        - "The solution: See / Scan / Secure"
+        - "Core values: Security-First, Transparency, Automation, Rule-Based Compliance"
+        - "Operating principle: Kensa adaptive scanning"
+        - "Architecture at a glance: 6-service Docker topology"
+        - "Who OpenWatch is for: SysAdmins, Security Engineers, Security Analysts"
+        - "Supported frameworks with rule counts"
+      acceptance_criteria: "Content complete, architecture matches docker-compose.yml, framework counts match architecture.spec.yaml"
+
+    - id: installation
+      file: "docs/guides/INSTALLATION.md"
+      purpose: "Unified deployment guide: Docker, Podman, RPM, Source"
+      estimated_lines: 300
+      outline:
+        - "Prerequisites: Linux host, Docker/Podman, 4GB RAM, network"
+        - "Docker: docker-compose.yml, env setup, start-openwatch.sh, verify health"
+        - "Podman: podman-compose, rootless, SELinux notes"
+        - "RPM: systemd services, PostgreSQL/Redis setup, Kensa pip install"
+        - "Debian: coming soon placeholder"
+        - "From source: git clone, Python 3.12, Node 20, Alembic, Uvicorn"
+        - "Post-install checklist"
+        - "Link to ENVIRONMENT_REFERENCE.md"
+      acceptance_criteria: "All commands verified, env vars exist in docker-compose.yml, health check endpoint correct"
+      sources:
+        - "docker-compose.yml"
+        - "docker-compose.prod.yml"
+        - "docker/Dockerfile.backend"
+        - "start-openwatch.sh"
+        - "docs/guides/PRODUCTION_DEPLOYMENT.md"
+
+    - id: quickstart
+      file: "docs/guides/QUICKSTART.md"
+      purpose: "First 15 minutes: login, add host, scan, read results — UI-first walkthrough"
+      estimated_lines: 200
+      ui_first: true
+      screenshot_dir: "docs/images/quickstart/"
+      outline:
+        - "Verify deployment is healthy (curl /health — the one CLI step)"
+        - "Open the UI and log in (screenshot: login page)"
+        - "Change default password (screenshot: user settings)"
+        - "Add a host via the UI (screenshot: add host dialog)"
+        - "Configure SSH credentials (screenshot: credential form)"
+        - "Run a compliance scan from the host page (screenshot: scan trigger)"
+        - "View scan results in the UI (screenshot: results page with pass/fail)"
+        - "Read the compliance posture dashboard (screenshot: posture overview)"
+        - "Next steps links"
+        - "Appendix: API alternative (curl examples for steps 3-8, for automation)"
+      acceptance_criteria: "Steps describe UI interactions, screenshot placeholders included, API examples in appendix only"
+
+    - id: user-roles
+      file: "docs/guides/USER_ROLES.md"
+      purpose: "6 roles from rbac.py, permissions matrix, daily workflows"
+      estimated_lines: 150
+      outline:
+        - "Role hierarchy diagram (text-based)"
+        - "Per-role breakdown with permission counts"
+        - "Permissions matrix table"
+        - "Common workflows per role"
+        - "How to assign/change roles"
+      acceptance_criteria: "All 6 roles match rbac.py, all 33 permissions listed, permission counts verified"
+      sources:
+        - "backend/app/rbac.py"
+
+    - id: api-guide
+      file: "docs/guides/API_GUIDE.md"
+      purpose: "REST API reference for automation and CI/CD integration — curl examples by workflow"
+      estimated_lines: 350
+      note: |
+        This is the one document where curl/API is the primary content. It exists
+        for operators who want to script tasks, integrate with CI/CD, or build
+        custom tooling. The intro should state clearly: "Most operators use the
+        web UI for daily work. This guide is for automation."
+      outline:
+        - "When to use the API (automation, CI/CD, scripting — not daily operations)"
+        - "Authentication: login, refresh, logout"
+        - "Hosts: list, create, update, delete"
+        - "Scans: start Kensa scan, list, get results"
+        - "Compliance: posture, drift, exceptions"
+        - "Remediation: start, status, rollback"
+        - "Alerts: list, acknowledge, resolve"
+        - "System: health, security-info"
+      acceptance_criteria: "All endpoints registered in main.py, required roles match rbac decorators, intro states API is for automation"
+      sources:
+        - "backend/app/main.py"
+        - "backend/app/routes/"
+        - "backend/app/schemas/"
+
+    - id: scanning
+      file: "docs/guides/SCANNING_AND_COMPLIANCE.md"
+      purpose: "Scanning workflows, posture, drift, frameworks, alerts — UI-first"
+      estimated_lines: 250
+      ui_first: true
+      outline:
+        - "How scanning works (background: Kensa -> SSH -> rules -> findings -> snapshot)"
+        - "Available frameworks with rule counts"
+        - "Running a scan from the UI (host page → scan button, select framework)"
+        - "Reading scan results in the UI (findings table, severity filters, pass/fail)"
+        - "Compliance posture dashboard (score meaning, trend charts, per-framework view)"
+        - "Drift detection in the UI (drift events, timeline, before/after)"
+        - "Adaptive scheduling (how auto-scan intervals work — viewed on host detail page)"
+        - "Alert management in the UI (alert list, acknowledge, resolve)"
+        - "Exporting audit reports from the UI (saved queries, CSV/JSON/PDF download)"
+        - "Appendix: API automation (curl examples for scripting scan/posture/drift/export)"
+      acceptance_criteria: "UI workflows described first, API curl examples in appendix, framework counts match architecture.spec.yaml"
+      sources:
+        - "backend/app/plugins/kensa/"
+        - "backend/app/services/compliance/"
+        - "backend/app/routes/compliance/"
+
+    - id: hosts-remediation
+      file: "docs/guides/HOSTS_AND_REMEDIATION.md"
+      purpose: "Host management, credentials, groups, remediation, rollback — UI-first"
+      estimated_lines: 200
+      ui_first: true
+      outline:
+        - "Adding a host in the UI (Hosts page → Add Host dialog)"
+        - "Configuring SSH credentials in the UI (credential form, key vs password)"
+        - "Bulk import via the UI (upload CSV, review mappings, confirm)"
+        - "Host groups in the UI (create group, assign hosts, group compliance view)"
+        - "Server intelligence (view packages, services, users on host detail page)"
+        - "Remediation overview (23 typed mechanisms, what it changes)"
+        - "Starting a remediation from the UI (select findings → remediate → confirm)"
+        - "Monitoring remediation progress in the UI (job status, per-rule results)"
+        - "Rollback from the UI (rollback button, confirmation, audit trail)"
+        - "Appendix: API automation (curl examples for host CRUD, remediation, rollback)"
+      acceptance_criteria: "UI workflows described first, API examples in appendix, remediation types verified"
+      sources:
+        - "backend/app/routes/hosts/"
+        - "backend/app/routes/remediation/"
+        - "backend/app/routes/host_groups/"
+
+# ---------------------------------------------------------------------------
+# CONSTRAINTS — Rules for all documentation produced
+# ---------------------------------------------------------------------------
+constraints:
+  ui_first: |
+    OpenWatch is a GUI platform. 90% of operator tasks happen in the web UI.
+    Workflow guides (quickstart, scanning, hosts, remediation) MUST describe
+    the UI flow first with screenshot placeholders. API/curl examples belong
+    in a clearly labeled "Automation" appendix at the end of each guide.
+    Only the Installation Guide and API Guide use CLI as the primary format.
+  screenshots: |
+    Use the format ![Description](../images/<guide>/<step>.png) for screenshot
+    placeholders. Create the image directory structure. Actual screenshots will
+    be captured separately — the docs should include the placeholder references
+    so they render correctly once images are added.
+  tone: "Procedural and direct. Write for operators who deploy and maintain, not developers who extend."
+  accuracy: "All file paths, API endpoints, environment variables, and role names MUST be verified against the codebase before inclusion."
+  scope: "Daily/weekly/monthly tasks only. No edge cases, no developer internals."
+  format: "GitHub-flavored Markdown. No emojis. Tables for structured data. Code blocks for commands."
+  cross_references: "Link between docs using relative paths. Every doc should link to at least 2 others."
+  no_assumptions: "Never state a feature exists without verifying the route/service/model exists in code."
+
+# ---------------------------------------------------------------------------
+# VERIFICATION CHECKLIST — Must pass before any doc is considered complete
+# ---------------------------------------------------------------------------
+verification_checklist:
+  - "All file paths mentioned exist in the repository"
+  - "All API endpoints mentioned are registered in main.py"
+  - "All env vars mentioned exist in docker-compose.yml or config.py"
+  - "All role names match backend/app/rbac.py exactly"
+  - "Framework names and rule counts match architecture.spec.yaml"
+  - "curl examples use correct HTTP methods and paths"
