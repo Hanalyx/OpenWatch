@@ -65,7 +65,7 @@ jobs:
           echo '{"info": {"title": "OpenWatch API", "version": "1.0"}, "paths": {}}' > backend/openapi.json
 
       - name: Upload documentation artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: api-documentation
           path: |
@@ -110,7 +110,7 @@ jobs:
           EOF
 
       - name: Upload user documentation
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: user-documentation
           path: site/
