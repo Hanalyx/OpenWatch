@@ -21,7 +21,7 @@ This plugin provides:
     - KensaConfig: Plugin configuration
 
 Installation:
-    Kensa is installed via pip: kensa @ git+https://github.com/Hanalyx/kensa.git@v1.1.0
+    Kensa is installed via pip: kensa @ git+https://github.com/Hanalyx/kensa.git@v1.2.5
     The runner module is available in site-packages.
 
 Usage:
@@ -48,7 +48,7 @@ Usage:
     mapper = FrameworkMapper(db)
     rules = await mapper.get_rules_for_framework("cis", "rhel9_v2")
 
-Version: 1.1.0
+Version: 1.2.5
 """
 
 import logging
@@ -56,7 +56,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 # Version info
-__version__ = "1.1.0"
+__version__ = "1.2.5"
 __author__ = "Hanalyx"
 
 # Public API exports - noqa needed for module re-exports
