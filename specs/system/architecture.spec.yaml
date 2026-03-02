@@ -1,0 +1,533 @@
+# System Spec: Architecture
+# Status: DISCOVERED (archaeology-derived, not aspirational)
+# Archaeology date: 2026-02-28
+# Sources verified:
+#   - context/ARCHITECTURE_OVERVIEW.md (last verified 2026-02-16)
+#   - context/MODULE_BOUNDARIES.md (last verified 2026-02-16)
+#   - context/QUICK_REFERENCE.md (last verified 2026-02-17)
+#   - backend/app/main.py (564 lines, middleware + router registration)
+#   - backend/app/celery_app.py (task routing, beat schedule, broker config)
+#   - backend/requirements.txt (pinned versions)
+#   - frontend/package.json (pinned versions)
+#   - docker-compose.yml, docker-compose.dev.yml, docker-compose.prod.yml
+#   - docker/Dockerfile.backend, docker/Dockerfile.frontend
+#   - docker/frontend/nginx.conf, docker/frontend/default.conf
+#   - .github/workflows/ci.yml
+
+spec: system-architecture
+version: "1.0"
+status: discovered
+
+# ---------------------------------------------------------------------------
+# CONTEXT — What exists now
+# ---------------------------------------------------------------------------
+context:
+  system: OpenWatch continuous compliance platform (AGPLv3)
+  purpose: >
+    SSH-based compliance scanning of Linux infrastructure against STIG, CIS,
+    NIST 800-53, PCI-DSS, and FedRAMP frameworks. Provides temporal compliance
+    posture queries, drift detection, exception governance, and automated
+    remediation with rollback.
+
+  scale:
+    backend_python_files: ~338
+    frontend_typescript_files: 229  # 141 .tsx + 88 .ts
+    api_endpoints: 80+
+    route_packages: 15  # 13 primary + 2 secondary
+    service_packages: 21
+    sqlalchemy_models: 30+
+    pydantic_schema_files: 9
+    backend_tests: 290+
+    backend_coverage: "32%"
+    e2e_tests: 246  # Playwright
+    frontend_unit_tests: 88  # Vitest
+
+# ---------------------------------------------------------------------------
+# OBJECTIVE — Architectural decisions in effect
+# ---------------------------------------------------------------------------
+objective:
+
+  # --- Tech Stack (verified versions) ---
+  tech_stack:
+    backend:
+      language: "Python 3.12+"
+      base_image: "registry.access.redhat.com/ubi9/ubi:9.7"
+      framework: "FastAPI 0.129.0"
+      asgi_server: "Uvicorn 0.40.0"
+      orm: "SQLAlchemy 2.0.46 (async via asyncpg 0.31.0)"
+      migrations: "Alembic 1.18.4"
+      validation: "Pydantic 2.12.5"
+      task_queue: "Celery 5.6.2"
+      broker: "Redis 7.1.1 (client library)"
+      ssh: "Paramiko 3.5.0"
+      auth_crypto: "PyJWT 2.11.0, argon2-cffi 25.1.0, cryptography 46.0.5"
+      compliance_engine: "Kensa v1.2.5 (pip-installed, 338 YAML rules)"
+      observability: "OpenTelemetry 1.39.1, prometheus-client 0.24.1"
+
+    frontend:
+      framework: "React 19.2.4"
+      language: "TypeScript 5.9.3 (strict mode)"
+      build_tool: "Vite 7.3.1"
+      ui_library: "MUI 7.3.8 (@mui/material)"
+      state_global: "Redux Toolkit 2.11.0 + redux-persist 6.0.0"
+      state_server: "TanStack React Query 5.90.21"
+      http_client: "Axios 1.13.5"
+      router: "React Router 6.11.0"
+      forms: "React Hook Form 7.71.1"
+      e2e_testing: "Playwright 1.58.2"
+      unit_testing: "Vitest 4.0.18"
+
+    infrastructure:
+      container_runtime: "Docker / Podman"
+      reverse_proxy: "Nginx 1.29.5-alpine"
+      database: "PostgreSQL 15.14-alpine"
+      cache_broker: "Redis 7.4.6-alpine"
+      frontend_build: "Node.js 20.19.5-alpine (build stage only)"
+
+  # --- Service Topology ---
+  services:
+    - name: openwatch-db
+      image: "postgres:15.14-alpine"
+      port: 5432
+      exposed: false  # internal only; dev exposes on 5433
+      healthcheck: "pg_isready -U openwatch -d openwatch"
+      volume: postgres_data
+
+    - name: openwatch-redis
+      image: "redis:7.4.6-alpine"
+      port: 6379
+      exposed: false  # dev exposes on 6379/6380
+      healthcheck: "redis-cli ping"
+      volume: redis_data
+
+    - name: openwatch-backend
+      build: "docker/Dockerfile.backend"
+      port: 8000
+      exposed: true
+      healthcheck: "curl -f http://localhost:8000/health"
+      depends_on: [openwatch-db, openwatch-redis]
+      volumes: [app_data, app_logs, "security/certs:ro", "security/keys:rw", ssh_known_hosts]
+
+    - name: openwatch-worker
+      build: "docker/Dockerfile.backend"
+      command: "celery -A app.celery_app worker"
+      queues: [default, scans, results, maintenance, monitoring, host_monitoring, health_monitoring, compliance_scanning]
+      depends_on: [openwatch-db, openwatch-redis]
+
+    - name: openwatch-celery-beat
+      build: "docker/Dockerfile.backend"
+      command: "celery -A app.celery_app beat"
+      depends_on: [openwatch-db, openwatch-redis]
+
+    - name: openwatch-frontend
+      build: "docker/Dockerfile.frontend"  # multi-stage: node build -> nginx runtime
+      ports:
+        http: 80
+        https: 443
+      depends_on: [openwatch-backend]
+      healthcheck: "curl -f http://localhost:80/"
+
+  network:
+    name: openwatch-network
+    driver: bridge
+    subnet: "172.20.0.0/16"
+
+  # --- Database Architecture ---
+  database:
+    primary: PostgreSQL
+    orm: SQLAlchemy 2.0 (async)
+    primary_keys: UUID  # NOT integers
+    migrations: Alembic (auto-run on container startup)
+    data_access: >
+      SQL Builders (QueryBuilder, InsertBuilder, UpdateBuilder, DeleteBuilder)
+      construct parameterized SQL via text(). NOT SQLAlchemy ORM queries.
+    documented_raw_sql_exceptions:
+      - "LATERAL JOINs in routes/hosts/crud.py (list_hosts)"
+      - "Complex CASE expressions in routes/admin/audit.py (audit stats)"
+    deprecated:
+      mongodb: >
+        Removed from docker-compose and CI as of 2026-02-16. Legacy code
+        (motor, beanie, pymongo) retained in requirements.txt for import
+        compatibility only. Not used at runtime.
+
+  # --- API Architecture ---
+  api:
+    prefix: "/api"
+    auth: "JWT RS256 (access: 30min, refresh: 7d)"
+    validation: "Pydantic 2.x schemas at API boundary"
+    localstorage_key: "auth_token"  # NOT 'token' — #1 source of auth bugs
+
+    roles:
+      - GUEST              # minimal read-only (3 permissions)
+      - AUDITOR            # read-only audit access (9 permissions)
+      - COMPLIANCE_OFFICER # compliance reporting and audit (11 permissions)
+      - SECURITY_ANALYST   # day-to-day scan operations (11 permissions)
+      - SECURITY_ADMIN     # security-focused administration (26 permissions)
+      - SUPER_ADMIN        # full system access (33 permissions)
+
+    route_packages:
+      - { prefix: "/api/admin", package: "routes/admin/" }
+      - { prefix: "/api/auth", package: "routes/auth/" }
+      - { prefix: "/api/compliance", package: "routes/compliance/" }
+      - { prefix: "/api/content", package: "routes/content/", note: "legacy" }
+      - { prefix: "/api/host-groups", package: "routes/host_groups/" }
+      - { prefix: "/api/hosts", package: "routes/hosts/" }
+      - { prefix: "/api/integrations", package: "routes/integrations/" }
+      - { prefix: "/api/plugins", package: "routes/plugins/" }
+      - { prefix: "/api/remediation", package: "routes/remediation/" }
+      - { prefix: "/api/rules", package: "routes/rules/" }
+      - { prefix: "/api/scans", package: "routes/scans/" }
+      - { prefix: "/api/ssh", package: "routes/ssh/" }
+      - { prefix: "/api/system", package: "routes/system/" }
+      - { prefix: "/api/bulk", package: "routes/hosts/bulk_operations.py", note: "secondary" }
+      - { prefix: "/api/integration/metrics", package: "routes/integrations/metrics.py", note: "secondary" }
+
+    health_endpoints:
+      - { path: "/health", auth: false, purpose: "container health check" }
+      - { path: "/health/service", auth: true, purpose: "service metrics" }
+      - { path: "/health/content", auth: true, purpose: "content/rule health" }
+      - { path: "/health/summary", auth: true, purpose: "combined overview" }
+      - { path: "/metrics", auth: false, purpose: "Prometheus scrape" }
+      - { path: "/security-info", auth: true, purpose: "FIPS/TLS config (admin only)" }
+
+  # --- Middleware Stack (order matters) ---
+  middleware:
+    - PrometheusMiddleware       # metrics collection
+    - TrustedHostMiddleware      # host validation
+    - CORSMiddleware             # cross-origin requests
+    - https_redirect_middleware  # HTTPS enforcement (production only)
+    - request_size_limit_middleware  # DoS prevention (100MB default)
+    - audit_middleware           # security event logging
+    - security_headers_middleware  # FIPS security headers
+    - rate_limiting_middleware   # token bucket (100 req/min per user, 1000/min per IP)
+
+  # --- Async Task Processing ---
+  celery:
+    broker: Redis
+    serializer: json  # no pickle
+    timezone: UTC
+    task_soft_limit: 6600   # 1h 50m
+    task_hard_limit: 7200   # 2h
+    worker_max_tasks_per_child: 1000
+    worker_prefetch_multiplier: 1
+    acks_late: true
+    reject_on_worker_lost: true
+    result_backend: Redis
+    result_expiry: 3600  # 1 hour
+
+    queues:
+      - default
+      - scans
+      - results
+      - maintenance
+      - monitoring
+      - host_monitoring
+      - health_monitoring
+      - compliance_scanning
+
+    beat_schedule:
+      - { task: dispatch-host-checks, interval: "30s", queue: host_monitoring }
+      - { task: discover-all-hosts-os, interval: "daily 02:00 UTC", queue: default }
+      - { task: detect-stale-scans, interval: "10m", queue: maintenance }
+      - { task: dispatch-compliance-scans, interval: "2m", queue: compliance_scanning }
+      - { task: expire-compliance-maintenance, interval: "hourly", queue: compliance_scanning }
+      - { task: create-daily-posture-snapshots, interval: "daily 00:30 UTC", queue: default }
+      - { task: cleanup-old-posture-snapshots, interval: "daily 03:00 UTC", queue: maintenance }
+
+    task_routing:
+      scan_host: scans
+      execute_scan: scans
+      process_scan_result: results
+      run_scheduled_kensa_scan: compliance_scanning
+      dispatch_compliance_scans: compliance_scanning
+      initialize_compliance_schedules: compliance_scanning
+      expire_compliance_maintenance: compliance_scanning
+      execute_remediation: default
+      execute_rollback: default
+      cleanup_old_files: maintenance
+      detect_stale_scans: maintenance
+      check_host_connectivity: host_monitoring
+      dispatch_host_checks: host_monitoring
+      queue_host_checks: monitoring
+      deliver_webhook: default
+      execute_host_discovery: default
+      import_scap_content: default
+      enrich_scan_results: default
+
+  # --- Backend Package Structure ---
+  backend_packages:
+    app_root: "backend/app/"
+    directories:
+      routes: "API endpoints (15 packages)"
+      services: "Business logic (21 packages + 9 flat files)"
+      models: "Pydantic models and enums (11 files)"
+      schemas: "Pydantic request/response schemas (9 files)"
+      tasks: "Celery background tasks (14+ files)"
+      plugins: "Kensa ORSA plugin (11 files)"
+      middleware: "CORS, RBAC, metrics, auth"
+      encryption: "AES-256-GCM, key management"
+      core: "Config, database connections, dependency injection"
+      utils: "QueryBuilder, MutationBuilders, validators, formatters"
+      repositories: "Data access layer (MongoDB only — deprecated)"
+      cli: "Command-line tools"
+      constants: "Constants and enums"
+      data: "Data fixtures/seeds"
+      logs: "Logging configuration"
+      migrations: "Alembic schema migrations"
+
+    sqlalchemy_models_location: "backend/app/models/sql_models.py"
+    pydantic_schemas_location: "backend/app/schemas/"
+
+    service_packages:
+      - { name: "auth/", domain: "Authentication, credentials, MFA", files: 7 }
+      - { name: "authorization/", domain: "RBAC and permissions", files: 2 }
+      - { name: "compliance/", domain: "Temporal compliance, exceptions, alerts, audit", files: "4+" }
+      - { name: "compliance_rules/", domain: "Rule upload and management", files: 2 }
+      - { name: "content/", domain: "SCAP content parsing (legacy)", files: 3 }
+      - { name: "discovery/", domain: "Host discovery via SSH", files: 5 }
+      - { name: "engine/", domain: "Scan execution (executors, scanners, parsers)", files: 5 }
+      - { name: "framework/", domain: "Compliance framework mapping", files: 6 }
+      - { name: "infrastructure/", domain: "Email, metrics, audit, config, sandboxing", files: 9 }
+      - { name: "licensing/", domain: "Feature gating (free vs OpenWatch+)", files: "1+" }
+      - { name: "monitoring/", domain: "Host monitoring, health, drift, scheduling", files: 7 }
+      - { name: "owca/", domain: "Compliance scoring algorithm", files: 2 }
+      - { name: "plugins/", domain: "Plugin execution framework", files: 2 }
+      - { name: "plugins/orsa/", domain: "ORSA v2.0 plugin registry", files: "2+" }
+      - { name: "remediation/", domain: "Automated fix execution", files: 2 }
+      - { name: "rules/", domain: "Rule scanning and association", files: 5 }
+      - { name: "ssh/", domain: "SSH connections, key validation, known hosts", files: 11 }
+      - { name: "system_info/", domain: "Server intelligence collection", files: "1+" }
+      - { name: "utilities/", domain: "Migrations, key lifecycle, CSV", files: 5 }
+      - { name: "validation/", domain: "Error classification, sanitization", files: 6 }
+      - { name: "xccdf/", domain: "XCCDF report generation (legacy)", files: 2 }
+
+  # --- Frontend Architecture ---
+  frontend:
+    source_root: "frontend/src/"
+    directories:
+      components: "Reusable UI components"
+      pages: "Route-level page components"
+      services: "API clients and adapters"
+      store: "Redux store and slices"
+      hooks: "Custom React hooks"
+      types: "TypeScript type definitions (7 files)"
+      utils: "Helper functions"
+      contexts: "React contexts (minimal use)"
+      constants: "App constants"
+
+    api_client:
+      file: "frontend/src/services/api.ts"
+      base_url_dev: "'' (empty — Vite proxy to localhost:8000)"
+      base_url_prod: "VITE_API_URL env var or ''"
+      timeout: "30s"
+      auth_header: "Authorization: Bearer {token}"
+      token_source: "localStorage.getItem('auth_token')"
+      token_fallback: "Redux store (state.auth.token)"
+      security_headers: ["X-Requested-With", "X-CSRF-Token"]
+
+    adapters:
+      - auditAdapter.ts
+      - complianceAdapter.ts
+      - hostAdapter.ts
+      - hostDetailAdapter.ts
+      - postureAdapter.ts
+      - remediationAdapter.ts
+      - ruleReferenceAdapter.ts
+      - scanAdapter.ts
+
+    redux_slices:
+      - authSlice.ts
+      - userSlice.ts
+      - hostSlice.ts
+      - scanSlice.ts
+      - resultSlice.ts
+      - ruleSlice.ts
+      - contentSlice.ts
+      - notificationSlice.ts
+      - auditSlice.ts
+
+    vite_proxy:
+      - { path: "/api", target: "http://localhost:8000" }
+      - { path: "/platform-stats", target: "http://localhost:8002" }
+      - { path: "/framework-stats", target: "http://localhost:8002" }
+      - { path: "/all-rules", target: "http://localhost:8002" }
+
+    build_output: "build/"  # not dist/
+    code_splitting:
+      vendor: ["react", "react-dom"]
+      mui: ["@mui/material", "@mui/icons-material"]
+      redux: ["@reduxjs/toolkit", "react-redux", "redux-persist"]
+
+  # --- Compliance Engine ---
+  compliance_engine:
+    name: Kensa
+    version: "v1.2.5"
+    install: "pip install kensa"
+    rules: 338 YAML rules
+    rules_path_env: KENSA_RULES_PATH
+    access_pattern: "ORSA v2.0 plugin interface (never call Kensa directly)"
+    plugin_location: "backend/app/plugins/kensa/ (11 files)"
+    import_syntax: "from runner.* import ..."
+
+    frameworks:
+      - { id: "cis-rhel9-v2.0.0", name: "CIS RHEL 9 v2.0.0", controls: 271 }
+      - { id: "stig-rhel9-v2r7", name: "STIG RHEL 9 V2R7", controls: 338 }
+      - { id: "nist-800-53-r5", name: "NIST 800-53 R5", controls: 87 }
+      - { id: "pci-dss-v4.0", name: "PCI-DSS v4.0", controls: 45 }
+      - { id: "fedramp-moderate", name: "FedRAMP Moderate", controls: 87 }
+
+    mapping_sources:
+      inline: "rules/*.yml -> references: key (sparse for PCI/NIST/FedRAMP)"
+      files: "mappings/*.yaml (authoritative source for full framework coverage)"
+      sync: "KensaRuleSyncService -> framework_mappings table"
+
+  # --- CI/CD Pipeline ---
+  ci:
+    platform: GitHub Actions
+    trigger: "push/PR to main and develop"
+
+    backend_job:
+      runner: ubuntu-latest
+      services: ["PostgreSQL 15.10-alpine", "Redis 7.4.1-alpine"]
+      steps:
+        - "Black formatter check (100 char line length)"
+        - "Flake8 linter (120 char max)"
+        - "MyPy type checking (strict mode)"
+        - "Bandit security scanner"
+        - "Safety dependency vulnerability check"
+        - "Alembic migrations"
+        - "Pytest (coverage threshold: 31%)"
+        - "Docker image build"
+
+    frontend_job:
+      runner: ubuntu-latest
+      steps:
+        - "ESLint linter"
+        - "Prettier format check (non-blocking)"
+        - "TypeScript type check (tsc --noEmit)"
+        - "Vitest with coverage"
+        - "npm run build"
+        - "Docker image build"
+
+    e2e_job:
+      trigger: "backend changes OR critical frontend changes OR 'run-e2e' label"
+      runner: ubuntu-latest
+      browser: chromium
+      test_users:
+        - "admin@example.com"
+        - "analyst@example.com"
+        - "auditor@example.com"
+
+    docker_push:
+      trigger: "push to main, all tests pass"
+      registry: "ghcr.io"
+      tags: ["latest", "{github-sha}"]
+
+  # --- Environment Differences ---
+  environments:
+    development:
+      fips_mode: false
+      require_https: false
+      debug: true
+      ssh_strict_mode: false
+      license_tier: openwatch_plus
+      db_port_exposed: 5433
+      redis_port_exposed: 6379
+
+    production:
+      fips_mode: true
+      require_https: true
+      debug: false
+      ssh_strict_mode: true
+      log_level: INFO
+      resource_limits:
+        backend: { cpu: 2, memory: "4GB" }
+        worker: { cpu: 4, memory: "8GB" }
+        beat: { cpu: 0.5, memory: "512MB" }
+        database: { cpu: 2, memory: "4GB" }
+        redis: { cpu: 1, memory: "2GB" }
+        frontend: { cpu: 1, memory: "1GB" }
+
+# ---------------------------------------------------------------------------
+# CONSTRAINTS — Cross-cutting rules all modules MUST follow
+# ---------------------------------------------------------------------------
+constraints:
+  data_access:
+    - MUST use SQL Builders (QueryBuilder, InsertBuilder, UpdateBuilder, DeleteBuilder) for all PostgreSQL operations
+    - MUST NOT use raw SQL strings except for documented exceptions (LATERAL JOINs, complex CASE)
+    - MUST use UUID primary keys (NOT integers)
+    - MUST use Alembic for all schema changes
+
+  api:
+    - MUST prefix all REST endpoints with /api
+    - MUST validate all input with Pydantic schemas at API boundary
+    - MUST use @require_role() decorator on all protected endpoints
+    - MUST return consistent error shapes (see error-model.spec.yaml)
+
+  imports:
+    - MUST import from package __init__.py, not internal files
+    - MUST use absolute paths for cross-package imports
+    - MUST use relative paths for within-package imports
+
+  async:
+    - MUST route tasks to named Celery queues via task_routing config
+    - MUST NOT use pickle serialization (json only)
+    - MUST set task soft/hard time limits
+
+  compliance_engine:
+    - MUST access Kensa exclusively through ORSA v2.0 plugin interface
+    - MUST NOT call Kensa runner directly from services or routes
+    - MUST use KensaRuleSyncService for rule/mapping synchronization to PostgreSQL
+
+  frontend:
+    - MUST use 'auth_token' as localStorage key for JWT (NOT 'token')
+    - MUST use domain-specific adapters in services/adapters/ for API calls
+    - MUST use React Query for server state, Redux for global client state
+
+  infrastructure:
+    - MUST run backend as non-root user (UID 10001)
+    - MUST run frontend nginx as non-root user (UID 10002)
+    - MUST NOT expose database or Redis ports in production
+
+  deprecated:
+    - MUST NOT add new MongoDB code, collections, or dependencies
+    - MUST NOT use content/ service package for new features (legacy SCAP)
+    - MUST NOT use xccdf/ service package for new features (legacy)
+
+# ---------------------------------------------------------------------------
+# KNOWN ISSUES — Flagged during archaeology
+# ---------------------------------------------------------------------------
+known_issues:
+  - id: ARCH-1
+    description: >
+      Evidence not fully captured — OpenWatch stores 'detail' in scan_findings
+      but not the full Kensa Evidence dataclass. Consider adding 'evidence JSONB'
+      column to scan_findings.
+    source: "CLAUDE.md (Known Integration Gap)"
+
+  - id: ARCH-2
+    description: >
+      9 flat service files remain unpackaged (baseline_service.py,
+      bulk_scan_orchestrator.py, etc.) with low importer counts.
+    source: "context/MODULE_BOUNDARIES.md"
+
+  - id: ARCH-3
+    description: >
+      Backend models/ directory contains Pydantic models (11 files), not
+      SQLAlchemy ORM models. SQLAlchemy models are in models/sql_models.py.
+      Naming may cause confusion.
+    source: "archaeology — backend agent inventory"
+
+  - id: ARCH-4
+    description: >
+      Frontend Vite proxy includes routes to port 8002 (platform-stats,
+      framework-stats, all-rules) but no service runs on port 8002 in
+      docker-compose. Possibly a separate stats service not yet containerized.
+    source: "archaeology — frontend vite.config.ts"
+
+  - id: ARCH-5
+    description: >
+      ARCHITECTURE_OVERVIEW.md lists JWT access token as '1h', QUICK_REFERENCE.md
+      lists '30 min'. Actual value depends on config.py OPENWATCH_ACCESS_TOKEN_EXPIRE.
+      Documentation inconsistency.
+    source: "archaeology — cross-referencing context docs"
