@@ -137,7 +137,7 @@ jobs:
 
       - name: Upload coverage reports
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: backend-coverage
           path: backend/htmlcov/
@@ -192,7 +192,7 @@ jobs:
 
       - name: Upload frontend coverage
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: frontend-coverage
           path: frontend/coverage/
@@ -202,7 +202,7 @@ jobs:
         run: npm run build
 
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: frontend-build
           path: frontend/dist/
@@ -447,7 +447,7 @@ jobs:
           npx playwright test --project=chromium --reporter=html,junit
 
       - name: Upload E2E test results
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         if: always() && env.E2E_REQUIRED == 'true'
         with:
           name: e2e-test-results
@@ -457,7 +457,7 @@ jobs:
             frontend/junit.xml
 
       - name: Upload E2E screenshots on failure
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         if: failure() && env.E2E_REQUIRED == 'true'
         with:
           name: e2e-failure-screenshots
