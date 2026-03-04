@@ -90,8 +90,20 @@ prepare_sources() {
 
     cd "$PROJECT_ROOT"
 
-    # Use fixed version to match spec file
-    local version="1.2.1"
+    # Source version from single source of truth
+    source "$SCRIPT_DIR/../version.env"
+
+    # Parse semver: "0.0.0-dev" -> rpm_version="0.0.0", rpm_release="dev.1"
+    if [[ "$VERSION" == *"-"* ]]; then
+        rpm_version="${VERSION%-*}"
+        prerelease="${VERSION#*-}"
+        rpm_release="${prerelease}.1"
+    else
+        rpm_version="$VERSION"
+        rpm_release="1"
+    fi
+
+    log_info "Version: $VERSION (RPM: ${rpm_version}-${rpm_release}) Codename: $CODENAME"
 
     # Build SELinux policy first
     log_info "Building SELinux policy..."
@@ -103,7 +115,7 @@ prepare_sources() {
     cd "$PROJECT_ROOT"
 
     # Create source tarball
-    local tarball_name="openwatch-${version}.tar.gz"
+    local tarball_name="openwatch-${rpm_version}.tar.gz"
     local tarball_path="$BUILD_DIR/SOURCES/$tarball_name"
 
     # Create clean source archive (exclude build artifacts and sensitive files)
@@ -112,12 +124,12 @@ prepare_sources() {
         --exclude='node_modules/' --exclude='venv/' --exclude='*.log' \
         --exclude='*.tmp' --exclude='*.backup' --exclude='*.swp' \
         --exclude='security/keys/*.pem' --exclude='*.sock' --exclude='*.pid' \
-        --transform "s,^,openwatch-${version}/," \
+        --transform "s,^,openwatch-${rpm_version}/," \
         -czf "$tarball_path" \
         .
 
     log_success "Source tarball created: $tarball_path"
-    echo "Version: $version"
+    echo "Version: $rpm_version"
 }
 
 # Copy spec file
@@ -136,7 +148,12 @@ build_rpm() {
     cd "$BUILD_DIR"
 
     # Build source and binary RPMs (skip dependency check on Ubuntu)
-    rpmbuild --nodeps -ba SPECS/openwatch.spec
+    # Version macros sourced from packaging/version.env via prepare_sources
+    rpmbuild --nodeps -ba \
+        --define "ow_version ${rpm_version}" \
+        --define "ow_release ${rpm_release}" \
+        --define "ow_codename ${CODENAME}" \
+        SPECS/openwatch.spec
 
     if [ $? -eq 0 ]; then
         log_success "RPM build completed successfully!"

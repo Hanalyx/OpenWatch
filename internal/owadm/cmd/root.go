@@ -12,6 +12,7 @@ import (
 var (
 	// Build information (set by ldflags)
 	Version   = "dev"
+	Codename  = "Eyrie"
 	Commit    = "unknown"
 	BuildTime = "unknown"
 
@@ -39,7 +40,7 @@ var rootCmd = &cobra.Command{
 
 Simplifies container operations for OpenWatch SCAP compliance scanning platform.
 Supports both Docker and Podman runtimes with automatic detection.`,
-	Version: fmt.Sprintf("%s (commit: %s, built: %s)", Version, Commit, BuildTime),
+	Version: fmt.Sprintf("%s (%s) (commit: %s, built: %s)", Version, Codename, Commit, BuildTime),
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.

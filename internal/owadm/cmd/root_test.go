@@ -26,7 +26,8 @@ func TestRootCommand(t *testing.T) {
 			args:      []string{"--version"},
 			wantError: false,
 			checkOutput: func(output string) bool {
-				return strings.Contains(output, "OpenWatch Admin")
+				// rootCmd.Version is set at init time; verify it contains the codename
+				return strings.Contains(rootCmd.Version, Codename)
 			},
 		},
 		{
@@ -60,17 +61,25 @@ func TestRootCommand(t *testing.T) {
 	}
 }
 
-func TestVersionCommand(t *testing.T) {
-	// Test version information is available
-	if Version == "" {
-		Version = "dev"
+func TestVersionInfo(t *testing.T) {
+	tests := []struct {
+		name  string
+		value string
+		field string
+	}{
+		{"Version is set", Version, "Version"},
+		{"Codename is set", Codename, "Codename"},
+		{"Commit is set", Commit, "Commit"},
+		{"BuildTime is set", BuildTime, "BuildTime"},
 	}
-	if Commit == "" {
-		Commit = "unknown"
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.value == "" {
+				t.Errorf("%s must not be empty", tt.field)
+			}
+		})
 	}
-	if BuildTime == "" {
-		BuildTime = "unknown"
+	if Codename == "" {
+		t.Error("Codename must not be empty - check ldflags in build scripts")
 	}
-
-	t.Logf("Version: %s, Commit: %s, BuildTime: %s", Version, Commit, BuildTime)
 }

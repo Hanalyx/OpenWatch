@@ -13,9 +13,13 @@
 %global commit %(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 %global python_version 3.12
 
+%{!?ow_version: %global ow_version 0.0.0}
+%{!?ow_release: %global ow_release dev.1}
+%{!?ow_codename: %global ow_codename Eyrie}
+
 Name:           openwatch
-Version:        2.0.0
-Release:        1%{?dist}
+Version:        %{ow_version}
+Release:        %{ow_release}%{?dist}
 Summary:        Enterprise SCAP compliance scanning platform - Native deployment
 License:        Apache-2.0
 URL:            https://github.com/hanalyx/openwatch
@@ -99,7 +103,7 @@ else
 fi
 
 export BUILD_TIME=$(date -u '+%%Y-%%m-%%d_%%H:%%M:%%S')
-export LDFLAGS="-s -w -X github.com/hanalyx/openwatch/internal/owadm/cmd.Version=%{version} -X github.com/hanalyx/openwatch/internal/owadm/cmd.Commit=%{commit} -X github.com/hanalyx/openwatch/internal/owadm/cmd.BuildTime=$BUILD_TIME"
+export LDFLAGS="-s -w -X github.com/hanalyx/openwatch/internal/owadm/cmd.Version=%{version} -X github.com/hanalyx/openwatch/internal/owadm/cmd.Codename=%{ow_codename} -X github.com/hanalyx/openwatch/internal/owadm/cmd.Commit=%{commit} -X github.com/hanalyx/openwatch/internal/owadm/cmd.BuildTime=$BUILD_TIME"
 
 # Build with native tag (excludes container-specific commands)
 go build -tags native -ldflags "$LDFLAGS" -o bin/owadm ./cmd/owadm
@@ -111,6 +115,20 @@ cd frontend
 npm ci --production=false
 npm run build
 cd ..
+
+# =============================================================================
+# Install Kensa into a temporary venv so we can bundle its rules and mappings
+# for air-gapped deployment
+# =============================================================================
+python%{python_version} -m venv .kensa-build-venv
+.kensa-build-venv/bin/pip install --quiet -r backend/requirements.txt
+KENSA_SHARE=$(find .kensa-build-venv -path '*/share/kensa' -type d | head -1)
+if [ -z "$KENSA_SHARE" ]; then
+    echo "ERROR: Could not locate Kensa share directory after pip install" >&2
+    exit 1
+fi
+# Copy to a fixed path so %install can find it (separate shell)
+cp -r "$KENSA_SHARE" .kensa-data
 
 # =============================================================================
 # Build SELinux policy if tools are available
@@ -171,7 +189,9 @@ install -m 0755 bin/owadm %{buildroot}%{_bindir}/owadm
 # Install backend application
 # =============================================================================
 cp -r backend/app %{buildroot}/opt/openwatch/backend/
-cp -r backend/kensa %{buildroot}/opt/openwatch/backend/
+# Bundle Kensa rules, mappings, config, and schema from pip package
+# for air-gapped deployment (.kensa-data created during %build)
+cp -r .kensa-data/* %{buildroot}/opt/openwatch/backend/kensa/
 cp -r backend/alembic %{buildroot}/opt/openwatch/backend/
 cp backend/requirements.txt %{buildroot}/opt/openwatch/backend/
 cp backend/alembic.ini %{buildroot}/opt/openwatch/backend/
@@ -179,7 +199,7 @@ cp backend/alembic.ini %{buildroot}/opt/openwatch/backend/
 # =============================================================================
 # Install frontend (pre-built React application)
 # =============================================================================
-cp -r frontend/dist/* %{buildroot}/opt/openwatch/frontend/
+cp -r frontend/build/* %{buildroot}/opt/openwatch/frontend/
 
 # =============================================================================
 # Install configuration files
@@ -302,10 +322,10 @@ disable_existing_loggers: false
 
 formatters:
   json:
-    format: '{"timestamp": "%(asctime)s", "level": "%(levelname)s", "logger": "%(name)s", "message": "%(message)s"}'
-    datefmt: '%Y-%m-%dT%H:%M:%S%z'
+    format: '{"timestamp": "%%(asctime)s", "level": "%%(levelname)s", "logger": "%%(name)s", "message": "%%(message)s"}'
+    datefmt: '%%Y-%%m-%%dT%%H:%%M:%%S%%z'
   standard:
-    format: '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format: '%%(asctime)s - %%(name)s - %%(levelname)s - %%(message)s'
 
 handlers:
   console:
@@ -662,7 +682,7 @@ log_info "Generating OpenWatch secrets..."
 
 # Backup existing secrets
 if [ -f "$SECRETS_FILE" ] && ! grep -q "CHANGEME" "$SECRETS_FILE"; then
-    cp "$SECRETS_FILE" "$SECRETS_FILE.backup.$(date +%Y%m%d_%H%M%S)"
+    cp "$SECRETS_FILE" "$SECRETS_FILE.backup.$(date +%%Y%%m%%d_%%H%%M%%S)"
     log_info "Backed up existing secrets file"
 fi
 
@@ -959,6 +979,12 @@ fi
 # Changelog
 # =============================================================================
 %changelog
+* Mon Mar 03 2026 OpenWatch Team <admin@hanalyx.com> - 0.0.0-dev.1
+- Pre-release build (Eyrie) with centralized version management
+- Version now driven by packaging/version.env single source of truth
+- RPM version/release/codename injected via --define at build time
+- Codename ldflag added to owadm build
+
 * Wed Feb 12 2026 OpenWatch Team <admin@hanalyx.com> - 2.0.0-1
 - Initial native RPM package (non-containerized deployment)
 - Kensa compliance engine with 338 YAML rules
