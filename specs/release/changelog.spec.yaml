@@ -1,0 +1,190 @@
+spec: changelog
+version: "1.0"
+status: active
+owner: engineering
+
+summary: >
+  Defines the format, content rules, and update workflow for CHANGELOG.md.
+  CHANGELOG.md is the human-maintained source of record for all notable changes
+  to OpenWatch across every version. It complements GitHub Release notes
+  (auto-generated from PR labels) by capturing context that automated tools miss.
+
+---
+
+# Roles
+
+# CHANGELOG.md     Human-authored. Lives in the repo root. Updated with every version bump.
+# GitHub Releases  Auto-generated from PR titles/labels by release.yml. Targets users.
+# RPM changelog    In openwatch.spec / openwatch-po.spec. Updated with every RPM release.
+# These three serve different audiences and must not replace each other.
+
+---
+
+format:
+  file: CHANGELOG.md
+  location: repo root
+  encoding: UTF-8
+  line_endings: LF
+
+  structure:
+    - title_block: |
+        # Changelog
+        <blank>
+        <one-line description of what this file is>
+        Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+        Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+        <blank>
+        ---
+
+    - unreleased_section: |
+        ## [Unreleased]
+        <blank>
+        ---
+
+    - version_sections: one per released or pre-release version, newest first
+
+  version_header:
+    pattern: "## [{VERSION}] {CODENAME} — {DATE}"
+    examples:
+      - "## [0.0.1] Eyrie — 2026-03-15"
+      - "## [0.0.0-dev] Eyrie — 2026-03-03"
+    rules:
+      - VERSION matches packaging/version.env exactly
+      - CODENAME matches packaging/version.env exactly
+      - DATE is the calendar date the version entry was written (YYYY-MM-DD)
+      - em-dash (—) separates codename from date
+      - No trailing space after the date
+
+  version_summary:
+    required: true
+    position: immediately after the version header, before any subsections
+    format: one sentence describing the theme or purpose of this version
+    max_length: 120 characters
+    examples:
+      good:
+        - "Initial pre-release establishing centralized version management and packaging infrastructure."
+        - "Bug-fix release resolving three blocking issues in the remediation workflow."
+        - "Feature release adding field-level drift detection and host snapshot population."
+      bad:
+        - ""                                              # empty
+        - "This version contains various improvements."  # vague
+        - "See below for details."                       # redundant
+
+  subsections:
+    allowed:
+      - Added:      new capabilities visible to operators or developers
+      - Changed:    modifications to existing behavior, APIs, or defaults
+      - Fixed:      corrections to defects or regressions
+      - Removed:    features, files, or behaviors that no longer exist
+      - Deprecated: features that still work but are scheduled for removal
+      - Security:   vulnerability fixes or hardening changes
+    rules:
+      - Only include subsections that have content (omit empty ones)
+      - Order: Added, Changed, Fixed, Removed, Deprecated, Security
+      - Each subsection starts with "### {NAME}"
+      - One blank line before each subsection
+      - No blank line between subsection header and its entries
+
+  entries:
+    format: "- {ENTRY}"
+    rules:
+      - Begin with an imperative verb (Add, Fix, Change, Remove, Deprecate)
+      - One line per entry
+      - Max 100 characters per entry (code paths can use backticks for clarity)
+      - No trailing period
+      - No emojis
+      - Avoid "we", "our", "I" — write objectively
+      - Include the component or file scope when ambiguous
+      - Use backticks for file paths, flags, identifiers, and commands
+    examples:
+      good:
+        - "Add `packaging/version.env` as single source of truth for version and codename"
+        - "Fix RPM build script hardcoded to `1.2.1`; now reads from `version.env`"
+        - "Change `owadm --version` output to include codename"
+        - "Remove hardcoded `Version: 2.0.0` from RPM spec files"
+      bad:
+        - "Various improvements"                         # no verb, vague
+        - "We fixed the bug that was causing issues."    # first-person, vague, period
+        - "Updated stuff"                                # no scope, vague
+        - "Fix the thing with the file"                  # no specifics
+
+  separator:
+    between_versions: "---"
+    position: after the last entry of a section, before the next version header
+
+---
+
+# Workflow
+
+workflow:
+  trigger: every change to packaging/version.env
+  steps:
+    1: Update VERSION and CODENAME in packaging/version.env
+    2: Add a new version section to CHANGELOG.md (newest at top, after [Unreleased])
+    3: Write a one-sentence version summary describing the theme of this version
+    4: Populate subsections with entries for all notable changes in this version
+    5: Move any items from [Unreleased] that are included in this version
+    6: Run packaging/tests/test_version_consistency.sh — must exit 0
+    7: Commit both version.env and CHANGELOG.md in the same commit
+
+  unreleased_section:
+    purpose: >
+      Accumulate entries for work completed but not yet assigned a version.
+      When a version is cut, move relevant [Unreleased] entries into the new section.
+    rule: Always keep the [Unreleased] section present, even if empty.
+
+  do_not:
+    - Edit past version sections (they are immutable records)
+    - Back-fill entries after a version is cut
+    - Skip the CHANGELOG update when bumping version.env
+    - Add entries for internal refactoring invisible to operators or developers
+    - Add entries for typo fixes, whitespace, or formatting-only changes
+
+---
+
+# Machine checks (enforced by test_version_consistency.sh)
+
+tests:
+  - id: changelog_has_current_version
+    description: >
+      CHANGELOG.md must contain a version header matching the current VERSION
+      from packaging/version.env.
+    check: grep -q "## \[{VERSION}\]" CHANGELOG.md
+    failure: >
+      CHANGELOG.md does not have an entry for {VERSION}.
+      Update CHANGELOG.md before bumping version.env.
+
+  - id: changelog_not_empty
+    description: CHANGELOG.md must exist and be non-empty.
+    check: test -s CHANGELOG.md
+
+  - id: unreleased_section_present
+    description: >
+      CHANGELOG.md must contain the [Unreleased] section.
+      This section must always be present, even when empty.
+    check: grep -q "## \[Unreleased\]" CHANGELOG.md
+
+---
+
+# Relationship to other changelogs
+
+integration:
+  github_releases:
+    source: PR titles and labels, auto-generated by .github/workflows/release.yml
+    audience: operators and users installing OpenWatch packages
+    overlap: GitHub Release notes summarize the same changes but at the PR level
+    rule: >
+      GitHub Release body pulls from CHANGELOG.md for the version summary.
+      The release.yml update-documentation step should extract the relevant
+      version section from CHANGELOG.md rather than relying solely on mikepenz.
+
+  rpm_changelog:
+    location: packaging/rpm/openwatch.spec and openwatch-po.spec (%changelog section)
+    format: RPM changelog format (date, name, email, version)
+    rule: >
+      RPM changelog entries are brief (1-3 lines per version).
+      Copy the version summary line from CHANGELOG.md as the RPM entry body.
+
+  deb_changelog:
+    location: generated inside build-deb.sh at build time
+    rule: Same as RPM — use the version summary from CHANGELOG.md.
