@@ -454,6 +454,9 @@ frontend_test.log
 !frontend/src/**/*.test.tsx
 !frontend/src/test/
 
+# Allow packaging test scripts
+!packaging/tests/
+
 # Temporary files
 *.tmp
 *.temp

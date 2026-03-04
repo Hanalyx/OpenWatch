@@ -3,9 +3,13 @@
 
 %global commit %(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 
+%{!?ow_version: %global ow_version 0.0.0}
+%{!?ow_release: %global ow_release dev.1}
+%{!?ow_codename: %global ow_codename Eyrie}
+
 Name:           openwatch-po
-Version:        2.0.0
-Release:        1%{?dist}
+Version:        %{ow_version}
+Release:        %{ow_release}%{?dist}
 Summary:        Enterprise SCAP compliance platform - Podman container deployment
 License:        Apache-2.0
 URL:            https://github.com/hanalyx/openwatch
@@ -88,7 +92,7 @@ else
 fi
 
 export BUILD_TIME=$(date -u '+%%Y-%%m-%%d_%%H:%%M:%%S')
-export LDFLAGS="-s -w -X github.com/hanalyx/openwatch/internal/owadm/cmd.Version=%{version} -X github.com/hanalyx/openwatch/internal/owadm/cmd.Commit=%{commit} -X github.com/hanalyx/openwatch/internal/owadm/cmd.BuildTime=$BUILD_TIME"
+export LDFLAGS="-s -w -X github.com/hanalyx/openwatch/internal/owadm/cmd.Version=%{version} -X github.com/hanalyx/openwatch/internal/owadm/cmd.Codename=%{ow_codename} -X github.com/hanalyx/openwatch/internal/owadm/cmd.Commit=%{commit} -X github.com/hanalyx/openwatch/internal/owadm/cmd.BuildTime=$BUILD_TIME"
 
 # Build with 'container' tag for container deployment mode
 go build -tags container -ldflags "$LDFLAGS" -o bin/owadm ./cmd/owadm
@@ -927,6 +931,12 @@ fi
 %dir %attr(755,openwatch,openwatch) %{_localstatedir}/cache/openwatch
 
 %changelog
+* Mon Mar 03 2026 OpenWatch Team <admin@hanalyx.com> - 0.0.0-dev.1
+- Pre-release build (Eyrie) with centralized version management
+- Version now driven by packaging/version.env single source of truth
+- RPM version/release/codename injected via --define at build time
+- Codename ldflag added to owadm build
+
 * Wed Feb 12 2026 OpenWatch Team <admin@hanalyx.com> - 2.0.0-1
 - NEW: Renamed package to openwatch-po for Podman container deployment
 - NEW: Added package conflict with openwatch (native), openwatch-do, openwatch-ko

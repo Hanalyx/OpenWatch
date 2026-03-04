@@ -1,6 +1,6 @@
 {
   "name": "openwatch-frontend",
-  "version": "1.2.0",
+  "version": "0.0.0-dev",
   "description": "OpenWatch FIPS-compliant security compliance monitoring frontend",
   "private": true,
   "type": "module",
