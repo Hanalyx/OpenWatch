@@ -155,15 +155,21 @@ class AlertGenerator:
         hostname: str,
     ) -> Optional[Dict[str, Any]]:
         """Check if compliance score dropped significantly."""
-        # Get historical score from specified window
+        # Get previous scan score from scan_results (most recent completed scan)
         query = text(
             """
-            SELECT compliance_score
-            FROM host_compliance_schedule
-            WHERE host_id = :host_id
+            SELECT CAST(sr.score AS FLOAT) AS compliance_score
+            FROM scan_results sr
+            JOIN scans s ON sr.scan_id = s.id
+            WHERE s.host_id = :host_id
+              AND s.status = 'completed'
+              AND s.completed_at >= :window_start
+            ORDER BY s.completed_at DESC
+            OFFSET 1 LIMIT 1
             """
         )
-        result = self.db.execute(query, {"host_id": str(host_id)})
+        window_start = datetime.now(timezone.utc) - timedelta(hours=window_hours)
+        result = self.db.execute(query, {"host_id": str(host_id), "window_start": window_start})
         row = result.fetchone()
 
         if not row or row.compliance_score is None:
@@ -222,17 +228,20 @@ class AlertGenerator:
         alerts = []
 
         # Get previous scan results for comparison
+        # scan_findings has no host_id — join through scans table
+        # Column is "status" ('pass'/'fail'), not "passed" (boolean)
         query = text(
             """
-            SELECT rule_id, passed
+            SELECT rule_id, (status = 'pass') AS passed
             FROM (
                 SELECT
-                    rule_id,
-                    passed,
-                    ROW_NUMBER() OVER (PARTITION BY rule_id ORDER BY created_at DESC) as rn
-                FROM scan_findings
-                WHERE host_id = :host_id
-                  AND (:scan_id IS NULL OR scan_id != :scan_id)
+                    sf.rule_id,
+                    sf.status,
+                    ROW_NUMBER() OVER (PARTITION BY sf.rule_id ORDER BY sf.created_at DESC) as rn
+                FROM scan_findings sf
+                JOIN scans s ON sf.scan_id = s.id
+                WHERE s.host_id = :host_id
+                  AND (:scan_id IS NULL OR sf.scan_id != :scan_id)
             ) t
             WHERE rn = 1
             """
@@ -350,14 +359,14 @@ class AlertGenerator:
 
         query = text(
             """
-            SELECT h.id, h.hostname, hcs.last_scan_completed
+            SELECT h.id, h.hostname, hs.last_scan_completed
             FROM hosts h
-            LEFT JOIN host_compliance_schedule hcs ON h.id = hcs.host_id
+            LEFT JOIN host_schedule hs ON h.id = hs.host_id
             WHERE h.is_active = true
-              AND hcs.maintenance_mode = false
+              AND (hs.maintenance_mode IS NULL OR hs.maintenance_mode = false)
               AND (
-                hcs.last_scan_completed IS NULL
-                OR hcs.last_scan_completed < :threshold
+                hs.last_scan_completed IS NULL
+                OR hs.last_scan_completed < :threshold
               )
             """
         )

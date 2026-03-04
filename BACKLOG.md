@@ -136,6 +136,16 @@ Gaps identified by comparing `docs/KENSA_DEVELOPER_GUIDE_V0.md` against current 
 
 ---
 
+## Bugs
+
+| Item | Priority | Status | Notes |
+|------|----------|--------|-------|
+| Host monitoring state transition: `'offline' is not a valid MonitoringState` | P1 | Open | After adding host 192.168.1.212, connectivity check succeeds (ping=True, ssh=True, status=online) but state transition from `offline` fails. Host ends up in `unknown` state instead of `online`. `MonitoringState` enum likely missing `offline` as a valid value, or the initial host status `"offline"` (set by InsertBuilder) doesn't match the enum. See `services/monitoring/state.py`. |
+| Host creation missing NOT NULL monitoring columns | P1 | Fixed | `InsertBuilder` in `routes/hosts/crud.py` was missing `check_priority` and 6 consecutive failure/success counter columns. Python-level `default=` not applied by raw SQL. Fixed by adding columns with defaults to INSERT. |
+| Alert generator: `passed` column does not exist in `scan_findings` | P1 | Fixed | `alert_generator.py` `_check_configuration_drift()` queried `passed` column and `host_id` directly on `scan_findings`. Actual schema uses `status` ('pass'/'fail') and requires JOIN through `scans` for `host_id`. |
+
+---
+
 ## Technical Debt
 
 | Item | Priority | Notes |

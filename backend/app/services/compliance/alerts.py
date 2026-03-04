@@ -10,6 +10,7 @@ Provides alert management functionality:
 Part of OpenWatch OS Transformation - Alert Thresholds (doc 03).
 """
 
+import json
 import logging
 from datetime import datetime, timedelta, timezone
 from enum import Enum
@@ -165,7 +166,7 @@ class AlertService:
                 "host_group_id": host_group_id,
                 "rule_id": rule_id,
                 "scan_id": str(scan_id) if scan_id else None,
-                "metadata": metadata,
+                "metadata": json.dumps(metadata) if metadata else None,
             },
         )
         row = result.fetchone()
