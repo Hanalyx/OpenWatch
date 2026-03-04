@@ -86,4 +86,4 @@ chardet==4.0.0
 semver==3.0.4  # Semantic versioning library for plugin version management (Phase 5)
 
 # Kensa compliance engine (rebranded from Aegis)
-kensa @ git+https://github.com/Hanalyx/kensa.git@v1.1.0
+kensa @ git+https://github.com/Hanalyx/kensa.git@v1.2.5
