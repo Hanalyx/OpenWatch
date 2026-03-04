@@ -1,0 +1,193 @@
+spec: package-build
+version: "1.0"
+status: active
+owner: engineering
+
+summary: >
+  Defines the container-based RPM and DEB package build jobs that run as part
+  of the GitHub Actions release workflow. Packages are built inside disposable
+  containers (CentOS Stream 9 for RPM, Ubuntu 24.04 for DEB) and uploaded as
+  GitHub Release assets.
+
+---
+
+# Variants
+
+variants:
+  rpm:
+    container: quay.io/centos/centos:stream9
+    runner: ubuntu-latest
+    build_script: packaging/rpm/build-rpm.sh
+    output_glob: "packaging/rpm/dist/*.rpm"
+    artifact_naming: "openwatch-{VERSION}-{RELEASE}.x86_64.rpm"
+    dependencies:
+      - rpm-build
+      - rpmdevtools
+      - golang
+      - git
+      - make
+      - selinux-policy-devel
+      - "nodejs:20 (dnf module)"
+
+  deb:
+    container: ubuntu:24.04
+    runner: ubuntu-latest
+    build_script: packaging/deb/build-deb.sh
+    output_glob: "packaging/deb/dist/*.deb"
+    artifact_naming: "openwatch_{VERSION}_{ARCH}.deb"
+    dependencies:
+      - build-essential
+      - golang-go
+      - git
+      - fakeroot
+      - lintian
+      - dpkg-dev
+      - ca-certificates
+
+---
+
+# Version flow
+
+version:
+  source_of_truth: packaging/version.env
+  format: 'VERSION="X.Y.Z" or VERSION="X.Y.Z-pre"'
+
+  rpm_mapping:
+    description: >
+      build-rpm.sh parses VERSION into rpm_version and rpm_release.
+      "0.0.0-dev" -> rpm_version="0.0.0", rpm_release="dev.1"
+      "1.2.3"     -> rpm_version="1.2.3", rpm_release="1"
+    injected_via: rpmbuild --define "ow_version ..." --define "ow_release ..."
+
+  deb_mapping:
+    description: >
+      build-deb.sh converts VERSION to Debian-compatible format.
+      "0.0.0-dev" -> DEB_VERSION="0.0.0~dev1"
+      "1.2.3"     -> DEB_VERSION="1.2.3-1"
+    injected_via: sed on DEBIAN/control Version field
+
+---
+
+# Tag verification rule
+
+tag_verification:
+  description: >
+    The git tag (stripped of leading "v") must match the VERSION value in
+    packaging/version.env. The build fails immediately if they disagree.
+    This prevents accidental mismatches between the tag and the package
+    version baked into the artifact.
+
+  workflow_dispatch:
+    description: >
+      When triggered manually, the version input replaces the tag.
+      The same verification applies.
+
+  check: |
+    TAG_VERSION="${GITHUB_REF#refs/tags/v}"
+    source packaging/version.env
+    ENV_VERSION="${VERSION}"
+    if [[ "$TAG_VERSION" != "$ENV_VERSION" ]]; then
+      echo "Tag version ($TAG_VERSION) != version.env ($ENV_VERSION)"
+      exit 1
+    fi
+
+---
+
+# Build stages
+
+stages:
+  - name: checkout
+    action: actions/checkout@v5
+
+  - name: verify_version
+    action: >
+      Strip "v" prefix from git tag, source packaging/version.env,
+      compare. Fail if mismatch.
+
+  - name: install_deps
+    action: >
+      Install build dependencies inside the container using the
+      platform package manager (dnf for RPM, apt-get for DEB).
+
+  - name: build
+    action: >
+      Run the existing build script (build-rpm.sh or build-deb.sh).
+      The script sources version.env internally.
+
+  - name: upload
+    action: >
+      Upload built packages to the GitHub Release using
+      softprops/action-gh-release@v2 with tag_name from create-release.
+
+---
+
+# Job dependency graph
+
+dependencies:
+  build-rpm:
+    needs: create-release
+    parallel_with: [build-artifacts, package-release, build-deb]
+
+  build-deb:
+    needs: create-release
+    parallel_with: [build-artifacts, package-release, build-rpm]
+
+---
+
+# Machine checks (enforced by packaging/tests/test_package_build.sh)
+
+tests:
+  - id: build_scripts_exist
+    description: >
+      build-rpm.sh and build-deb.sh must exist and be executable.
+    check: test -x packaging/rpm/build-rpm.sh && test -x packaging/deb/build-deb.sh
+
+  - id: scripts_source_version_env
+    description: >
+      Both build scripts must source version.env to read the version.
+    check: >
+      grep -q 'source.*version\.env' packaging/rpm/build-rpm.sh &&
+      grep -q 'source.*version\.env' packaging/deb/build-deb.sh
+
+  - id: rpm_spec_macros
+    description: >
+      Both RPM .spec files must use %{ow_version} and %{ow_release} macros
+      for Version and Release fields.
+    check: >
+      grep -q '%{ow_version}' packaging/rpm/openwatch.spec &&
+      grep -q '%{ow_release}' packaging/rpm/openwatch.spec &&
+      grep -q '%{ow_version}' packaging/rpm/openwatch-po.spec &&
+      grep -q '%{ow_release}' packaging/rpm/openwatch-po.spec
+
+  - id: deb_control_placeholder
+    description: >
+      DEBIAN/control must have Version: 0.0.0 as a placeholder that
+      build-deb.sh replaces at build time.
+    check: "grep -q '^Version: 0.0.0$' packaging/deb/DEBIAN/control"
+
+  - id: deb_maintainer_scripts
+    description: >
+      postinst, prerm, and postrm must exist and be executable.
+    check: >
+      test -x packaging/deb/DEBIAN/postinst &&
+      test -x packaging/deb/DEBIAN/prerm &&
+      test -x packaging/deb/DEBIAN/postrm
+
+  - id: workflow_jobs
+    description: >
+      release.yml must contain build-rpm: and build-deb: job definitions.
+    check: >
+      grep -q 'build-rpm:' .github/workflows/release.yml &&
+      grep -q 'build-deb:' .github/workflows/release.yml
+
+  - id: version_env_format
+    description: >
+      packaging/version.env must contain quoted VERSION= and CODENAME= lines.
+    check: >
+      grep -qE '^VERSION="' packaging/version.env &&
+      grep -qE '^CODENAME="' packaging/version.env
+
+  - id: bash_syntax
+    description: >
+      Both build scripts must pass bash -n syntax checking.
+    check: bash -n packaging/rpm/build-rpm.sh && bash -n packaging/deb/build-deb.sh
