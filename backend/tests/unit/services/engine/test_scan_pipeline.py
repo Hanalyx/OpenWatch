@@ -168,13 +168,20 @@ def test_scan_response_model():
 
 @pytest.mark.unit
 def test_scan_status_values():
-    """Scan pipeline uses defined status values."""
+    """Scan pipeline uses defined status values including TIMED_OUT."""
+    from app.models.scan_models import ScanStatus
+
     # These are the status values used across the codebase
-    valid_statuses = {"pending", "running", "completed", "failed", "stopped"}
+    valid_statuses = {"pending", "running", "completed", "failed", "timed_out", "stopped"}
+
+    # Verify the enum covers the expected values
+    enum_values = {s.value for s in ScanStatus}
+    # cancelled is in enum but "stopped" is the DB convention
+    assert "timed_out" in enum_values, "ScanStatus must include timed_out"
 
     # Verify the sync path uses "running" as initial status
     assert "running" in valid_statuses
 
     # Verify terminal states
-    terminal = {"completed", "failed", "stopped"}
+    terminal = {"completed", "failed", "timed_out", "stopped"}
     assert terminal.issubset(valid_statuses)
