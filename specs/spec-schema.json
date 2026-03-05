@@ -1,0 +1,132 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openwatch.dev/specs/spec-schema.json",
+  "title": "OpenWatch Behavioral Spec",
+  "description": "JSON Schema for validating .spec.yaml behavioral specification files.",
+  "type": "object",
+  "required": ["spec", "version", "status", "owner", "summary"],
+  "properties": {
+    "spec": {
+      "type": "string",
+      "description": "Unique spec identifier (kebab-case).",
+      "pattern": "^[a-z][a-z0-9-]*$"
+    },
+    "version": {
+      "type": "string",
+      "description": "Spec version (semver-like, e.g. '1.0', '2.1').",
+      "pattern": "^\\d+\\.\\d+(\\.\\d+)?(-[a-zA-Z0-9.]+)?$"
+    },
+    "status": {
+      "type": "string",
+      "description": "Spec lifecycle status.",
+      "enum": ["draft", "review", "active", "deprecated"]
+    },
+    "owner": {
+      "type": "string",
+      "description": "Team or individual responsible for this spec."
+    },
+    "summary": {
+      "type": "string",
+      "description": "One-paragraph summary of what this spec defines.",
+      "minLength": 10
+    },
+    "acceptance_criteria": {
+      "type": "array",
+      "description": "Testable behavioral requirements.",
+      "items": {
+        "type": "object",
+        "required": ["id", "description"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "AC identifier (e.g. 'AC-1', 'AC-12').",
+            "pattern": "^AC-\\d+$"
+          },
+          "description": {
+            "type": "string",
+            "description": "Human-readable description of the acceptance criterion."
+          },
+          "approval_gate": {
+            "type": "boolean",
+            "description": "If true, requires explicit human sign-off before implementation.",
+            "default": false
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "constraints": {
+      "description": "Behavioral constraints using RFC 2119 keywords (MUST, MUST NOT, SHOULD, MAY). Can be a flat array of strings or an object grouping constraints by category.",
+      "oneOf": [
+        {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": true
+        }
+      ]
+    },
+    "context": {
+      "type": "object",
+      "description": "System context: dependencies, callers, related modules.",
+      "additionalProperties": true
+    },
+    "objective": {
+      "type": "object",
+      "description": "Behavioral objective and high-level goal.",
+      "additionalProperties": true
+    },
+    "state_machine": {
+      "type": "object",
+      "description": "State machine definition for async pipeline specs.",
+      "additionalProperties": true
+    },
+    "consumers": {
+      "type": "array",
+      "description": "Frontend components or services that depend on this spec.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "component": {
+            "type": "string"
+          },
+          "usage": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "changelog": {
+      "type": "array",
+      "description": "Version history entries.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "string"
+          },
+          "date": {
+            "type": "string"
+          },
+          "changes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "deprecated_by": {
+      "type": "string",
+      "description": "Spec that replaces this one (required when status is deprecated)."
+    }
+  },
+  "additionalProperties": true
+}

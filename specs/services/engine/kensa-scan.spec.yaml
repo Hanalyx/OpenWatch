@@ -1,0 +1,96 @@
+spec: kensa-scan
+version: "1.0"
+status: draft
+owner: engineering
+summary: >
+  Kensa compliance scanner integration: credential bridge, SSH session lifecycle,
+  rule loading with variable resolution, result parsing, evidence serialization,
+  and finding storage with framework reference mapping.
+
+---
+
+# Objective
+
+objective: >
+  Define the contract between OpenWatch and the Kensa compliance engine so that
+  credential handling is secure, evidence is always captured, and results are
+  stored consistently regardless of which entry point triggered the scan.
+
+---
+
+# Constraints
+
+constraints:
+  credential_security:
+    - "Private keys MUST be written to temp files with 0600 permissions"
+    - "Key files MUST be overwritten with null bytes and deleted after session closes"
+    - "Credentials MUST be retrieved via CentralizedAuthService (encrypted at rest)"
+    - "MUST NOT log credential values at any log level"
+
+  scan_execution:
+    - "MUST use check_rules_from_path() which handles variable resolution"
+    - "MUST NOT call evaluate_rule() directly without resolving {{ variables }}"
+    - "Both key-based and password-only SSH authentication MUST be supported"
+    - "SSHSession MUST be closed in a finally block (context manager)"
+
+  result_handling:
+    - "Every rule result MUST be stored in scan_findings with evidence JSONB"
+    - "Framework refs MUST be stored as JSONB (not dropped or flattened)"
+    - "Skipped rules MUST have skip_reason populated"
+    - "Severity MUST default to 'medium' if Kensa returns null or unknown value"
+    - "Title truncated to 500 chars, detail to 2000 chars to prevent DB overflow"
+
+  error_classification:
+    - "SSH connection errors MUST be classified separately from Kensa rule errors"
+    - "Missing credentials MUST produce a clear error (not generic 500)"
+    - "Kensa ImportError MUST produce 'engine not available' message"
+
+---
+
+# Acceptance Criteria
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      Credentials retrieved from CentralizedAuthService and private key
+      written to temp file with 0600 permissions.
+
+  - id: AC-2
+    description: >
+      Key file overwritten with null bytes and deleted after SSH session closes,
+      even if scan fails with an exception.
+
+  - id: AC-3
+    description: >
+      Password-only SSH authentication works when no private_key is configured.
+
+  - id: AC-4
+    description: >
+      check_rules_from_path() invoked with variable resolution — rules with
+      {{ templates }} are resolved before evaluation.
+
+  - id: AC-5
+    description: >
+      Evidence JSONB contains method, command, stdout, expected, actual fields.
+
+  - id: AC-6
+    description: >
+      Framework refs JSONB contains framework_id to section_number mapping.
+
+  - id: AC-7
+    description: >
+      Skipped rules stored with status='skipped' and non-null skip_reason.
+
+  - id: AC-8
+    description: >
+      SSH connection failure produces error message containing hostname and
+      failure reason (not a generic "scan failed" message).
+
+  - id: AC-9
+    description: >
+      Host with no SSH credentials produces RuntimeError with host identifier
+      in the message.
+
+  - id: AC-10
+    description: >
+      Severity defaults to 'medium' for rules with null or unrecognized severity.

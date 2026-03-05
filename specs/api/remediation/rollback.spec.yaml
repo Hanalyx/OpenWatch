@@ -1,0 +1,6 @@
+spec: rollback-api
+version: "0.1"
+status: draft
+owner: engineering
+summary: >
+  POST /api/remediation/rollback endpoint contract: rollback eligibility, execution, verification.

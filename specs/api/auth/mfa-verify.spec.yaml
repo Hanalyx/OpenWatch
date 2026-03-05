@@ -1,0 +1,6 @@
+spec: mfa-verify-api
+version: "0.1"
+status: draft
+owner: engineering
+summary: >
+  POST /api/auth/mfa/verify endpoint contract: TOTP validation, token issuance on success.

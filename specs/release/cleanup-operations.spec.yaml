@@ -1,0 +1,260 @@
+spec: cleanup-operations
+version: "1.0"
+status: active
+owner: engineering
+summary: >
+  Defines constraints, dry-run requirements, and verification steps for all
+  cleanup operations: code removal, dead code pruning, dependency updates,
+  file deletion, database migrations, documentation cleanup, and deprecation.
+  Every cleanup PR must include a dry-run report proving nothing breaks.
+
+---
+
+# Classification
+
+classification:
+  description: >
+    Cleanup operations are classified by blast radius to determine required
+    safeguards. Higher tiers require more verification.
+
+  tiers:
+    - tier: 1
+      name: cosmetic
+      description: >
+        Formatting, whitespace, comment removal, import reordering.
+        No behavioral change possible.
+      examples:
+        - Remove unused imports
+        - Fix whitespace or trailing newlines
+        - Remove commented-out code
+        - Reorder imports (isort)
+      safeguards:
+        - Linter passes (flake8, eslint)
+        - Type checker passes (mypy, tsc)
+
+    - tier: 2
+      name: removal
+      description: >
+        Deleting files, functions, classes, or dependencies that are
+        believed to be unused. Risk of breaking hidden callers.
+      examples:
+        - Delete unused service modules
+        - Remove deprecated utility functions
+        - Remove unused npm/pip packages
+        - Delete stale test fixtures
+        - Remove obsolete documentation
+      safeguards:
+        - Dry-run report (see dry_run section)
+        - Grep for all references before deletion
+        - All tests pass after removal
+        - Import check passes (no broken imports)
+
+    - tier: 3
+      name: structural
+      description: >
+        Renaming, moving, or reorganizing files and modules. Risk of
+        breaking imports, configs, and CI references.
+      examples:
+        - Move files between directories
+        - Rename modules or packages
+        - Reorganize directory structure
+        - Consolidate duplicate code
+      safeguards:
+        - Dry-run report
+        - Use git mv to preserve history
+        - Update all import paths
+        - Update all config/CI references
+        - All tests pass after restructure
+
+    - tier: 4
+      name: destructive
+      description: >
+        Database schema changes, data deletion, or removal of features
+        that external systems depend on. Risk of data loss or API breakage.
+      examples:
+        - Drop database columns or tables
+        - Remove API endpoints
+        - Delete Alembic migrations
+        - Remove feature flags or config keys
+        - Change authentication or authorization behavior
+      safeguards:
+        - Dry-run report
+        - Alembic downgrade path tested
+        - Backup created before execution
+        - Staged rollout (not all at once)
+        - Human approval required
+
+---
+
+# Dry-run requirement
+
+dry_run:
+  description: >
+    Every cleanup PR (tier 2+) MUST include a dry-run report in the PR
+    description. The report proves that the cleanup does not break anything
+    by listing what will be removed and what verification was performed.
+
+  format: |
+    ## Dry-Run Report
+
+    ### What will be removed
+    - [ ] `path/to/file.py` — unused since commit abc123 (grep confirms 0 references)
+    - [ ] `path/to/module/` — deprecated in v1.2, no imports found
+    - [ ] `package-name` from requirements.txt — not imported anywhere
+
+    ### Reference check
+    ```
+    $ grep -r "module_name" backend/app/ --include="*.py" -l
+    (no results)
+    ```
+
+    ### Verification
+    - [ ] `python -m pytest backend/tests/ -x` — all tests pass
+    - [ ] `python -m flake8 app/` — no lint errors
+    - [ ] `python -m mypy app/ --ignore-missing-imports` — no type errors
+    - [ ] `npm run lint` — no frontend errors (if applicable)
+    - [ ] `npx tsc --noEmit` — no type errors (if applicable)
+
+  constraints:
+    - "MUST include a dry-run report for tier 2+ cleanup"
+    - "MUST grep for all references before deleting code"
+    - "MUST run full test suite after removal and report results"
+    - "MUST NOT combine cleanup with feature work in the same PR"
+    - "SHOULD run type checkers (mypy, tsc) to catch broken references"
+
+---
+
+# Constraints
+
+constraints:
+  general:
+    - "MUST NOT combine cleanup changes with feature or bugfix changes in the same PR"
+    - "MUST use a conventional commit type that matches the cleanup (refactor, chore, docs, style)"
+    - "MUST NOT delete files that are referenced in active specs without updating the spec"
+    - "MUST preserve git history — use git mv for moves, not delete + create"
+    - "MUST verify no broken imports after file deletion or moves"
+    - "SHOULD break large cleanups into multiple PRs (one concern per PR)"
+
+  code_removal:
+    - "MUST grep the entire codebase for references before deleting a module or function"
+    - "MUST check dynamic imports (importlib, __import__) and string-based references"
+    - "MUST check Celery task names, route registrations, and Alembic references"
+    - "MUST NOT remove code that is imported by name in __init__.py without updating the export"
+    - "SHOULD check git log for recent usage before assuming code is dead"
+
+  dependency_removal:
+    - "MUST verify no import of the package exists in the codebase"
+    - "MUST check for transitive dependencies (package A depends on package B)"
+    - "MUST run pip check or equivalent after removal to verify dependency tree"
+    - "MUST NOT remove packages listed in active specs without updating the spec"
+
+  database_cleanup:
+    - "MUST create an Alembic migration with a working downgrade path"
+    - "MUST test both upgrade and downgrade locally before pushing"
+    - "MUST NOT drop columns that contain production data without a backup plan"
+    - "MUST NOT delete Alembic migration files (they are an immutable history)"
+    - "SHOULD add IF EXISTS guards to DROP operations"
+
+  documentation_cleanup:
+    - "MUST verify links to the document from other files before deletion"
+    - "MUST update SPEC_REGISTRY.md if removing or renaming spec files"
+    - "MUST update CLAUDE.md if removing referenced context files"
+    - "SHOULD use git mv to preserve history when reorganizing docs"
+
+  deprecation:
+    - "MUST mark deprecated code with a comment noting the version and replacement"
+    - "MUST update the relevant spec to status: deprecated with deprecated_by field"
+    - "MUST NOT remove deprecated code in the same PR that deprecates it"
+    - "SHOULD allow at least one release cycle between deprecation and removal"
+
+---
+
+# Staged cleanup process
+
+staged_cleanup:
+  description: >
+    Large cleanup operations MUST be broken into stages. Each stage is a
+    separate commit (or PR for high-risk changes) with verification between.
+
+  process:
+    - stage: 1
+      name: identify
+      actions:
+        - "List all files/modules/dependencies to be cleaned up"
+        - "Categorize each by tier (cosmetic, removal, structural, destructive)"
+        - "Grep for references and document findings"
+        - "Create the dry-run report"
+
+    - stage: 2
+      name: verify
+      actions:
+        - "Run full test suite as baseline"
+        - "Run linters and type checkers as baseline"
+        - "Record baseline results for comparison"
+
+    - stage: 3
+      name: execute
+      actions:
+        - "Apply cleanup changes"
+        - "Run full test suite — compare against baseline"
+        - "Run linters and type checkers — compare against baseline"
+        - "Verify no new failures introduced"
+
+    - stage: 4
+      name: confirm
+      actions:
+        - "Review git diff for unintended changes"
+        - "Verify all imports resolve"
+        - "Verify all spec references are still valid"
+        - "Commit with appropriate conventional commit type"
+
+---
+
+# Acceptance criteria
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      Every tier 2+ cleanup PR includes a dry-run report listing what
+      will be removed and verification results.
+
+  - id: AC-2
+    description: >
+      Code removal PRs include grep evidence showing zero references
+      to the deleted code in the codebase.
+
+  - id: AC-3
+    description: >
+      All tests pass after cleanup changes (no regressions introduced).
+
+  - id: AC-4
+    description: >
+      Cleanup PRs do not contain feature or bugfix changes (single concern).
+
+  - id: AC-5
+    description: >
+      Database cleanup uses Alembic migrations with tested downgrade paths.
+
+  - id: AC-6
+    description: >
+      File moves use git mv to preserve history.
+
+  - id: AC-7
+    description: >
+      Dependency removal is verified with import grep and dependency
+      tree check (pip check or equivalent).
+
+  - id: AC-8
+    description: >
+      Spec references (SPEC_REGISTRY.md, CLAUDE.md) are updated when
+      removing or renaming specced files.
+
+  - id: AC-9
+    description: >
+      Deprecated code is marked before removal, with at least one
+      release cycle between deprecation and deletion.
+
+  - id: AC-10
+    description: >
+      Large cleanups are broken into staged PRs, not combined into
+      a single large PR.

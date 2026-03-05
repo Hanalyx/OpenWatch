@@ -1,0 +1,6 @@
+spec: ssh-security
+version: "0.1"
+status: draft
+owner: engineering
+summary: >
+  SSH connection security: key validation (NIST SP 800-57), known hosts management, cipher policies.

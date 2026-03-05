@@ -1,0 +1,6 @@
+spec: scan-results-api
+version: "0.1"
+status: draft
+owner: engineering
+summary: >
+  GET /api/scans/:id/results endpoint contract: result shape, filtering, pagination.

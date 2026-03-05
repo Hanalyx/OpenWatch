@@ -1,0 +1,6 @@
+spec: security-controls
+version: "0.1"
+status: draft
+owner: engineering
+summary: >
+  Cross-cutting security controls: rate limiting, account lockout, input validation, audit logging.

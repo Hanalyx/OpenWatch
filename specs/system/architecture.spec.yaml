@@ -16,7 +16,12 @@
 
 spec: system-architecture
 version: "1.0"
-status: discovered
+status: draft
+owner: engineering
+summary: >
+  Describes the OpenWatch system architecture: tech stack, deployment topology,
+  service boundaries, database design, and infrastructure components.
+  Archaeology-derived from existing codebase (2026-02-28).
 
 # ---------------------------------------------------------------------------
 # CONTEXT — What exists now

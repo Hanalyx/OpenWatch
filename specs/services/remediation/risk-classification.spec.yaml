@@ -1,0 +1,6 @@
+spec: risk-classification
+version: "0.1"
+status: draft
+owner: engineering
+summary: >
+  Remediation risk classification (high/medium/low) determining approval requirements.

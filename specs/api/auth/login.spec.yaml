@@ -1,0 +1,6 @@
+spec: login-api
+version: "0.1"
+status: draft
+owner: engineering
+summary: >
+  POST /api/auth/login endpoint contract: credential validation, token issuance, MFA challenge.

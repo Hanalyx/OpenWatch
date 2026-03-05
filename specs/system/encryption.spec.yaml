@@ -1,0 +1,6 @@
+spec: encryption
+version: "0.1"
+status: draft
+owner: engineering
+summary: >
+  AES-256-GCM credential encryption at rest, key management, and decryption audit logging.

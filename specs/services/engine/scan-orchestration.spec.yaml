@@ -1,0 +1,97 @@
+spec: scan-orchestration
+version: "1.0"
+status: draft
+owner: engineering
+summary: >
+  Celery task lifecycle for Kensa scans: dispatch rules, timeout handling,
+  retry policy, stale scan recovery, concurrent scan prevention, and
+  scan stop/cancel behavior.
+
+---
+
+# Objective
+
+objective: >
+  Define the orchestration contract so that scans are dispatched reliably,
+  never run concurrently on the same host, recover from failures within
+  bounded time, and can be stopped by the user.
+
+---
+
+# Constraints
+
+constraints:
+  dispatch:
+    - "MUST NOT dispatch a scan to a host that already has a QUEUED or IN_PROGRESS scan"
+    - "Compliance scheduler MUST respect max_concurrent_scans configuration"
+    - "Task MUST be routed to the 'scans' queue"
+    - "Task MUST set acks_late=true and reject_on_worker_lost=true"
+
+  timeout:
+    - "Soft time limit MUST be less than hard time limit (default: 55 min < 60 min)"
+    - "SoftTimeLimitExceeded MUST mark scan as TIMED_OUT (not FAILED)"
+    - "SoftTimeLimitExceeded MUST NOT be retried"
+    - "Hard time limit kill MUST be recoverable via stale scan detection"
+
+  retry:
+    - "Failed scans MUST retry at most 1 time with configurable delay (default: 120s)"
+    - "Retry MUST reuse the existing scan record (not create a new one)"
+    - "Timeout exceptions (SoftTimeLimitExceeded) MUST NOT be retried"
+
+  stale_recovery:
+    - "Stale scan detection MUST run every 10 minutes via Celery Beat"
+    - "Running scans older than 2 hours MUST be marked as FAILED"
+    - "Pending scans older than 30 minutes MUST be marked as FAILED"
+    - "Recovery MUST set error_message explaining the timeout"
+
+  stop:
+    - "Scan stop SHOULD revoke the Celery task when possible"
+    - "Scan stop MUST update status to STOPPED regardless of Celery state"
+
+---
+
+# Acceptance Criteria
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      Compliance scheduler dispatches scans only for hosts without
+      QUEUED or IN_PROGRESS scans.
+
+  - id: AC-2
+    description: >
+      Celery task records celery_task_id on the scan record at start.
+
+  - id: AC-3
+    description: >
+      Scan status transitions from QUEUED to IN_PROGRESS when task starts.
+
+  - id: AC-4
+    description: >
+      Soft time limit (55 min) transitions scan to TIMED_OUT with message.
+
+  - id: AC-5
+    description: >
+      Failed scan retries once after 120 seconds.
+
+  - id: AC-6
+    description: >
+      After max retries exhausted, scan remains in FAILED state.
+
+  - id: AC-7
+    description: >
+      Stale running scans (>2h) recovered to FAILED by periodic task.
+
+  - id: AC-8
+    description: >
+      Stale pending scans (>30m) recovered to FAILED by periodic task.
+
+  - id: AC-9
+    description: >
+      Worker crash handled: reject_on_worker_lost re-queues task, stale
+      detection provides fallback recovery.
+
+  - id: AC-10
+    description: >
+      Post-scan drift detection and posture snapshot are non-critical;
+      their failure does not change scan status from COMPLETED.

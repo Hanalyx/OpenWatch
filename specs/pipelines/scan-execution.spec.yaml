@@ -1,0 +1,183 @@
+spec: scan-execution
+version: "1.0"
+status: draft
+owner: engineering
+summary: >
+  Scan lifecycle state machine and execution pipeline: from API request through
+  Kensa compliance check to result storage, drift detection, and posture snapshot.
+
+---
+
+# Objective
+
+objective: >
+  Define the complete scan execution pipeline so that every entry point
+  (API, scheduler, bulk) produces consistent state transitions, stores
+  identical result artifacts, and triggers the same post-scan processing.
+  Eliminate the current inconsistency where only the Celery path runs
+  drift detection and posture snapshots.
+
+---
+
+# State Machine
+
+state_machine:
+  states: [QUEUED, IN_PROGRESS, COMPLETED, FAILED, TIMED_OUT, STOPPED]
+  initial: QUEUED
+  terminal: [COMPLETED, FAILED, TIMED_OUT, STOPPED]
+  transitions:
+    - from: QUEUED
+      to: IN_PROGRESS
+      trigger: Worker picks up task and begins execution
+      side_effects:
+        - Update scan record (status, progress=5, celery_task_id)
+
+    - from: IN_PROGRESS
+      to: COMPLETED
+      trigger: All findings stored and post-scan processing finished
+      side_effects:
+        - Update scan record (status, completed_at, progress=100)
+        - Insert scan_results (aggregate counts)
+        - Insert scan_findings per rule (with evidence JSONB)
+        - Run drift detection (non-critical)
+        - Create posture snapshot (non-critical)
+
+    - from: IN_PROGRESS
+      to: FAILED
+      trigger: SSH failure | Kensa error | DB write failure
+      side_effects:
+        - Update scan record (status, error_message, completed_at)
+
+    - from: IN_PROGRESS
+      to: TIMED_OUT
+      trigger: Scan exceeds configurable time limit (soft or hard)
+      side_effects:
+        - Update scan record (status, error_message with timeout detail)
+        - Clean up SSH session
+
+    - from: QUEUED
+      to: FAILED
+      trigger: Task dispatch failure | host deleted | stale pending timeout
+      side_effects:
+        - Update scan record (status, error_message)
+
+    - from: IN_PROGRESS
+      to: STOPPED
+      trigger: User cancels scan via API
+      side_effects:
+        - Update scan record (status=stopped)
+        - Revoke Celery task (if applicable)
+
+  disallowed:
+    - from: COMPLETED
+      to: any
+      reason: Terminal state
+
+    - from: FAILED
+      to: any
+      reason: Terminal state (retry creates new IN_PROGRESS, not transition)
+
+    - from: TIMED_OUT
+      to: any
+      reason: Terminal state
+
+    - from: STOPPED
+      to: any
+      reason: Terminal state
+
+    - from: IN_PROGRESS
+      to: QUEUED
+      reason: No backward transition
+
+---
+
+# Constraints
+
+constraints:
+  general:
+    - "All scan entry points MUST produce the same state transitions and artifacts"
+    - "Scan record MUST be created with status=QUEUED before any execution begins"
+    - "MUST NOT allow two concurrent scans on the same host (409 SCAN_IN_PROGRESS)"
+    - "MUST require at least SECURITY_ANALYST role to start a scan"
+    - "Post-scan processing (drift, snapshot) MUST run for all execution paths"
+    - "Post-scan processing failures MUST NOT change scan status from COMPLETED"
+
+  result_storage:
+    - "scan_results row MUST be created for every completed scan"
+    - "scan_findings row MUST be created for every rule evaluated"
+    - "Evidence MUST be stored as JSONB in scan_findings.evidence"
+    - "Framework refs MUST be stored as JSONB in scan_findings.framework_refs"
+    - "Title MUST be truncated to 500 chars, detail to 2000 chars"
+
+  timeout:
+    - "Soft time limit MUST be configurable (default: 55 minutes)"
+    - "Hard time limit MUST be configurable (default: 60 minutes)"
+    - "Stale scan detection MUST run periodically to recover stuck scans"
+    - "Stale running threshold: 2 hours; stale pending threshold: 30 minutes"
+
+---
+
+# Acceptance Criteria
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      SECURITY_ANALYST or higher starts a Kensa scan and receives 202 with scan_id.
+      Scan record exists in DB with status=QUEUED.
+
+  - id: AC-2
+    description: >
+      GUEST or AUDITOR role receives 403 when attempting to start a scan.
+
+  - id: AC-3
+    description: >
+      Scan for non-existent host returns 404 HOST_NOT_FOUND.
+
+  - id: AC-4
+    description: >
+      Scan for host with no SSH credentials returns error with clear message.
+
+  - id: AC-5
+    description: >
+      Scan request for host with an already-running scan returns 409 SCAN_IN_PROGRESS.
+
+  - id: AC-6
+    description: >
+      Scan transitions QUEUED -> IN_PROGRESS when worker starts execution.
+
+  - id: AC-7
+    description: >
+      Scan transitions IN_PROGRESS -> COMPLETED when all findings are stored.
+      scan_results and scan_findings rows exist in DB.
+
+  - id: AC-8
+    description: >
+      SSH connection failure transitions scan to FAILED with descriptive error_message.
+
+  - id: AC-9
+    description: >
+      Kensa rule evaluation failure transitions scan to FAILED with error_message.
+
+  - id: AC-10
+    description: >
+      Evidence is stored as JSONB in scan_findings.evidence for every finding.
+
+  - id: AC-11
+    description: >
+      Posture snapshot is created after scan completion (all execution paths).
+
+  - id: AC-12
+    description: >
+      Drift detection runs after scan completion (all execution paths).
+
+  - id: AC-13
+    description: >
+      Alerts generated when drift exceeds configured threshold.
+
+  - id: AC-14
+    description: >
+      Completed scan has non-null started_at, completed_at, and duration derivable.
+
+  - id: AC-15
+    description: >
+      Scan exceeding soft time limit transitions to TIMED_OUT with timeout message.

@@ -1,0 +1,6 @@
+spec: mfa
+version: "0.1"
+status: draft
+owner: engineering
+summary: >
+  TOTP multi-factor authentication: enrollment, verification, backup codes, replay prevention.

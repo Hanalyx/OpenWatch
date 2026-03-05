@@ -1,0 +1,6 @@
+spec: remediation-lifecycle
+version: "0.1"
+status: draft
+owner: engineering
+summary: >
+  Remediation state machine with risk classification, approval gates, and rollback capability.

@@ -1,0 +1,6 @@
+spec: exception-governance
+version: "0.1"
+status: draft
+owner: engineering
+summary: >
+  Compliance exception lifecycle (request, approve, reject, expire) and score interaction rules.

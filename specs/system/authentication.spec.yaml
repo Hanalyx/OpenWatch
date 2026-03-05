@@ -1,0 +1,6 @@
+spec: authentication
+version: "0.1"
+status: draft
+owner: engineering
+summary: >
+  JWT RS256 token lifecycle, password hashing (Argon2id), session management, and login rate limiting.

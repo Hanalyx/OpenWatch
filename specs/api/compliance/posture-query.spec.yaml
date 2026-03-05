@@ -1,0 +1,6 @@
+spec: posture-query-api
+version: "0.1"
+status: draft
+owner: engineering
+summary: >
+  GET /api/compliance/posture endpoint contract: temporal queries, score response shape.

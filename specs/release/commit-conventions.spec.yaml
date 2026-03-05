@@ -1,0 +1,150 @@
+spec: commit-conventions
+version: "1.0"
+status: active
+owner: engineering
+summary: >
+  Defines commit message and PR title conventions for the OpenWatch project.
+  Enforces conventional commits format, bans planning-stage terms from titles,
+  and requires titles to describe concrete deliverables.
+
+---
+
+format:
+  standard: Conventional Commits v1.0.0
+  reference: https://www.conventionalcommits.org/
+
+  title:
+    pattern: "<type>[(<scope>)]: <subject>"
+    max_length: 100
+    types:
+      - feat
+      - fix
+      - docs
+      - style
+      - refactor
+      - perf
+      - test
+      - build
+      - ci
+      - chore
+      - revert
+
+  body:
+    leading_blank: true
+    max_line_length: 100
+    purpose: >
+      Explain WHY the change was made, not WHAT was changed (the diff shows that).
+      Reference tickets, specs, or decisions when relevant.
+
+  footer:
+    leading_blank: true
+    breaking_changes: "BREAKING CHANGE: <description>"
+
+---
+
+# Subject line rules
+
+subject_rules:
+  must:
+    - "Start with a lowercase letter (not a capital)"
+    - "Use imperative mood (add, fix, change — not added, fixed, changed)"
+    - "Describe the concrete deliverable or outcome, not the process"
+    - "Be specific enough to understand without reading the diff"
+
+  must_not:
+    - "End with a period"
+    - "Exceed 100 characters total (type + scope + subject)"
+    - "Use planning or process terms as the primary subject"
+    - "Use vague descriptions (update stuff, various improvements, misc changes)"
+
+---
+
+# Banned terms in commit/PR titles
+
+banned_terms:
+  description: >
+    These terms describe planning stages or process milestones, not deliverables.
+    Commit titles MUST describe what was built, fixed, or changed — not which
+    planning step produced the change.
+  terms:
+    - phase
+    - step
+    - stage
+    - milestone
+    - sprint
+    - iteration
+    - backlog
+    - epic
+    - story
+    - task
+    - ticket
+  applies_to:
+    - commit title (first line of commit message)
+    - PR title
+
+  examples:
+    bad:
+      - "feat: SDD Phase 0 — governance, schema, validation tooling"
+      - "fix: step 3 of migration plan"
+      - "chore: sprint 4 cleanup"
+      - "feat: complete milestone 2 deliverables"
+      - "docs: backlog item B-7 documentation"
+    good:
+      - "feat: add spec governance rules, JSON Schema, and validation scripts"
+      - "fix: correct temporal query resolution for missing snapshots"
+      - "chore: remove deprecated MongoDB connection pooling"
+      - "feat: add RBAC authorization matrix with role-route validation"
+      - "docs: add operator quickstart guide with SSH setup instructions"
+
+---
+
+# PR title rules
+
+pr_title_rules:
+  format: "Same as commit title: <type>[(<scope>)]: <subject>"
+  constraints:
+    - "Same banned terms apply as commit titles"
+    - "Must describe the aggregate outcome of the PR, not individual commits"
+    - "Under 70 characters preferred, 100 max"
+
+---
+
+# Scope conventions
+
+scope_conventions:
+  description: >
+    Scopes are optional but recommended for changes that affect a specific
+    subsystem. Use lowercase kebab-case.
+  common_scopes:
+    - auth: authentication and authorization
+    - api: API routes and contracts
+    - compliance: compliance engine, posture, drift
+    - scan: scan execution and orchestration
+    - remediation: remediation and rollback
+    - ssh: SSH connection management
+    - frontend: React frontend
+    - packaging: RPM, DEB, release workflow
+    - deps: dependency updates
+    - specs: behavioral specifications
+
+---
+
+# Machine checks
+
+tests:
+  - id: banned_terms_check
+    description: >
+      Commit and PR titles must not contain planning/process terms.
+      Enforced by scripts/check-commit-message.py and pre-commit hook.
+    check: "python3 scripts/check-commit-message.py --message <title>"
+
+  - id: conventional_format_check
+    description: >
+      Commit messages must follow Conventional Commits format.
+      Enforced by commitlint via .commitlintrc.json.
+    check: "commitlint --edit"
+
+  - id: subject_imperative
+    description: >
+      Subject should use imperative mood. Advisory check (not blocking)
+      since natural language detection is imperfect.
