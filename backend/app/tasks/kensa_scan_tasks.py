@@ -131,6 +131,29 @@ def execute_kensa_scan_task(
         )
         db.commit()
 
+        # Check for another running scan on this host (guard against double dispatch)
+        other_running = db.execute(
+            text(
+                "SELECT id FROM scans WHERE host_id = :host_id"
+                " AND status IN ('pending', 'running')"
+                " AND id != :scan_id LIMIT 1"
+            ),
+            {"host_id": host_id, "scan_id": scan_id},
+        ).fetchone()
+        if other_running:
+            logger.warning(
+                "Skipping scan %s: host %s already has active scan %s",
+                scan_id,
+                host_id,
+                other_running.id,
+            )
+            _update_scan_error(
+                db,
+                scan_id,
+                f"Skipped: host already has active scan {other_running.id}",
+            )
+            return {"scan_id": scan_id, "status": "skipped", "reason": "concurrent_scan"}
+
         logger.info(
             "Starting Kensa scan task %s for host %s",
             scan_id,
@@ -384,7 +407,7 @@ def execute_kensa_scan_task(
 
     except SoftTimeLimitExceeded:
         logger.error(f"Kensa scan {scan_id} exceeded soft time limit")
-        _update_scan_error(db, scan_id, "Scan timed out after 55 minutes")
+        _update_scan_timed_out(db, scan_id, "Scan timed out after 55 minutes")
         raise
 
     except Exception as exc:
@@ -412,6 +435,24 @@ def _update_scan_error(db: Session, scan_id: str, error_message: str) -> None:
         db.commit()
     except Exception as e:
         logger.error(f"Failed to update scan error status: {e}")
+
+
+def _update_scan_timed_out(db: Session, scan_id: str, error_message: str) -> None:
+    """Update scan with timed_out status for timeout distinction."""
+    try:
+        update_builder = (
+            UpdateBuilder("scans")
+            .set("status", "timed_out")
+            .set("progress", 100)
+            .set("completed_at", datetime.now(timezone.utc))
+            .set("error_message", error_message[:500])
+            .where("id = :id", scan_id, "id")
+        )
+        query, params = update_builder.build()
+        db.execute(text(query), params)
+        db.commit()
+    except Exception as e:
+        logger.error(f"Failed to update scan timed_out status: {e}")
 
 
 def create_kensa_scan_record(

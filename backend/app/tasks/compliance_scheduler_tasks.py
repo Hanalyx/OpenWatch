@@ -24,6 +24,7 @@ from types import SimpleNamespace
 from typing import Any, Dict
 from uuid import UUID
 
+from celery.exceptions import SoftTimeLimitExceeded
 from sqlalchemy import text
 
 from app.celery_app import celery_app
@@ -78,6 +79,18 @@ def dispatch_compliance_scans(self: Any) -> Dict[str, Any]:
             dispatched_count = 0
             for host in hosts_due:
                 try:
+                    # Skip hosts with active scans
+                    active = db.execute(
+                        text(
+                            "SELECT id FROM scans WHERE host_id = :host_id"
+                            " AND status IN ('pending', 'running') LIMIT 1"
+                        ),
+                        {"host_id": host["host_id"]},
+                    ).fetchone()
+                    if active:
+                        logger.debug(f"Skipping {host['hostname']}: active scan {active.id}")
+                        continue
+
                     priority = host["scan_priority"]
 
                     # Dispatch individual Kensa scan task
@@ -541,6 +554,25 @@ def run_scheduled_kensa_scan(self: Any, host_id: str, priority: int = 5) -> Dict
 
         finally:
             db.close()
+
+    except SoftTimeLimitExceeded:
+        logger.error(f"Scheduled Kensa scan {scan_id} exceeded soft time limit")
+        try:
+            db = next(get_db())
+            update_builder = (
+                UpdateBuilder("scans")
+                .set("status", "timed_out")
+                .set("error_message", "Scheduled scan timed out after 10 minutes")
+                .set("completed_at", datetime.now(timezone.utc))
+                .where("id = :id", scan_id, "id")
+            )
+            update_query, update_params = update_builder.build()
+            db.execute(text(update_query), update_params)
+            db.commit()
+            db.close()
+        except Exception:
+            pass
+        raise
 
     except Exception as e:
         logger.error(f"Error in scheduled Kensa scan for host {host_id}: {e}")

@@ -122,6 +122,36 @@ def test_celery_beat_schedule_has_stale_detection():
     assert stale_task_found, "detect_stale_scans should be in beat_schedule"
 
 
+# ---------------------------------------------------------------------------
+# AC-4: TIMED_OUT in ScanStatus enum
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_timed_out_in_scan_status_enum():
+    """AC-4: ScanStatus enum includes TIMED_OUT value."""
+    from app.models.scan_models import ScanStatus
+
+    assert hasattr(ScanStatus, "TIMED_OUT"), "ScanStatus must have TIMED_OUT member"
+    assert ScanStatus.TIMED_OUT.value == "timed_out"
+
+
+@pytest.mark.unit
+def test_timed_out_handler_uses_distinct_status():
+    """AC-4: Timeout handler sets 'timed_out' not 'failed'."""
+    from unittest.mock import MagicMock
+
+    from app.tasks.kensa_scan_tasks import _update_scan_timed_out
+
+    mock_db = MagicMock()
+    _update_scan_timed_out(mock_db, "test-scan-id", "Timed out")
+
+    # Verify the SQL sets status to 'timed_out'
+    call_args = mock_db.execute.call_args
+    params = call_args[0][1] if len(call_args[0]) > 1 else call_args[1].get("params", {})
+    assert params.get("set_status") == "timed_out", f"Expected 'timed_out', got {params}"
+
+
 @pytest.mark.unit
 def test_celery_beat_schedule_has_compliance_dispatcher():
     """AC-1: Compliance scan dispatcher is in the Celery Beat schedule."""

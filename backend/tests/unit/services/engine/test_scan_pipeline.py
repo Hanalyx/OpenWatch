@@ -162,19 +162,106 @@ def test_scan_response_model():
 
 
 # ---------------------------------------------------------------------------
-# State machine: status values
+# AC-15: Soft time limit -> TIMED_OUT status
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.unit
+def test_timed_out_status_exists():
+    """AC-15: ScanStatus includes TIMED_OUT for timeout distinction."""
+    from app.models.scan_models import ScanStatus
+
+    assert hasattr(ScanStatus, "TIMED_OUT")
+    assert ScanStatus.TIMED_OUT.value == "timed_out"
+
+
+# ---------------------------------------------------------------------------
+# State machine: status values
+# ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# AC-13: Alerts generated when drift exceeds configured threshold
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_alert_on_configuration_drift():
+    """AC-13: AlertGenerator creates CONFIGURATION_DRIFT alert when rule changes pass->fail."""
+    from unittest.mock import MagicMock
+
+    from app.services.compliance.alert_generator import AlertGenerator
+    from app.services.compliance.alerts import AlertType
+
+    mock_db = MagicMock()
+
+    # Previous scan: rule was passing
+    mock_previous = MagicMock()
+    mock_previous.fetchall.return_value = [
+        MagicMock(rule_id="sshd-disable-root-login", passed=True),
+    ]
+
+    # Set up db.execute to return previous results for the drift query
+    mock_db.execute.return_value = mock_previous
+
+    generator = AlertGenerator(mock_db)
+
+    # Mock alert_service.create_alert to capture calls
+    created_alerts = []
+
+    def capture_alert(**kwargs):
+        created_alerts.append(kwargs)
+        return kwargs
+
+    generator.alert_service.create_alert = capture_alert
+
+    # Mock get_thresholds to return defaults
+    generator.alert_service.get_thresholds = MagicMock(
+        return_value={
+            "compliance": {
+                "critical_finding": False,
+                "high_finding": False,
+                "score_drop_threshold": 999,
+                "non_compliant_threshold": 0,
+            },
+            "drift": {"mass_drift_threshold": 100},
+        }
+    )
+
+    # Current results: rule now failing
+    current_results = [
+        {"rule_id": "sshd-disable-root-login", "passed": False, "severity": "high", "title": "SSH Root Login"},
+    ]
+
+    alerts = generator._check_configuration_drift(
+        host_id=MagicMock(),
+        scan_id=MagicMock(),
+        results=current_results,
+        hostname="test-host",
+        drift_thresholds={"mass_drift_threshold": 100},
+    )
+
+    # Should have created a CONFIGURATION_DRIFT alert
+    drift_alerts = [a for a in alerts if a.get("alert_type") == AlertType.CONFIGURATION_DRIFT]
+    assert len(drift_alerts) >= 1, f"Expected CONFIGURATION_DRIFT alert, got {alerts}"
+
+
+@pytest.mark.unit
 def test_scan_status_values():
-    """Scan pipeline uses defined status values."""
+    """Scan pipeline uses defined status values including TIMED_OUT."""
+    from app.models.scan_models import ScanStatus
+
     # These are the status values used across the codebase
-    valid_statuses = {"pending", "running", "completed", "failed", "stopped"}
+    valid_statuses = {"pending", "running", "completed", "failed", "timed_out", "stopped"}
+
+    # Verify the enum covers the expected values
+    enum_values = {s.value for s in ScanStatus}
+    # cancelled is in enum but "stopped" is the DB convention
+    assert "timed_out" in enum_values, "ScanStatus must include timed_out"
 
     # Verify the sync path uses "running" as initial status
     assert "running" in valid_statuses
 
     # Verify terminal states
-    terminal = {"completed", "failed", "stopped"}
+    terminal = {"completed", "failed", "timed_out", "stopped"}
     assert terminal.issubset(valid_statuses)

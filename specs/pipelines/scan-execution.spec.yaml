@@ -1,5 +1,5 @@
 spec: scan-execution
-version: "1.0"
+version: "1.1"
 status: draft
 owner: engineering
 summary: >
@@ -14,8 +14,9 @@ objective: >
   Define the complete scan execution pipeline so that every entry point
   (API, scheduler, bulk) produces consistent state transitions, stores
   identical result artifacts, and triggers the same post-scan processing.
-  Eliminate the current inconsistency where only the Celery path runs
-  drift detection and posture snapshots.
+  As of v1.1, the sync path now runs drift detection and posture snapshots
+  (matching the async Celery path), and concurrent scan guards are enforced
+  at all three entry points.
 
 ---
 

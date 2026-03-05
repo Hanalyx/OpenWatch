@@ -49,6 +49,7 @@ from sqlalchemy.orm import Session
 from app.auth import get_current_user
 from app.database import get_db
 from app.plugins.kensa.evidence import serialize_evidence, serialize_framework_refs
+from app.rbac import UserRole, require_role
 from app.utils.mutation_builders import InsertBuilder, UpdateBuilder
 
 logger = logging.getLogger(__name__)
@@ -159,6 +160,7 @@ class ComplianceStateResponse(BaseModel):
 
 
 @router.post("/", response_model=KensaScanResponse)
+@require_role([UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 async def execute_kensa_scan(
     request: KensaScanRequest,
     db: Session = Depends(get_db),
@@ -219,6 +221,17 @@ async def execute_kensa_scan(
             )
 
         hostname = host_result.hostname
+
+        # Check for existing active scan on this host
+        active_check = text(
+            "SELECT id FROM scans WHERE host_id = :host_id" " AND status IN ('pending', 'running') LIMIT 1"
+        )
+        active_scan = db.execute(active_check, {"host_id": request.host_id}).fetchone()
+        if active_scan:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Host {request.host_id} already has an active scan: {active_scan.id}",
+            )
 
         # Create scan record in database
         scan_name = request.name or f"Kensa Scan - {hostname} - {start_time.strftime('%Y-%m-%d %H:%M')}"
@@ -410,6 +423,23 @@ async def execute_kensa_scan(
             total,
             score,
         )
+
+        # Post-scan processing (non-critical - failures logged, don't fail the scan)
+        try:
+            from app.services.monitoring import DriftDetectionService
+
+            drift_service = DriftDetectionService()
+            drift_service.detect_drift(db, uuid.UUID(request.host_id), scan_uuid, auto_baseline=True)
+        except Exception as e:
+            logger.warning("Post-scan drift detection failed for %s: %s", scan_id, e)
+
+        try:
+            from app.services.compliance import TemporalComplianceService
+
+            temporal_service = TemporalComplianceService(db)
+            temporal_service.create_snapshot(uuid.UUID(request.host_id))
+        except Exception as e:
+            logger.warning("Post-scan snapshot failed for %s: %s", scan_id, e)
 
         return KensaScanResponse(
             scan_id=scan_id,
