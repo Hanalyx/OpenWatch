@@ -1,6 +1,114 @@
 spec: remediation-lifecycle
-version: "0.1"
-status: draft
+version: "1.0"
+status: active
 owner: engineering
 summary: >
-  Remediation state machine with risk classification, approval gates, and rollback capability.
+  Remediation job lifecycle: 7-state machine (pending, running, completed,
+  failed, rolled_back, cancelled, manual), license-gated creation and
+  rollback, host/rule validation, cancellation, and audit logging for
+  all lifecycle transitions.
+
+---
+
+# Objective
+
+objective: >
+  Define the contract for remediation job state transitions, license
+  enforcement, validation gates, rollback preconditions, and audit
+  logging so that all remediation workflows produce traceable, governed
+  state changes.
+
+---
+
+# Constraints
+
+constraints:
+  state_machine:
+    - "RemediationStatus schema MUST define exactly 7 values"
+    - "RemediationStatus model MUST define exactly 5 values (no CANCELLED or MANUAL)"
+    - "start_job MUST only transition from pending to running"
+    - "cancel_job MUST only transition pending or running to cancelled"
+
+  licensing:
+    - "Job creation MUST require 'remediation' license feature"
+    - "Rollback MUST require 'rollback' license feature"
+    - "License failures MUST raise LicenseRequiredError"
+
+  validation:
+    - "Job creation MUST validate host existence before proceeding"
+    - "Job creation MUST validate rules exist before proceeding"
+    - "Rollback MUST verify original job has rollback_available=True"
+    - "Rollback MUST reject already-rolled-back jobs"
+
+  audit:
+    - "All lifecycle events MUST be audit logged"
+
+---
+
+# Acceptance Criteria
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      RemediationStatus in schemas defines exactly 7 values: PENDING,
+      RUNNING, COMPLETED, FAILED, ROLLED_BACK, CANCELLED, MANUAL.
+
+  - id: AC-2
+    description: >
+      RemediationStatus in models defines exactly 5 values: PENDING,
+      RUNNING, COMPLETED, FAILED, ROLLED_BACK (no CANCELLED or MANUAL).
+
+  - id: AC-3
+    description: >
+      Job creation checks license via has_feature("remediation") and
+      raises LicenseRequiredError when not licensed.
+
+  - id: AC-4
+    description: >
+      Job creation validates host exists via _get_host and rules
+      exist via _validate_rules, raising ValueError on failure.
+
+  - id: AC-5
+    description: >
+      start_job transitions only from pending to running by requiring
+      WHERE status = 'pending' in the update condition.
+
+  - id: AC-6
+    description: >
+      Final job status is "failed" when all rules failed, "completed"
+      otherwise (determined in execute_remediation_job).
+
+  - id: AC-7
+    description: >
+      cancel_job transitions pending or running jobs to cancelled
+      via status IN ('pending', 'running') condition.
+
+  - id: AC-8
+    description: >
+      Rollback checks license via has_feature("rollback") and raises
+      LicenseRequiredError when not licensed.
+
+  - id: AC-9
+    description: >
+      Rollback validates preconditions: job exists, rollback_available
+      is True, and job has not already been rolled back.
+
+  - id: AC-10
+    description: >
+      Lifecycle events are audit logged via _log_audit calls in
+      create_job, cancel_job, and rollback_job.
+
+---
+
+# Changelog
+
+changelog:
+  - version: "1.0"
+    date: "2026-03-05"
+    changes:
+      - "Promoted to active with 10/10 AC coverage (test_remediation_lifecycle.py)"
+      - "Reverse-engineered ACs from remediation.py, remediation_tasks.py, remediation_schemas.py, remediation_models.py"
+  - version: "0.1"
+    date: "2026-03-04"
+    changes:
+      - "Initial stub (draft, zero ACs)"
