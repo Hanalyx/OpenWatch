@@ -52,7 +52,7 @@ Coverage is checked by `scripts/check-spec-coverage.py`.
 
 | Spec | File | Tests | Phase | Status |
 |------|------|-------|-------|--------|
-| Scan Execution | pipelines/scan-execution.spec.yaml | backend/tests/unit/services/engine/test_scan_pipeline.py, test_concurrent_scan_guard.py | 1 | Draft |
+| Scan Execution | pipelines/scan-execution.spec.yaml | backend/tests/unit/services/engine/test_scan_pipeline.py, test_concurrent_scan_guard.py | 1 | Active |
 | Remediation Lifecycle | pipelines/remediation-lifecycle.spec.yaml | TBD | 2 | Draft |
 | Drift Detection | pipelines/drift-detection.spec.yaml | backend/tests/unit/services/engine/test_drift_detection.py | 1 | Active |
 
@@ -105,12 +105,12 @@ Coverage is checked by `scripts/check-spec-coverage.py`.
 | Category | Total Specs | Active | Draft | Deprecated |
 |----------|-------------|--------|-------|------------|
 | System | 9 | 0 | 9 | 0 |
-| Pipelines | 3 | 1 | 2 | 0 |
+| Pipelines | 3 | 2 | 1 | 0 |
 | Services | 10 | 2 | 8 | 0 |
 | API | 9 | 0 | 9 | 0 |
 | Plugins | 1 | 1 | 0 | 0 |
 | Release | 4 | 4 | 0 | 0 |
-| **Total** | **36** | **8** | **28** | **0** |
+| **Total** | **36** | **9** | **27** | **0** |
 
 ## Cross-Module Dependencies
 
