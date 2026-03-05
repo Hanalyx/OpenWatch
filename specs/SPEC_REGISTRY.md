@@ -52,9 +52,9 @@ Coverage is checked by `scripts/check-spec-coverage.py`.
 
 | Spec | File | Tests | Phase | Status |
 |------|------|-------|-------|--------|
-| Scan Execution | pipelines/scan-execution.spec.yaml | backend/tests/unit/services/engine/test_scan_pipeline.py | 1 | Draft |
+| Scan Execution | pipelines/scan-execution.spec.yaml | backend/tests/unit/services/engine/test_scan_pipeline.py, test_concurrent_scan_guard.py | 1 | Draft |
 | Remediation Lifecycle | pipelines/remediation-lifecycle.spec.yaml | TBD | 2 | Draft |
-| Drift Detection | pipelines/drift-detection.spec.yaml | TBD | 1 | Draft |
+| Drift Detection | pipelines/drift-detection.spec.yaml | backend/tests/unit/services/engine/test_drift_detection.py | 1 | Draft |
 
 ## Service Specs
 
@@ -118,6 +118,7 @@ Coverage is checked by `scripts/check-spec-coverage.py`.
 - scan-execution.spec &rarr; temporal-compliance.spec (snapshot creation)
 - remediation-lifecycle.spec &rarr; risk-classification.spec (approval gates)
 - drift-analysis.spec &rarr; alert-thresholds.spec (alert generation)
+- drift-detection.spec &rarr; alert-thresholds.spec (CONFIGURATION_DRIFT, MASS_DRIFT alerts)
 
 ## Activation Schedule
 
