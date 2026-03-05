@@ -1,5 +1,5 @@
 spec: scan-execution
-version: "1.1"
+version: "1.2"
 status: draft
 owner: engineering
 summary: >
@@ -23,17 +23,22 @@ objective: >
 # State Machine
 
 state_machine:
-  states: [QUEUED, IN_PROGRESS, COMPLETED, FAILED, TIMED_OUT, STOPPED]
-  initial: QUEUED
-  terminal: [COMPLETED, FAILED, TIMED_OUT, STOPPED]
+  # Aligned with ScanStatus enum (backend/app/models/scan_models.py)
+  # db_values: PENDING="pending", RUNNING="running", COMPLETED="completed",
+  #            FAILED="failed", TIMED_OUT="timed_out", CANCELLED="cancelled"
+  # NOTE: The stop endpoint currently writes "stopped" to DB, but the enum
+  # value is CANCELLED="cancelled". This inconsistency is tracked separately.
+  states: [PENDING, RUNNING, COMPLETED, FAILED, TIMED_OUT, CANCELLED]
+  initial: PENDING
+  terminal: [COMPLETED, FAILED, TIMED_OUT, CANCELLED]
   transitions:
-    - from: QUEUED
-      to: IN_PROGRESS
+    - from: PENDING
+      to: RUNNING
       trigger: Worker picks up task and begins execution
       side_effects:
         - Update scan record (status, progress=5, celery_task_id)
 
-    - from: IN_PROGRESS
+    - from: RUNNING
       to: COMPLETED
       trigger: All findings stored and post-scan processing finished
       side_effects:
@@ -43,30 +48,30 @@ state_machine:
         - Run drift detection (non-critical)
         - Create posture snapshot (non-critical)
 
-    - from: IN_PROGRESS
+    - from: RUNNING
       to: FAILED
       trigger: SSH failure | Kensa error | DB write failure
       side_effects:
         - Update scan record (status, error_message, completed_at)
 
-    - from: IN_PROGRESS
+    - from: RUNNING
       to: TIMED_OUT
       trigger: Scan exceeds configurable time limit (soft or hard)
       side_effects:
         - Update scan record (status, error_message with timeout detail)
         - Clean up SSH session
 
-    - from: QUEUED
+    - from: PENDING
       to: FAILED
       trigger: Task dispatch failure | host deleted | stale pending timeout
       side_effects:
         - Update scan record (status, error_message)
 
-    - from: IN_PROGRESS
-      to: STOPPED
+    - from: RUNNING
+      to: CANCELLED
       trigger: User cancels scan via API
       side_effects:
-        - Update scan record (status=stopped)
+        - Update scan record (status)
         - Revoke Celery task (if applicable)
 
   disallowed:
@@ -76,18 +81,18 @@ state_machine:
 
     - from: FAILED
       to: any
-      reason: Terminal state (retry creates new IN_PROGRESS, not transition)
+      reason: Terminal state (retry creates new RUNNING, not transition)
 
     - from: TIMED_OUT
       to: any
       reason: Terminal state
 
-    - from: STOPPED
+    - from: CANCELLED
       to: any
       reason: Terminal state
 
-    - from: IN_PROGRESS
-      to: QUEUED
+    - from: RUNNING
+      to: PENDING
       reason: No backward transition
 
 ---
@@ -97,7 +102,7 @@ state_machine:
 constraints:
   general:
     - "All scan entry points MUST produce the same state transitions and artifacts"
-    - "Scan record MUST be created with status=QUEUED before any execution begins"
+    - "Scan record MUST be created with status=PENDING before any execution begins"
     - "MUST NOT allow two concurrent scans on the same host (409 SCAN_IN_PROGRESS)"
     - "MUST require at least SECURITY_ANALYST role to start a scan"
     - "Post-scan processing (drift, snapshot) MUST run for all execution paths"
@@ -124,7 +129,7 @@ acceptance_criteria:
   - id: AC-1
     description: >
       SECURITY_ANALYST or higher starts a Kensa scan and receives 202 with scan_id.
-      Scan record exists in DB with status=QUEUED.
+      Scan record exists in DB with status=PENDING.
 
   - id: AC-2
     description: >
@@ -144,11 +149,11 @@ acceptance_criteria:
 
   - id: AC-6
     description: >
-      Scan transitions QUEUED -> IN_PROGRESS when worker starts execution.
+      Scan transitions PENDING -> RUNNING when worker starts execution.
 
   - id: AC-7
     description: >
-      Scan transitions IN_PROGRESS -> COMPLETED when all findings are stored.
+      Scan transitions RUNNING -> COMPLETED when all findings are stored.
       scan_results and scan_findings rows exist in DB.
 
   - id: AC-8
