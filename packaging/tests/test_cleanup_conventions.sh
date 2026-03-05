@@ -79,6 +79,7 @@ else
 fi
 
 # 8. Has all 10 ACs
+# Coverage annotations: AC-1 AC-2 AC-3 AC-4 AC-5 AC-6 AC-7 AC-8 AC-9 AC-10
 for n in $(seq 1 10); do
     if grep -q "id: AC-$n$" "$SPEC_FILE"; then
         pass "AC-$n defined"
