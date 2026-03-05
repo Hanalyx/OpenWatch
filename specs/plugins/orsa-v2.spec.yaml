@@ -1,6 +1,100 @@
 spec: orsa-v2
-version: "0.1"
+version: "1.0"
 status: draft
 owner: engineering
 summary: >
-  ORSA v2.0 plugin interface: plugin registration, lifecycle hooks, credential bridge, result normalization.
+  ORSA v2.0 plugin interface: ABC method signatures, CheckResult/RemediationResult
+  dataclass contracts, plugin registry lifecycle, capability advertisement,
+  and license-gated feature enforcement.
+
+---
+
+# Objective
+
+objective: >
+  Define the behavioral contract for ORSA plugins so that any compliance
+  engine (not just Kensa) can be integrated with OpenWatch through a
+  well-defined interface with guaranteed result types, capability
+  advertisement, and license enforcement.
+
+---
+
+# Constraints
+
+constraints:
+  interface:
+    - "All plugins MUST implement ORSAPlugin ABC (all abstract methods)"
+    - "get_info() MUST return PluginInfo with non-empty plugin_id, name, version"
+    - "get_capabilities() MUST return a list of Capability enum values"
+    - "check() MUST return List[CheckResult] — never None, never raises for individual rule failures"
+    - "remediate() MUST be gated by license check before execution"
+    - "rollback() MUST be gated by license check before execution"
+
+  check_result:
+    - "CheckResult.rule_id MUST be non-empty string"
+    - "CheckResult.passed MUST be a boolean (not truthy/falsy)"
+    - "CheckResult.severity MUST be one of: critical, high, medium, low"
+    - "CheckResult.evidence SHOULD contain method, command, stdout, expected, actual"
+    - "CheckResult.framework_refs MUST be a dict (empty dict if no mappings)"
+
+  registry:
+    - "ORSAPluginRegistry MUST be a singleton"
+    - "Plugin registration MUST validate that plugin_id is unique"
+    - "find_by_capability() MUST return only plugins advertising that capability"
+    - "Registry MUST NOT require database access for read operations"
+
+  license:
+    - "check() and get_rules() MUST be available without license (Free tier)"
+    - "remediate() MUST raise LicenseRequiredError if no OpenWatch+ license"
+    - "rollback() MUST raise LicenseRequiredError if no OpenWatch+ license"
+
+---
+
+# Acceptance Criteria
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      Plugin with valid ORSAPlugin implementation can be registered
+      and retrieved by plugin_id.
+
+  - id: AC-2
+    description: >
+      Duplicate plugin_id registration raises an error (not silent overwrite).
+
+  - id: AC-3
+    description: >
+      check() returns List[CheckResult] with rule_id and passed fields
+      populated for every rule evaluated.
+
+  - id: AC-4
+    description: >
+      check() does not raise for individual rule evaluation failures —
+      those are returned as CheckResult with passed=False and error detail.
+
+  - id: AC-5
+    description: >
+      remediate() without OpenWatch+ license raises LicenseRequiredError.
+
+  - id: AC-6
+    description: >
+      rollback() without OpenWatch+ license raises LicenseRequiredError.
+
+  - id: AC-7
+    description: >
+      find_by_capability(REMEDIATION) returns only plugins that advertise
+      REMEDIATION in their capabilities list.
+
+  - id: AC-8
+    description: >
+      CheckResult.evidence is serializable to JSON (for JSONB storage).
+
+  - id: AC-9
+    description: >
+      CheckResult.framework_refs is a dict mapping framework_id to
+      section/control number (never None).
+
+  - id: AC-10
+    description: >
+      PluginInfo includes supported_platforms and supported_frameworks
+      lists for scope discovery.

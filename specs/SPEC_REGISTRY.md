@@ -52,7 +52,7 @@ Coverage is checked by `scripts/check-spec-coverage.py`.
 
 | Spec | File | Tests | Phase | Status |
 |------|------|-------|-------|--------|
-| Scan Execution | pipelines/scan-execution.spec.yaml | TBD | 1 | Draft |
+| Scan Execution | pipelines/scan-execution.spec.yaml | backend/tests/unit/services/engine/test_scan_pipeline.py | 1 | Draft |
 | Remediation Lifecycle | pipelines/remediation-lifecycle.spec.yaml | TBD | 2 | Draft |
 | Drift Detection | pipelines/drift-detection.spec.yaml | TBD | 1 | Draft |
 
@@ -64,8 +64,8 @@ Coverage is checked by `scripts/check-spec-coverage.py`.
 | Exception Governance | services/compliance/exception-governance.spec.yaml | TBD | 3 | Draft |
 | Alert Thresholds | services/compliance/alert-thresholds.spec.yaml | TBD | 3 | Draft |
 | Drift Analysis | services/compliance/drift-analysis.spec.yaml | TBD | 3 | Draft |
-| Kensa Scan | services/engine/kensa-scan.spec.yaml | TBD | 1 | Draft |
-| Scan Orchestration | services/engine/scan-orchestration.spec.yaml | TBD | 1 | Draft |
+| Kensa Scan | services/engine/kensa-scan.spec.yaml | backend/tests/unit/services/engine/test_kensa_scan.py | 1 | Draft |
+| Scan Orchestration | services/engine/scan-orchestration.spec.yaml | backend/tests/unit/services/engine/test_scan_orchestration.py | 1 | Draft |
 | Remediation Execution | services/remediation/remediation-execution.spec.yaml | TBD | 2 | Draft |
 | Risk Classification | services/remediation/risk-classification.spec.yaml | TBD | 2 | Draft |
 | MFA | services/auth/mfa.spec.yaml | TBD | 4 | Draft |
@@ -89,7 +89,7 @@ Coverage is checked by `scripts/check-spec-coverage.py`.
 
 | Spec | File | Tests | Phase | Status |
 |------|------|-------|-------|--------|
-| ORSA v2.0 | plugins/orsa-v2.spec.yaml | TBD | 1 | Draft |
+| ORSA v2.0 | plugins/orsa-v2.spec.yaml | backend/tests/unit/plugins/test_orsa_interface.py | 1 | Draft |
 
 ## Release Workflow Specs
 
