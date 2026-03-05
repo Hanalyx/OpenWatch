@@ -53,7 +53,7 @@ Coverage is checked by `scripts/check-spec-coverage.py`.
 | Spec | File | Tests | Phase | Status |
 |------|------|-------|-------|--------|
 | Scan Execution | pipelines/scan-execution.spec.yaml | backend/tests/unit/services/engine/test_scan_pipeline.py, test_concurrent_scan_guard.py | 1 | Draft |
-| Remediation Lifecycle | pipelines/remediation-lifecycle.spec.yaml | TBD | 2 | Draft |
+| Remediation Lifecycle | pipelines/remediation-lifecycle.spec.yaml | backend/tests/unit/pipelines/test_remediation_lifecycle.py | 2 | Active |
 | Drift Detection | pipelines/drift-detection.spec.yaml | backend/tests/unit/services/engine/test_drift_detection.py | 1 | Active |
 
 ## Service Specs
@@ -66,8 +66,8 @@ Coverage is checked by `scripts/check-spec-coverage.py`.
 | Drift Analysis | services/compliance/drift-analysis.spec.yaml | TBD | 3 | Draft |
 | Kensa Scan | services/engine/kensa-scan.spec.yaml | backend/tests/unit/services/engine/test_kensa_scan.py | 1 | Active |
 | Scan Orchestration | services/engine/scan-orchestration.spec.yaml | backend/tests/unit/services/engine/test_scan_orchestration.py | 1 | Active |
-| Remediation Execution | services/remediation/remediation-execution.spec.yaml | TBD | 2 | Draft |
-| Risk Classification | services/remediation/risk-classification.spec.yaml | TBD | 2 | Draft |
+| Remediation Execution | services/remediation/remediation-execution.spec.yaml | backend/tests/unit/services/compliance/test_remediation_execution.py | 2 | Active |
+| Risk Classification | services/remediation/risk-classification.spec.yaml | backend/tests/unit/services/compliance/test_risk_classification.py | 2 | Active |
 | MFA | services/auth/mfa.spec.yaml | TBD | 4 | Draft |
 | SSH Connection | services/ssh/ssh-connection.spec.yaml | backend/tests/unit/services/ssh/test_ssh_connection.py | 2 | Active |
 
@@ -105,12 +105,12 @@ Coverage is checked by `scripts/check-spec-coverage.py`.
 | Category | Total Specs | Active | Draft | Deprecated |
 |----------|-------------|--------|-------|------------|
 | System | 9 | 1 | 8 | 0 |
-| Pipelines | 3 | 1 | 2 | 0 |
-| Services | 10 | 3 | 7 | 0 |
+| Pipelines | 3 | 2 | 1 | 0 |
+| Services | 10 | 5 | 5 | 0 |
 | API | 9 | 0 | 9 | 0 |
 | Plugins | 1 | 1 | 0 | 0 |
 | Release | 4 | 4 | 0 | 0 |
-| **Total** | **36** | **10** | **26** | **0** |
+| **Total** | **36** | **13** | **23** | **0** |
 
 ## Cross-Module Dependencies
 
