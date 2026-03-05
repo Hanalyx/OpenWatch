@@ -1,6 +1,6 @@
 spec: orsa-v2
 version: "1.0"
-status: draft
+status: active
 owner: engineering
 summary: >
   ORSA v2.0 plugin interface: ABC method signatures, CheckResult/RemediationResult
@@ -98,3 +98,13 @@ acceptance_criteria:
     description: >
       PluginInfo includes supported_platforms and supported_frameworks
       lists for scope discovery.
+
+---
+
+# Changelog
+
+changelog:
+  - version: "1.0"
+    date: "2026-03-05"
+    changes:
+      - "Promoted to active with 10/10 AC coverage (test_orsa_interface.py)"

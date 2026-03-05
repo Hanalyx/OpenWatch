@@ -1,6 +1,6 @@
 spec: scan-orchestration
 version: "1.2"
-status: draft
+status: active
 owner: engineering
 summary: >
   Celery task lifecycle for Kensa scans: dispatch rules, timeout handling,
@@ -97,3 +97,14 @@ acceptance_criteria:
     description: >
       Post-scan drift detection and posture snapshot are non-critical;
       their failure does not change scan status from COMPLETED.
+
+---
+
+# Changelog
+
+changelog:
+  - version: "1.2"
+    date: "2026-03-05"
+    changes:
+      - "Aligned state names with ScanStatus enum (PENDING/RUNNING/CANCELLED)"
+      - "Promoted to active with 10/10 AC coverage (test_scan_orchestration.py)"

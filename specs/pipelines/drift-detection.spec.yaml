@@ -1,6 +1,6 @@
 spec: drift-detection
 version: "1.0"
-status: draft
+status: active
 owner: engineering
 summary: >
   Compliance drift detection pipeline: compares scan results against active
@@ -121,3 +121,4 @@ changelog:
     changes:
       - "Initial spec reverse-engineered from DriftDetectionService and AlertGenerator"
       - "11 acceptance criteria covering baseline, classification, alerts, and error handling"
+      - "Promoted to active with 11/11 AC coverage (test_drift_detection.py)"

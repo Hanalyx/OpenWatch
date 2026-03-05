@@ -54,7 +54,7 @@ Coverage is checked by `scripts/check-spec-coverage.py`.
 |------|------|-------|-------|--------|
 | Scan Execution | pipelines/scan-execution.spec.yaml | backend/tests/unit/services/engine/test_scan_pipeline.py, test_concurrent_scan_guard.py | 1 | Draft |
 | Remediation Lifecycle | pipelines/remediation-lifecycle.spec.yaml | TBD | 2 | Draft |
-| Drift Detection | pipelines/drift-detection.spec.yaml | backend/tests/unit/services/engine/test_drift_detection.py | 1 | Draft |
+| Drift Detection | pipelines/drift-detection.spec.yaml | backend/tests/unit/services/engine/test_drift_detection.py | 1 | Active |
 
 ## Service Specs
 
@@ -64,8 +64,8 @@ Coverage is checked by `scripts/check-spec-coverage.py`.
 | Exception Governance | services/compliance/exception-governance.spec.yaml | TBD | 3 | Draft |
 | Alert Thresholds | services/compliance/alert-thresholds.spec.yaml | TBD | 3 | Draft |
 | Drift Analysis | services/compliance/drift-analysis.spec.yaml | TBD | 3 | Draft |
-| Kensa Scan | services/engine/kensa-scan.spec.yaml | backend/tests/unit/services/engine/test_kensa_scan.py | 1 | Draft |
-| Scan Orchestration | services/engine/scan-orchestration.spec.yaml | backend/tests/unit/services/engine/test_scan_orchestration.py | 1 | Draft |
+| Kensa Scan | services/engine/kensa-scan.spec.yaml | backend/tests/unit/services/engine/test_kensa_scan.py | 1 | Active |
+| Scan Orchestration | services/engine/scan-orchestration.spec.yaml | backend/tests/unit/services/engine/test_scan_orchestration.py | 1 | Active |
 | Remediation Execution | services/remediation/remediation-execution.spec.yaml | TBD | 2 | Draft |
 | Risk Classification | services/remediation/risk-classification.spec.yaml | TBD | 2 | Draft |
 | MFA | services/auth/mfa.spec.yaml | TBD | 4 | Draft |
@@ -89,7 +89,7 @@ Coverage is checked by `scripts/check-spec-coverage.py`.
 
 | Spec | File | Tests | Phase | Status |
 |------|------|-------|-------|--------|
-| ORSA v2.0 | plugins/orsa-v2.spec.yaml | backend/tests/unit/plugins/test_orsa_interface.py | 1 | Draft |
+| ORSA v2.0 | plugins/orsa-v2.spec.yaml | backend/tests/unit/plugins/test_orsa_interface.py | 1 | Active |
 
 ## Release Workflow Specs
 
@@ -105,12 +105,12 @@ Coverage is checked by `scripts/check-spec-coverage.py`.
 | Category | Total Specs | Active | Draft | Deprecated |
 |----------|-------------|--------|-------|------------|
 | System | 9 | 0 | 9 | 0 |
-| Pipelines | 3 | 0 | 3 | 0 |
-| Services | 10 | 0 | 10 | 0 |
+| Pipelines | 3 | 1 | 2 | 0 |
+| Services | 10 | 2 | 8 | 0 |
 | API | 9 | 0 | 9 | 0 |
-| Plugins | 1 | 0 | 1 | 0 |
+| Plugins | 1 | 1 | 0 | 0 |
 | Release | 4 | 4 | 0 | 0 |
-| **Total** | **36** | **4** | **32** | **0** |
+| **Total** | **36** | **8** | **28** | **0** |
 
 ## Cross-Module Dependencies
 
