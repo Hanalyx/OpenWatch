@@ -1,0 +1,6 @@
+spec: environment
+version: "0.1"
+status: draft
+owner: engineering
+summary: >
+  Environment variable configuration, required secrets, and deployment settings.

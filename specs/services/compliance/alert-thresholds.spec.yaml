@@ -1,0 +1,6 @@
+spec: alert-thresholds
+version: "0.1"
+status: draft
+owner: engineering
+summary: >
+  Alert generation thresholds for compliance drift, severity levels, and deduplication rules.

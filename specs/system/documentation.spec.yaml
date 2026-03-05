@@ -12,7 +12,12 @@
 
 spec: system-documentation
 version: "1.0"
-status: complete
+status: draft
+owner: engineering
+summary: >
+  Defines the operator documentation suite for OpenWatch: quickstart guide,
+  configuration reference, scanning guide, compliance workflows, and
+  troubleshooting runbooks.
 
 # ---------------------------------------------------------------------------
 # CONTEXT — What exists now

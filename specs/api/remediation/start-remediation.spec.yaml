@@ -1,0 +1,6 @@
+spec: start-remediation-api
+version: "0.1"
+status: draft
+owner: engineering
+summary: >
+  POST /api/remediation/start endpoint contract: input validation, risk check, side effects.

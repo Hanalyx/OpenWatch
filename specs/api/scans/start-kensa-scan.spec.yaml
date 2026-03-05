@@ -1,0 +1,6 @@
+spec: start-kensa-scan-api
+version: "0.1"
+status: draft
+owner: engineering
+summary: >
+  POST /api/scans/kensa/start endpoint contract: input, output, errors, side effects.

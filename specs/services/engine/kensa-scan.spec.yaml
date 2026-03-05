@@ -1,0 +1,6 @@
+spec: kensa-scan
+version: "0.1"
+status: draft
+owner: engineering
+summary: >
+  Kensa compliance scanner integration: rule loading, SSH execution, result parsing, evidence capture.

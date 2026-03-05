@@ -1,0 +1,6 @@
+spec: ssh-connection
+version: "0.1"
+status: draft
+owner: engineering
+summary: >
+  SSH connection management: credential resolution, connection pooling, timeout handling.

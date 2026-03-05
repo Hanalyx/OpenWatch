@@ -1,0 +1,6 @@
+spec: orsa-v2
+version: "0.1"
+status: draft
+owner: engineering
+summary: >
+  ORSA v2.0 plugin interface: plugin registration, lifecycle hooks, credential bridge, result normalization.

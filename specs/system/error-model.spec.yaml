@@ -1,0 +1,6 @@
+spec: error-model
+version: "0.1"
+status: draft
+owner: engineering
+summary: >
+  Standardized error response shape for all API endpoints with error codes and request IDs.

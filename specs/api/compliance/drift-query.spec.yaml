@@ -1,0 +1,6 @@
+spec: drift-query-api
+version: "0.1"
+status: draft
+owner: engineering
+summary: >
+  GET /api/compliance/drift endpoint contract: drift summaries, filtering, export.

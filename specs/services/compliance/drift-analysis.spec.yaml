@@ -1,0 +1,6 @@
+spec: drift-analysis
+version: "0.1"
+status: draft
+owner: engineering
+summary: >
+  Drift classification logic: status drift, value drift, group aggregation, and threshold levels.

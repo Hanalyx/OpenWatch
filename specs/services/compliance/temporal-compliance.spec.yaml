@@ -1,0 +1,6 @@
+spec: temporal-compliance
+version: "0.1"
+status: draft
+owner: engineering
+summary: >
+  Point-in-time compliance posture queries, score calculation formula, and snapshot resolution.

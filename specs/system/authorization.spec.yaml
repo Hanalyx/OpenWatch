@@ -1,0 +1,6 @@
+spec: authorization
+version: "0.1"
+status: draft
+owner: engineering
+summary: >
+  RBAC authorization matrix defining which roles can access which API endpoints and data.

@@ -1,0 +1,6 @@
+spec: scan-orchestration
+version: "0.1"
+status: draft
+owner: engineering
+summary: >
+  Scan task orchestration: Celery dispatch, parallel host scanning, timeout handling, retry policy.

@@ -1,0 +1,6 @@
+spec: drift-detection
+version: "0.1"
+status: draft
+owner: engineering
+summary: >
+  Compliance drift detection pipeline: snapshot comparison, status drift, value drift classification.

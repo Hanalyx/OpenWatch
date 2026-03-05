@@ -1,0 +1,6 @@
+spec: scan-execution
+version: "0.1"
+status: draft
+owner: engineering
+summary: >
+  Scan lifecycle state machine (QUEUED to COMPLETED/FAILED) and execution pipeline behavior.

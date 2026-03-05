@@ -1,0 +1,6 @@
+spec: exception-crud-api
+version: "0.1"
+status: draft
+owner: engineering
+summary: >
+  CRUD endpoints for compliance exceptions: create, approve, reject, list, revoke.

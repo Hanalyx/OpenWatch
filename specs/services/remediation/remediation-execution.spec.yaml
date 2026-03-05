@@ -1,0 +1,6 @@
+spec: remediation-execution
+version: "0.1"
+status: draft
+owner: engineering
+summary: >
+  Remediation command execution via SSH, pre-check validation, and post-check verification.
