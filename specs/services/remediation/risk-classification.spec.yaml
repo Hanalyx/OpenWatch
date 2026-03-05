@@ -1,6 +1,110 @@
 spec: risk-classification
-version: "0.1"
-status: draft
+version: "1.0"
+status: active
 owner: engineering
 summary: >
-  Remediation risk classification (high/medium/low) determining approval requirements.
+  Remediation risk classification: four risk levels (high, medium, low, na)
+  with numeric ordering, per-step classification via Kensa classify_step_risk,
+  max-risk aggregation at rule level, risk summary in plan responses,
+  reboot-risk detection by mechanism type, and risk fields on schema models.
+
+---
+
+# Objective
+
+objective: >
+  Define the contract for how remediation risk is classified at the step
+  level, aggregated at the rule level, summarized in plan previews, and
+  exposed through schema models, so that operators can assess remediation
+  impact before execution.
+
+---
+
+# Constraints
+
+constraints:
+  risk_levels:
+    - "Exactly 4 risk levels MUST exist: high, medium, low, na"
+    - "Risk ordering MUST be: high(3) > medium(2) > low(1) > na(0)"
+
+  classification:
+    - "classify_step_risk MUST be called per step with mechanism and remediation config"
+    - "Rule-level risk MUST be the maximum risk across all its steps"
+
+  plan_preview:
+    - "Plan response MUST include risk_summary with counts per level"
+    - "Plan rule detail MUST include per-step risk_level"
+    - "Reboot-risk MUST be detected for grub_parameter_set and kernel_module_disable mechanisms"
+
+  schemas:
+    - "RemediationStepResponse MUST include risk_level field"
+    - "RemediationResultResponse MUST include risk_level field"
+    - "RemediationPlanRuleDetail MUST include risk_level field"
+
+---
+
+# Acceptance Criteria
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      Four risk levels exist: "high", "medium", "low", "na" as defined
+      in the risk_order dict used in _execute_rule_remediation.
+
+  - id: AC-2
+    description: >
+      Risk ordering is high(3) > medium(2) > low(1) > na(0), used to
+      determine the maximum risk level across steps.
+
+  - id: AC-3
+    description: >
+      classify_step_risk is called per step with step.mechanism and
+      rule remediation config in _execute_rule_remediation.
+
+  - id: AC-4
+    description: >
+      Rule-level risk_level is the max risk across all steps, stored
+      in remediation_results via add_result.
+
+  - id: AC-5
+    description: >
+      RemediationPlanResponse includes risk_summary dict with counts
+      per risk level.
+
+  - id: AC-6
+    description: >
+      RemediationStepResponse schema has a risk_level field.
+
+  - id: AC-7
+    description: >
+      RemediationResultResponse schema has a risk_level field.
+
+  - id: AC-8
+    description: >
+      RemediationPlanRuleDetail schema has risk_level and steps list
+      where each step dict contains a risk_level key.
+
+  - id: AC-9
+    description: >
+      Reboot-risk is detected for mechanisms grub_parameter_set and
+      kernel_module_disable in the remediation plan preview.
+
+  - id: AC-10
+    description: >
+      Risk summary in plan preview is initialized with all 4 level
+      keys (high, medium, low, na) set to 0.
+
+---
+
+# Changelog
+
+changelog:
+  - version: "1.0"
+    date: "2026-03-05"
+    changes:
+      - "Promoted to active with 10/10 AC coverage (test_risk_classification.py)"
+      - "Reverse-engineered ACs from remediation_tasks.py, remediation.py, remediation_schemas.py"
+  - version: "0.1"
+    date: "2026-03-04"
+    changes:
+      - "Initial stub (draft, zero ACs)"

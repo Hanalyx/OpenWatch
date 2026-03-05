@@ -1,6 +1,120 @@
 spec: remediation-execution
-version: "0.1"
-status: draft
+version: "1.0"
+status: active
 owner: engineering
 summary: >
-  Remediation command execution via SSH, pre-check validation, and post-check verification.
+  Remediation execution mechanics: Celery task configuration, shared SSH
+  session per host, rule loading and variable resolution, rule-level
+  status determination from step outcomes, pre-state capture for rollback,
+  step-level result storage, rollback reconstruction, progress tracking,
+  and idempotent check-before-fix design.
+
+---
+
+# Objective
+
+objective: >
+  Define the contract for how remediation and rollback jobs are executed
+  asynchronously, how rules are processed within a shared SSH session,
+  how individual step outcomes determine rule-level status, and how
+  pre-state snapshots enable rollback capability.
+
+---
+
+# Constraints
+
+constraints:
+  celery_tasks:
+    - "Remediation task MUST retry up to 3 times with 60s delay"
+    - "Rollback task MUST retry up to 2 times with 30s delay"
+
+  ssh_session:
+    - "All rules in a job MUST share a single SSH session per host"
+    - "Rules MUST be loaded and variable-resolved before execution begins"
+
+  status_determination:
+    - "Rule status MUST be 'failed' if any non-manual step failed"
+    - "Rule status MUST be 'manual' if any manual step failed (and no non-manual failures)"
+    - "Rule status MUST be 'completed' if remediated, dry_run, or already passed"
+    - "Idempotent: already-passing rules MUST return 'completed' (not 'failed')"
+
+  rollback:
+    - "Pre-state MUST be captured for steps where pre_state.capturable is True"
+    - "Rollback MUST reconstruct RemediationStepRecord from stored pre-state"
+
+  tracking:
+    - "Progress MUST be updated after each rule via completed/failed/skipped counters"
+    - "Step-level results MUST include mechanism, success, detail, pre_state_data, verified, risk_level"
+
+---
+
+# Acceptance Criteria
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      execute_remediation_job is a Celery shared_task with max_retries=3
+      and default_retry_delay=60.
+
+  - id: AC-2
+    description: >
+      execute_rollback_job is a Celery shared_task with max_retries=2
+      and default_retry_delay=30.
+
+  - id: AC-3
+    description: >
+      Execution uses a single SSH session per host via
+      KensaSessionFactory.create_session within an async context manager.
+
+  - id: AC-4
+    description: >
+      Rules are loaded via _load_and_resolve_rules which calls
+      load_rules, load_config, and resolve_variables before execution.
+
+  - id: AC-5
+    description: >
+      Rule-level status determined by step outcomes: any non-manual
+      failure yields "failed"; any manual failure (no non-manual
+      failures) yields "manual"; remediated, dry_run, or passed
+      yields "completed".
+
+  - id: AC-6
+    description: >
+      Pre-state captured for rollback when step.pre_state.capturable
+      is True, stored as dict with step_index, mechanism, data, capturable.
+
+  - id: AC-7
+    description: >
+      Step results stored via add_step_result with mechanism,
+      success, detail, pre_state_data, pre_state_capturable, verified,
+      verify_detail, and risk_level.
+
+  - id: AC-8
+    description: >
+      Rollback reconstructs RemediationStepRecord objects from stored
+      pre-state steps and calls rollback_from_stored.
+
+  - id: AC-9
+    description: >
+      Progress updated after each rule via update_job_progress with
+      completed, failed, and skipped counters.
+
+  - id: AC-10
+    description: >
+      Idempotent design: when result.passed is True (already compliant)
+      and result.remediated is False, rule status is "completed".
+
+---
+
+# Changelog
+
+changelog:
+  - version: "1.0"
+    date: "2026-03-05"
+    changes:
+      - "Promoted to active with 10/10 AC coverage (test_remediation_execution.py)"
+      - "Reverse-engineered ACs from remediation_tasks.py, remediation.py"
+  - version: "0.1"
+    date: "2026-03-04"
+    changes:
+      - "Initial stub (draft, zero ACs)"
