@@ -1,5 +1,5 @@
 spec: scan-orchestration
-version: "1.0"
+version: "1.1"
 status: draft
 owner: engineering
 summary: >
@@ -14,7 +14,9 @@ summary: >
 objective: >
   Define the orchestration contract so that scans are dispatched reliably,
   never run concurrently on the same host, recover from failures within
-  bounded time, and can be stopped by the user.
+  bounded time, and can be stopped by the user. As of v1.1,
+  SoftTimeLimitExceeded sets TIMED_OUT (not FAILED), and concurrent scan
+  guards are enforced at dispatcher, task, and API levels.
 
 ---
 

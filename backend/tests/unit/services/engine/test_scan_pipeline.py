@@ -162,6 +162,20 @@ def test_scan_response_model():
 
 
 # ---------------------------------------------------------------------------
+# AC-15: Soft time limit -> TIMED_OUT status
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_timed_out_status_exists():
+    """AC-15: ScanStatus includes TIMED_OUT for timeout distinction."""
+    from app.models.scan_models import ScanStatus
+
+    assert hasattr(ScanStatus, "TIMED_OUT")
+    assert ScanStatus.TIMED_OUT.value == "timed_out"
+
+
+# ---------------------------------------------------------------------------
 # State machine: status values
 # ---------------------------------------------------------------------------
 
