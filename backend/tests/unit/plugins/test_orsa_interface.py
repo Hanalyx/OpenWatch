@@ -24,6 +24,7 @@ def test_check_result_dataclass_fields():
         rule_id="sshd-permit-root-login",
         passed=True,
         severity="high",
+        category="access-control",
         title="Disable SSH root login",
         detail="PermitRootLogin is set to no",
     )
@@ -31,6 +32,7 @@ def test_check_result_dataclass_fields():
     assert result.rule_id == "sshd-permit-root-login"
     assert result.passed is True
     assert result.severity == "high"
+    assert result.category == "access-control"
     assert result.title == "Disable SSH root login"
 
 
@@ -43,6 +45,7 @@ def test_check_result_framework_refs_default():
         rule_id="test-rule",
         passed=False,
         severity="medium",
+        category="system-config",
         title="Test",
         detail="Test detail",
     )
@@ -52,30 +55,25 @@ def test_check_result_framework_refs_default():
 
 
 @pytest.mark.unit
-def test_check_result_with_evidence():
-    """AC-8: Evidence field is present and can hold data."""
+def test_check_result_with_values():
+    """AC-8: CheckResult carries actual/expected values and check metadata."""
     from app.services.plugins.orsa.interface import CheckResult
-
-    evidence = {
-        "method": "config_value",
-        "command": "grep PermitRootLogin /etc/ssh/sshd_config",
-        "stdout": "PermitRootLogin no",
-        "expected": "no",
-        "actual": "no",
-    }
 
     result = CheckResult(
         rule_id="sshd-permit-root",
         passed=True,
         severity="high",
+        category="access-control",
         title="SSH root login",
         detail="Pass",
-        evidence=evidence,
+        actual_value="no",
+        expected_value="no",
+        check_method="config_value",
     )
 
-    assert result.evidence is not None
-    assert isinstance(result.evidence, dict)
-    assert "command" in result.evidence
+    assert result.actual_value == "no"
+    assert result.expected_value == "no"
+    assert result.check_method == "config_value"
 
 
 # ---------------------------------------------------------------------------
