@@ -1,6 +1,110 @@
 spec: ssh-connection
-version: "0.1"
-status: draft
+version: "1.0"
+status: active
 owner: engineering
 summary: >
-  SSH connection management: credential resolution, connection pooling, timeout handling.
+  SSH connection management: supported authentication methods, connection and
+  command timeout defaults, error type classification, dataclass result models,
+  SSH policy configuration defaults, valid policy list, credential provider
+  error handling, and unsupported auth method reporting.
+
+---
+
+# Objective
+
+objective: >
+  Define the contract for SSH connection establishment, authentication method
+  dispatch, timeout handling, and error classification so that scan pipelines
+  and remediation tasks receive consistent, categorized connection results.
+
+---
+
+# Constraints
+
+constraints:
+  auth_methods:
+    - "All auth methods MUST be documented in SUPPORTED_AUTH_METHODS"
+    - "'both' method MUST try key first (more secure) before password fallback"
+    - "Unsupported auth methods MUST return an error listing valid methods"
+
+  timeouts:
+    - "Connection timeout MUST default to 30 seconds when not specified"
+    - "Command timeout MUST default to 300 seconds (5 min) when not specified"
+
+  error_handling:
+    - "Error types MUST categorize failures for downstream troubleshooting"
+    - "At least 5 error categories MUST exist: auth_failed, key_error, ssh_error, timeout, connection_error"
+    - "Credential provider MUST raise RuntimeError with host identifier on missing credentials"
+
+  policy:
+    - "Default SSH policy MUST be 'auto_add_warning' (balances security and automation)"
+    - "VALID_POLICIES MUST include strict, auto_add, auto_add_warning, bypass_trusted"
+
+---
+
+# Acceptance Criteria
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      SUPPORTED_AUTH_METHODS maps exactly 6 keys: password, key, ssh_key,
+      ssh-key, agent, both.
+
+  - id: AC-2
+    description: >
+      "both" auth method tries SSH key first, falls back to password on
+      AuthenticationException.
+
+  - id: AC-3
+    description: >
+      Connection timeout defaults to 30 seconds; command timeout defaults
+      to 300 seconds (5 minutes).
+
+  - id: AC-4
+    description: >
+      Error types categorized into at least 5 categories: auth_failed,
+      key_error, ssh_error, timeout, connection_error.
+
+  - id: AC-5
+    description: >
+      SSHConnectionResult is a dataclass with fields: success, connection,
+      error_message, error_type, host_key_fingerprint, auth_method_used.
+
+  - id: AC-6
+    description: >
+      SSHCommandResult is a dataclass with fields: success, stdout, stderr,
+      exit_code, duration, error_message.
+
+  - id: AC-7
+    description: >
+      Default SSH policy is "auto_add_warning" when no database setting exists.
+
+  - id: AC-8
+    description: >
+      SSHConfigManager.VALID_POLICIES includes strict, auto_add,
+      auto_add_warning, and bypass_trusted.
+
+  - id: AC-9
+    description: >
+      Credential provider catches CredentialNotFoundError and raises
+      RuntimeError with "No SSH credentials for host" in the message.
+
+  - id: AC-10
+    description: >
+      Unsupported auth method returns error_type "auth_error" with a
+      descriptive message listing valid methods.
+
+---
+
+# Changelog
+
+changelog:
+  - version: "1.0"
+    date: "2026-03-05"
+    changes:
+      - "Promoted to active with 10/10 AC coverage (test_ssh_connection.py)"
+      - "Reverse-engineered ACs from connection_manager.py, config_manager.py, models.py, executor.py"
+  - version: "0.1"
+    date: "2026-03-04"
+    changes:
+      - "Initial stub (draft, zero ACs)"
