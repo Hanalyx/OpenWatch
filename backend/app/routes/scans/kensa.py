@@ -424,6 +424,23 @@ async def execute_kensa_scan(
             score,
         )
 
+        # Post-scan processing (non-critical - failures logged, don't fail the scan)
+        try:
+            from app.services.monitoring import DriftDetectionService
+
+            drift_service = DriftDetectionService()
+            drift_service.detect_drift(db, uuid.UUID(request.host_id), scan_uuid, auto_baseline=True)
+        except Exception as e:
+            logger.warning("Post-scan drift detection failed for %s: %s", scan_id, e)
+
+        try:
+            from app.services.compliance import TemporalComplianceService
+
+            temporal_service = TemporalComplianceService(db)
+            temporal_service.create_snapshot(uuid.UUID(request.host_id))
+        except Exception as e:
+            logger.warning("Post-scan snapshot failed for %s: %s", scan_id, e)
+
         return KensaScanResponse(
             scan_id=scan_id,
             status="completed",
