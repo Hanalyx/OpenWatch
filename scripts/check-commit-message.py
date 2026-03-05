@@ -106,6 +106,32 @@ def check_message(title: str) -> list[str]:
     return errors
 
 
+# Patterns that indicate AI attribution in commit bodies
+AI_ATTRIBUTION_PATTERNS = [
+    r"Co-Authored-By:.*Claude",
+    r"Co-Authored-By:.*Copilot",
+    r"Co-Authored-By:.*AI",
+    r"Generated with.*Claude",
+    r"Generated with.*Copilot",
+]
+
+
+def check_body_for_ai_attribution(body: str) -> list[str]:
+    """Check the full commit message body for AI attribution lines.
+
+    Returns a list of error messages (empty if valid).
+    """
+    errors = []
+    for pattern in AI_ATTRIBUTION_PATTERNS:
+        if re.search(pattern, body, re.IGNORECASE):
+            errors.append(
+                "Commit message contains AI attribution. "
+                "The committer is solely responsible for all changes."
+            )
+            break
+    return errors
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Validate commit messages against OpenWatch conventions"
@@ -121,18 +147,21 @@ def main() -> int:
     )
     args = parser.parse_args()
 
+    full_body = ""
     if args.file:
         try:
             with open(args.file) as f:
-                # Only check the first line (title)
-                title = f.readline().strip()
+                full_body = f.read()
+                title = full_body.split("\n", 1)[0].strip()
         except OSError as e:
             print(f"ERROR: Could not read file: {e}")
             return 1
     else:
         title = args.message
+        full_body = args.message
 
     errors = check_message(title)
+    errors.extend(check_body_for_ai_attribution(full_body))
 
     if errors:
         print(f"Commit message check FAILED for: {title}")
