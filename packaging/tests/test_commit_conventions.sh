@@ -127,6 +127,63 @@ for msg in "${BAD_FORMAT_MESSAGES[@]}"; do
 done
 
 echo ""
+echo "--- AI attribution rejection ---"
+
+# 7. check-commit-message.py rejects AI attribution in commit body
+TMPFILE=$(mktemp)
+trap 'rm -f "$TMPFILE"' EXIT
+
+# Test: Co-Authored-By with Claude
+cat > "$TMPFILE" <<'COMMIT'
+feat: add new scan feature
+
+Implemented the scan pipeline.
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+COMMIT
+if python3 "$REPO_ROOT/scripts/check-commit-message.py" -f "$TMPFILE" > /dev/null 2>&1; then
+    fail "should reject Co-Authored-By Claude"
+else
+    pass "rejects Co-Authored-By Claude"
+fi
+
+# Test: Generated with Claude Code
+cat > "$TMPFILE" <<'COMMIT'
+fix: resolve timeout bug
+
+Generated with [Claude Code](https://claude.com/claude-code)
+COMMIT
+if python3 "$REPO_ROOT/scripts/check-commit-message.py" -f "$TMPFILE" > /dev/null 2>&1; then
+    fail "should reject Generated with Claude Code"
+else
+    pass "rejects Generated with Claude Code"
+fi
+
+# Test: Co-Authored-By with Copilot
+cat > "$TMPFILE" <<'COMMIT'
+docs: update readme
+
+Co-Authored-By: GitHub Copilot <copilot@github.com>
+COMMIT
+if python3 "$REPO_ROOT/scripts/check-commit-message.py" -f "$TMPFILE" > /dev/null 2>&1; then
+    fail "should reject Co-Authored-By Copilot"
+else
+    pass "rejects Co-Authored-By Copilot"
+fi
+
+# Test: Clean commit body should pass
+cat > "$TMPFILE" <<'COMMIT'
+feat: add new scan feature
+
+Implemented the scan pipeline with proper error handling.
+COMMIT
+if python3 "$REPO_ROOT/scripts/check-commit-message.py" -f "$TMPFILE" > /dev/null 2>&1; then
+    pass "accepts clean commit body"
+else
+    fail "should accept clean commit body"
+fi
+
+echo ""
 echo "==========================="
 echo "Results: $PASS passed, $FAIL failed"
 

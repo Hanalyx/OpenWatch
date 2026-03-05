@@ -1,5 +1,5 @@
 spec: commit-conventions
-version: "1.0"
+version: "1.1"
 status: active
 owner: engineering
 summary: >
@@ -39,6 +39,10 @@ format:
   footer:
     leading_blank: true
     breaking_changes: "BREAKING CHANGE: <description>"
+    no_ai_attribution: >
+      Commit messages and PR descriptions MUST NOT contain AI attribution
+      lines such as "Co-Authored-By: Claude", "Generated with Claude Code",
+      or similar. The committer is solely responsible for all changes.
 
 ---
 
@@ -143,6 +147,13 @@ tests:
       Commit messages must follow Conventional Commits format.
       Enforced by commitlint via .commitlintrc.json.
     check: "commitlint --edit"
+
+  - id: no_ai_attribution_check
+    description: >
+      Commit messages must not contain AI attribution lines (Co-Authored-By
+      with AI names, "Generated with" AI tool references). Enforced by
+      scripts/check-commit-message.py and pre-commit hook.
+    check: "python3 scripts/check-commit-message.py --file .git/COMMIT_EDITMSG"
 
   - id: subject_imperative
     description: >

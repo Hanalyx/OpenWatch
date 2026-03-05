@@ -1,5 +1,6 @@
 #!/bin/bash
 # Version Consistency Test
+# Spec: specs/release/changelog.spec.yaml
 # Verifies that all version-bearing files agree with packaging/version.env
 
 set -euo pipefail

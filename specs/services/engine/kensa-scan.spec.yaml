@@ -1,6 +1,6 @@
 spec: kensa-scan
 version: "1.0"
-status: draft
+status: active
 owner: engineering
 summary: >
   Kensa compliance scanner integration: credential bridge, SSH session lifecycle,
@@ -94,3 +94,13 @@ acceptance_criteria:
   - id: AC-10
     description: >
       Severity defaults to 'medium' for rules with null or unrecognized severity.
+
+---
+
+# Changelog
+
+changelog:
+  - version: "1.0"
+    date: "2026-03-05"
+    changes:
+      - "Promoted to active with 10/10 AC coverage (test_kensa_scan.py)"

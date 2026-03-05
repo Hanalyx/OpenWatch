@@ -1,6 +1,124 @@
 spec: drift-detection
-version: "0.1"
-status: draft
+version: "1.0"
+status: active
 owner: engineering
 summary: >
-  Compliance drift detection pipeline: snapshot comparison, status drift, value drift classification.
+  Compliance drift detection pipeline: compares scan results against active
+  baselines to classify score-based drift (major/minor/improvement/stable)
+  and generates rule-level alerts (configuration drift, unexpected remediation,
+  mass drift). Implements NIST SP 800-137 continuous monitoring requirements.
+
+---
+
+# Objective
+
+objective: >
+  Define the drift detection contract so that every completed scan is compared
+  against an active baseline, drift is classified by severity thresholds in
+  percentage points, per-severity deltas are recorded, and appropriate alerts
+  are generated for rule-level state changes. Auto-baseline creation on first
+  scan ensures drift detection works without manual setup.
+
+---
+
+# Constraints
+
+constraints:
+  baseline:
+    - "MUST auto-create baseline on first completed scan for a host (type='auto')"
+    - "Only one active baseline per host at any time"
+    - "Auto-baselines MUST use default thresholds: major=10pp, minor=5pp"
+    - "Manual baselines MAY override thresholds"
+
+  calculation:
+    - "Drift MUST be calculated in percentage points (absolute change), NOT percent change"
+    - "Example: 80% to 70% = -10pp (major drift), NOT -12.5% change"
+    - "Per-severity deltas (critical, high, medium, low) MUST be calculated as current - baseline"
+
+  classification:
+    - "major: score_delta <= -threshold_major (default -10pp)"
+    - "minor: -threshold_major < score_delta <= -threshold_minor (default -5pp to -10pp)"
+    - "improvement: score_delta >= threshold_minor (default +5pp)"
+    - "stable: |score_delta| < threshold_minor (default <5pp)"
+    - "Stable drift MUST NOT create a ScanDriftEvent"
+
+  alerts:
+    - "Pass-to-fail rule state change MUST generate CONFIGURATION_DRIFT alert (severity HIGH)"
+    - "Fail-to-pass rule state change MUST generate UNEXPECTED_REMEDIATION alert (severity INFO)"
+    - "Mass drift exceeding threshold MUST generate MASS_DRIFT alert (severity CRITICAL)"
+    - "Mass drift threshold is percentage of total rules that changed to failing"
+
+  error_handling:
+    - "MUST raise ValueError if scan is not found or not completed"
+    - "Post-scan drift detection failures MUST NOT change scan status from COMPLETED"
+
+---
+
+# Acceptance Criteria
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      First completed scan for a host auto-creates a baseline with type='auto'
+      and default thresholds (major=10pp, minor=5pp). No drift event is created.
+
+  - id: AC-2
+    description: >
+      Score drop >= 10pp (major threshold) creates a ScanDriftEvent with
+      drift_type='major'.
+
+  - id: AC-3
+    description: >
+      Score drop between 5pp and 10pp creates a ScanDriftEvent with
+      drift_type='minor'.
+
+  - id: AC-4
+    description: >
+      Score increase >= 5pp creates a ScanDriftEvent with
+      drift_type='improvement'.
+
+  - id: AC-5
+    description: >
+      Score change < 5pp (stable) does NOT create a ScanDriftEvent.
+
+  - id: AC-6
+    description: >
+      Per-severity deltas (critical, high, medium, low passed/failed) are
+      correctly calculated as current - baseline for each severity level.
+
+  - id: AC-7
+    description: >
+      A rule that was previously passing but now fails generates a
+      CONFIGURATION_DRIFT alert with severity HIGH.
+
+  - id: AC-8
+    description: >
+      A rule that was previously failing but now passes generates an
+      UNEXPECTED_REMEDIATION alert with severity INFO.
+
+  - id: AC-9
+    description: >
+      When the percentage of rules that changed to failing exceeds the
+      mass_drift_threshold, a MASS_DRIFT alert with severity CRITICAL
+      is generated.
+
+  - id: AC-10
+    description: >
+      Calling drift detection on a non-completed scan raises ValueError.
+
+  - id: AC-11
+    description: >
+      Custom thresholds on a baseline change drift classification boundaries
+      (e.g., major=15pp makes a -12pp drop classify as 'minor' not 'major').
+
+---
+
+# Changelog
+
+changelog:
+  - version: "1.0"
+    date: "2026-03-05"
+    changes:
+      - "Initial spec reverse-engineered from DriftDetectionService and AlertGenerator"
+      - "11 acceptance criteria covering baseline, classification, alerts, and error handling"
+      - "Promoted to active with 11/11 AC coverage (test_drift_detection.py)"

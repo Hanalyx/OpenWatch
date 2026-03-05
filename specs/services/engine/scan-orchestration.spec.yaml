@@ -1,6 +1,6 @@
 spec: scan-orchestration
-version: "1.1"
-status: draft
+version: "1.2"
+status: active
 owner: engineering
 summary: >
   Celery task lifecycle for Kensa scans: dispatch rules, timeout handling,
@@ -24,7 +24,7 @@ objective: >
 
 constraints:
   dispatch:
-    - "MUST NOT dispatch a scan to a host that already has a QUEUED or IN_PROGRESS scan"
+    - "MUST NOT dispatch a scan to a host that already has a PENDING or RUNNING scan"
     - "Compliance scheduler MUST respect max_concurrent_scans configuration"
     - "Task MUST be routed to the 'scans' queue"
     - "Task MUST set acks_late=true and reject_on_worker_lost=true"
@@ -48,7 +48,7 @@ constraints:
 
   stop:
     - "Scan stop SHOULD revoke the Celery task when possible"
-    - "Scan stop MUST update status to STOPPED regardless of Celery state"
+    - "Scan stop MUST update status to CANCELLED regardless of Celery state"
 
 ---
 
@@ -58,7 +58,7 @@ acceptance_criteria:
   - id: AC-1
     description: >
       Compliance scheduler dispatches scans only for hosts without
-      QUEUED or IN_PROGRESS scans.
+      PENDING or RUNNING scans.
 
   - id: AC-2
     description: >
@@ -66,7 +66,7 @@ acceptance_criteria:
 
   - id: AC-3
     description: >
-      Scan status transitions from QUEUED to IN_PROGRESS when task starts.
+      Scan status transitions from PENDING to RUNNING when task starts.
 
   - id: AC-4
     description: >
@@ -97,3 +97,14 @@ acceptance_criteria:
     description: >
       Post-scan drift detection and posture snapshot are non-critical;
       their failure does not change scan status from COMPLETED.
+
+---
+
+# Changelog
+
+changelog:
+  - version: "1.2"
+    date: "2026-03-05"
+    changes:
+      - "Aligned state names with ScanStatus enum (PENDING/RUNNING/CANCELLED)"
+      - "Promoted to active with 10/10 AC coverage (test_scan_orchestration.py)"

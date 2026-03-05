@@ -125,7 +125,7 @@ Gaps identified by comparing `docs/KENSA_DEVELOPER_GUIDE_V0.md` against current 
 | K-9 | **Field-level drift detection** | P1 | **Complete** (PR #308) | Extended `detect_drift()` with `include_value_drift`, group drift, CSV export, "What Changed?" column in UI. Backfill task populated 70 existing snapshots. |
 | K-10 | **Platform filtering** | P2 | `detect_platform()` called, info captured | `rule_applies_to_platform()` not used to filter rules before evaluation |
 | K-11 | **Host context in evidence** | P2 | `SystemInfoCollector` gathers packages, services, users, network | Not stored alongside scan findings; host groups and effective variables not in evidence exports |
-| K-12 | **Parallel workers** | P3 | `max_concurrent_checks` config exists (default 10) | Unclear if Kensa's worker parallelism is actually used during scans |
+| K-12 | **Bulk scan via Kensa ThreadPoolExecutor** | P3 | OpenWatch dispatches one Celery task per host | Kensa has built-in `--workers N` (ThreadPoolExecutor, max 50) that parallelizes across hosts with one SSH connection per thread. Instead of N Celery tasks for a host group, OpenWatch could dispatch a single Kensa invocation with `-w 30` and an inventory file. Requires: inventory file generation from host DB, result fan-out to per-host DB records, progress tracking for multi-host jobs. |
 
 ### Highest-Impact Items
 

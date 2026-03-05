@@ -1,5 +1,6 @@
 #!/bin/bash
 # Package Build Infrastructure Test
+# Spec: specs/release/package-build.spec.yaml
 # Validates that RPM/DEB build scripts, specs, and CI workflow are correctly
 # configured. No actual package builds are performed.
 #

@@ -70,21 +70,35 @@ def find_test_files(repo_root: Path) -> list[Path]:
 
 
 def search_tests_for_acs(
-    test_files: list[Path], ac_ids: list[str], spec_path: str
+    test_files: list[Path],
+    ac_ids: list[str],
+    spec_path: str,
+    require_spec_header: bool = False,
 ) -> dict[str, list[str]]:
     """Search test files for AC annotations.
+
+    Args:
+        test_files: List of test file paths to search.
+        ac_ids: List of AC identifiers to look for (e.g. ["AC-1", "AC-2"]).
+        spec_path: Relative spec path (e.g. "pipelines/scan-execution.spec.yaml").
+        require_spec_header: If True, only consider test files that contain
+            a ``# Spec: <spec_path>`` header. This eliminates false positives
+            where AC-1 in an unrelated test inflates coverage for every spec.
 
     Returns a dict mapping AC IDs to list of files where they appear.
     """
     coverage: dict[str, list[str]] = {ac_id: [] for ac_id in ac_ids}
 
-    # Also search for spec file reference
     spec_ref_pattern = re.compile(re.escape(spec_path))
 
     for test_file in test_files:
         try:
             content = test_file.read_text(errors="replace")
         except OSError:
+            continue
+
+        # When strict filtering is enabled, skip files without spec header
+        if require_spec_header and not spec_ref_pattern.search(content):
             continue
 
         for ac_id in ac_ids:
@@ -136,8 +150,12 @@ def main() -> int:
 
         total_acs += len(ac_ids)
 
+        # Active specs: strict filtering (only test files with spec header)
+        # Draft specs: global search (informational, no false-positive risk)
+        require_header = status == "active"
+
         coverage = search_tests_for_acs(
-            test_files, ac_ids, str(relative)
+            test_files, ac_ids, str(relative), require_spec_header=require_header
         )
 
         spec_covered = sum(1 for files in coverage.values() if files)
