@@ -79,6 +79,18 @@ def dispatch_compliance_scans(self: Any) -> Dict[str, Any]:
             dispatched_count = 0
             for host in hosts_due:
                 try:
+                    # Skip hosts with active scans
+                    active = db.execute(
+                        text(
+                            "SELECT id FROM scans WHERE host_id = :host_id"
+                            " AND status IN ('pending', 'running') LIMIT 1"
+                        ),
+                        {"host_id": host["host_id"]},
+                    ).fetchone()
+                    if active:
+                        logger.debug(f"Skipping {host['hostname']}: active scan {active.id}")
+                        continue
+
                     priority = host["scan_priority"]
 
                     # Dispatch individual Kensa scan task

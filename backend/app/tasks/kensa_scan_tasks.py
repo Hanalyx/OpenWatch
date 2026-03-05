@@ -131,6 +131,29 @@ def execute_kensa_scan_task(
         )
         db.commit()
 
+        # Check for another running scan on this host (guard against double dispatch)
+        other_running = db.execute(
+            text(
+                "SELECT id FROM scans WHERE host_id = :host_id"
+                " AND status IN ('pending', 'running')"
+                " AND id != :scan_id LIMIT 1"
+            ),
+            {"host_id": host_id, "scan_id": scan_id},
+        ).fetchone()
+        if other_running:
+            logger.warning(
+                "Skipping scan %s: host %s already has active scan %s",
+                scan_id,
+                host_id,
+                other_running.id,
+            )
+            _update_scan_error(
+                db,
+                scan_id,
+                f"Skipped: host already has active scan {other_running.id}",
+            )
+            return {"scan_id": scan_id, "status": "skipped", "reason": "concurrent_scan"}
+
         logger.info(
             "Starting Kensa scan task %s for host %s",
             scan_id,

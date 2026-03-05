@@ -222,6 +222,17 @@ async def execute_kensa_scan(
 
         hostname = host_result.hostname
 
+        # Check for existing active scan on this host
+        active_check = text(
+            "SELECT id FROM scans WHERE host_id = :host_id" " AND status IN ('pending', 'running') LIMIT 1"
+        )
+        active_scan = db.execute(active_check, {"host_id": request.host_id}).fetchone()
+        if active_scan:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Host {request.host_id} already has an active scan: {active_scan.id}",
+            )
+
         # Create scan record in database
         scan_name = request.name or f"Kensa Scan - {hostname} - {start_time.strftime('%Y-%m-%d %H:%M')}"
 
