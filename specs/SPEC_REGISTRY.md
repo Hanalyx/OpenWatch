@@ -46,7 +46,7 @@ Coverage is checked by `scripts/check-spec-coverage.py`.
 | Error Model | system/error-model.spec.yaml | TBD | 5 | Draft |
 | Security Controls | system/security-controls.spec.yaml | TBD | 4 | Draft |
 | Environment | system/environment.spec.yaml | — | — | Draft |
-| SSH Security | system/ssh-security.spec.yaml | TBD | 2 | Draft |
+| SSH Security | system/ssh-security.spec.yaml | backend/tests/unit/services/ssh/test_ssh_security.py | 2 | Active |
 
 ## Pipeline Specs
 
@@ -69,7 +69,7 @@ Coverage is checked by `scripts/check-spec-coverage.py`.
 | Remediation Execution | services/remediation/remediation-execution.spec.yaml | TBD | 2 | Draft |
 | Risk Classification | services/remediation/risk-classification.spec.yaml | TBD | 2 | Draft |
 | MFA | services/auth/mfa.spec.yaml | TBD | 4 | Draft |
-| SSH Connection | services/ssh/ssh-connection.spec.yaml | TBD | 2 | Draft |
+| SSH Connection | services/ssh/ssh-connection.spec.yaml | backend/tests/unit/services/ssh/test_ssh_connection.py | 2 | Active |
 
 ## API Route Specs
 
@@ -104,13 +104,13 @@ Coverage is checked by `scripts/check-spec-coverage.py`.
 
 | Category | Total Specs | Active | Draft | Deprecated |
 |----------|-------------|--------|-------|------------|
-| System | 9 | 0 | 9 | 0 |
+| System | 9 | 1 | 8 | 0 |
 | Pipelines | 3 | 1 | 2 | 0 |
-| Services | 10 | 2 | 8 | 0 |
+| Services | 10 | 3 | 7 | 0 |
 | API | 9 | 0 | 9 | 0 |
 | Plugins | 1 | 1 | 0 | 0 |
 | Release | 4 | 4 | 0 | 0 |
-| **Total** | **36** | **8** | **28** | **0** |
+| **Total** | **36** | **10** | **26** | **0** |
 
 ## Cross-Module Dependencies
 
