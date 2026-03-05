@@ -96,6 +96,7 @@ Coverage is checked by `scripts/check-spec-coverage.py`.
 | Spec | File | Tests | Phase | Status |
 |------|------|-------|-------|--------|
 | Changelog | release/changelog.spec.yaml | packaging/tests/test_version_consistency.sh | 0 | Active |
+| Cleanup Operations | release/cleanup-operations.spec.yaml | packaging/tests/test_cleanup_conventions.sh | 0 | Active |
 | Commit Conventions | release/commit-conventions.spec.yaml | packaging/tests/test_commit_conventions.sh | 0 | Active |
 | Package Build | release/package-build.spec.yaml | packaging/tests/test_package_build.sh | 0 | Active |
 
@@ -108,8 +109,8 @@ Coverage is checked by `scripts/check-spec-coverage.py`.
 | Services | 10 | 0 | 10 | 0 |
 | API | 9 | 0 | 9 | 0 |
 | Plugins | 1 | 0 | 1 | 0 |
-| Release | 3 | 3 | 0 | 0 |
-| **Total** | **35** | **3** | **32** | **0** |
+| Release | 4 | 4 | 0 | 0 |
+| **Total** | **36** | **4** | **32** | **0** |
 
 ## Cross-Module Dependencies
 
