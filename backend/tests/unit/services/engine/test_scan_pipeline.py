@@ -5,7 +5,9 @@ Spec: specs/pipelines/scan-execution.spec.yaml
 Tests scan state transitions, result storage logic, and score calculation.
 """
 
+import re
 from datetime import datetime, timezone
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -265,3 +267,196 @@ def test_scan_status_values():
     # Verify terminal states
     terminal = {"completed", "failed", "timed_out", "stopped"}
     assert terminal.issubset(valid_statuses)
+
+
+# =============================================================================
+# Contract tests (source-parsing) for AC gaps
+# These verify structural contracts in the implementation source code.
+# =============================================================================
+
+# Resolve source file paths once
+_BACKEND = Path(__file__).resolve().parents[4]  # backend/
+_KENSA_ROUTE = _BACKEND / "app" / "routes" / "scans" / "kensa.py"
+_KENSA_TASK = _BACKEND / "app" / "tasks" / "kensa_scan_tasks.py"
+_EXECUTOR = _BACKEND / "app" / "plugins" / "kensa" / "executor.py"
+
+
+def _read_source(path: Path) -> str:
+    """Read a source file and return its content."""
+    return path.read_text(encoding="utf-8")
+
+
+# ---------------------------------------------------------------------------
+# AC-2: GUEST/AUDITOR gets 403
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_ac2_rbac_excludes_guest_auditor():
+    """AC-2: execute_kensa_scan requires SECURITY_ANALYST+; GUEST/AUDITOR excluded."""
+    source = _read_source(_KENSA_ROUTE)
+
+    # Find the @require_role decorator immediately above execute_kensa_scan
+    pattern = r"@require_role\(\[([^\]]+)\]\)\s*\n\s*async def execute_kensa_scan"
+    match = re.search(pattern, source)
+    assert match, "Could not find @require_role decorator on execute_kensa_scan"
+
+    role_list = match.group(1)
+
+    # SECURITY_ANALYST must be allowed
+    assert "SECURITY_ANALYST" in role_list, "SECURITY_ANALYST must be in require_role list"
+
+    # GUEST and AUDITOR must NOT be allowed
+    assert "GUEST" not in role_list, "GUEST must NOT be in require_role list"
+    assert "AUDITOR" not in role_list, "AUDITOR must NOT be in require_role list"
+
+
+# ---------------------------------------------------------------------------
+# AC-4: No SSH credentials -> clear error
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_ac4_credential_not_found_raises_clear_error():
+    """AC-4: Missing SSH credentials raises RuntimeError with descriptive message."""
+    source = _read_source(_EXECUTOR)
+
+    # Verify CredentialNotFoundError is caught
+    assert "CredentialNotFoundError" in source, "executor.py must catch CredentialNotFoundError"
+
+    # Verify the clear error message pattern
+    assert (
+        'RuntimeError(f"No SSH credentials for host:' in source
+        or 'RuntimeError(f"No SSH credentials for host:' in source
+    ), "executor.py must raise RuntimeError with 'No SSH credentials for host' message"
+
+
+# ---------------------------------------------------------------------------
+# AC-6: PENDING -> RUNNING transition
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_ac6_pending_to_running_transition():
+    """AC-6: Task sets status='running' and progress=5 before scan execution."""
+    source = _read_source(_KENSA_TASK)
+
+    # Find the status=running and progress=5 settings
+    running_pos = source.find('.set("status", "running")')
+    progress_pos = source.find('.set("progress", 5)')
+    check_rules_pos = source.find("check_rules_from_path")
+
+    assert running_pos > 0, "Task must set status to 'running'"
+    assert progress_pos > 0, "Task must set progress to 5"
+    assert check_rules_pos > 0, "Task must call check_rules_from_path"
+
+    # Both must occur BEFORE check_rules_from_path
+    assert running_pos < check_rules_pos, "status='running' must be set BEFORE check_rules_from_path is called"
+    assert progress_pos < check_rules_pos, "progress=5 must be set BEFORE check_rules_from_path is called"
+
+
+# ---------------------------------------------------------------------------
+# AC-8: SSH failure -> FAILED with descriptive error
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_ac8_error_handler_sets_failed_with_truncation():
+    """AC-8: _update_scan_error sets status='failed' and truncates error to 500 chars."""
+    source = _read_source(_KENSA_TASK)
+
+    # Verify _update_scan_error helper exists
+    assert "def _update_scan_error(" in source, "_update_scan_error helper must exist in kensa_scan_tasks.py"
+
+    # Extract the helper body
+    helper_start = source.find("def _update_scan_error(")
+    # Find the next function definition or end of file
+    next_def = source.find("\ndef ", helper_start + 1)
+    helper_body = source[helper_start:next_def] if next_def > 0 else source[helper_start:]
+
+    # Verify it sets status to "failed"
+    assert '"failed"' in helper_body, "_update_scan_error must set status to 'failed'"
+
+    # Verify 500-char truncation
+    assert "[:500]" in helper_body, "_update_scan_error must truncate error_message to 500 chars"
+
+    # Verify the broad except handler calls _update_scan_error
+    # Pattern: except Exception ... _update_scan_error
+    broad_except_pattern = r"except Exception as \w+:.*?_update_scan_error"
+    assert re.search(
+        broad_except_pattern, source, re.DOTALL
+    ), "Broad except Exception handler must call _update_scan_error"
+
+
+# ---------------------------------------------------------------------------
+# AC-9: Kensa eval failure caught by broad exception (distinct from timeout)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_ac9_timeout_before_broad_exception():
+    """AC-9: SoftTimeLimitExceeded is caught BEFORE broad Exception, each with distinct handler."""
+    source = _read_source(_KENSA_TASK)
+
+    timeout_pos = source.find("except SoftTimeLimitExceeded")
+    broad_pos = source.find("except Exception as exc")
+
+    assert timeout_pos > 0, "SoftTimeLimitExceeded handler must exist"
+    assert broad_pos > 0, "Broad except Exception handler must exist"
+
+    # SoftTimeLimitExceeded must appear BEFORE the broad handler
+    assert timeout_pos < broad_pos, "SoftTimeLimitExceeded must be caught BEFORE broad except Exception"
+
+    # Each must call a DIFFERENT helper
+    # Extract the handler blocks (up to ~200 chars after each except)
+    timeout_block = source[timeout_pos : timeout_pos + 200]
+    broad_block = source[broad_pos : broad_pos + 200]
+
+    assert "_update_scan_timed_out" in timeout_block, "SoftTimeLimitExceeded handler must call _update_scan_timed_out"
+    assert "_update_scan_error" in broad_block, "Broad Exception handler must call _update_scan_error"
+
+    # They must NOT call each other's handler
+    assert "_update_scan_error" not in timeout_block, "SoftTimeLimitExceeded handler must NOT call _update_scan_error"
+    assert "_update_scan_timed_out" not in broad_block, "Broad Exception handler must NOT call _update_scan_timed_out"
+
+
+# ---------------------------------------------------------------------------
+# AC-11: Posture snapshot runs after completion (both paths)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_ac11_posture_snapshot_both_paths():
+    """AC-11: create_snapshot called in both sync (route) and async (task) paths, non-blocking."""
+    route_source = _read_source(_KENSA_ROUTE)
+    task_source = _read_source(_KENSA_TASK)
+
+    for label, source in [("route (kensa.py)", route_source), ("task (kensa_scan_tasks.py)", task_source)]:
+        assert "create_snapshot" in source, f"create_snapshot must be called in {label}"
+
+        # Verify it's wrapped in try/except (non-blocking)
+        snapshot_pos = source.find("create_snapshot")
+        # Look backwards for a nearby try block (within 300 chars)
+        preceding = source[max(0, snapshot_pos - 300) : snapshot_pos]
+        assert "try:" in preceding, f"create_snapshot in {label} must be wrapped in try/except (non-blocking)"
+
+
+# ---------------------------------------------------------------------------
+# AC-12: Drift detection runs after completion (both paths)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_ac12_drift_detection_both_paths():
+    """AC-12: detect_drift called with auto_baseline=True in both paths, non-blocking."""
+    route_source = _read_source(_KENSA_ROUTE)
+    task_source = _read_source(_KENSA_TASK)
+
+    for label, source in [("route (kensa.py)", route_source), ("task (kensa_scan_tasks.py)", task_source)]:
+        assert "detect_drift" in source, f"detect_drift must be called in {label}"
+        assert "auto_baseline=True" in source, f"detect_drift must be called with auto_baseline=True in {label}"
+
+        # Verify it's wrapped in try/except (non-blocking)
+        drift_pos = source.find("detect_drift")
+        preceding = source[max(0, drift_pos - 300) : drift_pos]
+        assert "try:" in preceding, f"detect_drift in {label} must be wrapped in try/except (non-blocking)"
