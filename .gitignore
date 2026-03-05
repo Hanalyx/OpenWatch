@@ -456,6 +456,7 @@ frontend_test.log
 
 # Allow packaging test scripts
 !packaging/tests/
+!packaging/tests/*
 
 # Temporary files
 *.tmp
