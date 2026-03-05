@@ -286,6 +286,14 @@ def _read_source(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
+def _assert_call_in_try_except(source: str, call_name: str, label: str) -> None:
+    """Verify a function call exists and is wrapped in try/except (non-blocking)."""
+    assert call_name in source, f"{call_name} must be called in {label}"
+    call_pos = source.find(call_name)
+    preceding = source[max(0, call_pos - 300) : call_pos]
+    assert "try:" in preceding, f"{call_name} in {label} must be wrapped in try/except (non-blocking)"
+
+
 # ---------------------------------------------------------------------------
 # AC-2: GUEST/AUDITOR gets 403
 # ---------------------------------------------------------------------------
@@ -327,7 +335,6 @@ def test_ac4_credential_not_found_raises_clear_error():
     # Verify the clear error message pattern
     assert (
         'RuntimeError(f"No SSH credentials for host:' in source
-        or 'RuntimeError(f"No SSH credentials for host:' in source
     ), "executor.py must raise RuntimeError with 'No SSH credentials for host' message"
 
 
@@ -432,13 +439,7 @@ def test_ac11_posture_snapshot_both_paths():
     task_source = _read_source(_KENSA_TASK)
 
     for label, source in [("route (kensa.py)", route_source), ("task (kensa_scan_tasks.py)", task_source)]:
-        assert "create_snapshot" in source, f"create_snapshot must be called in {label}"
-
-        # Verify it's wrapped in try/except (non-blocking)
-        snapshot_pos = source.find("create_snapshot")
-        # Look backwards for a nearby try block (within 300 chars)
-        preceding = source[max(0, snapshot_pos - 300) : snapshot_pos]
-        assert "try:" in preceding, f"create_snapshot in {label} must be wrapped in try/except (non-blocking)"
+        _assert_call_in_try_except(source, "create_snapshot", label)
 
 
 # ---------------------------------------------------------------------------
@@ -453,10 +454,5 @@ def test_ac12_drift_detection_both_paths():
     task_source = _read_source(_KENSA_TASK)
 
     for label, source in [("route (kensa.py)", route_source), ("task (kensa_scan_tasks.py)", task_source)]:
-        assert "detect_drift" in source, f"detect_drift must be called in {label}"
-        assert "auto_baseline=True" in source, f"detect_drift must be called with auto_baseline=True in {label}"
-
-        # Verify it's wrapped in try/except (non-blocking)
-        drift_pos = source.find("detect_drift")
-        preceding = source[max(0, drift_pos - 300) : drift_pos]
-        assert "try:" in preceding, f"detect_drift in {label} must be wrapped in try/except (non-blocking)"
+        assert "auto_baseline=True" in source, f"detect_drift must use auto_baseline=True in {label}"
+        _assert_call_in_try_except(source, "detect_drift", label)
