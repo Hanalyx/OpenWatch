@@ -49,6 +49,7 @@ from sqlalchemy.orm import Session
 from app.auth import get_current_user
 from app.database import get_db
 from app.plugins.kensa.evidence import serialize_evidence, serialize_framework_refs
+from app.rbac import UserRole, require_role
 from app.utils.mutation_builders import InsertBuilder, UpdateBuilder
 
 logger = logging.getLogger(__name__)
@@ -159,6 +160,7 @@ class ComplianceStateResponse(BaseModel):
 
 
 @router.post("/", response_model=KensaScanResponse)
+@require_role([UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 async def execute_kensa_scan(
     request: KensaScanRequest,
     db: Session = Depends(get_db),
