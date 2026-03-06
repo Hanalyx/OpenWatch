@@ -1,6 +1,123 @@
 spec: mfa
-version: "0.1"
-status: draft
+version: "1.0"
+status: active
 owner: engineering
 summary: >
-  TOTP multi-factor authentication: enrollment, verification, backup codes, replay prevention.
+  TOTP MFA with 20-byte (160-bit) Base32-encoded secrets; 10 backup codes
+  of 8 alphanumeric characters each, SHA-256 hashed for storage; TOTP
+  validation checks +-1 time window (30-second steps); replay prevention
+  via used_codes_cache keyed as "{code}_{epoch_30s}"; 6-digit numeric
+  input routes to TOTP, 8-char input to backup code; enroll_user_mfa
+  returns secret_key, qr_code_data, and backup_codes; MFA secret encrypted
+  at rest; validate_mfa_code returns MFAValidationResult with method_used.
+
+---
+
+# Objective
+
+objective: >
+  Ensure the MFA service generates cryptographically strong TOTP secrets
+  and backup codes, validates codes within the correct time window,
+  prevents replay attacks, routes codes to the correct validation path,
+  and stores secrets encrypted so that MFA provides a genuine second factor.
+
+---
+
+# Constraints
+
+constraints:
+  totp_secret:
+    - "Secret MUST be 20 bytes (160-bit) generated with secrets.token_bytes(20)"
+    - "Secret MUST be Base32-encoded"
+
+  backup_codes:
+    - "backup_code_count MUST be 10"
+    - "backup_code_length MUST be 8"
+    - "Characters MUST be from A-Z and 0-9 only"
+    - "Backup codes MUST be hashed with SHA-256 for storage"
+
+  totp_validation:
+    - "totp_window MUST be 1 (check -1, 0, +1 thirty-second windows)"
+    - "Replay prevention MUST use cache keyed as '{code}_{epoch_30s}'"
+    - "Replayed code MUST return False"
+
+  code_routing:
+    - "6-digit numeric input MUST route to TOTP validation"
+    - "8-character input MUST route to backup code validation"
+
+  storage:
+    - "MFA secret MUST be encrypted before database storage"
+    - "MFA secret MUST be decrypted before TOTP validation"
+
+---
+
+# Acceptance Criteria
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      generate_totp_secret uses secrets.token_bytes(20) and returns
+      a Base32-encoded string (base64.b32encode).
+
+  - id: AC-2
+    description: >
+      MFAService has backup_code_count=10 and backup_code_length=8;
+      generate_backup_codes returns exactly 10 codes of 8 characters each
+      from the set A-Z and 0-9.
+
+  - id: AC-3
+    description: >
+      hash_backup_code uses hashlib.sha256 and returns a hex digest.
+
+  - id: AC-4
+    description: >
+      validate_totp_code iterates range(-totp_window, totp_window + 1)
+      where totp_window=1, covering 3 thirty-second windows.
+
+  - id: AC-5
+    description: >
+      Replay prevention constructs code_key as
+      "{user_code}_{int(test_time.timestamp() // 30)}" and checks
+      against used_codes_cache; matching key returns False.
+
+  - id: AC-6
+    description: >
+      validate_mfa_code routes to TOTP when len(user_code)==6 and
+      user_code.isdigit(); routes to backup code when
+      len(user_code)==backup_code_length.
+
+  - id: AC-7
+    description: >
+      enroll_user_mfa returns MFAEnrollmentResult with success=True,
+      secret_key, qr_code_data, and backup_codes all populated.
+
+  - id: AC-8
+    description: >
+      validate_mfa_code calls decrypt_mfa_secret before passing the
+      secret to validate_totp_code.
+
+  - id: AC-9
+    description: >
+      MFAValidationResult has a method_used field; TOTP success sets
+      method_used=MFAMethod.TOTP; backup code success sets
+      method_used=MFAMethod.BACKUP_CODES.
+
+  - id: AC-10
+    description: >
+      regenerate_backup_codes returns a new list of 10 backup codes
+      (caller is responsible for invalidating old hashes in DB).
+
+---
+
+# Changelog
+
+changelog:
+  - version: "1.0"
+    date: "2026-03-05"
+    changes:
+      - "Promoted to active with 10/10 AC coverage (test_mfa.py)"
+      - "Reverse-engineered ACs from services/auth/mfa.py (MFAService, 347 LOC)"
+  - version: "0.1"
+    date: "2026-03-04"
+    changes:
+      - "Initial stub (draft, zero ACs)"

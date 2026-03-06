@@ -1,6 +1,123 @@
 spec: authentication
-version: "0.1"
-status: draft
+version: "1.0"
+status: active
 owner: engineering
 summary: >
-  JWT RS256 token lifecycle, password hashing (Argon2id), session management, and login rate limiting.
+  JWT RS256 token lifecycle with RSA-2048 keys: access tokens include sub,
+  id, username, email, role, mfa_enabled, exp, iat, jti claims; refresh
+  tokens carry type="refresh" and are rejected for API access; Argon2id
+  password hashing with 64MB memory cost and 3 iterations; account lockout
+  after 5 failed attempts for 30 minutes; login resets counters on success;
+  inactive account check precedes password verification; all auth events
+  logged to openwatch.audit.
+
+---
+
+# Objective
+
+objective: >
+  Ensure the authentication system enforces JWT RS256 signing, correct
+  token claims, Argon2id password hashing parameters, account lockout
+  policy, and comprehensive audit logging so that all authentication
+  events are traceable and token forgery is computationally infeasible.
+
+---
+
+# Constraints
+
+constraints:
+  jwt:
+    - "Algorithm MUST be RS256 with RSA-2048 key pair"
+    - "Access token MUST include: sub, id, username, email, role, mfa_enabled, exp, iat, jti"
+    - "Refresh token MUST include type='refresh' claim"
+    - "validate_access_token MUST reject tokens with type='refresh'"
+
+  password_hashing:
+    - "Algorithm MUST be Argon2id"
+    - "memory_cost MUST be 65536 (64MB)"
+    - "time_cost MUST be 3 iterations"
+    - "parallelism MUST be 1"
+
+  account_lockout:
+    - "Account MUST be locked after 5 consecutive failed login attempts"
+    - "Lockout duration MUST be 30 minutes"
+    - "Successful login MUST reset failed_login_attempts to 0 and locked_until to NULL"
+
+  audit_logging:
+    - "AUTH_FAILURE MUST be logged for non-existent user, wrong password, locked account"
+    - "LOGIN_SUCCESS MUST be logged on successful authentication"
+    - "TOKEN_REFRESH MUST be logged on token refresh"
+    - "USER_REGISTER MUST be logged on new user creation"
+
+---
+
+# Acceptance Criteria
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      FIPSJWTManager creates tokens using RS256 algorithm and RSA-2048
+      key pair (public_exponent=65537, key_size=2048).
+
+  - id: AC-2
+    description: >
+      Access token payload includes jti (secrets.token_urlsafe(32)), exp,
+      iat claims in addition to user data (sub, id, username, email, role,
+      mfa_enabled).
+
+  - id: AC-3
+    description: >
+      Refresh token includes type="refresh" claim to distinguish it from
+      access tokens.
+
+  - id: AC-4
+    description: >
+      validate_access_token rejects tokens where payload.get("type") ==
+      "refresh" with 401 UNAUTHORIZED.
+
+  - id: AC-5
+    description: >
+      pwd_context uses argon2 scheme with memory_cost=65536 (64MB),
+      time_cost=3, parallelism=1, hash_len=32, salt_len=16.
+
+  - id: AC-6
+    description: >
+      After 5 consecutive failed login attempts, locked_until is set to
+      utcnow() + 30 minutes; locked account returns 401 without checking
+      password.
+
+  - id: AC-7
+    description: >
+      Successful login resets failed_login_attempts=0 and
+      locked_until=NULL in the users table.
+
+  - id: AC-8
+    description: >
+      Login checks is_active before verifying password; inactive account
+      returns 401 immediately.
+
+  - id: AC-9
+    description: >
+      AUTH_FAILURE event logged for non-existent user, wrong password,
+      and locked account; LOGIN_SUCCESS logged on successful auth.
+
+  - id: AC-10
+    description: >
+      verify_token raises 401 with "Token has expired" on
+      ExpiredSignatureError; raises 401 with "Could not validate
+      credentials" on InvalidTokenError.
+
+---
+
+# Changelog
+
+changelog:
+  - version: "1.0"
+    date: "2026-03-05"
+    changes:
+      - "Promoted to active with 10/10 AC coverage (test_authentication.py)"
+      - "Reverse-engineered ACs from auth.py (FIPSJWTManager, pwd_context) and routes/auth/login.py"
+  - version: "0.1"
+    date: "2026-03-04"
+    changes:
+      - "Initial stub (draft, zero ACs)"

@@ -1,6 +1,126 @@
 spec: encryption
-version: "0.1"
-status: draft
+version: "1.0"
+status: active
 owner: engineering
 summary: >
-  AES-256-GCM credential encryption at rest, key management, and decryption audit logging.
+  AES-256-GCM credential encryption: PBKDF2-HMAC-SHA256 with 100,000
+  iterations derives a 32-byte key from a random 16-byte salt; a random
+  12-byte GCM nonce is generated per encryption; ciphertext format is
+  salt(16)+nonce(12)+ciphertext_with_tag. Two encryptions of identical
+  plaintext produce different ciphertext. Minimum ciphertext length is
+  44 bytes (salt+nonce+tag). kdf_iterations must be >= 10,000. Encrypted
+  fields (SSH passwords, private keys, passphrases, MFA secrets) are
+  stored as base64. Inactive credentials soft-deleted with 90-day retention.
+
+---
+
+# Objective
+
+objective: >
+  Ensure all sensitive credentials are encrypted with authenticated
+  encryption (AES-256-GCM) using per-encryption random salt and nonce,
+  key derivation meeting NIST SP 800-132 minimums, and that decryption
+  failures raise typed exceptions so that credential compromise requires
+  both the ciphertext and the master key.
+
+---
+
+# Constraints
+
+constraints:
+  algorithm:
+    - "Cipher MUST be AES-256-GCM (AESGCM from cryptography library)"
+    - "Key length MUST be 32 bytes (256 bits)"
+    - "Nonce length MUST be exactly 12 bytes (GCM standard)"
+    - "Salt length MUST be >= 16 bytes"
+
+  key_derivation:
+    - "KDF MUST be PBKDF2-HMAC"
+    - "Default algorithm MUST be SHA256"
+    - "Default iterations MUST be 100,000"
+    - "Minimum iterations MUST be 10,000 (NIST SP 800-132)"
+
+  ciphertext_format:
+    - "Format MUST be: salt(16 bytes) + nonce(12 bytes) + ciphertext_with_tag"
+    - "min_encrypted_data_length MUST equal salt_length + nonce_length + 16"
+    - "Each encryption MUST generate fresh random salt and nonce"
+
+  storage:
+    - "SSH passwords, private keys, and passphrases MUST be encrypted before storage"
+    - "Encrypted fields MUST be base64-encoded for DB storage"
+    - "MFA secrets MUST be encrypted at rest"
+    - "Inactive credentials MUST be retained 90 days before hard delete"
+
+---
+
+# Acceptance Criteria
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      EncryptionService uses AESGCM cipher with key_length=32 (AES-256)
+      and nonce_length=12 (GCM standard).
+
+  - id: AC-2
+    description: >
+      Default EncryptionConfig has kdf_iterations=100000 and
+      kdf_algorithm=KDFAlgorithm.SHA256.
+
+  - id: AC-3
+    description: >
+      encrypt() output format is salt(16) + nonce(12) + ciphertext_with_tag;
+      decrypt() extracts these components using config lengths.
+
+  - id: AC-4
+    description: >
+      Two calls to encrypt() with identical plaintext produce different
+      ciphertext (random salt and nonce per call).
+
+  - id: AC-5
+    description: >
+      EncryptionConfig.min_encrypted_data_length equals
+      salt_length + nonce_length + 16 (GCM tag is 16 bytes).
+
+  - id: AC-6
+    description: >
+      EncryptionConfig.validate() raises ValueError when kdf_iterations
+      < 10000 (NIST SP 800-132 minimum).
+
+  - id: AC-7
+    description: >
+      CentralizedAuthService stores encrypted credentials as
+      base64.b64encode(encrypted_bytes) and decodes with base64.b64decode
+      before decryption.
+
+  - id: AC-8
+    description: >
+      MFAService.encrypt_mfa_secret calls encrypt_data; decrypt_mfa_secret
+      calls decrypt_data to recover the TOTP secret.
+
+  - id: AC-9
+    description: >
+      decrypt() raises InvalidDataError when encrypted data is shorter
+      than min_encrypted_data_length; raises DecryptionError on
+      authentication tag mismatch or other failure.
+
+  - id: AC-10
+    description: >
+      CentralizedAuthService.delete_credential soft-deletes by setting
+      is_active=false; purge_old_inactive_credentials hard-deletes records
+      with is_active=false older than 90 days.
+
+---
+
+# Changelog
+
+changelog:
+  - version: "1.0"
+    date: "2026-03-05"
+    changes:
+      - "Promoted to active with 10/10 AC coverage (test_encryption.py)"
+      - "Reverse-engineered ACs from encryption/service.py, encryption/config.py,
+        services/auth/credential_service.py, and services/auth/mfa.py"
+  - version: "0.1"
+    date: "2026-03-04"
+    changes:
+      - "Initial stub (draft, zero ACs)"

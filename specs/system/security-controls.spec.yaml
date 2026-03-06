@@ -1,6 +1,126 @@
 spec: security-controls
-version: "0.1"
-status: draft
+version: "1.0"
+status: active
 owner: engineering
 summary: >
-  Cross-cutting security controls: rate limiting, account lockout, input validation, audit logging.
+  Token bucket rate limiting with per-client per-endpoint buckets:
+  anonymous 60 req/min (burst 20), authenticated 300 req/min (burst 100),
+  auth endpoints 15 req/min (burst 5), system 600 req/min. Rate limit
+  exceeded returns 429 with Retry-After and X-RateLimit-* headers. Auth
+  brute-force detected at 5 attempts per minute. OPENWATCH_RATE_LIMITING
+  env var controls enable/disable. Health, metrics, and docs endpoints
+  excluded. Clients identified by HMAC-SHA256. Bucket cleanup runs every
+  5 minutes; unused buckets purged after 1 hour.
+
+---
+
+# Objective
+
+objective: >
+  Ensure rate limiting applies correct per-category token buckets, returns
+  standards-compliant 429 responses, detects auth brute-force patterns,
+  excludes monitoring endpoints, identifies clients via secure HMAC hashing,
+  and self-cleans to prevent unbounded memory growth.
+
+---
+
+# Constraints
+
+constraints:
+  rate_limits:
+    - "anonymous: requests_per_minute=60, burst_capacity=20"
+    - "authenticated: requests_per_minute=300, burst_capacity=100"
+    - "auth: requests_per_minute=15, burst_capacity=5"
+    - "system: requests_per_minute=600, burst_capacity=200"
+
+  response:
+    - "429 response MUST include Retry-After header"
+    - "Response MUST include X-RateLimit-Limit, X-RateLimit-Remaining,
+      X-RateLimit-Reset, X-RateLimit-Burst headers"
+
+  brute_force:
+    - "auth_brute_force threshold MUST be 5 attempts per 1 minute window"
+
+  exclusions:
+    - "Endpoints starting with /health, /metrics, /docs, /redoc,
+      /openapi.json, /security-info MUST be excluded from rate limiting"
+
+  client_identification:
+    - "Authenticated clients MUST be identified by HMAC-SHA256 of Bearer token"
+    - "Anonymous clients MUST be identified by HMAC-SHA256 of IP address"
+
+  cleanup:
+    - "cleanup_old_entries MUST run at most every 300 seconds"
+    - "Token buckets unused for 3600 seconds MUST be removed"
+
+---
+
+# Acceptance Criteria
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      TokenBucket dataclass has capacity, tokens, rate, last_update fields;
+      consume() refills tokens based on elapsed time before checking.
+
+  - id: AC-2
+    description: >
+      Auth endpoint config has requests_per_minute=15 and burst_capacity=5
+      in the base _get_limits_configuration output.
+
+  - id: AC-3
+    description: >
+      Anonymous config has requests_per_minute=60; authenticated config has
+      requests_per_minute=300 in the base configuration.
+
+  - id: AC-4
+    description: >
+      _create_rate_limit_response returns JSONResponse with status_code=429
+      and sets Retry-After header.
+
+  - id: AC-5
+    description: >
+      SUSPICIOUS_PATTERNS["auth_brute_force"] has threshold=5 and
+      window_minutes=1.
+
+  - id: AC-6
+    description: >
+      RateLimitingMiddleware reads OPENWATCH_RATE_LIMITING env var;
+      self.enabled=False causes middleware to pass all requests through.
+
+  - id: AC-7
+    description: >
+      _get_endpoint_category returns "excluded" for paths starting with
+      /health, /metrics, /docs, /redoc, /openapi.json, /security-info.
+
+  - id: AC-8
+    description: >
+      _get_client_identifier uses hmac.new with HMAC-SHA256 to hash
+      the Bearer token (authenticated) or IP address (anonymous).
+
+  - id: AC-9
+    description: >
+      RateLimitStore.cleanup_old_entries skips cleanup if fewer than
+      300 seconds have elapsed; removes buckets with last_update older
+      than 3600 seconds.
+
+  - id: AC-10
+    description: >
+      RateLimitStore.track_suspicious_activity keys activity as
+      "{activity_type}:{current_minute}" where current_minute is
+      int(time.time() // 60).
+
+---
+
+# Changelog
+
+changelog:
+  - version: "1.0"
+    date: "2026-03-05"
+    changes:
+      - "Promoted to active with 10/10 AC coverage (test_security_controls.py)"
+      - "Reverse-engineered ACs from middleware/rate_limiting.py (461 LOC)"
+  - version: "0.1"
+    date: "2026-03-04"
+    changes:
+      - "Initial stub (draft, zero ACs)"

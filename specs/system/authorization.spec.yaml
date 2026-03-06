@@ -1,6 +1,122 @@
 spec: authorization
-version: "0.1"
-status: draft
+version: "1.0"
+status: active
 owner: engineering
 summary: >
-  RBAC authorization matrix defining which roles can access which API endpoints and data.
+  RBAC matrix: 6 roles (SUPER_ADMIN, SECURITY_ADMIN, SECURITY_ANALYST,
+  COMPLIANCE_OFFICER, AUDITOR, GUEST) with 33 permissions across 9
+  categories. SUPER_ADMIN holds all 33; GUEST holds exactly 3
+  (HOST_READ, RESULTS_READ, COMPLIANCE_VIEW). SECURITY_ADMIN lacks user
+  CRUD and system config permissions. require_permission and require_role
+  decorators raise 403 with detail including the required permission or
+  role values. API keys bypass role matrix and use a permissions list.
+
+---
+
+# Objective
+
+objective: >
+  Ensure the RBAC system enforces a complete, auditable permission matrix
+  where every role has exactly the permissions documented here, decorators
+  fail closed on unauthorized access, and 403 responses consistently
+  include the required permission or role so that authorization failures
+  are actionable.
+
+---
+
+# Constraints
+
+constraints:
+  roles:
+    - "UserRole MUST define exactly 6 values: super_admin, security_admin,
+      security_analyst, compliance_officer, auditor, guest"
+
+  permissions:
+    - "Permission enum MUST define exactly 33 members across 9 categories"
+    - "Categories: user (5), host (5), content (4), scan (8), results (2),
+      reports (2), system (4), audit (1), compliance (2)"
+
+  role_matrix:
+    - "SUPER_ADMIN MUST hold all 33 permissions"
+    - "GUEST MUST hold exactly 3 permissions: HOST_READ, RESULTS_READ, COMPLIANCE_VIEW"
+    - "SECURITY_ADMIN MUST NOT hold USER_CREATE, USER_UPDATE, USER_DELETE,
+      USER_MANAGE_ROLES, SYSTEM_CONFIG, SYSTEM_CREDENTIALS, SYSTEM_MAINTENANCE"
+    - "COMPLIANCE_OFFICER MUST hold RESULTS_READ_ALL and REPORTS_EXPORT but NOT SCAN_EXECUTE"
+
+  decorators:
+    - "require_permission MUST raise HTTP 403 when role lacks required permission"
+    - "require_role MUST raise HTTP 403 when user role not in allowed list"
+    - "403 detail MUST include the required permission value or role values"
+
+---
+
+# Acceptance Criteria
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      UserRole enum defines exactly 6 members: super_admin, security_admin,
+      security_analyst, compliance_officer, auditor, guest.
+
+  - id: AC-2
+    description: >
+      Permission enum defines exactly 33 members covering user (5), host (5),
+      content (4), scan (8), results (2), reports (2), system (4), audit (1),
+      and compliance (2) categories.
+
+  - id: AC-3
+    description: >
+      ROLE_PERMISSIONS[UserRole.SUPER_ADMIN] contains all 33 Permission
+      members.
+
+  - id: AC-4
+    description: >
+      ROLE_PERMISSIONS[UserRole.GUEST] contains exactly 3 permissions:
+      HOST_READ, RESULTS_READ, COMPLIANCE_VIEW.
+
+  - id: AC-5
+    description: >
+      require_permission decorator raises HTTP 403 FORBIDDEN when the
+      user's role does not have the required permission.
+
+  - id: AC-6
+    description: >
+      require_role decorator raises HTTP 403 FORBIDDEN when the user's
+      role is not in the allowed roles list.
+
+  - id: AC-7
+    description: >
+      403 response detail from require_permission includes the required
+      permission value; from require_role includes the required role values.
+
+  - id: AC-8
+    description: >
+      SECURITY_ADMIN lacks USER_CREATE, USER_UPDATE, USER_DELETE,
+      USER_MANAGE_ROLES, SYSTEM_CONFIG, SYSTEM_CREDENTIALS, and
+      SYSTEM_MAINTENANCE permissions.
+
+  - id: AC-9
+    description: >
+      COMPLIANCE_OFFICER has RESULTS_READ_ALL and REPORTS_EXPORT but does
+      not have SCAN_EXECUTE.
+
+  - id: AC-10
+    description: >
+      check_permission handles "api_keys" resource type by checking against
+      [SUPER_ADMIN, SECURITY_ADMIN] only, bypassing the general
+      permission_map.
+
+---
+
+# Changelog
+
+changelog:
+  - version: "1.0"
+    date: "2026-03-05"
+    changes:
+      - "Promoted to active with 10/10 AC coverage (test_authorization.py)"
+      - "Reverse-engineered ACs from rbac.py (UserRole, Permission, ROLE_PERMISSIONS, decorators)"
+  - version: "0.1"
+    date: "2026-03-04"
+    changes:
+      - "Initial stub (draft, zero ACs)"
