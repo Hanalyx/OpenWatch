@@ -60,10 +60,10 @@ Coverage is checked by `scripts/check-spec-coverage.py`.
 
 | Spec | File | Tests | Phase | Status |
 |------|------|-------|-------|--------|
-| Temporal Compliance | services/compliance/temporal-compliance.spec.yaml | TBD | 3 | Draft |
-| Exception Governance | services/compliance/exception-governance.spec.yaml | TBD | 3 | Draft |
-| Alert Thresholds | services/compliance/alert-thresholds.spec.yaml | TBD | 3 | Draft |
-| Drift Analysis | services/compliance/drift-analysis.spec.yaml | TBD | 3 | Draft |
+| Temporal Compliance | services/compliance/temporal-compliance.spec.yaml | backend/tests/unit/services/compliance/test_temporal_compliance.py | 3 | Active |
+| Exception Governance | services/compliance/exception-governance.spec.yaml | backend/tests/unit/services/compliance/test_exception_governance.py | 3 | Active |
+| Alert Thresholds | services/compliance/alert-thresholds.spec.yaml | backend/tests/unit/services/compliance/test_alert_thresholds.py | 3 | Active |
+| Drift Analysis | services/compliance/drift-analysis.spec.yaml | backend/tests/unit/services/compliance/test_drift_analysis.py | 3 | Active |
 | Kensa Scan | services/engine/kensa-scan.spec.yaml | backend/tests/unit/services/engine/test_kensa_scan.py | 1 | Active |
 | Scan Orchestration | services/engine/scan-orchestration.spec.yaml | backend/tests/unit/services/engine/test_scan_orchestration.py | 1 | Active |
 | Remediation Execution | services/remediation/remediation-execution.spec.yaml | backend/tests/unit/services/compliance/test_remediation_execution.py | 2 | Active |
@@ -106,11 +106,11 @@ Coverage is checked by `scripts/check-spec-coverage.py`.
 |----------|-------------|--------|-------|------------|
 | System | 9 | 1 | 8 | 0 |
 | Pipelines | 3 | 2 | 1 | 0 |
-| Services | 10 | 5 | 5 | 0 |
+| Services | 10 | 9 | 1 | 0 |
 | API | 9 | 0 | 9 | 0 |
 | Plugins | 1 | 1 | 0 | 0 |
 | Release | 4 | 4 | 0 | 0 |
-| **Total** | **36** | **13** | **23** | **0** |
+| **Total** | **36** | **17** | **19** | **0** |
 
 ## Cross-Module Dependencies
 
