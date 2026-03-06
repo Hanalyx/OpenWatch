@@ -1,6 +1,135 @@
 spec: temporal-compliance
-version: "0.1"
-status: draft
+version: "1.0"
+status: active
 owner: engineering
 summary: >
-  Point-in-time compliance posture queries, score calculation formula, and snapshot resolution.
+  Point-in-time compliance posture queries: score calculation formula
+  (passed/total * 100 rounded to 2 decimals), current vs historical posture
+  routing, snapshot idempotency per host+date, severity breakdown across 4
+  levels, evidence extraction from JSONB, rule state assembly from
+  scan_findings, value normalization for drift comparison, and daily
+  snapshot batch creation for all active hosts.
+
+---
+
+# Objective
+
+objective: >
+  Ensure the Temporal Compliance Service provides accurate point-in-time
+  compliance posture, idempotent snapshot creation, and correct evidence
+  extraction so that downstream drift detection and audit queries receive
+  consistent, verifiable data.
+
+---
+
+# Constraints
+
+constraints:
+  score_calculation:
+    - "Score MUST be calculated as (passed_rules / total_rules * 100) rounded to 2 decimal places"
+    - "Score MUST return None (no posture) when no completed scans exist for a host"
+    - "Compliance score MUST be constrained to 0-100 range (ge=0, le=100)"
+
+  posture_routing:
+    - "get_posture MUST delegate to _get_historical_posture when as_of is provided"
+    - "get_posture MUST delegate to _get_current_posture when as_of is None"
+
+  snapshots:
+    - "Snapshots MUST be idempotent: same host+date returns existing snapshot"
+    - "Idempotency check MUST use func.date() comparison on snapshot_date"
+    - "Posture history MUST be ordered by snapshot_date DESC with configurable limit (default 30)"
+
+  evidence:
+    - "_extract_actual MUST be a @staticmethod"
+    - "_extract_actual MUST return single string for one-item evidence lists"
+    - "_extract_actual MUST return list for multi-item evidence lists"
+    - "_extract_actual MUST return None for empty or missing evidence"
+
+  normalization:
+    - "_normalize_actual MUST be a @staticmethod"
+    - "_normalize_actual MUST return None for None input"
+    - "_normalize_actual MUST sort and join lists with '; ' separator"
+    - "_normalize_actual MUST call str() for non-list, non-None values"
+
+  rule_states:
+    - "_build_rule_states MUST query scan_findings table by scan_id"
+    - "_build_rule_states MUST build dict keyed by rule_id with status, severity, title"
+    - "_build_rule_states MUST call _extract_actual for evidence parsing"
+
+  batch_snapshots:
+    - "create_daily_snapshots_for_all_hosts MUST iterate Host.is_active == True"
+    - "Return dict MUST contain total_hosts, created, skipped, errors"
+
+---
+
+# Acceptance Criteria
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      _get_current_posture computes score as (passed_rules / total_rules * 100)
+      rounded to 2 decimals via round(compliance_score, 2), returning None when
+      no completed scans exist.
+
+  - id: AC-2
+    description: >
+      get_posture delegates to _get_historical_posture when as_of is provided,
+      else to _get_current_posture.
+
+  - id: AC-3
+    description: >
+      get_posture_history returns snapshots ordered by snapshot_date DESC with
+      configurable limit (default 30).
+
+  - id: AC-4
+    description: >
+      create_snapshot is idempotent: checks for existing snapshot on same
+      host+date via func.date() comparison, returns existing if found.
+
+  - id: AC-5
+    description: >
+      Severity breakdown covers 4 levels (critical, high, medium, low) each
+      with passed and failed counts via SeverityBreakdown.
+
+  - id: AC-6
+    description: >
+      PostureResponse schema has required fields: host_id, compliance_score
+      (ge=0, le=100), total_rules, passed, failed, severity_breakdown,
+      snapshot_date.
+
+  - id: AC-7
+    description: >
+      _extract_actual is a @staticmethod that reads evidence JSONB: single-item
+      list returns string, multi-item returns list, no evidence returns None.
+
+  - id: AC-8
+    description: >
+      _build_rule_states queries scan_findings table and builds dict keyed by
+      rule_id with status, severity, title, calling _extract_actual for
+      evidence.
+
+  - id: AC-9
+    description: >
+      _normalize_actual is a @staticmethod: None to None, list to sorted+joined
+      with "; ", other to str().
+
+  - id: AC-10
+    description: >
+      create_daily_snapshots_for_all_hosts iterates active hosts, calls
+      create_snapshot per host, returns summary dict with total_hosts, created,
+      skipped, errors.
+
+---
+
+# Changelog
+
+changelog:
+  - version: "1.0"
+    date: "2026-03-05"
+    changes:
+      - "Promoted to active with 10/10 AC coverage (test_temporal_compliance.py)"
+      - "Reverse-engineered ACs from temporal.py (874 LOC) and posture_schemas.py"
+  - version: "0.1"
+    date: "2026-03-04"
+    changes:
+      - "Initial stub (draft, zero ACs)"
