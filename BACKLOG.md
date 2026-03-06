@@ -81,10 +81,10 @@ These items were deferred when their parent epics were marked "Complete" with ba
 |----|------|----------|--------|-------|
 | E5-G1 | Raise backend coverage to 80% | P2 | E5 | Currently 32%, CI threshold 31% |
 | E5-G2 | Raise frontend coverage to 60% | P2 | E5 | Currently 1.5%, 88 tests |
-| E5-G3 | JWT token tests | P1 | E5-S2 | `test_jwt.py` not yet written |
-| E5-G4 | Credential encryption tests | P1 | E5-S3 | `test_credential_encryption.py` not yet written |
-| E5-G5 | Scan integration tests | P1 | E5-S4 | `test_scan_api.py`, `test_scan_workflow.py` pending |
-| E5-G6 | Auth integration tests | P1 | E5-S2 | `test_auth_api.py` pending |
+| E5-G3 | JWT token tests | P1 | E5-S2 | **Satisfied by SDD**: `test_auth_api.py` covers JWT (AC-5..AC-9 in auth/login spec) |
+| E5-G4 | Credential encryption tests | P1 | E5-S3 | **Satisfied by SDD**: `test_auth_api.py` + auth/encryption specs cover key behaviors |
+| E5-G5 | Scan integration tests | P1 | E5-S4 | **Satisfied by SDD**: `test_scan_api.py` (36 source-inspection tests, 10/10 ACs) |
+| E5-G6 | Auth integration tests | P1 | E5-S2 | **Satisfied by SDD**: `test_auth_api.py` (24 source-inspection tests, 10/10 ACs) |
 | E5-G7 | Regression test README | P2 | E5-S9 | Process documentation for `tests/regression/` |
 
 ---
