@@ -1,6 +1,118 @@
 spec: rollback-api
-version: "0.1"
-status: draft
+version: "1.0"
+status: active
 owner: engineering
 summary: >
-  POST /api/remediation/rollback endpoint contract: rollback eligibility, execution, verification.
+  POST /api/compliance/remediation/rollback endpoint contract: accepts
+  RollbackRequest (job_id UUID). Requires SECURITY_ADMIN or SUPER_ADMIN
+  role (stricter than remediation start). Requires active OpenWatch+ license.
+  Returns 202 ACCEPTED with rollback_job_id and status="queued"; actual
+  rollback runs asynchronously via execute_rollback_job Celery task.
+  Errors: 402 PAYMENT_REQUIRED for missing license, 400 BAD_REQUEST if
+  the referenced job is not in a rollback-eligible state or job_id is
+  invalid.
+
+---
+
+# Objective
+
+objective: >
+  Ensure rollback execution is gated behind stricter authorization than
+  initial remediation (SECURITY_ADMIN+ only), validates that the referenced
+  job is in a rollback-eligible state, and queues asynchronous work so the
+  caller receives an immediate response.
+
+---
+
+# Constraints
+
+constraints:
+  authorization:
+    - "Endpoint MUST require SECURITY_ADMIN or SUPER_ADMIN role"
+    - "SECURITY_ANALYST, COMPLIANCE_OFFICER, AUDITOR, and GUEST MUST receive 403"
+    - "Rollback requires higher privilege than remediation start"
+
+  licensing:
+    - "OpenWatch+ license MUST be verified; missing license returns 402"
+
+  input:
+    - "job_id MUST reference an existing remediation job"
+    - "Referenced job MUST be in a rollback-eligible status; otherwise 400"
+    - "Invalid or non-existent job_id returns 400 BAD_REQUEST"
+
+  response:
+    - "Successful response MUST be HTTP 202 ACCEPTED"
+    - "Response MUST include rollback_job_id (UUID) and status='queued'"
+    - "Response MUST echo back the original job_id"
+
+  async_execution:
+    - "execute_rollback_job Celery task MUST be queued, not executed synchronously"
+
+---
+
+# Acceptance Criteria
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      POST /api/compliance/remediation/rollback returns 403 FORBIDDEN when
+      called by SECURITY_ANALYST, COMPLIANCE_OFFICER, AUDITOR, or GUEST.
+
+  - id: AC-2
+    description: >
+      Returns 402 PAYMENT_REQUIRED when no active OpenWatch+ license is
+      present, before any job lookup.
+
+  - id: AC-3
+    description: >
+      Returns 400 BAD_REQUEST with error.code VALIDATION_ERROR when
+      job_id does not reference an existing remediation job.
+
+  - id: AC-4
+    description: >
+      Returns 400 BAD_REQUEST when the referenced remediation job is not
+      in a rollback-eligible state (e.g., still queued or already rolled back).
+
+  - id: AC-5
+    description: >
+      Successful request returns HTTP 202 ACCEPTED (not 200 OK).
+
+  - id: AC-6
+    description: >
+      Response body includes rollback_job_id (UUID string) and
+      status="queued".
+
+  - id: AC-7
+    description: >
+      Response body echoes back the original job_id from the request.
+
+  - id: AC-8
+    description: >
+      execute_rollback_job Celery task is queued with .delay() or
+      .apply_async() and does not block the HTTP response.
+
+  - id: AC-9
+    description: >
+      A rollback job record is created in the database with status "queued"
+      before the HTTP 202 response is returned.
+
+  - id: AC-10
+    description: >
+      The route requires SECURITY_ADMIN or SUPER_ADMIN via require_role
+      decorator; the role check is enforced before license and input
+      validation.
+
+---
+
+# Changelog
+
+changelog:
+  - version: "1.0"
+    date: "2026-03-05"
+    changes:
+      - "Promoted to active with 10/10 AC coverage (test_remediation_api.py)"
+      - "Reverse-engineered ACs from routes/compliance/remediation.py (333 LOC)"
+  - version: "0.1"
+    date: "2026-03-04"
+    changes:
+      - "Initial stub (draft, zero ACs)"

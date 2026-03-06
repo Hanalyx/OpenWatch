@@ -1,6 +1,121 @@
 spec: exception-crud-api
-version: "0.1"
-status: draft
+version: "1.0"
+status: active
 owner: engineering
 summary: >
-  CRUD endpoints for compliance exceptions: create, approve, reject, list, revoke.
+  Compliance exception endpoints: GET /api/compliance/exceptions (list, any
+  auth), GET /api/compliance/exceptions/summary (stats, any auth), POST
+  /api/compliance/exceptions (create, requires OpenWatch+ license, 409 on
+  duplicate), GET /api/compliance/exceptions/{id} (detail, 404 if missing),
+  POST /api/compliance/exceptions/{id}/approve (requires SUPER_ADMIN,
+  SECURITY_ADMIN, or COMPLIANCE_OFFICER, 400 if not pending), POST
+  /api/compliance/exceptions/{id}/reject (same roles, 400 if not pending),
+  POST /api/compliance/exceptions/{id}/revoke (same roles, 400 if not
+  approved), POST /api/compliance/exceptions/check (is rule excepted for
+  host).
+
+---
+
+# Objective
+
+objective: >
+  Ensure the exception management API enforces license gating for creation,
+  role-based access for state transitions, and correct state-machine
+  validation so that compliance exceptions follow a controlled
+  pending -> approved/rejected and approved -> revoked lifecycle.
+
+---
+
+# Constraints
+
+constraints:
+  authorization:
+    - "List and detail endpoints MUST be accessible to any authenticated user"
+    - "Create (POST) MUST require active OpenWatch+ license"
+    - "Approve/reject/revoke MUST require SUPER_ADMIN, SECURITY_ADMIN, or COMPLIANCE_OFFICER"
+
+  state_machine:
+    - "approve MUST only accept exceptions in pending status; other states return 400"
+    - "reject MUST only accept exceptions in pending status; other states return 400"
+    - "revoke MUST only accept exceptions in approved status; other states return 400"
+
+  errors:
+    - "Duplicate exception (same rule_id + host_id + active status) MUST return 409 CONFLICT"
+    - "Non-existent exception ID MUST return 404 NOT_FOUND"
+    - "Missing license for create MUST return 403 FORBIDDEN with code LICENSE_REQUIRED"
+
+  response:
+    - "Exception detail MUST include id, rule_id, host_id, status, justification, expires_at"
+    - "Summary endpoint MUST include counts by status (pending, approved, rejected, expired)"
+
+---
+
+# Acceptance Criteria
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      GET /api/compliance/exceptions returns a paginated list of exceptions
+      accessible to any authenticated user without license check.
+
+  - id: AC-2
+    description: >
+      POST /api/compliance/exceptions returns 403 FORBIDDEN with error.code
+      LICENSE_REQUIRED when no active OpenWatch+ license is present.
+
+  - id: AC-3
+    description: >
+      POST /api/compliance/exceptions returns 409 CONFLICT with error.code
+      CONFLICT when an active exception already exists for the same
+      rule_id and host_id combination.
+
+  - id: AC-4
+    description: >
+      GET /api/compliance/exceptions/{id} returns 404 NOT_FOUND with
+      error.code NOT_FOUND when the exception ID does not exist.
+
+  - id: AC-5
+    description: >
+      POST /api/compliance/exceptions/{id}/approve requires SUPER_ADMIN,
+      SECURITY_ADMIN, or COMPLIANCE_OFFICER role; other roles receive 403.
+
+  - id: AC-6
+    description: >
+      approve and reject endpoints return 400 BAD_REQUEST with error.code
+      VALIDATION_ERROR when the exception is not in "pending" status.
+
+  - id: AC-7
+    description: >
+      POST /api/compliance/exceptions/{id}/revoke returns 400 BAD_REQUEST
+      when the exception is not in "approved" status.
+
+  - id: AC-8
+    description: >
+      Exception detail response includes id (UUID), rule_id, host_id,
+      status, justification, requested_by, expires_at, and created_at.
+
+  - id: AC-9
+    description: >
+      GET /api/compliance/exceptions/summary returns counts for at least
+      the status categories: pending, approved, rejected, expired.
+
+  - id: AC-10
+    description: >
+      POST /api/compliance/exceptions/check returns a response indicating
+      whether the specified rule is currently excepted for the given host,
+      including expiry date if excepted.
+
+---
+
+# Changelog
+
+changelog:
+  - version: "1.0"
+    date: "2026-03-05"
+    changes:
+      - "Promoted to active with 10/10 AC coverage (test_compliance_api.py)"
+      - "Reverse-engineered ACs from routes/compliance/exceptions.py (374 LOC)"
+  - version: "0.1"
+    date: "2026-03-04"
+    changes:
+      - "Initial stub (draft, zero ACs)"

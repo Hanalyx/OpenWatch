@@ -43,7 +43,7 @@ Coverage is checked by `scripts/check-spec-coverage.py`.
 | Authentication | system/authentication.spec.yaml | backend/tests/unit/services/auth/test_authentication.py | 4 | Active |
 | Authorization | system/authorization.spec.yaml | backend/tests/unit/services/auth/test_authorization.py | 4 | Active |
 | Encryption | system/encryption.spec.yaml | backend/tests/unit/services/auth/test_encryption.py | 4 | Active |
-| Error Model | system/error-model.spec.yaml | TBD | 5 | Draft |
+| Error Model | system/error-model.spec.yaml | backend/tests/unit/api/test_error_model.py | 5 | Active |
 | Security Controls | system/security-controls.spec.yaml | backend/tests/unit/services/auth/test_security_controls.py | 4 | Active |
 | Environment | system/environment.spec.yaml | — | — | Draft |
 | SSH Security | system/ssh-security.spec.yaml | backend/tests/unit/services/ssh/test_ssh_security.py | 2 | Active |
@@ -75,15 +75,15 @@ Coverage is checked by `scripts/check-spec-coverage.py`.
 
 | Spec | File | Tests | Phase | Status |
 |------|------|-------|-------|--------|
-| Start Kensa Scan | api/scans/start-kensa-scan.spec.yaml | TBD | 5 | Draft |
-| Scan Results | api/scans/scan-results.spec.yaml | TBD | 5 | Draft |
-| Posture Query | api/compliance/posture-query.spec.yaml | TBD | 5 | Draft |
-| Drift Query | api/compliance/drift-query.spec.yaml | TBD | 5 | Draft |
-| Exception CRUD | api/compliance/exception-crud.spec.yaml | TBD | 5 | Draft |
-| Start Remediation | api/remediation/start-remediation.spec.yaml | TBD | 5 | Draft |
-| Rollback | api/remediation/rollback.spec.yaml | TBD | 5 | Draft |
-| Login | api/auth/login.spec.yaml | TBD | 5 | Draft |
-| MFA Verify | api/auth/mfa-verify.spec.yaml | TBD | 5 | Draft |
+| Start Kensa Scan | api/scans/start-kensa-scan.spec.yaml | backend/tests/unit/api/test_scan_api.py | 5 | Active |
+| Scan Results | api/scans/scan-results.spec.yaml | backend/tests/unit/api/test_scan_api.py | 5 | Active |
+| Posture Query | api/compliance/posture-query.spec.yaml | backend/tests/unit/api/test_compliance_api.py | 5 | Active |
+| Drift Query | api/compliance/drift-query.spec.yaml | backend/tests/unit/api/test_compliance_api.py | 5 | Active |
+| Exception CRUD | api/compliance/exception-crud.spec.yaml | backend/tests/unit/api/test_compliance_api.py | 5 | Active |
+| Start Remediation | api/remediation/start-remediation.spec.yaml | backend/tests/unit/api/test_remediation_api.py | 5 | Active |
+| Rollback | api/remediation/rollback.spec.yaml | backend/tests/unit/api/test_remediation_api.py | 5 | Active |
+| Login | api/auth/login.spec.yaml | backend/tests/unit/api/test_auth_api.py | 5 | Active |
+| MFA Verify | api/auth/mfa-verify.spec.yaml | backend/tests/unit/api/test_auth_api.py | 5 | Active |
 
 ## Plugin Specs
 
@@ -104,13 +104,13 @@ Coverage is checked by `scripts/check-spec-coverage.py`.
 
 | Category | Total Specs | Active | Draft | Deprecated |
 |----------|-------------|--------|-------|------------|
-| System | 9 | 5 | 4 | 0 |
+| System | 9 | 6 | 3 | 0 |
 | Pipelines | 3 | 2 | 1 | 0 |
 | Services | 10 | 10 | 0 | 0 |
-| API | 9 | 0 | 9 | 0 |
+| API | 9 | 9 | 0 | 0 |
 | Plugins | 1 | 1 | 0 | 0 |
 | Release | 4 | 4 | 0 | 0 |
-| **Total** | **36** | **22** | **14** | **0** |
+| **Total** | **36** | **32** | **4** | **0** |
 
 ## Cross-Module Dependencies
 

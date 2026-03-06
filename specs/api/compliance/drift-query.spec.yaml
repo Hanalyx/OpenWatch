@@ -1,6 +1,123 @@
 spec: drift-query-api
-version: "0.1"
-status: draft
+version: "1.0"
+status: active
 owner: engineering
 summary: >
-  GET /api/compliance/drift endpoint contract: drift summaries, filtering, export.
+  GET /api/compliance/posture/drift endpoint contract: accepts host_id
+  (UUID), start_date and end_date (date strings, both required), and
+  optional include_value_drift (bool) query parameters. Requires OpenWatch+
+  license; returns 403 LICENSE_REQUIRED otherwise. Returns 400 BAD_REQUEST
+  if start_date is after end_date. Response is DriftAnalysisResponse with
+  host_id, period (start/end dates), changed_rules count, new_failures,
+  new_passes, and a changes list. With include_value_drift=true, each
+  change entry includes old_value and new_value fields. A CSV export is
+  available at GET /api/compliance/posture/drift/export.
+
+---
+
+# Objective
+
+objective: >
+  Ensure the drift query API enforces date ordering, gates access behind
+  OpenWatch+ licensing, and returns structured change data sufficient for
+  compliance analysts to identify what rules changed state between two
+  points in time.
+
+---
+
+# Constraints
+
+constraints:
+  authorization:
+    - "Endpoint MUST require authentication"
+    - "Endpoint MUST require active OpenWatch+ license"
+    - "No license MUST return 403 FORBIDDEN with code LICENSE_REQUIRED"
+
+  input_validation:
+    - "host_id, start_date, and end_date are all required query parameters"
+    - "start_date after end_date MUST return 400 BAD_REQUEST"
+    - "start_date equal to end_date is valid (single-day drift)"
+
+  response:
+    - "Response MUST include host_id, start_date, end_date"
+    - "Response MUST include changed_rules (int), new_failures (int), new_passes (int)"
+    - "Response MUST include a 'changes' list of rule-level change objects"
+    - "Each change MUST include rule_id, title, severity, old_status, new_status"
+
+  value_drift:
+    - "include_value_drift=true MUST add old_value and new_value to each change entry"
+    - "Value drift requires evidence JSONB data from scan_findings"
+
+  export:
+    - "GET /api/compliance/posture/drift/export MUST return StreamingResponse with CSV content"
+    - "CSV export MUST require same OpenWatch+ license as drift query"
+
+---
+
+# Acceptance Criteria
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      GET /api/compliance/posture/drift returns 403 FORBIDDEN with
+      error.code LICENSE_REQUIRED when no active OpenWatch+ license exists.
+
+  - id: AC-2
+    description: >
+      Returns 400 BAD_REQUEST with error.code VALIDATION_ERROR when
+      start_date is after end_date.
+
+  - id: AC-3
+    description: >
+      host_id, start_date, and end_date are all required; missing any one
+      returns 422 UNPROCESSABLE_ENTITY.
+
+  - id: AC-4
+    description: >
+      Response includes host_id (UUID), start_date, end_date, and integer
+      fields changed_rules, new_failures, and new_passes.
+
+  - id: AC-5
+    description: >
+      Response includes a "changes" list where each entry contains rule_id,
+      title, severity, old_status (pass/fail/skip/None), and new_status.
+
+  - id: AC-6
+    description: >
+      With include_value_drift=false (default), changes entries do NOT
+      include old_value or new_value fields.
+
+  - id: AC-7
+    description: >
+      With include_value_drift=true, each change entry includes old_value
+      and new_value strings extracted from scan_findings evidence JSONB.
+
+  - id: AC-8
+    description: >
+      equal start_date and end_date (same-day query) is valid and returns
+      a drift response (possibly with zero changes).
+
+  - id: AC-9
+    description: >
+      GET /api/compliance/posture/drift/export returns a StreamingResponse
+      with Content-Type text/csv and Content-Disposition attachment header.
+
+  - id: AC-10
+    description: >
+      CSV export endpoint enforces the same OpenWatch+ license requirement
+      as the drift query endpoint; unlicensed access returns 403.
+
+---
+
+# Changelog
+
+changelog:
+  - version: "1.0"
+    date: "2026-03-05"
+    changes:
+      - "Promoted to active with 10/10 AC coverage (test_compliance_api.py)"
+      - "Reverse-engineered ACs from routes/compliance/posture.py (394 LOC)"
+  - version: "0.1"
+    date: "2026-03-04"
+    changes:
+      - "Initial stub (draft, zero ACs)"

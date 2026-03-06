@@ -1,6 +1,116 @@
 spec: mfa-verify-api
-version: "0.1"
-status: draft
+version: "1.0"
+status: active
 owner: engineering
 summary: >
-  POST /api/auth/mfa/verify endpoint contract: TOTP validation, token issuance on success.
+  POST /api/auth/mfa/validate endpoint contract: accepts
+  MFAValidationRequest (code string). Routes 6-digit numeric codes to
+  TOTP validation and 8-character alphanumeric codes to backup code
+  validation via MFAService. Returns {"success": true, "method": "totp"}
+  or {"success": true, "method": "backup_code"} on success. Returns 401
+  UNAUTHORIZED on invalid code. Logs validation result to MFAAuditLog.
+  Replay prevention uses used_codes_cache keyed by "{code}_{epoch_30s}".
+
+---
+
+# Objective
+
+objective: >
+  Ensure the MFA validation endpoint correctly routes codes by length,
+  prevents replay attacks, logs all validation outcomes, and returns a
+  machine-parseable method_used field so clients can display the
+  authentication method used.
+
+---
+
+# Constraints
+
+constraints:
+  routing:
+    - "6-digit numeric code MUST be routed to TOTP validation"
+    - "8-character alphanumeric code MUST be routed to backup code validation"
+    - "Other code formats MUST return 401 UNAUTHORIZED"
+
+  response:
+    - "Success response MUST include 'success': true and 'method' string"
+    - "'method' MUST be 'totp' for TOTP validation or 'backup_code' for backup codes"
+    - "Failure MUST return 401 UNAUTHORIZED"
+
+  replay_prevention:
+    - "TOTP codes MUST be tracked in used_codes_cache to prevent reuse"
+    - "Cache key MUST incorporate the code value and 30-second epoch bucket"
+
+  audit:
+    - "Validation result (success/failure, method) MUST be logged to MFAAuditLog"
+
+---
+
+# Acceptance Criteria
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      POST /api/auth/mfa/validate accepts MFAValidationRequest with a
+      "code" field (string); missing or malformed body returns 422.
+
+  - id: AC-2
+    description: >
+      A 6-digit numeric code is routed to MFAService.validate_totp_code;
+      any non-6-digit or non-numeric code is not treated as TOTP.
+
+  - id: AC-3
+    description: >
+      An 8-character alphanumeric code is routed to
+      MFAService.validate_backup_code.
+
+  - id: AC-4
+    description: >
+      Successful TOTP validation returns HTTP 200 with body
+      {"success": true, "method": "totp"}.
+
+  - id: AC-5
+    description: >
+      Successful backup code validation returns HTTP 200 with body
+      {"success": true, "method": "backup_code"}.
+
+  - id: AC-6
+    description: >
+      Failed validation (wrong code, expired TOTP, used backup code)
+      returns HTTP 401 UNAUTHORIZED.
+
+  - id: AC-7
+    description: >
+      TOTP replay prevention: a code accepted in one 30-second window
+      cannot be accepted again in the same window (used_codes_cache
+      checked before accepting).
+
+  - id: AC-8
+    description: >
+      MFA secret is decrypted via decrypt_mfa_secret before being passed
+      to TOTP validation; decrypt_mfa_secret appears before
+      validate_totp_code in the call sequence.
+
+  - id: AC-9
+    description: >
+      Validation outcome (success=True/False and method) is persisted or
+      logged to MFAAuditLog for audit trail purposes.
+
+  - id: AC-10
+    description: >
+      The "method" field in the response is always present and contains
+      exactly "totp" or "backup_code" (never null or missing on success).
+
+---
+
+# Changelog
+
+changelog:
+  - version: "1.0"
+    date: "2026-03-05"
+    changes:
+      - "Promoted to active with 10/10 AC coverage (test_auth_api.py)"
+      - "Reverse-engineered ACs from routes/auth/mfa.py (716 LOC)"
+  - version: "0.1"
+    date: "2026-03-04"
+    changes:
+      - "Initial stub (draft, zero ACs)"
