@@ -3,7 +3,7 @@
 > **Purpose**: Single source of truth for all pending work items, prioritized and actionable.
 > Updated at the end of each AI session. Items flow in from PRD epics, bug reports, and session discoveries.
 
-**Last Updated**: 2026-02-24
+**Last Updated**: 2026-03-05
 
 ---
 
@@ -57,16 +57,18 @@
 
 ---
 
-## Recently Completed (2026-02-24)
+## Recently Completed (2026-03-05)
 
 | Item | PR | Notes |
 |------|----|-------|
+| SDD auth/RBAC specs promoted to active | #332 (open) | authentication, authorization, encryption, mfa, security-controls; 22 active specs total, 145 tests; fixed Permission count 31→33 |
+| Phase 3 SDD: 4 compliance specs promoted to active | #331 | temporal-compliance, exception-governance, alert-thresholds, drift-analysis; 17 active specs total, 117 tests |
+| Phase 2 SDD: 5 specs promoted to active | #328, #329, #330 | remediation-lifecycle, remediation-execution, risk-classification, ssh-security, ssh-connection |
+| Phase 1 SDD: scan pipeline specs | prior PRs | kensa-scan, scan-orchestration, drift-detection, orsa-v2 |
 | K-9 Field-level drift detection | #308 | Full implementation: snapshot population fix, value drift, group drift, CSV export, backfill task |
 | K-1 Full Evidence storage | #307 | `evidence JSONB` column on `scan_findings`, populated during Kensa scans |
 | Framework mapping file sync | #304 | PCI DSS now shows ~120 rules (was 2), FedRAMP added as new framework |
 | README rewrite | #306 | Value-first messaging, dashboard screenshot, "Deploy in 10 Minutes" |
-| GitHub Discussions enabled | [#305](https://github.com/Hanalyx/OpenWatch/discussions/305) | Welcome post created, default categories active |
-| CLAUDE.md size reduction | — | 50.7k → 39.8k chars (gitignored, local only) |
 | Aegis to Kensa migration | commit 59cba9ee | Full rename across codebase |
 
 ---

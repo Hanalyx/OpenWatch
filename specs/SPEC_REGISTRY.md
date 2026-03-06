@@ -40,11 +40,11 @@ Coverage is checked by `scripts/check-spec-coverage.py`.
 |------|------|-------|-------|--------|
 | Architecture | system/architecture.spec.yaml | — | — | Draft |
 | Documentation | system/documentation.spec.yaml | — | — | Draft |
-| Authentication | system/authentication.spec.yaml | TBD | 4 | Draft |
-| Authorization | system/authorization.spec.yaml | TBD | 4 | Draft |
-| Encryption | system/encryption.spec.yaml | TBD | 4 | Draft |
+| Authentication | system/authentication.spec.yaml | backend/tests/unit/services/auth/test_authentication.py | 4 | Active |
+| Authorization | system/authorization.spec.yaml | backend/tests/unit/services/auth/test_authorization.py | 4 | Active |
+| Encryption | system/encryption.spec.yaml | backend/tests/unit/services/auth/test_encryption.py | 4 | Active |
 | Error Model | system/error-model.spec.yaml | TBD | 5 | Draft |
-| Security Controls | system/security-controls.spec.yaml | TBD | 4 | Draft |
+| Security Controls | system/security-controls.spec.yaml | backend/tests/unit/services/auth/test_security_controls.py | 4 | Active |
 | Environment | system/environment.spec.yaml | — | — | Draft |
 | SSH Security | system/ssh-security.spec.yaml | backend/tests/unit/services/ssh/test_ssh_security.py | 2 | Active |
 
@@ -68,7 +68,7 @@ Coverage is checked by `scripts/check-spec-coverage.py`.
 | Scan Orchestration | services/engine/scan-orchestration.spec.yaml | backend/tests/unit/services/engine/test_scan_orchestration.py | 1 | Active |
 | Remediation Execution | services/remediation/remediation-execution.spec.yaml | backend/tests/unit/services/compliance/test_remediation_execution.py | 2 | Active |
 | Risk Classification | services/remediation/risk-classification.spec.yaml | backend/tests/unit/services/compliance/test_risk_classification.py | 2 | Active |
-| MFA | services/auth/mfa.spec.yaml | TBD | 4 | Draft |
+| MFA | services/auth/mfa.spec.yaml | backend/tests/unit/services/auth/test_mfa.py | 4 | Active |
 | SSH Connection | services/ssh/ssh-connection.spec.yaml | backend/tests/unit/services/ssh/test_ssh_connection.py | 2 | Active |
 
 ## API Route Specs
@@ -104,13 +104,13 @@ Coverage is checked by `scripts/check-spec-coverage.py`.
 
 | Category | Total Specs | Active | Draft | Deprecated |
 |----------|-------------|--------|-------|------------|
-| System | 9 | 1 | 8 | 0 |
+| System | 9 | 5 | 4 | 0 |
 | Pipelines | 3 | 2 | 1 | 0 |
-| Services | 10 | 9 | 1 | 0 |
+| Services | 10 | 10 | 0 | 0 |
 | API | 9 | 0 | 9 | 0 |
 | Plugins | 1 | 1 | 0 | 0 |
 | Release | 4 | 4 | 0 | 0 |
-| **Total** | **36** | **17** | **19** | **0** |
+| **Total** | **36** | **22** | **14** | **0** |
 
 ## Cross-Module Dependencies
 
