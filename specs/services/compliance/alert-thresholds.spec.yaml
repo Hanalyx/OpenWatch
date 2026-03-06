@@ -1,6 +1,125 @@
 spec: alert-thresholds
-version: "0.1"
-status: draft
+version: "1.0"
+status: active
 owner: engineering
 summary: >
-  Alert generation thresholds for compliance drift, severity levels, and deduplication rules.
+  Alert generation and management: AlertType enum with 16 members across 4
+  categories (compliance, operational, exception, drift), AlertSeverity with 5
+  levels, AlertStatus with 3 states, status transition guards
+  (acknowledge from active, resolve from active or acknowledged), alert
+  deduplication within configurable time window, DEFAULT_THRESHOLDS with 4
+  top-level keys, severity-priority sorting via CASE expression,
+  AlertGenerator.process_scan_results dispatching findings/score-drop/
+  non-compliant/drift checks, and configuration drift detection
+  (pass-to-fail, fail-to-pass, mass drift).
+
+---
+
+# Objective
+
+objective: >
+  Ensure the AlertService and AlertGenerator provide deterministic alert
+  creation with deduplication, correct status transitions, severity-based
+  sorting, and accurate configuration drift detection so that operators
+  receive actionable, non-duplicate compliance notifications.
+
+---
+
+# Constraints
+
+constraints:
+  alert_types:
+    - "AlertType MUST define exactly 16 members across 4 categories"
+    - "Categories: compliance (5), operational (5), exception (3), drift (3)"
+
+  alert_lifecycle:
+    - "AlertSeverity MUST have exactly 5 values: critical, high, medium, low, info"
+    - "AlertStatus MUST have exactly 3 values: active, acknowledged, resolved"
+    - "acknowledge_alert MUST only transition from active"
+    - "resolve_alert MUST transition from active OR acknowledged"
+
+  deduplication:
+    - "_is_duplicate MUST check alert_type, host_id, rule_id, and status='active' within window"
+    - "Deduplication window MUST be configurable (default 60 minutes)"
+
+  thresholds:
+    - "DEFAULT_THRESHOLDS MUST have exactly 4 top-level keys: compliance, operational, exceptions, drift"
+
+  sorting:
+    - "list_alerts MUST sort by severity priority: critical=1, high=2, medium=3, low=4, else 5"
+    - "Secondary sort MUST be created_at DESC"
+
+  drift_detection:
+    - "_check_configuration_drift MUST detect pass-to-fail as CONFIGURATION_DRIFT"
+    - "_check_configuration_drift MUST detect fail-to-pass as UNEXPECTED_REMEDIATION"
+    - "_check_configuration_drift MUST detect mass drift above threshold as MASS_DRIFT"
+
+---
+
+# Acceptance Criteria
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      AlertType enum defines exactly 16 members: 5 compliance, 5 operational,
+      3 exception, 3 drift.
+
+  - id: AC-2
+    description: >
+      AlertSeverity enum has exactly 5 values: critical, high, medium, low,
+      info.
+
+  - id: AC-3
+    description: >
+      AlertStatus enum has exactly 3 values: active, acknowledged, resolved.
+
+  - id: AC-4
+    description: >
+      acknowledge_alert transitions from active (WHERE status = 'active');
+      resolve_alert from active or acknowledged (WHERE status IN ('active',
+      'acknowledged')).
+
+  - id: AC-5
+    description: >
+      AlertGenerator.process_scan_results checks findings, score drop,
+      non-compliant, and configuration drift conditions.
+
+  - id: AC-6
+    description: >
+      DEFAULT_THRESHOLDS dict has exactly 4 top-level keys: compliance,
+      operational, exceptions, drift.
+
+  - id: AC-7
+    description: >
+      _is_duplicate queries for matching alert_type, host_id, rule_id within
+      window, filtering status = 'active'.
+
+  - id: AC-8
+    description: >
+      list_alerts sorts by severity priority (critical=1, high=2, medium=3,
+      low=4, else 5) then created_at DESC.
+
+  - id: AC-9
+    description: >
+      get_stats returns total_active, total_acknowledged, total_resolved and
+      by_severity with 5 keys.
+
+  - id: AC-10
+    description: >
+      _check_configuration_drift detects pass-to-fail as CONFIGURATION_DRIFT,
+      fail-to-pass as UNEXPECTED_REMEDIATION, plus MASS_DRIFT above threshold.
+
+---
+
+# Changelog
+
+changelog:
+  - version: "1.0"
+    date: "2026-03-05"
+    changes:
+      - "Promoted to active with 10/10 AC coverage (test_alert_thresholds.py)"
+      - "Reverse-engineered ACs from alerts.py (686 LOC) and alert_generator.py (398 LOC)"
+  - version: "0.1"
+    date: "2026-03-04"
+    changes:
+      - "Initial stub (draft, zero ACs)"

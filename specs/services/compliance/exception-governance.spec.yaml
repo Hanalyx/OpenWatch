@@ -1,6 +1,123 @@
 spec: exception-governance
-version: "0.1"
-status: draft
+version: "1.0"
+status: active
 owner: engineering
 summary: >
-  Compliance exception lifecycle (request, approve, reject, expire) and score interaction rules.
+  Compliance exception lifecycle: 5-status state machine (pending, approved,
+  rejected, expired, revoked), status transition guards, duplicate prevention
+  for active exceptions, scope validation (host_id or host_group_id required),
+  is_excepted priority check (direct host first, then host group), bulk
+  expiration of approved exceptions past expires_at, summary with counts for
+  all statuses plus expiring_soon, and schema validation constraints
+  (justification min_length=20, duration_days 1-365).
+
+---
+
+# Objective
+
+objective: >
+  Ensure the Exception Service enforces a strict state machine for compliance
+  exception lifecycle, prevents duplicates, validates scope, and provides
+  accurate is_excepted lookups so that scan results correctly account for
+  governed exceptions.
+
+---
+
+# Constraints
+
+constraints:
+  state_machine:
+    - "Status values MUST be exactly: pending, approved, rejected, expired, revoked"
+    - "approve_exception MUST only transition from pending to approved"
+    - "reject_exception MUST only transition from pending to rejected"
+    - "revoke_exception MUST only transition from approved to revoked"
+    - "expire_exceptions MUST bulk-transition approved exceptions past expires_at to expired"
+
+  duplicate_prevention:
+    - "_find_active_exception MUST check for pending OR approved status"
+    - "request_exception MUST return None if active exception already exists"
+
+  scope_validation:
+    - "request_exception MUST require host_id or host_group_id (at least one)"
+    - "request_exception MUST return None if neither host_id nor host_group_id provided"
+
+  is_excepted:
+    - "is_excepted MUST check direct host exception first (by host_id)"
+    - "is_excepted MUST fall back to host group exception (via host_group_memberships JOIN)"
+    - "is_excepted MUST only consider approved and non-expired exceptions"
+
+  schema_validation:
+    - "justification MUST have min_length=20"
+    - "duration_days MUST be ge=1, le=365"
+
+---
+
+# Acceptance Criteria
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      Exception status has exactly 5 values: pending, approved, rejected,
+      expired, revoked. Service uses these literal strings for status
+      transitions.
+
+  - id: AC-2
+    description: >
+      approve_exception transitions only from pending to approved; rejects if
+      status != "pending".
+
+  - id: AC-3
+    description: >
+      reject_exception transitions only from pending to rejected;
+      revoke_exception transitions only from approved to revoked.
+
+  - id: AC-4
+    description: >
+      Duplicate prevention: _find_active_exception checks for existing pending
+      or approved exception with same rule+scope; request_exception returns
+      None if found.
+
+  - id: AC-5
+    description: >
+      ExceptionRequestCreate schema enforces justification min_length=20 and
+      duration_days ge=1, le=365.
+
+  - id: AC-6
+    description: >
+      is_excepted checks direct host exception first (by host_id), then falls
+      back to host group exception (via host_group_memberships join).
+
+  - id: AC-7
+    description: >
+      expire_exceptions bulk-updates approved exceptions past expires_at to
+      expired; returns count.
+
+  - id: AC-8
+    description: >
+      get_summary returns ExceptionSummary with counts for all 5 statuses plus
+      expiring_soon.
+
+  - id: AC-9
+    description: >
+      request_exception validates scope: requires host_id or host_group_id,
+      returns None if neither.
+
+  - id: AC-10
+    description: >
+      ExceptionCheckResponse schema has is_excepted, exception_id, expires_at,
+      justification fields.
+
+---
+
+# Changelog
+
+changelog:
+  - version: "1.0"
+    date: "2026-03-05"
+    changes:
+      - "Promoted to active with 10/10 AC coverage (test_exception_governance.py)"
+      - "Reverse-engineered ACs from exceptions.py (569 LOC) and exception_schemas.py"
+  - version: "0.1"
+    date: "2026-03-04"
+    changes:
+      - "Initial stub (draft, zero ACs)"

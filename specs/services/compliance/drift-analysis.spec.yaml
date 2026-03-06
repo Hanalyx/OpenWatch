@@ -1,6 +1,114 @@
 spec: drift-analysis
-version: "0.1"
-status: draft
+version: "1.0"
+status: active
 owner: engineering
 summary: >
-  Drift classification logic: status drift, value drift, group aggregation, and threshold levels.
+  Drift classification logic: magnitude-based thresholds (>=10% major, >=5%
+  minor, <5% stable), positive drift always classified as improvement,
+  "unknown" when snapshots missing, rule-level status drift (regression vs
+  improvement), value-only drift when include_value_drift=True and status
+  unchanged, group drift via host_group_memberships join with per-rule
+  summaries sorted by affected_host_count descending, and Pydantic response
+  schemas with all required fields.
+
+---
+
+# Objective
+
+objective: >
+  Ensure drift detection classifies compliance changes accurately using
+  magnitude-based thresholds, distinguishes status drift from value-only
+  drift, and aggregates group drift by rule with correct sorting so that
+  compliance officers can identify systemic regressions across host groups.
+
+---
+
+# Constraints
+
+constraints:
+  drift_classification:
+    - "Drift type MUST use magnitude-based thresholds: >=10% major, >=5% minor, <5% stable"
+    - "Positive drift (improvement) MUST NOT be classified as major or minor"
+    - "Missing snapshots MUST return drift_type='unknown'"
+
+  rule_level_drift:
+    - "pass->fail MUST be classified as 'regression'"
+    - "fail->pass MUST be classified as 'improvement'"
+    - "Value-only drift MUST only be reported when include_value_drift=True"
+    - "Value-only drift MUST set status_changed=False on ValueDriftEvent"
+
+  group_drift:
+    - "detect_group_drift MUST query host_group_memberships joined with hosts"
+    - "Group drift MUST iterate each host with detect_drift"
+    - "Rule summaries MUST be sorted by affected_host_count descending"
+
+  schemas:
+    - "DriftAnalysisResponse MUST have all 14 fields from host_id through rules_value_changed"
+    - "GroupDriftResponse and GroupDriftRuleSummary MUST have correct fields"
+
+---
+
+# Acceptance Criteria
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      detect_drift classifies into 4 types: major, minor, improvement, stable;
+      returns "unknown" when snapshots missing.
+
+  - id: AC-2
+    description: >
+      Major drift: magnitude >= 10.0 with negative delta produces "major";
+      positive produces "improvement".
+
+  - id: AC-3
+    description: >
+      Minor drift: magnitude >= 5.0 with negative delta produces "minor";
+      positive produces "improvement".
+
+  - id: AC-4
+    description: >
+      Stable: magnitude < 5.0 produces "stable" (else branch).
+
+  - id: AC-5
+    description: >
+      Rule-level drift: pass-to-fail = "regression", fail-to-pass =
+      "improvement".
+
+  - id: AC-6
+    description: >
+      Value-only drift: include_value_drift=True + status unchanged + value
+      changed produces ValueDriftEvent(status_changed=False).
+
+  - id: AC-7
+    description: >
+      detect_group_drift queries host_group_memberships joined with hosts,
+      iterates each with detect_drift.
+
+  - id: AC-8
+    description: >
+      Group drift rule summaries sorted by affected_host_count descending.
+
+  - id: AC-9
+    description: >
+      DriftAnalysisResponse has all required fields: host_id through
+      rules_value_changed (14 fields).
+
+  - id: AC-10
+    description: >
+      GroupDriftResponse + GroupDriftRuleSummary have correct fields.
+
+---
+
+# Changelog
+
+changelog:
+  - version: "1.0"
+    date: "2026-03-05"
+    changes:
+      - "Promoted to active with 10/10 AC coverage (test_drift_analysis.py)"
+      - "Reverse-engineered ACs from temporal.py (detect_drift, detect_group_drift) and posture_schemas.py"
+  - version: "0.1"
+    date: "2026-03-04"
+    changes:
+      - "Initial stub (draft, zero ACs)"
