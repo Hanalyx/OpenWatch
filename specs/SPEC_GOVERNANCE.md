@@ -159,3 +159,57 @@ Every quarter (or every major version), review:
 3. Are there new modules that should be specced? (evaluate against tiers)
 4. Is the spec-to-test coverage at 100% for Active specs?
 5. Should any specs be deprecated?
+
+---
+
+## Ongoing Maintenance Process
+
+### New Feature Workflow
+
+When adding a feature covered by an existing Active spec:
+
+1. **Check the spec first** — does the feature fit the current ACs?
+2. If yes: implement the feature, ensure AC coverage stays at 100%
+3. If no: open a spec change (add a new AC), get owner approval, then implement
+4. Update `spec.version` and `changelog` section in the YAML
+
+### Bug Fix Workflow
+
+When fixing a bug in spec-covered code:
+
+1. **Determine if the bug was a spec violation** (spec says X, code did Y)
+   - If yes: fix code to match spec; no spec change needed
+   - If no: fix code; evaluate whether spec needs a new AC to prevent regression
+2. Reference the spec AC in the fix commit message: `fix(auth): AC-5 lockout counter not reset on success`
+
+### Version Bump Rules
+
+| Change Type | Version Bump | Approval |
+|-------------|-------------|----------|
+| New AC added | minor (1.0 → 1.1) | Owner |
+| AC constraint tightened | minor | Owner |
+| AC removed or relaxed | major (1.x → 2.0) | Owner + review |
+| Typo / clarification only | patch (1.0 → 1.0.1) | Owner |
+
+### Deprecation Convention
+
+To deprecate a spec:
+
+1. Set `status: deprecated` in the YAML header
+2. Add a `deprecated_by` field pointing to the replacement spec (if any)
+3. Keep the spec file; do NOT delete it (preserves history)
+4. Remove tests only after the deprecated spec's module is removed from code
+5. Update `SPEC_REGISTRY.md` to mark the entry as deprecated
+
+### CI Enforcement (Active Specs)
+
+The `spec-checks` CI job runs on every PR and push:
+
+| Check | Mode | Script |
+|-------|------|--------|
+| Schema validation | Mandatory (blocks merge) | `scripts/validate-specs.py` |
+| AC coverage (Active only) | Mandatory (blocks merge) | `scripts/check-spec-coverage.py --enforce-active` |
+| Spec-code drift warning | Advisory (never blocks) | `scripts/check-spec-changes.py` |
+
+To add a new spec to CI enforcement: promote it to `status: active` in the YAML.
+The `--enforce-active` flag automatically picks up all Active specs.

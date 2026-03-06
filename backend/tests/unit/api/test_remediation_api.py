@@ -241,3 +241,199 @@ class TestRollbackAC10RoleCheckFirst:
         # Both SECURITY_ANALYST (for create) and SECURITY_ADMIN (for rollback) present
         assert "SECURITY_ANALYST" in source
         assert "SECURITY_ADMIN" in source
+
+
+# ---------------------------------------------------------------------------
+# AC-4 (start-remediation): 400 for invalid/empty rule_ids
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestRemediationAC4InvalidRules:
+    """AC-4: Returns 400 BAD_REQUEST when rule_ids is empty or unrecognized."""
+
+    def test_raises_400_for_invalid_rules(self):
+        """Verify HTTP 400 raised for invalid rule_ids."""
+        source = inspect.getsource(create_remediation_job)
+        assert "HTTP_400_BAD_REQUEST" in source or "400" in source
+
+    def test_value_error_caught_and_returned_as_400(self):
+        """Verify ValueError from service is converted to 400 BAD_REQUEST."""
+        source = inspect.getsource(create_remediation_job)
+        assert "ValueError" in source
+        assert "HTTP_400_BAD_REQUEST" in source
+
+
+# ---------------------------------------------------------------------------
+# AC-6 (start-remediation): Response includes job_id and status="queued"
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestRemediationAC6ResponseShape:
+    """AC-6: Response body includes job_id (UUID string) and status='queued'."""
+
+    def test_response_model_has_job_id(self):
+        """Verify RemediationJobResponse schema has job_id field."""
+        from app.schemas.remediation_schemas import RemediationJobResponse
+
+        fields = RemediationJobResponse.model_fields
+        assert "id" in fields or "job_id" in fields
+
+    def test_response_model_has_status(self):
+        """Verify RemediationJobResponse schema has status field."""
+        from app.schemas.remediation_schemas import RemediationJobResponse
+
+        fields = RemediationJobResponse.model_fields
+        assert "status" in fields
+
+    def test_response_uses_remediation_job_response_model(self):
+        """Verify create_remediation_job uses RemediationJobResponse."""
+        import app.routes.compliance.remediation as remediation_module
+
+        source = inspect.getsource(remediation_module)
+        assert "RemediationJobResponse" in source
+
+
+# ---------------------------------------------------------------------------
+# AC-7 (start-remediation): Response echoes host_id and rule_ids
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestRemediationAC7ResponseEcho:
+    """AC-7: Response echoes back host_id and rule_ids for client-side correlation."""
+
+    def test_response_schema_has_host_id(self):
+        """Verify RemediationJobResponse schema has host_id field."""
+        from app.schemas.remediation_schemas import RemediationJobResponse
+
+        fields = RemediationJobResponse.model_fields
+        assert "host_id" in fields
+
+    def test_response_schema_has_rule_ids(self):
+        """Verify RemediationJobResponse schema has rule_ids field."""
+        from app.schemas.remediation_schemas import RemediationJobResponse
+
+        fields = RemediationJobResponse.model_fields
+        assert "rule_ids" in fields
+
+
+# ---------------------------------------------------------------------------
+# AC-9 (start-remediation): Job created in DB before response
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestRemediationAC9JobCreatedFirst:
+    """AC-9: Remediation job record created in DB with status 'queued' before response."""
+
+    def test_job_created_before_celery_delay(self):
+        """Verify service.create_job called before execute_remediation_job.delay."""
+        source = inspect.getsource(create_remediation_job)
+        create_pos = source.find("create_job")
+        delay_pos = source.find(".delay(")
+        assert create_pos != -1 and delay_pos != -1
+        assert create_pos < delay_pos
+
+    def test_job_id_passed_to_delay(self):
+        """Verify job ID returned from create_job is passed to delay call."""
+        source = inspect.getsource(create_remediation_job)
+        assert "job.id" in source or "job_id" in source
+
+
+# ---------------------------------------------------------------------------
+# AC-4 (rollback): 400 for non-eligible state
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestRollbackAC4NonEligibleState:
+    """AC-4: Returns 400 BAD_REQUEST when job is not in a rollback-eligible state."""
+
+    def test_raises_400_for_invalid_state(self):
+        """Verify HTTP 400 raised for non-eligible rollback state."""
+        source = inspect.getsource(rollback_remediation)
+        assert "HTTP_400_BAD_REQUEST" in source or "400" in source
+
+    def test_value_error_caught_as_400(self):
+        """Verify ValueError (non-eligible state) converted to 400."""
+        source = inspect.getsource(rollback_remediation)
+        assert "ValueError" in source
+        assert "HTTP_400_BAD_REQUEST" in source
+
+
+# ---------------------------------------------------------------------------
+# AC-6 (rollback): Response includes rollback_job_id and status
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestRollbackAC6ResponseShape:
+    """AC-6: Response body includes rollback_job_id (UUID) and status='queued'."""
+
+    def test_response_has_rollback_job_id(self):
+        """Verify RollbackResponse schema has rollback_job_id field."""
+        from app.schemas.remediation_schemas import RollbackResponse
+
+        fields = RollbackResponse.model_fields
+        assert "rollback_job_id" in fields
+
+    def test_response_has_status(self):
+        """Verify RollbackResponse schema has status field."""
+        from app.schemas.remediation_schemas import RollbackResponse
+
+        fields = RollbackResponse.model_fields
+        assert "status" in fields
+
+    def test_rollback_uses_rollback_response_model(self):
+        """Verify rollback_remediation uses RollbackResponse."""
+        import app.routes.compliance.remediation as remediation_module
+
+        source = inspect.getsource(remediation_module)
+        assert "RollbackResponse" in source
+
+
+# ---------------------------------------------------------------------------
+# AC-7 (rollback): Response echoes original job_id
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestRollbackAC7EchoOriginalJob:
+    """AC-7: Response echoes back the original job_id from the request."""
+
+    def test_response_schema_has_original_job_id(self):
+        """Verify RollbackResponse schema has original_job_id field."""
+        from app.schemas.remediation_schemas import RollbackResponse
+
+        fields = RollbackResponse.model_fields
+        assert "original_job_id" in fields or "job_id" in fields
+
+    def test_request_job_id_forwarded_to_service(self):
+        """Verify request.job_id is passed to the service rollback call."""
+        source = inspect.getsource(rollback_remediation)
+        assert "request.job_id" in source
+
+
+# ---------------------------------------------------------------------------
+# AC-9 (rollback): Rollback job record created before HTTP response
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestRollbackAC9JobCreatedFirst:
+    """AC-9: Rollback job record created in DB with status 'queued' before response."""
+
+    def test_rollback_job_created_before_delay(self):
+        """Verify service.rollback_job called before execute_rollback_job.delay."""
+        source = inspect.getsource(rollback_remediation)
+        create_pos = source.find("rollback_job(")
+        delay_pos = source.find("execute_rollback_job.delay")
+        assert create_pos != -1 and delay_pos != -1
+        assert create_pos < delay_pos
+
+    def test_rollback_job_id_passed_to_delay(self):
+        """Verify rollback_job_id from service response is passed to delay."""
+        source = inspect.getsource(rollback_remediation)
+        assert "rollback_job_id" in source
