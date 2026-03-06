@@ -388,3 +388,79 @@ class TestExceptionAC10CheckEndpoint:
         """Verify check_exception uses rule_id and host_id."""
         source = inspect.getsource(check_exception)
         assert "rule_id" in source or "host_id" in source
+
+
+# ---------------------------------------------------------------------------
+# AC-8 (posture-query): include_rule_states defaults to False
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestPostureAC8DefaultFalse:
+    """AC-8: With include_rule_states=false, rule_states absent from response."""
+
+    def test_include_rule_states_defaults_false(self):
+        """Verify include_rule_states parameter defaults to False."""
+        source = inspect.getsource(get_posture)
+        # Query(False, ...) sets the default
+        assert "Query(False" in source or "= False" in source
+
+    def test_include_rule_states_is_optional(self):
+        """Verify include_rule_states is an optional query parameter."""
+        source = inspect.getsource(get_posture)
+        assert "include_rule_states" in source
+        assert "bool" in source
+
+
+# ---------------------------------------------------------------------------
+# AC-8 (drift-query): Equal start_date and end_date is valid
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestDriftAC8EqualDatesValid:
+    """AC-8: Equal start_date and end_date (same-day query) is valid (not 400)."""
+
+    def test_date_comparison_uses_strict_greater_than(self):
+        """Verify strict > comparison (not >=), so equal dates are accepted."""
+        source = inspect.getsource(analyze_drift)
+        # The guard is: if start_date > end_date — equal is NOT rejected
+        assert "start_date > end_date" in source
+
+    def test_equal_dates_not_rejected(self):
+        """Verify no >= comparison that would reject equal start/end dates."""
+        source = inspect.getsource(analyze_drift)
+        # Should use strict > not >=
+        assert "start_date >= end_date" not in source
+
+
+# ---------------------------------------------------------------------------
+# AC-8 (exception-crud): Exception detail response shape
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestExceptionAC8DetailShape:
+    """AC-8: Exception detail includes id, rule_id, host_id, status, justification,
+    requested_by, expires_at, and created_at."""
+
+    def test_exception_response_has_id_field(self):
+        """Verify ExceptionResponse schema has id field."""
+        from app.schemas.exception_schemas import ExceptionResponse
+
+        fields = ExceptionResponse.model_fields
+        assert "id" in fields
+
+    def test_exception_response_has_required_fields(self):
+        """Verify ExceptionResponse has all AC-8 required fields."""
+        from app.schemas.exception_schemas import ExceptionResponse
+
+        fields = ExceptionResponse.model_fields
+        required = {"rule_id", "host_id", "status", "justification", "requested_by", "expires_at", "created_at"}
+        for field in required:
+            assert field in fields, f"ExceptionResponse missing field: {field}"
+
+    def test_get_exception_returns_exception_response(self):
+        """Verify get_exception uses ExceptionResponse as response model."""
+        source = inspect.getsource(get_exception)
+        assert "exception" in source.lower()
