@@ -1,6 +1,125 @@
 spec: error-model
-version: "0.1"
-status: draft
+version: "1.0"
+status: active
 owner: engineering
 summary: >
-  Standardized error response shape for all API endpoints with error codes and request IDs.
+  API error response conventions: FastAPI HTTPException raises produce
+  {"detail": "<message>"} responses. The global exception handler
+  (global_exception_handler in main.py) catches unhandled exceptions and
+  returns {"detail": "Internal server error", "error_id": "<timestamp>"}
+  without exposing stack traces, internal class names, or file paths.
+  HTTP status codes are used semantically: 400 validation, 401 auth, 403
+  authz, 404 not found, 409 conflict, 402 license, 500 internal. The
+  global handler logs the exception to the audit logger before returning
+  the generic response.
+
+---
+
+# Objective
+
+objective: >
+  Ensure the API never exposes internal implementation details through error
+  responses, always uses semantically correct HTTP status codes, and provides
+  correlation IDs for server-side error tracing while keeping client-facing
+  error messages generic and safe.
+
+---
+
+# Constraints
+
+constraints:
+  error_shape:
+    - "HTTPException errors MUST use 'detail' key with human-readable message"
+    - "500 responses MUST use 'detail' with generic message (not internal exception text)"
+    - "500 responses MUST include 'error_id' for log correlation"
+
+  status_codes:
+    - "Authentication failures MUST use HTTP 401"
+    - "Authorization failures MUST use HTTP 403"
+    - "Missing resources MUST use HTTP 404"
+    - "State conflicts MUST use HTTP 409"
+    - "License gate failures MUST use HTTP 402 or 403"
+    - "Internal failures MUST use HTTP 500"
+
+  security:
+    - "Stack traces MUST NOT appear in error responses"
+    - "Internal exception class names MUST NOT appear in error responses"
+    - "Exception type logged in audit logger MUST NOT be returned to client"
+
+  audit:
+    - "global_exception_handler MUST log EXCEPTION security event via audit_logger"
+    - "Client IP MUST be captured for exception audit log (X-Forwarded-For aware)"
+
+---
+
+# Acceptance Criteria
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      global_exception_handler in main.py returns a JSONResponse with
+      HTTP 500 status containing "detail" and "error_id" keys, never
+      exposing raw exception information.
+
+  - id: AC-2
+    description: >
+      global_exception_handler does NOT include the exception class name
+      or traceback in the response body (only in server-side logs).
+
+  - id: AC-3
+    description: >
+      global_exception_handler calls audit_logger.log_security_event with
+      "EXCEPTION" event type before returning the response.
+
+  - id: AC-4
+    description: >
+      global_exception_handler extracts client IP from X-Forwarded-For
+      header when present, falling back to request.client.host.
+
+  - id: AC-5
+    description: >
+      Authentication route raises HTTP_401_UNAUTHORIZED for invalid
+      credentials, locked accounts, and inactive accounts via HTTPException.
+
+  - id: AC-6
+    description: >
+      Authorization failures use HTTP_403_FORBIDDEN; license gate failures
+      use HTTP_402_PAYMENT_REQUIRED or HTTP_403_FORBIDDEN consistently
+      within each domain.
+
+  - id: AC-7
+    description: >
+      Resource-not-found conditions use HTTP_404_NOT_FOUND; conflict
+      conditions (duplicate records, active scans) use HTTP_409_CONFLICT.
+
+  - id: AC-8
+    description: >
+      error_id in 500 responses is derived from int(time.time()), providing
+      a timestamp-based correlation token for log matching.
+
+  - id: AC-9
+    description: >
+      The global_exception_handler is registered on the app instance with
+      @app.exception_handler(Exception) decorator in main.py.
+
+  - id: AC-10
+    description: >
+      No route handler returns a raw Python exception object or traceback
+      string in response body; all error paths use HTTPException or return
+      via the global handler.
+
+---
+
+# Changelog
+
+changelog:
+  - version: "1.0"
+    date: "2026-03-05"
+    changes:
+      - "Promoted to active with 10/10 AC coverage (test_error_model.py)"
+      - "Reverse-engineered ACs from main.py global_exception_handler"
+      - "Using FastAPI HTTPException convention (detail key), not custom error.code wrapper"
+  - version: "0.1"
+    date: "2026-03-04"
+    changes:
+      - "Initial stub (draft, zero ACs)"

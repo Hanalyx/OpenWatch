@@ -1,6 +1,116 @@
 spec: start-remediation-api
-version: "0.1"
-status: draft
+version: "1.0"
+status: active
 owner: engineering
 summary: >
-  POST /api/remediation/start endpoint contract: input validation, risk check, side effects.
+  POST /api/compliance/remediation endpoint contract: accepts
+  RemediationRequest (host_id UUID, rule_ids list, optional job_name).
+  Requires SECURITY_ANALYST or higher role and an active OpenWatch+ license.
+  Returns 202 ACCEPTED with job_id and status="queued" immediately; actual
+  remediation runs asynchronously via execute_remediation_job Celery task.
+  Errors: 402 PAYMENT_REQUIRED for missing license, 404 NOT_FOUND for
+  unknown host, 400 BAD_REQUEST for empty or invalid rule_ids list.
+
+---
+
+# Objective
+
+objective: >
+  Ensure the remediation start API validates inputs, gates execution behind
+  licensing and RBAC, and queues work asynchronously so that the caller
+  receives an immediate job reference without blocking on SSH execution.
+
+---
+
+# Constraints
+
+constraints:
+  authorization:
+    - "Endpoint MUST require SECURITY_ANALYST, SECURITY_ADMIN, or SUPER_ADMIN role"
+    - "GUEST, AUDITOR, and COMPLIANCE_OFFICER MUST receive 403 FORBIDDEN"
+
+  licensing:
+    - "OpenWatch+ license MUST be verified before queuing the job"
+    - "Missing license MUST return 402 PAYMENT_REQUIRED"
+
+  input:
+    - "host_id MUST reference an existing host; otherwise return 404 NOT_FOUND"
+    - "rule_ids MUST be a non-empty list; empty list returns 400 BAD_REQUEST"
+    - "Unknown or inapplicable rule_ids MUST return 400 BAD_REQUEST"
+
+  response:
+    - "Successful response MUST be HTTP 202 ACCEPTED (not 200)"
+    - "Response MUST include job_id (UUID) and status='queued'"
+    - "Response MUST include host_id and rule_ids echoed back"
+
+  async_execution:
+    - "execute_remediation_job Celery task MUST be queued (not executed synchronously)"
+    - "API response MUST return before remediation SSH commands run"
+
+---
+
+# Acceptance Criteria
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      POST /api/compliance/remediation returns 403 FORBIDDEN when called
+      by a user with GUEST, AUDITOR, or COMPLIANCE_OFFICER role.
+
+  - id: AC-2
+    description: >
+      Returns 402 PAYMENT_REQUIRED when no active OpenWatch+ license is
+      present, before any host lookup or job creation.
+
+  - id: AC-3
+    description: >
+      Returns 404 NOT_FOUND with error.code NOT_FOUND when host_id does
+      not reference an existing host record.
+
+  - id: AC-4
+    description: >
+      Returns 400 BAD_REQUEST with error.code VALIDATION_ERROR when
+      rule_ids is empty or contains unrecognized rule identifiers.
+
+  - id: AC-5
+    description: >
+      Successful request returns HTTP 202 ACCEPTED (not 200 OK).
+
+  - id: AC-6
+    description: >
+      Response body includes job_id (UUID string) and status="queued".
+
+  - id: AC-7
+    description: >
+      Response body echoes back host_id and rule_ids from the request
+      for client-side correlation.
+
+  - id: AC-8
+    description: >
+      execute_remediation_job Celery task is queued (called with .delay()
+      or .apply_async()) and does not block the HTTP response.
+
+  - id: AC-9
+    description: >
+      A remediation job record is created in the database with status
+      "queued" before the HTTP response is returned.
+
+  - id: AC-10
+    description: >
+      Request body is validated against RemediationRequest Pydantic schema;
+      malformed JSON returns 422 UNPROCESSABLE_ENTITY.
+
+---
+
+# Changelog
+
+changelog:
+  - version: "1.0"
+    date: "2026-03-05"
+    changes:
+      - "Promoted to active with 10/10 AC coverage (test_remediation_api.py)"
+      - "Reverse-engineered ACs from routes/compliance/remediation.py (333 LOC)"
+  - version: "0.1"
+    date: "2026-03-04"
+    changes:
+      - "Initial stub (draft, zero ACs)"

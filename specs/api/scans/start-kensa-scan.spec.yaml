@@ -1,6 +1,126 @@
 spec: start-kensa-scan-api
-version: "0.1"
-status: draft
+version: "1.0"
+status: active
 owner: engineering
 summary: >
-  POST /api/scans/kensa/start endpoint contract: input, output, errors, side effects.
+  POST /api/scans/kensa/ endpoint contract: accepts KensaScanRequest
+  (host_id UUID, framework string, optional severity/category/name filters),
+  requires SECURITY_ANALYST or higher role. Returns synchronous
+  KensaScanResponse with scan_id, status, host_id, hostname,
+  compliance_score, kensa_version, total_rules, passed_rules, failed_rules,
+  and duration_ms. Errors: 404 if host not found, 409 if active scan already
+  running for that host, 500 on Kensa execution failure. Side effects: scan
+  record created with status=running then updated to completed/failed,
+  scan_findings rows inserted with full evidence JSONB, drift detection run
+  post-scan, temporal compliance snapshot created.
+
+---
+
+# Objective
+
+objective: >
+  Ensure the Kensa scan API endpoint enforces role-based access, validates
+  input, produces a fully-populated synchronous response with compliance
+  metrics, and reliably stores findings with evidence for downstream drift
+  and audit queries.
+
+---
+
+# Constraints
+
+constraints:
+  authorization:
+    - "Endpoint MUST require SECURITY_ANALYST, SECURITY_ADMIN, or SUPER_ADMIN role"
+    - "GUEST and AUDITOR roles MUST receive 403 FORBIDDEN"
+
+  input:
+    - "host_id MUST be a valid UUID referencing an existing host"
+    - "framework MUST be one of the supported Kensa framework mapping IDs"
+
+  errors:
+    - "Non-existent host_id MUST return 404 NOT_FOUND"
+    - "Already-running scan for same host MUST return 409 CONFLICT"
+    - "Kensa execution failure MUST return 500 INTERNAL_ERROR and set scan status=failed"
+
+  response:
+    - "Response MUST include scan_id (UUID), status, host_id, hostname"
+    - "Response MUST include compliance_score, total_rules, passed_rules, failed_rules"
+    - "Response MUST include kensa_version string"
+    - "Response MUST include duration_ms integer"
+
+  side_effects:
+    - "Scan record MUST be created with status=running before Kensa executes"
+    - "Scan status MUST be updated to completed or failed after execution"
+    - "scan_findings rows MUST be inserted with evidence JSONB column populated"
+    - "Drift detection MUST run after successful scan completion"
+    - "Temporal compliance snapshot MUST be created after successful scan"
+
+---
+
+# Acceptance Criteria
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      POST /api/scans/kensa/ is decorated with require_role restricting
+      access to SECURITY_ANALYST, SECURITY_ADMIN, and SUPER_ADMIN.
+
+  - id: AC-2
+    description: >
+      Request body is validated against KensaScanRequest schema with
+      required host_id (UUID) and framework (string) fields.
+
+  - id: AC-3
+    description: >
+      Returns HTTP 404 with error.code NOT_FOUND when host_id does not
+      reference an existing host record.
+
+  - id: AC-4
+    description: >
+      Returns HTTP 409 with error.code CONFLICT when another scan is
+      already in running/queued status for the requested host.
+
+  - id: AC-5
+    description: >
+      Scan record is created with status "running" before Kensa execution
+      begins, ensuring partial-failure state is visible in DB.
+
+  - id: AC-6
+    description: >
+      Response body includes compliance_score (float 0-100), total_rules,
+      passed_rules, failed_rules (integers), and duration_ms (integer).
+
+  - id: AC-7
+    description: >
+      scan_findings rows are inserted for every rule result with the
+      evidence JSONB column populated from Kensa evidence output.
+
+  - id: AC-8
+    description: >
+      Drift detection is invoked after scan completion; drift results are
+      stored and do not block the API response on failure.
+
+  - id: AC-9
+    description: >
+      A temporal compliance snapshot is created for the host after each
+      successful scan, enabling point-in-time posture queries.
+
+  - id: AC-10
+    description: >
+      On Kensa execution failure, scan status is set to "failed" with the
+      error message stored, and HTTP 500 INTERNAL_ERROR is returned.
+
+---
+
+# Changelog
+
+changelog:
+  - version: "1.0"
+    date: "2026-03-05"
+    changes:
+      - "Promoted to active with 10/10 AC coverage (test_scan_api.py)"
+      - "Reverse-engineered ACs from routes/scans/kensa.py (1181 LOC)"
+  - version: "0.1"
+    date: "2026-03-04"
+    changes:
+      - "Initial stub (draft, zero ACs)"

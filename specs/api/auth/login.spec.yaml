@@ -1,6 +1,124 @@
 spec: login-api
-version: "0.1"
-status: draft
+version: "1.0"
+status: active
 owner: engineering
 summary: >
-  POST /api/auth/login endpoint contract: credential validation, token issuance, MFA challenge.
+  POST /api/auth/login endpoint contract: accepts LoginRequest (username,
+  password). Checks is_active before password verification. Checks
+  locked_until before password verification; locked accounts return 401
+  immediately without checking password. Verifies password with Argon2id
+  via pwd_context.verify. On failure increments failed_login_attempts;
+  locks account for 30 minutes after 5 failures. On success resets
+  failed_login_attempts=0 and locked_until=NULL, returns access_token
+  and refresh_token (RS256 JWT). Logs AUTH_FAILURE or LOGIN_SUCCESS
+  audit events. POST /api/auth/register logs USER_REGISTER event.
+
+---
+
+# Objective
+
+objective: >
+  Ensure the login endpoint enforces the correct authentication sequence
+  (inactive check, lockout check, password verify), implements account
+  lockout correctly, issues RS256 JWTs on success, and produces complete
+  audit trails for all authentication outcomes.
+
+---
+
+# Constraints
+
+constraints:
+  check_ordering:
+    - "is_active MUST be checked before password verification"
+    - "locked_until MUST be checked before password verification"
+    - "Password verification MUST use pwd_context.verify (Argon2id)"
+
+  lockout:
+    - "Lockout MUST trigger after failed_attempts >= 5"
+    - "Lockout duration MUST be 30 minutes (minutes=30)"
+    - "Locked account MUST return 401 without attempting password check"
+
+  success_reset:
+    - "Successful login MUST set failed_login_attempts = 0"
+    - "Successful login MUST set locked_until = NULL"
+
+  tokens:
+    - "Access token MUST be RS256 JWT"
+    - "Both access_token and refresh_token returned on success"
+
+  audit:
+    - "AUTH_FAILURE event MUST be logged on failed login"
+    - "LOGIN_SUCCESS event MUST be logged on successful login"
+    - "USER_REGISTER event MUST be logged on registration"
+
+---
+
+# Acceptance Criteria
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      POST /api/auth/login checks is_active before attempting password
+      verification; inactive users receive 401 UNAUTHORIZED with message
+      "Account is deactivated".
+
+  - id: AC-2
+    description: >
+      login checks locked_until before password verification; locked
+      accounts receive 401 UNAUTHORIZED without running Argon2id hash
+      comparison.
+
+  - id: AC-3
+    description: >
+      Password verification uses pwd_context.verify (Argon2id); failed
+      verification increments failed_login_attempts on the user record.
+
+  - id: AC-4
+    description: >
+      After failed_login_attempts reaches 5 or more, locked_until is set
+      to current time + 30 minutes (timedelta(minutes=30)).
+
+  - id: AC-5
+    description: >
+      Successful login resets failed_login_attempts to 0 and locked_until
+      to NULL on the user record.
+
+  - id: AC-6
+    description: >
+      Successful login response includes access_token (RS256 JWT) and
+      refresh_token strings.
+
+  - id: AC-7
+    description: >
+      AUTH_FAILURE audit event is logged for every failed login attempt
+      (wrong password, inactive account, or locked account).
+
+  - id: AC-8
+    description: >
+      LOGIN_SUCCESS audit event is logged for every successful login,
+      including user_id and username in the event context.
+
+  - id: AC-9
+    description: >
+      POST /api/auth/register logs a USER_REGISTER audit event when a
+      new account is created successfully.
+
+  - id: AC-10
+    description: >
+      The is_active check appears before pwd_context.verify in source code,
+      enforcing the documented check ordering at the implementation level.
+
+---
+
+# Changelog
+
+changelog:
+  - version: "1.0"
+    date: "2026-03-05"
+    changes:
+      - "Promoted to active with 10/10 AC coverage (test_auth_api.py)"
+      - "Reverse-engineered ACs from routes/auth/login.py"
+  - version: "0.1"
+    date: "2026-03-04"
+    changes:
+      - "Initial stub (draft, zero ACs)"

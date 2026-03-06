@@ -1,6 +1,118 @@
 spec: posture-query-api
-version: "0.1"
-status: draft
+version: "1.0"
+status: active
 owner: engineering
 summary: >
-  GET /api/compliance/posture endpoint contract: temporal queries, score response shape.
+  GET /api/compliance/posture endpoint contract: accepts host_id (UUID),
+  optional as_of (date string), and optional include_rule_states (bool)
+  query parameters. Current posture (as_of=None) is available to all
+  authenticated users. Historical posture (as_of provided) requires an
+  active OpenWatch+ license and returns 403 LICENSE_REQUIRED otherwise.
+  Returns 404 NOT_FOUND if no compliance data exists for the host. Response
+  includes host_id, compliance_score, total_rules, passed, failed,
+  severity_breakdown, and snapshot_date. include_rule_states=true adds
+  per-rule state dict.
+
+---
+
+# Objective
+
+objective: >
+  Ensure the posture query API correctly gates historical access behind
+  OpenWatch+ licensing, returns accurate current vs. point-in-time posture,
+  and provides enough detail for compliance dashboards and audit reporting.
+
+---
+
+# Constraints
+
+constraints:
+  authorization:
+    - "Endpoint MUST require authentication (any valid role)"
+    - "Historical queries (as_of provided) MUST require OpenWatch+ license"
+    - "License check MUST return 403 FORBIDDEN with code LICENSE_REQUIRED if unlicensed"
+
+  routing:
+    - "as_of=None MUST return current posture (most recent scan data)"
+    - "as_of=<date> MUST return historical posture at that point in time"
+    - "No posture data for host MUST return 404 NOT_FOUND"
+
+  response:
+    - "Response MUST include host_id (UUID), compliance_score (0-100), snapshot_date"
+    - "Response MUST include total_rules, passed, failed integer counts"
+    - "Response MUST include severity_breakdown with critical/high/medium/low counts"
+
+  rule_states:
+    - "include_rule_states=true MUST add rule_states dict keyed by rule_id"
+    - "Each rule state MUST contain status (pass/fail/skip/error) and severity"
+
+---
+
+# Acceptance Criteria
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      GET /api/compliance/posture with no as_of parameter returns current
+      posture for the specified host without requiring OpenWatch+ license.
+
+  - id: AC-2
+    description: >
+      GET /api/compliance/posture with as_of date parameter returns 403
+      FORBIDDEN with error.code LICENSE_REQUIRED when no active OpenWatch+
+      license is present.
+
+  - id: AC-3
+    description: >
+      GET /api/compliance/posture returns 404 NOT_FOUND with error.code
+      NOT_FOUND when no compliance data exists for the requested host_id.
+
+  - id: AC-4
+    description: >
+      Response includes compliance_score as a float constrained to 0-100
+      range, total_rules (int), passed (int), and failed (int).
+
+  - id: AC-5
+    description: >
+      Response includes severity_breakdown object with critical, high,
+      medium, and low sub-objects each containing passed and failed counts.
+
+  - id: AC-6
+    description: >
+      Response includes snapshot_date indicating when the compliance data
+      was captured (ISO 8601 datetime string).
+
+  - id: AC-7
+    description: >
+      With include_rule_states=true, response includes rule_states dict
+      keyed by rule_id with at minimum status and severity per rule.
+
+  - id: AC-8
+    description: >
+      With include_rule_states=false (default), rule_states is absent
+      from the response to minimize payload size.
+
+  - id: AC-9
+    description: >
+      host_id query parameter is required; missing host_id returns 422
+      UNPROCESSABLE_ENTITY before business logic is invoked.
+
+  - id: AC-10
+    description: >
+      With a valid OpenWatch+ license and as_of date, response reflects
+      historical posture as it was on that date, not current posture.
+
+---
+
+# Changelog
+
+changelog:
+  - version: "1.0"
+    date: "2026-03-05"
+    changes:
+      - "Promoted to active with 10/10 AC coverage (test_compliance_api.py)"
+      - "Reverse-engineered ACs from routes/compliance/posture.py (394 LOC)"
+  - version: "0.1"
+    date: "2026-03-04"
+    changes:
+      - "Initial stub (draft, zero ACs)"

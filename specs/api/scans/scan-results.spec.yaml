@@ -1,6 +1,117 @@
 spec: scan-results-api
-version: "0.1"
-status: draft
+version: "1.0"
+status: active
 owner: engineering
 summary: >
-  GET /api/scans/:id/results endpoint contract: result shape, filtering, pagination.
+  GET /api/scans/{scan_id}/results endpoint contract: any authenticated
+  user may retrieve scan results by UUID. Response contains scan metadata
+  (scan_id, status, created_at, completed_at), host sub-object
+  (id, hostname, ip_address), results summary (total_rules, passed_rules,
+  failed_rules, compliance_score, severity breakdown by critical/high/
+  medium/low), and timing info. Optional include_rules=true query parameter
+  adds per-rule findings list. Returns 404 NOT_FOUND if scan_id does not
+  exist.
+
+---
+
+# Objective
+
+objective: >
+  Ensure the scan results API returns a complete, structured summary of
+  Kensa scan findings that enables frontends and downstream consumers to
+  display compliance posture without requiring direct database access.
+
+---
+
+# Constraints
+
+constraints:
+  authorization:
+    - "Endpoint MUST require authentication (any valid role)"
+    - "No role restriction beyond authenticated session"
+
+  path:
+    - "scan_id path parameter MUST be a UUID"
+    - "Non-existent scan_id MUST return 404 NOT_FOUND"
+
+  response_shape:
+    - "Response MUST include scan_id (UUID string), status, created_at"
+    - "Response MUST include host sub-object with id, hostname, ip_address"
+    - "Response MUST include results sub-object with total_rules, passed_rules, failed_rules, compliance_score"
+    - "results MUST include severity breakdown: critical_failed, high_failed, medium_failed, low_failed"
+
+  include_rules:
+    - "include_rules=true MUST add a 'findings' list with per-rule detail"
+    - "Each finding MUST include rule_id, title, severity, status, detail"
+    - "include_rules defaults to false; omitting the param returns summary only"
+
+---
+
+# Acceptance Criteria
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      GET /api/scans/{scan_id}/results returns HTTP 404 with error.code
+      NOT_FOUND when scan_id does not reference an existing scan record.
+
+  - id: AC-2
+    description: >
+      Response includes top-level scan_id (UUID string), status string,
+      created_at timestamp, and completed_at timestamp (nullable).
+
+  - id: AC-3
+    description: >
+      Response includes a "host" sub-object containing id (UUID), hostname
+      (string), and ip_address (string) fields.
+
+  - id: AC-4
+    description: >
+      Response includes a "results" sub-object with integer fields
+      total_rules, passed_rules, failed_rules, and float compliance_score
+      in range 0-100.
+
+  - id: AC-5
+    description: >
+      results sub-object includes severity breakdown with integer fields
+      critical_failed, high_failed, medium_failed, and low_failed counts.
+
+  - id: AC-6
+    description: >
+      With include_rules=false (default), response does NOT include a
+      "findings" list, reducing payload size.
+
+  - id: AC-7
+    description: >
+      With include_rules=true, response includes a "findings" list where
+      each entry contains rule_id, title, severity, status, and detail.
+
+  - id: AC-8
+    description: >
+      Endpoint is accessible to any authenticated user regardless of role
+      (GUEST and above may retrieve scan results).
+
+  - id: AC-9
+    description: >
+      scan_id path parameter is validated as UUID format; non-UUID strings
+      return 422 UNPROCESSABLE_ENTITY before reaching business logic.
+
+  - id: AC-10
+    description: >
+      Response includes timing fields: duration_ms (integer milliseconds
+      of scan execution) when available, null when scan is still running.
+
+---
+
+# Changelog
+
+changelog:
+  - version: "1.0"
+    date: "2026-03-05"
+    changes:
+      - "Promoted to active with 10/10 AC coverage (test_scan_api.py)"
+      - "Reverse-engineered ACs from routes/scans/reports.py"
+  - version: "0.1"
+    date: "2026-03-04"
+    changes:
+      - "Initial stub (draft, zero ACs)"
