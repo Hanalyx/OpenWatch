@@ -26,28 +26,20 @@ import {
   Tab,
   Alert,
   CircularProgress,
-  Tooltip,
   Divider,
-  List,
-  ListItem,
   ListItemIcon,
   ListItemText,
   Menu,
   MenuItem,
   Snackbar,
-  Stack,
 } from '@mui/material';
-import Grid from '@mui/material/Grid';
 import {
   ArrowBack as ArrowBackIcon,
-  CheckCircle as CheckCircleIcon,
   GetApp as DownloadIcon,
-  Build as BuildIcon,
   MoreVert as MoreVertIcon,
   Refresh as RefreshIcon,
   PlayArrow as PlayArrowIcon,
   Print as PrintIcon,
-  FilterList as FilterIcon,
 } from '@mui/icons-material';
 import RemediationPanel from '../../components/remediation/RemediationPanel';
 
@@ -57,6 +49,8 @@ import { generateRemediationSteps } from './components/scanUtils';
 import ScanMetricsCards from './components/ScanMetricsCards';
 import ScanOverviewTab from './components/ScanOverviewTab';
 import ScanRulesTable from './components/ScanRulesTable';
+import ScanQuickActionBar from './components/ScanQuickActionBar';
+import ScanInformationTab from './components/ScanInformationTab';
 import { ScanRemediationDialog, ScanExportRuleDialog } from './components/ScanDialogs';
 
 // ---------------------------------------------------------------------------
@@ -219,76 +213,13 @@ const ScanDetail: React.FC = () => {
 
       {/* Quick Action Bar */}
       {scan.status === 'completed' && scan.results && (
-        <Paper
-          sx={{
-            p: 2,
-            mb: 3,
-            borderRadius: 2,
-            boxShadow: 2,
-            bgcolor: scan.results.failed_rules > 0 ? 'error.50' : 'success.50',
-          }}
-        >
-          <Stack direction="row" spacing={2} justifyContent="space-between" alignItems="center">
-            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-              {scan.results.failed_rules > 0 ? (
-                <>
-                  <Button
-                    variant="contained"
-                    color="error"
-                    size="large"
-                    startIcon={<BuildIcon />}
-                    onClick={() => setTabValue(3)}
-                  >
-                    Remediate {scan.results.failed_rules} Failed Rules
-                  </Button>
-                  <Button
-                    variant="outlined"
-                    color="error"
-                    startIcon={<FilterIcon />}
-                    onClick={() => setTabValue(1)}
-                  >
-                    View Failures
-                  </Button>
-                </>
-              ) : (
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                  <CheckCircleIcon color="success" sx={{ fontSize: 40 }} />
-                  <Box>
-                    <Typography variant="h6" color="success.main" fontWeight="bold">
-                      All Checks Passed!
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      System is compliant with the selected profile
-                    </Typography>
-                  </Box>
-                </Box>
-              )}
-            </Box>
-
-            <Box sx={{ display: 'flex', gap: 1 }}>
-              <Tooltip title="Export report">
-                <Button
-                  variant="outlined"
-                  startIcon={<DownloadIcon />}
-                  onClick={handleMenuOpen}
-                  size="medium"
-                >
-                  Export
-                </Button>
-              </Tooltip>
-              <Tooltip title="Run new scan with same configuration">
-                <Button
-                  variant="outlined"
-                  startIcon={<RefreshIcon />}
-                  onClick={handleRescan}
-                  size="medium"
-                >
-                  Rescan
-                </Button>
-              </Tooltip>
-            </Box>
-          </Stack>
-        </Paper>
+        <ScanQuickActionBar
+          failedRules={scan.results.failed_rules}
+          onViewFailures={() => setTabValue(1)}
+          onRemediate={() => setTabValue(3)}
+          onExport={handleMenuOpen}
+          onRescan={handleRescan}
+        />
       )}
 
       {/* Metrics Cards */}
@@ -383,92 +314,7 @@ const ScanDetail: React.FC = () => {
 
         {/* Tab 4: Scan Information */}
         <TabPanel value={tabValue} index={4}>
-          <Grid container spacing={3}>
-            <Grid size={{ xs: 12, md: 6 }}>
-              <Typography variant="h6" gutterBottom>
-                Scan Configuration
-              </Typography>
-              <List>
-                <ListItem>
-                  <ListItemText primary="Scan Name" secondary={scan.name} />
-                </ListItem>
-                <ListItem>
-                  <ListItemText primary="Scan ID" secondary={scan.id} />
-                </ListItem>
-                <ListItem>
-                  <ListItemText primary="Profile ID" secondary={scan.profile_id} />
-                </ListItem>
-                <ListItem>
-                  <ListItemText
-                    primary="Started At"
-                    secondary={new Date(scan.started_at).toLocaleString()}
-                  />
-                </ListItem>
-                {scan.completed_at && (
-                  <ListItem>
-                    <ListItemText
-                      primary="Completed At"
-                      secondary={new Date(scan.completed_at).toLocaleString()}
-                    />
-                  </ListItem>
-                )}
-                <ListItem>
-                  <ListItemText
-                    primary="Duration"
-                    secondary={
-                      scan.completed_at
-                        ? `${Math.round((new Date(scan.completed_at).getTime() - new Date(scan.started_at).getTime()) / 1000)} seconds`
-                        : 'In progress...'
-                    }
-                  />
-                </ListItem>
-              </List>
-            </Grid>
-
-            <Grid size={{ xs: 12, md: 6 }}>
-              <Typography variant="h6" gutterBottom>
-                Technical Details
-              </Typography>
-              <List>
-                <ListItem>
-                  <ListItemText
-                    primary="Result File"
-                    secondary={scan.result_file || 'Not available'}
-                  />
-                </ListItem>
-                <ListItem>
-                  <ListItemText
-                    primary="Report File"
-                    secondary={scan.report_file || 'Not available'}
-                  />
-                </ListItem>
-                {scan.error_message && (
-                  <ListItem>
-                    <ListItemText
-                      primary="Error Message"
-                      secondary={scan.error_message}
-                      secondaryTypographyProps={{ color: 'error' }}
-                    />
-                  </ListItem>
-                )}
-              </List>
-
-              {scan.scan_options &&
-              typeof scan.scan_options === 'object' &&
-              Object.keys(scan.scan_options as Record<string, unknown>).length > 0 ? (
-                <>
-                  <Typography variant="h6" gutterBottom sx={{ mt: 2 }}>
-                    Scan Options
-                  </Typography>
-                  <Paper variant="outlined" sx={{ p: 2 }}>
-                    <pre style={{ margin: 0, overflow: 'auto' }}>
-                      {JSON.stringify(scan.scan_options, null, 2)}
-                    </pre>
-                  </Paper>
-                </>
-              ) : null}
-            </Grid>
-          </Grid>
+          <ScanInformationTab scan={scan} />
         </TabPanel>
       </Paper>
 
