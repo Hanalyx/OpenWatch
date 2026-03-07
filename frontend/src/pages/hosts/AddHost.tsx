@@ -38,7 +38,7 @@ const AddHost: React.FC = () => {
   } = useAddHostForm();
 
   return (
-    <Box sx={{ p: 3 }}>
+    <Box>
       {/* Header */}
       <Box sx={{ mb: 3, display: 'flex', alignItems: 'center', gap: 2 }}>
         <IconButton onClick={() => navigate('/hosts')}>

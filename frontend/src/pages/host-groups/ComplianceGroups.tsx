@@ -308,7 +308,7 @@ const ComplianceGroups: React.FC = () => {
 
   if (loading) {
     return (
-      <Box sx={{ p: 3 }}>
+      <Box>
         <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
           <LinearProgress sx={{ width: '100%' }} />
         </Box>
