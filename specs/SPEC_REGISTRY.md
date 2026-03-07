@@ -91,6 +91,9 @@ Coverage is checked by `scripts/check-spec-coverage.py`.
 | Spec | File | Tests | Phase | Status |
 |------|------|-------|-------|--------|
 | State Management | frontend/state-management.spec.yaml | tests/frontend/store/state-management.spec.test.ts | 8 | Active |
+| Auth Flow | frontend/auth-flow.spec.yaml | tests/frontend/auth/auth-flow.spec.test.ts | 8 | Active |
+| Scan Workflow | frontend/scan-workflow.spec.yaml | tests/frontend/scans/scan-workflow.spec.test.ts | 8 | Active |
+| Host Detail Behavior | frontend/host-detail-behavior.spec.yaml | tests/frontend/hosts/host-detail.spec.test.ts | 8 | Active |
 
 ## Plugin Specs
 
@@ -117,8 +120,8 @@ Coverage is checked by `scripts/check-spec-coverage.py`.
 | API | 9 | 9 | 0 | 0 |
 | Plugins | 1 | 1 | 0 | 0 |
 | Release | 4 | 4 | 0 | 0 |
-| Frontend | 1 | 1 | 0 | 0 |
-| **Total** | **38** | **34** | **4** | **0** |
+| Frontend | 4 | 4 | 0 | 0 |
+| **Total** | **41** | **37** | **4** | **0** |
 
 ## Cross-Module Dependencies
 
@@ -144,4 +147,4 @@ Specs are activated through phased SDD migration (see `internal/sdd/plans/`):
 | 5 | API Contracts | 9 API route specs + error-model |
 | 6 | Registry Maintenance | CI enforcement, documentation updates |
 | 7 | Monitoring | host-monitoring (Tier 1: scan eligibility, compliance implications) |
-| 8 | Frontend Architecture | state-management v2.0 (Redux fully removed, Zustand-only) |
+| 8 | Frontend Architecture | state-management v2.0, auth-flow, scan-workflow, host-detail-behavior |

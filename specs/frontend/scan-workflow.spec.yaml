@@ -1,0 +1,124 @@
+spec: scan-workflow
+version: "1.0"
+status: active
+owner: engineering
+summary: >
+  The ComplianceScanWizard MUST implement a 4-step workflow: Target
+  Selection, Framework & Platform, Rule Configuration, Review & Start.
+  Step validation MUST prevent advancing without required fields.
+  Scan submission MUST call the Kensa compliance endpoint. Multi-host
+  scans MUST execute sequentially with per-host progress tracking.
+  Navigation MUST preserve step state on back.
+
+---
+
+# Objective
+
+objective: >
+  Ensure the compliance scan wizard enforces a correct step sequence,
+  validates required fields at each step boundary, submits scans to
+  the correct backend endpoint, tracks per-host progress for multi-host
+  scans, and handles errors without losing wizard state.
+
+---
+
+# Constraints
+
+constraints:
+  wizard_structure:
+    - "Wizard MUST have exactly 4 steps in order: Target, Framework, Rules, Review"
+    - "Step navigation MUST be sequential (next/previous only, no skip)"
+    - "Back navigation MUST preserve all step state (no data loss)"
+
+  api_alignment:
+    - "Scan submission MUST call POST /api/scans/ (the Kensa compliance endpoint)"
+    - "Group scans MUST call POST /api/host-groups/{id}/scan"
+    - "Rule listing MUST call GET /api/compliance-rules/semantic-rules"
+
+  execution:
+    - "Multi-host scans MUST execute sequentially, not in parallel"
+    - "Per-host progress MUST be tracked with status transitions"
+    - "Cancellation MUST stop remaining scans and trigger backend cleanup"
+
+---
+
+# Acceptance Criteria
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      The wizard MUST have exactly 4 steps rendered in order: Target
+      Selection (step 0), Framework & Platform (step 1), Rule
+      Configuration (step 2), Review & Start (step 3).
+
+  - id: AC-2
+    description: >
+      Step 0 (Target Selection) MUST require a target type (hosts or
+      groups) AND at least one selected target before allowing
+      advancement to step 1. The canProceedToNextStep function MUST
+      return false when no targets are selected.
+
+  - id: AC-3
+    description: >
+      Step 1 (Framework & Platform) MUST require platform, platform
+      version, AND framework to be set before allowing advancement
+      to step 2.
+
+  - id: AC-4
+    description: >
+      Step 2 (Rule Configuration) MUST support two modes: full scan
+      (all rules) and custom (user-selected rules). Step 2 MUST
+      always allow proceeding to step 3 regardless of mode or
+      selection.
+
+  - id: AC-5
+    description: >
+      Step 3 (Review & Start) MUST require a non-empty scan name
+      before allowing scan submission. A default scan name MUST be
+      auto-generated from the framework, platform, version, and
+      target count.
+
+  - id: AC-6
+    description: >
+      Scan submission for individual hosts MUST call
+      ScanService.startComplianceScan with host_id, hostname,
+      platform, platform_version, framework, and optional rule_ids.
+      The request MUST be sent to POST /api/scans/.
+
+  - id: AC-7
+    description: >
+      Multi-host scans MUST execute sequentially (one host at a
+      time). Each host MUST transition through statuses: pending,
+      connecting, scanning, then completed or failed. A failed host
+      MUST NOT prevent scanning of subsequent hosts.
+
+  - id: AC-8
+    description: >
+      On successful single-host scan, the wizard MUST navigate to
+      /scans/{scanId}. On successful multi-host scan, the wizard
+      MUST navigate to /scans.
+
+  - id: AC-9
+    description: >
+      Back navigation (prevStep) MUST preserve all wizard state
+      including selected targets, platform, framework, scan mode,
+      selected rules, and scan name. No data MUST be lost when
+      navigating backward.
+
+  - id: AC-10
+    description: >
+      The wizard MUST support host preselection via router state
+      (location.state.preselectedHostId). When a preselected host ID
+      is provided, the target type MUST be set to 'hosts' and the
+      host MUST be automatically selected.
+
+---
+
+# Changelog
+
+changelog:
+  - version: "1.0"
+    date: "2026-03-07"
+    changes:
+      - "Initial spec -- compliance scan wizard workflow"
+      - "10 ACs covering wizard steps, validation, submission, navigation, preselection"

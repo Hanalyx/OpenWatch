@@ -1,0 +1,122 @@
+spec: auth-flow
+version: "1.0"
+status: active
+owner: engineering
+summary: >
+  The frontend auth flow MUST handle login, MFA detection, session
+  persistence, token refresh, inactivity timeout, and logout as a
+  coherent state machine. PrivateRoute MUST redirect unauthenticated
+  users to /login. PublicRoute MUST redirect authenticated users to /.
+  Token refresh MUST be proactive (before expiry). Logout MUST clear
+  all 4 localStorage keys and reset store state.
+
+---
+
+# Objective
+
+objective: >
+  Ensure the frontend authentication lifecycle is correct end-to-end:
+  login sets isAuthenticated and persists credentials, MFA is detected
+  from error messages, session expiry triggers logout, token refresh
+  happens proactively, route guards enforce access control, and logout
+  fully clears state. This prevents authentication bypass, stale
+  sessions, and broken redirects.
+
+---
+
+# Constraints
+
+constraints:
+  state_ownership:
+    - "Auth state MUST live in useAuthStore (Zustand), not Redux or React context"
+    - "Token refresh MUST use useAuthStore.getState() for non-React access"
+    - "localStorage key MUST be 'auth_token' (not 'token')"
+
+  route_guards:
+    - "PrivateRoute MUST check isAuthenticated from useAuthStore"
+    - "PublicRoute MUST check isAuthenticated from useAuthStore"
+    - "Neither route guard may import from Redux store"
+
+  security:
+    - "Logout MUST clear all 4 localStorage keys via storageClearAuth()"
+    - "Failed token refresh (401/403) MUST force logout"
+    - "Session expiry MUST transition to logged-out state"
+
+---
+
+# Acceptance Criteria
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      loginSuccess MUST set isAuthenticated=true, store the user object,
+      token, refreshToken, and calculate sessionExpiry as
+      Date.now() + expiresIn * 1000.
+
+  - id: AC-2
+    description: >
+      loginSuccess MUST persist 4 keys to localStorage: auth_token,
+      refresh_token, auth_user (JSON-serialized), and session_expiry.
+
+  - id: AC-3
+    description: >
+      loginFailure MUST set isAuthenticated=false and store the error
+      message. If the error message contains 'MFA required',
+      mfaRequired MUST be set to true. Otherwise mfaRequired MUST
+      remain false.
+
+  - id: AC-4
+    description: >
+      logout MUST clear all auth state: user=null, token=null,
+      refreshToken=null, isAuthenticated=false, sessionExpiry=null,
+      error=null, mfaRequired=false. It MUST call storageClearAuth()
+      to remove all 4 localStorage keys.
+
+  - id: AC-5
+    description: >
+      checkSessionExpiry MUST detect expired sessions. When
+      sessionExpiry is in the past, the store MUST transition to
+      logged-out state and set error='Session expired. Please login
+      again.'. Sessions with sessionExpiry=null or in the future
+      MUST NOT be affected.
+
+  - id: AC-6
+    description: >
+      refreshTokenSuccess MUST update the token in the store and
+      persist it to localStorage via storageSet(AUTH_TOKEN). It MUST
+      recalculate sessionExpiry as Date.now() + expiresIn * 1000.
+
+  - id: AC-7
+    description: >
+      PrivateRoute MUST render child routes (Outlet) when
+      isAuthenticated is true. When isAuthenticated is false, it MUST
+      redirect to /login via Navigate with replace=true.
+
+  - id: AC-8
+    description: >
+      PublicRoute MUST render child routes (Outlet) when
+      isAuthenticated is false. When isAuthenticated is true, it MUST
+      redirect to / via Navigate with replace=true.
+
+  - id: AC-9
+    description: >
+      tokenService MUST import from useAuthStore and call
+      useAuthStore.getState() for state access. It MUST NOT import
+      from the Redux store module or authSlice.
+
+  - id: AC-10
+    description: >
+      activityTracker MUST import from useAuthStore and call
+      useAuthStore.getState() for state access. It MUST NOT import
+      from the Redux store module or authSlice.
+
+---
+
+# Changelog
+
+changelog:
+  - version: "1.0"
+    date: "2026-03-07"
+    changes:
+      - "Initial spec -- frontend auth flow state machine"
+      - "10 ACs covering login, MFA, logout, session expiry, route guards, service access"

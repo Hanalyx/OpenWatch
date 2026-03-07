@@ -1,0 +1,122 @@
+spec: host-detail-behavior
+version: "1.0"
+status: active
+owner: engineering
+summary: >
+  The Host Detail page MUST NOT contain manual scan buttons. It MUST
+  display 6 summary cards (Compliance, System Health, Auto-Scan,
+  Exceptions, Alerts, Connectivity) and 10 tabs. Each tab MUST fetch
+  data independently. Cards MUST show graceful no-data states when
+  data is unavailable.
+
+---
+
+# Objective
+
+objective: >
+  Ensure the Host Detail page reflects the auto-scan centric design
+  of OpenWatch OS: no manual scan triggers, summary cards for at-a-glance
+  status, independent tab loading, and graceful handling of missing data.
+  This prevents regression to the old manual-scan UX and ensures the
+  page works correctly before first scan data is available.
+
+---
+
+# Constraints
+
+constraints:
+  auto_scan_design:
+    - "No manual 'Start Scan', 'Run Kensa Scan', 'Establish Baseline', or 'Start First Scan' buttons"
+    - "Scan scheduling is shown via the Auto-Scan card, not trigger buttons"
+
+  data_loading:
+    - "Each tab MUST fetch its own data independently via React Query"
+    - "Tab loading MUST NOT block other tabs or the summary cards"
+    - "Summary card data MUST load in parallel on page mount"
+
+  api_alignment:
+    - "Compliance state MUST come from GET /api/scans/kensa/compliance-state/{id}"
+    - "Schedule data MUST come from GET /api/compliance/scheduler/hosts/{id}"
+    - "System info MUST come from GET /api/hosts/{id}/system-info"
+
+---
+
+# Acceptance Criteria
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      The Host Detail page MUST NOT render any buttons with text
+      containing 'Start Scan', 'Run Kensa Scan', 'Establish Baseline',
+      or 'Start First Scan'. The page source MUST NOT contain these
+      button labels.
+
+  - id: AC-2
+    description: >
+      The page MUST display exactly 6 summary cards: Compliance,
+      System Health, Auto-Scan, Exceptions, Alerts, and Connectivity.
+      All 6 card components MUST be imported and rendered by
+      HostSummaryCards.
+
+  - id: AC-3
+    description: >
+      The Compliance card MUST display the compliance score as a
+      percentage. Scores >= 80% MUST use success color, >= 60% MUST
+      use warning color, and < 60% MUST use error color.
+
+  - id: AC-4
+    description: >
+      The Auto-Scan card MUST display the scan schedule status
+      (enabled or maintenance mode), the last scan time, and the next
+      scheduled scan time. Maintenance mode MUST be visually distinct
+      from enabled status.
+
+  - id: AC-5
+    description: >
+      The page MUST have exactly 10 tabs: Overview, Compliance,
+      Packages, Services, Users, Network, Audit Log, History,
+      Remediation, and Terminal. Tabs MUST be rendered in a scrollable
+      tab bar.
+
+  - id: AC-6
+    description: >
+      Each summary card MUST display a graceful no-data state when
+      its data is unavailable (e.g., before first scan). The no-data
+      state MUST include a descriptive message, not an error or
+      empty card.
+
+  - id: AC-7
+    description: >
+      The hostDetailAdapter MUST call GET /api/scans/kensa/compliance-state/{id}
+      for compliance data. The adapter source MUST contain this
+      endpoint path.
+
+  - id: AC-8
+    description: >
+      The hostDetailAdapter MUST call GET /api/hosts/{id}/system-info
+      for system information. The adapter source MUST contain this
+      endpoint path.
+
+  - id: AC-9
+    description: >
+      The HostDetail page header MUST display the host's display name
+      or hostname as the page title. The header MUST include a back
+      navigation button.
+
+  - id: AC-10
+    description: >
+      The Compliance tab MUST support filtering findings by status
+      (all, failed, passed) and searching by rule title or ID. The
+      ComplianceTab component source MUST contain filter and search
+      functionality.
+
+---
+
+# Changelog
+
+changelog:
+  - version: "1.0"
+    date: "2026-03-07"
+    changes:
+      - "Initial spec -- host detail page behavioral requirements"
+      - "10 ACs covering no-scan-buttons, summary cards, tabs, data loading, no-data states"
