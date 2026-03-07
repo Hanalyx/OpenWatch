@@ -45,12 +45,21 @@ export default defineConfig(({ mode }) => {
     resolve: {
       alias: {
         '@': path.resolve(__dirname, './src'),
+        // Explicit aliases so test files in tests/frontend/ (outside Vite root)
+        // can resolve these packages from frontend/node_modules/
+        'react': path.resolve(__dirname, 'node_modules/react'),
+        'react-dom': path.resolve(__dirname, 'node_modules/react-dom'),
+        '@testing-library/react': path.resolve(__dirname, 'node_modules/@testing-library/react'),
+        '@testing-library/jest-dom': path.resolve(__dirname, 'node_modules/@testing-library/jest-dom'),
       },
     },
 
     server: {
       host: '0.0.0.0',
       port: 3001,
+      fs: {
+        allow: ['..'],
+      },
       proxy: {
         '/api': {
           target: 'http://localhost:8000',
@@ -79,7 +88,8 @@ export default defineConfig(({ mode }) => {
       globals: true,
       environment: 'jsdom',
       setupFiles: ['./src/test/setup.ts'],
-      exclude: ['e2e/**', 'node_modules/**'],
+      include: ['../tests/frontend/**/*.{test,spec}.{ts,tsx}'],
+      exclude: ['node_modules/**'],
       coverage: {
         provider: 'v8',
         reporter: ['text', 'html', 'lcov'],

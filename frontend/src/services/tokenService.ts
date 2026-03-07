@@ -1,5 +1,4 @@
-import { store } from '../store';
-import { refreshTokenSuccess, logout } from '../store/slices/authSlice';
+import { useAuthStore } from '../store/useAuthStore';
 
 class TokenService {
   private refreshTimer: NodeJS.Timeout | null = null;
@@ -7,9 +6,9 @@ class TokenService {
 
   // Check token expiry and refresh if needed
   async checkAndRefreshToken(): Promise<boolean> {
-    const state = store.getState().auth;
+    const { token, refreshToken, sessionExpiry } = useAuthStore.getState();
 
-    if (!state.token || !state.refreshToken) {
+    if (!token || !refreshToken) {
       return false;
     }
 
@@ -20,7 +19,7 @@ class TokenService {
 
     // Check if token will expire in the next 5 minutes
     const fiveMinutes = 5 * 60 * 1000;
-    if (state.sessionExpiry && state.sessionExpiry - Date.now() < fiveMinutes) {
+    if (sessionExpiry && sessionExpiry - Date.now() < fiveMinutes) {
       return await this.refreshToken();
     }
 
@@ -29,12 +28,12 @@ class TokenService {
 
   // Refresh the access token using refresh token
   async refreshToken(manual: boolean = false): Promise<boolean> {
-    const state = store.getState().auth;
+    const { refreshToken, logout, refreshTokenSuccess } = useAuthStore.getState();
 
-    if (!state.refreshToken) {
+    if (!refreshToken) {
       console.warn('[SECURITY] No refresh token available');
       if (!manual) {
-        store.dispatch(logout());
+        logout();
       }
       return false;
     }
@@ -46,7 +45,7 @@ class TokenService {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          refresh_token: state.refreshToken,
+          refresh_token: refreshToken,
         }),
       });
 
@@ -55,7 +54,7 @@ class TokenService {
           // Refresh token is invalid or expired - security critical
           console.warn('[SECURITY] Refresh token rejected by server - forcing logout');
           if (!manual) {
-            store.dispatch(logout());
+            useAuthStore.getState().logout();
           }
           return false;
         }
@@ -68,17 +67,15 @@ class TokenService {
       if (!data.access_token || !data.expires_in) {
         console.error('[SECURITY] Invalid refresh response structure');
         if (!manual) {
-          store.dispatch(logout());
+          useAuthStore.getState().logout();
         }
         return false;
       }
 
-      store.dispatch(
-        refreshTokenSuccess({
-          token: data.access_token,
-          expiresIn: data.expires_in,
-        })
-      );
+      refreshTokenSuccess({
+        token: data.access_token,
+        expiresIn: data.expires_in,
+      });
 
       // Security: JWT token refreshed successfully - session extended
       return true;
@@ -86,7 +83,7 @@ class TokenService {
       console.error('[SECURITY] Token refresh failed:', error);
       // For security, any refresh failure should logout user unless manual
       if (!manual) {
-        store.dispatch(logout());
+        useAuthStore.getState().logout();
       }
       return false;
     }
@@ -146,12 +143,12 @@ class TokenService {
 
   // Get current token
   getToken(): string | null {
-    return store.getState().auth.token;
+    return useAuthStore.getState().token;
   }
 
   // Add Authorization header to requests
   getAuthHeaders(): HeadersInit {
-    const token = store.getState().auth.token;
+    const token = useAuthStore.getState().token;
     return token ? { Authorization: `Bearer ${token}` } : {};
   }
 

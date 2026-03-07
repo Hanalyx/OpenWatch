@@ -23,6 +23,44 @@ from ..ssh import SSHConnectionManager
 
 logger = logging.getLogger(__name__)
 
+# Map raw connectivity check results to valid MonitoringState values.
+# comprehensive_host_check() returns these connectivity strings; the DB
+# field hosts.status must always hold a MonitoringState value so that
+# HostMonitoringStateMachine.transition_state() can parse it without error.
+# "offline" is intentionally absent — it uses progressive degradation via
+# _progressive_offline_state() rather than jumping straight to "down".
+# "error"   -> "unknown": check itself failed, re-check immediately
+# "online" / "reachable" / "ping_only" already map cleanly to states.
+CONNECTIVITY_STATE_MAP: dict[str, str] = {
+    "online": "online",
+    "reachable": "degraded",
+    "ping_only": "critical",
+    "error": "unknown",
+}
+
+
+def _progressive_offline_state(current_db_status: str | None) -> str:
+    """Implement AC-3 progressive degradation for an 'offline' connectivity result.
+
+    A single failed check should not immediately mark a host as DOWN.
+    Transient network blips or momentary unreachability would otherwise
+    produce false positives. Instead we escalate one severity level per
+    consecutive check:
+
+        online / unknown / (first failure)  -> degraded
+        degraded (second consecutive)       -> critical
+        critical / down (third+)            -> down
+
+    Maintenance is left to the caller — hosts in MAINTENANCE are not
+    checked by the scheduler so this function is never reached for them.
+    """
+    if current_db_status in ("critical", "down"):
+        return "down"
+    if current_db_status == "degraded":
+        return "critical"
+    # First failure from online, unknown, or any other state -> degraded
+    return "degraded"
+
 
 class HostMonitor:
     def __init__(self, db_session: Session = None, encryption_service: EncryptionService = None):
@@ -522,9 +560,28 @@ class HostMonitor:
             # Import here to avoid circular dependency
             from .scheduler import adaptive_scheduler_service
 
+            # Map raw connectivity result to a valid MonitoringState value.
+            # This prevents ValueError in HostMonitoringStateMachine.transition_state()
+            # when it calls MonitoringState(current_status) on the DB value.
+            # "offline" uses progressive degradation (AC-3) to avoid false positives:
+            # a single failed check -> DEGRADED, not immediately DOWN.
+            if status == "offline":
+                row = db.execute(text("SELECT status FROM hosts WHERE id = :id"), {"id": host_id}).fetchone()
+                current_db_status = row.status if row else None
+                db_status = _progressive_offline_state(current_db_status)
+                logger.info(
+                    f"Progressive degradation: '{current_db_status}' + offline -> '{db_status}' for host {host_id}"
+                )
+            else:
+                db_status = CONNECTIVITY_STATE_MAP.get(status, "unknown")
+                if db_status != status:
+                    logger.info(
+                        f"Mapped connectivity result '{status}' -> MonitoringState '{db_status}' for host {host_id}"
+                    )
+
             update_data = {
                 "id": host_id,
-                "status": status,
+                "status": db_status,
                 "updated_at": datetime.utcnow(),
                 "last_check": datetime.utcnow(),
             }
@@ -542,12 +599,12 @@ class HostMonitor:
                 query += ", response_time_ms = :response_time_ms"
 
             # Calculate and set next check time based on adaptive scheduler config
-            next_check_time = adaptive_scheduler_service.calculate_next_check_time(db, status)
+            next_check_time = adaptive_scheduler_service.calculate_next_check_time(db, db_status)
             update_data["next_check_time"] = next_check_time
             query += ", next_check_time = :next_check_time"
 
             # Update check priority based on state
-            check_priority = adaptive_scheduler_service.get_priority_for_state(db, status)
+            check_priority = adaptive_scheduler_service.get_priority_for_state(db, db_status)
             update_data["check_priority"] = check_priority
             query += ", check_priority = :check_priority"
 
@@ -557,7 +614,7 @@ class HostMonitor:
             db.commit()
 
             logger.info(
-                f"Updated host {host_id} status to {status} with last_check timestamp"
+                f"Updated host {host_id} status to {db_status} with last_check timestamp"
                 + (f", response_time {response_time_ms}ms" if response_time_ms else "")
                 + f", next_check_time {next_check_time.isoformat()}, priority {check_priority}"
             )

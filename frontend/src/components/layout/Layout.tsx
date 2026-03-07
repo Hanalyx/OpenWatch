@@ -57,9 +57,8 @@ import {
   QueryStats,
   Timeline,
 } from '@mui/icons-material';
-import { useAppDispatch, useAppSelector } from '../../hooks/redux';
-import { logout } from '../../store/slices/authSlice';
-import { setOSDiscoveryFailures } from '../../store/slices/notificationSlice';
+import { useAuthStore } from '../../store/useAuthStore';
+import { useNotificationStore } from '../../store/useNotificationStore';
 import { useTheme as useCustomTheme } from '../../contexts/ThemeContext';
 import { api } from '../../services/api';
 
@@ -161,11 +160,12 @@ const Layout: React.FC = () => {
   const theme = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
-  const dispatch = useAppDispatch();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-  const { user } = useAppSelector((state) => state.auth);
-  const notifications = useAppSelector((state) => state.notifications.notifications);
-  const systemAlerts = useAppSelector((state) => state.notifications.systemAlerts);
+  const user = useAuthStore((state) => state.user);
+  const logout = useAuthStore((state) => state.logout);
+  const notifications = useNotificationStore((state) => state.notifications);
+  const systemAlerts = useNotificationStore((state) => state.systemAlerts);
+  const setOSDiscoveryFailures = useNotificationStore((state) => state.setOSDiscoveryFailures);
   const { mode: themeMode, toggleTheme } = useCustomTheme();
 
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -183,11 +183,11 @@ const Layout: React.FC = () => {
   const fetchSystemAlerts = useCallback(async () => {
     try {
       const response = await api.get<{ count: number }>('/api/system/os-discovery/failures/count');
-      dispatch(setOSDiscoveryFailures(response.count || 0));
+      setOSDiscoveryFailures(response.count || 0);
     } catch {
       // Silently fail - alerts are not critical for app operation
     }
-  }, [dispatch]);
+  }, [setOSDiscoveryFailures]);
 
   useEffect(() => {
     // Initial fetch
@@ -223,8 +223,8 @@ const Layout: React.FC = () => {
     setAnchorEl(null);
   };
 
-  const handleLogout = async () => {
-    await dispatch(logout());
+  const handleLogout = () => {
+    logout();
     navigate('/login');
   };
 

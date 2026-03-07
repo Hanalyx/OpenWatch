@@ -52,7 +52,7 @@ def load_spec(spec_path: Path) -> dict | None:
 
 
 def find_test_files(repo_root: Path) -> list[Path]:
-    """Find all Python test files in the repository."""
+    """Find all test files (Python and TypeScript) in the repository."""
     test_dirs = [
         repo_root / "backend" / "tests",
         repo_root / "tests",
@@ -60,8 +60,14 @@ def find_test_files(repo_root: Path) -> list[Path]:
     test_files = []
     for d in test_dirs:
         if d.exists():
+            # Python tests
             test_files.extend(d.rglob("test_*.py"))
             test_files.extend(d.rglob("*_test.py"))
+            # TypeScript/JavaScript tests
+            test_files.extend(d.rglob("*.spec.test.ts"))
+            test_files.extend(d.rglob("*.spec.test.tsx"))
+            test_files.extend(d.rglob("*.test.ts"))
+            test_files.extend(d.rglob("*.test.tsx"))
     # Also check packaging tests
     pkg_tests = repo_root / "packaging" / "tests"
     if pkg_tests.exists():

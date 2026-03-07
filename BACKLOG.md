@@ -3,7 +3,7 @@
 > **Purpose**: Single source of truth for all pending work items, prioritized and actionable.
 > Updated at the end of each AI session. Items flow in from PRD epics, bug reports, and session discoveries.
 
-**Last Updated**: 2026-03-05
+**Last Updated**: 2026-03-06
 
 ---
 
@@ -57,14 +57,16 @@
 
 ---
 
-## Recently Completed (2026-03-05)
+## Recently Completed (2026-03-06)
 
 | Item | PR | Notes |
 |------|----|-------|
-| SDD auth/RBAC specs promoted to active | #332 (open) | authentication, authorization, encryption, mfa, security-controls; 22 active specs total, 145 tests; fixed Permission count 31→33 |
-| Phase 3 SDD: 4 compliance specs promoted to active | #331 | temporal-compliance, exception-governance, alert-thresholds, drift-analysis; 17 active specs total, 117 tests |
-| Phase 2 SDD: 5 specs promoted to active | #328, #329, #330 | remediation-lifecycle, remediation-execution, risk-classification, ssh-security, ssh-connection |
-| Phase 1 SDD: scan pipeline specs | prior PRs | kensa-scan, scan-orchestration, drift-detection, orsa-v2 |
+| SDD Phase 6: CI enforcement, advisory drift check, 100% AC coverage | #335 | `spec-checks` CI job (mandatory schema + coverage), `check-spec-changes.py` (advisory), 306/306 ACs; SPEC_GOVERNANCE.md maintenance process |
+| SDD Phase 5: 10 API contract specs promoted to active | #333 | error-model + 9 API route contracts; 150 unit tests; 32 active specs total |
+| SDD Phase 4: auth/RBAC specs promoted to active | #332 | authentication, authorization, encryption, mfa, security-controls; 145 tests; fixed Permission count 31→33 |
+| SDD Phase 3: 4 compliance specs promoted to active | #331 | temporal-compliance, exception-governance, alert-thresholds, drift-analysis; 117 tests |
+| SDD Phase 2: 5 specs promoted to active | #328, #329, #330 | remediation-lifecycle, remediation-execution, risk-classification, ssh-security, ssh-connection |
+| SDD Phase 1: scan pipeline specs | prior PRs | kensa-scan, scan-orchestration, drift-detection, orsa-v2 |
 | K-9 Field-level drift detection | #308 | Full implementation: snapshot population fix, value drift, group drift, CSV export, backfill task |
 | K-1 Full Evidence storage | #307 | `evidence JSONB` column on `scan_findings`, populated during Kensa scans |
 | Framework mapping file sync | #304 | PCI DSS now shows ~120 rules (was 2), FedRAMP added as new framework |
@@ -95,7 +97,8 @@ Items from the OpenWatch OS transformation initiative that are not yet complete.
 
 | Item | Priority | Status | Notes |
 |------|----------|--------|-------|
-| Adaptive Compliance Scheduler | P1 | Planned | Auto-scan with state-based intervals (max 48h) |
+| **Host monitoring spec + bug fix** | P1 | Spec required | Write `specs/services/monitoring/host-monitoring.spec.yaml` (Tier 1: state machine, scan eligibility, compliance implications), then fix `MonitoringState` enum. Unblocks Adaptive Scheduler. |
+| Adaptive Compliance Scheduler | P1 | Planned | Depends on monitoring spec. Auto-scan with state-based intervals (max 48h). |
 | Host Detail Page Redesign | P1 | In Progress | Phase 0 done (backend data fix), Phases 1-6 pending |
 | MongoDB Legacy Code Removal | P2 | **Complete** | PR #295: 80 files changed, 19,488 deletions |
 | Remediation + Subscription (Phase 4) | P3 | Mostly Complete | K-2 and K-3 complete. Remaining: K-4 (risk-aware policies), K-5 (snapshot retention). |
@@ -142,7 +145,7 @@ Gaps identified by comparing `docs/KENSA_DEVELOPER_GUIDE_V0.md` against current 
 
 | Item | Priority | Status | Notes |
 |------|----------|--------|-------|
-| Host monitoring state transition: `'offline' is not a valid MonitoringState` | P1 | Open | After adding host 192.168.1.212, connectivity check succeeds (ping=True, ssh=True, status=online) but state transition from `offline` fails. Host ends up in `unknown` state instead of `online`. `MonitoringState` enum likely missing `offline` as a valid value, or the initial host status `"offline"` (set by InsertBuilder) doesn't match the enum. See `services/monitoring/state.py`. |
+| Host monitoring state transition: `'offline' is not a valid MonitoringState` | P1 | **Spec required first** | After adding host 192.168.1.212, connectivity check succeeds (ping=True, ssh=True, status=online) but state transition from `offline` fails. Host ends up in `unknown` state instead of `online`. `MonitoringState` enum missing `offline` value. Classified Tier 1 (monitoring is scan-eligibility and compliance-critical — an offline/down host is non-compliant; unknown state is a blind spot). **Next step**: write `specs/services/monitoring/host-monitoring.spec.yaml`, then tests, then fix. See `services/monitoring/state.py`. |
 | Host creation missing NOT NULL monitoring columns | P1 | Fixed | `InsertBuilder` in `routes/hosts/crud.py` was missing `check_priority` and 6 consecutive failure/success counter columns. Python-level `default=` not applied by raw SQL. Fixed by adding columns with defaults to INSERT. |
 | Alert generator: `passed` column does not exist in `scan_findings` | P1 | Fixed | `alert_generator.py` `_check_configuration_drift()` queried `passed` column and `host_id` directly on `scan_findings`. Actual schema uses `status` ('pass'/'fail') and requires JOIN through `scans` for `host_id`. |
 

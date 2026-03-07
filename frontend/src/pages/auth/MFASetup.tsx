@@ -27,7 +27,7 @@ import {
 import Grid from '@mui/material/Grid';
 import { Security, ContentCopy, Download, VerifiedUser, Key, Shield } from '@mui/icons-material';
 import { useForm } from 'react-hook-form';
-import { useAppSelector } from '../../hooks/redux';
+import { useAuthStore } from '../../store/useAuthStore';
 import { tokenService } from '../../services/tokenService';
 import { announcer } from '../../utils/accessibility';
 
@@ -68,7 +68,7 @@ interface MFASecret {
 
 const MFASetup: React.FC = () => {
   const navigate = useNavigate();
-  const { user } = useAppSelector((state) => state.auth);
+  const user = useAuthStore((state) => state.user);
 
   const [activeStep, setActiveStep] = useState(0);
   const [loading, setLoading] = useState(false);

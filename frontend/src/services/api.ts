@@ -14,18 +14,6 @@ interface QueuedRequest {
 }
 
 /**
- * Redux store interface for window extension
- * Global Redux store attached to window for development/debugging
- */
-interface ReduxStore {
-  getState: () => {
-    auth?: {
-      token?: string;
-    };
-  };
-}
-
-/**
  * Enhanced network error with additional properties
  * Standard Error extended with custom error metadata
  */
@@ -35,14 +23,6 @@ interface NetworkError extends Error {
   response?: unknown;
   status?: number;
   statusText?: string;
-}
-
-/**
- * Extended Window interface with Redux store
- * Adds __REDUX_STORE__ property for development debugging
- */
-interface WindowWithRedux {
-  __REDUX_STORE__?: ReduxStore;
 }
 
 class ApiClient {
@@ -79,18 +59,7 @@ class ApiClient {
     // Request interceptor
     this.instance.interceptors.request.use(
       async (config) => {
-        // Get token from localStorage first, then fall back to Redux store if available
         let token = storageGet(StorageKeys.AUTH_TOKEN);
-
-        // Try Redux store if localStorage token not found
-        // Type-safe access to window.__REDUX_STORE__ development extension
-        if (!token && typeof window !== 'undefined') {
-          const windowWithRedux = window as WindowWithRedux;
-          if (windowWithRedux.__REDUX_STORE__) {
-            const state = windowWithRedux.__REDUX_STORE__.getState();
-            token = state.auth?.token ?? null;
-          }
-        }
 
         // Development helper: auto-login if no token found and we're in development
         if (!token && import.meta.env.DEV) {
@@ -160,12 +129,7 @@ class ApiClient {
 
         // Authentication errors
         if (error.response?.status === 401) {
-          // Clear tokens from both places
           storageRemove(StorageKeys.AUTH_TOKEN);
-          // Type-safe window.__REDUX_STORE__ access
-          if (typeof window !== 'undefined' && (window as WindowWithRedux).__REDUX_STORE__) {
-            // Could dispatch logout action here if needed
-          }
           window.location.href = '/login';
         }
 

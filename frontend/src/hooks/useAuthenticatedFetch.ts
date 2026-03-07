@@ -1,9 +1,9 @@
 import { useCallback } from 'react';
-import { useAppSelector } from './redux';
+import { useAuthStore } from '../store/useAuthStore';
 import { tokenService } from '../services/tokenService';
 
 export const useAuthenticatedFetch = () => {
-  const isAuthenticated = useAppSelector((state) => state.auth.isAuthenticated);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 
   const authenticatedFetch = useCallback(
     async (url: string, options: RequestInit = {}): Promise<Response> => {

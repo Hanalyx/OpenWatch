@@ -1,0 +1,159 @@
+spec: state-management
+version: "1.0"
+status: active
+owner: engineering
+summary: >
+  Frontend global state MUST be managed by Zustand stores (useAuthStore,
+  useNotificationStore); Redux is restricted to ruleSlice only during
+  incremental migration; dead Redux slices (auth, notifications, hosts,
+  content, scans, results, users, audit) MUST NOT exist; non-React
+  service classes (tokenService, activityTracker) MUST access auth
+  state via useAuthStore.getState() — never via window.__REDUX_STORE__
+  or direct store imports from the Redux store module.
+
+---
+
+# Objective
+
+objective: >
+  Ensure global client-side state for authentication and notifications
+  is owned by Zustand stores, that all consumers import from the
+  Zustand stores rather than deleted Redux slices, and that the Redux
+  store is strictly limited to ruleSlice pending full migration. This
+  prevents re-introduction of the server-state duplication anti-pattern
+  that the Zustand migration resolved.
+
+---
+
+# Constraints
+
+constraints:
+  store_ownership:
+    - "Auth state (user, token, sessionExpiry, mfaRequired, error) MUST live in useAuthStore"
+    - "Notification state (notifications[], systemAlerts) MUST live in useNotificationStore"
+    - "Redux store/index.ts MUST NOT contain an 'auth' key in its reducer map"
+    - "Redux store/index.ts MUST NOT contain a 'notifications' key in its reducer map"
+
+  deleted_slices:
+    - "store/slices/authSlice.ts MUST NOT exist"
+    - "store/slices/notificationSlice.ts MUST NOT exist"
+    - "store/slices/hostSlice.ts MUST NOT exist"
+    - "store/slices/contentSlice.ts MUST NOT exist"
+    - "store/slices/scanSlice.ts MUST NOT exist"
+    - "store/slices/resultSlice.ts MUST NOT exist"
+    - "store/slices/userSlice.ts MUST NOT exist"
+    - "store/slices/auditSlice.ts MUST NOT exist"
+
+  service_access:
+    - "tokenService MUST import from useAuthStore, not from the Redux store module"
+    - "activityTracker MUST import from useAuthStore, not from the Redux store module"
+    - "tokenService MUST use useAuthStore.getState() for non-hook state access"
+    - "activityTracker MUST use useAuthStore.getState() for non-hook state access"
+
+  auth_store_actions:
+    - "useAuthStore MUST export loginSuccess action"
+    - "useAuthStore MUST export loginFailure action"
+    - "useAuthStore MUST export logout action"
+    - "useAuthStore MUST export clearError action"
+    - "useAuthStore MUST export setMfaRequired action"
+    - "useAuthStore MUST export setLoading action"
+    - "useAuthStore MUST export refreshTokenSuccess action"
+    - "useAuthStore MUST export checkSessionExpiry action"
+
+  notification_store_actions:
+    - "useNotificationStore MUST export addNotification action"
+    - "useNotificationStore MUST export removeNotification action"
+    - "useNotificationStore MUST export clearNotifications action"
+    - "useNotificationStore MUST export setOSDiscoveryFailures action"
+    - "useNotificationStore MUST export setSystemAlerts action"
+
+---
+
+# Acceptance Criteria
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      The Redux store (store/index.ts) MUST contain only the 'rules' reducer.
+      It MUST NOT contain keys 'auth', 'notifications', 'hosts', 'content',
+      'scans', 'results', 'users', or 'audit' in its reducer map. This
+      ensures all migrated state is exclusively owned by Zustand stores.
+
+  - id: AC-2
+    description: >
+      Deleted Redux slice files MUST NOT exist on disk. The following files
+      MUST be absent: store/slices/authSlice.ts, store/slices/notificationSlice.ts,
+      store/slices/hostSlice.ts, store/slices/contentSlice.ts,
+      store/slices/scanSlice.ts, store/slices/resultSlice.ts,
+      store/slices/userSlice.ts, store/slices/auditSlice.ts.
+      Their continued existence would allow accidental re-import.
+
+  - id: AC-3
+    description: >
+      useAuthStore MUST export all 8 required actions as callable functions:
+      loginSuccess, loginFailure, logout, clearError, setMfaRequired,
+      setLoading, refreshTokenSuccess, checkSessionExpiry. Each MUST be
+      present on the object returned by useAuthStore.getState() so they
+      are accessible in both React and non-React contexts.
+
+  - id: AC-4
+    description: >
+      useNotificationStore MUST export all 5 required actions as callable
+      functions on the store state: addNotification, removeNotification,
+      clearNotifications, setOSDiscoveryFailures, setSystemAlerts.
+
+  - id: AC-5
+    description: >
+      loginSuccess MUST persist auth data to localStorage: token via
+      storageSet(AUTH_TOKEN), refreshToken via storageSet(REFRESH_TOKEN),
+      user object via storageSet(AUTH_USER), and sessionExpiry via
+      storageSet(SESSION_EXPIRY). logout MUST clear all four keys by
+      calling storageClearAuth().
+
+  - id: AC-6
+    description: >
+      checkSessionExpiry MUST detect expired sessions: when sessionExpiry
+      is a timestamp in the past, the store MUST transition to logged-out
+      state (isAuthenticated=false, token=null, user=null) and set
+      error='Session expired. Please login again.'. Sessions with
+      sessionExpiry=null or in the future MUST NOT be affected.
+
+  - id: AC-7
+    description: >
+      loginFailure MUST detect the MFA-required condition: when the error
+      message contains the substring 'MFA required', mfaRequired MUST be
+      set to true. All other error messages MUST leave mfaRequired false.
+
+  - id: AC-8
+    description: >
+      tokenService.ts MUST NOT import from '../store' (Redux store module)
+      or '../store/slices/authSlice'. It MUST import from
+      '../store/useAuthStore' and access state via useAuthStore.getState().
+      The source file MUST contain the string 'useAuthStore.getState()'.
+
+  - id: AC-9
+    description: >
+      activityTracker.ts MUST NOT import from '../store' (Redux store module)
+      or '../store/slices/authSlice'. It MUST import from
+      '../store/useAuthStore' and access state via useAuthStore.getState().
+      The source file MUST contain the string 'useAuthStore.getState()'.
+
+  - id: AC-10
+    description: >
+      refreshTokenSuccess MUST update the token in the store AND persist the
+      new token to localStorage via storageSet(AUTH_TOKEN). The old token
+      MUST be replaced in both the store state and localStorage atomically
+      within the same action.
+
+---
+
+# Changelog
+
+changelog:
+  - version: "1.0"
+    date: "2026-03-06"
+    changes:
+      - "Initial spec — Zustand Phase 1 migration complete"
+      - "Replaces auth and notification Redux slices with Zustand stores"
+      - "Redux restricted to ruleSlice only pending Phase 2 migration"
+      - "10 ACs covering store ownership, deleted slices, service access, and behavioral contracts"

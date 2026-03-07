@@ -33,7 +33,7 @@ import {
   Visibility as ViewIcon,
   PlayCircleOutline as QuickScanIcon,
 } from '@mui/icons-material';
-import { useAppSelector } from '../../hooks/redux';
+import { useAuthStore } from '../../store/useAuthStore';
 import SmartGroupCreationWizard from '../../components/host-groups/SmartGroupCreationWizard';
 import GroupEditDialog from '../../components/host-groups/GroupEditDialog';
 import { GroupComplianceReport } from '../../components/GroupCompliance';
@@ -78,7 +78,7 @@ const ComplianceGroups: React.FC = () => {
   const [complianceGroup, setComplianceGroup] = useState<HostGroup | null>(null);
 
   // User data from auth state - reserved for future user-specific group permissions
-  const _user = useAppSelector((state) => state.auth.user);
+  const _user = useAuthStore((state) => state.user);
 
   useEffect(() => {
     fetchGroups();
