@@ -5,13 +5,7 @@ import {
   Box,
   Typography,
   Button,
-  IconButton,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   LinearProgress,
-  Collapse,
   Menu,
   MenuItem,
   ListItemIcon,
@@ -26,22 +20,12 @@ import {
   Alert,
 } from '@mui/material';
 import Grid from '@mui/material/Grid';
-import {
-  Add,
-  FilterList,
-  Computer,
-  Error as ErrorIcon,
-  Groups,
-  Download,
-  Security,
-  ExpandMore,
-  ChevronRight,
-  Scanner,
-  CloudUpload,
-} from '@mui/icons-material';
-import { StatCard, FilterToolbar } from '../../components/design-system';
+import { Add, FilterList, Groups, Download, Scanner, CloudUpload } from '@mui/icons-material';
+import { FilterToolbar } from '../../components/design-system';
 import { useHostsPage } from './hooks/useHostsPage';
-import HostCard from './components/HostCard';
+import HostStatCards from './components/HostStatCards';
+import HostGrid from './components/HostGrid';
+import HostConfirmDialogs from './components/HostConfirmDialogs';
 import EditHostDialog from './components/EditHostDialog';
 
 const Hosts: React.FC = () => {
@@ -137,65 +121,11 @@ const Hosts: React.FC = () => {
       </Box>
 
       {/* Header Statistics */}
-      <Box sx={{ mb: 4 }}>
-        <Grid container spacing={3}>
-          <Grid size={{ xs: 12, sm: 6, md: 2.4 }}>
-            <StatCard
-              title={autoRefreshEnabled ? 'Hosts Online (Auto)' : 'Hosts Online'}
-              value={`${stats.online}/${stats.total}`}
-              color="primary"
-              icon={<Computer />}
-              trend={stats.online === stats.total ? 'up' : 'flat'}
-              trendValue={`${Math.round((stats.online / stats.total) * 100)}%`}
-            />
-          </Grid>
-          <Grid size={{ xs: 12, sm: 6, md: 2.4 }}>
-            <StatCard
-              title="Avg Compliance"
-              value={`${stats.avgCompliance}%`}
-              color={
-                stats.avgCompliance >= 90
-                  ? 'success'
-                  : stats.avgCompliance >= 75
-                    ? 'warning'
-                    : 'error'
-              }
-              icon={<Security />}
-              trend={stats.avgCompliance >= 85 ? 'up' : 'flat'}
-            />
-          </Grid>
-          <Grid size={{ xs: 12, sm: 6, md: 2.4 }}>
-            <StatCard
-              title="Critical Issues"
-              value={stats.criticalHosts}
-              color="error"
-              icon={<ErrorIcon />}
-              trend={stats.criticalHosts === 0 ? 'up' : 'down'}
-              subtitle={stats.criticalHosts === 0 ? 'All clear' : 'Needs attention'}
-            />
-          </Grid>
-          <Grid size={{ xs: 12, sm: 6, md: 2.4 }}>
-            <StatCard
-              title="Need Scanning"
-              value={stats.needsScanning}
-              color="warning"
-              icon={<Scanner />}
-              trend={stats.needsScanning === 0 ? 'up' : 'down'}
-              subtitle={stats.needsScanning === 0 ? 'Up to date' : 'Behind schedule'}
-            />
-          </Grid>
-          <Grid size={{ xs: 12, sm: 6, md: 2.4 }}>
-            <StatCard
-              title="Quick Actions"
-              value="Add Host"
-              color="primary"
-              icon={<Add />}
-              onClick={() => navigate('/hosts/add-host')}
-              subtitle="Register new system"
-            />
-          </Grid>
-        </Grid>
-      </Box>
+      <HostStatCards
+        stats={stats}
+        autoRefreshEnabled={autoRefreshEnabled}
+        onAddHost={() => navigate('/hosts/add-host')}
+      />
 
       {/* Toolbar */}
       <Paper sx={{ mb: 3 }}>
@@ -269,95 +199,21 @@ const Hosts: React.FC = () => {
           </Grid>
         </Box>
       ) : (
-        <Box>
-          {/* Grouped View */}
-          {groupBy !== 'none' && Object.keys(processedHosts).length > 0 ? (
-            <Box>
-              {Object.entries(processedHosts).map(([groupName, groupHosts]) => (
-                <Box key={groupName} sx={{ mb: 4 }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                    <Typography variant="h6" sx={{ flexGrow: 1 }}>
-                      {groupName} ({groupHosts.length})
-                    </Typography>
-                    <IconButton
-                      size="small"
-                      onClick={() =>
-                        setExpandedGroups((prev) =>
-                          prev.includes(groupName)
-                            ? prev.filter((g) => g !== groupName)
-                            : [...prev, groupName]
-                        )
-                      }
-                    >
-                      {expandedGroups.includes(groupName) ? <ExpandMore /> : <ChevronRight />}
-                    </IconButton>
-                  </Box>
-
-                  <Collapse in={expandedGroups.includes(groupName)}>
-                    <Grid container spacing={viewMode === 'compact' ? 2 : 3}>
-                      {groupHosts.map((host) => (
-                        <Grid
-                          size={
-                            viewMode === 'list'
-                              ? { xs: 12 }
-                              : viewMode === 'compact'
-                                ? { xs: 6, sm: 4, md: 2 }
-                                : { xs: 12, sm: 6, md: 3 }
-                          }
-                          key={host.id}
-                        >
-                          <HostCard
-                            host={host}
-                            viewMode={viewMode}
-                            selectedHosts={selectedHosts}
-                            navigate={navigate}
-                            handleSelectHost={handleSelectHost}
-                            handleQuickScanWithValidation={handleQuickScanWithValidation}
-                            handleEditHost={handleEditHost}
-                            handleDeleteHost={handleDeleteHost}
-                            checkHostStatus={checkHostStatus}
-                            setQuickScanDialog={setQuickScanDialog}
-                          />
-                        </Grid>
-                      ))}
-                    </Grid>
-                  </Collapse>
-                </Box>
-              ))}
-            </Box>
-          ) : (
-            /* Grid/List/Compact View */
-            <Grid container spacing={viewMode === 'compact' ? 2 : 3}>
-              {Object.values(processedHosts)
-                .flat()
-                .map((host) => (
-                  <Grid
-                    size={
-                      viewMode === 'list'
-                        ? { xs: 12 }
-                        : viewMode === 'compact'
-                          ? { xs: 6, sm: 4, md: 2 }
-                          : { xs: 12, sm: 6, md: 3 }
-                    }
-                    key={host.id}
-                  >
-                    <HostCard
-                      host={host}
-                      viewMode={viewMode}
-                      selectedHosts={selectedHosts}
-                      navigate={navigate}
-                      handleSelectHost={handleSelectHost}
-                      handleQuickScanWithValidation={handleQuickScanWithValidation}
-                      handleEditHost={handleEditHost}
-                      handleDeleteHost={handleDeleteHost}
-                      checkHostStatus={checkHostStatus}
-                      setQuickScanDialog={setQuickScanDialog}
-                    />
-                  </Grid>
-                ))}
-            </Grid>
-          )}
-        </Box>
+        <HostGrid
+          processedHosts={processedHosts}
+          groupBy={groupBy}
+          viewMode={viewMode}
+          expandedGroups={expandedGroups}
+          setExpandedGroups={setExpandedGroups}
+          selectedHosts={selectedHosts}
+          navigate={navigate}
+          handleSelectHost={handleSelectHost}
+          handleQuickScanWithValidation={handleQuickScanWithValidation}
+          handleEditHost={handleEditHost}
+          handleDeleteHost={handleDeleteHost}
+          checkHostStatus={checkHostStatus}
+          setQuickScanDialog={setQuickScanDialog}
+        />
       )}
 
       {/* Dialogs */}
@@ -370,31 +226,20 @@ const Hosts: React.FC = () => {
         }}
       />
 
-      <Dialog
-        open={deleteDialog.open}
-        onClose={() => setDeleteDialog({ open: false, host: null })}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle>Delete Host</DialogTitle>
-        <DialogContent>
-          <Typography>
-            Are you sure you want to delete <strong>{deleteDialog.host?.displayName}</strong>? This
-            action cannot be undone.
-          </Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button
-            onClick={() => setDeleteDialog({ open: false, host: null })}
-            disabled={deletingHost}
-          >
-            Cancel
-          </Button>
-          <Button onClick={confirmDelete} color="error" variant="contained" disabled={deletingHost}>
-            {deletingHost ? 'Deleting...' : 'Delete'}
-          </Button>
-        </DialogActions>
-      </Dialog>
+      <HostConfirmDialogs
+        deleteDialog={deleteDialog}
+        setDeleteDialog={setDeleteDialog}
+        deletingHost={deletingHost}
+        confirmDelete={confirmDelete}
+        bulkActionDialog={bulkActionDialog}
+        setBulkActionDialog={setBulkActionDialog}
+        selectedBulkAction={selectedBulkAction}
+        selectedHostCount={selectedHosts.length}
+        executeBulkAction={executeBulkAction}
+        quickScanDialog={quickScanDialog}
+        setQuickScanDialog={setQuickScanDialog}
+        handleQuickScanWithValidation={handleQuickScanWithValidation}
+      />
 
       <EditHostDialog
         open={editDialog.open}
@@ -412,52 +257,6 @@ const Hosts: React.FC = () => {
         onAuthMethodChange={handleAuthMethodChange}
         onValidateSshKey={validateSshKeyForEdit}
       />
-
-      <Dialog
-        open={bulkActionDialog}
-        onClose={() => setBulkActionDialog(false)}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle>Confirm Bulk Action</DialogTitle>
-        <DialogContent>
-          <Typography>
-            Are you sure you want to perform <strong>{selectedBulkAction}</strong> on{' '}
-            {selectedHosts.length} selected hosts?
-          </Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setBulkActionDialog(false)}>Cancel</Button>
-          <Button onClick={executeBulkAction} variant="contained">
-            Confirm
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      <Dialog
-        open={quickScanDialog.open}
-        onClose={() => setQuickScanDialog({ open: false, host: null })}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle>Quick Scan</DialogTitle>
-        <DialogContent>
-          <Typography>
-            Start a compliance scan for <strong>{quickScanDialog.host?.displayName}</strong>?
-          </Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setQuickScanDialog({ open: false, host: null })}>Cancel</Button>
-          <Button
-            variant="contained"
-            onClick={() =>
-              quickScanDialog.host && handleQuickScanWithValidation(quickScanDialog.host)
-            }
-          >
-            Start Scan
-          </Button>
-        </DialogActions>
-      </Dialog>
 
       {/* Filter Menu */}
       <Menu
