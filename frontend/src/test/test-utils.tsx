@@ -1,7 +1,7 @@
 /**
  * Custom test utilities for rendering components with providers.
  *
- * Wraps components in Redux Provider (ruleSlice) + MemoryRouter for tests.
+ * Wraps components in Redux Provider (empty store) + MemoryRouter for tests.
  * Auth state is in Zustand (useAuthStore) — set it directly in tests as needed.
  */
 import React, { type PropsWithChildren } from 'react';
@@ -9,7 +9,6 @@ import { render, type RenderOptions } from '@testing-library/react';
 import { configureStore, type EnhancedStore } from '@reduxjs/toolkit';
 import { Provider } from 'react-redux';
 import { MemoryRouter } from 'react-router-dom';
-import ruleReducer from '../store/slices/ruleSlice';
 
 interface ExtendedRenderOptions extends Omit<RenderOptions, 'queries'> {
   store?: EnhancedStore;
@@ -19,7 +18,7 @@ interface ExtendedRenderOptions extends Omit<RenderOptions, 'queries'> {
 export function renderWithProviders(
   ui: React.ReactElement,
   {
-    store = configureStore({ reducer: { rules: ruleReducer } }),
+    store = configureStore({ reducer: {} }),
     route = '/',
     ...renderOptions
   }: ExtendedRenderOptions = {}
