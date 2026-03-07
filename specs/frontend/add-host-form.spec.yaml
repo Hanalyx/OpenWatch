@@ -1,0 +1,126 @@
+spec: add-host-form
+version: "1.0"
+status: active
+owner: engineering
+summary: >
+  The Add Host page (Quick Add mode) MUST provide hostname/IP input,
+  display name, and four authentication methods: System Default, SSH Key,
+  Password, and SSH Key + Password (Fallback). System Default MUST hide
+  username and credential fields, showing system credential info instead.
+  Test Connection MUST call POST /api/hosts/test-connection and display
+  results faithfully (success/failure based on backend response.success).
+  The connection test adapter MUST map backend snake_case fields to
+  frontend camelCase without hardcoding success=true. The page MUST NOT
+  contain hardcoded statistics or non-functional template components.
+
+---
+
+# Objective
+
+objective: >
+  Ensure the Add Host form correctly handles all four authentication
+  methods with appropriate field visibility, sends properly structured
+  test-connection requests, displays accurate connection results from
+  the backend, and does not contain dead UI elements.
+
+---
+
+# Constraints
+
+constraints:
+  auth_methods:
+    - "System Default MUST hide Username and credential input fields"
+    - "System Default MUST show credential info (name, username, key type) from /api/system/credentials"
+    - "SSH Key MUST show Username and SSH Private Key textarea"
+    - "Password MUST show Username and Password fields"
+    - "SSH Key + Password (Fallback) MUST show Username, SSH Private Key, and Password fields"
+
+  test_connection:
+    - "Test Connection button MUST be disabled when hostname is empty"
+    - "Test Connection button MUST be disabled when username is empty AND auth_method is not system_default"
+    - "Test Connection MUST call POST /api/hosts/test-connection with correct auth_method value"
+    - "Connection status MUST reflect backend response.success (not hardcoded)"
+
+  adapter:
+    - "adaptConnectionTest MUST map network_connectivity, authentication, detected_os, detected_version from backend"
+    - "adaptConnectionTest MUST default success to false when field is missing"
+    - "adaptConnectionTest MUST NOT hardcode success=true"
+
+  form_cleanliness:
+    - "AddHost.tsx MUST NOT contain hardcoded StatCard components"
+    - "AddHost.tsx MUST NOT contain Quick Start Templates section"
+    - "Connection result display MUST only show 'Detected:' line when detected_os is non-empty"
+
+---
+
+# Acceptance Criteria
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      When auth_method is system_default, the QuickAddHostForm MUST NOT
+      render a Username input field. The form MUST display system
+      credential info (credential name, username, key type) instead.
+
+  - id: AC-2
+    description: >
+      When auth_method is ssh_key, the form MUST render Username and
+      SSH Private Key textarea fields.
+
+  - id: AC-3
+    description: >
+      When auth_method is password, the form MUST render Username and
+      Password fields with a show/hide toggle.
+
+  - id: AC-4
+    description: >
+      When auth_method is both (SSH Key + Password Fallback), the form
+      MUST render Username, SSH Private Key (Primary), and Password
+      (Fallback) fields with an explanatory info banner.
+
+  - id: AC-5
+    description: >
+      The Test Connection button MUST be disabled when hostname is empty
+      OR when username is empty and auth_method is not system_default.
+
+  - id: AC-6
+    description: >
+      handleTestConnection sends auth_method=system_default with no
+      username/password/ssh_key when System Default is selected, allowing
+      the backend to resolve credentials.
+
+  - id: AC-7
+    description: >
+      The adaptConnectionTest adapter MUST map backend field
+      network_connectivity (not network_reachable), authentication (not
+      auth_successful), detected_version (not os_version) to their
+      camelCase frontend equivalents.
+
+  - id: AC-8
+    description: >
+      The adaptConnectionTest adapter MUST default success to false and
+      networkConnectivity/authentication to false when backend fields are
+      missing, never hardcoding optimistic defaults.
+
+  - id: AC-9
+    description: >
+      The connection status state MUST be set to 'failed' when the
+      adapted result has success=false, even when the HTTP response
+      is 200 OK.
+
+  - id: AC-10
+    description: >
+      AddHost.tsx MUST NOT contain StatCard components or Quick Start
+      Templates. The page MUST only render a header with back button
+      and the Quick/Advanced mode form toggle.
+
+  - id: AC-11
+    description: >
+      The connection result display MUST only show the "Detected:" line
+      when connectionTestResults.detectedOS is a non-empty string.
+
+  - id: AC-12
+    description: >
+      handleSubmit MUST NOT navigate to /hosts on error. On failure, it
+      MUST set connectionStatus to 'failed' and display the error message
+      in connectionTestResults.

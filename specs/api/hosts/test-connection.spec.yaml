@@ -1,0 +1,113 @@
+spec: test-connection-api
+version: "1.0"
+status: active
+owner: engineering
+summary: >
+  POST /api/hosts/test-connection endpoint contract: accepts hostname, port,
+  auth_method, optional username/ssh_key/password. Performs TCP socket check
+  with SSH banner read, then SSH authentication via paramiko. Supports four
+  auth methods: system_default (decrypts credential from unified_credentials
+  table via base64 + AES-256-GCM), ssh_key (RSA/Ed25519/ECDSA), password,
+  and both (SSH key primary + password fallback). On successful SSH auth,
+  detects OS via /etc/os-release. Returns structured result with success,
+  network_connectivity, authentication, detected_os, detected_version,
+  response_time_ms, ssh_version, and error fields.
+
+---
+
+# Objective
+
+objective: >
+  Ensure the test-connection endpoint correctly validates SSH connectivity
+  before host creation, supports all four authentication methods, properly
+  decrypts system default credentials, detects remote OS, and returns
+  accurate structured results for frontend display.
+
+---
+
+# Constraints
+
+constraints:
+  network_check:
+    - "TCP socket check MUST use configurable timeout (capped at 10s)"
+    - "SSH banner MUST be read from socket if available"
+    - "Network failure MUST return early with network_connectivity=false"
+
+  authentication:
+    - "system_default MUST query unified_credentials with scope=system, is_default=true, is_active=true"
+    - "system_default MUST base64-decode then AES-256-GCM decrypt the encrypted_private_key"
+    - "ssh_key MUST try RSA, then Ed25519, then ECDSA key formats"
+    - "both mode MUST set both pkey and password in paramiko connect_kwargs"
+    - "password mode MUST only set password in connect_kwargs"
+
+  os_detection:
+    - "OS detection MUST parse /etc/os-release for PRETTY_NAME and VERSION_ID"
+    - "OS detection failure MUST NOT cause the overall test to fail"
+
+  response:
+    - "Response MUST include success, network_connectivity, authentication, detected_os, detected_version, response_time_ms"
+    - "Error responses MUST include error field with descriptive message"
+    - "Endpoint MUST return 200 for all outcomes (success or failure encoded in response body)"
+
+---
+
+# Acceptance Criteria
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      POST /test-connection performs a TCP socket check to hostname:port
+      before attempting SSH authentication. If the socket fails, result
+      contains network_connectivity=false and an error message.
+
+  - id: AC-2
+    description: >
+      When auth_method is system_default, the endpoint queries
+      unified_credentials table filtering by scope=system, is_default=true,
+      is_active=true to resolve username and encrypted credentials.
+
+  - id: AC-3
+    description: >
+      System default credential decryption base64-decodes the
+      encrypted_private_key bytes, then decrypts via EncryptionService
+      (AES-256-GCM) using the application master_key.
+
+  - id: AC-4
+    description: >
+      SSH key parsing tries paramiko.RSAKey, then Ed25519Key, then
+      ECDSAKey from_private_key, supporting all three key formats.
+
+  - id: AC-5
+    description: >
+      When auth_method is "both", connect_kwargs MUST include both pkey
+      (SSH key) and password, enabling SSH key primary with password
+      fallback authentication.
+
+  - id: AC-6
+    description: >
+      On successful SSH authentication, the endpoint executes
+      "cat /etc/os-release" to detect PRETTY_NAME and VERSION_ID fields
+      for OS identification.
+
+  - id: AC-7
+    description: >
+      If no system default credential is found, the endpoint returns
+      error="No system default credential configured" without attempting
+      SSH connection.
+
+  - id: AC-8
+    description: >
+      The response always includes response_time_ms calculated from
+      request start to completion using monotonic clock.
+
+  - id: AC-9
+    description: >
+      SSH banner is captured from the initial TCP socket connection and
+      returned in the ssh_version field when the banner starts with "SSH-".
+
+  - id: AC-10
+    description: >
+      The TestConnectionRequest Pydantic model accepts hostname (required),
+      port (default 22), username (optional), auth_method (default
+      system_default), ssh_key (optional), password (optional), and
+      timeout (default 30).

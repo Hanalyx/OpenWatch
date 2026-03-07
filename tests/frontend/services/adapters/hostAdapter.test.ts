@@ -156,10 +156,11 @@ describe('adaptHosts', () => {
 describe('adaptConnectionTest', () => {
   it('transforms a successful test response', () => {
     const api: ApiConnectionTestResponse = {
-      network_reachable: true,
-      auth_successful: true,
+      success: true,
+      network_connectivity: true,
+      authentication: true,
       detected_os: 'RHEL',
-      os_version: '9.2',
+      detected_version: '9.2',
       response_time_ms: 45,
       ssh_version: 'OpenSSH_8.7',
     };
@@ -175,9 +176,10 @@ describe('adaptConnectionTest', () => {
 
   it('applies defaults for missing fields', () => {
     const result = adaptConnectionTest({});
-    expect(result.networkConnectivity).toBe(true);
-    expect(result.authentication).toBe(true);
-    expect(result.detectedOS).toBe('Unknown');
+    expect(result.success).toBe(false);
+    expect(result.networkConnectivity).toBe(false);
+    expect(result.authentication).toBe(false);
+    expect(result.detectedOS).toBe('');
     expect(result.detectedVersion).toBe('');
     expect(result.responseTime).toBe(0);
   });

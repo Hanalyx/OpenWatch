@@ -85,6 +85,7 @@ Coverage is checked by `scripts/check-spec-coverage.py`.
 | Rollback | api/remediation/rollback.spec.yaml | tests/backend/unit/api/test_remediation_api.py | 5 | Active |
 | Login | api/auth/login.spec.yaml | tests/backend/unit/api/test_auth_api.py | 5 | Active |
 | MFA Verify | api/auth/mfa-verify.spec.yaml | tests/backend/unit/api/test_auth_api.py | 5 | Active |
+| Test Connection | api/hosts/test-connection.spec.yaml | tests/backend/unit/api/test_host_api.py | 9 | Active |
 
 ## Frontend Specs
 
@@ -94,6 +95,7 @@ Coverage is checked by `scripts/check-spec-coverage.py`.
 | Auth Flow | frontend/auth-flow.spec.yaml | tests/frontend/auth/auth-flow.spec.test.ts | 8 | Active |
 | Scan Workflow | frontend/scan-workflow.spec.yaml | tests/frontend/scans/scan-workflow.spec.test.ts | 8 | Active |
 | Host Detail Behavior | frontend/host-detail-behavior.spec.yaml | tests/frontend/hosts/host-detail.spec.test.ts | 8 | Active |
+| Add Host Form | frontend/add-host-form.spec.yaml | tests/frontend/hosts/add-host-form.spec.test.ts | 9 | Active |
 
 ## Plugin Specs
 
@@ -117,11 +119,11 @@ Coverage is checked by `scripts/check-spec-coverage.py`.
 | System | 9 | 6 | 3 | 0 |
 | Pipelines | 3 | 2 | 1 | 0 |
 | Services | 11 | 11 | 0 | 0 |
-| API | 9 | 9 | 0 | 0 |
+| API | 10 | 10 | 0 | 0 |
 | Plugins | 1 | 1 | 0 | 0 |
 | Release | 4 | 4 | 0 | 0 |
-| Frontend | 4 | 4 | 0 | 0 |
-| **Total** | **41** | **37** | **4** | **0** |
+| Frontend | 5 | 5 | 0 | 0 |
+| **Total** | **43** | **39** | **4** | **0** |
 
 ## Cross-Module Dependencies
 

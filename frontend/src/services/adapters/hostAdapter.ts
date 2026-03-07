@@ -66,13 +66,14 @@ export interface ApiHostResponse {
 
 /** POST /api/hosts/test-connection response */
 export interface ApiConnectionTestResponse {
-  network_reachable?: boolean;
-  auth_successful?: boolean;
+  success?: boolean;
+  network_connectivity?: boolean;
+  authentication?: boolean;
   detected_os?: string;
-  os_version?: string;
+  detected_version?: string;
   response_time_ms?: number;
   ssh_version?: string;
-  additional_info?: string;
+  error?: string;
 }
 
 /** GET /api/system/credentials response item */
@@ -109,7 +110,6 @@ export interface ConnectionTestResult {
   detectedVersion: string;
   responseTime: number;
   sshVersion?: string;
-  additionalInfo?: string;
   error?: string;
   errorCode?: number;
 }
@@ -224,14 +224,14 @@ export function adaptHosts(hosts: ApiHostResponse[]): Host[] {
 /** Transform a connection test API response. */
 export function adaptConnectionTest(response: ApiConnectionTestResponse): ConnectionTestResult {
   return {
-    success: true,
-    networkConnectivity: response.network_reachable ?? true,
-    authentication: response.auth_successful ?? true,
-    detectedOS: response.detected_os || 'Unknown',
-    detectedVersion: response.os_version || '',
+    success: response.success ?? false,
+    networkConnectivity: response.network_connectivity ?? false,
+    authentication: response.authentication ?? false,
+    detectedOS: response.detected_os || '',
+    detectedVersion: response.detected_version || '',
     responseTime: response.response_time_ms || 0,
     sshVersion: response.ssh_version,
-    additionalInfo: response.additional_info,
+    error: response.error || undefined,
   };
 }
 
