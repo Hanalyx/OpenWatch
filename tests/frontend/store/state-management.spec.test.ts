@@ -81,50 +81,43 @@ function resetAuthStore(partial: Partial<ReturnType<typeof useAuthStore.getState
 }
 
 // ---------------------------------------------------------------------------
-// AC-1: Redux store/index.ts has an empty reducer map (all slices removed)
+// AC-1: Redux is fully uninstalled (no packages, no store, no hooks, no Provider)
 // ---------------------------------------------------------------------------
 
-describe('AC-1: Redux store has empty reducer map — all slices removed', () => {
+describe('AC-1: Redux is fully uninstalled', () => {
   /**
-   * AC-1: The Redux store MUST NOT contain 'auth', 'notifications',
-   * 'hosts', 'content', 'scans', 'results', 'users', 'audit', or 'rules'
-   * keys. After dead-code removal the reducer map MUST be empty ({}).
+   * AC-1: Redux MUST be fully uninstalled. store/index.ts and hooks/redux.ts
+   * MUST NOT exist. @reduxjs/toolkit, react-redux, redux-persist MUST NOT
+   * appear in package.json. index.tsx MUST NOT import or render a Provider.
    */
-  const storeSource = readSource('store/index.ts');
-  const forbiddenKeys = [
-    'auth',
-    'notifications',
-    'hosts',
-    'content',
-    'scans',
-    'results',
-    'users',
-    'audit',
-    'rules',
-  ];
 
-  it('Redux store source does not import authReducer', () => {
-    expect(storeSource).not.toContain('authReducer');
+  it('store/index.ts does not exist', () => {
+    expect(fileExists('store/index.ts')).toBe(false);
   });
 
-  it('Redux store source does not import notificationReducer', () => {
-    expect(storeSource).not.toContain('notificationReducer');
+  it('hooks/redux.ts does not exist', () => {
+    expect(fileExists('hooks/redux.ts')).toBe(false);
   });
 
-  it('Redux store source does not import ruleReducer', () => {
-    expect(storeSource).not.toContain('ruleReducer');
+  it('package.json does not contain @reduxjs/toolkit', () => {
+    const pkgJson = fs.readFileSync(path.resolve(SRC, '../package.json'), 'utf8');
+    expect(pkgJson).not.toContain('@reduxjs/toolkit');
   });
 
-  for (const key of forbiddenKeys) {
-    it(`Redux store does not register '${key}' reducer key`, () => {
-      // Match key: as a reducer map entry (e.g. "rules: ruleReducer,")
-      expect(storeSource).not.toMatch(new RegExp(`\\b${key}\\s*:`));
-    });
-  }
+  it('package.json does not contain react-redux', () => {
+    const pkgJson = fs.readFileSync(path.resolve(SRC, '../package.json'), 'utf8');
+    expect(pkgJson).not.toContain('react-redux');
+  });
 
-  it('Redux store uses configureStore with empty reducer map', () => {
-    expect(storeSource).toContain('configureStore');
-    expect(storeSource).toContain('reducer: {}');
+  it('package.json does not contain redux-persist', () => {
+    const pkgJson = fs.readFileSync(path.resolve(SRC, '../package.json'), 'utf8');
+    expect(pkgJson).not.toContain('redux-persist');
+  });
+
+  it('index.tsx does not import Provider from react-redux', () => {
+    const indexSource = readSource('index.tsx');
+    expect(indexSource).not.toContain('Provider');
+    expect(indexSource).not.toContain('react-redux');
   });
 });
 

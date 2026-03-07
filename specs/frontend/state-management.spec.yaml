@@ -1,14 +1,15 @@
 spec: state-management
-version: "1.0"
+version: "2.0"
 status: active
 owner: engineering
 summary: >
-  Frontend global state MUST be managed by Zustand stores (useAuthStore,
-  useNotificationStore); the Redux store MUST have an empty reducer map
-  (all slices removed); dead Redux slice files MUST NOT exist on disk;
-  non-React service classes (tokenService, activityTracker) MUST access
-  auth state via useAuthStore.getState() — never via window.__REDUX_STORE__
-  or direct store imports from the Redux store module.
+  Frontend global state MUST be managed exclusively by Zustand stores
+  (useAuthStore, useNotificationStore). Redux MUST be fully uninstalled —
+  no packages (@reduxjs/toolkit, react-redux, redux-persist), no store
+  file (store/index.ts), no typed hooks (hooks/redux.ts), no Provider
+  wrapper. Dead Redux slice files MUST NOT exist on disk. Non-React
+  service classes (tokenService, activityTracker) MUST access auth state
+  via useAuthStore.getState().
 
 ---
 
@@ -16,11 +17,11 @@ summary: >
 
 objective: >
   Ensure global client-side state for authentication and notifications
-  is owned by Zustand stores, that all consumers import from the
-  Zustand stores rather than deleted Redux slices, and that the Redux
-  store is strictly limited to ruleSlice pending full migration. This
-  prevents re-introduction of the server-state duplication anti-pattern
-  that the Zustand migration resolved.
+  is owned exclusively by Zustand stores, that Redux has been fully
+  removed (packages uninstalled, store deleted, Provider removed), and
+  that all consumers import from Zustand stores. This prevents
+  re-introduction of the server-state duplication anti-pattern that the
+  Zustand migration resolved.
 
 ---
 
@@ -30,8 +31,10 @@ constraints:
   store_ownership:
     - "Auth state (user, token, sessionExpiry, mfaRequired, error) MUST live in useAuthStore"
     - "Notification state (notifications[], systemAlerts) MUST live in useNotificationStore"
-    - "Redux store/index.ts MUST NOT contain an 'auth' key in its reducer map"
-    - "Redux store/index.ts MUST NOT contain a 'notifications' key in its reducer map"
+    - "Redux packages (@reduxjs/toolkit, react-redux, redux-persist) MUST NOT be installed"
+    - "store/index.ts (Redux store) MUST NOT exist"
+    - "hooks/redux.ts (typed Redux hooks) MUST NOT exist"
+    - "index.tsx MUST NOT contain a Redux Provider wrapper"
 
   deleted_slices:
     - "store/slices/authSlice.ts MUST NOT exist"
@@ -73,11 +76,10 @@ constraints:
 acceptance_criteria:
   - id: AC-1
     description: >
-      The Redux store (store/index.ts) MUST have an empty reducer map ({}).
-      It MUST NOT register 'auth', 'notifications', 'hosts', 'content',
-      'scans', 'results', 'users', 'audit', or 'rules' keys. All state
-      is exclusively owned by Zustand stores; the Redux store is retained
-      only for Provider compatibility until redux packages are uninstalled.
+      Redux MUST be fully uninstalled. The files store/index.ts and
+      hooks/redux.ts MUST NOT exist. The packages @reduxjs/toolkit,
+      react-redux, and redux-persist MUST NOT appear in package.json.
+      index.tsx MUST NOT import or render a Redux Provider.
 
   - id: AC-2
     description: >
@@ -150,6 +152,12 @@ acceptance_criteria:
 # Changelog
 
 changelog:
+  - version: "2.0"
+    date: "2026-03-07"
+    changes:
+      - "AC-1 updated: Redux fully uninstalled (packages, store, hooks, Provider)"
+      - "Constraints updated: store_ownership reflects full Redux removal"
+      - "Summary and objective updated to reflect Redux-free architecture"
   - version: "1.0"
     date: "2026-03-06"
     changes:
