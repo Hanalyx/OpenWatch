@@ -28,6 +28,8 @@ vi.mock('../../../frontend/src/services/storage', () => ({
     THEME_MODE: 'themeMode',
     COMPLIANCE_RULES_VIEW_MODE: 'complianceRulesViewMode',
     SESSION_INACTIVITY_TIMEOUT: 'session_inactivity_timeout_minutes',
+    HOSTS_VIEW_MODE: 'hosts_view_mode',
+    HOSTS_GROUP_BY: 'hosts_group_by',
   },
 }));
 
@@ -419,5 +421,48 @@ describe('AC-10: refreshTokenSuccess updates store and localStorage', () => {
     resetAuthStore({ error: 'previous error' });
     act(() => useAuthStore.getState().refreshTokenSuccess({ token: 'new-tok', expiresIn: 3600 }));
     expect(useAuthStore.getState().error).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// AC-11: Host view preferences persisted to localStorage
+// ---------------------------------------------------------------------------
+
+describe('AC-11: Host view preferences persisted to localStorage', () => {
+  /**
+   * AC-11: StorageKeys MUST include HOSTS_VIEW_MODE and HOSTS_GROUP_BY.
+   * useHostsPage MUST initialize viewMode from storageGet(HOSTS_VIEW_MODE)
+   * (default 'grid') and groupBy from storageGet(HOSTS_GROUP_BY) (default
+   * 'all'). Changes MUST be persisted via storageSet.
+   */
+
+  it('StorageKeys includes HOSTS_VIEW_MODE', () => {
+    const storageSource = readSource('services/storage.ts');
+    expect(storageSource).toContain('HOSTS_VIEW_MODE');
+  });
+
+  it('StorageKeys includes HOSTS_GROUP_BY', () => {
+    const storageSource = readSource('services/storage.ts');
+    expect(storageSource).toContain('HOSTS_GROUP_BY');
+  });
+
+  it('useHostsPage reads viewMode from localStorage via storageGet(HOSTS_VIEW_MODE)', () => {
+    const hookSource = readSource('pages/hosts/hooks/useHostsPage.ts');
+    expect(hookSource).toContain('storageGet(StorageKeys.HOSTS_VIEW_MODE)');
+  });
+
+  it('useHostsPage reads groupBy from localStorage via storageGet(HOSTS_GROUP_BY)', () => {
+    const hookSource = readSource('pages/hosts/hooks/useHostsPage.ts');
+    expect(hookSource).toContain('storageGet(StorageKeys.HOSTS_GROUP_BY)');
+  });
+
+  it('useHostsPage persists viewMode changes via storageSet(HOSTS_VIEW_MODE)', () => {
+    const hookSource = readSource('pages/hosts/hooks/useHostsPage.ts');
+    expect(hookSource).toContain('storageSet(StorageKeys.HOSTS_VIEW_MODE');
+  });
+
+  it('useHostsPage persists groupBy changes via storageSet(HOSTS_GROUP_BY)', () => {
+    const hookSource = readSource('pages/hosts/hooks/useHostsPage.ts');
+    expect(hookSource).toContain('storageSet(StorageKeys.HOSTS_GROUP_BY');
   });
 });
