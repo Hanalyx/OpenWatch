@@ -81,16 +81,18 @@ function resetAuthStore(partial: Partial<ReturnType<typeof useAuthStore.getState
 }
 
 // ---------------------------------------------------------------------------
-// AC-1: Redux store/index.ts contains only the 'rules' reducer
+// AC-1: Redux store/index.ts has an empty reducer map (all slices removed)
 // ---------------------------------------------------------------------------
 
-describe('AC-1: Redux store contains only rules reducer', () => {
+describe('AC-1: Redux store has empty reducer map — all slices removed', () => {
   /**
    * AC-1: The Redux store MUST NOT contain 'auth', 'notifications',
-   * 'hosts', 'content', 'scans', 'results', 'users', or 'audit' keys.
+   * 'hosts', 'content', 'scans', 'results', 'users', 'audit', or 'rules'
+   * keys. After dead-code removal the reducer map MUST be empty ({}).
    */
   const storeSource = readSource('store/index.ts');
   const forbiddenKeys = [
+    'auth',
     'notifications',
     'hosts',
     'content',
@@ -98,6 +100,7 @@ describe('AC-1: Redux store contains only rules reducer', () => {
     'results',
     'users',
     'audit',
+    'rules',
   ];
 
   it('Redux store source does not import authReducer', () => {
@@ -108,15 +111,20 @@ describe('AC-1: Redux store contains only rules reducer', () => {
     expect(storeSource).not.toContain('notificationReducer');
   });
 
+  it('Redux store source does not import ruleReducer', () => {
+    expect(storeSource).not.toContain('ruleReducer');
+  });
+
   for (const key of forbiddenKeys) {
     it(`Redux store does not register '${key}' reducer key`, () => {
-      // Match key: as a reducer map entry (e.g. "hosts: hostReducer,")
+      // Match key: as a reducer map entry (e.g. "rules: ruleReducer,")
       expect(storeSource).not.toMatch(new RegExp(`\\b${key}\\s*:`));
     });
   }
 
-  it('Redux store source registers rules reducer', () => {
-    expect(storeSource).toContain('rules');
+  it('Redux store uses configureStore with empty reducer map', () => {
+    expect(storeSource).toContain('configureStore');
+    expect(storeSource).toContain('reducer: {}');
   });
 });
 

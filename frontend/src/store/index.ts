@@ -1,12 +1,10 @@
+// Redux store — all slices removed. Retained for Provider compatibility only.
+// Global state is owned by Zustand: useAuthStore, useNotificationStore.
+// TODO: remove configureStore + Provider once redux-persist is uninstalled.
 import { configureStore } from '@reduxjs/toolkit';
-import ruleReducer from './slices/ruleSlice';
 
-// Minimal Redux store — only ruleSlice remains pending Zustand migration.
-// Auth and notification state have moved to useAuthStore / useNotificationStore (Zustand).
 export const store = configureStore({
-  reducer: {
-    rules: ruleReducer,
-  },
+  reducer: {},
 });
 
 export type RootState = ReturnType<typeof store.getState>;

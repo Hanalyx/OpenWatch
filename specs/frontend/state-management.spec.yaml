@@ -4,11 +4,10 @@ status: active
 owner: engineering
 summary: >
   Frontend global state MUST be managed by Zustand stores (useAuthStore,
-  useNotificationStore); Redux is restricted to ruleSlice only during
-  incremental migration; dead Redux slices (auth, notifications, hosts,
-  content, scans, results, users, audit) MUST NOT exist; non-React
-  service classes (tokenService, activityTracker) MUST access auth
-  state via useAuthStore.getState() — never via window.__REDUX_STORE__
+  useNotificationStore); the Redux store MUST have an empty reducer map
+  (all slices removed); dead Redux slice files MUST NOT exist on disk;
+  non-React service classes (tokenService, activityTracker) MUST access
+  auth state via useAuthStore.getState() — never via window.__REDUX_STORE__
   or direct store imports from the Redux store module.
 
 ---
@@ -74,10 +73,11 @@ constraints:
 acceptance_criteria:
   - id: AC-1
     description: >
-      The Redux store (store/index.ts) MUST contain only the 'rules' reducer.
-      It MUST NOT contain keys 'auth', 'notifications', 'hosts', 'content',
-      'scans', 'results', 'users', or 'audit' in its reducer map. This
-      ensures all migrated state is exclusively owned by Zustand stores.
+      The Redux store (store/index.ts) MUST have an empty reducer map ({}).
+      It MUST NOT register 'auth', 'notifications', 'hosts', 'content',
+      'scans', 'results', 'users', 'audit', or 'rules' keys. All state
+      is exclusively owned by Zustand stores; the Redux store is retained
+      only for Provider compatibility until redux packages are uninstalled.
 
   - id: AC-2
     description: >
