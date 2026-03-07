@@ -28,10 +28,11 @@ Architecture Notes:
 import logging
 import uuid
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPBearer
+from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -145,6 +146,189 @@ async def validate_credentials(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Validation failed: {str(e)}",
         )
+
+
+# =============================================================================
+# CONNECTION TEST (Ad-hoc, pre-creation)
+# =============================================================================
+
+
+class TestConnectionRequest(BaseModel):
+    """Request model for testing SSH connectivity before host creation."""
+
+    hostname: str
+    port: int = 22
+    username: Optional[str] = None
+    auth_method: str = "system_default"
+    ssh_key: Optional[str] = None
+    password: Optional[str] = None
+    timeout: int = 30
+
+
+@router.post("/test-connection")
+async def test_connection(
+    request: TestConnectionRequest,
+    db: Session = Depends(get_db),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """
+    Test SSH connectivity to a host before adding it.
+
+    Performs network reachability check (TCP socket) and optional SSH
+    authentication test using either provided credentials or system defaults.
+    """
+    import socket
+    import time as _time
+
+    start = _time.monotonic()
+    result: Dict[str, Any] = {
+        "success": False,
+        "network_connectivity": False,
+        "authentication": False,
+        "detected_os": "",
+        "detected_version": "",
+        "response_time_ms": 0,
+        "ssh_version": None,
+        "error": None,
+    }
+
+    # Step 1: TCP socket check
+    try:
+        sock = socket.create_connection(
+            (request.hostname, request.port),
+            timeout=min(request.timeout, 10),
+        )
+        result["network_connectivity"] = True
+        # Read SSH banner
+        try:
+            banner = sock.recv(256).decode("utf-8", errors="replace").strip()
+            if banner.startswith("SSH-"):
+                result["ssh_version"] = banner
+        except Exception:
+            pass
+        sock.close()
+    except (socket.timeout, OSError) as e:
+        elapsed = int((_time.monotonic() - start) * 1000)
+        result["response_time_ms"] = elapsed
+        result["error"] = f"Cannot reach {request.hostname}:{request.port} - {e}"
+        return result
+
+    # Step 2: SSH authentication test
+    try:
+        import paramiko
+
+        ssh = paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+
+        connect_kwargs: Dict[str, Any] = {
+            "hostname": request.hostname,
+            "port": request.port,
+            "timeout": min(request.timeout, 15),
+            "allow_agent": False,
+            "look_for_keys": False,
+        }
+
+        # Resolve credentials
+        username = request.username
+        if request.auth_method == "system_default":
+            # Load system default credential from unified_credentials table
+            cred_builder = (
+                QueryBuilder("unified_credentials")
+                .select("username", "encrypted_private_key", "encrypted_password", "auth_method")
+                .where("scope = :scope", "system", "scope")
+                .where("is_default = :is_default", True, "is_default")
+                .where("is_active = :is_active", True, "is_active")
+                .paginate(1, 1)
+            )
+            cred_query, cred_params = cred_builder.build()
+            cred_row = db.execute(text(cred_query), cred_params).fetchone()
+
+            if cred_row:
+                username = cred_row.username
+                # Decrypt the SSH key if present
+                if cred_row.encrypted_private_key:
+                    try:
+                        import base64
+
+                        from ...config import get_settings
+                        from ...encryption import EncryptionConfig, create_encryption_service
+
+                        settings = get_settings()
+                        enc_svc = create_encryption_service(master_key=settings.master_key, config=EncryptionConfig())
+                        # Stored as base64-encoded encrypted bytes
+                        raw = bytes(cred_row.encrypted_private_key)
+                        encrypted_bytes = base64.b64decode(raw)
+                        key_data = enc_svc.decrypt(encrypted_bytes).decode("utf-8")
+
+                        import io
+
+                        try:
+                            pkey = paramiko.RSAKey.from_private_key(io.StringIO(key_data))
+                        except paramiko.SSHException:
+                            try:
+                                pkey = paramiko.Ed25519Key.from_private_key(io.StringIO(key_data))
+                            except paramiko.SSHException:
+                                pkey = paramiko.ECDSAKey.from_private_key(io.StringIO(key_data))
+                        connect_kwargs["pkey"] = pkey
+                    except Exception as e:
+                        logger.warning(f"Failed to decrypt system credential key: {e}")
+                        result["error"] = "Failed to decrypt system default credentials"
+                        result["response_time_ms"] = int((_time.monotonic() - start) * 1000)
+                        return result
+            else:
+                result["error"] = "No system default credential configured"
+                result["response_time_ms"] = int((_time.monotonic() - start) * 1000)
+                return result
+        elif request.auth_method in ("ssh_key", "both") and request.ssh_key:
+            import io
+
+            try:
+                pkey = paramiko.RSAKey.from_private_key(io.StringIO(request.ssh_key))
+            except paramiko.SSHException:
+                try:
+                    pkey = paramiko.Ed25519Key.from_private_key(io.StringIO(request.ssh_key))
+                except paramiko.SSHException:
+                    pkey = paramiko.ECDSAKey.from_private_key(io.StringIO(request.ssh_key))
+            connect_kwargs["pkey"] = pkey
+            # For "both" mode, also include password as fallback
+            if request.auth_method == "both" and request.password:
+                connect_kwargs["password"] = request.password
+        elif request.auth_method == "password" and request.password:
+            connect_kwargs["password"] = request.password
+
+        if username:
+            connect_kwargs["username"] = username
+
+        ssh.connect(**connect_kwargs)
+        result["authentication"] = True
+
+        # Detect OS
+        try:
+            _, stdout, _ = ssh.exec_command(
+                "cat /etc/os-release 2>/dev/null | head -5",
+                timeout=5,
+            )
+            os_info = stdout.read().decode("utf-8", errors="replace")
+            for line in os_info.splitlines():
+                if line.startswith("PRETTY_NAME="):
+                    result["detected_os"] = line.split("=", 1)[1].strip().strip('"')
+                elif line.startswith("VERSION_ID="):
+                    result["detected_version"] = line.split("=", 1)[1].strip().strip('"')
+        except Exception:
+            pass
+
+        ssh.close()
+        result["success"] = True
+
+    except paramiko.AuthenticationException as e:
+        result["error"] = f"Authentication failed: {e}"
+    except paramiko.SSHException as e:
+        result["error"] = f"SSH error: {e}"
+    except Exception as e:
+        result["error"] = f"Connection failed: {e}"
+
+    result["response_time_ms"] = int((_time.monotonic() - start) * 1000)
+    return result
 
 
 # =============================================================================

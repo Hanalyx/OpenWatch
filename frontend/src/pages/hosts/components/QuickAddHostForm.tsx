@@ -194,22 +194,24 @@ export const QuickAddHostForm: React.FC<QuickAddHostFormProps> = ({
         </Box>
       </Grid>
 
-      <Grid size={{ xs: 12, md: 6 }}>
-        <TextField
-          fullWidth
-          label="Username"
-          value={formData.username}
-          onChange={(e) => onInputChange('username', e.target.value)}
-          placeholder="ubuntu"
-          InputProps={{
-            startAdornment: (
-              <InputAdornment position="start">
-                <AccountTree />
-              </InputAdornment>
-            ),
-          }}
-        />
-      </Grid>
+      {formData.authMethod !== 'system_default' && (
+        <Grid size={{ xs: 12, md: 6 }}>
+          <TextField
+            fullWidth
+            label="Username"
+            value={formData.username}
+            onChange={(e) => onInputChange('username', e.target.value)}
+            placeholder="root"
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <AccountTree />
+                </InputAdornment>
+              ),
+            }}
+          />
+        </Grid>
+      )}
 
       {formData.authMethod === 'password' && (
         <Grid size={{ xs: 12, md: 6 }}>
@@ -484,7 +486,11 @@ export const QuickAddHostForm: React.FC<QuickAddHostFormProps> = ({
             variant="outlined"
             onClick={onTestConnection}
             startIcon={testingConnection ? <LinearProgress /> : <NetworkCheck />}
-            disabled={testingConnection || !formData.hostname || !formData.username}
+            disabled={
+              testingConnection ||
+              !formData.hostname ||
+              (!formData.username && formData.authMethod !== 'system_default')
+            }
           >
             Test Connection
           </Button>
@@ -530,19 +536,16 @@ export const QuickAddHostForm: React.FC<QuickAddHostFormProps> = ({
                   {connectionTestResults.authentication ? '\u2713' : '\u2717'} Authentication
                   successful
                 </Typography>
-                <Typography variant="body2">
-                  {'\u2713'} Detected: {connectionTestResults.detectedOS}
-                  {connectionTestResults.detectedVersion &&
-                    ` ${connectionTestResults.detectedVersion}`}
-                </Typography>
+                {connectionTestResults.detectedOS && (
+                  <Typography variant="body2">
+                    {'\u2713'} Detected: {connectionTestResults.detectedOS}
+                    {connectionTestResults.detectedVersion &&
+                      ` ${connectionTestResults.detectedVersion}`}
+                  </Typography>
+                )}
                 {connectionTestResults.sshVersion && (
                   <Typography variant="body2">
                     {'\u2713'} SSH Version: {connectionTestResults.sshVersion}
-                  </Typography>
-                )}
-                {connectionTestResults.additionalInfo && (
-                  <Typography variant="body2" color="text.secondary">
-                    {connectionTestResults.additionalInfo}
                   </Typography>
                 )}
               </Box>

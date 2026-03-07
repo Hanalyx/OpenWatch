@@ -23,7 +23,6 @@ export interface ConnectionTestResults {
   detectedVersion: string;
   responseTime: number;
   sshVersion?: string;
-  additionalInfo?: string;
   error?: string;
   errorCode?: number;
 }
@@ -224,7 +223,7 @@ export function useAddHostForm() {
       const testData = {
         hostname: formData.hostname || formData.ipAddress,
         port: parseInt(formData.port) || 22,
-        username: formData.username,
+        username: formData.username || undefined,
         auth_method: formData.authMethod,
         password:
           formData.authMethod === 'password' || formData.authMethod === 'both'
@@ -246,10 +245,11 @@ export function useAddHostForm() {
       );
 
       setTestingConnection(false);
-      setConnectionStatus('success');
 
       // Store the actual results for display via adapter
-      setConnectionTestResults(adaptConnectionTest(result));
+      const adapted = adaptConnectionTest(result);
+      setConnectionTestResults(adapted);
+      setConnectionStatus(adapted.success ? 'success' : 'failed');
     } catch (err) {
       // Type-safe error handling: check if error has message property
       console.error('Connection test failed:', err);
@@ -278,15 +278,18 @@ export function useAddHostForm() {
 
   const handleSubmit = async () => {
     try {
-      // Prepare host data for API
+      // Determine hostname and IP - use the single input for both fields
+      // The backend requires both; when user enters one value we use it for both
+      const hostValue = formData.hostname || formData.ipAddress;
+
       const hostData = {
-        hostname: formData.hostname || formData.ipAddress,
-        ip_address: formData.ipAddress || formData.hostname,
+        hostname: hostValue,
+        ip_address: hostValue,
         display_name: formData.displayName,
         operating_system:
           formData.operatingSystem === 'auto-detect' ? 'Unknown' : formData.operatingSystem,
-        port: formData.port,
-        username: formData.username,
+        port: parseInt(formData.port) || 22,
+        username: formData.username || undefined,
         auth_method: formData.authMethod,
         password:
           formData.authMethod === 'password' || formData.authMethod === 'both'
@@ -301,17 +304,22 @@ export function useAddHostForm() {
         owner: formData.owner,
       };
 
-      // Submitting new host configuration to API
-
-      // Make API call to create host
-      const newHost = await api.post('/api/hosts/', hostData);
-      // Host successfully created in database
-      void newHost; // Result logged for debugging
+      await api.post('/api/hosts/', hostData);
       navigate('/hosts');
     } catch (error) {
-      console.error('Error submitting host:', error);
-      // Fallback - still navigate for demo purposes
-      navigate('/hosts');
+      const err = error as { response?: { data?: { detail?: string } }; message?: string };
+      const message = err.response?.data?.detail || err.message || 'Failed to add host';
+      console.error('Error submitting host:', message);
+      setConnectionStatus('failed');
+      setConnectionTestResults({
+        success: false,
+        error: message,
+        networkConnectivity: false,
+        authentication: false,
+        detectedOS: '',
+        detectedVersion: '',
+        responseTime: 0,
+      });
     }
   };
 
