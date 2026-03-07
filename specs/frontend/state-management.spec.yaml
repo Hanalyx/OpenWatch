@@ -147,6 +147,15 @@ acceptance_criteria:
       MUST be replaced in both the store state and localStorage atomically
       within the same action.
 
+  - id: AC-11
+    description: >
+      Host list view preferences MUST be persisted to localStorage.
+      StorageKeys MUST include HOSTS_VIEW_MODE and HOSTS_GROUP_BY.
+      useHostsPage MUST initialize viewMode from storageGet(HOSTS_VIEW_MODE)
+      (default 'grid') and groupBy from storageGet(HOSTS_GROUP_BY) (default
+      'all'). Changes to viewMode or groupBy MUST be persisted via
+      storageSet so the user's preference is restored on next visit.
+
 ---
 
 # Changelog

@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTheme, type Theme } from '@mui/material';
 import { api } from '../../../services/api';
 import { adaptHosts, toUpdateHostRequest, type ApiHostResponse } from '../../../services/adapters';
+import { storageGet, storageSet, StorageKeys } from '../../../services/storage';
 import type { Host } from '../../../types/host';
 import { REFRESH_INTERVALS } from '../../../constants/refresh';
 import { validateSshKey } from '../../../utils/hostValidation';
@@ -167,9 +168,19 @@ export function useHostsPage(): UseHostsPageReturn {
   const [loading, setLoading] = useState(false);
   const [selectedHosts, setSelectedHosts] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [viewMode, setViewMode] = useState<ViewMode>('grid');
+  const [viewMode, setViewMode] = useState<ViewMode>(
+    () => (storageGet(StorageKeys.HOSTS_VIEW_MODE) as ViewMode) || 'grid'
+  );
   const [filterMenuAnchor, setFilterMenuAnchor] = useState<null | HTMLElement>(null);
-  const [groupBy, setGroupBy] = useState<'all' | 'none' | 'group' | 'status' | 'compliance'>('all');
+  const [groupBy, setGroupBy] = useState<'all' | 'none' | 'group' | 'status' | 'compliance'>(
+    () =>
+      (storageGet(StorageKeys.HOSTS_GROUP_BY) as
+        | 'all'
+        | 'none'
+        | 'group'
+        | 'status'
+        | 'compliance') || 'all'
+  );
   const [bulkActionDialog, setBulkActionDialog] = useState(false);
   const [selectedBulkAction, setSelectedBulkAction] = useState('');
   const [expandedGroups, setExpandedGroups] = useState<string[]>([]);
@@ -214,6 +225,15 @@ export function useHostsPage(): UseHostsPageReturn {
   const [editingAuthMethod, setEditingAuthMethod] = useState(false);
   const [deletingHost, setDeletingHost] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+
+  // Persist view preferences to localStorage
+  useEffect(() => {
+    storageSet(StorageKeys.HOSTS_VIEW_MODE, viewMode);
+  }, [viewMode]);
+
+  useEffect(() => {
+    storageSet(StorageKeys.HOSTS_GROUP_BY, groupBy);
+  }, [groupBy]);
 
   // Filter states - reserved for future advanced filtering features
   const [statusFilter] = useState<string[]>([]);

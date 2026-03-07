@@ -17,6 +17,8 @@ export const StorageKeys = {
   THEME_MODE: 'themeMode',
   COMPLIANCE_RULES_VIEW_MODE: 'complianceRulesViewMode',
   SESSION_INACTIVITY_TIMEOUT: 'session_inactivity_timeout_minutes',
+  HOSTS_VIEW_MODE: 'hosts_view_mode',
+  HOSTS_GROUP_BY: 'hosts_group_by',
 } as const;
 
 export type StorageKey = (typeof StorageKeys)[keyof typeof StorageKeys];
