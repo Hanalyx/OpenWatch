@@ -7,8 +7,7 @@
  */
 
 import { useMemo } from 'react';
-import { useSelector } from 'react-redux';
-import { type RootState } from '../store';
+import { useAuthStore } from '../store/useAuthStore';
 import { storageGet, StorageKeys } from '../services/storage';
 
 interface AuthHeaders {
@@ -29,19 +28,7 @@ interface AuthHeadersResult {
  * @returns Object containing headers, authentication status, and token
  */
 export const useAuthHeaders = (): AuthHeadersResult => {
-  // Try to get token from Redux store first (preferred)
-  const storeToken = useSelector((state: RootState) => state.auth?.token);
-
-  // Fallback to localStorage for backwards compatibility
-  const localToken = useMemo(() => {
-    if (typeof window !== 'undefined') {
-      return storageGet(StorageKeys.AUTH_TOKEN);
-    }
-    return null;
-  }, []);
-
-  // Use store token if available, otherwise fallback to localStorage
-  const token = storeToken || localToken;
+  const token = useAuthStore((state) => state.token);
   const isAuthenticated = !!token;
 
   const headers = useMemo((): AuthHeaders => {

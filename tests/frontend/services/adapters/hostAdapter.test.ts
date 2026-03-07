@@ -7,13 +7,13 @@ import {
   adaptKeyValidation,
   toCreateHostRequest,
   toUpdateHostRequest,
-} from '../hostAdapter';
+} from '../../../../frontend/src/services/adapters/hostAdapter';
 import type {
   ApiHostResponse,
   ApiConnectionTestResponse,
   ApiCredentialResponse,
   ApiKeyValidationResponse,
-} from '../hostAdapter';
+} from '../../../../frontend/src/services/adapters/hostAdapter';
 
 describe('adaptHost', () => {
   const minimalApiHost: ApiHostResponse = {

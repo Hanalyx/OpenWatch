@@ -161,7 +161,17 @@ class HostMonitoringStateMachine:
                 return MonitoringState.UNKNOWN, self.config.unknown_interval
 
             current_status = row.status or "unknown"
-            current_state = MonitoringState(current_status)
+            try:
+                current_state = MonitoringState(current_status)
+            except ValueError:
+                # Stale invalid value in hosts.status (e.g. 'offline' written before the
+                # state machine was enforced).  Treat as UNKNOWN so this cycle proceeds
+                # normally and overwrites the bad value with a valid MonitoringState.
+                logger.warning(
+                    f"Host {host_id} has invalid DB status '{current_status}' "
+                    "(not a MonitoringState); treating as UNKNOWN for this transition"
+                )
+                current_state = MonitoringState.UNKNOWN
 
             # Current counters
             ping_failures = row.ping_consecutive_failures

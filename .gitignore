@@ -424,9 +424,7 @@ $RECYCLE.BIN/
 
 # Project-specific test directories
 /test/
-/tests/
 backend/test/
-backend/tests/
 frontend/test/
 frontend/tests/
 
@@ -449,20 +447,23 @@ frontend_test.log
 *test*.ts
 *test*.tsx
 
-# Allow frontend unit/integration tests
+# Allow consolidated tests/ directory (backend, frontend, packaging)
+!tests/
+!tests/backend/
+!tests/backend/**/
+!tests/backend/**/*.py
+!tests/backend/**/*.md
+!tests/frontend/
+!tests/frontend/**/
+!tests/frontend/**/*.ts
+!tests/frontend/**/*.tsx
+!tests/packaging/
+!tests/packaging/*
+
+# Allow frontend unit/integration tests (src-local)
 !frontend/src/**/*.test.ts
 !frontend/src/**/*.test.tsx
 !frontend/src/test/
-
-# Allow backend test files (unit, integration, security, regression)
-!backend/tests/
-!backend/tests/**/
-!backend/tests/**/*.py
-!backend/tests/**/*.md
-
-# Allow packaging test scripts
-!packaging/tests/
-!packaging/tests/*
 
 # Temporary files
 *.tmp

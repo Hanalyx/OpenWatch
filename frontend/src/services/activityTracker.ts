@@ -7,8 +7,7 @@
  * Default: 15 minutes of inactivity triggers session expiry warning.
  */
 
-import { store } from '../store';
-import { logout } from '../store/slices/authSlice';
+import { useAuthStore } from '../store/useAuthStore';
 import { storageGet, storageSet, StorageKeys } from './storage';
 
 // Default inactivity timeout in minutes
@@ -212,10 +211,10 @@ class ActivityTracker {
    * Check for inactivity and trigger callbacks
    */
   private checkInactivity(): void {
-    const state = store.getState().auth;
+    const { isAuthenticated } = useAuthStore.getState();
 
     // Only check if user is authenticated
-    if (!state.isAuthenticated) {
+    if (!isAuthenticated) {
       return;
     }
 
@@ -227,7 +226,7 @@ class ActivityTracker {
         this.onInactivityLogout();
       } else {
         // Default behavior: logout
-        store.dispatch(logout());
+        useAuthStore.getState().logout();
       }
     } else if (timeRemainingSeconds <= 5 * 60 && !this.warningShown) {
       // Approaching timeout (within 5 minutes), show warning

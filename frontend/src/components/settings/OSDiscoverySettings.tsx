@@ -25,8 +25,7 @@ import {
   Refresh as RefreshIcon,
 } from '@mui/icons-material';
 import { api } from '../../services/api';
-import { useAppDispatch } from '../../hooks/redux';
-import { setOSDiscoveryFailures } from '../../store/slices/notificationSlice';
+import { useNotificationStore } from '../../store/useNotificationStore';
 
 interface OSDiscoveryConfig {
   enabled: boolean;
@@ -56,7 +55,7 @@ interface OSDiscoverySettingsProps {
 }
 
 const OSDiscoverySettings: React.FC<OSDiscoverySettingsProps> = ({ onSuccess, onError }) => {
-  const dispatch = useAppDispatch();
+  const setOSDiscoveryFailures = useNotificationStore((state) => state.setOSDiscoveryFailures);
   const [config, setConfig] = useState<OSDiscoveryConfig | null>(null);
   const [stats, setStats] = useState<OSDiscoveryStats | null>(null);
   const [loading, setLoading] = useState(false);
@@ -89,8 +88,8 @@ const OSDiscoverySettings: React.FC<OSDiscoverySettingsProps> = ({ onSuccess, on
     try {
       const response = await api.get<OSDiscoveryStats>('/api/system/os-discovery/stats');
       setStats(response);
-      // Update Redux state for notification badge
-      dispatch(setOSDiscoveryFailures(response.pending_failures || 0));
+      // Update notification badge count
+      setOSDiscoveryFailures(response.pending_failures || 0);
     } catch (err) {
       console.error('Error loading OS discovery stats:', err);
     }

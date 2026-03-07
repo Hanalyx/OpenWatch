@@ -22,7 +22,7 @@ fail() {
 }
 
 # Source the single source of truth
-source "$SCRIPT_DIR/../version.env"
+source "$PROJECT_ROOT/packaging/version.env"
 
 echo "Version consistency check"
 echo "========================="

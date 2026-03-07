@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { adaptRuleResult, adaptRuleResults } from '../scanAdapter';
-import type { ApiRuleResult } from '../scanAdapter';
+import { adaptRuleResult, adaptRuleResults } from '../../../../frontend/src/services/adapters/scanAdapter';
+import type { ApiRuleResult } from '../../../../frontend/src/services/adapters/scanAdapter';
 
 describe('adaptRuleResult', () => {
   it('maps a fully-populated rule', () => {

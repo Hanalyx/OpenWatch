@@ -1,7 +1,7 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import GlobalErrorBoundary from '../GlobalErrorBoundary';
+import GlobalErrorBoundary from '../../../../frontend/src/components/common/GlobalErrorBoundary';
 
 // Component that throws on render
 function ThrowingChild({ error }: { error: Error }): React.ReactElement {

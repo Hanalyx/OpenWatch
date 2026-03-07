@@ -7,7 +7,7 @@ import {
   storageGetJSON,
   storageSetJSON,
   storageClearAuth,
-} from '../storage';
+} from '../../../frontend/src/services/storage';
 
 describe('StorageKeys', () => {
   it('uses auth_token as the AUTH_TOKEN key (not token)', () => {

@@ -1,8 +1,7 @@
 import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { useAppSelector, useAppDispatch } from './hooks/redux';
-import { checkSessionExpiry } from './store/slices/authSlice';
+import { useAuthStore } from './store/useAuthStore';
 import CustomThemeProvider from './contexts/ThemeContext';
 import { tokenService } from './services/tokenService';
 import GlobalErrorBoundary from './components/common/GlobalErrorBoundary';
@@ -40,12 +39,12 @@ import { AuditQueriesPage, AuditQueryBuilderPage, AuditExportsPage } from './pag
 import { TemporalPosture } from './pages/compliance';
 
 function App() {
-  const dispatch = useAppDispatch();
-  const isAuthenticated = useAppSelector((state) => state.auth.isAuthenticated);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const checkSessionExpiry = useAuthStore((state) => state.checkSessionExpiry);
 
   useEffect(() => {
     // Check session expiry on app load
-    dispatch(checkSessionExpiry());
+    checkSessionExpiry();
 
     // Start token refresh timer if authenticated
     if (isAuthenticated) {
@@ -58,7 +57,7 @@ function App() {
     return () => {
       tokenService.stopTokenRefreshTimer();
     };
-  }, [dispatch, isAuthenticated]);
+  }, [isAuthenticated, checkSessionExpiry]);
 
   return (
     <GlobalErrorBoundary level="page">

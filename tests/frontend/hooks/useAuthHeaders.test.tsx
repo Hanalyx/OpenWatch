@@ -1,30 +1,15 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { renderHook } from '@testing-library/react';
-import React from 'react';
-import { Provider } from 'react-redux';
-import { configureStore } from '@reduxjs/toolkit';
-import authReducer from '../../store/slices/authSlice';
+import { renderHook, act } from '@testing-library/react';
+import { useAuthStore } from '../../../frontend/src/store/useAuthStore';
 import {
   useAuthHeaders,
   getAuthHeaders,
   isUserAuthenticated,
   getAuthToken,
-} from '../useAuthHeaders';
-
-// Auth state type for testing (matches authSlice)
-interface AuthState {
-  user: { id: string; username: string; email: string; role: string; mfaEnabled: boolean } | null;
-  token: string | null;
-  refreshToken: string | null;
-  isAuthenticated: boolean;
-  isLoading: boolean;
-  error: string | null;
-  mfaRequired: boolean;
-  sessionExpiry: number | null;
-}
+} from '../../../frontend/src/hooks/useAuthHeaders';
 
 // Mock storage module
-vi.mock('../../services/storage', () => ({
+vi.mock('../../../frontend/src/services/storage', () => ({
   storageGet: vi.fn(() => null),
   storageSet: vi.fn(),
   storageRemove: vi.fn(),
@@ -42,39 +27,35 @@ vi.mock('../../services/storage', () => ({
   },
 }));
 
-import { storageGet } from '../../services/storage';
+import { storageGet } from '../../../frontend/src/services/storage';
 
-function makeWrapper(preloadedState: { auth: AuthState }) {
-  const store = configureStore({
-    reducer: { auth: authReducer },
-    preloadedState,
+function resetAuthStore(token: string | null = null) {
+  act(() => {
+    useAuthStore.setState({
+      user: token
+        ? { id: '1', username: 'u', email: 'e', role: 'admin', mfaEnabled: false }
+        : null,
+      token,
+      refreshToken: null,
+      isAuthenticated: !!token,
+      isLoading: false,
+      error: null,
+      mfaRequired: false,
+      sessionExpiry: null,
+    });
   });
-  return function Wrapper({ children }: { children: React.ReactNode }): React.ReactElement {
-    return <Provider store={store}>{children}</Provider>;
-  };
 }
 
 describe('useAuthHeaders', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    localStorage.clear();
+    resetAuthStore(null);
   });
 
-  it('returns auth header when token exists in Redux store', () => {
-    const wrapper = makeWrapper({
-      auth: {
-        user: { id: '1', username: 'u', email: 'e', role: 'admin', mfaEnabled: false },
-        token: 'store-token-123',
-        refreshToken: null,
-        isAuthenticated: true,
-        isLoading: false,
-        error: null,
-        mfaRequired: false,
-        sessionExpiry: null,
-      },
-    });
+  it('returns auth header when token exists in Zustand store', () => {
+    resetAuthStore('store-token-123');
 
-    const { result } = renderHook(() => useAuthHeaders(), { wrapper });
+    const { result } = renderHook(() => useAuthHeaders());
 
     expect(result.current.token).toBe('store-token-123');
     expect(result.current.isAuthenticated).toBe(true);
@@ -82,46 +63,10 @@ describe('useAuthHeaders', () => {
     expect(result.current.headers['Content-Type']).toBe('application/json');
   });
 
-  it('falls back to localStorage when store has no token', () => {
-    vi.mocked(storageGet).mockReturnValue('local-token-456');
-
-    const wrapper = makeWrapper({
-      auth: {
-        user: null,
-        token: null,
-        refreshToken: null,
-        isAuthenticated: false,
-        isLoading: false,
-        error: null,
-        mfaRequired: false,
-        sessionExpiry: null,
-      },
-    });
-
-    const { result } = renderHook(() => useAuthHeaders(), { wrapper });
-
-    expect(result.current.token).toBe('local-token-456');
-    expect(result.current.isAuthenticated).toBe(true);
-    expect(result.current.headers.Authorization).toBe('Bearer local-token-456');
-  });
-
   it('returns empty auth when no token is available', () => {
     vi.mocked(storageGet).mockReturnValue(null);
 
-    const wrapper = makeWrapper({
-      auth: {
-        user: null,
-        token: null,
-        refreshToken: null,
-        isAuthenticated: false,
-        isLoading: false,
-        error: null,
-        mfaRequired: false,
-        sessionExpiry: null,
-      },
-    });
-
-    const { result } = renderHook(() => useAuthHeaders(), { wrapper });
+    const { result } = renderHook(() => useAuthHeaders());
 
     expect(result.current.token).toBeNull();
     expect(result.current.isAuthenticated).toBe(false);

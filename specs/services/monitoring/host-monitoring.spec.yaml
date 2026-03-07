@@ -1,0 +1,180 @@
+spec: host-monitoring
+version: "1.0"
+status: active
+owner: engineering
+summary: >
+  Host connectivity state machine with 6 valid states (ONLINE, DEGRADED,
+  CRITICAL, DOWN, MAINTENANCE, UNKNOWN); connectivity results ("offline",
+  "error", etc.) MUST be mapped to MonitoringState values before DB write;
+  progressive degradation (1 failure->DEGRADED, 2->CRITICAL, 3+->DOWN),
+  3-success recovery to ONLINE, state-based check intervals and Celery
+  priorities, maintenance exclusion from check queue, and compliance
+  implication: only ONLINE hosts are eligible for Kensa compliance scans.
+
+---
+
+# Objective
+
+objective: >
+  Ensure host monitoring produces only valid MonitoringState values in the
+  database, applies progressive degradation and recovery thresholds correctly,
+  gates Kensa compliance scans to ONLINE hosts only, and schedules checks
+  with state-appropriate intervals and priorities so that the compliance
+  posture of every host is known and scan eligibility is deterministic.
+
+---
+
+# Constraints
+
+constraints:
+  state_values:
+    - "hosts.status MUST always be one of: online, degraded, critical, down, maintenance, unknown"
+    - "The raw connectivity result 'offline' MUST NOT be written directly to hosts.status"
+    - "MonitoringState enum MUST define exactly 6 values; OFFLINE is not a valid MonitoringState"
+
+  connectivity_mapping:
+    - "Connectivity result 'offline' or 'error' MUST be treated as a check failure"
+    - "A mapping from connectivity result to MonitoringState MUST exist before any DB write"
+    - "Unrecognized connectivity results MUST map to UNKNOWN, not raise ValueError"
+
+  state_machine:
+    - "1 consecutive failure MUST produce DEGRADED state"
+    - "2 consecutive failures MUST produce CRITICAL state"
+    - "3 or more consecutive failures MUST produce DOWN state"
+    - "3 consecutive full successes MUST restore any degraded state to ONLINE"
+
+  scan_eligibility:
+    - "Only hosts in ONLINE state are eligible for Kensa compliance scans"
+    - "Hosts in DOWN state MUST NOT be dispatched for compliance scans"
+    - "UNKNOWN state MUST trigger a re-check before scan eligibility is granted"
+
+  scheduling:
+    - "UNKNOWN hosts MUST receive interval=0 (immediate check)"
+    - "CRITICAL hosts MUST receive the shortest non-zero interval (2 min)"
+    - "DEGRADED hosts MUST receive a 5-minute check interval"
+    - "ONLINE hosts MUST receive a 15-minute check interval"
+    - "DOWN hosts MUST receive a 30-minute check interval"
+    - "MAINTENANCE hosts MUST receive a 60-minute check interval"
+
+  priorities:
+    - "UNKNOWN state MUST have highest Celery priority (10)"
+    - "CRITICAL state MUST have priority 8"
+    - "DEGRADED state MUST have priority 6"
+    - "ONLINE state MUST have priority 4"
+    - "DOWN state MUST have priority 2"
+    - "MAINTENANCE state MUST have lowest priority (1)"
+
+  maintenance:
+    - "Hosts in MAINTENANCE state MUST be excluded from the check queue"
+    - "Disabling maintenance mode MUST transition the host to UNKNOWN"
+
+---
+
+# Acceptance Criteria
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      MonitoringState enum defines exactly 6 values: ONLINE, DEGRADED, CRITICAL,
+      DOWN, MAINTENANCE, UNKNOWN. "offline" is not a member; attempting
+      MonitoringState("offline") raises ValueError in the raw enum, so the
+      code MUST never call MonitoringState() with a raw connectivity result.
+
+  - id: AC-2
+    description: >
+      A connectivity-to-state mapping exists in host.py that translates raw
+      connectivity results before any database write: "online" -> ONLINE,
+      "reachable" -> DEGRADED, "ping_only" -> CRITICAL, "error" -> UNKNOWN.
+      The "offline" result is handled separately by _progressive_offline_state()
+      (see AC-3) rather than a flat mapping, to avoid false-positive DOWN states
+      from transient connectivity blips. The mapping covers all expected
+      connectivity outcomes so no ValueError can escape to the caller.
+
+  - id: AC-3
+    description: >
+      Progressive degradation for "offline" connectivity results:
+      _progressive_offline_state() (or equivalent) escalates the host's
+      MonitoringState one level per consecutive failed check, using the current
+      DB status as the escalation cursor:
+        online / unknown (first failure)  -> DEGRADED
+        degraded (second consecutive)     -> CRITICAL
+        critical / down (third+)          -> DOWN
+      A single "offline" result MUST NOT immediately produce DOWN state.
+
+  - id: AC-4
+    description: >
+      Recovery threshold: _calculate_new_state (or equivalent) restores state
+      to ONLINE only when consecutive_successes >= 3. Fewer than 3 successes
+      after a failure do NOT restore ONLINE.
+
+  - id: AC-5
+    description: >
+      Scan eligibility is gated on ONLINE state. The scheduler or host monitor
+      MUST check host status before dispatching a compliance scan; hosts in DOWN
+      state are ineligible (SSH would fail). The code contains a scan eligibility
+      guard referencing the 'online' or 'ONLINE' state.
+
+  - id: AC-6
+    description: >
+      UNKNOWN state triggers an immediate re-check: calculate_next_check_time
+      returns now() (no delay) when state is 'unknown'; get_interval_for_state
+      returns 0 for 'unknown'.
+
+  - id: AC-7
+    description: >
+      State-based check intervals (minutes): unknown=0, critical=2, degraded=5,
+      online=15, down=30, maintenance=60. These defaults MUST be present in
+      AdaptiveSchedulerService._get_default_config.
+
+  - id: AC-8
+    description: >
+      State-based Celery task priorities: unknown=10, critical=8, degraded=6,
+      online=4, down=2, maintenance=1. These defaults MUST be present in
+      AdaptiveSchedulerService._get_default_config.
+
+  - id: AC-9
+    description: >
+      Maintenance hosts excluded from check queue: get_hosts_due_for_check
+      (or equivalent) applies a filter that excludes hosts with status
+      'maintenance' when maintenance_mode is 'skip'. set_maintenance_mode(False)
+      transitions the host to UNKNOWN state.
+
+  - id: AC-10
+    description: >
+      State transition alerts: send_status_change_alerts (or equivalent) is
+      called on host status changes. Alert conditions cover at minimum the
+      online->offline and offline->online transitions. All state changes are
+      logged (logger.warning or logger.info referencing state change).
+
+  - id: AC-11
+    description: >
+      transition_state() in state.py MUST handle stale or invalid values in
+      hosts.status gracefully. If the current DB status cannot be parsed as a
+      MonitoringState (e.g. the value 'offline' written before the state machine
+      was enforced), transition_state() MUST catch the ValueError, log a warning
+      that identifies the host_id and the invalid value, treat the host as
+      UNKNOWN, and allow the cycle to complete so the DB is overwritten with a
+      valid state. A ValueError from MonitoringState(current_status) MUST NOT
+      propagate to the caller or prevent the DB update from succeeding. The
+      warning log MUST reference both the host_id and the invalid status string.
+
+---
+
+# Changelog
+
+changelog:
+  - version: "1.1"
+    date: "2026-03-06"
+    changes:
+      - "AC-11 added: transition_state() must handle stale invalid DB status gracefully"
+      - "Root cause confirmed via live worker logs: MonitoringState('offline') ValueError"
+      - "in transition_state() line 164 crashed every cycle for host faf60094, preventing"
+      - "DB updates even though SSH succeeded. Fix: try/except around MonitoringState()"
+      - "defaulting to UNKNOWN. AC-2 fix (host.py) addresses monitor_all_hosts() path only."
+  - version: "1.0"
+    date: "2026-03-06"
+    changes:
+      - "Initial spec promoted to active — Tier 1 (scan-eligibility-critical)"
+      - "Reverse-engineered from state.py, host.py, scheduler.py archaeological review"
+      - "Captures P1 bug: connectivity 'offline' written raw to hosts.status -> ValueError in state machine"
+      - "Fix mandated by AC-2: connectivity-to-MonitoringState mapping before any DB write"

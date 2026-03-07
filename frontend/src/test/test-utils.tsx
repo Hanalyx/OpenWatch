@@ -1,34 +1,17 @@
 /**
  * Custom test utilities for rendering components with providers.
  *
- * Wraps components in Redux Provider + MemoryRouter for tests.
+ * Wraps components in Redux Provider (ruleSlice) + MemoryRouter for tests.
+ * Auth state is in Zustand (useAuthStore) — set it directly in tests as needed.
  */
 import React, { type PropsWithChildren } from 'react';
 import { render, type RenderOptions } from '@testing-library/react';
 import { configureStore, type EnhancedStore } from '@reduxjs/toolkit';
 import { Provider } from 'react-redux';
 import { MemoryRouter } from 'react-router-dom';
-import authReducer from '../store/slices/authSlice';
-
-// Auth state type for testing (matches authSlice)
-interface AuthState {
-  user: { id: string; username: string; email: string; role: string; mfaEnabled: boolean } | null;
-  token: string | null;
-  refreshToken: string | null;
-  isAuthenticated: boolean;
-  isLoading: boolean;
-  error: string | null;
-  mfaRequired: boolean;
-  sessionExpiry: number | null;
-}
-
-// Test-specific root state (subset of full RootState)
-interface TestRootState {
-  auth: AuthState;
-}
+import ruleReducer from '../store/slices/ruleSlice';
 
 interface ExtendedRenderOptions extends Omit<RenderOptions, 'queries'> {
-  preloadedState?: Partial<TestRootState>;
   store?: EnhancedStore;
   route?: string;
 }
@@ -36,11 +19,7 @@ interface ExtendedRenderOptions extends Omit<RenderOptions, 'queries'> {
 export function renderWithProviders(
   ui: React.ReactElement,
   {
-    preloadedState = {},
-    store = configureStore({
-      reducer: { auth: authReducer },
-      preloadedState: preloadedState as TestRootState,
-    }),
+    store = configureStore({ reducer: { rules: ruleReducer } }),
     route = '/',
     ...renderOptions
   }: ExtendedRenderOptions = {}

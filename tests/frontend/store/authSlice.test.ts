@@ -1,18 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { configureStore } from '@reduxjs/toolkit';
-import authReducer, {
-  loginSuccess,
-  loginFailure,
-  logout,
-  clearError,
-  refreshTokenSuccess,
-  checkSessionExpiry,
-  setLoading,
-  setMfaRequired,
-} from '../slices/authSlice';
+import { act } from 'react';
+import { useAuthStore } from '../../../frontend/src/store/useAuthStore';
 
 // Mock the storage module
-vi.mock('../../services/storage', () => ({
+vi.mock('../../../frontend/src/services/storage', () => ({
   storageGet: vi.fn(() => null),
   storageSet: vi.fn(),
   storageRemove: vi.fn(),
@@ -30,11 +21,7 @@ vi.mock('../../services/storage', () => ({
   },
 }));
 
-import { storageSet, storageClearAuth } from '../../services/storage';
-
-function makeStore() {
-  return configureStore({ reducer: { auth: authReducer } });
-}
+import { storageSet, storageClearAuth } from '../../../frontend/src/services/storage';
 
 const testUser = {
   id: '123',
@@ -51,15 +38,31 @@ const loginPayload = {
   expiresIn: 3600,
 };
 
-describe('authSlice', () => {
+// Reset the store to initial state before each test
+function resetStore() {
+  act(() => {
+    useAuthStore.setState({
+      user: null,
+      token: null,
+      refreshToken: null,
+      isAuthenticated: false,
+      isLoading: false,
+      error: null,
+      mfaRequired: false,
+      sessionExpiry: null,
+    });
+  });
+}
+
+describe('useAuthStore', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    resetStore();
   });
 
   describe('initialState', () => {
     it('has correct default shape', () => {
-      const store = makeStore();
-      const state = store.getState().auth;
+      const state = useAuthStore.getState();
       expect(state.user).toBeNull();
       expect(state.token).toBeNull();
       expect(state.refreshToken).toBeNull();
@@ -73,9 +76,8 @@ describe('authSlice', () => {
 
   describe('loginSuccess', () => {
     it('sets user, token, and authentication state', () => {
-      const store = makeStore();
-      store.dispatch(loginSuccess(loginPayload));
-      const state = store.getState().auth;
+      act(() => useAuthStore.getState().loginSuccess(loginPayload));
+      const state = useAuthStore.getState();
 
       expect(state.user).toEqual(testUser);
       expect(state.token).toBe('access-token-abc');
@@ -88,18 +90,16 @@ describe('authSlice', () => {
 
     it('sets sessionExpiry based on expiresIn', () => {
       const before = Date.now();
-      const store = makeStore();
-      store.dispatch(loginSuccess(loginPayload));
+      act(() => useAuthStore.getState().loginSuccess(loginPayload));
       const after = Date.now();
-      const state = store.getState().auth;
+      const state = useAuthStore.getState();
 
       expect(state.sessionExpiry).toBeGreaterThanOrEqual(before + 3600 * 1000);
       expect(state.sessionExpiry).toBeLessThanOrEqual(after + 3600 * 1000);
     });
 
     it('persists token to localStorage via storageSet', () => {
-      const store = makeStore();
-      store.dispatch(loginSuccess(loginPayload));
+      act(() => useAuthStore.getState().loginSuccess(loginPayload));
 
       expect(storageSet).toHaveBeenCalledWith('auth_token', 'access-token-abc');
       expect(storageSet).toHaveBeenCalledWith('refresh_token', 'refresh-token-xyz');
@@ -109,9 +109,8 @@ describe('authSlice', () => {
 
   describe('loginFailure', () => {
     it('sets error and clears authentication', () => {
-      const store = makeStore();
-      store.dispatch(loginFailure('Invalid credentials'));
-      const state = store.getState().auth;
+      act(() => useAuthStore.getState().loginFailure('Invalid credentials'));
+      const state = useAuthStore.getState();
 
       expect(state.error).toBe('Invalid credentials');
       expect(state.isAuthenticated).toBe(false);
@@ -119,28 +118,21 @@ describe('authSlice', () => {
     });
 
     it('detects MFA required from error message', () => {
-      const store = makeStore();
-      store.dispatch(loginFailure('MFA required for this account'));
-      const state = store.getState().auth;
-
-      expect(state.mfaRequired).toBe(true);
+      act(() => useAuthStore.getState().loginFailure('MFA required for this account'));
+      expect(useAuthStore.getState().mfaRequired).toBe(true);
     });
 
     it('does not set mfaRequired for other errors', () => {
-      const store = makeStore();
-      store.dispatch(loginFailure('Network error'));
-      const state = store.getState().auth;
-
-      expect(state.mfaRequired).toBe(false);
+      act(() => useAuthStore.getState().loginFailure('Network error'));
+      expect(useAuthStore.getState().mfaRequired).toBe(false);
     });
   });
 
   describe('logout', () => {
     it('clears all auth state', () => {
-      const store = makeStore();
-      store.dispatch(loginSuccess(loginPayload));
-      store.dispatch(logout());
-      const state = store.getState().auth;
+      act(() => useAuthStore.getState().loginSuccess(loginPayload));
+      act(() => useAuthStore.getState().logout());
+      const state = useAuthStore.getState();
 
       expect(state.user).toBeNull();
       expect(state.token).toBeNull();
@@ -152,54 +144,44 @@ describe('authSlice', () => {
     });
 
     it('calls storageClearAuth', () => {
-      const store = makeStore();
-      store.dispatch(logout());
+      act(() => useAuthStore.getState().logout());
       expect(storageClearAuth).toHaveBeenCalled();
     });
   });
 
   describe('clearError', () => {
     it('clears error state', () => {
-      const store = makeStore();
-      store.dispatch(loginFailure('some error'));
-      store.dispatch(clearError());
-      expect(store.getState().auth.error).toBeNull();
+      act(() => useAuthStore.getState().loginFailure('some error'));
+      act(() => useAuthStore.getState().clearError());
+      expect(useAuthStore.getState().error).toBeNull();
     });
   });
 
   describe('setLoading', () => {
-    it('sets isLoading to true', () => {
-      const store = makeStore();
-      store.dispatch(setLoading(true));
-      expect(store.getState().auth.isLoading).toBe(true);
-    });
-
-    it('sets isLoading to false', () => {
-      const store = makeStore();
-      store.dispatch(setLoading(true));
-      store.dispatch(setLoading(false));
-      expect(store.getState().auth.isLoading).toBe(false);
+    it('sets isLoading to true then false', () => {
+      act(() => useAuthStore.getState().setLoading(true));
+      expect(useAuthStore.getState().isLoading).toBe(true);
+      act(() => useAuthStore.getState().setLoading(false));
+      expect(useAuthStore.getState().isLoading).toBe(false);
     });
   });
 
   describe('setMfaRequired', () => {
     it('sets mfaRequired flag', () => {
-      const store = makeStore();
-      store.dispatch(setMfaRequired(true));
-      expect(store.getState().auth.mfaRequired).toBe(true);
-      store.dispatch(setMfaRequired(false));
-      expect(store.getState().auth.mfaRequired).toBe(false);
+      act(() => useAuthStore.getState().setMfaRequired(true));
+      expect(useAuthStore.getState().mfaRequired).toBe(true);
+      act(() => useAuthStore.getState().setMfaRequired(false));
+      expect(useAuthStore.getState().mfaRequired).toBe(false);
     });
   });
 
   describe('refreshTokenSuccess', () => {
     it('updates token and sessionExpiry', () => {
-      const store = makeStore();
-      store.dispatch(loginSuccess(loginPayload));
+      act(() => useAuthStore.getState().loginSuccess(loginPayload));
       const before = Date.now();
-      store.dispatch(refreshTokenSuccess({ token: 'new-token', expiresIn: 7200 }));
+      act(() => useAuthStore.getState().refreshTokenSuccess({ token: 'new-token', expiresIn: 7200 }));
       const after = Date.now();
-      const state = store.getState().auth;
+      const state = useAuthStore.getState();
 
       expect(state.token).toBe('new-token');
       expect(state.sessionExpiry).toBeGreaterThanOrEqual(before + 7200 * 1000);
@@ -208,22 +190,19 @@ describe('authSlice', () => {
     });
 
     it('persists new token to localStorage', () => {
-      const store = makeStore();
       vi.clearAllMocks();
-      store.dispatch(refreshTokenSuccess({ token: 'refreshed-tok', expiresIn: 3600 }));
+      act(() => useAuthStore.getState().refreshTokenSuccess({ token: 'refreshed-tok', expiresIn: 3600 }));
       expect(storageSet).toHaveBeenCalledWith('auth_token', 'refreshed-tok');
     });
   });
 
   describe('checkSessionExpiry', () => {
     it('logs out when session is expired', () => {
-      const store = makeStore();
-      store.dispatch(loginSuccess(loginPayload));
-
-      // Manually set sessionExpiry to the past
-      store.dispatch(refreshTokenSuccess({ token: 'tok', expiresIn: -1 }));
-      store.dispatch(checkSessionExpiry());
-      const state = store.getState().auth;
+      act(() => useAuthStore.getState().loginSuccess(loginPayload));
+      // Set sessionExpiry to the past
+      act(() => useAuthStore.getState().refreshTokenSuccess({ token: 'tok', expiresIn: -1 }));
+      act(() => useAuthStore.getState().checkSessionExpiry());
+      const state = useAuthStore.getState();
 
       expect(state.isAuthenticated).toBe(false);
       expect(state.token).toBeNull();
@@ -232,19 +211,17 @@ describe('authSlice', () => {
     });
 
     it('does nothing when session is still valid', () => {
-      const store = makeStore();
-      store.dispatch(loginSuccess(loginPayload));
-      store.dispatch(checkSessionExpiry());
-      const state = store.getState().auth;
+      act(() => useAuthStore.getState().loginSuccess(loginPayload));
+      act(() => useAuthStore.getState().checkSessionExpiry());
+      const state = useAuthStore.getState();
 
       expect(state.isAuthenticated).toBe(true);
       expect(state.token).toBe('access-token-abc');
     });
 
     it('does nothing when sessionExpiry is null', () => {
-      const store = makeStore();
-      store.dispatch(checkSessionExpiry());
-      const state = store.getState().auth;
+      act(() => useAuthStore.getState().checkSessionExpiry());
+      const state = useAuthStore.getState();
 
       expect(state.isAuthenticated).toBe(false);
       expect(state.error).toBeNull();

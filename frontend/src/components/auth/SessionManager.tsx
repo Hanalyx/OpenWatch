@@ -11,14 +11,12 @@ import {
   Box,
   LinearProgress,
 } from '@mui/material';
-import { useAppSelector, useAppDispatch } from '../../hooks/redux';
-import { logout, clearError } from '../../store/slices/authSlice';
+import { useAuthStore } from '../../store/useAuthStore';
 import { tokenService } from '../../services/tokenService';
 import { activityTracker } from '../../services/activityTracker';
 
 const SessionManager: React.FC = () => {
-  const dispatch = useAppDispatch();
-  const { isAuthenticated, error } = useAppSelector((state) => state.auth);
+  const { isAuthenticated, error, logout, clearError } = useAuthStore();
   const [showExpiryWarning, setShowExpiryWarning] = useState(false);
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
   const [isExtending, setIsExtending] = useState(false);
@@ -37,8 +35,8 @@ const SessionManager: React.FC = () => {
 
   // Handle inactivity logout callback
   const handleInactivityLogout = useCallback(() => {
-    dispatch(logout());
-  }, [dispatch]);
+    logout();
+  }, [logout]);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -69,7 +67,7 @@ const SessionManager: React.FC = () => {
 
         if (remaining <= 0) {
           // Grace period expired, force logout
-          dispatch(logout());
+          logout();
         }
       }, 1000);
     }
@@ -79,13 +77,7 @@ const SessionManager: React.FC = () => {
         clearInterval(countdownInterval);
       }
     };
-  }, [
-    isAuthenticated,
-    showExpiryWarning,
-    dispatch,
-    handleInactivityWarning,
-    handleInactivityLogout,
-  ]);
+  }, [isAuthenticated, showExpiryWarning, logout, handleInactivityWarning, handleInactivityLogout]);
 
   const handleExtendSession = async () => {
     setIsExtending(true);
@@ -105,7 +97,7 @@ const SessionManager: React.FC = () => {
       } else {
         // Security: Failed refresh should force logout
         setExtendError('Failed to extend session. You will be logged out for security.');
-        setTimeout(() => dispatch(logout()), 3000);
+        setTimeout(() => logout(), 3000);
       }
     } catch (error) {
       // Security: Network errors during token refresh should force logout
@@ -113,14 +105,14 @@ const SessionManager: React.FC = () => {
         'Network error during session extension. You will be logged out for security.'
       );
       console.error('Failed to extend session:', error);
-      setTimeout(() => dispatch(logout()), 3000);
+      setTimeout(() => logout(), 3000);
     } finally {
       setIsExtending(false);
     }
   };
 
   const handleLogout = () => {
-    dispatch(logout());
+    logout();
     setShowExpiryWarning(false);
     activityTracker.stop();
     tokenService.resumeAutoRefresh();
@@ -220,10 +212,10 @@ const SessionManager: React.FC = () => {
       <Snackbar
         open={!!error}
         autoHideDuration={6000}
-        onClose={() => dispatch(clearError())}
+        onClose={clearError}
         anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
       >
-        <Alert onClose={() => dispatch(clearError())} severity="error" variant="filled">
+        <Alert onClose={clearError} severity="error" variant="filled">
           {error}
         </Alert>
       </Snackbar>

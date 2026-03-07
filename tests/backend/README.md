@@ -21,7 +21,7 @@ pytest tests/ --cov=app --cov-report=term-missing
 
 ## Test Database
 
-**Connection:** `postgresql://openwatch:openwatch_secure_db_2025@localhost:5432/openwatch_test`
+**Connection:** `postgresql://openwatch:openwatch_secure_db_2025@localhost:5432/openwatch_test`  <!-- pragma: allowlist secret -->
 
 - Same PostgreSQL instance as dev
 - Separate database (`openwatch_test`)

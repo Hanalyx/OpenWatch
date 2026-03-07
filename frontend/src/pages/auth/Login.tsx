@@ -14,8 +14,7 @@ import {
 } from '@mui/material';
 import { Visibility, VisibilityOff } from '@mui/icons-material';
 import { useForm } from 'react-hook-form';
-import { useAppDispatch, useAppSelector } from '../../hooks/redux';
-import { loginSuccess, loginFailure, clearError, setLoading } from '../../store/slices/authSlice';
+import { useAuthStore } from '../../store/useAuthStore';
 import { VersionDisplay } from '../../components/common/VersionDisplay';
 
 interface LoginFormData {
@@ -26,8 +25,8 @@ interface LoginFormData {
 
 const Login: React.FC = () => {
   const navigate = useNavigate();
-  const dispatch = useAppDispatch();
-  const { isLoading, error, mfaRequired } = useAppSelector((state) => state.auth);
+  const { isLoading, error, mfaRequired, loginSuccess, loginFailure, clearError, setLoading } =
+    useAuthStore();
   const [showPassword, setShowPassword] = useState(false);
 
   const {
@@ -37,11 +36,11 @@ const Login: React.FC = () => {
   } = useForm<LoginFormData>();
 
   useEffect(() => {
-    dispatch(clearError());
-  }, [dispatch]);
+    clearError();
+  }, [clearError]);
 
   const onSubmit = async (data: LoginFormData) => {
-    dispatch(setLoading(true));
+    setLoading(true);
     try {
       const response = await fetch('/api/auth/login', {
         method: 'POST',
@@ -62,19 +61,17 @@ const Login: React.FC = () => {
 
       const loginData = await response.json();
 
-      const authData = {
+      loginSuccess({
         user: loginData.user,
         token: loginData.access_token,
         refreshToken: loginData.refresh_token,
         expiresIn: loginData.expires_in,
-      };
-
-      dispatch(loginSuccess(authData));
+      });
       navigate('/');
     } catch (err) {
       // Type-safe error handling: check if error has message property
       const errorMessage = err instanceof Error ? err.message : 'Login failed';
-      dispatch(loginFailure(errorMessage));
+      loginFailure(errorMessage);
     }
   };
 

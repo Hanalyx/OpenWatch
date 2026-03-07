@@ -74,9 +74,11 @@ export function getStatusIcon(status: HostStatus): React.ReactElement {
       return <NetworkCheck sx={{ color: '#607d8b' }} />;
     case 'error':
       return <ErrorIcon color="error" />;
+    case 'down':
+      // Red X - host completely unreachable (3+ consecutive failures, maps from "offline")
+      return <HighlightOff color="error" />;
     case 'degraded':
     case 'critical':
-    case 'down':
     case 'unknown':
     default:
       return <Info />;
@@ -187,6 +189,7 @@ export function getStatusColor(status: HostStatus, theme: Theme): string {
     case 'offline':
     case 'error':
     case 'critical':
+    case 'down':
       return theme.palette.error.main; // Red
     case 'maintenance':
     case 'reachable':
@@ -195,7 +198,6 @@ export function getStatusColor(status: HostStatus, theme: Theme): string {
     case 'scanning':
       return theme.palette.info.main; // Blue
     case 'ping_only':
-    case 'down':
     case 'unknown':
     default:
       return theme.palette.grey[500]; // Gray
@@ -235,7 +237,7 @@ export function isHealthyStatus(status: HostStatus): boolean {
  * }
  */
 export function hasConnectivityIssue(status: HostStatus): boolean {
-  return ['offline', 'ping_only', 'reachable', 'error'].includes(status);
+  return ['offline', 'ping_only', 'reachable', 'error', 'down'].includes(status);
 }
 
 /**

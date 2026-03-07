@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { adaptComplianceRule, adaptComplianceRulesPage } from '../complianceAdapter';
-import type { ApiComplianceRule, ApiComplianceRulesPage } from '../complianceAdapter';
+import { adaptComplianceRule, adaptComplianceRulesPage } from '../../../../frontend/src/services/adapters/complianceAdapter';
+import type { ApiComplianceRule, ApiComplianceRulesPage } from '../../../../frontend/src/services/adapters/complianceAdapter';
 
 describe('adaptComplianceRule', () => {
   it('maps all fields from snake_case to camelCase', () => {

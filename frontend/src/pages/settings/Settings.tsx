@@ -40,8 +40,7 @@ import {
 } from '@mui/icons-material';
 import { api } from '../../services/api';
 import { SSHKeyDisplay } from '../../components/design-system';
-import { useSelector } from 'react-redux';
-import { type RootState } from '../../store';
+import { useAuthStore } from '../../store/useAuthStore';
 import AdaptiveSchedulerSettings from '../../components/settings/AdaptiveSchedulerSettings';
 import ComplianceSchedulerSettings from '../../components/settings/ComplianceSchedulerSettings';
 import OSDiscoverySettings from '../../components/settings/OSDiscoverySettings';
@@ -161,8 +160,7 @@ const Settings: React.FC = () => {
   const [sessionTimeoutLoading, setSessionTimeoutLoading] = useState(false);
   const [sessionTimeoutUpdatedBy, setSessionTimeoutUpdatedBy] = useState<string | null>(null);
 
-  // Get user from Redux store
-  const user = useSelector((state: RootState) => state.auth.user);
+  const user = useAuthStore((state) => state.user);
   const isSuperAdmin = user?.role === 'super_admin';
 
   const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
