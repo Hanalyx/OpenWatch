@@ -36,7 +36,6 @@ import {
   VpnKey as VpnKeyIcon,
   SettingsEthernet as SettingsEthernetIcon,
   Shield as ShieldIcon,
-  Policy as PolicyIcon,
 } from '@mui/icons-material';
 import { api } from '../../services/api';
 import { SSHKeyDisplay } from '../../components/design-system';
@@ -80,14 +79,6 @@ interface KnownHost {
   last_verified?: string;
   is_trusted: boolean;
   notes?: string;
-}
-
-interface LoggingPolicy {
-  id: number;
-  name: string;
-  enabled: boolean;
-  frameworks: string[];
-  created_at: string;
 }
 
 interface TabPanelProps {
@@ -152,8 +143,6 @@ const Settings: React.FC = () => {
   });
 
   // Security settings state
-  const [loggingPolicies, setLoggingPolicies] = useState<LoggingPolicy[]>([]);
-  const [securityLoading, setSecurityLoading] = useState(false);
 
   // Session timeout state
   const [sessionTimeoutMinutes, setSessionTimeoutMinutes] = useState<number>(15);
@@ -275,20 +264,6 @@ const Settings: React.FC = () => {
     }
   };
 
-  // Security functions
-  const loadLoggingPolicies = async () => {
-    try {
-      setSecurityLoading(true);
-      // This is a placeholder - implement when backend API is available
-      setLoggingPolicies([]);
-    } catch (err: unknown) {
-      setError('Failed to load logging policies');
-      console.error('Error loading logging policies:', err);
-    } finally {
-      setSecurityLoading(false);
-    }
-  };
-
   // Session timeout functions
   const loadSessionTimeout = async () => {
     try {
@@ -346,7 +321,6 @@ const Settings: React.FC = () => {
       loadKnownHosts();
     } else if (tabValue === 3) {
       // Security tab
-      loadLoggingPolicies();
       loadSessionTimeout();
     }
     // ESLint disable: load* functions are not memoized to avoid complex dependency chains
@@ -681,6 +655,16 @@ const Settings: React.FC = () => {
                 value={sshPolicy.policy}
                 onChange={(e) => updateSSHPolicy(e.target.value, sshPolicy.trusted_networks)}
                 disabled={sshLoading}
+                label="SSH Host Key Policy"
+                renderValue={(value) => {
+                  const labels: Record<string, string> = {
+                    strict: 'Strict',
+                    auto_add: 'Auto Add',
+                    auto_add_warning: 'Auto Add (with warning)',
+                    bypass_trusted: 'Bypass Trusted',
+                  };
+                  return labels[value as string] || String(value);
+                }}
               >
                 <MenuItem value="strict">
                   <Box>
@@ -702,6 +686,16 @@ const Settings: React.FC = () => {
                     </Typography>
                   </Box>
                 </MenuItem>
+                <MenuItem value="auto_add_warning">
+                  <Box>
+                    <Typography variant="body2" fontWeight="medium">
+                      Auto Add (with warning)
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      Accept unknown hosts but log a security warning (default)
+                    </Typography>
+                  </Box>
+                </MenuItem>
                 <MenuItem value="bypass_trusted">
                   <Box>
                     <Typography variant="body2" fontWeight="medium">
@@ -720,7 +714,9 @@ const Settings: React.FC = () => {
                 <Typography variant="body2">
                   {sshPolicy.policy === 'auto_add'
                     ? 'Automatically accept and save unknown host keys'
-                    : 'Auto-add hosts in trusted network ranges'}
+                    : sshPolicy.policy === 'auto_add_warning'
+                      ? 'Accept unknown hosts but log a security warning for audit compliance'
+                      : 'Auto-add hosts in trusted network ranges'}
                 </Typography>
               </Alert>
             )}
@@ -858,73 +854,25 @@ const Settings: React.FC = () => {
         </TabPanel>
 
         <TabPanel value={tabValue} index={3}>
-          {/* Security Settings Section */}
+          {/* Audit Logging Section */}
           <Card sx={{ mb: 4, p: 3 }}>
-            <Box
-              sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
-            >
-              <Box>
-                <Typography variant="h6" gutterBottom>
-                  <PolicyIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
-                  Logging Policy Management
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Configure centralized audit logging policies for applications, database, and
-                  network events.
-                </Typography>
-              </Box>
-              <Button variant="contained" startIcon={<AddIcon />} disabled={securityLoading}>
-                Create Policy
-              </Button>
+            <Box sx={{ mb: 3 }}>
+              <Typography variant="h6" gutterBottom>
+                Audit Logging
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                OpenWatch automatically logs all security-relevant events including authentication
+                attempts, authorization failures, configuration changes, and scan operations.
+              </Typography>
             </Box>
 
-            {loggingPolicies.length === 0 ? (
-              <Box sx={{ textAlign: 'center', py: 4 }}>
-                <Typography color="text.secondary">
-                  No logging policies configured. Create a policy to enable centralized audit
-                  logging.
-                </Typography>
-              </Box>
-            ) : (
-              <TableContainer component={Paper} variant="outlined">
-                <Table size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Policy Name</TableCell>
-                      <TableCell>Status</TableCell>
-                      <TableCell>Frameworks</TableCell>
-                      <TableCell>Created</TableCell>
-                      <TableCell align="right">Actions</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {loggingPolicies.map((policy) => (
-                      <TableRow key={policy.id}>
-                        <TableCell>{policy.name}</TableCell>
-                        <TableCell>
-                          <Typography
-                            variant="body2"
-                            color={policy.enabled ? 'success.main' : 'text.secondary'}
-                          >
-                            {policy.enabled ? 'Enabled' : 'Disabled'}
-                          </Typography>
-                        </TableCell>
-                        <TableCell>{policy.frameworks.join(', ')}</TableCell>
-                        <TableCell>{new Date(policy.created_at).toLocaleDateString()}</TableCell>
-                        <TableCell align="right">
-                          <IconButton size="small">
-                            <EditIcon />
-                          </IconButton>
-                          <IconButton size="small" color="error">
-                            <DeleteIcon />
-                          </IconButton>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            )}
+            <Alert severity="success" sx={{ mb: 2 }}>
+              <Typography variant="body2">
+                Audit logging is always active. All events are written to the
+                <strong> openwatch.audit</strong> logger and stored in the database for compliance
+                reporting.
+              </Typography>
+            </Alert>
           </Card>
 
           {/* Session Timeout Settings */}
@@ -1007,10 +955,31 @@ const Settings: React.FC = () => {
               }}
             >
               {[
-                { name: 'SOC2', description: 'System and Organization Controls', enabled: true },
-                { name: 'HIPAA', description: 'Health Insurance Portability', enabled: true },
-                { name: 'PCI-DSS', description: 'Payment Card Industry', enabled: true },
-                { name: 'GDPR', description: 'General Data Protection', enabled: true },
+                {
+                  name: 'CIS RHEL 9',
+                  description: 'Center for Internet Security Benchmark (271 controls)',
+                  enabled: true,
+                },
+                {
+                  name: 'STIG RHEL 9',
+                  description: 'Security Technical Implementation Guide (338 controls)',
+                  enabled: true,
+                },
+                {
+                  name: 'NIST 800-53',
+                  description: 'NIST Special Publication 800-53 Rev 5 (87 controls)',
+                  enabled: true,
+                },
+                {
+                  name: 'PCI-DSS v4.0',
+                  description: 'Payment Card Industry Data Security Standard (45 controls)',
+                  enabled: true,
+                },
+                {
+                  name: 'FedRAMP',
+                  description: 'Federal Risk and Authorization Management (87 controls)',
+                  enabled: true,
+                },
               ].map((framework) => (
                 <Card
                   key={framework.name}
@@ -1054,9 +1023,9 @@ const Settings: React.FC = () => {
                 Platform Overview
               </Typography>
               <Typography variant="body2" color="text.secondary" paragraph>
-                OpenWatch is a SCAP (Security Content Automation Protocol) compliance scanning
-                platform designed for FedRAMP, CMMC, ISO 27001, NIST SP 800-53, and DOD STIG
-                baseline verification.
+                OpenWatch is a compliance automation platform powered by Kensa, a canonical
+                rule-based compliance scanner. Designed for FedRAMP, CMMC, ISO 27001, NIST SP
+                800-53, and DOD STIG baseline verification.
               </Typography>
             </Box>
 
@@ -1068,8 +1037,14 @@ const Settings: React.FC = () => {
               }}
             >
               {[
-                { label: 'SCAP Scanning', description: 'OpenSCAP-based compliance scanning' },
-                { label: 'Multi-Framework', description: 'NIST, CIS, STIG, and more' },
+                {
+                  label: 'Kensa Scanner',
+                  description: 'Canonical rule-based compliance scanning (508 rules)',
+                },
+                {
+                  label: 'Multi-Framework',
+                  description: 'CIS, STIG, NIST 800-53, PCI-DSS, FedRAMP',
+                },
                 { label: 'Real-time Monitoring', description: 'Continuous compliance tracking' },
               ].map((feature) => (
                 <Card key={feature.label} variant="outlined" sx={{ p: 2 }}>

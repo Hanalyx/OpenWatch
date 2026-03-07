@@ -86,6 +86,8 @@ Coverage is checked by `scripts/check-spec-coverage.py`.
 | Login | api/auth/login.spec.yaml | tests/backend/unit/api/test_auth_api.py | 5 | Active |
 | MFA Verify | api/auth/mfa-verify.spec.yaml | tests/backend/unit/api/test_auth_api.py | 5 | Active |
 | Test Connection | api/hosts/test-connection.spec.yaml | tests/backend/unit/api/test_host_api.py | 9 | Active |
+| SSH Settings | api/ssh/ssh-settings.spec.yaml | tests/backend/unit/api/test_ssh_settings_api.py | 9 | Active |
+| Session Timeout | api/system/session-timeout.spec.yaml | tests/backend/unit/api/test_system_settings_api.py | 9 | Active |
 
 ## Frontend Specs
 
@@ -119,11 +121,11 @@ Coverage is checked by `scripts/check-spec-coverage.py`.
 | System | 9 | 6 | 3 | 0 |
 | Pipelines | 3 | 2 | 1 | 0 |
 | Services | 11 | 11 | 0 | 0 |
-| API | 10 | 10 | 0 | 0 |
+| API | 12 | 12 | 0 | 0 |
 | Plugins | 1 | 1 | 0 | 0 |
 | Release | 4 | 4 | 0 | 0 |
 | Frontend | 5 | 5 | 0 | 0 |
-| **Total** | **43** | **39** | **4** | **0** |
+| **Total** | **45** | **41** | **4** | **0** |
 
 ## Cross-Module Dependencies
 

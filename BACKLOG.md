@@ -146,8 +146,70 @@ Gaps identified by comparing `docs/KENSA_DEVELOPER_GUIDE_V0.md` against current 
 | Item | Priority | Status | Notes |
 |------|----------|--------|-------|
 | Host monitoring state transition: `'offline' is not a valid MonitoringState` | P1 | **Spec required first** | After adding host 192.168.1.212, connectivity check succeeds (ping=True, ssh=True, status=online) but state transition from `offline` fails. Host ends up in `unknown` state instead of `online`. `MonitoringState` enum missing `offline` value. Classified Tier 1 (monitoring is scan-eligibility and compliance-critical — an offline/down host is non-compliant; unknown state is a blind spot). **Next step**: write `specs/services/monitoring/host-monitoring.spec.yaml`, then tests, then fix. See `services/monitoring/state.py`. |
+| SSH Host Key Policy GET returns hardcoded value | P1 | **Fixed** | `routes/ssh/settings.py:63` was returning `"default_policy"` instead of calling `service.get_ssh_policy()`. Frontend Select had no matching MenuItem so it displayed blank. Fix: call `SSHConfigManager.get_ssh_policy()`. Also added `renderValue` prop to frontend Select for readable labels. **Needs spec + test.** |
+| Session Timeout PUT fails with 500 (SQL syntax error) | P1 | **Fixed** | `routes/system/settings.py:1125-1138` had Python `# noqa: E501` comments inside raw SQL string. `#` is not valid SQL, causing PostgreSQL syntax error. Fix: removed inline comments and reformatted SQL. Also note: this upsert uses raw `text()` instead of `InsertBuilder` — should be migrated to mutation builders for consistency. **Needs spec + test.** |
+| Known SSH Hosts: `get_known_hosts` missing from SSHConfigManager | P2 | Open | `routes/ssh/settings.py:172` calls `service.get_known_hosts(hostname)` but `SSHConfigManager` has no such method. SSH Configuration tab shows "Failed to load known hosts". Missing feature, not a regression. |
 | Host creation missing NOT NULL monitoring columns | P1 | Fixed | `InsertBuilder` in `routes/hosts/crud.py` was missing `check_priority` and 6 consecutive failure/success counter columns. Python-level `default=` not applied by raw SQL. Fixed by adding columns with defaults to INSERT. |
 | Alert generator: `passed` column does not exist in `scan_findings` | P1 | Fixed | `alert_generator.py` `_check_configuration_drift()` queried `passed` column and `host_id` directly on `scan_findings`. Actual schema uses `status` ('pass'/'fail') and requires JOIN through `scans` for `host_id`. |
+
+---
+
+## Spec/Test Notes: Settings Page Fixes (2026-03-07)
+
+### Needed: API spec for SSH Settings routes
+
+No spec exists for `routes/ssh/settings.py`. The ssh-connection spec covers `SSHConfigManager` internals (AC-7: default policy, AC-8: valid policies) but NOT the API route behavior.
+
+**Proposed spec**: `specs/api/ssh/ssh-settings.spec.yaml`
+
+Acceptance criteria to cover:
+1. `GET /api/ssh/settings/policy` reads policy from DB via `SSHConfigManager.get_ssh_policy()`, not hardcoded
+2. `GET /api/ssh/settings/policy` returns `SSHPolicyResponse` with `policy`, `trusted_networks`, `description`
+3. `POST /api/ssh/settings/policy` updates policy and returns updated config
+4. `GET /api/ssh/settings/known-hosts` returns list of known hosts (blocked: `get_known_hosts` not implemented)
+5. `POST /api/ssh/settings/known-hosts` adds a known host
+6. `DELETE /api/ssh/settings/known-hosts/{hostname}` removes a known host
+7. `GET /api/ssh/settings/test-connectivity/{host_id}` tests SSH connectivity
+8. All endpoints require `Permission.SYSTEM_CONFIG` (except test-connectivity: `SCAN_EXECUTE`)
+
+**Test file**: `tests/backend/unit/api/test_ssh_settings_api.py`
+
+Regression tests needed:
+- SSH policy GET must call `service.get_ssh_policy()` (source inspection: verify no hardcoded `"default_policy"` string)
+- SSH policy GET returns valid policy values from `SSHConfigManager.VALID_POLICIES`
+
+### Needed: API spec for System Settings routes (session timeout)
+
+No spec exists for `routes/system/settings.py`. Session timeout is one of many endpoints in this large file (~1172 lines).
+
+**Proposed spec**: `specs/api/system/session-timeout.spec.yaml`
+
+Acceptance criteria to cover:
+1. `GET /api/system/settings/session-timeout` returns current timeout from `system_settings` table
+2. `GET /api/system/settings/session-timeout` returns default (15 min) when no DB row exists
+3. `PUT /api/system/settings/session-timeout` validates range (1-480 minutes)
+4. `PUT /api/system/settings/session-timeout` upserts to `system_settings` table
+5. `PUT /api/system/settings/session-timeout` SQL contains no Python comments (regression: `# noqa` inside SQL string)
+6. Both endpoints require `Permission.SYSTEM_MAINTENANCE`
+
+**Test file**: `tests/backend/unit/api/test_system_settings_api.py`
+
+Regression tests needed:
+- Session timeout PUT SQL string must not contain `#` character (source inspection)
+- Session timeout PUT SQL should ideally use `InsertBuilder.on_conflict_do_update()` instead of raw `text()`
+
+### Frontend: SSH Policy Select `renderValue`
+
+The SSH Host Key Policy `<Select>` in `Settings.tsx` now has a `renderValue` prop that maps internal values (`strict`, `auto_add`, etc.) to readable labels. Also added `auto_add_warning` to the label map since `SSHConfigManager.VALID_POLICIES` includes it but the original frontend only had 3 MenuItems (missing `auto_add_warning`).
+
+**Observation**: Frontend only shows 3 policy options in the dropdown but backend supports 4 (`strict`, `auto_add`, `auto_add_warning`, `bypass_trusted`). The `auto_add_warning` option is the default but has no MenuItem — users can never select it via UI if they change away from it.
+
+### Other Settings Page Issues (not yet fixed)
+
+- **Logging Policy Management**: Non-functional placeholder — `loadLoggingPolicies` sets empty array, "Create Policy" button does nothing
+- **Compliance Framework Support**: Shows wrong frameworks (SOC2/HIPAA/PCI-DSS/GDPR) — should be CIS/STIG/NIST/PCI-DSS/FedRAMP
+- **About tab**: Says "OpenSCAP-based compliance scanning" — should reference Kensa
+- **Known SSH Hosts**: `SSHConfigManager.get_known_hosts()` method not implemented
 
 ---
 
