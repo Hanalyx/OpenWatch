@@ -245,7 +245,6 @@ async def execute_kensa_scan(
                 "id",
                 "name",
                 "host_id",
-                "content_id",
                 "profile_id",
                 "status",
                 "progress",
@@ -259,7 +258,6 @@ async def execute_kensa_scan(
                 scan_id,
                 scan_name,
                 request.host_id,
-                1,  # Kensa Compliance Rules content entry
                 profile_id,
                 "running",
                 0,  # progress starts at 0

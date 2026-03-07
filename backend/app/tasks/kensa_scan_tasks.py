@@ -493,7 +493,6 @@ def create_kensa_scan_record(
             "id",
             "name",
             "host_id",
-            "content_id",
             "profile_id",
             "status",
             "progress",
@@ -507,7 +506,6 @@ def create_kensa_scan_record(
             scan_id,
             scan_name,
             host_id,
-            1,  # Kensa uses content_id=1 as placeholder
             profile_id,
             "queued",
             0,

@@ -63,7 +63,7 @@ const ScanMetricsCards: React.FC<ScanMetricsCardsProps> = ({ scan }) => {
                 : 'N/A'}
             </Typography>
             <Typography variant="body2" color="text.secondary" noWrap>
-              {scan.content_name}
+              {scan.profile_id}
             </Typography>
           </CardContent>
         </Card>

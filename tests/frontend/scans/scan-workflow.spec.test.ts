@@ -177,6 +177,14 @@ describe('AC-6: Scan submission calls correct endpoint', () => {
   it('scanService sends framework in request', () => {
     expect(scanServiceSource).toContain('framework');
   });
+
+  it('scanService does NOT contain deprecated startHostScan method', () => {
+    expect(scanServiceSource).not.toContain('startHostScan');
+  });
+
+  it('scanService does NOT send content_id in requests', () => {
+    expect(scanServiceSource).not.toContain('content_id');
+  });
 });
 
 // ---------------------------------------------------------------------------

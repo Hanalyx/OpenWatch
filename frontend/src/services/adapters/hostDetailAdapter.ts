@@ -258,7 +258,6 @@ interface ApiScanHistoryItem {
   progress: number;
   started_at: string;
   completed_at: string | null;
-  content_name: string | null;
   profile_id: string | null;
   results: ApiScanResults | null;
 }
@@ -522,7 +521,6 @@ function adaptScanHistoryItem(item: ApiScanHistoryItem): ScanHistoryItem {
     progress: item.progress,
     startedAt: item.started_at,
     completedAt: item.completed_at,
-    contentName: item.content_name,
     profileId: item.profile_id,
     results: item.results ? adaptScanResults(item.results) : null,
   };

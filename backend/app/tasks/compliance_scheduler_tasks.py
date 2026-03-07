@@ -191,16 +191,12 @@ def run_scheduled_kensa_scan(self: Any, host_id: str, priority: int = 5) -> Dict
             scan_name = f"Scheduled Kensa Scan - {host.hostname} - {start_time.strftime('%Y-%m-%d %H:%M')}"
             profile_id = "kensa_scheduled"
 
-            # Kensa content placeholder ID (created in scap_content table)
-            kensa_content_id = 1
-
             insert_builder = (
                 InsertBuilder("scans")
                 .columns(
                     "id",
                     "name",
                     "host_id",
-                    "content_id",
                     "profile_id",
                     "status",
                     "progress",
@@ -214,7 +210,6 @@ def run_scheduled_kensa_scan(self: Any, host_id: str, priority: int = 5) -> Dict
                     scan_id,
                     scan_name,
                     host_id,
-                    kensa_content_id,
                     profile_id,
                     "running",
                     0,
