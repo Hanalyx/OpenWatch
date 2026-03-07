@@ -548,7 +548,7 @@ const ComplianceScanWizard: React.FC = () => {
   };
 
   return (
-    <Box sx={{ p: 3 }}>
+    <Box>
       <Typography variant="h4" component="h1" gutterBottom>
         Create Compliance Scan
       </Typography>

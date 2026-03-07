@@ -55,6 +55,9 @@ import {
   useQueryPreview,
   useCreateExport,
 } from '../../hooks/useAuditQueries';
+import { useHosts } from '../../hooks/useHosts';
+import { api } from '../../services/api';
+import { useQuery } from '@tanstack/react-query';
 import type {
   QueryDefinition,
   SavedQueryCreate,
@@ -95,6 +98,17 @@ const AuditQueryBuilderPage: React.FC = () => {
 
   // Fetch existing query if editing
   const { data: existingQuery, isLoading: loadingQuery } = useSavedQuery(isEditMode ? queryId : '');
+
+  // Host and group data for scope selectors
+  const { data: allHosts = [] } = useHosts();
+  const { data: allGroups = [] } = useQuery({
+    queryKey: ['host-groups'],
+    queryFn: async () => {
+      const resp = await api.get<{ id: number; name: string }[]>('/api/host-groups/');
+      return resp;
+    },
+    staleTime: 60_000,
+  });
 
   // Mutations
   const createQuery = useCreateQuery();
@@ -230,7 +244,7 @@ const AuditQueryBuilderPage: React.FC = () => {
   }
 
   return (
-    <Box sx={{ p: 3 }}>
+    <Box>
       {/* Header */}
       <Box sx={{ mb: 3 }}>
         <Typography variant="h4">{isEditMode ? 'Edit Query' : 'Create Audit Query'}</Typography>
@@ -258,35 +272,57 @@ const AuditQueryBuilderPage: React.FC = () => {
                 </Typography>
                 <Grid container spacing={3}>
                   <Grid size={{ xs: 12 }}>
-                    <TextField
-                      label="Host IDs (comma-separated UUIDs)"
-                      fullWidth
-                      placeholder="e.g., 550e8400-e29b-41d4-a716-446655440000"
-                      value={queryDefinition.hosts?.join(', ') || ''}
-                      onChange={(e) => {
-                        const hosts = e.target.value
-                          .split(',')
-                          .map((h) => h.trim())
-                          .filter((h) => h);
-                        updateDefinition({ hosts: hosts.length > 0 ? hosts : undefined });
+                    <Autocomplete
+                      multiple
+                      options={allHosts}
+                      getOptionLabel={(option) =>
+                        option.displayName || option.hostname || option.id
+                      }
+                      value={allHosts.filter((h) => queryDefinition.hosts?.includes(h.id))}
+                      onChange={(_, selected) => {
+                        const ids = selected.map((h) => h.id);
+                        updateDefinition({ hosts: ids.length > 0 ? ids : undefined });
                       }}
-                      helperText="Leave empty to include all hosts"
+                      renderInput={(params) => (
+                        <TextField
+                          {...params}
+                          label="Hosts"
+                          placeholder="Search by hostname..."
+                          helperText="Leave empty to include all hosts"
+                        />
+                      )}
+                      renderTags={(value, getTagProps) =>
+                        value.map((option, index) => (
+                          <Chip
+                            label={option.displayName || option.hostname}
+                            size="small"
+                            {...getTagProps({ index })}
+                            key={option.id}
+                          />
+                        ))
+                      }
+                      isOptionEqualToValue={(option, value) => option.id === value.id}
                     />
                   </Grid>
                   <Grid size={{ xs: 12 }}>
-                    <TextField
-                      label="Host Group IDs (comma-separated)"
-                      fullWidth
-                      placeholder="e.g., 1, 2, 3"
-                      value={queryDefinition.host_groups?.join(', ') || ''}
-                      onChange={(e) => {
-                        const groups = e.target.value
-                          .split(',')
-                          .map((g) => parseInt(g.trim(), 10))
-                          .filter((g) => !isNaN(g));
-                        updateDefinition({ host_groups: groups.length > 0 ? groups : undefined });
+                    <Autocomplete
+                      multiple
+                      options={allGroups}
+                      getOptionLabel={(option) => option.name}
+                      value={allGroups.filter((g) => queryDefinition.host_groups?.includes(g.id))}
+                      onChange={(_, selected) => {
+                        const ids = selected.map((g) => g.id);
+                        updateDefinition({ host_groups: ids.length > 0 ? ids : undefined });
                       }}
-                      helperText="Leave empty to include all host groups"
+                      renderInput={(params) => (
+                        <TextField
+                          {...params}
+                          label="Host Groups"
+                          placeholder="Search by group name..."
+                          helperText="Leave empty to include all host groups"
+                        />
+                      )}
+                      isOptionEqualToValue={(option, value) => option.id === value.id}
                     />
                   </Grid>
                 </Grid>

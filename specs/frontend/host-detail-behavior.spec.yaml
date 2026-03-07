@@ -1,5 +1,5 @@
 spec: host-detail-behavior
-version: "1.0"
+version: "1.1"
 status: active
 owner: engineering
 summary: >
@@ -110,11 +110,23 @@ acceptance_criteria:
       ComplianceTab component source MUST contain filter and search
       functionality.
 
+  - id: AC-11
+    description: >
+      The Host Detail page MUST NOT use a MUI Container with maxWidth
+      constraint. The page layout MUST use Box (not Container) as the
+      outermost wrapper so that padding and margins match the Hosts list
+      page. The HostDetail index.tsx source MUST NOT import Container
+      from @mui/material.
+
 ---
 
 # Changelog
 
 changelog:
+  - version: "1.1"
+    date: "2026-03-07"
+    changes:
+      - "AC-11 added: Host Detail page must use Box, not Container maxWidth, to match Hosts list page margins"
   - version: "1.0"
     date: "2026-03-07"
     changes:

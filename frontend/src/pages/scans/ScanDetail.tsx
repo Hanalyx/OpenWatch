@@ -135,7 +135,7 @@ const ScanDetail: React.FC = () => {
 
   if (!scan) {
     return (
-      <Box sx={{ p: 3 }}>
+      <Box>
         <Alert severity="error">Scan not found</Alert>
         <Button startIcon={<ArrowBackIcon />} onClick={() => navigate('/scans')} sx={{ mt: 2 }}>
           Back to Scans
@@ -176,7 +176,7 @@ const ScanDetail: React.FC = () => {
   // --- Render ---
 
   return (
-    <Box sx={{ p: 3 }}>
+    <Box>
       {/* Header */}
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
         <Box display="flex" alignItems="center" gap={2}>

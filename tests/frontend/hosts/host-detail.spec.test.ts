@@ -314,3 +314,27 @@ describe('AC-10: Compliance tab supports filtering and search', () => {
     expect(hasPassed && hasFailed).toBe(true);
   });
 });
+
+// ---------------------------------------------------------------------------
+// AC-11: Host Detail page uses Box, not Container maxWidth
+// ---------------------------------------------------------------------------
+
+describe('AC-11: Host Detail page layout matches Hosts list page', () => {
+  /**
+   * AC-11: The Host Detail page MUST NOT use a MUI Container with maxWidth.
+   * It MUST use Box so margins match the Hosts list page.
+   */
+  const indexSource = readHostDetail('index.tsx');
+
+  it('HostDetail index.tsx does not import Container from @mui/material', () => {
+    expect(indexSource).not.toMatch(/import\s*\{[^}]*Container[^}]*\}\s*from\s*['"]@mui\/material['"]/);
+  });
+
+  it('HostDetail index.tsx does not use <Container maxWidth', () => {
+    expect(indexSource).not.toContain('<Container maxWidth');
+  });
+
+  it('HostDetail index.tsx does not use </Container>', () => {
+    expect(indexSource).not.toContain('</Container>');
+  });
+});
