@@ -51,7 +51,6 @@ interface Scan {
   name: string;
   host_name: string;
   host_id: string; // Required - foreign key constraint ensures this exists
-  content_name: string;
   profile_id: string;
   status: string;
   progress: number;
@@ -70,7 +69,6 @@ interface BackendScan {
     ip_address?: string;
     status?: 'online' | 'offline';
   };
-  content_name: string;
   profile_id: string;
   status: string;
   progress: number;
@@ -137,7 +135,6 @@ const Scans: React.FC = () => {
           name: scan.name,
           host_name: hostKey,
           host_id: scan.host_id,
-          content_name: scan.content_name,
           profile_id: scan.profile_id,
           status: scan.status,
           progress: scan.progress,
@@ -852,7 +849,6 @@ const Scans: React.FC = () => {
                       <TableHead>
                         <TableRow>
                           <TableCell>Scan Name</TableCell>
-                          <TableCell>Content</TableCell>
                           <TableCell>Status</TableCell>
                           <TableCell>Started</TableCell>
                           <TableCell>Completed</TableCell>
@@ -866,9 +862,6 @@ const Scans: React.FC = () => {
                               <Typography variant="body2" fontWeight="medium">
                                 {scan.name}
                               </Typography>
-                            </TableCell>
-                            <TableCell>
-                              <Typography variant="body2">{scan.content_name}</Typography>
                             </TableCell>
                             <TableCell>
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>

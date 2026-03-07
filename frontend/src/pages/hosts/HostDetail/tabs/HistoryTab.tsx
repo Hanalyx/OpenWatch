@@ -159,11 +159,6 @@ const HistoryTab: React.FC<HistoryTabProps> = ({ scanHistory, isLoading }) => {
                       <Typography variant="body2" fontWeight="medium">
                         {scan.name}
                       </Typography>
-                      {scan.contentName && (
-                        <Typography variant="caption" color="text.secondary">
-                          {scan.contentName}
-                        </Typography>
-                      )}
                     </Box>
                   </TableCell>
                   <TableCell>

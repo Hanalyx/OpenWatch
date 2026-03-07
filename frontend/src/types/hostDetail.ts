@@ -435,7 +435,6 @@ export interface ScanHistoryItem {
   progress: number;
   startedAt: string;
   completedAt: string | null;
-  contentName: string | null;
   profileId: string | null;
   results: ScanResults | null;
 }

@@ -30,7 +30,6 @@ import {
 
 interface ScanRecommendation {
   profile_id: string;
-  content_id: number;
   name: string;
   confidence: number;
   reasoning: string[];
@@ -91,7 +90,6 @@ const ScanRecommendationCard: React.FC<ScanRecommendationCardProps> = ({ hostId,
         compliance_score: 78,
         recommendation: {
           profile_id: 'xccdf_org.ssgproject.content_profile_cui',
-          content_id: 1,
           name: 'CUI Compliance Scan',
           confidence: 0.92,
           reasoning: [

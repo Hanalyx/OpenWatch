@@ -75,20 +75,6 @@ interface ComplianceScanResponse {
 }
 
 /**
- * Legacy SCAP scan response from backend
- * Contains scan ID and basic status information
- */
-interface LegacyScanResponse {
-  id: string;
-  scan_id?: string;
-  status: 'pending' | 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
-  message?: string;
-  host_id?: string;
-  created_at?: string;
-  [key: string]: unknown;
-}
-
-/**
  * Detailed scan information from backend
  * Includes scan configuration, progress, and result summary
  */
@@ -268,42 +254,6 @@ class ScanService {
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.detail || 'Failed to start compliance scan');
-    }
-
-    return response.json();
-  }
-
-  /**
-   * Start an individual scan for a single host (LEGACY)
-   *
-   * @deprecated Use startComplianceScan() instead.
-   * This method uses the old SCAP content file-based API which is being phased out.
-   *
-   * @param hostId - UUID of the host to scan
-   * @param contentId - SCAP content file ID (deprecated)
-   * @param profileId - SCAP profile ID
-   * @returns Scan response
-   */
-  static async startHostScan(
-    hostId: string,
-    contentId: number,
-    profileId: string
-  ): Promise<LegacyScanResponse> {
-    const response = await fetch('/api/scans/', {
-      method: 'POST',
-      headers: getAuthHeaders(),
-      body: JSON.stringify({
-        name: `Manual Scan - ${new Date().toLocaleString()}`,
-        host_id: hostId,
-        content_id: contentId,
-        profile_id: profileId,
-        scan_options: {},
-      }),
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.detail || 'Failed to start host scan');
     }
 
     return response.json();

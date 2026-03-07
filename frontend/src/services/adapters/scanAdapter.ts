@@ -20,9 +20,6 @@ export interface ApiScanResponse {
   host_id: string;
   host_name: string;
   hostname: string;
-  content_id: number;
-  content_name: string;
-  content_filename: string;
   profile_id: string;
   status: string;
   progress: number;
