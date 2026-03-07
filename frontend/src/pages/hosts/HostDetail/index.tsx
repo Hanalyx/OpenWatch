@@ -14,7 +14,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Container, Box, Tabs, Tab, CircularProgress, Alert } from '@mui/material';
+import { Box, Tabs, Tab, CircularProgress, Alert } from '@mui/material';
 import {
   Dashboard as DashboardIcon,
   Security as SecurityIcon,
@@ -129,28 +129,28 @@ const HostDetail: React.FC = () => {
 
   if (loading) {
     return (
-      <Container maxWidth="xl">
+      <Box>
         <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
           <CircularProgress />
         </Box>
-      </Container>
+      </Box>
     );
   }
 
   if (error || !host) {
     return (
-      <Container maxWidth="xl">
+      <Box>
         <Alert severity="error" sx={{ mt: 2 }}>
           {error || 'Host not found'}
         </Alert>
-      </Container>
+      </Box>
     );
   }
 
   const scanHistory = scanHistoryData?.scans || [];
 
   return (
-    <Container maxWidth="xl">
+    <Box>
       {/* Header */}
       <HostDetailHeader
         hostname={host.hostname}
@@ -259,7 +259,7 @@ const HostDetail: React.FC = () => {
       <TabPanel value={tabValue} index={9}>
         <TerminalTab hostId={host.id} hostname={host.hostname} ipAddress={host.ip_address} />
       </TabPanel>
-    </Container>
+    </Box>
   );
 };
 
