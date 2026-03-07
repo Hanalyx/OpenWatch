@@ -144,4 +144,4 @@ Specs are activated through phased SDD migration (see `internal/sdd/plans/`):
 | 5 | API Contracts | 9 API route specs + error-model |
 | 6 | Registry Maintenance | CI enforcement, documentation updates |
 | 7 | Monitoring | host-monitoring (Tier 1: scan eligibility, compliance implications) |
-| 8 | Frontend Architecture | state-management (Zustand Phase 1: auth + notifications migrated) |
+| 8 | Frontend Architecture | state-management v2.0 (Redux fully removed, Zustand-only) |

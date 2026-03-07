@@ -111,7 +111,6 @@ export default defineConfig(({ mode }) => {
           manualChunks: {
             vendor: ['react', 'react-dom'],
             mui: ['@mui/material', '@mui/icons-material'],
-            redux: ['@reduxjs/toolkit', 'react-redux', 'redux-persist'],
           },
         },
       },
