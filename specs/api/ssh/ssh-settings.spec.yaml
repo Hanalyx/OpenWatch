@@ -1,0 +1,109 @@
+spec: ssh-settings-api
+version: "1.0"
+status: active
+owner: engineering
+summary: >
+  SSH Settings API route contract: GET/POST /api/ssh/settings/policy reads and
+  writes SSH host key policy via SSHConfigManager (not hardcoded). Known hosts
+  CRUD uses KnownHostsManager (not SSHConfigManager). Test connectivity checks
+  SSH reachability via HostMonitor. All endpoints require appropriate RBAC
+  permissions.
+
+---
+
+# Objective
+
+objective: >
+  Ensure the SSH settings API correctly reads policy from the database,
+  delegates known host operations to KnownHostsManager, and enforces RBAC
+  permissions on all endpoints.
+
+---
+
+# Constraints
+
+constraints:
+  policy:
+    - "GET /settings/policy MUST read policy from SSHConfigManager.get_ssh_policy(), not hardcoded"
+    - "GET /settings/policy MUST return SSHPolicyResponse with policy, trusted_networks, description"
+    - "POST /settings/policy MUST validate policy against SSHConfigManager.VALID_POLICIES"
+    - "Policy description MUST map known policies to human-readable text"
+
+  known_hosts:
+    - "Known host endpoints MUST use KnownHostsManager, not SSHConfigManager"
+    - "GET /settings/known-hosts MUST support optional hostname filter"
+    - "POST /settings/known-hosts MUST generate SHA256 fingerprint via KnownHostsManager"
+    - "DELETE /settings/known-hosts/{hostname} MUST support optional key_type filter"
+
+  rbac:
+    - "Policy and known-host endpoints MUST require Permission.SYSTEM_CONFIG"
+    - "Test connectivity endpoint MUST require Permission.SCAN_EXECUTE"
+
+---
+
+# Acceptance Criteria
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      GET /settings/policy reads the SSH policy from the database via
+      SSHConfigManager.get_ssh_policy(), not from a hardcoded string.
+      The route handler must not contain a hardcoded "default_policy" value.
+
+  - id: AC-2
+    description: >
+      GET /settings/policy returns SSHPolicyResponse with policy string,
+      trusted_networks list, and a human-readable description field.
+
+  - id: AC-3
+    description: >
+      POST /settings/policy calls SSHConfigManager.set_ssh_policy() and
+      optionally set_trusted_networks() when trusted_networks is provided.
+
+  - id: AC-4
+    description: >
+      Known host GET/POST/DELETE endpoints use KnownHostsManager (imported
+      from app.services.ssh), not SSHConfigManager, for known host operations.
+
+  - id: AC-5
+    description: >
+      GET /settings/known-hosts accepts an optional hostname query parameter
+      and passes it to KnownHostsManager.get_known_hosts() for filtering.
+
+  - id: AC-6
+    description: >
+      POST /settings/known-hosts validates key_type via KnownHostRequest
+      model (must be one of rsa, ecdsa, ed25519, dsa).
+
+  - id: AC-7
+    description: >
+      All policy and known-host endpoints are decorated with
+      @require_permission(Permission.SYSTEM_CONFIG).
+
+  - id: AC-8
+    description: >
+      GET /settings/test-connectivity/{host_id} is decorated with
+      @require_permission(Permission.SCAN_EXECUTE).
+
+  - id: AC-9
+    description: >
+      The SSH settings router uses prefix="/settings" and is tagged
+      "SSH Settings" for OpenAPI documentation.
+
+  - id: AC-10
+    description: >
+      GET /settings/policy includes "auto_add_warning" in the policy
+      descriptions map, covering all four valid policies (strict, auto_add,
+      auto_add_warning, bypass_trusted).
+
+---
+
+# Changelog
+
+changelog:
+  - version: "1.0"
+    date: "2026-03-07"
+    changes:
+      - "Initial spec: 10 ACs covering SSH settings API routes"
+      - "Regression ACs: policy read from DB (AC-1), KnownHostsManager usage (AC-4)"
+      - "Bug fixes: hardcoded default_policy (AC-1), missing get_known_hosts method (AC-4)"

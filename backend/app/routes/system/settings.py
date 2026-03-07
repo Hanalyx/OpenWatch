@@ -1125,8 +1125,13 @@ async def update_session_timeout(
         db.execute(
             text(
                 """
-                INSERT INTO system_settings (setting_key, setting_value, setting_type, description, modified_by, modified_at, created_at)  # noqa: E501
-                VALUES ('session_inactivity_timeout_minutes', :value, 'integer', 'Session inactivity timeout in minutes', :modified_by, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)  # noqa: E501
+                INSERT INTO system_settings
+                    (setting_key, setting_value, setting_type, description,
+                     modified_by, modified_at, created_at)
+                VALUES
+                    ('session_inactivity_timeout_minutes', :value, 'integer',
+                     'Session inactivity timeout in minutes',
+                     :modified_by, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                 ON CONFLICT (setting_key)
                 DO UPDATE SET
                     setting_value = :value,

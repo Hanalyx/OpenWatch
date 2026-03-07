@@ -1,0 +1,104 @@
+spec: session-timeout-api
+version: "1.0"
+status: active
+owner: engineering
+summary: >
+  Session timeout API route contract: GET/PUT /api/system/settings/session-timeout
+  manages the inactivity timeout stored in system_settings table. GET returns
+  current timeout or default (15 min). PUT validates range (1-480 min) and
+  upserts via SQL. Both endpoints require Permission.SYSTEM_MAINTENANCE.
+
+---
+
+# Objective
+
+objective: >
+  Ensure session timeout endpoints correctly read/write the system_settings
+  table, validate timeout ranges, use safe SQL without embedded comments,
+  and enforce RBAC permissions.
+
+---
+
+# Constraints
+
+constraints:
+  get_endpoint:
+    - "GET MUST read from system_settings table via QueryBuilder"
+    - "GET MUST return default (15 min) when no row exists"
+    - "GET MUST return SessionTimeoutSettings with timeout_minutes, updated_at, updated_by"
+
+  put_endpoint:
+    - "PUT MUST validate timeout_minutes between MIN (1) and MAX (480)"
+    - "PUT MUST upsert to system_settings using ON CONFLICT (setting_key)"
+    - "PUT SQL MUST NOT contain Python comments (# characters cause PostgreSQL syntax errors)"
+    - "PUT MUST log the change with username for audit trail"
+
+  rbac:
+    - "Both endpoints MUST require Permission.SYSTEM_MAINTENANCE"
+
+---
+
+# Acceptance Criteria
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      GET /session-timeout reads from system_settings table using
+      QueryBuilder with setting_key = 'session_inactivity_timeout_minutes'.
+
+  - id: AC-2
+    description: >
+      GET /session-timeout returns default timeout (15 minutes) when no
+      database row exists for the setting key.
+
+  - id: AC-3
+    description: >
+      PUT /session-timeout rejects timeout_minutes below MIN_SESSION_TIMEOUT_MINUTES
+      (1) with HTTP 400.
+
+  - id: AC-4
+    description: >
+      PUT /session-timeout rejects timeout_minutes above MAX_SESSION_TIMEOUT_MINUTES
+      (480) with HTTP 400.
+
+  - id: AC-5
+    description: >
+      PUT /session-timeout SQL string does not contain '#' characters.
+      Python comments inside SQL strings cause PostgreSQL syntax errors.
+
+  - id: AC-6
+    description: >
+      PUT /session-timeout uses ON CONFLICT (setting_key) DO UPDATE SET
+      to upsert the session timeout value.
+
+  - id: AC-7
+    description: >
+      Both GET and PUT endpoints are decorated with
+      @require_permission(Permission.SYSTEM_MAINTENANCE).
+
+  - id: AC-8
+    description: >
+      PUT /session-timeout returns the updated SessionTimeoutSettings
+      including timeout_minutes, updated_at, and updated_by fields.
+
+  - id: AC-9
+    description: >
+      SessionTimeoutSettings response model has timeout_minutes (int),
+      updated_at (Optional[str]), and updated_by (Optional[str]) fields.
+
+  - id: AC-10
+    description: >
+      DEFAULT_SESSION_TIMEOUT_MINUTES is defined as 15 and used as the
+      fallback when no database setting exists.
+
+---
+
+# Changelog
+
+changelog:
+  - version: "1.0"
+    date: "2026-03-07"
+    changes:
+      - "Initial spec: 10 ACs covering session timeout API routes"
+      - "Regression AC: SQL must not contain # characters (AC-5)"
+      - "Bug fix: Python noqa comments inside SQL caused PostgreSQL syntax error"
