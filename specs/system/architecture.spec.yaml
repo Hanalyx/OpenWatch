@@ -332,7 +332,6 @@ objective:
 
     adapters:
       - auditAdapter.ts
-      - complianceAdapter.ts
       - hostAdapter.ts
       - hostDetailAdapter.ts
       - postureAdapter.ts

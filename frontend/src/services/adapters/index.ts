@@ -42,17 +42,6 @@ export type {
   RuleOutcome,
 } from './scanAdapter';
 
-export { adaptComplianceRule, adaptComplianceRulesPage } from './complianceAdapter';
-
-export type {
-  ApiComplianceRule,
-  ApiComplianceRulesPage,
-  ApiFrameworkDetail,
-  ApiComplianceTemplate,
-  ComplianceRule,
-  ComplianceRulesPage,
-} from './complianceAdapter';
-
 // Host Detail adapters for Host Detail page redesign
 export {
   fetchComplianceState,
