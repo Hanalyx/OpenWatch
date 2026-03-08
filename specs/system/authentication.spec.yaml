@@ -1,5 +1,5 @@
 spec: authentication
-version: "1.0"
+version: "1.1"
 status: active
 owner: engineering
 summary: >
@@ -9,7 +9,10 @@ summary: >
   password hashing with 64MB memory cost and 3 iterations; account lockout
   after 5 failed attempts for 30 minutes; login resets counters on success;
   inactive account check precedes password verification; all auth events
-  logged to openwatch.audit.
+  logged to openwatch.audit. Registration enforces GUEST role for
+  unauthenticated callers and validates password strength; logout
+  invalidates access tokens via blacklist; refresh rotates the refresh
+  token; login checks MFA status from user record.
 
 ---
 
@@ -107,11 +110,46 @@ acceptance_criteria:
       ExpiredSignatureError; raises 401 with "Could not validate
       credentials" on InvalidTokenError.
 
+  - id: AC-11
+    description: >
+      Registration endpoint MUST enforce GUEST role for unauthenticated
+      requests. The register function MUST ignore any user-supplied role
+      and always create users with GUEST role, unless the caller is an
+      authenticated admin with USER_CREATE permission.
+
+  - id: AC-12
+    description: >
+      Registration endpoint MUST validate password strength by calling
+      validate_password_strength or equivalent before creating the user.
+
+  - id: AC-13
+    description: >
+      Logout MUST invalidate the access token by adding it to a
+      blacklist/revocation store. verify_token MUST check the blacklist
+      before accepting tokens.
+
+  - id: AC-14
+    description: >
+      Refresh endpoint MUST rotate the refresh token by returning a new
+      refresh_token in addition to the new access_token. The old refresh
+      token SHOULD be invalidated.
+
+  - id: AC-15
+    description: >
+      MFA check MUST NOT be skipped in login flow when the user has MFA
+      enabled. The login function MUST read the user's mfa_enabled status
+      from the database and NOT hardcode it to False.
+
 ---
 
 # Changelog
 
 changelog:
+  - version: "1.1"
+    date: "2026-03-08"
+    changes:
+      - "Security assessment: registration role enforcement, password validation, token revocation, refresh rotation, MFA enforcement"
+      - "Added AC-11 through AC-15 from security findings (C-1, H-1, H-2, H-3, M-2)"
   - version: "1.0"
     date: "2026-03-05"
     changes:

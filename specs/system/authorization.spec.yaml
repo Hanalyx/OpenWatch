@@ -1,5 +1,5 @@
 spec: authorization
-version: "1.0"
+version: "1.2"
 status: active
 owner: engineering
 summary: >
@@ -10,6 +10,10 @@ summary: >
   CRUD and system config permissions. require_permission and require_role
   decorators raise 403 with detail including the required permission or
   role values. API keys bypass role matrix and use a permissions list.
+  Webhook management, Kensa scan, and metrics endpoints MUST require
+  RBAC authorization. API key auth MUST resolve to valid role permissions.
+  System-wide MFA enforcement and per-user MFA exemption MUST be
+  restricted to SUPER_ADMIN only.
 
 ---
 
@@ -106,11 +110,72 @@ acceptance_criteria:
       [SUPER_ADMIN, SECURITY_ADMIN] only, bypassing the general
       permission_map.
 
+  - id: AC-11
+    description: >
+      Webhook management endpoints (list, create, update, delete, test) MUST
+      use require_permission or require_role decorators restricting access to
+      at least SECURITY_ADMIN role. Basic authentication via get_current_user
+      alone is insufficient.
+
+  - id: AC-12
+    description: >
+      Kensa scan endpoints that modify state (sync, execute) MUST require at
+      minimum SCAN_EXECUTE permission; read endpoints MUST require at minimum
+      HOST_READ permission. Any authenticated user (including GUEST) MUST NOT
+      be able to access state-modifying Kensa endpoints.
+
+  - id: AC-13
+    description: >
+      API key authentication MUST NOT return a hardcoded non-enum role value
+      such as "api_key". The decode_token function MUST resolve API key
+      authentication to the actual permissions associated with the key, not
+      a synthetic role string outside the UserRole enum.
+
+  - id: AC-14
+    description: >
+      The /metrics Prometheus endpoint MUST require authentication via
+      Depends(get_current_user) or equivalent authentication dependency.
+      Unauthenticated access to metrics MUST be rejected.
+
+  - id: AC-15
+    description: >
+      System-wide MFA enforcement MUST be controllable only by SUPER_ADMIN.
+      A settings endpoint (e.g., PUT /api/admin/settings/mfa) MUST exist
+      that accepts an mfa_required boolean and MUST be gated by
+      require_role([UserRole.SUPER_ADMIN]) or
+      require_permission(Permission.SYSTEM_CONFIG). Non-SUPER_ADMIN roles
+      MUST receive 403 when attempting to change the system MFA policy.
+
+  - id: AC-16
+    description: >
+      Per-user MFA exemption MUST be controllable only by SUPER_ADMIN.
+      An admin endpoint (e.g., PUT /api/admin/users/{id}/mfa) MUST exist
+      that can disable or exempt a specific user from MFA, and MUST be
+      gated by require_role([UserRole.SUPER_ADMIN]) or
+      require_permission(Permission.USER_UPDATE). Non-SUPER_ADMIN roles
+      MUST receive 403 when attempting to modify another user's MFA status.
+      Users MUST NOT be able to bypass MFA enforcement for themselves
+      through this endpoint.
+
 ---
 
 # Changelog
 
 changelog:
+  - version: "1.2"
+    date: "2026-03-08"
+    changes:
+      - "Added AC-15 and AC-16 for MFA administration RBAC"
+      - "AC-15: System-wide MFA enforcement toggle restricted to SUPER_ADMIN"
+      - "AC-16: Per-user MFA disable/exempt restricted to SUPER_ADMIN"
+  - version: "1.1"
+    date: "2026-03-08"
+    changes:
+      - "Added AC-11 through AC-14 for endpoint-level RBAC enforcement"
+      - "AC-11: Webhook management endpoints MUST require RBAC authorization"
+      - "AC-12: Kensa scan endpoints MUST require RBAC beyond basic auth"
+      - "AC-13: API key auth MUST resolve to valid role permissions, not hardcoded string"
+      - "AC-14: /metrics endpoint MUST require authentication"
   - version: "1.0"
     date: "2026-03-05"
     changes:

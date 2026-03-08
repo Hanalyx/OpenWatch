@@ -1,11 +1,11 @@
 spec: orsa-v2
-version: "1.0"
+version: "1.1"
 status: active
 owner: engineering
 summary: >
   ORSA v2.0 plugin interface: ABC method signatures, CheckResult/RemediationResult
   dataclass contracts, plugin registry lifecycle, capability advertisement,
-  and license-gated feature enforcement.
+  license-gated feature enforcement, and archive/upload security controls.
 
 ---
 
@@ -99,11 +99,32 @@ acceptance_criteria:
       PluginInfo includes supported_platforms and supported_frameworks
       lists for scope discovery.
 
+  - id: AC-11
+    description: >
+      The _install_package method in KensaUpdater MUST validate all tar
+      archive members for path traversal (no '..' components, no absolute
+      paths) before calling extractall, or use Python 3.12 filter='data'.
+
+  - id: AC-12
+    description: >
+      All archive extraction in plugin services (marketplace service,
+      development service) MUST validate individual member paths for
+      directory traversal before extracting.
+
+  - id: AC-13
+    description: >
+      Package upload handlers MUST sanitize filenames using
+      sanitize_filename or equivalent before constructing file paths.
+
 ---
 
 # Changelog
 
 changelog:
+  - version: "1.1"
+    date: "2026-03-08"
+    changes:
+      - "Security assessment findings: AC-11 (tar path traversal in updater), AC-12 (extractall in plugin services), AC-13 (filename sanitization in upload handler)"
   - version: "1.0"
     date: "2026-03-05"
     changes:

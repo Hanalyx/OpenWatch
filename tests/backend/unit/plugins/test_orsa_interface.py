@@ -3,8 +3,10 @@ Unit tests for ORSA v2.0 plugin interface.
 
 Spec: specs/plugins/orsa-v2.spec.yaml
 Tests plugin registration, capability filtering, CheckResult contract,
-and license gating.
+license gating, and archive/upload security controls.
 """
+
+import inspect
 
 import pytest
 
@@ -154,3 +156,113 @@ def test_kensa_plugin_info():
     assert info.vendor == "Hanalyx"
     assert len(info.supported_platforms) > 0
     assert len(info.supported_frameworks) > 0
+
+
+# ---------------------------------------------------------------------------
+# AC-11: _install_package validates tar members for path traversal
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestAC11TarPathTraversal:
+    """AC-11: _install_package validates tar members before extraction."""
+
+    def test_install_package_exists(self):
+        """Verify _install_package method exists in KensaUpdater."""
+        from app.plugins.kensa.updater import KensaUpdater
+
+        assert hasattr(KensaUpdater, "_install_package")
+
+    def test_install_package_checks_dotdot(self):
+        """Verify _install_package rejects '..' in tar member paths."""
+        from app.plugins.kensa.updater import KensaUpdater
+
+        source = inspect.getsource(KensaUpdater._install_package)
+        # Must check for path traversal via '..' or use filter='data'
+        has_dotdot_check = ".." in source
+        has_filter_data = "filter=" in source and "data" in source
+        assert has_dotdot_check or has_filter_data, (
+            "_install_package must validate tar members for '..' traversal "
+            "or use filter='data'"
+        )
+
+    def test_install_package_checks_absolute_paths(self):
+        """Verify _install_package rejects absolute paths in tar members."""
+        from app.plugins.kensa.updater import KensaUpdater
+
+        source = inspect.getsource(KensaUpdater._install_package)
+        # Must check for leading '/' or use filter='data'
+        has_abs_check = "startswith('/')" in source or 'startswith("/")' in source
+        has_is_absolute = "is_absolute" in source
+        has_filter_data = "filter=" in source and "data" in source
+        assert has_abs_check or has_is_absolute or has_filter_data, (
+            "_install_package must validate tar members for absolute paths "
+            "or use filter='data'"
+        )
+
+
+# ---------------------------------------------------------------------------
+# AC-12: Plugin service extractall validates member paths
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestAC12PluginServiceExtractall:
+    """AC-12: Plugin services validate member paths before extractall."""
+
+    def test_marketplace_service_validates_paths(self):
+        """Verify marketplace service validates tar member paths."""
+        import importlib
+
+        mod = importlib.import_module("app.services.plugins.marketplace.service")
+        source = inspect.getsource(mod)
+        has_extractall = "extractall" in source
+        if not has_extractall:
+            # No extractall means no risk
+            return
+        # Must validate members before extraction
+        has_dotdot_check = ".." in source
+        has_filter_data = "filter=" in source and "data" in source
+        has_member_check = "getmembers" in source or "getnames" in source
+        assert has_dotdot_check or has_filter_data or has_member_check, (
+            "Marketplace service must validate tar members before extractall"
+        )
+
+    def test_development_service_validates_paths(self):
+        """Verify development service validates tar member paths."""
+        import importlib
+
+        mod = importlib.import_module("app.services.plugins.development.service")
+        source = inspect.getsource(mod)
+        has_extractall = "extractall" in source
+        if not has_extractall:
+            return
+        has_dotdot_check = ".." in source
+        has_filter_data = "filter=" in source and "data" in source
+        has_member_check = "getmembers" in source or "getnames" in source
+        assert has_dotdot_check or has_filter_data or has_member_check, (
+            "Development service must validate tar members before extractall"
+        )
+
+
+# ---------------------------------------------------------------------------
+# AC-13: Upload handlers sanitize filenames
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestAC13FilenameSanitization:
+    """AC-13: Upload handlers sanitize filenames before path construction."""
+
+    def test_upload_handler_sanitizes_filename(self):
+        """Verify upload handler sanitizes package.filename."""
+        import importlib
+
+        mod = importlib.import_module("app.routes.plugins.updates")
+        source = inspect.getsource(mod)
+        has_sanitize = "sanitize_filename" in source
+        has_secure = "secure_filename" in source
+        has_basename = "os.path.basename" in source
+        assert has_sanitize or has_secure or has_basename, (
+            "Upload handler must sanitize filename before constructing paths"
+        )

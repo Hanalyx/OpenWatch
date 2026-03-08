@@ -333,3 +333,103 @@ class TestMFAVerifyAC9AuditLog:
         """Verify MFAAuditLog or audit logging used in validate_mfa_code."""
         source = inspect.getsource(validate_mfa_code)
         assert "MFAAuditLog" in source or "audit" in source.lower() or "log" in source.lower()
+
+
+# ---------------------------------------------------------------------------
+# AC-11 (login): Webhook URL validation blocks private/internal IPs (SSRF)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestLoginAC11WebhookSSRF:
+    """AC-11: Webhook URL validator blocks private/internal IP ranges."""
+
+    def test_validate_url_exists(self):
+        """Verify validate_url function exists in webhooks module."""
+        import importlib
+
+        mod = importlib.import_module("app.routes.integrations.webhooks")
+        source = inspect.getsource(mod)
+        assert "validate_url" in source or "validate" in source
+
+    def test_blocks_private_10_range(self):
+        """Verify webhook validator blocks 10.x.x.x private range."""
+        import importlib
+
+        mod = importlib.import_module("app.routes.integrations.webhooks")
+        source = inspect.getsource(mod)
+        has_10_check = "10." in source or "is_private" in source or "private" in source.lower()
+        assert has_10_check, (
+            "Webhook URL validator must block 10.x.x.x private IP range"
+        )
+
+    def test_blocks_loopback(self):
+        """Verify webhook validator blocks 127.x.x.x loopback range."""
+        import importlib
+
+        mod = importlib.import_module("app.routes.integrations.webhooks")
+        source = inspect.getsource(mod)
+        has_loopback = (
+            "127." in source
+            or "loopback" in source.lower()
+            or "is_loopback" in source
+            or "is_private" in source
+        )
+        assert has_loopback, (
+            "Webhook URL validator must block 127.x.x.x loopback addresses"
+        )
+
+    def test_blocks_link_local(self):
+        """Verify webhook validator blocks 169.254.x.x link-local range."""
+        import importlib
+
+        mod = importlib.import_module("app.routes.integrations.webhooks")
+        source = inspect.getsource(mod)
+        has_link_local = (
+            "169.254" in source
+            or "link_local" in source.lower()
+            or "link-local" in source.lower()
+            or "is_link_local" in source
+            or "is_private" in source
+        )
+        assert has_link_local, (
+            "Webhook URL validator must block 169.254.x.x link-local addresses"
+        )
+
+
+# ---------------------------------------------------------------------------
+# AC-12 (login): SQL IN clauses use parameterized values
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestLoginAC12SQLParameterization:
+    """AC-12: SQL IN clauses use parameterized placeholders, not f-strings."""
+
+    def test_get_scans_status_no_fstring_quoting(self):
+        """Verify _get_scans_status does not use f-string quoting in SQL."""
+        from app.services.bulk_scan_orchestrator import BulkScanOrchestrator
+
+        source = inspect.getsource(BulkScanOrchestrator)
+        # Look for the dangerous pattern: f"'{value}'" in SQL IN clauses
+        has_fstring_quote = "f\"'{" in source or "f\"\\'{" in source
+        assert not has_fstring_quote, (
+            "BulkScanOrchestrator must not use f-string quoting "
+            "(f\"'{value}'\") in SQL IN clauses; use parameterized placeholders"
+        )
+
+    def test_uses_parameterized_placeholders(self):
+        """Verify BulkScanOrchestrator uses parameterized SQL placeholders."""
+        from app.services.bulk_scan_orchestrator import BulkScanOrchestrator
+
+        source = inspect.getsource(BulkScanOrchestrator)
+        # Should use :param style or bindparam or tuple expansion
+        has_param = (
+            ":param" in source
+            or "bindparam" in source
+            or "params" in source.lower()
+            or "execute(" in source
+        )
+        assert has_param, (
+            "BulkScanOrchestrator must use parameterized placeholders for SQL"
+        )

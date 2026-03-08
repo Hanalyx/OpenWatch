@@ -1,5 +1,5 @@
 spec: encryption
-version: "1.0"
+version: "1.1"
 status: active
 owner: engineering
 summary: >
@@ -11,6 +11,8 @@ summary: >
   44 bytes (salt+nonce+tag). kdf_iterations must be >= 10,000. Encrypted
   fields (SSH passwords, private keys, passphrases, MFA secrets) are
   stored as base64. Inactive credentials soft-deleted with 90-day retention.
+  AES-GCM encryption SHOULD include AAD (Additional Authenticated Data)
+  to prevent ciphertext swapping between records.
 
 ---
 
@@ -109,11 +111,22 @@ acceptance_criteria:
       is_active=false; purge_old_inactive_credentials hard-deletes records
       with is_active=false older than 90 days.
 
+  - id: AC-11
+    description: >
+      The encrypt method SHOULD pass contextual AAD (Additional Authenticated
+      Data) to aesgcm.encrypt() to prevent ciphertext swapping between
+      records. At minimum, the AAD parameter MUST be documented if None
+      is passed intentionally.
+
 ---
 
 # Changelog
 
 changelog:
+  - version: "1.1"
+    date: "2026-03-08"
+    changes:
+      - "AC-11: AES-GCM encryption SHOULD include AAD to prevent ciphertext swapping (finding I-3)"
   - version: "1.0"
     date: "2026-03-05"
     changes:

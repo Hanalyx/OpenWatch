@@ -200,8 +200,82 @@ async def login(
                 detail="Invalid username or password",
             )
 
-        # Skip MFA for now since columns don't exist in current schema
-        # TODO: Add MFA support after running proper migrations
+        # Check MFA enforcement
+        # Query MFA status for this user
+        mfa_result = db.execute(
+            text(
+                """
+            SELECT mfa_enabled, mfa_secret
+            FROM users WHERE id = :user_id
+        """
+            ),
+            {"user_id": user.id},
+        )
+        mfa_row = mfa_result.fetchone()
+        user_mfa_enabled = bool(mfa_row.mfa_enabled) if mfa_row else False
+        user_mfa_secret = mfa_row.mfa_secret if mfa_row else None
+
+        if user_mfa_enabled and user_mfa_secret:
+            if not request.mfa_code:
+                # MFA is required but no code was provided
+                return LoginResponse(
+                    access_token="",
+                    refresh_token="",
+                    expires_in=0,
+                    user={
+                        "id": user.id,
+                        "username": user.username,
+                        "mfa_required": True,
+                    },
+                )
+
+            # Validate the MFA code
+            from ...services.auth.mfa import get_mfa_service
+
+            mfa_service = get_mfa_service()
+
+            # Get backup codes for validation
+            backup_result = db.execute(
+                text("SELECT backup_codes FROM users WHERE id = :user_id"),
+                {"user_id": user.id},
+            )
+            backup_row = backup_result.fetchone()
+            backup_codes = backup_row.backup_codes if backup_row and backup_row.backup_codes else []
+
+            validation = mfa_service.validate_mfa_code(user_mfa_secret, backup_codes, request.mfa_code)
+            if not validation.valid:
+                audit_logger.log_security_event(
+                    "MFA_FAILURE",
+                    f"Invalid MFA code for user: {request.username}",
+                    client_ip,
+                )
+                log_login_event(
+                    db=db,
+                    username=request.username,
+                    user_id=user.id,
+                    success=False,
+                    ip_address=client_ip,
+                    user_agent=user_agent,
+                    failure_reason="Invalid MFA code",
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid MFA code",
+                )
+
+            # If a backup code was used, remove it
+            if validation.backup_code_used:
+                updated_codes = [c for c in backup_codes if c != validation.backup_code_used]
+                db.execute(
+                    text("UPDATE users SET backup_codes = :codes WHERE id = :user_id"),
+                    {"codes": updated_codes, "user_id": user.id},
+                )
+
+            # Update last MFA use
+            db.execute(
+                text("UPDATE users SET last_mfa_use = CURRENT_TIMESTAMP WHERE id = :user_id"),
+                {"user_id": user.id},
+            )
 
         # Reset failed login attempts and update last login
         db.execute(
@@ -222,7 +296,7 @@ async def login(
             "username": user.username,
             "email": user.email,
             "role": user.role,
-            "mfa_enabled": False,  # MFA not available in current schema
+            "mfa_enabled": user_mfa_enabled,
         }
 
         # Generate tokens
@@ -330,7 +404,7 @@ async def register(
             "username": request.username,
             "email": request.email,
             "role": role_value,
-            "mfa_enabled": False,
+            "mfa_enabled": False,  # New users always start without MFA
         }
 
         # Generate tokens for immediate login
@@ -401,14 +475,16 @@ async def refresh_token(
             "mfa_enabled": bool(user.mfa_enabled),
         }
 
-        # Generate new access token with fresh data
+        # Generate new access token and rotated refresh token
         access_token = jwt_manager.create_access_token(fresh_user_data)
+        new_refresh_token = jwt_manager.create_refresh_token(fresh_user_data)
 
         # Log the refresh event
         audit_logger.log_security_event("TOKEN_REFRESH", f"Token refreshed for user {username}", "system")
 
         return {
             "access_token": access_token,
+            "refresh_token": new_refresh_token,
             "token_type": "bearer",
             "expires_in": settings.access_token_expire_minutes * 60,
         }
