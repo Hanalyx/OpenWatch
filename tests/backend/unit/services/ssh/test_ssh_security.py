@@ -309,3 +309,34 @@ class TestAC10FingerprintSHA256:
         manager = KnownHostsManager(db=None)
         fingerprint = manager._generate_fingerprint("not-a-valid-key")
         assert fingerprint is None
+
+
+# ---------------------------------------------------------------------------
+# AC-11: SSH connections MUST use configurable policy, not hardcoded AutoAddPolicy
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestAC11NoHardcodedAutoAddPolicy:
+    """AC-11: All SSH client creation paths MUST use the configurable policy system, not hardcoded AutoAddPolicy."""
+
+    def test_execute_command_async_no_auto_add_policy(self):
+        """Verify execute_command_async in SSHConnectionManager does not hardcode AutoAddPolicy."""
+        from app.services.ssh.connection_manager import SSHConnectionManager
+
+        source = inspect.getsource(SSHConnectionManager.execute_command_async)
+        assert "AutoAddPolicy" not in source, (
+            "execute_command_async hardcodes paramiko.AutoAddPolicy instead of "
+            "using the configurable SSH policy system (SSHConfigManager.configure_ssh_client)"
+        )
+
+    def test_host_validation_no_auto_add_policy(self):
+        """Verify host validation in hosts/crud.py does not hardcode AutoAddPolicy."""
+        import importlib
+
+        crud_module = importlib.import_module("app.routes.hosts.crud")
+        source = inspect.getsource(crud_module)
+        assert "AutoAddPolicy" not in source, (
+            "hosts/crud.py hardcodes paramiko.AutoAddPolicy instead of "
+            "using the configurable SSH policy system (SSHConfigManager.configure_ssh_client)"
+        )

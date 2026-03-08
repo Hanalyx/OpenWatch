@@ -1,5 +1,5 @@
 spec: login-api
-version: "1.0"
+version: "1.1"
 status: active
 owner: engineering
 summary: >
@@ -12,6 +12,8 @@ summary: >
   failed_login_attempts=0 and locked_until=NULL, returns access_token
   and refresh_token (RS256 JWT). Logs AUTH_FAILURE or LOGIN_SUCCESS
   audit events. POST /api/auth/register logs USER_REGISTER event.
+  Webhook URL validation blocks SSRF to private IPs. SQL queries use
+  parameterized values for IN clauses.
 
 ---
 
@@ -108,11 +110,27 @@ acceptance_criteria:
       The is_active check appears before pwd_context.verify in source code,
       enforcing the documented check ordering at the implementation level.
 
+  - id: AC-11
+    description: >
+      Webhook URL validator MUST block requests to private IP ranges
+      (10.x.x.x, 172.16-31.x.x, 192.168.x.x, 127.x.x.x), link-local
+      (169.254.x.x), and loopback addresses to prevent SSRF attacks.
+
+  - id: AC-12
+    description: >
+      All SQL IN clauses MUST use parameterized placeholders (:param_N),
+      never direct string interpolation (f"'{value}'") to prevent SQL
+      injection.
+
 ---
 
 # Changelog
 
 changelog:
+  - version: "1.1"
+    date: "2026-03-08"
+    changes:
+      - "Security assessment findings: AC-11 (webhook SSRF protection), AC-12 (SQL parameterization for IN clauses)"
   - version: "1.0"
     date: "2026-03-05"
     changes:

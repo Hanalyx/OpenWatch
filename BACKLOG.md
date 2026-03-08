@@ -3,7 +3,7 @@
 > **Purpose**: Single source of truth for all pending work items, prioritized and actionable.
 > Updated at the end of each AI session. Items flow in from PRD epics, bug reports, and session discoveries.
 
-**Last Updated**: 2026-03-06
+**Last Updated**: 2026-03-07
 
 ---
 
@@ -57,10 +57,14 @@
 
 ---
 
-## Recently Completed (2026-03-06)
+## Recently Completed (2026-03-07)
 
 | Item | PR | Notes |
 |------|----|-------|
+| Role-based dashboards | #349 | Widget registry, 6 role presets, 15 ACs, 64 tests |
+| Redux full removal (Phase 8B) | #340 | Packages uninstalled, store/index.ts deleted, hooks/redux.ts deleted, Provider removed |
+| Host monitoring state bug fix | #337 | Spec v1.1 AC-11: graceful handling of stale 'offline' DB values; MonitoringState uses 6-value enum by design |
+| Settings page SSH + session timeout fixes | #348 | SSH policy dropdown, session timeout 500 error |
 | SDD Phase 6: CI enforcement, advisory drift check, 100% AC coverage | #335 | `spec-checks` CI job (mandatory schema + coverage), `check-spec-changes.py` (advisory), 306/306 ACs; SPEC_GOVERNANCE.md maintenance process |
 | SDD Phase 5: 10 API contract specs promoted to active | #333 | error-model + 9 API route contracts; 150 unit tests; 32 active specs total |
 | SDD Phase 4: auth/RBAC specs promoted to active | #332 | authentication, authorization, encryption, mfa, security-controls; 145 tests; fixed Permission count 31→33 |
@@ -72,6 +76,7 @@
 | Framework mapping file sync | #304 | PCI DSS now shows ~120 rules (was 2), FedRAMP added as new framework |
 | README rewrite | #306 | Value-first messaging, dashboard screenshot, "Deploy in 10 Minutes" |
 | Aegis to Kensa migration | commit 59cba9ee | Full rename across codebase |
+| MongoDB full removal | #295 | 80 files changed, 19,488 deletions |
 
 ---
 
@@ -97,12 +102,28 @@ Items from the OpenWatch OS transformation initiative that are not yet complete.
 
 | Item | Priority | Status | Notes |
 |------|----------|--------|-------|
-| **Host monitoring spec + bug fix** | P1 | Spec required | Write `specs/services/monitoring/host-monitoring.spec.yaml` (Tier 1: state machine, scan eligibility, compliance implications), then fix `MonitoringState` enum. Unblocks Adaptive Scheduler. |
-| Adaptive Compliance Scheduler | P1 | Planned | Depends on monitoring spec. Auto-scan with state-based intervals (max 48h). |
+| **RBAC enforcement audit** | P1 | Planned | Verify complete, auditable permission matrix per `specs/system/authorization.spec.yaml`. Ensure every route, UI element, and data query respects role permissions. Users must only see/access what their role permits. Audit gaps between spec and implementation. |
+| Adaptive Compliance Scheduler | P1 | Planned | Auto-scan with state-based intervals (max 48h). Monitoring spec/fix complete — no longer blocked. |
 | Host Detail Page Redesign | P1 | In Progress | Phase 0 done (backend data fix), Phases 1-6 pending |
-| MongoDB Legacy Code Removal | P2 | **Complete** | PR #295: 80 files changed, 19,488 deletions |
+| **Email alert notifications** | P1 | Planned | Allow OpenWatch to send email alerts (SMTP/SES). Users configure which alert types they receive (compliance drift, scan failures, exceptions expiring, host state changes). RBAC-gated: users only receive alerts for resources their role can access. Needs: email service, user notification preferences table, alert-to-email dispatcher, unsubscribe support. |
+| **In-app notifications** | P1 | Planned | Real-time in-app notification system. Bell icon with unread count, notification drawer, mark-as-read. Sources: alerts, scan completions, exception approvals, system events. RBAC-gated: notifications filtered by user role permissions. Needs: notification model (DB), WebSocket or polling delivery, frontend notification center component. |
+| Dashboard layout customization (drag/drop) | P2 | Planned | Spec AC-12 defines 3 tiers: full (drag/drop for admins), limited (show/hide for analysts/compliance), none (fixed for auditor/guest). Preset data structure ready (`customization` field), needs DnD library (e.g. `@dnd-kit/core`), show/hide toggles, and layout persistence (localStorage or API). |
 | Remediation + Subscription (Phase 4) | P3 | Mostly Complete | K-2 and K-3 complete. Remaining: K-4 (risk-aware policies), K-5 (snapshot retention). |
 | OTA Updates (Phase 5) | P3 | Not Started | Kensa integration Phase 5 |
+
+---
+
+## OpenWatch+ Subscription
+
+Full product/business planning for the OpenWatch+ paid tier.
+
+| Item | Priority | Status | Notes |
+|------|----------|--------|-------|
+| **Subscription matrix** | P1 | Planned | Define free vs. OpenWatch+ feature matrix. Candidates for gating: host count limits, advanced reporting/export, email alerts, priority support, OTA rule updates, multi-tenant, custom frameworks. |
+| **License key system** | P1 | Planned | Design how license keys are generated, distributed, and validated. Options: offline key file (air-gapped), online activation (phone-home), or hybrid. `LicenseService` already exists in `services/licensing/` — extend it. Key format, expiry, renewal, grace period. |
+| **Payment and activation flow** | P1 | Planned | How customers purchase (website, sales team, PO), receive keys (email, portal), and activate (CLI `owadm activate`, UI Settings page, API endpoint). Consider air-gapped environments (manual key upload). |
+| **License enforcement** | P1 | Planned | Backend enforcement: feature-gate decorators, host count checks, graceful degradation on expiry. Frontend: upgrade prompts, feature lock UI, subscription status in Settings. Existing `LicenseService` has `check_feature()` — wire into routes and UI. |
+| **Sales and distribution** | P2 | Planned | Pricing model (per-host, per-seat, flat tier), trial period, volume discounts, renewal automation. Distribution: self-serve portal vs. sales-assisted. |
 
 ---
 
@@ -114,9 +135,6 @@ Gaps identified by comparing `docs/KENSA_DEVELOPER_GUIDE_V0.md` against current 
 
 | ID | Item | Priority | Notes |
 |----|------|----------|-------|
-| K-1 | **Full Evidence storage** | P1 | **Complete** (PR #307). `evidence JSONB` column added to `scan_findings`, populated during Kensa scans. |
-| K-2 | **Remediation workflow** | P1 | **Complete**. Full workflow existed (RemediationService, 9 API endpoints, Celery tasks, frontend RemediationPanel). Fixed 3 bugs: missing `manual` enum value, rollback task routing, duplicate alerts_router. |
-| K-3 | **Rollback** | P2 | **Complete** (implemented as part of K-2). Rollback API endpoint, Celery task, and frontend UI all functional. |
 | K-4 | **Risk-aware remediation policies** | P2 | Kensa classifies remediation steps as high/medium/low risk. Not used for approval gates (e.g., auto-approve low-risk, require human approval for high-risk GRUB/PAM/fstab changes). |
 | K-5 | **Snapshot retention/pruning** | P3 | Kensa has 7-day active / 90-day archive lifecycle for pre-state snapshots. No integration. Depends on K-3. |
 | K-6 | **`get_applicable_mappings()`** | P3 | Kensa can filter mappings by platform (RHEL 8 vs 9). OpenWatch loads all mappings without platform filtering. |
@@ -127,17 +145,20 @@ Gaps identified by comparing `docs/KENSA_DEVELOPER_GUIDE_V0.md` against current 
 
 | ID | Item | Priority | Current State | Missing |
 |----|------|----------|---------------|---------|
-| K-9 | **Field-level drift detection** | P1 | **Complete** (PR #308) | Extended `detect_drift()` with `include_value_drift`, group drift, CSV export, "What Changed?" column in UI. Backfill task populated 70 existing snapshots. |
 | K-10 | **Platform filtering** | P2 | `detect_platform()` called, info captured | `rule_applies_to_platform()` not used to filter rules before evaluation |
 | K-11 | **Host context in evidence** | P2 | `SystemInfoCollector` gathers packages, services, users, network | Not stored alongside scan findings; host groups and effective variables not in evidence exports |
 | K-12 | **Bulk scan via Kensa ThreadPoolExecutor** | P3 | OpenWatch dispatches one Celery task per host | Kensa has built-in `--workers N` (ThreadPoolExecutor, max 50) that parallelizes across hosts with one SSH connection per thread. Instead of N Celery tasks for a host group, OpenWatch could dispatch a single Kensa invocation with `-w 30` and an inventory file. Requires: inventory file generation from host DB, result fan-out to per-host DB records, progress tracking for multi-host jobs. |
 
-### Highest-Impact Items
+---
 
-1. ~~**K-1 (Evidence storage)**~~ — **Complete** (PR #307)
-2. ~~**K-2 (Remediation workflow)**~~ — **Complete** (3 bug fixes applied)
-3. ~~**K-9 (Field-level drift)**~~ — **Complete** (PR #308)
-4. ~~**K-3 (Rollback)**~~ — **Complete** (implemented as part of K-2)
+## Security Assessment Remediation (2026-03-08)
+
+Items from `docs/OW_SECURITY_ASSESSMENT.md` that require careful sequencing due to breakage risk.
+
+| Item | Priority | Status | Notes |
+|------|----------|--------|-------|
+| **M-2: MFA enforcement in login flow** | P1 | Complete | Login now queries `mfa_enabled`/`mfa_secret` from users table. If MFA enabled: returns `mfa_required: true` when no code provided, validates TOTP/backup code when provided. Migration 002 already added columns. Hardcoded `False` removed. |
+| **H-2: Refresh token rotation** | P1 | Complete | Backend `/api/auth/refresh` now returns rotated `refresh_token` alongside `access_token`. Frontend `tokenService.ts` passes new token to `refreshTokenSuccess()`. `useAuthStore.ts` stores rotated refresh token in both state and localStorage. |
 
 ---
 
@@ -145,9 +166,10 @@ Gaps identified by comparing `docs/KENSA_DEVELOPER_GUIDE_V0.md` against current 
 
 | Item | Priority | Status | Notes |
 |------|----------|--------|-------|
-| Host monitoring state transition: `'offline' is not a valid MonitoringState` | P1 | **Spec required first** | After adding host 192.168.1.212, connectivity check succeeds (ping=True, ssh=True, status=online) but state transition from `offline` fails. Host ends up in `unknown` state instead of `online`. `MonitoringState` enum missing `offline` value. Classified Tier 1 (monitoring is scan-eligibility and compliance-critical — an offline/down host is non-compliant; unknown state is a blind spot). **Next step**: write `specs/services/monitoring/host-monitoring.spec.yaml`, then tests, then fix. See `services/monitoring/state.py`. |
-| Host creation missing NOT NULL monitoring columns | P1 | Fixed | `InsertBuilder` in `routes/hosts/crud.py` was missing `check_priority` and 6 consecutive failure/success counter columns. Python-level `default=` not applied by raw SQL. Fixed by adding columns with defaults to INSERT. |
-| Alert generator: `passed` column does not exist in `scan_findings` | P1 | Fixed | `alert_generator.py` `_check_configuration_drift()` queried `passed` column and `host_id` directly on `scan_findings`. Actual schema uses `status` ('pass'/'fail') and requires JOIN through `scans` for `host_id`. |
+| "OpenSCAP" text in 4 frontend files | P2 | Open | `PreFlightValidationDialog.tsx:170`, `ScanMetricsCards.tsx:53`, `ReviewStartStep.tsx:126`, `scanUtils.ts:237,240` — should reference Kensa |
+| Settings: placeholder compliance frameworks list | P2 | Open | `Settings.tsx:~1014-1028` — hardcoded framework table, not fetched from backend |
+| Settings: logging policy placeholder | P2 | Open | `Settings.tsx:~998-1028` — audit logging section has placeholder content |
+| Settings: Known Hosts tab not wired to backend | P2 | Open | `get_known_hosts()` exists in `KnownHostsManager` (`ssh/known_hosts.py:118`) but frontend doesn't call it |
 
 ---
 
@@ -155,9 +177,7 @@ Gaps identified by comparing `docs/KENSA_DEVELOPER_GUIDE_V0.md` against current 
 
 | Item | Priority | Notes |
 |------|----------|-------|
-| MongoDB packages in requirements.txt | P3 | **Complete** - removed in PR #295 |
-| 3 oversized frontend components noted in PRD | P2 | E4 marked Complete but verify ScanDetail/Hosts/AddHost sizes |
-| Frontend state management inconsistency | P2 | Redux Toolkit + React Query + Direct Services (3 patterns) |
+| Dead SCAP-era frontend components | P2 | 3 dead files calling non-existent MongoDB endpoints: `GroupComplianceScanner.tsx`, `BulkConfigurationDialog.tsx`, `GroupCompatibilityReport.tsx`. Reference `scap_content_id`, `content_name` etc. Should be deleted. |
 | Snake_case to camelCase scattered transformation | P2 | No centralized adapters (Rule Reference has one, others don't) |
 
 ---

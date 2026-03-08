@@ -1,5 +1,5 @@
 spec: security-controls
-version: "1.0"
+version: "1.1"
 status: active
 owner: engineering
 summary: >
@@ -10,7 +10,10 @@ summary: >
   brute-force detected at 5 attempts per minute. OPENWATCH_RATE_LIMITING
   env var controls enable/disable. Health, metrics, and docs endpoints
   excluded. Clients identified by HMAC-SHA256. Bucket cleanup runs every
-  5 minutes; unused buckets purged after 1 hour.
+  5 minutes; unused buckets purged after 1 hour. Security hardening:
+  rate limiter secret initialized once at startup (not per-request),
+  X-Forwarded-For trusted only from configured proxies, health endpoint
+  must not leak internal errors, CSP must not include unsafe-eval.
 
 ---
 
@@ -110,11 +113,44 @@ acceptance_criteria:
       "{activity_type}:{current_minute}" where current_minute is
       int(time.time() // 60).
 
+  - id: AC-11
+    description: >
+      The RATE_LIMIT_SECRET fallback MUST be generated once at module or
+      class initialization, not on each invocation of
+      _get_client_identifier. secrets.token_hex MUST NOT be called inside
+      the _get_client_identifier method body.
+
+  - id: AC-12
+    description: >
+      Client IP extraction MUST validate that X-Forwarded-For comes from
+      a trusted proxy before using it; direct connection IP MUST be the
+      fallback. Both rate_limiting.py and authorization_middleware.py
+      client-IP logic MUST check the requesting source against a
+      configured trusted-proxy list.
+
+  - id: AC-13
+    description: >
+      The /health endpoint MUST NOT return raw exception messages
+      (str(e)) in the response body; it MUST return a generic error
+      indicator without leaking internal details.
+
+  - id: AC-14
+    description: >
+      The SECURITY_HEADERS Content-Security-Policy directive MUST NOT
+      include 'unsafe-eval' in script-src.
+
 ---
 
 # Changelog
 
 changelog:
+  - version: "1.1"
+    date: "2026-03-08"
+    changes:
+      - "Added AC-11: Rate limiter secret must be initialized once at startup, not per-request"
+      - "Added AC-12: X-Forwarded-For must only be trusted from configured proxy IPs"
+      - "Added AC-13: Health endpoint must not leak internal error details"
+      - "Added AC-14: CSP must not include unsafe-eval for script-src"
   - version: "1.0"
     date: "2026-03-05"
     changes:

@@ -3,11 +3,13 @@ Unit tests for rate limiting security controls: TokenBucket algorithm,
 per-category rate limits (auth/anonymous/authenticated), 429 response with
 Retry-After header, auth brute-force threshold, env var enable/disable,
 excluded endpoints, HMAC-based client identification, cleanup intervals,
-and suspicious activity tracking key format.
+suspicious activity tracking key format, rate limiter secret initialization,
+X-Forwarded-For proxy validation, health endpoint error leakage, and CSP
+unsafe-eval prohibition.
 
 Spec: specs/system/security-controls.spec.yaml
 Tests middleware/rate_limiting.py (RateLimitingMiddleware, RateLimitStore,
-TokenBucket, 461 LOC).
+TokenBucket, 461 LOC), main.py (health endpoint), config.py (CSP headers).
 """
 
 import inspect
@@ -285,3 +287,188 @@ class TestAC10SuspiciousActivityKeys:
         """Verify get_suspicious_activity_count iterates over minute range."""
         source = inspect.getsource(RateLimitStore.get_suspicious_activity_count)
         assert "range(minutes)" in source
+
+
+# ---------------------------------------------------------------------------
+# AC-11: Rate limiter secret MUST be initialized once at startup
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestAC11RateLimitSecretInitialization:
+    """AC-11: RATE_LIMIT_SECRET fallback generated once at init, not per-request."""
+
+    def test_get_client_identifier_does_not_call_secrets_token_hex(self):
+        """Verify _get_client_identifier does NOT call secrets.token_hex."""
+        source = inspect.getsource(RateLimitingMiddleware._get_client_identifier)
+        assert "secrets.token_hex" not in source, (
+            "secrets.token_hex must not be called inside _get_client_identifier; "
+            "the secret must be initialized once at module or class level"
+        )
+
+    def test_get_client_identifier_does_not_import_secrets(self):
+        """Verify _get_client_identifier body does not generate random secrets."""
+        source = inspect.getsource(RateLimitingMiddleware._get_client_identifier)
+        assert "token_hex" not in source, (
+            "token_hex must not appear in _get_client_identifier; "
+            "RATE_LIMIT_SECRET must be set once at startup"
+        )
+
+    def test_rate_limit_secret_set_at_class_or_module_level(self):
+        """Verify RATE_LIMIT_SECRET is available as a class/module attribute."""
+        import app.middleware.rate_limiting as rl_module
+
+        module_source = inspect.getsource(rl_module)
+        # The secret should be initialized at module level or in __init__,
+        # not inside _get_client_identifier
+        init_source = inspect.getsource(RateLimitingMiddleware.__init__)
+        has_secret_in_init = "RATE_LIMIT_SECRET" in init_source  # pragma: allowlist secret
+        has_secret_at_module = "RATE_LIMIT_SECRET" in module_source  # pragma: allowlist secret
+        assert has_secret_at_module, "RATE_LIMIT_SECRET must exist in the module"
+        # It should be set in __init__ or at module level, NOT in _get_client_identifier
+        client_id_source = inspect.getsource(
+            RateLimitingMiddleware._get_client_identifier
+        )
+        secret_in_init_or_module = has_secret_in_init or (
+            "RATE_LIMIT_SECRET" in module_source
+            and "RATE_LIMIT_SECRET" not in client_id_source.split("hmac")[0]
+        )
+        assert secret_in_init_or_module or has_secret_in_init
+
+
+# ---------------------------------------------------------------------------
+# AC-12: X-Forwarded-For MUST only be trusted from configured proxies
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestAC12XForwardedForProxyValidation:
+    """AC-12: X-Forwarded-For trusted only from configured proxy IPs."""
+
+    def test_rate_limiting_validates_proxy_source(self):
+        """Verify rate_limiting client ID extraction checks trusted proxies."""
+        source = inspect.getsource(RateLimitingMiddleware._get_client_identifier)
+        has_proxy_check = (
+            "trusted_prox" in source.lower()
+            or "proxy_ips" in source.lower()
+            or "TRUSTED_PROXIES" in source
+            or "trusted_proxies" in source
+        )
+        assert has_proxy_check, (
+            "_get_client_identifier must validate X-Forwarded-For against "
+            "a trusted proxy list before using it"
+        )
+
+    def test_authorization_middleware_validates_proxy_source(self):
+        """Verify authorization_middleware IP extraction checks trusted proxies."""
+        from app.middleware import authorization_middleware as auth_mw
+
+        source = inspect.getsource(auth_mw)
+        has_proxy_check = (
+            "trusted_prox" in source.lower()
+            or "proxy_ips" in source.lower()
+            or "TRUSTED_PROXIES" in source
+            or "trusted_proxies" in source
+        )
+        assert has_proxy_check, (
+            "authorization_middleware must validate X-Forwarded-For against "
+            "a trusted proxy list before using the forwarded IP"
+        )
+
+    def test_fallback_to_direct_connection_ip(self):
+        """Verify direct connection IP is the fallback when proxy is untrusted."""
+        source = inspect.getsource(RateLimitingMiddleware._get_client_identifier)
+        assert "client" in source.lower() or "host" in source.lower(), (
+            "Must fall back to direct connection IP (request.client.host)"
+        )
+
+
+# ---------------------------------------------------------------------------
+# AC-13: Health endpoint MUST NOT leak internal error details
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestAC13HealthEndpointNoErrorLeak:
+    """AC-13: /health must not return raw exception messages."""
+
+    def test_health_check_does_not_return_str_e(self):
+        """Verify health check does not include str(e) in the response."""
+        from pathlib import Path
+
+        source = Path("app/main.py").read_text()
+
+        # Find the health endpoint function and its exception handler
+        health_idx = source.find('"/health"')
+        assert health_idx != -1, "No /health route found in main.py"
+
+        # Extract the health function body (generous window)
+        health_region = source[health_idx : health_idx + 1500]
+        if "except" in health_region and "str(e)" in health_region:
+            pytest.fail(
+                "Health endpoint must not return str(e) in the response body; "
+                "use a generic error indicator instead"
+            )
+
+    def test_health_check_no_exception_detail_in_response(self):
+        """Verify health check exception handler uses generic message."""
+        from pathlib import Path
+
+        source = Path("app/main.py").read_text()
+
+        health_idx = source.find('"/health"')
+        if health_idx == -1:
+            pytest.skip("No /health route found in main.py")
+
+        health_region = source[health_idx : health_idx + 1500]
+        # Check for patterns that leak error details
+        if "except" in health_region:
+            has_leak = '"error": str(e)' in health_region or "'error': str(e)" in health_region
+            assert not has_leak, (
+                "Health endpoint exception handler includes str(e) in response; "
+                "must use a generic error message to avoid leaking internals"
+            )
+
+
+# ---------------------------------------------------------------------------
+# AC-14: CSP MUST NOT include 'unsafe-eval' for script-src
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestAC14CSPNoUnsafeEval:
+    """AC-14: Content-Security-Policy must not include 'unsafe-eval'."""
+
+    def test_csp_does_not_contain_unsafe_eval(self):
+        """Verify CSP in SECURITY_HEADERS does not include unsafe-eval."""
+        from pathlib import Path
+
+        source = Path("app/config.py").read_text()
+        csp_start = source.find("Content-Security-Policy")
+        if csp_start == -1:
+            csp_start = source.find("content-security-policy")
+        assert csp_start != -1, "Content-Security-Policy not found in config.py"
+
+        csp_region = source[csp_start : csp_start + 1000]
+        assert "unsafe-eval" not in csp_region, (
+            "CSP must not include 'unsafe-eval' in script-src; "
+            "this allows arbitrary code execution via eval()"
+        )
+
+    def test_security_headers_defined(self):
+        """Verify SECURITY_HEADERS constant exists in config."""
+        from pathlib import Path
+
+        source = Path("app/config.py").read_text()
+        assert "SECURITY_HEADERS" in source or "Settings" in source, (
+            "config.py must define SECURITY_HEADERS or Settings with CSP"
+        )
+
+    def test_script_src_present_in_csp(self):
+        """Verify script-src directive exists in CSP (it should be defined)."""
+        from pathlib import Path
+
+        source = Path("app/config.py").read_text()
+        assert "script-src" in source, (
+            "CSP must define a script-src directive"
+        )

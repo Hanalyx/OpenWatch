@@ -40,7 +40,11 @@ interface AuthActions {
   clearError: () => void;
   setMfaRequired: (required: boolean) => void;
   setLoading: (loading: boolean) => void;
-  refreshTokenSuccess: (payload: { token: string; expiresIn: number }) => void;
+  refreshTokenSuccess: (payload: {
+    token: string;
+    refreshToken?: string;
+    expiresIn: number;
+  }) => void;
   checkSessionExpiry: () => void;
 }
 
@@ -133,7 +137,13 @@ export const useAuthStore = create<AuthState & AuthActions>()((set) => ({
     const sessionExpiry = Date.now() + payload.expiresIn * 1000;
     storageSet(StorageKeys.AUTH_TOKEN, payload.token);
     storageSet(StorageKeys.SESSION_EXPIRY, sessionExpiry.toString());
-    set({ token: payload.token, sessionExpiry, error: null });
+    // Store rotated refresh token if provided (H-2: refresh token rotation)
+    if (payload.refreshToken) {
+      storageSet(StorageKeys.REFRESH_TOKEN, payload.refreshToken);
+      set({ token: payload.token, refreshToken: payload.refreshToken, sessionExpiry, error: null });
+    } else {
+      set({ token: payload.token, sessionExpiry, error: null });
+    }
   },
 
   checkSessionExpiry: () => {

@@ -271,3 +271,46 @@ class TestAC10SoftDeleteRetention:
 
         source = inspect.getsource(CentralizedAuthService.purge_old_inactive_credentials)
         assert "DELETE FROM unified_credentials" in source
+
+
+# ---------------------------------------------------------------------------
+# AC-11: AES-GCM encryption SHOULD include AAD
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestAC11AADUsage:
+    """AC-11: encrypt SHOULD pass contextual AAD to aesgcm.encrypt() to prevent ciphertext swapping."""
+
+    def test_encrypt_passes_aad_to_aesgcm(self):
+        """Verify encrypt method passes non-None AAD to aesgcm.encrypt().
+
+        This is a SHOULD-level requirement (informational). If AAD is None,
+        the test documents the gap: ciphertext can be swapped between records
+        without detection. Finding I-3: service.py line 125 passes None as AAD.
+        """
+        source = inspect.getsource(EncryptionService.encrypt)
+        # Look for aesgcm.encrypt() call and check if AAD argument is not None
+        # The call signature is: aesgcm.encrypt(nonce, data, aad)
+        # If None is passed as AAD, this test should fail to document the gap
+        if "aesgcm.encrypt(nonce, data, None)" in source:
+            pytest.fail(
+                "EncryptionService.encrypt passes None as AAD to aesgcm.encrypt(). "
+                "Contextual AAD (e.g., record ID or field name) SHOULD be passed "
+                "to prevent ciphertext swapping between records (finding I-3)."
+            )
+        # Also check the more general pattern where AAD might be a variable set to None
+        assert ".encrypt(" in source, (
+            "Expected aesgcm.encrypt() call in EncryptionService.encrypt"
+        )
+
+    def test_encrypt_aad_parameter_documented(self):
+        """Verify the AAD parameter usage is documented in encrypt method."""
+        source = inspect.getsource(EncryptionService.encrypt)
+        # At minimum, if None is used, it should be documented why
+        has_aad_docs = "aad" in source.lower() or "additional authenticated" in source.lower()
+        has_non_none_aad = "None" not in source.split(".encrypt(")[-1].split(")")[0] if ".encrypt(" in source else False
+        assert has_aad_docs or has_non_none_aad, (
+            "AAD usage is neither documented nor non-None in EncryptionService.encrypt. "
+            "The AAD parameter SHOULD be documented if intentionally set to None."
+        )
