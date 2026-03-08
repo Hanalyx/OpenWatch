@@ -96,6 +96,7 @@ Coverage is checked by `scripts/check-spec-coverage.py`.
 | Scan Workflow | frontend/scan-workflow.spec.yaml | tests/frontend/scans/scan-workflow.spec.test.ts | 8 | Active |
 | Host Detail Behavior | frontend/host-detail-behavior.spec.yaml | tests/frontend/hosts/host-detail.spec.test.ts | 8 | Active |
 | Add Host Form | frontend/add-host-form.spec.yaml | tests/frontend/hosts/add-host-form.spec.test.ts | 9 | Active |
+| Role Dashboards | frontend/role-dashboards.spec.yaml | tests/frontend/dashboard/role-dashboards.spec.test.ts | 10 | Draft |
 
 ## Plugin Specs
 
@@ -122,8 +123,8 @@ Coverage is checked by `scripts/check-spec-coverage.py`.
 | API | 10 | 10 | 0 | 0 |
 | Plugins | 1 | 1 | 0 | 0 |
 | Release | 4 | 4 | 0 | 0 |
-| Frontend | 5 | 5 | 0 | 0 |
-| **Total** | **43** | **39** | **4** | **0** |
+| Frontend | 6 | 5 | 1 | 0 |
+| **Total** | **46** | **40** | **6** | **0** |
 
 ## Cross-Module Dependencies
 
@@ -150,3 +151,5 @@ Specs are activated through phased SDD migration (see `internal/sdd/plans/`):
 | 6 | Registry Maintenance | CI enforcement, documentation updates |
 | 7 | Monitoring | host-monitoring (Tier 1: scan eligibility, compliance implications) |
 | 8 | Frontend Architecture | state-management v2.0, auth-flow, scan-workflow, host-detail-behavior |
+| 9 | API Standardization | ssh-settings, session-timeout, add-host-form |
+| 10 | Role Dashboards | role-dashboards |

@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Container, Box, Skeleton, Alert, Button, Typography } from '@mui/material';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { Box, Skeleton, Alert, Button, Typography } from '@mui/material';
 import Grid from '@mui/material/Grid';
 import { useNavigate } from 'react-router-dom';
 import { AddCircle, Assessment, Storage as StorageIcon } from '@mui/icons-material';
@@ -28,11 +28,14 @@ import {
 import DashboardErrorBoundary from '../components/dashboard/DashboardErrorBoundary';
 import { useSecurityStats, type AuditEvent } from '../hooks/useSecurityStats';
 import { useMonitoringStats } from '../hooks/useMonitoringStats';
+import { useAuthStore } from '../store/useAuthStore';
+import { getPresetForRole } from './Dashboard/dashboardPresets';
+import { hasPermission, Permission } from './Dashboard/widgetRegistry';
 
-/**
- * Compliance trend data point for dashboard charts
- * Represents historical compliance metrics across severity levels
- */
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
 interface ComplianceTrendData {
   date: string;
   overall: number;
@@ -42,9 +45,6 @@ interface ComplianceTrendData {
   low: number;
 }
 
-/**
- * Dashboard statistics for compliance metrics
- */
 interface DashboardStats {
   onlineHosts: number;
   degradedHosts: number;
@@ -61,9 +61,6 @@ interface DashboardStats {
   avgCompliance: number;
 }
 
-/**
- * Priority host for dashboard display
- */
 interface DashboardPriorityHost {
   id: string;
   hostname: string;
@@ -83,10 +80,6 @@ interface DashboardPriorityHost {
   passedRules: number;
 }
 
-/**
- * Aggregated dashboard data from backend
- * Combined metrics from hosts, scans, and compliance data
- */
 interface DashboardData {
   stats: DashboardStats;
   hosts: NormalizedHost[];
@@ -96,10 +89,6 @@ interface DashboardData {
   trendData: ComplianceTrendData[];
 }
 
-/**
- * Raw host data from backend API
- * May contain either snake_case or camelCase fields (backend inconsistency)
- */
 interface RawHostData {
   id?: string;
   hostname?: string;
@@ -124,14 +113,9 @@ interface RawHostData {
   complianceScore?: number | null;
   last_scan?: string;
   lastScan?: string;
-  // Allow additional fields from backend
   [key: string]: unknown;
 }
 
-/**
- * Raw scan data from backend API
- * May contain either snake_case or camelCase fields (backend inconsistency)
- */
 interface RawScanData {
   id?: string;
   host_name?: string;
@@ -143,14 +127,9 @@ interface RawScanData {
     score?: number;
     [key: string]: unknown;
   };
-  // Allow additional fields from backend
   [key: string]: unknown;
 }
 
-/**
- * Normalized host data after transformation
- * Consistent camelCase field naming for frontend use
- */
 interface NormalizedHost {
   id: string;
   hostname: string;
@@ -167,30 +146,45 @@ interface NormalizedHost {
   status: string;
 }
 
+// ---------------------------------------------------------------------------
+// Helper: check if a widget ID is in a preset's widget lists
+// ---------------------------------------------------------------------------
+
+function presetHasWidget(preset: ReturnType<typeof getPresetForRole>, widgetId: string): boolean {
+  return (
+    preset.topWidgets.includes(widgetId) ||
+    preset.mainWidgets.includes(widgetId) ||
+    preset.sidebarWidgets.includes(widgetId)
+  );
+}
+
 /**
- * Command Center Dashboard
+ * Role-Based Dashboard
  *
- * Unified visibility dashboard consolidating:
- * - Security Audit (from OView)
- * - Temporal Compliance (from /compliance/posture)
- * - Saved Audit Queries (from /audit/queries)
+ * Renders a widget layout based on the authenticated user's role.
+ * Uses presets from dashboardPresets.ts and permission checks from
+ * widgetRegistry.ts to filter widgets per role.
  *
- * Provides single-glance metrics and drill-down navigation.
+ * Spec: specs/frontend/role-dashboards.spec.yaml
  */
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
+  const user = useAuthStore((state) => state.user);
+  const userRole = user?.role || 'guest';
+  const preset = useMemo(() => getPresetForRole(userRole), [userRole]);
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [owcaError, setOwcaError] = useState<string | null>(null);
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
-  const [timeRange, setTimeRange] = useState<'7d' | '30d' | '90d'>('30d');
+  const [timeRange, setTimeRange] = useState<'7d' | '30d' | '90d'>(preset.defaultTrendRange);
   const [_fleetStats, setFleetStats] = useState<FleetStatistics | null>(null);
 
   // Command Center: Security and Monitoring stats from hooks
   const { data: securityStats } = useSecurityStats();
   const { data: monitoringStats } = useMonitoringStats();
 
-  // Dashboard data state - adaptive monitoring states
+  // Dashboard data state
   const [onlineHosts, setOnlineHosts] = useState(0);
   const [degradedHosts, setDegradedHosts] = useState(0);
   const [criticalHosts, setCriticalHosts] = useState(0);
@@ -201,26 +195,13 @@ const Dashboard: React.FC = () => {
   const [criticalIssues, setCriticalIssues] = useState(0);
   const [trendData, setTrendData] = useState<ComplianceTrendData[]>([]);
   const [activities, setActivities] = useState<ActivityItem[]>([]);
-  const [priorityHosts, setPriorityHosts] = useState<
-    Array<{
-      id: string;
-      hostname: string;
-      displayName: string;
-      ipAddress: string;
-      operatingSystem: string;
-      status: string;
-      complianceScore: number;
-      issueType: 'critical_issues' | 'not_scanned' | 'degrading' | 'offline';
-      issue: string;
-      severity: 'critical' | 'high' | 'medium';
-      lastScan: string;
-      criticalIssues: number;
-      highIssues: number;
-      mediumIssues: number;
-      lowIssues: number;
-      passedRules: number;
-    }>
-  >([]);
+  const [priorityHosts, setPriorityHosts] = useState<DashboardPriorityHost[]>([]);
+
+  // Permission-gated quick actions (AC-10)
+  const canCreateHost = hasPermission(userRole, Permission.HOST_CREATE);
+  const canExecuteScan = hasPermission(userRole, Permission.SCAN_EXECUTE);
+  const canAccessAudit = hasPermission(userRole, Permission.AUDIT_READ);
+  const canViewReports = hasPermission(userRole, Permission.REPORTS_GENERATE);
 
   // Fetch trend data only (called when time range changes)
   const fetchTrendData = useCallback(async (range: '7d' | '30d' | '90d') => {
@@ -245,7 +226,6 @@ const Dashboard: React.FC = () => {
     }
   }, []);
 
-  // Handle time range change without reloading the whole dashboard
   const handleTimeRangeChange = useCallback(
     (range: '7d' | '30d' | '90d') => {
       setTimeRange(range);
@@ -260,39 +240,31 @@ const Dashboard: React.FC = () => {
       setLoading(true);
       setError(null);
 
-      // Raw data from backend API (may have inconsistent field naming)
       let hosts: RawHostData[] = [];
       let scans: RawScanData[] = [];
       let owcaFleetStats: FleetStatistics | null = null;
 
       try {
-        // Fetch data from API using OWCA for fleet statistics
-        // OWCA provides canonical compliance calculations (single source of truth)
-        // No fallback to manual calculations - OWCA failure triggers error alert
         const [hostsData, scansData, fetchedFleetStats] = await Promise.all([
           api.get<RawHostData[]>('/api/hosts/'),
           api.get<{ scans: RawScanData[] }>('/api/scans/'),
-          owcaService.getFleetStatistics(), // Propagate errors - no fallback
+          owcaService.getFleetStatistics(),
         ]);
 
         hosts = hostsData || [];
         scans = scansData.scans || [];
         owcaFleetStats = fetchedFleetStats;
 
-        // Store OWCA fleet statistics for use in dashboard
         setFleetStats(fetchedFleetStats);
-        setOwcaError(null); // Clear any previous OWCA errors
+        setOwcaError(null);
       } catch (apiError) {
-        // Type-safe error handling: check error properties with type guards
         console.error('Failed to fetch dashboard data:', apiError);
 
-        // Check for network errors
         const errorCode = (apiError as { code?: string }).code;
         const errorMessage = (apiError as { message?: string }).message;
         const responseStatus = (apiError as { response?: { status?: number } }).response?.status;
         const requestUrl = (apiError as { config?: { url?: string } }).config?.url;
 
-        // Detect OWCA-specific failures (compliance applications require accurate data)
         if (requestUrl?.includes('/api/compliance/owca/')) {
           setOwcaError(
             'OWCA compliance service is unavailable. Dashboard metrics cannot be displayed without canonical compliance calculations. Please contact your administrator.'
@@ -311,7 +283,6 @@ const Dashboard: React.FC = () => {
         }
       }
 
-      // Ensure we have arrays to work with and normalize data
       if (!Array.isArray(hosts) || !Array.isArray(scans)) {
         console.warn('Invalid data format received from API', {
           hosts: typeof hosts,
@@ -320,8 +291,6 @@ const Dashboard: React.FC = () => {
         throw new Error('Invalid data format received from server');
       }
 
-      // Normalize host data to ensure consistent field naming
-      // Use RawHostData type for backend data that may have inconsistent naming
       const normalizedHosts: NormalizedHost[] = hosts.map((host: RawHostData) => ({
         id: host.id || '',
         hostname: host.hostname || '',
@@ -341,31 +310,18 @@ const Dashboard: React.FC = () => {
         status: host.status || 'offline',
       }));
 
-      // Process data for dashboard using normalized hosts with adaptive monitoring states
-      // Use NormalizedHost type for type-safe access to status field
       const onlineCount = normalizedHosts.filter(
-        (h: NormalizedHost) => h.status === 'online' || h.status === 'reachable'
+        (h) => h.status === 'online' || h.status === 'reachable'
       ).length;
-      const degradedCount = normalizedHosts.filter(
-        (h: NormalizedHost) => h.status === 'degraded'
-      ).length;
-      const criticalCount = normalizedHosts.filter(
-        (h: NormalizedHost) => h.status === 'critical'
-      ).length;
+      const degradedCount = normalizedHosts.filter((h) => h.status === 'degraded').length;
+      const criticalCount = normalizedHosts.filter((h) => h.status === 'critical').length;
       const downCount = normalizedHosts.filter(
-        (h: NormalizedHost) => h.status === 'down' || h.status === 'offline'
+        (h) => h.status === 'down' || h.status === 'offline'
       ).length;
-      const scanningCount = normalizedHosts.filter(
-        (h: NormalizedHost) => h.status === 'scanning'
-      ).length;
-      const maintenanceCount = normalizedHosts.filter(
-        (h: NormalizedHost) => h.status === 'maintenance'
-      ).length;
+      const scanningCount = normalizedHosts.filter((h) => h.status === 'scanning').length;
+      const maintenanceCount = normalizedHosts.filter((h) => h.status === 'maintenance').length;
       const totalCount = normalizedHosts.length;
 
-      // Calculate compliance stats using OWCA fleet statistics (canonical source)
-      // OWCA is the ONLY source for compliance calculations - no fallback to manual calculations
-      // Compliance applications require accurate, canonical data - unavailability triggers error alert
       if (!owcaFleetStats) {
         throw new Error('OWCA fleet statistics unavailable - cannot display compliance metrics');
       }
@@ -374,28 +330,22 @@ const Dashboard: React.FC = () => {
       const totalHigh = owcaFleetStats.total_high_issues;
       const totalMedium = owcaFleetStats.total_medium_issues;
       const totalLow = owcaFleetStats.total_low_issues;
-      const totalPassed = 0; // TODO: Add total_passed_rules to FleetStatistics model
+      const totalPassed = 0;
       const overallCompliance = Math.round(owcaFleetStats.average_compliance);
 
-      // Fetch historical trend data from OWCA fleet trend API
-      // This uses posture_snapshots as the single source of truth
-      // for historical fleet compliance data
+      // Fetch trend data using the role's default range
       let trendDataArray: ComplianceTrendData[] = [];
-
-      // Initial load uses default 30-day range; time range changes handled by handleTimeRangeChange
-      const trendDays = 30;
+      const defaultDays =
+        preset.defaultTrendRange === '7d' ? 7 : preset.defaultTrendRange === '90d' ? 90 : 30;
 
       try {
-        const fleetTrend: FleetComplianceTrend | null = await owcaService.getFleetTrend(trendDays);
+        const fleetTrend: FleetComplianceTrend | null =
+          await owcaService.getFleetTrend(defaultDays);
 
         if (fleetTrend && fleetTrend.data_points && fleetTrend.data_points.length > 0) {
-          // Map fleet trend data points to chart format
-          // Note: Chart shows overall compliance over time (not severity counts)
           trendDataArray = fleetTrend.data_points.map((point) => ({
             date: point.date,
             overall: Math.max(0, Math.min(100, point.average_compliance)),
-            // Issue counts are available but we show them as indicators, not percentages
-            // The chart Y-axis is 0-100% so we normalize these as percentage contributions
             critical: point.total_critical_issues,
             high: point.total_high_issues,
             medium: point.total_medium_issues,
@@ -403,11 +353,9 @@ const Dashboard: React.FC = () => {
           }));
         }
       } catch (trendError) {
-        // Log but don't fail the whole dashboard if trend data fails
         console.warn('Failed to fetch fleet trend data, using current state only:', trendError);
       }
 
-      // Fallback to current state if no historical data available
       if (trendDataArray.length === 0) {
         const today = new Date().toISOString().split('T')[0];
         trendDataArray =
@@ -422,16 +370,12 @@ const Dashboard: React.FC = () => {
                   low: Math.max(0, totalLow),
                 },
               ]
-            : [
-                // Fallback data when no hosts exist
-                { date: today, overall: 0, critical: 0, high: 0, medium: 0, low: 0 },
-              ];
+            : [{ date: today, overall: 0, critical: 0, high: 0, medium: 0, low: 0 }];
       }
 
-      // Generate activity items from multiple sources
+      // Generate activity items
       const activitiesArray: ActivityItem[] = [];
 
-      // 1. Add scan activities (don't group - show individual scans)
       scans
         .filter((scan: RawScanData) => scan.completed_at && scan.id)
         .slice(0, 5)
@@ -451,102 +395,67 @@ const Dashboard: React.FC = () => {
                 : `Scan failed on ${hostname}`,
             timestamp: new Date(scan.completed_at || scan.started_at || new Date().toISOString()),
             severity: activitySeverity,
-            metadata: {
-              scanId,
-              hostname,
-              complianceScore: scan.results?.score,
-            },
-            action: {
-              label: 'View',
-              onClick: () => navigate(`/scans/${scanId}`),
-            },
+            metadata: { scanId, hostname, complianceScore: scan.results?.score },
+            action: { label: 'View', onClick: () => navigate(`/scans/${scanId}`) },
           });
         });
 
-      // 2. Fetch and add security events (login failures, warnings, errors)
-      try {
-        const eventsResponse = await api.get<{ events: AuditEvent[]; total: number }>(
-          '/api/audit/events?page=1&limit=10'
-        );
-        const securityEvents = eventsResponse?.events || [];
+      // Only fetch security events if user has audit:read permission
+      if (hasPermission(userRole, Permission.AUDIT_READ)) {
+        try {
+          const eventsResponse = await api.get<{ events: AuditEvent[]; total: number }>(
+            '/api/audit/events?page=1&limit=10'
+          );
+          const securityEvents = eventsResponse?.events || [];
 
-        securityEvents.slice(0, 5).forEach((event: AuditEvent) => {
-          // Determine activity type and message based on event action
-          let activityType: ActivityItem['type'] = 'security_event';
-          let message = event.action;
-          let severity: ActivityItem['severity'] = 'info';
+          securityEvents.slice(0, 5).forEach((event: AuditEvent) => {
+            let activityType: ActivityItem['type'] = 'security_event';
+            let message = event.action;
+            let severity: ActivityItem['severity'] = 'info';
 
-          if (event.action.includes('LOGIN_FAILED') || event.action.includes('FAILED_LOGIN')) {
-            activityType = 'login_failed';
-            message = `Failed login attempt`;
-            severity = 'warning';
-          } else if (event.severity === 'error' || event.severity === 'critical') {
-            severity = 'error';
-            message = event.details || event.action.replace(/_/g, ' ').toLowerCase();
-          } else if (event.severity === 'warning') {
-            severity = 'warning';
-            message = event.details || event.action.replace(/_/g, ' ').toLowerCase();
-          } else {
-            severity = 'info';
-            message = event.details || event.action.replace(/_/g, ' ').toLowerCase();
-          }
+            if (event.action.includes('LOGIN_FAILED') || event.action.includes('FAILED_LOGIN')) {
+              activityType = 'login_failed';
+              message = `Failed login attempt`;
+              severity = 'warning';
+            } else if (event.severity === 'error' || event.severity === 'critical') {
+              severity = 'error';
+              message = event.details || event.action.replace(/_/g, ' ').toLowerCase();
+            } else if (event.severity === 'warning') {
+              severity = 'warning';
+              message = event.details || event.action.replace(/_/g, ' ').toLowerCase();
+            } else {
+              severity = 'info';
+              message = event.details || event.action.replace(/_/g, ' ').toLowerCase();
+            }
 
-          activitiesArray.push({
-            id: `event-${event.id}`,
-            type: activityType,
-            message,
-            timestamp: new Date(event.timestamp),
-            severity,
-            metadata: {
-              username: event.username,
-            },
+            activitiesArray.push({
+              id: `event-${event.id}`,
+              type: activityType,
+              message,
+              timestamp: new Date(event.timestamp),
+              severity,
+              metadata: { username: event.username },
+            });
           });
-        });
-      } catch (eventsError) {
-        console.warn('Failed to fetch security events for activity feed:', eventsError);
+        } catch (eventsError) {
+          console.warn('Failed to fetch security events for activity feed:', eventsError);
+        }
       }
 
-      // Sort all activities by timestamp (newest first) and limit to 10
       activitiesArray.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
       const sortedActivities = activitiesArray.slice(0, 10);
 
-      // Identify priority hosts using normalized data
-      // Type definition for priority host array (used by both OWCA and fallback)
-      let priorityHostsArray: Array<{
-        id: string;
-        hostname: string;
-        displayName: string;
-        ipAddress: string;
-        operatingSystem: string;
-        status: string;
-        complianceScore: number;
-        issueType: 'critical_issues' | 'not_scanned' | 'degrading' | 'offline';
-        issue: string;
-        severity: 'critical' | 'high' | 'medium';
-        lastScan: string;
-        criticalIssues: number;
-        highIssues: number;
-        mediumIssues: number;
-        lowIssues: number;
-        passedRules: number;
-      }> = [];
-
-      // Fetch OWCA priority hosts (uses OWCA risk scoring algorithm)
-      // No fallback - OWCA is required for accurate risk prioritization
+      // Priority hosts
+      let priorityHostsArray: DashboardPriorityHost[] = [];
       const owcaPriorityHosts = await owcaService.getTopPriorityHosts(5);
 
-      // Map OWCA priority hosts to dashboard format
-      // OWCA provides sophisticated prioritization based on risk score
       priorityHostsArray = owcaPriorityHosts.map((owcaHost) => {
-        // Find matching host in normalized hosts for additional metadata
         const matchingHost = normalizedHosts.find((h) => h.id === owcaHost.host_id);
 
-        let issueType: 'critical_issues' | 'not_scanned' | 'degrading' | 'offline' =
-          'critical_issues';
+        let issueType: DashboardPriorityHost['issueType'] = 'critical_issues';
         let issue = '';
-        let severity: 'critical' | 'high' | 'medium' = 'medium';
+        let severity: DashboardPriorityHost['severity'] = 'medium';
 
-        // Determine primary issue based on OWCA prioritization
         if (owcaHost.critical_issues > 0) {
           issueType = 'critical_issues';
           issue = `${owcaHost.critical_issues} critical security issues detected`;
@@ -581,7 +490,6 @@ const Dashboard: React.FC = () => {
         };
       });
 
-      // Update state with processed data
       setOnlineHosts(onlineCount);
       setDegradedHosts(degradedCount);
       setCriticalHosts(criticalCount);
@@ -594,7 +502,6 @@ const Dashboard: React.FC = () => {
       setActivities(sortedActivities);
       setPriorityHosts(priorityHostsArray);
 
-      // Store complete dashboard data
       setDashboardData({
         stats: {
           onlineHosts: onlineCount,
@@ -625,7 +532,6 @@ const Dashboard: React.FC = () => {
           : 'Unable to load dashboard data. Please check your connection and try again.'
       );
 
-      // Reset all counts to 0 when there's an error
       setTotalHosts(0);
       setOnlineHosts(0);
       setDownHosts(0);
@@ -637,27 +543,268 @@ const Dashboard: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [navigate]);
+  }, [navigate, userRole, preset.defaultTrendRange]);
 
-  // Load data on component mount only
   useEffect(() => {
     fetchDashboardData();
   }, [fetchDashboardData]);
 
-  // Handle filter clicks
   const handleFilterClick = (status: string) => {
     navigate('/hosts', { state: { filter: status } });
   };
 
-  // Show loading state
+  // ---------------------------------------------------------------------------
+  // Widget renderers — each widget ID maps to its JSX
+  // ---------------------------------------------------------------------------
+
+  const widgetRenderers: Record<string, () => React.ReactNode> = useMemo(
+    () => ({
+      'summary-bar': () => (
+        <SummaryBar
+          compliancePercent={dashboardData?.stats?.avgCompliance ?? null}
+          onlineHosts={onlineHosts}
+          totalHosts={totalHosts}
+          failedLogins={securityStats?.failed_logins ?? 0}
+          totalEvents={securityStats?.total_events ?? 0}
+          activeAlerts={criticalIssues}
+          avgResponseMs={monitoringStats?.avg_response_time_ms ?? null}
+          isLoading={loading}
+        />
+      ),
+
+      'smart-alert-bar': () => (
+        <SmartAlertBar
+          stats={{
+            critical: criticalIssues,
+            high: dashboardData?.stats?.high || 0,
+            medium: dashboardData?.stats?.medium || 0,
+            low: dashboardData?.stats?.low || 0,
+            passed: dashboardData?.stats?.passed || 0,
+            overallCompliance: dashboardData?.stats?.avgCompliance || 0,
+            trend: (() => {
+              const avg = dashboardData?.stats?.avgCompliance ?? 0;
+              if (avg > 85) return 'up' as const;
+              if (avg > 70) return 'stable' as const;
+              return 'down' as const;
+            })(),
+          }}
+          onFilterClick={handleFilterClick}
+        />
+      ),
+
+      'quick-actions': () => {
+        const actions: React.ReactNode[] = [];
+        if (canCreateHost) {
+          actions.push(
+            <Grid size={{ xs: 12, sm: 6, md: 3 }} key="add-host">
+              <QuickActionCard
+                title="Add Host"
+                subtitle="Register new system"
+                icon={<AddCircle />}
+                color="success"
+                onClick={() => navigate('/hosts/add-host')}
+                badge={0}
+              />
+            </Grid>
+          );
+        }
+        if (canViewReports) {
+          actions.push(
+            <Grid size={{ xs: 12, sm: 6, md: 3 }} key="reports">
+              <QuickActionCard
+                title="View Reports"
+                subtitle="Security audit & monitoring"
+                icon={<Assessment />}
+                color="info"
+                onClick={() => navigate('/oview')}
+                badge={0}
+              />
+            </Grid>
+          );
+        }
+        if (canAccessAudit) {
+          actions.push(
+            <Grid size={{ xs: 12, sm: 6, md: 3 }} key="queries">
+              <QuickActionCard
+                title="Saved Queries"
+                subtitle="Audit query builder"
+                icon={<StorageIcon />}
+                color="secondary"
+                onClick={() => navigate('/audit/queries')}
+                badge={0}
+              />
+            </Grid>
+          );
+        }
+        if (canExecuteScan || canCreateHost) {
+          actions.push(
+            <Grid size={{ xs: 12, sm: 6, md: 3 }} key="alerts">
+              <QuickActionCard
+                title="Active Alerts"
+                subtitle="Compliance drift & issues"
+                icon={<Assessment />}
+                color="error"
+                onClick={() => navigate('/hosts')}
+                badge={criticalIssues}
+              />
+            </Grid>
+          );
+        }
+        if (actions.length === 0) return null;
+        return (
+          <Box sx={{ mb: 4 }}>
+            <Grid container spacing={3}>
+              {actions}
+            </Grid>
+          </Box>
+        );
+      },
+
+      'security-events': () => (
+        <DashboardErrorBoundary onRetry={fetchDashboardData}>
+          <SecurityEventsWidget />
+        </DashboardErrorBoundary>
+      ),
+
+      'fleet-health': () => (
+        <DashboardErrorBoundary onRetry={fetchDashboardData}>
+          <FleetHealthWidget
+            data={{
+              online: onlineHosts,
+              degraded: degradedHosts,
+              critical: criticalHosts,
+              down: downHosts,
+              scanning: scanningHosts,
+              maintenance: maintenanceHosts,
+            }}
+            onSegmentClick={handleFilterClick}
+          />
+        </DashboardErrorBoundary>
+      ),
+
+      'priority-hosts': () => (
+        <DashboardErrorBoundary onRetry={fetchDashboardData}>
+          <PriorityHosts
+            hosts={priorityHosts.map((host) => ({
+              id: host.id,
+              hostname: host.hostname,
+              displayName: host.displayName,
+              issue: host.issue,
+              issueType: host.issueType,
+              severity: host.severity,
+              lastScan: host.lastScan ? new Date(host.lastScan) : undefined,
+              complianceScore: host.complianceScore,
+              previousScore: undefined,
+              criticalCount: host.criticalIssues,
+              daysUntilExpiry: undefined,
+              action: {
+                label:
+                  host.issueType === 'not_scanned' || host.issueType === 'critical_issues'
+                    ? 'Quick Scan'
+                    : 'Fix',
+                onClick: () => {
+                  if (host.issueType === 'not_scanned' || host.issueType === 'critical_issues') {
+                    navigate('/scans/create', { state: { preselectedHostId: host.id } });
+                  } else {
+                    navigate(`/hosts/${host.id}`);
+                  }
+                },
+              },
+            }))}
+          />
+        </DashboardErrorBoundary>
+      ),
+
+      'compliance-trend': () => (
+        <DashboardErrorBoundary onRetry={fetchDashboardData}>
+          <ComplianceTrend
+            data={trendData}
+            timeRange={timeRange}
+            onTimeRangeChange={handleTimeRangeChange}
+          />
+        </DashboardErrorBoundary>
+      ),
+
+      'scheduler-status': () => (
+        <DashboardErrorBoundary onRetry={fetchDashboardData}>
+          <SchedulerStatusWidget />
+        </DashboardErrorBoundary>
+      ),
+
+      posture: () => (
+        <DashboardErrorBoundary onRetry={fetchDashboardData}>
+          <PostureWidget />
+        </DashboardErrorBoundary>
+      ),
+
+      'drift-alerts': () => (
+        <DashboardErrorBoundary onRetry={fetchDashboardData}>
+          <DriftAlertsWidget limit={5} autoRefresh={true} refreshInterval={30000} />
+        </DashboardErrorBoundary>
+      ),
+
+      'saved-queries': () => (
+        <DashboardErrorBoundary onRetry={fetchDashboardData}>
+          <SavedQueriesWidget />
+        </DashboardErrorBoundary>
+      ),
+
+      'activity-feed': () => (
+        <DashboardErrorBoundary onRetry={fetchDashboardData}>
+          <ActivityFeed activities={activities} />
+        </DashboardErrorBoundary>
+      ),
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [
+      dashboardData,
+      onlineHosts,
+      degradedHosts,
+      criticalHosts,
+      downHosts,
+      scanningHosts,
+      maintenanceHosts,
+      totalHosts,
+      criticalIssues,
+      trendData,
+      activities,
+      priorityHosts,
+      timeRange,
+      loading,
+      securityStats,
+      monitoringStats,
+      canCreateHost,
+      canExecuteScan,
+      canAccessAudit,
+      canViewReports,
+    ]
+  );
+
+  /**
+   * Render a widget by ID if it exists in the preset and the user has permission.
+   * Returns null if the widget is not in the preset or permission is lacking.
+   */
+  const renderWidget = useCallback(
+    (widgetId: string, key?: string) => {
+      if (!presetHasWidget(preset, widgetId)) return null;
+      const renderer = widgetRenderers[widgetId];
+      if (!renderer) return null;
+      return <React.Fragment key={key || widgetId}>{renderer()}</React.Fragment>;
+    },
+    [preset, widgetRenderers]
+  );
+
+  // ---------------------------------------------------------------------------
+  // Loading state
+  // ---------------------------------------------------------------------------
+
   if (loading) {
     return (
-      <Container maxWidth="xl">
+      <Box>
         <Box sx={{ mb: 4 }}>
           <Skeleton variant="rectangular" height={32} width="40%" sx={{ mb: 2 }} />
           <Skeleton variant="rectangular" height={20} width="60%" />
         </Box>
-        {/* Summary Bar skeleton */}
         <Skeleton variant="rectangular" height={80} sx={{ mb: 3 }} />
         <Grid container spacing={3}>
           {[1, 2, 3, 4].map((i) => (
@@ -666,27 +813,42 @@ const Dashboard: React.FC = () => {
             </Grid>
           ))}
         </Grid>
-      </Container>
+      </Box>
     );
   }
 
-  // Show error state
+  // ---------------------------------------------------------------------------
+  // Error state
+  // ---------------------------------------------------------------------------
+
   if (error) {
     return (
-      <Container maxWidth="xl">
+      <Box>
         <Alert severity="error" sx={{ mb: 3 }}>
           {error}
         </Alert>
         <Button onClick={fetchDashboardData} variant="contained">
           Retry
         </Button>
-      </Container>
+      </Box>
     );
   }
 
+  // ---------------------------------------------------------------------------
+  // Determine grid layout from preset
+  // ---------------------------------------------------------------------------
+
+  const isSingleColumn = preset.columns === 1;
+  const mainColumnSize = isSingleColumn ? 12 : 8;
+  const sidebarColumnSize = isSingleColumn ? 12 : 4;
+
+  // ---------------------------------------------------------------------------
+  // Render
+  // ---------------------------------------------------------------------------
+
   return (
     <Box>
-      {/* Header */}
+      {/* Role-contextual header (AC-14) */}
       <Box sx={{ mb: 3 }}>
         <Typography
           variant="h4"
@@ -694,18 +856,18 @@ const Dashboard: React.FC = () => {
           gutterBottom
           sx={{ overflow: 'visible', wordBreak: 'normal', whiteSpace: 'normal' }}
         >
-          Command Center
+          {preset.title}
         </Typography>
         <Typography
           variant="body1"
           color="text.secondary"
           sx={{ overflow: 'visible', wordBreak: 'normal', whiteSpace: 'normal' }}
         >
-          Unified security, compliance, and infrastructure visibility
+          {preset.subtitle}
         </Typography>
       </Box>
 
-      {/* OWCA Error Alert - Compliance applications require accurate data */}
+      {/* OWCA Error Alert */}
       {owcaError && (
         <Alert severity="error" sx={{ mb: 3 }}>
           <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1 }}>
@@ -720,206 +882,57 @@ const Dashboard: React.FC = () => {
         </Alert>
       )}
 
-      {/* Summary Bar - Command Center key metrics */}
-      <SummaryBar
-        compliancePercent={dashboardData?.stats?.avgCompliance ?? null}
-        onlineHosts={onlineHosts}
-        totalHosts={totalHosts}
-        failedLogins={securityStats?.failed_logins ?? 0}
-        totalEvents={securityStats?.total_events ?? 0}
-        activeAlerts={criticalIssues}
-        avgResponseMs={monitoringStats?.avg_response_time_ms ?? null}
-        isLoading={loading}
-      />
+      {/* Top widgets — full width, rendered in preset order */}
+      {preset.topWidgets.map((widgetId) => renderWidget(widgetId))}
 
-      {/* Smart Alert Bar */}
-      <SmartAlertBar
-        stats={{
-          critical: criticalIssues,
-          high: dashboardData?.stats?.high || 0,
-          medium: dashboardData?.stats?.medium || 0,
-          low: dashboardData?.stats?.low || 0,
-          passed: dashboardData?.stats?.passed || 0,
-          overallCompliance: dashboardData?.stats?.avgCompliance || 0,
-          trend: (() => {
-            const avgCompliance = dashboardData?.stats?.avgCompliance ?? 0;
-            if (avgCompliance > 85) return 'up';
-            if (avgCompliance > 70) return 'stable';
-            return 'down';
-          })(),
-        }}
-        onFilterClick={handleFilterClick}
-      />
-
-      {/* Quick Actions - Updated for Command Center */}
-      <Box sx={{ mb: 4 }}>
+      {/* Main content grid — column layout driven by preset (AC-15) */}
+      {isSingleColumn ? (
+        /* Single-column layout for auditor/guest */
         <Grid container spacing={3}>
-          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-            <QuickActionCard
-              title="Add Host"
-              subtitle="Register new system"
-              icon={<AddCircle />}
-              color="success"
-              onClick={() => navigate('/hosts/add-host')}
-              badge={0}
-            />
-          </Grid>
-          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-            <QuickActionCard
-              title="View Reports"
-              subtitle="Security audit & monitoring"
-              icon={<Assessment />}
-              color="info"
-              onClick={() => navigate('/oview')}
-              badge={0}
-            />
-          </Grid>
-          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-            <QuickActionCard
-              title="Saved Queries"
-              subtitle="Audit query builder"
-              icon={<StorageIcon />}
-              color="secondary"
-              onClick={() => navigate('/audit/queries')}
-              badge={0}
-            />
-          </Grid>
-          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-            <QuickActionCard
-              title="Active Alerts"
-              subtitle="Compliance drift & issues"
-              icon={<Assessment />}
-              color="error"
-              onClick={() => navigate('/hosts')}
-              badge={criticalIssues}
-            />
-          </Grid>
-        </Grid>
-      </Box>
-
-      {/* Main Content Grid - Command Center Layout */}
-      <Grid container spacing={3}>
-        {/* Left Column (8/12) - Primary widgets */}
-        <Grid size={{ xs: 12, lg: 8 }}>
-          <Grid container spacing={3}>
-            {/* Security Events Widget - NEW */}
-            <Grid size={{ xs: 12, md: 6 }}>
-              <DashboardErrorBoundary onRetry={fetchDashboardData}>
-                <SecurityEventsWidget />
-              </DashboardErrorBoundary>
-            </Grid>
-
-            {/* Fleet Health Widget */}
-            <Grid size={{ xs: 12, md: 6 }}>
-              <DashboardErrorBoundary onRetry={fetchDashboardData}>
-                <FleetHealthWidget
-                  data={{
-                    online: onlineHosts,
-                    degraded: degradedHosts,
-                    critical: criticalHosts,
-                    down: downHosts,
-                    scanning: scanningHosts,
-                    maintenance: maintenanceHosts,
-                  }}
-                  onSegmentClick={handleFilterClick}
-                />
-              </DashboardErrorBoundary>
-            </Grid>
-
-            {/* Priority Hosts - Hosts Needing Attention */}
-            <Grid size={{ xs: 12 }}>
-              <DashboardErrorBoundary onRetry={fetchDashboardData}>
-                <PriorityHosts
-                  hosts={priorityHosts.map((host) => ({
-                    id: host.id,
-                    hostname: host.hostname,
-                    displayName: host.displayName,
-                    issue: host.issue,
-                    issueType: host.issueType,
-                    severity: host.severity,
-                    lastScan: host.lastScan ? new Date(host.lastScan) : undefined,
-                    complianceScore: host.complianceScore,
-                    previousScore: undefined,
-                    criticalCount: host.criticalIssues,
-                    daysUntilExpiry: undefined,
-                    action: {
-                      label:
-                        host.issueType === 'not_scanned' || host.issueType === 'critical_issues'
-                          ? 'Quick Scan'
-                          : 'Fix',
-                      onClick: () => {
-                        if (
-                          host.issueType === 'not_scanned' ||
-                          host.issueType === 'critical_issues'
-                        ) {
-                          navigate('/scans/create', {
-                            state: {
-                              preselectedHostId: host.id,
-                            },
-                          });
-                        } else {
-                          navigate(`/hosts/${host.id}`);
-                        }
-                      },
-                    },
-                  }))}
-                />
-              </DashboardErrorBoundary>
-            </Grid>
-
-            {/* Compliance Trend */}
-            <Grid size={{ xs: 12 }}>
-              <DashboardErrorBoundary onRetry={fetchDashboardData}>
-                <ComplianceTrend
-                  data={trendData}
-                  timeRange={timeRange}
-                  onTimeRangeChange={handleTimeRangeChange}
-                />
-              </DashboardErrorBoundary>
+          <Grid size={{ xs: 12 }}>
+            <Grid container spacing={3}>
+              {preset.mainWidgets.map((widgetId) => (
+                <Grid size={{ xs: 12 }} key={widgetId}>
+                  {renderWidget(widgetId)}
+                </Grid>
+              ))}
             </Grid>
           </Grid>
         </Grid>
-
-        {/* Right Column (4/12) - Secondary widgets */}
-        <Grid size={{ xs: 12, lg: 4 }}>
-          <Grid container spacing={3}>
-            {/* Scheduler Status Widget */}
-            <Grid size={{ xs: 12 }}>
-              <DashboardErrorBoundary onRetry={fetchDashboardData}>
-                <SchedulerStatusWidget />
-              </DashboardErrorBoundary>
-            </Grid>
-
-            {/* Compliance Posture Widget - NEW */}
-            <Grid size={{ xs: 12 }}>
-              <DashboardErrorBoundary onRetry={fetchDashboardData}>
-                <PostureWidget />
-              </DashboardErrorBoundary>
-            </Grid>
-
-            {/* Drift Alerts Widget */}
-            <Grid size={{ xs: 12 }}>
-              <DashboardErrorBoundary onRetry={fetchDashboardData}>
-                <DriftAlertsWidget limit={5} autoRefresh={true} refreshInterval={30000} />
-              </DashboardErrorBoundary>
-            </Grid>
-
-            {/* Saved Queries Widget - NEW */}
-            <Grid size={{ xs: 12 }}>
-              <DashboardErrorBoundary onRetry={fetchDashboardData}>
-                <SavedQueriesWidget />
-              </DashboardErrorBoundary>
-            </Grid>
-
-            {/* Activity Feed */}
-            <Grid size={{ xs: 12 }}>
-              <DashboardErrorBoundary onRetry={fetchDashboardData}>
-                <ActivityFeed activities={activities} />
-              </DashboardErrorBoundary>
+      ) : (
+        /* Multi-column layout for admin/analyst/officer roles */
+        <Grid container spacing={3}>
+          {/* Main column */}
+          <Grid size={{ xs: 12, lg: mainColumnSize }}>
+            <Grid container spacing={3}>
+              {preset.mainWidgets.map((widgetId) => {
+                // Security Events and Fleet Health render side-by-side in admin presets
+                const isHalfWidth =
+                  (widgetId === 'security-events' || widgetId === 'fleet-health') &&
+                  preset.columns === 3;
+                return (
+                  <Grid size={{ xs: 12, md: isHalfWidth ? 6 : 12 }} key={widgetId}>
+                    {renderWidget(widgetId)}
+                  </Grid>
+                );
+              })}
             </Grid>
           </Grid>
+
+          {/* Sidebar column */}
+          {preset.sidebarWidgets.length > 0 && (
+            <Grid size={{ xs: 12, lg: sidebarColumnSize }}>
+              <Grid container spacing={3}>
+                {preset.sidebarWidgets.map((widgetId) => (
+                  <Grid size={{ xs: 12 }} key={widgetId}>
+                    {renderWidget(widgetId)}
+                  </Grid>
+                ))}
+              </Grid>
+            </Grid>
+          )}
         </Grid>
-      </Grid>
+      )}
     </Box>
   );
 };
