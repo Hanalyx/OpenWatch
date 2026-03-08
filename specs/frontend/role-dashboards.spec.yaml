@@ -8,12 +8,9 @@ summary: >
   with their required permissions. Each of the 6 roles (super_admin,
   security_admin, security_analyst, compliance_officer, auditor, guest) MUST
   have a default preset that controls which widgets are visible, their order,
-  and the column layout. Super Admin and Security Admin MAY customize their
-  layout (full drag/drop). Security Analyst and Compliance Officer MAY
-  show/hide and reorder widgets within their preset. Auditor and Guest MUST
-  see a fixed, non-customizable layout. Quick Actions MUST only show actions
-  the user has permission to perform. User layout preferences MUST persist
-  across sessions via the user_dashboard_layouts table.
+  and the column layout. Each preset declares a customization tier (full,
+  limited, or none) for future interactive customization. Quick Actions MUST
+  only show actions the user has permission to perform.
 
 ---
 
@@ -69,9 +66,13 @@ constraints:
     - "Default presets MUST be defined in a dashboardPresets config, not hardcoded in JSX"
 
   customization_tiers:
-    - "super_admin and security_admin MUST support full layout customization"
-    - "security_analyst and compliance_officer MUST support show/hide and reorder"
-    - "auditor and guest MUST NOT support any layout customization"
+    - "Each role preset MUST declare a customization tier: full, limited, or none"
+    - "super_admin and security_admin MUST have tier full"
+    - "security_analyst and compliance_officer MUST have tier limited"
+    - "auditor and guest MUST have tier none"
+    - "[FUTURE] full tier: drag/drop reorder via DnD library"
+    - "[FUTURE] limited tier: show/hide toggles for optional widgets"
+    - "[FUTURE] none tier: fixed layout, no customization UI"
 
   quick_actions:
     - "Quick action buttons MUST only render if the user has the required permission"
@@ -79,9 +80,9 @@ constraints:
     - "Actions requiring host:create MUST NOT appear for security_analyst, compliance_officer, auditor, or guest"
 
   persistence:
-    - "Custom layouts MUST persist to a backend table (user_dashboard_layouts) as JSONB"
     - "If no saved layout exists, the role default preset MUST be used"
-    - "Layout save MUST be debounced to avoid excessive API calls during drag operations"
+    - "[FUTURE] Custom layouts persist to backend (user_dashboard_layouts) as JSONB"
+    - "[FUTURE] Layout save debounced to avoid excessive API calls during drag operations"
 
   security:
     - "Permission checks MUST happen at render time using the user's current role"
