@@ -19,7 +19,7 @@ from starlette.responses import Response
 
 # Core application imports
 from .audit_db import log_security_event
-from .auth import audit_logger, require_admin
+from .auth import audit_logger, get_current_user, require_admin
 from .config import SECURITY_HEADERS, get_settings
 from .database import get_db_session
 from .middleware.metrics import PrometheusMiddleware, background_updater
@@ -473,7 +473,7 @@ async def health_check() -> JSONResponse:
         logger.error(f"Health check failed: {e}")
         return JSONResponse(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            content={"status": "unhealthy", "error": str(e), "timestamp": time.time()},
+            content={"status": "unhealthy", "timestamp": time.time()},
         )
 
 
@@ -496,8 +496,10 @@ async def security_info(current_user: Dict[str, Any] = Depends(require_admin)) -
 
 # Prometheus Metrics Endpoint
 @app.get("/metrics")
-async def metrics() -> PlainTextResponse:
-    """Prometheus metrics endpoint."""
+async def metrics(
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> PlainTextResponse:
+    """Prometheus metrics endpoint. Requires authentication."""
     metrics_instance = get_metrics_instance()
     metrics_data = metrics_instance.get_metrics()
 

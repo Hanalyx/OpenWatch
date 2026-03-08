@@ -87,7 +87,7 @@ class EncryptionService:
             f"KDF iterations, {self.config.kdf_algorithm.value} algorithm"
         )
 
-    def encrypt(self, data: bytes) -> bytes:
+    def encrypt(self, data: bytes, aad: Optional[bytes] = None) -> bytes:
         """
         Encrypt data using AES-256-GCM.
 
@@ -99,6 +99,10 @@ class EncryptionService:
 
         Args:
             data: Plaintext bytes to encrypt
+            aad: Optional Associated Authenticated Data for context binding.
+                 When provided, the same AAD must be supplied during decryption.
+                 Use to prevent ciphertext swapping between records
+                 (e.g., b"credential:<uuid>").
 
         Returns:
             Encrypted bytes (salt + nonce + ciphertext_with_tag)
@@ -108,9 +112,8 @@ class EncryptionService:
 
         Example:
             >>> service = EncryptionService("my-key")
-            >>> encrypted = service.encrypt(b"secret data")
-            >>> len(encrypted)  # salt(16) + nonce(12) + ciphertext + tag(16)
-            60  # 16 + 12 + 11 + 16 + padding
+            >>> encrypted = service.encrypt(b"secret data", aad=b"context:123")
+            >>> decrypted = service.decrypt(encrypted, aad=b"context:123")
         """
         try:
             # Generate random salt and nonce
@@ -121,8 +124,9 @@ class EncryptionService:
             key = self._derive_key(salt)
 
             # Encrypt data with AES-256-GCM
+            # AAD binds ciphertext to a context, preventing swapping between records
             aesgcm = AESGCM(key)
-            ciphertext = aesgcm.encrypt(nonce, data, None)
+            ciphertext = aesgcm.encrypt(nonce, data, aad)
 
             # Combine components: salt + nonce + ciphertext_with_tag
             encrypted_data = salt + nonce + ciphertext
@@ -138,7 +142,7 @@ class EncryptionService:
             logger.error(f"Encryption failed: {type(e).__name__}: {e}")
             raise EncryptionError(f"Encryption failed: {e}") from e
 
-    def decrypt(self, encrypted_data: bytes) -> bytes:
+    def decrypt(self, encrypted_data: bytes, aad: Optional[bytes] = None) -> bytes:
         """
         Decrypt data using AES-256-GCM.
 
@@ -146,18 +150,20 @@ class EncryptionService:
 
         Args:
             encrypted_data: Encrypted bytes (salt + nonce + ciphertext_with_tag)
+            aad: Optional Associated Authenticated Data. Must match the AAD
+                 used during encryption, or decryption will fail.
 
         Returns:
             Decrypted plaintext bytes
 
         Raises:
             InvalidDataError: If encrypted data format is invalid
-            DecryptionError: If decryption fails (wrong key, corrupted data, etc.)
+            DecryptionError: If decryption fails (wrong key, corrupted data, AAD mismatch)
 
         Example:
             >>> service = EncryptionService("my-key")
-            >>> encrypted = service.encrypt(b"secret")
-            >>> decrypted = service.decrypt(encrypted)
+            >>> encrypted = service.encrypt(b"secret", aad=b"context:123")
+            >>> decrypted = service.decrypt(encrypted, aad=b"context:123")
             >>> decrypted
             b'secret'
         """
@@ -184,7 +190,7 @@ class EncryptionService:
 
             # Decrypt data
             aesgcm = AESGCM(key)
-            plaintext = aesgcm.decrypt(nonce, ciphertext, None)
+            plaintext = aesgcm.decrypt(nonce, ciphertext, aad)
 
             logger.debug(f"Decrypted {len(encrypted_data)} bytes → {len(plaintext)} bytes")
 

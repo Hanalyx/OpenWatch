@@ -674,8 +674,10 @@ class BulkScanOrchestrator:
             return []
 
         try:
-            # Create placeholders for the IN clause
-            placeholders = ",".join([f"'{scan_id}'" for scan_id in scan_ids])
+            # Build parameterized IN clause
+            param_names = [f":scan_id_{i}" for i in range(len(scan_ids))]
+            placeholders = ", ".join(param_names)
+            params = {f"scan_id_{i}": sid for i, sid in enumerate(scan_ids)}
 
             result = self.db.execute(
                 text(
@@ -689,7 +691,8 @@ class BulkScanOrchestrator:
                 WHERE s.id IN ({placeholders})
                 ORDER BY s.started_at
             """
-                )
+                ),
+                params,
             ).fetchall()
 
             scan_statuses = []
@@ -903,8 +906,10 @@ class BulkScanOrchestrator:
             if not host_ids:
                 return []
 
-            # Create placeholders for the IN clause
-            placeholders = ",".join([f"'{host_id}'" for host_id in host_ids])
+            # Build parameterized IN clause
+            param_names = [f":host_id_{i}" for i in range(len(host_ids))]
+            placeholders = ", ".join(param_names)
+            params = {f"host_id_{i}": hid for i, hid in enumerate(host_ids)}
 
             result = self.db.execute(
                 text(
@@ -913,7 +918,8 @@ class BulkScanOrchestrator:
                 FROM hosts
                 WHERE id IN ({placeholders})
             """
-                )
+                ),
+                params,
             )
 
             return [

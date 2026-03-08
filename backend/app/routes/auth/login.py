@@ -349,6 +349,7 @@ async def login(
 @router.post("/register", response_model=LoginResponse)
 async def register(
     request: RegisterRequest,
+    http_request: Request,
     db: Session = Depends(get_db),
 ) -> LoginResponse:
     """Register a new user (guest role by default)."""
@@ -372,7 +373,12 @@ async def register(
         # Hash password
         hashed_password = pwd_context.hash(request.password)
 
-        # Create user with guest role (or specified role if admin is creating)
+        # Security: Unauthenticated registration MUST enforce GUEST role
+        # to prevent privilege escalation (C-1 from security assessment).
+        # Role selection is only allowed for authenticated admin endpoints.
+        enforced_role = UserRole.GUEST
+
+        # Create user with GUEST role (enforced for unauthenticated registration)
         result = db.execute(
             text(
                 """
@@ -385,8 +391,7 @@ async def register(
                 "username": request.username,
                 "email": request.email,
                 "password": hashed_password,
-                # Null guard: role is Optional, use GUEST as fallback
-                "role": request.role.value if request.role else UserRole.GUEST.value,
+                "role": enforced_role.value,
             },
         )
 
@@ -396,8 +401,7 @@ async def register(
         user_id = user_id_row.id
         db.commit()
 
-        # Determine role value with null guard
-        role_value = request.role.value if request.role else UserRole.GUEST.value
+        role_value = enforced_role.value
         user_data: Dict[str, Any] = {
             "sub": request.username,  # Standard JWT subject field
             "id": user_id,
@@ -411,7 +415,9 @@ async def register(
         access_token = jwt_manager.create_access_token(user_data)
         refresh_token = jwt_manager.create_refresh_token(user_data)
 
-        audit_logger.log_security_event("USER_REGISTER", f"New user registered: {request.username}", "127.0.0.1")
+        audit_logger.log_security_event(
+            "USER_REGISTER", f"New user registered: {request.username}", get_client_ip(http_request)
+        )
 
         return LoginResponse(
             access_token=access_token,
@@ -498,12 +504,13 @@ async def refresh_token(
 
 @router.post("/logout")
 async def logout(
+    http_request: Request,
     token: HTTPAuthorizationCredentials = Depends(security),
 ) -> Dict[str, str]:
     """Logout user and invalidate tokens."""
     try:
         # In production, add token to blacklist
-        audit_logger.log_security_event("LOGOUT", "User logged out", "127.0.0.1")
+        audit_logger.log_security_event("LOGOUT", "User logged out", get_client_ip(http_request))
 
         return {"message": "Successfully logged out"}
 

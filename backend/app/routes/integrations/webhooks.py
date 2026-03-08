@@ -31,6 +31,7 @@ from sqlalchemy.orm import Session
 
 from ...auth import get_current_user
 from ...database import get_db
+from ...rbac import UserRole, require_role
 from ...utils.mutation_builders import DeleteBuilder
 from ...utils.query_builder import QueryBuilder
 
@@ -113,6 +114,7 @@ class WebhookEndpointUpdate(BaseModel):
 
 
 @router.get("/")
+@require_role([UserRole.SUPER_ADMIN, UserRole.SECURITY_ADMIN])
 async def list_webhook_endpoints(
     is_active: Optional[bool] = None,
     event_type: Optional[str] = None,
@@ -186,6 +188,7 @@ async def list_webhook_endpoints(
 
 
 @router.post("/")
+@require_role([UserRole.SUPER_ADMIN, UserRole.SECURITY_ADMIN])
 async def create_webhook_endpoint(
     webhook_request: WebhookEndpointCreate,
     db: Session = Depends(get_db),
@@ -304,6 +307,7 @@ async def get_webhook_endpoint(
 
 
 @router.put("/{webhook_id}")
+@require_role([UserRole.SUPER_ADMIN, UserRole.SECURITY_ADMIN])
 async def update_webhook_endpoint(
     webhook_id: str,
     webhook_update: WebhookEndpointUpdate,
@@ -384,6 +388,7 @@ async def update_webhook_endpoint(
 
 
 @router.delete("/{webhook_id}")
+@require_role([UserRole.SUPER_ADMIN, UserRole.SECURITY_ADMIN])
 async def delete_webhook_endpoint(
     webhook_id: str,
     db: Session = Depends(get_db),
@@ -437,6 +442,7 @@ async def delete_webhook_endpoint(
 
 
 @router.get("/{webhook_id}/deliveries")
+@require_role([UserRole.SUPER_ADMIN, UserRole.SECURITY_ADMIN])
 async def get_webhook_deliveries(
     webhook_id: str,
     delivery_status: Optional[str] = None,
@@ -535,6 +541,7 @@ async def get_webhook_deliveries(
 
 
 @router.post("/{webhook_id}/test")
+@require_role([UserRole.SUPER_ADMIN, UserRole.SECURITY_ADMIN])
 async def test_webhook_endpoint(
     webhook_id: str,
     db: Session = Depends(get_db),

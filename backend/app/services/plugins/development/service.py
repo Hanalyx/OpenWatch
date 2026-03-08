@@ -337,6 +337,10 @@ class PluginDevelopmentFramework:
                 temp_dir = tempfile.mkdtemp()
                 try:
                     with zipfile.ZipFile(package_path, "r") as zip_ref:
+                        for member in zip_ref.namelist():
+                            member_path = Path(temp_dir, member).resolve()
+                            if not str(member_path).startswith(str(Path(temp_dir).resolve())):
+                                raise ValueError(f"Path traversal detected in package: {member}")
                         zip_ref.extractall(temp_dir)
                     package_path_obj = Path(temp_dir)
                 except Exception as e:

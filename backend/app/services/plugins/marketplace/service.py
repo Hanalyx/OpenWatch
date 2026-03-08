@@ -1098,6 +1098,10 @@ class PluginMarketplaceService:
             # Extract package (assume ZIP format)
             try:
                 with zipfile.ZipFile(io.BytesIO(package_data)) as zip_file:
+                    for member in zip_file.namelist():
+                        member_path = (temp_path / member).resolve()
+                        if not str(member_path).startswith(str(temp_path.resolve())):
+                            raise ValueError(f"Path traversal detected in package: {member}")
                     zip_file.extractall(temp_path)
             except Exception:
                 # If not a ZIP, assume it's a single file

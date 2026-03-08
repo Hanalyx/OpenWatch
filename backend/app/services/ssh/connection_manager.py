@@ -743,7 +743,9 @@ class SSHConnectionManager:
         def _execute_sync() -> Any:
             """Synchronous SSH execution in thread pool."""
             temp_client = paramiko.SSHClient()
-            temp_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            # Use configurable host key policy from SSHConfigManager
+            config_manager = self._get_config_manager()
+            config_manager.configure_ssh_client(temp_client, getattr(host, "ip_address", None) or host.hostname)
 
             try:
                 # Build connection parameters
