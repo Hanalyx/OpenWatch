@@ -1,0 +1,232 @@
+spec: role-dashboards
+version: "1.0"
+status: draft
+owner: engineering
+summary: >
+  The Dashboard page MUST render role-specific widget layouts based on the
+  authenticated user's role. A widget registry defines all available widgets
+  with their required permissions. Each of the 6 roles (super_admin,
+  security_admin, security_analyst, compliance_officer, auditor, guest) MUST
+  have a default preset that controls which widgets are visible, their order,
+  and the column layout. Each preset declares a customization tier (full,
+  limited, or none) for future interactive customization. Quick Actions MUST
+  only show actions the user has permission to perform.
+
+---
+
+# Objective
+
+objective:
+  goal: >
+    Deliver role-appropriate dashboards so each user sees the information
+    most relevant to their responsibilities without being overwhelmed by
+    data they cannot act on or do not need.
+  principles:
+    - "Show only what the role can access — hide widgets that require permissions the user lacks"
+    - "Lead with the most actionable information for the role"
+    - "Operational roles (admin, analyst) get action-oriented layouts"
+    - "Reporting roles (compliance officer, auditor) get data-oriented layouts"
+    - "Read-only roles (auditor, guest) get fixed layouts with no action buttons"
+
+---
+
+# Context
+
+context:
+  depends_on:
+    - "backend/app/rbac.py — Permission enum, UserRole enum, ROLE_PERMISSIONS mapping"
+    - "frontend/src/store/useAuthStore.ts — user.role field"
+    - "frontend/src/components/layout/Layout.tsx — menuItems[].roles filtering pattern"
+  key_files:
+    - "frontend/src/pages/Dashboard.tsx — current monolithic dashboard (to be refactored)"
+    - "frontend/src/pages/Dashboard/widgets/ — existing widget components"
+    - "frontend/src/components/dashboard/ — shared dashboard components"
+  roles:
+    - "super_admin — 33 permissions, full system access"
+    - "security_admin — 27 permissions, security ops (no user CRUD, no system config)"
+    - "security_analyst — 11 permissions, scan operations"
+    - "compliance_officer — 11 permissions, reporting and audit"
+    - "auditor — 9 permissions, read-only evidence access"
+    - "guest — 3 permissions, minimal read-only"
+
+---
+
+# Constraints
+
+constraints:
+  widget_registry:
+    - "Each widget MUST declare requiredPermissions as an array of Permission values"
+    - "A widget MUST NOT render if the user lacks any of its requiredPermissions"
+    - "Widget registry MUST be a single source of truth for widget metadata"
+    - "Each widget MUST have a unique string id, a display title, a size hint, and a category"
+
+  role_presets:
+    - "Each UserRole MUST have a default preset defining widget ids and grid positions"
+    - "Presets MUST NOT include widgets the role cannot access (permission check)"
+    - "Default presets MUST be defined in a dashboardPresets config, not hardcoded in JSX"
+
+  customization_tiers:
+    - "Each role preset MUST declare a customization tier: full, limited, or none"
+    - "super_admin and security_admin MUST have tier full"
+    - "security_analyst and compliance_officer MUST have tier limited"
+    - "auditor and guest MUST have tier none"
+    - "[FUTURE] full tier: drag/drop reorder via DnD library"
+    - "[FUTURE] limited tier: show/hide toggles for optional widgets"
+    - "[FUTURE] none tier: fixed layout, no customization UI"
+
+  quick_actions:
+    - "Quick action buttons MUST only render if the user has the required permission"
+    - "Actions requiring scan:execute MUST NOT appear for compliance_officer, auditor, or guest"
+    - "Actions requiring host:create MUST NOT appear for security_analyst, compliance_officer, auditor, or guest"
+
+  persistence:
+    - "If no saved layout exists, the role default preset MUST be used"
+    - "[FUTURE] Custom layouts persist to backend (user_dashboard_layouts) as JSONB"
+    - "[FUTURE] Layout save debounced to avoid excessive API calls during drag operations"
+
+  security:
+    - "Permission checks MUST happen at render time using the user's current role"
+    - "A role change MUST reset the dashboard to the new role's default preset"
+    - "Widget data fetching MUST NOT call APIs the user lacks permission for"
+
+---
+
+# Acceptance Criteria
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      Dashboard MUST read the authenticated user's role from useAuthStore and
+      select the appropriate widget preset. The Dashboard component source
+      MUST reference useAuthStore and user.role (or equivalent) to determine
+      which preset to render.
+
+  - id: AC-2
+    description: >
+      A widget registry MUST exist as a typed array or map defining all
+      available dashboard widgets. Each entry MUST include at minimum: id
+      (string), title (string), component (React component reference),
+      requiredPermissions (Permission[]), and category (string). The registry
+      MUST be defined in a dedicated file, not inline in the Dashboard.
+
+  - id: AC-3
+    description: >
+      Role default presets MUST exist for all 6 roles (super_admin,
+      security_admin, security_analyst, compliance_officer, auditor, guest).
+      Each preset MUST be an ordered array of widget ids that the role sees
+      by default. Presets MUST NOT include widget ids whose
+      requiredPermissions the role lacks.
+
+  - id: AC-4
+    description: >
+      Super Admin preset MUST include at minimum: summary-bar,
+      smart-alert-bar, fleet-health, security-events, priority-hosts,
+      compliance-trend, scheduler-status, posture, drift-alerts,
+      saved-queries, and activity-feed. It MUST be the most comprehensive
+      preset with the highest widget count.
+
+  - id: AC-5
+    description: >
+      Security Admin preset MUST include at minimum: summary-bar,
+      smart-alert-bar, priority-hosts, fleet-health, compliance-trend,
+      drift-alerts, scheduler-status, security-events, and activity-feed.
+      It MUST NOT include system-config or user-management widgets.
+
+  - id: AC-6
+    description: >
+      Security Analyst preset MUST include at minimum: summary-bar,
+      fleet-health, priority-hosts, and compliance-trend. It MUST NOT include
+      audit-related widgets (saved-queries, security-events) since the role
+      lacks audit:read permission.
+
+  - id: AC-7
+    description: >
+      Compliance Officer preset MUST include at minimum: compliance-trend,
+      posture, and saved-queries. The compliance-trend widget MUST default
+      to 90-day range (not 30-day). The preset MUST NOT include widgets
+      requiring scan:execute or system:logs permissions.
+
+  - id: AC-8
+    description: >
+      Auditor preset MUST be a fixed (non-customizable) layout. It MUST
+      include compliance-trend, posture, and saved-queries. It MUST NOT
+      include any quick-action buttons or widgets that trigger write
+      operations. The compliance-trend widget MUST default to 90-day range.
+
+  - id: AC-9
+    description: >
+      Guest preset MUST be a fixed, minimal layout with no more than 4
+      widgets. It MUST include at minimum a fleet-health or host-status
+      widget. It MUST NOT include any action buttons, audit widgets, or
+      security event widgets.
+
+  - id: AC-10
+    description: >
+      Quick action cards MUST be permission-gated. The "Add Host" action
+      MUST require host:create permission. The "New Scan" or equivalent
+      scan action MUST require scan:execute permission. The "Saved Queries"
+      action MUST require audit:read permission. Actions MUST NOT render
+      if the user lacks the required permission.
+
+  - id: AC-11
+    description: >
+      Widgets MUST be filtered at render time by checking the user's role
+      permissions against each widget's requiredPermissions. A widget whose
+      requiredPermissions includes a permission the user lacks MUST NOT be
+      rendered, even if present in a saved custom layout.
+
+  - id: AC-12
+    description: >
+      super_admin and security_admin MUST have customization tier "full",
+      security_analyst and compliance_officer MUST have tier "limited",
+      auditor and guest MUST have tier "none". The customization tier MUST
+      be derivable from the role (via preset config or a mapping).
+
+  - id: AC-13
+    description: >
+      When the Dashboard has no saved custom layout for the user, it MUST
+      fall back to the role's default preset. The fallback MUST produce a
+      valid, renderable dashboard without errors.
+
+  - id: AC-14
+    description: >
+      The dashboard title or subtitle SHOULD reflect the role context.
+      For example, "Command Center" for admins, "Compliance Dashboard"
+      for compliance_officer/auditor, or "Security Operations" for
+      security_analyst. The title MUST NOT be hardcoded to a single
+      value for all roles.
+
+  - id: AC-15
+    description: >
+      Each role's default preset MUST specify a column layout. Admin roles
+      (super_admin, security_admin, security_analyst, compliance_officer)
+      MUST use a multi-column layout (2 or 3 columns). Read-only roles
+      (auditor, guest) MUST use a single-column layout for a clean,
+      report-like presentation.
+
+---
+
+# Consumers
+
+consumers:
+  - component: "frontend/src/pages/Dashboard.tsx"
+    usage: "Reads user role, selects preset, renders widget grid"
+  - component: "frontend/src/pages/Dashboard/widgetRegistry.ts (new)"
+    usage: "Defines all available widgets with permission requirements"
+  - component: "frontend/src/pages/Dashboard/dashboardPresets.ts (new)"
+    usage: "Defines default widget layouts per role"
+  - component: "frontend/src/components/layout/Layout.tsx"
+    usage: "Already filters sidebar menuItems by role — same pattern"
+
+---
+
+# Changelog
+
+changelog:
+  - version: "1.0"
+    date: "2026-03-07"
+    changes:
+      - "Initial spec — role-based dashboard widget composition"
+      - "15 ACs covering widget registry, role presets, permission gating, customization tiers"
+      - "6 role presets: super_admin, security_admin, security_analyst, compliance_officer, auditor, guest"
+      - "3 customization tiers: full (admins), limited (operators), none (read-only)"

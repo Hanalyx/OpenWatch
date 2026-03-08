@@ -100,6 +100,7 @@ Items from the OpenWatch OS transformation initiative that are not yet complete.
 | **Host monitoring spec + bug fix** | P1 | Spec required | Write `specs/services/monitoring/host-monitoring.spec.yaml` (Tier 1: state machine, scan eligibility, compliance implications), then fix `MonitoringState` enum. Unblocks Adaptive Scheduler. |
 | Adaptive Compliance Scheduler | P1 | Planned | Depends on monitoring spec. Auto-scan with state-based intervals (max 48h). |
 | Host Detail Page Redesign | P1 | In Progress | Phase 0 done (backend data fix), Phases 1-6 pending |
+| Dashboard layout customization (drag/drop) | P2 | Planned | Spec AC-12 defines 3 tiers: full (drag/drop for admins), limited (show/hide for analysts/compliance), none (fixed for auditor/guest). Preset data structure ready (`customization` field), needs DnD library (e.g. `@dnd-kit/core`), show/hide toggles, and layout persistence (localStorage or API). |
 | MongoDB Legacy Code Removal | P2 | **Complete** | PR #295: 80 files changed, 19,488 deletions |
 | Remediation + Subscription (Phase 4) | P3 | Mostly Complete | K-2 and K-3 complete. Remaining: K-4 (risk-aware policies), K-5 (snapshot retention). |
 | OTA Updates (Phase 5) | P3 | Not Started | Kensa integration Phase 5 |
