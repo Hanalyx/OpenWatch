@@ -218,7 +218,11 @@ async def test_connection(
         import paramiko
 
         ssh = paramiko.SSHClient()
-        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        # Use configurable host key policy from SSHConfigManager
+        from ...services.ssh.config_manager import SSHConfigManager
+
+        ssh_config_manager = SSHConfigManager(db)
+        ssh_config_manager.configure_ssh_client(ssh, request.hostname)
 
         connect_kwargs: Dict[str, Any] = {
             "hostname": request.hostname,

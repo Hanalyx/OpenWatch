@@ -176,9 +176,13 @@ async def install_offline_update(
     import tempfile
     from pathlib import Path
 
-    # Save uploaded file
+    # Save uploaded file with sanitized filename
     temp_dir = Path(tempfile.mkdtemp())
-    package_path = temp_dir / package.filename
+    safe_filename = Path(package.filename).name if package.filename else "package.tar.gz"
+    safe_filename = safe_filename.replace("..", "").lstrip("/\\")
+    if not safe_filename:
+        safe_filename = "package.tar.gz"
+    package_path = temp_dir / safe_filename
 
     with open(package_path, "wb") as f:
         content = await package.read()

@@ -28,6 +28,7 @@ from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey, RSAPubl
 from pydantic import BaseModel, Field
 
 from ...config import get_settings
+from ...utils.logging_security import sanitize_for_log
 
 # Initialize logger early
 logger = logging.getLogger(__name__)
@@ -39,15 +40,6 @@ try:
 except ImportError:
     DOCKER_AVAILABLE = False
     logger.warning("Docker library not available. Container execution will use subprocess fallback.")
-
-
-def sanitize_for_log(value: Any) -> str:
-    """Sanitize user input for safe logging"""
-    if value is None:
-        return "None"
-    str_value = str(value)
-    # Remove newlines and control characters to prevent log injection
-    return str_value.replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t")[:1000]
 
 
 class ContainerRuntimeClient:

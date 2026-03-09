@@ -180,10 +180,29 @@ class FIPSJWTManager:
             )
 
     def verify_token(self, token: str) -> Dict[str, Any]:
-        """Verify JWT token with RSA-PSS signature"""
+        """Verify JWT token with RSA-PSS signature.
+
+        Checks token validity and ensures the token has not been
+        revoked via the blacklist (AC-13).
+        """
         try:
             payload = jwt.decode(token, self.public_key, algorithms=["RS256"])
+
+            # Check if token has been revoked (AC-13)
+            jti = payload.get("jti")
+            if jti:
+                from .services.auth.token_blacklist import get_token_blacklist
+
+                blacklist = get_token_blacklist()
+                if blacklist.is_blacklisted(jti):
+                    raise HTTPException(
+                        status_code=status.HTTP_401_UNAUTHORIZED,
+                        detail="Token has been revoked",
+                    )
+
             return payload
+        except HTTPException:
+            raise
         except jwt.ExpiredSignatureError:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has expired")
         except jwt.InvalidTokenError as e:
@@ -359,11 +378,37 @@ def decode_token(token: str) -> Optional[Dict[str, Any]]:
 
         # Handle API keys
         if token.startswith("owk_"):
-            # For middleware, we don't want to update database
-            # Just return basic API key info
+            # For middleware, look up the API key to resolve actual permissions
+            import hashlib as _hashlib
+
+            from sqlalchemy.orm import Session as _Session
+
+            from .database import ApiKey as _ApiKey
+            from .database import get_db as _get_db
+
+            try:
+                db: _Session = next(_get_db())
+                try:
+                    key_hash = _hashlib.sha256(token.encode()).hexdigest()
+                    api_key = (
+                        db.query(_ApiKey).filter(_ApiKey.key_hash == key_hash, _ApiKey.is_active.is_(True)).first()
+                    )
+                    if api_key:
+                        return {
+                            "sub": f"api_key_{api_key.id}",
+                            "role": api_key.role if hasattr(api_key, "role") and api_key.role else UserRole.GUEST.value,
+                            "username": f"API Key: {api_key.name}",
+                            "permissions": api_key.permissions,
+                            "api_key": True,
+                        }
+                finally:
+                    db.close()
+            except Exception:
+                pass
+            # Fallback: return GUEST role (not a non-enum "api_key" string)
             return {
                 "sub": "api_key",
-                "role": "api_key",
+                "role": UserRole.GUEST.value,
                 "username": "API Key",
                 "api_key": True,
             }

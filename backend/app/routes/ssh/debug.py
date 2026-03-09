@@ -295,7 +295,7 @@ async def debug_ssh_authentication(
         logger.error(f"SSH debug test failed: {type(e).__name__}: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"SSH debug test failed: {str(e)}",
+            detail="SSH debug test failed",
         )
 
 

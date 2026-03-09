@@ -569,22 +569,14 @@ class AuthorizationMiddleware(BaseHTTPMiddleware):
 
     def _get_client_ip(self, request: Request) -> str:
         """
-        Get client IP address from request
+        Get client IP address from request.
+
+        Only trusts X-Forwarded-For when the direct client is a known proxy
+        to prevent IP spoofing via forged headers.
         """
-        # Check for forwarded headers first (behind proxy)
-        forwarded_for = request.headers.get("x-forwarded-for")
-        if forwarded_for:
-            return forwarded_for.split(",")[0].strip()
+        from ..utils.trusted_proxies import get_client_ip
 
-        real_ip = request.headers.get("x-real-ip")
-        if real_ip:
-            return real_ip
-
-        # Fallback to client IP
-        if hasattr(request, "client") and request.client:
-            return request.client.host
-
-        return "unknown"
+        return get_client_ip(request)
 
     async def _perform_authorization_check(
         self,

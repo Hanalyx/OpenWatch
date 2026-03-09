@@ -23,7 +23,6 @@ class VersionResponse(BaseModel):
     version: str
     codename: str
     api_version: str
-    git_commit: Optional[str] = None
     build_date: Optional[str] = None
 
 
@@ -40,7 +39,6 @@ async def get_version() -> VersionResponse:
         - version: SemVer version string (e.g., "0.1.0")
         - codename: Release codename (e.g., "Eyrie")
         - api_version: API version for header-based versioning
-        - git_commit: Short git commit hash (if available)
         - build_date: ISO build date (if set during CI/CD)
 
     Example Response:
@@ -48,9 +46,11 @@ async def get_version() -> VersionResponse:
             "version": "0.1.0",
             "codename": "Eyrie",
             "api_version": "1",
-            "git_commit": "abc1234",
             "build_date": "2025-12-04T00:00:00Z"
         }
     """
     info = get_version_info()
+    # Strip git_commit from public response to avoid exposing
+    # internal source control details (security assessment L-4)
+    info.pop("git_commit", None)
     return VersionResponse(**info)

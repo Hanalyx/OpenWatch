@@ -482,6 +482,10 @@ class KensaUpdater:
         temp_extract = Path(tempfile.mkdtemp())
 
         with tarfile.open(package_path, "r:gz") as tar:
+            for member in tar.getmembers():
+                member_path = (temp_extract / member.name).resolve()
+                if not str(member_path).startswith(str(temp_extract.resolve())):
+                    raise UpdateError(f"Path traversal detected in package: {member.name}")
             tar.extractall(temp_extract)
 
         # Run migrations if any

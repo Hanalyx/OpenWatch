@@ -4,6 +4,7 @@ Simple admin user initialization script
 """
 
 import os
+import secrets
 import sys
 
 from passlib.context import CryptContext
@@ -37,8 +38,14 @@ def create_admin_user():
             print("Admin user already exists")
             return
 
-        # Create admin user
-        hashed_password = pwd_context.hash("admin123")
+        # Create admin user with env var or generated password
+        admin_password = os.getenv("OPENWATCH_ADMIN_PASSWORD")
+        generated = False
+        if not admin_password:
+            admin_password = secrets.token_urlsafe(16)
+            generated = True
+
+        hashed_password = pwd_context.hash(admin_password)
         conn.execute(
             text(
                 """
@@ -55,7 +62,11 @@ def create_admin_user():
 
         print("Admin user created successfully")
         print("Username: admin")
-        print("Password: admin123")
+        if generated:
+            print(f"Password: {admin_password}")
+            print("WARNING: Save this password now. It will not be shown again.")
+        else:
+            print("Password: set from OPENWATCH_ADMIN_PASSWORD environment variable")
 
 
 if __name__ == "__main__":

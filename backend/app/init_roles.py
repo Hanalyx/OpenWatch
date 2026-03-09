@@ -5,6 +5,8 @@ Initialize roles and permissions in the database
 import asyncio
 import json
 import logging
+import os
+import secrets
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -131,7 +133,13 @@ def create_default_super_admin(db: Session):
             # Create new super admin user
             from .auth import pwd_context
 
-            hashed_password = pwd_context.hash("admin123")  # Default password - should be changed
+            admin_password = os.getenv("OPENWATCH_ADMIN_PASSWORD")
+            generated = False
+            if not admin_password:
+                admin_password = secrets.token_urlsafe(16)
+                generated = True
+
+            hashed_password = pwd_context.hash(admin_password)
 
             db.execute(  # noqa: E501
                 text(
@@ -145,7 +153,12 @@ def create_default_super_admin(db: Session):
                 ),
                 {"password": hashed_password},
             )
-            logger.info("Created new super admin user (username: admin, password: admin123)")
+            if generated:
+                print(f"Generated admin password: {admin_password}")
+                print("WARNING: Save this password now. It will not be shown again.")
+                logger.info("Created new super admin user (username: admin, password: generated)")
+            else:
+                logger.info("Created new super admin user (username: admin, password: from env)")
 
             # Advance the users_id_seq past the manually-inserted id=1
             # so auto-generated IDs don't collide with the default admin.

@@ -19,7 +19,7 @@ from starlette.responses import Response
 
 # Core application imports
 from .audit_db import log_security_event
-from .auth import audit_logger, require_admin
+from .auth import audit_logger, get_current_user, require_admin
 from .config import SECURITY_HEADERS, get_settings
 from .database import get_db_session
 from .middleware.metrics import PrometheusMiddleware, background_updater
@@ -287,10 +287,10 @@ def _log_audit_event(db: Any, event_type: str, request: Request, response: Respo
 @app.middleware("http")
 async def audit_middleware(request: Request, call_next: Callable[[Request], Any]) -> Response:
     """Log security-relevant requests for audit purposes."""
-    # Get client IP
-    client_ip = request.client.host
-    if "x-forwarded-for" in request.headers:
-        client_ip = request.headers["x-forwarded-for"].split(",")[0].strip()
+    # Get client IP (only trust X-Forwarded-For from known proxies)
+    from .utils.trusted_proxies import get_client_ip
+
+    client_ip = get_client_ip(request)
 
     # Process request
     response = await call_next(request)
@@ -305,6 +305,12 @@ async def audit_middleware(request: Request, call_next: Callable[[Request], Any]
             "/api/hosts": "HOST_OPERATION",
             "/api/users": "USER_OPERATION",
             "/api/webhooks": "WEBHOOK_OPERATION",
+            "/api/compliance": "COMPLIANCE_OPERATION",
+            "/api/admin": "ADMIN_OPERATION",
+            "/api/ssh": "SSH_OPERATION",
+            "/api/remediation": "REMEDIATION_OPERATION",
+            "/api/rules": "RULES_OPERATION",
+            "/api/integrations": "INTEGRATION_OPERATION",
         }
 
         # Log based on path prefix
@@ -473,7 +479,7 @@ async def health_check() -> JSONResponse:
         logger.error(f"Health check failed: {e}")
         return JSONResponse(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            content={"status": "unhealthy", "error": str(e), "timestamp": time.time()},
+            content={"status": "unhealthy", "timestamp": time.time()},
         )
 
 
@@ -496,8 +502,10 @@ async def security_info(current_user: Dict[str, Any] = Depends(require_admin)) -
 
 # Prometheus Metrics Endpoint
 @app.get("/metrics")
-async def metrics() -> PlainTextResponse:
-    """Prometheus metrics endpoint."""
+async def metrics(
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> PlainTextResponse:
+    """Prometheus metrics endpoint. Requires authentication."""
     metrics_instance = get_metrics_instance()
     metrics_data = metrics_instance.get_metrics()
 
@@ -529,9 +537,9 @@ app.include_router(monitoring_router, prefix="/api", tags=["Host Monitoring"])
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     """Global exception handler for security and logging."""
-    client_ip = request.client.host
-    if "x-forwarded-for" in request.headers:
-        client_ip = request.headers["x-forwarded-for"].split(",")[0].strip()
+    from .utils.trusted_proxies import get_client_ip
+
+    client_ip = get_client_ip(request)
 
     # Log the exception
     logger.error(f"Unhandled exception: {exc}", exc_info=True)
