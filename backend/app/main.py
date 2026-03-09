@@ -287,10 +287,10 @@ def _log_audit_event(db: Any, event_type: str, request: Request, response: Respo
 @app.middleware("http")
 async def audit_middleware(request: Request, call_next: Callable[[Request], Any]) -> Response:
     """Log security-relevant requests for audit purposes."""
-    # Get client IP
-    client_ip = request.client.host
-    if "x-forwarded-for" in request.headers:
-        client_ip = request.headers["x-forwarded-for"].split(",")[0].strip()
+    # Get client IP (only trust X-Forwarded-For from known proxies)
+    from .utils.trusted_proxies import get_client_ip
+
+    client_ip = get_client_ip(request)
 
     # Process request
     response = await call_next(request)
@@ -305,6 +305,12 @@ async def audit_middleware(request: Request, call_next: Callable[[Request], Any]
             "/api/hosts": "HOST_OPERATION",
             "/api/users": "USER_OPERATION",
             "/api/webhooks": "WEBHOOK_OPERATION",
+            "/api/compliance": "COMPLIANCE_OPERATION",
+            "/api/admin": "ADMIN_OPERATION",
+            "/api/ssh": "SSH_OPERATION",
+            "/api/remediation": "REMEDIATION_OPERATION",
+            "/api/rules": "RULES_OPERATION",
+            "/api/integrations": "INTEGRATION_OPERATION",
         }
 
         # Log based on path prefix
@@ -531,9 +537,9 @@ app.include_router(monitoring_router, prefix="/api", tags=["Host Monitoring"])
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     """Global exception handler for security and logging."""
-    client_ip = request.client.host
-    if "x-forwarded-for" in request.headers:
-        client_ip = request.headers["x-forwarded-for"].split(",")[0].strip()
+    from .utils.trusted_proxies import get_client_ip
+
+    client_ip = get_client_ip(request)
 
     # Log the exception
     logger.error(f"Unhandled exception: {exc}", exc_info=True)

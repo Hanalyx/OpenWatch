@@ -26,6 +26,7 @@ from ...database import get_db
 from ...rbac import Permission, check_permission_async
 from ...services.remediation import SecureAutomatedFixExecutor
 from ...services.validation import AutomatedFix
+from ...utils.logging_security import sanitize_for_log
 
 logger = logging.getLogger(__name__)
 
@@ -33,15 +34,6 @@ router = APIRouter(prefix="/automated-fixes", tags=["Automated Fixes"])
 
 # Initialize the secure fix executor
 secure_fix_executor: SecureAutomatedFixExecutor = SecureAutomatedFixExecutor()
-
-
-def sanitize_for_log(value: Any) -> str:
-    """Sanitize user input for safe logging."""
-    if value is None:
-        return "None"
-    str_value = str(value)
-    # Remove newlines and control characters to prevent log injection
-    return str_value.replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t")[:1000]
 
 
 class FixEvaluationRequest(BaseModel):

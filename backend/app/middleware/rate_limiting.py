@@ -312,16 +312,10 @@ class RateLimitingMiddleware:
         return f"anon:{ip_hash}", "anonymous"
 
     def _get_client_ip(self, request: Request) -> str:
-        """Extract client IP handling proxy headers"""
-        forwarded_for = request.headers.get("x-forwarded-for")
-        if forwarded_for:
-            return forwarded_for.split(",")[0].strip()
+        """Extract client IP, only trusting proxy headers from known proxies."""
+        from ..utils.trusted_proxies import get_client_ip
 
-        real_ip = request.headers.get("x-real-ip")
-        if real_ip:
-            return real_ip
-
-        return request.client.host if request.client else "unknown"
+        return get_client_ip(request)
 
     def _get_endpoint_category(self, path: str) -> str:
         """Categorize endpoint for appropriate rate limiting"""

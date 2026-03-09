@@ -43,17 +43,9 @@ from app.models.authorization_models import (
     ResourceType,
 )
 from app.rbac import Permission, RBACManager, UserRole
+from app.utils.logging_security import sanitize_for_log
 
 logger = logging.getLogger(__name__)
-
-
-def sanitize_for_log(value: Any) -> str:
-    """Sanitize user input for safe logging."""
-    if value is None:
-        return "None"
-    str_value = str(value)
-    # Remove newlines and control characters to prevent log injection
-    return str_value.replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t")[:1000]
 
 
 class AuthorizationService:

@@ -27,11 +27,14 @@ router = APIRouter()
 
 
 def get_client_ip(request: Request) -> str:
-    """Extract client IP address from request."""
-    if "x-forwarded-for" in request.headers:
-        # Explicit str() to satisfy mypy (headers values may be Any)
-        return str(request.headers["x-forwarded-for"]).split(",")[0].strip()
-    return request.client.host if request.client else "unknown"
+    """Extract client IP address from request.
+
+    Only trusts X-Forwarded-For when the direct client is a known proxy
+    to prevent IP spoofing via forged headers.
+    """
+    from ...utils.trusted_proxies import get_client_ip as _get_client_ip
+
+    return _get_client_ip(request)
 
 
 class LoginRequest(BaseModel):
@@ -370,6 +373,17 @@ async def register(
                 detail="Username or email already exists",
             )
 
+        # Validate password strength before hashing
+        from ...services.auth import get_credential_validator
+
+        validator = get_credential_validator()
+        is_valid, warnings, _recommendations = validator.validate_password_strength(request.password)
+        if not is_valid:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=warnings,
+            )
+
         # Hash password
         hashed_password = pwd_context.hash(request.password)
 
@@ -507,9 +521,33 @@ async def logout(
     http_request: Request,
     token: HTTPAuthorizationCredentials = Depends(security),
 ) -> Dict[str, str]:
-    """Logout user and invalidate tokens."""
+    """Logout user and invalidate tokens.
+
+    Decodes the JWT to extract the JTI claim and adds it to the
+    Redis-backed blacklist with a TTL matching the token's remaining
+    lifetime (AC-13).
+    """
     try:
-        # In production, add token to blacklist
+        import time
+
+        from ...services.auth.token_blacklist import get_token_blacklist
+
+        # Decode the token to get jti and exp claims
+        try:
+            payload = jwt_manager.verify_token(token.credentials)
+            jti = payload.get("jti")
+            exp = payload.get("exp")
+
+            if jti and exp:
+                # Calculate remaining TTL in seconds
+                remaining = int(exp - time.time())
+                if remaining > 0:
+                    blacklist = get_token_blacklist()
+                    blacklist.blacklist_token(jti, remaining)
+        except HTTPException:
+            # Token may already be expired or invalid; still log the logout
+            pass
+
         audit_logger.log_security_event("LOGOUT", "User logged out", get_client_ip(http_request))
 
         return {"message": "Successfully logged out"}

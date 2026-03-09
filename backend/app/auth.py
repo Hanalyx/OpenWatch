@@ -180,10 +180,29 @@ class FIPSJWTManager:
             )
 
     def verify_token(self, token: str) -> Dict[str, Any]:
-        """Verify JWT token with RSA-PSS signature"""
+        """Verify JWT token with RSA-PSS signature.
+
+        Checks token validity and ensures the token has not been
+        revoked via the blacklist (AC-13).
+        """
         try:
             payload = jwt.decode(token, self.public_key, algorithms=["RS256"])
+
+            # Check if token has been revoked (AC-13)
+            jti = payload.get("jti")
+            if jti:
+                from .services.auth.token_blacklist import get_token_blacklist
+
+                blacklist = get_token_blacklist()
+                if blacklist.is_blacklisted(jti):
+                    raise HTTPException(
+                        status_code=status.HTTP_401_UNAUTHORIZED,
+                        detail="Token has been revoked",
+                    )
+
             return payload
+        except HTTPException:
+            raise
         except jwt.ExpiredSignatureError:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has expired")
         except jwt.InvalidTokenError as e:
