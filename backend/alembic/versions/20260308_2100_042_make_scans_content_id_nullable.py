@@ -14,6 +14,8 @@ Making the column nullable allows Kensa scans to be created without a
 content_id while preserving existing SCAP scan data.
 """
 
+from sqlalchemy import inspect as sa_inspect
+
 from alembic import op
 
 # Revision identifiers
@@ -24,10 +26,18 @@ depends_on = None
 
 
 def upgrade():
-    """Make content_id nullable on scans table."""
-    op.alter_column("scans", "content_id", nullable=True)
+    """Make content_id nullable on scans table (no-op if column was already dropped)."""
+    conn = op.get_bind()
+    inspector = sa_inspect(conn)
+    columns = [c["name"] for c in inspector.get_columns("scans")]
+    if "content_id" in columns:
+        op.alter_column("scans", "content_id", nullable=True)
 
 
 def downgrade():
-    """Restore NOT NULL constraint on content_id (will fail if NULLs exist)."""
-    op.alter_column("scans", "content_id", nullable=False)
+    """Restore NOT NULL constraint on content_id (no-op if column doesn't exist)."""
+    conn = op.get_bind()
+    inspector = sa_inspect(conn)
+    columns = [c["name"] for c in inspector.get_columns("scans")]
+    if "content_id" in columns:
+        op.alter_column("scans", "content_id", nullable=False)
