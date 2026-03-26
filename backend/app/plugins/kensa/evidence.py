@@ -11,7 +11,7 @@ explicit json.dumps() — returning a Python dict would fail at INSERT.
 import json
 import logging
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +25,7 @@ def _evidence_to_dict(evidence: Any) -> dict:
     Returns:
         Dict with string-safe values.
     """
-    d = {}
+    d: Dict[str, Any] = {}
     for field in ("method", "command", "stdout", "stderr", "expected", "actual"):
         val = getattr(evidence, field, None)
         if val is not None:

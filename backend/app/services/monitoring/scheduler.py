@@ -143,8 +143,8 @@ class AdaptiveSchedulerService:
             dict: Updated configuration
         """
         try:
-            updates = []
-            params = {"updated_at": datetime.now(timezone.utc)}
+            updates: list[str] = []
+            params: dict[str, Any] = {"updated_at": datetime.now(timezone.utc)}
 
             if enabled is not None:
                 updates.append("enabled = :enabled")
@@ -391,7 +391,8 @@ class AdaptiveSchedulerService:
                 {"now": datetime.now(timezone.utc)},
             )
 
-            overdue_count = overdue_result.fetchone().count
+            overdue_row = overdue_result.fetchone()
+            overdue_count = overdue_row.count if overdue_row else 0
 
             # Get next check time
             next_check_result = db.execute(text("""

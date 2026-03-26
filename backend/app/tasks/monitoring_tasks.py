@@ -210,7 +210,7 @@ def queue_host_checks(self, limit: int = 100) -> dict:
 
             # Dispatch individual check tasks with priority-based queueing
             queued_count = 0
-            state_distribution = {}
+            state_distribution: dict[str, int] = {}
 
             for host in hosts_to_check:
                 try:

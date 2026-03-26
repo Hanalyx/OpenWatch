@@ -355,7 +355,7 @@ class PluginSecurityService:
             "ansible": [".yml", ".yaml"],
         }
 
-        files_to_scan = []
+        files_to_scan: list[Any] = []
         for ext in extensions.get(code_type, []):
             files_to_scan.extend(path.rglob(f"*{ext}"))
 

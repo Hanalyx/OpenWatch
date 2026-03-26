@@ -172,6 +172,8 @@ class AlertService:
 
         logger.info(f"Created {severity.value} alert: {title} (type={alert_type.value}, host={host_id})")
 
+        if row is None:
+            return {}
         return {
             "id": str(row.id),
             "alert_type": alert_type.value,
@@ -219,8 +221,8 @@ class AlertService:
                 "window_start": window_start,
             },
         )
-        count = result.scalar()
-        return count > 0
+        count = result.scalar() or 0
+        return int(count) > 0
 
     def list_alerts(
         self,
@@ -465,6 +467,9 @@ class AlertService:
 
         result = self.db.execute(query)
         row = result.fetchone()
+        if row is None:
+            return {"total_active": 0, "total_acknowledged": 0, "total_resolved": 0,
+                    "by_severity": {}, "by_type": {}, "recent_24h": 0, "recent_alerts": []}
 
         # Get recent alerts (last 24h)
         recent_query = text("""

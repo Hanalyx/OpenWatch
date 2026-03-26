@@ -8,7 +8,7 @@ import json
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import hashes, serialization
@@ -31,7 +31,7 @@ class PluginSignatureService:
             trusted_keys_dir: Directory containing trusted public keys
         """
         self.trusted_keys_dir = trusted_keys_dir or Path("/openwatch/security/plugin_keys")
-        self.trusted_keys_cache = {}
+        self.trusted_keys_cache: dict[str, Any] = {}
         self._load_trusted_keys()
 
     def _load_trusted_keys(self):

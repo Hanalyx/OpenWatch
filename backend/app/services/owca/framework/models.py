@@ -273,7 +273,7 @@ class STIGFrameworkIntelligence(BaseModel):
     framework: str = Field(default="STIG", description="Framework identifier")
     stig_id: str = Field(..., description="STIG identifier (e.g., 'RHEL_8_STIG')")
     stig_version: str = Field(..., description="STIG version (e.g., 'V1R9')")
-    release_date: Optional[str] = Field(None, description="STIG release date")
+    release_date: Optional[str] = None
     overall_score: float = Field(..., description="Overall STIG compliance score")
     overall_tier: str = Field(..., description="OWCA compliance tier")
     severity_scores: List[STIGSeverityScore] = Field(

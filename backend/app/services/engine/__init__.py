@@ -226,12 +226,12 @@ from .scanners.base import BaseScanner  # Always available
 try:
     from .scanners import OSCAPScanner, ScannerFactory, get_scanner, get_scanner_for_content
 except ImportError:
-    OSCAPScanner = None  # type: ignore
-    ScannerFactory = None  # type: ignore
+    OSCAPScanner = None  
+    ScannerFactory = None  
 
 # Backward compatibility stubs
-UnifiedSCAPScanner = None  # type: ignore
-get_unified_scanner = None  # type: ignore
+UnifiedSCAPScanner = None  
+get_unified_scanner = None  
 
 logger = logging.getLogger(__name__)
 

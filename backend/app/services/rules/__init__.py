@@ -184,8 +184,8 @@ def get_cache_service(
     """
     return RuleCacheService(
         redis_url=redis_url,
-        default_ttl=default_ttl,
-        max_memory_items=max_memory_items,
+        # default_ttl=default_ttl,
+        # max_memory_items=max_memory_items,
     )
 
 

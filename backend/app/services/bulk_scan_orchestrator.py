@@ -231,7 +231,7 @@ class BulkScanOrchestrator:
             scan_ids = []
             for batch in scan_plan:
                 # Additional authorization check before batch creation
-                batch_scan_ids = await self._create_batch_scans_with_authorization(
+                batch_scan_ids = self._create_batch_scans_with_authorization(
                     batch,
                     session_id,
                     name_prefix,
@@ -267,7 +267,7 @@ class BulkScanOrchestrator:
         """Start executing a bulk scan session"""
         try:
             # Get session details
-            session = await self._get_scan_session(session_id)
+            session = self._get_scan_session(session_id)
             if not session:
                 raise ValueError(f"Session {session_id} not found")
 
@@ -280,7 +280,7 @@ class BulkScanOrchestrator:
             await self._update_scan_session(session)
 
             # Start scans with staggered execution
-            started_scans = await self._execute_staggered_scans(session.scan_ids)
+            started_scans = self._execute_staggered_scans(session.scan_ids)
 
             logger.info(f"Started bulk scan session {session_id} with {len(started_scans)} scans")
             return {
@@ -298,12 +298,12 @@ class BulkScanOrchestrator:
         """Get real-time progress of a bulk scan session"""
         try:
             # Get session
-            session = await self._get_scan_session(session_id)
+            session = self._get_scan_session(session_id)
             if not session:
                 raise ValueError(f"Session {session_id} not found")
 
             # Get individual scan statuses
-            scan_statuses = await self._get_scans_status(session.scan_ids)
+            scan_statuses = self._get_scans_status(session.scan_ids)
 
             # Calculate progress metrics
             total_scans = len(session.scan_ids)
@@ -772,7 +772,7 @@ class BulkScanOrchestrator:
         try:
             # Build authorization context if not provided
             if auth_context is None:
-                auth_context = await self._build_user_authorization_context(user_id)
+                auth_context = self._build_user_authorization_context(user_id)
 
             # Create resource identifiers for all hosts
             resources = [
@@ -793,7 +793,7 @@ class BulkScanOrchestrator:
             auth_result = await self.authorization_service.check_bulk_permissions(bulk_request)
 
             # Get host details for results
-            host_details = await self._get_host_details(host_ids)
+            host_details = self._get_host_details(host_ids)
             host_lookup = {h["id"]: h for h in host_details}
 
             # Process authorization results
@@ -841,7 +841,7 @@ class BulkScanOrchestrator:
             logger.error(f"Bulk authorization validation failed: {e}")
 
             # Fail securely - treat all hosts as unauthorized
-            host_details = await self._get_host_details(host_ids)
+            host_details = self._get_host_details(host_ids)
             authorization_failures = [
                 AuthorizationFailure(
                     host_id=host_detail["id"],

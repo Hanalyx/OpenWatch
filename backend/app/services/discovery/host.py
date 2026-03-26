@@ -62,7 +62,7 @@ class HostBasicDiscoveryService:
         """
         logger.info(f"Starting basic system discovery for host: {host.hostname}")
 
-        discovery_results = {
+        discovery_results: Dict[str, Any] = {
             "hostname": "Unknown",
             "os_family": "Unknown",
             "os_version": "Unknown",
@@ -71,7 +71,7 @@ class HostBasicDiscoveryService:
             "kernel_version": "Unknown",
             "discovery_timestamp": datetime.now(timezone.utc),
             "discovery_success": False,
-            "discovery_errors": [],
+            "discovery_errors": []
         }
 
         try:

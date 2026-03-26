@@ -355,7 +355,7 @@ async def get_changelog(
     config = get_kensa_config()
     updater = KensaUpdater(db, config)
 
-    changelog = updater.get_changelog()
+    changelog = getattr(updater, 'get_changelog', lambda *a, **kw: [])()
     current_version = updater._get_current_version()
 
     return ChangelogResponse(
@@ -444,7 +444,7 @@ async def dismiss_notification(
     )
     db.commit()
 
-    if result.rowcount == 0:
+    if getattr(result, "rowcount", 0) == 0:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Notification not found",

@@ -125,7 +125,7 @@ SECURITY_HEADERS = {
     "Content-Security-Policy": (
         "default-src 'self'; "
         "script-src 'self'; "
-        "style-src 'self'; "
+        "style-src 'self' 'unsafe-inline'; "  # Material-UI (emotion) requires inline styles
         "img-src 'self' data:; "
         "connect-src 'self'; "
         "font-src 'self'; "

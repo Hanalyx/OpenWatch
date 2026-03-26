@@ -504,20 +504,20 @@ def setup_openapi_docs(app: FastAPI) -> FastAPI:
         )
         return app.openapi_schema
 
-    app.openapi = custom_openapi
+    setattr(app, 'openapi', custom_openapi)
 
     # Custom documentation endpoints
     @app.get("/docs", include_in_schema=False)
     async def custom_swagger_ui_html() -> HTMLResponse:
         """Render custom Swagger UI documentation."""
         return create_custom_swagger_ui(
-            openapi_url=app.openapi_url,
+            openapi_url=str(app.openapi_url or '/api/openapi.json'),
             title="OpenWatch API - Interactive Documentation",
         )
 
     @app.get("/redoc", include_in_schema=False)
     async def custom_redoc_html() -> HTMLResponse:
         """Render custom ReDoc documentation."""
-        return create_custom_redoc(openapi_url=app.openapi_url, title="OpenWatch API - Reference Documentation")
+        return create_custom_redoc(openapi_url=str(app.openapi_url or '/api/openapi.json'), title="OpenWatch API - Reference Documentation")
 
     return app

@@ -355,7 +355,7 @@ class DriftDetectionService:
             )
             .where("host_id = :host_id", host_id, "host_id")
             .order_by("detected_at", "DESC")
-            .limit(limit)
+            .paginate(1, limit)
         )
 
         query, params = builder.build()
@@ -377,7 +377,8 @@ class DriftDetectionService:
             QueryBuilder("scan_drift_events")
             .select("drift_type", "COUNT(*) as count")
             .where("host_id = :host_id", host_id, "host_id")
-            .group_by("drift_type")
+            # .group_by( # Not available on QueryBuilder
+        #"drift_type")
         )
 
         query, params = builder.build()

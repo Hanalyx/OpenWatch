@@ -216,7 +216,7 @@ async def get_os_discovery_stats(
         total_builder = QueryBuilder("hosts")
         total_query, total_params = total_builder.count_query()
         total_result = db.execute(text(total_query), total_params)
-        total_hosts = total_result.fetchone().total
+        total_hosts = total_result.scalar() or 0
 
         # Count hosts with platform_identifier set
         with_platform_builder = (
@@ -227,7 +227,7 @@ async def get_os_discovery_stats(
             text(with_platform_query),
             with_platform_params,
         )
-        hosts_with_platform = with_platform_result.fetchone().total
+        hosts_with_platform = with_platform_result.scalar() or 0
 
         # Get discovery failures from system_settings using QueryBuilder
         failures_builder = (

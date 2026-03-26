@@ -108,11 +108,11 @@ def plugin_info_to_response(info: PluginInfo) -> PluginInfoResponse:
         name=info.name,
         version=info.version,
         description=info.description,
-        author=info.author,
+        author=getattr(info, "author", "unknown"),
         capabilities=[cap.value for cap in info.capabilities],
         supported_platforms=info.supported_platforms,
         supported_frameworks=info.supported_frameworks,
-        license_required=info.license_required,
+        license_required=getattr(info, "license_required", False),
     )
 
 

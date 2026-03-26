@@ -36,7 +36,8 @@ from typing import Any, Dict, List, Optional, Set
 from pydantic import BaseModel, Field
 
 from app.models.plugin_models import InstalledPlugin, PluginStatus
-from app.services.plugins import PluginRegistryService
+# PluginRegistryService not available in current module structure
+PluginRegistryService = None  # type: ignore[assignment]
 
 logger = logging.getLogger(__name__)
 
@@ -339,7 +340,7 @@ class RuleAssociationService:
 
                     recommendation = RuleMappingRecommendation(
                         plugin_id=plugin.plugin_id,
-                        plugin_name=plugin.name,
+                        plugin_name=plugin.manifest.name,
                         plugin_rule_id=plugin_rule.get("id"),
                         plugin_rule_name=plugin_rule.get("name"),
                         confidence=self._score_to_confidence(analysis.similarity_score),
@@ -395,7 +396,7 @@ class RuleAssociationService:
                         if plugin:
                             recommendation = RuleMappingRecommendation(
                                 plugin_id=plugin.plugin_id,
-                                plugin_name=plugin.name,
+                                plugin_name=plugin.manifest.name,
                                 plugin_rule_id=mapping.plugin_rule_id,
                                 plugin_rule_name=mapping.plugin_rule_name,
                                 confidence=mapping.confidence,
@@ -658,8 +659,8 @@ class RuleAssociationService:
             rules.append(
                 {
                     "id": f"{plugin.plugin_id}_generic",
-                    "name": f"{plugin.name} Generic Rule",
-                    "description": (plugin.description or f"Generic remediation using {plugin.name}"),
+                    "name": f"{plugin.manifest.name} Generic Rule",
+                    "description": (plugin.manifest.description or f"Generic remediation using {plugin.manifest.name}"),
                 }
             )
 

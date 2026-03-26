@@ -313,7 +313,7 @@ async def preview_query(
     # Check license for date range
     if request.query_definition.date_range:
         license_service = LicenseService()
-        if not await license_service.has_feature("temporal_queries"):
+        if not license_service.has_feature("temporal_queries"):
             raise HTTPException(
                 status_code=http_status.HTTP_403_FORBIDDEN,
                 detail="Date range queries require OpenWatch+ subscription",
@@ -360,7 +360,7 @@ async def execute_saved_query(
     # Check license for date range
     if saved_query.has_date_range:
         license_service = LicenseService()
-        if not await license_service.has_feature("temporal_queries"):
+        if not license_service.has_feature("temporal_queries"):
             raise HTTPException(
                 status_code=http_status.HTTP_403_FORBIDDEN,
                 detail="Date range queries require OpenWatch+ subscription",
@@ -408,7 +408,7 @@ async def execute_adhoc_query(
     # Check license for date range
     if query_definition.date_range:
         license_service = LicenseService()
-        if not await license_service.has_feature("temporal_queries"):
+        if not license_service.has_feature("temporal_queries"):
             raise HTTPException(
                 status_code=http_status.HTTP_403_FORBIDDEN,
                 detail="Date range queries require OpenWatch+ subscription",
@@ -507,7 +507,7 @@ async def create_export(
     # Check license for date range
     if request.query_definition and request.query_definition.date_range:
         license_service = LicenseService()
-        if not await license_service.has_feature("temporal_queries"):
+        if not license_service.has_feature("temporal_queries"):
             raise HTTPException(
                 status_code=http_status.HTTP_403_FORBIDDEN,
                 detail="Date range exports require OpenWatch+ subscription",
@@ -519,7 +519,7 @@ async def create_export(
         saved_query = query_service.get_query(request.query_id)
         if saved_query and saved_query.has_date_range:
             license_service = LicenseService()
-            if not await license_service.has_feature("temporal_queries"):
+            if not license_service.has_feature("temporal_queries"):
                 raise HTTPException(
                     status_code=http_status.HTTP_403_FORBIDDEN,
                     detail="Date range exports require OpenWatch+ subscription",

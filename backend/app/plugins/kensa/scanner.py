@@ -99,8 +99,8 @@ class KensaScanner(BaseScanner):
         return ScannerCapabilities(
             provider=ScanProvider.CUSTOM,
             supported_scan_types=[
-                ScanType.COMPLIANCE,
-                ScanType.VULNERABILITY,
+                "compliance",
+                "vulnerability",
             ],
             supported_formats=["yaml", "kensa"],
             supports_remote=True,

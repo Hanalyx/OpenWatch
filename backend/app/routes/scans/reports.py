@@ -501,7 +501,7 @@ async def get_scan_json_report(
                 if enhanced_parsing_enabled and content_file is not None:
                     # Use engine module's result parser for enhanced SCAP parsing
                     # XCCDFResultParser provides parse_scan_results() for XCCDF result files
-                    from app.services.engine.result_parsers import XCCDFResultParser
+                    XCCDFResultParser = None  # Legacy SCAP parser, no longer available
 
                     parser = XCCDFResultParser()
                     parsed = parser.parse_scan_results(

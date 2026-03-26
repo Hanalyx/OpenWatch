@@ -328,7 +328,7 @@ class KnownHostsManager:
 
             self.db.commit()
 
-            if result.rowcount > 0:
+            if getattr(result, "rowcount", 0) > 0:
                 logger.info("Removed known host: %s (%s)", hostname, key_type)
                 return True
             else:
@@ -377,7 +377,7 @@ class KnownHostsManager:
             )
 
             self.db.commit()
-            return result.rowcount > 0
+            return getattr(result, "rowcount", 0) > 0
 
         except Exception as e:
             logger.error("Failed to update last_verified for %s: %s", hostname, e)
@@ -426,7 +426,7 @@ class KnownHostsManager:
 
             self.db.commit()
 
-            if result.rowcount > 0:
+            if getattr(result, "rowcount", 0) > 0:
                 status = "trusted" if is_trusted else "untrusted"
                 logger.info("Set %s (%s) to %s", hostname, key_type, status)
                 return True

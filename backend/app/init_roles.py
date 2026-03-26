@@ -182,7 +182,7 @@ def init_default_system_credentials(db: Session):
             WHERE scope = 'system' AND is_active = true
         """))
 
-        existing_count = result.fetchone().count
+        existing_count = result.scalar() or 0
 
         if existing_count > 0:
             logger.info(f"Found {existing_count} existing system credentials")

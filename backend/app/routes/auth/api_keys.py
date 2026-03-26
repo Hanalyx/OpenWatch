@@ -7,7 +7,7 @@ import hashlib
 import logging
 import secrets
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
@@ -115,13 +115,13 @@ async def create_api_key(
 
     return CreateApiKeyResponse(
         id=str(db_api_key.id),
-        name=db_api_key.name,
+        name=cast(str, db_api_key.name),
         description=db_api_key.description,
-        created_at=db_api_key.created_at,
-        expires_at=db_api_key.expires_at,
-        last_used_at=db_api_key.last_used_at,
-        is_active=db_api_key.is_active,
-        permissions=db_api_key.permissions,
+        created_at=cast(datetime, db_api_key.created_at),
+        expires_at=cast(Optional[datetime], db_api_key.expires_at),
+        last_used_at=cast(Optional[datetime], db_api_key.last_used_at),
+        is_active=cast(bool, db_api_key.is_active),
+        permissions=cast(Dict[str, List[str]], db_api_key.permissions or {}),
         created_by_username=current_user["username"],
         key=api_key,  # Return the actual key only on creation
     )
@@ -166,13 +166,13 @@ async def list_api_keys(
     return [
         ApiKeyResponse(
             id=str(key.id),
-            name=key.name,
+            name=cast(str, key.name),
             description=key.description,
-            created_at=key.created_at,
-            expires_at=key.expires_at,
-            last_used_at=key.last_used_at,
-            is_active=key.is_active,
-            permissions=key.permissions,
+            created_at=cast(datetime, key.created_at),
+            expires_at=cast(Optional[datetime], key.expires_at),
+            last_used_at=cast(Optional[datetime], key.last_used_at),
+            is_active=cast(bool, key.is_active),
+            permissions=cast(Dict[str, List[str]], key.permissions or {}),
             created_by_username=creators.get(str(key.created_by), "unknown"),
         )
         for key in api_keys
@@ -207,7 +207,7 @@ async def revoke_api_key(
             )
 
     # Revoke the key
-    api_key.is_active = False
+    setattr(api_key, "is_active", False)
     db.commit()
 
     # Log the action (fire-and-forget, no return value)
@@ -248,7 +248,7 @@ async def update_api_key_permissions(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="API key not found")
 
     # Update permissions
-    api_key.permissions = permissions
+    setattr(api_key, "permissions", permissions)
     db.commit()
 
     # Log the action (fire-and-forget, no return value)

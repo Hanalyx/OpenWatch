@@ -292,7 +292,7 @@ class SecureAutomatedFixExecutor:
                 raise ValueError(f"Secure command not found: {secure_command_id}")
 
             # Request execution through sandbox service
-            request = await self.sandbox_service.request_command_execution(
+            request = self.sandbox_service.request_command_execution(
                 command_id=secure_command_id,
                 parameters=parameters,
                 target_host=target_host,
@@ -337,7 +337,7 @@ class SecureAutomatedFixExecutor:
 
         try:
             # Approve through sandbox service
-            success = await self.sandbox_service.approve_request(request_id, approved_by)
+            success = self.sandbox_service.approve_request(request_id, approved_by)
 
             if success:
                 # Log approval

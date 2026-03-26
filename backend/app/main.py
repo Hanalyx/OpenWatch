@@ -357,6 +357,7 @@ async def https_redirect_middleware(request: Request, call_next: Callable[[Reque
         if request.url.scheme != "https":
             https_url = request.url.replace(scheme="https")
             return JSONResponse(
+                content=None,
                 status_code=status.HTTP_301_MOVED_PERMANENTLY,
                 headers={"Location": str(https_url)},
             )

@@ -159,7 +159,7 @@ async def request_exception(
     """
     # Exception management requires OpenWatch+ subscription
     license_service = LicenseService()
-    if not await license_service.has_feature("structured_exceptions"):
+    if not license_service.has_feature("structured_exceptions"):
         raise HTTPException(
             status_code=http_status.HTTP_403_FORBIDDEN,
             detail="Structured exceptions require OpenWatch+ subscription",

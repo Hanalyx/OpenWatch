@@ -28,7 +28,7 @@ from pathlib import Path
 from typing import Optional
 
 import lxml.etree as etree  # nosec B410 - Using secure parser (resolve_entities=False, no_network=True)
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 
 logger = logging.getLogger(__name__)
 audit_logger = logging.getLogger("openwatch.audit")
@@ -46,14 +46,15 @@ class XCCDFScoreResult(BaseModel):
         error: Error message if extraction failed
     """
 
-    xccdf_score: Optional[float] = Field(None, ge=0.0, description="Actual XCCDF score")
-    xccdf_score_system: Optional[str] = Field(None, max_length=255, description="Scoring system URN")
-    xccdf_score_max: Optional[float] = Field(None, ge=0.0, description="Maximum possible score")
-    found: bool = Field(False, description="Whether score was found in XML")
-    error: Optional[str] = Field(None, max_length=500, description="Error message if extraction failed")
+    xccdf_score: Optional[float] = None
+    xccdf_score_system: Optional[str] = None
+    xccdf_score_max: Optional[float] = None
+    found: bool = False
+    error: Optional[str] = None
 
-    @validator("xccdf_score", "xccdf_score_max")
-    def validate_score_range(cls, v):
+    @field_validator("xccdf_score", "xccdf_score_max")
+    @classmethod
+    def validate_score_range(cls, v: Optional[float]) -> Optional[float]:
         """Validate score is within reasonable range (0-1000)"""
         if v is not None and v > 1000.0:
             raise ValueError("Score exceeds reasonable maximum (1000.0)")

@@ -451,13 +451,13 @@ class AuditExportService:
             # Findings table (limited to first 100 for PDF)
             if findings:
                 table_data = [["Host", "Rule", "Severity", "Status"]]
-                for f in findings[:100]:
+                for finding_item in findings[:100]:
                     table_data.append(
                         [
-                            f.hostname[:20],
-                            f.rule_id[:30],
-                            f.severity,
-                            f.status,
+                            finding_item.hostname[:20],
+                            finding_item.rule_id[:30],
+                            finding_item.severity,
+                            finding_item.status,
                         ]
                     )
 

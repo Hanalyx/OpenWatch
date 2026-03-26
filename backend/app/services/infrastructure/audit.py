@@ -153,7 +153,7 @@ class SecurityAuditLogger:
             },
         )
 
-    def _hash_ip(self, ip_address: str) -> str:
+    def _hash_ip(self, ip_address: str) -> Optional[str]:
         """Hash IP address for privacy while maintaining uniqueness"""
         if not ip_address:
             return None
@@ -162,7 +162,7 @@ class SecurityAuditLogger:
         salt = "openwatch_security_salt_2024"
         return hashlib.sha256(f"{salt}{ip_address}".encode()).hexdigest()[:16]
 
-    def _hash_value(self, value: str) -> str:
+    def _hash_value(self, value: str) -> Optional[str]:
         """Hash any sensitive value for logging"""
         if not value:
             return None
@@ -170,7 +170,7 @@ class SecurityAuditLogger:
         salt = "openwatch_audit_salt_2024"
         return hashlib.sha256(f"{salt}{value}".encode()).hexdigest()[:16]
 
-    def _sanitize_user_agent(self, user_agent: str) -> str:
+    def _sanitize_user_agent(self, user_agent: str) -> Optional[str]:
         """Sanitize user agent string to remove potentially sensitive information"""
         if not user_agent:
             return None

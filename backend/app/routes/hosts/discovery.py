@@ -146,7 +146,7 @@ async def discover_basic_system_info(
 
         return HostDiscoveryResponse(
             host_id=str(host.id),
-            hostname=host.hostname,
+            hostname=str(host.hostname),
             discovery_status=discovery_status,
             discovered_info=discovery_results,
             timestamp=discovery_results["discovery_timestamp"],
@@ -600,7 +600,7 @@ def _assess_network_security(host: Host, discovery_results: Dict[str, Any]) -> N
     # Initialize assessment
     assessment = NetworkSecurityAssessment(
         host_id=str(host.id),
-        hostname=host.hostname,
+        hostname=str(host.hostname),
         security_score=1.0,
         open_ports=[],
         risky_services=[],
@@ -1181,7 +1181,7 @@ async def assess_host_compliance_capability(
 
         return ComplianceCapabilityAssessment(
             host_id=str(host.id),
-            hostname=host.hostname,
+            hostname=str(host.hostname),
             overall_compliance_readiness=overall_readiness,
             scap_capability=scap_capability,
             python_capability=python_capability,

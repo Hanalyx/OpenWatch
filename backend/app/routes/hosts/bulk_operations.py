@@ -391,7 +391,7 @@ async def analyze_csv(
     - Auto-mapping suggestions
     - Template matches for known formats
     """
-    if not file.filename.endswith(".csv"):
+    if not (file.filename or '').endswith(".csv"):
         raise HTTPException(status_code=400, detail="File must be a CSV")
 
     try:

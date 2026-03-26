@@ -106,7 +106,7 @@ def cleanup_old_update_records(retention_days: int = 90) -> Dict[str, Any]:
             AND status IN ('completed', 'failed', 'rolled_back')
         """
         result = db.execute(text(query), {"days": retention_days})
-        updates_deleted = result.rowcount
+        updates_deleted = getattr(result, "rowcount", 0)
 
         # Delete dismissed notifications older than retention period
         notif_query = """
@@ -115,7 +115,7 @@ def cleanup_old_update_records(retention_days: int = 90) -> Dict[str, Any]:
             AND dismissed_at < CURRENT_TIMESTAMP - INTERVAL ':days days'
         """
         notif_result = db.execute(text(notif_query), {"days": retention_days})
-        notifications_deleted = notif_result.rowcount
+        notifications_deleted = getattr(notif_result, "rowcount", 0)
 
         db.commit()
 

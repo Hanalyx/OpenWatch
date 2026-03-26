@@ -29,7 +29,7 @@ See: docs/plans/HOST_OS_DETECTION_AND_OVAL_ALIGNMENT_PLAN.md
 
 import logging
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 from uuid import UUID
 
 from sqlalchemy import text
@@ -204,7 +204,7 @@ def trigger_os_discovery(self, host_id: str) -> Dict[str, Any]:
     """
     logger.info(f"Starting OS discovery for host {host_id}")
 
-    result = {
+    result: Dict[str, Any] = {
         "host_id": host_id,
         "success": False,
         "os_family": None,
@@ -280,7 +280,7 @@ def trigger_os_discovery(self, host_id: str) -> Dict[str, Any]:
             discovery_service = HostBasicDiscoveryService(ssh_service=ssh_service)
 
             # Perform OS discovery
-            discovery_results = discovery_service.discover_basic_system_info(host_proxy)
+            discovery_results = discovery_service.discover_basic_system_info(cast(Any, host_proxy))
 
             if not discovery_results.get("discovery_success", False):
                 errors = discovery_results.get("discovery_errors", ["Unknown error"])
@@ -392,7 +392,7 @@ def batch_os_discovery(self, host_ids: List[str]) -> Dict[str, Any]:
     """
     logger.info(f"Starting batch OS discovery for {len(host_ids)} hosts")
 
-    result = {
+    result: Dict[str, Any] = {
         "total_hosts": len(host_ids),
         "dispatched": 0,
         "failed": 0,
@@ -468,7 +468,7 @@ def discover_all_hosts_os(self, force: bool = False) -> Dict[str, Any]:
     """
     logger.info(f"Starting OS discovery for all active hosts (force={force})")
 
-    result = {
+    result: Dict[str, Any] = {
         "total_active_hosts": 0,
         "hosts_needing_discovery": 0,
         "dispatched": 0,

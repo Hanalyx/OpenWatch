@@ -344,7 +344,7 @@ def get_current_user(
                     )
 
                 # Update last used timestamp
-                api_key.last_used_at = datetime.now(timezone.utc)
+                setattr(api_key, "last_used_at", datetime.now(timezone.utc))
                 db.commit()
 
                 # Return API key info as user context

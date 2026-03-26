@@ -965,7 +965,7 @@ def execute_group_compliance_scan(
         This function is called from Celery tasks which run with system privileges.
         The original authorization was validated when the scheduled scan was created.
     """
-    from app.tasks.scan_tasks import execute_scan
+    from app.tasks.scan_tasks import execute_scan_task as execute_scan
 
     try:
         scan_ids = []

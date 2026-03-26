@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 
 # Initialize services
 # UnifiedSCAPScanner handles SSH-based SCAP scanning operations
-scap_scanner = None  # UnifiedSCAPScanner removed, Kensa is the active scanner
+scap_scanner: Optional[Any] = None  # UnifiedSCAPScanner removed, Kensa is the active scanner
 error_service = ErrorClassificationService()
 
 
@@ -43,7 +43,7 @@ def execute_scan_task(
     content_path: str,
     profile_id: str,
     scan_options: Dict[str, Any],
-) -> Dict[str, Any]:
+) -> Optional[Dict[str, Any]]:
     """
     Execute SCAP scan task
     This is designed to work with or without Celery
@@ -120,7 +120,7 @@ def execute_scan_task(
                     return
 
                 # Convert to format expected by scan tasks
-                credentials = {
+                credentials: Dict[str, Any] = {
                     "username": credential_data.username,
                     "auth_method": credential_data.auth_method.value,
                     "password": credential_data.password,
@@ -222,15 +222,17 @@ def execute_scan_task(
             else:
                 credential_value = credentials.get("credential", "")
 
-            ssh_test = scap_scanner.test_ssh_connection(
-                hostname=host_data["hostname"],
-                port=host_data["port"],
-                username=host_data["username"],
-                auth_method=host_data["auth_method"],
-                credential=credential_value,
-            )
+            ssh_test: Optional[Dict[str, Any]] = None
+            if scap_scanner is not None:
+                ssh_test = scap_scanner.test_ssh_connection(
+                    hostname=host_data["hostname"],
+                    port=host_data["port"],
+                    username=host_data["username"],
+                    auth_method=host_data["auth_method"],
+                    credential=credential_value,
+                )
 
-            if not ssh_test["success"]:
+            if ssh_test is not None and not ssh_test["success"]:
                 logger.error(f"SSH connection failed for scan {scan_id}: {ssh_test['message']}")
                 # Create a synthetic exception for SSH failure
                 ssh_error = Exception(f"SSH connection failed: {ssh_test['message']}")
@@ -242,7 +244,7 @@ def execute_scan_task(
                 )
                 return
 
-            if not ssh_test.get("oscap_available", False):
+            if not (ssh_test or {}).get("oscap_available", False):
                 logger.warning(f"OpenSCAP not available on remote host for scan {scan_id}")
                 # Create a synthetic exception for missing dependency
                 dep_error = Exception("OpenSCAP not available on remote host")
@@ -276,25 +278,27 @@ def execute_scan_task(
 
             if host_data["hostname"] == "localhost":
                 # Local scan
-                scan_results = scap_scanner.execute_local_scan(
-                    content_path=content_path,
-                    profile_id=profile_id,
-                    scan_id=scan_id,
-                    rule_id=rule_id,
-                )
+                if scap_scanner is not None:
+                    scan_results = scap_scanner.execute_local_scan(
+                        content_path=content_path,
+                        profile_id=profile_id,
+                        scan_id=scan_id,
+                        rule_id=rule_id,
+                    )
             else:
                 # Remote scan
-                scan_results = scap_scanner.execute_remote_scan(
-                    hostname=host_data["hostname"],
-                    port=host_data["port"],
-                    username=host_data["username"],
-                    auth_method=host_data["auth_method"],
-                    credential=credential_value,
-                    content_path=content_path,
-                    profile_id=profile_id,
-                    scan_id=scan_id,
-                    rule_id=rule_id,
-                )
+                if scap_scanner is not None:
+                    scan_results = scap_scanner.execute_remote_scan(
+                        hostname=host_data["hostname"],
+                        port=host_data["port"],
+                        username=host_data["username"],
+                        auth_method=host_data["auth_method"],
+                        credential=credential_value,
+                        content_path=content_path,
+                        profile_id=profile_id,
+                        scan_id=scan_id,
+                        rule_id=rule_id,
+                    )
 
             # Update progress after scan execution
             db.execute(

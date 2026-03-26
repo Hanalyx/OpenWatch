@@ -154,7 +154,7 @@ class KensaRuleSyncService:
             try:
                 # Compute file hash
                 file_hash = rule_data.get("_file_hash")
-                rule_id = rule_data.get("id")
+                rule_id: str = str(rule_data.get("id") or "")
 
                 if not force:
                     # Check if rule already exists with same hash
@@ -173,7 +173,7 @@ class KensaRuleSyncService:
 
             except Exception as e:
                 logger.error("Failed to sync rule %s: %s", rule_data.get("id"), e)
-                stats["errors"].append(
+                stats.setdefault("errors", []).append(
                     {
                         "rule_id": rule_data.get("id"),
                         "error": str(e),
@@ -200,7 +200,7 @@ class KensaRuleSyncService:
 
     def _load_all_rules(self) -> List[Dict[str, Any]]:
         """Load all YAML rules from the rules directory."""
-        rules = []
+        rules: list[Any] = []
 
         if not self.rules_path.exists():
             logger.warning("Kensa rules path not found: %s", self.rules_path)
@@ -307,7 +307,7 @@ class KensaRuleSyncService:
 
         Returns the number of mappings created.
         """
-        rule_id = rule_data.get("id")
+        rule_id: str = str(rule_data.get("id") or "")
         references = rule_data.get("references", {})
         mappings_count = 0
 
@@ -487,7 +487,7 @@ class KensaRuleSyncService:
             },
         )
 
-        return result.rowcount
+        return getattr(result, "rowcount", 0)
 
     def _insert_cis_mapping(self, rule_id: str, version: str, mapping: Dict[str, Any]) -> None:
         """Insert a CIS framework mapping."""

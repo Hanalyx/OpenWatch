@@ -90,8 +90,8 @@ class BaselineService:
         # Deactivate existing baseline (if any)
         existing_baseline = self.get_active_baseline(db, host_id)
         if existing_baseline:
-            existing_baseline.is_active = False
-            existing_baseline.superseded_at = datetime.now(timezone.utc)
+            setattr(existing_baseline, "is_active", False)
+            setattr(existing_baseline, "superseded_at", datetime.now(timezone.utc))
             # superseded_by will be set after new baseline created
 
         # Convert score from string "64.82%" to float 64.82
@@ -201,7 +201,7 @@ class BaselineService:
         result = db.execute(text(query), params)
         db.commit()
 
-        if result.rowcount > 0:
+        if getattr(result, "rowcount", 0) > 0:
             # Security: Sanitize user-controlled data to prevent log injection (CWE-117)
             logger.info(f"Reset baseline for host {sanitize_id_for_log(host_id)}")
             return True

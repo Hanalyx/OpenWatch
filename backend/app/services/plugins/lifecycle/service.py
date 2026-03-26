@@ -370,7 +370,7 @@ class PluginLifecycleService:
         # Create update plan
         update_plan = PluginUpdatePlan(
             plugin_id=plugin_id,
-            current_version=plugin.version,
+            current_version=plugin.manifest.version,
             target_version=target_version,
             strategy=strategy,
             scheduled_at=scheduled_at,
@@ -412,7 +412,7 @@ class PluginLifecycleService:
         if compatibility_issues:
             logger.warning(f"Compatibility issues detected for update plan: {compatibility_issues}")
 
-        logger.info(f"Created update plan for {plugin_id}: {plugin.version} -> {target_version} ({strategy.value})")
+        logger.info(f"Created update plan for {plugin_id}: {plugin.manifest.version} -> {target_version} ({strategy.value})")
         return update_plan
 
     async def execute_plugin_update(self, update_plan: PluginUpdatePlan) -> PluginUpdateExecution:
@@ -446,7 +446,7 @@ class PluginLifecycleService:
         # Create rollback plan (used in conversion to update plan below)
         _rollback_plan = PluginRollbackPlan(  # noqa: F841
             plugin_id=plugin_id,
-            current_version=plugin.version,
+            current_version=plugin.manifest.version,
             target_version=target_version,
             rollback_reason=rollback_reason,
             triggered_by=triggered_by,
@@ -456,7 +456,7 @@ class PluginLifecycleService:
         # Convert to update plan (rollback is a special update)
         update_plan = PluginUpdatePlan(
             plugin_id=plugin_id,
-            current_version=plugin.version,
+            current_version=plugin.manifest.version,
             target_version=target_version,
             strategy=UpdateStrategy.IMMEDIATE,  # Rollbacks should be immediate
             rollback_enabled=False,  # No rollback of rollbacks
@@ -470,7 +470,7 @@ class PluginLifecycleService:
 
         logger.warning("MongoDB storage removed - update rollback execution operation skipped")
 
-        logger.info(f"Started plugin rollback: {plugin_id} {plugin.version} -> {target_version}")
+        logger.info(f"Started plugin rollback: {plugin_id} {plugin.manifest.version} -> {target_version}")
         return execution
 
     async def get_available_versions(self, plugin_id: str) -> List[PluginVersion]:
@@ -488,15 +488,15 @@ class PluginLifecycleService:
 
         versions = [
             PluginVersion(
-                version=current_plugin.version,
-                release_date=current_plugin.created_at or datetime.now(timezone.utc),
+                version=current_plugin.manifest.version,
+                release_date=current_plugin.imported_at or datetime.now(timezone.utc),
                 changelog="Current installed version",
             )
         ]
 
         # Add some mock newer versions
         try:
-            current_ver = semver.VersionInfo.parse(current_plugin.version)
+            current_ver = semver.VersionInfo.parse(current_plugin.manifest.version)
 
             # Add patch version
             patch_version = str(current_ver.bump_patch())

@@ -333,7 +333,7 @@ class RemediationRecommendationEngine:
         """
         logger.info(f"Mapping {len(recommendations)} recommendations to ORSA format")
 
-        orsa_rules_by_platform = {}
+        orsa_rules_by_platform: dict[str, Any] = {}
 
         for recommendation in recommendations:
             platform = recommendation.compliance_gap.platform
