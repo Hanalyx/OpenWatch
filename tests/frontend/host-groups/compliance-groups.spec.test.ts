@@ -16,7 +16,8 @@ describe('Compliance Groups', () => {
       expect(source.toLowerCase()).toContain('group');
     });
     it('contains member count', () => {
-      expect(source.toLowerCase()).toContain('member') || expect(source.toLowerCase()).toContain('count') || expect(source.toLowerCase()).toContain('host');
+      const lower = source.toLowerCase();
+      expect(lower.includes('member') || lower.includes('count') || lower.includes('host')).toBe(true);
     });
   });
 
