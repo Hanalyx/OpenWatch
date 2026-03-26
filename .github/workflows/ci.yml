@@ -398,6 +398,7 @@ jobs:
           OPENWATCH_AUDIT_LOG_FILE: ./logs/audit.log
           OPENWATCH_REQUIRE_HTTPS: "false"
           OPENWATCH_DEBUG: "true"
+          OPENWATCH_ADMIN_PASSWORD: admin123  # pragma: allowlist secret
           TESTING: true
         run: |
           # Create directory tree the app expects (Docker container convention)
