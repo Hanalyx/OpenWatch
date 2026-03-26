@@ -39,8 +39,7 @@ from sqlalchemy.orm import Session
 
 from app.auth import get_current_user
 from app.database import get_db
-from app.middleware.rbac_middleware import require_role
-from app.rbac import UserRole
+from app.rbac import UserRole, require_role
 
 logger = logging.getLogger(__name__)
 

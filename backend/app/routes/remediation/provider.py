@@ -13,8 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import UUID4, BaseModel, Field
 from sqlalchemy.orm import Session
 
-from app.middleware.rbac_middleware import require_role
-from app.rbac import UserRole
+from app.rbac import UserRole, require_role
 
 from ...audit_db import log_audit_event
 from ...auth import get_current_user

@@ -8,8 +8,7 @@ from typing import Any, Dict, List, Optional, Union
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 
-from app.middleware.rbac_middleware import require_role
-from app.rbac import UserRole
+from app.rbac import UserRole, require_role
 
 from ...auth import get_current_user
 from ...rbac import require_admin

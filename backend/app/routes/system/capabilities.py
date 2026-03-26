@@ -12,8 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app.middleware.rbac_middleware import require_role
-from app.rbac import UserRole
+from app.rbac import UserRole, require_role
 
 from ...auth import get_current_user
 from ...config import get_settings

@@ -23,8 +23,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi import status as http_status
 from pydantic import BaseModel, Field
 
-from app.middleware.rbac_middleware import require_role
-from app.rbac import UserRole
+from app.rbac import UserRole, require_role
 
 from ...auth import get_current_user
 from ...database import User

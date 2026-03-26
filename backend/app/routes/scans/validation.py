@@ -43,10 +43,9 @@ from sqlalchemy.orm import Session
 
 from app.auth import get_current_user
 from app.database import get_db
-from app.middleware.rbac_middleware import require_role
 from app.models.enums import ScanPriority
 from app.models.error_models import ValidationResultResponse
-from app.rbac import UserRole
+from app.rbac import UserRole, require_role
 from app.routes.scans.helpers import add_deprecation_header, sanitize_http_error
 from app.routes.scans.models import (
     QuickScanRequest,
