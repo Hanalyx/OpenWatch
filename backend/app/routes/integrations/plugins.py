@@ -35,10 +35,10 @@ from ...auth import get_current_user
 from ...database import User, get_db
 from ...models.plugin_models import PluginExecutionRequest, PluginStatus, PluginTrustLevel
 
+from ...services.plugins.security.validator import PluginSecurityService
 # PluginExecutionService and PluginImportService were removed (dead plugin modules)
 PluginExecutionService: _PluginServiceType = None
 PluginImportService: _PluginServiceType = None
-from ...services.plugins.security.validator import PluginSecurityService
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/plugins", tags=["Plugin Management"])

@@ -324,7 +324,7 @@ class SecurityConfigManager:
                     "allow_dsa_keys": effective_config.allow_dsa_keys,
                     "minimum_password_length": effective_config.minimum_password_length,
                     "require_complex_passwords": effective_config.require_complex_passwords,
-                    "allowed_key_types": [kt.value for kt in effective_config.allowed_key_types],  # type: ignore[union-attr]
+                    "allowed_key_types": [kt.value for kt in effective_config.allowed_key_types],  # type: ignore[union-attr] # noqa: E501
                 },
                 "inheritance_chain": inheritance_chain,
                 "compliance_level": self._assess_compliance_level(effective_config),

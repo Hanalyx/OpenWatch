@@ -164,7 +164,7 @@ class HostCredentialHandler:
                 )
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"SSH key validation failed: {', '.join(getattr(validation_result, 'errors', getattr(validation_result, 'issues', [])))}",
+                    detail=f"SSH key validation failed: {', '.join(getattr(validation_result, 'errors', getattr(validation_result, 'issues', [])))}",  # noqa: E501
                 )
 
             if validation_result.warnings:

@@ -16,7 +16,6 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from ...audit_db import log_security_event
-from ...database import Host
 from ...encryption import EncryptionService
 
 # validate_ssh_key validates key format and security level before SSH authentication

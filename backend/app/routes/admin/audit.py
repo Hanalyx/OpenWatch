@@ -12,7 +12,6 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.middleware.rbac_middleware import require_role
-from app.rbac import UserRole
 
 from ...auth import get_current_user
 from ...database import get_db

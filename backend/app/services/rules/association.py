@@ -394,7 +394,7 @@ class RuleAssociationService:
                     # Convert mappings to recommendations
                     rule_recommendations = []
                     for mapping in existing_mappings:
-                        plugin = await self.plugin_registry_service.get_plugin(mapping.plugin_id)  # type: ignore[union-attr]
+                        plugin = await self.plugin_registry_service.get_plugin(mapping.plugin_id)  # type: ignore[union-attr] # noqa: E501
                         if plugin:
                             recommendation = RuleMappingRecommendation(
                                 plugin_id=plugin.plugin_id,

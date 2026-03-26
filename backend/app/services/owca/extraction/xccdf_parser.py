@@ -28,7 +28,7 @@ from pathlib import Path
 from typing import Optional
 
 import lxml.etree as etree  # nosec B410 - Using secure parser (resolve_entities=False, no_network=True)
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, field_validator
 
 logger = logging.getLogger(__name__)
 audit_logger = logging.getLogger("openwatch.audit")
