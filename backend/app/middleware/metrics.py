@@ -223,20 +223,20 @@ class BackgroundMetricsUpdater:
                     GROUP BY status
                 """))
 
-                status_counts = {}
+                status_counts: dict[str, int] = {}
                 for row in result:
-                    status_counts[row.status] = row.count
+                    status_counts[str(row.status)] = int(row.count)  # type: ignore[call-overload]
 
                 self.metrics.update_host_counts(status_counts)
 
                 # Update active scans count
-                result = db.execute(text("""
+                scan_result = db.execute(text("""
                     SELECT COUNT(*) as active_scans
                     FROM scans
                     WHERE status IN ('running', 'pending')
                 """))
 
-                row = result.fetchone()
+                row = scan_result.fetchone()  # type: ignore[assignment]
                 if row:
                     self.metrics.set_active_scans(row.active_scans)
 

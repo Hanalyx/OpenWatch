@@ -228,11 +228,11 @@ async def orsa_health_check(
         health = await registry.health_check()
 
         return PluginHealthResponse(
-            registry_healthy=health.get("registry_healthy", False),
-            all_plugins_healthy=health.get("all_plugins_healthy", False),
-            plugin_count=health.get("plugin_count", 0),
-            initialized_at=health.get("initialized_at"),
-            plugins=health.get("plugins", {}),
+            registry_healthy=bool(health.get("registry_healthy", False)),
+            all_plugins_healthy=bool(health.get("all_plugins_healthy", False)),
+            plugin_count=int(health.get("plugin_count", 0)),  # type: ignore[call-overload]
+            initialized_at=str(health.get("initialized_at")) if health.get("initialized_at") else None,
+            plugins=dict(health.get("plugins", {})),  # type: ignore[call-overload]
         )
 
     except Exception as e:

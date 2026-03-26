@@ -131,7 +131,7 @@ class AuthorizationResult:
     resource: ResourceIdentifier
     action: ActionType
     context: AuthorizationContext
-    applied_policies: List[PermissionPolicy]
+    applied_policies: List[Any]
     reason: str
     confidence_score: float = 1.0  # 0.0 to 1.0
     cached: bool = False

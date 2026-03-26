@@ -352,7 +352,7 @@ async def acknowledge_alert(
             )
         raise HTTPException(
             status_code=http_status.HTTP_400_BAD_REQUEST,
-            detail=f"Cannot acknowledge alert: status is '{existing.status}'",
+            detail=f"Cannot acknowledge alert: status is '{existing['status']}'",
         )
 
     return _row_to_response(alert)
@@ -406,7 +406,7 @@ async def resolve_alert(
             )
         raise HTTPException(
             status_code=http_status.HTTP_400_BAD_REQUEST,
-            detail=f"Cannot resolve alert: status is '{existing.status}'",
+            detail=f"Cannot resolve alert: status is '{existing['status']}'",
         )
 
     return _row_to_response(alert)

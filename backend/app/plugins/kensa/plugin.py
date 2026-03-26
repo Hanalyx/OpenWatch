@@ -181,8 +181,9 @@ class KensaPlugin(ScannerPlugin, RemediationPlugin):
             rules_path = _get_rules_path()
 
             # Get credentials from OpenWatch
-            host_id = context.scan_parameters.get("host_id", "")
-            db = context.scan_parameters.get("db")
+            params = context.scan_parameters or {}
+            host_id = params.get("host_id", "")
+            db = params.get("db")
 
             if not db:
                 raise RuntimeError("Database session required for credential lookup")
@@ -192,8 +193,8 @@ class KensaPlugin(ScannerPlugin, RemediationPlugin):
             # Use the session factory's context manager for secure key handling
             async with factory.create_session(host_id) as session:
                 # Run Kensa check on all rules
-                framework = context.scan_parameters.get("framework")
-                severity_filter = context.scan_parameters.get("severity")
+                framework = params.get("framework")
+                severity_filter = params.get("severity")
 
                 # Check rules from Kensa rules directory
                 results = check_rules_from_path(

@@ -143,7 +143,11 @@ class TemporalComplianceService:
 
         return PostureResponse(
             host_id=host_id,
-            snapshot_date=latest_scan.completed_at if isinstance(latest_scan.completed_at, datetime) else datetime.now(timezone.utc),
+            snapshot_date=(
+                latest_scan.completed_at
+                if isinstance(latest_scan.completed_at, datetime)
+                else datetime.now(timezone.utc)
+            ),
             is_current=True,
             total_rules=total_rules,
             passed=passed_rules,
@@ -215,7 +219,9 @@ class TemporalComplianceService:
 
         return PostureResponse(
             host_id=host_id,
-            snapshot_date=snapshot.snapshot_date if isinstance(snapshot.snapshot_date, datetime) else datetime.now(timezone.utc),
+            snapshot_date=(
+                snapshot.snapshot_date if isinstance(snapshot.snapshot_date, datetime) else datetime.now(timezone.utc)
+            ),
             is_current=False,
             total_rules=int(snapshot.total_rules),
             passed=int(snapshot.passed),
@@ -291,7 +297,11 @@ class TemporalComplianceService:
             posture_list.append(
                 PostureResponse(
                     host_id=host_id,
-                    snapshot_date=snapshot.snapshot_date if isinstance(snapshot.snapshot_date, datetime) else datetime.now(timezone.utc),
+                    snapshot_date=(
+                        snapshot.snapshot_date
+                        if isinstance(snapshot.snapshot_date, datetime)
+                        else datetime.now(timezone.utc)
+                    ),
                     is_current=False,
                     total_rules=int(snapshot.total_rules),
                     passed=int(snapshot.passed),

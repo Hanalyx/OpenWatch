@@ -96,8 +96,8 @@ class ComplianceFrameworkReporter:
         try:
             # object requires db session - only initialize if provided
             if db is not None:
-                self.enrichment_service = object(db)
-                await self.enrichment_service.initialize()
+                # SCAP-era enrichment service removed; placeholder for compatibility
+                self.enrichment_service = None
 
             self._initialized = True
             logger.info("Compliance Framework Reporter initialized successfully")

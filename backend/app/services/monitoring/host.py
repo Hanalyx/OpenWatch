@@ -493,12 +493,17 @@ class HostMonitor:
                     check_results["ssh_accessible"] = ssh_success
 
                     if ssh_success:
-                        check_results["credential_details"] = str(check_results.get("credential_details", "")) + " - SSH authentication successful"
+                        check_results["credential_details"] = (
+                            str(check_results.get("credential_details", "")) + " - SSH authentication successful"
+                        )
                         logger.info(
                             f"SSH authentication successful for {hostname} using {source} credentials (user: ***REDACTED***)"  # noqa: E501
                         )
                     else:
-                        check_results["credential_details"] = str(check_results.get("credential_details", "")) + f" - SSH authentication failed: {ssh_error}"
+                        check_results["credential_details"] = (
+                            str(check_results.get("credential_details", ""))
+                            + f" - SSH authentication failed: {ssh_error}"
+                        )
                         check_results["error_message"] = (
                             f"SSH authentication failed with {source} credentials: {ssh_error}"
                         )

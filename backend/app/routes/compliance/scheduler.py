@@ -234,7 +234,7 @@ async def toggle_scheduler(
     Manual scans can still be triggered.
     """
     try:
-        compliance_scheduler_service.update_config(db, {"enabled": enabled})
+        compliance_scheduler_service.update_config(db, enabled)
         return {
             "status": "ok",
             "enabled": enabled,

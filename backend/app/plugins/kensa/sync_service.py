@@ -138,7 +138,7 @@ class KensaRuleSyncService:
             Dict with sync statistics.
         """
         start_time = datetime.now(timezone.utc)
-        stats = {
+        stats: Dict[str, Any] = {
             "rules_found": 0,
             "rules_synced": 0,
             "rules_skipped": 0,

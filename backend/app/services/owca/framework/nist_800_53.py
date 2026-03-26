@@ -385,7 +385,7 @@ class NIST80053FrameworkIntelligence(BaseFrameworkIntelligence):
             .where("s.host_id = :host_id", host_id, "host_id")
             .where("s.status = :status", "completed", "status")
             .order_by("s.completed_at", "DESC")
-            .limit(1)
+            .paginate(1, 1)
         )
 
         query, params = builder.build()

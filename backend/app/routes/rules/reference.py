@@ -33,6 +33,7 @@ from ...schemas.rule_reference_schemas import (
     CategoryInfo,
     CategoryListResponse,
     CheckDefinition,
+    CISReference,
     FrameworkInfo,
     FrameworkListResponse,
     FrameworkReferences,
@@ -42,6 +43,7 @@ from ...schemas.rule_reference_schemas import (
     RuleDetailResponse,
     RuleListResponse,
     RuleSummary,
+    STIGReference,
     VariableDefinition,
     VariableListResponse,
 )
@@ -94,20 +96,20 @@ def rule_to_detail(rule: Dict[str, Any]) -> RuleDetail:
     refs = rule.get("references", {})
     framework_refs = FrameworkReferences(
         cis={
-            ver: {
-                "section": ref.get("section", ""),
-                "level": ref.get("level", ""),
-                "type": ref.get("type", "Automated"),
-            }
+            ver: CISReference(
+                section=ref.get("section", ""),
+                level=ref.get("level", ""),
+                type=ref.get("type", "Automated"),
+            )
             for ver, ref in refs.get("cis", {}).items()
         },
         stig={
-            ver: {
-                "vuln_id": ref.get("vuln_id", ""),
-                "stig_id": ref.get("stig_id", ""),
-                "severity": ref.get("severity", ""),
-                "cci": ref.get("cci", []),
-            }
+            ver: STIGReference(
+                vuln_id=ref.get("vuln_id", ""),
+                stig_id=ref.get("stig_id", ""),
+                severity=ref.get("severity", ""),
+                cci=ref.get("cci", []),
+            )
             for ver, ref in refs.get("stig", {}).items()
         },
         nist_800_53=refs.get("nist_800_53", []),

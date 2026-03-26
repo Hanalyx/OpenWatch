@@ -277,7 +277,7 @@ async def quick_scan(
             scan_id = create_kensa_scan_record(
                 db=db,
                 host_id=host["id"],
-                user_id=user_id,
+                user_id=int(user_id) if user_id is not None else 0,
                 framework=framework,
             )
 

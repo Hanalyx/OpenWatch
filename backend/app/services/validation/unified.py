@@ -98,7 +98,7 @@ class UnifiedValidationService:
                 errors.append(self._create_network_error(network_result["error"]))
 
             # Step 3: SSH Authentication test (map to "authentication" for frontend compatibility)
-            if validation_checks["network_connectivity"]:
+            if validation_checks["network_connectivity"] and credential_data is not None:
                 auth_result = await self._test_ssh_authentication(
                     request.target_hostname, request.target_port, credential_data
                 )
@@ -110,7 +110,7 @@ class UnifiedValidationService:
                     errors.append(self._create_auth_error(auth_result["error"]))
 
             # Step 4: System privileges check (map to "privileges" for frontend compatibility)
-            if validation_checks.get("authentication", False):
+            if validation_checks.get("authentication", False) and credential_data is not None:
                 privilege_result = await self._test_system_privileges(
                     request.target_hostname, request.target_port, credential_data
                 )
@@ -123,7 +123,7 @@ class UnifiedValidationService:
                         warnings.append(self._create_privilege_warning(privilege_result["error"]))
 
             # Step 5: System resources check (map to "resources" for frontend compatibility)
-            if validation_checks.get("authentication", False):
+            if validation_checks.get("authentication", False) and credential_data is not None:
                 resource_result = await self._test_system_resources(
                     request.target_hostname, request.target_port, credential_data
                 )
@@ -133,7 +133,7 @@ class UnifiedValidationService:
                     warnings.append(self._create_resource_warning(resource_result["error"]))
 
             # Step 6: OpenSCAP dependencies check (map to "dependencies" for frontend compatibility)
-            if validation_checks.get("authentication", False):
+            if validation_checks.get("authentication", False) and credential_data is not None:
                 scap_result = await self._test_openscap_dependencies(
                     request.target_hostname, request.target_port, credential_data
                 )
@@ -432,8 +432,11 @@ class UnifiedValidationService:
         # Sanitize system info
         sanitization_service = get_system_info_sanitization_service()
         from app.models.system_models import SystemInfoSanitizationContext
+
         sanitize_ctx = SystemInfoSanitizationContext(user_role="admin")
-        sanitized_system_info, _ = sanitization_service.sanitize_system_information(internal_result.system_info, sanitize_ctx)
+        sanitized_system_info, _ = sanitization_service.sanitize_system_information(
+            internal_result.system_info, sanitize_ctx
+        )
 
         return ValidationResultResponse(
             can_proceed=internal_result.can_proceed,

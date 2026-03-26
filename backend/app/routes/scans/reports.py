@@ -503,6 +503,8 @@ async def get_scan_json_report(
                     # XCCDFResultParser provides parse_scan_results() for XCCDF result files
                     XCCDFResultParser = None  # Legacy SCAP parser, no longer available
 
+                    if XCCDFResultParser is None:
+                        raise ValueError("XCCDF parser not available (SCAP-era code removed)")
                     parser = XCCDFResultParser()
                     parsed = parser.parse_scan_results(
                         Path(scan_data["result_file"]),

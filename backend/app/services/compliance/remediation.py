@@ -241,9 +241,16 @@ class RemediationService:
 
         if row is None:
             return RemediationSummary(
-                total_jobs=0, pending_jobs=0, running_jobs=0, completed_jobs=0,
-                failed_jobs=0, rolled_back_jobs=0, total_rules_remediated=0,
-                total_rules_failed=0, success_rate=0.0, rollback_available_count=0,
+                total_jobs=0,
+                pending_jobs=0,
+                running_jobs=0,
+                completed_jobs=0,
+                failed_jobs=0,
+                rolled_back_jobs=0,
+                total_rules_remediated=0,
+                total_rules_failed=0,
+                success_rate=0.0,
+                rollback_available_count=0,
             )
 
         total_rules = (row.total_rules_remediated or 0) + (row.total_rules_failed or 0)

@@ -240,8 +240,8 @@ class ErrorClassificationService:
             # Convert SanitizedError to ScanErrorResponse
             scan_error_response = ScanErrorResponse(
                 error_code=sanitized_error.error_code,
-                category=sanitized_error.category,
-                severity=sanitized_error.severity,
+                category=ErrorCategory(sanitized_error.category),
+                severity=ErrorSeverity(sanitized_error.severity),
                 message=sanitized_error.message,
                 user_guidance=sanitized_error.user_guidance,
                 can_retry=sanitized_error.can_retry,
@@ -260,8 +260,8 @@ class ErrorClassificationService:
             # Convert SanitizedError to ScanErrorResponse
             scan_warning_response = ScanErrorResponse(
                 error_code=sanitized_warning.error_code,
-                category=sanitized_warning.category,
-                severity=sanitized_warning.severity,
+                category=ErrorCategory(sanitized_warning.category),
+                severity=ErrorSeverity(sanitized_warning.severity),
                 message=sanitized_warning.message,
                 user_guidance=sanitized_warning.user_guidance,
                 can_retry=sanitized_warning.can_retry,

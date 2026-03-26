@@ -160,7 +160,7 @@ async def get_audit_events(
                     ip_address=row.ip_address,
                     user_agent=row.user_agent,
                     details=row.details,
-                    timestamp=(row.timestamp.isoformat() + "Z") if row.timestamp else None,
+                    timestamp=(row.timestamp.isoformat() + "Z") if row.timestamp else "",
                     severity=event_severity,
                 )
             )

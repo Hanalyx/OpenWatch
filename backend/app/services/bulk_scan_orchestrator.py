@@ -280,14 +280,15 @@ class BulkScanOrchestrator:
             await self._update_scan_session(session)
 
             # Start scans with staggered execution
-            started_scans = self._execute_staggered_scans(session.scan_ids)
+            scan_ids = session.scan_ids or []
+            started_scans = self._execute_staggered_scans(scan_ids)
 
             logger.info(f"Started bulk scan session {session_id} with {len(started_scans)} scans")
             return {
                 "session_id": session_id,
                 "status": "started",
                 "started_scans": len(started_scans),
-                "total_scans": len(session.scan_ids),
+                "total_scans": len(scan_ids),
             }
 
         except Exception as e:
@@ -303,10 +304,11 @@ class BulkScanOrchestrator:
                 raise ValueError(f"Session {session_id} not found")
 
             # Get individual scan statuses
-            scan_statuses = self._get_scans_status(session.scan_ids)
+            progress_scan_ids = session.scan_ids or []
+            scan_statuses = self._get_scans_status(progress_scan_ids)
 
             # Calculate progress metrics
-            total_scans = len(session.scan_ids)
+            total_scans = len(progress_scan_ids)
             completed = sum(1 for s in scan_statuses if s["status"] == "completed")
             failed = sum(1 for s in scan_statuses if s["status"] == "failed")
             running = sum(1 for s in scan_statuses if s["status"] in ["pending", "running"])

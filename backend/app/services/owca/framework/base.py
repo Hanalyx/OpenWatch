@@ -9,7 +9,7 @@ Security: All database queries use QueryBuilder for SQL injection protection.
 
 import logging
 from abc import ABC, abstractmethod
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from sqlalchemy.orm import Session
 

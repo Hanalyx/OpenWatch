@@ -412,7 +412,9 @@ class PluginLifecycleService:
         if compatibility_issues:
             logger.warning(f"Compatibility issues detected for update plan: {compatibility_issues}")
 
-        logger.info(f"Created update plan for {plugin_id}: {plugin.manifest.version} -> {target_version} ({strategy.value})")
+        logger.info(
+            f"Created update plan for {plugin_id}: {plugin.manifest.version} -> {target_version} ({strategy.value})"
+        )
         return update_plan
 
     async def execute_plugin_update(self, update_plan: PluginUpdatePlan) -> PluginUpdateExecution:

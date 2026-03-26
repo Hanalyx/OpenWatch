@@ -89,7 +89,7 @@ class SecureAutomatedFix:
 
     def _extract_parameters(self) -> Dict[str, Any]:
         """Extract parameters from legacy command"""
-        parameters = {}
+        parameters: Dict[str, Any] = {}
 
         if not self.command:
             return parameters
@@ -265,7 +265,7 @@ class SecureAutomatedFixExecutor:
                         "security_level": "blocked",
                         "requires_approval": True,
                         "estimated_time": 0,
-                        "secure_command_id": None,
+                        "secure_command_id": "",
                         "parameters": {},
                         "rollback_available": False,
                         "is_safe": False,

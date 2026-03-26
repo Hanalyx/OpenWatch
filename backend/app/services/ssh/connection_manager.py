@@ -942,7 +942,6 @@ class SSHConnectionManager:
 
         return results
 
-
     # ------------------------------------------------------------------
     # Compatibility methods for discovery modules that use a simplified
     # connect/execute_command/disconnect API.
@@ -980,9 +979,7 @@ class SSHConnectionManager:
             self.client = None
             self.current_host = None
 
-    def execute_command(
-        self, command: str, timeout: int = 30
-    ) -> Dict[str, Any]:
+    def execute_command(self, command: str, timeout: int = 30) -> Dict[str, Any]:
         """Execute a command on the current connection (discovery compat).
 
         Returns a dict with ``success``, ``stdout``, ``stderr``, and

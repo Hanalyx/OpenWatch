@@ -153,6 +153,7 @@ class PluginSignatureService:
             signature_bytes = bytes.fromhex(signature.signature)
 
             # Verify signature based on algorithm
+            hash_algo: hashes.HashAlgorithm
             if signature.algorithm == "SHA256":
                 hash_algo = hashes.SHA256()
             elif signature.algorithm == "SHA384":

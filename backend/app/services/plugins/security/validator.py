@@ -117,6 +117,8 @@ class PluginSecurityService:
                 return False, checks, None
 
             # Step 4: Security scans
+            if manifest is None:
+                return False, checks, None
             security_checks = await self._run_security_scans(extracted_path, manifest)
             checks.extend(security_checks)
 

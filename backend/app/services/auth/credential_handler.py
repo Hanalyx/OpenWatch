@@ -159,7 +159,8 @@ class HostCredentialHandler:
 
             if not validation_result.is_valid:
                 logger.error(
-                    f"SSH key validation failed for host '{hostname}': " f"{', '.join(getattr(validation_result, 'errors', getattr(validation_result, 'issues', [])))}"
+                    f"SSH key validation failed for host '{hostname}': "
+                    f"{', '.join(getattr(validation_result, 'errors', getattr(validation_result, 'issues', [])))}"
                 )
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
@@ -239,6 +240,7 @@ class HostCredentialHandler:
         """
         try:
             from app.core.dependencies import get_encryption_service
+
             auth_service = get_auth_service(self.db, get_encryption_service())
 
             # Store credential in unified_credentials

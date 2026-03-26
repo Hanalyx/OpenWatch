@@ -169,7 +169,7 @@ class PluginExecutor(BaseModel):
     type: PluginCapability
     entry_point: str = Field(..., description="Main execution entry point")
     templates: Dict[str, str] = Field(default_factory=dict, description="Platform-specific templates")
-    resource_limits: Dict[str, Union[str, int]] = Field(
+    resource_limits: Dict[str, Any] = Field(
         default_factory=lambda: {
             "cpu": "0.5",
             "memory": "512M",

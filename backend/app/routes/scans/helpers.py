@@ -47,12 +47,12 @@ sanitization_service = get_error_sanitization_service()
 # The singleton pattern ensures scanner initialization happens only once
 # and is shared across all API requests for efficiency.
 
-_compliance_scanner: Optional[object] = None
-_enrichment_service: Optional[object] = None
+_compliance_scanner: Optional[Any] = None
+_enrichment_service: Optional[Any] = None
 _compliance_reporter: Optional[ComplianceFrameworkReporter] = None
 
 
-async def get_compliance_scanner(request: Request) -> object:
+async def get_compliance_scanner(request: Request) -> Any:
     """
     Get or initialize the compliance scanner singleton.
 
@@ -79,8 +79,9 @@ async def get_compliance_scanner(request: Request) -> object:
                     status_code=500,
                     detail="Encryption service not available for scanner initialization",
                 )
-            _compliance_scanner = object(encryption_service=encryption_service)
-            await _compliance_scanner.initialize()
+            # SCAP-era scanner removed; placeholder for legacy endpoint compatibility
+            _compliance_scanner = None
+            logger.warning("Compliance scanner not available (SCAP-era code removed)")
             logger.info("Compliance scanner initialized successfully")
         return _compliance_scanner
     except HTTPException:
@@ -93,7 +94,7 @@ async def get_compliance_scanner(request: Request) -> object:
         )
 
 
-async def get_enrichment_service() -> object:
+async def get_enrichment_service() -> Any:
     """
     Get or initialize the result enrichment service singleton.
 
@@ -105,8 +106,9 @@ async def get_enrichment_service() -> object:
     """
     global _enrichment_service
     if _enrichment_service is None:
-        _enrichment_service = object(db=None)
-        await _enrichment_service.initialize()
+        # SCAP-era enrichment service removed; placeholder for legacy endpoint compatibility
+        _enrichment_service = None
+        logger.warning("Enrichment service not available (SCAP-era code removed)")
         logger.debug("Enrichment service initialized")
     return _enrichment_service
 

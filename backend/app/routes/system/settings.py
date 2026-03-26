@@ -56,7 +56,7 @@ class SystemCredentialsUpdate(BaseModel):
 
 
 class SystemCredentialsResponse(SystemCredentialsBase):
-    id: int  # External ID (mapped from UUID)
+    id: Any  # External ID (mapped from UUID, may be str or int)
     is_active: bool
     created_at: str
     updated_at: str
@@ -1136,6 +1136,8 @@ async def update_session_timeout(
         result = db.execute(text(result_query), result_params)
         row = result.fetchone()
 
+        if row is None:
+            raise HTTPException(status_code=500, detail="Session timeout setting not found")
         return SessionTimeoutSettings(
             timeout_minutes=int(row.setting_value),
             updated_at=row.modified_at.isoformat() if row.modified_at else None,

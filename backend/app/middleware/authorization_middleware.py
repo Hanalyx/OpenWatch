@@ -216,8 +216,8 @@ class AuthorizationMiddleware(BaseHTTPMiddleware):
             authorization_result = await self._perform_authorization_check(
                 current_user["id"],
                 resources,
-                endpoint_config["action"],
-                endpoint_config["bulk"],
+                ActionType(endpoint_config["action"]),
+                bool(endpoint_config["bulk"]),
                 auth_context,
             )
 

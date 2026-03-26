@@ -521,15 +521,15 @@ async def get_group_compliance_report(
             raise HTTPException(status_code=404, detail="Host group not found")
 
         # Build date filters for parameterized query
-        params: Dict[str, Any] = {"group_id": group_id}
+        date_params: Dict[str, Any] = {"group_id": group_id}
         date_conditions = []
 
         if date_from:
             date_conditions.append("s.completed_at >= :date_from")
-            params["date_from"] = date_from
+            date_params["date_from"] = date_from
         if date_to:
             date_conditions.append("s.completed_at <= :date_to")
-            params["date_to"] = date_to
+            date_params["date_to"] = date_to
         if framework:
             # Framework filtering would need a different approach since scap_content is removed
             # For now, we skip this filter
@@ -567,7 +567,7 @@ async def get_group_compliance_report(
             SELECT * FROM latest_scans
         """
 
-        compliance_data = db.execute(text(compliance_query), params).fetchall()
+        compliance_data = db.execute(text(compliance_query), date_params).fetchall()
 
         if not compliance_data:
             raise HTTPException(status_code=404, detail="No compliance data found for group")
@@ -1012,7 +1012,7 @@ def execute_group_compliance_scan(
                 db.commit()
 
                 # Queue the scan task
-                execute_scan.delay(
+                execute_scan.delay(  # type: ignore[attr-defined]
                     scan_id=scan_id,
                     host_id=host_id,
                     profile_id=profile_id,

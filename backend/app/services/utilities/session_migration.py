@@ -12,7 +12,11 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from ...config import get_settings
-from ..auth import jwt_manager
+
+try:
+    from ..auth import jwt_manager  # type: ignore[attr-defined]
+except (ImportError, AttributeError):
+    jwt_manager: Any = None  # type: ignore[no-redef]
 
 logger = logging.getLogger(__name__)
 settings = get_settings()

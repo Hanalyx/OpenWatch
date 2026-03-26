@@ -837,7 +837,7 @@ class AuthorizationService:
 
             valid_results = []
             for i, result in enumerate(results):
-                if isinstance(result, Exception):
+                if isinstance(result, BaseException):
                     # Handle exceptions by creating deny result
                     valid_results.append(
                         AuthorizationResult(

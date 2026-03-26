@@ -242,6 +242,9 @@ class RSAKeyLifecycleManager:
             with open(private_key_path, "rb") as f:
                 private_key = serialization.load_pem_private_key(f.read(), password=None, backend=default_backend())
 
+            if not isinstance(private_key, rsa.RSAPrivateKey):
+                logger.error(f"Key {key_id} is not an RSA private key")
+                return None
             return private_key
 
         except Exception as e:
@@ -258,6 +261,9 @@ class RSAKeyLifecycleManager:
             with open(public_key_path, "rb") as f:
                 public_key = serialization.load_pem_public_key(f.read(), backend=default_backend())
 
+            if not isinstance(public_key, rsa.RSAPublicKey):
+                logger.error(f"Key {key_id} is not an RSA public key")
+                return None
             return public_key
 
         except Exception as e:
@@ -510,7 +516,7 @@ class RSAKeyLifecycleManager:
             "revoked_keys": 0,
             "keys_needing_rotation": 0,
             "oldest_active_key_age_days": 0,
-            "average_key_usage": 0,
+            "average_key_usage": 0.0,
         }
 
         try:

@@ -99,7 +99,7 @@ def _update_scan_status(
             .where("id = :id", str(scan_uuid), "id")
         )
         update_query, params = update_builder.build()
-        db.execute(update_query, params)
+        db.execute(text(update_query), params)
         db.commit()
         logger.info(f"Updated scan {scan_uuid} status to {status_value}")
     except Exception as update_error:
@@ -176,9 +176,9 @@ async def _jit_platform_detection(
         # Perform platform detection
         platform_info = await detect_platform_for_scan(
             hostname=hostname,
-            connection_params=connection_params,
-            encryption_service=encryption_service,
-            host_id=host_id,
+            port=connection_params.get("port", 22),
+            credential_data=credential_data,
+            db=db,
         )
 
         if platform_info.detection_success and platform_info.platform_identifier:
@@ -476,7 +476,7 @@ async def create_compliance_scan(
                             "severity_filter": scan_request.severity_filter,
                         }
                     ),
-                    int(current_user.get("id")) if current_user.get("id") else None,
+                    int(current_user["id"]) if current_user.get("id") is not None else None,
                     started_at,
                     False,
                     False,

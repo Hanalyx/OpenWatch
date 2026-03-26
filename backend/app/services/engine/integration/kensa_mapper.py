@@ -627,7 +627,7 @@ class KensaMapper:
             plan_file = self.mappings_dir / f"{plan.plan_id}.json"
 
             # Build serializable plan data
-            plan_data = {
+            plan_data: Dict[str, Any] = {
                 "plan_id": plan.plan_id,
                 "scan_id": plan.scan_id,
                 "host_id": plan.host_id,

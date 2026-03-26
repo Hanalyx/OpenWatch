@@ -470,9 +470,8 @@ async def update_user(
         db.commit()
 
         # Return updated user
-        # Cast needed because @require_permission decorator returns Any
         user_response = await get_user(user_id, current_user, db)
-        return (result)
+        return user_response
 
     except HTTPException:
         raise
@@ -620,7 +619,7 @@ async def get_my_profile(
         raise HTTPException(status_code=401, detail="User ID not found in token")
     # Cast needed because @require_permission decorator returns Any
     result = await get_user(user_id, current_user, db)
-    return (result)
+    return result
 
 
 @router.put("/me/profile", response_model=UserResponse)
@@ -650,4 +649,4 @@ async def update_my_profile(
         raise HTTPException(status_code=401, detail="User ID not found in token")
     # Cast needed because @require_permission decorator returns Any
     result = await update_user(user_id, user_data, current_user, db)
-    return (result)
+    return result

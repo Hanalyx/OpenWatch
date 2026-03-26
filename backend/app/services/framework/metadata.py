@@ -118,7 +118,7 @@ class FrameworkMetadataService:
 
     async def validate_variables(
         self, framework: str, version: str, variables: Dict[str, Any]
-    ) -> Tuple[bool, Dict[str, str]]:
+    ) -> Tuple[bool, Dict[str, Optional[str]]]:
         """
         Validate multiple variable values.
 
@@ -134,7 +134,7 @@ class FrameworkMetadataService:
         var_defs = await self.get_variables(framework, version)
         var_defs_dict = {v.id: v for v in var_defs}
 
-        errors = {}
+        errors: Dict[str, Optional[str]] = {}
         all_valid = True
 
         for var_id, value in variables.items():

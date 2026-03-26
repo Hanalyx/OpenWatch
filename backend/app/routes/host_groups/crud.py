@@ -793,6 +793,9 @@ async def create_smart_group(
                 os_family=recommendations.get("os_family"),
                 os_version_pattern=recommendations.get("os_version_pattern"),
                 compliance_framework=recommendations.get("compliance_framework"),
+                architecture=None,
+                color=None,
+                scan_schedule=None,
             )
 
             # Create the group using the existing endpoint logic

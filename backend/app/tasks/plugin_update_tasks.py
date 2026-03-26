@@ -201,7 +201,7 @@ def perform_auto_update() -> Dict[str, Any]:
             logger.info(f"Auto-updating Kensa from {check_result.current_version} " f"to {check_result.latest_version}")
 
             result = await updater.perform_update(
-                version=check_result.latest_version,
+                version=str(check_result.latest_version) if check_result.latest_version else "",
                 user_id=system_user_id,
                 skip_backup=False,
             )

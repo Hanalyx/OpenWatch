@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 
 from ..database import ScanBaseline
 from ..utils.logging_security import sanitize_for_log, sanitize_id_for_log
+from ..utils.mutation_builders import UpdateBuilder
 from ..utils.query_builder import QueryBuilder
 
 logger = logging.getLogger(__name__)
@@ -186,13 +187,9 @@ class BaselineService:
             True if baseline was reset, False if no active baseline
         """
         builder = (
-            QueryBuilder("scan_baselines")
-            .update(
-                {
-                    "is_active": False,
-                    "superseded_at": datetime.now(timezone.utc),
-                }
-            )
+            UpdateBuilder("scan_baselines")
+            .set("is_active", False)
+            .set("superseded_at", datetime.now(timezone.utc))
             .where("host_id = :host_id", host_id, "host_id")
             .where("is_active = :is_active", True, "is_active")
         )

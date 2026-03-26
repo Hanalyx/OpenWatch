@@ -43,11 +43,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, cast
 
-# Engine module provides standardized exception types
-from app.services.engine import ScanExecutionError
-
 # UnifiedSCAPScanner provides execute_remote_scan, _parse_scan_results, and legacy compatibility
-from app.services.engine.scanners import UnifiedSCAPScanner
+# Engine module provides standardized exception types
+from app.services.engine import ScanExecutionError, UnifiedSCAPScanner
 from app.services.framework import ComplianceFrameworkMapper
 
 logger = logging.getLogger(__name__)

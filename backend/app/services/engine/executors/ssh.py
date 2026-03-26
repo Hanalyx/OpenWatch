@@ -43,7 +43,7 @@ Security Notes:
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, TYPE_CHECKING, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 import paramiko
 from sqlalchemy.orm import Session
@@ -149,8 +149,8 @@ class SSHExecutor(BaseExecutor):
         context: ExecutionContext,
         content_path: Path,
         profile_id: str,
-        credential_data: Optional[object] = None,
-        dependencies: Optional[List[object]] = None,
+        credential_data: Optional[Any] = None,
+        dependencies: Optional[List[Any]] = None,
     ) -> RemoteScanResult:
         """
         Execute SCAP scan on remote host via SSH.

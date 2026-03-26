@@ -71,7 +71,7 @@ class RuleService:
             cache_service: Optional cache service instance
         """
         self.cache_service = cache_service or RuleCacheService()
-        self.platform_service = None  # PlatformCapabilityService removed
+        self.platform_service: Any = None  # PlatformCapabilityService removed
         self.query_stats = {
             "total_queries": 0,
             "cache_hits": 0,

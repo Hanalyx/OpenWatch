@@ -25,7 +25,7 @@ from sqlalchemy.orm import Session
 from ...auth import get_current_user
 from ...database import get_db
 from ...rbac import Permission, require_permission
-from ...services.ssh import SSHConfigManager
+from ...services.ssh import KnownHostsManager, SSHConfigManager
 from .models import KnownHostRequest, KnownHostResponse, SSHPolicyRequest, SSHPolicyResponse
 
 logger = logging.getLogger(__name__)
@@ -167,9 +167,9 @@ async def get_known_hosts(
         HTTPException: 500 if retrieval fails
     """
     try:
-        service = SSHConfigManager(db)
+        known_hosts_service = KnownHostsManager(db)
 
-        hosts = service.get_known_hosts(hostname)
+        hosts = known_hosts_service.get_known_hosts(hostname)
         return [KnownHostResponse(**host) for host in hosts]
 
     except Exception as e:
@@ -205,10 +205,10 @@ async def add_known_host(
         HTTPException: 500 if creation fails
     """
     try:
-        service = SSHConfigManager(db)
+        known_hosts_service = KnownHostsManager(db)
 
         # Add known host
-        success = service.add_known_host(
+        success = known_hosts_service.add_known_host(
             hostname=host_request.hostname,
             ip_address=host_request.ip_address,
             key_type=host_request.key_type,
@@ -223,7 +223,7 @@ async def add_known_host(
             )
 
         # Return the added host
-        hosts = service.get_known_hosts(host_request.hostname)
+        hosts = known_hosts_service.get_known_hosts(host_request.hostname)
         matching_host = next(
             (h for h in hosts if h["hostname"] == host_request.hostname and h["key_type"] == host_request.key_type),
             None,
@@ -274,10 +274,10 @@ async def remove_known_host(
         HTTPException: 500 if removal fails
     """
     try:
-        service = SSHConfigManager(db)
+        known_hosts_service = KnownHostsManager(db)
 
         # Pass empty string if key_type is None (removes all key types for hostname)
-        success = service.remove_known_host(hostname, key_type or "")
+        success = known_hosts_service.remove_known_host(hostname, key_type or "")
 
         if not success:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Known host not found")

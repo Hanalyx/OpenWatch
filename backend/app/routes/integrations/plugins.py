@@ -18,7 +18,9 @@ Migration Status:
 """
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
+from typing import Any as _PluginServiceType
+from typing import Dict, List, Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from fastapi import status as http_status
@@ -32,7 +34,11 @@ from ...audit_db import log_security_event
 from ...auth import get_current_user
 from ...database import User, get_db
 from ...models.plugin_models import PluginExecutionRequest, PluginStatus, PluginTrustLevel
-from ...services.plugins import PluginExecutionService, PluginImportService, PluginSecurityService
+
+# PluginExecutionService and PluginImportService were removed (dead plugin modules)
+PluginExecutionService: _PluginServiceType = None
+PluginImportService: _PluginServiceType = None
+from ...services.plugins.security.validator import PluginSecurityService
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/plugins", tags=["Plugin Management"])

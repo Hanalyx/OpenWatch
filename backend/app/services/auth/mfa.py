@@ -126,7 +126,9 @@ class MFAService:
     def decrypt_mfa_secret(self, encrypted_secret: str) -> str:
         """Decrypt MFA secret from database"""
         try:
-            decrypted_bytes = decrypt_data(encrypted_secret.encode("utf-8") if isinstance(encrypted_secret, str) else encrypted_secret)
+            decrypted_bytes = decrypt_data(
+                encrypted_secret.encode("utf-8") if isinstance(encrypted_secret, str) else encrypted_secret
+            )
             return decrypted_bytes.decode("utf-8")
         except Exception as e:
             logger.error(f"Failed to decrypt MFA secret: {e}")

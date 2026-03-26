@@ -237,7 +237,7 @@ class ScannerFactory:
             # Legacy content-only scanner (profile extraction, validation)
             "oscap": OSCAPScanner,
         }
-        if OSCAPScanner
+        if OSCAPScanner is not None
         else {}
     )
 

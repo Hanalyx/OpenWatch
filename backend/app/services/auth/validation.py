@@ -61,7 +61,7 @@ class SecurityPolicyConfig:
     require_minimum_key_strength: bool = True
 
     # Key type policies
-    allowed_key_types: Set[SSHKeyType] = None
+    allowed_key_types: Optional[Set[SSHKeyType]] = None
     minimum_rsa_bits: int = 2048  # FIPS 140-2 minimum; NIST recommends 3072+ for new keys
     minimum_ecdsa_bits: int = 256
     allow_dsa_keys: bool = False
@@ -141,13 +141,14 @@ class CredentialSecurityValidator:
         compliance_notes.extend(fips_notes)
 
         # Strict policy enforcement
-        is_secure, is_valid, security_errors = self._enforce_security_policy(
-            key_type, key_size, basic_validation.security_level
-        )
+        security_level = basic_validation.security_level or SSHKeySecurityLevel.SECURE
+        is_secure, is_valid, security_errors = self._enforce_security_policy(key_type, key_size, security_level)
 
         # Override basic validation if strict policy rejects
         if not is_valid:
-            error_message = "; ".join(security_errors) if security_errors else "Key rejected by security policy"
+            error_message: Optional[str] = (
+                "; ".join(security_errors) if security_errors else "Key rejected by security policy"
+            )
         else:
             error_message = basic_validation.error_message
 
@@ -159,7 +160,7 @@ class CredentialSecurityValidator:
             is_valid=is_valid,
             is_secure=is_secure,
             is_fips_compliant=(fips_status == FIPSComplianceStatus.COMPLIANT),
-            security_level=basic_validation.security_level,
+            security_level=security_level,
             fips_status=fips_status,
             key_type=key_type,
             key_size=key_size,
@@ -376,7 +377,7 @@ class CredentialSecurityValidator:
         errors = []
 
         # Key type policy enforcement
-        if key_type and key_type not in self.policy.allowed_key_types:
+        if key_type and key_type not in self.policy.allowed_key_types:  # type: ignore[operator]
             errors.append(f"{key_type.value.upper()} keys are not allowed by security policy")
             return False, False, errors
 

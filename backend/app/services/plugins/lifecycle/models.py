@@ -28,13 +28,15 @@ from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field, validator
 
 # Optional semver import - graceful fallback if not installed
+semver: Any = None
+SEMVER_AVAILABLE = False
 try:
-    import semver
+    import semver as _semver_mod
 
+    semver = _semver_mod
     SEMVER_AVAILABLE = True
 except ImportError:
-    semver = None  # type: ignore
-    SEMVER_AVAILABLE = False
+    pass
 
 logger = logging.getLogger(__name__)
 

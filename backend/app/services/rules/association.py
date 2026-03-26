@@ -36,8 +36,9 @@ from typing import Any, Dict, List, Optional, Set
 from pydantic import BaseModel, Field
 
 from app.models.plugin_models import InstalledPlugin, PluginStatus
+
 # PluginRegistryService not available in current module structure
-PluginRegistryService = None  # type: ignore[assignment]
+PluginRegistryService: Any = None
 
 logger = logging.getLogger(__name__)
 
@@ -173,7 +174,7 @@ class RuleAssociationService:
 
     def __init__(self):
         """Initialize the rule association service."""
-        self.plugin_registry_service = PluginRegistryService()
+        self.plugin_registry_service = PluginRegistryService() if PluginRegistryService else None
         self._keyword_cache: Dict[str, Set[str]] = {}
         self._framework_mappings: Dict[str, Dict[str, str]] = self._load_framework_mappings()
 
@@ -236,6 +237,7 @@ class RuleAssociationService:
             mapping_source=mapping_source,
             execution_context=execution_context,
             created_by=created_by,
+            effectiveness_score=None,
         )
 
         # TODO: Migrate to PostgreSQL storage
@@ -312,7 +314,7 @@ class RuleAssociationService:
             List of mapping recommendations
         """
         # Get all available plugins for the platform
-        plugins = await self.plugin_registry_service.find_plugins(
+        plugins = await self.plugin_registry_service.find_plugins(  # type: ignore[union-attr]
             {"status": PluginStatus.ACTIVE, "enabled_platforms": platform}
         )
 
@@ -392,7 +394,7 @@ class RuleAssociationService:
                     # Convert mappings to recommendations
                     rule_recommendations = []
                     for mapping in existing_mappings:
-                        plugin = await self.plugin_registry_service.get_plugin(mapping.plugin_id)
+                        plugin = await self.plugin_registry_service.get_plugin(mapping.plugin_id)  # type: ignore[union-attr]
                         if plugin:
                             recommendation = RuleMappingRecommendation(
                                 plugin_id=plugin.plugin_id,

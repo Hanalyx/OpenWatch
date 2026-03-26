@@ -74,9 +74,7 @@ class PostureHistoryResponse(BaseModel):
     host_id: UUID
     snapshots: List[PostureResponse]
     total_snapshots: int
-    date_range: Dict[str, Optional[datetime]] = Field(
-        default_factory=lambda: _empty_date_range()
-    )
+    date_range: Dict[str, Optional[datetime]] = Field(default_factory=lambda: _empty_date_range())
 
 
 class DriftEvent(BaseModel):

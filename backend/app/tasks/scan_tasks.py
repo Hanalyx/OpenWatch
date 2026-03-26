@@ -43,7 +43,7 @@ def execute_scan_task(
     content_path: str,
     profile_id: str,
     scan_options: Dict[str, Any],
-) -> Optional[Dict[str, Any]]:
+) -> None:
     """
     Execute SCAP scan task
     This is designed to work with or without Celery
@@ -120,12 +120,12 @@ def execute_scan_task(
                     return
 
                 # Convert to format expected by scan tasks
-                credentials: Dict[str, Any] = {
+                credentials = {
                     "username": credential_data.username,
                     "auth_method": credential_data.auth_method.value,
-                    "password": credential_data.password,
-                    "private_key": credential_data.private_key,  # Consistent field naming
-                    "private_key_passphrase": credential_data.private_key_passphrase,
+                    "password": credential_data.password,  # type: ignore[dict-item]
+                    "private_key": credential_data.private_key or "",  # Consistent field naming
+                    "private_key_passphrase": credential_data.private_key_passphrase,  # type: ignore[dict-item]
                 }
 
                 # Update host_data to use resolved credentials

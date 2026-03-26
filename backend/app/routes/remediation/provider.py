@@ -221,8 +221,10 @@ async def get_remediation_job(
         # Update with latest status from scan (using str() for ORM Column type safety)
         job.status = str(scan.remediation_status) if scan.remediation_status else "unknown"
         if scan.remediation_completed_at:
-            # Convert ORM Column to datetime if needed
-            job.completed_at = scan.remediation_completed_at
+            from datetime import datetime as _dt
+            from typing import cast as _cast
+
+            job.completed_at = _cast(_dt, scan.remediation_completed_at)
 
         return job
 

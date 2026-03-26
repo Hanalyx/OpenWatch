@@ -355,13 +355,13 @@ async def get_changelog(
     config = get_kensa_config()
     updater = KensaUpdater(db, config)
 
-    changelog = getattr(updater, 'get_changelog', lambda *a, **kw: [])()
+    changelog: str = getattr(updater, "get_changelog", lambda *a, **kw: "")()
     current_version = updater._get_current_version()
 
     return ChangelogResponse(
         plugin_id="kensa",
         current_version=current_version,
-        changelog_markdown=changelog,
+        changelog_markdown=str(changelog),
     )
 
 
@@ -496,10 +496,12 @@ async def get_kensa_health(
                 framework_set.update(rule.frameworks.keys())
         frameworks = sorted(framework_set)
 
+        from pathlib import Path
+
         details = {
             "rules_path": str(config.rules_path),
             "kensa_path": str(config.kensa_path),
-            "rules_path_exists": config.rules_path.exists(),
+            "rules_path_exists": Path(config.rules_path).exists() if config.rules_path else False,
         }
 
     except Exception as e:

@@ -153,7 +153,7 @@ Performance Notes:
 """
 
 import logging
-from typing import Optional
+from typing import Any, Optional
 
 from sqlalchemy.orm import Session
 
@@ -223,15 +223,25 @@ from .result_parsers import (
 # Re-export scanners (OWScanner/KubernetesScanner removed - SCAP-era dead code)
 from .scanners.base import BaseScanner  # Always available
 
+_OSCAPScanner: Any = None
+_ScannerFactory: Any = None
+get_scanner: Any = None
+get_scanner_for_content: Any = None
 try:
-    from .scanners import OSCAPScanner, ScannerFactory, get_scanner, get_scanner_for_content
+    from .scanners import OSCAPScanner as _OSCAPScanner_import
+    from .scanners import ScannerFactory as _ScannerFactory_import
+    from .scanners import get_scanner, get_scanner_for_content
+
+    _OSCAPScanner = _OSCAPScanner_import
+    _ScannerFactory = _ScannerFactory_import
 except ImportError:
-    OSCAPScanner = None  
-    ScannerFactory = None  
+    pass
+OSCAPScanner = _OSCAPScanner
+ScannerFactory = _ScannerFactory
 
 # Backward compatibility stubs
-UnifiedSCAPScanner = None  
-get_unified_scanner = None  
+UnifiedSCAPScanner: Any = None
+get_unified_scanner: Any = None
 
 logger = logging.getLogger(__name__)
 

@@ -425,21 +425,21 @@ async def export_drift(
         )
 
     # Value-only drift events (not already included above)
-    for event in drift.value_drift_events:
-        if event.status_changed:
+    for value_event in drift.value_drift_events:
+        if value_event.status_changed:
             continue
         writer.writerow(
             [
-                event.rule_id,
-                event.rule_title or "",
-                event.severity,
-                event.status,
-                event.status,
+                value_event.rule_id,
+                value_event.rule_title or "",
+                value_event.severity,
+                value_event.status,
+                value_event.status,
                 "value_change",
-                event.previous_value or "",
-                event.current_value or "",
+                value_event.previous_value or "",
+                value_event.current_value or "",
                 "false",
-                event.detected_at.isoformat(),
+                value_event.detected_at.isoformat(),
             ]
         )
 

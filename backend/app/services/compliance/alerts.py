@@ -468,8 +468,15 @@ class AlertService:
         result = self.db.execute(query)
         row = result.fetchone()
         if row is None:
-            return {"total_active": 0, "total_acknowledged": 0, "total_resolved": 0,
-                    "by_severity": {}, "by_type": {}, "recent_24h": 0, "recent_alerts": []}
+            return {
+                "total_active": 0,
+                "total_acknowledged": 0,
+                "total_resolved": 0,
+                "by_severity": {},
+                "by_type": {},
+                "recent_24h": 0,
+                "recent_alerts": [],
+            }
 
         # Get recent alerts (last 24h)
         recent_query = text("""

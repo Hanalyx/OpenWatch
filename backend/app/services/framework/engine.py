@@ -635,7 +635,7 @@ class FrameworkMappingEngine:
                     framework_rules[fw_mapping.framework_id].add(rule.rule_id)
 
         # Calculate coverage metrics
-        coverage_analysis = {
+        coverage_analysis: Dict[str, Any] = {
             "frameworks_analyzed": frameworks,
             "framework_details": {},
             "cross_framework_analysis": {},
@@ -660,7 +660,7 @@ class FrameworkMappingEngine:
         for controls in framework_controls.values():
             all_controls.update(controls)
 
-        framework_pairs = []
+        framework_pairs: List[Dict[str, Any]] = []
         for i, fw_a in enumerate(frameworks):
             for fw_b in frameworks[i + 1 :]:
                 if (fw_a, fw_b) in self.framework_relationships:
