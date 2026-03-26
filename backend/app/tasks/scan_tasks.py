@@ -684,56 +684,6 @@ async def _process_semantic_intelligence(
 
         # SemanticEngine removed (SCAP-era dead code)
         logger.info("Semantic intelligence processing skipped (engine removed)")
-        return
-
-        # Build host information for semantic processing
-        host_info = {
-            "host_id": host_data.get("host_id"),
-            "hostname": host_data.get("hostname"),
-            "distribution_name": host_data.get("distribution_name"),
-            "distribution_version": host_data.get("distribution_version"),
-            "os_version": host_data.get("os_version", ""),
-            "package_manager": host_data.get("package_manager"),
-            "service_manager": host_data.get("service_manager"),
-        }
-
-        # Process scan with semantic intelligence
-        intelligent_result = await semantic_engine.process_scan_with_intelligence(
-            scan_results=scan_results, scan_id=scan_id, host_info=host_info
-        )
-
-        # Update scan record with semantic analysis information
-        frameworks_analyzed = list(intelligent_result.framework_compliance_matrix.keys())
-        semantic_rules_count = len(intelligent_result.semantic_rules)
-
-        db.execute(
-            text(
-                """
-            UPDATE scans SET
-                semantic_analysis_completed = true,
-                semantic_rules_count = :semantic_rules_count,
-                frameworks_analyzed = :frameworks_analyzed,
-                remediation_strategy = :remediation_strategy
-            WHERE id = :scan_id
-        """
-            ),
-            {
-                "scan_id": scan_id,
-                "semantic_rules_count": semantic_rules_count,
-                "frameworks_analyzed": frameworks_analyzed,
-                "remediation_strategy": json.dumps(intelligent_result.remediation_strategy),
-            },
-        )
-        db.commit()
-
-        # Send enhanced webhook with semantic intelligence
-        await _send_enhanced_semantic_webhook(scan_id, intelligent_result, host_data)
-
-        logger.info(
-            f"Semantic intelligence processing completed for scan {scan_id}: "
-            f"{semantic_rules_count} semantic rules, "
-            f"{len(frameworks_analyzed)} frameworks analyzed"
-        )
 
     except Exception as e:
         logger.error(f"Error in semantic intelligence processing: {e}", exc_info=True)
