@@ -9,7 +9,7 @@ import logging
 import socket
 import subprocess
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Optional, Tuple
 
 from sqlalchemy import text
@@ -428,7 +428,7 @@ class HostMonitor:
             "host_id": host_data.get("id"),
             "hostname": hostname,
             "ip_address": ip_address,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "ping_success": False,
             "port_open": False,
             "ssh_accessible": False,
@@ -582,8 +582,8 @@ class HostMonitor:
             update_data = {
                 "id": host_id,
                 "status": db_status,
-                "updated_at": datetime.utcnow(),
-                "last_check": datetime.utcnow(),
+                "updated_at": datetime.now(timezone.utc),
+                "last_check": datetime.now(timezone.utc),
             }
 
             query = """
@@ -672,7 +672,7 @@ class HostMonitor:
                     db,
                     host["id"],
                     result["status"],
-                    datetime.utcnow() if result["status"] == "online" else None,
+                    datetime.now(timezone.utc) if result["status"] == "online" else None,
                     response_time_ms=result.get("response_time_ms"),
                 )
 
@@ -715,7 +715,7 @@ class HostMonitor:
         try:
             hostname = host.get("hostname", "Unknown")
             ip_address = host.get("ip_address", "Unknown")
-            last_check = host.get("last_check") or datetime.utcnow()
+            last_check = host.get("last_check") or datetime.now(timezone.utc)
 
             # Host went offline
             if old_status == "online" and new_status in ["offline", "error"]:

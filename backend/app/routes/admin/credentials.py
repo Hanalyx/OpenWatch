@@ -10,7 +10,7 @@ import hmac
 import json
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Response, status
@@ -175,7 +175,7 @@ async def get_host_credentials(
             key_type=key_type,
             password=password,
             source="openwatch",
-            last_updated=(row.updated_at.isoformat() if row.updated_at else datetime.utcnow().isoformat()),
+            last_updated=(row.updated_at.isoformat() if row.updated_at else datetime.now(timezone.utc).isoformat()),
         )
 
         logger.info(f"Provided SSH credentials for host {row.hostname} to Kensa")
@@ -267,7 +267,7 @@ async def get_multiple_host_credentials(
                 key_type=key_type,
                 password=password,
                 source="openwatch",
-                last_updated=(row.updated_at.isoformat() if row.updated_at else datetime.utcnow().isoformat()),
+                last_updated=(row.updated_at.isoformat() if row.updated_at else datetime.now(timezone.utc).isoformat()),
             )
 
             credentials.append(credential)
@@ -339,7 +339,7 @@ async def get_default_system_credentials(
             key_type=key_type,
             password=credential_data.password,
             source="openwatch-system",
-            last_updated=datetime.utcnow().isoformat(),
+            last_updated=datetime.now(timezone.utc).isoformat(),
         )
 
         logger.info("Provided default system SSH credentials to Kensa")
@@ -361,6 +361,6 @@ async def credentials_health_check() -> Dict[str, str]:
     return {
         "status": "healthy",
         "service": "credential-sharing",
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "version": "1.0.0",
     }

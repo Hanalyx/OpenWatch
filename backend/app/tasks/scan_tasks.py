@@ -6,7 +6,7 @@ import asyncio
 import json
 import logging
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 from sqlalchemy import text
@@ -338,7 +338,7 @@ def execute_scan_task(
             ),
             {
                 "scan_id": scan_id,
-                "completed_at": datetime.utcnow(),
+                "completed_at": datetime.now(timezone.utc),
                 "result_file": scan_results.get("xml_result"),
                 "report_file": scan_results.get("html_report"),
             },
@@ -392,7 +392,7 @@ def execute_scan_task(
                 "passed_rules": scan_results.get("rules_passed", 0),
                 "failed_rules": scan_results.get("rules_failed", 0),
                 "score": scan_results.get("score", 0),
-                "completed_at": datetime.utcnow().isoformat(),
+                "completed_at": datetime.now(timezone.utc).isoformat(),
             }
 
             # Run webhook delivery in a new event loop (for Celery worker context)
@@ -487,7 +487,7 @@ def _update_scan_error(
             ),
             {
                 "scan_id": scan_id,
-                "completed_at": datetime.utcnow(),
+                "completed_at": datetime.now(timezone.utc),
                 "error_message": error_message,
             },
         )
@@ -500,7 +500,7 @@ def _update_scan_error(
                     "hostname": scan_data.hostname,
                     "profile_id": scan_data.profile_id,
                     "status": "failed",
-                    "completed_at": datetime.utcnow().isoformat(),
+                    "completed_at": datetime.now(timezone.utc).isoformat(),
                 }
 
                 # Run webhook delivery in a new event loop (for Celery worker context)
@@ -592,7 +592,7 @@ def _save_scan_results(db: Session, scan_id: str, scan_results: Dict[str, Any]) 
                 "severity_medium_failed": severity_medium_failed,
                 "severity_low_passed": severity_low_passed,
                 "severity_low_failed": severity_low_failed,
-                "created_at": datetime.utcnow(),
+                "created_at": datetime.now(timezone.utc),
             },
         )
         db.commit()
@@ -719,7 +719,7 @@ async def _send_enhanced_semantic_webhook(scan_id: str, intelligent_result: Any,
         # Create enhanced webhook payload with semantic intelligence
         webhook_data = {
             "event": "semantic.analysis.completed",
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "data": {
                 "scan_id": scan_id,
                 "host_info": {

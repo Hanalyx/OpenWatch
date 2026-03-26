@@ -6,7 +6,7 @@ Cryptographic verification for plugin authenticity
 import hashlib
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -49,7 +49,7 @@ class PluginSignatureService:
                 self.trusted_keys_cache[key_id] = {
                     "key": public_key,
                     "file": key_file.name,
-                    "loaded_at": datetime.utcnow(),
+                    "loaded_at": datetime.now(timezone.utc),
                 }
                 logger.info(f"Loaded trusted key: {key_id} from {key_file.name}")
 
@@ -276,7 +276,7 @@ class PluginSignatureService:
             self.trusted_keys_cache[key_id] = {
                 "key": public_key,
                 "file": key_file_path.name,
-                "loaded_at": datetime.utcnow(),
+                "loaded_at": datetime.now(timezone.utc),
                 "signer_info": signer_info,
             }
 

@@ -3,7 +3,7 @@ Authentication Routes - FIPS Compliant
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -138,7 +138,7 @@ async def login(
             )
 
         # Check if account is locked
-        if user.locked_until and user.locked_until > datetime.utcnow():
+        if user.locked_until and user.locked_until > datetime.now(timezone.utc):
             audit_logger.log_security_event(
                 "AUTH_FAILURE",
                 f"Login attempt with locked account: {request.username}",
@@ -166,7 +166,7 @@ async def login(
 
             # Lock account after 5 failed attempts for 30 minutes
             if failed_attempts >= 5:
-                locked_until = datetime.utcnow() + timedelta(minutes=30)
+                locked_until = datetime.now(timezone.utc) + timedelta(minutes=30)
 
             db.execute(
                 text(
@@ -460,6 +460,18 @@ async def refresh_token(
     try:
         # Validate refresh token and get user
         user_data = jwt_manager.validate_refresh_token(request.refresh_token)
+
+        # Check absolute session timeout (NIST AC-12)
+        # Prevents indefinite session extension via token refresh
+        iat = user_data.get("iat")
+        if iat:
+            issued_at = datetime.fromtimestamp(iat, tz=timezone.utc)
+            max_lifetime = timedelta(hours=settings.absolute_session_timeout_hours)
+            if datetime.now(timezone.utc) - issued_at > max_lifetime:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Session expired. Please log in again.",
+                )
 
         # Get fresh user data from database to ensure we have latest info
         username = user_data.get("sub") or user_data.get("username")

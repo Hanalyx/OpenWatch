@@ -5,7 +5,7 @@ Removes sensitive information from error responses while maintaining actionable 
 
 import logging
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, Optional
 
@@ -29,7 +29,7 @@ class SanitizationLevel(str, Enum):
 class AuditLogEntry(BaseModel):
     """Audit log entry for security events"""
 
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     event_type: str
     error_code: str
     user_id: Optional[str] = None
@@ -50,7 +50,7 @@ class SanitizedError(BaseModel):
     can_retry: bool = False
     retry_after: Optional[int] = None
     documentation_url: str = ""
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     # No technical_details field - removed for security
 
 
@@ -59,8 +59,8 @@ class RateLimitState(BaseModel):
 
     ip_address: str
     error_count: int = 0
-    first_error_time: datetime = Field(default_factory=datetime.utcnow)
-    last_error_time: datetime = Field(default_factory=datetime.utcnow)
+    first_error_time: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    last_error_time: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     is_blocked: bool = False
     block_until: Optional[datetime] = None
 
@@ -229,7 +229,7 @@ class ErrorSanitizationService:
 
         # Check if currently blocked
         if state.is_blocked and state.block_until:
-            if datetime.utcnow() < state.block_until:
+            if datetime.now(timezone.utc) < state.block_until:
                 return True
             else:
                 # Block expired, reset state
@@ -241,7 +241,7 @@ class ErrorSanitizationService:
 
     def _update_rate_limit(self, source_ip: str) -> None:
         """Update rate limiting state for source IP."""
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
 
         if source_ip not in self.rate_limit_cache:
             self.rate_limit_cache[source_ip] = RateLimitState(ip_address=source_ip)
@@ -272,7 +272,7 @@ class ErrorSanitizationService:
         if source_ip in self.rate_limit_cache:
             state = self.rate_limit_cache[source_ip]
             state.is_blocked = True
-            state.block_until = datetime.utcnow().replace(minute=datetime.utcnow().minute + self.BLOCK_DURATION_MINUTES)
+            state.block_until = datetime.now(timezone.utc).replace(minute=datetime.now(timezone.utc).minute + self.BLOCK_DURATION_MINUTES)
 
             logger.warning(f"IP {source_ip} blocked for {self.BLOCK_DURATION_MINUTES} minutes due to rate limiting")
 
@@ -333,7 +333,7 @@ class ErrorSanitizationService:
 
     def _cleanup_rate_limit_cache(self) -> None:
         """Clean up expired rate limit entries."""
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         expired_ips = []
 
         for ip, state in self.rate_limit_cache.items():

@@ -25,9 +25,11 @@ Security:
 
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List
 
+from app.middleware.rbac_middleware import require_role
+from app.rbac import UserRole
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -58,6 +60,7 @@ router = APIRouter()
 # =============================================================================
 
 
+@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.get("/", response_model=List[HostGroupResponse])
 async def list_host_groups(
     db: Session = Depends(get_db),
@@ -128,6 +131,7 @@ async def list_host_groups(
         raise HTTPException(status_code=500, detail="Failed to list host groups")
 
 
+@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.get("/{group_id}", response_model=HostGroupResponse)
 async def get_host_group(
     group_id: int,
@@ -200,6 +204,7 @@ async def get_host_group(
         raise HTTPException(status_code=500, detail="Failed to get host group")
 
 
+@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.post("/", response_model=HostGroupResponse)
 async def create_host_group(
     group_data: HostGroupCreate,
@@ -256,8 +261,8 @@ async def create_host_group(
                 "description": group_data.description,
                 "color": group_data.color,
                 "created_by": current_user["id"],
-                "created_at": datetime.utcnow(),
-                "updated_at": datetime.utcnow(),
+                "created_at": datetime.now(timezone.utc),
+                "updated_at": datetime.now(timezone.utc),
                 "os_family": group_data.os_family,
                 "os_version_pattern": group_data.os_version_pattern,
                 "architecture": group_data.architecture,
@@ -299,6 +304,7 @@ async def create_host_group(
         raise HTTPException(status_code=500, detail="Failed to create host group")
 
 
+@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.put("/{group_id}", response_model=HostGroupResponse)
 async def update_host_group(
     group_id: int,
@@ -346,7 +352,7 @@ async def update_host_group(
 
         # Build update query dynamically with safe parameterization
         update_fields = []
-        update_params: Dict[str, Any] = {"group_id": group_id, "updated_at": datetime.utcnow()}
+        update_params: Dict[str, Any] = {"group_id": group_id, "updated_at": datetime.now(timezone.utc)}
 
         if group_data.name is not None:
             update_fields.append("name = :name")
@@ -451,6 +457,7 @@ async def update_host_group(
         raise HTTPException(status_code=500, detail="Failed to update host group")
 
 
+@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.delete("/{group_id}")
 async def delete_host_group(
     group_id: int,
@@ -510,6 +517,7 @@ async def delete_host_group(
 # =============================================================================
 
 
+@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.post("/{group_id}/hosts")
 async def assign_hosts_to_group(
     group_id: int,
@@ -555,7 +563,7 @@ async def assign_hosts_to_group(
             insert_builder = (
                 InsertBuilder("host_group_memberships")
                 .columns("host_id", "group_id", "assigned_by", "assigned_at")
-                .values(host_id, group_id, current_user["id"], datetime.utcnow())
+                .values(host_id, group_id, current_user["id"], datetime.now(timezone.utc))
             )
             insert_query, insert_params = insert_builder.build()
             db.execute(text(insert_query), insert_params)
@@ -571,6 +579,7 @@ async def assign_hosts_to_group(
         raise HTTPException(status_code=500, detail="Failed to assign hosts to group")
 
 
+@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.delete("/{group_id}/hosts/{host_id}")
 async def remove_host_from_group(
     group_id: int,
@@ -624,6 +633,7 @@ async def remove_host_from_group(
 # =============================================================================
 
 
+@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.post("/{group_id}/validate-hosts", response_model=CompatibilityValidationResponse)
 async def validate_host_compatibility(
     group_id: int,
@@ -666,6 +676,7 @@ async def validate_host_compatibility(
         raise HTTPException(status_code=500, detail="Failed to validate host compatibility")
 
 
+@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.post("/smart-create")
 async def create_smart_group(
     request: SmartGroupCreateRequest,
@@ -742,6 +753,7 @@ async def create_smart_group(
         raise HTTPException(status_code=500, detail="Failed to create smart group")
 
 
+@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.get("/{group_id}/compatibility-report")
 async def get_group_compatibility_report(
     group_id: int,
@@ -778,6 +790,7 @@ async def get_group_compatibility_report(
         raise HTTPException(status_code=500, detail="Failed to generate compatibility report")
 
 
+@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.post("/{group_id}/hosts/validate")
 async def validate_and_assign_hosts(
     group_id: int,
@@ -850,7 +863,7 @@ async def validate_and_assign_hosts(
             insert_builder = (
                 InsertBuilder("host_group_memberships")
                 .columns("host_id", "group_id", "assigned_by", "assigned_at")
-                .values(host_id, group_id, current_user["id"], datetime.utcnow())
+                .values(host_id, group_id, current_user["id"], datetime.now(timezone.utc))
             )
             insert_query, insert_params = insert_builder.build()
             db.execute(text(insert_query), insert_params)

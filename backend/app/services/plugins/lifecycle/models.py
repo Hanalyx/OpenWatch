@@ -21,7 +21,7 @@ Security Considerations:
 import logging
 import re
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
@@ -134,7 +134,7 @@ class PluginVersion(BaseModel):
     Example:
         >>> version = PluginVersion(
         ...     version="2.0.0",
-        ...     release_date=datetime.utcnow(),
+        ...     release_date=datetime.now(timezone.utc),
         ...     changelog="Major update with new features",
         ...     breaking_changes=True,
         ... )
@@ -241,7 +241,7 @@ class PluginHealthCheck(BaseModel):
     """
 
     plugin_id: str
-    check_timestamp: datetime = Field(default_factory=datetime.utcnow)
+    check_timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     # Overall health assessment
     health_status: PluginHealthStatus

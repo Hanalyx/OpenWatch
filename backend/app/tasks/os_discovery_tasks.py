@@ -28,7 +28,7 @@ See: docs/plans/HOST_OS_DETECTION_AND_OVAL_ALIGNMENT_PLAN.md
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
@@ -143,7 +143,7 @@ def _record_discovery_failure(host_id: str, error_message: str) -> None:
             failure_entry = {
                 "host_id": host_id,
                 "error": error_message[:500],  # Truncate long errors
-                "failed_at": datetime.utcnow().isoformat(),
+                "failed_at": datetime.now(timezone.utc).isoformat(),
             }
             failures.append(failure_entry)
             failures = failures[-50:]  # Keep only last 50
@@ -157,7 +157,7 @@ def _record_discovery_failure(host_id: str, error_message: str) -> None:
                 DO UPDATE SET setting_value = :value, modified_at = :now
             """
             )
-            db.execute(upsert_query, {"value": json.dumps(failures), "now": datetime.utcnow()})
+            db.execute(upsert_query, {"value": json.dumps(failures), "now": datetime.now(timezone.utc)})
             db.commit()
 
             logger.info(f"Recorded OS discovery failure for host {host_id}")
@@ -214,7 +214,7 @@ def trigger_os_discovery(self, host_id: str) -> Dict[str, Any]:
         "platform_identifier": None,
         "architecture": None,
         "error": None,
-        "discovered_at": datetime.utcnow().isoformat(),
+        "discovered_at": datetime.now(timezone.utc).isoformat(),
     }
 
     try:
@@ -323,8 +323,8 @@ def trigger_os_discovery(self, host_id: str) -> Dict[str, Any]:
                     "architecture": (discovered_architecture if discovered_architecture != "Unknown" else None),
                     "operating_system": (discovered_os_name if discovered_os_name != "Unknown" else None),
                     "platform_identifier": platform_identifier,  # Phase 4: Persisted for scan OVAL selection
-                    "last_os_detection": datetime.utcnow(),
-                    "updated_at": datetime.utcnow(),
+                    "last_os_detection": datetime.now(timezone.utc),
+                    "updated_at": datetime.now(timezone.utc),
                 },
             )
             db.commit()
@@ -401,7 +401,7 @@ def batch_os_discovery(self, host_ids: List[str]) -> Dict[str, Any]:
         "dispatched": 0,
         "failed": 0,
         "dispatch_errors": [],
-        "dispatched_at": datetime.utcnow().isoformat(),
+        "dispatched_at": datetime.now(timezone.utc).isoformat(),
     }
 
     for host_id in host_ids:
@@ -478,7 +478,7 @@ def discover_all_hosts_os(self, force: bool = False) -> Dict[str, Any]:
         "dispatched": 0,
         "skipped": 0,
         "disabled": False,
-        "started_at": datetime.utcnow().isoformat(),
+        "started_at": datetime.now(timezone.utc).isoformat(),
     }
 
     try:

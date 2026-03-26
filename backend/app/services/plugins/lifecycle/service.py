@@ -7,7 +7,7 @@ health monitoring, versioning, rollbacks, and comprehensive operational capabili
 import asyncio
 import logging
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -97,7 +97,7 @@ class PluginHealthCheck(BaseModel):
     """Plugin health check result"""
 
     plugin_id: str
-    check_timestamp: datetime = Field(default_factory=datetime.utcnow)
+    check_timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     # Overall health
     health_status: PluginHealthStatus
@@ -287,7 +287,7 @@ class PluginLifecycleService:
         if not plugin:
             raise ValueError(f"Plugin not found: {plugin_id}")
 
-        datetime.utcnow()
+        datetime.now(timezone.utc)
 
         # Initialize health check result
         health_check = PluginHealthCheck(
@@ -489,7 +489,7 @@ class PluginLifecycleService:
         versions = [
             PluginVersion(
                 version=current_plugin.version,
-                release_date=current_plugin.created_at or datetime.utcnow(),
+                release_date=current_plugin.created_at or datetime.now(timezone.utc),
                 changelog="Current installed version",
             )
         ]
@@ -503,7 +503,7 @@ class PluginLifecycleService:
             versions.append(
                 PluginVersion(
                     version=patch_version,
-                    release_date=datetime.utcnow() + timedelta(days=7),
+                    release_date=datetime.now(timezone.utc) + timedelta(days=7),
                     changelog="Bug fixes and security updates",
                 )
             )
@@ -513,7 +513,7 @@ class PluginLifecycleService:
             versions.append(
                 PluginVersion(
                     version=minor_version,
-                    release_date=datetime.utcnow() + timedelta(days=30),
+                    release_date=datetime.now(timezone.utc) + timedelta(days=30),
                     changelog="New features and improvements",
                 )
             )
@@ -544,7 +544,7 @@ class PluginLifecycleService:
         """Execute the update plan step by step."""
         try:
             execution.status = UpdateStatus.IN_PROGRESS
-            execution.started_at = datetime.utcnow()
+            execution.started_at = datetime.now(timezone.utc)
             logger.warning("MongoDB storage removed - update execution status operation skipped")
 
             plan = execution.update_plan
@@ -605,7 +605,7 @@ class PluginLifecycleService:
                 await self._trigger_automatic_rollback(execution, f"Update failed: {str(e)}")
 
         finally:
-            execution.completed_at = datetime.utcnow()
+            execution.completed_at = datetime.now(timezone.utc)
             if execution.started_at:
                 execution.duration_seconds = (execution.completed_at - execution.started_at).total_seconds()
 
@@ -750,7 +750,7 @@ class PluginLifecycleService:
         step = {
             "step": step_name,
             "status": status,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
         execution.execution_steps.append(step)
@@ -798,7 +798,7 @@ class PluginLifecycleService:
 
         execution.rollback_performed = True
         execution.rollback_reason = reason
-        execution.rollback_completed_at = datetime.utcnow()
+        execution.rollback_completed_at = datetime.now(timezone.utc)
         execution.status = UpdateStatus.ROLLED_BACK
 
         # This would perform the actual rollback

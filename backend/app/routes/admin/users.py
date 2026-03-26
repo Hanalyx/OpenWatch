@@ -275,7 +275,7 @@ async def create_user(
         hashed_password = pwd_context.hash(user_data.password)
 
         # Use InsertBuilder for type-safe, parameterized INSERT
-        from datetime import datetime
+        from datetime import datetime, timezone
 
         insert_builder = (
             InsertBuilder("users")
@@ -295,7 +295,7 @@ async def create_user(
                 hashed_password,
                 user_data.role.value,
                 user_data.is_active,
-                datetime.utcnow(),
+                datetime.now(timezone.utc),
                 0,
                 False,
             )

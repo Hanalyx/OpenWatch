@@ -6,7 +6,7 @@ and FIPS compliance settings.
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -174,7 +174,7 @@ async def get_security_config(
             effective_config=summary["effective_config"],
             inheritance_chain=summary["inheritance_chain"],
             compliance_level=summary["compliance_level"],
-            last_updated=datetime.utcnow().isoformat(),
+            last_updated=datetime.now(timezone.utc).isoformat(),
         )
 
     except Exception as e:
@@ -405,7 +405,7 @@ async def get_compliance_summary(
         return {
             "system_config": system_summary,
             "compliance_level": system_summary.get("compliance_level", "unknown"),
-            "last_updated": datetime.utcnow().isoformat(),
+            "last_updated": datetime.now(timezone.utc).isoformat(),
             "assessed_by": current_user.get("username"),
         }
 

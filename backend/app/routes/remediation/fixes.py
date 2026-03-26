@@ -13,9 +13,11 @@ Security Features:
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Union
 
+from app.middleware.rbac_middleware import require_role
+from app.rbac import UserRole
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
@@ -66,6 +68,7 @@ class FixRollbackRequest(BaseModel):
     rollback_reason: str = Field(min_length=10, max_length=500)
 
 
+@require_role([UserRole.SECURITY_ANALYST, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.post("/evaluate-options")
 async def evaluate_fix_options(
     request: FixEvaluationRequest,
@@ -109,7 +112,7 @@ async def evaluate_fix_options(
             "total_options": len(secure_options),
             "safe_options": len([opt for opt in secure_options if opt.get("is_safe", False)]),
             "blocked_options": len([opt for opt in secure_options if opt.get("security_level") == "blocked"]),
-            "evaluation_timestamp": datetime.utcnow().isoformat(),
+            "evaluation_timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
     except HTTPException:
@@ -122,6 +125,7 @@ async def evaluate_fix_options(
         )
 
 
+@require_role([UserRole.SECURITY_ANALYST, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.post("/request-execution")
 async def request_fix_execution(
     request: FixExecutionRequest,
@@ -161,6 +165,7 @@ async def request_fix_execution(
         )
 
 
+@require_role([UserRole.SECURITY_ANALYST, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.post("/approve/{request_id}")
 async def approve_fix_request(
     request_id: str,
@@ -204,6 +209,7 @@ async def approve_fix_request(
         )
 
 
+@require_role([UserRole.SECURITY_ANALYST, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.post("/execute/{request_id}")
 async def execute_approved_fix(
     request_id: str,
@@ -239,6 +245,7 @@ async def execute_approved_fix(
         )
 
 
+@require_role([UserRole.SECURITY_ANALYST, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.post("/rollback/{request_id}")
 async def rollback_fix(
     request_id: str,
@@ -280,6 +287,7 @@ async def rollback_fix(
         )
 
 
+@require_role([UserRole.SECURITY_ANALYST, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.get("/status/{request_id}")
 async def get_fix_status(
     request_id: str,
@@ -313,6 +321,7 @@ async def get_fix_status(
         )
 
 
+@require_role([UserRole.SECURITY_ANALYST, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.get("/pending-approvals")
 async def list_pending_approvals(
     current_user: Dict[str, Any] = Depends(get_current_user),
@@ -336,7 +345,7 @@ async def list_pending_approvals(
         return {
             "pending_approvals": pending_fixes,
             "total_pending": len(pending_fixes),
-            "retrieved_at": datetime.utcnow().isoformat(),
+            "retrieved_at": datetime.now(timezone.utc).isoformat(),
         }
 
     except HTTPException:
@@ -349,6 +358,7 @@ async def list_pending_approvals(
         )
 
 
+@require_role([UserRole.SECURITY_ANALYST, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.get("/secure-commands")
 async def get_secure_command_catalog(
     current_user: Dict[str, Any] = Depends(get_current_user),
@@ -371,7 +381,7 @@ async def get_secure_command_catalog(
             "total_commands": len(commands),
             "safe_commands": len([cmd for cmd in commands if cmd["security_level"] == "safe"]),
             "privileged_commands": len([cmd for cmd in commands if cmd["security_level"] == "privileged"]),
-            "catalog_timestamp": datetime.utcnow().isoformat(),
+            "catalog_timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
     except HTTPException:
@@ -384,6 +394,7 @@ async def get_secure_command_catalog(
         )
 
 
+@require_role([UserRole.SECURITY_ANALYST, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.delete("/cleanup")
 async def cleanup_old_requests(
     max_age_days: int = 30,
@@ -409,7 +420,7 @@ async def cleanup_old_requests(
         return {
             "success": True,
             "message": f"Cleaned up old requests older than {max_age_days} days",
-            "cleanup_timestamp": datetime.utcnow().isoformat(),
+            "cleanup_timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
     except HTTPException:
@@ -422,6 +433,7 @@ async def cleanup_old_requests(
         )
 
 
+@require_role([UserRole.SECURITY_ANALYST, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.get("/health", response_model=None)
 async def health_check() -> Union[Dict[str, Any], JSONResponse]:
     """Health check endpoint for automated fix service"""
@@ -433,7 +445,7 @@ async def health_check() -> Union[Dict[str, Any], JSONResponse]:
             "status": "healthy",
             "service": "secure-automated-fixes",
             "sandbox_service": sandbox_service_status,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
     except Exception as e:
@@ -444,6 +456,6 @@ async def health_check() -> Union[Dict[str, Any], JSONResponse]:
                 "status": "unhealthy",
                 "service": "secure-automated-fixes",
                 "error": str(e),
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             },
         )

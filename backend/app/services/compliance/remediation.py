@@ -11,7 +11,7 @@ Part of Phase 4: Remediation + Subscription (Kensa Integration Plan)
 import asyncio
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 from uuid import UUID, uuid4
 
@@ -575,8 +575,8 @@ class RemediationService:
                 risk_level,
                 evidence,
                 framework_refs,
-                datetime.utcnow(),
-                datetime.utcnow() if status in ("completed", "failed") else None,
+                datetime.now(timezone.utc),
+                datetime.now(timezone.utc) if status in ("completed", "failed") else None,
             )
         )
 

@@ -33,6 +33,8 @@ Security Notes:
 import logging
 from typing import Any, Dict, List, Optional
 
+from app.middleware.rbac_middleware import require_role
+from app.rbac import UserRole
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -77,6 +79,7 @@ MONGODB_DEPRECATION_MESSAGE = (
 # =============================================================================
 
 
+@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.get("/templates/quick")
 async def list_quick_templates(
     db: Session = Depends(get_db),
@@ -153,6 +156,7 @@ async def list_quick_templates(
     return {"templates": templates}
 
 
+@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.get("/templates/host/{host_id}")
 async def get_host_templates(
     host_id: str,
@@ -188,6 +192,7 @@ async def get_host_templates(
 # Use quick templates or Kensa frameworks directly.
 
 
+@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.get("/templates")
 async def list_templates(
     framework: Optional[str] = Query(None, description="Filter by framework"),
@@ -205,6 +210,7 @@ async def list_templates(
     )
 
 
+@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.post("/templates")
 async def create_template(
     current_user: Dict[str, Any] = Depends(get_current_user),
@@ -217,6 +223,7 @@ async def create_template(
     )
 
 
+@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.get("/templates/{template_id}")
 async def get_template(
     template_id: str,
@@ -230,6 +237,7 @@ async def get_template(
     )
 
 
+@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.put("/templates/{template_id}")
 async def update_template(
     template_id: str,
@@ -243,6 +251,7 @@ async def update_template(
     )
 
 
+@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.delete("/templates/{template_id}")
 async def delete_template(
     template_id: str,
@@ -256,6 +265,7 @@ async def delete_template(
     )
 
 
+@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.post("/templates/{template_id}/apply")
 async def apply_template(
     template_id: str,
@@ -269,6 +279,7 @@ async def apply_template(
     )
 
 
+@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.post("/templates/{template_id}/clone")
 async def clone_template(
     template_id: str,
@@ -283,6 +294,7 @@ async def clone_template(
     )
 
 
+@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.post("/templates/{template_id}/set-default")
 async def set_default_template(
     template_id: str,

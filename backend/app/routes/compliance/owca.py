@@ -33,6 +33,8 @@ from datetime import date, timedelta
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
+from app.middleware.rbac_middleware import require_role
+from app.rbac import UserRole
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
@@ -47,6 +49,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/owca", tags=["OWCA"])
 
 
+@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.get(
     "/host/{host_id}/score",
     response_model=Optional[ComplianceScore],
@@ -86,6 +89,7 @@ async def get_host_compliance_score(
         raise HTTPException(status_code=500, detail="Failed to calculate compliance score")
 
 
+@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.get(
     "/fleet/statistics",
     response_model=FleetStatistics,
@@ -115,6 +119,7 @@ async def get_fleet_statistics(
         raise HTTPException(status_code=500, detail="Failed to calculate fleet statistics")
 
 
+@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.get(
     "/fleet/trend",
     response_model=Optional[FleetComplianceTrend],
@@ -188,6 +193,7 @@ async def get_fleet_trend(
         raise HTTPException(status_code=500, detail="Failed to get fleet compliance trend")
 
 
+@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.get(
     "/host/{host_id}/drift",
     response_model=Optional[BaselineDrift],
@@ -226,6 +232,7 @@ async def detect_baseline_drift(
         raise HTTPException(status_code=500, detail="Failed to detect baseline drift")
 
 
+@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.get(
     "/fleet/drift",
     response_model=List[BaselineDrift],
@@ -264,6 +271,7 @@ async def get_hosts_with_drift(
         raise HTTPException(status_code=500, detail="Failed to get hosts with drift")
 
 
+@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.get(
     "/fleet/priority-hosts",
     response_model=List[Dict[str, Any]],
@@ -302,6 +310,7 @@ async def get_top_priority_hosts(
         raise HTTPException(status_code=500, detail="Failed to get top priority hosts")
 
 
+@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.get(
     "/host/{host_id}/framework/{framework}",
     response_model=Dict[str, Any],
@@ -361,6 +370,7 @@ async def get_host_framework_intelligence(
         raise HTTPException(status_code=500, detail="Failed to get framework-specific intelligence")
 
 
+@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.get(
     "/frameworks",
     response_model=Dict[str, Any],
@@ -419,6 +429,7 @@ async def list_available_frameworks(
     }
 
 
+@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.get(
     "/host/{host_id}/trend",
     response_model=Optional[Dict[str, Any]],
@@ -462,6 +473,7 @@ async def analyze_host_trend(
         raise HTTPException(status_code=500, detail="Failed to analyze compliance trend")
 
 
+@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.get(
     "/host/{host_id}/risk",
     response_model=Optional[Dict[str, Any]],
@@ -514,6 +526,7 @@ async def calculate_host_risk(
         raise HTTPException(status_code=500, detail="Failed to calculate risk score")
 
 
+@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.get(
     "/fleet/risk-ranking",
     response_model=List[Dict[str, Any]],
@@ -548,6 +561,7 @@ async def rank_fleet_by_risk(
         raise HTTPException(status_code=500, detail="Failed to rank hosts by risk")
 
 
+@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.get(
     "/host/{host_id}/forecast",
     response_model=Optional[Dict[str, Any]],
@@ -594,6 +608,7 @@ async def forecast_host_compliance(
         raise HTTPException(status_code=500, detail="Failed to forecast compliance")
 
 
+@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.get(
     "/host/{host_id}/anomalies",
     response_model=List[Dict[str, Any]],
@@ -630,6 +645,7 @@ async def detect_host_anomalies(
         raise HTTPException(status_code=500, detail="Failed to detect anomalies")
 
 
+@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.get(
     "/version",
     response_model=Dict[str, Any],

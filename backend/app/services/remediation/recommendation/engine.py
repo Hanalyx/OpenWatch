@@ -8,7 +8,7 @@ that external systems can consume via the OpenWatch Remediation System Adapter (
 
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
@@ -145,7 +145,7 @@ class ComplianceGap:
     platform: str
     failed_checks: List[str] = field(default_factory=list)
     error_details: Optional[str] = None
-    last_scan_time: datetime = field(default_factory=datetime.utcnow)
+    last_scan_time: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     # Framework context
     regulatory_requirements: List[str] = field(default_factory=list)
@@ -217,7 +217,7 @@ class RemediationRecommendation:
     monitoring_recommendations: List[str] = field(default_factory=list)
 
     # Metadata
-    created_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     confidence_score: float = 0.8  # 0.0 to 1.0
     framework_citations: List[str] = field(default_factory=list)
     related_controls: List[str] = field(default_factory=list)
@@ -514,7 +514,7 @@ class RemediationRecommendationEngine:
             failed_checks = rule_execution.output_data.get("failed_checks", [])
 
         gap = ComplianceGap(
-            gap_id=f"GAP-{framework_result.framework_id}-{rule_execution.rule_id}-{host_result.host_id}-{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}",  # noqa: E501
+            gap_id=f"GAP-{framework_result.framework_id}-{rule_execution.rule_id}-{host_result.host_id}-{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}",  # noqa: E501
             rule_id=rule_execution.rule_id,
             framework_id=framework_result.framework_id,
             control_id=(framework_mapping.control_ids[0] if framework_mapping.control_ids else "unknown"),
@@ -530,7 +530,7 @@ class RemediationRecommendationEngine:
             platform=host_result.platform_info.get("platform", "unknown"),
             failed_checks=failed_checks,
             error_details=rule_execution.error_message,
-            last_scan_time=rule_execution.executed_at or datetime.utcnow(),
+            last_scan_time=rule_execution.executed_at or datetime.now(timezone.utc),
             regulatory_requirements=self._get_regulatory_requirements(framework_result.framework_id),
             compliance_deadline=self._calculate_compliance_deadline(priority, unified_rule.risk_level),
         )
@@ -572,7 +572,7 @@ class RemediationRecommendationEngine:
         )
 
         recommendation = RemediationRecommendation(
-            recommendation_id=f"REC-{gap.framework_id}-{gap.rule_id}-{gap.host_id}-{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}",  # noqa: E501
+            recommendation_id=f"REC-{gap.framework_id}-{gap.rule_id}-{gap.host_id}-{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}",  # noqa: E501
             compliance_gap=gap,
             primary_procedure=primary_procedure,
             alternative_procedures=alternative_procedures,
@@ -628,7 +628,7 @@ class RemediationRecommendationEngine:
         complexity = self._determine_complexity(steps, unified_rule.risk_level, platform_impl)
 
         procedure = RemediationProcedure(
-            procedure_id=f"PROC-{gap.rule_id}-{gap.platform}-{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}",
+            procedure_id=f"PROC-{gap.rule_id}-{gap.platform}-{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}",
             title=f"Remediate {unified_rule.title} on {gap.platform}",
             description=unified_rule.description,
             category=self._determine_category(platform_impl),
@@ -784,7 +784,7 @@ class RemediationRecommendationEngine:
         if risk_level == "critical":
             days = min(days, 3)  # Critical risk = max 3 days
 
-        return datetime.utcnow() + timedelta(days=days)
+        return datetime.now(timezone.utc) + timedelta(days=days)
 
     def _create_remediation_steps(
         self, platform_impl: PlatformImplementation, gap: ComplianceGap

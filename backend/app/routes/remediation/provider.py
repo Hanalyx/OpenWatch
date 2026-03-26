@@ -6,9 +6,11 @@ Enhanced remediation interface for Kensa integration and other remediation provi
 import asyncio
 import logging
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
+from app.middleware.rbac_middleware import require_role
+from app.rbac import UserRole
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import UUID4, BaseModel, Field
 from sqlalchemy.orm import Session
@@ -79,6 +81,7 @@ class RemediationSummary(BaseModel):
     last_24h: Dict[str, int]
 
 
+@require_role([UserRole.SECURITY_ANALYST, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.post("/start", response_model=RemediationJob)
 async def start_remediation(
     request: RemediationRequest,
@@ -121,7 +124,7 @@ async def start_remediation(
             status="pending",
             priority=request.priority,
             failed_rules=request.failed_rules,
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc),
             metadata={
                 "user_id": current_user.get("user_id"),
                 "options": request.options,
@@ -188,6 +191,7 @@ async def start_remediation(
         )
 
 
+@require_role([UserRole.SECURITY_ANALYST, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.get("/job/{job_id}", response_model=RemediationJob)
 async def get_remediation_job(
     job_id: UUID4,
@@ -231,6 +235,7 @@ async def get_remediation_job(
         )
 
 
+@require_role([UserRole.SECURITY_ANALYST, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.delete("/job/{job_id}")
 async def cancel_remediation_job(
     job_id: UUID4,
@@ -292,6 +297,7 @@ async def cancel_remediation_job(
         )
 
 
+@require_role([UserRole.SECURITY_ANALYST, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.post("/job/{job_id}/retry")
 async def retry_remediation_job(
     job_id: UUID4,
@@ -367,6 +373,7 @@ async def retry_remediation_job(
         )
 
 
+@require_role([UserRole.SECURITY_ANALYST, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.get("/providers", response_model=List[RemediationProvider])
 async def get_remediation_providers(
     current_user: Dict[str, Any] = Depends(get_current_user),
@@ -452,6 +459,7 @@ async def get_remediation_providers(
         )
 
 
+@require_role([UserRole.SECURITY_ANALYST, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.get("/summary", response_model=RemediationSummary)
 async def get_remediation_summary(
     current_user: Dict[str, Any] = Depends(get_current_user), db: Session = Depends(get_db)

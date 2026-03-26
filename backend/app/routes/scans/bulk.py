@@ -25,6 +25,8 @@ Security Notes:
 import logging
 from typing import Any, Dict, List, Optional
 
+from app.middleware.rbac_middleware import require_role
+from app.rbac import UserRole
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -44,6 +46,7 @@ router = APIRouter(tags=["Bulk Scan Operations"])
 # =============================================================================
 
 
+@require_role([UserRole.SECURITY_ANALYST, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.post("/bulk-scan", response_model=BulkScanResponse)
 async def create_bulk_scan(
     bulk_scan_request: BulkScanRequest,
@@ -121,6 +124,7 @@ async def create_bulk_scan(
         raise HTTPException(status_code=500, detail=f"Failed to create bulk scan: {str(e)}")
 
 
+@require_role([UserRole.SECURITY_ANALYST, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.get("/bulk-scan/{session_id}/progress")
 async def get_bulk_scan_progress(
     session_id: str,
@@ -175,6 +179,7 @@ async def get_bulk_scan_progress(
         raise HTTPException(status_code=500, detail="Failed to get bulk scan progress")
 
 
+@require_role([UserRole.SECURITY_ANALYST, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.post("/bulk-scan/{session_id}/cancel")
 async def cancel_bulk_scan(
     session_id: str,
@@ -250,6 +255,7 @@ async def cancel_bulk_scan(
         raise HTTPException(status_code=500, detail="Failed to cancel bulk scan")
 
 
+@require_role([UserRole.SECURITY_ANALYST, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.get("/sessions")
 async def list_scan_sessions(
     status: Optional[str] = None,

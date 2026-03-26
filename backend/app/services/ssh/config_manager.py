@@ -47,7 +47,7 @@ import ipaddress
 import json
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, List, Optional
 
 import paramiko
@@ -237,7 +237,7 @@ class SSHConfigManager:
                 setting.setting_type = setting_type
                 setting.description = description
                 setting.modified_by = user_id
-                setting.modified_at = datetime.utcnow()
+                setting.modified_at = datetime.now(timezone.utc)
             else:
                 # Create new setting with full audit trail
                 setting = SystemSettings(

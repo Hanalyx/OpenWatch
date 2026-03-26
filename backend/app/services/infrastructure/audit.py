@@ -6,7 +6,7 @@ Handles secure logging of sensitive error information for audit purposes
 import hashlib
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -127,7 +127,7 @@ class SecurityAuditLogger:
                 "error_count": error_count,
                 "action_taken": action_taken,
                 "user_id_hash": self._hash_value(user_id) if user_id else None,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             },
         )
 
@@ -148,7 +148,7 @@ class SecurityAuditLogger:
                 "suspicious_patterns": suspicious_patterns,
                 "user_id_hash": self._hash_value(user_id) if user_id else None,
                 "session_id": session_id,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "severity": "critical",
             },
         )
@@ -208,7 +208,7 @@ class SecurityJSONFormatter(logging.Formatter):
 
         # Create base log entry
         log_entry = {
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "level": record.levelname,
             "logger": record.name,
             "message": record.getMessage(),

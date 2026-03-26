@@ -27,7 +27,7 @@ Example:
 import json
 from collections import defaultdict
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set, Tuple
 
@@ -74,7 +74,7 @@ class ControlMapping:
 
     def __post_init__(self):
         if self.created_at is None:
-            self.created_at = datetime.utcnow()
+            self.created_at = datetime.now(timezone.utc)
         if self.exceptions is None:
             self.exceptions = []
 

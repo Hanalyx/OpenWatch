@@ -20,7 +20,11 @@ import logging
 from typing import Optional
 from uuid import UUID
 
+from app.middleware.rbac_middleware import require_role
+from app.rbac import UserRole
 from fastapi import APIRouter, Depends, HTTPException, Query
+from app.middleware.rbac_middleware import require_role
+from app.rbac import UserRole
 from fastapi import status as http_status
 from sqlalchemy.orm import Session
 
@@ -49,6 +53,7 @@ router = APIRouter(prefix="/exceptions", tags=["Compliance Exceptions"])
 # =============================================================================
 
 
+@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.get("", response_model=ExceptionListResponse)
 async def list_exceptions(
     page: int = Query(1, ge=1, description="Page number"),
@@ -84,6 +89,7 @@ async def list_exceptions(
     )
 
 
+@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.get("/summary", response_model=ExceptionSummary)
 async def get_exception_summary(
     db: Session = Depends(get_db),
@@ -99,6 +105,7 @@ async def get_exception_summary(
     return service.get_summary()
 
 
+@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.post("", response_model=ExceptionResponse)
 async def request_exception(
     request: ExceptionRequestCreate,
@@ -161,6 +168,7 @@ async def request_exception(
     return service._row_to_response(exception)
 
 
+@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.get("/{exception_id}", response_model=ExceptionResponse)
 async def get_exception(
     exception_id: UUID,
@@ -193,6 +201,7 @@ async def get_exception(
     return service._row_to_response(exception)
 
 
+@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.post("/{exception_id}/approve", response_model=ExceptionResponse)
 async def approve_exception(
     exception_id: UUID,
@@ -245,6 +254,7 @@ async def approve_exception(
     return service._row_to_response(exception)
 
 
+@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.post("/{exception_id}/reject", response_model=ExceptionResponse)
 async def reject_exception(
     exception_id: UUID,
@@ -296,6 +306,7 @@ async def reject_exception(
     return service._row_to_response(exception)
 
 
+@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.post("/{exception_id}/revoke", response_model=ExceptionResponse)
 async def revoke_exception(
     exception_id: UUID,
@@ -347,6 +358,7 @@ async def revoke_exception(
     return service._row_to_response(exception)
 
 
+@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.post("/check", response_model=ExceptionCheckResponse)
 async def check_exception(
     request: ExceptionCheckRequest,

@@ -34,9 +34,11 @@ Legacy Endpoints:
 import json
 import logging
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict
 
+from app.middleware.rbac_middleware import require_role
+from app.rbac import UserRole
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -71,6 +73,7 @@ error_service = get_error_classification_service()
 # =============================================================================
 
 
+@require_role([UserRole.SECURITY_ANALYST, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.post("/validate")
 async def validate_scan_configuration(
     validation_request: ValidationRequest,
@@ -278,6 +281,7 @@ async def validate_scan_configuration(
         raise HTTPException(status_code=500, detail=f"Validation failed: {sanitized_error.message}")
 
 
+@require_role([UserRole.SECURITY_ANALYST, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.post("/hosts/{host_id}/quick-scan", response_model=QuickScanResponse)
 async def quick_scan(
     host_id: str,
@@ -456,7 +460,7 @@ async def quick_scan(
                     }
                 ),
                 "started_by": current_user["id"],
-                "started_at": datetime.utcnow(),
+                "started_at": datetime.now(timezone.utc),
                 "remediation_requested": False,
                 "verification_scan": False,
             },
@@ -492,7 +496,7 @@ async def quick_scan(
                     parts = duration_str.replace(" min", "").split("-")
                     if len(parts) == 2:
                         avg_minutes = (int(parts[0]) + int(parts[1])) / 2
-                        estimated_time = datetime.utcnow().timestamp() + (avg_minutes * 60)
+                        estimated_time = datetime.now(timezone.utc).timestamp() + (avg_minutes * 60)
             except Exception:
                 logger.debug("Ignoring exception during duration parsing")
 
@@ -540,6 +544,7 @@ async def quick_scan(
             )
 
 
+@require_role([UserRole.SECURITY_ANALYST, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.post("/verify")
 async def create_verification_scan(
     verification_request: VerificationScanRequest,
@@ -663,7 +668,7 @@ async def create_verification_scan(
                 "progress": 0,
                 "scan_options": json.dumps(scan_options),
                 "started_by": current_user["id"],
-                "started_at": datetime.utcnow(),
+                "started_at": datetime.now(timezone.utc),
                 "verification_scan": True,
             },
         )
@@ -721,6 +726,7 @@ async def create_verification_scan(
 # =============================================================================
 
 
+@require_role([UserRole.SECURITY_ANALYST, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.post("/{scan_id}/rescan/rule")
 async def rescan_rule(
     scan_id: str,
@@ -795,6 +801,7 @@ async def rescan_rule(
         raise HTTPException(status_code=500, detail="Failed to initiate rule rescan")
 
 
+@require_role([UserRole.SECURITY_ANALYST, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.post("/{scan_id}/remediate")
 async def start_remediation(
     scan_id: str,
@@ -926,6 +933,7 @@ async def start_remediation(
 # =============================================================================
 
 
+@require_role([UserRole.SECURITY_ANALYST, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.get("/capabilities")
 async def get_scan_capabilities(
     current_user: Dict[str, Any] = Depends(get_current_user),
@@ -1005,6 +1013,7 @@ async def get_scan_capabilities(
     }
 
 
+@require_role([UserRole.SECURITY_ANALYST, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.get("/summary")
 async def get_scans_summary(
     current_user: Dict[str, Any] = Depends(get_current_user),
@@ -1058,6 +1067,7 @@ async def get_scans_summary(
     }
 
 
+@require_role([UserRole.SECURITY_ANALYST, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.get("/profiles")
 async def get_available_profiles(
     current_user: Dict[str, Any] = Depends(get_current_user),

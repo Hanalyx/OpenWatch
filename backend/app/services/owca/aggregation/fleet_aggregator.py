@@ -10,7 +10,7 @@ Unified Data Source:
 """
 
 import logging
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import List, Optional
 from uuid import UUID
 
@@ -171,13 +171,13 @@ class FleetAggregator:
         )
 
         # Threshold for "needs scan" - 7 days ago
-        threshold_date = datetime.utcnow() - timedelta(days=7)
+        threshold_date = datetime.now(timezone.utc) - timedelta(days=7)
 
         result = self.db.execute(query, {"threshold_date": threshold_date}).fetchone()
 
         if not result:
             logger.warning("Failed to fetch fleet statistics")
-            return FleetStatistics(calculated_at=datetime.utcnow())
+            return FleetStatistics(calculated_at=datetime.now(timezone.utc))
 
         # Build FleetStatistics model
         stats = FleetStatistics(
@@ -198,7 +198,7 @@ class FleetAggregator:
             total_medium_issues=int(result.total_medium_issues or 0),
             total_low_issues=int(result.total_low_issues or 0),
             hosts_with_critical=result.hosts_with_critical or 0,
-            calculated_at=datetime.utcnow(),
+            calculated_at=datetime.now(timezone.utc),
         )
 
         # Cache the result (5 min TTL)
@@ -545,7 +545,7 @@ class FleetAggregator:
             data_points=data_points,
             trend_direction=trend_direction,
             improvement_rate=improvement_rate,
-            calculated_at=datetime.utcnow(),
+            calculated_at=datetime.now(timezone.utc),
         )
 
     def _calculate_trend(self, data_points: List[FleetTrendDataPoint]) -> tuple[TrendDirection, Optional[float]]:

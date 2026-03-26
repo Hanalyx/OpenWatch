@@ -20,7 +20,7 @@ Design by Emily (Security Engineer) & Implementation by Daniel (Backend Engineer
 import json
 import logging
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 from fastapi import Request, Response, status
@@ -652,7 +652,7 @@ class AuthorizationMiddleware(BaseHTTPMiddleware):
             content={
                 "error": message,
                 "path": path,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "type": "authorization_error",
             },
         )
@@ -680,7 +680,7 @@ class AuthorizationMiddleware(BaseHTTPMiddleware):
                 "message": f"Access denied to {len(auth_result.denied_resources)} resource(s)",
                 "denied_resources": denied_resources,
                 "path": path,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "type": "authorization_denied",
             },
         )

@@ -5,7 +5,7 @@ Identifies security tools, configurations, and enforcement mechanisms on target 
 
 import logging
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from ...database import Host
@@ -44,7 +44,7 @@ class HostSecurityDiscoveryService:
             "apparmor_status": "Unknown",
             "firewall_services": {},
             "security_tools": [],
-            "discovery_timestamp": datetime.utcnow(),
+            "discovery_timestamp": datetime.now(timezone.utc),
             "discovery_success": False,
             "discovery_errors": [],
         }

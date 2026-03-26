@@ -36,10 +36,12 @@ Migration Status:
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
+from app.middleware.rbac_middleware import require_role
+from app.rbac import UserRole
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -91,6 +93,7 @@ router = APIRouter(tags=["Host Discovery"])
 # =============================================================================
 
 
+@require_role([UserRole.SECURITY_ANALYST, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.post("/{host_id}/discovery/basic", response_model=HostDiscoveryResponse)
 async def discover_basic_system_info(
     host_id: str,
@@ -153,6 +156,7 @@ async def discover_basic_system_info(
         raise HTTPException(status_code=500, detail=f"Discovery failed: {str(e)}")
 
 
+@require_role([UserRole.SECURITY_ANALYST, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.post("/discovery/basic/bulk", response_model=BulkDiscoveryResponse)
 async def discover_basic_system_bulk(
     request: BulkDiscoveryRequest,
@@ -203,9 +207,9 @@ async def discover_basic_system_bulk(
             invalid_hosts.append({"host_id": str(host.id), "error": f"Failed to schedule: {str(e)}"})
 
     # Estimate completion time (assume 30 seconds per host)
-    estimated_completion = datetime.utcnow()
+    estimated_completion = datetime.now(timezone.utc)
     if valid_hosts:
-        estimated_completion = datetime.utcnow() + timedelta(seconds=len(valid_hosts) * 30)
+        estimated_completion = datetime.now(timezone.utc) + timedelta(seconds=len(valid_hosts) * 30)
 
     return BulkDiscoveryResponse(
         total_hosts=len(request.host_ids),
@@ -215,6 +219,7 @@ async def discover_basic_system_bulk(
     )
 
 
+@require_role([UserRole.SECURITY_ANALYST, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.get("/{host_id}/discovery/status")
 async def get_discovery_status(
     host_id: str,
@@ -277,6 +282,7 @@ async def _execute_background_discovery(host_id: str, db: Session) -> None:
 # =============================================================================
 
 
+@require_role([UserRole.SECURITY_ANALYST, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.post("/{host_id}/discovery/network", response_model=NetworkDiscoveryResponse)
 async def discover_host_network_topology(
     host_id: str,
@@ -330,6 +336,7 @@ async def discover_host_network_topology(
         )
 
 
+@require_role([UserRole.SECURITY_ANALYST, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.post("/discovery/network/bulk", response_model=BulkNetworkDiscoveryResponse)
 async def bulk_discover_network_topology(
     request: BulkNetworkDiscoveryRequest,
@@ -409,6 +416,7 @@ async def bulk_discover_network_topology(
     )
 
 
+@require_role([UserRole.SECURITY_ANALYST, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.get(
     "/{host_id}/discovery/network/security-assessment",
     response_model=NetworkSecurityAssessment,
@@ -453,6 +461,7 @@ async def assess_host_network_security(
         )
 
 
+@require_role([UserRole.SECURITY_ANALYST, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.post("/discovery/network/topology-map")
 async def generate_network_topology_map(
     request: BulkNetworkDiscoveryRequest,
@@ -495,6 +504,7 @@ async def generate_network_topology_map(
         )
 
 
+@require_role([UserRole.SECURITY_ANALYST, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.get("/discovery/network/capabilities")
 async def get_network_discovery_capabilities(
     current_user: Dict[str, Any] = Depends(get_current_user),
@@ -764,6 +774,7 @@ def _generate_topology_map(discovery_results: Dict[str, NetworkDiscoveryResponse
 # =============================================================================
 
 
+@require_role([UserRole.SECURITY_ANALYST, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.post("/{host_id}/discovery/security", response_model=SecurityDiscoveryResponse)
 async def discover_host_security_infrastructure(
     host_id: str,
@@ -817,6 +828,7 @@ async def discover_host_security_infrastructure(
         )
 
 
+@require_role([UserRole.SECURITY_ANALYST, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.post("/discovery/security/bulk", response_model=BulkSecurityDiscoveryResponse)
 async def bulk_discover_security_infrastructure(
     request: BulkSecurityDiscoveryRequest,
@@ -896,6 +908,7 @@ async def bulk_discover_security_infrastructure(
     )
 
 
+@require_role([UserRole.SECURITY_ANALYST, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.get("/{host_id}/discovery/security/summary")
 async def get_host_security_summary(
     host_id: str,
@@ -978,6 +991,7 @@ async def get_host_security_summary(
 # =============================================================================
 
 
+@require_role([UserRole.SECURITY_ANALYST, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.post("/{host_id}/discovery/compliance", response_model=ComplianceDiscoveryResponse)
 async def discover_host_compliance_infrastructure(
     host_id: str,
@@ -1031,6 +1045,7 @@ async def discover_host_compliance_infrastructure(
         )
 
 
+@require_role([UserRole.SECURITY_ANALYST, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.post("/discovery/compliance/bulk", response_model=BulkComplianceDiscoveryResponse)
 async def bulk_discover_compliance_infrastructure(
     request: BulkComplianceDiscoveryRequest,
@@ -1110,6 +1125,7 @@ async def bulk_discover_compliance_infrastructure(
     )
 
 
+@require_role([UserRole.SECURITY_ANALYST, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.get(
     "/{host_id}/discovery/compliance/assessment",
     response_model=ComplianceCapabilityAssessment,
@@ -1185,6 +1201,7 @@ async def assess_host_compliance_capability(
         )
 
 
+@require_role([UserRole.SECURITY_ANALYST, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.get("/discovery/compliance/frameworks")
 async def get_supported_compliance_frameworks(
     current_user: Dict[str, Any] = Depends(get_current_user),

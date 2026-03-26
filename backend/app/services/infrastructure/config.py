@@ -8,7 +8,7 @@ for SSH key validation, credential enforcement, and FIPS compliance.
 import json
 import logging
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -174,7 +174,7 @@ class SecurityConfigManager:
             if scope in [ConfigScope.SYSTEM, ConfigScope.ORGANIZATION] and target_id:
                 raise ValueError(f"target_id must be null for {scope.value} scope")
 
-            current_time = datetime.utcnow()
+            current_time = datetime.now(timezone.utc)
 
             # Upsert configuration
             self.db.execute(

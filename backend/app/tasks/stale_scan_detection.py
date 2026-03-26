@@ -12,7 +12,7 @@ Thresholds:
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import text
 
@@ -40,7 +40,7 @@ def detect_stale_scans() -> dict:
     Returns:
         dict with counts of recovered scans by previous status.
     """
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     running_cutoff = now - RUNNING_TIMEOUT
     pending_cutoff = now - PENDING_TIMEOUT
 

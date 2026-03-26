@@ -6,7 +6,7 @@ status, and results. Part of the ORSA (OpenWatch Remediation and
 Security Automation) plugin architecture.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
@@ -78,7 +78,7 @@ class RemediationResult(BaseModel):
     status: RemediationStatus = Field(default=RemediationStatus.PENDING)
 
     # Timing
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
 
@@ -122,7 +122,7 @@ class RemediationResult(BaseModel):
             details: Optional additional details about the action.
         """
         entry = {
-            "timestamp": datetime.utcnow(),
+            "timestamp": datetime.now(timezone.utc),
             "action": action,
             "details": details or {},
         }
@@ -154,7 +154,7 @@ class BulkRemediationJob(BaseModel):
 
     # Status
     status: RemediationStatus = Field(default=RemediationStatus.PENDING)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
 

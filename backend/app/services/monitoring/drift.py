@@ -23,7 +23,7 @@ Auto-Baseline (Hybrid Approach):
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Optional, Tuple
 from uuid import UUID
 
@@ -200,7 +200,7 @@ class DriftDetectionService:
         baseline = ScanBaseline(
             host_id=host_id,
             baseline_type="auto",
-            established_at=datetime.utcnow(),
+            established_at=datetime.now(timezone.utc),
             established_by=None,  # Auto-created, no user
             baseline_score=scan_data.score,
             baseline_passed_rules=scan_data.passed_rules,

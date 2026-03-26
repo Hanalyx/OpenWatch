@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     algorithm: str = "RS256"  # FIPS-approved RSA signature
     access_token_expire_minutes: int = 30
     refresh_token_expire_days: int = 7
+    absolute_session_timeout_hours: int = 12  # Maximum session lifetime regardless of activity
 
     # Database (with TDE support)
     database_url: str
@@ -123,8 +124,8 @@ SECURITY_HEADERS = {
     "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
     "Content-Security-Policy": (
         "default-src 'self'; "
-        "script-src 'self' 'unsafe-inline'; "
-        "style-src 'self' 'unsafe-inline'; "
+        "script-src 'self'; "
+        "style-src 'self'; "
         "img-src 'self' data:; "
         "connect-src 'self'; "
         "font-src 'self'; "

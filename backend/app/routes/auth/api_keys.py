@@ -6,7 +6,7 @@ Handles creation and management of API keys for service-to-service authenticatio
 import hashlib
 import logging
 import secrets
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -85,7 +85,7 @@ async def create_api_key(
     # Calculate expiration
     expires_at = None
     if request.expires_in_days:
-        expires_at = datetime.utcnow() + timedelta(days=request.expires_in_days)
+        expires_at = datetime.now(timezone.utc) + timedelta(days=request.expires_in_days)
 
     # Create database entry
     db_api_key = ApiKey(

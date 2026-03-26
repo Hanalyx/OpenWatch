@@ -7,7 +7,7 @@ Active Celery tasks:
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import text
 
@@ -170,7 +170,7 @@ def check_host_connectivity(self, host_id: str, priority: int = 5) -> dict:
                 "error_message": error_message,
                 "error_type": error_type,
                 "priority": priority,
-                "checked_at": datetime.utcnow().isoformat(),
+                "checked_at": datetime.now(timezone.utc).isoformat(),
             }
 
     except Exception as exc:
@@ -237,7 +237,7 @@ def queue_host_checks(self, limit: int = 100) -> dict:
                 "queued_count": queued_count,
                 "total_due": len(hosts_to_check),
                 "state_distribution": state_distribution,
-                "queued_at": datetime.utcnow().isoformat(),
+                "queued_at": datetime.now(timezone.utc).isoformat(),
             }
 
     except Exception as exc:

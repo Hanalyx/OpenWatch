@@ -19,7 +19,11 @@ import logging
 from math import ceil
 from typing import Any, Dict, Optional
 
+from app.middleware.rbac_middleware import require_role
+from app.rbac import UserRole
 from fastapi import APIRouter, Depends, HTTPException, Query
+from app.middleware.rbac_middleware import require_role
+from app.rbac import UserRole
 from fastapi import status as http_status
 
 from ...auth import get_current_user
@@ -167,6 +171,7 @@ def rule_to_detail(rule: Dict[str, Any]) -> RuleDetail:
 # =============================================================================
 
 
+@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.get("", response_model=RuleListResponse)
 async def list_rules(
     search: Optional[str] = Query(None, description="Search in title, description, tags"),
@@ -242,6 +247,7 @@ async def list_rules(
         )
 
 
+@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.get("/stats")
 async def get_rule_statistics(
     current_user: User = Depends(get_current_user),
@@ -269,6 +275,7 @@ async def get_rule_statistics(
         )
 
 
+@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.get("/frameworks", response_model=FrameworkListResponse)
 async def list_frameworks(
     current_user: User = Depends(get_current_user),
@@ -311,6 +318,7 @@ async def list_frameworks(
         )
 
 
+@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.get("/categories", response_model=CategoryListResponse)
 async def list_categories(
     current_user: User = Depends(get_current_user),
@@ -351,6 +359,7 @@ async def list_categories(
         )
 
 
+@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.get("/variables", response_model=VariableListResponse)
 async def list_variables(
     current_user: User = Depends(get_current_user),
@@ -393,6 +402,7 @@ async def list_variables(
         )
 
 
+@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.get("/capabilities", response_model=CapabilityListResponse)
 async def list_capabilities(
     current_user: User = Depends(get_current_user),
@@ -435,6 +445,7 @@ async def list_capabilities(
         )
 
 
+@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.get("/{rule_id}", response_model=RuleDetailResponse)
 async def get_rule(
     rule_id: str,
@@ -478,6 +489,7 @@ async def get_rule(
         )
 
 
+@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.post("/refresh")
 async def refresh_rules_cache(
     current_user: User = Depends(get_current_user),

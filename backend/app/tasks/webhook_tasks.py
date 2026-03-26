@@ -7,7 +7,7 @@ import json
 import logging
 import time
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict
 
 from sqlalchemy import text
@@ -65,7 +65,7 @@ async def deliver_webhook(
                     "event_type": event_data.get("event_type", "unknown"),
                     "event_data": json.dumps(event_data),
                     "delivery_status": "pending",
-                    "created_at": datetime.utcnow(),
+                    "created_at": datetime.now(timezone.utc),
                 },
             )
             db.commit()
@@ -117,7 +117,7 @@ async def deliver_webhook(
                     "id": delivery_id,
                     "status_code": response.status_code,
                     "response_body": response.text[:1000],  # Truncate long responses
-                    "delivered_at": datetime.utcnow(),
+                    "delivered_at": datetime.now(timezone.utc),
                 },
             )
             db.commit()

@@ -18,6 +18,8 @@ import logging
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
+from app.middleware.rbac_middleware import require_role
+from app.rbac import UserRole
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import text
@@ -161,6 +163,7 @@ def _verify_group_exists(db: Session, group_id: int) -> bool:
 # =============================================================================
 
 
+@require_role([UserRole.SECURITY_ANALYST, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.post("", response_model=QuickScanResponse)
 async def quick_scan(
     request: QuickScanRequest,
@@ -332,6 +335,7 @@ async def quick_scan(
     )
 
 
+@require_role([UserRole.SECURITY_ANALYST, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.get("/{scan_id}", response_model=QuickScanStatusResponse)
 async def get_quick_scan_status(
     scan_id: str,

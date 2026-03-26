@@ -30,7 +30,7 @@ Compliance Standards Supported:
 """
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
@@ -350,8 +350,8 @@ class PluginPolicy(BaseModel):
     applicable_standards: List[ComplianceStandard] = Field(default_factory=list)
 
     # Metadata
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     created_by: Optional[str] = None
     version: str = "1.0.0"
     metadata: Dict[str, Any] = Field(default_factory=dict)
@@ -396,7 +396,7 @@ class PolicyViolation(BaseModel):
     details: Dict[str, Any] = Field(default_factory=dict)
 
     # Timing
-    detected_at: datetime = Field(default_factory=datetime.utcnow)
+    detected_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     resolved_at: Optional[datetime] = None
     resolved_by: Optional[str] = None
     resolution_notes: Optional[str] = None
@@ -452,7 +452,7 @@ class ComplianceReport(BaseModel):
     recommendations: List[str] = Field(default_factory=list)
 
     # Report metadata
-    generated_at: datetime = Field(default_factory=datetime.utcnow)
+    generated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     valid_until: Optional[datetime] = None
     assessor: str = "governance_service"
     checksum: Optional[str] = None
@@ -490,7 +490,7 @@ class AuditEvent(BaseModel):
     event_type: AuditEventType
     plugin_id: Optional[str] = None
     actor: str
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     action: str
     details: Dict[str, Any] = Field(default_factory=dict)
     outcome: str = Field(default="success", description="success, failure, partial")

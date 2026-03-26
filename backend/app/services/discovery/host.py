@@ -5,7 +5,7 @@ Implements comprehensive host system discovery functionality
 
 import logging
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 from ...database import Host
@@ -69,7 +69,7 @@ class HostBasicDiscoveryService:
             "os_name": "Unknown",
             "architecture": "Unknown",
             "kernel_version": "Unknown",
-            "discovery_timestamp": datetime.utcnow(),
+            "discovery_timestamp": datetime.now(timezone.utc),
             "discovery_success": False,
             "discovery_errors": [],
         }

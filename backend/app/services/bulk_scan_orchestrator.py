@@ -20,7 +20,7 @@ import json
 import logging
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -105,7 +105,7 @@ class AuthorizationFailure:
 
     def __post_init__(self) -> None:
         if self.timestamp is None:
-            self.timestamp = datetime.utcnow()
+            self.timestamp = datetime.now(timezone.utc)
 
 
 class BulkScanOrchestrator:
@@ -197,16 +197,16 @@ class BulkScanOrchestrator:
             # Create scan session record with authorization metadata
             session = ScanSession(
                 id=session_id,
-                name=f"{name_prefix} - {datetime.utcnow().strftime('%Y-%m-%d %H:%M')}",
+                name=f"{name_prefix} - {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M')}",
                 total_hosts=len(host_ids),  # Original request count
                 completed_hosts=0,
                 failed_hosts=0,
                 running_hosts=0,
                 status=ScanSessionStatus.PENDING,
                 created_by=user_id,
-                created_at=datetime.utcnow(),
+                created_at=datetime.now(timezone.utc),
                 scan_ids=[],
-                estimated_completion=datetime.utcnow()
+                estimated_completion=datetime.now(timezone.utc)
                 + timedelta(minutes=feasibility.get("estimated_time_minutes", 60)),
                 authorized_hosts=len(authorized_hosts),
                 unauthorized_hosts=len(authorization_failures),
@@ -276,7 +276,7 @@ class BulkScanOrchestrator:
 
             # Update session status
             session.status = ScanSessionStatus.RUNNING
-            session.started_at = datetime.utcnow()
+            session.started_at = datetime.now(timezone.utc)
             await self._update_scan_session(session)
 
             # Start scans with staggered execution
@@ -319,7 +319,7 @@ class BulkScanOrchestrator:
             # Determine overall session status
             if completed + failed == total_scans:
                 session.status = ScanSessionStatus.COMPLETED
-                session.completed_at = datetime.utcnow()
+                session.completed_at = datetime.now(timezone.utc)
             elif failed > 0 and running == 0:
                 session.status = ScanSessionStatus.FAILED
 
@@ -545,7 +545,7 @@ class BulkScanOrchestrator:
                             }
                         ),
                         user_id,
-                        datetime.utcnow(),
+                        datetime.now(timezone.utc),
                         False,
                         False,
                     )
@@ -731,7 +731,7 @@ class BulkScanOrchestrator:
             update_builder = (
                 UpdateBuilder("scans")
                 .set("status", "running")
-                .set("started_at", datetime.utcnow())
+                .set("started_at", datetime.now(timezone.utc))
                 .where_in("id", scan_ids)
                 .where("status = :status", "pending", "status")
             )
@@ -1004,14 +1004,14 @@ class BulkScanOrchestrator:
                                 "batch_id": batch.id,
                                 "start_delay": start_delay,
                                 "authorized": True,  # Mark as explicitly authorized
-                                "authorization_timestamp": datetime.utcnow().isoformat(),
+                                "authorization_timestamp": datetime.now(timezone.utc).isoformat(),
                                 # Per-host platform detection for multi-platform bulk scans
                                 "enable_jit_detection": True,
                                 "auto_select_content": True,  # Allow content switching based on detected platform
                             }
                         ),
                         user_id,
-                        datetime.utcnow(),
+                        datetime.now(timezone.utc),
                         False,
                         False,
                     )
@@ -1043,4 +1043,4 @@ class AuthorizedHost:
 
     def __post_init__(self):
         if self.timestamp is None:
-            self.timestamp = datetime.utcnow()
+            self.timestamp = datetime.now(timezone.utc)

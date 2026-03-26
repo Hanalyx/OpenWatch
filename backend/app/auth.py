@@ -6,7 +6,7 @@ Uses RSA-PSS signatures and secure password hashing
 import logging
 import os
 import secrets
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
 
 import jwt
@@ -128,14 +128,14 @@ class FIPSJWTManager:
         to_encode = data.copy()
 
         if expires_delta:
-            expire = datetime.utcnow() + expires_delta
+            expire = datetime.now(timezone.utc) + expires_delta
         else:
-            expire = datetime.utcnow() + timedelta(minutes=settings.access_token_expire_minutes)
+            expire = datetime.now(timezone.utc) + timedelta(minutes=settings.access_token_expire_minutes)
 
         to_encode.update(
             {
                 "exp": expire,
-                "iat": datetime.utcnow(),
+                "iat": datetime.now(timezone.utc),
                 "jti": secrets.token_urlsafe(32),  # JWT ID for revocation
             }
         )
@@ -156,14 +156,14 @@ class FIPSJWTManager:
         to_encode = data.copy()
 
         if expires_delta:
-            expire = datetime.utcnow() + expires_delta
+            expire = datetime.now(timezone.utc) + expires_delta
         else:
-            expire = datetime.utcnow() + timedelta(days=settings.refresh_token_expire_days)
+            expire = datetime.now(timezone.utc) + timedelta(days=settings.refresh_token_expire_days)
 
         to_encode.update(
             {
                 "exp": expire,
-                "iat": datetime.utcnow(),
+                "iat": datetime.now(timezone.utc),
                 "jti": secrets.token_urlsafe(32),
                 "type": "refresh",  # Token type identifier
             }
@@ -187,6 +187,17 @@ class FIPSJWTManager:
         """
         try:
             payload = jwt.decode(token, self.public_key, algorithms=["RS256"])
+
+            # Check absolute session timeout (NIST AC-12)
+            iat = payload.get("iat")
+            if iat:
+                issued_at = datetime.fromtimestamp(iat, tz=timezone.utc)
+                max_lifetime = timedelta(hours=settings.absolute_session_timeout_hours)
+                if datetime.now(timezone.utc) - issued_at > max_lifetime:
+                    raise HTTPException(
+                        status_code=status.HTTP_401_UNAUTHORIZED,
+                        detail="Session expired. Please log in again.",
+                    )
 
             # Check if token has been revoked (AC-13)
             jti = payload.get("jti")
@@ -326,14 +337,14 @@ def get_current_user(
                     )
 
                 # Check expiration
-                if api_key.expires_at and api_key.expires_at < datetime.utcnow():
+                if api_key.expires_at and api_key.expires_at < datetime.now(timezone.utc):
                     raise HTTPException(
                         status_code=status.HTTP_401_UNAUTHORIZED,
                         detail="API key expired",
                     )
 
                 # Update last used timestamp
-                api_key.last_used_at = datetime.utcnow()
+                api_key.last_used_at = datetime.now(timezone.utc)
                 db.commit()
 
                 # Return API key info as user context

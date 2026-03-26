@@ -31,6 +31,8 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from app.middleware.rbac_middleware import require_role
+from app.rbac import UserRole
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse, Response
 from sqlalchemy import text
@@ -165,6 +167,7 @@ async def _get_scan_details(
 # =============================================================================
 
 
+@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.get("/{scan_id}/results")
 async def get_scan_results(
     scan_id: str,
@@ -353,6 +356,7 @@ async def get_scan_results(
 # =============================================================================
 
 
+@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.get("/{scan_id}/report/html")
 async def get_scan_html_report(
     scan_id: str,
@@ -416,6 +420,7 @@ async def get_scan_html_report(
         raise HTTPException(status_code=500, detail="Failed to retrieve report")
 
 
+@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.get("/{scan_id}/report/json")
 async def get_scan_json_report(
     scan_id: str,
@@ -597,6 +602,7 @@ async def get_scan_json_report(
         raise HTTPException(status_code=500, detail="Failed to generate JSON report")
 
 
+@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.get("/{scan_id}/report/csv")
 async def get_scan_csv_report(
     scan_id: str,
@@ -680,6 +686,7 @@ async def get_scan_csv_report(
         raise HTTPException(status_code=500, detail="Failed to generate CSV report")
 
 
+@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.get("/{scan_id}/failed-rules")
 async def get_scan_failed_rules(
     scan_id: str,

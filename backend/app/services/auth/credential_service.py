@@ -10,7 +10,7 @@ The CredentialData objects should be passed to SSH services - never raw encrypte
 
 import base64
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 from sqlalchemy import text
@@ -122,7 +122,7 @@ class CentralizedAuthService:
                 encrypted_passphrase = base64.b64encode(encrypted_bytes).decode("ascii")
 
             # Store in unified credentials table
-            current_time = datetime.utcnow()
+            current_time = datetime.now(timezone.utc)
 
             self.db.execute(
                 text(
@@ -626,7 +626,7 @@ class CentralizedAuthService:
                 WHERE id = :id
             """
                 ),
-                {"id": credential_id, "updated_at": datetime.utcnow()},
+                {"id": credential_id, "updated_at": datetime.now(timezone.utc)},
             )
 
             rowcount: int = getattr(result, "rowcount", 0)
@@ -654,7 +654,7 @@ class CentralizedAuthService:
             int: Number of credentials purged
         """
         try:
-            cutoff_date = datetime.utcnow() - timedelta(days=retention_days)
+            cutoff_date = datetime.now(timezone.utc) - timedelta(days=retention_days)
 
             result = self.db.execute(
                 text(

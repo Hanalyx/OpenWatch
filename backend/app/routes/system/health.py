@@ -6,7 +6,7 @@ and combined health summaries.
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -75,7 +75,7 @@ async def refresh_health_data(
         return {
             "status": "success",
             "message": "Health data refreshed successfully",
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
     except Exception as e:
         logger.error(f"Error refreshing health data: {e}")
@@ -95,8 +95,8 @@ async def get_service_health_history(
     from datetime import timedelta
 
     return {
-        "start_time": (datetime.utcnow() - timedelta(hours=hours)).isoformat(),
-        "end_time": datetime.utcnow().isoformat(),
+        "start_time": (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat(),
+        "end_time": datetime.now(timezone.utc).isoformat(),
         "data_points": 0,
         "history": [],
     }
@@ -115,8 +115,8 @@ async def get_content_health_history(
     from datetime import timedelta
 
     return {
-        "start_time": (datetime.utcnow() - timedelta(hours=hours)).isoformat(),
-        "end_time": datetime.utcnow().isoformat(),
+        "start_time": (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat(),
+        "end_time": datetime.now(timezone.utc).isoformat(),
         "data_points": 0,
         "history": [],
     }

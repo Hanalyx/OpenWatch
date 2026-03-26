@@ -6,7 +6,7 @@ Stores scan execution results with rule-level details, variable overrides,
 and scanner metadata.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
@@ -194,5 +194,5 @@ class ScanSchedule(BaseModel):
 
     # Created/updated metadata
     created_by: str
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

@@ -4,7 +4,7 @@ Background tasks for scheduled and batch compliance scanning
 """
 
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List
 
 from sqlalchemy import text
@@ -30,7 +30,7 @@ def scheduled_group_scan(self, group_id: int, config: Dict[str, Any]):
     Scheduled compliance scan for a host group
     Executed via Celery Beat scheduler
     """
-    session_id = f"scheduled-{group_id}-{int(datetime.utcnow().timestamp())}"
+    session_id = f"scheduled-{group_id}-{int(datetime.now(timezone.utc).timestamp())}"
 
     try:
         # Get database session
@@ -68,7 +68,7 @@ def scheduled_group_scan(self, group_id: int, config: Dict[str, Any]):
                 "remediation_mode": config.get("remediation_mode", "report_only"),
                 "scheduled": True,
                 "started_by": "system",
-                "started_at": datetime.utcnow().isoformat(),
+                "started_at": datetime.now(timezone.utc).isoformat(),
             }
 
             # Create group scan session
@@ -89,8 +89,8 @@ def scheduled_group_scan(self, group_id: int, config: Dict[str, Any]):
                     "group_id": group_id,
                     "total_hosts": len(hosts),
                     "config": json.dumps(session_config),
-                    "estimated_completion": datetime.utcnow() + timedelta(minutes=len(hosts) * 15),
-                    "created_at": datetime.utcnow(),
+                    "estimated_completion": datetime.now(timezone.utc) + timedelta(minutes=len(hosts) * 15),
+                    "created_at": datetime.now(timezone.utc),
                 },
             )
 
@@ -141,7 +141,7 @@ def execute_compliance_scan_async(self, session_id: str, group_id: int, hosts: L
                 WHERE session_id = :session_id
             """
                 ),
-                {"session_id": session_id, "started_at": datetime.utcnow()},
+                {"session_id": session_id, "started_at": datetime.now(timezone.utc)},
             )
             db.commit()
 
@@ -231,7 +231,7 @@ def execute_compliance_scan_async(self, session_id: str, group_id: int, hosts: L
                 {
                     "session_id": session_id,
                     "status": final_status,
-                    "completed_at": datetime.utcnow(),
+                    "completed_at": datetime.now(timezone.utc),
                     "successful": successful_scans,
                     "failed": failed_scans,
                 },
@@ -267,7 +267,7 @@ def execute_compliance_scan_async(self, session_id: str, group_id: int, hosts: L
                 ),
                 {
                     "session_id": session_id,
-                    "completed_at": datetime.utcnow(),
+                    "completed_at": datetime.now(timezone.utc),
                     "error": str(exc),
                 },
             )
@@ -305,7 +305,7 @@ def send_compliance_notification(session_id: str, group_id: int, summary: Dict[s
                 "session_id": session_id,
                 "group_id": group_id,
                 "group_name": session_info.group_name,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "summary": summary,
                 "compliance_framework": json.loads(session_info.scan_config or "{}").get("compliance_framework"),
                 "total_hosts": session_info.total_hosts,
@@ -330,7 +330,7 @@ def send_compliance_notification(session_id: str, group_id: int, summary: Dict[s
                 {
                     "session_id": session_id,
                     "details": json.dumps(notification_data),
-                    "timestamp": datetime.utcnow(),
+                    "timestamp": datetime.now(timezone.utc),
                 },
             )
             db.commit()
@@ -365,7 +365,7 @@ def compliance_alert_check(group_id: int):
                 ),
                 {
                     "group_id": group_id,
-                    "recent_threshold": datetime.utcnow() - timedelta(days=7),
+                    "recent_threshold": datetime.now(timezone.utc) - timedelta(days=7),
                 },
             ).fetchone()
 
@@ -427,7 +427,7 @@ def send_compliance_alerts(group_id: int, alerts: List[Dict[str, Any]]):
                     {
                         "group_id": str(group_id),
                         "details": json.dumps(alert),
-                        "timestamp": datetime.utcnow(),
+                        "timestamp": datetime.now(timezone.utc),
                     },
                 )
             db.commit()

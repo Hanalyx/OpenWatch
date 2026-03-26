@@ -20,7 +20,7 @@ Usage:
 
 import hashlib
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -137,7 +137,7 @@ class KensaRuleSyncService:
         Returns:
             Dict with sync statistics.
         """
-        start_time = datetime.utcnow()
+        start_time = datetime.now(timezone.utc)
         stats = {
             "rules_found": 0,
             "rules_synced": 0,
@@ -187,7 +187,7 @@ class KensaRuleSyncService:
         # Commit all changes
         self.db.commit()
 
-        stats["duration_ms"] = int((datetime.utcnow() - start_time).total_seconds() * 1000)
+        stats["duration_ms"] = int((datetime.now(timezone.utc) - start_time).total_seconds() * 1000)
         logger.info(
             "Kensa rule sync complete: %d synced, %d skipped, " "%d inline mappings, %d mapping file mappings",
             stats["rules_synced"],

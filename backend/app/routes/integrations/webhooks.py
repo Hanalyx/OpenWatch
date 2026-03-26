@@ -23,7 +23,7 @@ import json
 import logging
 import socket
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -277,8 +277,8 @@ async def create_webhook_endpoint(
                 "secret_hash": secret_hash,
                 "is_active": True,
                 "created_by": current_user["id"],
-                "created_at": datetime.utcnow(),
-                "updated_at": datetime.utcnow(),
+                "created_at": datetime.now(timezone.utc),
+                "updated_at": datetime.now(timezone.utc),
             },
         )
 
@@ -390,7 +390,7 @@ async def update_webhook_endpoint(
 
         # Build update query with secure column mapping
         updates = []
-        params: Dict[str, Any] = {"id": webhook_id, "updated_at": datetime.utcnow()}
+        params: Dict[str, Any] = {"id": webhook_id, "updated_at": datetime.now(timezone.utc)}
 
         allowed_updates = {
             "name": "name = :name",
@@ -628,7 +628,7 @@ async def test_webhook_endpoint(
         # Create test event data
         test_event = {
             "event_type": "test.webhook",
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "webhook_id": webhook_id,
             "test_data": {
                 "message": "This is a test webhook delivery",

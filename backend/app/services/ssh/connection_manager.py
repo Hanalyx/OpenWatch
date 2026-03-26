@@ -64,7 +64,7 @@ import errno
 import io
 import logging
 import socket
-from datetime import datetime
+from datetime import datetime, timezone
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any, Dict, Optional
 
@@ -253,7 +253,7 @@ class SSHConnectionManager:
             ...     service_name="scan"
             ... )
         """
-        start_time = datetime.utcnow()
+        start_time = datetime.now(timezone.utc)
         client = None
         auth_method_used = None
 
@@ -357,7 +357,7 @@ class SSHConnectionManager:
             host_key_fingerprint = host_key.get_fingerprint().hex() if host_key else None
 
             # Log successful connection (without credentials)
-            duration = (datetime.utcnow() - start_time).total_seconds()
+            duration = (datetime.now(timezone.utc) - start_time).total_seconds()
             logger.info(
                 "SSH connection successful: %s -> %s@%s:%d " "(auth: %s, duration: %.2fs)",
                 service_name,
@@ -679,7 +679,7 @@ class SSHConnectionManager:
             >>> if result.success:
             ...     print(f"OSCAP version: {result.stdout}")
         """
-        start_time = datetime.utcnow()
+        start_time = datetime.now(timezone.utc)
         command_timeout = timeout or 300  # 5 minute default for long operations
 
         try:
@@ -691,7 +691,7 @@ class SSHConnectionManager:
             stderr_data = stderr.read().decode("utf-8", errors="replace").strip()
             exit_code = stdout.channel.recv_exit_status()
 
-            duration = (datetime.utcnow() - start_time).total_seconds()
+            duration = (datetime.now(timezone.utc) - start_time).total_seconds()
 
             return SSHCommandResult(
                 success=exit_code == 0,

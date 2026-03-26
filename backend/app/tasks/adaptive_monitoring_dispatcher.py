@@ -18,7 +18,7 @@ This design ensures:
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict
 
 from app.celery_app import celery_app
@@ -97,7 +97,7 @@ def dispatch_host_checks(self: Any) -> Dict[str, Any]:
             return {
                 "status": "ok",
                 "hosts_dispatched": dispatched_count,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
         finally:

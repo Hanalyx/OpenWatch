@@ -6,7 +6,7 @@ Centralized HTTP client for OpenWatch with exponential backoff, circuit breaker,
 import asyncio
 import logging
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, Optional
 
@@ -218,7 +218,7 @@ class HttpClient:
         # All retries exhausted - record failure
         self.stats.failed_requests += 1
         self.circuit_breaker.record_failure()
-        self.stats.last_failure = datetime.utcnow()
+        self.stats.last_failure = datetime.now(timezone.utc)
         self.stats.consecutive_failures += 1
         self.stats.consecutive_successes = 0
 

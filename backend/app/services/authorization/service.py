@@ -21,7 +21,7 @@ import asyncio
 import logging
 import time
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 from sqlalchemy import text
@@ -421,7 +421,7 @@ class AuthorizationService:
                     "resource_id": resource.resource_id,
                     "user_groups": user_groups,
                     "user_roles": user_roles,
-                    "now": datetime.utcnow(),
+                    "now": datetime.now(timezone.utc),
                 },
             )
 
@@ -968,7 +968,7 @@ class AuthorizationService:
                 WHERE id = :permission_id
             """
                 ),
-                {"permission_id": permission_id, "now": datetime.utcnow()},
+                {"permission_id": permission_id, "now": datetime.now(timezone.utc)},
             )
 
             if result.rowcount == 0:
@@ -981,7 +981,7 @@ class AuthorizationService:
                     WHERE id = :permission_id
                 """
                     ),
-                    {"permission_id": permission_id, "now": datetime.utcnow()},
+                    {"permission_id": permission_id, "now": datetime.now(timezone.utc)},
                 )
 
             self.db.commit()

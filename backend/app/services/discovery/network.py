@@ -5,7 +5,7 @@ Identifies network interfaces, routing, DNS, NTP, and connectivity configuration
 
 import logging
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from ...database import Host
@@ -55,7 +55,7 @@ class HostNetworkDiscoveryService:
             "network_services": network_services,
             "connectivity_tests": connectivity_tests,
             "network_security": network_security,
-            "discovery_timestamp": datetime.utcnow(),
+            "discovery_timestamp": datetime.now(timezone.utc),
             "discovery_success": False,
             "discovery_errors": discovery_errors,
         }

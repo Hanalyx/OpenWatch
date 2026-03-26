@@ -28,7 +28,7 @@ import logging
 import re
 import uuid
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from difflib import SequenceMatcher
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set
@@ -110,8 +110,8 @@ class RulePluginMapping(BaseModel):
 
     # Metadata
     created_by: str
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     tags: List[str] = Field(default_factory=list)
 
 

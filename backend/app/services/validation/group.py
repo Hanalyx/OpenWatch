@@ -9,7 +9,7 @@ and rule-based validation to prevent misconfigurations.
 import json
 import logging
 import re
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 from sqlalchemy.orm import Session
@@ -534,7 +534,7 @@ class GroupValidationService:
                 break
 
         # Update last OS detection time
-        host.last_os_detection = datetime.utcnow()
+        host.last_os_detection = datetime.now(timezone.utc)
 
         # Commit changes
         self.db.add(host)

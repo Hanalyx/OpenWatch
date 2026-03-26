@@ -29,7 +29,7 @@ import json
 import logging
 import pickle
 from dataclasses import asdict, dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -144,7 +144,7 @@ class RuleCacheService:
         }
 
         # Metrics tracking
-        self.metrics = CacheMetrics(last_updated=datetime.utcnow())
+        self.metrics = CacheMetrics(last_updated=datetime.now(timezone.utc))
 
         # Warming queries for common rule lookups
         self.warm_queries: List[Tuple[str, Dict[str, Any]]] = [
@@ -190,7 +190,7 @@ class RuleCacheService:
         Returns:
             Cached value or None
         """
-        start_time = datetime.utcnow()
+        start_time = datetime.now(timezone.utc)
 
         try:
             cache_key = f"{self.cache_prefix}{key}"
@@ -201,7 +201,7 @@ class RuleCacheService:
                 if cached_data:
                     # Deserialize and update access time
                     entry = pickle.loads(cached_data)
-                    entry.accessed_at = datetime.utcnow()
+                    entry.accessed_at = datetime.now(timezone.utc)
                     entry.access_count += 1
 
                     # Update entry in cache
@@ -260,8 +260,8 @@ class RuleCacheService:
             entry = CacheEntry(
                 key=key,
                 data=value,
-                created_at=datetime.utcnow(),
-                accessed_at=datetime.utcnow(),
+                created_at=datetime.now(timezone.utc),
+                accessed_at=datetime.now(timezone.utc),
                 access_count=1,
                 ttl=ttl,
                 priority=priority,
@@ -505,7 +505,7 @@ class RuleCacheService:
                     placeholder_data = {
                         "query_type": query_type,
                         "params": params_dict,
-                        "warmed_at": datetime.utcnow().isoformat(),
+                        "warmed_at": datetime.now(timezone.utc).isoformat(),
                         "placeholder": True,
                     }
 
@@ -552,7 +552,7 @@ class RuleCacheService:
                     self.metrics = CacheMetrics(**metrics_data)
                 else:
                     # Initialize fresh metrics
-                    self.metrics = CacheMetrics(last_updated=datetime.utcnow())
+                    self.metrics = CacheMetrics(last_updated=datetime.now(timezone.utc))
                     await self._save_metrics()
 
         except Exception as e:
@@ -574,7 +574,7 @@ class RuleCacheService:
 
     async def _record_hit(self, start_time: datetime) -> None:
         """Record cache hit metrics."""
-        duration = (datetime.utcnow() - start_time).total_seconds()
+        duration = (datetime.now(timezone.utc) - start_time).total_seconds()
 
         self.metrics.total_requests += 1
         self.metrics.cache_hits += 1
@@ -590,7 +590,7 @@ class RuleCacheService:
 
     async def _record_miss(self, start_time: datetime) -> None:
         """Record cache miss metrics."""
-        duration = (datetime.utcnow() - start_time).total_seconds()
+        duration = (datetime.now(timezone.utc) - start_time).total_seconds()
 
         self.metrics.total_requests += 1
         self.metrics.cache_misses += 1
@@ -682,14 +682,14 @@ class RuleCacheService:
                 # Get memory usage
                 redis_info = await self.redis_client.info("memory")
                 self.metrics.memory_usage = redis_info.get("used_memory", 0)
-                self.metrics.last_updated = datetime.utcnow()
+                self.metrics.last_updated = datetime.now(timezone.utc)
 
         except Exception as e:
             logger.error(f"Failed to update cache size metrics: {str(e)}")
 
     async def _reset_metrics(self) -> None:
         """Reset cache metrics."""
-        self.metrics = CacheMetrics(last_updated=datetime.utcnow())
+        self.metrics = CacheMetrics(last_updated=datetime.now(timezone.utc))
         await self._save_metrics()
 
     async def _warm_cache(self) -> None:

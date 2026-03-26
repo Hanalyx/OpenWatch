@@ -7,7 +7,7 @@ baselines to detect configuration drift and compliance changes.
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from uuid import UUID
 
@@ -91,7 +91,7 @@ class BaselineService:
         existing_baseline = self.get_active_baseline(db, host_id)
         if existing_baseline:
             existing_baseline.is_active = False
-            existing_baseline.superseded_at = datetime.utcnow()
+            existing_baseline.superseded_at = datetime.now(timezone.utc)
             # superseded_by will be set after new baseline created
 
         # Convert score from string "64.82%" to float 64.82
@@ -190,7 +190,7 @@ class BaselineService:
             .update(
                 {
                     "is_active": False,
-                    "superseded_at": datetime.utcnow(),
+                    "superseded_at": datetime.now(timezone.utc),
                 }
             )
             .where("host_id = :host_id", host_id, "host_id")

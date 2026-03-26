@@ -64,7 +64,7 @@ References:
 import base64
 import hashlib
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from sqlalchemy import text
@@ -270,7 +270,7 @@ class KnownHostsManager:
                     "key_type": key_type,
                     "public_key": public_key,
                     "fingerprint": fingerprint,
-                    "first_seen": datetime.utcnow(),
+                    "first_seen": datetime.now(timezone.utc),
                     "is_trusted": True,
                     "notes": notes,
                 },
@@ -378,7 +378,7 @@ class KnownHostsManager:
                 {
                     "hostname": hostname,
                     "key_type": key_type,
-                    "last_verified": datetime.utcnow(),
+                    "last_verified": datetime.now(timezone.utc),
                 },
             )
 

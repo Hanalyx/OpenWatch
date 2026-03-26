@@ -16,7 +16,7 @@ Key Security Features:
 import json
 import logging
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 from sqlalchemy import text
@@ -124,7 +124,7 @@ class FixExecutionAudit:
             "requested_by": requested_by,
             "target_host": target_host,
             "justification": justification,
-            "timestamp": datetime.utcnow(),
+            "timestamp": datetime.now(timezone.utc),
             "event_id": str(uuid.uuid4()),
         }
 
@@ -137,7 +137,7 @@ class FixExecutionAudit:
             "request_id": request_id,
             "approved_by": approved_by,
             "approval_reason": approval_reason,
-            "timestamp": datetime.utcnow(),
+            "timestamp": datetime.now(timezone.utc),
             "event_id": str(uuid.uuid4()),
         }
 
@@ -158,7 +158,7 @@ class FixExecutionAudit:
             "success": execution_result.status == ExecutionStatus.COMPLETED,
             "output_length": len(execution_result.output or ""),
             "error_output_length": len(execution_result.error_output or ""),
-            "timestamp": datetime.utcnow(),
+            "timestamp": datetime.now(timezone.utc),
             "event_id": str(uuid.uuid4()),
         }
 
@@ -171,7 +171,7 @@ class FixExecutionAudit:
             "request_id": request_id,
             "rollback_by": rollback_by,
             "success": rollback_success,
-            "timestamp": datetime.utcnow(),
+            "timestamp": datetime.now(timezone.utc),
             "event_id": str(uuid.uuid4()),
         }
 
@@ -315,7 +315,7 @@ class SecureAutomatedFixExecutor:
                 self.pending_approvals[request.request_id] = {
                     "fix_id": fix_id,
                     "request": request,
-                    "requested_at": datetime.utcnow(),
+                    "requested_at": datetime.now(timezone.utc),
                 }
 
             return {
@@ -487,7 +487,7 @@ class SecureAutomatedFixExecutor:
 
     async def cleanup_old_requests(self, max_age_days: int = 30):
         """Clean up old execution requests"""
-        cutoff_date = datetime.utcnow() - timedelta(days=max_age_days)
+        cutoff_date = datetime.now(timezone.utc) - timedelta(days=max_age_days)
 
         # Clean up pending approvals that are too old
         expired_requests = [

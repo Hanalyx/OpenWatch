@@ -32,9 +32,11 @@ import json
 import logging
 import os
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
+from app.middleware.rbac_middleware import require_role
+from app.rbac import UserRole
 from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -58,6 +60,7 @@ router = APIRouter(tags=["Scan CRUD"])
 # =============================================================================
 
 
+@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.get("/")
 async def list_scans(
     host_id: Optional[str] = None,
@@ -236,6 +239,7 @@ async def list_scans(
         raise HTTPException(status_code=500, detail="Failed to retrieve scans")
 
 
+@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.get("/{scan_id}")
 async def get_scan(
     scan_id: str,
@@ -372,6 +376,7 @@ async def get_scan(
 # =============================================================================
 
 
+@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.post("/legacy")
 async def create_scan_legacy(
     scan_request: ScanRequest,
@@ -479,7 +484,7 @@ async def create_scan_legacy(
                 0,
                 json.dumps(scan_request.scan_options),
                 current_user["id"],
-                datetime.utcnow(),
+                datetime.now(timezone.utc),
                 False,
                 False,
             )
@@ -542,6 +547,7 @@ async def create_scan_legacy(
 # =============================================================================
 
 
+@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.patch("/{scan_id}")
 async def update_scan(
     scan_id: str,
@@ -591,7 +597,7 @@ async def update_scan(
 
         # Auto-set completed_at when status is "completed"
         if scan_update.status == "completed":
-            update_builder.set("completed_at", datetime.utcnow())
+            update_builder.set("completed_at", datetime.now(timezone.utc))
 
         # Check if any fields were set
         if not update_builder._set_clauses:
@@ -611,6 +617,7 @@ async def update_scan(
         raise HTTPException(status_code=500, detail="Failed to update scan")
 
 
+@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.delete("/{scan_id}")
 async def delete_scan(
     scan_id: str,
@@ -691,7 +698,9 @@ async def delete_scan(
 # =============================================================================
 
 
+@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.post("/{scan_id}/stop")
+@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.post("/{scan_id}/cancel")
 async def stop_scan(
     scan_id: str,
@@ -749,7 +758,7 @@ async def stop_scan(
         update_builder = (
             UpdateBuilder("scans")
             .set("status", "stopped")
-            .set("completed_at", datetime.utcnow())
+            .set("completed_at", datetime.now(timezone.utc))
             .set("error_message", "Scan stopped by user")
             .where("id = :id", scan_id, "id")
         )
@@ -767,6 +776,7 @@ async def stop_scan(
         raise HTTPException(status_code=500, detail="Failed to stop scan")
 
 
+@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.post("/{scan_id}/recover")
 async def recover_scan(
     scan_id: str,
@@ -863,7 +873,7 @@ async def recover_scan(
                 "pending",
                 0,
                 current_user["id"],
-                datetime.utcnow(),
+                datetime.now(timezone.utc),
                 json.dumps({"recovery_scan": True, "original_scan_id": scan_id}),
             )
         )
@@ -878,7 +888,7 @@ async def recover_scan(
             "recovery_scan_id": recovery_scan_id,
             "message": f"Recovery scan created and will start in {retry_delay} seconds",
             "error_classification": classified_error.dict(),
-            "estimated_retry_time": (datetime.utcnow().timestamp() + retry_delay),
+            "estimated_retry_time": (datetime.now(timezone.utc).timestamp() + retry_delay),
         }
 
     except HTTPException:
@@ -888,6 +898,7 @@ async def recover_scan(
         raise HTTPException(status_code=500, detail="Failed to create recovery scan")
 
 
+@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.post("/hosts/{host_id}/apply-fix")
 async def apply_automated_fix(
     host_id: str,
@@ -955,7 +966,7 @@ async def apply_automated_fix(
             "fix_id": fix_request.fix_id,
             "host_id": host_id,
             "status": "queued",
-            "estimated_completion": (datetime.utcnow().timestamp() + estimated_time),
+            "estimated_completion": (datetime.now(timezone.utc).timestamp() + estimated_time),
             "message": f"Automated fix {fix_request.fix_id} queued for execution",
             "validate_after": fix_request.validate_after,
         }

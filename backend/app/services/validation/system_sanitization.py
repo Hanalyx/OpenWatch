@@ -12,7 +12,7 @@ import hashlib
 import json
 import logging
 import re
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Any, Dict, List, Tuple
 
@@ -188,7 +188,7 @@ class SystemInfoSanitizationService:
 
             # Create metadata
             metadata = SystemInfoMetadata(
-                collection_timestamp=datetime.utcnow(),
+                collection_timestamp=datetime.now(timezone.utc),
                 collection_method="ssh_command",
                 sanitization_applied=True,
                 sanitization_level=access_level,
@@ -251,7 +251,7 @@ class SystemInfoSanitizationService:
         system_compatible = self._assess_system_compatibility(raw_system_info)
 
         metadata = SystemInfoMetadata(
-            collection_timestamp=datetime.utcnow(),
+            collection_timestamp=datetime.now(timezone.utc),
             sanitization_applied=True,
             sanitization_level=context.access_level,
             admin_access_used=context.is_admin,
@@ -262,7 +262,7 @@ class SystemInfoSanitizationService:
             can_proceed=can_proceed,
             system_compatible=system_compatible,
             compliance_info=compliance_info,
-            validation_timestamp=datetime.utcnow(),
+            validation_timestamp=datetime.now(timezone.utc),
             metadata=metadata,
         )
 
@@ -551,7 +551,7 @@ class SystemInfoSanitizationService:
         """Audit system information access for security monitoring."""
 
         audit_event = SystemInfoAuditEvent(
-            event_id=hashlib.sha256(f"{context.user_id}{datetime.utcnow()}".encode()).hexdigest(),
+            event_id=hashlib.sha256(f"{context.user_id}{datetime.now(timezone.utc)}".encode()).hexdigest(),
             user_id=context.user_id,
             source_ip=context.source_ip,
             requested_level=context.access_level,
@@ -591,7 +591,7 @@ class SystemInfoSanitizationService:
     def _create_error_metadata(self) -> SystemInfoMetadata:
         """Create metadata for error cases"""
         return SystemInfoMetadata(
-            collection_timestamp=datetime.utcnow(),
+            collection_timestamp=datetime.now(timezone.utc),
             collection_method="error_fallback",
             sanitization_applied=True,
             sanitization_level=SystemInfoLevel.BASIC,
@@ -611,7 +611,7 @@ class SystemInfoSanitizationService:
             "reconnaissance_detected_events": reconnaissance_events,
             "admin_access_events": admin_events,
             "reconnaissance_rate": reconnaissance_events / max(total_events, 1),
-            "last_24h_events": sum(1 for e in self.audit_events if e.timestamp > datetime.utcnow() - timedelta(days=1)),
+            "last_24h_events": sum(1 for e in self.audit_events if e.timestamp > datetime.now(timezone.utc) - timedelta(days=1)),
         }
 
 

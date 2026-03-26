@@ -20,7 +20,11 @@ from datetime import datetime
 from typing import Optional
 from uuid import UUID
 
+from app.middleware.rbac_middleware import require_role
+from app.rbac import UserRole
 from fastapi import APIRouter, Depends, HTTPException, Query
+from app.middleware.rbac_middleware import require_role
+from app.rbac import UserRole
 from fastapi import status as http_status
 from sqlalchemy.orm import Session
 
@@ -46,6 +50,7 @@ router = APIRouter(prefix="/alerts", tags=["Compliance Alerts"])
 # =============================================================================
 
 
+@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.get("", response_model=AlertListResponse)
 async def list_alerts(
     page: int = Query(1, ge=1, description="Page number"),
@@ -106,6 +111,7 @@ async def list_alerts(
     )
 
 
+@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.get("/stats", response_model=AlertStats)
 async def get_alert_stats(
     db: Session = Depends(get_db),
@@ -130,6 +136,7 @@ async def get_alert_stats(
     )
 
 
+@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.get("/thresholds", response_model=AlertThresholds)
 async def get_alert_thresholds(
     host_id: Optional[UUID] = Query(None, description="Get thresholds for specific host"),
@@ -159,6 +166,7 @@ async def get_alert_thresholds(
     )
 
 
+@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.put("/thresholds", response_model=AlertThresholds)
 async def update_alert_thresholds(
     request: AlertThresholdsUpdate,
@@ -219,6 +227,7 @@ async def update_alert_thresholds(
     )
 
 
+@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.get("/{alert_id}", response_model=AlertResponse)
 async def get_alert(
     alert_id: UUID,
@@ -251,6 +260,7 @@ async def get_alert(
     return _row_to_response(alert)
 
 
+@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.post("/{alert_id}/acknowledge", response_model=AlertResponse)
 async def acknowledge_alert(
     alert_id: UUID,
@@ -295,6 +305,7 @@ async def acknowledge_alert(
     return _row_to_response(alert)
 
 
+@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.post("/{alert_id}/resolve", response_model=AlertResponse)
 async def resolve_alert(
     alert_id: UUID,

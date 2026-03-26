@@ -13,7 +13,7 @@ Security: All database queries use QueryBuilder for SQL injection protection.
 
 import logging
 import statistics
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 from uuid import UUID
 
@@ -122,7 +122,7 @@ class CompliancePredictor:
 
         # Generate forecast points
         forecast_points = []
-        base_date = datetime.utcnow()
+        base_date = datetime.now(timezone.utc)
         n = len(historical_scores)
 
         for day in range(1, days_ahead + 1):
@@ -160,7 +160,7 @@ class CompliancePredictor:
             forecast_points=forecast_points,
             method="linear",
             confidence_level=0.95,
-            calculated_at=datetime.utcnow(),
+            calculated_at=datetime.now(timezone.utc),
         )
 
     async def detect_anomalies(
@@ -249,7 +249,7 @@ class CompliancePredictor:
                         expected_score=round(mean, 2),
                         deviation=round(z_score, 2),
                         severity=severity,
-                        detected_at=datetime.utcnow(),
+                        detected_at=datetime.now(timezone.utc),
                         description=description,
                     )
                 )

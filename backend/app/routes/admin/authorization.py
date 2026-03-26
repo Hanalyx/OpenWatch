@@ -11,7 +11,7 @@ Design by Emily (Security Engineer) & Implementation by Daniel (Backend Engineer
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Set
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -202,7 +202,7 @@ async def grant_host_permission(
             "permission_id": permission_id,
             "message": f"Permission granted for host {request.host_id}",
             "granted_by": current_user.get("username", "unknown"),
-            "granted_at": datetime.utcnow().isoformat(),
+            "granted_at": datetime.now(timezone.utc).isoformat(),
         }
 
     except HTTPException:
@@ -253,7 +253,7 @@ async def revoke_permission(
             "success": True,
             "message": f"Permission {permission_id} revoked",
             "revoked_by": current_user.get("username", "unknown"),
-            "revoked_at": datetime.utcnow().isoformat(),
+            "revoked_at": datetime.now(timezone.utc).isoformat(),
         }
 
     except HTTPException:

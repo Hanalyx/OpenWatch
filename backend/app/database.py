@@ -4,7 +4,7 @@ PostgreSQL with TLS and encrypted connections
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Callable, Generator, Optional
 from uuid import uuid4
 
@@ -95,7 +95,7 @@ class User(Base):  # type: ignore[valid-type, misc]
         nullable=False,
     )
     is_active = Column(Boolean, default=True, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     last_login = Column(DateTime, nullable=True)
     failed_login_attempts = Column(Integer, default=0, nullable=False)
     locked_until = Column(DateTime, nullable=True)
@@ -122,7 +122,7 @@ class MFAAuditLog(Base):  # type: ignore[valid-type, misc]
     ip_address = Column(String(45), nullable=True)
     user_agent = Column(Text, nullable=True)
     details = Column(JSON, nullable=True)
-    timestamp = Column(DateTime, default=datetime.utcnow, nullable=False)
+    timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
 
 class MFAUsedCodes(Base):  # type: ignore[valid-type, misc]
@@ -133,7 +133,7 @@ class MFAUsedCodes(Base):  # type: ignore[valid-type, misc]
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     code_hash = Column(String(64), nullable=False)  # SHA-256 hash
-    used_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    used_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
 
 class Host(Base):  # type: ignore[valid-type, misc]
@@ -185,8 +185,8 @@ class Host(Base):  # type: ignore[valid-type, misc]
     owner = Column(String(100), nullable=True)  # Added for bulk import
     is_active = Column(Boolean, default=True, nullable=False)
     created_by = Column(Integer, ForeignKey("users.id"), nullable=True)  # Made optional for development
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
 
     # Host monitoring fields
     last_check = Column(DateTime, nullable=True)  # Last monitoring check timestamp
@@ -221,7 +221,7 @@ class ScapContent(Base):  # type: ignore[valid-type, misc]
     os_version = Column(String(100), nullable=True)  # Added for OS version compatibility validation
     compliance_framework = Column(String(100), nullable=True)  # Added for compliance tracking
     uploaded_by = Column(Integer, ForeignKey("users.id"), nullable=False)
-    uploaded_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    uploaded_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     file_hash = Column(String(64), nullable=False)  # SHA-256 hash for integrity
 
 
@@ -242,7 +242,7 @@ class Scan(Base):  # type: ignore[valid-type, misc]
     error_message = Column(Text, nullable=True)
     scan_options = Column(Text, nullable=True)  # JSON options
     started_by = Column(Integer, ForeignKey("users.id"), nullable=True)  # Made optional for development
-    started_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    started_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     completed_at = Column(DateTime, nullable=True)
     celery_task_id = Column(String(100), nullable=True)
 
@@ -338,7 +338,7 @@ class ScanResult(Base):  # type: ignore[valid-type, misc]
         comment="Count of failed low severity rules (CVSS 0.1-3.9)",
     )
 
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
 
 class ScanBaseline(Base):  # type: ignore[valid-type, misc]
@@ -354,7 +354,7 @@ class ScanBaseline(Base):  # type: ignore[valid-type, misc]
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4, index=True)
     host_id = Column(UUID(as_uuid=True), ForeignKey("hosts.id", ondelete="CASCADE"), nullable=False)
     baseline_type = Column(String(20), nullable=False, comment="Baseline type: initial, manual, or rolling_avg")
-    established_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    established_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     established_by = Column(
         Integer,
         ForeignKey("users.id"),
@@ -387,8 +387,8 @@ class ScanBaseline(Base):  # type: ignore[valid-type, misc]
     superseded_at = Column(DateTime, nullable=True)
     superseded_by = Column(UUID(as_uuid=True), ForeignKey("scan_baselines.id"), nullable=True)
 
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
 
 
 class ScanDriftEvent(Base):  # type: ignore[valid-type, misc]
@@ -426,7 +426,7 @@ class ScanDriftEvent(Base):  # type: ignore[valid-type, misc]
     low_failed_delta = Column(Integer, nullable=True)
 
     # Audit
-    detected_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    detected_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
 
 class SystemCredentials(Base):  # type: ignore[valid-type, misc]
@@ -450,8 +450,8 @@ class SystemCredentials(Base):  # type: ignore[valid-type, misc]
     is_default = Column(Boolean, default=False, nullable=False)  # Only one can be default
     is_active = Column(Boolean, default=True, nullable=False)
     created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
 
 
 class Role(Base):  # type: ignore[valid-type, misc]
@@ -465,8 +465,8 @@ class Role(Base):  # type: ignore[valid-type, misc]
     description = Column(Text, nullable=True)
     permissions = Column(JSON, nullable=False)  # JSON array of permission strings
     is_active = Column(Boolean, default=True, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
 
 
 class UserGroup(Base):  # type: ignore[valid-type, misc]
@@ -478,8 +478,8 @@ class UserGroup(Base):  # type: ignore[valid-type, misc]
     name = Column(String(100), nullable=False)
     description = Column(Text, nullable=True)
     created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
 
 
 class UserGroupMembership(Base):  # type: ignore[valid-type, misc]
@@ -491,7 +491,7 @@ class UserGroupMembership(Base):  # type: ignore[valid-type, misc]
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     group_id = Column(Integer, ForeignKey("user_groups.id"), nullable=False)
     assigned_by = Column(Integer, ForeignKey("users.id"), nullable=False)
-    assigned_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    assigned_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
 
 class HostAccess(Base):  # type: ignore[valid-type, misc]
@@ -509,7 +509,7 @@ class HostAccess(Base):  # type: ignore[valid-type, misc]
         nullable=False,
     )
     granted_by = Column(Integer, ForeignKey("users.id"), nullable=False)
-    granted_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    granted_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     expires_at = Column(DateTime, nullable=True)  # Optional expiration
 
 
@@ -523,8 +523,8 @@ class HostGroup(Base):  # type: ignore[valid-type, misc]
     description = Column(Text, nullable=True)
     color = Column(String(7), nullable=True)  # Hex color code
     created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
     # Smart group validation fields
     os_family = Column(String(50), nullable=True)
     os_version_pattern = Column(String(100), nullable=True)
@@ -545,7 +545,7 @@ class HostGroupMembership(Base):  # type: ignore[valid-type, misc]
     host_id = Column(UUID(as_uuid=True), ForeignKey("hosts.id"), nullable=False)
     group_id = Column(Integer, ForeignKey("host_groups.id"), nullable=False)
     assigned_by = Column(Integer, ForeignKey("users.id"), nullable=False)
-    assigned_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    assigned_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
 
 class AuditLog(Base):  # type: ignore[valid-type, misc]
@@ -561,7 +561,7 @@ class AuditLog(Base):  # type: ignore[valid-type, misc]
     ip_address = Column(String(45), nullable=False)  # IPv4 or IPv6
     user_agent = Column(String(500), nullable=True)
     details = Column(Text, nullable=True)  # JSON details
-    timestamp = Column(DateTime, default=datetime.utcnow, nullable=False)
+    timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
 
 class WebhookEndpoint(Base):  # type: ignore[valid-type, misc]
@@ -576,8 +576,8 @@ class WebhookEndpoint(Base):  # type: ignore[valid-type, misc]
     secret_hash = Column(String(128), nullable=False)  # Hashed webhook secret
     is_active = Column(Boolean, default=True, nullable=False)
     created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
 
 
 class WebhookDelivery(Base):  # type: ignore[valid-type, misc]
@@ -597,7 +597,7 @@ class WebhookDelivery(Base):  # type: ignore[valid-type, misc]
     max_retries = Column(Integer, default=3, nullable=False)
     next_retry_at = Column(DateTime, nullable=True)
     delivered_at = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
 
 class ApiKey(Base):  # type: ignore[valid-type, misc]
@@ -613,7 +613,7 @@ class ApiKey(Base):  # type: ignore[valid-type, misc]
     expires_at = Column(DateTime, nullable=True)
     last_used_at = Column(DateTime, nullable=True)
     created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
 
 class IntegrationAuditLog(Base):  # type: ignore[valid-type, misc]
@@ -632,7 +632,7 @@ class IntegrationAuditLog(Base):  # type: ignore[valid-type, misc]
     error_message = Column(Text, nullable=True)
     duration_ms = Column(Integer, nullable=True)
     created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
 
 class PostureSnapshot(Base):  # type: ignore[valid-type, misc]
@@ -677,7 +677,7 @@ class PostureSnapshot(Base):  # type: ignore[valid-type, misc]
     source_scan_id = Column(UUID(as_uuid=True), ForeignKey("scans.id"), nullable=True)
 
     # Metadata
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
     __table_args__ = (UniqueConstraint("host_id", "snapshot_date", name="uq_host_snapshot_date"),)
 
@@ -731,7 +731,7 @@ class ComplianceException(Base):  # type: ignore[valid-type, misc]
         index=True,
     )
     requested_by = Column(Integer, ForeignKey("users.id"), nullable=False)
-    requested_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    requested_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     approved_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     approved_at = Column(DateTime, nullable=True)
     rejected_by = Column(Integer, ForeignKey("users.id"), nullable=True)
@@ -743,8 +743,8 @@ class ComplianceException(Base):  # type: ignore[valid-type, misc]
     revocation_reason = Column(Text, nullable=True)
 
     # Audit trail
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
 
 
 class AlertSettings(Base):  # type: ignore[valid-type, misc]
@@ -760,8 +760,8 @@ class AlertSettings(Base):  # type: ignore[valid-type, misc]
     email_addresses = Column(JSON, nullable=True)  # List of email addresses
     webhook_url = Column(String(500), nullable=True)
     webhook_enabled = Column(Boolean, default=False, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
 
     __table_args__ = (UniqueConstraint("user_id", "alert_type", name="uq_user_alert_type"),)
 

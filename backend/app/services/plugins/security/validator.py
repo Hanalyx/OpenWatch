@@ -9,7 +9,7 @@ import subprocess
 import tarfile
 import tempfile
 import zipfile
-from datetime import datetime
+from datetime import datetime, timezone
 from io import BytesIO
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -159,7 +159,7 @@ class PluginSecurityService:
 
     async def _safe_extract_package(self, package_data: bytes, package_format: str) -> Dict[str, Any]:
         """Safely extract package with path traversal protection"""
-        temp_extract_dir = self.temp_dir / f"extract_{datetime.utcnow().timestamp()}"
+        temp_extract_dir = self.temp_dir / f"extract_{datetime.now(timezone.utc).timestamp()}"
         temp_extract_dir.mkdir(mode=0o700)
 
         try:

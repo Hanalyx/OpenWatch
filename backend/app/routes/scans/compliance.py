@@ -24,9 +24,11 @@ Security Notes:
 import json
 import logging
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
+from app.middleware.rbac_middleware import require_role
+from app.rbac import UserRole
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -92,7 +94,7 @@ def _update_scan_status(
             UpdateBuilder("scans")
             .set("status", status_value)
             .set("progress", 100)
-            .set("completed_at", datetime.utcnow())
+            .set("completed_at", datetime.now(timezone.utc))
             .set_if("error_message", error_message)  # Only set if not None
             .where("id = :id", str(scan_uuid), "id")
         )
@@ -203,6 +205,7 @@ async def _jit_platform_detection(
 # =============================================================================
 
 
+@require_role([UserRole.SECURITY_ANALYST, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.post("/", response_model=ComplianceScanResponse)
 async def create_compliance_scan(
     scan_request: ComplianceScanRequest,
@@ -438,7 +441,7 @@ async def create_compliance_scan(
         scan_name = (
             scan_request.name or f"compliance-scan-{scan_hostname}-{effective_platform}-{effective_platform_version}"
         )
-        started_at = datetime.utcnow()
+        started_at = datetime.now(timezone.utc)
 
         try:
             # Use InsertBuilder for type-safe, parameterized INSERT
@@ -550,7 +553,7 @@ async def create_compliance_scan(
         # ---------------------------------------------------------------------
         # Parse XCCDF results and update scan record to completed
         # ---------------------------------------------------------------------
-        completed_at = datetime.utcnow()
+        completed_at = datetime.now(timezone.utc)
         result_file = scan_result.get("result_file", "")
         parsed_results = parse_xccdf_results(result_file)
 
@@ -684,6 +687,7 @@ async def create_compliance_scan(
         )
 
 
+@require_role([UserRole.SECURITY_ANALYST, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.get("/rules/available", response_model=AvailableRulesResponse)
 async def get_available_rules(
     request: Request,
@@ -877,6 +881,7 @@ async def get_available_rules(
         )
 
 
+@require_role([UserRole.SECURITY_ANALYST, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.get("/scanner/health", response_model=ScannerHealthResponse)
 async def get_scanner_health(
     request: Request,
@@ -1062,7 +1067,7 @@ async def get_scanner_health(
             status=overall_status,
             components=components,
             capabilities=capabilities,
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(timezone.utc).isoformat(),
         )
 
     except Exception as e:

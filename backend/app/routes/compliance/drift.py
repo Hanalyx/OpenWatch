@@ -18,6 +18,8 @@ import logging
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
+from app.middleware.rbac_middleware import require_role
+from app.rbac import UserRole
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy import text
@@ -80,6 +82,7 @@ class DriftEventsListResponse(BaseModel):
 # =============================================================================
 
 
+@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.get(
     "",
     response_model=DriftEventsListResponse,
@@ -202,6 +205,7 @@ async def list_drift_events(
     )
 
 
+@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.get(
     "/{event_id}",
     response_model=DriftEventResponse,

@@ -8,7 +8,7 @@ This module validates credentials against security policies before storage or us
 import logging
 import re
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Dict, List, Optional, Set, Tuple
 
@@ -242,7 +242,7 @@ class CredentialSecurityValidator:
             Dictionary with audit results
         """
         audit_results = {
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "username": username,
             "auth_method": auth_method,
             "overall_security_level": "unknown",

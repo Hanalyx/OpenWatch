@@ -6,7 +6,7 @@ Enhanced with security sanitization to prevent information disclosure.
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 from pydantic import BaseModel, Field
@@ -35,7 +35,7 @@ class SecurityContext(BaseModel):
     username: str = ""
     auth_method: str = ""
     source_ip: Optional[str] = None
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 def classify_authentication_error(context: SecurityContext) -> ScanErrorInternal:

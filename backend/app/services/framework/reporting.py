@@ -15,7 +15,7 @@ Example:
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from jinja2 import Template
@@ -151,7 +151,7 @@ class ComplianceFrameworkReporter:
             # Compile final report
             compliance_report = {
                 "metadata": {
-                    "report_generated": datetime.utcnow().isoformat(),
+                    "report_generated": datetime.now(timezone.utc).isoformat(),
                     "scan_timestamp": enriched_results.get("enrichment_timestamp"),
                     "frameworks_analyzed": target_frameworks,
                     "report_format": report_format,
