@@ -20,7 +20,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from jinja2 import Template
 
-from app.services.result_enrichment_service import ResultEnrichmentService
+# object removed (SCAP-era dead code)
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -33,7 +33,7 @@ class ComplianceFrameworkReporter:
 
     def __init__(self) -> None:
         """Initialize the compliance framework reporter."""
-        self.enrichment_service: Optional[ResultEnrichmentService] = None
+        self.enrichment_service: Optional[object] = None
         self._initialized = False
 
         # Framework definitions
@@ -94,9 +94,9 @@ class ComplianceFrameworkReporter:
             return
 
         try:
-            # ResultEnrichmentService requires db session - only initialize if provided
+            # object requires db session - only initialize if provided
             if db is not None:
-                self.enrichment_service = ResultEnrichmentService(db)
+                self.enrichment_service = object(db)
                 await self.enrichment_service.initialize()
 
             self._initialized = True
@@ -116,7 +116,7 @@ class ComplianceFrameworkReporter:
         Generate comprehensive compliance framework report.
 
         Args:
-            enriched_results: Results from ResultEnrichmentService
+            enriched_results: Results from object
             target_frameworks: Specific frameworks to report on
             report_format: Output format (json, html, pdf)
 

@@ -1,0 +1,24 @@
+spec: host-discovery
+version: "1.0"
+status: active
+owner: engineering
+summary: >
+  Host discovery services for detecting OS platforms, network interfaces,
+  security posture, and compliance readiness via SSH-based probes.
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      Host discovery detects OS and platform via SSH commands.
+  - id: AC-2
+    description: >
+      Network discovery identifies interfaces and routes.
+  - id: AC-3
+    description: >
+      Security discovery checks SELinux, firewall, and FIPS status.
+  - id: AC-4
+    description: >
+      Compliance discovery evaluates baseline readiness.
+  - id: AC-5
+    description: >
+      Discovery results structured as data classes or models.

@@ -1,6 +1,6 @@
 spec: scan-execution
 version: "1.2"
-status: draft
+status: active
 owner: engineering
 summary: >
   Scan lifecycle state machine and execution pipeline: from API request through

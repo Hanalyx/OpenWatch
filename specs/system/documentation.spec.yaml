@@ -12,12 +12,24 @@
 
 spec: system-documentation
 version: "1.0"
-status: draft
+status: active
 owner: engineering
 summary: >
   Defines the operator documentation suite for OpenWatch: quickstart guide,
   configuration reference, scanning guide, compliance workflows, and
   troubleshooting runbooks.
+
+acceptance_criteria:
+  - id: AC-1
+    description: docs/README.md exists and serves as documentation index.
+  - id: AC-2
+    description: docs/guides/ contains quickstart, installation, and security hardening guides.
+  - id: AC-3
+    description: docs/guides/API_GUIDE.md documents API endpoints.
+  - id: AC-4
+    description: docs/guides/USER_ROLES.md documents all 6 RBAC roles.
+  - id: AC-5
+    description: docs/runbooks/ contains incident response runbooks.
 
 # ---------------------------------------------------------------------------
 # CONTEXT — What exists now

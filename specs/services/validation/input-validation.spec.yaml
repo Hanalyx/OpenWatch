@@ -1,0 +1,48 @@
+spec: input-validation
+version: "1.0"
+status: active
+owner: engineering
+summary: >
+  Input validation and error sanitization service contract. Covers the
+  ErrorSanitizationService with sanitization levels, sensitive pattern
+  redaction, generic error message mapping, rate limiting, and the
+  ErrorClassificationService for keyword-based error classification.
+  Also covers UnifiedValidationService multi-step validation flow.
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      SanitizationLevel enum defines exactly three values: MINIMAL, STANDARD,
+      and STRICT as string enum members.
+  - id: AC-2
+    description: >
+      SENSITIVE_PATTERNS list includes regex patterns for usernames, hostnames,
+      IP addresses (dotted quad), and file paths (Unix paths with extensions).
+  - id: AC-3
+    description: >
+      GENERIC_MESSAGES dictionary maps error codes with prefixes NET_, AUTH_,
+      PRIV_, RES_, DEP_, and EXEC_ to user-safe message strings.
+  - id: AC-4
+    description: >
+      Rate limiting enforces MAX_ERRORS_PER_HOUR=50 and
+      MAX_ERRORS_PER_MINUTE=10 as class-level constants on
+      ErrorSanitizationService.
+  - id: AC-5
+    description: >
+      ErrorClassificationService.classify_error classifies errors by keyword
+      matching: "connection refused"/"timeout"/"unreachable" for network,
+      "permission denied"/"authentication failed"/"invalid credentials" for
+      auth, and "no space"/"disk full"/"out of memory" for resource errors.
+  - id: AC-6
+    description: >
+      Sanitized errors replace sensitive data with [REDACTED] by applying
+      SENSITIVE_PATTERNS via re.sub in the _sanitize_guidance method.
+  - id: AC-7
+    description: >
+      SecurityContext model includes hostname, username, auth_method, and
+      source_ip fields as defined in the errors module.
+  - id: AC-8
+    description: >
+      UnifiedValidationService.validate_scan_prerequisites performs multi-step
+      validation: credential resolution, network connectivity, SSH
+      authentication, privilege check, and resource check in sequence.

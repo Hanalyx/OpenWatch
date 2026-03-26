@@ -63,11 +63,27 @@ done
 echo ""
 echo "[2] pyproject.toml version..."
 
-# Normalise: "0.0.0-dev" -> "0.0.0.dev0"  (simple heuristic)
+# Normalise VERSION to PEP 440 canonical form
+# Examples: "0.0.0-dev" -> "0.0.0.dev0"
+#           "0.1.0-alpha.1" -> "0.1.0a1"
+#           "1.2.3" -> "1.2.3"
 if [[ "$VERSION" == *"-"* ]]; then
     pre="${VERSION#*-}"
     base="${VERSION%-*}"
-    pep440="${base}.${pre}0"
+    # Map common pre-release labels to PEP 440 abbreviations
+    if [[ "$pre" == alpha.* ]]; then
+        pep440="${base}a${pre#alpha.}"
+    elif [[ "$pre" == beta.* ]]; then
+        pep440="${base}b${pre#beta.}"
+    elif [[ "$pre" == rc.* ]]; then
+        pep440="${base}rc${pre#rc.}"
+    elif [[ "$pre" == "dev" ]]; then
+        pep440="${base}.dev0"
+    elif [[ "$pre" == dev.* ]]; then
+        pep440="${base}.dev${pre#dev.}"
+    else
+        pep440="${base}.${pre}0"
+    fi
 else
     pep440="$VERSION"
 fi

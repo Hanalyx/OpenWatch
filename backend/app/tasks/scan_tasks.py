@@ -17,20 +17,23 @@ from ..database import SessionLocal
 # SemanticEngine provides intelligent scan analysis and compliance intelligence
 # Engine module exceptions and integration services
 # ScanExecutionError provides standardized error handling for scan failures
-from ..services.engine import ScanExecutionError, get_semantic_engine
+from ..services.engine import ScanExecutionError
 
 # UnifiedSCAPScanner provides execute_local_scan, execute_remote_scan,
 # and test_ssh_connection methods with legacy compatibility
-from ..services.engine.scanners import UnifiedSCAPScanner
+# UnifiedSCAPScanner removed (SCAP-era, replaced by Kensa)
 from ..services.validation import ErrorClassificationService
 from ..utils.query_builder import QueryBuilder
 from .webhook_tasks import send_scan_completed_webhook, send_scan_failed_webhook
+
+# get_semantic_engine removed (SCAP-era dead code)
+
 
 logger = logging.getLogger(__name__)
 
 # Initialize services
 # UnifiedSCAPScanner handles SSH-based SCAP scanning operations
-scap_scanner = UnifiedSCAPScanner()
+scap_scanner = None  # UnifiedSCAPScanner removed, Kensa is the active scanner
 error_service = ErrorClassificationService()
 
 
@@ -679,9 +682,9 @@ async def _process_semantic_intelligence(
     try:
         logger.info(f"Starting semantic intelligence processing for scan: {scan_id}")
 
-        # Get semantic engine from engine integration module
-        # SemanticEngine provides intelligent compliance analysis
-        semantic_engine = get_semantic_engine()
+        # SemanticEngine removed (SCAP-era dead code)
+        logger.info("Semantic intelligence processing skipped (engine removed)")
+        return
 
         # Build host information for semantic processing
         host_info = {

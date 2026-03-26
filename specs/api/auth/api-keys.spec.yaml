@@ -1,0 +1,45 @@
+spec: api-keys
+version: "1.0"
+status: active
+owner: engineering
+summary: >
+  API key management route contract for service-to-service authentication.
+  Covers creation, listing, revocation, and permission updates with RBAC
+  enforcement, ownership checks, audit logging, and conflict detection.
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      Create API key endpoint requires api_keys:create permission via
+      check_permission(current_user["role"], "api_keys", "create").
+  - id: AC-2
+    description: >
+      CreateApiKeyRequest validates name with min_length=3 and max_length=100,
+      and expires_in_days with ge=1 and le=1825.
+  - id: AC-3
+    description: >
+      Generated API key has owk_ prefix produced by the generate_api_key
+      function using secrets.token_urlsafe.
+  - id: AC-4
+    description: >
+      Creating an API key with a duplicate active name returns HTTP 409
+      CONFLICT with detail message indicating the name already exists.
+  - id: AC-5
+    description: >
+      List keys endpoint requires api_keys:read permission. Non-admin users
+      (not SUPER_ADMIN or SECURITY_ADMIN) see only keys they created, filtered
+      by ApiKey.created_by matching current_user["id"].
+  - id: AC-6
+    description: >
+      Revoke endpoint requires api_keys:delete permission. Non-admin users can
+      only revoke their own keys; attempting to revoke another user's key
+      returns HTTP 403 FORBIDDEN.
+  - id: AC-7
+    description: >
+      Update permissions endpoint requires SUPER_ADMIN or SECURITY_ADMIN role.
+      Other roles receive HTTP 403 FORBIDDEN.
+  - id: AC-8
+    description: >
+      All key lifecycle actions (create, revoke, permissions update) produce
+      audit log entries via audit_logger.log_api_key_action with action strings
+      API_KEY_CREATED, API_KEY_REVOKED, and API_KEY_PERMISSIONS_UPDATED.

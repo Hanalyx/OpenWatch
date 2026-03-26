@@ -537,7 +537,7 @@ const HostCard: React.FC<HostCardProps> = ({
             <Box>
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}>
                 <Typography variant="caption" color="text.secondary" sx={{ flexGrow: 1 }}>
-                  Latest scan: {host.latestScanName || 'SCAP Compliance Scan'}
+                  Latest scan: {host.latestScanName || 'Compliance Scan'}
                 </Typography>
                 {host.scanStatus === 'running' && (
                   <Chip

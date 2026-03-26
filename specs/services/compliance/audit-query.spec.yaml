@@ -1,0 +1,56 @@
+spec: audit-query
+version: "1.0"
+status: active
+owner: engineering
+summary: >
+  AuditQueryService provides CRUD operations for saved compliance audit
+  queries, query preview, and paginated execution. Enforces ownership for
+  update/delete, visibility checks for execution, duplicate name detection,
+  and uses SQL builders (InsertBuilder, UpdateBuilder, DeleteBuilder,
+  QueryBuilder) for all database operations. Tracks execution statistics.
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      Create query checks for duplicate name per owner via
+      _find_query_by_name. Returns None if a query with the same name
+      already exists for that owner.
+
+  - id: AC-2
+    description: >
+      Update query verifies ownership by comparing existing.owner_id to
+      the provided owner_id. Returns None if the user is not the owner.
+
+  - id: AC-3
+    description: >
+      Delete query verifies ownership by comparing existing.owner_id to
+      the provided owner_id. Returns False if the user is not the owner.
+
+  - id: AC-4
+    description: >
+      Execute query checks access by verifying saved_query.owner_id matches
+      user_id or saved_query.visibility equals "shared". Returns None if
+      access is denied.
+
+  - id: AC-5
+    description: >
+      _build_findings_query supports host, host_group, rule, framework,
+      severity, status, and date_range filters using parameterized IN
+      clauses with individually numbered placeholders.
+
+  - id: AC-6
+    description: >
+      Severity and status filters use LOWER() function for case-insensitive
+      matching (LOWER(sf.severity) and LOWER(sf.status)).
+
+  - id: AC-7
+    description: >
+      All CRUD operations use SQL builders: InsertBuilder for create,
+      UpdateBuilder for update, DeleteBuilder for delete, and QueryBuilder
+      for read operations.
+
+  - id: AC-8
+    description: >
+      Query execution updates statistics via _update_execution_stats which
+      increments execution_count and sets last_executed_at to
+      CURRENT_TIMESTAMP.

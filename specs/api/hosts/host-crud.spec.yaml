@@ -1,0 +1,59 @@
+spec: host-crud
+version: "1.0"
+status: active
+owner: engineering
+summary: >
+  Host CRUD API endpoints for managing hosts in OpenWatch. Covers listing with
+  LATERAL JOIN and LEFT JOIN to host_groups, single host retrieval with UUID
+  validation, creation via InsertBuilder with UUID primary key, updates via
+  UpdateBuilder, deletion with cascade to scans/scan_results via DeleteBuilder,
+  and pagination with search. All endpoints require JWT authentication.
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      List hosts uses a query that LEFT JOINs host_groups (via
+      host_group_memberships) to include group information in the response.
+
+  - id: AC-2
+    description: >
+      Get host by UUID validates host existence using QueryBuilder and returns
+      404 if not found.
+
+  - id: AC-3
+    description: >
+      Create host uses InsertBuilder with a UUID primary key generated via
+      uuid.uuid4().
+
+  - id: AC-4
+    description: >
+      Update host uses UpdateBuilder to set fields and includes a WHERE clause
+      for the host ID.
+
+  - id: AC-5
+    description: >
+      Delete host cascades to related records by deleting scan_results and scans
+      via DeleteBuilder before deleting the host.
+
+  - id: AC-6
+    description: >
+      List hosts query includes hostname in its SELECT columns for display
+      purposes.
+
+  - id: AC-7
+    description: >
+      Host response includes LEFT JOIN to host_groups via host_group_memberships
+      for group_id, group_name, group_description, and group_color fields.
+
+  - id: AC-8
+    description: >
+      All host endpoints require an authenticated user via get_current_user
+      dependency.
+
+  - id: AC-9
+    description: >
+      Host creation validates required fields via the HostCreate Pydantic schema.
+
+  - id: AC-10
+    description: >
+      Delete host checks scan count before deletion using a count query builder.

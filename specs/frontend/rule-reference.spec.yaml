@@ -1,0 +1,20 @@
+spec: rule-reference
+version: "1.0"
+status: active
+owner: engineering
+summary: >
+  Rule reference browser for searching and filtering Kensa YAML compliance rules.
+
+acceptance_criteria:
+  - id: AC-1
+    description: Rule browser lists Kensa YAML rules.
+  - id: AC-2
+    description: Search by title, description, ID, and tags supported.
+  - id: AC-3
+    description: Filter by framework (CIS, STIG, NIST, PCI-DSS, FedRAMP).
+  - id: AC-4
+    description: Filter by severity and category available.
+  - id: AC-5
+    description: Rule detail shows overview, framework mappings, and implementation.
+  - id: AC-6
+    description: Statistics cards show total rules, frameworks, and categories.

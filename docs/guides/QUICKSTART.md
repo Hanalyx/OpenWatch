@@ -6,22 +6,29 @@ Get from installation to your first compliance scan in 15 minutes.
 
 ## Prerequisites
 
-- **OpenWatch running** with all containers healthy.
+- **OpenWatch running** -- all services healthy.
   See the [Installation Guide](INSTALLATION.md) if you have not deployed yet.
 - **A Linux host reachable via SSH** from the OpenWatch server
   (RHEL 8/9, Rocky, or Alma for the examples below).
 - **SSH credentials** for that host (username + password, or SSH key).
 
-Default ports: Frontend on **3000**, Backend API on **8000**.
+| Deployment | Frontend URL | Backend API |
+|------------|-------------|-------------|
+| Docker / Podman | `http://localhost:3000` | `http://localhost:8000` |
+| Native RPM (nginx) | `https://<your-host>/` | `https://<your-host>/api/` |
 
 ---
 
 ## Step 1: Verify the Deployment
 
-Open a terminal and confirm the backend is healthy:
+Confirm the backend is healthy:
 
 ```bash
+# Docker / Podman
 curl -s http://localhost:8000/health | jq .
+
+# Native RPM
+curl -sk https://localhost/api/health | jq .
 ```
 
 Expected output:
@@ -29,16 +36,20 @@ Expected output:
 ```json
 {
   "status": "healthy",
-  "version": "1.2.0",
   "database": "healthy",
   "redis": "healthy"
 }
 ```
 
-If you get connection errors, check that containers are running:
+If you get connection errors:
 
 ```bash
+# Docker / Podman
 docker ps --format "table {{.Names}}\t{{.Status}}" | grep openwatch
+
+# Native RPM
+sudo systemctl status openwatch.target
+journalctl -u openwatch-api --no-pager -n 20
 ```
 
 Do not proceed until the health endpoint returns `"status": "healthy"`.
@@ -47,9 +58,7 @@ Do not proceed until the health endpoint returns `"status": "healthy"`.
 
 ## Step 2: Log In
 
-Open **http://localhost:3000** in your browser. You will see the login page.
-
-![OpenWatch login page](../images/quickstart/login.png)
+Open the frontend URL in your browser.
 
 Enter the default credentials:
 
@@ -67,8 +76,6 @@ Click **Sign In**. You will land on the compliance dashboard.
 ## Step 3: Add a Host
 
 From the left sidebar, navigate to **Hosts**. Click the **Add Host** button.
-
-![Add Host dialog](../images/quickstart/add-host.png)
 
 Fill in the host details:
 
@@ -89,8 +96,6 @@ Click **Save**. The host appears in the host list.
 OpenWatch needs SSH access to scan the host. On the host detail page, navigate
 to the **Credentials** section.
 
-![Credential configuration](../images/quickstart/credentials.png)
-
 Choose an authentication method:
 
 | Method | When to Use |
@@ -107,8 +112,6 @@ connectivity before scanning.
 ## Step 5: Run a Compliance Scan
 
 From the host detail page, click **Run Scan**.
-
-![Run Scan action](../images/quickstart/run-scan.png)
 
 Select a compliance framework:
 
@@ -130,8 +133,6 @@ waiting.
 
 Once the scan completes, the host detail page shows the compliance results.
 
-![Scan results with pass/fail breakdown](../images/quickstart/scan-results.png)
-
 The results page shows:
 
 - **Compliance score** -- percentage of rules passing (e.g., 72.2%)
@@ -150,8 +151,6 @@ specific rule keywords.
 ## Step 7: Review the Compliance Dashboard
 
 Navigate to the **Dashboard** from the left sidebar.
-
-![Compliance dashboard overview](../images/quickstart/dashboard.png)
 
 The dashboard shows:
 
@@ -180,6 +179,8 @@ You have completed your first scan. Here is what to do next:
 
 ## Troubleshooting
 
+### Docker / Podman
+
 **Cannot reach http://localhost:3000** --
 Frontend container may not be running. Check `docker ps | grep openwatch-frontend`
 and `docker logs openwatch-frontend`.
@@ -196,10 +197,31 @@ The Celery worker may be down. Verify with `docker ps | grep openwatch-worker`
 and confirm Redis is up: `docker exec openwatch-redis redis-cli ping` (expect
 `PONG`).
 
+### Native RPM
+
+**Cannot reach https://your-host/** --
+Check nginx is running: `sudo systemctl status nginx`. Review
+`/var/log/nginx/error.log` for upstream errors.
+
+**"Connection refused" on health check** --
+Check the API service: `sudo systemctl status openwatch-api`. Review logs:
+`journalctl -u openwatch-api --no-pager -n 50`.
+
+**Scan stuck in "queued"** --
+Check the Celery worker: `sudo systemctl status openwatch-worker@1`. Confirm
+Redis is up: `redis-cli ping` (expect `PONG`).
+
+**Database connection errors** --
+Verify PostgreSQL is running: `sudo systemctl status postgresql`. Check
+`pg_hba.conf` allows `openwatch` user. Test manually:
+`psql -U openwatch -h 127.0.0.1 -d openwatch -c "SELECT 1;"`.
+
+### All Deployments
+
 **Scan fails immediately** --
 Check the error on the scan results page. Common causes: SSH connection failure
 (wrong credentials or network), unsupported OS on target, or Kensa rules not
-loaded (`KENSA_RULES_PATH` not set).
+loaded.
 
 ---
 
@@ -208,10 +230,16 @@ loaded (`KENSA_RULES_PATH` not set).
 For operators who prefer CLI or want to script these steps for automation,
 here are the equivalent API calls.
 
+```bash
+# Set the base URL for your deployment
+BASE_URL="http://localhost:8000"         # Docker / Podman
+# BASE_URL="https://your-host"          # Native RPM (uncomment)
+```
+
 ### Authenticate
 
 ```bash
-TOKEN=$(curl -s -X POST http://localhost:8000/api/auth/login \
+TOKEN=$(curl -s -X POST $BASE_URL/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{"username":"admin","password":"admin"}' | jq -r '.access_token')  # pragma: allowlist secret
 ```
@@ -219,7 +247,7 @@ TOKEN=$(curl -s -X POST http://localhost:8000/api/auth/login \
 ### Add a Host
 
 ```bash
-HOST_ID=$(curl -s -X POST http://localhost:8000/api/hosts/ \
+HOST_ID=$(curl -s -X POST $BASE_URL/api/hosts/ \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -232,7 +260,7 @@ HOST_ID=$(curl -s -X POST http://localhost:8000/api/hosts/ \
 ### Run a Scan
 
 ```bash
-SCAN_ID=$(curl -s -X POST http://localhost:8000/api/scans/kensa/ \
+SCAN_ID=$(curl -s -X POST $BASE_URL/api/scans/kensa/ \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d "{
@@ -244,14 +272,14 @@ SCAN_ID=$(curl -s -X POST http://localhost:8000/api/scans/kensa/ \
 ### View Results
 
 ```bash
-curl -s http://localhost:8000/api/scans/$SCAN_ID/results \
+curl -s $BASE_URL/api/scans/$SCAN_ID/results \
   -H "Authorization: Bearer $TOKEN" | jq '{compliance_percentage, total_rules, pass_count, fail_count}'
 ```
 
 ### Check Posture
 
 ```bash
-curl -s "http://localhost:8000/api/compliance/posture?host_id=$HOST_ID" \
+curl -s "$BASE_URL/api/compliance/posture?host_id=$HOST_ID" \
   -H "Authorization: Bearer $TOKEN" | jq .
 ```
 

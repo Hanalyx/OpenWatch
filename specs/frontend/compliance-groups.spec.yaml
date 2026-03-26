@@ -1,0 +1,18 @@
+spec: compliance-groups
+version: "1.0"
+status: active
+owner: engineering
+summary: >
+  Compliance groups page for organizing hosts by group with scan management.
+
+acceptance_criteria:
+  - id: AC-1
+    description: Groups list shows group name and member count.
+  - id: AC-2
+    description: Create group wizard available.
+  - id: AC-3
+    description: Group detail shows host members.
+  - id: AC-4
+    description: Group compliance scan triggerable.
+  - id: AC-5
+    description: Empty state shows prompt to create first group.

@@ -1,0 +1,51 @@
+spec: users-crud
+version: "1.0"
+status: active
+owner: engineering
+summary: >
+  User management CRUD route contract. Covers user creation, listing, retrieval,
+  update, deletion, and password change with RBAC enforcement, password hashing,
+  soft delete, self-deletion prevention, and privilege escalation guards.
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      Create user endpoint is decorated with @require_permission(Permission.USER_CREATE)
+      to enforce the USER_CREATE permission before allowing user creation.
+  - id: AC-2
+    description: >
+      Passwords are hashed using pwd_context.hash before storage. The hashed
+      value is stored in the hashed_password column via InsertBuilder.
+  - id: AC-3
+    description: >
+      Creating a user with a duplicate username or email returns an HTTP error
+      with detail "Username or email already exists".
+  - id: AC-4
+    description: >
+      List users endpoint checks Permission.USER_READ via RBACManager.has_permission
+      and supports pagination with page and page_size query parameters.
+  - id: AC-5
+    description: >
+      Get user by ID endpoint is decorated with @require_permission(Permission.USER_READ)
+      and returns 404 via format_user_not_found_error if user does not exist.
+  - id: AC-6
+    description: >
+      Update user endpoint is decorated with @require_permission(Permission.USER_UPDATE)
+      and uses UpdateBuilder with set_if for optional fields.
+  - id: AC-7
+    description: >
+      Delete user endpoint is decorated with @require_permission(Permission.USER_DELETE).
+      Self-deletion (current_user id == user_id) returns HTTP 400 with detail
+      "Cannot delete your own account".
+  - id: AC-8
+    description: >
+      Delete is a soft delete that sets is_active=False using UpdateBuilder
+      rather than removing the database row.
+  - id: AC-9
+    description: >
+      Change password endpoint verifies the current password using
+      pwd_context.verify before hashing and storing the new password.
+  - id: AC-10
+    description: >
+      Update own profile (PUT /me/profile) strips the role field by setting
+      user_data.role = None to prevent privilege escalation.

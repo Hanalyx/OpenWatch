@@ -1054,9 +1054,9 @@ const Settings: React.FC = () => {
                 Platform Overview
               </Typography>
               <Typography variant="body2" color="text.secondary" paragraph>
-                OpenWatch is a SCAP (Security Content Automation Protocol) compliance scanning
-                platform designed for FedRAMP, CMMC, ISO 27001, NIST SP 800-53, and DOD STIG
-                baseline verification.
+                OpenWatch is an enterprise compliance scanning platform powered by the Kensa engine.
+                Designed for FedRAMP, CMMC, ISO 27001, NIST SP 800-53, and DOD STIG baseline
+                verification.
               </Typography>
             </Box>
 
@@ -1068,7 +1068,10 @@ const Settings: React.FC = () => {
               }}
             >
               {[
-                { label: 'SCAP Scanning', description: 'OpenSCAP-based compliance scanning' },
+                {
+                  label: 'Compliance Scanning',
+                  description: 'Kensa-based compliance scanning with 508 YAML rules',
+                },
                 { label: 'Multi-Framework', description: 'NIST, CIS, STIG, and more' },
                 { label: 'Real-time Monitoring', description: 'Continuous compliance tracking' },
               ].map((feature) => (

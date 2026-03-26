@@ -1,0 +1,58 @@
+spec: scheduler
+version: "1.0"
+status: active
+owner: engineering
+summary: >
+  Adaptive Compliance Scheduler API endpoints for managing scan scheduling
+  configuration, viewing scheduler status, and controlling host maintenance
+  mode. Uses @require_role decorator with varying role lists for read vs write
+  vs operational endpoints. Dispatches Celery tasks for force scan and
+  schedule initialization.
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      Read-only endpoints (get config, get status, get hosts-due, get host
+      schedule) allow all authenticated roles including GUEST, AUDITOR,
+      SECURITY_ANALYST, COMPLIANCE_OFFICER, SECURITY_ADMIN, and SUPER_ADMIN
+      via @require_role decorator.
+
+  - id: AC-2
+    description: >
+      Write endpoints (update config, toggle scheduler, initialize schedules)
+      require SECURITY_ADMIN or SUPER_ADMIN role via @require_role decorator.
+
+  - id: AC-3
+    description: >
+      Operational endpoints (set maintenance mode, force scan) require
+      SECURITY_ANALYST, COMPLIANCE_OFFICER, SECURITY_ADMIN, or SUPER_ADMIN
+      role via @require_role decorator.
+
+  - id: AC-4
+    description: >
+      SchedulerConfigUpdate validates interval ranges with Field constraints:
+      interval_critical ge=15 le=2880, other intervals ge=30 le=2880,
+      interval_compliant ge=60 le=2880.
+
+  - id: AC-5
+    description: >
+      MaintenanceModeRequest validates duration_hours with Field(ge=1, le=168)
+      allowing a maximum of one week (168 hours).
+
+  - id: AC-6
+    description: >
+      Force scan dispatches a Celery task via celery_app.send_task with
+      task name "app.tasks.run_scheduled_kensa_scan" to the
+      "compliance_scanning" queue.
+
+  - id: AC-7
+    description: >
+      Initialize schedules dispatches a Celery task via celery_app.send_task
+      with task name "app.tasks.initialize_compliance_schedules" to the
+      "compliance_scanning" queue.
+
+  - id: AC-8
+    description: >
+      Get host schedule returns HTTP 404 if
+      compliance_scheduler_service.get_host_schedule returns None for the
+      given host_id.

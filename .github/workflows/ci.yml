@@ -74,19 +74,19 @@ jobs:
           black --check app/
 
           echo "Running Flake8 linter..."
-          flake8 app/ --max-line-length=120 --extend-ignore=E203,W503 --per-file-ignores='__init__.py:F401,E402'
+          flake8 app/ --max-line-length=100 --extend-ignore=E203,W503 --per-file-ignores='__init__.py:F401,E402'
 
           echo "Running type checking with mypy..."
-          mypy app/ --ignore-missing-imports || true
+          mypy app/ --ignore-missing-imports
 
       - name: Run security checks
         working-directory: ./backend
         run: |
           echo "Running Bandit security linter..."
-          bandit -r app/ -f json -o bandit-report.json || true
+          bandit -r app/ -ll -f json -o bandit-report.json
 
           echo "Checking dependencies for vulnerabilities..."
-          safety check --json || true
+          safety check --json
 
       - name: Run database migrations
         working-directory: ./backend
@@ -125,10 +125,10 @@ jobs:
           # Check if tests directory exists
           if [ -d "tests" ] && [ "$(find tests -name '*.py' | head -1)" ]; then
             echo "Running pytest tests..."
-            # Coverage threshold: incrementally raising toward 80%
-            # Measured: 31.2% with 332 tests (2026-02-16)
-            # Threshold set at measured level; raise as coverage grows
-            pytest tests/ -v --cov=app --cov-report=xml --cov-report=html --cov-fail-under=31
+            # Coverage: 42% on 35,659 active statements (2432 tests passing).
+            # ~31K dead SCAP lines deleted. 79 specs, 670 ACs 100% covered.
+            # 20 integration test files: TestClient + live PostgreSQL + direct service calls.
+            pytest tests/ -v --cov=app --cov-report=xml --cov-report=html --cov-fail-under=38
           else
             echo "Warning: No test files found in tests/ directory"
             echo "CI will pass without tests, but this should be addressed"
@@ -179,7 +179,7 @@ jobs:
           npm run lint
 
           echo "Running Prettier check..."
-          npx prettier --check "src/**/*.{ts,tsx}" || echo "Prettier found formatting issues (non-blocking)"
+          npx prettier --check "src/**/*.{ts,tsx}"
 
           echo "Running TypeScript type check..."
           npx tsc --noEmit
@@ -205,7 +205,7 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: frontend-build
-          path: frontend/dist/
+          path: frontend/build/
 
       - name: Build Docker image
         run: |

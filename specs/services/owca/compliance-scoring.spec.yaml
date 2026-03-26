@@ -1,0 +1,24 @@
+spec: compliance-scoring
+version: "1.0"
+status: active
+owner: engineering
+summary: >
+  OpenWatch Compliance Algorithm (OWCA) scoring engine including core score
+  calculation, multi-scan aggregation, framework mapping, and intelligence modules.
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      OWCACore class exists with compliance scoring methods.
+  - id: AC-2
+    description: >
+      ComplianceAggregator aggregates scores across multiple scans.
+  - id: AC-3
+    description: >
+      FrameworkMapper maps rules to compliance framework controls.
+  - id: AC-4
+    description: >
+      Score calculation handles pass, fail, error, and skip statuses.
+  - id: AC-5
+    description: >
+      Intelligence module includes trend analysis and risk scoring capabilities.

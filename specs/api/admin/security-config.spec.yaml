@@ -1,0 +1,45 @@
+spec: security-config
+version: "1.0"
+status: active
+owner: engineering
+summary: >
+  Security configuration route contract for managing security policies, MFA
+  enforcement, SSH key validation, and compliance auditing. Covers RBAC with
+  SUPER_ADMIN role for MFA, SYSTEM_CONFIG permission for policy CRUD, and
+  AUDIT_READ permission for credential audit and compliance summary.
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      MFA settings endpoints (GET and PUT /mfa) are decorated with
+      @require_role([UserRole.SUPER_ADMIN]) restricting access to super admins.
+  - id: AC-2
+    description: >
+      Security config GET and PUT endpoints are decorated with
+      @require_permission(Permission.SYSTEM_CONFIG) for reading and writing
+      security policy configuration.
+  - id: AC-3
+    description: >
+      SecurityPolicyRequest model validates minimum_rsa_bits (default 3072),
+      minimum_ecdsa_bits (default 256), and allow_dsa_keys (default False)
+      as typed fields with Field descriptors.
+  - id: AC-4
+    description: >
+      Security template application endpoint (POST /template/{template_name})
+      is decorated with @require_permission(Permission.SYSTEM_CONFIG).
+  - id: AC-5
+    description: >
+      SSH key validation endpoint accepts SSHKeyValidationRequest with
+      key_content (required) and passphrase (optional) fields.
+  - id: AC-6
+    description: >
+      Credential audit endpoint (POST /audit/credential) is decorated with
+      @require_permission(Permission.AUDIT_READ).
+  - id: AC-7
+    description: >
+      Compliance summary endpoint (GET /compliance/summary) is decorated with
+      @require_permission(Permission.AUDIT_READ).
+  - id: AC-8
+    description: >
+      MFA setting is stored in the system_settings table using an INSERT with
+      ON CONFLICT (key) DO UPDATE upsert pattern for the mfa_required key.

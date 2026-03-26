@@ -1,0 +1,40 @@
+spec: scan-reports
+version: "1.0"
+status: active
+owner: engineering
+summary: >
+  Scan report generation API endpoints for OpenWatch. Provides scan results
+  retrieval, HTML report download via FileResponse, JSON export with Kensa
+  scan_findings fallback, CSV export via csv.writer with Content-Disposition
+  header, and failed rules extraction with XML parsing.
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      Get scan results uses QueryBuilder with a JOIN to hosts (aliased as h) to
+      include host information in the response.
+
+  - id: AC-2
+    description: >
+      HTML report endpoint serves the file via FileResponse and checks file
+      existence with os.path.exists before serving.
+
+  - id: AC-3
+    description: >
+      JSON report includes Kensa scan_findings from the database as a fallback
+      when no result_file is present (completed scan without result_file).
+
+  - id: AC-4
+    description: >
+      CSV report uses csv.writer and sets a Content-Disposition header with
+      attachment filename.
+
+  - id: AC-5
+    description: >
+      Failed rules endpoint parses XML using ET.parse to extract
+      check-content-ref elements from failed rule results.
+
+  - id: AC-6
+    description: >
+      All report endpoints require a valid scan_id and return 404 if the scan is
+      not found.

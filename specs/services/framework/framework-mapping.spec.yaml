@@ -1,0 +1,27 @@
+spec: framework-mapping
+version: "1.0"
+status: active
+owner: engineering
+summary: >
+  Framework mapping engine and reporting service for mapping Kensa rules
+  to compliance controls across CIS, STIG, NIST, PCI-DSS, and FedRAMP.
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      Framework engine maps rules to compliance controls.
+  - id: AC-2
+    description: >
+      Reporting service generates framework-specific compliance reports.
+  - id: AC-3
+    description: >
+      Multiple frameworks supported (CIS, STIG, NIST, PCI-DSS, FedRAMP).
+  - id: AC-4
+    description: >
+      Rule-to-section mapping maintained for each framework.
+  - id: AC-5
+    description: >
+      Framework statistics include rule counts per control section.
+  - id: AC-6
+    description: >
+      Framework data sourced from Kensa mapping files.

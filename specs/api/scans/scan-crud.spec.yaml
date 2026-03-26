@@ -1,0 +1,51 @@
+spec: scan-crud
+version: "1.0"
+status: active
+owner: engineering
+summary: >
+  Scan CRUD API endpoints for managing compliance scans in OpenWatch. Covers
+  listing with QueryBuilder JOIN to hosts and scan_results, single scan retrieval
+  with JSON metadata parsing, updates via UpdateBuilder with set_if for optional
+  fields, deletion with cascade (scan_results first), stop/cancel with Celery
+  task revocation, and scan recovery with error classification.
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      List scans uses QueryBuilder with LEFT JOIN to hosts (aliased as h) and
+      scan_results (aliased as sr).
+
+  - id: AC-2
+    description: >
+      Get scan parses scan_metadata from JSON using json.loads when the value is
+      a string.
+
+  - id: AC-3
+    description: >
+      Update scan uses UpdateBuilder with set_if for optional fields (status,
+      progress, error_message).
+
+  - id: AC-4
+    description: >
+      Delete scan cascades by deleting scan_results via DeleteBuilder before
+      deleting the scan record.
+
+  - id: AC-5
+    description: >
+      Stop/cancel scan revokes the Celery task using
+      current_app.control.revoke with terminate=True.
+
+  - id: AC-6
+    description: >
+      Stop scan updates status to 'stopped' and sets completed_at via
+      UpdateBuilder.
+
+  - id: AC-7
+    description: >
+      Recover scan classifies the error using error_service.classify_error and
+      creates a new scan via InsertBuilder.
+
+  - id: AC-8
+    description: >
+      List scans supports pagination via count_query() from a QueryBuilder
+      instance.

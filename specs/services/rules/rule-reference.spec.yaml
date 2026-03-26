@@ -1,0 +1,43 @@
+spec: rule-reference-service
+version: "1.0"
+status: active
+owner: engineering
+summary: >
+  Rule Reference Service for reading and parsing Kensa YAML compliance rules.
+  Provides rule browsing, search, filtering, and metadata extraction for the
+  Rule Reference UI. Uses a singleton pattern, loads rules from YAML files,
+  supports framework filtering via mapping files, defines 22 capability probes,
+  and caches results in memory.
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      Service is loaded via the get_rule_reference_service() singleton function.
+
+  - id: AC-2
+    description: >
+      Rules are loaded from YAML files in the rules_path directory using the
+      yaml module.
+
+  - id: AC-3
+    description: >
+      Framework filtering uses mapping files loaded via runner.mappings when
+      available.
+
+  - id: AC-4
+    description: >
+      CAPABILITY_PROBES constant defines 22 detectable system capabilities
+      including sshd_config_d, authselect, crypto_policies, fips_mode,
+      firewalld, nftables, iptables, systemd, grub2, selinux, audit, rsyslog,
+      journald, chrony, timesyncd, aide, fapolicyd, dnf_automatic,
+      subscription_manager, sudo, polkit, and usbguard.
+
+  - id: AC-5
+    description: >
+      Results are cached in memory and the clear_cache method forces a reload of
+      rules from disk.
+
+  - id: AC-6
+    description: >
+      Search supports matching against title, description, ID, and tags fields
+      of rules.

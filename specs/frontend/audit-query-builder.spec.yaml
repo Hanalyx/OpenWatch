@@ -1,0 +1,24 @@
+spec: audit-query-builder
+version: "1.0"
+status: active
+owner: engineering
+summary: >
+  Audit query builder page for constructing executing and exporting compliance queries.
+
+acceptance_criteria:
+  - id: AC-1
+    description: Query builder supports host, rule, framework, severity, status filters.
+  - id: AC-2
+    description: Saved queries list shows name, description, and visibility.
+  - id: AC-3
+    description: Query execution returns paginated results.
+  - id: AC-4
+    description: Export creation supports JSON and CSV formats.
+  - id: AC-5
+    description: Export download available for completed exports.
+  - id: AC-6
+    description: Query visibility can be private or shared.
+  - id: AC-7
+    description: Date range filter present for temporal queries.
+  - id: AC-8
+    description: Audit pages use React Query for data fetching.

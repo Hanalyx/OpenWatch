@@ -23,10 +23,11 @@ from typing import Any, Dict, Optional
 import lxml.etree as etree  # nosec B410 (secure parser configuration below)
 from fastapi import HTTPException, Request, Response
 
-from app.services.engine.scanners import UnifiedSCAPScanner
+# object removed (SCAP-era dead code)
 from app.services.framework import ComplianceFrameworkReporter
 from app.services.owca import SeverityCalculator, XCCDFParser
-from app.services.result_enrichment_service import ResultEnrichmentService
+
+# object removed (SCAP-era dead code)
 from app.services.validation import ErrorClassificationService, get_error_sanitization_service
 from app.utils.logging_security import sanitize_path_for_log
 
@@ -46,16 +47,16 @@ sanitization_service = get_error_sanitization_service()
 # The singleton pattern ensures scanner initialization happens only once
 # and is shared across all API requests for efficiency.
 
-_compliance_scanner: Optional[UnifiedSCAPScanner] = None
-_enrichment_service: Optional[ResultEnrichmentService] = None
+_compliance_scanner: Optional[object] = None
+_enrichment_service: Optional[object] = None
 _compliance_reporter: Optional[ComplianceFrameworkReporter] = None
 
 
-async def get_compliance_scanner(request: Request) -> UnifiedSCAPScanner:
+async def get_compliance_scanner(request: Request) -> object:
     """
     Get or initialize the compliance scanner singleton.
 
-    This function lazily initializes the UnifiedSCAPScanner on first use
+    This function lazily initializes the object on first use
     and returns the cached instance on subsequent calls. The scanner
     requires an encryption service from the app state for credential handling.
 
@@ -63,7 +64,7 @@ async def get_compliance_scanner(request: Request) -> UnifiedSCAPScanner:
         request: FastAPI request object to access app state.
 
     Returns:
-        Initialized UnifiedSCAPScanner instance.
+        Initialized object instance.
 
     Raises:
         HTTPException 500: If encryption service unavailable or initialization fails.
@@ -78,7 +79,7 @@ async def get_compliance_scanner(request: Request) -> UnifiedSCAPScanner:
                     status_code=500,
                     detail="Encryption service not available for scanner initialization",
                 )
-            _compliance_scanner = UnifiedSCAPScanner(encryption_service=encryption_service)
+            _compliance_scanner = object(encryption_service=encryption_service)
             await _compliance_scanner.initialize()
             logger.info("Compliance scanner initialized successfully")
         return _compliance_scanner
@@ -92,7 +93,7 @@ async def get_compliance_scanner(request: Request) -> UnifiedSCAPScanner:
         )
 
 
-async def get_enrichment_service() -> ResultEnrichmentService:
+async def get_enrichment_service() -> object:
     """
     Get or initialize the result enrichment service singleton.
 
@@ -100,11 +101,11 @@ async def get_enrichment_service() -> ResultEnrichmentService:
     including remediation guidance and framework mappings.
 
     Returns:
-        Initialized ResultEnrichmentService instance.
+        Initialized object instance.
     """
     global _enrichment_service
     if _enrichment_service is None:
-        _enrichment_service = ResultEnrichmentService(db=None)
+        _enrichment_service = object(db=None)
         await _enrichment_service.initialize()
         logger.debug("Enrichment service initialized")
     return _enrichment_service

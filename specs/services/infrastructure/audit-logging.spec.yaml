@@ -1,0 +1,24 @@
+spec: audit-logging
+version: "1.0"
+status: active
+owner: engineering
+summary: >
+  Audit logging service behavior: logger naming, event fields, severity levels,
+  auth event coverage, and JSON serialization for the openwatch.audit logger.
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      Audit logger uses the "openwatch.audit" logger name.
+  - id: AC-2
+    description: >
+      Log entries include user_id, action, resource_type, and ip_address fields.
+  - id: AC-3
+    description: >
+      Security-related events logged at WARNING level or above.
+  - id: AC-4
+    description: >
+      All authentication events (login, logout, MFA, failure) produce audit entries.
+  - id: AC-5
+    description: >
+      Audit log entries support structured JSON format.

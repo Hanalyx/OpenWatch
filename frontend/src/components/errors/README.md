@@ -53,8 +53,7 @@ import PreFlightValidationDialog from './PreFlightValidationDialog';
   onProceed={handleProceed}
   validationRequest={{
     host_id: 'uuid',
-    content_id: 123,
-    profile_id: 'profile'
+    framework: 'cis-rhel9-v2.0.0'
   }}
   title="Pre-Scan Validation"
 />
@@ -80,7 +79,7 @@ A comprehensive error classification and handling service that transforms generi
 - **Privilege**: Sudo access, SELinux, file permissions
 - **Resource**: Disk space, memory, system resources
 - **Dependency**: Missing packages, version compatibility
-- **Content**: SCAP file issues, profile validation
+- **Content**: Rule file issues, profile validation
 - **Execution**: Runtime errors, unexpected failures
 - **Configuration**: Settings, environment issues
 

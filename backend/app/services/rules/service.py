@@ -27,7 +27,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-from app.services.platform_capability_service import PlatformCapabilityService
+# PlatformCapabilityService removed (SCAP-era dead code)
 from app.services.rules.cache import RuleCacheService
 
 logger = logging.getLogger(__name__)
@@ -71,7 +71,7 @@ class RuleService:
             cache_service: Optional cache service instance
         """
         self.cache_service = cache_service or RuleCacheService()
-        self.platform_service = PlatformCapabilityService()
+        self.platform_service = None  # PlatformCapabilityService removed
         self.query_stats = {
             "total_queries": 0,
             "cache_hits": 0,

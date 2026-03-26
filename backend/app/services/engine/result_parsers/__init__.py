@@ -51,9 +51,8 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 # Import parser implementations (re-exported for public API)
-from .arf import ARFResultParser  # noqa: F401, E402
+# ARFResultParser and XCCDFResultParser removed (SCAP-era dead code)
 from .base import BaseResultParser, ParsedResults, ResultStatistics, RuleResult  # noqa: F401, E402
-from .xccdf import XCCDFResultParser  # noqa: F401, E402
 
 
 def get_parser_for_file(file_path: str) -> Optional[BaseResultParser]:
@@ -81,26 +80,9 @@ def get_parser_for_file(file_path: str) -> Optional[BaseResultParser]:
         logger.warning("Result file does not exist: %s", file_path)
         return None
 
-    # Try ARF parser first (ARF contains XCCDF, so more specific match)
-    arf_parser = ARFResultParser()
-    try:
-        if arf_parser.can_parse(path):
-            logger.debug("Using ARF parser for: %s", path.name)
-            return arf_parser
-    except Exception as e:
-        logger.debug("ARF parser cannot handle file: %s", e)
-
-    # Try XCCDF parser (most common format)
-    xccdf_parser = XCCDFResultParser()
-    try:
-        if xccdf_parser.can_parse(path):
-            logger.debug("Using XCCDF parser for: %s", path.name)
-            return xccdf_parser
-    except Exception as e:
-        logger.debug("XCCDF parser cannot handle file: %s", e)
-
-    # No suitable parser found
-    logger.warning("No parser found for result file: %s", file_path)
+    # ARF and XCCDF parsers removed (SCAP-era, replaced by Kensa)
+    # Kensa results are stored directly in scan_findings table, no file parsing needed
+    logger.warning("No parser found for result file: %s (legacy SCAP parsers removed)", file_path)
     return None
 
 
@@ -121,22 +103,12 @@ def get_parser(format_type: str) -> BaseResultParser:
         >>> parser = get_parser("xccdf")
         >>> results = parser.parse(result_path)
     """
-    format_lower = format_type.lower()
-
-    if format_lower == "xccdf":
-        return XCCDFResultParser()
-
-    elif format_lower == "arf":
-        return ARFResultParser()
-
-    elif format_lower == "oval":
-        # OVAL result parsing is handled by XCCDF parser
-        # since OVAL results are typically embedded in XCCDF
-        logger.info("Using XCCDF parser for OVAL results (embedded format)")
-        return XCCDFResultParser()
-
-    else:
-        raise ValueError(f"Unsupported result format: {format_type}")
+    # Legacy SCAP parsers removed — Kensa stores results directly in scan_findings
+    raise ValueError(
+        f"Unsupported result format: {format_type}. "
+        "SCAP parsers (XCCDF, ARF, OVAL) have been removed. "
+        "Kensa compliance results are stored directly in scan_findings."
+    )
 
 
 # Public API exports

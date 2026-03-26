@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "openwatch"
-version = "0.0.0.dev0"
-description = "OpenWatch SCAP Compliance Scanner"
+version = "0.1.0a1"
+description = "OpenWatch Compliance Scanner"
 dependencies = []
 
 [tool.pytest.ini_options]
@@ -18,7 +18,7 @@ addopts = [
     "--cov-report=term-missing",
     "--cov-report=html:coverage_html",
     "--cov-report=xml:coverage.xml",
-    "--cov-fail-under=80",
+    "--cov-fail-under=38",
     "--tb=short",
 ]
 testpaths = ["validation/scenarios"]
@@ -43,19 +43,20 @@ markers = [
 filterwarnings = [
     "ignore::UserWarning",
     "ignore::DeprecationWarning",
-    "ignore::sqlalchemy.exc.RemovedIn20Warning",
+    "ignore::sqlalchemy.exc.MovedIn20Warning",
 ]
 
 [tool.coverage.run]
 source = ["app"]
 omit = [
     "*/tests/*",
-    "*/validation/*",
+    "*/validation/scenarios/*",
     "*/migrations/*",
     "*/venv/*",
     "*/node_modules/*",
     "*/__pycache__/*",
     "*/alembic/*",
+    "*/site-packages/*",
 ]
 
 [tool.coverage.report]

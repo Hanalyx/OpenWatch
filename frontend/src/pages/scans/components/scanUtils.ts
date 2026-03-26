@@ -31,7 +31,7 @@ export function mapResult(result: string): 'pass' | 'fail' | 'error' | 'unknown'
   return 'unknown';
 }
 
-/** Extract a human-readable title from a SCAP rule ID. */
+/** Extract a human-readable title from a compliance rule ID. */
 export function extractRuleTitle(ruleId: string): string {
   if (!ruleId) return 'Unknown Rule';
 
@@ -217,27 +217,27 @@ export function generateFallbackRuleResults(results: ScanResults): RuleResult[] 
   return fallbackRules;
 }
 
-/** Generate remediation steps for a rule from SCAP data or pattern-based fallback. */
+/** Generate remediation steps for a rule from structured data or pattern-based fallback. */
 export function generateRemediationSteps(rule: RuleResult): RemediationStep[] {
   const steps: RemediationStep[] = [];
 
-  // Try real SCAP remediation data first
+  // Try structured remediation data first
   if (rule.remediation && typeof rule.remediation === 'object') {
     const scapRemediation = rule.remediation as unknown as ScapRemediationData;
 
     if (scapRemediation.fix_text) {
       steps.push({
-        title: 'SCAP Compliance Fix Text',
+        title: 'Compliance Fix',
         description: scapRemediation.fix_text,
         type: 'manual',
-        documentation: 'Official SCAP compliance checker remediation',
+        documentation: 'Compliance remediation guidance',
       });
     } else if (scapRemediation.description) {
       steps.push({
-        title: 'OpenSCAP Evaluation Remediation',
+        title: 'Remediation Guidance',
         description: scapRemediation.description,
         type: 'manual',
-        documentation: 'OpenSCAP evaluation report guidance',
+        documentation: 'Compliance evaluation guidance',
       });
     }
 

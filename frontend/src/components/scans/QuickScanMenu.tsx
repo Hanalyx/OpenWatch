@@ -99,7 +99,7 @@ const QuickScanMenu: React.FC<QuickScanMenuProps> = ({
     {
       id: 'quick-compliance',
       name: 'Quick Compliance',
-      description: 'Fast SCAP compliance check',
+      description: 'Fast Kensa compliance check',
       icon: <CheckCircle />,
       color: 'success',
       isDefault: true,

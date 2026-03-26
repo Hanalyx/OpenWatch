@@ -1,0 +1,51 @@
+spec: rule-reference
+version: "1.0"
+status: active
+owner: engineering
+summary: >
+  Rule Reference API endpoints for browsing Kensa compliance rules. Provides
+  rule listing with search and filtering (framework, severity, capability, tags),
+  pagination with max 200 per page, single rule detail, statistics, frameworks
+  listing, variables listing, capabilities listing, and cache refresh. All
+  endpoints use the RuleReferenceService singleton.
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      List rules supports framework, severity, capability, and tags filter
+      parameters via Query dependencies.
+
+  - id: AC-2
+    description: >
+      List rules supports pagination with page and per_page parameters where
+      per_page has a maximum of 200 (le=200).
+
+  - id: AC-3
+    description: >
+      Get rule by ID returns a RuleDetailResponse and raises 404 if the rule is
+      not found.
+
+  - id: AC-4
+    description: >
+      Statistics endpoint calls service.get_statistics() and returns rule count
+      information.
+
+  - id: AC-5
+    description: >
+      Frameworks endpoint calls service.list_frameworks() and returns a
+      FrameworkListResponse.
+
+  - id: AC-6
+    description: >
+      Variables endpoint calls service.list_variables() and returns a
+      VariableListResponse.
+
+  - id: AC-7
+    description: >
+      Refresh endpoint calls service.clear_cache() to force a reload of Kensa
+      YAML rules from disk.
+
+  - id: AC-8
+    description: >
+      All endpoints use the RuleReferenceService singleton obtained via
+      get_rule_reference_service().

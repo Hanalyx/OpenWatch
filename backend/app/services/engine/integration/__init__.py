@@ -36,12 +36,8 @@ Usage:
 """
 
 from app.services.engine.integration.kensa_mapper import KensaMapper, KensaMapping, RemediationPlan, get_kensa_mapper
-from app.services.engine.integration.semantic_engine import (
-    IntelligentScanResult,
-    SemanticEngine,
-    SemanticRule,
-    get_semantic_engine,
-)
+
+# SemanticEngine removed (SCAP-era dead code)
 
 __all__ = [
     # Kensa Integration
@@ -49,9 +45,4 @@ __all__ = [
     "KensaMapping",
     "RemediationPlan",
     "get_kensa_mapper",
-    # Semantic Engine
-    "SemanticEngine",
-    "SemanticRule",
-    "IntelligentScanResult",
-    "get_semantic_engine",
 ]
