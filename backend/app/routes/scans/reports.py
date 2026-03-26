@@ -31,8 +31,6 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from app.middleware.rbac_middleware import require_role
-from app.rbac import UserRole
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse, Response
 from sqlalchemy import text
@@ -40,6 +38,8 @@ from sqlalchemy.orm import Session
 
 from app.auth import get_current_user
 from app.database import get_db
+from app.middleware.rbac_middleware import require_role
+from app.rbac import UserRole
 from app.utils.query_builder import QueryBuilder
 
 logger = logging.getLogger(__name__)
@@ -134,14 +134,12 @@ async def _get_scan_details(
     # Add results summary if scan is completed
     if result.status == "completed":
         results = db.execute(
-            text(
-                """
+            text("""
             SELECT total_rules, passed_rules, failed_rules, error_rules,
                    unknown_rules, not_applicable_rules, score,
                    severity_high, severity_medium, severity_low
             FROM scan_results WHERE scan_id = :scan_id
-        """
-            ),
+        """),
             {"scan_id": scan_id},
         ).fetchone()
 
@@ -167,7 +165,16 @@ async def _get_scan_details(
 # =============================================================================
 
 
-@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.get("/{scan_id}/results")
 async def get_scan_results(
     scan_id: str,
@@ -286,14 +293,12 @@ async def get_scan_results(
         # Add results summary if scan has completed
         if scan_result.status == "completed":
             results_query = db.execute(
-                text(
-                    """
+                text("""
                 SELECT total_rules, passed_rules, failed_rules, error_rules,
                        unknown_rules, not_applicable_rules, score,
                        severity_high, severity_medium, severity_low
                 FROM scan_results WHERE scan_id = :scan_id
-            """
-                ),
+            """),
                 {"scan_id": scan_id},
             ).fetchone()
 
@@ -356,7 +361,16 @@ async def get_scan_results(
 # =============================================================================
 
 
-@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.get("/{scan_id}/report/html")
 async def get_scan_html_report(
     scan_id: str,
@@ -391,11 +405,9 @@ async def get_scan_html_report(
     try:
         # Get scan details
         result = db.execute(
-            text(
-                """
+            text("""
             SELECT report_file FROM scans WHERE id = :id
-        """
-            ),
+        """),
             {"id": scan_id},
         ).fetchone()
 
@@ -420,7 +432,16 @@ async def get_scan_html_report(
         raise HTTPException(status_code=500, detail="Failed to retrieve report")
 
 
-@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.get("/{scan_id}/report/json")
 async def get_scan_json_report(
     scan_id: str,
@@ -463,11 +484,9 @@ async def get_scan_json_report(
                 # Get the SCAP content file path for remediation extraction
                 content_file: Optional[str] = None
                 content_result = db.execute(
-                    text(
-                        """
+                    text("""
                     SELECT file_path FROM scap_content WHERE id = :content_id
-                """
-                    ),
+                """),
                     {"content_id": scan_data.get("content_id")},
                 ).fetchone()
 
@@ -548,8 +567,7 @@ async def get_scan_json_report(
         # For Kensa scans (no result_file), fetch findings from scan_findings table
         if scan_data.get("status") == "completed" and not scan_data.get("result_file"):
             try:
-                findings_query = text(
-                    """
+                findings_query = text("""
                     SELECT
                         rule_id,
                         title,
@@ -568,8 +586,7 @@ async def get_scan_json_report(
                             ELSE 5
                         END,
                         rule_id
-                    """
-                )
+                    """)
                 findings = db.execute(findings_query, {"scan_id": scan_id}).fetchall()
 
                 if findings:
@@ -602,7 +619,16 @@ async def get_scan_json_report(
         raise HTTPException(status_code=500, detail="Failed to generate JSON report")
 
 
-@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.get("/{scan_id}/report/csv")
 async def get_scan_csv_report(
     scan_id: str,
@@ -686,7 +712,16 @@ async def get_scan_csv_report(
         raise HTTPException(status_code=500, detail="Failed to generate CSV report")
 
 
-@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.get("/{scan_id}/failed-rules")
 async def get_scan_failed_rules(
     scan_id: str,
@@ -739,8 +774,7 @@ async def get_scan_failed_rules(
     try:
         # Verify scan exists and is completed
         scan_result = db.execute(
-            text(
-                """
+            text("""
             SELECT s.id, s.name, s.host_id, s.status, s.result_file, s.profile_id,
                    h.hostname, h.ip_address, h.display_name as host_name,
                    sr.failed_rules, sr.total_rules, sr.score
@@ -748,8 +782,7 @@ async def get_scan_failed_rules(
             JOIN hosts h ON s.host_id = h.id
             LEFT JOIN scan_results sr ON sr.scan_id = s.id
             WHERE s.id = :scan_id
-        """
-            ),
+        """),
             {"scan_id": scan_id},
         ).fetchone()
 

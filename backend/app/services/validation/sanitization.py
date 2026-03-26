@@ -272,7 +272,9 @@ class ErrorSanitizationService:
         if source_ip in self.rate_limit_cache:
             state = self.rate_limit_cache[source_ip]
             state.is_blocked = True
-            state.block_until = datetime.now(timezone.utc).replace(minute=datetime.now(timezone.utc).minute + self.BLOCK_DURATION_MINUTES)
+            state.block_until = datetime.now(timezone.utc).replace(
+                minute=datetime.now(timezone.utc).minute + self.BLOCK_DURATION_MINUTES
+            )
 
             logger.warning(f"IP {source_ip} blocked for {self.BLOCK_DURATION_MINUTES} minutes due to rate limiting")
 

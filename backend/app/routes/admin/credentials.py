@@ -220,15 +220,13 @@ async def get_multiple_host_credentials(
         params = {f"host_id_{i}": host_id for i, host_id in enumerate(request.host_ids)}
 
         result = db.execute(
-            text(
-                f"""
+            text(f"""
             SELECT h.id, h.hostname, h.username, h.auth_method, h.encrypted_credentials,
                    h.updated_at
             FROM hosts h
             WHERE h.id IN ({placeholders}) AND h.is_active = true
             ORDER BY h.hostname
-        """
-            ),
+        """),
             params,
         )
 

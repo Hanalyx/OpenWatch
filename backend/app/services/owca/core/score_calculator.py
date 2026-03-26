@@ -14,7 +14,6 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from ....utils.query_builder import QueryBuilder
-
 from ..models import ComplianceScore, ComplianceTier, SeverityBreakdown
 
 logger = logging.getLogger(__name__)

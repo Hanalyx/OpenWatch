@@ -6,12 +6,13 @@ import logging
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from app.middleware.rbac_middleware import require_role
-from app.rbac import UserRole
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.orm import Session
+
+from app.middleware.rbac_middleware import require_role
+from app.rbac import UserRole
 
 from ...auth import get_current_user
 from ...database import get_db
@@ -62,7 +63,15 @@ class AuditStatsResponse(BaseModel):
     unique_ips: int
 
 
-@require_role([UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
+@require_role(
+    [
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.get("/events", response_model=AuditEventsResponse)
 async def get_audit_events(
     page: int = Query(1, ge=1),
@@ -165,7 +174,15 @@ async def get_audit_events(
         raise HTTPException(status_code=500, detail="Failed to retrieve audit events")
 
 
-@require_role([UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
+@require_role(
+    [
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.get("/stats", response_model=AuditStatsResponse)
 async def get_audit_stats(
     days: int = Query(30, ge=1, le=365),
@@ -187,8 +204,7 @@ async def get_audit_stats(
         date_from = datetime.now(timezone.utc) - timedelta(days=days)
 
         # Get statistics
-        stats_query = text(
-            """
+        stats_query = text("""
             SELECT
                 COUNT(*) as total_events,
                 COUNT(CASE WHEN action LIKE '%LOGIN%' THEN 1 END) as login_attempts,
@@ -203,8 +219,7 @@ async def get_audit_stats(
                 COUNT(DISTINCT ip_address) as unique_ips
             FROM audit_logs
             WHERE timestamp >= :date_from
-        """
-        )
+        """)
 
         result = db.execute(stats_query, {"date_from": date_from})
         row = result.fetchone()
@@ -240,7 +255,15 @@ async def get_audit_stats(
         raise HTTPException(status_code=500, detail="Failed to retrieve audit statistics")
 
 
-@require_role([UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
+@require_role(
+    [
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.post("/log")
 async def create_audit_log(
     action: str,

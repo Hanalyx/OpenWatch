@@ -113,8 +113,7 @@ class FrameworkMapper:
             category_clause = "AND kr.category = :category"
             params["category"] = category
 
-        query = text(
-            f"""
+        query = text(f"""
             SELECT DISTINCT
                 kr.rule_id,
                 kr.title,
@@ -136,8 +135,7 @@ class FrameworkMapper:
             {severity_clause}
             {category_clause}
             ORDER BY kr.category, kr.rule_id
-        """
-        )
+        """)
 
         result = self.db.execute(query, params).fetchall()
 
@@ -186,40 +184,33 @@ class FrameworkMapper:
             params["version"] = version
 
         # Count distinct controls
-        controls_query = text(
-            f"""
+        controls_query = text(f"""
             SELECT COUNT(DISTINCT control_id)
             FROM framework_mappings
             WHERE framework = :framework
             {version_clause}
-        """
-        )
+        """)
 
         # Count distinct rules
-        rules_query = text(
-            f"""
+        rules_query = text(f"""
             SELECT COUNT(DISTINCT kensa_rule_id)
             FROM framework_mappings
             WHERE framework = :framework
             {version_clause}
-        """
-        )
+        """)
 
         # Breakdown by severity
-        severity_query = text(
-            f"""
+        severity_query = text(f"""
             SELECT kr.severity, COUNT(DISTINCT kr.rule_id) as count
             FROM kensa_rules kr
             INNER JOIN framework_mappings fm ON kr.rule_id = fm.kensa_rule_id
             WHERE fm.framework = :framework
             {version_clause}
             GROUP BY kr.severity
-        """
-        )
+        """)
 
         # Breakdown by category
-        category_query = text(
-            f"""
+        category_query = text(f"""
             SELECT kr.category, COUNT(DISTINCT kr.rule_id) as count
             FROM kensa_rules kr
             INNER JOIN framework_mappings fm ON kr.rule_id = fm.kensa_rule_id
@@ -227,8 +218,7 @@ class FrameworkMapper:
             {version_clause}
             GROUP BY kr.category
             ORDER BY count DESC
-        """
-        )
+        """)
 
         controls_count = self.db.execute(controls_query, params).scalar()
         rules_count = self.db.execute(rules_query, params).scalar()
@@ -258,8 +248,7 @@ class FrameworkMapper:
         Returns:
             Dict with framework mappings for the rule.
         """
-        query = text(
-            """
+        query = text("""
             SELECT
                 framework,
                 framework_version,
@@ -274,8 +263,7 @@ class FrameworkMapper:
             FROM framework_mappings
             WHERE kensa_rule_id = :rule_id
             ORDER BY framework, framework_version
-        """
-        )
+        """)
 
         result = self.db.execute(query, {"rule_id": rule_id}).fetchall()
 
@@ -338,8 +326,7 @@ class FrameworkMapper:
             version_clause = "AND fm.framework_version = :version"
             params["version"] = version
 
-        query = text(
-            f"""
+        query = text(f"""
             SELECT
                 kr.rule_id,
                 kr.title,
@@ -351,8 +338,7 @@ class FrameworkMapper:
             WHERE fm.framework = :framework
             AND fm.control_id = :control_id
             {version_clause}
-        """
-        )
+        """)
 
         result = self.db.execute(query, params).fetchall()
 
@@ -374,8 +360,7 @@ class FrameworkMapper:
         Returns:
             List of framework info with rule counts.
         """
-        query = text(
-            """
+        query = text("""
             SELECT
                 framework,
                 framework_version,
@@ -384,8 +369,7 @@ class FrameworkMapper:
             FROM framework_mappings
             GROUP BY framework, framework_version
             ORDER BY framework, framework_version
-        """
-        )
+        """)
 
         result = self.db.execute(query).fetchall()
 
@@ -427,8 +411,7 @@ class FrameworkMapper:
             framework_clause = "AND fm.framework = :framework"
             params["framework"] = framework
 
-        query = text(
-            f"""
+        query = text(f"""
             SELECT DISTINCT
                 fm.framework,
                 fm.framework_version,
@@ -448,8 +431,7 @@ class FrameworkMapper:
             {framework_clause}
             ORDER BY fm.framework, fm.control_id
             LIMIT 50
-        """
-        )
+        """)
 
         result = self.db.execute(query, params).fetchall()
 

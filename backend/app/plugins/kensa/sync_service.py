@@ -236,13 +236,11 @@ class KensaRuleSyncService:
 
     def _get_existing_rule(self, rule_id: str) -> Optional[Dict[str, Any]]:
         """Get existing rule from database by rule_id."""
-        query = text(
-            """
+        query = text("""
             SELECT rule_id, file_hash
             FROM kensa_rules
             WHERE rule_id = :rule_id
-        """
-        )
+        """)
         result = self.db.execute(query, {"rule_id": rule_id}).fetchone()
 
         if result:
@@ -253,8 +251,7 @@ class KensaRuleSyncService:
         """Upsert a rule to the kensa_rules table."""
         import json
 
-        query = text(
-            """
+        query = text("""
             INSERT INTO kensa_rules (
                 rule_id, title, description, rationale, severity, category,
                 tags, platforms, "references", implementations,
@@ -282,8 +279,7 @@ class KensaRuleSyncService:
                 file_hash = EXCLUDED.file_hash,
                 has_remediation = EXCLUDED.has_remediation,
                 updated_at = NOW()
-        """
-        )
+        """)
 
         self.db.execute(
             query,
@@ -316,12 +312,10 @@ class KensaRuleSyncService:
         mappings_count = 0
 
         # Delete existing mappings for this rule
-        delete_query = text(
-            """
+        delete_query = text("""
             DELETE FROM framework_mappings
             WHERE kensa_rule_id = :rule_id
-        """
-        )
+        """)
         self.db.execute(delete_query, {"rule_id": rule_id})
 
         # Process CIS mappings
@@ -463,8 +457,7 @@ class KensaRuleSyncService:
         elif framework == "stig":
             severity = metadata.get("severity")
 
-        query = text(
-            """
+        query = text("""
             INSERT INTO framework_mappings (
                 framework, framework_version, control_id, control_title,
                 cis_section, cis_level, cis_type, severity,
@@ -477,8 +470,7 @@ class KensaRuleSyncService:
             )
             ON CONFLICT (framework, framework_version, control_id, kensa_rule_id)
             DO NOTHING
-        """
-        )
+        """)
 
         result = self.db.execute(
             query,
@@ -499,8 +491,7 @@ class KensaRuleSyncService:
 
     def _insert_cis_mapping(self, rule_id: str, version: str, mapping: Dict[str, Any]) -> None:
         """Insert a CIS framework mapping."""
-        query = text(
-            """
+        query = text("""
             INSERT INTO framework_mappings (
                 framework, framework_version, control_id, cis_section,
                 cis_level, cis_type, kensa_rule_id, created_at
@@ -509,8 +500,7 @@ class KensaRuleSyncService:
                 'cis', :version, :control_id, :section,
                 :level, :cis_type, :rule_id, NOW()
             )
-        """
-        )
+        """)
 
         section = mapping.get("section", "")
         self.db.execute(
@@ -529,8 +519,7 @@ class KensaRuleSyncService:
         """Insert a STIG framework mapping."""
         import json
 
-        query = text(
-            """
+        query = text("""
             INSERT INTO framework_mappings (
                 framework, framework_version, control_id, stig_id,
                 vuln_id, cci, severity, kensa_rule_id, created_at
@@ -539,8 +528,7 @@ class KensaRuleSyncService:
                 'stig', :version, :control_id, :stig_id,
                 :vuln_id, :cci, :severity, :rule_id, NOW()
             )
-        """
-        )
+        """)
 
         stig_id = mapping.get("stig_id", "")
         self.db.execute(
@@ -558,14 +546,12 @@ class KensaRuleSyncService:
 
     def _insert_nist_mapping(self, rule_id: str, control_id: str) -> None:
         """Insert a NIST 800-53 framework mapping."""
-        query = text(
-            """
+        query = text("""
             INSERT INTO framework_mappings (
                 framework, framework_version, control_id, kensa_rule_id, created_at
             )
             VALUES ('nist_800_53', 'r5', :control_id, :rule_id, NOW())
-        """
-        )
+        """)
 
         self.db.execute(
             query,
@@ -577,14 +563,12 @@ class KensaRuleSyncService:
 
     def _insert_simple_mapping(self, rule_id: str, framework: str, version: Optional[str], control_id: str) -> None:
         """Insert a simple framework mapping (PCI-DSS, SRG, etc.)."""
-        query = text(
-            """
+        query = text("""
             INSERT INTO framework_mappings (
                 framework, framework_version, control_id, kensa_rule_id, created_at
             )
             VALUES (:framework, :version, :control_id, :rule_id, NOW())
-        """
-        )
+        """)
 
         self.db.execute(
             query,
@@ -600,13 +584,11 @@ class KensaRuleSyncService:
         """Get current sync statistics from the database."""
         rules_query = text("SELECT COUNT(*) FROM kensa_rules")
         mappings_query = text("SELECT COUNT(*) FROM framework_mappings")
-        frameworks_query = text(
-            """
+        frameworks_query = text("""
             SELECT framework, COUNT(*) as count
             FROM framework_mappings
             GROUP BY framework
-        """
-        )
+        """)
 
         rules_count = self.db.execute(rules_query).scalar()
         mappings_count = self.db.execute(mappings_query).scalar()

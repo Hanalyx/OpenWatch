@@ -25,14 +25,14 @@ Security Notes:
 import logging
 from typing import Any, Dict, List, Optional
 
-from app.middleware.rbac_middleware import require_role
-from app.rbac import UserRole
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.auth import get_current_user
 from app.database import get_db
+from app.middleware.rbac_middleware import require_role
+from app.rbac import UserRole
 from app.routes.scans.models import BulkScanRequest, BulkScanResponse
 from app.services.bulk_scan_orchestrator import BulkScanOrchestrator
 
@@ -213,12 +213,10 @@ async def cancel_bulk_scan(
     try:
         # Update session status to cancelled
         result = db.execute(
-            text(
-                """
+            text("""
             UPDATE scan_sessions SET status = 'cancelled'
             WHERE id = :session_id
-        """
-            ),
+        """),
             {"session_id": session_id},
         )
 
@@ -229,8 +227,7 @@ async def cancel_bulk_scan(
 
         # Cancel individual scans that are still pending
         db.execute(
-            text(
-                """
+            text("""
             UPDATE scans SET status = 'cancelled', error_message = 'Cancelled by user'
             WHERE id IN (
                 SELECT unnest(ARRAY(
@@ -238,8 +235,7 @@ async def cancel_bulk_scan(
                     FROM scan_sessions WHERE id = :session_id
                 ))
             ) AND status IN ('pending', 'running')
-        """
-            ),
+        """),
             {"session_id": session_id},
         )
 

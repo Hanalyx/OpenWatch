@@ -39,8 +39,7 @@ def _get_host_platform(db: Session, host_id: str) -> Dict[str, Any]:
         Dict with platform, platform_version, and framework fields.
     """
     # Try host_system_info first (detailed info)
-    query = text(
-        """
+    query = text("""
         SELECT
             hsi.os_id,
             hsi.os_version,
@@ -49,8 +48,7 @@ def _get_host_platform(db: Session, host_id: str) -> Dict[str, Any]:
         FROM hosts h
         LEFT JOIN host_system_info hsi ON hsi.host_id = h.id
         WHERE h.id = :host_id
-    """
-    )
+    """)
     result = db.execute(query, {"host_id": host_id}).fetchone()
 
     if not result:

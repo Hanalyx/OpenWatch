@@ -40,10 +40,11 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
-from app.middleware.rbac_middleware import require_role
-from app.rbac import UserRole
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+
+from app.middleware.rbac_middleware import require_role
+from app.rbac import UserRole
 
 from ...auth import get_current_user
 from ...database import Host, get_db

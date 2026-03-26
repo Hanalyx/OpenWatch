@@ -141,5 +141,10 @@ class SystemSettings(Base):  # type: ignore[valid-type, misc]
     created_by = Column(Integer, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     modified_by = Column(Integer, nullable=True)
-    modified_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
+    modified_at = Column(
+        DateTime,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
     is_secure = Column(Boolean, default=False, nullable=False)  # Encrypt sensitive values

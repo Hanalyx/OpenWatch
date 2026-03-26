@@ -14,7 +14,6 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from ....utils.query_builder import QueryBuilder
-
 from ..core.score_calculator import ComplianceScoreCalculator
 from ..models import BaselineDrift, DriftSeverity
 
@@ -203,13 +202,11 @@ class BaselineDriftDetector:
             ... )
         """
         # Get all hosts with active baselines
-        query = text(
-            """
+        query = text("""
             SELECT DISTINCT b.host_id
             FROM baselines b
             WHERE b.is_active = true
-            """
-        )
+            """)
 
         results = self.db.execute(query).fetchall()
 

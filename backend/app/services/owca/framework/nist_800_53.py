@@ -19,7 +19,6 @@ from typing import Any, Dict, List, Optional, Tuple
 from sqlalchemy import text
 
 from ....utils.query_builder import QueryBuilder
-
 from .base import BaseFrameworkIntelligence
 from .models import (
     NISTBaseline,

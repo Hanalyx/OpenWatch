@@ -16,12 +16,13 @@ import logging
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Union
 
-from app.middleware.rbac_middleware import require_role
-from app.rbac import UserRole
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
+
+from app.middleware.rbac_middleware import require_role
+from app.rbac import UserRole
 
 from ...auth import get_current_user
 from ...database import get_db

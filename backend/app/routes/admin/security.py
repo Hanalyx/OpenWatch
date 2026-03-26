@@ -97,14 +97,12 @@ async def update_system_mfa_settings(
     try:
         # Store the system MFA setting
         db.execute(
-            text(
-                """
+            text("""
             INSERT INTO system_settings (key, value, updated_by, updated_at)
             VALUES ('mfa_required', :value, :updated_by, CURRENT_TIMESTAMP)
             ON CONFLICT (key) DO UPDATE
             SET value = :value, updated_by = :updated_by, updated_at = CURRENT_TIMESTAMP
-        """
-            ),
+        """),
             {
                 "value": str(request.mfa_required).lower(),
                 "updated_by": current_user.get("id", "unknown"),

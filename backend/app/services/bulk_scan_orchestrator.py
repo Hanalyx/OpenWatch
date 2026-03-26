@@ -635,13 +635,11 @@ class BulkScanOrchestrator:
         """Retrieve scan session from database"""
         try:
             result = self.db.execute(
-                text(
-                    """
+                text("""
                 SELECT id, name, total_hosts, completed_hosts, failed_hosts, running_hosts,
                        status, created_by, created_at, started_at, completed_at, estimated_completion, scan_ids, error_message  # noqa: E501
                 FROM scan_sessions WHERE id = :id
-            """
-                ),
+            """),
                 {"id": session_id},
             ).fetchone()
 
@@ -680,8 +678,7 @@ class BulkScanOrchestrator:
             params = {f"scan_id_{i}": sid for i, sid in enumerate(scan_ids)}
 
             result = self.db.execute(
-                text(
-                    f"""
+                text(f"""
                 SELECT s.id, s.name, s.status, s.progress, s.started_at, s.completed_at,
                        h.hostname, h.display_name,
                        sr.score, sr.failed_rules, sr.total_rules
@@ -690,8 +687,7 @@ class BulkScanOrchestrator:
                 LEFT JOIN scan_results sr ON sr.scan_id = s.id
                 WHERE s.id IN ({placeholders})
                 ORDER BY s.started_at
-            """
-                ),
+            """),
                 params,
             ).fetchall()
 
@@ -864,8 +860,7 @@ class BulkScanOrchestrator:
         """
         try:
             result = self.db.execute(
-                text(
-                    """
+                text("""
                 SELECT u.id, u.username, u.role,
                        COALESCE(
                            JSON_AGG(DISTINCT ug.name) FILTER (WHERE ug.name IS NOT NULL),
@@ -876,8 +871,7 @@ class BulkScanOrchestrator:
                 LEFT JOIN user_groups ug ON ugm.group_id = ug.id
                 WHERE u.id = :user_id AND u.is_active = true
                 GROUP BY u.id, u.username, u.role
-            """
-                ),
+            """),
                 {"user_id": user_id},
             )
 
@@ -912,13 +906,11 @@ class BulkScanOrchestrator:
             params = {f"host_id_{i}": hid for i, hid in enumerate(host_ids)}
 
             result = self.db.execute(
-                text(
-                    f"""
+                text(f"""
                 SELECT id, hostname, display_name, ip_address, status
                 FROM hosts
                 WHERE id IN ({placeholders})
-            """
-                ),
+            """),
                 params,
             )
 

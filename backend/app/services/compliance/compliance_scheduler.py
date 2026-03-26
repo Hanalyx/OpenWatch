@@ -55,9 +55,7 @@ class ComplianceSchedulerService:
                 return self._config_cache
 
         try:
-            result = db.execute(
-                text(
-                    """
+            result = db.execute(text("""
                 SELECT
                     enabled,
                     interval_compliant,
@@ -79,9 +77,7 @@ class ComplianceSchedulerService:
                     scan_timeout_seconds
                 FROM compliance_scheduler_config
                 WHERE id = 1
-            """
-                )
-            )
+            """))
 
             row = result.fetchone()
             if not row:
@@ -557,9 +553,7 @@ class ComplianceSchedulerService:
         """
         try:
             # Get hosts by compliance state (from latest scan results)
-            state_result = db.execute(
-                text(
-                    """
+            state_result = db.execute(text("""
                 SELECT
                     COALESCE(
                         CASE
@@ -585,56 +579,44 @@ class ComplianceSchedulerService:
                 ) sr ON true
                 WHERE h.is_active = true
                 GROUP BY state
-            """
-                )
-            )
+            """))
 
             hosts_by_state = {row.state: row.count for row in state_result}
 
             # Get overdue hosts
             overdue_result = db.execute(
-                text(
-                    """
+                text("""
                 SELECT COUNT(*) as count
                 FROM host_schedule hs
                 JOIN hosts h ON h.id = hs.host_id
                 WHERE h.is_active = true
                   AND hs.maintenance_mode = false
                   AND hs.next_scheduled_scan < :now
-            """
-                ),
+            """),
                 {"now": datetime.now(timezone.utc)},
             )
 
             overdue_count = overdue_result.fetchone().count
 
             # Get next scan time
-            next_scan_result = db.execute(
-                text(
-                    """
+            next_scan_result = db.execute(text("""
                 SELECT MIN(hs.next_scheduled_scan) as next_scan
                 FROM host_schedule hs
                 JOIN hosts h ON h.id = hs.host_id
                 WHERE h.is_active = true
                   AND hs.maintenance_mode = false
                   AND hs.next_scheduled_scan IS NOT NULL
-            """
-                )
-            )
+            """))
 
             next_scan_row = next_scan_result.fetchone()
             next_scan = next_scan_row.next_scan if next_scan_row else None
 
             # Get hosts in maintenance
-            maintenance_result = db.execute(
-                text(
-                    """
+            maintenance_result = db.execute(text("""
                 SELECT COUNT(*) as count
                 FROM host_schedule
                 WHERE maintenance_mode = true
-            """
-                )
-            )
+            """))
 
             maintenance_count = maintenance_result.fetchone().count
 
@@ -674,9 +656,7 @@ class ComplianceSchedulerService:
             config = self.get_config(db)
 
             # Get next scheduled scans with compliance state from latest scan
-            next_scans_result = db.execute(
-                text(
-                    """
+            next_scans_result = db.execute(text("""
                 SELECT
                     h.id as host_id,
                     h.hostname,
@@ -708,9 +688,7 @@ class ComplianceSchedulerService:
                   AND hs.next_scheduled_scan IS NOT NULL
                 ORDER BY hs.next_scheduled_scan ASC
                 LIMIT 5
-            """
-                )
-            )
+            """))
 
             next_scans = [
                 {
@@ -758,8 +736,7 @@ class ComplianceSchedulerService:
         """
         try:
             result = db.execute(
-                text(
-                    """
+                text("""
                 SELECT
                     h.id as host_id,
                     h.hostname,
@@ -795,8 +772,7 @@ class ComplianceSchedulerService:
                     LIMIT 1
                 ) sr ON true
                 WHERE h.id = :host_id
-            """
-                ),
+            """),
                 {"host_id": str(host_id)},
             )
 

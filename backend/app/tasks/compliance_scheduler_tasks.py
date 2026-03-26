@@ -172,13 +172,11 @@ def run_scheduled_kensa_scan(self: Any, host_id: str, priority: int = 5) -> Dict
 
             # Get host details
             result = db.execute(
-                text(
-                    """
+                text("""
                     SELECT id, hostname, display_name, ip_address, port, username
                     FROM hosts
                     WHERE id = :host_id AND is_active = true
-                """
-                ),
+                """),
                 {"host_id": host_id},
             )
             host = result.fetchone()
@@ -621,17 +619,13 @@ def initialize_compliance_schedules(self: Any) -> Dict[str, Any]:
 
         try:
             # Find hosts without a schedule
-            result = db.execute(
-                text(
-                    """
+            result = db.execute(text("""
                     SELECT h.id
                     FROM hosts h
                     LEFT JOIN host_schedule hs ON h.id = hs.host_id
                     WHERE h.is_active = true
                       AND hs.id IS NULL
-                """
-                )
-            )
+                """))
 
             hosts = result.fetchall()
             initialized_count = 0
@@ -679,8 +673,7 @@ def expire_compliance_maintenance(self: Any) -> Dict[str, Any]:
 
         try:
             result = db.execute(
-                text(
-                    """
+                text("""
                     UPDATE host_schedule
                     SET maintenance_mode = false,
                         maintenance_until = NULL,
@@ -689,8 +682,7 @@ def expire_compliance_maintenance(self: Any) -> Dict[str, Any]:
                       AND maintenance_until IS NOT NULL
                       AND maintenance_until < :now
                     RETURNING host_id
-                """
-                ),
+                """),
                 {"now": datetime.now(timezone.utc)},
             )
 

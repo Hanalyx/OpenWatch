@@ -149,14 +149,12 @@ def _record_discovery_failure(host_id: str, error_message: str) -> None:
             failures = failures[-50:]  # Keep only last 50
 
             # Upsert the failures list
-            upsert_query = text(
-                """
+            upsert_query = text("""
                 INSERT INTO system_settings (setting_key, setting_value, setting_type, description, created_at, modified_at)  # noqa: E501
                 VALUES ('os_discovery_failures', :value, 'json', 'Failed OS discovery attempts', :now, :now)
                 ON CONFLICT (setting_key)
                 DO UPDATE SET setting_value = :value, modified_at = :now
-            """
-            )
+            """)
             db.execute(upsert_query, {"value": json.dumps(failures), "now": datetime.now(timezone.utc)})
             db.commit()
 
@@ -301,8 +299,7 @@ def trigger_os_discovery(self, host_id: str) -> Dict[str, Any]:
 
             # Update host record in database
             # Phase 4: Include platform_identifier for OVAL selection during scans
-            update_query = text(
-                """
+            update_query = text("""
                 UPDATE hosts
                 SET os_family = :os_family,
                     os_version = :os_version,
@@ -312,8 +309,7 @@ def trigger_os_discovery(self, host_id: str) -> Dict[str, Any]:
                     last_os_detection = :last_os_detection,
                     updated_at = :updated_at
                 WHERE id = :host_id
-            """
-            )
+            """)
             db.execute(
                 update_query,
                 {

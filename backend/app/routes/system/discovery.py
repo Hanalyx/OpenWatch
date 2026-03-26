@@ -165,14 +165,12 @@ async def update_os_discovery_config(
             # Note: QueryBuilder doesn't support ON CONFLICT syntax directly,
             # so we use parameterized raw SQL which is still safe from injection
             db.execute(
-                text(
-                    """
+                text("""
                     INSERT INTO system_settings (setting_key, setting_value, updated_at)
                     VALUES (:key, :value, CURRENT_TIMESTAMP)
                     ON CONFLICT (setting_key)
                     DO UPDATE SET setting_value = :value, updated_at = CURRENT_TIMESTAMP
-                    """
-                ),
+                    """),
                 {"key": "os_discovery_enabled", "value": str(config.enabled).lower()},
             )
             db.commit()

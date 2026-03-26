@@ -53,9 +53,9 @@ router = APIRouter(tags=["Authentication"])
 
 # Import sub-routers from modular files
 try:
+    from .api_keys import router as api_keys_router
     from .login import router as login_router
     from .mfa import router as mfa_router
-    from .api_keys import router as api_keys_router
 
     # Include all sub-routers into main router
     # Login endpoints (no prefix - /auth/login, /auth/logout, etc.)

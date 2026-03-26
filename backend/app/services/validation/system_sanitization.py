@@ -611,7 +611,9 @@ class SystemInfoSanitizationService:
             "reconnaissance_detected_events": reconnaissance_events,
             "admin_access_events": admin_events,
             "reconnaissance_rate": reconnaissance_events / max(total_events, 1),
-            "last_24h_events": sum(1 for e in self.audit_events if e.timestamp > datetime.now(timezone.utc) - timedelta(days=1)),
+            "last_24h_events": sum(
+                1 for e in self.audit_events if e.timestamp > datetime.now(timezone.utc) - timedelta(days=1)
+            ),
         }
 
 

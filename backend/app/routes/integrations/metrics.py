@@ -6,9 +6,10 @@ Provides endpoints for monitoring integration performance and health
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Union
 
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
+
 from app.middleware.rbac_middleware import require_role
 from app.rbac import UserRole
-from fastapi import APIRouter, Depends, HTTPException, Query, Response
 
 from ...auth import get_current_user
 from ...rbac import require_admin
@@ -17,7 +18,16 @@ from ...services.monitoring import metrics_collector
 router = APIRouter()
 
 
-@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.get("/health")
 async def integration_health() -> Dict[str, Any]:
     """Get integration health status - no auth required"""
@@ -58,7 +68,16 @@ async def integration_health() -> Dict[str, Any]:
         }
 
 
-@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.get("/stats")
 @require_admin()
 async def get_integration_stats(
@@ -92,7 +111,16 @@ async def get_integration_stats(
         raise HTTPException(status_code=500, detail=f"Failed to get integration stats: {e}")
 
 
-@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.get("/metrics", response_model=None)
 @require_admin()
 async def get_metrics(
@@ -139,7 +167,16 @@ async def get_metrics(
         raise HTTPException(status_code=500, detail=f"Failed to export metrics: {e}")
 
 
-@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.get("/performance")
 @require_admin()
 async def get_performance_overview(
@@ -211,7 +248,16 @@ async def get_performance_overview(
         raise HTTPException(status_code=500, detail=f"Failed to get performance overview: {e}")
 
 
-@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.post("/cleanup")
 @require_admin()
 async def cleanup_old_metrics(

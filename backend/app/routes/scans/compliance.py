@@ -27,8 +27,6 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
-from app.middleware.rbac_middleware import require_role
-from app.rbac import UserRole
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -36,6 +34,8 @@ from sqlalchemy.orm import Session
 from app.auth import get_current_user
 from app.constants import is_framework_supported
 from app.database import get_db
+from app.middleware.rbac_middleware import require_role
+from app.rbac import UserRole
 from app.routes.scans.helpers import (
     get_compliance_reporter,
     get_compliance_scanner,

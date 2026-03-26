@@ -8,11 +8,12 @@ import logging
 import os
 from typing import Any, Dict, Optional
 
-from app.middleware.rbac_middleware import require_role
-from app.rbac import UserRole
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+
+from app.middleware.rbac_middleware import require_role
+from app.rbac import UserRole
 
 from ...auth import get_current_user
 from ...config import get_settings
@@ -80,7 +81,16 @@ class CapabilitiesResponse(BaseModel):
     system_info: Dict[str, Any]
 
 
-@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.get("/capabilities", response_model=CapabilitiesResponse)
 async def get_capabilities(
     current_user: Dict[str, Any] = Depends(get_current_user), db: Session = Depends(get_db)
@@ -146,7 +156,16 @@ async def get_capabilities(
         )
 
 
-@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.get("/features", response_model=FeatureFlags)
 async def get_feature_flags(
     current_user: Dict[str, Any] = Depends(get_current_user),
@@ -175,7 +194,16 @@ async def get_feature_flags(
         )
 
 
-@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.get("/health/integrations", response_model=IntegrationStatus)
 async def get_integration_status(
     current_user: Dict[str, Any] = Depends(get_current_user),

@@ -178,8 +178,7 @@ class SecurityConfigManager:
 
             # Upsert configuration
             self.db.execute(
-                text(
-                    """
+                text("""
                 INSERT INTO security_config
                 (scope, target_id, config_data, created_by, created_at, updated_at)
                 VALUES (:scope, :target_id, :config_data, :created_by, :created_at, :updated_at)
@@ -187,8 +186,7 @@ class SecurityConfigManager:
                 DO UPDATE SET
                     config_data = :config_data,
                     updated_at = :updated_at
-            """
-                ),
+            """),
                 {
                     "scope": scope.value,
                     "target_id": target_id,
@@ -390,14 +388,10 @@ class SecurityConfigManager:
     def _ensure_default_config(self):
         """Ensure system has a default security configuration"""
         try:
-            result = self.db.execute(
-                text(
-                    """
+            result = self.db.execute(text("""
                 SELECT id FROM security_config
                 WHERE scope = 'system' AND target_id IS NULL
-            """
-                )
-            )
+            """))
 
             if not result.fetchone():
                 # Create default strict configuration
@@ -412,12 +406,10 @@ class SecurityConfigManager:
         """Get configuration data for a specific scope"""
         try:
             result = self.db.execute(
-                text(
-                    """
+                text("""
                 SELECT config_data FROM security_config
                 WHERE scope = :scope AND target_id IS :target_id
-            """
-                ),
+            """),
                 {"scope": scope.value, "target_id": target_id},
             )
 
@@ -435,14 +427,12 @@ class SecurityConfigManager:
         """Get the primary group ID for a host"""
         try:
             result = self.db.execute(
-                text(
-                    """
+                text("""
                 SELECT hgm.host_group_id
                 FROM host_group_memberships hgm
                 WHERE hgm.host_id = :host_id
                 LIMIT 1
-            """
-                ),
+            """),
                 {"host_id": host_id},
             )
 

@@ -1069,8 +1069,7 @@ async def get_compliance_state(
     hostname = host_result.display_name or host_result.hostname
 
     # Find the latest completed Kensa scan for this host
-    latest_scan_query = text(
-        """
+    latest_scan_query = text("""
         SELECT id, name, completed_at
         FROM scans
         WHERE host_id = :host_id
@@ -1078,8 +1077,7 @@ async def get_compliance_state(
           AND profile_id LIKE 'kensa_%'
         ORDER BY completed_at DESC
         LIMIT 1
-    """
-    )
+    """)
     scan_result = db.execute(latest_scan_query, {"host_id": host_id}).fetchone()
 
     if not scan_result:
@@ -1107,8 +1105,7 @@ async def get_compliance_state(
     scan_date = scan_result.completed_at.isoformat() if scan_result.completed_at else None
 
     # Get all findings for this scan
-    findings_query = text(
-        """
+    findings_query = text("""
         SELECT rule_id, title, severity, status, detail, framework_section,
                evidence, framework_refs, skip_reason
         FROM scan_findings
@@ -1123,8 +1120,7 @@ async def get_compliance_state(
             END,
             status DESC,
             rule_id ASC
-    """
-    )
+    """)
     findings_result = db.execute(findings_query, {"scan_id": scan_id}).fetchall()
 
     # Build findings list and calculate summaries

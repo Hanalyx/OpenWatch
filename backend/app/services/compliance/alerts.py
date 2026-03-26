@@ -140,8 +140,7 @@ class AlertService:
             return None
 
         # Insert alert
-        insert_query = text(
-            """
+        insert_query = text("""
             INSERT INTO alerts (
                 alert_type, severity, title, message,
                 host_id, host_group_id, rule_id, scan_id,
@@ -152,8 +151,7 @@ class AlertService:
                 :metadata, 'active'
             )
             RETURNING id, created_at
-            """
-        )
+            """)
 
         result = self.db.execute(
             insert_query,
@@ -196,8 +194,7 @@ class AlertService:
         window_minutes: int,
     ) -> bool:
         """Check if a similar alert exists within the deduplication window."""
-        query = text(
-            """
+        query = text("""
             SELECT COUNT(*) FROM alerts
             WHERE alert_type = :alert_type
               AND status = 'active'
@@ -210,8 +207,7 @@ class AlertService:
                 (:rule_id IS NULL AND rule_id IS NULL)
                 OR rule_id = :rule_id
               )
-            """
-        )
+            """)
 
         window_start = datetime.now(timezone.utc) - timedelta(minutes=window_minutes)
         result = self.db.execute(
@@ -279,8 +275,7 @@ class AlertService:
         total = self.db.execute(count_query, params).scalar() or 0
 
         # Get alerts with host info
-        query = text(
-            f"""
+        query = text(f"""
             SELECT
                 a.id, a.alert_type, a.severity, a.title, a.message,
                 a.host_id, a.host_group_id, a.rule_id, a.scan_id,
@@ -300,8 +295,7 @@ class AlertService:
                 END,
                 a.created_at DESC
             LIMIT :limit OFFSET :offset
-            """
-        )
+            """)
 
         result = self.db.execute(query, params)
         alerts = []
@@ -339,8 +333,7 @@ class AlertService:
 
     def get_alert(self, alert_id: UUID) -> Optional[Dict[str, Any]]:
         """Get a single alert by ID."""
-        query = text(
-            """
+        query = text("""
             SELECT
                 a.id, a.alert_type, a.severity, a.title, a.message,
                 a.host_id, a.host_group_id, a.rule_id, a.scan_id,
@@ -351,8 +344,7 @@ class AlertService:
             LEFT JOIN hosts h ON a.host_id = h.id
             LEFT JOIN users u ON a.acknowledged_by = u.id
             WHERE a.id = :alert_id
-            """
-        )
+            """)
 
         result = self.db.execute(query, {"alert_id": str(alert_id)})
         row = result.fetchone()
@@ -391,16 +383,14 @@ class AlertService:
         Returns:
             Updated alert dict, or None if not found
         """
-        query = text(
-            """
+        query = text("""
             UPDATE alerts
             SET status = 'acknowledged',
                 acknowledged_by = :user_id,
                 acknowledged_at = :now
             WHERE id = :alert_id AND status = 'active'
             RETURNING id
-            """
-        )
+            """)
 
         result = self.db.execute(
             query,
@@ -429,15 +419,13 @@ class AlertService:
         Returns:
             Updated alert dict, or None if not found
         """
-        query = text(
-            """
+        query = text("""
             UPDATE alerts
             SET status = 'resolved',
                 resolved_at = :now
             WHERE id = :alert_id AND status IN ('active', 'acknowledged')
             RETURNING id
-            """
-        )
+            """)
 
         result = self.db.execute(
             query,
@@ -462,8 +450,7 @@ class AlertService:
         Returns:
             Dictionary with alert counts by status and severity
         """
-        query = text(
-            """
+        query = text("""
             SELECT
                 COUNT(*) FILTER (WHERE status = 'active') as active_count,
                 COUNT(*) FILTER (WHERE status = 'acknowledged') as acknowledged_count,
@@ -474,15 +461,13 @@ class AlertService:
                 COUNT(*) FILTER (WHERE status = 'active' AND severity = 'low') as low_count,
                 COUNT(*) FILTER (WHERE status = 'active' AND severity = 'info') as info_count
             FROM alerts
-            """
-        )
+            """)
 
         result = self.db.execute(query)
         row = result.fetchone()
 
         # Get recent alerts (last 24h)
-        recent_query = text(
-            """
+        recent_query = text("""
             SELECT
                 a.id, a.alert_type, a.severity, a.title, a.host_id,
                 a.created_at, h.hostname
@@ -492,8 +477,7 @@ class AlertService:
               AND a.created_at > :since
             ORDER BY a.created_at DESC
             LIMIT 5
-            """
-        )
+            """)
 
         recent_result = self.db.execute(
             recent_query,
@@ -514,23 +498,19 @@ class AlertService:
             )
 
         # Get by_type counts
-        type_query = text(
-            """
+        type_query = text("""
             SELECT alert_type, COUNT(*) as count
             FROM alerts
             WHERE status = 'active'
             GROUP BY alert_type
-            """
-        )
+            """)
         type_result = self.db.execute(type_query)
         by_type = {r.alert_type: r.count for r in type_result.fetchall()}
 
         # Get recent 24h count
-        recent_count_query = text(
-            """
+        recent_count_query = text("""
             SELECT COUNT(*) FROM alerts WHERE created_at > :since
-            """
-        )
+            """)
         recent_count = (
             self.db.execute(
                 recent_count_query,
@@ -602,14 +582,12 @@ class AlertService:
 
         if host_id:
             # Host-specific settings
-            upsert_query = text(
-                """
+            upsert_query = text("""
                 INSERT INTO alert_settings (host_id, settings, updated_at)
                 VALUES (:host_id, :settings, :now)
                 ON CONFLICT (host_id) WHERE host_id IS NOT NULL
                 DO UPDATE SET settings = :settings, updated_at = :now
-                """
-            )
+                """)
             self.db.execute(
                 upsert_query,
                 {
@@ -620,14 +598,12 @@ class AlertService:
             )
         elif host_group_id:
             # Host group-specific settings
-            upsert_query = text(
-                """
+            upsert_query = text("""
                 INSERT INTO alert_settings (host_group_id, settings, updated_at)
                 VALUES (:host_group_id, :settings, :now)
                 ON CONFLICT (host_group_id) WHERE host_group_id IS NOT NULL
                 DO UPDATE SET settings = :settings, updated_at = :now
-                """
-            )
+                """)
             self.db.execute(
                 upsert_query,
                 {
@@ -645,13 +621,11 @@ class AlertService:
 
             if row:
                 # Update existing global settings
-                update_query = text(
-                    """
+                update_query = text("""
                     UPDATE alert_settings
                     SET settings = :settings, updated_at = :now
                     WHERE host_id IS NULL AND host_group_id IS NULL
-                    """
-                )
+                    """)
                 self.db.execute(
                     update_query,
                     {
@@ -661,12 +635,10 @@ class AlertService:
                 )
             else:
                 # Insert new global settings
-                insert_query = text(
-                    """
+                insert_query = text("""
                     INSERT INTO alert_settings (settings, updated_at)
                     VALUES (:settings, :now)
-                    """
-                )
+                    """)
                 self.db.execute(
                     insert_query,
                     {

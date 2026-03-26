@@ -30,13 +30,14 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from app.middleware.rbac_middleware import require_role
-from app.rbac import UserRole
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPBearer
 from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.orm import Session
+
+from app.middleware.rbac_middleware import require_role
+from app.rbac import UserRole
 
 from ...auth import get_current_user
 from ...database import get_db
@@ -58,7 +59,16 @@ router = APIRouter(tags=["Host Management"])
 # =============================================================================
 
 
-@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.post("/validate-credentials")
 async def validate_credentials(
     validation_data: Dict[str, Any],
@@ -168,7 +178,16 @@ class TestConnectionRequest(BaseModel):
     timeout: int = 30
 
 
-@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.post("/test-connection")
 async def test_connection(
     request: TestConnectionRequest,
@@ -344,7 +363,16 @@ async def test_connection(
 # =============================================================================
 
 
-@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.get("/", response_model=List[Host])
 async def list_hosts(
     db: Session = Depends(get_db),
@@ -355,9 +383,7 @@ async def list_hosts(
         # Try to get hosts from database with latest scan information and group details
         # NOTE: This query uses LATERAL JOIN which is PostgreSQL-specific and complex
         # OW-REFACTOR-001B: Keeping original SQL due to LATERAL JOIN complexity
-        result = db.execute(
-            text(
-                """
+        result = db.execute(text("""
             SELECT h.id, h.hostname, h.ip_address, h.display_name, h.operating_system,
                    h.os_family, h.os_version, h.platform_identifier,
                    h.status, h.port, h.username, h.auth_method, h.created_at, h.updated_at, h.description,
@@ -387,9 +413,7 @@ async def list_hosts(
             LEFT JOIN host_group_memberships hgm ON hgm.host_id = h.id
             LEFT JOIN host_groups hg ON hg.id = hgm.group_id
             ORDER BY h.created_at DESC
-        """
-            )
-        )
+        """))
 
         hosts = []
         for row in result:
@@ -483,7 +507,16 @@ async def list_hosts(
         )
 
 
-@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.post("/", response_model=Host)
 async def create_host(
     host: HostCreate,
@@ -640,7 +673,16 @@ async def create_host(
 # =============================================================================
 
 
-@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.get("/capabilities")
 async def get_host_management_capabilities(
     current_user: Dict[str, Any] = Depends(get_current_user),
@@ -684,7 +726,16 @@ async def get_host_management_capabilities(
     }
 
 
-@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.get("/summary")
 async def get_hosts_summary(
     current_user: Dict[str, Any] = Depends(get_current_user),
@@ -711,7 +762,16 @@ async def get_hosts_summary(
 # =============================================================================
 
 
-@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.get("/{host_id}", response_model=Host)
 async def get_host(
     host_id: str,
@@ -788,7 +848,16 @@ async def get_host(
         )
 
 
-@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.put("/{host_id}", response_model=Host)
 async def update_host(
     host_id: str,
@@ -1056,7 +1125,16 @@ async def update_host(
         )
 
 
-@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.delete("/{host_id}")
 async def delete_host(
     host_id: str,
@@ -1125,7 +1203,16 @@ async def delete_host(
         )
 
 
-@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.delete("/{host_id}/ssh-key")
 async def delete_host_ssh_key(
     host_id: str,
@@ -1189,7 +1276,16 @@ async def delete_host_ssh_key(
 # =============================================================================
 
 
-@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.post("/{host_id}/discover-os", response_model=OSDiscoveryResponse)
 async def trigger_host_os_discovery(
     host_id: str,
@@ -1328,7 +1424,16 @@ async def trigger_host_os_discovery(
         )
 
 
-@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.get("/{host_id}/os-info", response_model=OSDiscoveryResponse)
 async def get_host_os_info(
     host_id: str,
@@ -1421,7 +1526,16 @@ async def get_host_os_info(
         )
 
 
-@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.post("/{host_id}/detect-platform", response_model=OSDiscoveryResponse)
 async def detect_platform_jit(
     host_id: str,
@@ -1616,7 +1730,16 @@ async def detect_platform_jit(
 # =============================================================================
 
 
-@require_role([UserRole.GUEST, UserRole.AUDITOR, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.get("/{host_id}/system-info")
 async def get_host_system_info(
     host_id: str,

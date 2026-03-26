@@ -50,8 +50,7 @@ def detect_stale_scans() -> dict:
         with get_db_session() as db:
             # Mark stale running scans as failed
             result = db.execute(
-                text(
-                    """
+                text("""
                     UPDATE scans
                     SET status = 'failed',
                         error_message = 'Scan timed out after 2 hours (detected by stale scan recovery)',
@@ -60,8 +59,7 @@ def detect_stale_scans() -> dict:
                       AND started_at < :cutoff
                       AND completed_at IS NULL
                     RETURNING id, host_id, started_at
-                    """
-                ),
+                    """),
                 {"now": now, "cutoff": running_cutoff},
             )
 
@@ -80,8 +78,7 @@ def detect_stale_scans() -> dict:
             # window: any pending scan whose started_at is either NULL and
             # older than the cutoff, or before the cutoff, is considered stale.
             result = db.execute(
-                text(
-                    """
+                text("""
                     UPDATE scans
                     SET status = 'failed',
                         error_message = 'Scan timed out while pending for over 30 minutes',
@@ -90,8 +87,7 @@ def detect_stale_scans() -> dict:
                       AND (started_at IS NULL OR started_at < :cutoff)
                       AND completed_at IS NULL
                     RETURNING id, host_id, started_at
-                    """
-                ),
+                    """),
                 {"now": now, "cutoff": pending_cutoff},
             )
 

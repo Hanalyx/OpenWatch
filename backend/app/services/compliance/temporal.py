@@ -364,14 +364,12 @@ class TemporalComplianceService:
             Dict mapping rule_id to state dict with actual values.
         """
         result = self._db.execute(
-            text(
-                """
+            text("""
                 SELECT rule_id, title, severity, status,
                        framework_section, evidence
                 FROM scan_findings
                 WHERE scan_id = :scan_id
-                """
-            ),
+                """),
             {"scan_id": str(scan_id)},
         )
         findings = result.fetchall()
@@ -687,14 +685,12 @@ class TemporalComplianceService:
 
         # Get host IDs in group
         members = self._db.execute(
-            text(
-                """
+            text("""
                 SELECT hgm.host_id, h.hostname
                 FROM host_group_memberships hgm
                 JOIN hosts h ON h.id = hgm.host_id
                 WHERE hgm.group_id = :gid AND h.is_active = true
-                """
-            ),
+                """),
             {"gid": group_id},
         ).fetchall()
 
