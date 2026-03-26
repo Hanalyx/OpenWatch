@@ -77,6 +77,10 @@ omit = [
     "app/tasks/background_tasks.py",
     "app/tasks/monitoring_tasks.py",
     "app/tasks/kensa_scan_tasks.py",
+    # Modules depending on deleted plugin packages
+    "app/services/plugins/lifecycle/*",
+    "app/services/rules/cache.py",
+    "app/services/rules/scanner.py",
 ]
 
 [tool.coverage.report]
