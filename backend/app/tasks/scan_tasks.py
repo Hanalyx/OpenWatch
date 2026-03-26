@@ -457,8 +457,6 @@ def _update_scan_error(
         # Check if this is part of a group scan and update progress
         if scan_data and scan_data.scan_options:
             try:
-                import json
-
                 scan_options = json.loads(scan_data.scan_options)
                 group_scan_session_id = scan_options.get("session_id")
 

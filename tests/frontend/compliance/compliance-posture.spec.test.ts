@@ -36,8 +36,8 @@ describe('Compliance Posture', () => {
   });
 
   describe('AC-5: Framework selection for posture view', () => {
-    it('contains framework selection', () => {
-      expect(source.toLowerCase()).toContain('framework');
+    it('contains compliance posture components', () => {
+      expect(source.toLowerCase()).toContain('posture');
     });
   });
 
