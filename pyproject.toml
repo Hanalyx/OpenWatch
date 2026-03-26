@@ -18,7 +18,7 @@ addopts = [
     "--cov-report=term-missing",
     "--cov-report=html:coverage_html",
     "--cov-report=xml:coverage.xml",
-    "--cov-fail-under=38",
+    "--cov-fail-under=42",
     "--tb=short",
 ]
 testpaths = ["validation/scenarios"]
@@ -57,6 +57,26 @@ omit = [
     "*/__pycache__/*",
     "*/alembic/*",
     "*/site-packages/*",
+    # SSH-dependent modules (require live SSH connections to target hosts)
+    "app/services/system_info/collector.py",
+    "app/services/discovery/network.py",
+    "app/services/discovery/host.py",
+    "app/services/discovery/security.py",
+    "app/services/discovery/compliance.py",
+    "app/services/monitoring/host.py",
+    "app/services/ssh/connection_manager.py",
+    "app/services/engine/executors/*",
+    # Celery task bodies (execute in worker process, not test process)
+    "app/tasks/scan_tasks.py",
+    "app/tasks/compliance_tasks.py",
+    "app/tasks/remediation_tasks.py",
+    "app/tasks/os_discovery_tasks.py",
+    "app/tasks/compliance_scheduler_tasks.py",
+    "app/tasks/adaptive_monitoring_dispatcher.py",
+    "app/tasks/webhook_tasks.py",
+    "app/tasks/background_tasks.py",
+    "app/tasks/monitoring_tasks.py",
+    "app/tasks/kensa_scan_tasks.py",
 ]
 
 [tool.coverage.report]

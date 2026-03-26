@@ -128,7 +128,9 @@ jobs:
             # Coverage: 42% on 35,659 active statements (2432 tests passing).
             # ~31K dead SCAP lines deleted. 79 specs, 670 ACs 100% covered.
             # 20 integration test files: TestClient + live PostgreSQL + direct service calls.
-            pytest tests/ -v --cov=app --cov-report=xml --cov-report=html --cov-fail-under=38
+            # Coverage: 45% on testable code (SSH/Celery excluded from measurement).
+            # 2500+ tests. 80 specs, 682 ACs 100% covered.
+            pytest tests/ -v --cov=app --cov-report=xml --cov-report=html --cov-fail-under=42
           else
             echo "Warning: No test files found in tests/ directory"
             echo "CI will pass without tests, but this should be addressed"
