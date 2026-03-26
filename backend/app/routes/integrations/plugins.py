@@ -43,10 +43,10 @@ PluginImportService: _PluginServiceType = None
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/plugins", tags=["Plugin Management"])
 
-# Initialize services
-plugin_import_service = PluginImportService()
+# Initialize services (execution and import services were removed with dead plugin modules)
+plugin_import_service = None
 plugin_security_service = PluginSecurityService()
-plugin_execution_service = PluginExecutionService()
+plugin_execution_service = None
 
 
 # =============================================================================
