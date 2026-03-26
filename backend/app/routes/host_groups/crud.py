@@ -92,7 +92,9 @@ async def list_host_groups(
         HTTPException: 500 if database query fails.
     """
     try:
-        result = db.execute(text("""
+        result = db.execute(
+            text(
+                """
             SELECT
                 hg.id, hg.name, hg.description, hg.color, hg.created_by, hg.created_at, hg.updated_at,
                 hg.os_family, hg.os_version_pattern, hg.architecture,
@@ -106,7 +108,9 @@ async def list_host_groups(
                      hg.compliance_framework,
                      hg.auto_scan_enabled, hg.scan_schedule, hg.validation_rules
             ORDER BY hg.name
-        """))
+        """
+            )
+        )
 
         groups = []
         for row in result:
@@ -168,7 +172,8 @@ async def get_host_group(
     """
     try:
         result = db.execute(
-            text("""
+            text(
+                """
             SELECT
                 hg.id, hg.name, hg.description, hg.color, hg.created_by, hg.created_at, hg.updated_at,
                 hg.os_family, hg.os_version_pattern, hg.architecture,
@@ -182,7 +187,8 @@ async def get_host_group(
                      hg.updated_at, hg.os_family, hg.os_version_pattern, hg.architecture,
                      hg.compliance_framework,
                      hg.auto_scan_enabled, hg.scan_schedule, hg.validation_rules
-        """),
+        """
+            ),
             {"group_id": group_id},
         )
 
@@ -257,7 +263,8 @@ async def create_host_group(
 
         # Create the group with parameterized query
         result = db.execute(
-            text("""
+            text(
+                """
             INSERT INTO host_groups (
                 name, description, color, created_by, created_at, updated_at,
                 os_family, os_version_pattern, architecture,
@@ -274,7 +281,8 @@ async def create_host_group(
                       os_family, os_version_pattern, architecture,
                       compliance_framework, auto_scan_enabled,
                       scan_schedule, validation_rules
-        """),
+        """
+            ),
             {
                 "name": group_data.name,
                 "description": group_data.description,
@@ -431,14 +439,16 @@ async def update_host_group(
 
         # Execute update with parameterized query
         result = db.execute(
-            text(f"""
+            text(
+                f"""
             UPDATE host_groups SET {', '.join(update_fields)}
             WHERE id = :group_id
             RETURNING id, name, description, color, created_by, created_at, updated_at,
                       os_family, os_version_pattern, architecture,
                       compliance_framework, auto_scan_enabled,
                       scan_schedule, validation_rules
-        """),
+        """
+            ),
             update_params,
         )
 

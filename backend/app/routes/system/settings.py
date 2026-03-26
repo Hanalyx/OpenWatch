@@ -722,7 +722,8 @@ async def start_scheduler(
 
                 db = next(get_db())
                 db.execute(
-                    text("""
+                    text(
+                        """
                     UPDATE scheduler_config
                     SET enabled = TRUE,
                         auto_start = TRUE,
@@ -730,7 +731,8 @@ async def start_scheduler(
                         interval_minutes = :interval,
                         updated_at = CURRENT_TIMESTAMP
                     WHERE service_name = 'host_monitoring'
-                """),
+                """
+                    ),
                     {"interval": _scheduler_interval},
                 )
                 db.commit()
@@ -779,14 +781,18 @@ async def stop_scheduler(
                 from ...database import get_db
 
                 db = next(get_db())
-                db.execute(text("""
+                db.execute(
+                    text(
+                        """
                     UPDATE scheduler_config
                     SET enabled = FALSE,
                         auto_start = FALSE,
                         last_stopped = CURRENT_TIMESTAMP,
                         updated_at = CURRENT_TIMESTAMP
                     WHERE service_name = 'host_monitoring'
-                """))
+                """
+                    )
+                )
                 db.commit()
                 db.close()
             except Exception as db_error:
@@ -825,12 +831,14 @@ async def update_scheduler(
 
             db = next(get_db())
             db.execute(
-                text("""
+                text(
+                    """
                 UPDATE scheduler_config
                 SET interval_minutes = :interval,
                     updated_at = CURRENT_TIMESTAMP
                 WHERE service_name = 'host_monitoring'
-            """),
+            """
+                ),
                 {"interval": _scheduler_interval},
             )
             db.commit()
@@ -944,12 +952,16 @@ def restore_scheduler_state() -> None:
                         logger.info("Credential purge is managed by Celery Beat (not APScheduler)")
 
                         # Update database with start time
-                        db.execute(text("""
+                        db.execute(
+                            text(
+                                """
                             UPDATE scheduler_config
                             SET last_run = CURRENT_TIMESTAMP,
                                 updated_at = CURRENT_TIMESTAMP
                             WHERE service_name = 'host_monitoring'
-                        """))
+                        """
+                            )
+                        )
                         db.commit()
 
                         logger.info(
@@ -961,13 +973,17 @@ def restore_scheduler_state() -> None:
                     logger.info("Scheduler configured but auto-start disabled or not enabled")
             else:
                 # No configuration found, create default
-                db.execute(text("""
+                db.execute(
+                    text(
+                        """
                     INSERT INTO scheduler_config (
                         service_name, enabled, interval_minutes, auto_start
                     ) VALUES (
                         'host_monitoring', TRUE, 15, TRUE
                     )
-                """))
+                """
+                    )
+                )
                 db.commit()
                 logger.info("Created default scheduler configuration")
 
@@ -1107,7 +1123,8 @@ async def update_session_timeout(
 
         # Upsert the setting
         db.execute(
-            text("""
+            text(
+                """
                 INSERT INTO system_settings (setting_key, setting_value, setting_type, description, modified_by, modified_at, created_at)  # noqa: E501
                 VALUES ('session_inactivity_timeout_minutes', :value, 'integer', 'Session inactivity timeout in minutes', :modified_by, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)  # noqa: E501
                 ON CONFLICT (setting_key)
@@ -1115,7 +1132,8 @@ async def update_session_timeout(
                     setting_value = :value,
                     modified_by = :modified_by,
                     modified_at = CURRENT_TIMESTAMP
-            """),
+            """
+            ),
             {"value": str(settings.timeout_minutes), "modified_by": user_id},
         )
         db.commit()

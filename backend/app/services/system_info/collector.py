@@ -1778,7 +1778,8 @@ class SystemInfoService:
         if existing:
             # Update existing record
             self.db.execute(
-                text("""
+                text(
+                    """
                     UPDATE host_system_info SET
                         os_name = :os_name,
                         os_version = :os_version,
@@ -1811,7 +1812,8 @@ class SystemInfoService:
                         collected_at = :now,
                         updated_at = :now
                     WHERE host_id = :host_id
-                """),
+                """
+                ),
                 {
                     "host_id": str(host_id),
                     "os_name": info.os_name,
@@ -1848,7 +1850,8 @@ class SystemInfoService:
         else:
             # Insert new record
             self.db.execute(
-                text("""
+                text(
+                    """
                     INSERT INTO host_system_info (
                         host_id, os_name, os_version, os_version_full, os_pretty_name,
                         os_id, os_id_like, kernel_version, kernel_release, kernel_name,
@@ -1868,7 +1871,8 @@ class SystemInfoService:
                         :hostname, :fqdn, :primary_ip, :uptime_seconds, :boot_time,
                         :now, :now
                     )
-                """),
+                """
+                ),
                 {
                     "host_id": str(host_id),
                     "os_name": info.os_name,
@@ -1917,7 +1921,8 @@ class SystemInfoService:
             Dictionary with system info or None if not found
         """
         result = self.db.execute(
-            text("""
+            text(
+                """
                 SELECT
                     os_name, os_version, os_version_full, os_pretty_name,
                     os_id, os_id_like, kernel_version, kernel_release, kernel_name,
@@ -1929,7 +1934,8 @@ class SystemInfoService:
                     collected_at, updated_at
                 FROM host_system_info
                 WHERE host_id = :host_id
-            """),
+            """
+            ),
             {"host_id": str(host_id)},
         )
         row = result.fetchone()
@@ -1996,7 +2002,8 @@ class SystemInfoService:
         # Batch insert packages
         for pkg in packages:
             self.db.execute(
-                text("""
+                text(
+                    """
                     INSERT INTO host_packages (
                         host_id, name, version, release, arch,
                         source_repo, installed_at, collected_at
@@ -2011,7 +2018,8 @@ class SystemInfoService:
                         source_repo = EXCLUDED.source_repo,
                         installed_at = EXCLUDED.installed_at,
                         collected_at = EXCLUDED.collected_at
-                    """),
+                    """
+                ),
                 {
                     "host_id": str(host_id),
                     "name": pkg.name,
@@ -2055,7 +2063,8 @@ class SystemInfoService:
         # Batch insert services
         for svc in services:
             self.db.execute(
-                text("""
+                text(
+                    """
                     INSERT INTO host_services (
                         host_id, name, display_name, status, enabled,
                         service_type, run_as_user, listening_ports, collected_at
@@ -2072,7 +2081,8 @@ class SystemInfoService:
                         run_as_user = EXCLUDED.run_as_user,
                         listening_ports = EXCLUDED.listening_ports,
                         collected_at = EXCLUDED.collected_at
-                    """),
+                    """
+                ),
                 {
                     "host_id": str(host_id),
                     "name": svc.name,
@@ -2122,14 +2132,16 @@ class SystemInfoService:
 
         # Get packages
         result = self.db.execute(
-            text(f"""
+            text(
+                f"""
                 SELECT name, version, release, arch, source_repo,
                        installed_at, collected_at
                 FROM host_packages
                 {where_clause}
                 ORDER BY name ASC
                 LIMIT :limit OFFSET :offset
-                """),
+                """
+            ),
             params,
         )
 
@@ -2191,14 +2203,16 @@ class SystemInfoService:
 
         # Get services
         result = self.db.execute(
-            text(f"""
+            text(
+                f"""
                 SELECT name, display_name, status, enabled, service_type,
                        run_as_user, listening_ports, collected_at
                 FROM host_services
                 {where_clause}
                 ORDER BY name ASC
                 LIMIT :limit OFFSET :offset
-                """),
+                """
+            ),
             params,
         )
 
@@ -2246,7 +2260,8 @@ class SystemInfoService:
         # Batch insert users
         for user in users:
             self.db.execute(
-                text("""
+                text(
+                    """
                     INSERT INTO host_users (
                         host_id, username, uid, gid, groups, home_dir, shell, gecos,
                         is_system_account, is_locked, has_password,
@@ -2283,7 +2298,8 @@ class SystemInfoService:
                         has_sudo_all = EXCLUDED.has_sudo_all,
                         has_sudo_nopasswd = EXCLUDED.has_sudo_nopasswd,
                         collected_at = EXCLUDED.collected_at
-                    """),
+                    """
+                ),
                 {
                     "host_id": str(host_id),
                     "username": user.username,
@@ -2364,7 +2380,8 @@ class SystemInfoService:
 
         # Get users
         result = self.db.execute(
-            text(f"""
+            text(
+                f"""
                 SELECT username, uid, gid, groups, home_dir, shell, gecos,
                        is_system_account, is_locked, has_password,
                        password_last_changed, password_expires, password_max_days, password_warn_days,
@@ -2374,7 +2391,8 @@ class SystemInfoService:
                 {where_clause}
                 ORDER BY uid ASC NULLS LAST, username ASC
                 LIMIT :limit OFFSET :offset
-                """),
+                """
+            ),
             params,
         )
 
@@ -2438,7 +2456,8 @@ class SystemInfoService:
         # Batch insert interfaces
         for iface in interfaces:
             self.db.execute(
-                text("""
+                text(
+                    """
                     INSERT INTO host_network (
                         host_id, interface_name, mac_address, ip_addresses,
                         is_up, mtu, speed_mbps, interface_type, collected_at
@@ -2455,7 +2474,8 @@ class SystemInfoService:
                         speed_mbps = EXCLUDED.speed_mbps,
                         interface_type = EXCLUDED.interface_type,
                         collected_at = EXCLUDED.collected_at
-                    """),
+                    """
+                ),
                 {
                     "host_id": str(host_id),
                     "interface_name": iface.interface_name,
@@ -2515,14 +2535,16 @@ class SystemInfoService:
 
         # Get interfaces
         result = self.db.execute(
-            text(f"""
+            text(
+                f"""
                 SELECT interface_name, mac_address, ip_addresses,
                        is_up, mtu, speed_mbps, interface_type, collected_at
                 FROM host_network
                 {where_clause}
                 ORDER BY interface_name ASC
                 LIMIT :limit OFFSET :offset
-                """),
+                """
+            ),
             params,
         )
 
@@ -2576,7 +2598,8 @@ class SystemInfoService:
         # Batch insert rules
         for rule in rules:
             self.db.execute(
-                text("""
+                text(
+                    """
                     INSERT INTO host_firewall_rules (
                         host_id, firewall_type, chain, rule_number, protocol,
                         source, destination, port, action, interface_in,
@@ -2586,7 +2609,8 @@ class SystemInfoService:
                         :source, :destination, :port, :action, :interface_in,
                         :interface_out, :state, :comment, :raw_rule, :collected_at
                     )
-                    """),
+                    """
+                ),
                 {
                     "host_id": str(host_id),
                     "firewall_type": rule.firewall_type,
@@ -2658,7 +2682,8 @@ class SystemInfoService:
 
         # Get rules
         result = self.db.execute(
-            text(f"""
+            text(
+                f"""
                 SELECT firewall_type, chain, rule_number, protocol, source,
                        destination, port, action, interface_in, interface_out,
                        state, comment, raw_rule, collected_at
@@ -2666,7 +2691,8 @@ class SystemInfoService:
                 {where_clause}
                 ORDER BY chain ASC, rule_number ASC
                 LIMIT :limit OFFSET :offset
-                """),
+                """
+            ),
             params,
         )
 
@@ -2726,7 +2752,8 @@ class SystemInfoService:
         # Batch insert routes
         for route in routes:
             self.db.execute(
-                text("""
+                text(
+                    """
                     INSERT INTO host_routes (
                         host_id, destination, gateway, interface, metric,
                         scope, route_type, protocol, is_default, collected_at
@@ -2734,7 +2761,8 @@ class SystemInfoService:
                         :host_id, :destination, :gateway, :interface, :metric,
                         :scope, :route_type, :protocol, :is_default, :collected_at
                     )
-                    """),
+                    """
+                ),
                 {
                     "host_id": str(host_id),
                     "destination": route.destination,
@@ -2789,14 +2817,16 @@ class SystemInfoService:
 
         # Get routes
         result = self.db.execute(
-            text(f"""
+            text(
+                f"""
                 SELECT destination, gateway, interface, metric,
                        scope, route_type, protocol, is_default, collected_at
                 FROM host_routes
                 {where_clause}
                 ORDER BY is_default DESC, destination ASC
                 LIMIT :limit OFFSET :offset
-                """),
+                """
+            ),
             params,
         )
 
@@ -2843,7 +2873,8 @@ class SystemInfoService:
             # We consider an event duplicate if it has same host, timestamp, type, and message
             try:
                 self.db.execute(
-                    text("""
+                    text(
+                        """
                         INSERT INTO host_audit_events (
                             host_id, event_type, event_timestamp, username, source_ip,
                             action, target, result, raw_message, source_process,
@@ -2860,7 +2891,8 @@ class SystemInfoService:
                               AND event_type = :event_type
                               AND COALESCE(raw_message, '') = COALESCE(:raw_message, '')
                         )
-                        """),
+                        """
+                    ),
                     {
                         "host_id": str(host_id),
                         "event_type": event.event_type,
@@ -2939,7 +2971,8 @@ class SystemInfoService:
 
         # Get events
         result_query = self.db.execute(
-            text(f"""
+            text(
+                f"""
                 SELECT event_type, event_timestamp, username, source_ip,
                        action, target, result, raw_message, source_process,
                        metadata, collected_at
@@ -2947,7 +2980,8 @@ class SystemInfoService:
                 {where_clause}
                 ORDER BY event_timestamp DESC
                 LIMIT :limit OFFSET :offset
-                """),
+                """
+            ),
             params,
         )
 
@@ -2984,7 +3018,8 @@ class SystemInfoService:
         """
         from sqlalchemy import text
 
-        insert_query = text("""
+        insert_query = text(
+            """
             INSERT INTO host_metrics (
                 host_id, collected_at,
                 cpu_usage_percent, load_avg_1m, load_avg_5m, load_avg_15m,
@@ -3000,7 +3035,8 @@ class SystemInfoService:
                 :disk_total_bytes, :disk_used_bytes, :disk_available_bytes,
                 :uptime_seconds, :process_count
             )
-            """)
+            """
+        )
 
         self.db.execute(
             insert_query,
@@ -3064,7 +3100,8 @@ class SystemInfoService:
 
         # Get metrics
         result_query = self.db.execute(
-            text(f"""
+            text(
+                f"""
                 SELECT collected_at,
                        cpu_usage_percent, load_avg_1m, load_avg_5m, load_avg_15m,
                        memory_total_bytes, memory_used_bytes, memory_available_bytes,
@@ -3075,7 +3112,8 @@ class SystemInfoService:
                 {where_clause}
                 ORDER BY collected_at DESC
                 LIMIT :limit OFFSET :offset
-                """),
+                """
+            ),
             params,
         )
 
@@ -3116,7 +3154,8 @@ class SystemInfoService:
         from sqlalchemy import text
 
         result = self.db.execute(
-            text("""
+            text(
+                """
                 SELECT collected_at,
                        cpu_usage_percent, load_avg_1m, load_avg_5m, load_avg_15m,
                        memory_total_bytes, memory_used_bytes, memory_available_bytes,
@@ -3127,7 +3166,8 @@ class SystemInfoService:
                 WHERE host_id = :host_id
                 ORDER BY collected_at DESC
                 LIMIT 1
-                """),
+                """
+            ),
             {"host_id": str(host_id)},
         )
 

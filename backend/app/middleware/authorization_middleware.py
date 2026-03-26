@@ -320,10 +320,12 @@ class AuthorizationMiddleware(BaseHTTPMiddleware):
                 from sqlalchemy import text
 
                 result = db.execute(
-                    text("""
+                    text(
+                        """
                     SELECT id, username, email, role, is_active
                     FROM users WHERE id = :user_id AND is_active = true
-                """),
+                """
+                    ),
                     {"user_id": payload.get("sub")},
                 )
 
@@ -445,9 +447,11 @@ class AuthorizationMiddleware(BaseHTTPMiddleware):
                 from sqlalchemy import text
 
                 result = db.execute(
-                    text("""
+                    text(
+                        """
                     SELECT host_id FROM scans WHERE id = :scan_id
-                """),
+                """
+                    ),
                     {"scan_id": scan_id},
                 )
 
@@ -469,11 +473,13 @@ class AuthorizationMiddleware(BaseHTTPMiddleware):
                 from sqlalchemy import text
 
                 result = db.execute(
-                    text("""
+                    text(
+                        """
                     SELECT hgm.host_id
                     FROM host_group_memberships hgm
                     WHERE hgm.group_id = :group_id
-                """),
+                """
+                    ),
                     {"group_id": group_id},
                 )
 
@@ -523,7 +529,8 @@ class AuthorizationMiddleware(BaseHTTPMiddleware):
                 from sqlalchemy import text
 
                 result = db.execute(
-                    text("""
+                    text(
+                        """
                     SELECT COALESCE(
                         JSON_AGG(DISTINCT ug.name) FILTER (WHERE ug.name IS NOT NULL),
                         '[]'::json
@@ -533,7 +540,8 @@ class AuthorizationMiddleware(BaseHTTPMiddleware):
                     LEFT JOIN user_groups ug ON ugm.group_id = ug.id
                     WHERE u.id = :user_id
                     GROUP BY u.id
-                """),
+                """
+                    ),
                     {"user_id": current_user["id"]},
                 )
 

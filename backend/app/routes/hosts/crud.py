@@ -383,7 +383,9 @@ async def list_hosts(
         # Try to get hosts from database with latest scan information and group details
         # NOTE: This query uses LATERAL JOIN which is PostgreSQL-specific and complex
         # OW-REFACTOR-001B: Keeping original SQL due to LATERAL JOIN complexity
-        result = db.execute(text("""
+        result = db.execute(
+            text(
+                """
             SELECT h.id, h.hostname, h.ip_address, h.display_name, h.operating_system,
                    h.os_family, h.os_version, h.platform_identifier,
                    h.status, h.port, h.username, h.auth_method, h.created_at, h.updated_at, h.description,
@@ -413,7 +415,9 @@ async def list_hosts(
             LEFT JOIN host_group_memberships hgm ON hgm.host_id = h.id
             LEFT JOIN host_groups hg ON hg.id = hgm.group_id
             ORDER BY h.created_at DESC
-        """))
+        """
+            )
+        )
 
         hosts = []
         for row in result:

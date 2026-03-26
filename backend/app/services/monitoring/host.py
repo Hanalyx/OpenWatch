@@ -299,11 +299,13 @@ class HostMonitor:
                 from sqlalchemy import text
 
                 result = db.execute(
-                    text("""
+                    text(
+                        """
                     SELECT encrypted_credentials, username, auth_method
                     FROM hosts
                     WHERE id = :id AND encrypted_credentials IS NOT NULL
-                """),
+                """
+                    ),
                     {"id": target_id},
                 )
 
@@ -635,12 +637,16 @@ class HostMonitor:
         """
         try:
             # Get all active hosts
-            db_result = db.execute(text("""
+            db_result = db.execute(
+                text(
+                    """
                 SELECT id, hostname, ip_address, port, username, auth_method, status, last_check
                 FROM hosts
                 WHERE is_active = true
                 ORDER BY hostname
-            """))
+            """
+                )
+            )
 
             hosts: List[Dict[str, Any]] = []
             for row in db_result:
@@ -686,14 +692,16 @@ class HostMonitor:
         """Get email recipients for a specific alert type"""
         try:
             result = db.execute(
-                text("""
+                text(
+                    """
                 SELECT email_addresses
                 FROM alert_settings
                 WHERE alert_type = :alert_type
                 AND enabled = true
                 AND email_enabled = true
                 AND email_addresses IS NOT NULL
-            """),
+            """
+                ),
                 {"alert_type": alert_type},
             )
 

@@ -72,7 +72,8 @@ class FleetAggregator:
                 return FleetStatistics(**cached)
 
         # Build optimized query with CTEs for different metrics
-        query = text("""
+        query = text(
+            """
             WITH host_counts AS (
                 SELECT
                     COUNT(*) AS total_hosts,
@@ -166,7 +167,8 @@ class FleetAggregator:
             CROSS JOIN issue_counts ic
             CROSS JOIN needs_scan ns
             CROSS JOIN compliance_stats cst
-            """)
+            """
+        )
 
         # Threshold for "needs scan" - 7 days ago
         threshold_date = datetime.now(timezone.utc) - timedelta(days=7)
@@ -280,7 +282,8 @@ class FleetAggregator:
             >>> aggregator = FleetAggregator(db, score_calculator)
             >>> priority_hosts = await aggregator.get_top_priority_hosts(limit=5)
         """
-        query = text("""
+        query = text(
+            """
             SELECT DISTINCT ON (s.host_id)
                 h.id AS host_id,
                 h.hostname,
@@ -304,7 +307,8 @@ class FleetAggregator:
             WHERE s.status = 'completed'
             ORDER BY s.host_id, s.completed_at DESC
             LIMIT :limit
-            """)
+            """
+        )
 
         results = self.db.execute(query, {"limit": limit}).fetchall()
 
@@ -350,7 +354,8 @@ class FleetAggregator:
             >>> aggregator = FleetAggregator(db, score_calculator)
             >>> stats = await aggregator.get_fleet_statistics_at_date(date(2026, 2, 1))
         """
-        query = text("""
+        query = text(
+            """
             WITH host_counts AS (
                 SELECT
                     COUNT(*) AS total_hosts,
@@ -415,7 +420,8 @@ class FleetAggregator:
             CROSS JOIN compliance_stats cs
             CROSS JOIN tier_counts tc
             CROSS JOIN issue_counts ic
-            """)
+            """
+        )
 
         result = self.db.execute(query, {"as_of": as_of}).fetchone()
 
@@ -475,7 +481,8 @@ class FleetAggregator:
         if start_date is None:
             start_date = end_date - timedelta(days=30)
 
-        query = text("""
+        query = text(
+            """
             SELECT
                 DATE(snapshot_date) AS snapshot_day,
                 COUNT(*) AS total_hosts,
@@ -493,7 +500,8 @@ class FleetAggregator:
             WHERE DATE(snapshot_date) >= :start_date AND DATE(snapshot_date) <= :end_date
             GROUP BY DATE(snapshot_date)
             ORDER BY snapshot_day ASC
-            """)
+            """
+        )
 
         results = self.db.execute(
             query,

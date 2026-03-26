@@ -490,13 +490,15 @@ async def get_server_intelligence_summary(
 
     # Get services count and running count
     services_result = db.execute(
-        text("""
+        text(
+            """
             SELECT
                 COUNT(*) as total,
                 COUNT(*) FILTER (WHERE status = 'running') as running
             FROM host_services
             WHERE host_id = :host_id
-            """),
+            """
+        ),
         {"host_id": str(host_uuid)},
     )
     services_row = services_result.fetchone()
@@ -505,27 +507,31 @@ async def get_server_intelligence_summary(
 
     # Get listening ports count
     ports_result = db.execute(
-        text("""
+        text(
+            """
             SELECT COUNT(*)
             FROM host_services
             WHERE host_id = :host_id
               AND listening_ports IS NOT NULL
               AND jsonb_array_length(listening_ports) > 0
-            """),
+            """
+        ),
         {"host_id": str(host_uuid)},
     )
     listening_ports_count = ports_result.scalar() or 0
 
     # Get users count and sudo users count
     users_result = db.execute(
-        text("""
+        text(
+            """
             SELECT
                 COUNT(*) as total,
                 COUNT(*) FILTER (WHERE has_sudo_all = true) as sudo_count
             FROM host_users
             WHERE host_id = :host_id
               AND (is_system_account = false OR is_system_account IS NULL)
-            """),
+            """
+        ),
         {"host_id": str(host_uuid)},
     )
     users_row = users_result.fetchone()

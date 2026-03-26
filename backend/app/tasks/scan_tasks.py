@@ -55,10 +55,12 @@ def execute_scan_task(
 
         # Update scan status to running
         db.execute(
-            text("""
+            text(
+                """
             UPDATE scans SET status = 'running', progress = 5
             WHERE id = :scan_id
-        """),
+        """
+            ),
             {"scan_id": scan_id},
         )
         db.commit()
@@ -195,9 +197,11 @@ def execute_scan_task(
 
         # Update progress
         db.execute(
-            text("""
+            text(
+                """
             UPDATE scans SET progress = 10 WHERE id = :scan_id
-        """),
+        """
+            ),
             {"scan_id": scan_id},
         )
         db.commit()
@@ -253,9 +257,11 @@ def execute_scan_task(
 
         # Update progress
         db.execute(
-            text("""
+            text(
+                """
             UPDATE scans SET progress = 20 WHERE id = :scan_id
-        """),
+        """
+            ),
             {"scan_id": scan_id},
         )
         db.commit()
@@ -266,9 +272,11 @@ def execute_scan_task(
         try:
             # Update progress to indicate scan execution has started
             db.execute(
-                text("""
+                text(
+                    """
                 UPDATE scans SET progress = 30 WHERE id = :scan_id
-            """),
+            """
+                ),
                 {"scan_id": scan_id},
             )
             db.commit()
@@ -302,9 +310,11 @@ def execute_scan_task(
 
             # Update progress after scan execution
             db.execute(
-                text("""
+                text(
+                    """
                 UPDATE scans SET progress = 90 WHERE id = :scan_id
-            """),
+            """
+                ),
                 {"scan_id": scan_id},
             )
             db.commit()
@@ -322,12 +332,14 @@ def execute_scan_task(
 
         # Update scan record with results
         db.execute(
-            text("""
+            text(
+                """
             UPDATE scans
             SET status = 'completed', progress = 100, completed_at = :completed_at,
                 result_file = :result_file, report_file = :report_file
             WHERE id = :scan_id
-        """),
+        """
+            ),
             {
                 "scan_id": scan_id,
                 "completed_at": datetime.now(timezone.utc),
@@ -470,11 +482,13 @@ def _update_scan_error(
                 logger.error(f"Failed to update group scan failure progress: {e}")
 
         db.execute(
-            text("""
+            text(
+                """
             UPDATE scans
             SET status = 'failed', progress = 100, completed_at = :completed_at, error_message = :error_message
             WHERE id = :scan_id
-        """),
+        """
+            ),
             {
                 "scan_id": scan_id,
                 "completed_at": datetime.now(timezone.utc),
@@ -538,7 +552,8 @@ def _save_scan_results(db: Session, scan_id: str, scan_results: Dict[str, Any]) 
 
         # Insert scan results with granular per-severity pass/fail tracking
         db.execute(
-            text("""
+            text(
+                """
             INSERT INTO scan_results
             (scan_id, total_rules, passed_rules, failed_rules, error_rules,
              unknown_rules, not_applicable_rules, score,
@@ -556,7 +571,8 @@ def _save_scan_results(db: Session, scan_id: str, scan_results: Dict[str, Any]) 
                     :severity_medium_passed, :severity_medium_failed,
                     :severity_low_passed, :severity_low_failed,
                     :created_at)
-        """),
+        """
+            ),
             {
                 "scan_id": scan_id,
                 "total_rules": scan_results.get("rules_total", 0),

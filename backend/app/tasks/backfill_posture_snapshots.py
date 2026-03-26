@@ -45,7 +45,8 @@ def backfill_posture_snapshots(days_back: int = 90) -> Dict[str, Any]:
     db = SessionLocal()
     try:
         # Find all dates with completed scans (excluding today - today's snapshot created by daily task)
-        dates_query = text("""
+        dates_query = text(
+            """
             SELECT DISTINCT DATE(completed_at) as scan_date
             FROM scans
             WHERE status = 'completed'
@@ -53,7 +54,10 @@ def backfill_posture_snapshots(days_back: int = 90) -> Dict[str, Any]:
               AND DATE(completed_at) < CURRENT_DATE
               AND completed_at >= CURRENT_DATE - INTERVAL ':days days'
             ORDER BY scan_date ASC
-        """.replace(":days", str(days_back)))
+        """.replace(
+                ":days", str(days_back)
+            )
+        )
 
         dates_result = db.execute(dates_query).fetchall()
         scan_dates = [row.scan_date for row in dates_result]
@@ -119,7 +123,8 @@ def _create_snapshots_for_date(db, scan_date) -> tuple[int, int]:
         Tuple of (created_count, skipped_count)
     """
     # Get latest scan result for each host on this date
-    query = text("""
+    query = text(
+        """
         WITH latest_scans AS (
             SELECT DISTINCT ON (s.host_id)
                 s.host_id,
@@ -145,7 +150,8 @@ def _create_snapshots_for_date(db, scan_date) -> tuple[int, int]:
             ORDER BY s.host_id, s.completed_at DESC
         )
         SELECT * FROM latest_scans
-    """)
+    """
+    )
 
     results = db.execute(query, {"scan_date": scan_date}).fetchall()
 
@@ -155,10 +161,12 @@ def _create_snapshots_for_date(db, scan_date) -> tuple[int, int]:
     for row in results:
         # Check if snapshot already exists for this host and date
         existing = db.execute(
-            text("""
+            text(
+                """
                 SELECT id FROM posture_snapshots
                 WHERE host_id = :host_id AND DATE(snapshot_date) = :scan_date
-            """),
+            """
+            ),
             {"host_id": row.host_id, "scan_date": scan_date},
         ).fetchone()
 

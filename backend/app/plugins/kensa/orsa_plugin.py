@@ -583,13 +583,15 @@ class KensaORSAPlugin(ORSAPlugin):
             from sqlalchemy import text
 
             # Get mapping counts
-            query = text("""
+            query = text(
+                """
                 SELECT
                     COUNT(DISTINCT rule_id) as rule_count,
                     COUNT(*) as mapping_count
                 FROM framework_mappings
                 WHERE framework = :framework
-            """)
+            """
+            )
             result = self._db.execute(query, {"framework": framework}).fetchone()
 
             if not result:

@@ -261,12 +261,14 @@ async def create_webhook_endpoint(
 
         # Create webhook endpoint record
         result = db.execute(
-            text("""
+            text(
+                """
             INSERT INTO webhook_endpoints
             (id, name, url, event_types, secret_hash, is_active, created_by, created_at, updated_at)
             VALUES (:id, :name, :url, :event_types, :secret_hash, :is_active, :created_by, :created_at, :updated_at)
             RETURNING id
-        """),
+        """
+            ),
             {
                 "id": str(uuid.uuid4()),
                 "name": webhook_request.name,

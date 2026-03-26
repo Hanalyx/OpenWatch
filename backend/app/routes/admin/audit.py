@@ -204,7 +204,8 @@ async def get_audit_stats(
         date_from = datetime.now(timezone.utc) - timedelta(days=days)
 
         # Get statistics
-        stats_query = text("""
+        stats_query = text(
+            """
             SELECT
                 COUNT(*) as total_events,
                 COUNT(CASE WHEN action LIKE '%LOGIN%' THEN 1 END) as login_attempts,
@@ -219,7 +220,8 @@ async def get_audit_stats(
                 COUNT(DISTINCT ip_address) as unique_ips
             FROM audit_logs
             WHERE timestamp >= :date_from
-        """)
+        """
+        )
 
         result = db.execute(stats_query, {"date_from": date_from})
         row = result.fetchone()

@@ -110,14 +110,16 @@ class QuickScanStatusResponse(BaseModel):
 
 def _get_hosts_from_group(db: Session, group_id: int) -> List[Dict[str, Any]]:
     """Get all hosts in a host group."""
-    query = text("""
+    query = text(
+        """
         SELECT h.id, h.hostname, h.display_name
         FROM hosts h
         INNER JOIN host_group_memberships hgm ON hgm.host_id = h.id
         WHERE hgm.group_id = :group_id
           AND h.is_active = true
         ORDER BY h.hostname
-    """)
+    """
+    )
     result = db.execute(query, {"group_id": group_id}).fetchall()
     return [
         {
@@ -131,11 +133,13 @@ def _get_hosts_from_group(db: Session, group_id: int) -> List[Dict[str, Any]]:
 
 def _get_host_info(db: Session, host_id: str) -> Optional[Dict[str, Any]]:
     """Get host information by ID."""
-    query = text("""
+    query = text(
+        """
         SELECT id, hostname, display_name, is_active
         FROM hosts
         WHERE id = :id
-    """)
+    """
+    )
     result = db.execute(query, {"id": host_id}).fetchone()
     if not result:
         return None
@@ -352,7 +356,8 @@ async def get_quick_scan_status(
     Raises:
         HTTPException 404: Scan not found.
     """
-    query = text("""
+    query = text(
+        """
         SELECT
             s.id,
             s.host_id,
@@ -368,7 +373,8 @@ async def get_quick_scan_status(
         INNER JOIN hosts h ON h.id = s.host_id
         LEFT JOIN scan_results sr ON sr.scan_id = s.id
         WHERE s.id = :scan_id
-    """)
+    """
+    )
     result = db.execute(query, {"scan_id": scan_id}).fetchone()
 
     if not result:

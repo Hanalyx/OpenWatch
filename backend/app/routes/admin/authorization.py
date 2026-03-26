@@ -687,7 +687,9 @@ async def get_authorization_summary(
     """
     try:
         # Get permission statistics with null safety
-        perm_stats_result = db.execute(text("""
+        perm_stats_result = db.execute(
+            text(
+                """
             SELECT
                 COUNT(*) as total_permissions,
                 COUNT(CASE WHEN user_id IS NOT NULL THEN 1 END) as user_permissions,
@@ -697,11 +699,15 @@ async def get_authorization_summary(
                 COUNT(CASE WHEN effect = 'deny' THEN 1 END) as deny_permissions
             FROM host_permissions
             WHERE is_active = true
-        """))
+        """
+            )
+        )
         perm_stats = perm_stats_result.fetchone()
 
         # Get recent audit statistics with null safety
-        audit_stats_result = db.execute(text("""
+        audit_stats_result = db.execute(
+            text(
+                """
             SELECT
                 COUNT(*) as total_checks,
                 COUNT(CASE WHEN decision = 'allow' THEN 1 END) as allowed_checks,
@@ -710,11 +716,15 @@ async def get_authorization_summary(
                 AVG(risk_score) as avg_risk_score
             FROM authorization_audit_log
             WHERE timestamp > NOW() - INTERVAL '24 hours'
-        """))
+        """
+            )
+        )
         audit_stats = audit_stats_result.fetchone()
 
         # Get most active users
-        active_users = db.execute(text("""
+        active_users = db.execute(
+            text(
+                """
             SELECT u.username, COUNT(*) as check_count
             FROM authorization_audit_log aal
             JOIN users u ON aal.user_id = u.id
@@ -722,7 +732,9 @@ async def get_authorization_summary(
             GROUP BY u.username
             ORDER BY check_count DESC
             LIMIT 10
-        """)).fetchall()
+        """
+            )
+        ).fetchall()
 
         # Build response with null safety for fetchone results
         permission_statistics: Dict[str, int] = {

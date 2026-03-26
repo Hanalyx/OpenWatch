@@ -432,7 +432,8 @@ async def quick_scan(
 
         # Create scan immediately (optimistic UI)
         db.execute(
-            text("""
+            text(
+                """
             INSERT INTO scans
             (id, name, host_id, content_id, profile_id, status, progress,
              scan_options, started_by, started_at, remediation_requested, verification_scan)
@@ -440,7 +441,8 @@ async def quick_scan(
                     :progress, :scan_options, :started_by, :started_at,
                     :remediation_requested, :verification_scan)
             RETURNING id
-        """),
+        """
+            ),
             {
                 "id": scan_id,
                 "name": scan_name,
@@ -647,14 +649,16 @@ async def create_verification_scan(
         }
 
         result = db.execute(
-            text("""
+            text(
+                """
             INSERT INTO scans
             (name, host_id, content_id, profile_id, status, progress,
              scan_options, started_by, started_at, verification_scan)
             VALUES (:name, :host_id, :content_id, :profile_id, :status,
                     :progress, :scan_options, :started_by, :started_at, :verification_scan)
             RETURNING id
-        """),
+        """
+            ),
             {
                 "name": scan_name,
                 "host_id": verification_request.host_id,
@@ -872,12 +876,14 @@ async def start_remediation(
 
         # Get the actual failed rules for logging
         failed_rules = db.execute(
-            text("""
+            text(
+                """
             SELECT rule_id, title, severity, description
             FROM scan_rule_results
             WHERE scan_id = :scan_id AND status = 'failed'
             ORDER BY CASE severity WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END
-        """),
+        """
+            ),
             {"scan_id": scan_id},
         ).fetchall()
 
@@ -886,13 +892,15 @@ async def start_remediation(
 
         # Update scan with remediation request
         db.execute(
-            text("""
+            text(
+                """
             UPDATE scans
             SET remediation_requested = true,
                 kensa_remediation_id = :job_id,
                 remediation_status = 'pending'
             WHERE id = :scan_id
-        """),
+        """
+            ),
             {"scan_id": scan_id, "job_id": remediation_job_id},
         )
         db.commit()

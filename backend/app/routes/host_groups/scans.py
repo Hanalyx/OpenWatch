@@ -147,7 +147,8 @@ async def start_group_scan(
 
             # Store group-specific session metadata
             db.execute(
-                text("""
+                text(
+                    """
                     INSERT INTO group_scan_sessions (
                         session_id, group_id, total_hosts, status, scan_config,
                         estimated_completion, created_at, created_by
@@ -155,7 +156,8 @@ async def start_group_scan(
                         :session_id, :group_id, :total_hosts, :status, :config,
                         :estimated_completion, :created_at, :created_by
                     )
-                """),
+                """
+                ),
                 {
                     "session_id": scan_session.id,
                     "group_id": group_id,
@@ -419,7 +421,8 @@ async def cancel_group_scan(
 
         # Cancel all running/pending scans in the session
         cancel_result = db.execute(
-            text("""
+            text(
+                """
                 UPDATE scans
                 SET status = 'cancelled',
                     completed_at = :completed_at,
@@ -430,28 +433,33 @@ async def cancel_group_scan(
                     AND s.status IN ('pending', 'running')
                 )
                 RETURNING id
-            """),
+            """
+            ),
             {"session_id": session_id, "completed_at": datetime.now(timezone.utc)},
         )
         cancelled_scan_ids = [row.id for row in cancel_result]
 
         # Update session status
         db.execute(
-            text("""
+            text(
+                """
                 UPDATE group_scan_sessions
                 SET status = 'cancelled'
                 WHERE session_id = :session_id
-            """),
+            """
+            ),
             {"session_id": session_id},
         )
 
         # Also update scan_sessions table if it exists
         db.execute(
-            text("""
+            text(
+                """
                 UPDATE scan_sessions
                 SET status = 'cancelled', completed_at = :completed_at
                 WHERE id = :session_id
-            """),
+            """
+            ),
             {"session_id": session_id, "completed_at": datetime.now(timezone.utc)},
         )
 
@@ -585,7 +593,8 @@ async def get_group_compliance_report(
 
         # Get compliance trend
         trend_data = db.execute(
-            text("""
+            text(
+                """
                 SELECT
                     DATE(s.completed_at) as scan_date,
                     AVG(CAST(sr.score AS FLOAT)) as avg_score,
@@ -599,13 +608,15 @@ async def get_group_compliance_report(
                     AND s.status = 'completed'
                 GROUP BY DATE(s.completed_at)
                 ORDER BY scan_date
-            """),
+            """
+            ),
             {"group_id": group_id, "trend_start": datetime.now(timezone.utc) - timedelta(days=30)},
         ).fetchall()
 
         # Get top failed rules
         failed_rules = db.execute(
-            text("""
+            text(
+                """
                 SELECT
                     srd.rule_id,
                     srd.rule_title,
@@ -622,7 +633,8 @@ async def get_group_compliance_report(
                 GROUP BY srd.rule_id, srd.rule_title, srd.severity
                 ORDER BY failure_count DESC
                 LIMIT 10
-            """),
+            """
+            ),
             {"group_id": group_id, "total_hosts": total_hosts},
         ).fetchall()
 
@@ -710,7 +722,8 @@ async def get_group_compliance_metrics(
         start_date = datetime.now(timezone.utc) - timedelta(days=timeframe_days[timeframe])
 
         metrics = db.execute(
-            text("""
+            text(
+                """
                 SELECT
                     COUNT(DISTINCT h.id) as total_hosts,
                     COUNT(DISTINCT s.id) as total_scans,
@@ -724,7 +737,8 @@ async def get_group_compliance_metrics(
                 LEFT JOIN scans s ON h.id = s.host_id AND s.completed_at >= :start_date
                 LEFT JOIN scan_results sr ON s.id = sr.scan_id
                 WHERE hgm.group_id = :group_id AND h.active = true
-            """),
+            """
+            ),
             {"group_id": group_id, "start_date": start_date},
         ).fetchone()
 
@@ -733,7 +747,8 @@ async def get_group_compliance_metrics(
 
         # Compliance trend over time
         trend_metrics = db.execute(
-            text("""
+            text(
+                """
                 SELECT
                     DATE_TRUNC('week', s.completed_at) as week_start,
                     AVG(CAST(sr.score AS FLOAT)) as avg_score,
@@ -748,7 +763,8 @@ async def get_group_compliance_metrics(
                     AND s.status = 'completed'
                 GROUP BY DATE_TRUNC('week', s.completed_at)
                 ORDER BY week_start
-            """),
+            """
+            ),
             {"group_id": group_id, "start_date": start_date},
         ).fetchall()
 
@@ -891,14 +907,16 @@ async def schedule_group_compliance_scan(
 
         # Update group with scheduling configuration
         db.execute(
-            text("""
+            text(
+                """
                 UPDATE host_groups SET
                     auto_scan_enabled = :enabled,
                     scan_schedule = :schedule,
                     default_profile_id = :profile_id,
                     compliance_framework = :framework
                 WHERE id = :group_id
-            """),
+            """
+            ),
             {
                 "group_id": group_id,
                 "enabled": schedule_request.enabled,
@@ -991,7 +1009,8 @@ def execute_group_compliance_scan(
                 scan_name = f"Scheduled-{host_result.hostname}-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}"
 
                 db.execute(
-                    text("""
+                    text(
+                        """
                         INSERT INTO scans (
                             id, host_id, scan_name, profile_id, status,
                             created_at, created_by, scan_type
@@ -999,7 +1018,8 @@ def execute_group_compliance_scan(
                             :scan_id, :host_id, :scan_name, :profile_id, 'pending',
                             :created_at, :created_by, 'compliance'
                         )
-                    """),
+                    """
+                    ),
                     {
                         "scan_id": scan_id,
                         "host_id": host_id,

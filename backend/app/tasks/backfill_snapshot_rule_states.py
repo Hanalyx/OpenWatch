@@ -59,12 +59,14 @@ def _extract_actual(evidence: Any) -> Any:
 def _build_rule_states_for_scan(db: Any, scan_id: str) -> Dict[str, Any]:
     """Build rule_states dict from scan_findings for a given scan."""
     result = db.execute(
-        text("""
+        text(
+            """
             SELECT rule_id, title, severity, status,
                    framework_section, evidence
             FROM scan_findings
             WHERE scan_id = :scan_id
-            """),
+            """
+        ),
         {"scan_id": scan_id},
     )
     findings = result.fetchall()
@@ -103,13 +105,17 @@ def backfill_snapshot_rule_states() -> Dict[str, Any]:
     db = SessionLocal()
     try:
         # Find snapshots with empty rule_states that have a source_scan_id
-        empty_snapshots = db.execute(text("""
+        empty_snapshots = db.execute(
+            text(
+                """
                 SELECT id, source_scan_id
                 FROM posture_snapshots
                 WHERE (rule_states::text = '{}' OR rule_states IS NULL)
                   AND source_scan_id IS NOT NULL
                 ORDER BY snapshot_date ASC
-                """)).fetchall()
+                """
+            )
+        ).fetchall()
 
         total = len(empty_snapshots)
         logger.info("Found %d snapshots to backfill", total)
@@ -127,11 +133,13 @@ def backfill_snapshot_rule_states() -> Dict[str, Any]:
                     continue
 
                 db.execute(
-                    text("""
+                    text(
+                        """
                         UPDATE posture_snapshots
                         SET rule_states = :rule_states
                         WHERE id = :id
-                        """),
+                        """
+                    ),
                     {
                         "rule_states": json.dumps(rule_states),
                         "id": str(snapshot.id),

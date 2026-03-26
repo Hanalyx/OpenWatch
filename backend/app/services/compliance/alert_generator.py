@@ -156,7 +156,8 @@ class AlertGenerator:
     ) -> Optional[Dict[str, Any]]:
         """Check if compliance score dropped significantly."""
         # Get previous scan score from scan_results (most recent completed scan)
-        query = text("""
+        query = text(
+            """
             SELECT CAST(sr.score AS FLOAT) AS compliance_score
             FROM scan_results sr
             JOIN scans s ON sr.scan_id = s.id
@@ -165,7 +166,8 @@ class AlertGenerator:
               AND s.completed_at >= :window_start
             ORDER BY s.completed_at DESC
             OFFSET 1 LIMIT 1
-            """)
+            """
+        )
         window_start = datetime.now(timezone.utc) - timedelta(hours=window_hours)
         result = self.db.execute(query, {"host_id": str(host_id), "window_start": window_start})
         row = result.fetchone()
@@ -228,7 +230,8 @@ class AlertGenerator:
         # Get previous scan results for comparison
         # scan_findings has no host_id — join through scans table
         # Column is "status" ('pass'/'fail'), not "passed" (boolean)
-        query = text("""
+        query = text(
+            """
             SELECT rule_id, (status = 'pass') AS passed
             FROM (
                 SELECT
@@ -241,7 +244,8 @@ class AlertGenerator:
                   AND (:scan_id IS NULL OR sf.scan_id != :scan_id)
             ) t
             WHERE rn = 1
-            """)
+            """
+        )
 
         result = self.db.execute(
             query,
@@ -353,7 +357,8 @@ class AlertGenerator:
         """Check for hosts that haven't been scanned within max interval."""
         alerts: list[Any] = []
 
-        query = text("""
+        query = text(
+            """
             SELECT h.id, h.hostname, hs.last_scan_completed
             FROM hosts h
             LEFT JOIN host_schedule hs ON h.id = hs.host_id
@@ -363,7 +368,8 @@ class AlertGenerator:
                 hs.last_scan_completed IS NULL
                 OR hs.last_scan_completed < :threshold
               )
-            """)
+            """
+        )
 
         threshold = datetime.now(timezone.utc) - timedelta(hours=max_hours)
         result = self.db.execute(query, {"threshold": threshold})

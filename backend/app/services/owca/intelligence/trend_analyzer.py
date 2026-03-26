@@ -158,7 +158,8 @@ class TrendAnalyzer:
         end_date = datetime.now(timezone.utc)
         start_date = end_date - timedelta(days=days)
 
-        query = text("""
+        query = text(
+            """
             SELECT
                 DATE(snapshot_date) AS snapshot_day,
                 compliance_score AS overall_score,
@@ -176,7 +177,8 @@ class TrendAnalyzer:
               AND snapshot_date >= :start_date
               AND snapshot_date <= :end_date
             ORDER BY snapshot_day ASC
-            """)
+            """
+        )
 
         results = self.db.execute(
             query,
@@ -227,7 +229,8 @@ class TrendAnalyzer:
         end_date = datetime.now(timezone.utc)
         start_date = end_date - timedelta(days=days)
 
-        query = text("""
+        query = text(
+            """
             WITH daily_scans AS (
                 SELECT DISTINCT ON (DATE(s.completed_at))
                     DATE(s.completed_at) AS scan_date,
@@ -272,7 +275,8 @@ class TrendAnalyzer:
                 END AS overall_score
             FROM daily_scans
             ORDER BY scan_date ASC
-            """)
+            """
+        )
 
         results = self.db.execute(
             query,
@@ -426,7 +430,8 @@ class TrendAnalyzer:
         end_date = datetime.now(timezone.utc)
         start_date = end_date - timedelta(days=days)
 
-        query = text("""
+        query = text(
+            """
             SELECT
                 DATE(snapshot_date) AS snapshot_day,
                 COUNT(*) AS total_hosts,
@@ -444,7 +449,8 @@ class TrendAnalyzer:
               AND snapshot_date <= :end_date
             GROUP BY DATE(snapshot_date)
             ORDER BY snapshot_day ASC
-            """)
+            """
+        )
 
         results = self.db.execute(query, {"start_date": start_date, "end_date": end_date}).fetchall()
 
@@ -485,7 +491,8 @@ class TrendAnalyzer:
         end_date = datetime.now(timezone.utc)
         start_date = end_date - timedelta(days=days)
 
-        query = text("""
+        query = text(
+            """
             WITH daily_fleet_scores AS (
                 SELECT
                     DATE(s.completed_at) AS scan_date,
@@ -513,7 +520,8 @@ class TrendAnalyzer:
                 ORDER BY scan_date ASC
             )
             SELECT * FROM daily_fleet_scores
-            """)
+            """
+        )
 
         results = self.db.execute(query, {"start_date": start_date, "end_date": end_date}).fetchall()
 
