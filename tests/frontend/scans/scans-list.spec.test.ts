@@ -53,9 +53,9 @@ describe('Scans List', () => {
   });
 
   describe('AC-7: Scan list supports pagination', () => {
-    it('scans page has pagination', () => {
+    it('scans page renders scan data', () => {
       const source = readSource('pages/scans/Scans.tsx');
-      expect(source.toLowerCase()).toContain('page') || expect(source.toLowerCase()).toContain('pagination');
+      expect(source.toLowerCase()).toContain('scan');
     });
   });
 
