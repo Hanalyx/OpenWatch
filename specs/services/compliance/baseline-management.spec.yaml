@@ -1,0 +1,40 @@
+spec: baseline-management
+version: "1.0"
+status: draft
+owner: engineering
+summary: >
+  Workstream I1: Baseline management for compliance posture. Supports resetting
+  baselines from latest scan results, promoting current posture to baseline,
+  and computing rolling baselines via 7-day moving average. Baseline operations
+  are restricted to SECURITY_ANALYST or higher role and all changes are logged
+  to the audit log.
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      POST /api/hosts/{host_id}/baseline/reset establishes new baseline from
+      latest scan.
+
+  - id: AC-2
+    description: >
+      POST /api/hosts/{host_id}/baseline/promote promotes current posture to
+      baseline.
+
+  - id: AC-3
+    description: >
+      Rolling baseline type computes 7-day moving average.
+
+  - id: AC-4
+    description: >
+      Baseline operations require SECURITY_ANALYST or higher role.
+
+  - id: AC-5
+    description: >
+      Baseline changes are logged to audit log.
+
+changelog:
+  - version: "1.0"
+    date: "2026-04-11"
+    changes:
+      - "Initial draft created during Q2 planning"
+      - "5 ACs covering reset, promote, rolling baseline, RBAC, audit logging"

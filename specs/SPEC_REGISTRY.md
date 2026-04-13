@@ -60,7 +60,7 @@ Coverage is checked by `scripts/check-spec-coverage.py`.
 | Remediation Lifecycle | pipelines/remediation-lifecycle.spec.yaml | tests/backend/unit/pipelines/test_remediation_lifecycle.py | 2 | Active |
 | Drift Detection | pipelines/drift-detection.spec.yaml | tests/backend/unit/services/engine/test_drift_detection.py | 1 | Active |
 
-## Service Specs (21 Active, 3 Draft)
+## Service Specs (21 Active, 8 Draft)
 
 | Spec | File | Tests | Phase | Status |
 |------|------|-------|-------|--------|
@@ -88,6 +88,11 @@ Coverage is checked by `scripts/check-spec-coverage.py`.
 | Host Liveness | services/monitoring/host-liveness.spec.yaml | tests/backend/unit/services/monitoring/test_host_liveness_spec.py | Q1 | Draft |
 | Notification Channels | services/infrastructure/notification-channels.spec.yaml | tests/backend/unit/services/infrastructure/test_notification_channels_spec.py | Q1 | Draft |
 | SSO Federation | services/auth/sso-federation.spec.yaml | tests/backend/unit/services/auth/test_sso_federation_spec.py | Q1 | Draft |
+| Evidence Signing | services/signing/evidence-signing.spec.yaml | tests/backend/unit/services/signing/test_evidence_signing_spec.py | Q2 | Draft |
+| Jira Sync | services/infrastructure/jira-sync.spec.yaml | tests/backend/unit/services/infrastructure/test_jira_sync_spec.py | Q2 | Draft |
+| Baseline Management | services/compliance/baseline-management.spec.yaml | tests/backend/unit/services/compliance/test_baseline_management_spec.py | Q2 | Draft |
+| Alert Routing | services/compliance/alert-routing.spec.yaml | tests/backend/unit/services/compliance/test_alert_routing_spec.py | Q2 | Draft |
+| Retention Policy | services/compliance/retention-policy.spec.yaml | tests/backend/unit/services/compliance/test_retention_policy_spec.py | Q2 | Draft |
 
 ## API Route Specs (28 Active)
 
@@ -122,7 +127,7 @@ Coverage is checked by `scripts/check-spec-coverage.py`.
 | Webhooks | api/integrations/webhooks.spec.yaml | tests/backend/unit/api/test_webhooks_spec.py | 9 | Active |
 | System Health | api/system/system-health.spec.yaml | tests/backend/unit/api/test_system_health_spec.py | 9 | Active |
 
-## Frontend Specs (13 Active)
+## Frontend Specs (13 Active, 3 Draft)
 
 | Spec | File | Tests | Phase | Status |
 |------|------|-------|-------|--------|
@@ -139,6 +144,9 @@ Coverage is checked by `scripts/check-spec-coverage.py`.
 | Rule Reference | frontend/rule-reference.spec.yaml | tests/frontend/content/rule-reference.spec.test.ts | 9 | Active |
 | Compliance Groups | frontend/compliance-groups.spec.yaml | tests/frontend/host-groups/compliance-groups.spec.test.ts | 9 | Active |
 | Scans List | frontend/scans-list.spec.yaml | tests/frontend/scans/scans-list.spec.test.ts | 9 | Active |
+| Exception Workflow | frontend/exception-workflow.spec.yaml | tests/frontend/compliance/exception-workflow.spec.test.ts | Q2 | Draft |
+| Scheduled Scans | frontend/scheduled-scans.spec.yaml | tests/frontend/scans/scheduled-scans.spec.test.ts | Q2 | Draft |
+| Host Audit Timeline | frontend/host-audit-timeline.spec.yaml | tests/frontend/hosts/host-audit-timeline.spec.test.ts | Q2 | Draft |
 
 ## Plugin Specs (1 Active)
 
@@ -163,14 +171,14 @@ Coverage is checked by `scripts/check-spec-coverage.py`.
 |----------|-------------|--------|-------|------------|
 | System | 13 | 10 | 3 | 0 |
 | Pipelines | 3 | 3 | 0 | 0 |
-| Services | 24 | 21 | 3 | 0 |
+| Services | 29 | 21 | 8 | 0 |
 | API | 28 | 28 | 0 | 0 |
 | Plugins | 1 | 1 | 0 | 0 |
 | Release | 4 | 4 | 0 | 0 |
-| Frontend | 13 | 13 | 0 | 0 |
-| **Total** | **86** | **80** | **6** | **0** |
+| Frontend | 16 | 13 | 3 | 0 |
+| **Total** | **94** | **80** | **14** | **0** |
 
-**Active ACs: 699 (684 script-validated + 15 release/shell) at 100% coverage + 78 draft ACs (Q1 — code landed)**
+**Active ACs: 762 (100% covered by tests) + 50 Q2 draft ACs (specs created, code pending)**
 
 ### Q1 Draft Specs
 
@@ -191,6 +199,19 @@ Coverage is checked by `scripts/check-spec-coverage.py`.
 | notification-channels | C (Control Plane) | 13 | 4 | 9 | Route imports, behavioral tests (need DB + deps) |
 | sso-federation | C (Control Plane) | 16 | 5 | 11 | Route imports, integration flows (need IdP + deps) |
 | job-queue | D (Infrastructure) | 14 | 0 | 14 | Planned — code not yet implemented |
+
+### Q2 Draft Specs (created 2026-04-13, code pending)
+
+| Spec | Workstream | ACs | Notes |
+|------|------------|-----|-------|
+| evidence-signing | F (Eye) | 8 | Ed25519, key rotation, verification |
+| jira-sync | G (Control Plane) | 8 | Bidirectional Jira integration |
+| baseline-management | I (Heartbeat) | 5 | Reset/promote/rolling baseline |
+| alert-routing | I (Heartbeat) | 6 | Per-severity routing, PagerDuty |
+| retention-policy | I (Heartbeat) | 6 | TTL, signed archives |
+| exception-workflow (FE) | G (Control Plane) | 7 | Exception list/form/approval UI |
+| scheduled-scans (FE) | G (Control Plane) | 5 | Scheduler config/preview UI |
+| host-audit-timeline (FE) | F (Eye) | 5 | Per-host timeline tab |
 
 ### Updated Active Specs in Q1
 

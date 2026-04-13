@@ -1,0 +1,54 @@
+spec: host-audit-timeline
+version: "1.0"
+status: draft
+owner: engineering
+summary: >
+  The HostDetail page MUST include an Audit Timeline tab that displays
+  a reverse-chronological list of compliance transactions for the host.
+  Timeline entries MUST be clickable, an export button MUST queue an
+  audit export, and filter controls MUST support phase, status,
+  framework, and date range.
+
+---
+
+# Acceptance Criteria
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      The HostDetail page MUST have an "Audit Timeline" tab that is
+      selectable alongside existing host detail tabs.
+
+  - id: AC-2
+    description: >
+      The audit timeline MUST show a reverse-chronological list of
+      compliance transactions for the host, with the most recent
+      transaction first.
+
+  - id: AC-3
+    description: >
+      Timeline entries MUST be clickable, navigating the user to
+      /transactions/:id for the selected transaction.
+
+  - id: AC-4
+    description: >
+      An Export button MUST be present that queues an audit export for
+      the host's currently selected date range via the audit export
+      backend endpoint.
+
+  - id: AC-5
+    description: >
+      Filter controls MUST support filtering by phase, status,
+      framework, and date range. Applied filters MUST update the
+      timeline without a full page reload.
+
+---
+
+# Changelog
+
+changelog:
+  - version: "1.0"
+    date: "2026-04-11"
+    changes:
+      - "Initial draft spec -- Q2 host audit timeline frontend"
+      - "5 ACs covering tab, timeline list, navigation, export, filters"

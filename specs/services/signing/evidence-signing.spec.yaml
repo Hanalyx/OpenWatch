@@ -1,0 +1,52 @@
+spec: evidence-signing
+version: "1.0"
+status: draft
+owner: engineering
+summary: >
+  Workstream F1: Cryptographic signing of evidence envelopes using Ed25519 keys.
+  SigningService signs transaction evidence envelopes, producing SignedBundle
+  objects that can be independently verified. Signing keys are stored encrypted
+  at rest and support rotation without breaking verification of previously
+  signed bundles. Public keys are exposed via API for external verifiers.
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      deployment_signing_keys table exists with key_id, public_key,
+      private_key_encrypted, active, created_at, rotated_at columns.
+
+  - id: AC-2
+    description: >
+      SigningService.sign_envelope(envelope) returns a SignedBundle with
+      Ed25519 signature.
+
+  - id: AC-3
+    description: >
+      SigningService.verify(bundle) validates signature against public key.
+
+  - id: AC-4
+    description: >
+      Key rotation: new key becomes active, old keys remain verifiable.
+
+  - id: AC-5
+    description: >
+      GET /api/signing/public-keys returns all active and retired public keys.
+
+  - id: AC-6
+    description: >
+      POST /api/transactions/{id}/sign signs a transaction's evidence envelope.
+
+  - id: AC-7
+    description: >
+      POST /api/signing/verify accepts a signed bundle and returns valid/invalid.
+
+  - id: AC-8
+    description: >
+      Signing keys are encrypted at rest via EncryptionService.
+
+changelog:
+  - version: "1.0"
+    date: "2026-04-11"
+    changes:
+      - "Initial draft created during Q2 planning"
+      - "8 ACs covering key storage, signing, verification, rotation, and API"
