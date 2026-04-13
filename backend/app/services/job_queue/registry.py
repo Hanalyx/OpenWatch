@@ -396,5 +396,15 @@ def build_registry() -> Dict[str, Callable]:
     except ImportError:
         logger.warning("Could not import state_backfill_tasks")
 
+    # ------------------------------------------------------------------
+    # 18. Retention policy enforcement (no bind)
+    # ------------------------------------------------------------------
+    try:
+        from app.tasks.retention_tasks import cleanup_old_transactions
+
+        registry["app.tasks.enforce_retention"] = cleanup_old_transactions
+    except ImportError:
+        logger.warning("Could not import retention_tasks.cleanup_old_transactions")
+
     logger.info("Task registry built: %d tasks registered", len(registry))
     return registry

@@ -6,12 +6,24 @@
  * per-host schedule table, preview histogram, and API persistence
  * via source inspection.
  *
- * Status: draft (Q2)
+ * Status: active
  */
 
 import { describe, it, expect } from 'vitest';
+import * as fs from 'fs';
+import * as path from 'path';
 
-const SKIP_REASON = 'Q2: scheduled scans not yet implemented';
+const PAGE_PATH = path.resolve(
+  __dirname,
+  '../../../frontend/src/pages/scans/ScheduledScans.tsx'
+);
+const ADAPTER_PATH = path.resolve(
+  __dirname,
+  '../../../frontend/src/services/adapters/schedulerAdapter.ts'
+);
+
+const pageSource = fs.readFileSync(PAGE_PATH, 'utf-8');
+const adapterSource = fs.readFileSync(ADAPTER_PATH, 'utf-8');
 
 // ---------------------------------------------------------------------------
 // AC-1: Scheduled scan management page renders
@@ -22,9 +34,12 @@ describe('AC-1: Scheduled scan management page renders', () => {
    * AC-1: Scheduled scan management page MUST render adaptive interval
    * configuration controls.
    */
-  it.skip('management page renders adaptive interval config', () => {
-    // Verify component file exists and renders interval configuration
-    expect(true).toBe(true);
+  it('management page renders adaptive interval config', () => {
+    // Verify component file exports a default React component
+    expect(pageSource).toContain('export default ScheduledScans');
+    // Verify it renders interval configuration
+    expect(pageSource).toContain('IntervalConfig');
+    expect(pageSource).toContain('Interval Configuration');
   });
 });
 
@@ -37,29 +52,30 @@ describe('AC-2: Sliders adjust intervals per compliance state', () => {
    * AC-2: Sliders MUST allow adjusting intervals for critical, low,
    * partial, and compliant states.
    */
-  it.skip('slider renders for critical state', () => {
-    // Verify critical interval slider exists
-    expect(true).toBe(true);
+  it('slider renders for critical state', () => {
+    expect(pageSource).toContain('interval_critical');
+    expect(pageSource).toContain("'Critical (<20%)'");
   });
 
-  it.skip('slider renders for low state', () => {
-    // Verify low interval slider exists
-    expect(true).toBe(true);
+  it('slider renders for low state', () => {
+    expect(pageSource).toContain('interval_low');
+    expect(pageSource).toContain("'Low (20-49%)'");
   });
 
-  it.skip('slider renders for partial state', () => {
-    // Verify partial interval slider exists
-    expect(true).toBe(true);
+  it('slider renders for partial state', () => {
+    expect(pageSource).toContain('interval_partial');
+    expect(pageSource).toContain("'Partial (50-79%)'");
   });
 
-  it.skip('slider renders for compliant state', () => {
-    // Verify compliant interval slider exists
-    expect(true).toBe(true);
+  it('slider renders for compliant state', () => {
+    expect(pageSource).toContain('interval_compliant');
+    expect(pageSource).toContain("'Compliant (100%)'");
   });
 
-  it.skip('sliders reflect current backend configuration on load', () => {
-    // Verify sliders are initialized from API response
-    expect(true).toBe(true);
+  it('sliders reflect current backend configuration on load', () => {
+    // Verify sliders are initialized from the config prop (backend data)
+    expect(pageSource).toContain('config[slider.key]');
+    expect(pageSource).toContain('schedulerService.getConfig');
   });
 });
 
@@ -72,19 +88,19 @@ describe('AC-3: Per-host schedule table displays columns', () => {
    * AC-3: Per-host schedule table MUST display next_scheduled_scan,
    * current_interval, and maintenance_mode.
    */
-  it.skip('table displays next_scheduled_scan column', () => {
-    // Verify next_scheduled_scan column in table source
-    expect(true).toBe(true);
+  it('table displays next_scheduled_scan column', () => {
+    expect(pageSource).toContain('Next Scan');
+    expect(pageSource).toContain('nextScheduledScan');
   });
 
-  it.skip('table displays current_interval column', () => {
-    // Verify current_interval column in table source
-    expect(true).toBe(true);
+  it('table displays current_interval column', () => {
+    expect(pageSource).toContain('Interval');
+    expect(pageSource).toContain('currentIntervalMinutes');
   });
 
-  it.skip('table displays maintenance_mode column', () => {
-    // Verify maintenance_mode column in table source
-    expect(true).toBe(true);
+  it('table displays maintenance_mode column', () => {
+    expect(pageSource).toContain('Maintenance');
+    expect(pageSource).toContain('maintenanceMode');
   });
 });
 
@@ -97,14 +113,14 @@ describe('AC-4: Preview histogram shows projected scans', () => {
    * AC-4: Preview histogram MUST show projected scan counts for the
    * next 48 hours.
    */
-  it.skip('histogram component renders', () => {
-    // Verify histogram component exists in page source
-    expect(true).toBe(true);
+  it('histogram component renders', () => {
+    expect(pageSource).toContain('ScanProjectionHistogram');
+    expect(pageSource).toContain('Projected Scans');
   });
 
-  it.skip('histogram covers 48-hour projection window', () => {
-    // Verify 48-hour range in histogram logic
-    expect(true).toBe(true);
+  it('histogram covers 48-hour projection window', () => {
+    expect(pageSource).toContain('const HOURS = 48');
+    expect(pageSource).toContain('+48h');
   });
 });
 
@@ -117,13 +133,15 @@ describe('AC-5: Saving calls PUT /api/compliance/scheduler/config', () => {
    * AC-5: Saving interval changes MUST call PUT
    * /api/compliance/scheduler/config.
    */
-  it.skip('save action calls PUT /api/compliance/scheduler/config', () => {
-    // Verify API call in service or component source
-    expect(true).toBe(true);
+  it('save action calls PUT /api/compliance/scheduler/config', () => {
+    // Verify the adapter uses api.put with the correct endpoint
+    expect(adapterSource).toContain("api.put");
+    expect(adapterSource).toContain("'/api/compliance/scheduler/config'");
   });
 
-  it.skip('request payload includes updated interval configuration', () => {
-    // Verify payload structure matches expected schema
-    expect(true).toBe(true);
+  it('request payload includes updated interval configuration', () => {
+    // Verify the page sends changed interval values to updateConfig
+    expect(pageSource).toContain('schedulerService.updateConfig');
+    expect(pageSource).toContain('saveMutation.mutate(update)');
   });
 });

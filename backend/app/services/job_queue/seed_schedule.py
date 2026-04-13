@@ -112,6 +112,16 @@ SCHEDULE = [
         "cron_month": "*",
         "cron_weekday": "*",
     },
+    {
+        "name": "enforce-retention-policies-daily",
+        "task_name": "app.tasks.enforce_retention",
+        "queue": "maintenance",
+        "cron_minute": "0",
+        "cron_hour": "4",
+        "cron_day": "*",
+        "cron_month": "*",
+        "cron_weekday": "*",
+    },
 ]
 
 

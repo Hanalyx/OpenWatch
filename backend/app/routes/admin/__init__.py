@@ -31,6 +31,7 @@ try:
     from .authorization import router as authorization_router
     from .credentials import router as credentials_router
     from .notifications import router as notifications_router
+    from .retention import router as retention_router
     from .security import router as security_router
     from .sso import router as sso_router
     from .transactions import router as transactions_router
@@ -60,6 +61,9 @@ try:
 
     # SSO provider management endpoints (/admin/sso/*)
     router.include_router(sso_router)
+
+    # Retention policy management endpoints (/admin/retention/*)
+    router.include_router(retention_router)
 
 except ImportError as e:
     import logging

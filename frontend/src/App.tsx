@@ -40,6 +40,7 @@ import { TemporalPosture, Exceptions } from './pages/compliance';
 import Transactions from './pages/transactions/Transactions';
 import TransactionDetail from './pages/transactions/TransactionDetail';
 import RuleTransactions from './pages/transactions/RuleTransactions';
+import ScheduledScans from './pages/scans/ScheduledScans';
 
 function App() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
@@ -96,6 +97,7 @@ function App() {
 
                   {/* Legacy scan routes - keep working during migration */}
                   <Route path="/scans" element={<Scans />} />
+                  <Route path="/scans/schedule" element={<ScheduledScans />} />
                   <Route path="/scans/create" element={<ComplianceScanWizard />} />
                   <Route path="/scans/:id" element={<ScanDetail />} />
                   <Route path="/users" element={<Users />} />

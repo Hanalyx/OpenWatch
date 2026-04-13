@@ -73,6 +73,17 @@ export type {
   ExceptionCreateRequest,
 } from './exceptionAdapter';
 
+// Scheduler adapters for Scan Schedule page
+export { schedulerService } from './schedulerAdapter';
+
+export type {
+  SchedulerConfig,
+  SchedulerStatus,
+  SchedulerConfigUpdate,
+  ScheduledScanEntry,
+  HostScheduleEntry,
+} from './schedulerAdapter';
+
 // Rule Reference adapters for Rule Reference page
 export {
   fetchRules,

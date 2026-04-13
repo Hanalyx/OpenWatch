@@ -12,13 +12,17 @@ OpenWatch OS: Alert Thresholds
 
 from .alert_generator import AlertGenerator, get_alert_generator
 from .alerts import AlertService, AlertSeverity, AlertStatus, AlertType, get_alert_service
+from .baseline_management import BaselineManagementService
 from .compliance_scheduler import ComplianceSchedulerService, compliance_scheduler_service
 from .exceptions import ExceptionService
+from .retention_policy import RetentionService
 from .temporal import TemporalComplianceService
 
 __all__ = [
     "TemporalComplianceService",
     "ExceptionService",
+    "BaselineManagementService",
+    "RetentionService",
     "ComplianceSchedulerService",
     "compliance_scheduler_service",
     "AlertService",

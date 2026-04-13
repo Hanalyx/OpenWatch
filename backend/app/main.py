@@ -29,6 +29,7 @@ from .middleware.rate_limiting import get_rate_limiting_middleware
 from .routes.admin import router as admin_router
 from .routes.auth import router as auth_router
 from .routes.compliance import router as compliance_router
+from .routes.compliance.baselines import router as baselines_router
 from .routes.content import router as content_pkg_router
 from .routes.fleet import router as fleet_router
 from .routes.host_groups import router as host_groups_router
@@ -513,6 +514,7 @@ app.include_router(system_router, prefix="/api", tags=["System"])
 app.include_router(bulk_operations_router, prefix="/api/bulk", tags=["Bulk Operations"])
 app.include_router(integration_metrics_router, prefix="/api/integration/metrics", tags=["Integration Metrics"])
 app.include_router(monitoring_router, prefix="/api", tags=["Host Monitoring"])
+app.include_router(baselines_router, prefix="/api", tags=["Baselines"])
 
 
 # Global Exception Handler

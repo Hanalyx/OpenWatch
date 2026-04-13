@@ -11,7 +11,7 @@
  * @module pages/hosts/HostDetail/HostDetailHeader
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -26,6 +26,7 @@ import {
   DialogActions,
   Button,
   Tooltip,
+  Chip,
 } from '@mui/material';
 import { ArrowBack as ArrowBackIcon } from '@mui/icons-material';
 import { StatusChip } from '../../../components/design-system';
@@ -46,6 +47,13 @@ interface HostDetailHeaderProps {
 }
 
 const ADMIN_ROLES = ['super_admin', 'security_admin'];
+const BASELINE_ROLES = ['super_admin', 'security_admin', 'security_analyst'];
+
+interface BaselineInfo {
+  baseline_score: number;
+  established_at: string;
+  baseline_type: string;
+}
 
 const HostDetailHeader: React.FC<HostDetailHeaderProps> = ({
   hostname,
@@ -63,8 +71,28 @@ const HostDetailHeader: React.FC<HostDetailHeaderProps> = ({
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
   const [pendingMaintenanceValue, setPendingMaintenanceValue] = useState(false);
   const [maintenanceLoading, setMaintenanceLoading] = useState(false);
+  const [baselineDialogOpen, setBaselineDialogOpen] = useState(false);
+  const [baselineAction, setBaselineAction] = useState<'reset' | 'promote'>('reset');
+  const [baselineLoading, setBaselineLoading] = useState(false);
+  const [baselineInfo, setBaselineInfo] = useState<BaselineInfo | null>(null);
 
   const isAdmin = user?.role ? ADMIN_ROLES.includes(user.role) : false;
+  const canManageBaseline = user?.role ? BASELINE_ROLES.includes(user.role) : false;
+
+  // Fetch current baseline info
+  useEffect(() => {
+    if (!hostId) return;
+    api
+      .get(`/api/hosts/${hostId}/baseline`)
+      .then((res) => {
+        if (res.data) {
+          setBaselineInfo(res.data);
+        }
+      })
+      .catch(() => {
+        // No baseline or error - that's fine
+      });
+  }, [hostId]);
 
   // Build subtitle with OS and kernel info
   const osPart = systemInfo?.osPrettyName || operatingSystem || 'Unknown OS';
@@ -114,6 +142,31 @@ const HostDetailHeader: React.FC<HostDetailHeaderProps> = ({
     setConfirmDialogOpen(false);
   }, []);
 
+  const openBaselineDialog = useCallback((action: 'reset' | 'promote') => {
+    setBaselineAction(action);
+    setBaselineDialogOpen(true);
+  }, []);
+
+  const handleConfirmBaseline = useCallback(async () => {
+    if (!hostId) return;
+    setBaselineDialogOpen(false);
+    setBaselineLoading(true);
+    try {
+      const res = await api.post(`/api/hosts/${hostId}/baseline/${baselineAction}`);
+      if (res.data) {
+        setBaselineInfo(res.data);
+      }
+    } catch (err) {
+      console.error(`Failed to ${baselineAction} baseline:`, err);
+    } finally {
+      setBaselineLoading(false);
+    }
+  }, [hostId, baselineAction]);
+
+  const handleCancelBaseline = useCallback(() => {
+    setBaselineDialogOpen(false);
+  }, []);
+
   return (
     <>
       <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
@@ -156,6 +209,35 @@ const HostDetailHeader: React.FC<HostDetailHeaderProps> = ({
             </Box>
           </Tooltip>
         )}
+        {/* Baseline info and actions - SECURITY_ANALYST+ only */}
+        {hostId && canManageBaseline && (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mr: 2 }}>
+            {baselineInfo && (
+              <Chip
+                label={`Baseline: ${baselineInfo.baseline_score.toFixed(1)}%`}
+                size="small"
+                variant="outlined"
+                sx={{ mr: 1 }}
+              />
+            )}
+            <Button
+              size="small"
+              variant="outlined"
+              onClick={() => openBaselineDialog('reset')}
+              disabled={baselineLoading}
+            >
+              Reset Baseline
+            </Button>
+            <Button
+              size="small"
+              variant="outlined"
+              onClick={() => openBaselineDialog('promote')}
+              disabled={baselineLoading}
+            >
+              Promote to Baseline
+            </Button>
+          </Box>
+        )}
         {/* Manual scan buttons removed - compliance scans run automatically */}
         <StatusChip
           status={status === 'online' ? 'online' : status === 'offline' ? 'offline' : 'unknown'}
@@ -176,6 +258,26 @@ const HostDetailHeader: React.FC<HostDetailHeaderProps> = ({
           <Button onClick={handleCancelMaintenance}>Cancel</Button>
           <Button onClick={handleConfirmMaintenance} variant="contained" color="warning">
             Enable
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Baseline action confirmation dialog */}
+      <Dialog open={baselineDialogOpen} onClose={handleCancelBaseline}>
+        <DialogTitle>
+          {baselineAction === 'reset' ? 'Reset Baseline' : 'Promote to Baseline'}
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            {baselineAction === 'reset'
+              ? `This will establish a new baseline from the most recent scan for ${displayName || hostname}. The current baseline will be superseded.`
+              : `This will promote the current compliance posture to baseline for ${displayName || hostname}. Use this after a known legitimate configuration change.`}
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCancelBaseline}>Cancel</Button>
+          <Button onClick={handleConfirmBaseline} variant="contained" color="primary">
+            {baselineAction === 'reset' ? 'Reset' : 'Promote'}
           </Button>
         </DialogActions>
       </Dialog>

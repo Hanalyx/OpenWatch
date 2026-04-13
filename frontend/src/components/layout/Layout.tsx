@@ -56,6 +56,7 @@ import {
   BookmarkAdd,
   QueryStats,
   Timeline,
+  Schedule,
 } from '@mui/icons-material';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useNotificationStore } from '../../store/useNotificationStore';
@@ -116,6 +117,12 @@ const menuItems = [
     icon: <Scanner />,
     path: '/transactions',
     roles: ['super_admin', 'security_admin', 'security_analyst', 'compliance_officer', 'auditor'],
+  },
+  {
+    text: 'Scan Schedule',
+    icon: <Schedule />,
+    path: '/scans/schedule',
+    roles: ['super_admin', 'security_admin'],
   },
 
   {
