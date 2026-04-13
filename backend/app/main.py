@@ -43,6 +43,7 @@ from .routes.plugins import router as plugins_router
 from .routes.remediation import router as remediation_router
 from .routes.rules import router as rules_router
 from .routes.scans import router as scans_router
+from .routes.signing import router as signing_router
 from .routes.ssh import router as ssh_router
 from .routes.system import router as system_router
 from .routes.transactions import host_transactions_router as host_txn_router
@@ -505,6 +506,7 @@ app.include_router(scans_router, prefix="/api", tags=["Security Scans"])
 app.include_router(ssh_router, prefix="/api", tags=["SSH"])
 app.include_router(transactions_router, tags=["Transactions"])
 app.include_router(host_txn_router, tags=["Transactions"])
+app.include_router(signing_router, tags=["Signing"])
 app.include_router(system_router, prefix="/api", tags=["System"])
 
 # Routes registered separately from their packages for prefix compatibility

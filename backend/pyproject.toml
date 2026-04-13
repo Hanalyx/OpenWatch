@@ -84,7 +84,6 @@ module = [
     "pyotp.*",
     "aiosmtplib.*",
     "jinja2.*",
-    "lxml.*",
     "asyncssh.*",
     "paramiko.*",
     "security.*",

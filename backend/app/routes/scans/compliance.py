@@ -35,12 +35,7 @@ from app.auth import get_current_user
 from app.constants import is_framework_supported
 from app.database import get_db
 from app.rbac import UserRole, require_role
-from app.routes.scans.helpers import (
-    get_compliance_reporter,
-    get_compliance_scanner,
-    get_enrichment_service,
-    parse_xccdf_results,
-)
+from app.routes.scans.helpers import get_compliance_reporter, get_compliance_scanner, get_enrichment_service
 from app.routes.scans.models import (
     AvailableRulesResponse,
     ComplianceScanRequest,
@@ -550,10 +545,29 @@ async def create_compliance_scan(
 
         # ---------------------------------------------------------------------
         # Parse XCCDF results and update scan record to completed
+        # NOTE: XCCDF parsing removed (lxml/OpenSCAP legacy). This entire
+        # code path is unreachable because the compliance scanner is
+        # disabled (SCAP-era code removed). Kensa scans use /api/scans/kensa/.
         # ---------------------------------------------------------------------
         completed_at = datetime.now(timezone.utc)
         result_file = scan_result.get("result_file", "")
-        parsed_results = parse_xccdf_results(result_file)
+        parsed_results: Dict[str, Any] = {
+            "rules_total": 0,
+            "rules_passed": 0,
+            "rules_failed": 0,
+            "rules_error": 0,
+            "rules_unknown": 0,
+            "rules_notapplicable": 0,
+            "rules_notchecked": 0,
+            "score": 0.0,
+            "severity_high": 0,
+            "severity_medium": 0,
+            "severity_low": 0,
+            "xccdf_score": None,
+            "xccdf_score_max": None,
+            "risk_score": None,
+            "risk_level": None,
+        }
 
         logger.info(
             f"Parsed results for scan {scan_uuid}: "

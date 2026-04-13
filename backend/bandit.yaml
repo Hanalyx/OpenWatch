@@ -18,7 +18,6 @@ tests:
   - B316  # xml.sax (XXE)
   - B317  # xml.minidom (XXE)
   - B318  # xml.pulldom (XXE)
-  - B319  # xml (lxml XXE)
   - B321  # ftplib (insecure protocol)
   - B323  # unverified SSL context
   - B324  # hashlib.md5/sha1
@@ -76,12 +75,9 @@ skips:
   - B603  # subprocess_without_shell_equals_true (argument lists are safe)
   - B607  # start_process_with_partial_path (trusted PATH)
   - B404  # import_subprocess (subprocess is required for system operations)
-  # XML parsing - OpenWatch processes SCAP/XCCDF XML content
-  # Note: Code uses secure parsing with resolve_entities=False, no_network=True
-  - B320  # lxml.etree.parse (used with secure parser configuration)
+  # XML parsing - OpenWatch processes SCAP/XCCDF XML content (stdlib only, lxml removed)
   - B314  # xml.etree.ElementTree.parse (trusted SCAP content only)
   - B405  # xml.etree.ElementTree import (standard library)
-  - B410  # lxml.etree import (used with defusedxml settings)
   # Random - B311 is used for non-cryptographic purposes (e.g., jitter)
   - B311  # random (non-security uses, secrets module used for crypto)
   # Pickle - Required for Celery task serialization (internal only)

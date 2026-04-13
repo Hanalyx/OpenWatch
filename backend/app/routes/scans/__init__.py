@@ -151,7 +151,6 @@ from app.routes.scans.helpers import (  # noqa: E402
     get_compliance_reporter,
     get_compliance_scanner,
     get_enrichment_service,
-    parse_xccdf_results,
     sanitize_http_error,
 )
 
@@ -206,8 +205,6 @@ __all__ = [
     "get_compliance_scanner",
     "get_enrichment_service",
     "get_compliance_reporter",
-    # XCCDF parsing
-    "parse_xccdf_results",
     # Deprecation helpers
     "DEPRECATION_WARNING",
     "add_deprecation_header",

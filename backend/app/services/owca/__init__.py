@@ -4,7 +4,6 @@ OpenWatch Compliance Algorithm (OWCA)
 Single source of truth for all compliance calculations, analysis, and intelligence.
 
 This module provides:
-- SCAP result extraction and parsing (XML, XCCDF)
 - Severity-weighted risk scoring
 - Core compliance score calculations
 - Framework-specific intelligence (NIST, CIS, STIG, PCI-DSS)
@@ -17,7 +16,7 @@ Architecture:
     Entry Point → 5 Specialized Layers → Cached Results
 
 Layers:
-    0. Extraction Layer: XCCDF parsing, severity risk calculation
+    0. Extraction Layer: Severity risk calculation
     1. Core Layer: Raw metric calculations (pass/fail/score)
     2. Framework Layer: Framework-specific mappings and intelligence
     3. Aggregation Layer: Multi-entity rollup (host → group → org)
@@ -27,11 +26,8 @@ Usage:
     >>> from app.services.owca import get_owca_service
     >>> owca = get_owca_service(db)
     >>>
-    >>> # Extract XCCDF score from XML
-    >>> xccdf_result = await owca.extract_xccdf_score("/app/data/results/scan_123.xml")
-    >>>
     >>> # Calculate severity-based risk
-    >>> severity_risk = await owca.calculate_severity_risk(critical=5, high=10)
+    >>> severity_risk = owca.calculate_severity_risk(critical=5, high=10)
     >>>
     >>> # Get compliance score
     >>> score = await owca.get_host_compliance_score(host_id)
@@ -47,7 +43,7 @@ from sqlalchemy.orm import Session
 from .aggregation.fleet_aggregator import FleetAggregator
 from .cache.redis_cache import OWCACache
 from .core.score_calculator import ComplianceScoreCalculator
-from .extraction import SeverityCalculator, SeverityRiskResult, XCCDFParser, XCCDFScoreResult
+from .extraction import SeverityCalculator, SeverityRiskResult
 from .framework import get_framework_intelligence
 from .intelligence import BaselineDriftDetector, CompliancePredictor, RiskScorer, TrendAnalyzer
 from .models import (
@@ -68,8 +64,6 @@ __all__ = [
     "OWCAService",
     "get_owca_service",
     # Extraction Layer (Layer 0)
-    "XCCDFParser",
-    "XCCDFScoreResult",
     "SeverityCalculator",
     "SeverityRiskResult",
     # Core models
@@ -108,8 +102,7 @@ class OWCAService:
         self.cache = OWCACache() if use_cache else None
 
         # Layer 0: Extraction Layer
-        # Provides SCAP XML parsing and severity-based risk scoring
-        self.xccdf_parser = XCCDFParser()
+        # Provides severity-based risk scoring
         self.severity_calculator = SeverityCalculator()
 
         # Layer 1: Core Layer
@@ -355,52 +348,6 @@ class OWCAService:
         from uuid import UUID
 
         return await self.predictor.detect_anomalies(UUID(entity_id), entity_type, lookback_days)
-
-    async def extract_xccdf_score(self, result_file: str, user_id: Optional[str] = None) -> XCCDFScoreResult:
-        """
-        Extract native XCCDF score from scan result XML file.
-
-        Part of OWCA Extraction Layer (Layer 0).
-        Provides secure XML parsing with comprehensive security controls.
-
-        Args:
-            result_file: Absolute path to XCCDF/ARF result file
-            user_id: Optional user ID for audit logging
-
-        Returns:
-            XCCDFScoreResult with extracted score data or error information
-
-        Security:
-            - XXE attack prevention (secure XML parser)
-            - Path traversal validation (no ../ sequences)
-            - File size limit enforcement (10MB maximum)
-            - Comprehensive audit logging
-
-        Example:
-            >>> owca = get_owca_service(db)
-            >>> result = await owca.extract_xccdf_score("/app/data/results/scan_123.xml")
-            >>> if result.found:
-            ...     print(f"XCCDF Score: {result.xccdf_score}/{result.xccdf_score_max}")
-            ... else:
-            ...     print(f"Error: {result.error}")
-        """
-        # Check cache first to avoid re-parsing same file
-        if self.cache:
-            cache_key = f"xccdf_score:{result_file}"
-            cached_result = await self.cache.get(cache_key)
-            if cached_result:
-                return XCCDFScoreResult(**cached_result)
-
-        # Parse XML file using secure parser
-        result = self.xccdf_parser.extract_native_score(result_file, user_id)
-
-        # Cache successful results for 5 minutes
-        # Rationale: XML files don't change frequently, caching reduces file I/O
-        if self.cache and result.found:
-            cache_key = f"xccdf_score:{result_file}"
-            await self.cache.set(cache_key, result.dict(), ttl=300)
-
-        return result
 
     def calculate_severity_risk(
         self,
