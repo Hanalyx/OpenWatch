@@ -14,6 +14,20 @@ import { api } from '../api';
 // Types
 // ---------------------------------------------------------------------------
 
+/** Signed evidence bundle returned by the signing endpoint */
+export interface SignedBundleResponse {
+  envelope: Record<string, unknown>;
+  signature: string;
+  key_id: string;
+  signed_at: string;
+  signer: string;
+}
+
+/** Verification response from /api/signing/verify */
+export interface VerifyResponse {
+  valid: boolean;
+}
+
 /** Summary transaction returned in list responses */
 export interface Transaction {
   id: string;
@@ -97,4 +111,20 @@ export const transactionService = {
     ruleId: string,
     params?: Record<string, string | number | boolean | undefined>
   ) => api.get(`/api/transactions/rules/${ruleId}`, { params }),
+
+  /** Sign a transaction's evidence envelope (SECURITY_ADMIN+) */
+  sign: (id: string): Promise<SignedBundleResponse> =>
+    api.post<SignedBundleResponse>(`/api/transactions/${id}/sign`),
+
+  /** Verify a signed bundle against the signing key */
+  verify: (
+    envelope: Record<string, unknown>,
+    signature: string,
+    keyId: string,
+  ): Promise<VerifyResponse> =>
+    api.post<VerifyResponse>('/api/signing/verify', {
+      envelope,
+      signature,
+      key_id: keyId,
+    }),
 };

@@ -19,11 +19,17 @@ import {
   Chip,
   IconButton,
   Alert,
+  Button,
   CircularProgress,
   Divider,
   Link,
+  Snackbar,
 } from '@mui/material';
-import { ArrowBack as ArrowBackIcon } from '@mui/icons-material';
+import {
+  ArrowBack as ArrowBackIcon,
+  Verified as VerifiedIcon,
+  Download as DownloadIcon,
+} from '@mui/icons-material';
 import {
   transactionService,
   type TransactionDetail as TransactionDetailType,
@@ -346,6 +352,12 @@ const TransactionDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [tabValue, setTabValue] = useState(0);
+  const [signing, setSigning] = useState(false);
+  const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
+    open: false,
+    message: '',
+    severity: 'success',
+  });
 
   const handleTabChange = useCallback((_event: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
@@ -361,6 +373,48 @@ const TransactionDetail: React.FC = () => {
     enabled: !!id,
     staleTime: 30_000,
   });
+
+  // Verify signature if the transaction has an evidence envelope
+  const { data: verifyResult } = useQuery({
+    queryKey: ['transaction-verify', id],
+    queryFn: async () => {
+      if (!txn?.evidence_envelope) return null;
+      // Try to sign and verify in one step: sign, then verify the result
+      try {
+        const bundle = await transactionService.sign(id!);
+        const result = await transactionService.verify(bundle.envelope, bundle.signature, bundle.key_id);
+        return { signed: true, valid: result.valid, bundle };
+      } catch {
+        return { signed: false, valid: false, bundle: null };
+      }
+    },
+    enabled: !!id && !!txn?.evidence_envelope,
+    staleTime: 60_000,
+    retry: false,
+  });
+
+  const handleDownloadSigned = useCallback(async () => {
+    if (!id) return;
+    setSigning(true);
+    try {
+      const bundle = await transactionService.sign(id);
+      const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `transaction-${id}-signed.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      setSnackbar({ open: true, message: 'Signed evidence downloaded', severity: 'success' });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'No signing key configured';
+      setSnackbar({ open: true, message: `Signing failed: ${message}`, severity: 'error' });
+    } finally {
+      setSigning(false);
+    }
+  }, [id]);
 
   if (isLoading) {
     return (
@@ -399,6 +453,28 @@ const TransactionDetail: React.FC = () => {
           </Typography>
           <Chip label={txn.status.toUpperCase()} color={getStatusColor(txn.status)} size="small" />
           {txn.severity && <Chip label={txn.severity} size="small" variant="outlined" />}
+          {verifyResult?.signed && (
+            <Chip
+              icon={<VerifiedIcon />}
+              label={verifyResult.valid ? 'Signed' : 'Signature Invalid'}
+              color={verifyResult.valid ? 'success' : 'error'}
+              size="small"
+              variant="outlined"
+            />
+          )}
+          {verifyResult !== undefined && !verifyResult?.signed && (
+            <Chip label="Unsigned" size="small" variant="outlined" />
+          )}
+        </Box>
+        <Box>
+          <Button
+            variant="outlined"
+            startIcon={signing ? <CircularProgress size={16} /> : <DownloadIcon />}
+            onClick={handleDownloadSigned}
+            disabled={signing || !txn.evidence_envelope}
+          >
+            Download Signed Evidence
+          </Button>
         </Box>
       </Box>
 
@@ -463,6 +539,21 @@ const TransactionDetail: React.FC = () => {
           </TabPanel>
         </Box>
       </Paper>
+
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={5000}
+        onClose={() => setSnackbar((s) => ({ ...s, open: false }))}
+      >
+        <Alert
+          onClose={() => setSnackbar((s) => ({ ...s, open: false }))}
+          severity={snackbar.severity}
+          variant="filled"
+          sx={{ width: '100%' }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };

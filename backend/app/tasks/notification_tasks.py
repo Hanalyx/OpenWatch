@@ -22,9 +22,14 @@ logger = logging.getLogger(__name__)
 
 
 def dispatch_alert_notifications(alert_data: Dict[str, Any]) -> Dict[str, Any]:
-    """Dispatch an alert to all enabled notification channels.
+    """Dispatch an alert to notification channels matched by routing rules.
 
-    Runs async in Celery so AlertService.create_alert() is not blocked.
+    First checks alert_routing_rules for rules matching the alert's
+    severity and type.  If matching rules exist, dispatches only to
+    those channels.  If NO matching rules exist, falls back to
+    dispatching to ALL enabled channels (AC-6 default behaviour).
+
+    Runs async so AlertService.create_alert() is not blocked.
     Each channel is attempted independently -- one failure doesn't block
     others.  Results are recorded in notification_deliveries table.
 
@@ -37,22 +42,52 @@ def dispatch_alert_notifications(alert_data: Dict[str, Any]) -> Dict[str, Any]:
     """
     db = SessionLocal()
     try:
-        # Query all enabled channels
-        channels_query = text(
-            "SELECT id, channel_type, config_encrypted " "FROM notification_channels WHERE enabled = true"
-        )
-        channels = db.execute(channels_query).fetchall()
+        # Check routing rules for targeted dispatch (AC-2, AC-3)
+        routing_query = text("""
+            SELECT DISTINCT arr.channel_id
+            FROM alert_routing_rules arr
+            WHERE arr.enabled = true
+            AND (arr.severity = :severity OR arr.severity = 'all')
+            AND (arr.alert_type = :alert_type OR arr.alert_type = 'all')
+        """)
+        rules = db.execute(routing_query, {
+            "severity": alert_data.get("severity"),
+            "alert_type": alert_data.get("alert_type"),
+        }).fetchall()
+
+        if rules:
+            # Dispatch to matched channels only
+            channel_ids = [str(r.channel_id) for r in rules]
+            channels_query = text(
+                "SELECT id, channel_type, config_encrypted "
+                "FROM notification_channels "
+                "WHERE id = ANY(:ids) AND enabled = true"
+            )
+            channels = db.execute(channels_query, {"ids": channel_ids}).fetchall()
+        else:
+            # Default: all enabled channels (AC-6 fallback)
+            channels_query = text(
+                "SELECT id, channel_type, config_encrypted "
+                "FROM notification_channels WHERE enabled = true"
+            )
+            channels = db.execute(channels_query).fetchall()
 
         if not channels:
             return {"dispatched": 0, "channels": []}
 
         from app.encryption import decrypt_data
-        from app.services.notifications import EmailChannel, SlackChannel, WebhookChannel
+        from app.services.notifications import (
+            EmailChannel,
+            PagerDutyChannel,
+            SlackChannel,
+            WebhookChannel,
+        )
 
         channel_map = {
             "slack": SlackChannel,
             "email": EmailChannel,
             "webhook": WebhookChannel,
+            "pagerduty": PagerDutyChannel,
         }
 
         results = []

@@ -82,16 +82,17 @@ const HostDetailHeader: React.FC<HostDetailHeaderProps> = ({
   // Fetch current baseline info
   useEffect(() => {
     if (!hostId) return;
-    api
-      .get(`/api/hosts/${hostId}/baseline`)
-      .then((res) => {
-        if (res.data) {
-          setBaselineInfo(res.data);
+    const fetchBaseline = async () => {
+      try {
+        const data = await api.get<BaselineInfo | null>(`/api/hosts/${hostId}/baseline`);
+        if (data) {
+          setBaselineInfo(data);
         }
-      })
-      .catch(() => {
+      } catch {
         // No baseline or error - that's fine
-      });
+      }
+    };
+    fetchBaseline();
   }, [hostId]);
 
   // Build subtitle with OS and kernel info
@@ -152,9 +153,11 @@ const HostDetailHeader: React.FC<HostDetailHeaderProps> = ({
     setBaselineDialogOpen(false);
     setBaselineLoading(true);
     try {
-      const res = await api.post(`/api/hosts/${hostId}/baseline/${baselineAction}`);
-      if (res.data) {
-        setBaselineInfo(res.data);
+      const data = await api.post<BaselineInfo>(
+        `/api/hosts/${hostId}/baseline/${baselineAction}`
+      );
+      if (data) {
+        setBaselineInfo(data);
       }
     } catch (err) {
       console.error(`Failed to ${baselineAction} baseline:`, err);

@@ -1,6 +1,6 @@
 spec: alert-routing
 version: "1.0"
-status: draft
+status: active
 owner: engineering
 summary: >
   Workstream I2: Alert routing rules engine for dispatching compliance alerts

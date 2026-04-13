@@ -52,6 +52,7 @@ _modules_loaded = False
 
 try:
     # Import sub-routers from package modules
+    from .alert_routing import router as alert_routing_router
     from .alerts import router as alerts_router
     from .audit import router as audit_router
     from .drift import router as drift_router
@@ -66,6 +67,9 @@ try:
     # Semantic SCAP intelligence was MongoDB-dependent and replaced by Kensa
     # Alert endpoints at /compliance/alerts/* (OpenWatch OS Alert Thresholds)
     router.include_router(alerts_router)
+
+    # Alert routing rules at /compliance/alert-routing/* (AC-5)
+    router.include_router(alert_routing_router)
 
     # OWCA endpoints at /compliance/owca/*
     router.include_router(owca_router)

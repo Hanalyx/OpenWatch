@@ -37,7 +37,20 @@ def generate_audit_export_task(self, export_id: str) -> Dict[str, Any]:
 
     db = SessionLocal()
     try:
-        service = AuditExportService(db)
+        # Attempt to load EncryptionService so JSON exports can be signed.
+        # Non-blocking: if the service is unavailable, exports are unsigned.
+        encryption_service = None
+        try:
+            from app.encryption import create_encryption_service
+            import os
+
+            master_key = os.environ.get("ENCRYPTION_MASTER_KEY", "")
+            if master_key:
+                encryption_service = create_encryption_service(master_key)
+        except Exception:
+            pass
+
+        service = AuditExportService(db, encryption_service=encryption_service)
         success = service.generate_export(UUID(export_id))
 
         if success:

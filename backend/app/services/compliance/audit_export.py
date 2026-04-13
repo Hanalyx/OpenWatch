@@ -30,6 +30,7 @@ from ...schemas.audit_query_schemas import (
     FindingResult,
     QueryDefinition,
 )
+from ..signing import SigningService
 from ...utils.mutation_builders import DeleteBuilder, InsertBuilder, UpdateBuilder
 from ...utils.query_builder import QueryBuilder
 from .audit_query import AuditQueryService
@@ -50,9 +51,10 @@ class AuditExportService:
     - Export cleanup for expired files
     """
 
-    def __init__(self, db: Session):
+    def __init__(self, db: Session, encryption_service: Any = None):
         self.db = db
         self.query_service = AuditQueryService(db)
+        self._encryption_service = encryption_service
 
     # =========================================================================
     # Export Management
@@ -422,19 +424,38 @@ class AuditExportService:
         return findings
 
     def _generate_json(self, export_id: UUID, findings: List[FindingResult]) -> tuple[str, int, str]:
-        """Generate JSON export file."""
+        """Generate JSON export file.
+
+        If a signing key is available, the export will include a
+        ``signed_bundle`` section with an Ed25519 signature over the
+        export data. Signing is non-blocking: when no key exists the
+        export is still generated without a signature.
+        """
         # Ensure export directory exists
         Path(EXPORT_DIR).mkdir(parents=True, exist_ok=True)
 
         file_path = os.path.join(EXPORT_DIR, f"{export_id}.json")
 
         # Build export data
-        export_data = {
+        export_data: Dict[str, Any] = {
             "export_id": str(export_id),
             "generated_at": datetime.now(timezone.utc).isoformat(),
             "total_findings": len(findings),
             "findings": [f.model_dump(mode="json") for f in findings],
         }
+
+        # Sign the export data (non-blocking — export still works without a key)
+        signing = SigningService(self.db, encryption_service=self._encryption_service)
+        try:
+            bundle = signing.sign_envelope(export_data)
+            export_data["signed_bundle"] = {
+                "signature": bundle.signature,
+                "key_id": bundle.key_id,
+                "signed_at": bundle.signed_at,
+                "signer": bundle.signer,
+            }
+        except Exception as e:
+            logger.warning("Could not sign export: %s", e)
 
         # Write file
         with open(file_path, "w") as f:
