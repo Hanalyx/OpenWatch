@@ -78,6 +78,7 @@ def dispatch_alert_notifications(alert_data: Dict[str, Any]) -> Dict[str, Any]:
         from app.encryption import decrypt_data
         from app.services.notifications import (
             EmailChannel,
+            JiraChannel,
             PagerDutyChannel,
             SlackChannel,
             WebhookChannel,
@@ -88,6 +89,7 @@ def dispatch_alert_notifications(alert_data: Dict[str, Any]) -> Dict[str, Any]:
             "email": EmailChannel,
             "webhook": WebhookChannel,
             "pagerduty": PagerDutyChannel,
+            "jira": JiraChannel,
         }
 
         results = []

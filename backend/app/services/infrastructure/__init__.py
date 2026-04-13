@@ -33,6 +33,7 @@ from .sandbox import (
     SecureCommand,
 )
 from .terminal import TerminalService, terminal_service
+from .jira_service import JiraService
 from .webhooks import (
     WebhookSecurity,
     create_scan_completed_payload,
@@ -73,6 +74,8 @@ __all__ = [
     "create_webhook_headers",
     "create_scan_completed_payload",
     "create_scan_failed_payload",
+    # Jira
+    "JiraService",
     # Prometheus metrics
     "PrometheusMetrics",
     "get_metrics_instance",

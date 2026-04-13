@@ -14,6 +14,7 @@ Usage:
 
 from .base import DeliveryResult, NotificationChannel
 from .email import EmailChannel
+from .jira import JiraChannel
 from .pagerduty import PagerDutyChannel
 from .slack import SlackChannel
 from .webhook import WebhookChannel
@@ -25,4 +26,5 @@ __all__ = [
     "EmailChannel",
     "WebhookChannel",
     "PagerDutyChannel",
+    "JiraChannel",
 ]

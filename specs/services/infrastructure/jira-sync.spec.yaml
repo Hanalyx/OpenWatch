@@ -1,6 +1,6 @@
 spec: jira-sync
-version: "1.0"
-status: draft
+version: "1.1"
+status: active
 owner: engineering
 summary: >
   Workstream G3: Bidirectional Jira integration for compliance workflow
@@ -45,6 +45,11 @@ acceptance_criteria:
       SSRF protection on outbound Jira API calls.
 
 changelog:
+  - version: "1.1"
+    date: "2026-04-11"
+    changes:
+      - "Promoted to active with full implementation and source-inspection tests"
+      - "JiraChannel notification channel, JiraService, webhook route, field-mapping admin"
   - version: "1.0"
     date: "2026-04-11"
     changes:
