@@ -259,3 +259,21 @@ class TestAC6HostScheduleTable:
 
         source = inspect.getsource(ComplianceSchedulerService.record_scan_failure)
         assert "consecutive_scan_failures" in source, "Must track consecutive_scan_failures"
+
+
+@pytest.mark.unit
+class TestAC7AutoBaselineOnFirstScan:
+    """AC-7: First successful scan auto-establishes baseline via auto_baseline=True."""
+
+    def test_kensa_scan_tasks_calls_detect_drift_with_auto_baseline(self):
+        import app.tasks.kensa_scan_tasks as mod
+
+        source = inspect.getsource(mod)
+        assert "auto_baseline=True" in source, "detect_drift must be called with auto_baseline=True"
+
+    def test_drift_service_supports_auto_baseline(self):
+        from app.services.monitoring.drift import DriftDetectionService
+
+        source = inspect.getsource(DriftDetectionService.detect_drift)
+        assert "auto_baseline" in source, "detect_drift must accept auto_baseline parameter"
+        assert "_create_auto_baseline" in source, "Must call _create_auto_baseline when no baseline exists"

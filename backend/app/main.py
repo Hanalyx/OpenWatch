@@ -30,6 +30,7 @@ from .routes.admin import router as admin_router
 from .routes.auth import router as auth_router
 from .routes.compliance import router as compliance_router
 from .routes.content import router as content_pkg_router
+from .routes.fleet import router as fleet_router
 from .routes.host_groups import router as host_groups_router
 from .routes.hosts import router as hosts_router
 
@@ -44,6 +45,8 @@ from .routes.rules import router as rules_router
 from .routes.scans import router as scans_router
 from .routes.ssh import router as ssh_router
 from .routes.system import router as system_router
+from .routes.transactions import host_transactions_router as host_txn_router
+from .routes.transactions import router as transactions_router
 from .services.infrastructure import get_metrics_instance
 
 # Configure logging
@@ -429,48 +432,21 @@ async def health_check() -> JSONResponse:
                 if db:
                     db.close()
 
-        # Helper function for synchronous Redis check
-        def check_redis_sync() -> tuple[bool, str]:
-            redis_client = None
-            try:
-                import urllib.parse
-
-                import redis
-
-                parsed = urllib.parse.urlparse(settings.redis_url)
-                redis_client = redis.Redis(
-                    host=parsed.hostname or "localhost",
-                    port=parsed.port or 6379,
-                    password=parsed.password,
-                    socket_timeout=5,
-                    socket_connect_timeout=5,
-                )
-                redis_client.ping()
-                return True, "healthy"
-            except Exception as e:
-                logger.error(f"Redis health check failed - inline version: {e}")
-                return False, "unhealthy"
-            finally:
-                if redis_client:
-                    redis_client.close()
-
         # Run synchronous checks in thread pool to avoid blocking async event loop
         loop = asyncio.get_event_loop()
         db_healthy, db_status = await loop.run_in_executor(None, check_database_sync)
         health_status["database"] = db_status
         if db_healthy:
-            logger.info("Database health check successful - inline version")
+            logger.info("Database health check successful")
 
-        redis_healthy, redis_status = await loop.run_in_executor(None, check_redis_sync)
-        health_status["redis"] = redis_status
-        if redis_healthy:
-            logger.info("Redis health check successful - inline version")
+        # Redis removed (2026-04-13) — replaced by PostgreSQL job queue
+        health_status["redis"] = "removed"
 
-        # MongoDB deprecated (2026-02-10) - removed health check
+        # MongoDB deprecated (2026-02-10)
         health_status["mongodb"] = "deprecated"
 
         # Overall status
-        if not (db_healthy and redis_healthy):
+        if not db_healthy:
             health_status["status"] = "degraded"
             return JSONResponse(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, content=health_status)
 
@@ -515,6 +491,7 @@ async def metrics(
 
 # Include API routes - all organized into modular packages under /api prefix
 app.include_router(admin_router, prefix="/api", tags=["Administration"])
+app.include_router(fleet_router, tags=["Fleet"])
 app.include_router(auth_router, prefix="/api/auth", tags=["Authentication"])
 app.include_router(compliance_router, prefix="/api", tags=["Compliance"])
 app.include_router(content_pkg_router, prefix="/api", tags=["Content"])
@@ -526,6 +503,8 @@ app.include_router(remediation_router, prefix="/api", tags=["Remediation"])
 app.include_router(rules_router, prefix="/api", tags=["Rules"])
 app.include_router(scans_router, prefix="/api", tags=["Security Scans"])
 app.include_router(ssh_router, prefix="/api", tags=["SSH"])
+app.include_router(transactions_router, tags=["Transactions"])
+app.include_router(host_txn_router, tags=["Transactions"])
 app.include_router(system_router, prefix="/api", tags=["System"])
 
 # Routes registered separately from their packages for prefix compatibility

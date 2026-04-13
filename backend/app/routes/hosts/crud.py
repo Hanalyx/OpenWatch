@@ -644,12 +644,12 @@ async def create_host(
         # for accurate platform-specific OVAL selection during scanning
         if credential_info:
             try:
-                from ...tasks.os_discovery_tasks import trigger_os_discovery
+                from app.services.job_queue.dispatch import enqueue_task
 
-                trigger_os_discovery.apply_async(
-                    args=[host_id],
-                    countdown=5,  # Delay 5 seconds to ensure credential is stored
-                    queue="default",
+                enqueue_task(
+                    "app.tasks.trigger_os_discovery",
+                    host_id=host_id,
+                    delay_seconds=5,  # Delay 5 seconds to ensure credential is stored
                 )
                 logger.info(f"Queued OS discovery task for new host {host.hostname} ({host_id})")
             except Exception as e:
@@ -1386,21 +1386,21 @@ async def trigger_host_os_discovery(
 
         # Queue OS discovery Celery task
         try:
-            from ...tasks.os_discovery_tasks import trigger_os_discovery
+            from app.services.job_queue.dispatch import enqueue_task
 
-            task = trigger_os_discovery.apply_async(
-                args=[host_id],
-                queue="default",
+            job_id_str = enqueue_task(
+                "app.tasks.trigger_os_discovery",
+                host_id=host_id,
             )
 
             logger.info(
-                f"Queued OS discovery task {task.id} for host {host_row.hostname} ({host_id}) "
+                f"Queued OS discovery job {job_id_str} for host {host_row.hostname} ({host_id}) "
                 f"by user {current_user.get('username', 'unknown')}"
             )
 
             return OSDiscoveryResponse(
                 host_id=host_id,
-                task_id=task.id,
+                task_id=job_id_str,
                 status="queued",
                 os_family=None,
                 os_version=None,

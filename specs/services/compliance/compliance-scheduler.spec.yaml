@@ -1,5 +1,5 @@
 spec: compliance-scheduler
-version: "1.0"
+version: "1.1"
 status: active
 owner: engineering
 summary: >
@@ -47,3 +47,10 @@ acceptance_criteria:
       host_schedule in SQL queries) for storing per-host scheduling state
       including next_scheduled_scan, maintenance_mode, scan_priority, and
       consecutive_scan_failures.
+
+  - id: AC-7
+    description: >
+      First successful scan for a host MUST auto-establish a compliance
+      baseline. DriftDetectionService.detect_drift is called with
+      auto_baseline=True in the post-scan processing of kensa_scan_tasks,
+      which creates a baseline if none exists for that host.

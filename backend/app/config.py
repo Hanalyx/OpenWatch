@@ -49,6 +49,9 @@ class Settings(BaseSettings):
     scap_content_dir: str = os.getenv("SCAP_CONTENT_DIR", "/openwatch/data/scap")
     scan_results_dir: str = os.getenv("SCAN_RESULTS_DIR", "/openwatch/data/results")
 
+    # Transaction log (Q1 migration)
+    dual_write_transactions: bool = True
+
     # FIPS Configuration
     fips_mode: bool = True
     master_key: str  # For credential encryption

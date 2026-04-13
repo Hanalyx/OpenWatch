@@ -1,0 +1,136 @@
+# OpenWatch FreeBSD 15.0 Deployment
+#
+# UNTESTED - Requires OCI spec v1.3 runtime for FreeBSD containers.
+# This compose file is structurally complete but has not been validated
+# against a live FreeBSD container runtime.
+#
+# Key differences from docker-compose.yml (Linux):
+# - NO Redis container (worker uses PostgreSQL-backed job queue)
+# - NO Celery Beat container (scheduler integrated into backend)
+# - NO separate frontend container (SPA embedded in backend via Option A)
+# - Worker runs `python3.12 -m app.services.job_queue` (not celery)
+# - PostgreSQL data dir: /var/db/postgres/data15 (FreeBSD convention)
+# - 3 containers total: backend, worker, db
+#
+# Usage:
+#   docker compose -f docker-compose.freebsd.yml up --build
+#   docker compose -f docker-compose.freebsd.yml down
+#
+# To use Option B (separate Nginx frontend), uncomment the frontend service below.
+
+services:
+  # PostgreSQL 15 on FreeBSD
+  openwatch-db:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.db.freebsd
+    container_name: openwatch-db-freebsd
+    environment:
+      POSTGRES_USER: openwatch
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-openwatch}
+      POSTGRES_DB: openwatch
+    volumes:
+      - pg_data:/var/db/postgres/data15
+    ports:
+      - "127.0.0.1:5432:5432"
+    networks:
+      - openwatch-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "su", "-m", "postgres", "-c", "/usr/local/bin/pg_isready -U openwatch"]
+      interval: 10s
+      timeout: 5s
+      start_period: 30s
+      retries: 5
+
+  # FastAPI Backend + embedded frontend SPA (Option A)
+  openwatch-backend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.backend.freebsd
+    container_name: openwatch-backend-freebsd
+    ports:
+      - "8000:8000"
+    environment:
+      OPENWATCH_DATABASE_URL: postgresql://openwatch:${POSTGRES_PASSWORD:-openwatch}@openwatch-db:5432/openwatch
+      OPENWATCH_SECRET_KEY: ${OPENWATCH_SECRET_KEY:-change-me-in-production}
+      OPENWATCH_MASTER_KEY: ${OPENWATCH_MASTER_KEY:-change-me-32-chars-minimum-key!!}
+      OPENWATCH_ENCRYPTION_KEY: ${OPENWATCH_ENCRYPTION_KEY:-change-me-32-chars-minimum-key!!}
+      OPENWATCH_DEBUG: "true"
+      OPENWATCH_FIPS_MODE: "false"
+      OPENWATCH_LICENSE_TIER: "${OPENWATCH_LICENSE_TIER:-openwatch_plus}"
+      OPENWATCH_SSH_STRICT_MODE: "false"
+    volumes:
+      - app_data:/opt/openwatch/data
+      - app_logs:/opt/openwatch/logs
+    depends_on:
+      openwatch-db:
+        condition: service_healthy
+    networks:
+      - openwatch-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python3.12", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # Background worker (PostgreSQL-backed job queue, no Redis/Celery)
+  openwatch-worker:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.backend.freebsd
+    container_name: openwatch-worker-freebsd
+    command: ["python3.12", "-m", "app.services.job_queue"]
+    environment:
+      OPENWATCH_DATABASE_URL: postgresql://openwatch:${POSTGRES_PASSWORD:-openwatch}@openwatch-db:5432/openwatch
+      OPENWATCH_SECRET_KEY: ${OPENWATCH_SECRET_KEY:-change-me-in-production}
+      OPENWATCH_MASTER_KEY: ${OPENWATCH_MASTER_KEY:-change-me-32-chars-minimum-key!!}
+      OPENWATCH_ENCRYPTION_KEY: ${OPENWATCH_ENCRYPTION_KEY:-change-me-32-chars-minimum-key!!}
+      OPENWATCH_DEBUG: "true"
+      OPENWATCH_FIPS_MODE: "false"
+      OPENWATCH_LICENSE_TIER: "${OPENWATCH_LICENSE_TIER:-openwatch_plus}"
+      OPENWATCH_SSH_STRICT_MODE: "false"
+    volumes:
+      - app_data:/opt/openwatch/data
+      - app_logs:/opt/openwatch/logs
+    depends_on:
+      openwatch-db:
+        condition: service_healthy
+    networks:
+      - openwatch-network
+    restart: unless-stopped
+
+  # --- Option B: Uncomment to use a separate Nginx frontend container ---
+  # openwatch-frontend:
+  #   build:
+  #     context: .
+  #     dockerfile: docker/Dockerfile.frontend.freebsd
+  #   container_name: openwatch-frontend-freebsd
+  #   ports:
+  #     - "3000:80"
+  #   depends_on:
+  #     - openwatch-backend
+  #   networks:
+  #     - openwatch-network
+  #   restart: unless-stopped
+  #   healthcheck:
+  #     test: ["CMD", "fetch", "-qo", "/dev/null", "http://localhost:80/health"]
+  #     interval: 30s
+  #     timeout: 5s
+  #     retries: 3
+
+volumes:
+  pg_data:
+    driver: local
+  app_data:
+    driver: local
+  app_logs:
+    driver: local
+
+networks:
+  openwatch-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.21.0.0/16

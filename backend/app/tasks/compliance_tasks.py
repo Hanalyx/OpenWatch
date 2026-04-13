@@ -9,7 +9,6 @@ from typing import Any, Dict, List
 
 from sqlalchemy import text
 
-from app.celery_app import celery_app
 from app.database import HostGroup, get_db_session
 
 # Import from new modular host_groups package (Phase 1 API Standardization)
@@ -19,12 +18,6 @@ from app.utils.query_builder import QueryBuilder
 # GroupScanService removed - using group_compliance API instead
 
 
-@celery_app.task(
-    bind=True,
-    name="app.tasks.scheduled_group_scan",
-    time_limit=7200,
-    soft_time_limit=6600,
-)
 def scheduled_group_scan(self, group_id: int, config: Dict[str, Any]):
     """
     Scheduled compliance scan for a host group
@@ -110,22 +103,24 @@ def scheduled_group_scan(self, group_id: int, config: Dict[str, Any]):
             db.commit()
 
             # Execute the scan asynchronously
-            execute_compliance_scan_async.delay(session_id, group_id, [dict(host) for host in hosts], session_config)
+            from app.services.job_queue.dispatch import enqueue_task
+
+            enqueue_task(
+                "app.tasks.execute_compliance_scan_async",
+                session_id=session_id,
+                group_id=group_id,
+                hosts=[dict(host) for host in hosts],
+                config=session_config,
+            )
 
             print(f"Scheduled compliance scan started for group {group_id}, session: {session_id}")
 
     except Exception as exc:
         print(f"Scheduled scan failed for group {group_id}: {str(exc)}")
         # Retry with exponential backoff
-        raise self.retry(exc=exc, countdown=60, max_retries=3)
+        raise
 
 
-@celery_app.task(
-    bind=True,
-    name="app.tasks.execute_compliance_scan_async",
-    time_limit=3600,
-    soft_time_limit=3300,
-)
 def execute_compliance_scan_async(self, session_id: str, group_id: int, hosts: List[Dict], config: Dict[str, Any]):
     """
     Execute compliance scan asynchronously
@@ -240,10 +235,13 @@ def execute_compliance_scan_async(self, session_id: str, group_id: int, hosts: L
 
             # Send notifications if configured
             if config.get("email_notifications"):
-                send_compliance_notification.delay(
-                    session_id,
-                    group_id,
-                    {
+                from app.services.job_queue.dispatch import enqueue_task as _enqueue
+
+                _enqueue(
+                    "app.tasks.send_compliance_notification",
+                    session_id=session_id,
+                    group_id=group_id,
+                    summary={
                         "successful_scans": successful_scans,
                         "failed_scans": failed_scans,
                         "total_hosts": len(hosts),
@@ -273,10 +271,9 @@ def execute_compliance_scan_async(self, session_id: str, group_id: int, hosts: L
             )
             db.commit()
 
-        raise self.retry(exc=exc, countdown=300, max_retries=2)
+        raise
 
 
-@celery_app.task(name="app.tasks.send_compliance_notification")
 def send_compliance_notification(session_id: str, group_id: int, summary: Dict[str, Any]):
     """
     Send compliance scan completion notification
@@ -339,7 +336,6 @@ def send_compliance_notification(session_id: str, group_id: int, summary: Dict[s
         print(f"Failed to send compliance notification for session {session_id}: {str(e)}")
 
 
-@celery_app.task(name="app.tasks.compliance_alert_check")
 def compliance_alert_check(group_id: int):
     """
     Check compliance metrics against alert rules
@@ -396,13 +392,18 @@ def compliance_alert_check(group_id: int):
 
                 # Send alerts if any triggered
                 if alerts_triggered:
-                    send_compliance_alerts.delay(group_id, alerts_triggered)
+                    from app.services.job_queue.dispatch import enqueue_task as _enqueue2
+
+                    _enqueue2(
+                        "app.tasks.send_compliance_alerts",
+                        group_id=group_id,
+                        alerts=alerts_triggered,
+                    )
 
     except Exception as e:
         print(f"Failed to check compliance alerts for group {group_id}: {str(e)}")
 
 
-@celery_app.task(name="app.tasks.send_compliance_alerts")
 def send_compliance_alerts(group_id: int, alerts: List[Dict[str, Any]]):
     """
     Send compliance alert notifications
@@ -436,21 +437,9 @@ def send_compliance_alerts(group_id: int, alerts: List[Dict[str, Any]]):
         print(f"Failed to send compliance alerts for group {group_id}: {str(e)}")
 
 
-# Periodic tasks registration
-@celery_app.on_after_configure.connect
-def setup_periodic_tasks(sender, **kwargs):
-    """
-    Setup periodic compliance tasks
-    """
-    # Check for compliance alerts every hour
-    sender.add_periodic_task(
-        3600.0,  # Every hour
-        compliance_monitoring_task.s(),
-        name="compliance_monitoring",
-    )
+# Periodic tasks registered via recurring_jobs table (see job_queue/seed_schedule.py)
 
 
-@celery_app.task(name="app.tasks.compliance_monitoring_task")
 def compliance_monitoring_task():
     """
     Periodic task to monitor compliance across all groups
@@ -466,7 +455,12 @@ def compliance_monitoring_task():
 
             # Check alerts for each group
             for group in groups:
-                compliance_alert_check.delay(group.id)
+                from app.services.job_queue.dispatch import enqueue_task as _enqueue3
+
+                _enqueue3(
+                    "app.tasks.compliance_alert_check",
+                    group_id=group.id,
+                )
 
     except Exception as e:
         print(f"Failed to run compliance monitoring task: {str(e)}")

@@ -1,0 +1,168 @@
+# OpenWatch Backend - FreeBSD 15.0 Minimal
+#
+# UNTESTED - FreeBSD OCI containers require OCI spec v1.3 runtime support.
+# This Dockerfile is structurally complete but has not been validated against
+# a live FreeBSD container runtime. Package names and paths may need adjustment.
+#
+# Replaces Red Hat UBI 9 for reduced attack surface and dependency minimization.
+# FreeBSD base provides a minimal, auditable userland with fewer CVE vectors
+# than typical Linux distributions.
+#
+# Migration rationale:
+# - Smaller base image (FreeBSD minimal vs UBI9 ~200MB)
+# - BSD-licensed userland (no GPL entanglements for air-gapped deployments)
+# - Native jails support for additional isolation layers
+# - ZFS integration for data integrity (when host uses ZFS volumes)
+#
+# FreeBSD package manager: pkg(8) — NOT apt, dnf, or apk
+# FreeBSD paths differ from Linux:
+#   /usr/local/bin/   — third-party binaries (Python, PostgreSQL client)
+#   /usr/local/lib/   — third-party libraries
+#   /var/db/postgres/  — PostgreSQL data (not /var/lib/postgresql/)
+#
+# Security Compliance:
+# - NIST SP 800-53 Rev. 5: SI-2, SC-13, AC-6
+# - FedRAMP Moderate: SI-2, SC-13, AC-6
+# - CMMC Level 2: SI.L2-3.14.1
+
+# ---------------------------------------------------------------------------
+# Stage 1: Build frontend SPA (Option A — embedded SPA, no separate container)
+# ---------------------------------------------------------------------------
+FROM node:20-alpine AS frontend-builder
+
+WORKDIR /app
+
+# Copy VERSION file for Vite build injection
+COPY VERSION ./VERSION
+
+# Install dependencies first (layer caching)
+COPY frontend/package*.json ./
+RUN npm ci --no-audit --no-fund
+
+# Copy frontend source and build
+COPY frontend/ ./
+RUN npm run build
+
+# ---------------------------------------------------------------------------
+# Stage 2: Build Python dependencies in isolated builder
+# ---------------------------------------------------------------------------
+FROM freebsd/freebsd:15.0-RELEASE AS builder
+
+# Install build tools and Python 3.12
+# NOTE: FreeBSD package names may vary between quarterly and latest repos.
+# Verify with `pkg search python312` on a FreeBSD 15.0 system.
+#
+# Package rationale:
+#   python312         — Python 3.12 interpreter
+#   py312-pip         — pip for Python 3.12
+#   py312-setuptools  — setuptools (needed by many wheels)
+#   postgresql15-client — libpq headers for psycopg2 compilation
+#   openssl           — may be redundant (FreeBSD base includes LibreSSL/OpenSSL)
+#   libssh2           — SSH library for paramiko native extensions
+#   gcc               — C compiler for native Python extensions
+#   cmake             — build system for some native deps
+#   pkgconf           — pkg-config equivalent on FreeBSD
+#   libffi            — foreign function interface (required by cffi/cryptography)
+#   git               — required for pip install of Kensa from git+https URL
+RUN pkg install -y \
+        python312 \
+        py312-pip \
+        py312-setuptools \
+        postgresql15-client \
+        openssl \
+        libssh2 \
+        gcc \
+        cmake \
+        pkgconf \
+        libffi \
+        git && \
+    pkg clean -a -y
+
+WORKDIR /opt/openwatch
+
+# Copy requirements and build venv with all dependencies
+COPY backend/requirements.txt .
+RUN python3.12 -m venv /opt/openwatch/venv && \
+    /opt/openwatch/venv/bin/pip install --no-cache-dir --upgrade pip && \
+    /opt/openwatch/venv/bin/pip install --no-cache-dir -r requirements.txt
+
+# ---------------------------------------------------------------------------
+# Stage 3: Runtime (minimal — no compiler, no dev headers)
+# ---------------------------------------------------------------------------
+FROM freebsd/freebsd:15.0-RELEASE
+
+LABEL maintainer="OpenWatch Security Team" \
+      org.opencontainers.image.title="OpenWatch Backend (FreeBSD)" \
+      org.opencontainers.image.description="Compliance Scanning Platform - FreeBSD 15.0 Minimal" \
+      org.opencontainers.image.vendor="OpenWatch" \
+      org.opencontainers.image.os="freebsd" \
+      python.version="3.12" \
+      freebsd.version="15.0-RELEASE" \
+      status="UNTESTED"
+
+# Install only runtime dependencies — no compiler, no -devel packages
+#
+# Package rationale:
+#   python312            — Python 3.12 runtime
+#   postgresql15-client  — psql CLI and libpq shared library
+#   openssh-portable     — SSH client for remote host scanning
+#
+# NOTE: OpenSSL is included in FreeBSD base system; no separate package needed
+# for runtime. If the base image strips it, add `openssl` to the list.
+RUN pkg install -y \
+        python312 \
+        postgresql15-client \
+        openssh-portable && \
+    pkg clean -a -y
+
+# Create non-root application user (Principle of Least Privilege)
+# UID 10001 chosen to avoid conflicts with system users (0-999) and
+# typical user UIDs (1000+).
+# NOTE: FreeBSD uses pw(8) instead of useradd(8). If the base image
+# includes useradd (from shadow), that works too.
+RUN pw useradd openwatch -u 10001 -d /nonexistent -s /usr/sbin/nologin && \
+    mkdir -p /opt/openwatch/data /opt/openwatch/logs \
+             /opt/openwatch/security/keys /opt/openwatch/security/certs && \
+    chown -R openwatch:openwatch /opt/openwatch
+
+# Copy Python venv from builder (includes all pip-installed packages)
+COPY --from=builder /opt/openwatch/venv /opt/openwatch/venv
+
+# Copy application code
+COPY backend/ /opt/openwatch/backend/
+
+# Copy built frontend SPA from frontend-builder (Option A: embedded)
+COPY --from=frontend-builder /app/build /opt/openwatch/frontend/build
+
+# Copy entrypoint script
+COPY docker/entrypoint-backend.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
+# Set permissions
+# /opt/openwatch/security: 700 — owner only, contains SSH keys and certs
+RUN chown -R openwatch:openwatch /opt/openwatch && \
+    chmod -R 755 /opt/openwatch && \
+    chmod -R 700 /opt/openwatch/security
+
+WORKDIR /opt/openwatch/backend
+
+# Environment
+ENV PATH="/opt/openwatch/venv/bin:$PATH" \
+    PYTHONPATH="/opt/openwatch/backend" \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    OPENWATCH_LOG_LEVEL=INFO \
+    KENSA_RULES_PATH=/opt/openwatch/backend/kensa-rules
+
+# Switch to non-root user
+USER openwatch
+
+EXPOSE 8000
+
+# Health check using Python stdlib (no curl on FreeBSD base)
+HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
+    CMD python3.12 -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" || exit 1
+
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

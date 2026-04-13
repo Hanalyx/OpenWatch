@@ -112,11 +112,12 @@ const menuItems = [
     ],
   },
   {
-    text: 'Scans',
+    text: 'Transactions',
     icon: <Scanner />,
-    path: '/scans',
+    path: '/transactions',
     roles: ['super_admin', 'security_admin', 'security_analyst', 'compliance_officer', 'auditor'],
   },
+
   {
     text: 'Users',
     icon: <People />,

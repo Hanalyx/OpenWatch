@@ -51,7 +51,6 @@ from app.routes.scans.models import (
     ScannerCapabilities,
     ScannerHealthResponse,
 )
-from app.tasks.background_tasks import enrich_scan_results_celery
 from app.utils.mutation_builders import InsertBuilder, UpdateBuilder
 from app.utils.query_builder import QueryBuilder
 
@@ -625,7 +624,10 @@ async def create_compliance_scan(
         # Queue background enrichment and report generation
         # ---------------------------------------------------------------------
         if scan_request.include_enrichment:
-            enrich_scan_results_celery.delay(
+            from app.services.job_queue.dispatch import enqueue_task
+
+            enqueue_task(
+                "app.tasks.enrich_scan_results",
                 scan_id=scan_id,
                 result_file=str(result_file) if result_file else "",
                 scan_metadata={
@@ -1015,29 +1017,9 @@ async def get_scanner_health(
             details=postgres_details,
         )
 
-        # Check Redis connection (task queue)
-        redis_status = "unknown"
-        redis_details: Dict[str, Any] = {}
-        try:
-            from app.celery_app import celery_app
-
-            # Ping the Celery broker to verify Redis connectivity
-            inspect = celery_app.control.inspect()
-            ping_result = inspect.ping()
-            if ping_result:
-                redis_status = "healthy"
-                redis_details = {
-                    "workers": list(ping_result.keys()),
-                    "worker_count": len(ping_result),
-                }
-            else:
-                redis_status = "degraded"
-                redis_details = {"workers": [], "message": "No workers responding"}
-                overall_status = "degraded"
-        except Exception as redis_err:
-            redis_status = "error"
-            redis_details = {"error": str(redis_err)}
-            overall_status = "degraded"
+        # Job queue health (replaced Redis/Celery)
+        redis_status = "deprecated"
+        redis_details: Dict[str, Any] = {"message": "Redis replaced by PostgreSQL job queue"}
 
         components["task_queue"] = ComponentHealth(
             status=redis_status,

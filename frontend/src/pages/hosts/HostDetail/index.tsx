@@ -12,7 +12,7 @@
  * @module pages/hosts/HostDetail
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Box, Tabs, Tab, CircularProgress, Alert } from '@mui/material';
 import {
@@ -95,6 +95,7 @@ const HostDetail: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [tabValue, setTabValue] = useState(0);
+  const [maintenanceMode, setMaintenanceMode] = useState(false);
 
   // React Query hooks for host detail data
   const { data: complianceState, isLoading: complianceLoading } = useComplianceState(id);
@@ -106,6 +107,17 @@ const HostDetail: React.FC = () => {
   const { data: intelligenceSummary, isLoading: intelligenceLoading } = useIntelligenceSummary(id);
 
   const { data: scanHistoryData, isLoading: scanHistoryLoading } = useScanHistory(id);
+
+  // Sync maintenance mode from schedule data
+  useEffect(() => {
+    if (schedule) {
+      setMaintenanceMode(schedule.maintenanceMode);
+    }
+  }, [schedule]);
+
+  const handleMaintenanceModeChange = useCallback((enabled: boolean) => {
+    setMaintenanceMode(enabled);
+  }, []);
 
   // Fetch basic host data
   useEffect(() => {
@@ -159,6 +171,9 @@ const HostDetail: React.FC = () => {
         operatingSystem={host.operating_system}
         status={host.status}
         systemInfo={systemInfo}
+        hostId={host.id}
+        maintenanceMode={maintenanceMode}
+        onMaintenanceModeChange={handleMaintenanceModeChange}
       />
 
       {/* Summary Cards */}

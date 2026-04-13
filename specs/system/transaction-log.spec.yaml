@@ -1,0 +1,223 @@
+spec: transaction-log
+version: "0.2"
+status: draft
+owner: engineering
+summary: >
+  Unified transaction log recording meaningful compliance state changes. A
+  transaction is written only when a rule's status changes (pass->fail,
+  fail->pass, first seen) or when a remediation/rollback occurs. Routine
+  scans where nothing changed update host_rule_state (see host-rule-state
+  spec) but do NOT create transaction rows. This write-on-change model
+  scales linearly with host count, not scan frequency. The transaction log
+  remains the source of truth for audit, drift detection, alert generation,
+  and per-host audit timelines.
+
+---
+
+objective: >
+  Establish a single append-only log of transactions that serves three audiences
+  from one data model: SREs see "what changed", compliance officers see "what
+  was remediated", auditors see "the evidence trail". All three views are filters
+  over the same table. The write path captures all four phases of the Kensa
+  transaction model; the read path is performant enough to answer historical
+  posture queries in under 500ms p95; the migration preserves full audit
+  continuity by dual-writing against the legacy schema until backfill completes.
+
+---
+
+context:
+  depends_on:
+    - kensa-scan.spec.yaml (evidence capture from Kensa)
+    - scan-execution.spec.yaml (write path dual-writes to transactions)
+    - temporal-compliance.spec.yaml (reads transactions for posture queries)
+    - audit-query.spec.yaml (reads transactions for audit search)
+  consumed_by:
+    - transaction-crud.spec.yaml (REST API surface)
+    - transactions-list.spec.yaml (frontend list view)
+    - transaction-detail.spec.yaml (frontend detail view)
+    - drift-analysis.spec.yaml (drift computed from transaction aggregates)
+    - alert-thresholds.spec.yaml (alerts source from transactions)
+  replaces_tables:
+    - scans (authoritative) -> transactions (authoritative, legacy retained)
+    - scan_results (aggregate) -> derived view over transactions
+    - scan_findings (per-rule) -> 1:1 with transaction rows
+    - scan_drift_events (drift log) -> transactions with phase=validate + baseline_id
+  new_tables:
+    - transactions
+
+---
+
+constraints:
+  schema:
+    - "transactions table MUST have UUID primary key"
+    - "transactions table MUST have (host_id, started_at DESC) composite index"
+    - "transactions table MUST have GIN index on framework_refs JSONB"
+    - "transactions table MUST have GIN index on evidence_envelope JSONB"
+    - "transactions table MUST have index on (status, started_at) for alert queries"
+    - "transactions.scan_id FK MUST use ON DELETE SET NULL (NOT CASCADE) so transactions survive legacy scan deletion"
+    - "transactions table MUST include tenant_id column, nullable, for Q6 multi-tenancy groundwork"
+    - "transactions.phase MUST be one of: capture, apply, validate, commit, rollback"
+    - "transactions.status MUST be one of: pass, fail, skipped, error, rolled_back"
+    - "transactions.initiator_type MUST be one of: user, scheduler, drift_trigger, agent"
+
+  write_path:
+    - "Transaction rows MUST only be written on state changes (status differs from host_rule_state.current_status) or first-seen events"
+    - "Routine scans where status is unchanged MUST NOT create transaction rows"
+    - "Remediation and rollback events MUST always create transaction rows regardless of status change"
+    - "Legacy scan_findings rows MUST still be dual-written during the Q1 migration window"
+    - "Dual-write MUST be toggleable via OPENWATCH_DUAL_WRITE_TRANSACTIONS env var for rollback"
+    - "Write path MUST NOT add more than 10% overhead to kensa_scan_tasks duration"
+    - "Every transaction row MUST have a non-null evidence_envelope with schema_version"
+    - "State-change transactions MUST include previous_status in the evidence_envelope"
+    - "Remediation transactions MUST populate all four phases (capture, apply, validate, commit OR rollback)"
+
+  evidence_envelope:
+    - "schema_version MUST be set (current: 1.0)"
+    - "kensa_version MUST be captured at write time"
+    - "phases.validate MUST include method, command, stdout, stderr, exit_code, expected, actual"
+    - "phases.capture MUST include a state snapshot and a timestamp"
+    - "phases.commit MUST include post_state and commit timestamp"
+    - "phases.rollback MUST be null unless a rollback actually occurred"
+    - "framework_refs MUST be structured as {framework_id: control_id} (e.g., {cis-rhel9-v2.0.0: '5.1.12'})"
+
+  read_path:
+    - "get_posture(host_id, as_of) MUST return results in under 500ms p95 on a 1M-row fixture"
+    - "All services reading transactions MUST use QueryBuilder with the transactions table (no raw SQL string interpolation)"
+    - "Audit export MUST produce byte-identical output across the schema migration (regression-tested)"
+    - "Temporal compliance queries MUST source from transactions once service migration completes"
+
+  backfill:
+    - "backfill_transactions_from_scans MUST be idempotent (re-running does not duplicate rows)"
+    - "Backfill MUST be resumable from the last checkpoint on failure"
+    - "Backfill MUST process rows in chunks (default 10000)"
+    - "Historical transaction rows (from backfill) MUST have schema_version=0.9 to distinguish from live-written rows"
+    - "Historical rows MAY have null pre_state and null post_state (pre-refactor data)"
+
+  rollback_safety:
+    - "Legacy tables (scans, scan_results, scan_findings, scan_baselines, scan_drift_events) MUST continue to be written for the full Q1 duration"
+    - "Legacy tables MUST NOT be dropped in Q1"
+    - "Feature flag OPENWATCH_DUAL_WRITE_TRANSACTIONS MUST allow instant revert to legacy-only writes"
+    - "Feature flag AUDIT_EXPORT_SOURCE MUST allow audit_export to fall back to legacy tables"
+
+---
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      transactions table exists in the database with the specified columns
+      (id, host_id, rule_id, scan_id, phase, status, severity, initiator_type,
+      initiator_id, pre_state, apply_plan, validate_result, post_state,
+      evidence_envelope, framework_refs, baseline_id, remediation_job_id,
+      started_at, completed_at, duration_ms, tenant_id) and indexes as defined
+      in the schema constraints.
+
+  - id: AC-2
+    description: >
+      When a Kensa scan completes, the write path updates host_rule_state
+      for every rule and inserts transaction rows only for rules where the
+      status changed or the rule was first seen. Legacy scan_findings rows
+      are still dual-written during the migration window.
+
+  - id: AC-3
+    description: >
+      Every transaction row has evidence_envelope.schema_version set to "1.0"
+      and evidence_envelope.kensa_version set to the installed Kensa version.
+
+  - id: AC-4
+    description: >
+      For a read-only compliance check (no state change), the transaction row
+      has phases.validate populated with Kensa's Evidence fields (method,
+      command, stdout, stderr, exit_code, expected, actual, timestamp) and
+      phases.capture populated with the captured state at check time.
+
+  - id: AC-5
+    description: >
+      For a remediation transaction, all four phases (capture, apply, validate,
+      commit OR rollback) are populated. If rollback occurred, phases.commit
+      is null and phases.rollback.restored_state matches phases.capture.state.
+
+  - id: AC-6
+    description: >
+      backfill_transactions_from_scans Celery task is idempotent: running it
+      twice on the same dataset produces the same number of transaction rows
+      (no duplicates).
+
+  - id: AC-7
+    description: >
+      Backfill-generated transaction rows are marked with
+      evidence_envelope.schema_version="0.9" so live-written and historical
+      rows can be distinguished.
+
+  - id: AC-8
+    description: >
+      AuditQueryService reads from transactions via TransactionRepository.
+      No direct SQL against scan_findings remains in audit_query.py.
+
+  - id: AC-9
+    description: >
+      TemporalComplianceService.get_posture(host_id, as_of) returns results
+      in under 500ms p95 on a 1M-row fixture database, sourcing exclusively
+      from the transactions table.
+
+  - id: AC-10
+    description: >
+      DriftDetectionService computes drift by aggregating transactions grouped
+      by (host_id, started_at::date) and comparing against scan_baselines.
+      No direct read from scan_findings remains in drift.py.
+
+  - id: AC-11
+    description: >
+      AlertGeneratorService queries transactions (not scan_findings) when
+      evaluating severity thresholds.
+
+  - id: AC-12
+    description: >
+      Audit export (CSV/JSON/PDF) produces byte-identical output when sourced
+      from transactions vs legacy scan_findings for a reference fixture scan.
+      Regression test test_audit_export_parity.py enforces this.
+
+  - id: AC-13
+    description: >
+      Feature flag AUDIT_EXPORT_SOURCE=legacy falls back to reading legacy
+      tables, allowing instant rollback if a post-migration export is malformed.
+
+  - id: AC-14
+    description: >
+      All services reading from the transactions table use QueryBuilder
+      (not raw SQL interpolation). InsertBuilder is used for writes.
+      No direct string-concatenation queries against the transactions table
+      exist anywhere in the codebase.
+
+  - id: AC-15
+    description: >
+      Legacy tables (scans, scan_results, scan_findings, scan_baselines,
+      scan_drift_events) remain written for the full Q1 duration. Source
+      inspection of kensa_scan_tasks confirms both write paths are present.
+
+  - id: AC-16
+    description: >
+      Kensa scan execution duration (measured on fixture host with 50 rules)
+      does not regress by more than 10% when dual-write is enabled versus
+      legacy-only write.
+
+  - id: AC-17
+    description: >
+      transactions.scan_id FK uses ON DELETE SET NULL. Deleting a legacy scan
+      does not cascade-delete associated transactions.
+
+---
+
+changelog:
+  - version: "0.2"
+    date: "2026-04-12"
+    changes:
+      - "Write-on-change model: transactions written only on state changes, not every scan"
+      - "AC-2 updated to reflect host_rule_state UPDATE + conditional transaction INSERT"
+      - "Write-path constraints updated: routine unchanged scans do not create transactions"
+      - "Companion spec: host-rule-state.spec.yaml for current-state table"
+  - version: "0.1"
+    date: "2026-04-11"
+    changes:
+      - "Initial draft created during Q1 planning"
+      - "17 ACs covering schema, dual-write, envelope, backfill, service migration, rollback safety"
+      - "Promotion to active scheduled for week 12 of Q1"

@@ -27,7 +27,6 @@ from app.schemas.remediation_schemas import (
 )
 from app.services.compliance.remediation import RemediationService
 from app.services.licensing.service import LicenseRequiredError
-from app.tasks.remediation_tasks import execute_remediation_job, execute_rollback_job
 
 from ...auth import get_current_user
 from ...rbac import UserRole, require_role
@@ -75,7 +74,9 @@ async def create_remediation_job(
         job = service.create_job(request, current_user["id"])
 
         # Queue for async execution
-        execute_remediation_job.delay(str(job.id))
+        from app.services.job_queue.dispatch import enqueue_task
+
+        enqueue_task("app.tasks.execute_remediation", job_id=str(job.id))
 
         logger.info(f"User {current_user['username']} created remediation job {job.id} " f"for host {request.host_id}")
 
@@ -309,7 +310,9 @@ async def rollback_remediation(
         )
 
         # Queue for async execution
-        execute_rollback_job.delay(str(response.rollback_job_id))
+        from app.services.job_queue.dispatch import enqueue_task
+
+        enqueue_task("app.tasks.execute_rollback", rollback_job_id=str(response.rollback_job_id))
 
         logger.info(
             f"User {current_user['username']} initiated rollback {response.rollback_job_id} "

@@ -1,0 +1,64 @@
+#!/bin/sh
+#
+# PROVIDE: openwatch_api
+# REQUIRE: LOGIN postgresql
+# KEYWORD: shutdown
+#
+# OpenWatch API service (FastAPI/Uvicorn)
+#
+# Add the following lines to /etc/rc.conf to enable:
+#   openwatch_api_enable="YES"
+#
+# Optional rc.conf settings:
+#   openwatch_api_host="127.0.0.1"    # Listen address (default: 127.0.0.1)
+#   openwatch_api_port="8000"         # Listen port (default: 8000)
+#   openwatch_api_workers="4"         # Uvicorn workers (default: 4)
+#   openwatch_api_user="openwatch"    # Run as user (default: openwatch)
+#   openwatch_api_logfile="/var/log/openwatch/api.log"
+
+. /etc/rc.subr
+
+name="openwatch_api"
+rcvar="${name}_enable"
+
+load_rc_config $name
+
+: ${openwatch_api_enable:="NO"}
+: ${openwatch_api_host:="127.0.0.1"}
+: ${openwatch_api_port:="8000"}
+: ${openwatch_api_workers:="4"}
+: ${openwatch_api_user:="openwatch"}
+: ${openwatch_api_logfile:="/var/log/openwatch/api.log"}
+
+pidfile="/var/run/${name}.pid"
+command="/opt/openwatch/venv/bin/uvicorn"
+command_args="app.main:app --host ${openwatch_api_host} --port ${openwatch_api_port} --workers ${openwatch_api_workers}"
+
+start_precmd="${name}_prestart"
+stop_postcmd="${name}_poststop"
+
+openwatch_api_prestart()
+{
+    # Ensure log directory exists
+    mkdir -p /var/log/openwatch
+    chown "${openwatch_api_user}" /var/log/openwatch
+
+    # Set working directory and environment
+    cd /opt/openwatch/backend || return 1
+    export PYTHONPATH=/opt/openwatch/backend
+    export PATH="/opt/openwatch/venv/bin:${PATH}"
+
+    # Source environment file if it exists
+    if [ -f /usr/local/etc/openwatch/secrets.env ]; then
+        set -a
+        . /usr/local/etc/openwatch/secrets.env
+        set +a
+    fi
+}
+
+openwatch_api_poststop()
+{
+    rm -f "${pidfile}"
+}
+
+run_rc_command "$1"

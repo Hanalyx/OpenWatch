@@ -362,10 +362,11 @@ class TemporalComplianceService:
         return actuals
 
     def _build_rule_states(self, scan_id: UUID) -> Dict[str, Any]:
-        """Build rule_states dict from scan_findings for a given scan.
+        """Build rule_states dict from transactions for a given scan.
 
-        Queries scan_findings and assembles a dict keyed by rule_id with
-        status, severity, title, category, and actual value from evidence.
+        Queries the transactions table (primary) with a LEFT JOIN to
+        scan_findings for title and framework_section fields that only
+        exist in the legacy table.
 
         Args:
             scan_id: UUID of the source scan.
@@ -376,10 +377,12 @@ class TemporalComplianceService:
         result = self._db.execute(
             text(
                 """
-                SELECT rule_id, title, severity, status,
-                       framework_section, evidence
-                FROM scan_findings
-                WHERE scan_id = :scan_id
+                SELECT t.rule_id, sf.title, t.severity, t.status,
+                       sf.framework_section, t.validate_result as evidence
+                FROM transactions t
+                LEFT JOIN scan_findings sf
+                    ON sf.scan_id = t.scan_id AND sf.rule_id = t.rule_id
+                WHERE t.scan_id = :scan_id
                 """
             ),
             {"scan_id": str(scan_id)},
@@ -444,7 +447,7 @@ class TemporalComplianceService:
             logger.debug("Snapshot already exists for host %s on %s", host_id, snapshot_date.date())
             return existing
 
-        # Build rule_states from scan_findings (includes actual values)
+        # Build rule_states from transactions (includes actual values)
         rule_states: Dict[str, Any] = {}
         if current.source_scan_id:
             try:

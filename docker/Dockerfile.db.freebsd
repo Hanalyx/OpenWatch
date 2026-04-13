@@ -1,0 +1,110 @@
+# OpenWatch Database - PostgreSQL 15 on FreeBSD 15.0
+#
+# UNTESTED - FreeBSD OCI containers require OCI spec v1.3 runtime support.
+# This Dockerfile is structurally complete but has not been validated against
+# a live FreeBSD container runtime. Package names and paths may need adjustment.
+#
+# FreeBSD PostgreSQL paths (differ significantly from Linux):
+#   Binary:    /usr/local/bin/postgres
+#   initdb:    /usr/local/bin/initdb
+#   pg_ctl:    /usr/local/bin/pg_ctl
+#   Data dir:  /var/db/postgres/data15/
+#   Config:    /var/db/postgres/data15/postgresql.conf
+#   rc script: /usr/local/etc/rc.d/postgresql
+#   User:      postgres (created by the package)
+#
+# Why not just use postgres:15-alpine?
+# - Consistency: all OpenWatch containers on the same OS (FreeBSD 15.0)
+# - Reduced attack surface: FreeBSD base + PostgreSQL only
+# - Air-gapped deployments: single OS to patch and audit
+
+FROM freebsd/freebsd:15.0-RELEASE
+
+LABEL maintainer="OpenWatch Security Team" \
+      org.opencontainers.image.title="OpenWatch Database (FreeBSD)" \
+      org.opencontainers.image.description="PostgreSQL 15 on FreeBSD 15.0" \
+      org.opencontainers.image.vendor="OpenWatch" \
+      org.opencontainers.image.os="freebsd" \
+      status="UNTESTED"
+
+# Install PostgreSQL 15 server and client
+# The postgresql15-server package creates the 'postgres' user automatically.
+RUN pkg install -y \
+        postgresql15-server \
+        postgresql15-client && \
+    pkg clean -a -y
+
+# Enable PostgreSQL in rc.conf (FreeBSD convention)
+RUN echo 'postgresql_enable="YES"' >> /etc/rc.conf
+
+# Initialize the database cluster
+# NOTE: On FreeBSD, the data directory is /var/db/postgres/data15/ by default.
+# The initdb must run as the postgres user.
+# The `|| true` guard handles the case where the data dir already exists.
+RUN mkdir -p /var/db/postgres/data15 && \
+    chown -R postgres:postgres /var/db/postgres && \
+    su -m postgres -c "/usr/local/bin/initdb -D /var/db/postgres/data15 --encoding=UTF8 --locale=C" || true
+
+# Configure PostgreSQL for container networking
+# - listen_addresses: accept connections from any container on the bridge network
+# - max_connections: reasonable default for development/small deployments
+# - shared_buffers: tuned for container memory limits
+RUN echo "listen_addresses = '*'" >> /var/db/postgres/data15/postgresql.conf && \
+    echo "max_connections = 100" >> /var/db/postgres/data15/postgresql.conf && \
+    echo "shared_buffers = 128MB" >> /var/db/postgres/data15/postgresql.conf && \
+    echo "log_destination = 'stderr'" >> /var/db/postgres/data15/postgresql.conf && \
+    echo "logging_collector = off" >> /var/db/postgres/data15/postgresql.conf
+
+# Configure host-based authentication
+# Allow password auth from the Docker bridge network (172.16.0.0/12 covers common subnets)
+RUN echo "# TYPE  DATABASE  USER  ADDRESS        METHOD" > /var/db/postgres/data15/pg_hba.conf && \
+    echo "local   all       all                    trust" >> /var/db/postgres/data15/pg_hba.conf && \
+    echo "host    all       all   127.0.0.1/32     md5" >> /var/db/postgres/data15/pg_hba.conf && \
+    echo "host    all       all   ::1/128          md5" >> /var/db/postgres/data15/pg_hba.conf && \
+    echo "host    all       all   0.0.0.0/0        md5" >> /var/db/postgres/data15/pg_hba.conf
+
+# Copy init script for creating the openwatch database and user
+# This runs on first start when POSTGRES_USER/POSTGRES_PASSWORD/POSTGRES_DB are set.
+COPY docker/database/init.sql /docker-entrypoint-initdb.d/init.sql
+
+# Create the entrypoint script inline
+# NOTE: This is a minimal entrypoint. The official postgres Docker image has
+# extensive init logic; this handles the basics for OpenWatch.
+# hadolint ignore=SC2016
+RUN echo '#!/bin/sh' > /usr/local/bin/docker-entrypoint.sh && \
+    echo 'set -e' >> /usr/local/bin/docker-entrypoint.sh && \
+    echo '' >> /usr/local/bin/docker-entrypoint.sh && \
+    echo 'PGDATA="/var/db/postgres/data15"' >> /usr/local/bin/docker-entrypoint.sh && \
+    echo '' >> /usr/local/bin/docker-entrypoint.sh && \
+    echo '# Create database and user if they do not exist' >> /usr/local/bin/docker-entrypoint.sh && \
+    echo 'if [ -n "$POSTGRES_USER" ] && [ -n "$POSTGRES_PASSWORD" ]; then' >> /usr/local/bin/docker-entrypoint.sh && \
+    echo '    # Start temporarily to run init commands' >> /usr/local/bin/docker-entrypoint.sh && \
+    echo '    su -m postgres -c "/usr/local/bin/pg_ctl -D $PGDATA -w start -o \"-p 5432\""' >> /usr/local/bin/docker-entrypoint.sh && \
+    echo '    su -m postgres -c "psql -c \"SELECT 1 FROM pg_roles WHERE rolname='"'"'$POSTGRES_USER'"'"'\" | grep -q 1 || psql -c \"CREATE ROLE $POSTGRES_USER WITH LOGIN PASSWORD '"'"'$POSTGRES_PASSWORD'"'"' CREATEDB;\""' >> /usr/local/bin/docker-entrypoint.sh && \
+    echo '    if [ -n "$POSTGRES_DB" ]; then' >> /usr/local/bin/docker-entrypoint.sh && \
+    echo '        su -m postgres -c "psql -lqt | cut -d\\| -f1 | grep -qw $POSTGRES_DB || createdb -O $POSTGRES_USER $POSTGRES_DB"' >> /usr/local/bin/docker-entrypoint.sh && \
+    echo '        # Run init SQL if it exists and DB was just created' >> /usr/local/bin/docker-entrypoint.sh && \
+    echo '        if [ -f /docker-entrypoint-initdb.d/init.sql ]; then' >> /usr/local/bin/docker-entrypoint.sh && \
+    echo '            su -m postgres -c "psql -d $POSTGRES_DB -f /docker-entrypoint-initdb.d/init.sql" 2>/dev/null || true' >> /usr/local/bin/docker-entrypoint.sh && \
+    echo '        fi' >> /usr/local/bin/docker-entrypoint.sh && \
+    echo '    fi' >> /usr/local/bin/docker-entrypoint.sh && \
+    echo '    su -m postgres -c "/usr/local/bin/pg_ctl -D $PGDATA -w stop"' >> /usr/local/bin/docker-entrypoint.sh && \
+    echo 'fi' >> /usr/local/bin/docker-entrypoint.sh && \
+    echo '' >> /usr/local/bin/docker-entrypoint.sh && \
+    echo '# Start PostgreSQL in foreground' >> /usr/local/bin/docker-entrypoint.sh && \
+    echo 'exec su -m postgres -c "/usr/local/bin/postgres -D $PGDATA"' >> /usr/local/bin/docker-entrypoint.sh && \
+    chmod +x /usr/local/bin/docker-entrypoint.sh
+
+# Create initdb directory
+RUN mkdir -p /docker-entrypoint-initdb.d && \
+    chown postgres:postgres /docker-entrypoint-initdb.d
+
+EXPOSE 5432
+
+# Volume for persistent data
+VOLUME ["/var/db/postgres/data15"]
+
+HEALTHCHECK --interval=10s --timeout=5s --start-period=30s --retries=5 \
+    CMD su -m postgres -c "/usr/local/bin/pg_isready -U postgres" || exit 1
+
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]

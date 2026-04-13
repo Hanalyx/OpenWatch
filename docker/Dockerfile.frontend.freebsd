@@ -1,0 +1,102 @@
+# OpenWatch Frontend - FreeBSD 15.0 + Nginx (Option B)
+#
+# UNTESTED - FreeBSD OCI containers require OCI spec v1.3 runtime support.
+# This Dockerfile is structurally complete but has not been validated against
+# a live FreeBSD container runtime. Package names and paths may need adjustment.
+#
+# Use this ONLY if you want a separate Nginx container for the frontend SPA.
+# The recommended deployment (Option A) embeds the SPA in the backend container
+# via Dockerfile.backend.freebsd, eliminating this container entirely.
+#
+# When to use Option B:
+# - You need CDN-style caching headers managed by Nginx
+# - You want to scale frontend and backend independently
+# - You need Nginx-specific features (rate limiting, gzip, SSL termination)
+#
+# FreeBSD Nginx paths (differ from Linux):
+#   Config:    /usr/local/etc/nginx/nginx.conf
+#   Modules:   /usr/local/libexec/nginx/
+#   Logs:      /var/log/nginx/
+#   PID:       /var/run/nginx.pid
+#   Web root:  /usr/local/www/ (convention, configurable)
+
+# ---------------------------------------------------------------------------
+# Stage 1: Build frontend SPA
+# ---------------------------------------------------------------------------
+FROM node:20-alpine AS builder
+
+ARG APP_VERSION=0.0.0-dev
+ARG GIT_COMMIT=""
+ARG BUILD_DATE=""
+
+WORKDIR /app
+
+# Copy VERSION file for Vite config
+COPY VERSION ./VERSION
+
+# Install dependencies (layer caching)
+COPY frontend/package*.json ./
+RUN npm ci --no-audit --no-fund
+
+# Copy source and build
+COPY frontend/ ./
+
+ENV VITE_APP_VERSION=${APP_VERSION} \
+    VITE_GIT_COMMIT=${GIT_COMMIT} \
+    VITE_BUILD_DATE=${BUILD_DATE}
+
+RUN npm run build
+
+# ---------------------------------------------------------------------------
+# Stage 2: FreeBSD Nginx runtime
+# ---------------------------------------------------------------------------
+FROM freebsd/freebsd:15.0-RELEASE
+
+LABEL maintainer="OpenWatch Security Team" \
+      org.opencontainers.image.title="OpenWatch Frontend (FreeBSD)" \
+      org.opencontainers.image.description="React SPA served by Nginx on FreeBSD 15.0" \
+      org.opencontainers.image.vendor="OpenWatch" \
+      org.opencontainers.image.os="freebsd" \
+      status="UNTESTED"
+
+# Install Nginx
+# NOTE: On FreeBSD, nginx is a single package. The default config lives at
+# /usr/local/etc/nginx/nginx.conf (not /etc/nginx/).
+RUN pkg install -y nginx && \
+    pkg clean -a -y
+
+# Create non-root user
+RUN pw useradd openwatch -u 10002 -d /nonexistent -s /usr/sbin/nologin
+
+# Create web root and log directories
+RUN mkdir -p /usr/local/www/openwatch \
+             /var/log/nginx \
+             /var/run && \
+    chown -R openwatch:openwatch /usr/local/www/openwatch /var/log/nginx
+
+# Copy built SPA from builder
+COPY --from=builder /app/build /usr/local/www/openwatch/
+
+# Copy Nginx configuration
+# NOTE: This reuses the existing simple config but adjusts the root path.
+# The config is copied to the FreeBSD-standard location.
+COPY docker/frontend/nginx.conf /usr/local/etc/nginx/nginx.conf
+COPY docker/frontend/default-simple.conf /usr/local/etc/nginx/conf.d/default.conf
+
+# Fix permissions
+RUN chown -R openwatch:openwatch /usr/local/www/openwatch && \
+    chmod -R 755 /usr/local/www/openwatch
+
+# NOTE: Running Nginx as non-root on FreeBSD requires the config to use
+# ports > 1024 or the container runtime to map capabilities. The default
+# config listens on port 80, which requires root or NET_BIND_SERVICE.
+# For rootless operation, change the listen port to 8080 in default.conf.
+
+EXPOSE 80
+
+# Health check using fetch(1) (FreeBSD base utility, no curl needed)
+# Falls back to Python if fetch is not in the base image.
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD fetch -qo /dev/null http://localhost:80/health || exit 1
+
+CMD ["nginx", "-g", "daemon off;"]

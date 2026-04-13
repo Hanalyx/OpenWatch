@@ -10,15 +10,12 @@ import logging
 from datetime import datetime, timezone
 from typing import Any, Dict
 
-from celery import shared_task
-
 from app.database import SessionLocal
 from app.services.compliance import TemporalComplianceService
 
 logger = logging.getLogger(__name__)
 
 
-@shared_task(name="create_daily_posture_snapshots")
 def create_daily_posture_snapshots() -> Dict[str, Any]:
     """
     Create daily posture snapshots for all active hosts.
@@ -62,7 +59,6 @@ def create_daily_posture_snapshots() -> Dict[str, Any]:
         db.close()
 
 
-@shared_task(name="cleanup_old_posture_snapshots")
 def cleanup_old_posture_snapshots(retention_days: int = 30) -> Dict[str, Any]:
     """
     Clean up posture snapshots older than the retention period.

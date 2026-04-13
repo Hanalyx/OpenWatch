@@ -298,7 +298,19 @@ class AuditExportService:
             return False
 
     def _fetch_all_findings(self, query_def: QueryDefinition, batch_size: int = 1000) -> List[FindingResult]:
-        """Fetch all findings for export (paginated internally)."""
+        """Fetch all findings for export (paginated internally).
+
+        Supports a feature flag (AUDIT_EXPORT_SOURCE env var) to switch
+        between the new transactions-based query path and the legacy
+        scan_findings path for instant rollback if needed.
+
+        Set AUDIT_EXPORT_SOURCE=legacy to use the old scan_findings path.
+        Default is 'transactions' (new path via AuditQueryService).
+        """
+        export_source = os.environ.get("AUDIT_EXPORT_SOURCE", "transactions")
+        if export_source == "legacy":
+            return self._fetch_all_findings_legacy(query_def, batch_size)
+
         all_findings: List[FindingResult] = []
         page = 1
 
@@ -311,6 +323,103 @@ class AuditExportService:
             page += 1
 
         return all_findings
+
+    def _fetch_all_findings_legacy(self, query_def: QueryDefinition, batch_size: int = 1000) -> List[FindingResult]:
+        """Legacy fetch path reading directly from scan_findings.
+
+        Used when AUDIT_EXPORT_SOURCE=legacy for rollback safety during
+        the dual-write migration window.
+        """
+        from ...schemas.audit_query_schemas import FindingResult as FR
+
+        params: Dict[str, Any] = {}
+        where_clauses: List[str] = []
+
+        if query_def.hosts:
+            placeholders = []
+            for i, hid in enumerate(query_def.hosts):
+                pn = f"host_{i}"
+                placeholders.append(f":{pn}")
+                params[pn] = hid
+            where_clauses.append(f"s.host_id IN ({', '.join(placeholders)})")
+
+        if query_def.rules:
+            placeholders = []
+            for i, rid in enumerate(query_def.rules):
+                pn = f"rule_{i}"
+                placeholders.append(f":{pn}")
+                params[pn] = rid
+            where_clauses.append(f"sf.rule_id IN ({', '.join(placeholders)})")
+
+        if query_def.severities:
+            placeholders = []
+            for i, sev in enumerate(query_def.severities):
+                pn = f"severity_{i}"
+                placeholders.append(f":{pn}")
+                params[pn] = sev.lower()
+            where_clauses.append(f"LOWER(sf.severity) IN ({', '.join(placeholders)})")
+
+        if query_def.statuses:
+            placeholders = []
+            for i, st in enumerate(query_def.statuses):
+                pn = f"status_{i}"
+                placeholders.append(f":{pn}")
+                params[pn] = st.lower()
+            where_clauses.append(f"LOWER(sf.status) IN ({', '.join(placeholders)})")
+
+        if query_def.date_range:
+            where_clauses.append("sf.created_at >= :start_date")
+            where_clauses.append("sf.created_at <= :end_date")
+            params["start_date"] = datetime.combine(
+                query_def.date_range.start_date,
+                datetime.min.time(),
+                tzinfo=timezone.utc,
+            )
+            params["end_date"] = datetime.combine(
+                query_def.date_range.end_date,
+                datetime.max.time(),
+                tzinfo=timezone.utc,
+            )
+
+        where_sql = ""
+        if where_clauses:
+            where_sql = "WHERE " + " AND ".join(where_clauses)
+
+        query = f"""
+            SELECT sf.scan_id, s.host_id, h.hostname, sf.rule_id,
+                   sf.title, sf.severity, sf.status, sf.detail,
+                   sf.framework_section, sf.evidence, sf.framework_refs,
+                   sf.skip_reason, sf.created_at as scanned_at
+            FROM scan_findings sf
+            JOIN scans s ON sf.scan_id = s.id
+            JOIN hosts h ON s.host_id = h.id
+            {where_sql}
+            ORDER BY sf.created_at DESC
+        """
+
+        result = self.db.execute(text(query), params)
+        rows = result.fetchall()
+
+        findings: List[FR] = []
+        for row in rows:
+            findings.append(
+                FR(
+                    scan_id=row.scan_id,
+                    host_id=row.host_id,
+                    hostname=row.hostname,
+                    rule_id=row.rule_id,
+                    title=row.title or "",
+                    severity=row.severity or "unknown",
+                    status=row.status or "unknown",
+                    detail=row.detail,
+                    framework_section=row.framework_section,
+                    evidence=getattr(row, "evidence", None),
+                    framework_refs=getattr(row, "framework_refs", None),
+                    skip_reason=getattr(row, "skip_reason", None),
+                    scanned_at=row.scanned_at,
+                )
+            )
+        return findings
 
     def _generate_json(self, export_id: UUID, findings: List[FindingResult]) -> tuple[str, int, str]:
         """Generate JSON export file."""

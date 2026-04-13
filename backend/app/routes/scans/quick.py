@@ -26,7 +26,7 @@ from sqlalchemy.orm import Session
 from app.auth import get_current_user
 from app.database import get_db
 from app.rbac import UserRole, require_role
-from app.tasks.kensa_scan_tasks import create_kensa_scan_record, execute_kensa_scan_task
+from app.tasks.kensa_scan_tasks import create_kensa_scan_record
 
 logger = logging.getLogger(__name__)
 
@@ -284,8 +284,11 @@ async def quick_scan(
                 framework=framework,
             )
 
-            # Queue Celery task
-            execute_kensa_scan_task.delay(
+            # Queue scan task via job queue
+            from app.services.job_queue.dispatch import enqueue_task
+
+            enqueue_task(
+                "app.tasks.execute_kensa_scan",
                 scan_id=scan_id,
                 host_id=host["id"],
                 framework=framework,

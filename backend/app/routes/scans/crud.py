@@ -44,7 +44,6 @@ from app.database import get_db
 from app.rbac import UserRole, require_role
 from app.routes.scans.helpers import add_deprecation_header, error_service
 from app.routes.scans.models import AutomatedFixRequest, ScanRequest, ScanUpdate
-from app.tasks.scan_tasks import execute_scan_celery
 from app.utils.logging_security import sanitize_path_for_log
 from app.utils.mutation_builders import DeleteBuilder, InsertBuilder, UpdateBuilder
 from app.utils.query_builder import QueryBuilder
@@ -71,6 +70,7 @@ router = APIRouter(tags=["Scan CRUD"])
 )
 @router.get("/")
 async def list_scans(
+    response: Response,
     host_id: Optional[str] = None,
     status: Optional[str] = None,
     limit: int = 50,
@@ -81,10 +81,14 @@ async def list_scans(
     """
     List scans with optional filtering.
 
+    DEPRECATION NOTICE: This endpoint is superseded by GET /api/transactions.
+    Use the transactions API for new integrations.
+
     Returns a paginated list of scans with host information and result summaries.
     Supports filtering by host_id and status.
 
     Args:
+        response: FastAPI response for deprecation headers.
         host_id: Optional filter by host UUID.
         status: Optional filter by scan status (pending, running, completed, failed).
         limit: Maximum number of scans to return (default 50).
@@ -106,6 +110,8 @@ async def list_scans(
         - Requires authenticated user
         - Uses QueryBuilder for SQL injection prevention
     """
+    response.headers["Deprecation"] = "true"
+    response.headers["Link"] = '</api/transactions>; rel="successor-version"'
     try:
         # Quick check: Return empty if no scans exist
         count_check = QueryBuilder("scans")
@@ -260,17 +266,23 @@ async def list_scans(
 @router.get("/{scan_id}")
 async def get_scan(
     scan_id: str,
+    response: Response,
     db: Session = Depends(get_db),
     current_user: Dict[str, Any] = Depends(get_current_user),
 ) -> Dict[str, Any]:
     """
     Get scan details by ID.
 
+    DEPRECATION NOTICE: This endpoint is superseded by
+    GET /api/transactions/{transaction_id}. Use the transactions API
+    for new integrations.
+
     Returns comprehensive scan information including host details, scan options,
     and results summary (if completed).
 
     Args:
         scan_id: UUID of the scan to retrieve.
+        response: FastAPI response for deprecation headers.
         db: SQLAlchemy database session.
         current_user: Authenticated user from JWT token.
 
@@ -288,6 +300,8 @@ async def get_scan(
         - Requires authenticated user
         - Uses QueryBuilder for SQL injection prevention
     """
+    response.headers["Deprecation"] = "true"
+    response.headers["Link"] = '</api/transactions>; rel="successor-version"'
     try:
         builder = (
             QueryBuilder("scans s")
@@ -521,8 +535,11 @@ async def create_scan_legacy(
         # Commit the scan record
         db.commit()
 
-        # Start scan via Celery task (persistent, with timeout and retry)
-        execute_scan_celery.delay(
+        # Start scan via job queue (persistent, with timeout and retry)
+        from app.services.job_queue.dispatch import enqueue_task
+
+        enqueue_task(
+            "app.tasks.execute_scan",
             scan_id=str(scan_id),
             host_data={
                 "hostname": host_result.hostname,
@@ -807,14 +824,7 @@ async def stop_scan(
         if result.status not in ["pending", "running"]:
             raise HTTPException(status_code=400, detail=f"Cannot stop scan with status: {result.status}")
 
-        # Try to revoke Celery task if available
-        if result.celery_task_id:
-            try:
-                from celery import current_app
-
-                current_app.control.revoke(result.celery_task_id, terminate=True)
-            except Exception as e:
-                logger.warning(f"Failed to revoke Celery task: {e}")
+        # Task cancellation (Celery revoke removed — job queue handles via status update)
 
         # Update scan status using UpdateBuilder
         update_builder = (

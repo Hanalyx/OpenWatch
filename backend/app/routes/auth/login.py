@@ -542,7 +542,7 @@ async def logout(
     try:
         import time
 
-        from ...services.auth.token_blacklist import get_token_blacklist
+        from ...services.auth.token_blacklist_pg import get_token_blacklist
 
         # Decode the token to get jti and exp claims
         try:

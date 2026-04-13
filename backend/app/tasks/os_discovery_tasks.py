@@ -34,7 +34,6 @@ from uuid import UUID
 
 from sqlalchemy import text
 
-from app.celery_app import celery_app
 from app.config import get_settings
 from app.database import get_db_session
 from app.encryption import EncryptionConfig, create_encryption_service
@@ -167,12 +166,6 @@ def _record_discovery_failure(host_id: str, error_message: str) -> None:
         logger.warning(f"Failed to record OS discovery failure for {host_id}: {e}")
 
 
-@celery_app.task(
-    bind=True,
-    name="app.tasks.trigger_os_discovery",
-    time_limit=600,
-    soft_time_limit=540,
-)
 def trigger_os_discovery(self, host_id: str) -> Dict[str, Any]:
     """
     Asynchronously discover and update OS information for a single host.
@@ -367,12 +360,6 @@ def trigger_os_discovery(self, host_id: str) -> Dict[str, Any]:
         )
 
 
-@celery_app.task(
-    bind=True,
-    name="app.tasks.batch_os_discovery",
-    time_limit=3600,
-    soft_time_limit=3300,
-)
 def batch_os_discovery(self, host_ids: List[str]) -> Dict[str, Any]:
     """
     Trigger OS discovery for multiple hosts in batch.
@@ -414,10 +401,12 @@ def batch_os_discovery(self, host_ids: List[str]) -> Dict[str, Any]:
                 result["dispatch_errors"].append({"host_id": host_id, "error": "Invalid UUID format"})
                 continue
 
-            # Dispatch individual discovery task
-            trigger_os_discovery.apply_async(
-                args=[host_id],
-                queue="default",  # Use default queue for OS discovery
+            # Dispatch individual discovery task via job queue
+            from app.services.job_queue.dispatch import enqueue_task
+
+            enqueue_task(
+                "app.tasks.trigger_os_discovery",
+                host_id=host_id,
             )
             result["dispatched"] += 1
 
@@ -435,12 +424,6 @@ def batch_os_discovery(self, host_ids: List[str]) -> Dict[str, Any]:
     return result
 
 
-@celery_app.task(
-    bind=True,
-    name="app.tasks.discover_all_hosts_os",
-    time_limit=7200,
-    soft_time_limit=6600,
-)
 def discover_all_hosts_os(self, force: bool = False) -> Dict[str, Any]:
     """
     Discover OS information for all active hosts.
@@ -535,9 +518,11 @@ def discover_all_hosts_os(self, force: bool = False) -> Dict[str, Any]:
 
             # Dispatch batch discovery if there are hosts to process
             if host_ids_to_discover:
-                batch_os_discovery.apply_async(
-                    args=[host_ids_to_discover],
-                    queue="default",
+                from app.services.job_queue.dispatch import enqueue_task as _enqueue_batch
+
+                _enqueue_batch(
+                    "app.tasks.batch_os_discovery",
+                    host_ids=host_ids_to_discover,
                 )
                 result["dispatched"] = len(host_ids_to_discover)
 
@@ -551,4 +536,4 @@ def discover_all_hosts_os(self, force: bool = False) -> Dict[str, Any]:
 
     except Exception as exc:
         logger.error(f"Failed to initiate full OS discovery: {exc}")
-        raise self.retry(exc=exc, countdown=120, max_retries=2)
+        raise

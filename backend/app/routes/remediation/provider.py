@@ -165,10 +165,11 @@ async def start_remediation(
             ip_address="127.0.0.1",
         )
 
-        # Start remediation via Celery
-        from app.tasks.background_tasks import execute_remediation_celery
+        # Start remediation via job queue
+        from app.services.job_queue.dispatch import enqueue_task
 
-        execute_remediation_celery.delay(
+        enqueue_task(
+            "app.tasks.execute_remediation_legacy",
             job_id=str(job_id),
             provider=request.provider,
             scan_id=str(request.scan_id),

@@ -16,7 +16,6 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import text
 
-from app.celery_app import celery_app
 from app.database import get_db_session
 
 logger = logging.getLogger(__name__)
@@ -25,11 +24,6 @@ RUNNING_TIMEOUT = timedelta(hours=2)
 PENDING_TIMEOUT = timedelta(minutes=30)
 
 
-@celery_app.task(
-    name="app.tasks.detect_stale_scans",
-    time_limit=120,
-    soft_time_limit=90,
-)
 def detect_stale_scans() -> dict:
     """
     Detect and recover scans stuck in running/pending state.

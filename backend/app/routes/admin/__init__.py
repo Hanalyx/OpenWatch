@@ -30,7 +30,10 @@ try:
     from .audit import router as audit_router
     from .authorization import router as authorization_router
     from .credentials import router as credentials_router
+    from .notifications import router as notifications_router
     from .security import router as security_router
+    from .sso import router as sso_router
+    from .transactions import router as transactions_router
     from .users import router as users_router
 
     # Include all sub-routers into main router
@@ -48,6 +51,15 @@ try:
 
     # Security configuration endpoints (/security/config/*)
     router.include_router(security_router)
+
+    # Transaction backfill endpoints (/admin/transactions/*)
+    router.include_router(transactions_router)
+
+    # Notification channel management endpoints (/admin/notifications/*)
+    router.include_router(notifications_router)
+
+    # SSO provider management endpoints (/admin/sso/*)
+    router.include_router(sso_router)
 
 except ImportError as e:
     import logging

@@ -288,19 +288,18 @@ async def trigger_os_discovery(
         HTTPException: 500 if task queuing fails
     """
     try:
-        # Import here to avoid circular dependency
-        from ...tasks.os_discovery_tasks import discover_all_hosts_os
+        from app.services.job_queue.dispatch import enqueue_task
 
         # Trigger the task with force=True to bypass the enabled check
-        task = discover_all_hosts_os.delay(force=True)
+        job_id = enqueue_task("app.tasks.discover_all_hosts_os", force=True)
 
         logger.info(
-            f"Manual OS discovery triggered by user {current_user.get('username', 'unknown')}, " f"task_id={task.id}"
+            f"Manual OS discovery triggered by user {current_user.get('username', 'unknown')}, " f"job_id={job_id}"
         )
 
         return {
             "message": "OS discovery task queued successfully",
-            "task_id": str(task.id),
+            "task_id": job_id,
         }
 
     except Exception as e:

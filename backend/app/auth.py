@@ -202,7 +202,7 @@ class FIPSJWTManager:
             # Check if token has been revoked (AC-13)
             jti = payload.get("jti")
             if jti:
-                from .services.auth.token_blacklist import get_token_blacklist
+                from .services.auth.token_blacklist_pg import get_token_blacklist
 
                 blacklist = get_token_blacklist()
                 if blacklist.is_blacklisted(jti):

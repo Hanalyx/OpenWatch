@@ -10,20 +10,12 @@ import logging
 from datetime import datetime, timezone
 from typing import Any, Dict
 
-from celery import shared_task
-
 from app.database import SessionLocal
 from app.services.compliance.audit_export import AuditExportService
 
 logger = logging.getLogger(__name__)
 
 
-@shared_task(
-    name="generate_audit_export",
-    bind=True,
-    max_retries=3,
-    default_retry_delay=60,
-)
 def generate_audit_export_task(self, export_id: str) -> Dict[str, Any]:
     """
     Generate an audit export file.
@@ -69,7 +61,7 @@ def generate_audit_export_task(self, export_id: str) -> Dict[str, Any]:
 
         # Retry with exponential backoff
         try:
-            raise self.retry(exc=e)
+            raise
         except self.MaxRetriesExceededError:
             logger.error(
                 "Export generation max retries exceeded: %s",
@@ -86,7 +78,6 @@ def generate_audit_export_task(self, export_id: str) -> Dict[str, Any]:
         db.close()
 
 
-@shared_task(name="cleanup_expired_audit_exports")
 def cleanup_expired_audit_exports() -> Dict[str, Any]:
     """
     Clean up expired audit exports.

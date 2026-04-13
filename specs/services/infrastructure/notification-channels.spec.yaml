@@ -1,0 +1,158 @@
+spec: notification-channels
+version: "0.1"
+status: draft
+owner: engineering
+summary: >
+  Outbound notification dispatch for alerts. Provides a NotificationChannel
+  abstraction with concrete Slack, email (SMTP), and webhook implementations.
+  AlertService.create_alert dispatches to all enabled channels after inserting
+  the alert row. Replaces the alert-row-only implementation with a real
+  notification surface that operators can route to Slack incoming webhooks,
+  mailing lists, and custom HTTPS endpoints. Foundation for Q2 Jira bidirectional
+  sync and Q3 per-severity alert routing rules.
+
+---
+
+objective: >
+  Turn OpenWatch alerts from database rows into operator-visible notifications
+  without waiting for a polling dashboard. Every alert produced by AlertService
+  flows through the notification dispatch pipeline and is delivered to every
+  enabled channel. Failures in one channel do not block other channels or the
+  alert row creation. Duplicate alerts within the existing 60-minute dedup
+  window do not re-notify.
+
+---
+
+context:
+  depends_on:
+    - alert-thresholds.spec.yaml (AlertService.create_alert emits alerts)
+    - audit-logging.spec.yaml (dispatch results logged to audit trail)
+  consumed_by:
+    - host-liveness.spec.yaml (HOST_UNREACHABLE alerts dispatched)
+    - drift-analysis.spec.yaml (drift alerts dispatched)
+    - compliance-scheduler.spec.yaml (scan failure alerts dispatched)
+  new_dependencies:
+    - slack-sdk >= 3.27.0
+    - aiosmtplib >= 3.0.0
+
+---
+
+constraints:
+  schema:
+    - "notification_channels table MUST have columns: id, tenant_id (nullable), channel_type, name, config_encrypted (JSONB), enabled, created_at, updated_at"
+    - "channel_type MUST be one of: slack, email, webhook"
+    - "config_encrypted MUST be encrypted at rest via EncryptionService before storage"
+    - "notification_deliveries table MUST track delivery attempts: id, alert_id, channel_id, status, response_code, response_body, attempted_at"
+
+  abstraction:
+    - "NotificationChannel MUST be an abstract base class with async send(alert: Alert) -> DeliveryResult"
+    - "All concrete channels MUST inherit from NotificationChannel"
+    - "Channel implementations MUST be importable from app.services.notifications"
+    - "Channel instantiation MUST decrypt config via EncryptionService at load time"
+
+  dispatch:
+    - "AlertService.create_alert MUST dispatch to all enabled channels after DB insert succeeds"
+    - "Dispatch MUST NOT block alert row creation (async, fire-and-forget via Celery task)"
+    - "Dispatch failures MUST be logged to notification_deliveries with status=failed and response details"
+    - "Dispatch failures MUST NOT cause AlertService.create_alert to raise"
+    - "Alerts within the existing 60-minute dedup window MUST NOT trigger duplicate notifications"
+
+  slack_channel:
+    - "SlackChannel MUST use slack-sdk AsyncWebClient with an incoming webhook URL"
+    - "SlackChannel MUST format messages using Block Kit with severity, host, rule, and link back to OpenWatch"
+    - "SlackChannel MUST NOT expose sensitive evidence fields (stdout, credentials) in notification payloads"
+
+  email_channel:
+    - "EmailChannel MUST use aiosmtplib for async SMTP delivery"
+    - "EmailChannel MUST support STARTTLS and SMTPS (port 465)"
+    - "EmailChannel MUST render HTML + plaintext multipart from a template"
+    - "EmailChannel MUST support multiple recipients (to, cc, bcc)"
+
+  webhook_channel:
+    - "WebhookChannel MUST wrap the existing routes/integrations/webhooks.py delivery service"
+    - "WebhookChannel MUST HMAC-SHA256 sign payloads using a per-channel secret"
+    - "WebhookChannel MUST reject private-IP destinations (SSRF protection)"
+
+  admin_api:
+    - "POST /api/admin/notifications/channels MUST require SUPER_ADMIN role"
+    - "POST /api/admin/notifications/channels/{id}/test MUST send a synthetic test alert"
+    - "GET /api/admin/notifications/channels MUST NOT return decrypted config fields"
+
+---
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      notification_channels table exists with the specified columns and
+      config_encrypted is encrypted at rest.
+
+  - id: AC-2
+    description: >
+      NotificationChannel abstract base class is defined in
+      app.services.notifications.base with an async send method.
+
+  - id: AC-3
+    description: >
+      SlackChannel, EmailChannel, and WebhookChannel all inherit from
+      NotificationChannel and are importable from app.services.notifications.
+
+  - id: AC-4
+    description: >
+      AlertService.create_alert enqueues a Celery task to dispatch to all
+      enabled channels. The alert row insert does not block on dispatch.
+
+  - id: AC-5
+    description: >
+      A dispatch failure in one channel does not prevent other channels from
+      receiving the alert. Each attempt is recorded in notification_deliveries
+      with status and response details.
+
+  - id: AC-6
+    description: >
+      Alerts fingerprinted as duplicates within the existing 60-minute dedup
+      window do not trigger a second notification dispatch.
+
+  - id: AC-7
+    description: >
+      SlackChannel uses slack-sdk AsyncWebClient and formats messages with
+      Block Kit including severity, host, rule, and an OpenWatch link.
+
+  - id: AC-8
+    description: >
+      SlackChannel message payloads do not include raw stdout, credentials,
+      or other sensitive evidence fields.
+
+  - id: AC-9
+    description: >
+      EmailChannel delivers via aiosmtplib with STARTTLS support and renders
+      multipart HTML + plaintext from a template.
+
+  - id: AC-10
+    description: >
+      WebhookChannel rejects outbound URLs that resolve to private IP ranges
+      (SSRF protection) and signs payloads with HMAC-SHA256.
+
+  - id: AC-11
+    description: >
+      POST /api/admin/notifications/channels requires SUPER_ADMIN role
+      (verified via @require_role decorator).
+
+  - id: AC-12
+    description: >
+      POST /api/admin/notifications/channels/{id}/test sends a synthetic alert
+      through the channel and returns the delivery result.
+
+  - id: AC-13
+    description: >
+      GET /api/admin/notifications/channels response body does not include
+      decrypted config values (credentials, webhook URLs redacted).
+
+---
+
+changelog:
+  - version: "0.1"
+    date: "2026-04-11"
+    changes:
+      - "Initial draft created during Q1 planning"
+      - "13 ACs covering schema, abstraction, dispatch, three concrete channels, admin API"
+      - "Promotion to active scheduled for week 12 of Q1"

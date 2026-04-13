@@ -1,0 +1,131 @@
+spec: host-liveness
+version: "0.1"
+status: draft
+owner: engineering
+summary: >
+  Dedicated host liveness monitoring independent of compliance scan cadence.
+  A Celery Beat task pings every managed host every 5 minutes via a TCP
+  connection to the SSH port, recording response time and reachability state.
+  Transitions from reachable -> unreachable trigger a HOST_UNREACHABLE alert.
+  Provides the "15 minute drift-to-alert" latency target from the vision that
+  the 1-24h scan cadence cannot meet on its own.
+
+---
+
+objective: >
+  Give OpenWatch a true Heartbeat signal: know within 5 minutes when a managed
+  host becomes unreachable, independent of whether a compliance scan is due.
+  Distinguishes "host down" from "host unreachable from OpenWatch" for
+  operator clarity. Feeds the fleet health summary and the HOST_UNREACHABLE
+  alert type that already exists in alerts.py but is currently unwired.
+
+---
+
+context:
+  depends_on:
+    - alert-thresholds.spec.yaml (HOST_UNREACHABLE alert type already defined)
+    - host-monitoring.spec.yaml (host state enum: reachable/unreachable/unknown)
+    - notification-channels.spec.yaml (alert dispatch when state transitions)
+  consumed_by:
+    - role-dashboards.spec.yaml (fleet health summary tiles)
+    - compliance-scheduler.spec.yaml (unreachable hosts skip scans)
+
+---
+
+constraints:
+  schema:
+    - "host_liveness table MUST have host_id as primary key (one row per host)"
+    - "host_liveness MUST include columns: last_ping_at, last_response_ms, reachability_status, consecutive_failures, last_state_change_at"
+    - "reachability_status MUST be one of: reachable, unreachable, unknown"
+    - "consecutive_failures MUST increment on each unreachable ping and reset to 0 on each reachable ping"
+
+  ping_mechanics:
+    - "Ping MUST be a TCP connection to the host's SSH port (not ICMP, not a full SSH handshake)"
+    - "Ping MUST have a 5 second timeout"
+    - "Ping MUST NOT execute any command on the host"
+    - "Ping MUST NOT require authentication"
+    - "Ping MUST record response_ms as the time from connect attempt to socket open"
+    - "Ping MUST skip hosts in maintenance mode"
+
+  scheduling:
+    - "ping_all_managed_hosts Celery Beat task MUST run every 5 minutes"
+    - "Ping tasks MUST NOT block the Celery worker pool (async via aiohttp or concurrent futures)"
+    - "Ping tasks MUST complete within 60 seconds for fleets up to 500 hosts"
+
+  state_transitions:
+    - "Transition reachable -> unreachable MUST occur after 2 consecutive failed pings"
+    - "Transition unreachable -> reachable MUST occur on first successful ping"
+    - "Transition reachable -> unreachable MUST trigger HOST_UNREACHABLE alert via AlertService"
+    - "Transition unreachable -> reachable MUST trigger HOST_RECOVERED alert via AlertService"
+    - "State transitions MUST update last_state_change_at"
+
+  integration:
+    - "LivenessService MUST NOT be used as the sole input to compliance scoring"
+    - "Hosts with reachability_status=unreachable MUST be skipped by compliance_scheduler"
+    - "Fleet health summary endpoint MUST source reachable counts from host_liveness (not last_scan_completed)"
+
+---
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      host_liveness table exists with host_id primary key and the specified
+      columns (last_ping_at, last_response_ms, reachability_status,
+      consecutive_failures, last_state_change_at).
+
+  - id: AC-2
+    description: >
+      LivenessService.ping_host(host_id) opens a TCP connection to the host's
+      SSH port with a 5 second timeout, records response_ms, and updates the
+      host_liveness row. It does not execute any command on the host.
+
+  - id: AC-3
+    description: >
+      ping_all_managed_hosts Celery Beat task is scheduled every 5 minutes
+      and iterates over all non-maintenance-mode hosts.
+
+  - id: AC-4
+    description: >
+      After 2 consecutive failed pings, reachability_status transitions to
+      unreachable and consecutive_failures is 2 or greater. last_state_change_at
+      is updated.
+
+  - id: AC-5
+    description: >
+      On first successful ping after being unreachable, reachability_status
+      transitions to reachable and consecutive_failures resets to 0.
+
+  - id: AC-6
+    description: >
+      Transition from reachable to unreachable calls
+      AlertService.create_alert with type=HOST_UNREACHABLE.
+
+  - id: AC-7
+    description: >
+      Transition from unreachable to reachable calls
+      AlertService.create_alert with type=HOST_RECOVERED.
+
+  - id: AC-8
+    description: >
+      Hosts in maintenance mode are skipped by the ping task. Their host_liveness
+      row retains its last known reachability_status without updates.
+
+  - id: AC-9
+    description: >
+      compliance_scheduler skips hosts whose reachability_status is unreachable
+      when dispatching scheduled scans.
+
+  - id: AC-10
+    description: >
+      GET /api/fleet/health-summary returns reachable host count sourced from
+      host_liveness (not from last_scan_completed).
+
+---
+
+changelog:
+  - version: "0.1"
+    date: "2026-04-11"
+    changes:
+      - "Initial draft created during Q1 planning"
+      - "10 ACs covering schema, ping mechanics, scheduling, state transitions"
+      - "Promotion to active scheduled for week 12 of Q1"

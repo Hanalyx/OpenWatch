@@ -56,7 +56,6 @@ from app.routes.scans.models import (
 )
 from app.services.engine import RecommendedScanProfile, ScanIntelligenceService
 from app.services.validation import get_error_classification_service, get_error_sanitization_service
-from app.tasks.scan_tasks import execute_scan_celery
 from app.utils.query_builder import QueryBuilder
 
 logger = logging.getLogger(__name__)
@@ -468,8 +467,11 @@ async def quick_scan(
         # Commit the scan record
         db.commit()
 
-        # Start scan via Celery task (persistent, with timeout and retry)
-        execute_scan_celery.delay(
+        # Start scan via job queue (persistent, with timeout and retry)
+        from app.services.job_queue.dispatch import enqueue_task
+
+        enqueue_task(
+            "app.tasks.execute_scan",
             scan_id=str(scan_id),
             host_data={
                 "hostname": host_result.hostname,
@@ -679,8 +681,11 @@ async def create_verification_scan(
         scan_id = scan_row.id
         db.commit()
 
-        # Start verification scan via Celery task (persistent, with timeout and retry)
-        execute_scan_celery.delay(
+        # Start verification scan via job queue (persistent, with timeout and retry)
+        from app.services.job_queue.dispatch import enqueue_task
+
+        enqueue_task(
+            "app.tasks.execute_scan",
             scan_id=str(scan_id),
             host_data={
                 "hostname": host_result.hostname,

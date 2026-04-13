@@ -983,8 +983,6 @@ def execute_group_compliance_scan(
         This function is called from Celery tasks which run with system privileges.
         The original authorization was validated when the scheduled scan was created.
     """
-    from app.tasks.scan_tasks import execute_scan_task as execute_scan
-
     try:
         scan_ids = []
         failed_hosts = []
@@ -1031,8 +1029,11 @@ def execute_group_compliance_scan(
                 )
                 db.commit()
 
-                # Queue the scan task
-                execute_scan.delay(  # type: ignore[attr-defined]
+                # Queue the scan task via job queue
+                from app.services.job_queue.dispatch import enqueue_task
+
+                enqueue_task(
+                    "app.tasks.execute_scan",
                     scan_id=scan_id,
                     host_id=host_id,
                     profile_id=profile_id,

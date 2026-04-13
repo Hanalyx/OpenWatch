@@ -16,6 +16,7 @@ Usage:
 from .drift import DriftDetectionService
 from .health import HealthMonitoringService, get_health_monitoring_service
 from .host import HostMonitor, get_host_monitor
+from .liveness import LivenessService
 from .metrics import (
     IntegrationMetricsCollector,
     metrics_collector,
@@ -49,6 +50,8 @@ __all__ = [
     "time_webhook_delivery",
     "time_api_call",
     "time_remediation",
+    # Liveness monitoring
+    "LivenessService",
     # Adaptive scheduler
     "AdaptiveSchedulerService",
     "adaptive_scheduler_service",

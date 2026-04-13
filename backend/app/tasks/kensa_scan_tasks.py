@@ -1,7 +1,7 @@
 """
-Celery tasks for Kensa compliance scanning operations.
+Kensa compliance scanning task functions.
 
-This module provides async execution of Kensa scans via Celery,
+This module provides async execution of Kensa scans,
 enabling one-click scanning from the UI.
 """
 
@@ -11,18 +11,24 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from celery.exceptions import SoftTimeLimitExceeded
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app.celery_app import celery_app
+from app.config import get_settings
 from app.database import SessionLocal
-from app.plugins.kensa.evidence import serialize_evidence, serialize_framework_refs
+from app.plugins.kensa.evidence import build_evidence_envelope, serialize_evidence, serialize_framework_refs
 from app.services.compliance import TemporalComplianceService
+from app.services.compliance.state_writer import process_rule_result
 from app.services.monitoring import DriftDetectionService
 from app.utils.mutation_builders import InsertBuilder, UpdateBuilder
 
 logger = logging.getLogger(__name__)
+
+
+def _dual_write_enabled() -> bool:
+    """Check if transaction log dual-write is enabled."""
+    settings = get_settings()
+    return getattr(settings, "dual_write_transactions", True)
 
 
 def _get_host_platform(db: Session, host_id: str) -> Dict[str, Any]:
@@ -89,16 +95,6 @@ def _get_host_platform(db: Session, host_id: str) -> Dict[str, Any]:
     }
 
 
-@celery_app.task(
-    bind=True,
-    name="app.tasks.execute_kensa_scan",
-    queue="scans",
-    time_limit=3600,
-    soft_time_limit=3300,
-    acks_late=True,
-    reject_on_worker_lost=True,
-    max_retries=1,
-)
 def execute_kensa_scan_task(
     self,
     scan_id: str,
@@ -108,7 +104,7 @@ def execute_kensa_scan_task(
     category: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
-    Celery task for Kensa compliance scan execution.
+    Task for Kensa compliance scan execution.
 
     Args:
         scan_id: UUID of the scan record.
@@ -124,13 +120,6 @@ def execute_kensa_scan_task(
     start_time = datetime.now(timezone.utc)
 
     try:
-        # Record celery task ID
-        db.execute(
-            text("UPDATE scans SET celery_task_id = :task_id WHERE id = :scan_id"),
-            {"task_id": self.request.id, "scan_id": scan_id},
-        )
-        db.commit()
-
         # Check for another running scan on this host (guard against double dispatch)
         other_running = db.execute(
             text(
@@ -302,12 +291,31 @@ def execute_kensa_scan_task(
         query, params = results_insert.build()
         db.execute(text(query), params)
 
-        # Insert individual rule findings
+        # Insert individual rule findings and update compliance state
+        dual_write = _dual_write_enabled()
+        initiator_type = "scheduler"
+        initiator_id = None
+
+        # Determine initiator from scan record
+        scan_row = db.execute(
+            text("SELECT started_by FROM scans WHERE id = :sid"),
+            {"sid": scan_id},
+        ).fetchone()
+        if scan_row and scan_row.started_by:
+            initiator_type = "user"
+            initiator_id = str(scan_row.started_by)
+
+        changes_count = 0
         for r in results:
             status_str = "pass" if r.passed else "fail"
             if r.skipped:
                 status_str = "skipped"
 
+            evidence_json = serialize_evidence(r)
+            framework_json = serialize_framework_refs(r)
+            envelope_json = build_evidence_envelope(r, kensa_version, start_time, end_time)
+
+            # Legacy dual-write to scan_findings (unchanged)
             finding_insert = (
                 InsertBuilder("scan_findings")
                 .columns(
@@ -331,8 +339,8 @@ def execute_kensa_scan_task(
                     status_str,
                     r.detail[:2000] if r.detail else None,
                     r.framework_section,
-                    serialize_evidence(r),
-                    serialize_framework_refs(r),
+                    evidence_json,
+                    framework_json,
                     r.skip_reason if r.skipped else None,
                     end_time,
                 )
@@ -340,7 +348,34 @@ def execute_kensa_scan_task(
             query, params = finding_insert.build()
             db.execute(text(query), params)
 
+            # Write-on-change to host_rule_state + transactions
+            if dual_write:
+                changed = process_rule_result(
+                    db,
+                    host_id,
+                    scan_id,
+                    r,
+                    status_str,
+                    evidence_json,
+                    envelope_json,
+                    framework_json,
+                    start_time,
+                    end_time,
+                    duration_ms,
+                    initiator_type,
+                    initiator_id,
+                )
+                if changed:
+                    changes_count += 1
+
         db.commit()
+
+        logger.info(
+            "Kensa scan %s: %d rules checked, %d state changes recorded as transactions",
+            scan_id,
+            total,
+            changes_count,
+        )
 
         logger.info(
             "Kensa scan %s completed: %d/%d passed (%.1f%%) in %dms",
@@ -405,15 +440,15 @@ def execute_kensa_scan_task(
             "snapshot_created": snapshot_created,
         }
 
-    except SoftTimeLimitExceeded:
-        logger.error(f"Kensa scan {scan_id} exceeded soft time limit")
+    except TimeoutError:
+        logger.error(f"Kensa scan {scan_id} exceeded time limit")
         _update_scan_timed_out(db, scan_id, "Scan timed out after 55 minutes")
         raise
 
     except Exception as exc:
         logger.exception(f"Kensa scan task failed for {scan_id}: {exc}")
         _update_scan_error(db, scan_id, f"Scan execution failed: {str(exc)}")
-        raise self.retry(exc=exc, countdown=120, max_retries=1)
+        raise  # Job queue worker handles retry
 
     finally:
         db.close()

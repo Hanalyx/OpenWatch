@@ -190,8 +190,24 @@ Items from `docs/OW_SECURITY_ASSESSMENT.md` that require careful sequencing due 
 
 | Item | Priority | Notes |
 |------|----------|-------|
+| Remove XCCDF/lxml dependency from OWCA | P2 | `owca/extraction/xccdf_parser.py` imports lxml at module level via `owca/__init__.py`. Legacy OpenSCAP path — Kensa doesn't use XCCDF. Refactor to make import conditional or remove XCCDF parser from OWCA init. Blocks removing lxml from requirements.txt. |
 | Snake_case to camelCase scattered transformation | P2 | No centralized adapters (Rule Reference has one, others don't) |
+| Liveness ping port detection | P2 | `liveness_tasks.py` defaults to port 22. Hosts on non-standard SSH ports show as unreachable. Read port from host credential config. |
 | Compliance-as-Code API | P3 | External tool integration for compliance checks |
+
+## Q1 Completed (2026-04-11 to 2026-04-13)
+
+| Item | Notes |
+|------|-------|
+| Transaction log (write-on-change model) | `transactions` + `host_rule_state` tables, 99.7% write reduction |
+| Host liveness monitoring | TCP ping every 5 min, HOST_UNREACHABLE/RECOVERED alerts |
+| Notification channels | Slack, email, webhook dispatch + admin CRUD |
+| SSO federation | OIDC (authlib) + SAML (pysaml2), login/callback routes |
+| PostgreSQL job queue | Replaces Celery + Redis (SKIP LOCKED, 40 tasks, scheduler) |
+| Dependency cleanup | 13 packages removed, Chart.js removed from frontend |
+| Redis + Celery removed | Zero Redis/Celery in codebase, 4 containers (down from 6) |
+| FreeBSD 15.0 packaging | Dockerfiles, docker-compose.freebsd.yml, rc.d scripts, pkg skeleton |
+| Rules-first transactions UI | `/transactions` → `/transactions/rule/:id` → `/transactions/:id` |
 
 ---
 

@@ -196,10 +196,10 @@ async def discover_basic_system_bulk(
 
     for host in valid_hosts:
         try:
-            # Dispatch discovery via Celery
-            from app.tasks.background_tasks import execute_host_discovery_celery
+            # Dispatch discovery via job queue
+            from app.services.job_queue.dispatch import enqueue_task
 
-            execute_host_discovery_celery.delay(host_id=str(host.id))
+            enqueue_task("app.tasks.execute_host_discovery", host_id=str(host.id))
             initiated_hosts.append(str(host.id))
 
         except Exception as e:

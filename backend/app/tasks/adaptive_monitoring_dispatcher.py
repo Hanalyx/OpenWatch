@@ -1,11 +1,11 @@
 """
-Adaptive Monitoring Dispatcher for Celery Beat
+Adaptive Monitoring Dispatcher
 
 This module implements the dispatcher pattern for the adaptive host monitoring scheduler.
-The dispatcher is called periodically by Celery Beat and queues individual host check tasks.
+The dispatcher is called periodically and queues individual host check tasks.
 
 Architecture:
-1. Celery Beat calls dispatch_host_checks() every 30 seconds
+1. Scheduler calls dispatch_host_checks() every 30 seconds
 2. Dispatcher queries hosts WHERE next_check_time <= NOW()
 3. Individual check tasks dispatched with state-based priority
 4. Each task updates host state and calculates next_check_time
@@ -21,22 +21,12 @@ import logging
 from datetime import datetime, timezone
 from typing import Any, Dict
 
-from app.celery_app import celery_app
 from app.database import get_db
 from app.services.monitoring import adaptive_scheduler_service
 
 logger = logging.getLogger(__name__)
 
-# Note: check_host_connectivity is imported at runtime to avoid circular imports
-# It's accessed via celery_app.tasks['app.tasks.check_host_connectivity']
 
-
-@celery_app.task(
-    bind=True,
-    name="app.tasks.dispatch_host_checks",
-    time_limit=60,
-    soft_time_limit=45,
-)
 def dispatch_host_checks(self: Any) -> Dict[str, Any]:
     """
     Dispatcher task that runs every 30 seconds via Celery Beat.
@@ -75,13 +65,13 @@ def dispatch_host_checks(self: Any) -> Dict[str, Any]:
                     # Get priority based on host state
                     priority = adaptive_scheduler_service.get_priority_for_state(db, host["status"])
 
-                    # Dispatch individual host check task with priority
-                    # Use send_task to avoid circular import
-                    celery_app.send_task(
+                    # Dispatch individual host check task via job queue
+                    from app.services.job_queue.dispatch import enqueue_task
+
+                    enqueue_task(
                         "app.tasks.check_host_connectivity",
-                        args=[host["id"], priority],
-                        priority=priority,  # Celery queue priority
-                        queue="host_monitoring",  # Dedicated queue for monitoring tasks
+                        host_id=host["id"],
+                        priority=priority,
                     )
 
                     dispatched_count += 1

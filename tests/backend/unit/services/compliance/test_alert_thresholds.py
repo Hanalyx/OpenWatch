@@ -324,3 +324,42 @@ class TestAC10ConfigurationDrift:
         """Verify fail->pass logic in source."""
         source = inspect.getsource(AlertGenerator._check_configuration_drift)
         assert "not previous_passed and current_passed" in source
+
+
+# ---------------------------------------------------------------------------
+# AC-11: create_alert dispatches notification task (fire-and-forget)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestAC11NotificationDispatch:
+    """AC-11: create_alert enqueues dispatch_alert_notifications; failures don't raise."""
+
+    def test_dispatches_notification_task(self):
+        """Verify create_alert references dispatch_alert_notifications."""
+        from app.services.compliance.alerts import AlertService
+
+        source = inspect.getsource(AlertService.create_alert)
+        assert "dispatch_alert_notifications" in source
+
+    def test_imports_notification_tasks(self):
+        """Verify create_alert imports from notification_tasks module."""
+        from app.services.compliance.alerts import AlertService
+
+        source = inspect.getsource(AlertService.create_alert)
+        assert "notification_tasks" in source
+
+    def test_dispatch_wrapped_in_try_except(self):
+        """Verify dispatch is wrapped in try/except so failures don't propagate."""
+        from app.services.compliance.alerts import AlertService
+
+        source = inspect.getsource(AlertService.create_alert)
+        # The dispatch block must be inside a try/except
+        assert "Failed to enqueue alert notification" in source
+
+    def test_uses_delay_for_async_dispatch(self):
+        """Verify .delay() is used for fire-and-forget Celery dispatch."""
+        from app.services.compliance.alerts import AlertService
+
+        source = inspect.getsource(AlertService.create_alert)
+        assert ".delay(" in source

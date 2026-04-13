@@ -58,6 +58,11 @@ export {
   fetchScanHistory,
 } from './hostDetailAdapter';
 
+// Transaction adapters for Transactions page
+export { transactionService } from './transactionAdapter';
+
+export type { Transaction, TransactionDetail, TransactionListResponse } from './transactionAdapter';
+
 // Rule Reference adapters for Rule Reference page
 export {
   fetchRules,

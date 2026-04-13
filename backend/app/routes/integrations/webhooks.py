@@ -636,10 +636,11 @@ async def test_webhook_endpoint(
             },
         }
 
-        # Queue webhook delivery via Celery
-        from app.tasks.background_tasks import deliver_webhook_celery
+        # Queue webhook delivery via job queue
+        from app.services.job_queue.dispatch import enqueue_task
 
-        deliver_webhook_celery.delay(
+        enqueue_task(
+            "app.tasks.deliver_webhook",
             url=webhook_result.url,
             secret_hash=webhook_result.secret_hash,
             event_data=test_event,

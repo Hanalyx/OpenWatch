@@ -58,7 +58,6 @@ from ...schemas.audit_query_schemas import (
 from ...services.compliance.audit_export import AuditExportService
 from ...services.compliance.audit_query import AuditQueryService
 from ...services.licensing import LicenseService
-from ...tasks.audit_export_tasks import generate_audit_export_task
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/audit", tags=["Audit Queries"])
@@ -539,7 +538,9 @@ async def create_export(
         )
 
     # Queue export generation task
-    generate_audit_export_task.delay(str(export.id))
+    from app.services.job_queue.dispatch import enqueue_task
+
+    enqueue_task("generate_audit_export", export_id=str(export.id))
 
     return export
 

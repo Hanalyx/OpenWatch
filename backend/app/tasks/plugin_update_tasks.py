@@ -10,7 +10,6 @@ import asyncio
 import logging
 from typing import Any, Dict
 
-from celery import shared_task
 from sqlalchemy import text
 
 from app.database import SessionLocal
@@ -20,7 +19,6 @@ from app.plugins.kensa.updater import KensaUpdater
 logger = logging.getLogger(__name__)
 
 
-@shared_task(name="app.tasks.check_kensa_updates")
 def check_kensa_updates() -> Dict[str, Any]:
     """
     Check for Kensa updates (scheduled daily).
@@ -84,7 +82,6 @@ def check_kensa_updates() -> Dict[str, Any]:
     return asyncio.run(_check())
 
 
-@shared_task(name="app.tasks.cleanup_old_update_records")
 def cleanup_old_update_records(retention_days: int = 90) -> Dict[str, Any]:
     """
     Cleanup old update records (scheduled weekly).
@@ -139,7 +136,6 @@ def cleanup_old_update_records(retention_days: int = 90) -> Dict[str, Any]:
         db.close()
 
 
-@shared_task(name="app.tasks.perform_auto_update")
 def perform_auto_update() -> Dict[str, Any]:
     """
     Perform automatic Kensa update if enabled.

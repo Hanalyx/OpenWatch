@@ -34,10 +34,13 @@ Coverage is checked by `scripts/check-spec-coverage.py`.
 
 ---
 
-## System Specs (10 Active)
+## System Specs (10 Active, 3 Draft)
 
 | Spec | File | Tests | Phase | Status |
 |------|------|-------|-------|--------|
+| Transaction Log | system/transaction-log.spec.yaml | tests/backend/unit/system/test_transaction_log_spec.py | Q1 | Draft |
+| Host Rule State | system/host-rule-state.spec.yaml | tests/backend/unit/system/test_host_rule_state_spec.py | Q1 | Draft |
+| Job Queue | system/job-queue.spec.yaml | tests/backend/unit/system/test_job_queue_spec.py | Q1-D | Draft |
 | Architecture | system/architecture.spec.yaml | tests/backend/unit/system/test_architecture_spec.py | 8 | Active |
 | Documentation | system/documentation.spec.yaml | tests/backend/unit/system/test_documentation_spec.py | 8 | Active |
 | Integration Testing | system/integration-testing.spec.yaml | tests/backend/integration/test_*.py (20 files) | 9 | Active |
@@ -57,7 +60,7 @@ Coverage is checked by `scripts/check-spec-coverage.py`.
 | Remediation Lifecycle | pipelines/remediation-lifecycle.spec.yaml | tests/backend/unit/pipelines/test_remediation_lifecycle.py | 2 | Active |
 | Drift Detection | pipelines/drift-detection.spec.yaml | tests/backend/unit/services/engine/test_drift_detection.py | 1 | Active |
 
-## Service Specs (22 Active)
+## Service Specs (22 Active, 3 Draft)
 
 | Spec | File | Tests | Phase | Status |
 |------|------|-------|-------|--------|
@@ -82,6 +85,9 @@ Coverage is checked by `scripts/check-spec-coverage.py`.
 | Host Discovery | services/discovery/host-discovery.spec.yaml | tests/backend/unit/services/discovery/test_host_discovery_spec.py | 9 | Active |
 | Rule Reference | services/rules/rule-reference.spec.yaml | tests/backend/unit/services/rules/test_rule_reference_spec.py | 9 | Active |
 | Server Intelligence | services/system-info/server-intelligence.spec.yaml | tests/backend/unit/services/system_info/test_server_intelligence_spec.py | 9 | Active |
+| Host Liveness | services/monitoring/host-liveness.spec.yaml | tests/backend/unit/services/monitoring/test_host_liveness_spec.py | Q1 | Draft |
+| Notification Channels | services/infrastructure/notification-channels.spec.yaml | tests/backend/unit/services/infrastructure/test_notification_channels_spec.py | Q1 | Draft |
+| SSO Federation | services/auth/sso-federation.spec.yaml | tests/backend/unit/services/auth/test_sso_federation_spec.py | Q1 | Draft |
 
 ## API Route Specs (22 Active)
 
@@ -155,16 +161,43 @@ Coverage is checked by `scripts/check-spec-coverage.py`.
 
 | Category | Total Specs | Active | Draft | Deprecated |
 |----------|-------------|--------|-------|------------|
-| System | 10 | 10 | 0 | 0 |
+| System | 13 | 10 | 3 | 0 |
 | Pipelines | 3 | 3 | 0 | 0 |
-| Services | 22 | 22 | 0 | 0 |
+| Services | 24 | 21 | 3 | 0 |
 | API | 28 | 28 | 0 | 0 |
 | Plugins | 1 | 1 | 0 | 0 |
 | Release | 4 | 4 | 0 | 0 |
 | Frontend | 13 | 13 | 0 | 0 |
-| **Total** | **80** | **80** | **0** | **0** |
+| **Total** | **86** | **80** | **6** | **0** |
 
-**Total ACs: 682 (100% covered by tests)**
+**Active ACs: 684 (100% covered by tests) + 78 draft ACs (Q1 — code landed or planned)**
+
+### Q1 Draft Specs
+
+| Spec | Workstream | ACs | Status | Notes |
+|------|------------|-----|--------|-------|
+| transaction-log | A (Eye) | 17 | Code landed | Write-on-change v0.2 |
+| host-rule-state | A (Eye) | 8 | Code landed | Scalable state table |
+| host-liveness | B (Heartbeat) | 10 | Code landed | 5-min TCP ping |
+| notification-channels | C (Control Plane) | 13 | Code landed | Slack + email + webhook |
+| sso-federation | C (Control Plane) | 16 | Code landed | Gated on security review |
+| job-queue | D (Infrastructure) | 14 | Planned | Replaces Celery + Redis |
+
+| Spec | Workstream | ACs | Unskipped | Still Skipped | Blocker |
+|------|------------|-----|-----------|---------------|---------|
+| transaction-log | A (Eye) | 17 | 11 | 6 | ORM model (not used), remediation write path, benchmarks |
+| host-rule-state | A (Eye) | 8 | 0 | 8 | Write-on-change model for scalable state tracking |
+| host-liveness | B (Heartbeat) | 10 | 4 | 6 | State machine behavioral tests (need DB) |
+| notification-channels | C (Control Plane) | 13 | 4 | 9 | Route imports, behavioral tests (need DB + deps) |
+| sso-federation | C (Control Plane) | 16 | 5 | 11 | Route imports, integration flows (need IdP + deps) |
+| job-queue | D (Infrastructure) | 14 | 0 | 14 | Planned — code not yet implemented |
+
+### Updated Active Specs in Q1
+
+| Spec | Change | New Version |
+|------|--------|-------------|
+| compliance-scheduler | AC-7: auto-baseline on first scan | 1.1 |
+| alert-thresholds | AC-11: notification dispatch wiring | 1.1 |
 
 ## Cross-Module Dependencies
 
@@ -175,6 +208,11 @@ Coverage is checked by `scripts/check-spec-coverage.py`.
 - drift-detection.spec &rarr; alert-thresholds.spec (CONFIGURATION_DRIFT, MASS_DRIFT alerts)
 - host-monitoring.spec &rarr; kensa-scan.spec (ONLINE state gates scan eligibility)
 - host-monitoring.spec &rarr; alert-thresholds.spec (HOST_UNREACHABLE, state transition alerts)
+- host-rule-state.spec &rarr; transaction-log.spec (transactions only on state changes)
+- job-queue.spec &rarr; transaction-log.spec (job queue writes transactions on task completion)
+- notification-channels.spec &rarr; alert-thresholds.spec (alerts dispatched via notification channels)
+- sso-federation.spec &rarr; authentication.spec (SSO extends the authentication flow)
+- host-liveness.spec &rarr; notification-channels.spec (HOST_UNREACHABLE alerts dispatched)
 
 ## Activation Schedule
 

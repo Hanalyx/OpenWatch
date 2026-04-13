@@ -399,20 +399,19 @@ async def force_host_scan(
     The scan will be executed by the next available worker.
     """
     try:
-        from app.celery_app import celery_app
+        from app.services.job_queue.dispatch import enqueue_task
 
         # Queue an immediate scan
-        task = celery_app.send_task(
+        job_id = enqueue_task(
             "app.tasks.run_scheduled_kensa_scan",
-            args=[str(host_id), 10],  # Priority 10 = highest
+            host_id=str(host_id),
             priority=10,
-            queue="compliance_scanning",
         )
 
         return {
             "status": "ok",
             "message": f"Scan queued for host {host_id}",
-            "task_id": task.id,
+            "task_id": job_id,
         }
     except Exception as e:
         logger.error(f"Error forcing host scan: {e}")
@@ -437,18 +436,15 @@ async def initialize_schedules(
     bootstrap schedules for existing hosts.
     """
     try:
-        from app.celery_app import celery_app
+        from app.services.job_queue.dispatch import enqueue_task
 
         # Queue the initialization task
-        task = celery_app.send_task(
-            "app.tasks.initialize_compliance_schedules",
-            queue="compliance_scanning",
-        )
+        job_id = enqueue_task("app.tasks.initialize_compliance_schedules")
 
         return {
             "status": "ok",
             "message": "Schedule initialization queued",
-            "task_id": task.id,
+            "task_id": job_id,
         }
     except Exception as e:
         logger.error(f"Error initializing schedules: {e}")

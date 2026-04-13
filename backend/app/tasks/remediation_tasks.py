@@ -13,7 +13,6 @@ import time
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
-from celery import shared_task
 from sqlalchemy import text
 
 from app.database import SessionLocal
@@ -44,12 +43,6 @@ def _load_and_resolve_rules(rules_path: str) -> List[Dict]:
     return [resolve_variables(r, config, strict=False) for r in rules]
 
 
-@shared_task(
-    name="app.tasks.execute_remediation",
-    bind=True,
-    max_retries=3,
-    default_retry_delay=60,
-)
 def execute_remediation_job(self, job_id: str) -> Dict[str, Any]:
     """
     Execute a remediation job asynchronously.
@@ -123,7 +116,7 @@ def execute_remediation_job(self, job_id: str) -> Dict[str, Any]:
         except Exception:
             pass
 
-        raise self.retry(exc=e)
+        raise
 
     finally:
         db.close()
@@ -369,12 +362,6 @@ def _execute_rule_remediation(
         return {"status": "failed", "error": str(e)}
 
 
-@shared_task(
-    name="app.tasks.execute_rollback",
-    bind=True,
-    max_retries=2,
-    default_retry_delay=30,
-)
 def execute_rollback_job(self, rollback_job_id: str) -> Dict[str, Any]:
     """
     Execute a rollback job asynchronously.
@@ -447,7 +434,7 @@ def execute_rollback_job(self, rollback_job_id: str) -> Dict[str, Any]:
         except Exception:
             pass
 
-        raise self.retry(exc=e)
+        raise
 
     finally:
         db.close()
