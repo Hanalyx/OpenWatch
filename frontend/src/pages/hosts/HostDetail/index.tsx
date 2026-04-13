@@ -2,10 +2,10 @@
  * Host Detail Page
  *
  * Redesigned host detail page with auto-scan centric design.
- * Displays 6 summary cards and 9 tabs of detailed information.
+ * Displays 6 summary cards and 11 tabs of detailed information.
  *
  * Cards: Compliance, System Health, Auto-Scan, Exceptions, Alerts, Connectivity
- * Tabs: Overview, Compliance, Packages, Services, Users, Network, Audit Log, History, Terminal
+ * Tabs: Overview, Compliance, Packages, Services, Users, Network, Audit Log, History, Audit Timeline, Remediation, Terminal
  *
  * Part of OpenWatch OS Transformation.
  *
@@ -26,6 +26,7 @@ import {
   Terminal as TerminalIcon,
   EventNote as AuditIcon,
   Build as RemediationIcon,
+  Timeline as TimelineIcon,
 } from '@mui/icons-material';
 
 import HostDetailHeader from './HostDetailHeader';
@@ -40,6 +41,7 @@ import {
   AuditLogTab,
   HistoryTab,
   TerminalTab,
+  AuditTimelineTab,
 } from './tabs';
 
 import {
@@ -219,6 +221,7 @@ const HostDetail: React.FC = () => {
           <Tab label="Network" icon={<NetworkIcon />} iconPosition="start" />
           <Tab label="Audit Log" icon={<AuditIcon />} iconPosition="start" />
           <Tab label="History" icon={<HistoryIcon />} iconPosition="start" />
+          <Tab label="Audit Timeline" icon={<TimelineIcon />} iconPosition="start" />
           <Tab label="Remediation" icon={<RemediationIcon />} iconPosition="start" />
           <Tab label="Terminal" icon={<TerminalIcon />} iconPosition="start" />
         </Tabs>
@@ -265,13 +268,17 @@ const HostDetail: React.FC = () => {
       </TabPanel>
 
       <TabPanel value={tabValue} index={8}>
+        <AuditTimelineTab hostId={host.id} />
+      </TabPanel>
+
+      <TabPanel value={tabValue} index={9}>
         <RemediationPanel
           hostId={host.id}
           failedFindings={complianceState?.findings?.filter((f) => f.status === 'fail') || []}
         />
       </TabPanel>
 
-      <TabPanel value={tabValue} index={9}>
+      <TabPanel value={tabValue} index={10}>
         <TerminalTab hostId={host.id} hostname={host.hostname} ipAddress={host.ip_address} />
       </TabPanel>
     </Box>

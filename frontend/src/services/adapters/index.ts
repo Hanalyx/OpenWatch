@@ -63,6 +63,16 @@ export { transactionService } from './transactionAdapter';
 
 export type { Transaction, TransactionDetail, TransactionListResponse } from './transactionAdapter';
 
+// Exception adapters for Compliance Exceptions page
+export { exceptionService } from './exceptionAdapter';
+
+export type {
+  ComplianceException,
+  ExceptionListResponse,
+  ExceptionSummary,
+  ExceptionCreateRequest,
+} from './exceptionAdapter';
+
 // Rule Reference adapters for Rule Reference page
 export {
   fetchRules,

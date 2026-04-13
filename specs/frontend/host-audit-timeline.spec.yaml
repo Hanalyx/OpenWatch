@@ -1,6 +1,6 @@
 spec: host-audit-timeline
 version: "1.0"
-status: draft
+status: active
 owner: engineering
 summary: >
   The HostDetail page MUST include an Audit Timeline tab that displays

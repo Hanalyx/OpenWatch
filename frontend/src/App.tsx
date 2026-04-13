@@ -36,7 +36,7 @@ import Users from './pages/users/Users';
 import OView from './pages/oview/OView';
 import Settings from './pages/settings/Settings';
 import { AuditQueriesPage, AuditQueryBuilderPage, AuditExportsPage } from './pages/audit';
-import { TemporalPosture } from './pages/compliance';
+import { TemporalPosture, Exceptions } from './pages/compliance';
 import Transactions from './pages/transactions/Transactions';
 import TransactionDetail from './pages/transactions/TransactionDetail';
 import RuleTransactions from './pages/transactions/RuleTransactions';
@@ -110,6 +110,7 @@ function App() {
                   />
                   <Route path="/audit/exports" element={<AuditExportsPage />} />
                   <Route path="/compliance/posture" element={<TemporalPosture />} />
+                  <Route path="/compliance/exceptions" element={<Exceptions />} />
                 </Route>
               </Route>
 

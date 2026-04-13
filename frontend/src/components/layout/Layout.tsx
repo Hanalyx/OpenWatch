@@ -143,6 +143,12 @@ const menuItems = [
     roles: ['super_admin', 'security_admin', 'compliance_officer', 'auditor'],
   },
   {
+    text: 'Exceptions',
+    icon: <Security />,
+    path: '/compliance/exceptions',
+    roles: ['super_admin', 'security_admin', 'security_analyst', 'compliance_officer', 'auditor'],
+  },
+  {
     text: 'Settings',
     icon: <Settings />,
     path: '/settings',

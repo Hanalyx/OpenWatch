@@ -15,3 +15,4 @@ export { default as NetworkTab } from './NetworkTab';
 export { default as AuditLogTab } from './AuditLogTab';
 export { default as HistoryTab } from './HistoryTab';
 export { default as TerminalTab } from './TerminalTab';
+export { default as AuditTimelineTab } from './AuditTimelineTab';

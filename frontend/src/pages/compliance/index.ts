@@ -5,3 +5,4 @@
  */
 
 export { default as TemporalPosture } from './TemporalPosture';
+export { default as Exceptions } from './Exceptions';
