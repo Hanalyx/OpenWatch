@@ -43,7 +43,7 @@ Coverage is checked by `scripts/check-spec-coverage.py`.
 | Job Queue | system/job-queue.spec.yaml | tests/backend/unit/system/test_job_queue_spec.py | Q1-D | Draft |
 | Architecture | system/architecture.spec.yaml | tests/backend/unit/system/test_architecture_spec.py | 8 | Active |
 | Documentation | system/documentation.spec.yaml | tests/backend/unit/system/test_documentation_spec.py | 8 | Active |
-| Integration Testing | system/integration-testing.spec.yaml | tests/backend/integration/test_*.py (20 files) | 9 | Active |
+| Integration Testing | system/integration-testing.spec.yaml | tests/backend/integration/test_*.py (40 files) | 9 | Active |
 | Authentication | system/authentication.spec.yaml | tests/backend/unit/services/auth/test_authentication.py | 4 | Active |
 | Authorization | system/authorization.spec.yaml | tests/backend/unit/services/auth/test_authorization.py | 4 | Active |
 | Encryption | system/encryption.spec.yaml | tests/backend/unit/services/auth/test_encryption.py | 4 | Active |
@@ -60,7 +60,7 @@ Coverage is checked by `scripts/check-spec-coverage.py`.
 | Remediation Lifecycle | pipelines/remediation-lifecycle.spec.yaml | tests/backend/unit/pipelines/test_remediation_lifecycle.py | 2 | Active |
 | Drift Detection | pipelines/drift-detection.spec.yaml | tests/backend/unit/services/engine/test_drift_detection.py | 1 | Active |
 
-## Service Specs (22 Active, 3 Draft)
+## Service Specs (21 Active, 3 Draft)
 
 | Spec | File | Tests | Phase | Status |
 |------|------|-------|-------|--------|
@@ -89,7 +89,7 @@ Coverage is checked by `scripts/check-spec-coverage.py`.
 | Notification Channels | services/infrastructure/notification-channels.spec.yaml | tests/backend/unit/services/infrastructure/test_notification_channels_spec.py | Q1 | Draft |
 | SSO Federation | services/auth/sso-federation.spec.yaml | tests/backend/unit/services/auth/test_sso_federation_spec.py | Q1 | Draft |
 
-## API Route Specs (22 Active)
+## API Route Specs (28 Active)
 
 | Spec | File | Tests | Phase | Status |
 |------|------|-------|-------|--------|
@@ -170,18 +170,18 @@ Coverage is checked by `scripts/check-spec-coverage.py`.
 | Frontend | 13 | 13 | 0 | 0 |
 | **Total** | **86** | **80** | **6** | **0** |
 
-**Active ACs: 684 (100% covered by tests) + 78 draft ACs (Q1 — code landed or planned)**
+**Active ACs: 699 (684 script-validated + 15 release/shell) at 100% coverage + 78 draft ACs (Q1 — code landed)**
 
 ### Q1 Draft Specs
 
 | Spec | Workstream | ACs | Status | Notes |
 |------|------------|-----|--------|-------|
-| transaction-log | A (Eye) | 17 | Code landed | Write-on-change v0.2 |
+| transaction-log | A (Eye) | 17 | Code landed | Write-on-change v0.2, Celery removed |
 | host-rule-state | A (Eye) | 8 | Code landed | Scalable state table |
 | host-liveness | B (Heartbeat) | 10 | Code landed | 5-min TCP ping |
 | notification-channels | C (Control Plane) | 13 | Code landed | Slack + email + webhook |
-| sso-federation | C (Control Plane) | 16 | Code landed | Gated on security review |
-| job-queue | D (Infrastructure) | 14 | Planned | Replaces Celery + Redis |
+| sso-federation | C (Control Plane) | 16 | Code landed | Security scan clean |
+| job-queue | D (Infrastructure) | 14 | Code landed | Celery + Redis removed, replaced by pg-based queue |
 
 | Spec | Workstream | ACs | Unskipped | Still Skipped | Blocker |
 |------|------------|-----|-----------|---------------|---------|
@@ -212,7 +212,11 @@ Coverage is checked by `scripts/check-spec-coverage.py`.
 - job-queue.spec &rarr; transaction-log.spec (job queue writes transactions on task completion)
 - notification-channels.spec &rarr; alert-thresholds.spec (alerts dispatched via notification channels)
 - sso-federation.spec &rarr; authentication.spec (SSO extends the authentication flow)
+- host-liveness.spec &rarr; alert-thresholds.spec (HOST_UNREACHABLE alert type)
+- host-liveness.spec &rarr; host-monitoring.spec (host state enum)
 - host-liveness.spec &rarr; notification-channels.spec (HOST_UNREACHABLE alerts dispatched)
+- sso-federation.spec &rarr; audit-logging.spec (SSO login events logged)
+- notification-channels.spec &rarr; audit-logging.spec (dispatch results logged)
 
 ## Activation Schedule
 
