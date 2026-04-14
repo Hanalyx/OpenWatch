@@ -8,6 +8,29 @@ and multi-value IN-clause filters.
 
 Spec: specs/api/transactions/transaction-query.spec.yaml
 
+# INTERIM IMPLEMENTATION (Kensa Go Week 22 convergence)
+# ====================================================
+# The HTTP surface of this endpoint (URL, request schema, response
+# envelope) is stable. Its implementation is INTERIM and migrates to
+# delegate into Kensa's Go api/ surface at Kensa Week 22:
+#
+#     Query()     -> kensa.api.Kensa.TransactionLog().Query(ctx, filter, page)
+#     Get(id)     -> kensa.api.Kensa.TransactionLog().Get(ctx, id)
+#     Aggregate() -> kensa.api.Kensa.TransactionLog().Aggregate(ctx, f, key)
+#
+# The current PostgreSQL-backed implementation reads the `transactions`
+# table that Python Kensa writes to today. At Week 22, swap the
+# implementation to call Kensa's Go LogQuery — endpoint callers see no
+# change. The PostgreSQL `transactions` table remains as a derived
+# multi-host aggregation cache through v1.0.0 (per Kensa Day-1 plan §13A).
+#
+# See also:
+#   - specs/api/transactions/transaction-query.spec.yaml (interim_implementation)
+#   - docs/KENSA_OPENWATCH_COORDINATION_2026-04-14.md
+#   - kensa/docs/KENSA_OPENWATCH_RESPONSE_2026-04-14.md §2.1
+#   - kensa/docs/KENSA_GO_DAY1_PLAN.md §3.5.1 LogQuery
+# ====================================================
+
 Design notes:
     Cursor format: base64(json({"started_at": ISO8601, "id": UUID})).
     Ordering: ORDER BY started_at DESC, id DESC. Cursor filter uses tuple
