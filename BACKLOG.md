@@ -206,7 +206,6 @@ Items from `docs/OW_SECURITY_ASSESSMENT.md` that require careful sequencing due 
 | PostgreSQL job queue | Replaces Celery + Redis (SKIP LOCKED, 40 tasks, scheduler) |
 | Dependency cleanup | 13 packages removed, Chart.js removed from frontend |
 | Redis + Celery removed | Zero Redis/Celery in codebase, 4 containers (down from 6) |
-| FreeBSD 15.0 packaging | Dockerfiles, docker-compose.freebsd.yml, rc.d scripts, pkg skeleton |
 | Rules-first transactions UI | `/transactions` → `/transactions/rule/:id` → `/transactions/:id` |
 
 ---
