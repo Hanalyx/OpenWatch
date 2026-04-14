@@ -865,6 +865,9 @@ docs/images/*
 !docs/images/quickstart/
 !docs/images/scanning/
 !docs/images/hosts/
+# Security reviews and assessments (tracked in git for audit trail)
+!docs/OW_SECURITY_ASSESSMENT.md
+!docs/*_SECURITY_REVIEW_*.md
 PRD/
 backend/docs/
 frontend/docs/
