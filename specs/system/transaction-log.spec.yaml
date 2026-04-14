@@ -1,6 +1,6 @@
 spec: transaction-log
 version: "0.2"
-status: draft
+status: active
 owner: engineering
 summary: >
   Unified transaction log recording meaningful compliance state changes. A

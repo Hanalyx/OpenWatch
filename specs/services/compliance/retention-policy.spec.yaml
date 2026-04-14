@@ -1,6 +1,6 @@
 spec: retention-policy
 version: "1.0"
-status: draft
+status: active
 owner: engineering
 summary: >
   Workstream I3: Data retention policy engine for compliance transaction data.
