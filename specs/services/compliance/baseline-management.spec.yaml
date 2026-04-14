@@ -1,6 +1,6 @@
 spec: baseline-management
 version: "1.0"
-status: draft
+status: active
 owner: engineering
 summary: >
   Workstream I1: Baseline management for compliance posture. Supports resetting

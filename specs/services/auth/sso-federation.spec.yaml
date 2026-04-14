@@ -1,6 +1,6 @@
 spec: sso-federation
 version: "0.1"
-status: draft
+status: active
 owner: engineering
 summary: >
   SAML 2.0 and OIDC federated authentication. An abstract SSOProvider interface

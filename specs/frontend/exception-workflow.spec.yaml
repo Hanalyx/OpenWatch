@@ -1,6 +1,6 @@
 spec: exception-workflow
 version: "1.0"
-status: draft
+status: active
 owner: engineering
 summary: >
   The exception workflow frontend MUST render a paginated exception list
