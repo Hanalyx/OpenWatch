@@ -48,6 +48,7 @@ from .routes.signing import router as signing_router
 from .routes.ssh import router as ssh_router
 from .routes.system import router as system_router
 from .routes.transactions import host_transactions_router as host_txn_router
+from .routes.transactions import query_router as transactions_query_router
 from .routes.transactions import router as transactions_router
 from .services.infrastructure import get_metrics_instance
 
@@ -507,6 +508,7 @@ app.include_router(scans_router, prefix="/api", tags=["Security Scans"])
 app.include_router(ssh_router, prefix="/api", tags=["SSH"])
 app.include_router(transactions_router, tags=["Transactions"])
 app.include_router(host_txn_router, tags=["Transactions"])
+app.include_router(transactions_query_router, tags=["Transactions"])
 app.include_router(signing_router, tags=["Signing"])
 app.include_router(system_router, prefix="/api", tags=["System"])
 
