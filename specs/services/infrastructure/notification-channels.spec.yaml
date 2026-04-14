@@ -1,6 +1,6 @@
 spec: notification-channels
 version: "0.1"
-status: draft
+status: active
 owner: engineering
 summary: >
   Outbound notification dispatch for alerts. Provides a NotificationChannel

@@ -1,6 +1,6 @@
 spec: host-rule-state
 version: "1.0"
-status: draft
+status: active
 owner: engineering
 summary: >
   Current compliance state per host per rule. One row per (host_id, rule_id)
