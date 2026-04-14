@@ -1,0 +1,130 @@
+spec: transaction-query
+version: "1.0"
+status: draft
+owner: engineering
+summary: >
+  POST /api/transactions/query endpoint accepting a structured query DSL in
+  the request body. Supports filtering, cursor-based pagination, and field
+  projection. Forms the foundation of the future Agent API and enables
+  historical posture queries (<500ms p95 target). Complements the existing
+  GET /api/transactions which remains for simple UI list views.
+
+---
+
+# Objective
+
+objective: >
+  Provide a single powerful, versioned, documented endpoint for querying the
+  transaction log that scales beyond UI list views into machine-driven use
+  cases (audit tooling, external compliance dashboards, the future Agent API).
+  Cursor pagination prevents deep-offset performance cliffs; projection lets
+  agents fetch only the fields they need; structured DSL permits complex
+  multi-value filtering without query-string limits.
+
+---
+
+# Context
+
+context:
+  depends_on:
+    - transaction-log.spec.yaml (the data model being queried)
+    - host-groups-crud.spec.yaml (fleet_id filter joins to host_groups)
+  complements:
+    - transactions-list.spec.yaml (legacy GET endpoint; kept for UI simplicity)
+
+---
+
+# Acceptance Criteria
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      POST /api/transactions/query accepts a JSON body with a TransactionQuery
+      schema and returns HTTP 200 with a paginated result set. The endpoint
+      is registered at the exact path /api/transactions/query (not
+      /api/transactions/search or similar).
+
+  - id: AC-2
+    description: >
+      The request body supports filters: host_id (UUID), host_ids (list of
+      UUIDs), fleet_id (UUID, resolves via host_groups join), rule_id (str),
+      rule_ids (list of str), status (list of str in {pass, fail, skipped,
+      error}), phase (list of str in {capture, apply, validate, commit,
+      rollback}), severity (list of str), framework (str, JSONB key lookup),
+      initiator_type (list of str), started_after (ISO 8601), started_before
+      (ISO 8601). Multiple filters combine with AND.
+
+  - id: AC-3
+    description: >
+      Pagination uses opaque cursors. The request accepts a cursor string
+      (from a prior response's next_cursor) and a limit (int, default 50,
+      max 500). The response includes next_cursor (null when no more results)
+      and total_count (int). Cursor encoding is an opaque base64-encoded
+      tuple of (started_at, id) so equal timestamps tie-break deterministically.
+
+  - id: AC-4
+    description: >
+      Projection: the request accepts a fields list specifying which columns
+      to return. If omitted, a default set of columns is returned. If
+      provided, only those fields appear in each result item. Unknown field
+      names return HTTP 400 with a specific error.
+
+  - id: AC-5
+    description: >
+      The default ordering is started_at DESC, id DESC (most recent first).
+      Cursor pagination walks this order; equal started_at values are
+      tie-broken by id to prevent infinite loops on same-timestamp rows.
+
+  - id: AC-6
+    description: >
+      RBAC: the endpoint requires at least UserRole.GUEST. Same role required
+      as the existing GET /api/transactions endpoint. Audit logger records
+      the query body (sanitised) on each request for compliance audit trail.
+
+  - id: AC-7
+    description: >
+      Invalid filters (unknown enum values, malformed UUID, date_range where
+      started_after > started_before) return HTTP 400 with a field-specific
+      error message naming the invalid field. No HTTP 500s for validation
+      failures.
+
+  - id: AC-8
+    description: >
+      All queries use QueryBuilder (no raw SQL interpolation against user
+      input). Array filters (host_ids, rule_ids, status) use parameterized
+      IN clauses. fleet_id translates to an EXISTS subquery against
+      host_group_memberships.
+
+  - id: AC-9
+    description: >
+      Endpoint is registered under the /api versioned prefix and documented
+      via FastAPI's auto-generated OpenAPI schema. Request and response
+      models are Pydantic schemas with explicit examples for OpenAPI docs.
+
+  - id: AC-10
+    description: >
+      Regression test test_transaction_query_api.py exercises each filter
+      combination, cursor round-trip (page through to end, confirm null
+      cursor, confirm total_count stable across pages), projection, and
+      validation error cases.
+
+---
+
+# Out of Scope (future work, separate specs)
+
+out_of_scope:
+  - Sort DSL (request-specified sort order beyond default) — see 6.1 phase 2
+  - Per-API-key rate limiting — see 6.1 phase 2
+  - p95 <500ms benchmark enforcement in CI — see 6.1 phase 2
+  - Group-by / aggregation queries — see 6.1 phase 3 (Agent API)
+  - Full-text search on evidence envelopes — out of scope entirely
+
+---
+
+# Changelog
+
+changelog:
+  - version: "1.0"
+    date: "2026-04-14"
+    changes:
+      - "Initial draft per Q1-Q3 plan §6.1 Transaction log query API"
