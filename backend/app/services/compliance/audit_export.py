@@ -30,9 +30,9 @@ from ...schemas.audit_query_schemas import (
     FindingResult,
     QueryDefinition,
 )
-from ..signing import SigningService
 from ...utils.mutation_builders import DeleteBuilder, InsertBuilder, UpdateBuilder
 from ...utils.query_builder import QueryBuilder
+from ..signing import SigningService
 from .audit_query import AuditQueryService
 
 logger = logging.getLogger(__name__)
@@ -444,7 +444,11 @@ class AuditExportService:
             "findings": [f.model_dump(mode="json") for f in findings],
         }
 
-        # Sign the export data (non-blocking — export still works without a key)
+        # Sign the export data. SEC-SIGN-03 fix: signing is non-blocking
+        # (export still produced), but the failure mode is now machine-
+        # detectable from the export itself — the auditor sees an explicit
+        # `signed_bundle: null` plus `signing_error` rather than a silently
+        # missing field.
         signing = SigningService(self.db, encryption_service=self._encryption_service)
         try:
             bundle = signing.sign_envelope(export_data)
@@ -456,6 +460,10 @@ class AuditExportService:
             }
         except Exception as e:
             logger.warning("Could not sign export: %s", e)
+            export_data["signed_bundle"] = None
+            export_data["signing_error"] = (
+                "Export was generated but could not be signed. " "Bundle is NOT cryptographically attested."
+            )
 
         # Write file
         with open(file_path, "w") as f:

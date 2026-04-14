@@ -15,11 +15,13 @@ import pytest
 
 # Route source files are read from disk to avoid transitive import
 # failures (passlib, etc.) that are irrelevant to structural checks.
-_PROJECT_ROOT = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "..")
-)
+_PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", ".."))
 _ROUTES_DIR = os.path.join(
-    _PROJECT_ROOT, "backend", "app", "routes", "signing",
+    _PROJECT_ROOT,
+    "backend",
+    "app",
+    "routes",
+    "signing",
 )
 
 
@@ -140,3 +142,22 @@ class TestAC8KeysEncryptedAtRest:
 
         source = inspect.getsource(mod)
         assert "EncryptionService" in source
+
+    def test_no_silent_plain_base64_fallback(self):
+        """SEC-SIGN-01: production must hard-fail when EncryptionService missing.
+
+        Regression for the security review finding that generate_key() and
+        sign_envelope() previously fell back to plain base64 storage when no
+        EncryptionService was configured. The fallback is now gated behind
+        OPENWATCH_SIGNING_DEV_MODE so production misconfiguration surfaces
+        loudly instead of silently producing forgeable bundles.
+        """
+        import app.services.signing.signing_service as mod
+
+        source = inspect.getsource(mod)
+        # The dev-mode env var must be referenced
+        assert "OPENWATCH_SIGNING_DEV_MODE" in source
+        # And there must be a RuntimeError raised when neither EncryptionService
+        # nor dev mode is present.
+        assert "RuntimeError" in source
+        assert "_dev_mode_enabled" in source
