@@ -75,10 +75,7 @@ class JiraChannel(NotificationChannel):
         severity = str(alert.get("severity", "medium")).lower()
         priority_name = _PRIORITY_MAP.get(severity, "Medium")
 
-        summary = (
-            f"[OpenWatch] {alert.get('alert_type', 'Alert')}: "
-            f"{alert.get('title', 'Compliance Alert')}"
-        )
+        summary = f"[OpenWatch] {alert.get('alert_type', 'Alert')}: " f"{alert.get('title', 'Compliance Alert')}"
         description = self._build_description(alert)
 
         # Build labels including rule_id for inbound webhook correlation

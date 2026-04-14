@@ -14,7 +14,7 @@ from urllib.parse import urlparse
 
 import httpx
 
-from app.encryption import encrypt_data, decrypt_data  # noqa: F401 - referenced by AC-7
+from app.encryption import decrypt_data, encrypt_data  # noqa: F401 - referenced by AC-7
 from app.services.notifications.webhook import _is_private_ip
 from app.utils.mutation_builders import UpdateBuilder
 
@@ -156,10 +156,7 @@ class JiraService:
 
         summary = f"[OpenWatch] Failed transaction: rule {rule_id} on host {host_id}"
         description = (
-            f"Transaction: {transaction_id}\n"
-            f"Rule: {rule_id}\n"
-            f"Host: {host_id}\n"
-            f"Detail: {detail[:500]}"
+            f"Transaction: {transaction_id}\n" f"Rule: {rule_id}\n" f"Host: {host_id}\n" f"Detail: {detail[:500]}"
         )
 
         return await self._create_issue(
@@ -268,9 +265,7 @@ class JiraService:
                     issue_key = resp.json().get("key", "unknown")
                     logger.info("Created Jira issue %s", issue_key)
                     return {"success": True, "issue_key": issue_key}
-                logger.warning(
-                    "Jira API returned %d: %s", resp.status_code, resp.text[:300]
-                )
+                logger.warning("Jira API returned %d: %s", resp.status_code, resp.text[:300])
                 return {
                     "success": False,
                     "error": f"Jira API returned {resp.status_code}",

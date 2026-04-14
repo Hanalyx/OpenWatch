@@ -68,13 +68,15 @@ class AlertRoutingService:
             or None if no rules match (caller should use default
             fallback to all enabled channels per AC-6).
         """
-        query = text("""
+        query = text(
+            """
             SELECT DISTINCT arr.channel_id
             FROM alert_routing_rules arr
             WHERE arr.enabled = true
             AND (arr.severity = :severity OR arr.severity = 'all')
             AND (arr.alert_type = :alert_type OR arr.alert_type = 'all')
-        """)
+        """
+        )
 
         rows = self.db.execute(
             query,
@@ -93,10 +95,7 @@ class AlertRoutingService:
 
     def list_rules(self) -> List[Dict[str, Any]]:
         """List all routing rules ordered by creation time (newest first)."""
-        builder = (
-            QueryBuilder("alert_routing_rules")
-            .order_by("created_at", "DESC")
-        )
+        builder = QueryBuilder("alert_routing_rules").order_by("created_at", "DESC")
         query, params = builder.build()
         rows = self.db.execute(text(query), params).fetchall()
         return [_row_to_dict(row) for row in rows]
@@ -130,7 +129,10 @@ class AlertRoutingService:
         self.db.commit()
         logger.info(
             "Created alert routing rule %s: severity=%s type=%s channel=%s",
-            row.id, severity, alert_type, channel_id,
+            row.id,
+            severity,
+            alert_type,
+            channel_id,
         )
         return _row_to_dict(row)
 
@@ -143,11 +145,7 @@ class AlertRoutingService:
         Returns:
             True if the rule was deleted, False if not found.
         """
-        builder = (
-            DeleteBuilder("alert_routing_rules")
-            .where("id = :id", str(rule_id), "id")
-            .returning("id")
-        )
+        builder = DeleteBuilder("alert_routing_rules").where("id = :id", str(rule_id), "id").returning("id")
         query, params = builder.build()
         row = self.db.execute(text(query), params).fetchone()
         self.db.commit()

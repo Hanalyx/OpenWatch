@@ -71,9 +71,7 @@ class BaselineManagementService:
         self._deactivate_current_baseline(db, host_id)
 
         # 3. Create new baseline from scan data
-        baseline = self._create_baseline_from_scan(
-            db, host_id, scan_data, baseline_type="manual", user_id=user_id
-        )
+        baseline = self._create_baseline_from_scan(db, host_id, scan_data, baseline_type="manual", user_id=user_id)
 
         # 4. Audit log
         audit_logger.info(
@@ -89,10 +87,7 @@ class BaselineManagementService:
             },
         )
 
-        logger.info(
-            f"Baseline reset for host {host_id} by user {user_id}: "
-            f"score={baseline.baseline_score:.1f}%"
-        )
+        logger.info(f"Baseline reset for host {host_id} by user {user_id}: " f"score={baseline.baseline_score:.1f}%")
 
         return baseline
 
@@ -200,10 +195,7 @@ class BaselineManagementService:
             },
         )
 
-        logger.info(
-            f"Baseline promoted for host {host_id} by user {user_id}: "
-            f"score={baseline.baseline_score:.1f}%"
-        )
+        logger.info(f"Baseline promoted for host {host_id} by user {user_id}: " f"score={baseline.baseline_score:.1f}%")
 
         return baseline
 
@@ -470,7 +462,8 @@ class BaselineManagementService:
 
     def _get_current_posture(self, db: Session, host_id: UUID) -> Optional[Dict[str, int]]:
         """Aggregate current posture from host_rule_state."""
-        query = text("""
+        query = text(
+            """
             SELECT
                 COUNT(*) AS total_rules,
                 COUNT(*) FILTER (WHERE current_status = 'pass') AS passed_rules,
@@ -493,7 +486,8 @@ class BaselineManagementService:
                     AS low_failed
             FROM host_rule_state
             WHERE host_id = :host_id
-        """)
+        """
+        )
         row = db.execute(query, {"host_id": str(host_id)}).fetchone()
         if not row or row.total_rules == 0:
             return None

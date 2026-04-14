@@ -153,9 +153,7 @@ const HostDetailHeader: React.FC<HostDetailHeaderProps> = ({
     setBaselineDialogOpen(false);
     setBaselineLoading(true);
     try {
-      const data = await api.post<BaselineInfo>(
-        `/api/hosts/${hostId}/baseline/${baselineAction}`
-      );
+      const data = await api.post<BaselineInfo>(`/api/hosts/${hostId}/baseline/${baselineAction}`);
       if (data) {
         setBaselineInfo(data);
       }

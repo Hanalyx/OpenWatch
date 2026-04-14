@@ -45,14 +45,7 @@ import {
   CircularProgress,
   type SelectChangeEvent,
 } from '@mui/material';
-import {
-  Add,
-  CheckCircle,
-  Cancel,
-  Close,
-  ArrowUpward,
-  Build,
-} from '@mui/icons-material';
+import { Add, CheckCircle, Cancel, Close, ArrowUpward, Build } from '@mui/icons-material';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '../../store/useAuthStore';
 import {
@@ -261,7 +254,15 @@ function ExceptionDetailDialog({
 
         {/* AC-3: Approval metadata */}
         {exception.approved_by != null && (
-          <Box sx={{ mt: 3, p: 2, bgcolor: 'success.main', borderRadius: 1, color: 'success.contrastText' }}>
+          <Box
+            sx={{
+              mt: 3,
+              p: 2,
+              bgcolor: 'success.main',
+              borderRadius: 1,
+              color: 'success.contrastText',
+            }}
+          >
             <Typography variant="subtitle2">Approval Details</Typography>
             <Typography>Approver: User #{exception.approved_by}</Typography>
             {exception.approved_at && (
@@ -273,7 +274,15 @@ function ExceptionDetailDialog({
         )}
 
         {exception.rejected_by != null && (
-          <Box sx={{ mt: 3, p: 2, bgcolor: 'error.main', borderRadius: 1, color: 'error.contrastText' }}>
+          <Box
+            sx={{
+              mt: 3,
+              p: 2,
+              bgcolor: 'error.main',
+              borderRadius: 1,
+              color: 'error.contrastText',
+            }}
+          >
             <Typography variant="subtitle2">Rejection Details</Typography>
             <Typography>Rejected By: User #{exception.rejected_by}</Typography>
             {exception.rejected_at && (
@@ -288,13 +297,13 @@ function ExceptionDetailDialog({
         )}
 
         {exception.revoked_by != null && (
-          <Box sx={{ mt: 3, p: 2, bgcolor: 'info.main', borderRadius: 1, color: 'info.contrastText' }}>
+          <Box
+            sx={{ mt: 3, p: 2, bgcolor: 'info.main', borderRadius: 1, color: 'info.contrastText' }}
+          >
             <Typography variant="subtitle2">Revocation Details</Typography>
             <Typography>Revoked By: User #{exception.revoked_by}</Typography>
             {exception.revoked_at && (
-              <Typography>
-                Revoked At: {new Date(exception.revoked_at).toLocaleString()}
-              </Typography>
+              <Typography>Revoked At: {new Date(exception.revoked_at).toLocaleString()}</Typography>
             )}
             {exception.revocation_reason && (
               <Typography>Reason: {exception.revocation_reason}</Typography>
@@ -661,9 +670,12 @@ const Exceptions: React.FC = () => {
     setSelectedExceptionId(id);
   }, []);
 
-  const handleApprove = useCallback((id: string) => {
-    approveMutation.mutate(id);
-  }, [approveMutation]);
+  const handleApprove = useCallback(
+    (id: string) => {
+      approveMutation.mutate(id);
+    },
+    [approveMutation]
+  );
 
   const handleRejectOpen = useCallback((id: string) => {
     setActionTargetId(id);
@@ -733,13 +745,10 @@ const Exceptions: React.FC = () => {
     setPage(newPage);
   }, []);
 
-  const handleRowsPerPageChange = useCallback(
-    (event: React.ChangeEvent<HTMLInputElement>) => {
-      setRowsPerPage(parseInt(event.target.value, 10));
-      setPage(0);
-    },
-    []
-  );
+  const handleRowsPerPageChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+    setRowsPerPage(parseInt(event.target.value, 10));
+    setPage(0);
+  }, []);
 
   return (
     <Box>

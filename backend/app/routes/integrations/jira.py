@@ -101,6 +101,7 @@ async def get_field_mapping(
 
     if row:
         import json
+
         return {"field_mapping": json.loads(row[0])}
     return {"field_mapping": {}}
 
@@ -145,11 +146,8 @@ async def update_field_mapping(
         db.execute(text(query), params)
     else:
         from app.utils.mutation_builders import InsertBuilder
-        builder = (
-            InsertBuilder("system_settings")
-            .columns("key", "value")
-            .values("jira_field_mapping", mapping_json)
-        )
+
+        builder = InsertBuilder("system_settings").columns("key", "value").values("jira_field_mapping", mapping_json)
         query, params = builder.build()
         db.execute(text(query), params)
 

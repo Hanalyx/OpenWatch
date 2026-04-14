@@ -102,9 +102,7 @@ function formatMinutes(minutes: number): string {
 }
 
 /** Map compliance state to chip color */
-function getStateColor(
-  state: string
-): 'error' | 'warning' | 'info' | 'success' | 'default' {
+function getStateColor(state: string): 'error' | 'warning' | 'info' | 'success' | 'default' {
   switch (state) {
     case 'critical':
       return 'error';
@@ -288,9 +286,7 @@ function HostScheduleTable({ status }: { status: SchedulerStatus }) {
   const rows = useMemo(() => {
     if (!hosts) return [];
 
-    const scanMap = new Map(
-      status.next_scheduled_scans.map((s) => [s.host_id, s])
-    );
+    const scanMap = new Map(status.next_scheduled_scans.map((s) => [s.host_id, s]));
 
     // Also use by_compliance_state for context
     return hosts.map((host) => {
@@ -471,7 +467,11 @@ function ScanProjectionHistogram({
 
 const ScheduledScans: React.FC = () => {
   const queryClient = useQueryClient();
-  const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
+  const [snackbar, setSnackbar] = useState<{
+    open: boolean;
+    message: string;
+    severity: 'success' | 'error';
+  }>({
     open: false,
     message: '',
     severity: 'success',

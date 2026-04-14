@@ -39,9 +39,7 @@ class RetentionPolicy(Base):
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
     updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    __table_args__ = (
-        UniqueConstraint("tenant_id", "resource_type", name="uq_retention_tenant_resource"),
-    )
+    __table_args__ = (UniqueConstraint("tenant_id", "resource_type", name="uq_retention_tenant_resource"),)
 
     def __repr__(self) -> str:
         return (

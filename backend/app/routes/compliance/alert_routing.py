@@ -37,11 +37,15 @@ class RoutingRuleCreateRequest(BaseModel):
     """Request body for creating a routing rule."""
 
     severity: str = Field(
-        ..., min_length=1, max_length=16,
+        ...,
+        min_length=1,
+        max_length=16,
         description="Alert severity filter: critical, high, medium, low, or all",
     )
     alert_type: str = Field(
-        ..., min_length=1, max_length=64,
+        ...,
+        min_length=1,
+        max_length=64,
         description="Alert type filter or 'all' for any type",
     )
     channel_id: UUID = Field(..., description="Target notification channel UUID")

@@ -102,7 +102,8 @@ function formatDuration(ms: number | null): string {
 
 /** Execution tab: phase timeline */
 function ExecutionTab({ txn }: { txn: TransactionDetailType }) {
-  const envelope = txn.evidence_envelope?.phases || {};
+  const envelope = ((txn.evidence_envelope?.phases as Record<string, unknown> | undefined) ??
+    {}) as Record<string, unknown>;
   const phases = [
     { name: 'capture', label: 'Capture', data: envelope.capture || txn.pre_state },
     { name: 'validate', label: 'Validate', data: envelope.validate || txn.validate_result },
@@ -353,7 +354,11 @@ const TransactionDetail: React.FC = () => {
   const navigate = useNavigate();
   const [tabValue, setTabValue] = useState(0);
   const [signing, setSigning] = useState(false);
-  const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
+  const [snackbar, setSnackbar] = useState<{
+    open: boolean;
+    message: string;
+    severity: 'success' | 'error';
+  }>({
     open: false,
     message: '',
     severity: 'success',
@@ -382,7 +387,11 @@ const TransactionDetail: React.FC = () => {
       // Try to sign and verify in one step: sign, then verify the result
       try {
         const bundle = await transactionService.sign(id!);
-        const result = await transactionService.verify(bundle.envelope, bundle.signature, bundle.key_id);
+        const result = await transactionService.verify(
+          bundle.envelope,
+          bundle.signature,
+          bundle.key_id
+        );
         return { signed: true, valid: result.valid, bundle };
       } catch {
         return { signed: false, valid: false, bundle: null };

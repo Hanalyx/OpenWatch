@@ -120,7 +120,7 @@ export const transactionService = {
   verify: (
     envelope: Record<string, unknown>,
     signature: string,
-    keyId: string,
+    keyId: string
   ): Promise<VerifyResponse> =>
     api.post<VerifyResponse>('/api/signing/verify', {
       envelope,

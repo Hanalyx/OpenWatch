@@ -35,7 +35,10 @@ import {
 import { FileDownload as ExportIcon } from '@mui/icons-material';
 import { transactionService } from '../../../../services/adapters/transactionAdapter';
 import { auditAdapter } from '../../../../services/adapters/auditAdapter';
-import type { Transaction, TransactionListResponse } from '../../../../services/adapters/transactionAdapter';
+import type {
+  Transaction,
+  TransactionListResponse,
+} from '../../../../services/adapters/transactionAdapter';
 
 interface AuditTimelineTabProps {
   hostId: string;
@@ -181,11 +184,7 @@ const AuditTimelineTab: React.FC<AuditTimelineTabProps> = ({ hostId }) => {
   }
 
   if (error) {
-    return (
-      <Alert severity="error">
-        Failed to load audit timeline. Please try again.
-      </Alert>
-    );
+    return <Alert severity="error">Failed to load audit timeline. Please try again.</Alert>;
   }
 
   const transactions = data?.items ?? [];
@@ -195,11 +194,7 @@ const AuditTimelineTab: React.FC<AuditTimelineTabProps> = ({ hostId }) => {
     <Box>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
         <Typography variant="h6">Audit Timeline</Typography>
-        <Button
-          variant="outlined"
-          startIcon={<ExportIcon />}
-          onClick={handleExport}
-        >
+        <Button variant="outlined" startIcon={<ExportIcon />} onClick={handleExport}>
           Export
         </Button>
       </Box>
@@ -276,9 +271,7 @@ const AuditTimelineTab: React.FC<AuditTimelineTabProps> = ({ hostId }) => {
 
       {/* Timeline Table */}
       {transactions.length === 0 ? (
-        <Alert severity="info">
-          No transactions found for this host with the current filters.
-        </Alert>
+        <Alert severity="info">No transactions found for this host with the current filters.</Alert>
       ) : (
         <>
           <TableContainer component={Paper}>
@@ -307,18 +300,10 @@ const AuditTimelineTab: React.FC<AuditTimelineTabProps> = ({ hostId }) => {
                       </Typography>
                     </TableCell>
                     <TableCell>
-                      <Chip
-                        label={txn.phase}
-                        size="small"
-                        variant="outlined"
-                      />
+                      <Chip label={txn.phase} size="small" variant="outlined" />
                     </TableCell>
                     <TableCell>
-                      <Chip
-                        label={txn.status}
-                        size="small"
-                        color={getStatusColor(txn.status)}
-                      />
+                      <Chip label={txn.status} size="small" color={getStatusColor(txn.status)} />
                     </TableCell>
                     <TableCell>
                       {txn.severity ? (

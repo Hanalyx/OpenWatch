@@ -78,12 +78,19 @@ class RetentionService:
             retention_days, enabled, created_at, updated_at.
         """
         builder = QueryBuilder("retention_policies").select(
-            "id", "tenant_id", "resource_type", "retention_days",
-            "enabled", "created_at", "updated_at",
+            "id",
+            "tenant_id",
+            "resource_type",
+            "retention_days",
+            "enabled",
+            "created_at",
+            "updated_at",
         )
         if tenant_id is not None:
             builder.where(
-                "(tenant_id = :tid OR tenant_id IS NULL)", tenant_id, "tid",
+                "(tenant_id = :tid OR tenant_id IS NULL)",
+                tenant_id,
+                "tid",
             )
         builder.order_by("resource_type", "ASC")
 
@@ -117,15 +124,17 @@ class RetentionService:
         builder = (
             InsertBuilder("retention_policies")
             .columns(
-                "tenant_id", "resource_type", "retention_days", "enabled",
+                "tenant_id",
+                "resource_type",
+                "retention_days",
+                "enabled",
             )
             .values(tenant_id, resource_type, retention_days, enabled)
             .on_conflict_do_update(
                 conflict_cols=["tenant_id", "resource_type"],
                 update_cols=["retention_days", "enabled"],
             )
-            .returning("id", "tenant_id", "resource_type", "retention_days",
-                       "enabled", "created_at", "updated_at")
+            .returning("id", "tenant_id", "resource_type", "retention_days", "enabled", "created_at", "updated_at")
         )
         query, params = builder.build()
         row = self.db.execute(text(query), params).fetchone()
@@ -218,10 +227,7 @@ class RetentionService:
         Returns:
             Number of deleted rows.
         """
-        builder = (
-            DeleteBuilder(table)
-            .where(f"{ts_col} < :cutoff", cutoff, "cutoff")
-        )
+        builder = DeleteBuilder(table).where(f"{ts_col} < :cutoff", cutoff, "cutoff")
         query, params = builder.build()
         result = self.db.execute(text(query), params)
         return result.rowcount

@@ -43,17 +43,22 @@ def dispatch_alert_notifications(alert_data: Dict[str, Any]) -> Dict[str, Any]:
     db = SessionLocal()
     try:
         # Check routing rules for targeted dispatch (AC-2, AC-3)
-        routing_query = text("""
+        routing_query = text(
+            """
             SELECT DISTINCT arr.channel_id
             FROM alert_routing_rules arr
             WHERE arr.enabled = true
             AND (arr.severity = :severity OR arr.severity = 'all')
             AND (arr.alert_type = :alert_type OR arr.alert_type = 'all')
-        """)
-        rules = db.execute(routing_query, {
-            "severity": alert_data.get("severity"),
-            "alert_type": alert_data.get("alert_type"),
-        }).fetchall()
+        """
+        )
+        rules = db.execute(
+            routing_query,
+            {
+                "severity": alert_data.get("severity"),
+                "alert_type": alert_data.get("alert_type"),
+            },
+        ).fetchall()
 
         if rules:
             # Dispatch to matched channels only
@@ -67,8 +72,7 @@ def dispatch_alert_notifications(alert_data: Dict[str, Any]) -> Dict[str, Any]:
         else:
             # Default: all enabled channels (AC-6 fallback)
             channels_query = text(
-                "SELECT id, channel_type, config_encrypted "
-                "FROM notification_channels WHERE enabled = true"
+                "SELECT id, channel_type, config_encrypted " "FROM notification_channels WHERE enabled = true"
             )
             channels = db.execute(channels_query).fetchall()
 
@@ -76,13 +80,7 @@ def dispatch_alert_notifications(alert_data: Dict[str, Any]) -> Dict[str, Any]:
             return {"dispatched": 0, "channels": []}
 
         from app.encryption import decrypt_data
-        from app.services.notifications import (
-            EmailChannel,
-            JiraChannel,
-            PagerDutyChannel,
-            SlackChannel,
-            WebhookChannel,
-        )
+        from app.services.notifications import EmailChannel, JiraChannel, PagerDutyChannel, SlackChannel, WebhookChannel
 
         channel_map = {
             "slack": SlackChannel,
