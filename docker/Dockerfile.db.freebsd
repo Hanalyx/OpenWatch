@@ -1,8 +1,8 @@
 # OpenWatch Database - PostgreSQL 15 on FreeBSD 15.0
 #
-# UNTESTED - FreeBSD OCI containers require OCI spec v1.3 runtime support.
-# This Dockerfile is structurally complete but has not been validated against
-# a live FreeBSD container runtime. Package names and paths may need adjustment.
+# Validation status:
+#   - Syntax and best-practice: hadolint via .github/workflows/freebsd-validate.yml
+#   - Runtime build: NOT validated (requires FreeBSD OCI runtime)
 #
 # FreeBSD PostgreSQL paths (differ significantly from Linux):
 #   Binary:    /usr/local/bin/postgres

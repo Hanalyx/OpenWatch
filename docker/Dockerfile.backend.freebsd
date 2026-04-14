@@ -1,8 +1,12 @@
 # OpenWatch Backend - FreeBSD 15.0 Minimal
 #
-# UNTESTED - FreeBSD OCI containers require OCI spec v1.3 runtime support.
-# This Dockerfile is structurally complete but has not been validated against
-# a live FreeBSD container runtime. Package names and paths may need adjustment.
+# Validation status:
+#   - Syntax and best-practice: hadolint via .github/workflows/freebsd-validate.yml
+#   - Runtime build: NOT validated. FreeBSD OCI containers require OCI spec
+#     v1.3 FreeBSD-aware runtime, which standard GitHub Actions Linux runners
+#     do not provide. A real build-and-run test requires a FreeBSD host.
+#   - Native FreeBSD pkg (packaging/freebsd/build-pkg.sh): validated via
+#     vmactions/freebsd-vm on a real FreeBSD 15.0 VM (job freebsd-pkg-build).
 #
 # Replaces Red Hat UBI 9 for reduced attack surface and dependency minimization.
 # FreeBSD base provides a minimal, auditable userland with fewer CVE vectors

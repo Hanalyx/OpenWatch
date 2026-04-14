@@ -1,0 +1,181 @@
+# FreeBSD 15.0 validation
+#
+# Q2 Workstream H deliverables:
+#   H1: Dockerfile lint (hadolint) on the three .freebsd Dockerfiles
+#       + docker-compose.freebsd.yml structure validation.
+#       Full runtime validation of FreeBSD Docker containers requires OCI v1.3
+#       FreeBSD-aware runtime; not available on standard Linux runners. The
+#       lint job catches syntax, best-practice, and obvious mistakes.
+#   H3: Native FreeBSD pkg build. Runs packaging/freebsd/build-pkg.sh inside
+#       a real FreeBSD 15.0 VM (via vmactions/freebsd-vm) and verifies the
+#       .pkg artifact is produced.
+#
+# Triggers:
+#   - push/PR touching FreeBSD-related files
+#   - weekly schedule (Sunday 04:00 UTC) to catch upstream breakage
+#
+# This job is informational; not in branch protection required checks.
+
+name: FreeBSD 15.0 Validation
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docker/Dockerfile.*.freebsd'
+      - 'docker-compose.freebsd.yml'
+      - 'packaging/freebsd/**'
+      - 'packaging/version.env'
+      - 'backend/requirements.txt'
+      - '.github/workflows/freebsd-validate.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'docker/Dockerfile.*.freebsd'
+      - 'docker-compose.freebsd.yml'
+      - 'packaging/freebsd/**'
+      - 'packaging/version.env'
+      - 'backend/requirements.txt'
+      - '.github/workflows/freebsd-validate.yml'
+  schedule:
+    - cron: '0 4 * * 0'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # H1a: Static validation of FreeBSD Dockerfiles (runs on Linux)
+  # ---------------------------------------------------------------------------
+  dockerfile-lint:
+    name: Lint FreeBSD Dockerfiles
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: hadolint Dockerfile.backend.freebsd
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: docker/Dockerfile.backend.freebsd
+          # DL3008: version-pin apt packages — N/A, this uses pkg(8) not apt
+          # DL3018: version-pin apk packages — N/A, this uses pkg(8) not apk
+          # DL3013: pin pip versions — handled by requirements.txt
+          ignore: DL3008,DL3018,DL3013
+          no-fail: false
+
+      - name: hadolint Dockerfile.db.freebsd
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: docker/Dockerfile.db.freebsd
+          ignore: DL3008,DL3018,DL3013
+          no-fail: false
+
+      - name: hadolint Dockerfile.frontend.freebsd
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: docker/Dockerfile.frontend.freebsd
+          ignore: DL3008,DL3018,DL3013
+          no-fail: false
+
+  # ---------------------------------------------------------------------------
+  # H1b: Compose structure validation (runs on Linux)
+  # ---------------------------------------------------------------------------
+  compose-validate:
+    name: Validate docker-compose.freebsd.yml
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: docker compose config
+        env:
+          # pragma: allowlist secret — dummy values used only to satisfy
+          # ${VAR} interpolation during `docker compose config` parsing.
+          POSTGRES_PASSWORD: dummy  # pragma: allowlist secret
+          OPENWATCH_SECRET_KEY: dummy-secret-key-for-validation-32ch  # pragma: allowlist secret
+          MASTER_KEY: dummy-master-key-for-validation-32ch  # pragma: allowlist secret
+          OPENWATCH_ENCRYPTION_KEY: dummy-encryption-key-for-validation-32ch  # pragma: allowlist secret
+        run: |
+          # Parse and validate the compose file structure without starting
+          # anything. Catches YAML errors, service reference mistakes,
+          # missing env interpolations.
+          docker compose -f docker-compose.freebsd.yml config > /dev/null
+          echo "docker-compose.freebsd.yml structure OK"
+
+  # ---------------------------------------------------------------------------
+  # H3: Real FreeBSD pkg build (runs inside a FreeBSD 15 VM on the runner)
+  # ---------------------------------------------------------------------------
+  freebsd-pkg-build:
+    name: Build FreeBSD pkg (real FreeBSD VM)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build pkg in FreeBSD 15 VM
+        uses: vmactions/freebsd-vm@v1
+        with:
+          release: "15.0"
+          usesh: true
+          mem: 4096
+          copyback: true
+          prepare: |
+            # Install build dependencies
+            pkg install -y \
+              python312 \
+              py312-pip \
+              node20 \
+              npm-node20 \
+              git \
+              ca_root_nss
+          run: |
+            # Sanity: confirm we really are on FreeBSD
+            test "$(uname -s)" = "FreeBSD" || { echo "Not on FreeBSD"; exit 1; }
+            uname -a
+
+            # Build the package
+            sh packaging/freebsd/build-pkg.sh
+
+            # Verify artifact
+            PKG=$(find packaging/freebsd/output -name "openwatch-*.pkg" -type f | head -1)
+            if [ -z "${PKG}" ]; then
+              echo "ERROR: no .pkg produced"
+              exit 1
+            fi
+            echo "Built: ${PKG}"
+            ls -la "${PKG}"
+
+            # Verify pkg info can read the package manifest
+            pkg info -F "${PKG}" | head -20
+
+      - name: Upload pkg artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: openwatch-freebsd-pkg
+          path: packaging/freebsd/output/*.pkg
+          retention-days: 14
+
+  # ---------------------------------------------------------------------------
+  # Summary gate — all jobs must pass
+  # ---------------------------------------------------------------------------
+  freebsd-summary:
+    name: FreeBSD validation summary
+    runs-on: ubuntu-latest
+    needs: [dockerfile-lint, compose-validate, freebsd-pkg-build]
+    if: always()
+    steps:
+      - name: Fail if any upstream job failed
+        run: |
+          if [ "${{ needs.dockerfile-lint.result }}" != "success" ] || \
+             [ "${{ needs.compose-validate.result }}" != "success" ] || \
+             [ "${{ needs.freebsd-pkg-build.result }}" != "success" ]; then
+            echo "At least one FreeBSD validation job failed:"
+            echo "  dockerfile-lint:    ${{ needs.dockerfile-lint.result }}"
+            echo "  compose-validate:   ${{ needs.compose-validate.result }}"
+            echo "  freebsd-pkg-build:  ${{ needs.freebsd-pkg-build.result }}"
+            exit 1
+          fi
+          echo "All FreeBSD validation jobs passed."

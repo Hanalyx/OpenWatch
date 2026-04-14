@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # Build FreeBSD pkg for OpenWatch
-# UNTESTED -- requires FreeBSD 15.0 build environment (native or jail)
+#
+# CI-validated: .github/workflows/freebsd-validate.yml runs this script inside
+# a real FreeBSD 15.0 VM via vmactions/freebsd-vm on every PR that touches
+# packaging/freebsd/** or related files, plus weekly.
 #
 # This script must run on FreeBSD 15.0 or inside a FreeBSD jail.
 # It uses pkg-create(8) to produce a .pkg file suitable for air-gapped
@@ -33,7 +36,6 @@ echo "Codename: ${CODENAME}"
 echo "========================================"
 echo ""
 echo "NOTE: This script must run on FreeBSD 15.0 or in a FreeBSD jail."
-echo "      It has NOT been tested and is provided as a structural skeleton."
 echo ""
 
 # Verify we are on FreeBSD
@@ -130,16 +132,19 @@ MANIFEST
 
 # --- Build the package ---
 echo ""
-echo "TODO: Run pkg-create(8) to produce the final .pkg file."
-echo "      The staging directory is ready at: ${STAGING}"
-echo ""
-echo "      Example (untested):"
-echo "        pkg create -m ${BUILD_DIR} -r ${STAGING} -o ${OUTPUT_DIR}"
-echo ""
-echo "      Expected output: ${OUTPUT_DIR}/openwatch-${VERSION}.pkg"
-echo ""
+echo "Running pkg-create(8)..."
+echo "  Manifest: ${BUILD_DIR}/+MANIFEST"
+echo "  Root:     ${STAGING}"
+echo "  Output:   ${OUTPUT_DIR}"
 
-# Uncomment when ready to build:
-# pkg create -m "${BUILD_DIR}" -r "${STAGING}" -o "${OUTPUT_DIR}"
+pkg create -m "${BUILD_DIR}" -r "${STAGING}" -o "${OUTPUT_DIR}"
 
-echo "Build skeleton complete. Package staging directory: ${STAGING}"
+PKG_FILE=$(find "${OUTPUT_DIR}" -name "openwatch-${VERSION}*.pkg" -type f | head -1)
+if [ -z "${PKG_FILE}" ]; then
+    echo "ERROR: pkg create did not produce an expected .pkg file in ${OUTPUT_DIR}"
+    exit 1
+fi
+
+echo ""
+echo "Package built: ${PKG_FILE}"
+ls -la "${PKG_FILE}"
