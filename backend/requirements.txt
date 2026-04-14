@@ -33,7 +33,7 @@ paramiko==3.5.0
 
 # HTTP Client (consolidated — requests and aiohttp removed)
 httpx==0.28.1
-aiohttp==3.13.3  # Keep: Kensa updater plugin depends on it
+aiohttp==3.13.4  # Keep: Kensa updater plugin depends on it
 
 # Data Validation
 pydantic==2.12.5
