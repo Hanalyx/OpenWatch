@@ -1,13 +1,38 @@
 spec: transaction-query
-version: "1.0"
+version: "1.1"
 status: draft
 owner: engineering
 summary: >
   POST /api/transactions/query endpoint accepting a structured query DSL in
   the request body. Supports filtering, cursor-based pagination, and field
-  projection. Forms the foundation of the future Agent API and enables
-  historical posture queries (<500ms p95 target). Complements the existing
-  GET /api/transactions which remains for simple UI list views.
+  projection. Forms the HTTP surface that the OpenWatch UI and third-party
+  consumers call; its implementation converges onto Kensa Go
+  `api.Kensa.TransactionLog().Query()` at Kensa Week 22. Complements the
+  existing GET /api/transactions which remains for simple UI list views.
+
+# Interim-implementation annotation per Kensa↔OpenWatch coordination memo
+# (docs/KENSA_OPENWATCH_COORDINATION_2026-04-14.md and
+#  kensa/docs/KENSA_OPENWATCH_RESPONSE_2026-04-14.md §6.1).
+# The endpoint's URL and request/response schema are stable; the
+# implementation migrates at the convergence_week without breaking callers.
+interim_implementation:
+  delegates_to: kensa.api.Kensa.TransactionLog().Query
+  delegates_to_methods:
+    - LogQuery.Query (paginated filtered list)
+    - LogQuery.Get (single record with envelope)
+    - LogQuery.Aggregate (posture summaries by AggregateKey)
+  convergence_week: 22
+  kensa_plan_ref: kensa/docs/KENSA_GO_DAY1_PLAN.md §3.5.1 LogQuery
+  notes: |
+    Current PostgreSQL-backed implementation reads the `transactions` table
+    that Python Kensa (pre-Go-v1.0) writes to. At Kensa Go Week 22, the
+    implementation swaps to call into the Go `api/` surface; the
+    PostgreSQL table stays as a derived multi-host aggregation cache per
+    KENSA_GO_DAY1_PLAN.md §13A (survives through v1.0.0).
+
+    Kensa v1.1.0+ push-to-collector mode will let this cache become a
+    read-through instead of a client-side aggregator. No OpenWatch API
+    change required at that point.
 
 ---
 
@@ -124,6 +149,12 @@ out_of_scope:
 # Changelog
 
 changelog:
+  - version: "1.1"
+    date: "2026-04-14"
+    changes:
+      - "Add interim_implementation frontmatter per Kensa↔OpenWatch coordination"
+      - "Reframe summary to name Kensa.LogQuery as the convergence target"
+      - "No behavioral changes — endpoint URL, request schema, response schema unchanged"
   - version: "1.0"
     date: "2026-04-14"
     changes:
