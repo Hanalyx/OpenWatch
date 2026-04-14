@@ -1,6 +1,6 @@
 spec: job-queue
 version: "1.0"
-status: draft
+status: active
 owner: engineering
 summary: >
   PostgreSQL-native job queue replacing Celery + Redis. Uses SKIP LOCKED

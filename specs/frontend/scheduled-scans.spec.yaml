@@ -1,6 +1,6 @@
 spec: scheduled-scans
 version: "1.0"
-status: draft
+status: active
 owner: engineering
 summary: >
   The scheduled scans frontend MUST render an adaptive interval
