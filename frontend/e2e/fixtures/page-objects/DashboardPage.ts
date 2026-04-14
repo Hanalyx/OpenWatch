@@ -30,7 +30,7 @@ export class DashboardPage extends BasePage {
     hosts: '.MuiListItemButton-root:has-text("Hosts"):not(:has-text("Host Groups"))',
     hostGroups: '.MuiListItemButton-root:has-text("Host Groups")',
     content: '.MuiListItemButton-root:has-text("Content"):not(:has-text("Frameworks")):not(:has-text("Templates"))',
-    scans: '.MuiListItemButton-root:has-text("Scans")',
+    scans: '.MuiListItemButton-root:has-text("Transactions")',
     users: '.MuiListItemButton-root:has-text("Users")',
     settings: '.MuiListItemButton-root:has-text("Settings")'
   };
