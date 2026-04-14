@@ -83,7 +83,7 @@ interface RuleConfigStepProps {
  */
 interface RawApiRule {
   id: string;
-  scap_rule_id: string;
+  rule_id: string;
   title: string;
   compliance_intent?: string;
   risk_level?: string;

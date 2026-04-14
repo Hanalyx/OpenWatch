@@ -21,7 +21,7 @@ import asyncio
 import logging
 import time
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 from sqlalchemy import text
@@ -43,17 +43,9 @@ from app.models.authorization_models import (
     ResourceType,
 )
 from app.rbac import Permission, RBACManager, UserRole
+from app.utils.logging_security import sanitize_for_log
 
 logger = logging.getLogger(__name__)
-
-
-def sanitize_for_log(value: Any) -> str:
-    """Sanitize user input for safe logging."""
-    if value is None:
-        return "None"
-    str_value = str(value)
-    # Remove newlines and control characters to prevent log injection
-    return str_value.replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t")[:1000]
 
 
 class AuthorizationService:
@@ -106,7 +98,7 @@ class AuthorizationService:
         try:
             # Create default context if not provided
             if context is None:
-                context = await self._build_user_context(user_id)
+                context = self._build_user_context(user_id)
 
             # Check cache first for performance
             if self.config.cache_ttl_seconds > 0:
@@ -244,7 +236,7 @@ class AuthorizationService:
                     total_time,
                 )
 
-            result = BulkAuthorizationResult(
+            bulk_result = BulkAuthorizationResult(
                 overall_decision=overall_decision,
                 individual_results=individual_results,
                 denied_resources=denied_resources,
@@ -260,7 +252,7 @@ class AuthorizationService:
                 f"in {total_time}ms"
             )
 
-            return result
+            return bulk_result
 
         except Exception as e:
             logger.error(f"Bulk authorization failed: {e}")
@@ -301,7 +293,7 @@ class AuthorizationService:
 
         try:
             # Step 1: Check if user exists and is active
-            user_valid = await self._validate_user(user_id)
+            user_valid = self._validate_user(user_id)
             if not user_valid:
                 return AuthorizationResult(
                     decision=AuthorizationDecision.DENY,
@@ -313,14 +305,14 @@ class AuthorizationService:
                 )
 
             # Step 2: Get all applicable policies for this request
-            policies = await self._get_applicable_policies(user_id, resource, action, context)
+            policies = self._get_applicable_policies(user_id, resource, action, context)
 
             # Step 3: Evaluate policies using conflict resolution strategy
             decision, reason = self._evaluate_policies(policies)
             applied_policies = policies
 
             # Step 4: Apply role-based permissions as additional validation
-            role_decision = await self._evaluate_role_permissions(user_id, resource, action, context)
+            role_decision = self._evaluate_role_permissions(user_id, resource, action, context)
 
             # Step 5: Combine policy and role decisions
             final_decision, final_reason = self._combine_decisions(
@@ -429,7 +421,7 @@ class AuthorizationService:
                     "resource_id": resource.resource_id,
                     "user_groups": user_groups,
                     "user_roles": user_roles,
-                    "now": datetime.utcnow(),
+                    "now": datetime.now(timezone.utc),
                 },
             )
 
@@ -855,7 +847,7 @@ class AuthorizationService:
 
             valid_results = []
             for i, result in enumerate(results):
-                if isinstance(result, Exception):
+                if isinstance(result, BaseException):
                     # Handle exceptions by creating deny result
                     valid_results.append(
                         AuthorizationResult(
@@ -976,10 +968,10 @@ class AuthorizationService:
                 WHERE id = :permission_id
             """
                 ),
-                {"permission_id": permission_id, "now": datetime.utcnow()},
+                {"permission_id": permission_id, "now": datetime.now(timezone.utc)},
             )
 
-            if result.rowcount == 0:
+            if getattr(result, "rowcount", 0) == 0:
                 # Try host group permissions
                 result = self.db.execute(
                     text(
@@ -989,12 +981,12 @@ class AuthorizationService:
                     WHERE id = :permission_id
                 """
                     ),
-                    {"permission_id": permission_id, "now": datetime.utcnow()},
+                    {"permission_id": permission_id, "now": datetime.now(timezone.utc)},
                 )
 
             self.db.commit()
 
-            if result.rowcount > 0:
+            if getattr(result, "rowcount", 0) > 0:
                 # Clear entire cache since we don't know which users/resources were affected
                 self.permission_cache.clear()
                 logger.info(f"Revoked permission {sanitize_for_log(permission_id)}")

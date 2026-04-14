@@ -19,7 +19,7 @@ from starlette.responses import Response
 
 # Core application imports
 from .audit_db import log_security_event
-from .auth import audit_logger, require_admin
+from .auth import audit_logger, get_current_user, require_admin
 from .config import SECURITY_HEADERS, get_settings
 from .database import get_db_session
 from .middleware.metrics import PrometheusMiddleware, background_updater
@@ -29,7 +29,9 @@ from .middleware.rate_limiting import get_rate_limiting_middleware
 from .routes.admin import router as admin_router
 from .routes.auth import router as auth_router
 from .routes.compliance import router as compliance_router
+from .routes.compliance.baselines import router as baselines_router
 from .routes.content import router as content_pkg_router
+from .routes.fleet import router as fleet_router
 from .routes.host_groups import router as host_groups_router
 from .routes.hosts import router as hosts_router
 
@@ -42,8 +44,11 @@ from .routes.plugins import router as plugins_router
 from .routes.remediation import router as remediation_router
 from .routes.rules import router as rules_router
 from .routes.scans import router as scans_router
+from .routes.signing import router as signing_router
 from .routes.ssh import router as ssh_router
 from .routes.system import router as system_router
+from .routes.transactions import host_transactions_router as host_txn_router
+from .routes.transactions import router as transactions_router
 from .services.infrastructure import get_metrics_instance
 
 # Configure logging
@@ -287,10 +292,10 @@ def _log_audit_event(db: Any, event_type: str, request: Request, response: Respo
 @app.middleware("http")
 async def audit_middleware(request: Request, call_next: Callable[[Request], Any]) -> Response:
     """Log security-relevant requests for audit purposes."""
-    # Get client IP
-    client_ip = request.client.host
-    if "x-forwarded-for" in request.headers:
-        client_ip = request.headers["x-forwarded-for"].split(",")[0].strip()
+    # Get client IP (only trust X-Forwarded-For from known proxies)
+    from .utils.trusted_proxies import get_client_ip
+
+    client_ip = get_client_ip(request)
 
     # Process request
     response = await call_next(request)
@@ -305,6 +310,12 @@ async def audit_middleware(request: Request, call_next: Callable[[Request], Any]
             "/api/hosts": "HOST_OPERATION",
             "/api/users": "USER_OPERATION",
             "/api/webhooks": "WEBHOOK_OPERATION",
+            "/api/compliance": "COMPLIANCE_OPERATION",
+            "/api/admin": "ADMIN_OPERATION",
+            "/api/ssh": "SSH_OPERATION",
+            "/api/remediation": "REMEDIATION_OPERATION",
+            "/api/rules": "RULES_OPERATION",
+            "/api/integrations": "INTEGRATION_OPERATION",
         }
 
         # Log based on path prefix
@@ -351,6 +362,7 @@ async def https_redirect_middleware(request: Request, call_next: Callable[[Reque
         if request.url.scheme != "https":
             https_url = request.url.replace(scheme="https")
             return JSONResponse(
+                content=None,
                 status_code=status.HTTP_301_MOVED_PERMANENTLY,
                 headers={"Location": str(https_url)},
             )
@@ -422,48 +434,21 @@ async def health_check() -> JSONResponse:
                 if db:
                     db.close()
 
-        # Helper function for synchronous Redis check
-        def check_redis_sync() -> tuple[bool, str]:
-            redis_client = None
-            try:
-                import urllib.parse
-
-                import redis
-
-                parsed = urllib.parse.urlparse(settings.redis_url)
-                redis_client = redis.Redis(
-                    host=parsed.hostname or "localhost",
-                    port=parsed.port or 6379,
-                    password=parsed.password,
-                    socket_timeout=5,
-                    socket_connect_timeout=5,
-                )
-                redis_client.ping()
-                return True, "healthy"
-            except Exception as e:
-                logger.error(f"Redis health check failed - inline version: {e}")
-                return False, "unhealthy"
-            finally:
-                if redis_client:
-                    redis_client.close()
-
         # Run synchronous checks in thread pool to avoid blocking async event loop
         loop = asyncio.get_event_loop()
         db_healthy, db_status = await loop.run_in_executor(None, check_database_sync)
         health_status["database"] = db_status
         if db_healthy:
-            logger.info("Database health check successful - inline version")
+            logger.info("Database health check successful")
 
-        redis_healthy, redis_status = await loop.run_in_executor(None, check_redis_sync)
-        health_status["redis"] = redis_status
-        if redis_healthy:
-            logger.info("Redis health check successful - inline version")
+        # Redis removed (2026-04-13) — replaced by PostgreSQL job queue
+        health_status["redis"] = "removed"
 
-        # MongoDB deprecated (2026-02-10) - removed health check
+        # MongoDB deprecated (2026-02-10)
         health_status["mongodb"] = "deprecated"
 
         # Overall status
-        if not (db_healthy and redis_healthy):
+        if not db_healthy:
             health_status["status"] = "degraded"
             return JSONResponse(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, content=health_status)
 
@@ -473,7 +458,7 @@ async def health_check() -> JSONResponse:
         logger.error(f"Health check failed: {e}")
         return JSONResponse(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            content={"status": "unhealthy", "error": str(e), "timestamp": time.time()},
+            content={"status": "unhealthy", "timestamp": time.time()},
         )
 
 
@@ -496,8 +481,10 @@ async def security_info(current_user: Dict[str, Any] = Depends(require_admin)) -
 
 # Prometheus Metrics Endpoint
 @app.get("/metrics")
-async def metrics() -> PlainTextResponse:
-    """Prometheus metrics endpoint."""
+async def metrics(
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> PlainTextResponse:
+    """Prometheus metrics endpoint. Requires authentication."""
     metrics_instance = get_metrics_instance()
     metrics_data = metrics_instance.get_metrics()
 
@@ -506,6 +493,7 @@ async def metrics() -> PlainTextResponse:
 
 # Include API routes - all organized into modular packages under /api prefix
 app.include_router(admin_router, prefix="/api", tags=["Administration"])
+app.include_router(fleet_router, tags=["Fleet"])
 app.include_router(auth_router, prefix="/api/auth", tags=["Authentication"])
 app.include_router(compliance_router, prefix="/api", tags=["Compliance"])
 app.include_router(content_pkg_router, prefix="/api", tags=["Content"])
@@ -517,21 +505,25 @@ app.include_router(remediation_router, prefix="/api", tags=["Remediation"])
 app.include_router(rules_router, prefix="/api", tags=["Rules"])
 app.include_router(scans_router, prefix="/api", tags=["Security Scans"])
 app.include_router(ssh_router, prefix="/api", tags=["SSH"])
+app.include_router(transactions_router, tags=["Transactions"])
+app.include_router(host_txn_router, tags=["Transactions"])
+app.include_router(signing_router, tags=["Signing"])
 app.include_router(system_router, prefix="/api", tags=["System"])
 
 # Routes registered separately from their packages for prefix compatibility
 app.include_router(bulk_operations_router, prefix="/api/bulk", tags=["Bulk Operations"])
 app.include_router(integration_metrics_router, prefix="/api/integration/metrics", tags=["Integration Metrics"])
 app.include_router(monitoring_router, prefix="/api", tags=["Host Monitoring"])
+app.include_router(baselines_router, prefix="/api", tags=["Baselines"])
 
 
 # Global Exception Handler
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     """Global exception handler for security and logging."""
-    client_ip = request.client.host
-    if "x-forwarded-for" in request.headers:
-        client_ip = request.headers["x-forwarded-for"].split(",")[0].strip()
+    from .utils.trusted_proxies import get_client_ip
+
+    client_ip = get_client_ip(request)
 
     # Log the exception
     logger.error(f"Unhandled exception: {exc}", exc_info=True)

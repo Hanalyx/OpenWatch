@@ -576,6 +576,15 @@ cache/
 # Exception: Allow alembic migration files (they describe schemas, not actual credentials)
 !backend/alembic/versions/*credential*.py
 
+# Exception: Allow spec and test files that reference credentials/api_keys in their names
+!specs/api/admin/credentials.spec.yaml
+!tests/backend/unit/api/test_api_keys_spec.py
+!tests/backend/unit/api/test_credentials_spec.py
+!backend/app/routes/admin/credentials.py
+!backend/app/routes/auth/api_keys.py
+!backend/app/services/auth/credential_service.py
+!backend/app/services/auth/credential_handler.py
+
 # Configuration files that might contain secrets
 *config.local.*
 *settings.local.*

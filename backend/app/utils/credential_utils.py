@@ -4,6 +4,7 @@ Shared utilities for credential processing and decoding
 """
 
 import base64
+import binascii
 import json
 import logging
 from typing import Any, Dict, Optional
@@ -32,7 +33,7 @@ def decode_base64_credentials(encrypted_credentials: str) -> Dict[str, Any]:
         decoded_data = base64.b64decode(encrypted_credentials).decode("utf-8")
         credentials_data = json.loads(decoded_data)
         return credentials_data
-    except (base64.binascii.Error, json.JSONDecodeError, UnicodeDecodeError) as e:
+    except (binascii.Error, json.JSONDecodeError, UnicodeDecodeError) as e:
         logger.error(f"Failed to decode base64 credentials: {e}")
         raise ValueError(f"Invalid credential data format: {e}")
 

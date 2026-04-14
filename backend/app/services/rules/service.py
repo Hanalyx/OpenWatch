@@ -23,11 +23,11 @@ Example:
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-from app.services.platform_capability_service import PlatformCapabilityService
+# PlatformCapabilityService removed (SCAP-era dead code)
 from app.services.rules.cache import RuleCacheService
 
 logger = logging.getLogger(__name__)
@@ -71,7 +71,7 @@ class RuleService:
             cache_service: Optional cache service instance
         """
         self.cache_service = cache_service or RuleCacheService()
-        self.platform_service = PlatformCapabilityService()
+        self.platform_service: Any = None  # PlatformCapabilityService removed
         self.query_stats = {
             "total_queries": 0,
             "cache_hits": 0,
@@ -110,7 +110,7 @@ class RuleService:
         Returns:
             List of rule dictionaries
         """
-        start_time = datetime.utcnow()
+        start_time = datetime.now(timezone.utc)
 
         try:
             # Build cache key
@@ -286,7 +286,7 @@ class RuleService:
             "platform_coverage": {},
             "framework_coverage": {},
             "query_performance": self.query_stats,
-            "last_updated": datetime.utcnow().isoformat(),
+            "last_updated": datetime.now(timezone.utc).isoformat(),
         }
 
     # Private helper methods
@@ -428,7 +428,7 @@ class RuleService:
 
     def _update_query_stats(self, start_time: datetime, cache_hit: bool):
         """Update query performance statistics."""
-        duration = (datetime.utcnow() - start_time).total_seconds() * 1000  # ms
+        duration = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000  # ms
 
         self.query_stats["total_queries"] += 1
         if cache_hit:

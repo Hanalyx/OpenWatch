@@ -21,7 +21,7 @@ State Transitions & Intervals:
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 from sqlalchemy import text
@@ -48,7 +48,7 @@ class AdaptiveSchedulerService:
         """
         # Check cache validity
         if self._config_cache and self._cache_timestamp:
-            cache_age = (datetime.utcnow() - self._cache_timestamp).total_seconds()
+            cache_age = (datetime.now(timezone.utc) - self._cache_timestamp).total_seconds()
             if cache_age < self._cache_ttl_seconds:
                 return self._config_cache
 
@@ -111,7 +111,7 @@ class AdaptiveSchedulerService:
 
             # Update cache
             self._config_cache = config
-            self._cache_timestamp = datetime.utcnow()
+            self._cache_timestamp = datetime.now(timezone.utc)
 
             return config
 
@@ -147,8 +147,8 @@ class AdaptiveSchedulerService:
             dict: Updated configuration
         """
         try:
-            updates = []
-            params = {"updated_at": datetime.utcnow()}
+            updates: list[str] = []
+            params: dict[str, Any] = {"updated_at": datetime.now(timezone.utc)}
 
             if enabled is not None:
                 updates.append("enabled = :enabled")
@@ -281,9 +281,9 @@ class AdaptiveSchedulerService:
 
         # Special handling for 'unknown' state - check immediately
         if state.lower() == "unknown" or interval_minutes == 0:
-            return datetime.utcnow()
+            return datetime.now(timezone.utc)
 
-        return datetime.utcnow() + timedelta(minutes=interval_minutes)
+        return datetime.now(timezone.utc) + timedelta(minutes=interval_minutes)
 
     def should_skip_maintenance_checks(self, db: Session) -> bool:
         """
@@ -341,7 +341,7 @@ class AdaptiveSchedulerService:
                 LIMIT :limit
             """
 
-            result = db.execute(text(query), {"now": datetime.utcnow(), "limit": limit})
+            result = db.execute(text(query), {"now": datetime.now(timezone.utc), "limit": limit})
 
             hosts = []
             for row in result:
@@ -398,10 +398,11 @@ class AdaptiveSchedulerService:
                   AND next_check_time < :now
             """
                 ),
-                {"now": datetime.utcnow()},
+                {"now": datetime.now(timezone.utc)},
             )
 
-            overdue_count = overdue_result.fetchone().count
+            overdue_row = overdue_result.fetchone()
+            overdue_count = overdue_row.count if overdue_row else 0
 
             # Get next check time
             next_check_result = db.execute(

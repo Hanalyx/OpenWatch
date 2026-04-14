@@ -1,6 +1,27 @@
 spec: environment
-version: "0.1"
-status: draft
+version: "1.0"
+status: active
 owner: engineering
 summary: >
-  Environment variable configuration, required secrets, and deployment settings.
+  Environment variable configuration, required secrets, deployment settings,
+  and runtime configuration validation for OpenWatch backend services.
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      OPENWATCH_DATABASE_URL is required with no hardcoded default.
+  - id: AC-2
+    description: >
+      OPENWATCH_SECRET_KEY must be configurable via environment variable.
+  - id: AC-3
+    description: >
+      JWT keys loaded from file paths (JWT_PRIVATE_KEY_PATH, JWT_PUBLIC_KEY_PATH).
+  - id: AC-4
+    description: >
+      Redis URL configurable via OPENWATCH_REDIS_URL environment variable.
+  - id: AC-5
+    description: >
+      Debug mode controlled by OPENWATCH_DEBUG environment variable.
+  - id: AC-6
+    description: >
+      FIPS mode controlled by OPENWATCH_FIPS_MODE environment variable.

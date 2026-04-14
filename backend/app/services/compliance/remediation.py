@@ -11,7 +11,7 @@ Part of Phase 4: Remediation + Subscription (Kensa Integration Plan)
 import asyncio
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 from uuid import UUID, uuid4
 
@@ -143,6 +143,8 @@ class RemediationService:
             f"with {len(valid_rules)} rules (dry_run={request.dry_run})"
         )
 
+        if row is None:
+            raise ValueError(f"Failed to create remediation job {job_id}")
         return self._row_to_job_response(row)
 
     def get_job(self, job_id: UUID) -> Optional[RemediationJobResponse]:
@@ -236,6 +238,20 @@ class RemediationService:
 
         result = self.db.execute(text(query), params)
         row = result.fetchone()
+
+        if row is None:
+            return RemediationSummary(
+                total_jobs=0,
+                pending_jobs=0,
+                running_jobs=0,
+                completed_jobs=0,
+                failed_jobs=0,
+                rolled_back_jobs=0,
+                total_rules_remediated=0,
+                total_rules_failed=0,
+                success_rate=0.0,
+                rollback_available_count=0,
+            )
 
         total_rules = (row.total_rules_remediated or 0) + (row.total_rules_failed or 0)
         success_rate = 0.0
@@ -448,7 +464,7 @@ class RemediationService:
         result = self.db.execute(text(query), params)
         self.db.commit()
 
-        return result.rowcount > 0
+        return getattr(result, "rowcount", 0) > 0
 
     def update_job_progress(
         self,
@@ -575,8 +591,8 @@ class RemediationService:
                 risk_level,
                 evidence,
                 framework_refs,
-                datetime.utcnow(),
-                datetime.utcnow() if status in ("completed", "failed") else None,
+                datetime.now(timezone.utc),
+                datetime.now(timezone.utc) if status in ("completed", "failed") else None,
             )
         )
 
@@ -769,7 +785,7 @@ class RemediationService:
         result = self.db.execute(text(query), {"id": job_id})
         self.db.commit()
 
-        if result.rowcount > 0:
+        if getattr(result, "rowcount", 0) > 0:
             self._log_audit(job_id, "cancelled", user_id, {})
             logger.info(f"Cancelled remediation job {job_id}")
             return True

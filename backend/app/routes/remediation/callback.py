@@ -105,9 +105,9 @@ async def handle_remediation_callback(
         # Update scan with remediation information
         # Note: Direct attribute assignment to SQLAlchemy columns works at runtime
         # mypy doesn't understand SQLAlchemy's descriptor protocol
-        scan.kensa_remediation_id = str(callback.remediation_job_id)
-        scan.remediation_status = callback.status
-        scan.remediation_completed_at = callback.completed_at
+        setattr(scan, "kensa_remediation_id", str(callback.remediation_job_id))
+        setattr(scan, "remediation_status", callback.status)
+        setattr(scan, "remediation_completed_at", callback.completed_at)
 
         # Store remediation results in scan metadata
         if not scan.metadata:

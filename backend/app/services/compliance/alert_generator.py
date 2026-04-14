@@ -53,7 +53,7 @@ class AlertGenerator:
         Returns:
             List of created alerts
         """
-        created_alerts = []
+        created_alerts: list[Any] = []
         thresholds = self.alert_service.get_thresholds(host_id=host_id)
         compliance_thresholds = thresholds.get("compliance", {})
 
@@ -225,24 +225,25 @@ class AlertGenerator:
         drift_thresholds: Dict[str, Any],
     ) -> List[Dict[str, Any]]:
         """Check for configuration drift compared to previous scan."""
-        alerts = []
+        alerts: list[Any] = []
 
-        # Get previous scan results for comparison
-        # scan_findings has no host_id — join through scans table
-        # Column is "status" ('pass'/'fail'), not "passed" (boolean)
+        # Get previous scan results for comparison from transactions table.
+        # transactions has host_id directly — no join through scans needed.
+        # Column is "status" ('pass'/'fail'), not "passed" (boolean).
         query = text(
             """
             SELECT rule_id, (status = 'pass') AS passed
             FROM (
                 SELECT
-                    sf.rule_id,
-                    sf.status,
-                    ROW_NUMBER() OVER (PARTITION BY sf.rule_id ORDER BY sf.created_at DESC) as rn
-                FROM scan_findings sf
-                JOIN scans s ON sf.scan_id = s.id
-                WHERE s.host_id = :host_id
-                  AND (:scan_id IS NULL OR sf.scan_id != :scan_id)
-            ) t
+                    t.rule_id,
+                    t.status,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY t.rule_id ORDER BY t.started_at DESC
+                    ) as rn
+                FROM transactions t
+                WHERE t.host_id = :host_id
+                  AND (:scan_id IS NULL OR t.scan_id != :scan_id)
+            ) sub
             WHERE rn = 1
             """
         )
@@ -343,7 +344,7 @@ class AlertGenerator:
         Returns:
             List of created alerts
         """
-        alerts = []
+        alerts: list[Any] = []
         thresholds = self.alert_service.get_thresholds()
         operational = thresholds.get("operational", {})
 
@@ -355,7 +356,7 @@ class AlertGenerator:
 
     def _check_unscanned_hosts(self, max_hours: int) -> List[Dict[str, Any]]:
         """Check for hosts that haven't been scanned within max interval."""
-        alerts = []
+        alerts: list[Any] = []
 
         query = text(
             """

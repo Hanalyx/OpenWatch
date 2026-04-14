@@ -153,7 +153,7 @@ Performance Notes:
 """
 
 import logging
-from typing import Optional
+from typing import Any, Optional
 
 from sqlalchemy.orm import Session
 
@@ -185,16 +185,7 @@ from .exceptions import (  # Base exceptions; Executor exceptions; Scanner excep
 from .executors import BaseExecutor, LocalExecutor, SSHExecutor, get_executor
 
 # Re-export integrations
-from .integration import (  # Kensa Mapper; Semantic Engine
-    IntelligentScanResult,
-    KensaMapper,
-    KensaMapping,
-    RemediationPlan,
-    SemanticEngine,
-    SemanticRule,
-    get_kensa_mapper,
-    get_semantic_engine,
-)
+from .integration import KensaMapper, KensaMapping, RemediationPlan, get_kensa_mapper  # Kensa Mapper
 
 # Re-export scan intelligence
 from .intelligence import HostInfo, RecommendedScanProfile, ScanIntelligenceService
@@ -219,31 +210,38 @@ from .orchestration import ScanOrchestrator
 # Re-export providers (base classes for future implementations)
 from .providers import BaseProvider, ProviderCapability, ProviderConfig, ProviderError
 
-# Re-export result parsers
+# Re-export result parsers (ARF/XCCDF removed - SCAP-era)
 from .result_parsers import (
-    ARFResultParser,
     BaseResultParser,
     ParsedResults,
     ResultStatistics,
     RuleResult,
-    XCCDFResultParser,
     get_parser,
     get_parser_for_file,
 )
 
-# Re-export scanners
-from .scanners import UnifiedSCAPScanner  # Backward compatibility alias for OWScanner
-from .scanners import get_unified_scanner  # Backward compatibility alias for get_ow_scanner
-from .scanners import (
-    BaseScanner,
-    KubernetesScanner,
-    OSCAPScanner,
-    OWScanner,
-    ScannerFactory,
-    get_ow_scanner,
-    get_scanner,
-    get_scanner_for_content,
-)
+# Re-export scanners (OWScanner/KubernetesScanner removed - SCAP-era dead code)
+from .scanners.base import BaseScanner  # Always available
+
+_OSCAPScanner: Any = None
+_ScannerFactory: Any = None
+get_scanner: Any = None
+get_scanner_for_content: Any = None
+try:
+    from .scanners import OSCAPScanner as _OSCAPScanner_import
+    from .scanners import ScannerFactory as _ScannerFactory_import
+    from .scanners import get_scanner, get_scanner_for_content
+
+    _OSCAPScanner = _OSCAPScanner_import
+    _ScannerFactory = _ScannerFactory_import
+except ImportError:
+    pass
+OSCAPScanner = _OSCAPScanner
+ScannerFactory = _ScannerFactory
+
+# Backward compatibility stubs
+UnifiedSCAPScanner: Any = None
+get_unified_scanner: Any = None
 
 logger = logging.getLogger(__name__)
 
@@ -400,8 +398,7 @@ __all__ = [
     # Scanners
     "BaseScanner",
     "OSCAPScanner",
-    "OWScanner",
-    "KubernetesScanner",
+    # OWScanner, KubernetesScanner removed (SCAP-era)
     "ScannerFactory",
     "get_scanner",
     "get_scanner_for_content",
@@ -414,8 +411,7 @@ __all__ = [
     "ParsedResults",
     "ResultStatistics",
     "RuleResult",
-    "XCCDFResultParser",
-    "ARFResultParser",
+    # XCCDFResultParser, ARFResultParser removed (SCAP-era)
     "get_parser_for_file",
     "get_parser",
     # Integration Layer - Kensa Mapper
@@ -423,11 +419,7 @@ __all__ = [
     "KensaMapping",
     "RemediationPlan",
     "get_kensa_mapper",
-    # Integration Layer - Semantic Engine
-    "SemanticEngine",
-    "SemanticRule",
-    "IntelligentScanResult",
-    "get_semantic_engine",
+    # SemanticEngine removed (SCAP-era)
     # Providers Layer
     "BaseProvider",
     "ProviderCapability",

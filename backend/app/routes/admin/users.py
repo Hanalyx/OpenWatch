@@ -6,7 +6,7 @@ Provides endpoints for user creation, update, deletion, and password management.
 """
 
 import logging
-from typing import Any, Dict, List, Optional, cast
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, EmailStr
@@ -275,7 +275,7 @@ async def create_user(
         hashed_password = pwd_context.hash(user_data.password)
 
         # Use InsertBuilder for type-safe, parameterized INSERT
-        from datetime import datetime
+        from datetime import datetime, timezone
 
         insert_builder = (
             InsertBuilder("users")
@@ -295,7 +295,7 @@ async def create_user(
                 hashed_password,
                 user_data.role.value,
                 user_data.is_active,
-                datetime.utcnow(),
+                datetime.now(timezone.utc),
                 0,
                 False,
             )
@@ -470,9 +470,8 @@ async def update_user(
         db.commit()
 
         # Return updated user
-        # Cast needed because @require_permission decorator returns Any
-        result = await get_user(user_id, current_user, db)
-        return cast(UserResponse, result)
+        user_response = await get_user(user_id, current_user, db)
+        return user_response
 
     except HTTPException:
         raise
@@ -620,7 +619,7 @@ async def get_my_profile(
         raise HTTPException(status_code=401, detail="User ID not found in token")
     # Cast needed because @require_permission decorator returns Any
     result = await get_user(user_id, current_user, db)
-    return cast(UserResponse, result)
+    return result
 
 
 @router.put("/me/profile", response_model=UserResponse)
@@ -650,4 +649,4 @@ async def update_my_profile(
         raise HTTPException(status_code=401, detail="User ID not found in token")
     # Cast needed because @require_permission decorator returns Any
     result = await update_user(user_id, user_data, current_user, db)
-    return cast(UserResponse, result)
+    return result

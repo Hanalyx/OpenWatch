@@ -1,0 +1,54 @@
+spec: alerts-crud
+version: "1.0"
+status: active
+owner: engineering
+summary: >
+  Compliance Alert CRUD API endpoints for managing alerts and alert thresholds.
+  Covers listing, statistics, acknowledgment, resolution, and threshold management
+  via delegation to AlertService. Enforces role-based access for threshold updates
+  and validates alert status transitions for acknowledge/resolve operations.
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      List alerts supports pagination via page/per_page query parameters
+      and filtering by status and severity, validating against AlertStatus
+      and AlertSeverity enum values.
+
+  - id: AC-2
+    description: >
+      Alert stats endpoint returns counts by status (total_active,
+      total_acknowledged, total_resolved) and severity via AlertService.get_stats.
+
+  - id: AC-3
+    description: >
+      Get thresholds is available to any authenticated user. Update thresholds
+      is restricted to super_admin, security_admin, or admin roles.
+
+  - id: AC-4
+    description: >
+      Update thresholds performs a manual role check against current_user.role
+      for super_admin, security_admin, or admin. Returns HTTP 403 for any
+      other role.
+
+  - id: AC-5
+    description: >
+      Get alert by ID returns HTTP 404 if AlertService.get_alert returns None
+      (alert not found).
+
+  - id: AC-6
+    description: >
+      Acknowledge alert changes status via AlertService.acknowledge_alert.
+      Returns HTTP 400 if the alert is not in the correct state for
+      acknowledgment (e.g., already resolved).
+
+  - id: AC-7
+    description: >
+      Resolve alert changes status via AlertService.resolve_alert.
+      Returns HTTP 400 if the alert is not in the correct state for
+      resolution (e.g., already resolved).
+
+  - id: AC-8
+    description: >
+      All alert operations delegate to AlertService instantiated with
+      AlertService(db). No direct database access occurs in route handlers.

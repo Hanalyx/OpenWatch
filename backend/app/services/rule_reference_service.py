@@ -259,7 +259,7 @@ class RuleReferenceService:
         if self._rules_cache is not None:
             return self._rules_cache
 
-        rules = []
+        rules: list[Any] = []
 
         if not self.rules_path.exists():
             logger.warning("Kensa rules path does not exist: %s", self.rules_path)

@@ -10,7 +10,6 @@ import asyncio
 import logging
 from typing import Any, Dict
 
-from celery import shared_task
 from sqlalchemy import text
 
 from app.database import SessionLocal
@@ -20,7 +19,6 @@ from app.plugins.kensa.updater import KensaUpdater
 logger = logging.getLogger(__name__)
 
 
-@shared_task(name="app.tasks.check_kensa_updates")
 def check_kensa_updates() -> Dict[str, Any]:
     """
     Check for Kensa updates (scheduled daily).
@@ -84,7 +82,6 @@ def check_kensa_updates() -> Dict[str, Any]:
     return asyncio.run(_check())
 
 
-@shared_task(name="app.tasks.cleanup_old_update_records")
 def cleanup_old_update_records(retention_days: int = 90) -> Dict[str, Any]:
     """
     Cleanup old update records (scheduled weekly).
@@ -106,7 +103,7 @@ def cleanup_old_update_records(retention_days: int = 90) -> Dict[str, Any]:
             AND status IN ('completed', 'failed', 'rolled_back')
         """
         result = db.execute(text(query), {"days": retention_days})
-        updates_deleted = result.rowcount
+        updates_deleted = getattr(result, "rowcount", 0)
 
         # Delete dismissed notifications older than retention period
         notif_query = """
@@ -115,7 +112,7 @@ def cleanup_old_update_records(retention_days: int = 90) -> Dict[str, Any]:
             AND dismissed_at < CURRENT_TIMESTAMP - INTERVAL ':days days'
         """
         notif_result = db.execute(text(notif_query), {"days": retention_days})
-        notifications_deleted = notif_result.rowcount
+        notifications_deleted = getattr(notif_result, "rowcount", 0)
 
         db.commit()
 
@@ -139,7 +136,6 @@ def cleanup_old_update_records(retention_days: int = 90) -> Dict[str, Any]:
         db.close()
 
 
-@shared_task(name="app.tasks.perform_auto_update")
 def perform_auto_update() -> Dict[str, Any]:
     """
     Perform automatic Kensa update if enabled.
@@ -201,7 +197,7 @@ def perform_auto_update() -> Dict[str, Any]:
             logger.info(f"Auto-updating Kensa from {check_result.current_version} " f"to {check_result.latest_version}")
 
             result = await updater.perform_update(
-                version=check_result.latest_version,
+                version=str(check_result.latest_version) if check_result.latest_version else "",
                 user_id=system_user_id,
                 skip_backup=False,
             )

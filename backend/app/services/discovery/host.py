@@ -5,7 +5,7 @@ Implements comprehensive host system discovery functionality
 
 import logging
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 from ...database import Host
@@ -62,14 +62,14 @@ class HostBasicDiscoveryService:
         """
         logger.info(f"Starting basic system discovery for host: {host.hostname}")
 
-        discovery_results = {
+        discovery_results: Dict[str, Any] = {
             "hostname": "Unknown",
             "os_family": "Unknown",
             "os_version": "Unknown",
             "os_name": "Unknown",
             "architecture": "Unknown",
             "kernel_version": "Unknown",
-            "discovery_timestamp": datetime.utcnow(),
+            "discovery_timestamp": datetime.now(timezone.utc),
             "discovery_success": False,
             "discovery_errors": [],
         }
@@ -119,7 +119,7 @@ class HostBasicDiscoveryService:
 
     def _discover_hostname(self, host: Host) -> Dict[str, Any]:
         """Discover system hostname"""
-        result = {"hostname": "Unknown"}
+        result: Dict[str, Any] = {"hostname": "Unknown"}
 
         try:
             output = self.ssh_service.execute_command("hostname", timeout=10)
@@ -139,7 +139,7 @@ class HostBasicDiscoveryService:
 
     def _discover_os_information(self, host: Host) -> Dict[str, Any]:
         """Discover OS family, version, and name from /etc/os-release"""
-        result = {"os_family": "Unknown", "os_version": "Unknown", "os_name": "Unknown"}
+        result: Dict[str, Any] = {"os_family": "Unknown", "os_version": "Unknown", "os_name": "Unknown"}
 
         try:
             output = self.ssh_service.execute_command("cat /etc/os-release", timeout=10)
@@ -230,7 +230,7 @@ class HostBasicDiscoveryService:
 
     def _discover_architecture(self, host: Host) -> Dict[str, Any]:
         """Discover system architecture"""
-        result = {"architecture": "Unknown"}
+        result: Dict[str, Any] = {"architecture": "Unknown"}
 
         try:
             output = self.ssh_service.execute_command("uname -m", timeout=10)
@@ -269,7 +269,7 @@ class HostBasicDiscoveryService:
 
     def _discover_kernel_version(self, host: Host) -> Dict[str, Any]:
         """Discover kernel version"""
-        result = {"kernel_version": "Unknown"}
+        result: Dict[str, Any] = {"kernel_version": "Unknown"}
 
         try:
             output = self.ssh_service.execute_command("uname -r", timeout=10)

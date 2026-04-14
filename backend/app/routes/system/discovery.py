@@ -218,7 +218,7 @@ async def get_os_discovery_stats(
         total_builder = QueryBuilder("hosts")
         total_query, total_params = total_builder.count_query()
         total_result = db.execute(text(total_query), total_params)
-        total_hosts = total_result.fetchone().total
+        total_hosts = total_result.scalar() or 0
 
         # Count hosts with platform_identifier set
         with_platform_builder = (
@@ -229,7 +229,7 @@ async def get_os_discovery_stats(
             text(with_platform_query),
             with_platform_params,
         )
-        hosts_with_platform = with_platform_result.fetchone().total
+        hosts_with_platform = with_platform_result.scalar() or 0
 
         # Get discovery failures from system_settings using QueryBuilder
         failures_builder = (
@@ -288,19 +288,18 @@ async def trigger_os_discovery(
         HTTPException: 500 if task queuing fails
     """
     try:
-        # Import here to avoid circular dependency
-        from ...tasks.os_discovery_tasks import discover_all_hosts_os
+        from app.services.job_queue.dispatch import enqueue_task
 
         # Trigger the task with force=True to bypass the enabled check
-        task = discover_all_hosts_os.delay(force=True)
+        job_id = enqueue_task("app.tasks.discover_all_hosts_os", force=True)
 
         logger.info(
-            f"Manual OS discovery triggered by user {current_user.get('username', 'unknown')}, " f"task_id={task.id}"
+            f"Manual OS discovery triggered by user {current_user.get('username', 'unknown')}, " f"job_id={job_id}"
         )
 
         return {
             "message": "OS discovery task queued successfully",
-            "task_id": str(task.id),
+            "task_id": job_id,
         }
 
     except Exception as e:

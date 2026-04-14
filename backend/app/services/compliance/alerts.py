@@ -35,6 +35,7 @@ class AlertType(str, Enum):
 
     # Operational alerts
     HOST_UNREACHABLE = "host_unreachable"
+    HOST_RECOVERED = "host_recovered"
     SCAN_FAILED = "scan_failed"
     SCHEDULER_STOPPED = "scheduler_stopped"
     SCAN_BACKLOG = "scan_backlog"
@@ -174,7 +175,10 @@ class AlertService:
 
         logger.info(f"Created {severity.value} alert: {title} (type={alert_type.value}, host={host_id})")
 
-        return {
+        if row is None:
+            return {}
+
+        alert_dict = {
             "id": str(row.id),
             "alert_type": alert_type.value,
             "severity": severity.value,
@@ -187,6 +191,28 @@ class AlertService:
             "status": "active",
             "created_at": row.created_at.isoformat(),
         }
+
+        # Dispatch notifications asynchronously via Celery (fire-and-forget).
+        # Failures here must never prevent the alert from being returned.
+        try:
+            from app.services.job_queue.dispatch import enqueue_task
+
+            enqueue_task(
+                "app.tasks.dispatch_alert_notifications",
+                alert_data={
+                    "alert_id": alert_dict["id"],
+                    "alert_type": alert_dict["alert_type"],
+                    "severity": alert_dict["severity"],
+                    "title": alert_dict["title"],
+                    "host_id": alert_dict["host_id"],
+                    "rule_id": alert_dict["rule_id"],
+                    "detail": alert_dict.get("message"),
+                },
+            )
+        except Exception as e:
+            logger.warning("Failed to enqueue alert notification: %s", e)
+
+        return alert_dict
 
     def _is_duplicate(
         self,
@@ -223,8 +249,8 @@ class AlertService:
                 "window_start": window_start,
             },
         )
-        count = result.scalar()
-        return count > 0
+        count = result.scalar() or 0
+        return int(count) > 0
 
     def list_alerts(
         self,
@@ -479,6 +505,16 @@ class AlertService:
 
         result = self.db.execute(query)
         row = result.fetchone()
+        if row is None:
+            return {
+                "total_active": 0,
+                "total_acknowledged": 0,
+                "total_resolved": 0,
+                "by_severity": {},
+                "by_type": {},
+                "recent_24h": 0,
+                "recent_alerts": [],
+            }
 
         # Get recent alerts (last 24h)
         recent_query = text(

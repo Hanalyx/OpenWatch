@@ -1,17 +1,16 @@
 """
 Background tasks for host monitoring.
 
-Active Celery tasks:
+Active tasks:
     - check_host_connectivity: Comprehensive ping/port/SSH check for a single host
     - queue_host_checks: Dispatcher that queues hosts due for monitoring
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import text
 
-from app.celery_app import celery_app
 from app.config import get_settings
 from app.database import get_db_session
 from app.encryption import EncryptionConfig, create_encryption_service
@@ -21,12 +20,6 @@ from app.utils.query_builder import QueryBuilder
 logger = logging.getLogger(__name__)
 
 
-@celery_app.task(
-    bind=True,
-    name="app.tasks.check_host_connectivity",
-    time_limit=300,
-    soft_time_limit=240,
-)
 def check_host_connectivity(self, host_id: str, priority: int = 5) -> dict:
     """
     Perform comprehensive connectivity check for a host (ping → port → SSH).
@@ -170,21 +163,14 @@ def check_host_connectivity(self, host_id: str, priority: int = 5) -> dict:
                 "error_message": error_message,
                 "error_type": error_type,
                 "priority": priority,
-                "checked_at": datetime.utcnow().isoformat(),
+                "checked_at": datetime.now(timezone.utc).isoformat(),
             }
 
     except Exception as exc:
         logger.error(f"Critical error in check_host_connectivity for {host_id}: {exc}")
-        # Retry with exponential backoff (max 3 retries)
-        raise self.retry(exc=exc, countdown=min(2**self.request.retries * 60, 300), max_retries=3)
+        raise  # Job queue worker handles retry
 
 
-@celery_app.task(
-    bind=True,
-    name="app.tasks.queue_host_checks",
-    time_limit=120,
-    soft_time_limit=90,
-)
 def queue_host_checks(self, limit: int = 100) -> dict:
     """
     Queue connectivity checks for hosts that are due for monitoring.
@@ -210,7 +196,7 @@ def queue_host_checks(self, limit: int = 100) -> dict:
 
             # Dispatch individual check tasks with priority-based queueing
             queued_count = 0
-            state_distribution = {}
+            state_distribution: dict[str, int] = {}
 
             for host in hosts_to_check:
                 try:
@@ -219,10 +205,12 @@ def queue_host_checks(self, limit: int = 100) -> dict:
                     state_distribution[state] = state_distribution.get(state, 0) + 1
 
                     # Dispatch task with priority (Celery priority: 0-9, higher = more urgent)
-                    check_host_connectivity.apply_async(
-                        args=[host["id"], host["priority"]],
+                    from app.services.job_queue.dispatch import enqueue_task
+
+                    enqueue_task(
+                        "app.tasks.check_host_connectivity",
+                        host_id=host["id"],
                         priority=host["priority"],
-                        queue="monitoring",
                     )
 
                     queued_count += 1
@@ -237,9 +225,9 @@ def queue_host_checks(self, limit: int = 100) -> dict:
                 "queued_count": queued_count,
                 "total_due": len(hosts_to_check),
                 "state_distribution": state_distribution,
-                "queued_at": datetime.utcnow().isoformat(),
+                "queued_at": datetime.now(timezone.utc).isoformat(),
             }
 
     except Exception as exc:
         logger.error(f"Failed to queue host checks: {exc}")
-        raise self.retry(exc=exc, countdown=60, max_retries=3)
+        raise  # Job queue worker handles retry

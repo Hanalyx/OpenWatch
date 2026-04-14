@@ -1,0 +1,56 @@
+spec: compliance-scheduler
+version: "1.1"
+status: active
+owner: engineering
+summary: >
+  ComplianceSchedulerService manages the adaptive compliance scanning
+  scheduler. Provides configuration management, host schedule queries,
+  maintenance mode control, and adaptive interval calculation based on
+  compliance state. Operates on the host_schedule and
+  compliance_scheduler_config database tables.
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      Scheduler config includes interval settings per compliance state
+      (compliant, mostly_compliant, partial, low, critical, unknown,
+      maintenance) with default values defined in _get_default_config.
+
+  - id: AC-2
+    description: >
+      get_hosts_due_for_scan returns hosts where next_scheduled_scan is
+      past or NULL, filtered by is_active=true and maintenance_mode=false,
+      ordered by priority DESC and next_scheduled_scan ASC.
+
+  - id: AC-3
+    description: >
+      set_maintenance_mode (and its alias set_host_maintenance_mode)
+      updates maintenance_mode and maintenance_until fields on the
+      host_schedule table for the given host_id.
+
+  - id: AC-4
+    description: >
+      Interval calculation adapts based on compliance score:
+      critical (<20% or has_critical) = 60 min default,
+      low (20-49%) = 120 min, partial (50-79%) = 360 min,
+      mostly_compliant (80-99%) = 720 min, compliant (100%) = 1440 min.
+
+  - id: AC-5
+    description: >
+      Max concurrent scans is configurable via max_concurrent_scans field
+      with a valid range of 1-20 as enforced by the SchedulerConfigUpdate
+      schema at the API layer.
+
+  - id: AC-6
+    description: >
+      Scheduler operates on the host_schedule table (referenced as
+      host_schedule in SQL queries) for storing per-host scheduling state
+      including next_scheduled_scan, maintenance_mode, scan_priority, and
+      consecutive_scan_failures.
+
+  - id: AC-7
+    description: >
+      First successful scan for a host MUST auto-establish a compliance
+      baseline. DriftDetectionService.detect_drift is called with
+      auto_baseline=True in the post-scan processing of kensa_scan_tasks,
+      which creates a baseline if none exists for that host.

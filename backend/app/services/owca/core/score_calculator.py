@@ -6,7 +6,7 @@ Eliminates duplicate calculation logic across the codebase.
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from uuid import UUID
 
@@ -14,7 +14,6 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from ....utils.query_builder import QueryBuilder
-
 from ..models import ComplianceScore, ComplianceTier, SeverityBreakdown
 
 logger = logging.getLogger(__name__)
@@ -192,7 +191,7 @@ class ComplianceScoreCalculator:
             failed_rules=failed,
             total_rules=total,
             severity_breakdown=severity_breakdown,
-            calculated_at=datetime.utcnow(),
+            calculated_at=datetime.now(timezone.utc),
             scan_id=scan_id,
         )
 
@@ -284,7 +283,7 @@ class ComplianceScoreCalculator:
             failed_rules=failed,
             total_rules=total,
             severity_breakdown=severity_breakdown,
-            calculated_at=datetime.utcnow(),
+            calculated_at=datetime.now(timezone.utc),
             scan_id=scan_id,
         )
 
@@ -342,5 +341,5 @@ class ComplianceScoreCalculator:
             failed_rules=total_failed,
             total_rules=total_rules,
             severity_breakdown=severity_breakdown,
-            calculated_at=datetime.utcnow(),
+            calculated_at=datetime.now(timezone.utc),
         )

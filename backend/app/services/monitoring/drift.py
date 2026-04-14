@@ -23,8 +23,8 @@ Auto-Baseline (Hybrid Approach):
 """
 
 import logging
-from datetime import datetime
-from typing import Dict, Optional, Tuple
+from datetime import datetime, timezone
+from typing import Any, Dict, Optional, Tuple
 from uuid import UUID
 
 from sqlalchemy import text
@@ -97,8 +97,8 @@ class DriftDetectionService:
         # Determine drift type based on thresholds
         drift_type = self._classify_drift(
             drift_metrics["score_delta"],
-            baseline.drift_threshold_major,
-            baseline.drift_threshold_minor,
+            float(baseline.drift_threshold_major),
+            float(baseline.drift_threshold_minor),
         )
 
         # Only create event if drift is significant (not stable)
@@ -200,7 +200,7 @@ class DriftDetectionService:
         baseline = ScanBaseline(
             host_id=host_id,
             baseline_type="auto",
-            established_at=datetime.utcnow(),
+            established_at=datetime.now(timezone.utc),
             established_by=None,  # Auto-created, no user
             baseline_score=scan_data.score,
             baseline_passed_rules=scan_data.passed_rules,
@@ -237,7 +237,7 @@ class DriftDetectionService:
 
         return baseline
 
-    def _get_scan_results(self, db: Session, scan_id: UUID, host_id: UUID) -> Optional:
+    def _get_scan_results(self, db: Session, scan_id: UUID, host_id: UUID) -> Any:
         """
         Get scan results with per-severity data.
 
@@ -355,7 +355,7 @@ class DriftDetectionService:
             )
             .where("host_id = :host_id", host_id, "host_id")
             .order_by("detected_at", "DESC")
-            .limit(limit)
+            .paginate(1, limit)
         )
 
         query, params = builder.build()
@@ -377,7 +377,8 @@ class DriftDetectionService:
             QueryBuilder("scan_drift_events")
             .select("drift_type", "COUNT(*) as count")
             .where("host_id = :host_id", host_id, "host_id")
-            .group_by("drift_type")
+            # .group_by( # Not available on QueryBuilder
+            # "drift_type")
         )
 
         query, params = builder.build()
@@ -386,7 +387,9 @@ class DriftDetectionService:
         summary = {"major": 0, "minor": 0, "improvement": 0, "stable": 0, "total": 0}
 
         for row in result:
-            summary[row.drift_type] = row.count
-            summary["total"] += row.count
+            row_dict = dict(row._mapping)
+            count_val = int(row_dict["count"])
+            summary[row_dict["drift_type"]] = count_val
+            summary["total"] += count_val
 
         return summary

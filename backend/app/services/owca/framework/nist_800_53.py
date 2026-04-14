@@ -19,7 +19,6 @@ from typing import Any, Dict, List, Optional, Tuple
 from sqlalchemy import text
 
 from ....utils.query_builder import QueryBuilder
-
 from .base import BaseFrameworkIntelligence
 from .models import (
     NISTBaseline,
@@ -386,7 +385,7 @@ class NIST80053FrameworkIntelligence(BaseFrameworkIntelligence):
             .where("s.host_id = :host_id", host_id, "host_id")
             .where("s.status = :status", "completed", "status")
             .order_by("s.completed_at", "DESC")
-            .limit(1)
+            .paginate(1, 1)
         )
 
         query, params = builder.build()

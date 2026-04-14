@@ -24,10 +24,8 @@ from types import SimpleNamespace
 from typing import Any, Dict
 from uuid import UUID
 
-from celery.exceptions import SoftTimeLimitExceeded
 from sqlalchemy import text
 
-from app.celery_app import celery_app
 from app.database import get_db
 from app.plugins.kensa.evidence import serialize_evidence, serialize_framework_refs
 from app.utils.mutation_builders import InsertBuilder, UpdateBuilder
@@ -35,12 +33,6 @@ from app.utils.mutation_builders import InsertBuilder, UpdateBuilder
 logger = logging.getLogger(__name__)
 
 
-@celery_app.task(
-    bind=True,
-    name="app.tasks.dispatch_compliance_scans",
-    time_limit=120,
-    soft_time_limit=90,
-)
 def dispatch_compliance_scans(self: Any) -> Dict[str, Any]:
     """
     Dispatcher task that runs every 2 minutes via Celery Beat.
@@ -93,12 +85,13 @@ def dispatch_compliance_scans(self: Any) -> Dict[str, Any]:
 
                     priority = host["scan_priority"]
 
-                    # Dispatch individual Kensa scan task
-                    celery_app.send_task(
+                    # Dispatch individual Kensa scan task via job queue
+                    from app.services.job_queue.dispatch import enqueue_task
+
+                    enqueue_task(
                         "app.tasks.run_scheduled_kensa_scan",
-                        args=[host["host_id"], priority],
+                        host_id=host["host_id"],
                         priority=priority,
-                        queue="compliance_scanning",
                     )
 
                     dispatched_count += 1
@@ -126,12 +119,6 @@ def dispatch_compliance_scans(self: Any) -> Dict[str, Any]:
         return {"status": "error", "error": str(e), "hosts_dispatched": 0}
 
 
-@celery_app.task(
-    bind=True,
-    name="app.tasks.run_scheduled_kensa_scan",
-    time_limit=660,  # 11 minutes (scan timeout + buffer)
-    soft_time_limit=600,  # 10 minutes
-)
 def run_scheduled_kensa_scan(self: Any, host_id: str, priority: int = 5) -> Dict[str, Any]:
     """
     Execute a Kensa compliance scan for a host (scheduled by dispatcher).
@@ -550,7 +537,7 @@ def run_scheduled_kensa_scan(self: Any, host_id: str, priority: int = 5) -> Dict
         finally:
             db.close()
 
-    except SoftTimeLimitExceeded:
+    except TimeoutError:
         logger.error(f"Scheduled Kensa scan {scan_id} exceeded soft time limit")
         try:
             db = next(get_db())
@@ -594,12 +581,6 @@ def run_scheduled_kensa_scan(self: Any, host_id: str, priority: int = 5) -> Dict
         return {"status": "error", "host_id": host_id, "scan_id": scan_id, "error": str(e)}
 
 
-@celery_app.task(
-    bind=True,
-    name="app.tasks.initialize_compliance_schedules",
-    time_limit=300,
-    soft_time_limit=240,
-)
 def initialize_compliance_schedules(self: Any) -> Dict[str, Any]:
     """
     Initialize compliance schedules for all hosts that don't have one.
@@ -655,12 +636,6 @@ def initialize_compliance_schedules(self: Any) -> Dict[str, Any]:
         return {"status": "error", "error": str(e)}
 
 
-@celery_app.task(
-    bind=True,
-    name="app.tasks.expire_compliance_maintenance",
-    time_limit=60,
-    soft_time_limit=45,
-)
 def expire_compliance_maintenance(self: Any) -> Dict[str, Any]:
     """
     Expire maintenance mode for hosts past their maintenance_until time.

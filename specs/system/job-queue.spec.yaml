@@ -1,0 +1,159 @@
+spec: job-queue
+version: "1.0"
+status: draft
+owner: engineering
+summary: >
+  PostgreSQL-native job queue replacing Celery + Redis. Uses SKIP LOCKED
+  for concurrent task dispatch, a recurring_jobs table for periodic
+  scheduling (replacing Celery Beat), and in-process caching for rule data
+  (replacing Redis). Reduces infrastructure from 6 containers to 3 and
+  eliminates 2 external dependencies from the air-gapped packaging path.
+
+---
+
+objective: >
+  Remove Redis and Celery from the OpenWatch dependency tree while
+  preserving all task execution semantics: async dispatch, retry with
+  backoff, periodic scheduling, priority queues, timeout enforcement,
+  and concurrent workers. The PostgreSQL SKIP LOCKED pattern handles
+  5,000+ dequeues/second, far exceeding OpenWatch's peak of ~25/second
+  at 7,000 hosts.
+
+---
+
+context:
+  replaces:
+    - celery_app.py (Celery configuration, Beat schedule, task routing)
+    - Redis broker (message queue)
+    - Redis result backend (task status)
+    - token_blacklist.py (Redis-backed JWT revocation)
+    - rules/cache.py (Redis-backed rule cache)
+  consumed_by:
+    - All Celery task files (28 tasks across 20 files)
+    - routes that call .delay() to dispatch async work
+    - docker-compose.yml (container topology)
+    - packaging/rpm/ and packaging/deb/ (dependency lists)
+
+---
+
+constraints:
+  job_queue_table:
+    - "job_queue MUST have columns: id (UUID PK), task_name, args (JSONB), status, priority, queue, scheduled_at, started_at, completed_at, result (JSONB), error, retry_count, max_retries, timeout_seconds, created_at"
+    - "status MUST be one of: pending, running, completed, failed, cancelled"
+    - "Composite index on (status, scheduled_at, queue, priority DESC) MUST exist for SKIP LOCKED performance"
+
+  dequeue_semantics:
+    - "Dequeue MUST use SELECT ... FOR UPDATE SKIP LOCKED to prevent double-dispatch"
+    - "Dequeue MUST filter: status = 'pending' AND scheduled_at <= NOW() AND queue = :q"
+    - "Dequeue MUST order by priority DESC, created_at ASC"
+    - "Dequeue MUST atomically UPDATE status = 'running' and SET started_at"
+
+  retry:
+    - "Failed tasks with retry_count < max_retries MUST be re-enqueued with exponential backoff"
+    - "Backoff formula: scheduled_at = NOW() + (2^retry_count * 60) seconds"
+    - "retry_count MUST increment on each retry"
+
+  timeout:
+    - "Worker MUST enforce timeout_seconds via signal.alarm() on Unix"
+    - "Tasks exceeding timeout MUST be marked failed with error 'Task timed out'"
+
+  scheduling:
+    - "recurring_jobs table MUST store: name, task_name, args (JSONB), queue, cron_expression, enabled, last_run_at, next_run_at"
+    - "Scheduler loop MUST run every 10 seconds and INSERT due jobs into job_queue"
+    - "Scheduler MUST update next_run_at after each insertion"
+    - "Scheduler MUST support standard cron syntax (minute, hour, day, month, weekday)"
+
+  worker:
+    - "Worker MUST support configurable concurrency (default: CPU count)"
+    - "Worker MUST handle SIGTERM for graceful shutdown (finish current task, stop polling)"
+    - "Worker MUST log task start, completion, failure, and retry events"
+
+  migration:
+    - "Feature flag OPENWATCH_USE_PG_QUEUE MUST allow side-by-side operation with Celery"
+    - "All 28 existing Celery tasks MUST be migrable without changing their function signatures"
+    - "enqueue() API MUST accept the same arguments as Celery .delay()"
+
+---
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      job_queue table exists with the specified columns and composite index
+      for SKIP LOCKED polling performance.
+
+  - id: AC-2
+    description: >
+      JobQueueService.dequeue(queue) uses SELECT FOR UPDATE SKIP LOCKED
+      and atomically transitions the job from pending to running.
+
+  - id: AC-3
+    description: >
+      JobQueueService.enqueue(task_name, args, ...) inserts a pending job
+      and returns the job ID.
+
+  - id: AC-4
+    description: >
+      Failed tasks with retry_count < max_retries are re-enqueued with
+      exponential backoff (scheduled_at = NOW() + 2^retry * 60s).
+
+  - id: AC-5
+    description: >
+      Worker enforces timeout_seconds via signal.alarm(). Tasks exceeding
+      the timeout are marked failed.
+
+  - id: AC-6
+    description: >
+      Scheduler reads recurring_jobs and inserts due jobs into job_queue
+      based on cron_expression. next_run_at is updated after each insertion.
+
+  - id: AC-7
+    description: >
+      Worker handles SIGTERM by finishing the current task and stopping
+      the poll loop (graceful shutdown).
+
+  - id: AC-8
+    description: >
+      All 28 Celery tasks execute successfully via the job_queue worker
+      with no Celery or Redis processes running.
+
+  - id: AC-9
+    description: >
+      All 8 periodic schedules (host pings, compliance dispatch, stale
+      detection, posture snapshots, etc.) run at their configured intervals
+      via the scheduler, not Celery Beat.
+
+  - id: AC-10
+    description: >
+      Token blacklist operates via PostgreSQL table (not Redis). JWT
+      revocation on logout works correctly.
+
+  - id: AC-11
+    description: >
+      Rule cache uses in-process TTLCache (not Redis). Rule data loads
+      correctly on worker startup.
+
+  - id: AC-12
+    description: >
+      docker-compose.yml defines 3 containers (backend, worker, db).
+      No Redis or Celery Beat containers exist.
+
+  - id: AC-13
+    description: >
+      RPM and DEB packages build without Redis as a dependency.
+      Worker systemd service runs the job_queue worker process.
+
+  - id: AC-14
+    description: >
+      End-to-end test: trigger scan → job dispatched → scan executes →
+      transactions written → alert generated → notification dispatched.
+      All via job_queue, no Celery/Redis.
+
+---
+
+changelog:
+  - version: "1.0"
+    date: "2026-04-13"
+    changes:
+      - "Initial spec for PostgreSQL-native job queue"
+      - "14 ACs covering queue, worker, scheduler, migration, packaging"
+      - "Replaces Celery (28 tasks) + Redis (broker, cache, blacklist)"

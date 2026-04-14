@@ -1,0 +1,50 @@
+spec: host-intelligence
+version: "1.0"
+status: active
+owner: engineering
+summary: >
+  Host Server Intelligence API endpoints for retrieving server intelligence data
+  including packages, services, users, network interfaces, firewall rules, routes,
+  audit events, and resource metrics. All endpoints require HOST_READ permission
+  and delegate to SystemInfoService.
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      All intelligence endpoints are decorated with
+      @require_permission(Permission.HOST_READ).
+
+  - id: AC-2
+    description: >
+      Package listing supports pagination (limit/offset) and search by package
+      name.
+
+  - id: AC-3
+    description: >
+      Service listing supports a status filter parameter for filtering by
+      running, stopped, or failed.
+
+  - id: AC-4
+    description: >
+      User listing can exclude system accounts via include_system parameter and
+      filter by sudo access via has_sudo parameter.
+
+  - id: AC-5
+    description: >
+      Network listing supports interface_type filter parameter for filtering by
+      ethernet, loopback, etc.
+
+  - id: AC-6
+    description: >
+      Metrics endpoint limits hours_back to a maximum of 720 via Query
+      validation (le=720).
+
+  - id: AC-7
+    description: >
+      System info endpoint returns 404 with descriptive message if no data has
+      been collected for the host.
+
+  - id: AC-8
+    description: >
+      All endpoints delegate to SystemInfoService by importing and instantiating
+      it within the handler.

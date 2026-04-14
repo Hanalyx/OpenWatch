@@ -25,7 +25,8 @@ from sqlalchemy.orm import Session
 
 from app.auth import get_current_user
 from app.database import get_db
-from app.tasks.kensa_scan_tasks import create_kensa_scan_record, execute_kensa_scan_task
+from app.rbac import UserRole, require_role
+from app.tasks.kensa_scan_tasks import create_kensa_scan_record
 
 logger = logging.getLogger(__name__)
 
@@ -161,6 +162,7 @@ def _verify_group_exists(db: Session, group_id: int) -> bool:
 # =============================================================================
 
 
+@require_role([UserRole.SECURITY_ANALYST, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.post("", response_model=QuickScanResponse)
 async def quick_scan(
     request: QuickScanRequest,
@@ -278,12 +280,15 @@ async def quick_scan(
             scan_id = create_kensa_scan_record(
                 db=db,
                 host_id=host["id"],
-                user_id=user_id,
+                user_id=int(user_id) if user_id is not None else 0,
                 framework=framework,
             )
 
-            # Queue Celery task
-            execute_kensa_scan_task.delay(
+            # Queue scan task via job queue
+            from app.services.job_queue.dispatch import enqueue_task
+
+            enqueue_task(
+                "app.tasks.execute_kensa_scan",
                 scan_id=scan_id,
                 host_id=host["id"],
                 framework=framework,
@@ -332,6 +337,7 @@ async def quick_scan(
     )
 
 
+@require_role([UserRole.SECURITY_ANALYST, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.get("/{scan_id}", response_model=QuickScanStatusResponse)
 async def get_quick_scan_status(
     scan_id: str,

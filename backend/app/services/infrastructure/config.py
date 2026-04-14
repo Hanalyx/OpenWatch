@@ -8,7 +8,7 @@ for SSH key validation, credential enforcement, and FIPS compliance.
 import json
 import logging
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -174,7 +174,7 @@ class SecurityConfigManager:
             if scope in [ConfigScope.SYSTEM, ConfigScope.ORGANIZATION] and target_id:
                 raise ValueError(f"target_id must be null for {scope.value} scope")
 
-            current_time = datetime.utcnow()
+            current_time = datetime.now(timezone.utc)
 
             # Upsert configuration
             self.db.execute(
@@ -324,7 +324,7 @@ class SecurityConfigManager:
                     "allow_dsa_keys": effective_config.allow_dsa_keys,
                     "minimum_password_length": effective_config.minimum_password_length,
                     "require_complex_passwords": effective_config.require_complex_passwords,
-                    "allowed_key_types": [kt.value for kt in effective_config.allowed_key_types],
+                    "allowed_key_types": [kt.value for kt in effective_config.allowed_key_types],  # type: ignore[union-attr] # noqa: E501
                 },
                 "inheritance_chain": inheritance_chain,
                 "compliance_level": self._assess_compliance_level(effective_config),
@@ -489,7 +489,7 @@ class SecurityConfigManager:
             "allow_dsa_keys": config.allow_dsa_keys,
             "minimum_password_length": config.minimum_password_length,
             "require_complex_passwords": config.require_complex_passwords,
-            "allowed_key_types": [kt.value for kt in config.allowed_key_types],
+            "allowed_key_types": [kt.value for kt in config.allowed_key_types],  # type: ignore[union-attr]
         }
 
     def _assess_compliance_level(self, config: SecurityPolicyConfig) -> str:

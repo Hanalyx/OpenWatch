@@ -5,7 +5,7 @@ Identifies compliance tools, SCAP capabilities, and security scanners on target 
 
 import logging
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from ...database import Host
@@ -45,7 +45,7 @@ class HostComplianceDiscoveryService:
             "filesystem_capabilities": {},
             "audit_tools": {},
             "compliance_frameworks": [],
-            "discovery_timestamp": datetime.utcnow(),
+            "discovery_timestamp": datetime.now(timezone.utc),
             "discovery_success": False,
             "discovery_errors": [],
         }

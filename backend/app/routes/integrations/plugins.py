@@ -18,26 +18,35 @@ Migration Status:
 """
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
+from typing import Any as _PluginServiceType
+from typing import Dict, List, Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from fastapi import status as http_status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from app.rbac import UserRole, require_role
+
 from ...audit_db import log_security_event
 from ...auth import get_current_user
 from ...database import User, get_db
 from ...models.plugin_models import PluginExecutionRequest, PluginStatus, PluginTrustLevel
-from ...services.plugins import PluginExecutionService, PluginImportService, PluginSecurityService
+
+from ...services.plugins.security.validator import PluginSecurityService
+
+# PluginExecutionService and PluginImportService were removed (dead plugin modules)
+PluginExecutionService: _PluginServiceType = None
+PluginImportService: _PluginServiceType = None
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/plugins", tags=["Plugin Management"])
 
-# Initialize services
-plugin_import_service = PluginImportService()
+# Initialize services (execution and import services were removed with dead plugin modules)
+plugin_import_service = None
 plugin_security_service = PluginSecurityService()
-plugin_execution_service = PluginExecutionService()
+plugin_execution_service = None
 
 
 # =============================================================================
@@ -66,6 +75,16 @@ class PluginImportResponse(BaseModel):
 # =============================================================================
 
 
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.post("/import", response_model=PluginImportResponse)
 async def import_plugin_from_file(
     file: UploadFile = File(..., description="Plugin package file (.zip, .tar.gz, .owplugin)"),
@@ -161,6 +180,16 @@ async def import_plugin_from_file(
         )
 
 
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.get("/")
 async def list_plugins(
     page: int = Query(1, ge=1, description="Page number"),
@@ -203,6 +232,16 @@ async def list_plugins(
     }
 
 
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.get("/statistics/overview")
 async def get_plugin_statistics(
     current_user: User = Depends(get_current_user),
@@ -231,6 +270,16 @@ async def get_plugin_statistics(
     }
 
 
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.get("/{plugin_id}")
 async def get_plugin_details(
     plugin_id: str,
@@ -260,6 +309,16 @@ async def get_plugin_details(
     )
 
 
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.delete("/{plugin_id}")
 async def delete_plugin(
     plugin_id: str,
@@ -292,6 +351,16 @@ async def delete_plugin(
     )
 
 
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.post("/{plugin_id}/execute")
 async def execute_plugin(
     plugin_id: str,
@@ -371,6 +440,16 @@ async def execute_plugin(
         )
 
 
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.get("/{plugin_id}/executions")
 async def get_plugin_executions(
     plugin_id: str,

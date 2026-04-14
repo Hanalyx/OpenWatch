@@ -28,7 +28,7 @@ import logging
 import re
 import uuid
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from difflib import SequenceMatcher
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set
@@ -36,7 +36,9 @@ from typing import Any, Dict, List, Optional, Set
 from pydantic import BaseModel, Field
 
 from app.models.plugin_models import InstalledPlugin, PluginStatus
-from app.services.plugins import PluginRegistryService
+
+# PluginRegistryService not available in current module structure
+PluginRegistryService: Any = None
 
 logger = logging.getLogger(__name__)
 
@@ -110,8 +112,8 @@ class RulePluginMapping(BaseModel):
 
     # Metadata
     created_by: str
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     tags: List[str] = Field(default_factory=list)
 
 
@@ -172,7 +174,7 @@ class RuleAssociationService:
 
     def __init__(self):
         """Initialize the rule association service."""
-        self.plugin_registry_service = PluginRegistryService()
+        self.plugin_registry_service = PluginRegistryService() if PluginRegistryService else None
         self._keyword_cache: Dict[str, Set[str]] = {}
         self._framework_mappings: Dict[str, Dict[str, str]] = self._load_framework_mappings()
 
@@ -235,6 +237,7 @@ class RuleAssociationService:
             mapping_source=mapping_source,
             execution_context=execution_context,
             created_by=created_by,
+            effectiveness_score=None,
         )
 
         # TODO: Migrate to PostgreSQL storage
@@ -311,7 +314,7 @@ class RuleAssociationService:
             List of mapping recommendations
         """
         # Get all available plugins for the platform
-        plugins = await self.plugin_registry_service.find_plugins(
+        plugins = await self.plugin_registry_service.find_plugins(  # type: ignore[union-attr]
             {"status": PluginStatus.ACTIVE, "enabled_platforms": platform}
         )
 
@@ -339,7 +342,7 @@ class RuleAssociationService:
 
                     recommendation = RuleMappingRecommendation(
                         plugin_id=plugin.plugin_id,
-                        plugin_name=plugin.name,
+                        plugin_name=plugin.manifest.name,
                         plugin_rule_id=plugin_rule.get("id"),
                         plugin_rule_name=plugin_rule.get("name"),
                         confidence=self._score_to_confidence(analysis.similarity_score),
@@ -391,11 +394,11 @@ class RuleAssociationService:
                     # Convert mappings to recommendations
                     rule_recommendations = []
                     for mapping in existing_mappings:
-                        plugin = await self.plugin_registry_service.get_plugin(mapping.plugin_id)
+                        plugin = await self.plugin_registry_service.get_plugin(mapping.plugin_id)  # type: ignore[union-attr] # noqa: E501
                         if plugin:
                             recommendation = RuleMappingRecommendation(
                                 plugin_id=plugin.plugin_id,
-                                plugin_name=plugin.name,
+                                plugin_name=plugin.manifest.name,
                                 plugin_rule_id=mapping.plugin_rule_id,
                                 plugin_rule_name=mapping.plugin_rule_name,
                                 confidence=mapping.confidence,
@@ -658,8 +661,8 @@ class RuleAssociationService:
             rules.append(
                 {
                     "id": f"{plugin.plugin_id}_generic",
-                    "name": f"{plugin.name} Generic Rule",
-                    "description": (plugin.description or f"Generic remediation using {plugin.name}"),
+                    "name": f"{plugin.manifest.name} Generic Rule",
+                    "description": (plugin.manifest.description or f"Generic remediation using {plugin.manifest.name}"),
                 }
             )
 

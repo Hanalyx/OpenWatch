@@ -4,7 +4,7 @@ Email Service for sending notifications
 
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from typing import List, Optional
@@ -61,7 +61,7 @@ class EmailService:
                         </tr>
                         <tr>
                             <td style="padding: 12px; border: 1px solid #ddd; font-weight: bold;">Alert Time:</td>
-                            <td style="padding: 12px; border: 1px solid #ddd;">{datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}</td>  # noqa: E501
+                            <td style="padding: 12px; border: 1px solid #ddd;">{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}</td>  # noqa: E501
                         </tr>
                     </table>
 
@@ -96,7 +96,7 @@ Host Details:
 - Host Name: {host_name}
 - IP Address: {host_ip}
 - Last Check: {last_check.strftime('%Y-%m-%d %H:%M:%S UTC')}
-- Alert Time: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}
+- Alert Time: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}
 
 Recommended Actions:
 - Check network connectivity to the host

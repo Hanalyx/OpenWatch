@@ -28,13 +28,12 @@ See: docs/plans/HOST_OS_DETECTION_AND_OVAL_ALIGNMENT_PLAN.md
 """
 
 import logging
-from datetime import datetime
-from typing import Any, Dict, List, Optional
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional, cast
 from uuid import UUID
 
 from sqlalchemy import text
 
-from app.celery_app import celery_app
 from app.config import get_settings
 from app.database import get_db_session
 from app.encryption import EncryptionConfig, create_encryption_service
@@ -143,7 +142,7 @@ def _record_discovery_failure(host_id: str, error_message: str) -> None:
             failure_entry = {
                 "host_id": host_id,
                 "error": error_message[:500],  # Truncate long errors
-                "failed_at": datetime.utcnow().isoformat(),
+                "failed_at": datetime.now(timezone.utc).isoformat(),
             }
             failures.append(failure_entry)
             failures = failures[-50:]  # Keep only last 50
@@ -157,7 +156,7 @@ def _record_discovery_failure(host_id: str, error_message: str) -> None:
                 DO UPDATE SET setting_value = :value, modified_at = :now
             """
             )
-            db.execute(upsert_query, {"value": json.dumps(failures), "now": datetime.utcnow()})
+            db.execute(upsert_query, {"value": json.dumps(failures), "now": datetime.now(timezone.utc)})
             db.commit()
 
             logger.info(f"Recorded OS discovery failure for host {host_id}")
@@ -167,12 +166,6 @@ def _record_discovery_failure(host_id: str, error_message: str) -> None:
         logger.warning(f"Failed to record OS discovery failure for {host_id}: {e}")
 
 
-@celery_app.task(
-    bind=True,
-    name="app.tasks.trigger_os_discovery",
-    time_limit=600,
-    soft_time_limit=540,
-)
 def trigger_os_discovery(self, host_id: str) -> Dict[str, Any]:
     """
     Asynchronously discover and update OS information for a single host.
@@ -206,7 +199,7 @@ def trigger_os_discovery(self, host_id: str) -> Dict[str, Any]:
     """
     logger.info(f"Starting OS discovery for host {host_id}")
 
-    result = {
+    result: Dict[str, Any] = {
         "host_id": host_id,
         "success": False,
         "os_family": None,
@@ -214,7 +207,7 @@ def trigger_os_discovery(self, host_id: str) -> Dict[str, Any]:
         "platform_identifier": None,
         "architecture": None,
         "error": None,
-        "discovered_at": datetime.utcnow().isoformat(),
+        "discovered_at": datetime.now(timezone.utc).isoformat(),
     }
 
     try:
@@ -282,7 +275,7 @@ def trigger_os_discovery(self, host_id: str) -> Dict[str, Any]:
             discovery_service = HostBasicDiscoveryService(ssh_service=ssh_service)
 
             # Perform OS discovery
-            discovery_results = discovery_service.discover_basic_system_info(host_proxy)
+            discovery_results = discovery_service.discover_basic_system_info(cast(Any, host_proxy))
 
             if not discovery_results.get("discovery_success", False):
                 errors = discovery_results.get("discovery_errors", ["Unknown error"])
@@ -323,8 +316,8 @@ def trigger_os_discovery(self, host_id: str) -> Dict[str, Any]:
                     "architecture": (discovered_architecture if discovered_architecture != "Unknown" else None),
                     "operating_system": (discovered_os_name if discovered_os_name != "Unknown" else None),
                     "platform_identifier": platform_identifier,  # Phase 4: Persisted for scan OVAL selection
-                    "last_os_detection": datetime.utcnow(),
-                    "updated_at": datetime.utcnow(),
+                    "last_os_detection": datetime.now(timezone.utc),
+                    "updated_at": datetime.now(timezone.utc),
                 },
             )
             db.commit()
@@ -367,12 +360,6 @@ def trigger_os_discovery(self, host_id: str) -> Dict[str, Any]:
         )
 
 
-@celery_app.task(
-    bind=True,
-    name="app.tasks.batch_os_discovery",
-    time_limit=3600,
-    soft_time_limit=3300,
-)
 def batch_os_discovery(self, host_ids: List[str]) -> Dict[str, Any]:
     """
     Trigger OS discovery for multiple hosts in batch.
@@ -396,12 +383,12 @@ def batch_os_discovery(self, host_ids: List[str]) -> Dict[str, Any]:
     """
     logger.info(f"Starting batch OS discovery for {len(host_ids)} hosts")
 
-    result = {
+    result: Dict[str, Any] = {
         "total_hosts": len(host_ids),
         "dispatched": 0,
         "failed": 0,
         "dispatch_errors": [],
-        "dispatched_at": datetime.utcnow().isoformat(),
+        "dispatched_at": datetime.now(timezone.utc).isoformat(),
     }
 
     for host_id in host_ids:
@@ -414,10 +401,12 @@ def batch_os_discovery(self, host_ids: List[str]) -> Dict[str, Any]:
                 result["dispatch_errors"].append({"host_id": host_id, "error": "Invalid UUID format"})
                 continue
 
-            # Dispatch individual discovery task
-            trigger_os_discovery.apply_async(
-                args=[host_id],
-                queue="default",  # Use default queue for OS discovery
+            # Dispatch individual discovery task via job queue
+            from app.services.job_queue.dispatch import enqueue_task
+
+            enqueue_task(
+                "app.tasks.trigger_os_discovery",
+                host_id=host_id,
             )
             result["dispatched"] += 1
 
@@ -435,12 +424,6 @@ def batch_os_discovery(self, host_ids: List[str]) -> Dict[str, Any]:
     return result
 
 
-@celery_app.task(
-    bind=True,
-    name="app.tasks.discover_all_hosts_os",
-    time_limit=7200,
-    soft_time_limit=6600,
-)
 def discover_all_hosts_os(self, force: bool = False) -> Dict[str, Any]:
     """
     Discover OS information for all active hosts.
@@ -472,13 +455,13 @@ def discover_all_hosts_os(self, force: bool = False) -> Dict[str, Any]:
     """
     logger.info(f"Starting OS discovery for all active hosts (force={force})")
 
-    result = {
+    result: Dict[str, Any] = {
         "total_active_hosts": 0,
         "hosts_needing_discovery": 0,
         "dispatched": 0,
         "skipped": 0,
         "disabled": False,
-        "started_at": datetime.utcnow().isoformat(),
+        "started_at": datetime.now(timezone.utc).isoformat(),
     }
 
     try:
@@ -535,9 +518,11 @@ def discover_all_hosts_os(self, force: bool = False) -> Dict[str, Any]:
 
             # Dispatch batch discovery if there are hosts to process
             if host_ids_to_discover:
-                batch_os_discovery.apply_async(
-                    args=[host_ids_to_discover],
-                    queue="default",
+                from app.services.job_queue.dispatch import enqueue_task as _enqueue_batch
+
+                _enqueue_batch(
+                    "app.tasks.batch_os_discovery",
+                    host_ids=host_ids_to_discover,
                 )
                 result["dispatched"] = len(host_ids_to_discover)
 
@@ -551,4 +536,4 @@ def discover_all_hosts_os(self, force: bool = False) -> Dict[str, Any]:
 
     except Exception as exc:
         logger.error(f"Failed to initiate full OS discovery: {exc}")
-        raise self.retry(exc=exc, countdown=120, max_retries=2)
+        raise

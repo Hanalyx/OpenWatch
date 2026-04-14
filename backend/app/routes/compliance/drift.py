@@ -23,6 +23,8 @@ from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from app.rbac import UserRole, require_role
+
 from ...auth import get_current_user
 from ...database import get_db
 from ...utils.query_builder import QueryBuilder
@@ -80,6 +82,16 @@ class DriftEventsListResponse(BaseModel):
 # =============================================================================
 
 
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.get(
     "",
     response_model=DriftEventsListResponse,
@@ -202,6 +214,16 @@ async def list_drift_events(
     )
 
 
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.get(
     "/{event_id}",
     response_model=DriftEventResponse,

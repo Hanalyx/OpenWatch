@@ -279,7 +279,7 @@ class FrameworkMapper:
 
         result = self.db.execute(query, {"rule_id": rule_id}).fetchall()
 
-        refs = {
+        refs: Dict[str, Any] = {
             "cis": {},
             "stig": {},
             "nist_800_53": [],

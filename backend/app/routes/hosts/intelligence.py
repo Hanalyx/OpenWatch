@@ -719,7 +719,7 @@ async def list_host_audit_events(
     Events include authentication attempts, sudo usage, service changes, and login failures.
     """
     # Validate host exists
-    host_uuid = validate_host_uuid(host_id, db)
+    host_uuid = validate_host_uuid(host_id)
 
     from app.services.system_info import SystemInfoService
 
@@ -762,7 +762,7 @@ async def list_host_metrics(
     Metrics are collected during compliance scans and stored for historical analysis.
     """
     # Validate host exists
-    host_uuid = validate_host_uuid(host_id, db)
+    host_uuid = validate_host_uuid(host_id)
 
     from app.services.system_info import SystemInfoService
 
@@ -799,7 +799,7 @@ async def get_host_latest_metrics(
     Returns the latest collected CPU, memory, disk, and system metrics.
     """
     # Validate host exists
-    host_uuid = validate_host_uuid(host_id, db)
+    host_uuid = validate_host_uuid(host_id)
 
     from app.services.system_info import SystemInfoService
 

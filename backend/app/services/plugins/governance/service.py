@@ -51,7 +51,7 @@ Example:
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 from .models import (
@@ -363,7 +363,7 @@ class PluginGovernanceService:
             setattr(policy, field, value)
 
         # Update metadata
-        policy.updated_at = datetime.utcnow()
+        policy.updated_at = datetime.now(timezone.utc)
 
         # Increment version
         major, minor, patch = policy.version.split(".")
@@ -769,7 +769,7 @@ class PluginGovernanceService:
             status=status,
             findings=findings,
             recommendations=recommendations,
-            valid_until=datetime.utcnow() + timedelta(days=30),
+            valid_until=datetime.now(timezone.utc) + timedelta(days=30),
         )
 
         # Record audit event
@@ -1037,7 +1037,7 @@ class PluginGovernanceService:
             logger.warning("Violation not found: %s", violation_id)
             return None
 
-        violation.resolved_at = datetime.utcnow()
+        violation.resolved_at = datetime.now(timezone.utc)
         violation.resolved_by = resolved_by
         violation.resolution_notes = resolution_notes
 

@@ -1,0 +1,65 @@
+spec: exception-workflow
+version: "1.0"
+status: draft
+owner: engineering
+summary: >
+  The exception workflow frontend MUST render a paginated exception list
+  at /compliance/exceptions, provide a request form with justification,
+  risk assessment, and expiration fields, display approval metadata,
+  offer escalation and re-remediation actions, support filtering by
+  status/rule/host, and enforce SECURITY_ADMIN role gating for
+  approve/reject operations.
+
+---
+
+# Acceptance Criteria
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      Exception list page MUST render at /compliance/exceptions with a
+      paginated table showing all compliance exceptions.
+
+  - id: AC-2
+    description: >
+      Exception request form MUST include justification, risk assessment,
+      and expiration date fields. All three MUST be required before
+      submission.
+
+  - id: AC-3
+    description: >
+      Approval workflow MUST show approver name, approval timestamp, and
+      justification for each approved or rejected exception.
+
+  - id: AC-4
+    description: >
+      An Escalate button MUST be visible for pending exceptions. Clicking
+      it MUST route the exception to a higher-role approver.
+
+  - id: AC-5
+    description: >
+      A Re-remediation button MUST be available on excepted rules.
+      Clicking it MUST trigger remediation for the excepted rule via the
+      backend remediation endpoint.
+
+  - id: AC-6
+    description: >
+      Filter bar MUST support filtering by status, rule_id, and host_id.
+      Filters MUST update the displayed table without a full page reload.
+
+  - id: AC-7
+    description: >
+      Only users with SECURITY_ADMIN role or higher MUST be able to see
+      and use approve/reject actions. Non-privileged users MUST NOT see
+      these controls.
+
+---
+
+# Changelog
+
+changelog:
+  - version: "1.0"
+    date: "2026-04-11"
+    changes:
+      - "Initial draft spec -- Q2 exception workflow frontend"
+      - "7 ACs covering list, form, approval, escalation, remediation, filters, RBAC"

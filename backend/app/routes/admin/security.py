@@ -6,7 +6,7 @@ and FIPS compliance settings.
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from ...auth import get_current_user
 from ...database import get_db
-from ...rbac import Permission, require_permission
+from ...rbac import Permission, UserRole, require_permission, require_role
 from ...services.auth import SecurityPolicyConfig, SecurityPolicyLevel, get_credential_validator
 from ...services.infrastructure.config import ConfigScope, get_security_config_manager
 
@@ -73,6 +73,82 @@ class ValidationResponse(BaseModel):
     compliance_notes: List[str]
 
 
+class MfaSettingsRequest(BaseModel):
+    """Request model for system-wide MFA enforcement."""
+
+    mfa_required: bool = Field(..., description="Whether MFA is required for all users")
+
+
+@router.put("/mfa")
+@require_role([UserRole.SUPER_ADMIN])
+async def update_system_mfa_settings(
+    request: MfaSettingsRequest,
+    db: Session = Depends(get_db),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """
+    Update system-wide MFA enforcement setting.
+
+    Only SUPER_ADMIN can toggle MFA enforcement for all users.
+    When enabled, all users must complete MFA during login.
+    """
+    from sqlalchemy import text
+
+    try:
+        # Store the system MFA setting
+        db.execute(
+            text(
+                """
+            INSERT INTO system_settings (key, value, updated_by, updated_at)
+            VALUES ('mfa_required', :value, :updated_by, CURRENT_TIMESTAMP)
+            ON CONFLICT (key) DO UPDATE
+            SET value = :value, updated_by = :updated_by, updated_at = CURRENT_TIMESTAMP
+        """
+            ),
+            {
+                "value": str(request.mfa_required).lower(),
+                "updated_by": current_user.get("id", "unknown"),
+            },
+        )
+        db.commit()
+
+        logger.info(
+            f"System MFA enforcement {'enabled' if request.mfa_required else 'disabled'} "
+            f"by {current_user.get('username')}"
+        )
+
+        return {
+            "message": f"System MFA enforcement {'enabled' if request.mfa_required else 'disabled'}",
+            "mfa_required": request.mfa_required,
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to update MFA settings: {e}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to update MFA settings")
+
+
+@router.get("/mfa")
+@require_role([UserRole.SUPER_ADMIN])
+async def get_system_mfa_settings(
+    db: Session = Depends(get_db),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """Get current system-wide MFA enforcement setting."""
+    from sqlalchemy import text
+
+    try:
+        result = db.execute(text("SELECT value FROM system_settings WHERE key = 'mfa_required'")).fetchone()
+
+        mfa_required = result.value.lower() == "true" if result else False
+
+        return {"mfa_required": mfa_required}
+
+    except Exception as e:
+        logger.error(f"Failed to get MFA settings: {e}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve MFA settings")
+
+
 @router.get("/", response_model=SecurityConfigResponse)
 @require_permission(Permission.SYSTEM_CONFIG)
 async def get_security_config(
@@ -98,7 +174,7 @@ async def get_security_config(
             effective_config=summary["effective_config"],
             inheritance_chain=summary["inheritance_chain"],
             compliance_level=summary["compliance_level"],
-            last_updated=datetime.utcnow().isoformat(),
+            last_updated=datetime.now(timezone.utc).isoformat(),
         )
 
     except Exception as e:
@@ -329,7 +405,7 @@ async def get_compliance_summary(
         return {
             "system_config": system_summary,
             "compliance_level": system_summary.get("compliance_level", "unknown"),
-            "last_updated": datetime.utcnow().isoformat(),
+            "last_updated": datetime.now(timezone.utc).isoformat(),
             "assessed_by": current_user.get("username"),
         }
 

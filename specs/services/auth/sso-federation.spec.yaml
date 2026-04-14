@@ -1,0 +1,195 @@
+spec: sso-federation
+version: "0.1"
+status: draft
+owner: engineering
+summary: >
+  SAML 2.0 and OIDC federated authentication. An abstract SSOProvider interface
+  with concrete SAMLProvider (pysaml2) and OIDCProvider (authlib) implementations.
+  Supports multiple configured identity providers, per-provider claim-to-role
+  mapping, first-login user provisioning, and FIPS-compatible cryptography.
+  Required for enterprise and federal sales; unblocks the "customers cannot buy
+  without SSO" constraint.
+
+---
+
+objective: >
+  Let federal and enterprise customers authenticate against their existing
+  identity provider (AD FS, Okta, Azure AD, Google Workspace, Keycloak) instead
+  of provisioning local OpenWatch accounts. First login creates a local user
+  record linked by external_id; subsequent logins refresh claims and roles.
+  Maintains existing RBAC semantics (roles map from IdP groups to OpenWatch
+  roles via configurable mapping). Does not replace local auth; both coexist.
+
+---
+
+context:
+  depends_on:
+    - authentication.spec.yaml (existing JWT + local user auth)
+    - authorization.spec.yaml (RBAC role enforcement unchanged)
+    - encryption.spec.yaml (SSO provider config encrypted at rest)
+    - audit-logging.spec.yaml (SSO login events logged)
+  consumed_by:
+    - sso-routes.spec.yaml (REST endpoints for login and callback)
+    - auth-flow.spec.yaml (frontend login page SSO buttons)
+  new_dependencies:
+    - authlib >= 1.3.0
+    - pysaml2 >= 7.5.0
+  rationale_library_choice: >
+    pysaml2 over python3-saml because pysaml2 is pure Python and avoids C
+    dependencies that complicate the native RPM/DEB packaging path. authlib
+    chosen for OIDC because it is actively maintained, FIPS-compatible, and
+    supports both OAuth2 and OIDC flows.
+
+---
+
+constraints:
+  schema:
+    - "sso_providers table MUST have columns: id (UUID), provider_type, name, config_encrypted (JSONB), enabled, created_at, updated_at"
+    - "provider_type MUST be one of: saml, oidc"
+    - "config_encrypted MUST be encrypted via EncryptionService before storage"
+    - "users table MUST gain columns: sso_provider_id (FK sso_providers.id, nullable), external_id (VARCHAR 255, nullable), last_sso_login_at (TIMESTAMPTZ, nullable)"
+    - "(sso_provider_id, external_id) MUST be unique when both are non-null"
+
+  abstraction:
+    - "SSOProvider MUST be an abstract base class in app.services.auth.sso.provider"
+    - "SSOProvider MUST define: get_login_url(state, redirect_uri) -> str"
+    - "SSOProvider MUST define: handle_callback(request_data) -> SSOUserClaims"
+    - "SSOProvider MUST define: map_claims_to_user(claims) -> User"
+    - "OIDCProvider and SAMLProvider MUST inherit from SSOProvider"
+
+  oidc_provider:
+    - "OIDCProvider MUST use authlib's OAuth2 client"
+    - "OIDCProvider MUST validate the id_token signature against the IdP's JWKS endpoint"
+    - "OIDCProvider MUST validate iss, aud, exp, nbf claims"
+    - "OIDCProvider MUST support PKCE for authorization code flow"
+    - "OIDCProvider MUST NOT accept id_tokens with alg=none"
+
+  saml_provider:
+    - "SAMLProvider MUST use pysaml2"
+    - "SAMLProvider MUST validate SAML response signature"
+    - "SAMLProvider MUST validate the InResponseTo attribute against the stored AuthnRequest ID"
+    - "SAMLProvider MUST enforce assertion expiration (NotOnOrAfter)"
+    - "SAMLProvider MUST reject unsigned assertions"
+    - "SAMLProvider MUST reject responses where the Issuer does not match the configured IdP entity ID"
+
+  claim_mapping:
+    - "Claim mapping MUST be configurable per provider via sso_providers.config_encrypted"
+    - "Default claim map MUST be: email -> users.email, preferred_username -> users.username, groups -> users.role (via group_role_map)"
+    - "group_role_map MUST map IdP group names to OpenWatch UserRole enum values"
+    - "If no group matches group_role_map, the user MUST be assigned the default role from config (typically GUEST)"
+
+  user_provisioning:
+    - "First SSO login for a user MUST create a local user row with sso_provider_id and external_id set"
+    - "Subsequent SSO logins MUST update email, username, role based on fresh claims"
+    - "Subsequent SSO logins MUST update users.last_sso_login_at"
+    - "SSO-provisioned users MUST NOT have a password_hash set"
+    - "SSO-provisioned users MUST NOT be able to log in via the local password endpoint"
+
+  session:
+    - "Successful SSO authentication MUST issue the same JWT access token + refresh token pair as local login"
+    - "SSO sessions MUST respect the existing 12 hour absolute session timeout"
+    - "SSO login events MUST be logged to the audit log with provider_id, external_id, ip_address, user_agent"
+
+  security:
+    - "SSO provider config writes MUST require SUPER_ADMIN role"
+    - "SSO provider config reads MUST redact credential fields (client_secret, signing keys)"
+    - "state parameter MUST be cryptographically random (at least 128 bits of entropy)"
+    - "state parameter MUST be validated on callback"
+    - "Replay protection: state tokens MUST be single-use"
+
+---
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      sso_providers table exists with the specified columns and config_encrypted
+      is encrypted at rest via EncryptionService.
+
+  - id: AC-2
+    description: >
+      users table has sso_provider_id (FK), external_id, and last_sso_login_at
+      columns added, with the (sso_provider_id, external_id) unique constraint
+      when both are non-null.
+
+  - id: AC-3
+    description: >
+      SSOProvider abstract base class is defined in app.services.auth.sso.provider
+      with get_login_url, handle_callback, and map_claims_to_user methods.
+
+  - id: AC-4
+    description: >
+      OIDCProvider uses authlib, validates id_token signature against JWKS,
+      enforces iss/aud/exp/nbf claims, and rejects tokens signed with alg=none.
+
+  - id: AC-5
+    description: >
+      SAMLProvider uses pysaml2, validates response signature, enforces
+      NotOnOrAfter, rejects unsigned assertions, and rejects responses where
+      Issuer does not match the configured IdP entity ID.
+
+  - id: AC-6
+    description: >
+      First SSO login for a new external user creates a local user row with
+      sso_provider_id, external_id, email, username, and role populated from
+      the IdP claims via the configured mapping. password_hash is null.
+
+  - id: AC-7
+    description: >
+      Subsequent SSO login for an existing user refreshes email, username,
+      role based on current claims and updates last_sso_login_at.
+
+  - id: AC-8
+    description: >
+      An SSO-provisioned user (password_hash is null) cannot authenticate via
+      the local password login endpoint. Attempt returns 401.
+
+  - id: AC-9
+    description: >
+      Claim-to-role mapping reads group_role_map from sso_providers.config_encrypted.
+      If no group matches, the user is assigned the configured default role.
+
+  - id: AC-10
+    description: >
+      Successful SSO authentication issues the same JWT access + refresh token
+      pair as local login and respects the 12 hour absolute session timeout.
+
+  - id: AC-11
+    description: >
+      SSO login events are written to the audit log with provider_id,
+      external_id, ip_address, user_agent, and outcome.
+
+  - id: AC-12
+    description: >
+      state parameter passed to the IdP is at least 128 bits of entropy,
+      stored server-side, single-use, and validated on callback.
+
+  - id: AC-13
+    description: >
+      GET /api/admin/sso/providers redacts client_secret and signing key fields
+      from the response body.
+
+  - id: AC-14
+    description: >
+      Writing or updating an SSO provider requires SUPER_ADMIN role (enforced
+      via @require_role).
+
+  - id: AC-15
+    description: >
+      Integration test test_sso_oidc_flow.py completes a full OIDC flow against
+      a mock IdP (authlib test fixtures) and produces a valid OpenWatch session.
+
+  - id: AC-16
+    description: >
+      Integration test test_sso_saml_flow.py completes a full SAML flow against
+      a mock IdP (pysaml2 test fixtures) and produces a valid OpenWatch session.
+
+---
+
+changelog:
+  - version: "0.1"
+    date: "2026-04-11"
+    changes:
+      - "Initial draft created during Q1 planning"
+      - "16 ACs covering schema, abstraction, OIDC, SAML, claim mapping, provisioning, session, security"
+      - "Library choice: pysaml2 (pure Python, RPM/DEB-friendly) + authlib"
+      - "Promotion to active scheduled for week 12 of Q1, gated on external security review"

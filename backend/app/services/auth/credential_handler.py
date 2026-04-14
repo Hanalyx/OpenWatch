@@ -159,11 +159,12 @@ class HostCredentialHandler:
 
             if not validation_result.is_valid:
                 logger.error(
-                    f"SSH key validation failed for host '{hostname}': " f"{', '.join(validation_result.errors)}"
+                    f"SSH key validation failed for host '{hostname}': "
+                    f"{', '.join(getattr(validation_result, 'errors', getattr(validation_result, 'issues', [])))}"
                 )
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"SSH key validation failed: {', '.join(validation_result.errors)}",
+                    detail=f"SSH key validation failed: {', '.join(getattr(validation_result, 'errors', getattr(validation_result, 'issues', [])))}",  # noqa: E501
                 )
 
             if validation_result.warnings:
@@ -238,13 +239,15 @@ class HostCredentialHandler:
             - Generic error messages to client (detailed logs server-side)
         """
         try:
-            auth_service = get_auth_service(self.db)
+            from app.core.dependencies import get_encryption_service
+
+            auth_service = get_auth_service(self.db, get_encryption_service())
 
             # Store credential in unified_credentials
             cred_id = auth_service.store_credential(
                 credential_data=credential_data,
                 metadata=metadata,
-                created_by=created_by,
+                created_by=created_by or "system",
             )
             logger.info(f"Stored host-specific credential for {hostname} " f"in unified_credentials (id: {cred_id})")
             return cred_id

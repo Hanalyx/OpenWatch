@@ -1,0 +1,24 @@
+spec: scans-list
+version: "1.0"
+status: active
+owner: engineering
+summary: >
+  Scans list page and scan detail view with filtering pagination and status display.
+
+acceptance_criteria:
+  - id: AC-1
+    description: Scans list shows scan name, status, host, and date.
+  - id: AC-2
+    description: Scan status badges show correct colors per status.
+  - id: AC-3
+    description: Scan detail shows compliance score and rule results.
+  - id: AC-4
+    description: Rule results filterable by severity and status.
+  - id: AC-5
+    description: Scan detail has tabs for overview, rules, and metrics.
+  - id: AC-6
+    description: ComplianceScanWizard available for new scans.
+  - id: AC-7
+    description: Scan list supports pagination.
+  - id: AC-8
+    description: Quick scan menu provides scan templates.

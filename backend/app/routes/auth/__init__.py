@@ -53,9 +53,10 @@ router = APIRouter(tags=["Authentication"])
 
 # Import sub-routers from modular files
 try:
+    from .api_keys import router as api_keys_router
     from .login import router as login_router
     from .mfa import router as mfa_router
-    from .api_keys import router as api_keys_router
+    from .sso import router as sso_router
 
     # Include all sub-routers into main router
     # Login endpoints (no prefix - /auth/login, /auth/logout, etc.)
@@ -66,6 +67,9 @@ try:
 
     # API Keys endpoints (/auth/api-keys/*)
     router.include_router(api_keys_router, prefix="/api-keys")
+
+    # SSO endpoints (/auth/sso/*)
+    router.include_router(sso_router)
 
 except ImportError as e:
     import logging

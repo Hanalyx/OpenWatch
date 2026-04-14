@@ -32,7 +32,7 @@ import json
 import logging
 import os
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Response
@@ -41,9 +41,9 @@ from sqlalchemy.orm import Session
 
 from app.auth import get_current_user
 from app.database import get_db
+from app.rbac import UserRole, require_role
 from app.routes.scans.helpers import add_deprecation_header, error_service
 from app.routes.scans.models import AutomatedFixRequest, ScanRequest, ScanUpdate
-from app.tasks.scan_tasks import execute_scan_celery
 from app.utils.logging_security import sanitize_path_for_log
 from app.utils.mutation_builders import DeleteBuilder, InsertBuilder, UpdateBuilder
 from app.utils.query_builder import QueryBuilder
@@ -58,8 +58,19 @@ router = APIRouter(tags=["Scan CRUD"])
 # =============================================================================
 
 
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.get("/")
 async def list_scans(
+    response: Response,
     host_id: Optional[str] = None,
     status: Optional[str] = None,
     limit: int = 50,
@@ -70,10 +81,14 @@ async def list_scans(
     """
     List scans with optional filtering.
 
+    DEPRECATION NOTICE: This endpoint is superseded by GET /api/transactions.
+    Use the transactions API for new integrations.
+
     Returns a paginated list of scans with host information and result summaries.
     Supports filtering by host_id and status.
 
     Args:
+        response: FastAPI response for deprecation headers.
         host_id: Optional filter by host UUID.
         status: Optional filter by scan status (pending, running, completed, failed).
         limit: Maximum number of scans to return (default 50).
@@ -95,6 +110,8 @@ async def list_scans(
         - Requires authenticated user
         - Uses QueryBuilder for SQL injection prevention
     """
+    response.headers["Deprecation"] = "true"
+    response.headers["Link"] = '</api/transactions>; rel="successor-version"'
     try:
         # Quick check: Return empty if no scans exist
         count_check = QueryBuilder("scans")
@@ -236,20 +253,36 @@ async def list_scans(
         raise HTTPException(status_code=500, detail="Failed to retrieve scans")
 
 
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.get("/{scan_id}")
 async def get_scan(
     scan_id: str,
+    response: Response,
     db: Session = Depends(get_db),
     current_user: Dict[str, Any] = Depends(get_current_user),
 ) -> Dict[str, Any]:
     """
     Get scan details by ID.
 
+    DEPRECATION NOTICE: This endpoint is superseded by
+    GET /api/transactions/{transaction_id}. Use the transactions API
+    for new integrations.
+
     Returns comprehensive scan information including host details, scan options,
     and results summary (if completed).
 
     Args:
         scan_id: UUID of the scan to retrieve.
+        response: FastAPI response for deprecation headers.
         db: SQLAlchemy database session.
         current_user: Authenticated user from JWT token.
 
@@ -267,6 +300,8 @@ async def get_scan(
         - Requires authenticated user
         - Uses QueryBuilder for SQL injection prevention
     """
+    response.headers["Deprecation"] = "true"
+    response.headers["Link"] = '</api/transactions>; rel="successor-version"'
     try:
         builder = (
             QueryBuilder("scans s")
@@ -372,6 +407,16 @@ async def get_scan(
 # =============================================================================
 
 
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.post("/legacy")
 async def create_scan_legacy(
     scan_request: ScanRequest,
@@ -479,7 +524,7 @@ async def create_scan_legacy(
                 0,
                 json.dumps(scan_request.scan_options),
                 current_user["id"],
-                datetime.utcnow(),
+                datetime.now(timezone.utc),
                 False,
                 False,
             )
@@ -490,8 +535,11 @@ async def create_scan_legacy(
         # Commit the scan record
         db.commit()
 
-        # Start scan via Celery task (persistent, with timeout and retry)
-        execute_scan_celery.delay(
+        # Start scan via job queue (persistent, with timeout and retry)
+        from app.services.job_queue.dispatch import enqueue_task
+
+        enqueue_task(
+            "app.tasks.execute_scan",
             scan_id=str(scan_id),
             host_data={
                 "hostname": host_result.hostname,
@@ -542,6 +590,16 @@ async def create_scan_legacy(
 # =============================================================================
 
 
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.patch("/{scan_id}")
 async def update_scan(
     scan_id: str,
@@ -591,7 +649,7 @@ async def update_scan(
 
         # Auto-set completed_at when status is "completed"
         if scan_update.status == "completed":
-            update_builder.set("completed_at", datetime.utcnow())
+            update_builder.set("completed_at", datetime.now(timezone.utc))
 
         # Check if any fields were set
         if not update_builder._set_clauses:
@@ -611,6 +669,16 @@ async def update_scan(
         raise HTTPException(status_code=500, detail="Failed to update scan")
 
 
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.delete("/{scan_id}")
 async def delete_scan(
     scan_id: str,
@@ -691,7 +759,27 @@ async def delete_scan(
 # =============================================================================
 
 
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.post("/{scan_id}/stop")
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.post("/{scan_id}/cancel")
 async def stop_scan(
     scan_id: str,
@@ -736,20 +824,13 @@ async def stop_scan(
         if result.status not in ["pending", "running"]:
             raise HTTPException(status_code=400, detail=f"Cannot stop scan with status: {result.status}")
 
-        # Try to revoke Celery task if available
-        if result.celery_task_id:
-            try:
-                from celery import current_app
-
-                current_app.control.revoke(result.celery_task_id, terminate=True)
-            except Exception as e:
-                logger.warning(f"Failed to revoke Celery task: {e}")
+        # Task cancellation (Celery revoke removed — job queue handles via status update)
 
         # Update scan status using UpdateBuilder
         update_builder = (
             UpdateBuilder("scans")
             .set("status", "stopped")
-            .set("completed_at", datetime.utcnow())
+            .set("completed_at", datetime.now(timezone.utc))
             .set("error_message", "Scan stopped by user")
             .where("id = :id", scan_id, "id")
         )
@@ -767,6 +848,16 @@ async def stop_scan(
         raise HTTPException(status_code=500, detail="Failed to stop scan")
 
 
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.post("/{scan_id}/recover")
 async def recover_scan(
     scan_id: str,
@@ -863,7 +954,7 @@ async def recover_scan(
                 "pending",
                 0,
                 current_user["id"],
-                datetime.utcnow(),
+                datetime.now(timezone.utc),
                 json.dumps({"recovery_scan": True, "original_scan_id": scan_id}),
             )
         )
@@ -878,7 +969,7 @@ async def recover_scan(
             "recovery_scan_id": recovery_scan_id,
             "message": f"Recovery scan created and will start in {retry_delay} seconds",
             "error_classification": classified_error.dict(),
-            "estimated_retry_time": (datetime.utcnow().timestamp() + retry_delay),
+            "estimated_retry_time": (datetime.now(timezone.utc).timestamp() + retry_delay),
         }
 
     except HTTPException:
@@ -888,6 +979,16 @@ async def recover_scan(
         raise HTTPException(status_code=500, detail="Failed to create recovery scan")
 
 
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.post("/hosts/{host_id}/apply-fix")
 async def apply_automated_fix(
     host_id: str,
@@ -955,7 +1056,7 @@ async def apply_automated_fix(
             "fix_id": fix_request.fix_id,
             "host_id": host_id,
             "status": "queued",
-            "estimated_completion": (datetime.utcnow().timestamp() + estimated_time),
+            "estimated_completion": (datetime.now(timezone.utc).timestamp() + estimated_time),
             "message": f"Automated fix {fix_request.fix_id} queued for execution",
             "validate_after": fix_request.validate_after,
         }

@@ -61,27 +61,34 @@ export interface RuleResult {
   markedForReview?: boolean;
 }
 
-export interface ScapCommand {
+export interface RemediationCommand {
   description?: string;
   command: string;
   type?: string;
 }
 
-export interface ScapConfiguration {
+export interface RemediationConfiguration {
   description?: string;
   setting: string;
 }
 
-export interface ScapRemediationData {
+export interface RemediationData {
   fix_text?: string;
   description?: string;
   detailed_description?: string;
-  commands?: ScapCommand[];
-  configuration?: ScapConfiguration[];
+  commands?: RemediationCommand[];
+  configuration?: RemediationConfiguration[];
   steps?: string[];
   complexity?: string;
   disruption?: string;
 }
+
+/** @deprecated Use RemediationCommand */
+export type ScapCommand = RemediationCommand;
+/** @deprecated Use RemediationConfiguration */
+export type ScapConfiguration = RemediationConfiguration;
+/** @deprecated Use RemediationData */
+export type ScapRemediationData = RemediationData;
 
 export interface RemediationStep {
   title: string;

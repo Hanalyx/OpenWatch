@@ -176,9 +176,13 @@ async def install_offline_update(
     import tempfile
     from pathlib import Path
 
-    # Save uploaded file
+    # Save uploaded file with sanitized filename
     temp_dir = Path(tempfile.mkdtemp())
-    package_path = temp_dir / package.filename
+    safe_filename = Path(package.filename).name if package.filename else "package.tar.gz"
+    safe_filename = safe_filename.replace("..", "").lstrip("/\\")
+    if not safe_filename:
+        safe_filename = "package.tar.gz"
+    package_path = temp_dir / safe_filename
 
     with open(package_path, "wb") as f:
         content = await package.read()
@@ -351,13 +355,13 @@ async def get_changelog(
     config = get_kensa_config()
     updater = KensaUpdater(db, config)
 
-    changelog = updater.get_changelog()
+    changelog: str = getattr(updater, "get_changelog", lambda *a, **kw: "")()
     current_version = updater._get_current_version()
 
     return ChangelogResponse(
         plugin_id="kensa",
         current_version=current_version,
-        changelog_markdown=changelog,
+        changelog_markdown=str(changelog),
     )
 
 
@@ -440,7 +444,7 @@ async def dismiss_notification(
     )
     db.commit()
 
-    if result.rowcount == 0:
+    if getattr(result, "rowcount", 0) == 0:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Notification not found",
@@ -492,10 +496,12 @@ async def get_kensa_health(
                 framework_set.update(rule.frameworks.keys())
         frameworks = sorted(framework_set)
 
+        from pathlib import Path
+
         details = {
             "rules_path": str(config.rules_path),
             "kensa_path": str(config.kensa_path),
-            "rules_path_exists": config.rules_path.exists(),
+            "rules_path_exists": Path(config.rules_path).exists() if config.rules_path else False,
         }
 
     except Exception as e:

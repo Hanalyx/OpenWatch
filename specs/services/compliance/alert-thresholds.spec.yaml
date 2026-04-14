@@ -1,5 +1,5 @@
 spec: alert-thresholds
-version: "1.0"
+version: "1.1"
 status: active
 owner: engineering
 summary: >
@@ -109,11 +109,21 @@ acceptance_criteria:
       _check_configuration_drift detects pass-to-fail as CONFIGURATION_DRIFT,
       fail-to-pass as UNEXPECTED_REMEDIATION, plus MASS_DRIFT above threshold.
 
+  - id: AC-11
+    description: >
+      AlertService.create_alert enqueues a dispatch_alert_notifications
+      Celery task after inserting the alert row. Dispatch failures do not
+      cause create_alert to raise.
+
 ---
 
 # Changelog
 
 changelog:
+  - version: "1.1"
+    date: "2026-04-11"
+    changes:
+      - "Added AC-11: create_alert dispatches notification task (fire-and-forget)"
   - version: "1.0"
     date: "2026-03-05"
     changes:

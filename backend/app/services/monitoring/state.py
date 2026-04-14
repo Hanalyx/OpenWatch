@@ -5,7 +5,7 @@ Implements adaptive monitoring with state-based check intervals
 
 import logging
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Dict, Optional, Tuple
 
@@ -198,7 +198,7 @@ class HostMonitoringStateMachine:
             # Get check interval and priority for new state
             check_interval = self._get_check_interval(new_state)
             priority = self._get_priority(new_state)
-            next_check_time = datetime.utcnow() + timedelta(minutes=check_interval)
+            next_check_time = datetime.now(timezone.utc) + timedelta(minutes=check_interval)
 
             # Update host state in database
             state_changed = new_state.value != current_status
@@ -234,7 +234,7 @@ class HostMonitoringStateMachine:
                     "next_check": next_check_time,
                     "priority": priority,
                     "response_time": response_time_ms,
-                    "last_check": datetime.utcnow(),
+                    "last_check": datetime.now(timezone.utc),
                     "state_changed": state_changed,
                 },
             )
@@ -245,7 +245,7 @@ class HostMonitoringStateMachine:
             )
             self._log_history(
                 host_id=host_id,
-                check_time=datetime.utcnow(),
+                check_time=datetime.now(timezone.utc),
                 monitoring_state=new_state.value,
                 previous_state=current_state.value if state_changed else None,
                 response_time_ms=response_time_ms,

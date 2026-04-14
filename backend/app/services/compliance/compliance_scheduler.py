@@ -606,7 +606,7 @@ class ComplianceSchedulerService:
                 {"now": datetime.now(timezone.utc)},
             )
 
-            overdue_count = overdue_result.fetchone().count
+            overdue_count = overdue_result.scalar() or 0
 
             # Get next scan time
             next_scan_result = db.execute(
@@ -636,7 +636,7 @@ class ComplianceSchedulerService:
                 )
             )
 
-            maintenance_count = maintenance_result.fetchone().count
+            maintenance_count = maintenance_result.scalar() or 0
 
             config = self.get_config(db)
 

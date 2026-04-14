@@ -1,0 +1,61 @@
+spec: host-groups-crud
+version: "1.0"
+status: active
+owner: engineering
+summary: >
+  Host Groups CRUD and scanning API endpoints. Covers group listing with LEFT
+  JOIN to host_group_memberships for member count, CRUD via parameterized SQL
+  and DeleteBuilder, group scan initiation with BulkScanOrchestrator and
+  require_permissions authorization, group_scan_sessions tracking, and scan
+  progress/cancel endpoints.
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      List host groups query includes a LEFT JOIN to host_group_memberships with
+      COALESCE COUNT for member count.
+
+  - id: AC-2
+    description: >
+      Get host group by ID includes the same LEFT JOIN and COUNT pattern and
+      returns 404 if not found.
+
+  - id: AC-3
+    description: >
+      Create host group uses parameterized INSERT with RETURNING clause and
+      checks for duplicate name via QueryBuilder.
+
+  - id: AC-4
+    description: >
+      Update host group builds dynamic SET clauses from non-None fields and uses
+      a parameterized UPDATE with RETURNING.
+
+  - id: AC-5
+    description: >
+      Delete host group removes host_group_memberships first via DeleteBuilder,
+      then deletes the group via DeleteBuilder.
+
+  - id: AC-6
+    description: >
+      Start group scan requires scans:create permission checked via
+      require_permissions.
+
+  - id: AC-7
+    description: >
+      Group scan uses BulkScanOrchestrator for authorization validation and scan
+      creation.
+
+  - id: AC-8
+    description: >
+      Group scan creates a group_scan_sessions record via INSERT INTO
+      group_scan_sessions.
+
+  - id: AC-9
+    description: >
+      Group scan progress endpoint is available and uses QueryBuilder on
+      group_scan_sessions table.
+
+  - id: AC-10
+    description: >
+      Cancel group scan endpoint requires scans:cancel permission via
+      require_permissions.

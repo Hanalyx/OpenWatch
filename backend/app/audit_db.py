@@ -4,7 +4,7 @@ Provides functions to write audit events directly to the database
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from sqlalchemy import text
@@ -105,7 +105,7 @@ def log_audit_event(
             "ip_address": ip_address,
             "user_agent": user_agent,
             "details": details,
-            "timestamp": datetime.utcnow(),
+            "timestamp": datetime.now(timezone.utc),
         }
 
         # Last-chance SSH conflict detection

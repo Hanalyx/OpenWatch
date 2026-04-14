@@ -48,8 +48,9 @@ from sqlalchemy.orm import Session
 
 from app.auth import get_current_user
 from app.database import get_db
-from app.plugins.kensa.evidence import serialize_evidence, serialize_framework_refs
-from app.rbac import UserRole, require_role
+from app.plugins.kensa.evidence import build_evidence_envelope, serialize_evidence, serialize_framework_refs
+from app.rbac import Permission, UserRole, require_permission, require_role
+from app.services.compliance.state_writer import process_rule_result
 from app.utils.mutation_builders import InsertBuilder, UpdateBuilder
 
 logger = logging.getLogger(__name__)
@@ -374,12 +375,22 @@ async def execute_kensa_scan(
         results_query, results_params = results_insert.build()
         db.execute(text(results_query), results_params)
 
-        # Insert individual rule findings into scan_findings table
+        # Insert individual rule findings and update compliance state
+        user_id = current_user.get("id")
+        initiator_type = "user"
+        initiator_id = str(user_id) if user_id else None
+
+        changes_count = 0
         for r in results:
             status_str = "pass" if r.passed else "fail"
             if r.skipped:
                 status_str = "skipped"
 
+            evidence_json = serialize_evidence(r)
+            framework_json = serialize_framework_refs(r)
+            envelope_json = build_evidence_envelope(r, kensa_version, start_time, end_time)
+
+            # Legacy dual-write to scan_findings (unchanged)
             finding_insert = (
                 InsertBuilder("scan_findings")
                 .columns(
@@ -398,13 +409,13 @@ async def execute_kensa_scan(
                 .values(
                     scan_id,
                     r.rule_id,
-                    r.title[:500] if r.title else "Unknown",  # Truncate to fit column
+                    r.title[:500] if r.title else "Unknown",
                     r.severity or "medium",
                     status_str,
-                    r.detail[:2000] if r.detail else None,  # Truncate long details
+                    r.detail[:2000] if r.detail else None,
                     r.framework_section,
-                    serialize_evidence(r),
-                    serialize_framework_refs(r),
+                    evidence_json,
+                    framework_json,
                     r.skip_reason if r.skipped else None,
                     end_time,
                 )
@@ -412,7 +423,33 @@ async def execute_kensa_scan(
             finding_query, finding_params = finding_insert.build()
             db.execute(text(finding_query), finding_params)
 
+            # Write-on-change to host_rule_state + transactions
+            changed = process_rule_result(
+                db,
+                request.host_id,
+                scan_id,
+                r,
+                status_str,
+                evidence_json,
+                envelope_json,
+                framework_json,
+                start_time,
+                end_time,
+                duration_ms,
+                initiator_type,
+                initiator_id,
+            )
+            if changed:
+                changes_count += 1
+
         db.commit()
+
+        logger.info(
+            "Kensa scan %s: %d rules checked, %d state changes recorded as transactions",
+            scan_id,
+            total,
+            changes_count,
+        )
 
         logger.info(
             "Kensa scan %s completed: %d/%d passed (%.1f%%)",
@@ -489,6 +526,7 @@ async def execute_kensa_scan(
 
 
 @router.get("/frameworks", response_model=KensaFrameworksResponse)
+@require_permission(Permission.HOST_READ)
 async def list_kensa_frameworks(
     current_user: Dict[str, Any] = Depends(get_current_user),
 ) -> KensaFrameworksResponse:
@@ -528,6 +566,7 @@ async def list_kensa_frameworks(
 
 
 @router.get("/health")
+@require_permission(Permission.HOST_READ)
 async def kensa_health(
     current_user: Dict[str, Any] = Depends(get_current_user),
 ) -> Dict[str, Any]:
@@ -664,6 +703,7 @@ class ControlRulesResponse(BaseModel):
 
 
 @router.get("/frameworks/db", response_model=FrameworkListResponse)
+@require_permission(Permission.HOST_READ)
 async def list_frameworks_from_db(
     db: Session = Depends(get_db),
     current_user: Dict[str, Any] = Depends(get_current_user),
@@ -702,6 +742,7 @@ async def list_frameworks_from_db(
 
 
 @router.get("/rules/framework/{framework}", response_model=FrameworkRulesResponse)
+@require_permission(Permission.HOST_READ)
 async def get_rules_for_framework(
     framework: str,
     version: Optional[str] = None,
@@ -766,6 +807,7 @@ async def get_rules_for_framework(
 
 
 @router.get("/framework/{framework}/coverage", response_model=FrameworkCoverageResponse)
+@require_permission(Permission.HOST_READ)
 async def get_framework_coverage(
     framework: str,
     version: Optional[str] = None,
@@ -813,6 +855,7 @@ async def get_framework_coverage(
 
 
 @router.get("/rules/{rule_id}/framework-refs", response_model=FrameworkRefResponse)
+@require_permission(Permission.HOST_READ)
 async def get_rule_framework_refs(
     rule_id: str,
     db: Session = Depends(get_db),
@@ -853,6 +896,7 @@ async def get_rule_framework_refs(
 
 
 @router.get("/controls/search", response_model=ControlSearchResponse)
+@require_permission(Permission.HOST_READ)
 async def search_controls(
     q: str,
     framework: Optional[str] = None,
@@ -909,6 +953,7 @@ async def search_controls(
 
 
 @router.get("/controls/{framework}/{control_id}", response_model=ControlRulesResponse)
+@require_permission(Permission.HOST_READ)
 async def get_control_rules(
     framework: str,
     control_id: str,
@@ -953,6 +998,7 @@ async def get_control_rules(
 
 
 @router.get("/sync-stats")
+@require_permission(Permission.HOST_READ)
 async def get_sync_stats(
     db: Session = Depends(get_db),
     current_user: Dict[str, Any] = Depends(get_current_user),
@@ -977,6 +1023,7 @@ async def get_sync_stats(
 
 
 @router.post("/sync")
+@require_permission(Permission.SYSTEM_CONFIG)
 async def trigger_rule_sync(
     force: bool = False,
     db: Session = Depends(get_db),
@@ -1023,6 +1070,7 @@ async def trigger_rule_sync(
 
 
 @router.get("/compliance-state/{host_id}", response_model=ComplianceStateResponse)
+@require_permission(Permission.HOST_READ)
 async def get_compliance_state(
     host_id: str,
     db: Session = Depends(get_db),

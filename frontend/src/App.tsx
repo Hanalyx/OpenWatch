@@ -36,7 +36,11 @@ import Users from './pages/users/Users';
 import OView from './pages/oview/OView';
 import Settings from './pages/settings/Settings';
 import { AuditQueriesPage, AuditQueryBuilderPage, AuditExportsPage } from './pages/audit';
-import { TemporalPosture } from './pages/compliance';
+import { TemporalPosture, Exceptions } from './pages/compliance';
+import Transactions from './pages/transactions/Transactions';
+import TransactionDetail from './pages/transactions/TransactionDetail';
+import RuleTransactions from './pages/transactions/RuleTransactions';
+import ScheduledScans from './pages/scans/ScheduledScans';
 
 function App() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
@@ -87,7 +91,13 @@ function App() {
                   <Route path="/hosts/:id" element={<HostDetail />} />
                   <Route path="/host-groups" element={<ComplianceGroups />} />
                   <Route path="/content" element={<Content />} />
+                  <Route path="/transactions" element={<Transactions />} />
+                  <Route path="/transactions/rule/:ruleId" element={<RuleTransactions />} />
+                  <Route path="/transactions/:id" element={<TransactionDetail />} />
+
+                  {/* Legacy scan routes - keep working during migration */}
                   <Route path="/scans" element={<Scans />} />
+                  <Route path="/scans/schedule" element={<ScheduledScans />} />
                   <Route path="/scans/create" element={<ComplianceScanWizard />} />
                   <Route path="/scans/:id" element={<ScanDetail />} />
                   <Route path="/users" element={<Users />} />
@@ -102,6 +112,7 @@ function App() {
                   />
                   <Route path="/audit/exports" element={<AuditExportsPage />} />
                   <Route path="/compliance/posture" element={<TemporalPosture />} />
+                  <Route path="/compliance/exceptions" element={<Exceptions />} />
                 </Route>
               </Route>
 

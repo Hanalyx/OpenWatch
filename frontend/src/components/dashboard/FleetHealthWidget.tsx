@@ -6,7 +6,9 @@ import {
   Box,
   Typography,
   Chip,
+  CircularProgress,
   IconButton,
+  Paper,
   Tooltip as MuiTooltip,
   useTheme,
   alpha,
@@ -19,6 +21,16 @@ import {
   Schedule,
   OpenInFull as OpenInFullIcon,
 } from '@mui/icons-material';
+import { useQuery } from '@tanstack/react-query';
+import { api } from '../../services/api';
+
+interface FleetHealthSummary {
+  hosts_reachable: number;
+  hosts_total: number;
+  drift_events_24h: number;
+  failed_scans_24h: number;
+  hosts_in_maintenance: number;
+}
 
 interface FleetHealthData {
   online: number;
@@ -71,6 +83,13 @@ interface FleetHealthWidgetProps {
 const FleetHealthWidget: React.FC<FleetHealthWidgetProps> = ({ data, groups, onSegmentClick }) => {
   const theme = useTheme();
   const navigate = useNavigate();
+
+  const { data: healthSummary, isLoading: healthLoading } = useQuery<FleetHealthSummary>({
+    queryKey: ['fleetHealthSummary'],
+    queryFn: () => api.get<FleetHealthSummary>('/api/fleet/health-summary'),
+    staleTime: 60000,
+    refetchInterval: 60000,
+  });
 
   const handleExpand = () => {
     navigate('/oview?tab=1'); // Navigate to Host Monitoring tab
@@ -302,6 +321,52 @@ const FleetHealthWidget: React.FC<FleetHealthWidgetProps> = ({ data, groups, onS
               }}
             />
           ))}
+        </Box>
+
+        {/* Fleet health summary metric tiles */}
+        <Box sx={{ mt: 2, display: 'flex', gap: 1 }}>
+          <Paper variant="outlined" sx={{ flex: 1, p: 1.5, textAlign: 'center' }}>
+            <Typography variant="caption" color="text.secondary" display="block">
+              Hosts Reachable
+            </Typography>
+            <Typography variant="body1" fontWeight="bold">
+              {healthLoading ? (
+                <CircularProgress size={14} />
+              ) : healthSummary ? (
+                `${healthSummary.hosts_reachable} / ${healthSummary.hosts_total}`
+              ) : (
+                '\u2014'
+              )}
+            </Typography>
+          </Paper>
+          <Paper variant="outlined" sx={{ flex: 1, p: 1.5, textAlign: 'center' }}>
+            <Typography variant="caption" color="text.secondary" display="block">
+              Drift Events (24h)
+            </Typography>
+            <Typography variant="body1" fontWeight="bold">
+              {healthLoading ? (
+                <CircularProgress size={14} />
+              ) : healthSummary ? (
+                healthSummary.drift_events_24h
+              ) : (
+                '\u2014'
+              )}
+            </Typography>
+          </Paper>
+          <Paper variant="outlined" sx={{ flex: 1, p: 1.5, textAlign: 'center' }}>
+            <Typography variant="caption" color="text.secondary" display="block">
+              Failed Scans (24h)
+            </Typography>
+            <Typography variant="body1" fontWeight="bold">
+              {healthLoading ? (
+                <CircularProgress size={14} />
+              ) : healthSummary ? (
+                healthSummary.failed_scans_24h
+              ) : (
+                '\u2014'
+              )}
+            </Typography>
+          </Paper>
         </Box>
 
         {groups && groups.length > 0 && (

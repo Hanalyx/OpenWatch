@@ -8,7 +8,7 @@ and interactive debugging.
 import asyncio
 import logging
 import os
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 import paramiko
 from fastapi import WebSocket, WebSocketDisconnect
@@ -16,7 +16,6 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from ...audit_db import log_security_event
-from ...database import Host
 from ...encryption import EncryptionService
 
 # validate_ssh_key validates key format and security level before SSH authentication
@@ -33,7 +32,7 @@ class SSHTerminalSession:
     def __init__(
         self,
         websocket: WebSocket,
-        host: Host,
+        host: Any,
         db: Session,
         encryption_service: EncryptionService,
     ):
@@ -226,9 +225,9 @@ class SSHTerminalSession:
                     },
                 }
 
-                if self.host.ip_address in test_hosts:
+                if str(self.host.ip_address) in test_hosts:
                     logger.info(f"Using test credentials for host {self.host.ip_address} (user: ***REDACTED***)")
-                    credentials = test_hosts[self.host.ip_address]
+                    credentials = test_hosts[str(self.host.ip_address)]
                 else:
                     logger.warning(f"No credentials available for host {self.host.hostname}")
                     return None, {}
@@ -240,10 +239,10 @@ class SSHTerminalSession:
 
             # Set default username if not provided
             if "username" not in credentials:
-                credentials["username"] = self.host.username or "root"
+                credentials["username"] = str(self.host.username) if self.host.username else "root"
 
             logger.info(f"Returning auth_method: {auth_method}, credentials keys: {list(credentials.keys())}")
-            return auth_method, credentials
+            return str(auth_method) if auth_method else None, credentials  # type: ignore[return-value]
 
         except Exception as e:
             logger.error(f"Error getting host credentials: {e}")

@@ -1,0 +1,35 @@
+# OpenWatch Project Manifest — machine-readable single source of truth
+# Used by AI assistants, CI scripts, and documentation generators.
+
+project:
+  name: OpenWatch
+  version: "0.1.0-alpha.1"
+  codename: Eyrie
+  description: Enterprise compliance scanning platform powered by Kensa
+
+scanner: kensa
+database: postgresql
+state_management: zustand
+
+python:
+  version: "3.12"
+  black_version: "24.10.0"
+  line_length: 120
+
+frontend:
+  framework: react
+  build_output: build
+  auth_token_key: auth_token
+
+specs:
+  total: 80
+  active: 80
+  draft: 0
+  acceptance_criteria: 682
+
+coverage:
+  backend_threshold: 42
+  excluded_modules:
+    - SSH-dependent services
+    - Celery task bodies
+    - Deleted plugin packages

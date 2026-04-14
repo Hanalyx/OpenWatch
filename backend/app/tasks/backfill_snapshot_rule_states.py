@@ -20,7 +20,6 @@ import logging
 from datetime import datetime, timezone
 from typing import Any, Dict
 
-from celery import shared_task
 from sqlalchemy import text
 
 from app.database import SessionLocal
@@ -88,7 +87,6 @@ def _build_rule_states_for_scan(db: Any, scan_id: str) -> Dict[str, Any]:
     return rule_states
 
 
-@shared_task(name="backfill_snapshot_rule_states")
 def backfill_snapshot_rule_states() -> Dict[str, Any]:
     """
     Backfill rule_states on posture_snapshots that have empty rule_states.

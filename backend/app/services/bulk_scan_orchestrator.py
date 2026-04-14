@@ -20,7 +20,7 @@ import json
 import logging
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -105,7 +105,7 @@ class AuthorizationFailure:
 
     def __post_init__(self) -> None:
         if self.timestamp is None:
-            self.timestamp = datetime.utcnow()
+            self.timestamp = datetime.now(timezone.utc)
 
 
 class BulkScanOrchestrator:
@@ -197,16 +197,16 @@ class BulkScanOrchestrator:
             # Create scan session record with authorization metadata
             session = ScanSession(
                 id=session_id,
-                name=f"{name_prefix} - {datetime.utcnow().strftime('%Y-%m-%d %H:%M')}",
+                name=f"{name_prefix} - {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M')}",
                 total_hosts=len(host_ids),  # Original request count
                 completed_hosts=0,
                 failed_hosts=0,
                 running_hosts=0,
                 status=ScanSessionStatus.PENDING,
                 created_by=user_id,
-                created_at=datetime.utcnow(),
+                created_at=datetime.now(timezone.utc),
                 scan_ids=[],
-                estimated_completion=datetime.utcnow()
+                estimated_completion=datetime.now(timezone.utc)
                 + timedelta(minutes=feasibility.get("estimated_time_minutes", 60)),
                 authorized_hosts=len(authorized_hosts),
                 unauthorized_hosts=len(authorization_failures),
@@ -231,7 +231,7 @@ class BulkScanOrchestrator:
             scan_ids = []
             for batch in scan_plan:
                 # Additional authorization check before batch creation
-                batch_scan_ids = await self._create_batch_scans_with_authorization(
+                batch_scan_ids = self._create_batch_scans_with_authorization(
                     batch,
                     session_id,
                     name_prefix,
@@ -267,7 +267,7 @@ class BulkScanOrchestrator:
         """Start executing a bulk scan session"""
         try:
             # Get session details
-            session = await self._get_scan_session(session_id)
+            session = self._get_scan_session(session_id)
             if not session:
                 raise ValueError(f"Session {session_id} not found")
 
@@ -276,18 +276,19 @@ class BulkScanOrchestrator:
 
             # Update session status
             session.status = ScanSessionStatus.RUNNING
-            session.started_at = datetime.utcnow()
+            session.started_at = datetime.now(timezone.utc)
             await self._update_scan_session(session)
 
             # Start scans with staggered execution
-            started_scans = await self._execute_staggered_scans(session.scan_ids)
+            scan_ids = session.scan_ids or []
+            started_scans = self._execute_staggered_scans(scan_ids)
 
             logger.info(f"Started bulk scan session {session_id} with {len(started_scans)} scans")
             return {
                 "session_id": session_id,
                 "status": "started",
                 "started_scans": len(started_scans),
-                "total_scans": len(session.scan_ids),
+                "total_scans": len(scan_ids),
             }
 
         except Exception as e:
@@ -298,15 +299,16 @@ class BulkScanOrchestrator:
         """Get real-time progress of a bulk scan session"""
         try:
             # Get session
-            session = await self._get_scan_session(session_id)
+            session = self._get_scan_session(session_id)
             if not session:
                 raise ValueError(f"Session {session_id} not found")
 
             # Get individual scan statuses
-            scan_statuses = await self._get_scans_status(session.scan_ids)
+            progress_scan_ids = session.scan_ids or []
+            scan_statuses = self._get_scans_status(progress_scan_ids)
 
             # Calculate progress metrics
-            total_scans = len(session.scan_ids)
+            total_scans = len(progress_scan_ids)
             completed = sum(1 for s in scan_statuses if s["status"] == "completed")
             failed = sum(1 for s in scan_statuses if s["status"] == "failed")
             running = sum(1 for s in scan_statuses if s["status"] in ["pending", "running"])
@@ -319,7 +321,7 @@ class BulkScanOrchestrator:
             # Determine overall session status
             if completed + failed == total_scans:
                 session.status = ScanSessionStatus.COMPLETED
-                session.completed_at = datetime.utcnow()
+                session.completed_at = datetime.now(timezone.utc)
             elif failed > 0 and running == 0:
                 session.status = ScanSessionStatus.FAILED
 
@@ -545,7 +547,7 @@ class BulkScanOrchestrator:
                             }
                         ),
                         user_id,
-                        datetime.utcnow(),
+                        datetime.now(timezone.utc),
                         False,
                         False,
                     )
@@ -674,8 +676,10 @@ class BulkScanOrchestrator:
             return []
 
         try:
-            # Create placeholders for the IN clause
-            placeholders = ",".join([f"'{scan_id}'" for scan_id in scan_ids])
+            # Build parameterized IN clause
+            param_names = [f":scan_id_{i}" for i in range(len(scan_ids))]
+            placeholders = ", ".join(param_names)
+            params = {f"scan_id_{i}": sid for i, sid in enumerate(scan_ids)}
 
             result = self.db.execute(
                 text(
@@ -689,7 +693,8 @@ class BulkScanOrchestrator:
                 WHERE s.id IN ({placeholders})
                 ORDER BY s.started_at
             """
-                )
+                ),
+                params,
             ).fetchall()
 
             scan_statuses = []
@@ -728,7 +733,7 @@ class BulkScanOrchestrator:
             update_builder = (
                 UpdateBuilder("scans")
                 .set("status", "running")
-                .set("started_at", datetime.utcnow())
+                .set("started_at", datetime.now(timezone.utc))
                 .where_in("id", scan_ids)
                 .where("status = :status", "pending", "status")
             )
@@ -773,7 +778,7 @@ class BulkScanOrchestrator:
         try:
             # Build authorization context if not provided
             if auth_context is None:
-                auth_context = await self._build_user_authorization_context(user_id)
+                auth_context = self._build_user_authorization_context(user_id)
 
             # Create resource identifiers for all hosts
             resources = [
@@ -794,7 +799,7 @@ class BulkScanOrchestrator:
             auth_result = await self.authorization_service.check_bulk_permissions(bulk_request)
 
             # Get host details for results
-            host_details = await self._get_host_details(host_ids)
+            host_details = self._get_host_details(host_ids)
             host_lookup = {h["id"]: h for h in host_details}
 
             # Process authorization results
@@ -842,7 +847,7 @@ class BulkScanOrchestrator:
             logger.error(f"Bulk authorization validation failed: {e}")
 
             # Fail securely - treat all hosts as unauthorized
-            host_details = await self._get_host_details(host_ids)
+            host_details = self._get_host_details(host_ids)
             authorization_failures = [
                 AuthorizationFailure(
                     host_id=host_detail["id"],
@@ -903,8 +908,10 @@ class BulkScanOrchestrator:
             if not host_ids:
                 return []
 
-            # Create placeholders for the IN clause
-            placeholders = ",".join([f"'{host_id}'" for host_id in host_ids])
+            # Build parameterized IN clause
+            param_names = [f":host_id_{i}" for i in range(len(host_ids))]
+            placeholders = ", ".join(param_names)
+            params = {f"host_id_{i}": hid for i, hid in enumerate(host_ids)}
 
             result = self.db.execute(
                 text(
@@ -913,7 +920,8 @@ class BulkScanOrchestrator:
                 FROM hosts
                 WHERE id IN ({placeholders})
             """
-                )
+                ),
+                params,
             )
 
             return [
@@ -998,14 +1006,14 @@ class BulkScanOrchestrator:
                                 "batch_id": batch.id,
                                 "start_delay": start_delay,
                                 "authorized": True,  # Mark as explicitly authorized
-                                "authorization_timestamp": datetime.utcnow().isoformat(),
+                                "authorization_timestamp": datetime.now(timezone.utc).isoformat(),
                                 # Per-host platform detection for multi-platform bulk scans
                                 "enable_jit_detection": True,
                                 "auto_select_content": True,  # Allow content switching based on detected platform
                             }
                         ),
                         user_id,
-                        datetime.utcnow(),
+                        datetime.now(timezone.utc),
                         False,
                         False,
                     )
@@ -1037,4 +1045,4 @@ class AuthorizedHost:
 
     def __post_init__(self):
         if self.timestamp is None:
-            self.timestamp = datetime.utcnow()
+            self.timestamp = datetime.now(timezone.utc)

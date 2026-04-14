@@ -7,7 +7,7 @@ health monitoring, versioning, rollbacks, and comprehensive operational capabili
 import asyncio
 import logging
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -97,7 +97,7 @@ class PluginHealthCheck(BaseModel):
     """Plugin health check result"""
 
     plugin_id: str
-    check_timestamp: datetime = Field(default_factory=datetime.utcnow)
+    check_timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     # Overall health
     health_status: PluginHealthStatus
@@ -287,7 +287,7 @@ class PluginLifecycleService:
         if not plugin:
             raise ValueError(f"Plugin not found: {plugin_id}")
 
-        datetime.utcnow()
+        datetime.now(timezone.utc)
 
         # Initialize health check result
         health_check = PluginHealthCheck(
@@ -370,7 +370,7 @@ class PluginLifecycleService:
         # Create update plan
         update_plan = PluginUpdatePlan(
             plugin_id=plugin_id,
-            current_version=plugin.version,
+            current_version=plugin.manifest.version,
             target_version=target_version,
             strategy=strategy,
             scheduled_at=scheduled_at,
@@ -412,7 +412,9 @@ class PluginLifecycleService:
         if compatibility_issues:
             logger.warning(f"Compatibility issues detected for update plan: {compatibility_issues}")
 
-        logger.info(f"Created update plan for {plugin_id}: {plugin.version} -> {target_version} ({strategy.value})")
+        logger.info(
+            f"Created update plan for {plugin_id}: {plugin.manifest.version} -> {target_version} ({strategy.value})"
+        )
         return update_plan
 
     async def execute_plugin_update(self, update_plan: PluginUpdatePlan) -> PluginUpdateExecution:
@@ -446,7 +448,7 @@ class PluginLifecycleService:
         # Create rollback plan (used in conversion to update plan below)
         _rollback_plan = PluginRollbackPlan(  # noqa: F841
             plugin_id=plugin_id,
-            current_version=plugin.version,
+            current_version=plugin.manifest.version,
             target_version=target_version,
             rollback_reason=rollback_reason,
             triggered_by=triggered_by,
@@ -456,7 +458,7 @@ class PluginLifecycleService:
         # Convert to update plan (rollback is a special update)
         update_plan = PluginUpdatePlan(
             plugin_id=plugin_id,
-            current_version=plugin.version,
+            current_version=plugin.manifest.version,
             target_version=target_version,
             strategy=UpdateStrategy.IMMEDIATE,  # Rollbacks should be immediate
             rollback_enabled=False,  # No rollback of rollbacks
@@ -470,7 +472,7 @@ class PluginLifecycleService:
 
         logger.warning("MongoDB storage removed - update rollback execution operation skipped")
 
-        logger.info(f"Started plugin rollback: {plugin_id} {plugin.version} -> {target_version}")
+        logger.info(f"Started plugin rollback: {plugin_id} {plugin.manifest.version} -> {target_version}")
         return execution
 
     async def get_available_versions(self, plugin_id: str) -> List[PluginVersion]:
@@ -488,22 +490,22 @@ class PluginLifecycleService:
 
         versions = [
             PluginVersion(
-                version=current_plugin.version,
-                release_date=current_plugin.created_at or datetime.utcnow(),
+                version=current_plugin.manifest.version,
+                release_date=current_plugin.imported_at or datetime.now(timezone.utc),
                 changelog="Current installed version",
             )
         ]
 
         # Add some mock newer versions
         try:
-            current_ver = semver.VersionInfo.parse(current_plugin.version)
+            current_ver = semver.VersionInfo.parse(current_plugin.manifest.version)
 
             # Add patch version
             patch_version = str(current_ver.bump_patch())
             versions.append(
                 PluginVersion(
                     version=patch_version,
-                    release_date=datetime.utcnow() + timedelta(days=7),
+                    release_date=datetime.now(timezone.utc) + timedelta(days=7),
                     changelog="Bug fixes and security updates",
                 )
             )
@@ -513,7 +515,7 @@ class PluginLifecycleService:
             versions.append(
                 PluginVersion(
                     version=minor_version,
-                    release_date=datetime.utcnow() + timedelta(days=30),
+                    release_date=datetime.now(timezone.utc) + timedelta(days=30),
                     changelog="New features and improvements",
                 )
             )
@@ -544,7 +546,7 @@ class PluginLifecycleService:
         """Execute the update plan step by step."""
         try:
             execution.status = UpdateStatus.IN_PROGRESS
-            execution.started_at = datetime.utcnow()
+            execution.started_at = datetime.now(timezone.utc)
             logger.warning("MongoDB storage removed - update execution status operation skipped")
 
             plan = execution.update_plan
@@ -605,7 +607,7 @@ class PluginLifecycleService:
                 await self._trigger_automatic_rollback(execution, f"Update failed: {str(e)}")
 
         finally:
-            execution.completed_at = datetime.utcnow()
+            execution.completed_at = datetime.now(timezone.utc)
             if execution.started_at:
                 execution.duration_seconds = (execution.completed_at - execution.started_at).total_seconds()
 
@@ -750,7 +752,7 @@ class PluginLifecycleService:
         step = {
             "step": step_name,
             "status": status,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
         execution.execution_steps.append(step)
@@ -798,7 +800,7 @@ class PluginLifecycleService:
 
         execution.rollback_performed = True
         execution.rollback_reason = reason
-        execution.rollback_completed_at = datetime.utcnow()
+        execution.rollback_completed_at = datetime.now(timezone.utc)
         execution.status = UpdateStatus.ROLLED_BACK
 
         # This would perform the actual rollback

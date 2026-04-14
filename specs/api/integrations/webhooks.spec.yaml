@@ -1,0 +1,27 @@
+spec: webhooks
+version: "1.0"
+status: active
+owner: engineering
+summary: >
+  Webhook management API for CRUD operations, event subscriptions,
+  delivery with HMAC signatures, and retry logic.
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      Webhook CRUD operations (create, list, get, update, delete) available.
+  - id: AC-2
+    description: >
+      Webhook creation validates URL format and event types.
+  - id: AC-3
+    description: >
+      Webhook delivery includes retry logic on failure.
+  - id: AC-4
+    description: >
+      Webhook events include scan completion and alert triggers.
+  - id: AC-5
+    description: >
+      Webhook payloads include HMAC signature for verification.
+  - id: AC-6
+    description: >
+      Webhook list supports pagination.

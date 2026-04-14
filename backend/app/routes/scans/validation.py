@@ -34,7 +34,7 @@ Legacy Endpoints:
 import json
 import logging
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
@@ -45,6 +45,7 @@ from app.auth import get_current_user
 from app.database import get_db
 from app.models.enums import ScanPriority
 from app.models.error_models import ValidationResultResponse
+from app.rbac import UserRole, require_role
 from app.routes.scans.helpers import add_deprecation_header, sanitize_http_error
 from app.routes.scans.models import (
     QuickScanRequest,
@@ -55,7 +56,6 @@ from app.routes.scans.models import (
 )
 from app.services.engine import RecommendedScanProfile, ScanIntelligenceService
 from app.services.validation import get_error_classification_service, get_error_sanitization_service
-from app.tasks.scan_tasks import execute_scan_celery
 from app.utils.query_builder import QueryBuilder
 
 logger = logging.getLogger(__name__)
@@ -71,6 +71,7 @@ error_service = get_error_classification_service()
 # =============================================================================
 
 
+@require_role([UserRole.SECURITY_ANALYST, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.post("/validate")
 async def validate_scan_configuration(
     validation_request: ValidationRequest,
@@ -278,6 +279,7 @@ async def validate_scan_configuration(
         raise HTTPException(status_code=500, detail=f"Validation failed: {sanitized_error.message}")
 
 
+@require_role([UserRole.SECURITY_ANALYST, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.post("/hosts/{host_id}/quick-scan", response_model=QuickScanResponse)
 async def quick_scan(
     host_id: str,
@@ -456,7 +458,7 @@ async def quick_scan(
                     }
                 ),
                 "started_by": current_user["id"],
-                "started_at": datetime.utcnow(),
+                "started_at": datetime.now(timezone.utc),
                 "remediation_requested": False,
                 "verification_scan": False,
             },
@@ -465,8 +467,11 @@ async def quick_scan(
         # Commit the scan record
         db.commit()
 
-        # Start scan via Celery task (persistent, with timeout and retry)
-        execute_scan_celery.delay(
+        # Start scan via job queue (persistent, with timeout and retry)
+        from app.services.job_queue.dispatch import enqueue_task
+
+        enqueue_task(
+            "app.tasks.execute_scan",
             scan_id=str(scan_id),
             host_data={
                 "hostname": host_result.hostname,
@@ -492,7 +497,7 @@ async def quick_scan(
                     parts = duration_str.replace(" min", "").split("-")
                     if len(parts) == 2:
                         avg_minutes = (int(parts[0]) + int(parts[1])) / 2
-                        estimated_time = datetime.utcnow().timestamp() + (avg_minutes * 60)
+                        estimated_time = datetime.now(timezone.utc).timestamp() + (avg_minutes * 60)
             except Exception:
                 logger.debug("Ignoring exception during duration parsing")
 
@@ -540,6 +545,7 @@ async def quick_scan(
             )
 
 
+@require_role([UserRole.SECURITY_ANALYST, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.post("/verify")
 async def create_verification_scan(
     verification_request: VerificationScanRequest,
@@ -663,7 +669,7 @@ async def create_verification_scan(
                 "progress": 0,
                 "scan_options": json.dumps(scan_options),
                 "started_by": current_user["id"],
-                "started_at": datetime.utcnow(),
+                "started_at": datetime.now(timezone.utc),
                 "verification_scan": True,
             },
         )
@@ -675,8 +681,11 @@ async def create_verification_scan(
         scan_id = scan_row.id
         db.commit()
 
-        # Start verification scan via Celery task (persistent, with timeout and retry)
-        execute_scan_celery.delay(
+        # Start verification scan via job queue (persistent, with timeout and retry)
+        from app.services.job_queue.dispatch import enqueue_task
+
+        enqueue_task(
+            "app.tasks.execute_scan",
             scan_id=str(scan_id),
             host_data={
                 "hostname": host_result.hostname,
@@ -721,6 +730,7 @@ async def create_verification_scan(
 # =============================================================================
 
 
+@require_role([UserRole.SECURITY_ANALYST, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.post("/{scan_id}/rescan/rule")
 async def rescan_rule(
     scan_id: str,
@@ -795,6 +805,7 @@ async def rescan_rule(
         raise HTTPException(status_code=500, detail="Failed to initiate rule rescan")
 
 
+@require_role([UserRole.SECURITY_ANALYST, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.post("/{scan_id}/remediate")
 async def start_remediation(
     scan_id: str,
@@ -926,6 +937,7 @@ async def start_remediation(
 # =============================================================================
 
 
+@require_role([UserRole.SECURITY_ANALYST, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.get("/capabilities")
 async def get_scan_capabilities(
     current_user: Dict[str, Any] = Depends(get_current_user),
@@ -1005,6 +1017,7 @@ async def get_scan_capabilities(
     }
 
 
+@require_role([UserRole.SECURITY_ANALYST, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.get("/summary")
 async def get_scans_summary(
     current_user: Dict[str, Any] = Depends(get_current_user),
@@ -1058,6 +1071,7 @@ async def get_scans_summary(
     }
 
 
+@require_role([UserRole.SECURITY_ANALYST, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.get("/profiles")
 async def get_available_profiles(
     current_user: Dict[str, Any] = Depends(get_current_user),

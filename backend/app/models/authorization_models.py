@@ -11,7 +11,7 @@ Design by Emily (Security Engineer) - Implements ReBAC with audit trail
 
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set
 
@@ -93,7 +93,7 @@ class PermissionPolicy:
     resource_id: Optional[str] = None  # None means all resources of this type
     conditions: Optional[Dict[str, Any]] = None
     priority: int = 0  # Higher priority policies override lower priority
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     expires_at: Optional[datetime] = None
     created_by: Optional[str] = None
     is_active: bool = True
@@ -114,7 +114,7 @@ class AuthorizationContext:
     ip_address: Optional[str] = None
     user_agent: Optional[str] = None
     session_id: Optional[str] = None
-    request_time: datetime = Field(default_factory=datetime.utcnow)
+    request_time: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     additional_attributes: Optional[Dict[str, Any]] = None
 
     def __post_init__(self) -> None:
@@ -131,13 +131,13 @@ class AuthorizationResult:
     resource: ResourceIdentifier
     action: ActionType
     context: AuthorizationContext
-    applied_policies: List[PermissionPolicy]
+    applied_policies: List[Any]
     reason: str
     confidence_score: float = 1.0  # 0.0 to 1.0
     cached: bool = False
     evaluation_time_ms: int = 0
     check_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class BulkAuthorizationRequest(BaseModel):
@@ -175,7 +175,7 @@ class HostPermission(BaseModel):
     effect: PermissionEffect = PermissionEffect.ALLOW
     conditions: Dict[str, Any] = Field(default_factory=dict)
     granted_by: str
-    granted_at: datetime = Field(default_factory=datetime.utcnow)
+    granted_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     expires_at: Optional[datetime] = None
     is_active: bool = True
 
@@ -193,7 +193,7 @@ class HostGroupPermission(BaseModel):
     inherit_to_hosts: bool = True  # Whether permissions propagate to individual hosts
     conditions: Dict[str, Any] = Field(default_factory=dict)
     granted_by: str
-    granted_at: datetime = Field(default_factory=datetime.utcnow)
+    granted_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     expires_at: Optional[datetime] = None
     is_active: bool = True
 
@@ -216,7 +216,7 @@ class AuthorizationAuditEvent(BaseModel):
     evaluation_time_ms: int = 0
     reason: str
     risk_score: float = 0.0  # 0.0 = low risk, 1.0 = high risk
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class PolicyConflictResolution(str, Enum):
@@ -290,7 +290,7 @@ class PermissionCache:
         cached_item = self.cache[key]
         cached_time = cached_item.get("timestamp")
 
-        if not cached_time or datetime.utcnow() - cached_time > timedelta(seconds=self.ttl_seconds):
+        if not cached_time or datetime.now(timezone.utc) - cached_time > timedelta(seconds=self.ttl_seconds):
             # Cache expired
             del self.cache[key]
             if key in self.access_times:
@@ -298,7 +298,7 @@ class PermissionCache:
             return None
 
         # Update access time
-        self.access_times[key] = datetime.utcnow()
+        self.access_times[key] = datetime.now(timezone.utc)
 
         result = cached_item.get("result")
         if result:
@@ -318,8 +318,8 @@ class PermissionCache:
             self._evict_least_recently_used()
 
         key = self._generate_key(user_id, resource, action)
-        self.cache[key] = {"result": result, "timestamp": datetime.utcnow()}
-        self.access_times[key] = datetime.utcnow()
+        self.cache[key] = {"result": result, "timestamp": datetime.now(timezone.utc)}
+        self.access_times[key] = datetime.now(timezone.utc)
 
     def invalidate_user(self, user_id: str) -> None:
         """Invalidate all cached permissions for a user."""

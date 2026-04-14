@@ -4,7 +4,7 @@ Ensures zero-downtime migration of existing user sessions during security upgrad
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
 
 import jwt
@@ -12,7 +12,11 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from ...config import get_settings
-from ..auth import jwt_manager
+
+try:
+    from ..auth import jwt_manager  # type: ignore[attr-defined]
+except (ImportError, AttributeError):
+    jwt_manager: Any = None  # type: ignore[no-redef]
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -59,7 +63,7 @@ class SessionMigrationService:
             # Check if token is within migration window
             iat = payload.get("iat")
             if iat:
-                token_age = datetime.utcnow().timestamp() - iat
+                token_age = datetime.now(timezone.utc).timestamp() - iat
                 max_age = self.migration_window_hours * 3600
 
                 if token_age <= max_age:
@@ -189,7 +193,7 @@ class SessionMigrationService:
             legacy_password_count = result.scalar()
 
             # Check for active sessions (rough estimate)
-            recent_login_threshold = datetime.utcnow() - timedelta(hours=24)
+            recent_login_threshold = datetime.now(timezone.utc) - timedelta(hours=24)
             result = db.execute(
                 text(
                     """

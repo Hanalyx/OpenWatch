@@ -38,6 +38,7 @@ from sqlalchemy.orm import Session
 
 from app.auth import get_current_user
 from app.database import get_db
+from app.rbac import UserRole, require_role
 from app.utils.query_builder import QueryBuilder
 
 logger = logging.getLogger(__name__)
@@ -165,6 +166,16 @@ async def _get_scan_details(
 # =============================================================================
 
 
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.get("/{scan_id}/results")
 async def get_scan_results(
     scan_id: str,
@@ -353,6 +364,16 @@ async def get_scan_results(
 # =============================================================================
 
 
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.get("/{scan_id}/report/html")
 async def get_scan_html_report(
     scan_id: str,
@@ -416,6 +437,16 @@ async def get_scan_html_report(
         raise HTTPException(status_code=500, detail="Failed to retrieve report")
 
 
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.get("/{scan_id}/report/json")
 async def get_scan_json_report(
     scan_id: str,
@@ -477,8 +508,10 @@ async def get_scan_json_report(
                 if enhanced_parsing_enabled and content_file is not None:
                     # Use engine module's result parser for enhanced SCAP parsing
                     # XCCDFResultParser provides parse_scan_results() for XCCDF result files
-                    from app.services.engine.result_parsers import XCCDFResultParser
+                    XCCDFResultParser = None  # Legacy SCAP parser, no longer available
 
+                    if XCCDFResultParser is None:
+                        raise ValueError("XCCDF parser not available (SCAP-era code removed)")
                     parser = XCCDFResultParser()
                     parsed = parser.parse_scan_results(
                         Path(scan_data["result_file"]),
@@ -597,6 +630,16 @@ async def get_scan_json_report(
         raise HTTPException(status_code=500, detail="Failed to generate JSON report")
 
 
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.get("/{scan_id}/report/csv")
 async def get_scan_csv_report(
     scan_id: str,
@@ -680,6 +723,16 @@ async def get_scan_csv_report(
         raise HTTPException(status_code=500, detail="Failed to generate CSV report")
 
 
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.get("/{scan_id}/failed-rules")
 async def get_scan_failed_rules(
     scan_id: str,

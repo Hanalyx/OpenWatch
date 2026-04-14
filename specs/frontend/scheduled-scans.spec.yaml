@@ -1,0 +1,52 @@
+spec: scheduled-scans
+version: "1.0"
+status: draft
+owner: engineering
+summary: >
+  The scheduled scans frontend MUST render an adaptive interval
+  configuration page, provide sliders to adjust intervals per compliance
+  state, display a per-host schedule table with next scan time and
+  maintenance mode, show a preview histogram of projected scans, and
+  persist configuration changes via PUT /api/compliance/scheduler/config.
+
+---
+
+# Acceptance Criteria
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      Scheduled scan management page MUST render adaptive interval
+      configuration controls for the compliance scheduler.
+
+  - id: AC-2
+    description: >
+      Sliders MUST allow adjusting scan intervals per compliance state:
+      critical, low, partial, and compliant. Each slider MUST reflect
+      the current backend configuration on load.
+
+  - id: AC-3
+    description: >
+      Per-host schedule table MUST display next_scheduled_scan,
+      current_interval, and maintenance_mode columns for each host.
+
+  - id: AC-4
+    description: >
+      A preview histogram MUST show projected scan counts for the next
+      48 hours based on current interval settings.
+
+  - id: AC-5
+    description: >
+      Saving interval changes MUST call PUT /api/compliance/scheduler/config
+      with the updated interval configuration payload.
+
+---
+
+# Changelog
+
+changelog:
+  - version: "1.0"
+    date: "2026-04-11"
+    changes:
+      - "Initial draft spec -- Q2 scheduled scans frontend"
+      - "5 ACs covering config page, sliders, host table, histogram, API call"

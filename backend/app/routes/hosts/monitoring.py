@@ -3,12 +3,14 @@ Host Monitoring API Routes
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+
+from app.rbac import UserRole, require_role
 
 from ...auth import get_current_user
 from ...config import get_settings
@@ -25,6 +27,16 @@ class HostCheckRequest(BaseModel):
     host_id: str
 
 
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.post("/hosts/check")
 async def check_host_status(
     request: HostCheckRequest,
@@ -103,6 +115,16 @@ async def check_host_status(
         raise HTTPException(status_code=500, detail="Failed to check host status")
 
 
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.get("/hosts/status")
 async def get_hosts_status_summary(
     db: Session = Depends(get_db), current_user: Dict[str, Any] = Depends(get_current_user)
@@ -154,7 +176,7 @@ async def get_hosts_status_summary(
         )
 
         # Count monitoring checks performed today
-        today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+        today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
         checks_today_result = db.execute(
             text(
                 """
@@ -184,6 +206,16 @@ async def get_hosts_status_summary(
         raise HTTPException(status_code=500, detail="Failed to get host status summary")
 
 
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.post("/hosts/{host_id}/ping")
 async def ping_host(
     host_id: str,
@@ -222,7 +254,7 @@ async def ping_host(
             "host_id": host_id,
             "ip_address": ip_address,
             "ping_success": ping_success,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
     except HTTPException:
@@ -232,6 +264,16 @@ async def ping_host(
         raise HTTPException(status_code=500, detail="Failed to ping host")
 
 
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.post("/hosts/{host_id}/check-connectivity")
 async def jit_connectivity_check(
     host_id: str,
@@ -328,6 +370,16 @@ async def jit_connectivity_check(
         raise HTTPException(status_code=500, detail=f"Failed to check connectivity: {str(e)}")
 
 
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.get("/hosts/{host_id}/state")
 async def get_host_monitoring_state(
     host_id: str,

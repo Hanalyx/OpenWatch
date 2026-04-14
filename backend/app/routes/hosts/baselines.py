@@ -24,6 +24,8 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from app.rbac import UserRole, require_role
+
 from ...auth import get_current_user
 from ...database import get_db
 from ...services.baseline_service import BaselineService
@@ -100,6 +102,16 @@ class BaselineResponse(BaseModel):
         )
 
 
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.post(
     "/{host_id}/baseline",
     response_model=BaselineResponse,
@@ -203,6 +215,16 @@ async def establish_baseline(
         raise HTTPException(status_code=500, detail="Failed to establish baseline. Check server logs.")
 
 
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.get(
     "/{host_id}/baseline",
     response_model=Optional[BaselineResponse],
@@ -247,6 +269,16 @@ async def get_active_baseline(
         raise HTTPException(status_code=500, detail="Failed to retrieve baseline. Check server logs.")
 
 
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.delete(
     "/{host_id}/baseline",
     status_code=200,

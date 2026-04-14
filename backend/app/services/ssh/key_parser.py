@@ -84,7 +84,7 @@ def detect_key_type(key_content: Union[str, bytes, memoryview]) -> Optional[SSHK
     try:
         # Normalize input to string - database may return bytes or memoryview
         if isinstance(key_content, (bytes, memoryview)):
-            key_content = key_content.decode("utf-8", errors="ignore")
+            key_content = bytes(key_content).decode("utf-8", errors="ignore")
 
         content_str = str(key_content).strip()
 
@@ -188,7 +188,7 @@ def parse_ssh_key(
     try:
         # Normalize input to string
         if isinstance(key_content, (bytes, memoryview)):
-            key_content = key_content.decode("utf-8", errors="ignore")
+            key_content = bytes(key_content).decode("utf-8", errors="ignore")
 
         content_str = str(key_content).strip()
 
@@ -276,7 +276,7 @@ def get_key_fingerprint(
     try:
         # Normalize input to string
         if isinstance(key_content, (bytes, memoryview)):
-            key_content = key_content.decode("utf-8", errors="ignore")
+            key_content = bytes(key_content).decode("utf-8", errors="ignore")
 
         key_content_str = str(key_content).strip()
 
@@ -348,7 +348,7 @@ def get_key_fingerprint_sha256(
 
         # Parse key again to get public key bytes for SHA256
         if isinstance(key_content, (bytes, memoryview)):
-            key_content = key_content.decode("utf-8", errors="ignore")
+            key_content = bytes(key_content).decode("utf-8", errors="ignore")
 
         key_content_str = str(key_content).strip()
 

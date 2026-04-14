@@ -7,7 +7,7 @@ import json
 import logging
 import time
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict
 
 from sqlalchemy import text
@@ -65,7 +65,7 @@ async def deliver_webhook(
                     "event_type": event_data.get("event_type", "unknown"),
                     "event_data": json.dumps(event_data),
                     "delivery_status": "pending",
-                    "created_at": datetime.utcnow(),
+                    "created_at": datetime.now(timezone.utc),
                 },
             )
             db.commit()
@@ -117,7 +117,7 @@ async def deliver_webhook(
                     "id": delivery_id,
                     "status_code": response.status_code,
                     "response_body": response.text[:1000],  # Truncate long responses
-                    "delivered_at": datetime.utcnow(),
+                    "delivered_at": datetime.now(timezone.utc),
                 },
             )
             db.commit()
@@ -171,10 +171,8 @@ async def deliver_webhook(
 
 
 def send_scan_completed_webhook(scan_id: str, scan_data: Dict[str, Any]):
-    """Send scan.completed webhook to all registered endpoints via Celery."""
+    """Send scan.completed webhook to all registered endpoints."""
     try:
-        from .background_tasks import deliver_webhook_celery
-
         # Get active webhook endpoints that listen for scan.completed events
         db = next(get_db())
         try:
@@ -198,10 +196,13 @@ def send_scan_completed_webhook(scan_id: str, scan_data: Dict[str, Any]):
         # Create standardized event payload
         event_data = create_scan_completed_payload(scan_id, scan_data)
 
-        # Dispatch each delivery via Celery
+        # Dispatch each delivery via job queue
+        from app.services.job_queue.dispatch import enqueue_task
+
         for webhook in webhooks:
             try:
-                deliver_webhook_celery.delay(
+                enqueue_task(
+                    "app.tasks.deliver_webhook",
                     url=webhook.url,
                     secret_hash=webhook.secret_hash,
                     event_data=event_data,
@@ -215,10 +216,8 @@ def send_scan_completed_webhook(scan_id: str, scan_data: Dict[str, Any]):
 
 
 def send_scan_failed_webhook(scan_id: str, scan_data: Dict[str, Any], error_message: str):
-    """Send scan.failed webhook to all registered endpoints via Celery."""
+    """Send scan.failed webhook to all registered endpoints."""
     try:
-        from .background_tasks import deliver_webhook_celery
-
         # Get active webhook endpoints that listen for scan.failed events
         db = next(get_db())
         try:
@@ -242,10 +241,13 @@ def send_scan_failed_webhook(scan_id: str, scan_data: Dict[str, Any], error_mess
         # Create standardized event payload
         event_data = create_scan_failed_payload(scan_id, scan_data, error_message)
 
-        # Dispatch each delivery via Celery
+        # Dispatch each delivery via job queue
+        from app.services.job_queue.dispatch import enqueue_task as _enqueue_webhook
+
         for webhook in webhooks:
             try:
-                deliver_webhook_celery.delay(
+                _enqueue_webhook(
+                    "app.tasks.deliver_webhook",
                     url=webhook.url,
                     secret_hash=webhook.secret_hash,
                     event_data=event_data,

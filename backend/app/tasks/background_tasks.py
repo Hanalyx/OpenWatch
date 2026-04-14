@@ -14,8 +14,6 @@ import logging
 from typing import Any, Dict, List
 from uuid import UUID
 
-from app.celery_app import celery_app
-
 logger = logging.getLogger(__name__)
 
 
@@ -33,11 +31,6 @@ def _run_async(coro):
 # ---------------------------------------------------------------------------
 
 
-@celery_app.task(
-    name="app.tasks.enrich_scan_results",
-    time_limit=600,
-    soft_time_limit=540,
-)
 def enrich_scan_results_celery(
     scan_id: str,
     result_file: str,
@@ -88,11 +81,6 @@ def enrich_scan_results_celery(
 # ---------------------------------------------------------------------------
 
 
-@celery_app.task(
-    name="app.tasks.execute_remediation_legacy",
-    time_limit=3600,
-    soft_time_limit=3300,
-)
 def execute_remediation_celery(
     job_id: str,
     provider: str,
@@ -133,12 +121,6 @@ def execute_remediation_celery(
 # ---------------------------------------------------------------------------
 
 
-@celery_app.task(
-    bind=True,
-    name="app.tasks.import_scap_content",
-    time_limit=60,
-    soft_time_limit=30,
-)
 def import_scap_content_celery(
     self,
     import_id: str,
@@ -177,13 +159,6 @@ def import_scap_content_celery(
 # ---------------------------------------------------------------------------
 
 
-@celery_app.task(
-    name="app.tasks.deliver_webhook",
-    time_limit=120,
-    soft_time_limit=90,
-    max_retries=3,
-    default_retry_delay=30,
-)
 def deliver_webhook_celery(
     url: str,
     secret_hash: str,
@@ -202,11 +177,6 @@ def deliver_webhook_celery(
 # ---------------------------------------------------------------------------
 
 
-@celery_app.task(
-    name="app.tasks.execute_host_discovery",
-    time_limit=300,
-    soft_time_limit=240,
-)
 def execute_host_discovery_celery(host_id: str) -> None:
     """Discover basic system information for a host."""
     try:

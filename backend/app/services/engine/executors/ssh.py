@@ -41,9 +41,9 @@ Security Notes:
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import TYPE_CHECKING, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 import paramiko
 from sqlalchemy.orm import Session
@@ -149,8 +149,8 @@ class SSHExecutor(BaseExecutor):
         context: ExecutionContext,
         content_path: Path,
         profile_id: str,
-        credential_data: Optional[object] = None,
-        dependencies: Optional[List[object]] = None,
+        credential_data: Optional[Any] = None,
+        dependencies: Optional[List[Any]] = None,
     ) -> RemoteScanResult:
         """
         Execute SCAP scan on remote host via SSH.
@@ -181,7 +181,7 @@ class SSHExecutor(BaseExecutor):
             ScanExecutionError: If oscap execution fails.
         """
         self.log_execution_start(context)
-        start_time = datetime.utcnow()
+        start_time = datetime.now(timezone.utc)
 
         # Validate credentials are provided
         if credential_data is None:
@@ -232,7 +232,7 @@ class SSHExecutor(BaseExecutor):
             self._logger.debug("Preserved remote directory for inspection: %s", remote_dir)
 
             # Calculate execution time
-            end_time = datetime.utcnow()
+            end_time = datetime.now(timezone.utc)
             execution_time = (end_time - start_time).total_seconds()
 
             # Build successful result
@@ -674,7 +674,7 @@ class SSHExecutor(BaseExecutor):
         Returns:
             RemoteScanResult with failure status.
         """
-        end_time = datetime.utcnow()
+        end_time = datetime.now(timezone.utc)
         execution_time = (end_time - start_time).total_seconds()
 
         return RemoteScanResult(

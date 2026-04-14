@@ -64,7 +64,7 @@ import errno
 import io
 import logging
 import socket
-from datetime import datetime
+from datetime import datetime, timezone
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any, Dict, Optional
 
@@ -146,7 +146,7 @@ class SSHConnectionManager:
         self.client: Optional[SSHClient] = None
         self.current_host: Optional[Any] = None
         self._debug_mode = False
-        self._config_manager = None
+        self._config_manager: Any = None
 
     def _get_config_manager(self) -> Any:
         """
@@ -253,7 +253,7 @@ class SSHConnectionManager:
             ...     service_name="scan"
             ... )
         """
-        start_time = datetime.utcnow()
+        start_time = datetime.now(timezone.utc)
         client = None
         auth_method_used = None
 
@@ -357,7 +357,7 @@ class SSHConnectionManager:
             host_key_fingerprint = host_key.get_fingerprint().hex() if host_key else None
 
             # Log successful connection (without credentials)
-            duration = (datetime.utcnow() - start_time).total_seconds()
+            duration = (datetime.now(timezone.utc) - start_time).total_seconds()
             logger.info(
                 "SSH connection successful: %s -> %s@%s:%d " "(auth: %s, duration: %.2fs)",
                 service_name,
@@ -679,7 +679,7 @@ class SSHConnectionManager:
             >>> if result.success:
             ...     print(f"OSCAP version: {result.stdout}")
         """
-        start_time = datetime.utcnow()
+        start_time = datetime.now(timezone.utc)
         command_timeout = timeout or 300  # 5 minute default for long operations
 
         try:
@@ -691,7 +691,7 @@ class SSHConnectionManager:
             stderr_data = stderr.read().decode("utf-8", errors="replace").strip()
             exit_code = stdout.channel.recv_exit_status()
 
-            duration = (datetime.utcnow() - start_time).total_seconds()
+            duration = (datetime.now(timezone.utc) - start_time).total_seconds()
 
             return SSHCommandResult(
                 success=exit_code == 0,
@@ -743,7 +743,9 @@ class SSHConnectionManager:
         def _execute_sync() -> Any:
             """Synchronous SSH execution in thread pool."""
             temp_client = paramiko.SSHClient()
-            temp_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            # Use configurable host key policy from SSHConfigManager
+            config_manager = self._get_config_manager()
+            config_manager.configure_ssh_client(temp_client, getattr(host, "ip_address", None) or host.hostname)
 
             try:
                 # Build connection parameters
@@ -933,11 +935,65 @@ class SSHConnectionManager:
         finally:
             # Always close the SSH connection
             try:
-                ssh.close()
+                if ssh is not None:
+                    ssh.close()
             except Exception as e:
                 logger.debug("Error closing SSH connection to %s: %s", hostname, e)
 
         return results
+
+    # ------------------------------------------------------------------
+    # Compatibility methods for discovery modules that use a simplified
+    # connect/execute_command/disconnect API.
+    # ------------------------------------------------------------------
+
+    def connect(self, host: Any) -> bool:
+        """Connect to a host using stored credentials (discovery compat).
+
+        Args:
+            host: Host model with hostname/ip_address and port attributes.
+
+        Returns:
+            True if a connection was established, False otherwise.
+        """
+        try:
+            hostname = getattr(host, "ip_address", None) or getattr(host, "hostname", "")
+            port = getattr(host, "port", 22) or 22
+            ssh = SSHClient()
+            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            ssh.connect(hostname, port=port, timeout=30)
+            self.client = ssh
+            self.current_host = host
+            return True
+        except Exception as exc:
+            logger.error("Discovery connect failed for %s: %s", getattr(host, "hostname", "?"), exc)
+            return False
+
+    def disconnect(self) -> None:
+        """Close the current SSH connection (discovery compat)."""
+        if self.client is not None:
+            try:
+                self.client.close()
+            except Exception:
+                pass
+            self.client = None
+            self.current_host = None
+
+    def execute_command(self, command: str, timeout: int = 30) -> Dict[str, Any]:
+        """Execute a command on the current connection (discovery compat).
+
+        Returns a dict with ``success``, ``stdout``, ``stderr``, and
+        ``exit_code`` keys for compatibility with discovery modules.
+        """
+        if self.client is None:
+            return {"success": False, "stdout": "", "stderr": "No active connection", "exit_code": -1}
+        result = self.execute_command_advanced(self.client, command, timeout=timeout)
+        return {
+            "success": result.success,
+            "stdout": result.stdout or "",
+            "stderr": result.stderr or "",
+            "exit_code": result.exit_code,
+        }
 
 
 __all__ = [

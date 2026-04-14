@@ -39,7 +39,7 @@ import { COMPLIANCE_THRESHOLDS } from '../constants/compliance';
  * - online: CheckCircle (green) - Fully operational
  * - offline: HighlightOff (red) - Completely unreachable
  * - maintenance: Build (yellow) - Scheduled maintenance
- * - scanning: Scanner (blue) - SCAP scan in progress
+ * - scanning: Scanner (blue) - Compliance scan in progress
  * - reachable: Warning (orange) - Ping works, SSH failed
  * - ping_only: NetworkCheck (gray) - Ping works, port 22 closed
  * - error: ErrorIcon (red) - Status check error
@@ -226,7 +226,7 @@ export function isHealthyStatus(status: HostStatus): boolean {
  * Determine if host status indicates a connectivity problem.
  *
  * Connectivity problems include offline, ping-only, reachable (SSH failed),
- * and error states. These statuses prevent successful SCAP scans.
+ * and error states. These statuses prevent successful compliance scans.
  *
  * @param status - Host status enum value
  * @returns True if host has connectivity issues, false otherwise

@@ -3,7 +3,7 @@ Group Compliance Scanning Schemas
 Pydantic models for group compliance scanning API requests and responses
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
@@ -90,7 +90,7 @@ class GroupComplianceScanResponse(BaseModel):
     estimated_completion: datetime = Field(..., description="Estimated completion time")
     compliance_framework: Optional[str] = Field(..., description="Target compliance framework")
     profile_id: Optional[str] = Field(..., description="Compliance profile being used")
-    scan_started_at: datetime = Field(default_factory=datetime.utcnow)
+    scan_started_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class HostComplianceSummary(BaseModel):

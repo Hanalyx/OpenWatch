@@ -1,11 +1,11 @@
 spec: host-detail-behavior
-version: "1.1"
+version: "1.2"
 status: active
 owner: engineering
 summary: >
   The Host Detail page MUST NOT contain manual scan buttons. It MUST
   display 6 summary cards (Compliance, System Health, Auto-Scan,
-  Exceptions, Alerts, Connectivity) and 10 tabs. Each tab MUST fetch
+  Exceptions, Alerts, Connectivity) and 11 tabs. Each tab MUST fetch
   data independently. Cards MUST show graceful no-data states when
   data is unavailable.
 
@@ -73,10 +73,10 @@ acceptance_criteria:
 
   - id: AC-5
     description: >
-      The page MUST have exactly 10 tabs: Overview, Compliance,
+      The page MUST have exactly 11 tabs: Overview, Compliance,
       Packages, Services, Users, Network, Audit Log, History,
-      Remediation, and Terminal. Tabs MUST be rendered in a scrollable
-      tab bar.
+      Audit Timeline, Remediation, and Terminal. Tabs MUST be rendered
+      in a scrollable tab bar.
 
   - id: AC-6
     description: >
@@ -118,11 +118,22 @@ acceptance_criteria:
       page. The HostDetail index.tsx source MUST NOT import Container
       from @mui/material.
 
+  - id: AC-12
+    description: >
+      HostDetail page includes an "Audit Timeline" tab showing
+      reverse-chronological transactions for the host with filter
+      and export controls.
+
 ---
 
 # Changelog
 
 changelog:
+  - version: "1.2"
+    date: "2026-04-11"
+    changes:
+      - "AC-5 updated: tab count increased from 10 to 11 (added Audit Timeline)"
+      - "AC-12 added: Audit Timeline tab with reverse-chronological transactions, filters, and export"
   - version: "1.1"
     date: "2026-03-07"
     changes:

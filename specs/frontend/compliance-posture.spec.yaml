@@ -1,0 +1,20 @@
+spec: compliance-posture
+version: "1.0"
+status: active
+owner: engineering
+summary: >
+  Temporal compliance posture page for point-in-time queries and drift visualization.
+
+acceptance_criteria:
+  - id: AC-1
+    description: Posture page shows compliance score percentage.
+  - id: AC-2
+    description: Point-in-time query supports date selection.
+  - id: AC-3
+    description: Drift visualization shows score changes over time.
+  - id: AC-4
+    description: Host filtering available for posture view.
+  - id: AC-5
+    description: Framework selection for posture view.
+  - id: AC-6
+    description: Posture data fetched via compliance posture API endpoint.

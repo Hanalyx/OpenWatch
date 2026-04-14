@@ -1,0 +1,21 @@
+spec: system-health
+version: "1.0"
+status: active
+owner: engineering
+summary: >
+  System health check API endpoints for database, Redis, and overall
+  service health monitoring with no authentication requirement.
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      Health endpoint returns database connectivity status.
+  - id: AC-2
+    description: >
+      Health endpoint returns Redis connectivity status.
+  - id: AC-3
+    description: >
+      Health response includes overall status (healthy/degraded/unhealthy).
+  - id: AC-4
+    description: >
+      Health endpoint requires no authentication.

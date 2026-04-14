@@ -83,6 +83,9 @@ class OpenWatchCredentialProvider:
         except CredentialNotFoundError:
             raise RuntimeError(f"No SSH credentials for host: {hostname}")
 
+        if credential is None:
+            raise RuntimeError(f"No SSH credentials resolved for host: {hostname}")
+
         # CredentialData.private_key is already decrypted by auth service
         return {
             "hostname": str(hostname),

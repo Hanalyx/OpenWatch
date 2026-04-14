@@ -41,9 +41,10 @@ test.describe('Navigation', () => {
     const dashboard = new DashboardPage(page);
     await page.goto('/');
     await page.waitForLoadState('networkidle');
+    // Q1: "Scans" nav renamed to "Transactions" with route /transactions
     await dashboard.navigateTo('scans');
 
-    await expect(page).toHaveURL(/\/scans/);
+    await expect(page).toHaveURL(/\/transactions/);
   });
 
   test('SCAP content page loads from navigation', async ({ authenticatedPage }) => {

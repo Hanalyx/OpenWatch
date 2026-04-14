@@ -3,7 +3,7 @@ OpenWatch Error Models
 Provides both internal (with technical details) and sanitized (user-safe) error models
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
@@ -69,7 +69,7 @@ class ScanErrorInternal(BaseModel):
     can_retry: bool = False
     retry_after: Optional[int] = Field(default=None, description="Retry after seconds")
     documentation_url: str = ""
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class ScanErrorResponse(BaseModel):
@@ -84,7 +84,7 @@ class ScanErrorResponse(BaseModel):
     can_retry: bool = False
     retry_after: Optional[int] = Field(default=None, description="Retry after seconds")
     documentation_url: str = ""
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class ValidationResultInternal(BaseModel):
@@ -129,7 +129,7 @@ class RateLimitResponse(BaseModel):
 class SecurityAuditLog(BaseModel):
     """Security audit log entry (server-side only)"""
 
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     event_type: str
     error_code: str
     user_id: Optional[str] = None

@@ -1,0 +1,44 @@
+spec: alert-routing
+version: "1.0"
+status: active
+owner: engineering
+summary: >
+  Workstream I2: Alert routing rules engine for dispatching compliance alerts
+  to configured channels based on severity and alert type. Supports fan-out
+  to multiple channels per alert, PagerDuty integration via Events API v2,
+  admin CRUD for routing rules, and a default fallback rule when no specific
+  rules match.
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      alert_routing_rules table exists with severity, alert_type,
+      channel_type, channel_config columns.
+
+  - id: AC-2
+    description: >
+      AlertService dispatches to channels matching the routing rule for the
+      alert's severity and type.
+
+  - id: AC-3
+    description: >
+      Multiple routing rules can match a single alert (fan-out).
+
+  - id: AC-4
+    description: >
+      PagerDuty channel creates incidents via PagerDuty Events API v2.
+
+  - id: AC-5
+    description: >
+      Routing rules are manageable via admin API (CRUD).
+
+  - id: AC-6
+    description: >
+      Default routing rule applies when no specific rules match.
+
+changelog:
+  - version: "1.0"
+    date: "2026-04-11"
+    changes:
+      - "Initial draft created during Q2 planning"
+      - "6 ACs covering table schema, dispatch, fan-out, PagerDuty, admin API, defaults"

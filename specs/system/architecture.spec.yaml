@@ -16,12 +16,26 @@
 
 spec: system-architecture
 version: "1.0"
-status: draft
+status: active
 owner: engineering
 summary: >
   Describes the OpenWatch system architecture: tech stack, deployment topology,
   service boundaries, database design, and infrastructure components.
   Archaeology-derived from existing codebase (2026-02-28).
+
+acceptance_criteria:
+  - id: AC-1
+    description: All route handlers use RBAC decorators (require_role or require_permission).
+  - id: AC-2
+    description: All SQLAlchemy models use UUID primary keys (not integer).
+  - id: AC-3
+    description: All Celery tasks route to named queues.
+  - id: AC-4
+    description: Frontend uses Zustand (not Redux) for global state.
+  - id: AC-5
+    description: All API routes registered under /api prefix in main.py.
+  - id: AC-6
+    description: PostgreSQL is the sole database (no MongoDB references in active code).
 
 # ---------------------------------------------------------------------------
 # CONTEXT — What exists now

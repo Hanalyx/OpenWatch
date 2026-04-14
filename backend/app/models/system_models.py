@@ -5,7 +5,7 @@ Provides safe models for exposing only necessary system information while
 preventing reconnaissance attacks through detailed technical information exposure.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
@@ -30,7 +30,7 @@ class ComplianceSystemInfo(BaseModel):
 
     os_family: Optional[str] = None  # e.g., "linux", "windows" (generic)
     compliance_relevant_info: Dict[str, Any] = Field(default_factory=dict)
-    last_updated: datetime = Field(default_factory=datetime.utcnow)
+    last_updated: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     info_level: SystemInfoLevel = SystemInfoLevel.COMPLIANCE
 
     class Config:
@@ -84,7 +84,7 @@ class SystemInfoFilter(BaseModel):
 class SystemInfoMetadata(BaseModel):
     """Metadata about system information collection"""
 
-    collection_timestamp: datetime = Field(default_factory=datetime.utcnow)
+    collection_timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     collection_method: str = "ssh_command"
     sanitization_applied: bool = True
     sanitization_level: SystemInfoLevel = SystemInfoLevel.BASIC
@@ -98,7 +98,7 @@ class SanitizedSystemValidation(BaseModel):
     can_proceed: bool
     system_compatible: bool = True
     compliance_info: ComplianceSystemInfo
-    validation_timestamp: datetime = Field(default_factory=datetime.utcnow)
+    validation_timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     metadata: SystemInfoMetadata
     # No technical_details field - removed for security
 
@@ -117,7 +117,7 @@ class SystemInfoAuditEvent(BaseModel):
     """Audit event for system information access"""
 
     event_id: str
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     user_id: Optional[str] = None
     source_ip: Optional[str] = None
     requested_level: SystemInfoLevel
@@ -139,7 +139,12 @@ class SystemSettings(Base):  # type: ignore[valid-type, misc]
     setting_type = Column(String(20), default="string", nullable=False)  # string, json, boolean, integer
     description = Column(Text, nullable=True)
     created_by = Column(Integer, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     modified_by = Column(Integer, nullable=True)
-    modified_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    modified_at = Column(
+        DateTime,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
     is_secure = Column(Boolean, default=False, nullable=False)  # Encrypt sensitive values

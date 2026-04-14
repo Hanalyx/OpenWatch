@@ -3,7 +3,7 @@
 > **Purpose**: Single source of truth for all pending work items, prioritized and actionable.
 > Updated at the end of each AI session. Items flow in from PRD epics, bug reports, and session discoveries.
 
-**Last Updated**: 2026-03-07
+**Last Updated**: 2026-03-27
 
 ---
 
@@ -57,10 +57,22 @@
 
 ---
 
-## Recently Completed (2026-03-07)
+## Recently Completed (2026-03-27)
 
 | Item | PR | Notes |
 |------|----|-------|
+| Alpha 0.1.0-alpha.1 release prep | - | 80 specs active, 682 ACs, 44% coverage, RBAC enforced |
+| Dead SCAP-era code deletion | - | ~31K lines removed (content/, xccdf/, owscan, kubernetes scanner, legacy services) |
+| RBAC enforcement audit | - | 188 endpoints across 26 route files |
+| datetime.utcnow() migration | - | 381 occurrences across 98 files replaced with timezone-aware calls |
+| CSP hardening | - | Removed unsafe-inline from script-src |
+| Absolute session timeout | - | 12-hour cap enforced in token verification and refresh |
+| mypy error cleanup | - | 584 to 0 locally |
+| Integration tests | - | 21 test files exercising 284 API endpoints |
+| Documentation stale reference cleanup | - | CLAUDE.md, backend/CLAUDE.md, context/ files updated |
+| Project manifest (.openwatch.yml) | - | Machine-readable single source of truth |
+| requirements-dev.txt | - | CI tool versions pinned |
+| Makefile Python targets | - | py-lint, py-format, py-test, py-coverage, py-specs, py-check |
 | Role-based dashboards | #349 | Widget registry, 6 role presets, 15 ACs, 64 tests |
 | Redux full removal (Phase 8B) | #340 | Packages uninstalled, store/index.ts deleted, hooks/redux.ts deleted, Provider removed |
 | Host monitoring state bug fix | #337 | Spec v1.1 AC-11: graceful handling of stale 'offline' DB values; MonitoringState uses 6-value enum by design |
@@ -86,8 +98,8 @@ These items were deferred when their parent epics were marked "Complete" with ba
 
 | ID | Item | Priority | Source | Notes |
 |----|------|----------|--------|-------|
-| E5-G1 | Raise backend coverage to 80% | P2 | E5 | Currently 32%, CI threshold 31% |
-| E5-G2 | Raise frontend coverage to 60% | P2 | E5 | Currently 1.5%, 88 tests |
+| E5-G1 | Raise backend coverage to 80% | P2 | E5 | Currently 44%, CI threshold 42% |
+| E5-G2 | Raise frontend coverage to 60% | P2 | E5 | Currently 310+ tests |
 | E5-G3 | JWT token tests | P1 | E5-S2 | **Satisfied by SDD**: `test_auth_api.py` covers JWT (AC-5..AC-9 in auth/login spec) |
 | E5-G4 | Credential encryption tests | P1 | E5-S3 | **Satisfied by SDD**: `test_auth_api.py` + auth/encryption specs cover key behaviors |
 | E5-G5 | Scan integration tests | P1 | E5-S4 | **Satisfied by SDD**: `test_scan_api.py` (36 source-inspection tests, 10/10 ACs) |
@@ -102,7 +114,7 @@ Items from the OpenWatch OS transformation initiative that are not yet complete.
 
 | Item | Priority | Status | Notes |
 |------|----------|--------|-------|
-| **RBAC enforcement audit** | P1 | Planned | Verify complete, auditable permission matrix per `specs/system/authorization.spec.yaml`. Ensure every route, UI element, and data query respects role permissions. Users must only see/access what their role permits. Audit gaps between spec and implementation. |
+| **RBAC enforcement audit** | P1 | **Complete** | 188 endpoints across 26 route files now have @require_role() decorators. Verified against authorization spec. |
 | Adaptive Compliance Scheduler | P1 | Planned | Auto-scan with state-based intervals (max 48h). Monitoring spec/fix complete — no longer blocked. |
 | Host Detail Page Redesign | P1 | In Progress | Phase 0 done (backend data fix), Phases 1-6 pending |
 | **Email alert notifications** | P1 | Planned | Allow OpenWatch to send email alerts (SMTP/SES). Users configure which alert types they receive (compliance drift, scan failures, exceptions expiring, host state changes). RBAC-gated: users only receive alerts for resources their role can access. Needs: email service, user notification preferences table, alert-to-email dispatcher, unsubscribe support. |
@@ -166,6 +178,7 @@ Items from `docs/OW_SECURITY_ASSESSMENT.md` that require careful sequencing due 
 
 | Item | Priority | Status | Notes |
 |------|----------|--------|-------|
+| Fix 9 pre-existing test failures | P1 | Open | Spec-code drift: MFA admin endpoints, X-Forwarded-For handling |
 | "OpenSCAP" text in 4 frontend files | P2 | Open | `PreFlightValidationDialog.tsx:170`, `ScanMetricsCards.tsx:53`, `ReviewStartStep.tsx:126`, `scanUtils.ts:237,240` — should reference Kensa |
 | Settings: placeholder compliance frameworks list | P2 | Open | `Settings.tsx:~1014-1028` — hardcoded framework table, not fetched from backend |
 | Settings: logging policy placeholder | P2 | Open | `Settings.tsx:~998-1028` — audit logging section has placeholder content |
@@ -177,8 +190,24 @@ Items from `docs/OW_SECURITY_ASSESSMENT.md` that require careful sequencing due 
 
 | Item | Priority | Notes |
 |------|----------|-------|
-| Dead SCAP-era frontend components | P2 | 3 dead files calling non-existent MongoDB endpoints: `GroupComplianceScanner.tsx`, `BulkConfigurationDialog.tsx`, `GroupCompatibilityReport.tsx`. Reference `scap_content_id`, `content_name` etc. Should be deleted. |
+| Remove XCCDF/lxml dependency from OWCA | P2 | `owca/extraction/xccdf_parser.py` imports lxml at module level via `owca/__init__.py`. Legacy OpenSCAP path — Kensa doesn't use XCCDF. Refactor to make import conditional or remove XCCDF parser from OWCA init. Blocks removing lxml from requirements.txt. |
 | Snake_case to camelCase scattered transformation | P2 | No centralized adapters (Rule Reference has one, others don't) |
+| Liveness ping port detection | P2 | `liveness_tasks.py` defaults to port 22. Hosts on non-standard SSH ports show as unreachable. Read port from host credential config. |
+| Compliance-as-Code API | P3 | External tool integration for compliance checks |
+
+## Q1 Completed (2026-04-11 to 2026-04-13)
+
+| Item | Notes |
+|------|-------|
+| Transaction log (write-on-change model) | `transactions` + `host_rule_state` tables, 99.7% write reduction |
+| Host liveness monitoring | TCP ping every 5 min, HOST_UNREACHABLE/RECOVERED alerts |
+| Notification channels | Slack, email, webhook dispatch + admin CRUD |
+| SSO federation | OIDC (authlib) + SAML (pysaml2), login/callback routes |
+| PostgreSQL job queue | Replaces Celery + Redis (SKIP LOCKED, 40 tasks, scheduler) |
+| Dependency cleanup | 13 packages removed, Chart.js removed from frontend |
+| Redis + Celery removed | Zero Redis/Celery in codebase, 4 containers (down from 6) |
+| FreeBSD 15.0 packaging | Dockerfiles, docker-compose.freebsd.yml, rc.d scripts, pkg skeleton |
+| Rules-first transactions UI | `/transactions` → `/transactions/rule/:id` → `/transactions/:id` |
 
 ---
 

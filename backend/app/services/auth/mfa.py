@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
 from io import BytesIO
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import pyotp
 import qrcode
@@ -84,7 +84,7 @@ class MFAService:
         # Use SHA-256 for backup code hashing (FIPS approved)
         return hashlib.sha256(code.encode("utf-8")).hexdigest()
 
-    def generate_qr_code(self, username: str, secret: str) -> str:
+    def generate_qr_code(self, username: str, secret: str) -> Optional[str]:
         """Generate QR code for TOTP setup"""
         try:
             # Create TOTP URI
@@ -118,7 +118,7 @@ class MFAService:
         """Encrypt MFA secret for database storage"""
         try:
             encrypted = encrypt_data(secret.encode("utf-8"))
-            return encrypted
+            return encrypted.decode("utf-8") if isinstance(encrypted, bytes) else str(encrypted)
         except Exception as e:
             logger.error(f"Failed to encrypt MFA secret: {e}")
             raise
@@ -126,7 +126,9 @@ class MFAService:
     def decrypt_mfa_secret(self, encrypted_secret: str) -> str:
         """Decrypt MFA secret from database"""
         try:
-            decrypted_bytes = decrypt_data(encrypted_secret)
+            decrypted_bytes = decrypt_data(
+                encrypted_secret.encode("utf-8") if isinstance(encrypted_secret, str) else encrypted_secret
+            )
             return decrypted_bytes.decode("utf-8")
         except Exception as e:
             logger.error(f"Failed to decrypt MFA secret: {e}")
@@ -172,7 +174,7 @@ class MFAService:
             logger.error(f"TOTP validation error: {e}")
             return False
 
-    def validate_backup_code(self, hashed_backup_codes: List[str], user_code: str) -> Tuple[bool, str]:
+    def validate_backup_code(self, hashed_backup_codes: List[str], user_code: str) -> Tuple[bool, Optional[str]]:
         """
         Validate backup code against stored hashes
 
@@ -296,7 +298,7 @@ class MFAService:
             )
             raise
 
-    def get_mfa_status(self, user_data: Dict) -> Dict[str, any]:
+    def get_mfa_status(self, user_data: Dict[str, Any]) -> Dict[str, Any]:
         """
         Get user's MFA status and capabilities
 

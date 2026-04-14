@@ -20,7 +20,7 @@ Design by Emily (Security Engineer) & Implementation by Daniel (Backend Engineer
 import json
 import logging
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 from fastapi import Request, Response, status
@@ -216,8 +216,8 @@ class AuthorizationMiddleware(BaseHTTPMiddleware):
             authorization_result = await self._perform_authorization_check(
                 current_user["id"],
                 resources,
-                endpoint_config["action"],
-                endpoint_config["bulk"],
+                ActionType(endpoint_config["action"]),
+                bool(endpoint_config["bulk"]),
                 auth_context,
             )
 
@@ -569,22 +569,14 @@ class AuthorizationMiddleware(BaseHTTPMiddleware):
 
     def _get_client_ip(self, request: Request) -> str:
         """
-        Get client IP address from request
+        Get client IP address from request.
+
+        Only trusts X-Forwarded-For when the direct client is a known proxy
+        to prevent IP spoofing via forged headers.
         """
-        # Check for forwarded headers first (behind proxy)
-        forwarded_for = request.headers.get("x-forwarded-for")
-        if forwarded_for:
-            return forwarded_for.split(",")[0].strip()
+        from ..utils.trusted_proxies import get_client_ip
 
-        real_ip = request.headers.get("x-real-ip")
-        if real_ip:
-            return real_ip
-
-        # Fallback to client IP
-        if hasattr(request, "client") and request.client:
-            return request.client.host
-
-        return "unknown"
+        return get_client_ip(request)
 
     async def _perform_authorization_check(
         self,
@@ -660,7 +652,7 @@ class AuthorizationMiddleware(BaseHTTPMiddleware):
             content={
                 "error": message,
                 "path": path,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "type": "authorization_error",
             },
         )
@@ -688,7 +680,7 @@ class AuthorizationMiddleware(BaseHTTPMiddleware):
                 "message": f"Access denied to {len(auth_result.denied_resources)} resource(s)",
                 "denied_resources": denied_resources,
                 "path": path,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "type": "authorization_denied",
             },
         )

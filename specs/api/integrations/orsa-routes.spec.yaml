@@ -1,0 +1,24 @@
+spec: orsa-routes
+version: "1.0"
+status: active
+owner: engineering
+summary: >
+  ORSA v2.0 integration API routes for plugin registry, health checks,
+  capability queries, and rule browsing.
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      List plugins endpoint returns all registered ORSA plugins.
+  - id: AC-2
+    description: >
+      Plugin health check endpoint validates plugin status.
+  - id: AC-3
+    description: >
+      Get plugin by ID returns plugin details and metadata.
+  - id: AC-4
+    description: >
+      Get plugin capabilities returns capability list.
+  - id: AC-5
+    description: >
+      Get plugin rules returns paginated rule list with framework filter.

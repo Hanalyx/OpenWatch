@@ -1,0 +1,41 @@
+spec: audit-events
+version: "1.0"
+status: active
+owner: engineering
+summary: >
+  Admin audit event API endpoints for viewing audit logs and statistics.
+  Uses manual RBAC via RBACManager.can_access_resource for permission checks,
+  QueryBuilder with LEFT JOIN for event queries, InsertBuilder for log
+  creation, and raw SQL with CASE expressions for statistics (documented
+  exception to the builder pattern).
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      Get audit events requires audit:read permission checked via
+      RBACManager.can_access_resource(user_role, "audit", "read"). Returns
+      HTTP 403 if the user lacks this permission.
+
+  - id: AC-2
+    description: >
+      Audit events support filtering by search (ILIKE across action, details,
+      ip_address, username), action, resource_type, user, and date range
+      (date_from, date_to) query parameters.
+
+  - id: AC-3
+    description: >
+      Audit events query uses QueryBuilder("audit_logs al") with a LEFT JOIN
+      to the users table (join("users u", "al.user_id = u.id", "LEFT")) for
+      username resolution.
+
+  - id: AC-4
+    description: >
+      Audit stats endpoint uses raw SQL with CASE expressions for
+      categorizing events (login_attempts, failed_logins, scan_operations,
+      admin_actions, security_events). This is a documented exception to
+      the QueryBuilder-only pattern.
+
+  - id: AC-5
+    description: >
+      Create audit log endpoint uses InsertBuilder("audit_logs") with
+      parameterized columns and values for type-safe insertion.

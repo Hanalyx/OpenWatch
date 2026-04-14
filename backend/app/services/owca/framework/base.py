@@ -9,7 +9,7 @@ Security: All database queries use QueryBuilder for SQL injection protection.
 
 import logging
 from abc import ABC, abstractmethod
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from sqlalchemy.orm import Session
 
@@ -55,7 +55,7 @@ class BaseFrameworkIntelligence(ABC):
         """
 
     @abstractmethod
-    async def analyze_host_compliance(self, host_id: str, scan_results: Optional[Dict] = None) -> Dict:
+    async def analyze_host_compliance(self, host_id: str, scan_results: Optional[Dict] = None) -> Any:
         """
         Analyze host compliance using framework-specific intelligence.
 
@@ -80,7 +80,7 @@ class BaseFrameworkIntelligence(ABC):
         """
 
     @abstractmethod
-    async def get_framework_summary(self, scan_results: Dict) -> Dict:
+    async def get_framework_summary(self, scan_results: Dict) -> Any:
         """
         Generate framework-specific summary from scan results.
 

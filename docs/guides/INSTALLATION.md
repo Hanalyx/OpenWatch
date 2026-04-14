@@ -192,10 +192,26 @@ systemctl --user enable --now podman.socket
 
 ---
 
-## Option C: RPM Packages (Bare Metal)
+## Option C: RPM Packages (Native / Bare Metal)
 
-RPM packages are available for RHEL 9 and compatible distributions. This method
-installs OpenWatch directly on the host without containers.
+RPM packages install OpenWatch directly on the host via systemd -- no Docker or
+Podman required. Designed for air-gapped, FedRAMP, and DoD environments.
+
+**Supported distributions**: RHEL 8/9, Rocky Linux, AlmaLinux, Oracle Linux,
+CentOS Stream 9.
+
+### What the RPM installs
+
+| Path | Contents |
+|------|----------|
+| `/usr/bin/owadm` | Admin CLI |
+| `/opt/openwatch/backend/` | FastAPI application, requirements.txt |
+| `/opt/openwatch/frontend/` | Pre-built React SPA |
+| `/opt/openwatch/backend/kensa/` | 508 Kensa compliance rules + mappings (bundled) |
+| `/etc/openwatch/` | Configuration (ow.yml, secrets.env, logging.yml) |
+| `/lib/systemd/system/` | Service units (api, worker, beat, target) |
+| `/etc/nginx/conf.d/openwatch.conf` | Reverse proxy configuration |
+| `/usr/share/openwatch/scripts/` | generate-secrets.sh, setup-database.sh |
 
 ### 1. Install External Dependencies
 
@@ -206,76 +222,184 @@ sudo dnf install -y postgresql-server postgresql-contrib
 sudo postgresql-setup --initdb
 sudo systemctl enable --now postgresql
 
-# Redis 7
+# Redis
 sudo dnf install -y redis
 sudo systemctl enable --now redis
-```
 
-### 2. Install Python 3.12
-
-```bash
+# Python 3.12
 sudo dnf install -y python3.12 python3.12-pip python3.12-devel
+
+# Nginx
+sudo dnf install -y nginx
+sudo systemctl enable nginx
 ```
 
-### 3. Install OpenWatch RPM Packages
+Configure PostgreSQL to accept password authentication for the `openwatch` user.
+Edit `/var/lib/pgsql/data/pg_hba.conf` and add (before any existing `host`
+lines):
 
-Build or obtain the RPM packages from `packaging/rpm/`:
+```
+# OpenWatch
+host    openwatch    openwatch    127.0.0.1/32    scram-sha-256
+```
+
+Then reload:
 
 ```bash
-sudo rpm -ivh openwatch-<version>.rpm
+sudo systemctl reload postgresql
 ```
 
-### 4. Install Kensa (Compliance Engine)
+### 2. Install the RPM
 
-Kensa is installed via pip, not bundled with OpenWatch:
+Download the RPM from the [GitHub Releases](https://github.com/Hanalyx/openwatch/releases)
+page, or build it locally with `packaging/rpm/build-rpm.sh`.
 
 ```bash
-sudo python3.12 -m pip install kensa
+sudo dnf install -y ./openwatch-<version>.el9.x86_64.rpm
 ```
 
-Set the rules path in your environment or systemd unit file:
+The RPM post-install script automatically:
+- Creates the `openwatch` system user and group
+- Creates a Python 3.12 virtualenv at `/opt/openwatch/venv/`
+- Installs all Python dependencies from `requirements.txt`
+- Generates secrets if `secrets.env` still contains placeholder values
+- Installs the SELinux policy module (if SELinux is enabled)
+- Enables (but does not start) all systemd services
+
+Installation output is logged to `/var/log/openwatch/install.log`.
+
+### 3. Generate Secrets (if needed)
+
+The RPM runs this automatically on first install. To regenerate:
 
 ```bash
-export KENSA_RULES_PATH=/opt/openwatch/kensa-rules
+sudo /usr/share/openwatch/scripts/generate-secrets.sh
 ```
 
-### 5. Configure the Database
+This generates:
+- Random passwords for PostgreSQL and Redis
+- 64-character secret key and 32-character master/encryption keys
+- RSA-2048 JWT key pair (`jwt_private.pem`, `jwt_public.pem`)
+
+All secrets are written to `/etc/openwatch/secrets.env` (mode 600, owned by
+`openwatch`).
+
+### 4. Set Up the Database
 
 ```bash
-sudo -u postgres createuser openwatch
-sudo -u postgres createdb -O openwatch openwatch
+sudo /usr/share/openwatch/scripts/setup-database.sh
 ```
 
-Set `POSTGRES_PASSWORD` and configure `pg_hba.conf` to allow password
-authentication for the `openwatch` user.
+This script:
+1. Reads the generated password from `/etc/openwatch/secrets.env`
+2. Creates the `openwatch` PostgreSQL user and database
+3. Grants privileges
+4. Runs Alembic migrations (`alembic upgrade head`)
 
-### 6. Run Database Migrations
+### 5. Configure Redis Password
+
+Set the Redis password to match the generated value in `secrets.env`:
 
 ```bash
-cd /opt/openwatch/backend
-python3.12 -m alembic upgrade head
+# Read the generated password
+source /etc/openwatch/secrets.env
+echo "requirepass $OPENWATCH_REDIS_PASSWORD" | sudo tee -a /etc/redis/redis.conf
+sudo systemctl restart redis
 ```
 
-### 7. Configure Systemd Services
+### 6. Configure TLS (Production)
 
-Create unit files for the backend API, Celery worker, and Celery beat scheduler.
-Start and enable them:
+Place your TLS certificate and key in `/etc/openwatch/ssl/`:
 
 ```bash
-sudo systemctl enable --now openwatch-api
-sudo systemctl enable --now openwatch-worker
-sudo systemctl enable --now openwatch-beat
+sudo cp your-cert.pem /etc/openwatch/ssl/server.crt
+sudo cp your-key.pem /etc/openwatch/ssl/server.key
+sudo chown openwatch:openwatch /etc/openwatch/ssl/server.*
+sudo chmod 600 /etc/openwatch/ssl/server.key
 ```
 
-For the complete RPM installation walkthrough, see
-[Native RPM Installation](../architecture/NATIVE_RPM_INSTALLATION.md).
+Update the server name in `/etc/nginx/conf.d/openwatch.conf` and restart nginx:
+
+```bash
+sudo systemctl restart nginx
+```
+
+### 7. Start OpenWatch
+
+```bash
+sudo systemctl start openwatch.target
+```
+
+This brings up all services:
+
+| Unit | Purpose |
+|------|---------|
+| `openwatch-api` | FastAPI via uvicorn (127.0.0.1:8000, 4 workers) |
+| `openwatch-worker@1` | Celery worker (scans, results, compliance queues) |
+| `openwatch-beat` | Celery beat scheduler |
+
+Verify:
+
+```bash
+sudo systemctl status openwatch.target
+curl -s http://localhost:8000/health | python3 -m json.tool
+```
+
+### 8. Verify and Log In
+
+Open `https://<your-host>/` in a browser. Log in with the default credentials
+(`admin` / `admin`) and **change the password immediately**.
+
+### Service Management
+
+```bash
+# Start / stop all services
+sudo systemctl start openwatch.target
+sudo systemctl stop openwatch.target
+
+# View logs
+journalctl -u openwatch-api -f
+journalctl -u openwatch-worker@1 -f
+
+# Admin CLI
+owadm health              # Health check all components
+owadm validate-config     # Validate configuration
+owadm backup              # Create database + config backup
+```
+
+### Firewall
+
+```bash
+sudo firewall-cmd --permanent --add-service=https
+sudo firewall-cmd --permanent --add-service=http
+sudo firewall-cmd --reload
+```
+
+### Uninstalling
+
+```bash
+sudo dnf remove openwatch
+```
+
+Configuration (`/etc/openwatch/`), logs (`/var/log/openwatch/`), and the
+PostgreSQL database are preserved after removal. The post-uninstall message
+shows how to remove them completely.
 
 ---
 
-## Option D: Debian/Ubuntu Packages
+## Option D: Debian/Ubuntu Packages (DEB)
 
-Debian/Ubuntu package support is planned but not yet available. For Debian-based
-systems, use Docker (Option A) or install from source (Option E).
+DEB packages are available for Ubuntu 24.04. The installation flow mirrors
+the RPM method above. Download the `.deb` from
+[GitHub Releases](https://github.com/Hanalyx/openwatch/releases) and install:
+
+```bash
+sudo apt install -y ./openwatch_<version>_amd64.deb
+```
+
+The same helper scripts (`generate-secrets.sh`, `setup-database.sh`) and
+systemd services are included. Follow steps 1 and 3--8 from Option C, replacing
+`dnf` with `apt` for dependency installation.
 
 ---
 

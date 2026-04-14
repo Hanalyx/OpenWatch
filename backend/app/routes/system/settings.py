@@ -56,7 +56,7 @@ class SystemCredentialsUpdate(BaseModel):
 
 
 class SystemCredentialsResponse(SystemCredentialsBase):
-    id: int  # External ID (mapped from UUID)
+    id: Any  # External ID (mapped from UUID, may be str or int)
     is_active: bool
     created_at: str
     updated_at: str
@@ -584,29 +584,18 @@ class SchedulerUpdateRequest(BaseModel):
     interval_minutes: int
 
 
-# Global scheduler instance and settings
-_scheduler = None
+# Global scheduler settings (APScheduler removed; Celery Beat handles scheduling)
 _scheduler_interval = 15  # Default 15 minutes
 
 
 def get_scheduler() -> Any:
-    """Get or create the global scheduler instance.
+    """Get the global scheduler instance.
 
-    Note: APScheduler-based monitoring has been replaced by Celery Beat
-    (dispatch_host_checks every 30s). This function remains for backward
-    compatibility with the scheduler admin endpoints but will return None
-    if APScheduler is not installed.
+    APScheduler has been removed. Monitoring is handled by Celery Beat
+    (dispatch_host_checks every 30s). This function always returns None;
+    scheduler admin endpoints degrade to no-ops.
     """
-    global _scheduler
-    if _scheduler is None:
-        try:
-            from apscheduler.schedulers.background import BackgroundScheduler
-
-            _scheduler = BackgroundScheduler()
-        except ImportError:
-            logger.warning("APScheduler not available; scheduler endpoints are no-ops")
-            return None
-    return _scheduler
+    return None
 
 
 @router.get("/scheduler", response_model=SchedulerStatus)
@@ -676,22 +665,22 @@ async def start_scheduler(
     request: SchedulerStartRequest,
     current_user: Dict[str, Any] = Depends(get_current_user),
 ) -> Dict[str, Any]:
-    """Start the monitoring scheduler"""
+    """Start the monitoring scheduler.
+
+    Note: APScheduler has been removed. Monitoring uses Celery Beat.
+    This endpoint is retained for backward compatibility but always returns
+    an error indicating APScheduler is unavailable.
+    """
     try:
-        global _scheduler, _scheduler_interval
+        global _scheduler_interval
         _scheduler_interval = request.interval_minutes
         scheduler = get_scheduler()
 
         if scheduler is None:
-            # Try to create a new scheduler
-            _scheduler = get_scheduler()
-            scheduler = _scheduler
-
-            if scheduler is None:
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail="Failed to create scheduler (APScheduler not available)",
-                )
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="APScheduler removed; monitoring uses Celery Beat",
+            )
 
         if not scheduler.running:
             scheduler.start()
@@ -1154,6 +1143,8 @@ async def update_session_timeout(
         result = db.execute(text(result_query), result_params)
         row = result.fetchone()
 
+        if row is None:
+            raise HTTPException(status_code=500, detail="Session timeout setting not found")
         return SessionTimeoutSettings(
             timeout_minutes=int(row.setting_value),
             updated_at=row.modified_at.isoformat() if row.modified_at else None,

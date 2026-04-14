@@ -1,0 +1,24 @@
+spec: license-service
+version: "1.0"
+status: active
+owner: engineering
+summary: >
+  License validation and feature gating service for free vs OpenWatch+ tiers,
+  including feature check methods and decorator-based gating.
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      LicenseService provides check_feature() and has_feature() methods.
+  - id: AC-2
+    description: >
+      Free tier includes compliance_check, framework_reporting, basic_dashboard features.
+  - id: AC-3
+    description: >
+      OpenWatch+ features include remediation, temporal_queries, structured_exceptions.
+  - id: AC-4
+    description: >
+      requires_license decorator gates methods by feature name.
+  - id: AC-5
+    description: >
+      Feature check returns boolean result.

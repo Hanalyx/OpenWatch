@@ -496,35 +496,42 @@ class AuditQueryService:
         offset: int = 0,
     ) -> tuple[str, str, Dict[str, Any]]:
         """
-        Build SQL query for scan_findings based on query definition.
+        Build SQL query for transactions table based on query definition.
+
+        Reads from the transactions table (primary) with a LEFT JOIN to
+        scan_findings for title, detail, and skip_reason fields that only
+        exist in the legacy table.
 
         Returns:
             Tuple of (data_query, count_query, params)
         """
         params: Dict[str, Any] = {}
 
-        # Base query with host join for hostname
+        # Primary source: transactions table, with LEFT JOIN to scan_findings
+        # for columns not present in transactions (title, detail, skip_reason,
+        # framework_section).
         select_cols = """
-            sf.id,
-            sf.scan_id,
-            s.host_id,
+            t.id,
+            t.scan_id,
+            t.host_id,
             h.hostname,
-            sf.rule_id,
+            t.rule_id,
             sf.title,
-            sf.severity,
-            sf.status,
+            t.severity,
+            t.status,
             sf.detail,
             sf.framework_section,
-            sf.evidence,
-            sf.framework_refs,
+            t.validate_result as evidence,
+            t.framework_refs,
             sf.skip_reason,
-            sf.created_at as scanned_at
+            t.started_at as scanned_at
         """
 
         base_from = """
-            FROM scan_findings sf
-            JOIN scans s ON sf.scan_id = s.id
-            JOIN hosts h ON s.host_id = h.id
+            FROM transactions t
+            JOIN hosts h ON t.host_id = h.id
+            LEFT JOIN scan_findings sf
+                ON sf.scan_id = t.scan_id AND sf.rule_id = t.rule_id
         """
 
         where_clauses: List[str] = []
@@ -536,7 +543,7 @@ class AuditQueryService:
                 param_name = f"host_{i}"
                 host_placeholders.append(f":{param_name}")
                 params[param_name] = host_id
-            where_clauses.append(f"s.host_id IN ({', '.join(host_placeholders)})")
+            where_clauses.append(f"t.host_id IN ({', '.join(host_placeholders)})")
 
         # Host group filter
         if query_def.host_groups:
@@ -546,7 +553,7 @@ class AuditQueryService:
                 group_placeholders.append(f":{param_name}")
                 params[param_name] = group_id
             where_clauses.append(
-                f"s.host_id IN (SELECT host_id FROM host_group_memberships "
+                f"t.host_id IN (SELECT host_id FROM host_group_memberships "
                 f"WHERE group_id IN ({', '.join(group_placeholders)}))"
             )
 
@@ -557,7 +564,7 @@ class AuditQueryService:
                 param_name = f"rule_{i}"
                 rule_placeholders.append(f":{param_name}")
                 params[param_name] = rule_id
-            where_clauses.append(f"sf.rule_id IN ({', '.join(rule_placeholders)})")
+            where_clauses.append(f"t.rule_id IN ({', '.join(rule_placeholders)})")
 
         # Framework filter
         if query_def.frameworks:
@@ -575,7 +582,7 @@ class AuditQueryService:
                 param_name = f"severity_{i}"
                 sev_placeholders.append(f":{param_name}")
                 params[param_name] = severity.lower()
-            where_clauses.append(f"LOWER(sf.severity) IN ({', '.join(sev_placeholders)})")
+            where_clauses.append(f"LOWER(t.severity) IN ({', '.join(sev_placeholders)})")
 
         # Status filter
         if query_def.statuses:
@@ -584,12 +591,12 @@ class AuditQueryService:
                 param_name = f"status_{i}"
                 status_placeholders.append(f":{param_name}")
                 params[param_name] = status.lower()
-            where_clauses.append(f"LOWER(sf.status) IN ({', '.join(status_placeholders)})")
+            where_clauses.append(f"LOWER(t.status) IN ({', '.join(status_placeholders)})")
 
         # Date range filter (temporal queries)
         if query_def.date_range:
-            where_clauses.append("sf.created_at >= :start_date")
-            where_clauses.append("sf.created_at <= :end_date")
+            where_clauses.append("t.started_at >= :start_date")
+            where_clauses.append("t.started_at <= :end_date")
             params["start_date"] = datetime.combine(
                 query_def.date_range.start_date,
                 datetime.min.time(),
@@ -611,7 +618,7 @@ class AuditQueryService:
             SELECT {select_cols}
             {base_from}
             {where_sql}
-            ORDER BY sf.created_at DESC, sf.severity DESC
+            ORDER BY t.started_at DESC, t.severity DESC
             LIMIT :limit OFFSET :offset
         """
         params["limit"] = limit

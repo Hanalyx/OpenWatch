@@ -119,40 +119,44 @@ class TemporalComplianceService:
         # Build severity breakdown
         severity_breakdown = {
             "critical": SeverityBreakdown(
-                passed=scan_result.severity_critical_passed or 0,
-                failed=scan_result.severity_critical_failed or 0,
+                passed=int(scan_result.severity_critical_passed or 0),
+                failed=int(scan_result.severity_critical_failed or 0),
             ),
             "high": SeverityBreakdown(
-                passed=scan_result.severity_high_passed or 0,
-                failed=scan_result.severity_high_failed or 0,
+                passed=int(scan_result.severity_high_passed or 0),
+                failed=int(scan_result.severity_high_failed or 0),
             ),
             "medium": SeverityBreakdown(
-                passed=scan_result.severity_medium_passed or 0,
-                failed=scan_result.severity_medium_failed or 0,
+                passed=int(scan_result.severity_medium_passed or 0),
+                failed=int(scan_result.severity_medium_failed or 0),
             ),
             "low": SeverityBreakdown(
-                passed=scan_result.severity_low_passed or 0,
-                failed=scan_result.severity_low_failed or 0,
+                passed=int(scan_result.severity_low_passed or 0),
+                failed=int(scan_result.severity_low_failed or 0),
             ),
         }
 
         # Calculate compliance score
-        total_rules = scan_result.total_rules or 0
-        passed_rules = scan_result.passed_rules or 0
+        total_rules = int(scan_result.total_rules or 0)
+        passed_rules = int(scan_result.passed_rules or 0)
         compliance_score = (passed_rules / total_rules * 100) if total_rules > 0 else 0.0
 
         return PostureResponse(
             host_id=host_id,
-            snapshot_date=latest_scan.completed_at or datetime.now(timezone.utc),
+            snapshot_date=(
+                latest_scan.completed_at
+                if isinstance(latest_scan.completed_at, datetime)
+                else datetime.now(timezone.utc)
+            ),
             is_current=True,
             total_rules=total_rules,
             passed=passed_rules,
-            failed=scan_result.failed_rules or 0,
-            error_count=scan_result.error_rules or 0,
-            not_applicable=scan_result.not_applicable_rules or 0,
+            failed=int(scan_result.failed_rules or 0),
+            error_count=int(scan_result.error_rules or 0),
+            not_applicable=int(scan_result.not_applicable_rules or 0),
             compliance_score=round(compliance_score, 2),
             severity_breakdown=severity_breakdown,
-            source_scan_id=latest_scan.id,
+            source_scan_id=UUID(str(latest_scan.id)),
             rule_states=None,  # Would need to query scan findings for rule-level detail
         )
 
@@ -181,20 +185,20 @@ class TemporalComplianceService:
         # Build severity breakdown
         severity_breakdown = {
             "critical": SeverityBreakdown(
-                passed=snapshot.severity_critical_passed or 0,
-                failed=snapshot.severity_critical_failed or 0,
+                passed=int(snapshot.severity_critical_passed or 0),
+                failed=int(snapshot.severity_critical_failed or 0),
             ),
             "high": SeverityBreakdown(
-                passed=snapshot.severity_high_passed or 0,
-                failed=snapshot.severity_high_failed or 0,
+                passed=int(snapshot.severity_high_passed or 0),
+                failed=int(snapshot.severity_high_failed or 0),
             ),
             "medium": SeverityBreakdown(
-                passed=snapshot.severity_medium_passed or 0,
-                failed=snapshot.severity_medium_failed or 0,
+                passed=int(snapshot.severity_medium_passed or 0),
+                failed=int(snapshot.severity_medium_failed or 0),
             ),
             "low": SeverityBreakdown(
-                passed=snapshot.severity_low_passed or 0,
-                failed=snapshot.severity_low_failed or 0,
+                passed=int(snapshot.severity_low_passed or 0),
+                failed=int(snapshot.severity_low_failed or 0),
             ),
         }
 
@@ -215,16 +219,18 @@ class TemporalComplianceService:
 
         return PostureResponse(
             host_id=host_id,
-            snapshot_date=snapshot.snapshot_date,
+            snapshot_date=(
+                snapshot.snapshot_date if isinstance(snapshot.snapshot_date, datetime) else datetime.now(timezone.utc)
+            ),
             is_current=False,
-            total_rules=snapshot.total_rules,
-            passed=snapshot.passed,
-            failed=snapshot.failed,
-            error_count=snapshot.error_count or 0,
-            not_applicable=snapshot.not_applicable or 0,
-            compliance_score=snapshot.compliance_score,
+            total_rules=int(snapshot.total_rules),
+            passed=int(snapshot.passed),
+            failed=int(snapshot.failed),
+            error_count=int(snapshot.error_count or 0),
+            not_applicable=int(snapshot.not_applicable or 0),
+            compliance_score=float(snapshot.compliance_score),
             severity_breakdown=severity_breakdown,
-            source_scan_id=snapshot.source_scan_id,
+            source_scan_id=UUID(str(snapshot.source_scan_id)) if snapshot.source_scan_id else None,
             rule_states=rule_states,
         )
 
@@ -271,36 +277,40 @@ class TemporalComplianceService:
         for snapshot in snapshots:
             severity_breakdown = {
                 "critical": SeverityBreakdown(
-                    passed=snapshot.severity_critical_passed or 0,
-                    failed=snapshot.severity_critical_failed or 0,
+                    passed=int(snapshot.severity_critical_passed or 0),
+                    failed=int(snapshot.severity_critical_failed or 0),
                 ),
                 "high": SeverityBreakdown(
-                    passed=snapshot.severity_high_passed or 0,
-                    failed=snapshot.severity_high_failed or 0,
+                    passed=int(snapshot.severity_high_passed or 0),
+                    failed=int(snapshot.severity_high_failed or 0),
                 ),
                 "medium": SeverityBreakdown(
-                    passed=snapshot.severity_medium_passed or 0,
-                    failed=snapshot.severity_medium_failed or 0,
+                    passed=int(snapshot.severity_medium_passed or 0),
+                    failed=int(snapshot.severity_medium_failed or 0),
                 ),
                 "low": SeverityBreakdown(
-                    passed=snapshot.severity_low_passed or 0,
-                    failed=snapshot.severity_low_failed or 0,
+                    passed=int(snapshot.severity_low_passed or 0),
+                    failed=int(snapshot.severity_low_failed or 0),
                 ),
             }
 
             posture_list.append(
                 PostureResponse(
                     host_id=host_id,
-                    snapshot_date=snapshot.snapshot_date,
+                    snapshot_date=(
+                        snapshot.snapshot_date
+                        if isinstance(snapshot.snapshot_date, datetime)
+                        else datetime.now(timezone.utc)
+                    ),
                     is_current=False,
-                    total_rules=snapshot.total_rules,
-                    passed=snapshot.passed,
-                    failed=snapshot.failed,
-                    error_count=snapshot.error_count or 0,
-                    not_applicable=snapshot.not_applicable or 0,
-                    compliance_score=snapshot.compliance_score,
+                    total_rules=int(snapshot.total_rules),
+                    passed=int(snapshot.passed),
+                    failed=int(snapshot.failed),
+                    error_count=int(snapshot.error_count or 0),
+                    not_applicable=int(snapshot.not_applicable or 0),
+                    compliance_score=float(snapshot.compliance_score),
                     severity_breakdown=severity_breakdown,
-                    source_scan_id=snapshot.source_scan_id,
+                    source_scan_id=UUID(str(snapshot.source_scan_id)) if snapshot.source_scan_id else None,
                 )
             )
 
@@ -352,10 +362,11 @@ class TemporalComplianceService:
         return actuals
 
     def _build_rule_states(self, scan_id: UUID) -> Dict[str, Any]:
-        """Build rule_states dict from scan_findings for a given scan.
+        """Build rule_states dict from transactions for a given scan.
 
-        Queries scan_findings and assembles a dict keyed by rule_id with
-        status, severity, title, category, and actual value from evidence.
+        Queries the transactions table (primary) with a LEFT JOIN to
+        scan_findings for title and framework_section fields that only
+        exist in the legacy table.
 
         Args:
             scan_id: UUID of the source scan.
@@ -366,10 +377,12 @@ class TemporalComplianceService:
         result = self._db.execute(
             text(
                 """
-                SELECT rule_id, title, severity, status,
-                       framework_section, evidence
-                FROM scan_findings
-                WHERE scan_id = :scan_id
+                SELECT t.rule_id, sf.title, t.severity, t.status,
+                       sf.framework_section, t.validate_result as evidence
+                FROM transactions t
+                LEFT JOIN scan_findings sf
+                    ON sf.scan_id = t.scan_id AND sf.rule_id = t.rule_id
+                WHERE t.scan_id = :scan_id
                 """
             ),
             {"scan_id": str(scan_id)},
@@ -434,7 +447,7 @@ class TemporalComplianceService:
             logger.debug("Snapshot already exists for host %s on %s", host_id, snapshot_date.date())
             return existing
 
-        # Build rule_states from scan_findings (includes actual values)
+        # Build rule_states from transactions (includes actual values)
         rule_states: Dict[str, Any] = {}
         if current.source_scan_id:
             try:
@@ -747,20 +760,20 @@ class TemporalComplianceService:
                     )
 
             # Process value-only drift events
-            for event in drift.value_drift_events:
-                if event.status_changed:
+            for val_event in drift.value_drift_events:
+                if val_event.status_changed:
                     continue  # Already counted above
                 host_had_drift = True
-                if event.rule_id not in rule_agg:
-                    rule_agg[event.rule_id] = {
-                        "rule_title": event.rule_title,
-                        "severity": event.severity,
+                if val_event.rule_id not in rule_agg:
+                    rule_agg[val_event.rule_id] = {
+                        "rule_title": val_event.rule_title,
+                        "severity": val_event.severity,
                         "hosts": set(),
                         "status_changes": 0,
                         "value_changes": 0,
                         "samples": [],
                     }
-                agg = rule_agg[event.rule_id]
+                agg = rule_agg[val_event.rule_id]
                 agg["hosts"].add(str(member.host_id))
                 agg["value_changes"] += 1
                 if len(agg["samples"]) < 3:
@@ -768,9 +781,9 @@ class TemporalComplianceService:
                         {
                             "host_id": str(member.host_id),
                             "hostname": member.hostname,
-                            "status": event.status,
-                            "previous_value": event.previous_value,
-                            "current_value": event.current_value,
+                            "status": val_event.status,
+                            "previous_value": val_event.previous_value,
+                            "current_value": val_event.current_value,
                         }
                     )
 
@@ -820,7 +833,7 @@ class TemporalComplianceService:
 
         for host in hosts:
             try:
-                snapshot = self.create_snapshot(host.id)
+                snapshot = self.create_snapshot(UUID(str(host.id)))
                 if snapshot:
                     created += 1
                 else:

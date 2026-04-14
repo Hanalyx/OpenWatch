@@ -9,7 +9,8 @@ Package Structure:
     ├── __init__.py         # This file - public API and router aggregation
     ├── webhooks.py         # Webhook management endpoints
     ├── plugins.py          # Plugin management endpoints
-    └── orsa.py             # ORSA plugin management endpoints
+    ├── orsa.py             # ORSA plugin management endpoints
+    └── jira.py             # Jira bidirectional sync (webhook + field mapping)
 
 Migration Status (API Standardization - Phase 4):
     Phase 4: System & Integrations
@@ -64,6 +65,7 @@ _modules_loaded = False
 
 try:
     # Core integration routers - use relative imports within package
+    from .jira import router as jira_router
     from .orsa import router as orsa_router
     from .plugins import router as plugins_router
     from .webhooks import router as webhooks_router
@@ -72,6 +74,7 @@ try:
     router.include_router(webhooks_router)
     router.include_router(plugins_router)
     router.include_router(orsa_router)
+    router.include_router(jira_router)
 
     _modules_loaded = True
 

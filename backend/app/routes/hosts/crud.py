@@ -27,7 +27,7 @@ Architecture Notes:
 
 import logging
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -35,6 +35,8 @@ from fastapi.security import HTTPBearer
 from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.orm import Session
+
+from app.rbac import UserRole, require_role
 
 from ...auth import get_current_user
 from ...database import get_db
@@ -56,6 +58,16 @@ router = APIRouter(tags=["Host Management"])
 # =============================================================================
 
 
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.post("/validate-credentials")
 async def validate_credentials(
     validation_data: Dict[str, Any],
@@ -165,6 +177,16 @@ class TestConnectionRequest(BaseModel):
     timeout: int = 30
 
 
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.post("/test-connection")
 async def test_connection(
     request: TestConnectionRequest,
@@ -218,7 +240,11 @@ async def test_connection(
         import paramiko
 
         ssh = paramiko.SSHClient()
-        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        # Use configurable host key policy from SSHConfigManager
+        from ...services.ssh.config_manager import SSHConfigManager
+
+        ssh_config_manager = SSHConfigManager(db)
+        ssh_config_manager.configure_ssh_client(ssh, request.hostname)
 
         connect_kwargs: Dict[str, Any] = {
             "hostname": request.hostname,
@@ -336,6 +362,16 @@ async def test_connection(
 # =============================================================================
 
 
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.get("/", response_model=List[Host])
 async def list_hosts(
     db: Session = Depends(get_db),
@@ -474,6 +510,16 @@ async def list_hosts(
         )
 
 
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.post("/", response_model=Host)
 async def create_host(
     host: HostCreate,
@@ -484,7 +530,7 @@ async def create_host(
     try:
         # Insert into database
         host_id = str(uuid.uuid4())
-        current_time = datetime.utcnow()
+        current_time = datetime.now(timezone.utc)
 
         # Use display_name if provided, otherwise use hostname
         display_name = host.display_name or host.hostname
@@ -598,12 +644,12 @@ async def create_host(
         # for accurate platform-specific OVAL selection during scanning
         if credential_info:
             try:
-                from ...tasks.os_discovery_tasks import trigger_os_discovery
+                from app.services.job_queue.dispatch import enqueue_task
 
-                trigger_os_discovery.apply_async(
-                    args=[host_id],
-                    countdown=5,  # Delay 5 seconds to ensure credential is stored
-                    queue="default",
+                enqueue_task(
+                    "app.tasks.trigger_os_discovery",
+                    host_id=host_id,
+                    delay_seconds=5,  # Delay 5 seconds to ensure credential is stored
                 )
                 logger.info(f"Queued OS discovery task for new host {host.hostname} ({host_id})")
             except Exception as e:
@@ -630,6 +676,16 @@ async def create_host(
 # =============================================================================
 
 
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.get("/capabilities")
 async def get_host_management_capabilities(
     current_user: Dict[str, Any] = Depends(get_current_user),
@@ -673,6 +729,16 @@ async def get_host_management_capabilities(
     }
 
 
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.get("/summary")
 async def get_hosts_summary(
     current_user: Dict[str, Any] = Depends(get_current_user),
@@ -699,6 +765,16 @@ async def get_hosts_summary(
 # =============================================================================
 
 
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.get("/{host_id}", response_model=Host)
 async def get_host(
     host_id: str,
@@ -775,6 +851,16 @@ async def get_host(
         )
 
 
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.put("/{host_id}", response_model=Host)
 async def update_host(
     host_id: str,
@@ -818,7 +904,7 @@ async def update_host(
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Host not found")
 
         # Update host - use existing values if new ones not provided
-        current_time = datetime.utcnow()
+        current_time = datetime.now(timezone.utc)
 
         # Handle display_name logic properly
         new_hostname = host_update.hostname if host_update.hostname is not None else current_host.hostname
@@ -1042,6 +1128,16 @@ async def update_host(
         )
 
 
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.delete("/{host_id}")
 async def delete_host(
     host_id: str,
@@ -1110,6 +1206,16 @@ async def delete_host(
         )
 
 
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.delete("/{host_id}/ssh-key")
 async def delete_host_ssh_key(
     host_id: str,
@@ -1146,7 +1252,7 @@ async def delete_host_ssh_key(
             .set("ssh_key_type", None)
             .set("ssh_key_bits", None)
             .set("ssh_key_comment", None)
-            .set("updated_at", datetime.utcnow())
+            .set("updated_at", datetime.now(timezone.utc))
             .where("id = :id", host_uuid, "id")
         )
         update_query, update_params = update_builder.build()
@@ -1173,6 +1279,16 @@ async def delete_host_ssh_key(
 # =============================================================================
 
 
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.post("/{host_id}/discover-os", response_model=OSDiscoveryResponse)
 async def trigger_host_os_discovery(
     host_id: str,
@@ -1270,21 +1386,21 @@ async def trigger_host_os_discovery(
 
         # Queue OS discovery Celery task
         try:
-            from ...tasks.os_discovery_tasks import trigger_os_discovery
+            from app.services.job_queue.dispatch import enqueue_task
 
-            task = trigger_os_discovery.apply_async(
-                args=[host_id],
-                queue="default",
+            job_id_str = enqueue_task(
+                "app.tasks.trigger_os_discovery",
+                host_id=host_id,
             )
 
             logger.info(
-                f"Queued OS discovery task {task.id} for host {host_row.hostname} ({host_id}) "
+                f"Queued OS discovery job {job_id_str} for host {host_row.hostname} ({host_id}) "
                 f"by user {current_user.get('username', 'unknown')}"
             )
 
             return OSDiscoveryResponse(
                 host_id=host_id,
-                task_id=task.id,
+                task_id=job_id_str,
                 status="queued",
                 os_family=None,
                 os_version=None,
@@ -1311,6 +1427,16 @@ async def trigger_host_os_discovery(
         )
 
 
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.get("/{host_id}/os-info", response_model=OSDiscoveryResponse)
 async def get_host_os_info(
     host_id: str,
@@ -1403,6 +1529,16 @@ async def get_host_os_info(
         )
 
 
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.post("/{host_id}/detect-platform", response_model=OSDiscoveryResponse)
 async def detect_platform_jit(
     host_id: str,
@@ -1542,13 +1678,13 @@ async def detect_platform_jit(
                 os_version=None,
                 platform_identifier=None,
                 architecture=None,
-                discovered_at=datetime.utcnow().isoformat() + "Z",
+                discovered_at=datetime.now(timezone.utc).isoformat() + "Z",
                 error=platform_info.detection_error,
             )
 
         # Persist detected platform to database for future use
         # Use UpdateBuilder for type-safe, parameterized UPDATE
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         update_builder = (
             UpdateBuilder("hosts")
             .set("os_family", platform_info.platform)
@@ -1597,6 +1733,16 @@ async def detect_platform_jit(
 # =============================================================================
 
 
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.get("/{host_id}/system-info")
 async def get_host_system_info(
     host_id: str,

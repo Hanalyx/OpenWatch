@@ -4,7 +4,7 @@ OWCA Data Models
 Type-safe Pydantic models for all OWCA calculations and results.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import List, Optional
 from uuid import UUID
@@ -97,15 +97,17 @@ class ComplianceScore(BaseModel):
     overall_score: float = Field(..., ge=0, le=100, description="Overall compliance percentage")
     tier: ComplianceTier = Field(..., description="Compliance tier classification")
 
-    passed_rules: int = Field(0, ge=0, description="Total passed rules")
-    failed_rules: int = Field(0, ge=0, description="Total failed rules")
-    total_rules: int = Field(0, ge=0, description="Total evaluated rules")
+    passed_rules: int = 0
+    failed_rules: int = 0
+    total_rules: int = 0
 
     severity_breakdown: SeverityBreakdown = Field(..., description="Breakdown by severity")
 
-    calculated_at: datetime = Field(default_factory=datetime.utcnow, description="When score was calculated")
+    calculated_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc), description="When score was calculated"
+    )
 
-    scan_id: Optional[UUID] = Field(None, description="Associated scan ID if applicable")
+    scan_id: Optional[UUID] = None
 
     class Config:
         json_encoders = {datetime: lambda v: v.isoformat()}
@@ -118,30 +120,32 @@ class FleetStatistics(BaseModel):
     Aggregates compliance data across all hosts.
     """
 
-    total_hosts: int = Field(0, ge=0, description="Total hosts in inventory")
-    online_hosts: int = Field(0, ge=0, description="Hosts currently online")
-    offline_hosts: int = Field(0, ge=0, description="Hosts currently offline")
+    total_hosts: int = 0
+    online_hosts: int = 0
+    offline_hosts: int = 0
 
-    scanned_hosts: int = Field(0, ge=0, description="Hosts with at least one scan")
-    never_scanned: int = Field(0, ge=0, description="Hosts never scanned")
-    needs_scan: int = Field(0, ge=0, description="Hosts needing scan (>7 days)")
+    scanned_hosts: int = 0
+    never_scanned: int = 0
+    needs_scan: int = 0
 
-    average_compliance: float = Field(0, ge=0, le=100, description="Fleet average score")
-    median_compliance: float = Field(0, ge=0, le=100, description="Fleet median score")
+    average_compliance: float = 0.0
+    median_compliance: float = 0.0
 
-    hosts_excellent: int = Field(0, ge=0, description="Hosts with excellent compliance (90+%)")
-    hosts_good: int = Field(0, ge=0, description="Hosts with good compliance (75-89%)")
-    hosts_fair: int = Field(0, ge=0, description="Hosts with fair compliance (60-74%)")
-    hosts_poor: int = Field(0, ge=0, description="Hosts with poor compliance (<60%)")
+    hosts_excellent: int = 0
+    hosts_good: int = 0
+    hosts_fair: int = 0
+    hosts_poor: int = 0
 
-    total_critical_issues: int = Field(0, ge=0, description="Total critical severity failures")
-    total_high_issues: int = Field(0, ge=0, description="Total high severity failures")
-    total_medium_issues: int = Field(0, ge=0, description="Total medium severity failures")
-    total_low_issues: int = Field(0, ge=0, description="Total low severity failures")
+    total_critical_issues: int = 0
+    total_high_issues: int = 0
+    total_medium_issues: int = 0
+    total_low_issues: int = 0
 
-    hosts_with_critical: int = Field(0, ge=0, description="Hosts with at least 1 critical issue")
+    hosts_with_critical: int = 0
 
-    calculated_at: datetime = Field(default_factory=datetime.utcnow, description="When statistics were calculated")
+    calculated_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc), description="When statistics were calculated"
+    )
 
     class Config:
         json_encoders = {datetime: lambda v: v.isoformat()}
@@ -170,7 +174,9 @@ class BaselineDrift(BaseModel):
     critical_regressions: int = Field(0, ge=0, description="Critical rules that regressed")
     high_regressions: int = Field(0, ge=0, description="High rules that regressed")
 
-    detected_at: datetime = Field(default_factory=datetime.utcnow, description="When drift was detected")
+    detected_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc), description="When drift was detected"
+    )
 
     class Config:
         json_encoders = {datetime: lambda v: v.isoformat()}
@@ -181,15 +187,15 @@ class TrendDataPoint(BaseModel):
 
     date: str = Field(..., description="Date in YYYY-MM-DD format")
     overall_score: float = Field(..., ge=0, le=100, description="Overall compliance")
-    critical_passed: int = Field(0, ge=0, description="Critical rules passed")
-    critical_failed: int = Field(0, ge=0, description="Critical rules failed")
-    high_passed: int = Field(0, ge=0, description="High rules passed")
-    high_failed: int = Field(0, ge=0, description="High rules failed")
-    medium_passed: int = Field(0, ge=0, description="Medium rules passed")
-    medium_failed: int = Field(0, ge=0, description="Medium rules failed")
-    low_passed: int = Field(0, ge=0, description="Low rules passed")
-    low_failed: int = Field(0, ge=0, description="Low rules failed")
-    source_scan_id: Optional[UUID] = Field(None, description="Source scan UUID (from posture_snapshots)")
+    critical_passed: int = 0
+    critical_failed: int = 0
+    high_passed: int = 0
+    high_failed: int = 0
+    medium_passed: int = 0
+    medium_failed: int = 0
+    low_passed: int = 0
+    low_failed: int = 0
+    source_scan_id: Optional[UUID] = None
 
 
 class TrendData(BaseModel):
@@ -208,7 +214,9 @@ class TrendData(BaseModel):
     trend_direction: TrendDirection = Field(..., description="Overall trend direction")
     improvement_rate: Optional[float] = Field(None, description="Rate of improvement (percentage points per day)")
 
-    calculated_at: datetime = Field(default_factory=datetime.utcnow, description="When trend was calculated")
+    calculated_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc), description="When trend was calculated"
+    )
 
     class Config:
         json_encoders = {datetime: lambda v: v.isoformat()}
@@ -238,7 +246,9 @@ class RiskScore(BaseModel):
 
     priority_rank: int = Field(..., ge=1, description="Priority ranking (1 = highest)")
 
-    calculated_at: datetime = Field(default_factory=datetime.utcnow, description="When risk was calculated")
+    calculated_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc), description="When risk was calculated"
+    )
 
     class Config:
         json_encoders = {datetime: lambda v: v.isoformat()}
@@ -270,7 +280,9 @@ class ComplianceForecast(BaseModel):
     method: str = Field(..., description="Forecasting method used (linear, arima)")
     confidence_level: float = Field(0.95, description="Confidence level (default 95%)")
 
-    calculated_at: datetime = Field(default_factory=datetime.utcnow, description="When forecast was calculated")
+    calculated_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc), description="When forecast was calculated"
+    )
 
     class Config:
         json_encoders = {datetime: lambda v: v.isoformat()}
@@ -300,7 +312,9 @@ class ComplianceAnomaly(BaseModel):
     deviation: float = Field(..., description="Deviation in standard deviations (z-score)")
     severity: AnomalySeverity = Field(..., description="Anomaly severity")
 
-    detected_at: datetime = Field(default_factory=datetime.utcnow, description="When anomaly was detected")
+    detected_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc), description="When anomaly was detected"
+    )
 
     description: Optional[str] = Field(None, description="Human-readable explanation")
 
@@ -369,7 +383,9 @@ class FleetComplianceTrend(BaseModel):
     trend_direction: TrendDirection = Field(..., description="Overall trend direction")
     improvement_rate: Optional[float] = Field(None, description="Rate of improvement (percentage points per day)")
 
-    calculated_at: datetime = Field(default_factory=datetime.utcnow, description="When trend was calculated")
+    calculated_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc), description="When trend was calculated"
+    )
 
     class Config:
         json_encoders = {datetime: lambda v: v.isoformat()}

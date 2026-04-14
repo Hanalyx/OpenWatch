@@ -14,7 +14,7 @@ Security: All database queries use QueryBuilder for SQL injection protection.
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 from uuid import UUID
 
@@ -22,7 +22,6 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from ....utils.query_builder import QueryBuilder
-
 from ..core.score_calculator import ComplianceScoreCalculator
 from ..models import RiskScore
 
@@ -152,7 +151,7 @@ class RiskScorer:
             baseline_drift=baseline_drift,
             business_criticality=business_criticality,
             priority_rank=0,  # Will be set by rank_hosts_by_risk()
-            calculated_at=datetime.utcnow(),
+            calculated_at=datetime.now(timezone.utc),
         )
 
     async def rank_hosts_by_risk(self, limit: Optional[int] = None) -> List[RiskScore]:
@@ -333,7 +332,7 @@ class RiskScorer:
 
         # Calculate days since last scan
         last_scan = result.last_scan
-        days_since = (datetime.utcnow() - last_scan).days
+        days_since = (datetime.now(timezone.utc) - last_scan).days
 
         return max(0, days_since)
 

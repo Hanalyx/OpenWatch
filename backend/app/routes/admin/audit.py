@@ -3,13 +3,15 @@ Audit Log API Routes for OView Dashboard
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.orm import Session
+
+from app.rbac import require_role
 
 from ...auth import get_current_user
 from ...database import get_db
@@ -60,6 +62,15 @@ class AuditStatsResponse(BaseModel):
     unique_ips: int
 
 
+@require_role(
+    [
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.get("/events", response_model=AuditEventsResponse)
 async def get_audit_events(
     page: int = Query(1, ge=1),
@@ -148,7 +159,7 @@ async def get_audit_events(
                     ip_address=row.ip_address,
                     user_agent=row.user_agent,
                     details=row.details,
-                    timestamp=(row.timestamp.isoformat() + "Z") if row.timestamp else None,
+                    timestamp=(row.timestamp.isoformat() + "Z") if row.timestamp else "",
                     severity=event_severity,
                 )
             )
@@ -162,6 +173,15 @@ async def get_audit_events(
         raise HTTPException(status_code=500, detail="Failed to retrieve audit events")
 
 
+@require_role(
+    [
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.get("/stats", response_model=AuditStatsResponse)
 async def get_audit_stats(
     days: int = Query(30, ge=1, le=365),
@@ -180,7 +200,7 @@ async def get_audit_stats(
         # Calculate date range
         from datetime import datetime, timedelta
 
-        date_from = datetime.utcnow() - timedelta(days=days)
+        date_from = datetime.now(timezone.utc) - timedelta(days=days)
 
         # Get statistics
         stats_query = text(
@@ -236,6 +256,15 @@ async def get_audit_stats(
         raise HTTPException(status_code=500, detail="Failed to retrieve audit statistics")
 
 
+@require_role(
+    [
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.post("/log")
 async def create_audit_log(
     action: str,
@@ -263,7 +292,7 @@ async def create_audit_log(
                 resource_id,
                 "127.0.0.1",  # This should come from request
                 details,
-                datetime.utcnow(),
+                datetime.now(timezone.utc),
             )
         )
         insert_query, insert_params = insert_builder.build()
@@ -307,7 +336,7 @@ def log_audit_event(
                 ip_address,
                 user_agent,
                 details,
-                datetime.utcnow(),
+                datetime.now(timezone.utc),
             )
         )
         insert_query, insert_params = insert_builder.build()

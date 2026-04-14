@@ -409,7 +409,7 @@ const ComplianceGroups: React.FC = () => {
           </Typography>
           <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
             Create your first compliance group to organize hosts by OS, compliance framework, and
-            SCAP content
+            compliance framework
           </Typography>
           <Button
             variant="contained"

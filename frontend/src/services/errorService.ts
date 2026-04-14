@@ -16,7 +16,7 @@ export interface ValidationRequest {
 export interface SystemInfo {
   // Common validation fields
   collection_timestamp?: string;
-  openscap_available?: boolean;
+  kensa_available?: boolean;
   ssh_available?: boolean;
   // Resource information
   memory?: number | string;

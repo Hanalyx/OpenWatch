@@ -7,7 +7,7 @@ baselines to detect configuration drift and compliance changes.
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from uuid import UUID
 
@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 
 from ..database import ScanBaseline
 from ..utils.logging_security import sanitize_for_log, sanitize_id_for_log
+from ..utils.mutation_builders import UpdateBuilder
 from ..utils.query_builder import QueryBuilder
 
 logger = logging.getLogger(__name__)
@@ -90,8 +91,8 @@ class BaselineService:
         # Deactivate existing baseline (if any)
         existing_baseline = self.get_active_baseline(db, host_id)
         if existing_baseline:
-            existing_baseline.is_active = False
-            existing_baseline.superseded_at = datetime.utcnow()
+            setattr(existing_baseline, "is_active", False)
+            setattr(existing_baseline, "superseded_at", datetime.now(timezone.utc))
             # superseded_by will be set after new baseline created
 
         # Convert score from string "64.82%" to float 64.82
@@ -186,13 +187,9 @@ class BaselineService:
             True if baseline was reset, False if no active baseline
         """
         builder = (
-            QueryBuilder("scan_baselines")
-            .update(
-                {
-                    "is_active": False,
-                    "superseded_at": datetime.utcnow(),
-                }
-            )
+            UpdateBuilder("scan_baselines")
+            .set("is_active", False)
+            .set("superseded_at", datetime.now(timezone.utc))
             .where("host_id = :host_id", host_id, "host_id")
             .where("is_active = :is_active", True, "is_active")
         )
@@ -201,7 +198,7 @@ class BaselineService:
         result = db.execute(text(query), params)
         db.commit()
 
-        if result.rowcount > 0:
+        if getattr(result, "rowcount", 0) > 0:
             # Security: Sanitize user-controlled data to prevent log injection (CWE-117)
             logger.info(f"Reset baseline for host {sanitize_id_for_log(host_id)}")
             return True

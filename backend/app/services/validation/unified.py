@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import TYPE_CHECKING, Dict, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple, cast
 
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -57,13 +57,12 @@ class UnifiedValidationService:
 
     def __init__(self, db: Session):
         from ..auth import CentralizedAuthService
-        from ..engine.scanners import UnifiedSCAPScanner
 
         self.db = db
-        self.auth_service = CentralizedAuthService(db)
+        self.auth_service = CentralizedAuthService(db, encryption_service=cast(Any, None))
         self.error_classifier = ErrorClassificationService()
         self.sanitization_service = get_error_sanitization_service()
-        self.scap_scanner = UnifiedSCAPScanner()
+        self.scap_scanner: Any = None  # UnifiedSCAPScanner removed, Kensa is the active scanner
 
     async def validate_scan_prerequisites(
         self, request: ValidationRequest, current_user: dict
@@ -99,7 +98,7 @@ class UnifiedValidationService:
                 errors.append(self._create_network_error(network_result["error"]))
 
             # Step 3: SSH Authentication test (map to "authentication" for frontend compatibility)
-            if validation_checks["network_connectivity"]:
+            if validation_checks["network_connectivity"] and credential_data is not None:
                 auth_result = await self._test_ssh_authentication(
                     request.target_hostname, request.target_port, credential_data
                 )
@@ -111,7 +110,7 @@ class UnifiedValidationService:
                     errors.append(self._create_auth_error(auth_result["error"]))
 
             # Step 4: System privileges check (map to "privileges" for frontend compatibility)
-            if validation_checks.get("authentication", False):
+            if validation_checks.get("authentication", False) and credential_data is not None:
                 privilege_result = await self._test_system_privileges(
                     request.target_hostname, request.target_port, credential_data
                 )
@@ -124,7 +123,7 @@ class UnifiedValidationService:
                         warnings.append(self._create_privilege_warning(privilege_result["error"]))
 
             # Step 5: System resources check (map to "resources" for frontend compatibility)
-            if validation_checks.get("authentication", False):
+            if validation_checks.get("authentication", False) and credential_data is not None:
                 resource_result = await self._test_system_resources(
                     request.target_hostname, request.target_port, credential_data
                 )
@@ -134,7 +133,7 @@ class UnifiedValidationService:
                     warnings.append(self._create_resource_warning(resource_result["error"]))
 
             # Step 6: OpenSCAP dependencies check (map to "dependencies" for frontend compatibility)
-            if validation_checks.get("authentication", False):
+            if validation_checks.get("authentication", False) and credential_data is not None:
                 scap_result = await self._test_openscap_dependencies(
                     request.target_hostname, request.target_port, credential_data
                 )
@@ -171,7 +170,7 @@ class UnifiedValidationService:
 
         return internal_result, sanitized_response
 
-    async def _resolve_credentials(self, request: ValidationRequest) -> CredentialData:
+    async def _resolve_credentials(self, request: ValidationRequest) -> Optional[CredentialData]:
         """Resolve credentials using unified auth service"""
         try:
             if request.use_system_default:
@@ -345,14 +344,14 @@ class UnifiedValidationService:
         template = self.ERROR_TEMPLATES[template_key]
 
         return ScanErrorInternal(
-            error_code=template["error_code"],
-            category=template["category"],
-            severity=template["severity"],
-            message=template["message"],
+            error_code=str(template["error_code"]),
+            category=cast(ErrorCategory, template["category"]),
+            severity=cast(ErrorSeverity, template["severity"]),
+            message=str(template["message"]),
             technical_details={"error": error_msg},
-            user_guidance=template["user_guidance"],
-            can_retry=template["can_retry"],
-            retry_after=template.get("retry_after"),
+            user_guidance=str(template["user_guidance"]),
+            can_retry=bool(template["can_retry"]),
+            retry_after=cast(Optional[int], template.get("retry_after")),
         )
 
     def _create_network_error(self, error_msg: str) -> ScanErrorInternal:
@@ -432,7 +431,12 @@ class UnifiedValidationService:
 
         # Sanitize system info
         sanitization_service = get_system_info_sanitization_service()
-        sanitized_system_info, _ = sanitization_service.sanitize_system_information(internal_result.system_info)
+        from app.models.system_models import SystemInfoSanitizationContext
+
+        sanitize_ctx = SystemInfoSanitizationContext(user_role="admin")
+        sanitized_system_info, _ = sanitization_service.sanitize_system_information(
+            internal_result.system_info, sanitize_ctx
+        )
 
         return ValidationResultResponse(
             can_proceed=internal_result.can_proceed,

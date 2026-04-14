@@ -1,0 +1,78 @@
+spec: audit-queries
+version: "1.0"
+status: active
+owner: engineering
+summary: >
+  Audit Query API endpoints for managing saved queries, query execution, and
+  audit exports. Implements ownership and visibility checks, OpenWatch+ license
+  gating for date_range features, and structured export download with expiry.
+  Routes delegate to AuditQueryService and AuditExportService.
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      Create saved query accepts name, description, query_definition, and
+      visibility via SavedQueryCreate schema. Delegates to
+      AuditQueryService.create_query with owner_id from current user.
+
+  - id: AC-2
+    description: >
+      Duplicate query name returns HTTP 409 CONFLICT when
+      AuditQueryService.create_query returns None (name already exists
+      for the owner).
+
+  - id: AC-3
+    description: >
+      Get query checks visibility: returns HTTP 403 FORBIDDEN if query
+      owner_id does not match current user and visibility is not "shared".
+
+  - id: AC-4
+    description: >
+      Update query requires ownership. Returns HTTP 403 FORBIDDEN if
+      AuditQueryService.update_query returns None and the query exists
+      (indicating the user is not the owner).
+
+  - id: AC-5
+    description: >
+      Delete query requires ownership. Returns HTTP 204 NO_CONTENT on
+      success. Returns HTTP 403 if the query exists but user is not owner.
+
+  - id: AC-6
+    description: >
+      Preview query with date_range checks OpenWatch+ license via
+      LicenseService.has_feature("temporal_queries"). Returns HTTP 403
+      if license check fails.
+
+  - id: AC-7
+    description: >
+      Execute saved query checks access via AuditQueryService.execute_query
+      which verifies owner_id match or shared visibility. Returns HTTP 403
+      if access is denied.
+
+  - id: AC-8
+    description: >
+      Execute adhoc query with date_range checks OpenWatch+ license via
+      LicenseService.has_feature("temporal_queries"). Returns HTTP 403
+      if license check fails.
+
+  - id: AC-9
+    description: >
+      Create export validates that either query_id or query_definition is
+      provided. Returns HTTP 400 BAD_REQUEST if neither is given.
+
+  - id: AC-10
+    description: >
+      Download export requires ownership (requested_by match), completed
+      status, and non-expired state. Returns HTTP 400 for incomplete
+      exports and HTTP 410 GONE for expired exports.
+
+  - id: AC-11
+    description: >
+      Export filename follows the pattern audit_export_{id}.{format} where
+      format is the export format (json, csv, pdf).
+
+  - id: AC-12
+    description: >
+      All query operations delegate to AuditQueryService and export
+      operations delegate to AuditExportService. No direct SQL in
+      route handlers.

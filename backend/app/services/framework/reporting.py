@@ -15,12 +15,12 @@ Example:
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from jinja2 import Template
 
-from app.services.result_enrichment_service import ResultEnrichmentService
+# object removed (SCAP-era dead code)
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -33,7 +33,7 @@ class ComplianceFrameworkReporter:
 
     def __init__(self) -> None:
         """Initialize the compliance framework reporter."""
-        self.enrichment_service: Optional[ResultEnrichmentService] = None
+        self.enrichment_service: Optional[object] = None
         self._initialized = False
 
         # Framework definitions
@@ -94,10 +94,10 @@ class ComplianceFrameworkReporter:
             return
 
         try:
-            # ResultEnrichmentService requires db session - only initialize if provided
+            # object requires db session - only initialize if provided
             if db is not None:
-                self.enrichment_service = ResultEnrichmentService(db)
-                await self.enrichment_service.initialize()
+                # SCAP-era enrichment service removed; placeholder for compatibility
+                self.enrichment_service = None
 
             self._initialized = True
             logger.info("Compliance Framework Reporter initialized successfully")
@@ -116,7 +116,7 @@ class ComplianceFrameworkReporter:
         Generate comprehensive compliance framework report.
 
         Args:
-            enriched_results: Results from ResultEnrichmentService
+            enriched_results: Results from object
             target_frameworks: Specific frameworks to report on
             report_format: Output format (json, html, pdf)
 
@@ -151,7 +151,7 @@ class ComplianceFrameworkReporter:
             # Compile final report
             compliance_report = {
                 "metadata": {
-                    "report_generated": datetime.utcnow().isoformat(),
+                    "report_generated": datetime.now(timezone.utc).isoformat(),
                     "scan_timestamp": enriched_results.get("enrichment_timestamp"),
                     "frameworks_analyzed": target_frameworks,
                     "report_format": report_format,

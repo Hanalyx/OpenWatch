@@ -146,6 +146,8 @@ class RateLimitingMiddleware:
         self.enabled = os.getenv("OPENWATCH_RATE_LIMITING", "true").lower() == "true"
         self.environment = os.getenv("OPENWATCH_ENVIRONMENT", "development").lower()
         self.limits_config = self._get_limits_configuration()
+        # Generate HMAC secret once at initialization, not per-request
+        self._hmac_secret = os.getenv("RATE_LIMIT_SECRET", "") or secrets.token_hex(32)  # pragma: allowlist secret
 
         logger.info(f"Rate limiting initialized - Environment: {self.environment}, Enabled: {self.enabled}")
 
@@ -297,29 +299,23 @@ class RateLimitingMiddleware:
             # Use HMAC-SHA256 instead of plain SHA256 for better security
             import hmac
 
-            secret_key = os.getenv("RATE_LIMIT_SECRET", secrets.token_hex(32))
-            token_hash = hmac.new(secret_key.encode(), auth_header.encode(), hashlib.sha256).hexdigest()[:16]
+            token_hash = hmac.new(self._hmac_secret.encode(), auth_header.encode(), hashlib.sha256).hexdigest()[:16]
             return f"auth:{token_hash}", "authenticated"
 
         # Anonymous user - use IP address with secure hashing
         client_ip = self._get_client_ip(request)
         import hmac
 
-        secret_key = os.getenv("RATE_LIMIT_SECRET", secrets.token_hex(32))
-        ip_hash = hmac.new(secret_key.encode(), f"{client_ip}:anonymous".encode(), hashlib.sha256).hexdigest()[:16]
+        ip_hash = hmac.new(self._hmac_secret.encode(), f"{client_ip}:anonymous".encode(), hashlib.sha256).hexdigest()[
+            :16
+        ]
         return f"anon:{ip_hash}", "anonymous"
 
     def _get_client_ip(self, request: Request) -> str:
-        """Extract client IP handling proxy headers"""
-        forwarded_for = request.headers.get("x-forwarded-for")
-        if forwarded_for:
-            return forwarded_for.split(",")[0].strip()
+        """Extract client IP, only trusting proxy headers from known proxies."""
+        from ..utils.trusted_proxies import get_client_ip
 
-        real_ip = request.headers.get("x-real-ip")
-        if real_ip:
-            return real_ip
-
-        return request.client.host if request.client else "unknown"
+        return get_client_ip(request)
 
     def _get_endpoint_category(self, path: str) -> str:
         """Categorize endpoint for appropriate rate limiting"""

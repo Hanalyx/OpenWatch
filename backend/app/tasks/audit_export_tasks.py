@@ -10,20 +10,12 @@ import logging
 from datetime import datetime, timezone
 from typing import Any, Dict
 
-from celery import shared_task
-
 from app.database import SessionLocal
 from app.services.compliance.audit_export import AuditExportService
 
 logger = logging.getLogger(__name__)
 
 
-@shared_task(
-    name="generate_audit_export",
-    bind=True,
-    max_retries=3,
-    default_retry_delay=60,
-)
 def generate_audit_export_task(self, export_id: str) -> Dict[str, Any]:
     """
     Generate an audit export file.
@@ -45,7 +37,20 @@ def generate_audit_export_task(self, export_id: str) -> Dict[str, Any]:
 
     db = SessionLocal()
     try:
-        service = AuditExportService(db)
+        # Attempt to load EncryptionService so JSON exports can be signed.
+        # Non-blocking: if the service is unavailable, exports are unsigned.
+        encryption_service = None
+        try:
+            from app.encryption import create_encryption_service
+            import os
+
+            master_key = os.environ.get("ENCRYPTION_MASTER_KEY", "")
+            if master_key:
+                encryption_service = create_encryption_service(master_key)
+        except Exception:
+            pass
+
+        service = AuditExportService(db, encryption_service=encryption_service)
         success = service.generate_export(UUID(export_id))
 
         if success:
@@ -69,7 +74,7 @@ def generate_audit_export_task(self, export_id: str) -> Dict[str, Any]:
 
         # Retry with exponential backoff
         try:
-            raise self.retry(exc=e)
+            raise
         except self.MaxRetriesExceededError:
             logger.error(
                 "Export generation max retries exceeded: %s",
@@ -86,7 +91,6 @@ def generate_audit_export_task(self, export_id: str) -> Dict[str, Any]:
         db.close()
 
 
-@shared_task(name="cleanup_expired_audit_exports")
 def cleanup_expired_audit_exports() -> Dict[str, Any]:
     """
     Clean up expired audit exports.

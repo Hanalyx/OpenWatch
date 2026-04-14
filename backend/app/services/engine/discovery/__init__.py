@@ -61,11 +61,11 @@ Security Notes:
 
 import logging
 
-from .platform_detector import (
+from .platform_detector import (  # noqa: F401
     PlatformDetector,
     PlatformInfo,
     detect_platform_for_scan,
-)  # noqa: F401
+)
 
 logger = logging.getLogger(__name__)
 

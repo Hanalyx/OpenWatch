@@ -3,7 +3,7 @@ Authentication Routes - FIPS Compliant
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -27,11 +27,14 @@ router = APIRouter()
 
 
 def get_client_ip(request: Request) -> str:
-    """Extract client IP address from request."""
-    if "x-forwarded-for" in request.headers:
-        # Explicit str() to satisfy mypy (headers values may be Any)
-        return str(request.headers["x-forwarded-for"]).split(",")[0].strip()
-    return request.client.host if request.client else "unknown"
+    """Extract client IP address from request.
+
+    Only trusts X-Forwarded-For when the direct client is a known proxy
+    to prevent IP spoofing via forged headers.
+    """
+    from ...utils.trusted_proxies import get_client_ip as _get_client_ip
+
+    return _get_client_ip(request)
 
 
 class LoginRequest(BaseModel):
@@ -135,7 +138,7 @@ async def login(
             )
 
         # Check if account is locked
-        if user.locked_until and user.locked_until > datetime.utcnow():
+        if user.locked_until and user.locked_until > datetime.now(timezone.utc):
             audit_logger.log_security_event(
                 "AUTH_FAILURE",
                 f"Login attempt with locked account: {request.username}",
@@ -163,7 +166,7 @@ async def login(
 
             # Lock account after 5 failed attempts for 30 minutes
             if failed_attempts >= 5:
-                locked_until = datetime.utcnow() + timedelta(minutes=30)
+                locked_until = datetime.now(timezone.utc) + timedelta(minutes=30)
 
             db.execute(
                 text(
@@ -349,6 +352,7 @@ async def login(
 @router.post("/register", response_model=LoginResponse)
 async def register(
     request: RegisterRequest,
+    http_request: Request,
     db: Session = Depends(get_db),
 ) -> LoginResponse:
     """Register a new user (guest role by default)."""
@@ -369,10 +373,26 @@ async def register(
                 detail="Username or email already exists",
             )
 
+        # Validate password strength before hashing
+        from ...services.auth import get_credential_validator
+
+        validator = get_credential_validator()
+        is_valid, warnings, _recommendations = validator.validate_password_strength(request.password)
+        if not is_valid:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=warnings,
+            )
+
         # Hash password
         hashed_password = pwd_context.hash(request.password)
 
-        # Create user with guest role (or specified role if admin is creating)
+        # Security: Unauthenticated registration MUST enforce GUEST role
+        # to prevent privilege escalation (C-1 from security assessment).
+        # Role selection is only allowed for authenticated admin endpoints.
+        enforced_role = UserRole.GUEST
+
+        # Create user with GUEST role (enforced for unauthenticated registration)
         result = db.execute(
             text(
                 """
@@ -385,8 +405,7 @@ async def register(
                 "username": request.username,
                 "email": request.email,
                 "password": hashed_password,
-                # Null guard: role is Optional, use GUEST as fallback
-                "role": request.role.value if request.role else UserRole.GUEST.value,
+                "role": enforced_role.value,
             },
         )
 
@@ -396,8 +415,7 @@ async def register(
         user_id = user_id_row.id
         db.commit()
 
-        # Determine role value with null guard
-        role_value = request.role.value if request.role else UserRole.GUEST.value
+        role_value = enforced_role.value
         user_data: Dict[str, Any] = {
             "sub": request.username,  # Standard JWT subject field
             "id": user_id,
@@ -411,7 +429,9 @@ async def register(
         access_token = jwt_manager.create_access_token(user_data)
         refresh_token = jwt_manager.create_refresh_token(user_data)
 
-        audit_logger.log_security_event("USER_REGISTER", f"New user registered: {request.username}", "127.0.0.1")
+        audit_logger.log_security_event(
+            "USER_REGISTER", f"New user registered: {request.username}", get_client_ip(http_request)
+        )
 
         return LoginResponse(
             access_token=access_token,
@@ -440,6 +460,18 @@ async def refresh_token(
     try:
         # Validate refresh token and get user
         user_data = jwt_manager.validate_refresh_token(request.refresh_token)
+
+        # Check absolute session timeout (NIST AC-12)
+        # Prevents indefinite session extension via token refresh
+        iat = user_data.get("iat")
+        if iat:
+            issued_at = datetime.fromtimestamp(iat, tz=timezone.utc)
+            max_lifetime = timedelta(hours=settings.absolute_session_timeout_hours)
+            if datetime.now(timezone.utc) - issued_at > max_lifetime:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Session expired. Please log in again.",
+                )
 
         # Get fresh user data from database to ensure we have latest info
         username = user_data.get("sub") or user_data.get("username")
@@ -498,12 +530,37 @@ async def refresh_token(
 
 @router.post("/logout")
 async def logout(
+    http_request: Request,
     token: HTTPAuthorizationCredentials = Depends(security),
 ) -> Dict[str, str]:
-    """Logout user and invalidate tokens."""
+    """Logout user and invalidate tokens.
+
+    Decodes the JWT to extract the JTI claim and adds it to the
+    Redis-backed blacklist with a TTL matching the token's remaining
+    lifetime (AC-13).
+    """
     try:
-        # In production, add token to blacklist
-        audit_logger.log_security_event("LOGOUT", "User logged out", "127.0.0.1")
+        import time
+
+        from ...services.auth.token_blacklist_pg import get_token_blacklist
+
+        # Decode the token to get jti and exp claims
+        try:
+            payload = jwt_manager.verify_token(token.credentials)
+            jti = payload.get("jti")
+            exp = payload.get("exp")
+
+            if jti and exp:
+                # Calculate remaining TTL in seconds
+                remaining = int(exp - time.time())
+                if remaining > 0:
+                    blacklist = get_token_blacklist()
+                    blacklist.blacklist_token(jti, remaining)
+        except HTTPException:
+            # Token may already be expired or invalid; still log the logout
+            pass
+
+        audit_logger.log_security_event("LOGOUT", "User logged out", get_client_ip(http_request))
 
         return {"message": "Successfully logged out"}
 

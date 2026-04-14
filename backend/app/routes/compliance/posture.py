@@ -24,6 +24,8 @@ from fastapi import status as http_status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
+from app.rbac import UserRole, require_role
+
 from ...auth import get_current_user
 from ...database import User, get_db
 from ...schemas.posture_schemas import (
@@ -45,6 +47,16 @@ router = APIRouter(prefix="/posture", tags=["Compliance Posture"])
 # =============================================================================
 
 
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.get("", response_model=PostureResponse)
 async def get_posture(
     host_id: UUID = Query(..., description="Host UUID"),
@@ -100,6 +112,16 @@ async def get_posture(
     return posture
 
 
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.get("/history", response_model=PostureHistoryResponse)
 async def get_posture_history(
     host_id: UUID = Query(..., description="Host UUID"),
@@ -142,6 +164,16 @@ async def get_posture_history(
     return history
 
 
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.get("/drift", response_model=DriftAnalysisResponse)
 async def analyze_drift(
     host_id: UUID = Query(..., description="Host UUID"),
@@ -196,6 +228,16 @@ async def analyze_drift(
     return drift
 
 
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.post("/snapshot", response_model=Dict[str, Any])
 async def create_snapshot(
     request: SnapshotCreateRequest,
@@ -237,6 +279,16 @@ async def create_snapshot(
     }
 
 
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.get("/drift/group", response_model=GroupDriftResponse)
 async def analyze_group_drift(
     group_id: int = Query(..., description="Host group ID"),
@@ -282,6 +334,16 @@ async def analyze_group_drift(
     return service.detect_group_drift(group_id, start_date, end_date)
 
 
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.get("/drift/export")
 async def export_drift(
     host_id: UUID = Query(..., description="Host UUID"),
@@ -362,21 +424,21 @@ async def export_drift(
         )
 
     # Value-only drift events (not already included above)
-    for event in drift.value_drift_events:
-        if event.status_changed:
+    for value_event in drift.value_drift_events:
+        if value_event.status_changed:
             continue
         writer.writerow(
             [
-                event.rule_id,
-                event.rule_title or "",
-                event.severity,
-                event.status,
-                event.status,
+                value_event.rule_id,
+                value_event.rule_title or "",
+                value_event.severity,
+                value_event.status,
+                value_event.status,
                 "value_change",
-                event.previous_value or "",
-                event.current_value or "",
+                value_event.previous_value or "",
+                value_event.current_value or "",
                 "false",
-                event.detected_at.isoformat(),
+                value_event.detected_at.isoformat(),
             ]
         )
 

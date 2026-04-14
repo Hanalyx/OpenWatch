@@ -6,7 +6,7 @@ Compares current compliance state against established baseline.
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from uuid import UUID
 
@@ -14,7 +14,6 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from ....utils.query_builder import QueryBuilder
-
 from ..core.score_calculator import ComplianceScoreCalculator
 from ..models import BaselineDrift, DriftSeverity
 
@@ -144,7 +143,7 @@ class BaselineDriftDetector:
             newly_passed=newly_passed,
             critical_regressions=critical_regressions,
             high_regressions=high_regressions,
-            detected_at=datetime.utcnow(),
+            detected_at=datetime.now(timezone.utc),
         )
 
         logger.info(

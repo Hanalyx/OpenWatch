@@ -833,8 +833,8 @@ class SystemInfoCollector:
                 uid = int(parts[2])
                 gid = int(parts[3])
             except ValueError:
-                uid = None
-                gid = None
+                uid: Optional[int] = None  # type: ignore[no-redef]
+                gid: Optional[int] = None  # type: ignore[no-redef]
 
             gecos = parts[4] if parts[4] else None
             home_dir = parts[5] if parts[5] else None

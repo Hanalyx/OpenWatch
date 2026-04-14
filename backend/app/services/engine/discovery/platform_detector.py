@@ -270,9 +270,9 @@ class PlatformDetector:
             return credential_data.private_key or credential_data.password
         return None
 
-    def _detect_os_release(self, ssh_client: Any) -> Dict[str, str]:
+    def _detect_os_release(self, ssh_client: Any) -> Dict[str, Optional[str]]:
         """Detect OS information from /etc/os-release."""
-        result = {"os_family": None, "os_version": None, "os_name": None}
+        result: Dict[str, Optional[str]] = {"os_family": None, "os_version": None, "os_name": None}
 
         try:
             # Try /etc/os-release first
@@ -316,9 +316,9 @@ class PlatformDetector:
 
         return result
 
-    def _parse_os_release(self, content: str) -> Dict[str, str]:
+    def _parse_os_release(self, content: str) -> Dict[str, Optional[str]]:
         """Parse /etc/os-release file content."""
-        result = {"os_family": None, "os_version": None, "os_name": None}
+        result: Dict[str, Optional[str]] = {"os_family": None, "os_version": None, "os_name": None}
 
         # Parse key-value pairs
         os_data = {}

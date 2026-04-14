@@ -5,7 +5,7 @@ Executes SQL migrations from backend/app/migrations directory on application sta
 
 import logging
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -121,7 +121,7 @@ class MigrationRunner:
 
             return False
 
-    def run_migrations(self) -> Dict[str, any]:
+    def run_migrations(self) -> Dict[str, Any]:
         """Run all pending migrations"""
         logger.info("=" * 80)
         logger.info("AUTOMATIC MIGRATION RUNNER")

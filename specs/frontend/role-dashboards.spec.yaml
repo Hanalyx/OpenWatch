@@ -1,0 +1,24 @@
+spec: role-dashboards
+version: "1.0"
+status: active
+owner: engineering
+summary: >
+  Role-based dashboard widget registry with 6 role presets and permission-gated quick actions.
+
+acceptance_criteria:
+  - id: AC-1
+    description: Widget registry defines all widgets with requiredPermissions.
+  - id: AC-2
+    description: Six role presets exist (super_admin, security_admin, security_analyst, compliance_officer, auditor, guest).
+  - id: AC-3
+    description: Each preset specifies widget layout and visibility.
+  - id: AC-4
+    description: Quick actions are permission-gated.
+  - id: AC-5
+    description: Dashboard loads user role from useAuthStore.
+  - id: AC-6
+    description: Customization tiers defined (full, limited, none).
+  - id: AC-7
+    description: SummaryBar widget shows aggregate compliance data.
+  - id: AC-8
+    description: Widget components are importable and renderable.

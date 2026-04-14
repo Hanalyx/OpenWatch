@@ -238,7 +238,7 @@ def validate_ssh_key(
         # Normalize input to string - database may return bytes or memoryview
         if isinstance(key_content, (bytes, memoryview)):
             try:
-                key_content = key_content.decode("utf-8", errors="ignore")
+                key_content = bytes(key_content).decode("utf-8", errors="ignore")
             except Exception as decode_error:
                 logger.debug("Failed to decode key content: %s", type(decode_error).__name__)
                 return SSHKeyValidationResult(

@@ -92,7 +92,7 @@ export const WithPositiveTrend: Story = {
   args: {
     title: 'Compliance Score',
     value: '94%',
-    subtitle: 'SCAP compliance rate',
+    subtitle: 'Compliance rate',
     icon: <Security />,
     trend: 'up',
     trendValue: '+2.3%',

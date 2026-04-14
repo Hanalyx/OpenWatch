@@ -9,7 +9,7 @@ and rule-based validation to prevent misconfigurations.
 import json
 import logging
 import re
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 from sqlalchemy.orm import Session
@@ -512,13 +512,13 @@ class GroupValidationService:
 
         for family, pattern in os_family_patterns.items():
             if re.search(pattern, os_string):
-                host.os_family = family
+                setattr(host, "os_family", family)
                 break
 
         # Detect OS version
         version_match = re.search(r"(\d+\.?\d*)", os_string)
         if version_match:
-            host.os_version = version_match.group(1)
+            setattr(host, "os_version", version_match.group(1))
 
         # Detect architecture if present
         arch_patterns = {
@@ -530,11 +530,11 @@ class GroupValidationService:
 
         for arch, pattern in arch_patterns.items():
             if re.search(pattern, os_string):
-                host.architecture = arch
+                setattr(host, "architecture", arch)
                 break
 
         # Update last OS detection time
-        host.last_os_detection = datetime.utcnow()
+        setattr(host, "last_os_detection", datetime.now(timezone.utc))
 
         # Commit changes
         self.db.add(host)

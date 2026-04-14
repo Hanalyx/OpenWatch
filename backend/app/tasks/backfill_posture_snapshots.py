@@ -18,7 +18,6 @@ import logging
 from datetime import datetime, time, timezone
 from typing import Any, Dict
 
-from celery import shared_task
 from sqlalchemy import text
 
 from app.database import PostureSnapshot, SessionLocal
@@ -26,7 +25,6 @@ from app.database import PostureSnapshot, SessionLocal
 logger = logging.getLogger(__name__)
 
 
-@shared_task(name="backfill_posture_snapshots")
 def backfill_posture_snapshots(days_back: int = 90) -> Dict[str, Any]:
     """
     Backfill posture snapshots from historical scan data.

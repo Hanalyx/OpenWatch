@@ -18,7 +18,7 @@ import json
 import logging
 import os
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -28,6 +28,7 @@ from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey, RSAPubl
 from pydantic import BaseModel, Field
 
 from ...config import get_settings
+from ...utils.logging_security import sanitize_for_log
 
 # Initialize logger early
 logger = logging.getLogger(__name__)
@@ -39,15 +40,6 @@ try:
 except ImportError:
     DOCKER_AVAILABLE = False
     logger.warning("Docker library not available. Container execution will use subprocess fallback.")
-
-
-def sanitize_for_log(value: Any) -> str:
-    """Sanitize user input for safe logging"""
-    if value is None:
-        return "None"
-    str_value = str(value)
-    # Remove newlines and control characters to prevent log injection
-    return str_value.replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t")[:1000]
 
 
 class ContainerRuntimeClient:
@@ -240,7 +232,7 @@ class SecureCommand(BaseModel):
     max_execution_time: int = 300  # seconds
     rollback_template: Optional[str] = None
     signature: Optional[str] = None
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class ExecutionRequest(BaseModel):
@@ -630,7 +622,7 @@ class CommandSandboxService:
 
         try:
             request.status = ExecutionStatus.EXECUTING
-            request.executed_at = datetime.utcnow()
+            request.executed_at = datetime.now(timezone.utc)
 
             # Build command from template
             command_str = command.template
@@ -646,7 +638,7 @@ class CommandSandboxService:
                 request.exit_code = exit_code
                 request.output = stdout
                 request.error_output = stderr
-                request.completed_at = datetime.utcnow()
+                request.completed_at = datetime.now(timezone.utc)
 
                 if exit_code == 0:
                     request.status = ExecutionStatus.COMPLETED
@@ -662,7 +654,7 @@ class CommandSandboxService:
         except Exception as e:
             request.status = ExecutionStatus.FAILED
             request.error_output = str(e)
-            request.completed_at = datetime.utcnow()
+            request.completed_at = datetime.now(timezone.utc)
             logger.error(f"Command execution failed: {request.command_id} - {e}")
 
         return request

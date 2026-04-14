@@ -41,7 +41,6 @@ Requires:       python%{python_version}
 Requires:       python%{python_version}-pip
 Requires:       postgresql >= 15
 Requires:       postgresql-server >= 15
-Requires:       redis >= 6
 Requires:       nginx >= 1.20
 Requires:       openssl >= 1.1
 
@@ -169,7 +168,7 @@ install -d %{buildroot}/lib/systemd/system
 
 # Runtime directories
 install -d %{buildroot}%{_localstatedir}/lib/openwatch
-install -d %{buildroot}%{_localstatedir}/lib/openwatch/celery
+# celery directory removed — job queue uses PostgreSQL
 install -d %{buildroot}%{_localstatedir}/lib/openwatch/exports
 install -d %{buildroot}%{_localstatedir}/lib/openwatch/ssh
 install -d %{buildroot}%{_localstatedir}/log/openwatch
@@ -429,14 +428,14 @@ EOF
 # OpenWatch Worker service (template for multiple instances)
 cat > %{buildroot}/lib/systemd/system/openwatch-worker@.service << 'EOF'
 [Unit]
-Description=OpenWatch Celery Worker %i
+Description=OpenWatch Job Queue Worker %i
 Documentation=https://github.com/hanalyx/openwatch
-After=network-online.target postgresql.service redis.service openwatch-api.service
-Requires=postgresql.service redis.service
+After=network-online.target postgresql.service openwatch-api.service
+Requires=postgresql.service
 PartOf=openwatch-api.service
 
 [Service]
-Type=notify
+Type=simple
 User=openwatch
 Group=openwatch
 WorkingDirectory=/opt/openwatch/backend
@@ -445,16 +444,10 @@ WorkingDirectory=/opt/openwatch/backend
 EnvironmentFile=/etc/openwatch/secrets.env
 Environment=PYTHONPATH=/opt/openwatch/backend
 Environment=OPENWATCH_CONFIG_FILE=/etc/openwatch/ow.yml
-Environment=C_FORCE_ROOT=false
 
-# Celery worker command
-ExecStart=/opt/openwatch/venv/bin/celery \
-    -A app.celery_app worker \
-    --loglevel=info \
-    --hostname=worker-%i@%%h \
-    --queues=default,scans,results,maintenance,monitoring,host_monitoring,health_monitoring,compliance_scanning \
-    --concurrency=4 \
-    --logfile=/var/log/openwatch/worker-%i.log
+# Job queue worker (replaces Celery)
+ExecStart=/opt/openwatch/venv/bin/python3 \
+    -m app.services.job_queue
 
 # Lifecycle
 ExecReload=/bin/kill -HUP $MAINPID
@@ -476,53 +469,15 @@ TasksMax=2048
 WantedBy=multi-user.target
 EOF
 
-# OpenWatch Beat service (Celery scheduler)
-cat > %{buildroot}/lib/systemd/system/openwatch-beat.service << 'EOF'
-[Unit]
-Description=OpenWatch Celery Beat Scheduler
-Documentation=https://github.com/hanalyx/openwatch
-After=network-online.target postgresql.service redis.service
-Requires=postgresql.service redis.service
-
-[Service]
-Type=simple
-User=openwatch
-Group=openwatch
-WorkingDirectory=/opt/openwatch/backend
-
-# Environment
-EnvironmentFile=/etc/openwatch/secrets.env
-Environment=PYTHONPATH=/opt/openwatch/backend
-Environment=OPENWATCH_CONFIG_FILE=/etc/openwatch/ow.yml
-
-# Celery beat command
-ExecStart=/opt/openwatch/venv/bin/celery \
-    -A app.celery_app beat \
-    --loglevel=info \
-    --logfile=/var/log/openwatch/beat.log \
-    --schedule=/var/lib/openwatch/celery/celerybeat-schedule
-
-Restart=on-failure
-RestartSec=10
-
-# Security
-NoNewPrivileges=true
-ProtectSystem=strict
-PrivateTmp=true
-ReadWritePaths=/var/lib/openwatch /var/log/openwatch
-ReadOnlyPaths=/opt/openwatch /etc/openwatch
-
-[Install]
-WantedBy=multi-user.target
-EOF
+# Beat service removed — scheduler runs inside the job queue worker
 
 # OpenWatch target (starts all services)
 cat > %{buildroot}/lib/systemd/system/openwatch.target << 'EOF'
 [Unit]
 Description=OpenWatch Compliance Platform
 Documentation=https://github.com/hanalyx/openwatch
-Requires=openwatch-api.service openwatch-worker@1.service openwatch-beat.service
-After=openwatch-api.service openwatch-worker@1.service openwatch-beat.service
+Requires=openwatch-api.service openwatch-worker@1.service
+After=openwatch-api.service openwatch-worker@1.service
 
 [Install]
 WantedBy=multi-user.target

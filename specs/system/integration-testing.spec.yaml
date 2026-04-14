@@ -1,0 +1,47 @@
+spec: integration-testing
+version: "1.0"
+status: active
+owner: engineering
+summary: >
+  Integration testing requirements for OpenWatch API endpoints exercised
+  against live PostgreSQL with real host data, compliance scans, and SSH
+  connectivity. Covers all major user workflows end-to-end.
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      Host CRUD lifecycle exercised: create, get, update, delete with real DB.
+  - id: AC-2
+    description: >
+      Scan execution exercised: start Kensa scan, get results, reports (CSV/JSON).
+  - id: AC-3
+    description: >
+      Compliance posture exercised: posture query, history, drift detection, snapshots.
+  - id: AC-4
+    description: >
+      Audit query lifecycle exercised: create, preview, execute, export, delete.
+  - id: AC-5
+    description: >
+      Alert lifecycle exercised: list, acknowledge, resolve with real alert data.
+  - id: AC-6
+    description: >
+      Exception lifecycle exercised: create, approve, revoke, check.
+  - id: AC-7
+    description: >
+      System settings exercised: credentials CRUD, scheduler, session timeout.
+  - id: AC-8
+    description: >
+      SSH connectivity tested against live hosts via test-connection endpoint.
+  - id: AC-9
+    description: >
+      Rule reference browser exercised: list, search, filter, detail, refresh.
+  - id: AC-10
+    description: >
+      Host group lifecycle exercised: create, assign hosts, scan, delete.
+  - id: AC-11
+    description: >
+      Authorization checks exercised: permission grant, check, bulk check, audit.
+  - id: AC-12
+    description: >
+      Direct service calls exercised: temporal compliance, audit query, alerts,
+      exceptions, rule reference, encryption, RBAC, query builders.

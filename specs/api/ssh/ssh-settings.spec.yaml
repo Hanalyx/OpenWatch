@@ -1,0 +1,39 @@
+spec: ssh-settings
+version: "1.0"
+status: active
+owner: engineering
+summary: >
+  SSH settings API endpoints for managing SSH policy configuration, known hosts,
+  and connectivity testing. Policy and known host endpoints require SYSTEM_CONFIG
+  permission; connectivity testing requires SCAN_EXECUTE permission. All
+  operations delegate to SSHConfigManager or HostMonitor services.
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      Get and set SSH policy endpoints are decorated with
+      @require_permission(Permission.SYSTEM_CONFIG).
+
+  - id: AC-2
+    description: >
+      Known hosts CRUD endpoints (get, add, remove) are decorated with
+      @require_permission(Permission.SYSTEM_CONFIG).
+
+  - id: AC-3
+    description: >
+      Test SSH connectivity endpoint is decorated with
+      @require_permission(Permission.SCAN_EXECUTE).
+
+  - id: AC-4
+    description: >
+      Policy operations delegate to SSHConfigManager by instantiating it with
+      the database session.
+
+  - id: AC-5
+    description: >
+      Known host listing supports an optional hostname filter parameter.
+
+  - id: AC-6
+    description: >
+      Test connectivity delegates to HostMonitor.check_ssh_connectivity for the
+      actual SSH connection test.

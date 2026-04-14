@@ -192,10 +192,10 @@ class WebhookSecurity:
         Returns:
             Standardized event payload
         """
-        from datetime import datetime
+        from datetime import datetime, timezone
 
         if not timestamp:
-            timestamp = datetime.utcnow().isoformat()
+            timestamp = datetime.now(timezone.utc).isoformat()
 
         return {"event": event_type, "timestamp": timestamp, "data": data}
 

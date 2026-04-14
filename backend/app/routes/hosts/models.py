@@ -12,10 +12,12 @@ Model Categories:
     - Compliance Discovery Models: ComplianceDiscoveryResponse, etc.
 """
 
+import ipaddress
+import re
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, validator
 
 # =============================================================================
 # HOST CRUD MODELS
@@ -107,6 +109,24 @@ class HostCreate(BaseModel):
     tags: Optional[List[str]] = []
     owner: Optional[str] = None
 
+    @validator("ip_address")
+    def validate_ip_address(cls, v: str) -> str:
+        """Validate that ip_address is a valid IPv4/IPv6 address or hostname."""
+        # Try parsing as IP address first
+        try:
+            ipaddress.ip_address(v)
+            return v
+        except ValueError:
+            pass
+
+        # Fall back to hostname validation (RFC 952 / RFC 1123)
+        if len(v) > 253:
+            raise ValueError("Hostname must be 253 characters or fewer")
+        hostname_pattern = re.compile(r"^[a-zA-Z0-9]([a-zA-Z0-9.\-]*[a-zA-Z0-9])?$")
+        if not hostname_pattern.match(v):
+            raise ValueError("ip_address must be a valid IPv4/IPv6 address or hostname")
+        return v
+
 
 class HostUpdate(BaseModel):
     """Request model for updating an existing host."""
@@ -124,6 +144,26 @@ class HostUpdate(BaseModel):
     tags: Optional[List[str]] = None
     owner: Optional[str] = None
     description: Optional[str] = None  # Allow description updates
+
+    @validator("ip_address")
+    def validate_ip_address(cls, v: Optional[str]) -> Optional[str]:
+        """Validate that ip_address is a valid IPv4/IPv6 address or hostname."""
+        if v is None:
+            return v
+        # Try parsing as IP address first
+        try:
+            ipaddress.ip_address(v)
+            return v
+        except ValueError:
+            pass
+
+        # Fall back to hostname validation (RFC 952 / RFC 1123)
+        if len(v) > 253:
+            raise ValueError("Hostname must be 253 characters or fewer")
+        hostname_pattern = re.compile(r"^[a-zA-Z0-9]([a-zA-Z0-9.\-]*[a-zA-Z0-9])?$")
+        if not hostname_pattern.match(v):
+            raise ValueError("ip_address must be a valid IPv4/IPv6 address or hostname")
+        return v
 
 
 class OSDiscoveryResponse(BaseModel):

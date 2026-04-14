@@ -1,0 +1,20 @@
+spec: users-management
+version: "1.0"
+status: active
+owner: engineering
+summary: >
+  User management page for CRUD operations with role assignment and search.
+
+acceptance_criteria:
+  - id: AC-1
+    description: User list displays username, email, role, and status columns.
+  - id: AC-2
+    description: Create user form validates required fields.
+  - id: AC-3
+    description: Role assignment uses dropdown with all 6 roles.
+  - id: AC-4
+    description: User deletion requires confirmation dialog.
+  - id: AC-5
+    description: User list supports search or filter functionality.
+  - id: AC-6
+    description: Users page requires authenticated access.

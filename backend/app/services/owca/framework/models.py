@@ -8,7 +8,7 @@ that require specialized data structures.
 Security: All models use Pydantic validation to ensure data integrity.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import List, Optional
 
@@ -117,7 +117,7 @@ class NISTFrameworkIntelligence(BaseModel):
     enhancements_tested: int = Field(default=0, description="Control enhancements tested")
     enhancements_coverage: float = Field(default=0.0, description="Enhancement coverage percentage")
     recommended_baseline: NISTBaseline = Field(..., description="Recommended baseline for organization")
-    calculated_at: datetime = Field(default_factory=datetime.utcnow)
+    calculated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 # CIS Benchmark Models
@@ -208,7 +208,7 @@ class CISFrameworkIntelligence(BaseModel):
     not_scored_recommendations: int = Field(..., description="Total not-scored recommendations")
     automated_tests: int = Field(..., description="Recommendations with automated tests")
     manual_tests: int = Field(..., description="Recommendations requiring manual verification")
-    calculated_at: datetime = Field(default_factory=datetime.utcnow)
+    calculated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 # STIG Models
@@ -273,7 +273,7 @@ class STIGFrameworkIntelligence(BaseModel):
     framework: str = Field(default="STIG", description="Framework identifier")
     stig_id: str = Field(..., description="STIG identifier (e.g., 'RHEL_8_STIG')")
     stig_version: str = Field(..., description="STIG version (e.g., 'V1R9')")
-    release_date: Optional[str] = Field(None, description="STIG release date")
+    release_date: Optional[str] = None
     overall_score: float = Field(..., description="Overall STIG compliance score")
     overall_tier: str = Field(..., description="OWCA compliance tier")
     severity_scores: List[STIGSeverityScore] = Field(
@@ -286,7 +286,7 @@ class STIGFrameworkIntelligence(BaseModel):
     not_reviewed: int = Field(..., description="Not Reviewed findings")
     automated_checks: int = Field(..., description="Findings with automated checks")
     manual_checks: int = Field(..., description="Findings requiring manual review")
-    calculated_at: datetime = Field(default_factory=datetime.utcnow)
+    calculated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 # Generic Framework Intelligence
@@ -306,4 +306,4 @@ class FrameworkIntelligence(BaseModel):
     controls_total: int = Field(..., description="Total controls tested")
     controls_passed: int = Field(..., description="Controls passed")
     controls_failed: int = Field(..., description="Controls failed")
-    calculated_at: datetime = Field(default_factory=datetime.utcnow)
+    calculated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

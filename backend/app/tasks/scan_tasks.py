@@ -6,7 +6,7 @@ import asyncio
 import json
 import logging
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 from sqlalchemy import text
@@ -17,20 +17,23 @@ from ..database import SessionLocal
 # SemanticEngine provides intelligent scan analysis and compliance intelligence
 # Engine module exceptions and integration services
 # ScanExecutionError provides standardized error handling for scan failures
-from ..services.engine import ScanExecutionError, get_semantic_engine
+from ..services.engine import ScanExecutionError
 
 # UnifiedSCAPScanner provides execute_local_scan, execute_remote_scan,
 # and test_ssh_connection methods with legacy compatibility
-from ..services.engine.scanners import UnifiedSCAPScanner
+# UnifiedSCAPScanner removed (SCAP-era, replaced by Kensa)
 from ..services.validation import ErrorClassificationService
 from ..utils.query_builder import QueryBuilder
 from .webhook_tasks import send_scan_completed_webhook, send_scan_failed_webhook
+
+# get_semantic_engine removed (SCAP-era dead code)
+
 
 logger = logging.getLogger(__name__)
 
 # Initialize services
 # UnifiedSCAPScanner handles SSH-based SCAP scanning operations
-scap_scanner = UnifiedSCAPScanner()
+scap_scanner: Optional[Any] = None  # UnifiedSCAPScanner removed, Kensa is the active scanner
 error_service = ErrorClassificationService()
 
 
@@ -40,7 +43,7 @@ def execute_scan_task(
     content_path: str,
     profile_id: str,
     scan_options: Dict[str, Any],
-) -> Dict[str, Any]:
+) -> None:
     """
     Execute SCAP scan task
     This is designed to work with or without Celery
@@ -122,9 +125,9 @@ def execute_scan_task(
                 credentials = {
                     "username": credential_data.username,
                     "auth_method": credential_data.auth_method.value,
-                    "password": credential_data.password,
-                    "private_key": credential_data.private_key,  # Consistent field naming
-                    "private_key_passphrase": credential_data.private_key_passphrase,
+                    "password": credential_data.password,  # type: ignore[dict-item]
+                    "private_key": credential_data.private_key or "",  # Consistent field naming
+                    "private_key_passphrase": credential_data.private_key_passphrase,  # type: ignore[dict-item]
                 }
 
                 # Update host_data to use resolved credentials
@@ -223,15 +226,17 @@ def execute_scan_task(
             else:
                 credential_value = credentials.get("credential", "")
 
-            ssh_test = scap_scanner.test_ssh_connection(
-                hostname=host_data["hostname"],
-                port=host_data["port"],
-                username=host_data["username"],
-                auth_method=host_data["auth_method"],
-                credential=credential_value,
-            )
+            ssh_test: Optional[Dict[str, Any]] = None
+            if scap_scanner is not None:
+                ssh_test = scap_scanner.test_ssh_connection(
+                    hostname=host_data["hostname"],
+                    port=host_data["port"],
+                    username=host_data["username"],
+                    auth_method=host_data["auth_method"],
+                    credential=credential_value,
+                )
 
-            if not ssh_test["success"]:
+            if ssh_test is not None and not ssh_test["success"]:
                 logger.error(f"SSH connection failed for scan {scan_id}: {ssh_test['message']}")
                 # Create a synthetic exception for SSH failure
                 ssh_error = Exception(f"SSH connection failed: {ssh_test['message']}")
@@ -243,7 +248,7 @@ def execute_scan_task(
                 )
                 return
 
-            if not ssh_test.get("oscap_available", False):
+            if not (ssh_test or {}).get("oscap_available", False):
                 logger.warning(f"OpenSCAP not available on remote host for scan {scan_id}")
                 # Create a synthetic exception for missing dependency
                 dep_error = Exception("OpenSCAP not available on remote host")
@@ -281,25 +286,27 @@ def execute_scan_task(
 
             if host_data["hostname"] == "localhost":
                 # Local scan
-                scan_results = scap_scanner.execute_local_scan(
-                    content_path=content_path,
-                    profile_id=profile_id,
-                    scan_id=scan_id,
-                    rule_id=rule_id,
-                )
+                if scap_scanner is not None:
+                    scan_results = scap_scanner.execute_local_scan(
+                        content_path=content_path,
+                        profile_id=profile_id,
+                        scan_id=scan_id,
+                        rule_id=rule_id,
+                    )
             else:
                 # Remote scan
-                scan_results = scap_scanner.execute_remote_scan(
-                    hostname=host_data["hostname"],
-                    port=host_data["port"],
-                    username=host_data["username"],
-                    auth_method=host_data["auth_method"],
-                    credential=credential_value,
-                    content_path=content_path,
-                    profile_id=profile_id,
-                    scan_id=scan_id,
-                    rule_id=rule_id,
-                )
+                if scap_scanner is not None:
+                    scan_results = scap_scanner.execute_remote_scan(
+                        hostname=host_data["hostname"],
+                        port=host_data["port"],
+                        username=host_data["username"],
+                        auth_method=host_data["auth_method"],
+                        credential=credential_value,
+                        content_path=content_path,
+                        profile_id=profile_id,
+                        scan_id=scan_id,
+                        rule_id=rule_id,
+                    )
 
             # Update progress after scan execution
             db.execute(
@@ -335,7 +342,7 @@ def execute_scan_task(
             ),
             {
                 "scan_id": scan_id,
-                "completed_at": datetime.utcnow(),
+                "completed_at": datetime.now(timezone.utc),
                 "result_file": scan_results.get("xml_result"),
                 "report_file": scan_results.get("html_report"),
             },
@@ -389,7 +396,7 @@ def execute_scan_task(
                 "passed_rules": scan_results.get("rules_passed", 0),
                 "failed_rules": scan_results.get("rules_failed", 0),
                 "score": scan_results.get("score", 0),
-                "completed_at": datetime.utcnow().isoformat(),
+                "completed_at": datetime.now(timezone.utc).isoformat(),
             }
 
             # Run webhook delivery in a new event loop (for Celery worker context)
@@ -454,8 +461,6 @@ def _update_scan_error(
         # Check if this is part of a group scan and update progress
         if scan_data and scan_data.scan_options:
             try:
-                import json
-
                 scan_options = json.loads(scan_data.scan_options)
                 group_scan_session_id = scan_options.get("session_id")
 
@@ -486,7 +491,7 @@ def _update_scan_error(
             ),
             {
                 "scan_id": scan_id,
-                "completed_at": datetime.utcnow(),
+                "completed_at": datetime.now(timezone.utc),
                 "error_message": error_message,
             },
         )
@@ -499,7 +504,7 @@ def _update_scan_error(
                     "hostname": scan_data.hostname,
                     "profile_id": scan_data.profile_id,
                     "status": "failed",
-                    "completed_at": datetime.utcnow().isoformat(),
+                    "completed_at": datetime.now(timezone.utc).isoformat(),
                 }
 
                 # Run webhook delivery in a new event loop (for Celery worker context)
@@ -591,7 +596,7 @@ def _save_scan_results(db: Session, scan_id: str, scan_results: Dict[str, Any]) 
                 "severity_medium_failed": severity_medium_failed,
                 "severity_low_passed": severity_low_passed,
                 "severity_low_failed": severity_low_failed,
-                "created_at": datetime.utcnow(),
+                "created_at": datetime.now(timezone.utc),
             },
         )
         db.commit()
@@ -603,22 +608,10 @@ def _save_scan_results(db: Session, scan_id: str, scan_results: Dict[str, Any]) 
 
 
 # ---------------------------------------------------------------------------
-# Celery task for scan execution
+# Scan execution task (Celery removed)
 # ---------------------------------------------------------------------------
 
-from app.celery_app import celery_app  # noqa: E402
 
-
-@celery_app.task(
-    bind=True,
-    name="app.tasks.execute_scan",
-    queue="scans",
-    time_limit=7200,
-    soft_time_limit=6600,
-    acks_late=True,
-    reject_on_worker_lost=True,
-    max_retries=1,
-)
 def execute_scan_celery(
     self: Any,
     scan_id: str,
@@ -632,11 +625,11 @@ def execute_scan_celery(
 
     Wraps execute_scan_task with Celery lifecycle management:
     - Stores celery_task_id for tracking
-    - Handles SoftTimeLimitExceeded gracefully
+    - Handles TimeoutError gracefully
     - Marks scan as failed on unrecoverable errors
     - acks_late + reject_on_worker_lost ensures re-delivery on worker crash
     """
-    from celery.exceptions import SoftTimeLimitExceeded
+    # TimeoutError from builtins (Celery dependency removed)
 
     try:
         # Record celery task ID for tracking
@@ -653,7 +646,7 @@ def execute_scan_celery(
         # Delegate to existing scan logic
         execute_scan_task(scan_id, host_data, content_path, profile_id, scan_options)
 
-    except SoftTimeLimitExceeded:
+    except TimeoutError:
         logger.error(f"Scan {scan_id} exceeded soft time limit (1h50m)")
         db = SessionLocal()
         try:
@@ -668,7 +661,7 @@ def execute_scan_celery(
             _update_scan_error(db, scan_id, f"Task execution failed: {str(exc)}")
         finally:
             db.close()
-        raise self.retry(exc=exc, countdown=120, max_retries=1)
+        raise
 
 
 async def _process_semantic_intelligence(
@@ -679,58 +672,8 @@ async def _process_semantic_intelligence(
     try:
         logger.info(f"Starting semantic intelligence processing for scan: {scan_id}")
 
-        # Get semantic engine from engine integration module
-        # SemanticEngine provides intelligent compliance analysis
-        semantic_engine = get_semantic_engine()
-
-        # Build host information for semantic processing
-        host_info = {
-            "host_id": host_data.get("host_id"),
-            "hostname": host_data.get("hostname"),
-            "distribution_name": host_data.get("distribution_name"),
-            "distribution_version": host_data.get("distribution_version"),
-            "os_version": host_data.get("os_version", ""),
-            "package_manager": host_data.get("package_manager"),
-            "service_manager": host_data.get("service_manager"),
-        }
-
-        # Process scan with semantic intelligence
-        intelligent_result = await semantic_engine.process_scan_with_intelligence(
-            scan_results=scan_results, scan_id=scan_id, host_info=host_info
-        )
-
-        # Update scan record with semantic analysis information
-        frameworks_analyzed = list(intelligent_result.framework_compliance_matrix.keys())
-        semantic_rules_count = len(intelligent_result.semantic_rules)
-
-        db.execute(
-            text(
-                """
-            UPDATE scans SET
-                semantic_analysis_completed = true,
-                semantic_rules_count = :semantic_rules_count,
-                frameworks_analyzed = :frameworks_analyzed,
-                remediation_strategy = :remediation_strategy
-            WHERE id = :scan_id
-        """
-            ),
-            {
-                "scan_id": scan_id,
-                "semantic_rules_count": semantic_rules_count,
-                "frameworks_analyzed": frameworks_analyzed,
-                "remediation_strategy": json.dumps(intelligent_result.remediation_strategy),
-            },
-        )
-        db.commit()
-
-        # Send enhanced webhook with semantic intelligence
-        await _send_enhanced_semantic_webhook(scan_id, intelligent_result, host_data)
-
-        logger.info(
-            f"Semantic intelligence processing completed for scan {scan_id}: "
-            f"{semantic_rules_count} semantic rules, "
-            f"{len(frameworks_analyzed)} frameworks analyzed"
-        )
+        # SemanticEngine removed (SCAP-era dead code)
+        logger.info("Semantic intelligence processing skipped (engine removed)")
 
     except Exception as e:
         logger.error(f"Error in semantic intelligence processing: {e}", exc_info=True)
@@ -768,7 +711,7 @@ async def _send_enhanced_semantic_webhook(scan_id: str, intelligent_result: Any,
         # Create enhanced webhook payload with semantic intelligence
         webhook_data = {
             "event": "semantic.analysis.completed",
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "data": {
                 "scan_id": scan_id,
                 "host_info": {

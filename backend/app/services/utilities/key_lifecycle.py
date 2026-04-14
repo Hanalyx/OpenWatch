@@ -6,7 +6,7 @@ FIPS-compliant JWT signing key rotation and management
 import logging
 import secrets
 from dataclasses import asdict, dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -90,7 +90,7 @@ class RSAKeyLifecycleManager:
 
     def generate_key_id(self) -> str:
         """Generate unique key identifier"""
-        return f"jwt_key_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}_{secrets.token_hex(8)}"
+        return f"jwt_key_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}_{secrets.token_hex(8)}"
 
     def calculate_fingerprint(self, public_key: rsa.RSAPublicKey) -> str:
         """Calculate SHA-256 fingerprint of RSA public key"""
@@ -242,6 +242,9 @@ class RSAKeyLifecycleManager:
             with open(private_key_path, "rb") as f:
                 private_key = serialization.load_pem_private_key(f.read(), password=None, backend=default_backend())
 
+            if not isinstance(private_key, rsa.RSAPrivateKey):
+                logger.error(f"Key {key_id} is not an RSA private key")
+                return None
             return private_key
 
         except Exception as e:
@@ -258,6 +261,9 @@ class RSAKeyLifecycleManager:
             with open(public_key_path, "rb") as f:
                 public_key = serialization.load_pem_public_key(f.read(), backend=default_backend())
 
+            if not isinstance(public_key, rsa.RSAPublicKey):
+                logger.error(f"Key {key_id} is not an RSA public key")
+                return None
             return public_key
 
         except Exception as e:
@@ -300,7 +306,7 @@ class RSAKeyLifecycleManager:
                 key_id=key_id,
                 key_size=key_size or self.key_size,
                 status=KeyStatus.PENDING,
-                created_at=datetime.utcnow(),
+                created_at=datetime.now(timezone.utc),
                 fingerprint=fingerprint,
             )
 
@@ -337,8 +343,8 @@ class RSAKeyLifecycleManager:
 
             # Activate new key
             metadata.status = KeyStatus.ACTIVE
-            metadata.activated_at = datetime.utcnow()
-            metadata.expires_at = datetime.utcnow() + timedelta(days=self.key_lifetime_days)
+            metadata.activated_at = datetime.now(timezone.utc)
+            metadata.expires_at = datetime.now(timezone.utc) + timedelta(days=self.key_lifetime_days)
 
             self.update_key_metadata(key_id, metadata)
 
@@ -359,7 +365,7 @@ class RSAKeyLifecycleManager:
                 raise ValueError(f"Key {key_id} not found")
 
             metadata.status = KeyStatus.DEPRECATED
-            metadata.deprecated_at = datetime.utcnow()
+            metadata.deprecated_at = datetime.now(timezone.utc)
 
             self.update_key_metadata(key_id, metadata)
 
@@ -439,7 +445,7 @@ class RSAKeyLifecycleManager:
     def get_keys_needing_rotation(self) -> List[str]:
         """Get list of keys that need rotation based on expiration"""
         keys_needing_rotation = []
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         warning_threshold = now + timedelta(days=self.rotation_overlap_days)
 
         try:
@@ -462,7 +468,7 @@ class RSAKeyLifecycleManager:
 
     def cleanup_old_keys(self, retention_days: int = 90) -> None:
         """Clean up deprecated/revoked keys older than retention period"""
-        cutoff_date = datetime.utcnow() - timedelta(days=retention_days)
+        cutoff_date = datetime.now(timezone.utc) - timedelta(days=retention_days)
         cleaned_count = 0
 
         try:
@@ -494,7 +500,7 @@ class RSAKeyLifecycleManager:
             metadata = self.load_key_metadata(key_id)
             if metadata:
                 metadata.usage_count += 1
-                metadata.last_used = datetime.utcnow()
+                metadata.last_used = datetime.now(timezone.utc)
                 self.update_key_metadata(key_id, metadata)
 
         except Exception as e:
@@ -510,12 +516,12 @@ class RSAKeyLifecycleManager:
             "revoked_keys": 0,
             "keys_needing_rotation": 0,
             "oldest_active_key_age_days": 0,
-            "average_key_usage": 0,
+            "average_key_usage": 0.0,
         }
 
         try:
             usage_counts = []
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
             oldest_active_age = 0
 
             for key_dir in self.key_storage_path.iterdir():

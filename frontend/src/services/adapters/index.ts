@@ -58,6 +58,32 @@ export {
   fetchScanHistory,
 } from './hostDetailAdapter';
 
+// Transaction adapters for Transactions page
+export { transactionService } from './transactionAdapter';
+
+export type { Transaction, TransactionDetail, TransactionListResponse } from './transactionAdapter';
+
+// Exception adapters for Compliance Exceptions page
+export { exceptionService } from './exceptionAdapter';
+
+export type {
+  ComplianceException,
+  ExceptionListResponse,
+  ExceptionSummary,
+  ExceptionCreateRequest,
+} from './exceptionAdapter';
+
+// Scheduler adapters for Scan Schedule page
+export { schedulerService } from './schedulerAdapter';
+
+export type {
+  SchedulerConfig,
+  SchedulerStatus,
+  SchedulerConfigUpdate,
+  ScheduledScanEntry,
+  HostScheduleEntry,
+} from './schedulerAdapter';
+
 // Rule Reference adapters for Rule Reference page
 export {
   fetchRules,

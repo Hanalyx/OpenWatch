@@ -121,10 +121,10 @@ const VALIDATION_CHECKS: ValidationCheckItem[] = [
     description: 'Validate SSH credentials and access permissions',
   },
   {
-    id: 'oscap',
+    id: 'compliance_engine',
     icon: <CheckCircleIcon />,
-    label: 'OpenSCAP Installation',
-    description: 'Confirm oscap command is available on target hosts',
+    label: 'Kensa Compliance Engine',
+    description: 'Confirm Kensa compliance engine is available on the server',
   },
   {
     id: 'resources',
@@ -294,10 +294,10 @@ const ReviewStartStep: React.FC<ReviewStartStepProps> = ({
    */
   const isConfigComplete = Boolean(
     targetType &&
-      (selectedHosts.length > 0 || selectedGroups.length > 0) &&
-      platform &&
-      platformVersion &&
-      framework
+    (selectedHosts.length > 0 || selectedGroups.length > 0) &&
+    platform &&
+    platformVersion &&
+    framework
   );
 
   return (

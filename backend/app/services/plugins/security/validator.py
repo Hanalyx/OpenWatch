@@ -9,7 +9,7 @@ import subprocess
 import tarfile
 import tempfile
 import zipfile
-from datetime import datetime
+from datetime import datetime, timezone
 from io import BytesIO
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -117,6 +117,8 @@ class PluginSecurityService:
                 return False, checks, None
 
             # Step 4: Security scans
+            if manifest is None:
+                return False, checks, None
             security_checks = await self._run_security_scans(extracted_path, manifest)
             checks.extend(security_checks)
 
@@ -159,7 +161,7 @@ class PluginSecurityService:
 
     async def _safe_extract_package(self, package_data: bytes, package_format: str) -> Dict[str, Any]:
         """Safely extract package with path traversal protection"""
-        temp_extract_dir = self.temp_dir / f"extract_{datetime.utcnow().timestamp()}"
+        temp_extract_dir = self.temp_dir / f"extract_{datetime.now(timezone.utc).timestamp()}"
         temp_extract_dir.mkdir(mode=0o700)
 
         try:
@@ -355,7 +357,7 @@ class PluginSecurityService:
             "ansible": [".yml", ".yaml"],
         }
 
-        files_to_scan = []
+        files_to_scan: list[Any] = []
         for ext in extensions.get(code_type, []):
             files_to_scan.extend(path.rglob(f"*{ext}"))
 

@@ -9,8 +9,8 @@ import logging
 import socket
 import subprocess
 import time
-from datetime import datetime
-from typing import Dict, List, Optional, Tuple
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional, Tuple
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -118,9 +118,9 @@ class HostMonitor:
 
             for port in ports_to_try:
                 try:
-                    result = sock.connect_ex((ip_address, port))
+                    conn_result = sock.connect_ex((ip_address, port))
                     sock.close()
-                    if result == 0:
+                    if conn_result == 0:
                         logger.debug(f"Socket test successful on port {port} for {ip_address}")
                         return True  # Connection successful, host is reachable
                     # Create new socket for next attempt
@@ -246,7 +246,8 @@ class HostMonitor:
             )
 
             # Close the connection
-            ssh.close()
+            if ssh is not None:
+                ssh.close()
 
             if command_result.success:
                 logger.debug(f"SSH connectivity check successful for {ip_address}")
@@ -269,7 +270,7 @@ class HostMonitor:
             logger.debug("Full traceback:", exc_info=True)
             return False, error_msg
 
-    async def get_effective_ssh_credentials(self, host_data: Dict, db) -> Dict:
+    async def get_effective_ssh_credentials(self, host_data: Dict, db: Any) -> Optional[Dict[str, Any]]:
         """
         Get effective SSH credentials for a host using centralized authentication service.
         Uses unified credential resolution with proper encryption and field naming.
@@ -412,13 +413,13 @@ class HostMonitor:
 
         return True, ""
 
-    async def comprehensive_host_check(self, host_data: Dict, db=None) -> Dict:
+    async def comprehensive_host_check(self, host_data: Dict[str, Any], db: Any = None) -> Dict[str, Any]:
         """
         Perform comprehensive host availability check
         Returns status information
         """
-        ip_address = host_data.get("ip_address")
-        hostname = host_data.get("hostname")
+        ip_address: str = str(host_data.get("ip_address") or "")
+        hostname: str = str(host_data.get("hostname") or "")
         port = int(host_data.get("port", 22))
         username = host_data.get("username")
 
@@ -428,7 +429,7 @@ class HostMonitor:
             "host_id": host_data.get("id"),
             "hostname": hostname,
             "ip_address": ip_address,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "ping_success": False,
             "port_open": False,
             "ssh_accessible": False,
@@ -437,7 +438,7 @@ class HostMonitor:
             "response_time_ms": None,
             "ssh_credentials_source": None,
             "ssh_username": None,
-            "credential_details": None,
+            "credential_details": "",
         }
 
         start_time = time.time()
@@ -494,12 +495,17 @@ class HostMonitor:
                     check_results["ssh_accessible"] = ssh_success
 
                     if ssh_success:
-                        check_results["credential_details"] += " - SSH authentication successful"
+                        check_results["credential_details"] = (
+                            str(check_results.get("credential_details", "")) + " - SSH authentication successful"
+                        )
                         logger.info(
                             f"SSH authentication successful for {hostname} using {source} credentials (user: ***REDACTED***)"  # noqa: E501
                         )
                     else:
-                        check_results["credential_details"] += f" - SSH authentication failed: {ssh_error}"
+                        check_results["credential_details"] = (
+                            str(check_results.get("credential_details", ""))
+                            + f" - SSH authentication failed: {ssh_error}"
+                        )
                         check_results["error_message"] = (
                             f"SSH authentication failed with {source} credentials: {ssh_error}"
                         )
@@ -582,8 +588,8 @@ class HostMonitor:
             update_data = {
                 "id": host_id,
                 "status": db_status,
-                "updated_at": datetime.utcnow(),
-                "last_check": datetime.utcnow(),
+                "updated_at": datetime.now(timezone.utc),
+                "last_check": datetime.now(timezone.utc),
             }
 
             query = """
@@ -625,13 +631,13 @@ class HostMonitor:
             db.rollback()
             return False
 
-    async def monitor_all_hosts(self, db: Session) -> List[Dict]:
+    async def monitor_all_hosts(self, db: Session) -> List[Dict[str, Any]]:
         """
         Monitor all hosts in the database
         """
         try:
             # Get all active hosts
-            result = db.execute(
+            db_result = db.execute(
                 text(
                     """
                 SELECT id, hostname, ip_address, port, username, auth_method, status, last_check
@@ -642,8 +648,8 @@ class HostMonitor:
                 )
             )
 
-            hosts = []
-            for row in result:
+            hosts: List[Dict[str, Any]] = []
+            for row in db_result:
                 hosts.append(
                     {
                         "id": str(row.id),
@@ -658,22 +664,22 @@ class HostMonitor:
                 )
 
             # Check each host
-            check_results = []
+            check_results: List[Dict[str, Any]] = []
             for host in hosts:
-                result = await self.comprehensive_host_check(host, db)
-                check_results.append(result)
+                check_result = await self.comprehensive_host_check(host, db)
+                check_results.append(check_result)
 
                 # Send alert if status changed
-                if result["status"] != host["current_status"]:
-                    await self.send_status_change_alerts(db, host, host["current_status"], result["status"])
+                if check_result["status"] != host["current_status"]:
+                    await self.send_status_change_alerts(db, host, host["current_status"], check_result["status"])
 
                 # Always update last_check and response_time_ms, even if status unchanged
                 await self.update_host_status(
                     db,
                     host["id"],
-                    result["status"],
-                    datetime.utcnow() if result["status"] == "online" else None,
-                    response_time_ms=result.get("response_time_ms"),
+                    check_result["status"],
+                    datetime.now(timezone.utc) if check_result["status"] == "online" else None,
+                    response_time_ms=check_result.get("response_time_ms"),
                 )
 
             return check_results
@@ -715,7 +721,7 @@ class HostMonitor:
         try:
             hostname = host.get("hostname", "Unknown")
             ip_address = host.get("ip_address", "Unknown")
-            last_check = host.get("last_check") or datetime.utcnow()
+            last_check = host.get("last_check") or datetime.now(timezone.utc)
 
             # Host went offline
             if old_status == "online" and new_status in ["offline", "error"]:

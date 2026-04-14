@@ -26,7 +26,7 @@
  * - down: Service unavailable
  * - offline: Completely unreachable (no ping response)
  * - maintenance: Scheduled maintenance mode
- * - scanning: Currently executing SCAP scan
+ * - scanning: Currently executing compliance scan
  * - reachable: Responds to ping but SSH authentication failed
  * - ping_only: Responds to ping but SSH port 22 closed
  * - error: Error occurred during status check
@@ -251,11 +251,11 @@ export interface Host {
   /** SSH key comment field */
   ssh_key_comment?: string;
 
-  // SCAP Configuration
-  /** SCAP compliance profile ID or null if not configured */
+  // Compliance Configuration
+  /** Compliance profile ID or null if not configured */
   profile: string | null;
 
-  /** Agent type for scanning (e.g., "agentless", "oscap-ssh") */
+  /** Agent type for scanning (e.g., "agentless", "kensa-ssh") */
   agent: string;
 
   // Backup & Recovery

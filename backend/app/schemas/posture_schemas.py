@@ -64,13 +64,17 @@ class PostureResponse(BaseModel):
     source_scan_id: Optional[UUID] = None
 
 
+def _empty_date_range() -> Dict[str, Optional[datetime]]:
+    return {"start": None, "end": None}
+
+
 class PostureHistoryResponse(BaseModel):
     """Response model for posture history query."""
 
     host_id: UUID
     snapshots: List[PostureResponse]
     total_snapshots: int
-    date_range: Dict[str, Optional[datetime]] = Field(default_factory=lambda: {"start": None, "end": None})
+    date_range: Dict[str, Optional[datetime]] = Field(default_factory=lambda: _empty_date_range())
 
 
 class DriftEvent(BaseModel):
@@ -124,7 +128,7 @@ class DriftAnalysisResponse(BaseModel):
 
     # Value-level drift events (actual value changed, status may or may not have changed)
     value_drift_events: List[ValueDriftEvent] = Field(default_factory=list)
-    rules_value_changed: int = Field(0, description="Number of rules where actual value changed")
+    rules_value_changed: int = 0
 
 
 class GroupDriftRuleSummary(BaseModel):

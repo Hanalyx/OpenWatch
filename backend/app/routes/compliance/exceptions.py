@@ -24,6 +24,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi import status as http_status
 from sqlalchemy.orm import Session
 
+from app.rbac import UserRole, require_role
+
 from ...auth import get_current_user
 from ...database import User, get_db
 from ...schemas.exception_schemas import (
@@ -49,6 +51,16 @@ router = APIRouter(prefix="/exceptions", tags=["Compliance Exceptions"])
 # =============================================================================
 
 
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.get("", response_model=ExceptionListResponse)
 async def list_exceptions(
     page: int = Query(1, ge=1, description="Page number"),
@@ -84,6 +96,16 @@ async def list_exceptions(
     )
 
 
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.get("/summary", response_model=ExceptionSummary)
 async def get_exception_summary(
     db: Session = Depends(get_db),
@@ -99,6 +121,16 @@ async def get_exception_summary(
     return service.get_summary()
 
 
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.post("", response_model=ExceptionResponse)
 async def request_exception(
     request: ExceptionRequestCreate,
@@ -126,7 +158,7 @@ async def request_exception(
     """
     # Exception management requires OpenWatch+ subscription
     license_service = LicenseService()
-    if not await license_service.has_feature("structured_exceptions"):
+    if not license_service.has_feature("structured_exceptions"):
         raise HTTPException(
             status_code=http_status.HTTP_403_FORBIDDEN,
             detail="Structured exceptions require OpenWatch+ subscription",
@@ -161,6 +193,16 @@ async def request_exception(
     return service._row_to_response(exception)
 
 
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.get("/{exception_id}", response_model=ExceptionResponse)
 async def get_exception(
     exception_id: UUID,
@@ -193,6 +235,16 @@ async def get_exception(
     return service._row_to_response(exception)
 
 
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.post("/{exception_id}/approve", response_model=ExceptionResponse)
 async def approve_exception(
     exception_id: UUID,
@@ -245,6 +297,16 @@ async def approve_exception(
     return service._row_to_response(exception)
 
 
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.post("/{exception_id}/reject", response_model=ExceptionResponse)
 async def reject_exception(
     exception_id: UUID,
@@ -296,6 +358,16 @@ async def reject_exception(
     return service._row_to_response(exception)
 
 
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.post("/{exception_id}/revoke", response_model=ExceptionResponse)
 async def revoke_exception(
     exception_id: UUID,
@@ -347,6 +419,16 @@ async def revoke_exception(
     return service._row_to_response(exception)
 
 
+@require_role(
+    [
+        UserRole.GUEST,
+        UserRole.AUDITOR,
+        UserRole.COMPLIANCE_OFFICER,
+        UserRole.SECURITY_ANALYST,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SUPER_ADMIN,
+    ]
+)
 @router.post("/check", response_model=ExceptionCheckResponse)
 async def check_exception(
     request: ExceptionCheckRequest,

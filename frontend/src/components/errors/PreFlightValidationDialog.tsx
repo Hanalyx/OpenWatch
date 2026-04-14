@@ -116,7 +116,7 @@ const STEP_TO_CHECKS_MAP: Record<string, string[]> = {
   authentication: [], // SSH auth is implicit - if we get results, auth worked
   privileges: ['sudo_access', 'selinux_status'],
   resources: ['disk_space', 'memory_availability'],
-  dependencies: ['oscap_installation', 'operating_system', 'component_detection'],
+  dependencies: ['kensa_availability', 'operating_system', 'component_detection'],
 };
 
 /**
@@ -167,7 +167,7 @@ export const PreFlightValidationDialog: React.FC<PreFlightValidationDialogProps>
     },
     {
       id: 'dependencies',
-      label: 'OpenSCAP Dependencies',
+      label: 'Scanning Dependencies',
       icon: <ExtensionIcon />,
       status: 'pending',
     },

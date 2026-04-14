@@ -22,7 +22,7 @@ Security:
 
 import json
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List
 from uuid import uuid4
 
@@ -119,7 +119,7 @@ async def start_group_scan(
 
         # Generate scan session name (session_id comes from orchestrator)
         session_name = (
-            request.scan_name or f"Group Scan - {group.name} - {datetime.utcnow().strftime('%Y-%m-%d %H:%M')}"
+            request.scan_name or f"Group Scan - {group.name} - {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M')}"
         )
 
         # Use the profile from request, or fall back to group default
@@ -171,8 +171,8 @@ async def start_group_scan(
                             "framework": request.framework or group.compliance_framework,
                         }
                     ),
-                    "estimated_completion": datetime.utcnow() + timedelta(minutes=len(hosts) * 15),
-                    "created_at": datetime.utcnow(),
+                    "estimated_completion": datetime.now(timezone.utc) + timedelta(minutes=len(hosts) * 15),
+                    "created_at": datetime.now(timezone.utc),
                     "created_by": str(current_user["id"]),
                 },
             )
@@ -435,7 +435,7 @@ async def cancel_group_scan(
                 RETURNING id
             """
             ),
-            {"session_id": session_id, "completed_at": datetime.utcnow()},
+            {"session_id": session_id, "completed_at": datetime.now(timezone.utc)},
         )
         cancelled_scan_ids = [row.id for row in cancel_result]
 
@@ -460,7 +460,7 @@ async def cancel_group_scan(
                 WHERE id = :session_id
             """
             ),
-            {"session_id": session_id, "completed_at": datetime.utcnow()},
+            {"session_id": session_id, "completed_at": datetime.now(timezone.utc)},
         )
 
         db.commit()
@@ -529,15 +529,15 @@ async def get_group_compliance_report(
             raise HTTPException(status_code=404, detail="Host group not found")
 
         # Build date filters for parameterized query
-        params: Dict[str, Any] = {"group_id": group_id}
+        date_params: Dict[str, Any] = {"group_id": group_id}
         date_conditions = []
 
         if date_from:
             date_conditions.append("s.completed_at >= :date_from")
-            params["date_from"] = date_from
+            date_params["date_from"] = date_from
         if date_to:
             date_conditions.append("s.completed_at <= :date_to")
-            params["date_to"] = date_to
+            date_params["date_to"] = date_to
         if framework:
             # Framework filtering would need a different approach since scap_content is removed
             # For now, we skip this filter
@@ -575,7 +575,7 @@ async def get_group_compliance_report(
             SELECT * FROM latest_scans
         """
 
-        compliance_data = db.execute(text(compliance_query), params).fetchall()
+        compliance_data = db.execute(text(compliance_query), date_params).fetchall()
 
         if not compliance_data:
             raise HTTPException(status_code=404, detail="No compliance data found for group")
@@ -610,7 +610,7 @@ async def get_group_compliance_report(
                 ORDER BY scan_date
             """
             ),
-            {"group_id": group_id, "trend_start": datetime.utcnow() - timedelta(days=30)},
+            {"group_id": group_id, "trend_start": datetime.now(timezone.utc) - timedelta(days=30)},
         ).fetchall()
 
         # Get top failed rules
@@ -641,7 +641,7 @@ async def get_group_compliance_report(
         return GroupComplianceReportResponse(
             group_id=group_id,
             group_name=group.name,
-            report_generated_at=datetime.utcnow(),
+            report_generated_at=datetime.now(timezone.utc),
             compliance_framework=framework,
             total_hosts=total_hosts,
             overall_compliance_score=round(overall_score, 2),
@@ -719,7 +719,7 @@ async def get_group_compliance_metrics(
 
     try:
         timeframe_days = {"7d": 7, "30d": 30, "90d": 90, "1y": 365}
-        start_date = datetime.utcnow() - timedelta(days=timeframe_days[timeframe])
+        start_date = datetime.now(timezone.utc) - timedelta(days=timeframe_days[timeframe])
 
         metrics = db.execute(
             text(
@@ -771,7 +771,7 @@ async def get_group_compliance_metrics(
         return ComplianceMetricsResponse(
             group_id=group_id,
             timeframe=timeframe,
-            metrics_generated_at=datetime.utcnow(),
+            metrics_generated_at=datetime.now(timezone.utc),
             total_hosts=metrics.total_hosts or 0,
             total_scans=metrics.total_scans or 0,
             average_compliance_score=round(metrics.avg_compliance_score or 0, 2),
@@ -983,8 +983,6 @@ def execute_group_compliance_scan(
         This function is called from Celery tasks which run with system privileges.
         The original authorization was validated when the scheduled scan was created.
     """
-    from app.tasks.scan_tasks import execute_scan
-
     try:
         scan_ids = []
         failed_hosts = []
@@ -1006,7 +1004,7 @@ def execute_group_compliance_scan(
 
                 # Create scan record
                 scan_id = str(uuid4())
-                scan_name = f"Scheduled-{host_result.hostname}-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}"
+                scan_name = f"Scheduled-{host_result.hostname}-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}"
 
                 db.execute(
                     text(
@@ -1025,14 +1023,17 @@ def execute_group_compliance_scan(
                         "host_id": host_id,
                         "scan_name": scan_name,
                         "profile_id": profile_id,
-                        "created_at": datetime.utcnow(),
+                        "created_at": datetime.now(timezone.utc),
                         "created_by": user_id,
                     },
                 )
                 db.commit()
 
-                # Queue the scan task
-                execute_scan.delay(
+                # Queue the scan task via job queue
+                from app.services.job_queue.dispatch import enqueue_task
+
+                enqueue_task(
+                    "app.tasks.execute_scan",
                     scan_id=scan_id,
                     host_id=host_id,
                     profile_id=profile_id,

@@ -106,15 +106,13 @@ export const ScanRemediationDialog: React.FC<ScanRemediationDialogProps> = ({
                         {step.description}
                       </Typography>
 
-                      {(step.title.includes('SCAP Compliance Fix Text') ||
-                        step.title.includes('OpenSCAP Evaluation Remediation')) && (
+                      {(step.title.includes('Compliance Fix') ||
+                        step.title.includes('Remediation Guidance')) && (
                         <Chip
                           size="small"
                           color="success"
                           label={
-                            step.title.includes('Fix Text')
-                              ? 'SCAP Compliance Checker'
-                              : 'OpenSCAP Evaluation Report'
+                            step.title.includes('Fix') ? 'Compliance Checker' : 'Evaluation Report'
                           }
                           sx={{ mb: 2 }}
                         />

@@ -249,7 +249,7 @@ class LicenseService:
         #     result = await session.execute(
         #         select(License)
         #         .where(License.organization_id == get_current_org_id())
-        #         .where(License.expires_at > datetime.utcnow())
+        #         .where(License.expires_at > datetime.now(timezone.utc))
         #         .where(License.status == "active")
         #     )
         #     return result.scalar_one_or_none()

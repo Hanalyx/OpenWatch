@@ -6,7 +6,7 @@ Uses RSA-PSS signatures and secure password hashing
 import logging
 import os
 import secrets
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
 
 import jwt
@@ -128,14 +128,14 @@ class FIPSJWTManager:
         to_encode = data.copy()
 
         if expires_delta:
-            expire = datetime.utcnow() + expires_delta
+            expire = datetime.now(timezone.utc) + expires_delta
         else:
-            expire = datetime.utcnow() + timedelta(minutes=settings.access_token_expire_minutes)
+            expire = datetime.now(timezone.utc) + timedelta(minutes=settings.access_token_expire_minutes)
 
         to_encode.update(
             {
                 "exp": expire,
-                "iat": datetime.utcnow(),
+                "iat": datetime.now(timezone.utc),
                 "jti": secrets.token_urlsafe(32),  # JWT ID for revocation
             }
         )
@@ -156,14 +156,14 @@ class FIPSJWTManager:
         to_encode = data.copy()
 
         if expires_delta:
-            expire = datetime.utcnow() + expires_delta
+            expire = datetime.now(timezone.utc) + expires_delta
         else:
-            expire = datetime.utcnow() + timedelta(days=settings.refresh_token_expire_days)
+            expire = datetime.now(timezone.utc) + timedelta(days=settings.refresh_token_expire_days)
 
         to_encode.update(
             {
                 "exp": expire,
-                "iat": datetime.utcnow(),
+                "iat": datetime.now(timezone.utc),
                 "jti": secrets.token_urlsafe(32),
                 "type": "refresh",  # Token type identifier
             }
@@ -180,10 +180,40 @@ class FIPSJWTManager:
             )
 
     def verify_token(self, token: str) -> Dict[str, Any]:
-        """Verify JWT token with RSA-PSS signature"""
+        """Verify JWT token with RSA-PSS signature.
+
+        Checks token validity and ensures the token has not been
+        revoked via the blacklist (AC-13).
+        """
         try:
             payload = jwt.decode(token, self.public_key, algorithms=["RS256"])
+
+            # Check absolute session timeout (NIST AC-12)
+            iat = payload.get("iat")
+            if iat:
+                issued_at = datetime.fromtimestamp(iat, tz=timezone.utc)
+                max_lifetime = timedelta(hours=settings.absolute_session_timeout_hours)
+                if datetime.now(timezone.utc) - issued_at > max_lifetime:
+                    raise HTTPException(
+                        status_code=status.HTTP_401_UNAUTHORIZED,
+                        detail="Session expired. Please log in again.",
+                    )
+
+            # Check if token has been revoked (AC-13)
+            jti = payload.get("jti")
+            if jti:
+                from .services.auth.token_blacklist_pg import get_token_blacklist
+
+                blacklist = get_token_blacklist()
+                if blacklist.is_blacklisted(jti):
+                    raise HTTPException(
+                        status_code=status.HTTP_401_UNAUTHORIZED,
+                        detail="Token has been revoked",
+                    )
+
             return payload
+        except HTTPException:
+            raise
         except jwt.ExpiredSignatureError:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has expired")
         except jwt.InvalidTokenError as e:
@@ -307,14 +337,14 @@ def get_current_user(
                     )
 
                 # Check expiration
-                if api_key.expires_at and api_key.expires_at < datetime.utcnow():
+                if api_key.expires_at and api_key.expires_at < datetime.now(timezone.utc):
                     raise HTTPException(
                         status_code=status.HTTP_401_UNAUTHORIZED,
                         detail="API key expired",
                     )
 
                 # Update last used timestamp
-                api_key.last_used_at = datetime.utcnow()
+                setattr(api_key, "last_used_at", datetime.now(timezone.utc))
                 db.commit()
 
                 # Return API key info as user context
@@ -359,11 +389,37 @@ def decode_token(token: str) -> Optional[Dict[str, Any]]:
 
         # Handle API keys
         if token.startswith("owk_"):
-            # For middleware, we don't want to update database
-            # Just return basic API key info
+            # For middleware, look up the API key to resolve actual permissions
+            import hashlib as _hashlib
+
+            from sqlalchemy.orm import Session as _Session
+
+            from .database import ApiKey as _ApiKey
+            from .database import get_db as _get_db
+
+            try:
+                db: _Session = next(_get_db())
+                try:
+                    key_hash = _hashlib.sha256(token.encode()).hexdigest()
+                    api_key = (
+                        db.query(_ApiKey).filter(_ApiKey.key_hash == key_hash, _ApiKey.is_active.is_(True)).first()
+                    )
+                    if api_key:
+                        return {
+                            "sub": f"api_key_{api_key.id}",
+                            "role": api_key.role if hasattr(api_key, "role") and api_key.role else UserRole.GUEST.value,
+                            "username": f"API Key: {api_key.name}",
+                            "permissions": api_key.permissions,
+                            "api_key": True,
+                        }
+                finally:
+                    db.close()
+            except Exception:
+                pass
+            # Fallback: return GUEST role (not a non-enum "api_key" string)
             return {
                 "sub": "api_key",
-                "role": "api_key",
+                "role": UserRole.GUEST.value,
                 "username": "API Key",
                 "api_key": True,
             }

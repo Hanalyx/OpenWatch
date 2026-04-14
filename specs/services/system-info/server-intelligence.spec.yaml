@@ -1,0 +1,40 @@
+spec: server-intelligence
+version: "1.0"
+status: active
+owner: engineering
+summary: >
+  System Information Collector Service for gathering detailed host data via SSH.
+  Uses dataclasses for SystemInfo, PackageInfo, ServiceInfo, UserInfo, and
+  NetworkInterfaceInfo. Supports RHEL-based (RPM) and Debian-based (DEB)
+  distributions with appropriate package detection, and detects firewall
+  frameworks (firewalld, ufw, iptables).
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      SystemInfo dataclass captures OS fields (os_name, os_version,
+      os_version_full, os_id), kernel fields (kernel_version, kernel_release),
+      hardware fields (architecture, cpu_model, cpu_cores, memory_total_mb),
+      and security state fields (selinux_status, selinux_mode,
+      firewall_status, firewall_service).
+
+  - id: AC-2
+    description: >
+      PackageInfo dataclass captures name, version, release, arch, and
+      source_repo fields.
+
+  - id: AC-3
+    description: >
+      ServiceInfo dataclass captures name, status (with running/stopped/failed
+      as documented values), and enabled state fields.
+
+  - id: AC-4
+    description: >
+      UserInfo dataclass captures username, uid, groups (as a list), sudo_rules,
+      has_sudo_all, and has_sudo_nopasswd fields.
+
+  - id: AC-5
+    description: >
+      The collector module supports RHEL-based distributions (RPM via rpm -qa)
+      and Debian-based distributions (DEB via dpkg -l) as documented in the
+      module docstring.

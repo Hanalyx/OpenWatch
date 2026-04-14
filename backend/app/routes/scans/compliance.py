@@ -24,7 +24,7 @@ Security Notes:
 import json
 import logging
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -34,12 +34,8 @@ from sqlalchemy.orm import Session
 from app.auth import get_current_user
 from app.constants import is_framework_supported
 from app.database import get_db
-from app.routes.scans.helpers import (
-    get_compliance_reporter,
-    get_compliance_scanner,
-    get_enrichment_service,
-    parse_xccdf_results,
-)
+from app.rbac import UserRole, require_role
+from app.routes.scans.helpers import get_compliance_reporter, get_compliance_scanner, get_enrichment_service
 from app.routes.scans.models import (
     AvailableRulesResponse,
     ComplianceScanRequest,
@@ -50,7 +46,6 @@ from app.routes.scans.models import (
     ScannerCapabilities,
     ScannerHealthResponse,
 )
-from app.tasks.background_tasks import enrich_scan_results_celery
 from app.utils.mutation_builders import InsertBuilder, UpdateBuilder
 from app.utils.query_builder import QueryBuilder
 
@@ -92,12 +87,12 @@ def _update_scan_status(
             UpdateBuilder("scans")
             .set("status", status_value)
             .set("progress", 100)
-            .set("completed_at", datetime.utcnow())
+            .set("completed_at", datetime.now(timezone.utc))
             .set_if("error_message", error_message)  # Only set if not None
             .where("id = :id", str(scan_uuid), "id")
         )
         update_query, params = update_builder.build()
-        db.execute(update_query, params)
+        db.execute(text(update_query), params)
         db.commit()
         logger.info(f"Updated scan {scan_uuid} status to {status_value}")
     except Exception as update_error:
@@ -174,9 +169,9 @@ async def _jit_platform_detection(
         # Perform platform detection
         platform_info = await detect_platform_for_scan(
             hostname=hostname,
-            connection_params=connection_params,
-            encryption_service=encryption_service,
-            host_id=host_id,
+            port=connection_params.get("port", 22),
+            credential_data=credential_data,
+            db=db,
         )
 
         if platform_info.detection_success and platform_info.platform_identifier:
@@ -203,6 +198,7 @@ async def _jit_platform_detection(
 # =============================================================================
 
 
+@require_role([UserRole.SECURITY_ANALYST, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.post("/", response_model=ComplianceScanResponse)
 async def create_compliance_scan(
     scan_request: ComplianceScanRequest,
@@ -438,7 +434,7 @@ async def create_compliance_scan(
         scan_name = (
             scan_request.name or f"compliance-scan-{scan_hostname}-{effective_platform}-{effective_platform_version}"
         )
-        started_at = datetime.utcnow()
+        started_at = datetime.now(timezone.utc)
 
         try:
             # Use InsertBuilder for type-safe, parameterized INSERT
@@ -473,7 +469,7 @@ async def create_compliance_scan(
                             "severity_filter": scan_request.severity_filter,
                         }
                     ),
-                    int(current_user.get("id")) if current_user.get("id") else None,
+                    int(current_user["id"]) if current_user.get("id") is not None else None,
                     started_at,
                     False,
                     False,
@@ -549,10 +545,29 @@ async def create_compliance_scan(
 
         # ---------------------------------------------------------------------
         # Parse XCCDF results and update scan record to completed
+        # NOTE: XCCDF parsing removed (lxml/OpenSCAP legacy). This entire
+        # code path is unreachable because the compliance scanner is
+        # disabled (SCAP-era code removed). Kensa scans use /api/scans/kensa/.
         # ---------------------------------------------------------------------
-        completed_at = datetime.utcnow()
+        completed_at = datetime.now(timezone.utc)
         result_file = scan_result.get("result_file", "")
-        parsed_results = parse_xccdf_results(result_file)
+        parsed_results: Dict[str, Any] = {
+            "rules_total": 0,
+            "rules_passed": 0,
+            "rules_failed": 0,
+            "rules_error": 0,
+            "rules_unknown": 0,
+            "rules_notapplicable": 0,
+            "rules_notchecked": 0,
+            "score": 0.0,
+            "severity_high": 0,
+            "severity_medium": 0,
+            "severity_low": 0,
+            "xccdf_score": None,
+            "xccdf_score_max": None,
+            "risk_score": None,
+            "risk_level": None,
+        }
 
         logger.info(
             f"Parsed results for scan {scan_uuid}: "
@@ -623,7 +638,10 @@ async def create_compliance_scan(
         # Queue background enrichment and report generation
         # ---------------------------------------------------------------------
         if scan_request.include_enrichment:
-            enrich_scan_results_celery.delay(
+            from app.services.job_queue.dispatch import enqueue_task
+
+            enqueue_task(
+                "app.tasks.enrich_scan_results",
                 scan_id=scan_id,
                 result_file=str(result_file) if result_file else "",
                 scan_metadata={
@@ -684,6 +702,7 @@ async def create_compliance_scan(
         )
 
 
+@require_role([UserRole.SECURITY_ANALYST, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.get("/rules/available", response_model=AvailableRulesResponse)
 async def get_available_rules(
     request: Request,
@@ -877,6 +896,7 @@ async def get_available_rules(
         )
 
 
+@require_role([UserRole.SECURITY_ANALYST, UserRole.COMPLIANCE_OFFICER, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
 @router.get("/scanner/health", response_model=ScannerHealthResponse)
 async def get_scanner_health(
     request: Request,
@@ -1011,29 +1031,9 @@ async def get_scanner_health(
             details=postgres_details,
         )
 
-        # Check Redis connection (task queue)
-        redis_status = "unknown"
-        redis_details: Dict[str, Any] = {}
-        try:
-            from app.celery_app import celery_app
-
-            # Ping the Celery broker to verify Redis connectivity
-            inspect = celery_app.control.inspect()
-            ping_result = inspect.ping()
-            if ping_result:
-                redis_status = "healthy"
-                redis_details = {
-                    "workers": list(ping_result.keys()),
-                    "worker_count": len(ping_result),
-                }
-            else:
-                redis_status = "degraded"
-                redis_details = {"workers": [], "message": "No workers responding"}
-                overall_status = "degraded"
-        except Exception as redis_err:
-            redis_status = "error"
-            redis_details = {"error": str(redis_err)}
-            overall_status = "degraded"
+        # Job queue health (replaced Redis/Celery)
+        redis_status = "deprecated"
+        redis_details: Dict[str, Any] = {"message": "Redis replaced by PostgreSQL job queue"}
 
         components["task_queue"] = ComponentHealth(
             status=redis_status,
@@ -1062,7 +1062,7 @@ async def get_scanner_health(
             status=overall_status,
             components=components,
             capabilities=capabilities,
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(timezone.utc).isoformat(),
         )
 
     except Exception as e:

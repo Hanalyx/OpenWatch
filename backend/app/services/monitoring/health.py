@@ -11,7 +11,7 @@ removed. Health data is now collected fresh on each request.
 
 import logging
 import platform
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 import psutil
@@ -38,7 +38,7 @@ class HealthMonitoringService:
     def __init__(self) -> None:
         """Initialize the health monitoring service."""
         self.scanner_id = f"openwatch_{platform.node()}"
-        self.start_time = datetime.utcnow()
+        self.start_time = datetime.now(timezone.utc)
         self._initialized = False
         self.settings = get_settings()
 
@@ -56,9 +56,9 @@ class HealthMonitoringService:
 
         health_data = ServiceHealthDocument(
             scanner_id=self.scanner_id,
-            health_check_timestamp=datetime.utcnow(),
+            health_check_timestamp=datetime.now(timezone.utc),
             overall_status=HealthStatus.HEALTHY,
-            uptime_seconds=int((datetime.utcnow() - self.start_time).total_seconds()),
+            uptime_seconds=int((datetime.now(timezone.utc) - self.start_time).total_seconds()),
         )
 
         health_data.core_services = await self._collect_core_services_health()
@@ -81,7 +81,7 @@ class HealthMonitoringService:
             status=HealthStatus.HEALTHY,
             version=self.settings.app_version,
             started_at=self.start_time,
-            last_heartbeat=datetime.utcnow(),
+            last_heartbeat=datetime.now(timezone.utc),
             memory_usage_mb=psutil.Process().memory_info().rss / 1024 / 1024,
             cpu_usage_percent=psutil.Process().cpu_percent(),
             errors_last_hour=0,
@@ -185,11 +185,11 @@ class HealthMonitoringService:
         if memory_usage > 80:
             alerts.append(
                 OperationalAlert(
-                    id=f"alert_mem_{datetime.utcnow().timestamp()}",
+                    id=f"alert_mem_{datetime.now(timezone.utc).timestamp()}",
                     severity=(AlertSeverity.HIGH if memory_usage > 90 else AlertSeverity.MEDIUM),
                     component="system",
                     message=f"High memory usage: {memory_usage:.1f}%",
-                    timestamp=datetime.utcnow(),
+                    timestamp=datetime.now(timezone.utc),
                     auto_resolution_attempted=False,
                     resolved=False,
                 )
@@ -199,11 +199,11 @@ class HealthMonitoringService:
             if service.status != HealthStatus.HEALTHY:
                 alerts.append(
                     OperationalAlert(
-                        id=f"alert_svc_{service_name}_{datetime.utcnow().timestamp()}",
+                        id=f"alert_svc_{service_name}_{datetime.now(timezone.utc).timestamp()}",
                         severity=AlertSeverity.HIGH,
                         component=service_name,
                         message=f"Service {service_name} is {service.status}",
-                        timestamp=datetime.utcnow(),
+                        timestamp=datetime.now(timezone.utc),
                         auto_resolution_attempted=False,
                         resolved=False,
                     )
@@ -239,8 +239,8 @@ class HealthMonitoringService:
         """
         return ContentHealthDocument(
             scanner_id=self.scanner_id,
-            health_check_timestamp=datetime.utcnow(),
-            last_updated=datetime.utcnow(),
+            health_check_timestamp=datetime.now(timezone.utc),
+            last_updated=datetime.now(timezone.utc),
         )
 
     async def create_health_summary(self) -> HealthSummaryDocument:
@@ -252,7 +252,7 @@ class HealthMonitoringService:
 
         return HealthSummaryDocument(
             scanner_id=self.scanner_id,
-            last_updated=datetime.utcnow(),
+            last_updated=datetime.now(timezone.utc),
             service_health_status=service_health.overall_status,
             content_health_status=HealthStatus.HEALTHY,
             overall_health_status=service_health.overall_status,

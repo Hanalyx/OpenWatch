@@ -338,3 +338,24 @@ describe('AC-11: Host Detail page layout matches Hosts list page', () => {
     expect(indexSource).not.toContain('</Container>');
   });
 });
+
+// ---------------------------------------------------------------------------
+// AC-12: Audit Timeline tab
+// ---------------------------------------------------------------------------
+
+describe('AC-12: HostDetail includes an Audit Timeline tab', () => {
+  /**
+   * AC-12: HostDetail page MUST include an "Audit Timeline" tab showing
+   * reverse-chronological transactions for the host with filter and export
+   * controls. Detailed behavior is covered by host-audit-timeline.spec.yaml.
+   */
+  const indexSource = readHostDetail('index.tsx');
+
+  it('has Audit Timeline tab label', () => {
+    expect(indexSource).toMatch(/Audit Timeline/);
+  });
+
+  it('imports AuditTimelineTab component', () => {
+    expect(indexSource).toMatch(/AuditTimelineTab/);
+  });
+});

@@ -13,7 +13,7 @@ Security: All database queries use QueryBuilder for SQL injection protection.
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 from uuid import UUID
 
@@ -107,7 +107,7 @@ class TrendAnalyzer:
             data_points=data_points,
             trend_direction=trend_direction,
             improvement_rate=improvement_rate,
-            calculated_at=datetime.utcnow(),
+            calculated_at=datetime.now(timezone.utc),
         )
 
     async def _get_historical_data(self, host_id: UUID, days: int) -> List[TrendDataPoint]:
@@ -155,7 +155,7 @@ class TrendAnalyzer:
         Returns:
             List of TrendDataPoint objects sorted by date (oldest first)
         """
-        end_date = datetime.utcnow()
+        end_date = datetime.now(timezone.utc)
         start_date = end_date - timedelta(days=days)
 
         query = text(
@@ -226,7 +226,7 @@ class TrendAnalyzer:
         Returns:
             List of TrendDataPoint objects sorted by date (oldest first)
         """
-        end_date = datetime.utcnow()
+        end_date = datetime.now(timezone.utc)
         start_date = end_date - timedelta(days=days)
 
         query = text(
@@ -412,7 +412,7 @@ class TrendAnalyzer:
             data_points=data_points,
             trend_direction=trend_direction,
             improvement_rate=improvement_rate,
-            calculated_at=datetime.utcnow(),
+            calculated_at=datetime.now(timezone.utc),
         )
 
     async def _get_fleet_trend_from_snapshots(self, days: int) -> List[TrendDataPoint]:
@@ -427,7 +427,7 @@ class TrendAnalyzer:
         Returns:
             List of TrendDataPoint objects sorted by date (oldest first)
         """
-        end_date = datetime.utcnow()
+        end_date = datetime.now(timezone.utc)
         start_date = end_date - timedelta(days=days)
 
         query = text(
@@ -488,7 +488,7 @@ class TrendAnalyzer:
         Returns:
             List of TrendDataPoint objects sorted by date (oldest first)
         """
-        end_date = datetime.utcnow()
+        end_date = datetime.now(timezone.utc)
         start_date = end_date - timedelta(days=days)
 
         query = text(

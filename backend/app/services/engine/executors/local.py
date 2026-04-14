@@ -36,7 +36,7 @@ Security Notes:
 
 import logging
 import subprocess
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -186,7 +186,7 @@ class LocalExecutor(BaseExecutor):
             ScanTimeoutError: If execution exceeds timeout.
         """
         self.log_execution_start(context)
-        start_time = datetime.utcnow()
+        start_time = datetime.now(timezone.utc)
 
         try:
             # Step 1: Validate content file exists
@@ -221,7 +221,7 @@ class LocalExecutor(BaseExecutor):
             )
 
             # Calculate execution time
-            end_time = datetime.utcnow()
+            end_time = datetime.now(timezone.utc)
             execution_time = (end_time - start_time).total_seconds()
 
             # Step 5: Build result
@@ -346,7 +346,7 @@ class LocalExecutor(BaseExecutor):
         Returns:
             LocalScanResult with failure status.
         """
-        end_time = datetime.utcnow()
+        end_time = datetime.now(timezone.utc)
         execution_time = (end_time - start_time).total_seconds()
 
         return LocalScanResult(

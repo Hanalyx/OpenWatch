@@ -1,0 +1,115 @@
+spec: host-rule-state
+version: "1.0"
+status: draft
+owner: engineering
+summary: >
+  Current compliance state per host per rule. One row per (host_id, rule_id)
+  pair, updated on every scan. Transactions are only written when status
+  changes (pass->fail, fail->pass, first seen). This replaces the
+  append-every-scan model with a write-on-change model that scales linearly
+  with host count, not with scan frequency.
+
+---
+
+objective: >
+  Eliminate write amplification in the scan pipeline. A fleet of N hosts with
+  R rules produces N*R state rows (fixed) plus a small number of change
+  transactions per scan cycle (variable, typically <5% of rules change).
+  Current posture queries read directly from host_rule_state instead of
+  aggregating the latest scan's findings. Auditors see a concise change log
+  instead of thousands of identical rows.
+
+---
+
+context:
+  depends_on:
+    - transaction-log.spec.yaml (transactions written only on state changes)
+    - scan-execution.spec.yaml (write path creates/updates state rows)
+  consumed_by:
+    - temporal-compliance.spec.yaml (current posture reads from host_rule_state)
+    - alert-thresholds.spec.yaml (alerts fire on state transitions, not redundant checks)
+    - drift-analysis.spec.yaml (drift = state change between scans)
+
+---
+
+constraints:
+  schema:
+    - "host_rule_state MUST have composite primary key (host_id, rule_id)"
+    - "host_rule_state MUST NOT use a separate UUID primary key"
+    - "Columns MUST include: current_status, severity, evidence_envelope, framework_refs, first_seen_at, last_checked_at, last_changed_at, check_count, previous_status"
+    - "host_id MUST be FK to hosts.id ON DELETE CASCADE"
+
+  write_semantics:
+    - "On scan completion, every rule result MUST update host_rule_state.last_checked_at and increment check_count"
+    - "A transaction row MUST be written ONLY when current_status differs from the incoming status"
+    - "A transaction row MUST be written when the rule is first seen for a host (no existing state row)"
+    - "When status changes, host_rule_state.previous_status MUST be set to the old status and current_status to the new status"
+    - "When status changes, host_rule_state.last_changed_at MUST be updated"
+    - "Evidence envelope MUST always be updated to the latest check result regardless of status change"
+    - "check_count MUST increment on every scan, not just on changes"
+
+  read_semantics:
+    - "Current posture for a host MUST be answerable from host_rule_state alone (no scan aggregation)"
+    - "host_rule_state.last_checked_at proves continuous monitoring without redundant transaction rows"
+    - "Transaction log contains only meaningful state changes, remediations, and rollbacks"
+
+---
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      host_rule_state table exists with composite primary key (host_id, rule_id)
+      and columns: current_status, severity, evidence_envelope (JSONB),
+      framework_refs (JSONB), first_seen_at, last_checked_at, last_changed_at,
+      check_count, previous_status.
+
+  - id: AC-2
+    description: >
+      When a Kensa scan completes and a rule has no existing host_rule_state
+      row, an INSERT creates the state row AND a transaction row is written
+      with previous_status=null (first seen event).
+
+  - id: AC-3
+    description: >
+      When a Kensa scan completes and a rule's status matches the existing
+      host_rule_state.current_status, only an UPDATE is performed on the
+      state row (last_checked_at, check_count increment). No transaction
+      row is written.
+
+  - id: AC-4
+    description: >
+      When a Kensa scan completes and a rule's status differs from the
+      existing host_rule_state.current_status, the state row is updated
+      (current_status, previous_status, last_changed_at, evidence) AND
+      a transaction row is written recording the state change.
+
+  - id: AC-5
+    description: >
+      check_count increments on every scan regardless of whether the
+      status changed.
+
+  - id: AC-6
+    description: >
+      evidence_envelope on host_rule_state is always updated to the latest
+      check result, even when status has not changed.
+
+  - id: AC-7
+    description: >
+      Current posture for a host can be queried from host_rule_state
+      directly: SELECT current_status, severity, rule_id FROM host_rule_state
+      WHERE host_id = :id. No join to transactions or scan_findings needed.
+
+  - id: AC-8
+    description: >
+      At 70 hosts x 508 rules, host_rule_state contains approximately
+      35,560 rows (fixed). Transaction writes per scan are proportional
+      to the number of status changes, not the number of rules checked.
+
+---
+
+changelog:
+  - version: "1.0"
+    date: "2026-04-12"
+    changes:
+      - "Initial spec: write-on-change model for scalable compliance state tracking"
+      - "Replaces append-every-scan model that produced 1.58M rows for 7 hosts"

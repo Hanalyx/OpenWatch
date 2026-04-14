@@ -197,7 +197,7 @@ def extract_key_comment(
     try:
         # Normalize input to string
         if isinstance(key_content, (bytes, memoryview)):
-            key_content = key_content.decode("utf-8", errors="ignore")
+            key_content = bytes(key_content).decode("utf-8", errors="ignore")
 
         content_str = str(key_content).strip()
 

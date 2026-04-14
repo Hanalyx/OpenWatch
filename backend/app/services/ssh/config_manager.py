@@ -47,7 +47,7 @@ import ipaddress
 import json
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, List, Optional
 
 import paramiko
@@ -154,7 +154,7 @@ class SSHConfigManager:
 
             # Convert based on stored type for type-safe retrieval
             if setting.setting_type == "json":
-                return json.loads(setting.setting_value) if setting.setting_value else default
+                return json.loads(str(setting.setting_value)) if setting.setting_value else default
             elif setting.setting_type == "boolean":
                 return setting.setting_value.lower() in ("true", "1", "yes") if setting.setting_value else default
             elif setting.setting_type == "integer":
@@ -233,11 +233,11 @@ class SSHConfigManager:
 
             if setting:
                 # Update existing setting with audit fields
-                setting.setting_value = string_value
-                setting.setting_type = setting_type
-                setting.description = description
-                setting.modified_by = user_id
-                setting.modified_at = datetime.utcnow()
+                setattr(setting, "setting_value", string_value)
+                setattr(setting, "setting_type", setting_type)
+                setattr(setting, "description", description)
+                setattr(setting, "modified_by", user_id)
+                setattr(setting, "modified_at", datetime.now(timezone.utc))
             else:
                 # Create new setting with full audit trail
                 setting = SystemSettings(

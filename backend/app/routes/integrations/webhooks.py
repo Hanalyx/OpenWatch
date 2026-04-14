@@ -18,10 +18,12 @@ Migration Status:
 """
 
 import hashlib
+import ipaddress
 import json
 import logging
+import socket
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -31,6 +33,7 @@ from sqlalchemy.orm import Session
 
 from ...auth import get_current_user
 from ...database import get_db
+from ...rbac import UserRole, require_role
 from ...utils.mutation_builders import DeleteBuilder
 from ...utils.query_builder import QueryBuilder
 
@@ -68,9 +71,33 @@ class WebhookEndpointCreate(BaseModel):
 
     @validator("url")
     def validate_url(cls, v: str) -> str:
-        """Validate that URL uses http or https protocol."""
+        """Validate that URL uses http or https protocol and does not target private IPs."""
         if not v.startswith(("http://", "https://")):
             raise ValueError("URL must start with http:// or https://")
+
+        # SSRF protection: resolve hostname and block private/reserved IP ranges
+        try:
+            from urllib.parse import urlparse
+
+            parsed = urlparse(v)
+            hostname = parsed.hostname
+            if hostname:
+                addr_infos = socket.getaddrinfo(hostname, None)
+                for addr_info in addr_infos:
+                    ip_str = addr_info[4][0]
+                    ip = ipaddress.ip_address(ip_str)
+                    if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
+                        raise ValueError("URL must not target private or reserved IP addresses")
+                    # Explicitly block AWS metadata endpoint
+                    if ip_str == "169.254.169.254":
+                        raise ValueError("URL must not target private or reserved IP addresses")
+        except ValueError:
+            # Re-raise ValueError (our validation errors)
+            raise
+        except Exception:
+            # DNS resolution failed - allow the URL through (it may be valid later)
+            pass
+
         return v
 
 
@@ -101,9 +128,33 @@ class WebhookEndpointUpdate(BaseModel):
 
     @validator("url")
     def validate_url(cls, v: Optional[str]) -> Optional[str]:
-        """Validate that URL uses http or https protocol."""
+        """Validate that URL uses http or https protocol and does not target private IPs."""
         if v and not v.startswith(("http://", "https://")):
             raise ValueError("URL must start with http:// or https://")
+
+        # SSRF protection: resolve hostname and block private/reserved IP ranges
+        if v:
+            try:
+                from urllib.parse import urlparse
+
+                parsed = urlparse(v)
+                hostname = parsed.hostname
+                if hostname:
+                    addr_infos = socket.getaddrinfo(hostname, None)
+                    for addr_info in addr_infos:
+                        ip_str = addr_info[4][0]
+                        ip = ipaddress.ip_address(ip_str)
+                        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
+                            raise ValueError("URL must not target private or reserved IP addresses")
+                        # Explicitly block AWS metadata endpoint
+                        if ip_str == "169.254.169.254":
+                            raise ValueError("URL must not target private or reserved IP addresses")
+            except ValueError:
+                raise
+            except Exception:
+                # DNS resolution failed - allow the URL through (it may be valid later)
+                pass
+
         return v
 
 
@@ -113,6 +164,7 @@ class WebhookEndpointUpdate(BaseModel):
 
 
 @router.get("/")
+@require_role([UserRole.SUPER_ADMIN, UserRole.SECURITY_ADMIN])
 async def list_webhook_endpoints(
     is_active: Optional[bool] = None,
     event_type: Optional[str] = None,
@@ -186,6 +238,7 @@ async def list_webhook_endpoints(
 
 
 @router.post("/")
+@require_role([UserRole.SUPER_ADMIN, UserRole.SECURITY_ADMIN])
 async def create_webhook_endpoint(
     webhook_request: WebhookEndpointCreate,
     db: Session = Depends(get_db),
@@ -224,8 +277,8 @@ async def create_webhook_endpoint(
                 "secret_hash": secret_hash,
                 "is_active": True,
                 "created_by": current_user["id"],
-                "created_at": datetime.utcnow(),
-                "updated_at": datetime.utcnow(),
+                "created_at": datetime.now(timezone.utc),
+                "updated_at": datetime.now(timezone.utc),
             },
         )
 
@@ -304,6 +357,7 @@ async def get_webhook_endpoint(
 
 
 @router.put("/{webhook_id}")
+@require_role([UserRole.SUPER_ADMIN, UserRole.SECURITY_ADMIN])
 async def update_webhook_endpoint(
     webhook_id: str,
     webhook_update: WebhookEndpointUpdate,
@@ -336,7 +390,7 @@ async def update_webhook_endpoint(
 
         # Build update query with secure column mapping
         updates = []
-        params: Dict[str, Any] = {"id": webhook_id, "updated_at": datetime.utcnow()}
+        params: Dict[str, Any] = {"id": webhook_id, "updated_at": datetime.now(timezone.utc)}
 
         allowed_updates = {
             "name": "name = :name",
@@ -384,6 +438,7 @@ async def update_webhook_endpoint(
 
 
 @router.delete("/{webhook_id}")
+@require_role([UserRole.SUPER_ADMIN, UserRole.SECURITY_ADMIN])
 async def delete_webhook_endpoint(
     webhook_id: str,
     db: Session = Depends(get_db),
@@ -437,6 +492,7 @@ async def delete_webhook_endpoint(
 
 
 @router.get("/{webhook_id}/deliveries")
+@require_role([UserRole.SUPER_ADMIN, UserRole.SECURITY_ADMIN])
 async def get_webhook_deliveries(
     webhook_id: str,
     delivery_status: Optional[str] = None,
@@ -535,6 +591,7 @@ async def get_webhook_deliveries(
 
 
 @router.post("/{webhook_id}/test")
+@require_role([UserRole.SUPER_ADMIN, UserRole.SECURITY_ADMIN])
 async def test_webhook_endpoint(
     webhook_id: str,
     db: Session = Depends(get_db),
@@ -571,7 +628,7 @@ async def test_webhook_endpoint(
         # Create test event data
         test_event = {
             "event_type": "test.webhook",
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "webhook_id": webhook_id,
             "test_data": {
                 "message": "This is a test webhook delivery",
@@ -579,10 +636,11 @@ async def test_webhook_endpoint(
             },
         }
 
-        # Queue webhook delivery via Celery
-        from app.tasks.background_tasks import deliver_webhook_celery
+        # Queue webhook delivery via job queue
+        from app.services.job_queue.dispatch import enqueue_task
 
-        deliver_webhook_celery.delay(
+        enqueue_task(
+            "app.tasks.deliver_webhook",
             url=webhook_result.url,
             secret_hash=webhook_result.secret_hash,
             event_data=test_event,

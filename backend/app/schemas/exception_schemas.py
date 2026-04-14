@@ -106,7 +106,7 @@ class ExceptionSummary(BaseModel):
     total_rejected: int = 0
     total_expired: int = 0
     total_revoked: int = 0
-    expiring_soon: int = Field(0, description="Approved exceptions expiring within 30 days")
+    expiring_soon: int = 0
 
 
 class ExceptionCheckRequest(BaseModel):

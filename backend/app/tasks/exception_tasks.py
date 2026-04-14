@@ -10,15 +10,12 @@ import logging
 from datetime import datetime, timezone
 from typing import Any, Dict
 
-from celery import shared_task
-
 from app.database import SessionLocal
 from app.services.compliance import ExceptionService
 
 logger = logging.getLogger(__name__)
 
 
-@shared_task(name="expire_compliance_exceptions")
 def expire_compliance_exceptions() -> Dict[str, Any]:
     """
     Mark expired exceptions as expired.

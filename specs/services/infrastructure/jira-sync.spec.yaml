@@ -1,0 +1,57 @@
+spec: jira-sync
+version: "1.1"
+status: active
+owner: engineering
+summary: >
+  Workstream G3: Bidirectional Jira integration for compliance workflow
+  synchronization. Outbound: drift events and failed transactions create Jira
+  issues with evidence summaries. Inbound: Jira webhooks receive state
+  transitions and update OpenWatch exceptions accordingly. Field mapping is
+  configurable per Jira project. Credentials are encrypted at rest and
+  outbound calls include SSRF protection.
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      JiraService connects to Jira API using configured credentials.
+
+  - id: AC-2
+    description: >
+      Outbound: drift events create Jira issues with evidence summary.
+
+  - id: AC-3
+    description: >
+      Outbound: failed transactions create Jira issues with rule details.
+
+  - id: AC-4
+    description: >
+      Inbound webhook: POST /api/integrations/jira/webhook receives Jira
+      state transitions.
+
+  - id: AC-5
+    description: >
+      Inbound: Jira issue resolved maps to OpenWatch exception updated.
+
+  - id: AC-6
+    description: >
+      Field mapping is configurable per Jira project via admin API.
+
+  - id: AC-7
+    description: >
+      Jira credentials are encrypted at rest.
+
+  - id: AC-8
+    description: >
+      SSRF protection on outbound Jira API calls.
+
+changelog:
+  - version: "1.1"
+    date: "2026-04-11"
+    changes:
+      - "Promoted to active with full implementation and source-inspection tests"
+      - "JiraChannel notification channel, JiraService, webhook route, field-mapping admin"
+  - version: "1.0"
+    date: "2026-04-11"
+    changes:
+      - "Initial draft created during Q2 planning"
+      - "8 ACs covering connectivity, bidirectional sync, field mapping, security"

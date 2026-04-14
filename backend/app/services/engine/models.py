@@ -24,7 +24,7 @@ Security Notes:
 """
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -205,7 +205,7 @@ class ScanResult:
     exit_code: int = -1
     stdout: str = ""
     stderr: str = ""
-    start_time: datetime = field(default_factory=datetime.utcnow)
+    start_time: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     end_time: Optional[datetime] = None
     execution_time_seconds: float = 0.0
     error_message: Optional[str] = None

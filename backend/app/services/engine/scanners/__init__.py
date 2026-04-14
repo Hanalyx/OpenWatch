@@ -68,10 +68,13 @@ from ..models import ScanProvider
 logger = logging.getLogger(__name__)
 
 # Import scanner implementations (re-exported for public API)
+# KubernetesScanner and OWScanner/UnifiedSCAPScanner removed (SCAP-era dead code)
 from .base import BaseScanner  # noqa: F401, E402
-from .kubernetes import KubernetesScanner  # noqa: F401, E402
-from .oscap import OSCAPScanner  # noqa: F401, E402
-from .owscan import OWScanner, UnifiedSCAPScanner  # noqa: F401, E402
+
+try:
+    from .oscap import OSCAPScanner  # noqa: F401, E402
+except ImportError:
+    OSCAPScanner = None  # type: ignore
 
 
 def get_scanner(provider: ScanProvider) -> BaseScanner:
@@ -98,7 +101,7 @@ def get_scanner(provider: ScanProvider) -> BaseScanner:
         return OSCAPScanner()
 
     elif provider == ScanProvider.KUBERNETES:
-        return KubernetesScanner()
+        raise ValueError("KubernetesScanner removed (SCAP-era dead code)")
 
     elif provider == ScanProvider.CUSTOM:
         # Custom scanner support is planned for plugin architecture
@@ -137,14 +140,7 @@ def get_scanner_for_content(content_path: str) -> Optional[BaseScanner]:
     except Exception as e:
         logger.debug("OSCAP scanner cannot handle content: %s", e)
 
-    # Try Kubernetes scanner for YAML/JSON rule files
-    k8s_scanner = KubernetesScanner()
-    try:
-        if k8s_scanner.validate_content(path):
-            logger.debug("Using Kubernetes scanner for: %s", path.name)
-            return k8s_scanner
-    except Exception as e:
-        logger.debug("Kubernetes scanner cannot handle content: %s", e)
+    # KubernetesScanner removed (SCAP-era dead code)
 
     # No suitable scanner found
     logger.warning("No scanner found for content: %s", content_path)
@@ -155,7 +151,7 @@ def get_ow_scanner(
     content_dir: Optional[str] = None,
     results_dir: Optional[str] = None,
     encryption_service: Optional[object] = None,
-) -> "OWScanner":
+) -> "BaseScanner":
     """
     Get the OpenWatch scanner with MongoDB integration.
 
@@ -187,11 +183,7 @@ def get_ow_scanner(
         ...     connection_params=params,
         ... )
     """
-    return OWScanner(
-        content_dir=content_dir,
-        results_dir=results_dir,
-        encryption_service=encryption_service,
-    )
+    raise ValueError("OWScanner removed (SCAP-era dead code). Use Kensa scanning instead.")
 
 
 # Backward compatibility alias
@@ -238,20 +230,16 @@ class ScannerFactory:
 
     # Registry of scanner types to scanner classes
     # Keys are lowercase identifiers used in rule metadata
-    _scanners: dict[str, type[BaseScanner]] = {
-        # Primary scanner for SCAP compliance (MongoDB-integrated)
-        "owscan": OWScanner,
-        "scap": OWScanner,  # Alias for backward compatibility
-        # Legacy/content-only scanner (profile extraction, validation)
-        "oscap": OSCAPScanner,
-        # Kubernetes/OpenShift compliance
-        "kubernetes": KubernetesScanner,
-        # Future scanner types:
-        # "python": PythonScanner,  # For Python-based checks
-        # "bash": BashScanner,      # For shell script checks
-        # "aws_api": AWSScanner,    # For AWS API compliance
-        # "azure_api": AzureScanner,  # For Azure compliance
-    }
+    _scanners: dict[str, type[BaseScanner]] = (
+        {
+            # OWScanner and KubernetesScanner removed (SCAP-era)
+            # Kensa is the primary compliance engine, not registered here
+            # Legacy content-only scanner (profile extraction, validation)
+            "oscap": OSCAPScanner,
+        }
+        if OSCAPScanner is not None
+        else {}
+    )
 
     @classmethod
     def get_scanner(cls, scanner_type: str) -> BaseScanner:

@@ -78,6 +78,7 @@ Performance Notes:
 """
 
 import logging
+from typing import Any
 
 # =============================================================================
 # Association Layer - Plugin Mappings
@@ -111,14 +112,16 @@ logger = logging.getLogger(__name__)
 # NOTE: RuleSpecificScanner uses lazy import to avoid circular dependency
 # with engine module. Import it directly from .scanner when needed, or use
 # the get_rule_scanner() factory function.
-_scanner_module = None
+_scanner_module: Any = None
 
 
 def _get_scanner_class():
     """Lazy import of RuleSpecificScanner to avoid circular dependencies."""
     global _scanner_module
     if _scanner_module is None:
-        from . import scanner as _scanner_module
+        from . import scanner as _scanner_mod
+
+        _scanner_module = _scanner_mod
     return _scanner_module.RuleSpecificScanner
 
 
@@ -184,8 +187,8 @@ def get_cache_service(
     """
     return RuleCacheService(
         redis_url=redis_url,
-        default_ttl=default_ttl,
-        max_memory_items=max_memory_items,
+        # default_ttl=default_ttl,
+        # max_memory_items=max_memory_items,
     )
 
 

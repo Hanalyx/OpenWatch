@@ -6,7 +6,7 @@ Manages plugin lifecycle, dependencies, and storage operations
 import json
 import logging
 import shutil
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -214,7 +214,7 @@ class PluginRegistryService:
             # MongoDB storage removed - update cache only
             logger.warning("MongoDB storage removed - plugin status update not persisted for %s", plugin_id)
             plugin.status = new_status
-            plugin.updated_at = datetime.utcnow()
+            plugin.updated_at = datetime.now(timezone.utc)
             self._plugin_cache[plugin_id] = plugin
 
             logger.info(
@@ -349,7 +349,7 @@ class PluginRegistryService:
         metadata = {
             "plugin_id": plugin.plugin_id,
             "manifest": plugin.manifest.dict(),
-            "stored_at": datetime.utcnow().isoformat(),
+            "stored_at": datetime.now(timezone.utc).isoformat(),
             "file_count": len(plugin.files),
         }
 

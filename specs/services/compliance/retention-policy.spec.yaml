@@ -1,0 +1,46 @@
+spec: retention-policy
+version: "1.0"
+status: draft
+owner: engineering
+summary: >
+  Workstream I3: Data retention policy engine for compliance transaction data.
+  Retention periods are configurable per resource type with a default of 365
+  days for transactions. Expired rows are archived as signed bundles before
+  deletion. The cleanup job runs on schedule and preserves host_rule_state
+  rows to maintain current compliance posture.
+
+acceptance_criteria:
+  - id: AC-1
+    description: >
+      retention_policies table exists with tenant_id, resource_type,
+      retention_days columns.
+
+  - id: AC-2
+    description: >
+      Default retention: 365 days for transactions.
+
+  - id: AC-3
+    description: >
+      cleanup_old_transactions job runs on schedule and deletes expired rows.
+
+  - id: AC-4
+    description: >
+      Before deletion, a signed archive bundle is emitted to configured
+      storage.
+
+  - id: AC-5
+    description: >
+      Retention policy is configurable via admin API
+      (GET/PUT /api/admin/retention).
+
+  - id: AC-6
+    description: >
+      Retention deletion does not remove host_rule_state rows (only
+      transactions).
+
+changelog:
+  - version: "1.0"
+    date: "2026-04-11"
+    changes:
+      - "Initial draft created during Q2 planning"
+      - "6 ACs covering table schema, defaults, cleanup job, archival, admin API, scope"

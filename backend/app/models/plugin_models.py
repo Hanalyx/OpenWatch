@@ -5,9 +5,9 @@ Secure plugin management with comprehensive validation and tracking
 
 import hashlib
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field, root_validator, validator
 
@@ -60,7 +60,7 @@ class SecurityCheckResult(BaseModel):
     severity: str = Field(default="info", pattern="^(info|warning|high|critical)$")
     message: str
     details: Optional[Dict[str, Any]] = None
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class PluginSignature(BaseModel):
@@ -169,7 +169,7 @@ class PluginExecutor(BaseModel):
     type: PluginCapability
     entry_point: str = Field(..., description="Main execution entry point")
     templates: Dict[str, str] = Field(default_factory=dict, description="Platform-specific templates")
-    resource_limits: Dict[str, Union[str, int]] = Field(
+    resource_limits: Dict[str, Any] = Field(
         default_factory=lambda: {
             "cpu": "0.5",
             "memory": "512M",
@@ -262,7 +262,7 @@ class InstalledPlugin(BaseModel):
 
     # Import metadata
     imported_by: str = Field(..., description="User who imported the plugin")
-    imported_at: datetime = Field(default_factory=datetime.utcnow)
+    imported_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     import_method: str = Field(..., pattern="^(upload|url|registry)$")
 
     # Security status
@@ -288,7 +288,7 @@ class InstalledPlugin(BaseModel):
 
     # Versioning
     previous_versions: List[str] = Field(default_factory=list, description="Previous version IDs")
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     def generate_plugin_id(self) -> str:
         """Generate unique plugin ID from name and version"""
@@ -333,7 +333,7 @@ class PluginAssociation(BaseModel):
     config_overrides: Dict[str, Any] = Field(default_factory=dict)
 
     # Tracking
-    added_at: datetime = Field(default_factory=datetime.utcnow)
+    added_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     added_by: str = Field(..., description="User who added the association")
 
     @validator("plugin_version")

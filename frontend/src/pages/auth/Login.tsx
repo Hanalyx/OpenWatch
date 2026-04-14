@@ -11,11 +11,13 @@ import {
   IconButton,
   InputAdornment,
   CircularProgress,
+  Divider,
 } from '@mui/material';
 import { Visibility, VisibilityOff } from '@mui/icons-material';
 import { useForm } from 'react-hook-form';
 import { useAuthStore } from '../../store/useAuthStore';
 import { VersionDisplay } from '../../components/common/VersionDisplay';
+import { api } from '../../services/api';
 
 interface LoginFormData {
   username: string;
@@ -23,11 +25,18 @@ interface LoginFormData {
   mfaCode?: string;
 }
 
+interface SSOProvider {
+  id: string;
+  name: string;
+  type: string;
+}
+
 const Login: React.FC = () => {
   const navigate = useNavigate();
   const { isLoading, error, mfaRequired, loginSuccess, loginFailure, clearError, setLoading } =
     useAuthStore();
   const [showPassword, setShowPassword] = useState(false);
+  const [ssoProviders, setSsoProviders] = useState<SSOProvider[]>([]);
 
   const {
     register,
@@ -38,6 +47,16 @@ const Login: React.FC = () => {
   useEffect(() => {
     clearError();
   }, [clearError]);
+
+  // Fetch SSO providers - hidden if none configured
+  useEffect(() => {
+    api
+      .get<SSOProvider[]>('/api/auth/sso/providers')
+      .then((data) => setSsoProviders(data))
+      .catch(() => {
+        // SSO not configured or endpoint unavailable - section stays hidden
+      });
+  }, []);
 
   const onSubmit = async (data: LoginFormData) => {
     setLoading(true);
@@ -199,6 +218,26 @@ const Login: React.FC = () => {
               </Link>
             </Box>
           </Box>
+
+          {/* SSO providers - visible only when backend returns providers */}
+          {ssoProviders.length > 0 && (
+            <Box sx={{ width: '100%', mt: 1 }}>
+              <Divider sx={{ my: 2 }}>or</Divider>
+              {ssoProviders.map((provider) => (
+                <Button
+                  key={provider.id}
+                  variant="outlined"
+                  fullWidth
+                  sx={{ mb: 1 }}
+                  onClick={() => {
+                    window.location.href = `/api/auth/sso/login?provider_id=${provider.id}`;
+                  }}
+                >
+                  Sign in with {provider.name}
+                </Button>
+              ))}
+            </Box>
+          )}
         </Paper>
 
         {/* Version display below login form */}

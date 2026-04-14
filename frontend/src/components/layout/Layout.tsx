@@ -56,6 +56,7 @@ import {
   BookmarkAdd,
   QueryStats,
   Timeline,
+  Schedule,
 } from '@mui/icons-material';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useNotificationStore } from '../../store/useNotificationStore';
@@ -112,11 +113,18 @@ const menuItems = [
     ],
   },
   {
-    text: 'Scans',
+    text: 'Transactions',
     icon: <Scanner />,
-    path: '/scans',
+    path: '/transactions',
     roles: ['super_admin', 'security_admin', 'security_analyst', 'compliance_officer', 'auditor'],
   },
+  {
+    text: 'Scan Schedule',
+    icon: <Schedule />,
+    path: '/scans/schedule',
+    roles: ['super_admin', 'security_admin'],
+  },
+
   {
     text: 'Users',
     icon: <People />,
@@ -140,6 +148,12 @@ const menuItems = [
     icon: <Timeline />,
     path: '/compliance/posture',
     roles: ['super_admin', 'security_admin', 'compliance_officer', 'auditor'],
+  },
+  {
+    text: 'Exceptions',
+    icon: <Security />,
+    path: '/compliance/exceptions',
+    roles: ['super_admin', 'security_admin', 'security_analyst', 'compliance_officer', 'auditor'],
   },
   {
     text: 'Settings',

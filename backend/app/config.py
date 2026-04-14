@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     algorithm: str = "RS256"  # FIPS-approved RSA signature
     access_token_expire_minutes: int = 30
     refresh_token_expire_days: int = 7
+    absolute_session_timeout_hours: int = 12  # Maximum session lifetime regardless of activity
 
     # Database (with TDE support)
     database_url: str
@@ -47,6 +48,9 @@ class Settings(BaseSettings):
     max_concurrent_scans: int = 5
     scap_content_dir: str = os.getenv("SCAP_CONTENT_DIR", "/openwatch/data/scap")
     scan_results_dir: str = os.getenv("SCAN_RESULTS_DIR", "/openwatch/data/results")
+
+    # Transaction log (Q1 migration)
+    dual_write_transactions: bool = True
 
     # FIPS Configuration
     fips_mode: bool = True
@@ -123,8 +127,8 @@ SECURITY_HEADERS = {
     "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
     "Content-Security-Policy": (
         "default-src 'self'; "
-        "script-src 'self' 'unsafe-inline'; "
-        "style-src 'self' 'unsafe-inline'; "
+        "script-src 'self'; "
+        "style-src 'self' 'unsafe-inline'; "  # Material-UI (emotion) requires inline styles
         "img-src 'self' data:; "
         "connect-src 'self'; "
         "font-src 'self'; "

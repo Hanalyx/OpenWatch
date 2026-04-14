@@ -1,0 +1,24 @@
+spec: settings-page
+version: "1.0"
+status: active
+owner: engineering
+summary: >
+  Settings page behavior with tabs for system SSH security and about sections.
+
+acceptance_criteria:
+  - id: AC-1
+    description: Settings page organizes content into multiple tabs.
+  - id: AC-2
+    description: SSH policy dropdown shows available policies.
+  - id: AC-3
+    description: Session timeout configuration available.
+  - id: AC-4
+    description: About tab describes Kensa-based compliance scanning.
+  - id: AC-5
+    description: Credential management section present.
+  - id: AC-6
+    description: Logging configuration section present.
+  - id: AC-7
+    description: Settings page uses authenticated API calls.
+  - id: AC-8
+    description: Settings changes submit to backend API endpoints.

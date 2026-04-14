@@ -64,7 +64,7 @@ References:
 import base64
 import hashlib
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from sqlalchemy import text
@@ -270,7 +270,7 @@ class KnownHostsManager:
                     "key_type": key_type,
                     "public_key": public_key,
                     "fingerprint": fingerprint,
-                    "first_seen": datetime.utcnow(),
+                    "first_seen": datetime.now(timezone.utc),
                     "is_trusted": True,
                     "notes": notes,
                 },
@@ -332,7 +332,7 @@ class KnownHostsManager:
 
             self.db.commit()
 
-            if result.rowcount > 0:
+            if getattr(result, "rowcount", 0) > 0:
                 logger.info("Removed known host: %s (%s)", hostname, key_type)
                 return True
             else:
@@ -378,12 +378,12 @@ class KnownHostsManager:
                 {
                     "hostname": hostname,
                     "key_type": key_type,
-                    "last_verified": datetime.utcnow(),
+                    "last_verified": datetime.now(timezone.utc),
                 },
             )
 
             self.db.commit()
-            return result.rowcount > 0
+            return getattr(result, "rowcount", 0) > 0
 
         except Exception as e:
             logger.error("Failed to update last_verified for %s: %s", hostname, e)
@@ -434,7 +434,7 @@ class KnownHostsManager:
 
             self.db.commit()
 
-            if result.rowcount > 0:
+            if getattr(result, "rowcount", 0) > 0:
                 status = "trusted" if is_trusted else "untrusted"
                 logger.info("Set %s (%s) to %s", hostname, key_type, status)
                 return True

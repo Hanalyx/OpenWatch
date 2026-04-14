@@ -6,7 +6,7 @@ Provides standardized error responses, logging, and monitoring
 import logging
 import traceback
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 from fastapi import HTTPException, Request, status
@@ -34,7 +34,7 @@ class APIErrorResponse(BaseModel):
     message: str
     details: List[ErrorDetail] = Field(default_factory=list)
     error_id: str = Field(default_factory=lambda: str(uuid.uuid4())[:8])
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     path: Optional[str] = None
     method: Optional[str] = None
 
@@ -381,7 +381,7 @@ class ErrorMonitor:
         """Initialize the error monitor with empty counters."""
         self.error_counts: Dict[str, int] = {}
         self.error_patterns: Dict[str, List[Dict[str, Any]]] = {}
-        self.last_reset = datetime.utcnow()
+        self.last_reset = datetime.now(timezone.utc)
 
     def record_error(self, error_type: str, path: str, status_code: int) -> None:
         """
@@ -407,14 +407,14 @@ class ErrorMonitor:
         self.error_patterns[pattern_key].append(
             {
                 "path": path,
-                "timestamp": datetime.utcnow(),
+                "timestamp": datetime.now(timezone.utc),
                 "count": self.error_counts[key],
             }
         )
 
     def get_error_summary(self, hours: int = 24) -> Dict[str, Any]:
         """Get error summary for monitoring"""
-        cutoff_time = datetime.utcnow() - timedelta(hours=hours)
+        cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours)
 
         # Filter recent errors
         recent_errors = {}
@@ -432,7 +432,7 @@ class ErrorMonitor:
             "summary_period_hours": hours,
             "total_error_types": len(recent_errors),
             "errors_by_type": recent_errors,
-            "generated_at": datetime.utcnow().isoformat(),
+            "generated_at": datetime.now(timezone.utc).isoformat(),
         }
 
     def reset_counters(self) -> None:
@@ -444,7 +444,7 @@ class ErrorMonitor:
         """
         self.error_counts.clear()
         self.error_patterns.clear()
-        self.last_reset = datetime.utcnow()
+        self.last_reset = datetime.now(timezone.utc)
 
 
 # Global error monitor instance
