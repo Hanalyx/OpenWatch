@@ -868,6 +868,15 @@ docs/images/*
 # Security reviews and assessments (tracked in git for audit trail)
 !docs/OW_SECURITY_ASSESSMENT.md
 !docs/*_SECURITY_REVIEW_*.md
+# Planning documents (tracked in git so cross-team coordination docs can
+# reference them and so the Kensa↔OpenWatch convergence schedule is
+# reviewable)
+!docs/OPENWATCH_Q1_PLAN.md
+!docs/OPENWATCH_Q2_PLAN.md
+!docs/OPENWATCH_Q1_Q3_PLAN.md
+!docs/OPENWATCH_VISION.md
+!docs/OPENWATCH_VISION_STATUS.md
+!docs/KENSA_OPENWATCH_COORDINATION_*.md
 PRD/
 backend/docs/
 frontend/docs/
