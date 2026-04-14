@@ -23,7 +23,7 @@ bcrypt==5.0.0
 argon2-cffi==25.1.0
 pyotp==2.9.0
 qrcode==7.4.2
-cryptography==46.0.5
+cryptography==46.0.7
 # pyOpenSSL: transitive via pysaml2; pinning explicitly to avoid 22.0.0
 # CVE-2026-27448 and CVE-2026-27459 that are pulled in as a transitive.
 pyOpenSSL==26.0.0
