@@ -113,18 +113,12 @@ class TestAC5PublicKeysEndpoint:
 
 
 @pytest.mark.unit
-class TestAC6SignTransactionEndpoint:
-    """AC-6: POST /api/transactions/{id}/sign signs a transaction's evidence envelope."""
+class TestAC6VerifyEndpoint:
+    """AC-6: POST /api/signing/verify accepts OpenWatch-signed bundles.
 
-    def test_sign_transaction_route_exists(self):
-        """Route for POST /api/transactions/{id}/sign is registered."""
-        source = _read_route_source()
-        assert "sign" in source
-
-
-@pytest.mark.unit
-class TestAC7VerifyEndpoint:
-    """AC-7: POST /api/signing/verify accepts a signed bundle and returns valid/invalid."""
+    (Spec v2.0 scope narrow: the former AC-6 per-transaction signing
+    endpoint was removed; verification is the relevant public endpoint now.)
+    """
 
     def test_verify_route_exists(self):
         """Route for POST /api/signing/verify is registered."""
@@ -133,8 +127,8 @@ class TestAC7VerifyEndpoint:
 
 
 @pytest.mark.unit
-class TestAC8KeysEncryptedAtRest:
-    """AC-8: Signing keys are encrypted at rest via EncryptionService."""
+class TestAC7KeysEncryptedAtRest:
+    """AC-7: Signing keys are encrypted at rest via EncryptionService."""
 
     def test_encryption_service_used(self):
         """SigningService source references EncryptionService."""
@@ -161,3 +155,43 @@ class TestAC8KeysEncryptedAtRest:
         # nor dev mode is present.
         assert "RuntimeError" in source
         assert "_dev_mode_enabled" in source
+
+
+@pytest.mark.unit
+class TestAC8AggregateSigningFailureDetectable:
+    """AC-8: Aggregate signing failure is machine-detectable in the artifact."""
+
+    def test_audit_export_writes_explicit_null_on_sign_failure(self):
+        """audit_export writes signed_bundle=null + signing_error on failure.
+
+        Regression for SEC-SIGN-03 (silent signing failure on export).
+        """
+        import app.services.compliance.audit_export as mod
+
+        source = inspect.getsource(mod)
+        assert 'export_data["signed_bundle"] = None' in source
+        assert "signing_error" in source
+
+
+@pytest.mark.unit
+class TestAC9PerTransactionSigningRemoved:
+    """AC-9: Per-transaction signing is NOT in OpenWatch's scope.
+
+    Scope narrowed 2026-04-14: per-transaction signing moved to Kensa.
+    OpenWatch signs only aggregate artifacts it originates.
+    """
+
+    def test_routes_do_not_register_per_transaction_sign_endpoint(self):
+        """routes/signing/routes.py must not register POST /api/transactions/{id}/sign."""
+        source = _read_route_source()
+        # The endpoint must not be registered
+        assert "/api/transactions/{transaction_id}/sign" not in source
+        # Nor the handler function name
+        assert "def sign_transaction" not in source
+
+    def test_module_docstring_documents_kensa_boundary(self):
+        """routes/signing/routes.py module docstring must document the boundary."""
+        source = _read_route_source()
+        # Name the coordination doc that establishes the boundary
+        assert "Kensa" in source
+        assert "aggregate" in source.lower()
