@@ -86,6 +86,17 @@ services:
     networks:
       - openwatch-network
     restart: unless-stopped
+    # Override the backend Dockerfile's HEALTHCHECK (which curls port 8000
+    # -- the API runs in the backend container, not here). Verify the worker
+    # can reach the DB; without DB, it cannot dequeue or enqueue anything.
+    healthcheck:
+      test:
+        - "CMD-SHELL"
+        - "python3 -c \"from sqlalchemy import create_engine, text; import os; e=create_engine(os.environ['OPENWATCH_DATABASE_URL']); e.connect().execute(text('SELECT 1'))\" || exit 1"
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
 
   # React Frontend
   frontend:
