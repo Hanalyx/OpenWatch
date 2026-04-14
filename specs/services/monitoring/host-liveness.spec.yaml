@@ -1,6 +1,6 @@
 spec: host-liveness
 version: "0.1"
-status: draft
+status: active
 owner: engineering
 summary: >
   Dedicated host liveness monitoring independent of compliance scan cadence.

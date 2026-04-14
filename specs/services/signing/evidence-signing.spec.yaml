@@ -1,6 +1,6 @@
 spec: evidence-signing
 version: "1.0"
-status: draft
+status: active
 owner: engineering
 summary: >
   Workstream F1: Cryptographic signing of evidence envelopes using Ed25519 keys.

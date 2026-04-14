@@ -34,13 +34,13 @@ Coverage is checked by `scripts/check-spec-coverage.py`.
 
 ---
 
-## System Specs (10 Active, 3 Draft)
+## System Specs (13 Active)
 
 | Spec | File | Tests | Phase | Status |
 |------|------|-------|-------|--------|
-| Transaction Log | system/transaction-log.spec.yaml | tests/backend/unit/system/test_transaction_log_spec.py | Q1 | Draft |
-| Host Rule State | system/host-rule-state.spec.yaml | tests/backend/unit/system/test_host_rule_state_spec.py | Q1 | Draft |
-| Job Queue | system/job-queue.spec.yaml | tests/backend/unit/system/test_job_queue_spec.py | Q1-D | Draft |
+| Transaction Log | system/transaction-log.spec.yaml | tests/backend/unit/system/test_transaction_log_spec.py | Q1 | Active |
+| Host Rule State | system/host-rule-state.spec.yaml | tests/backend/unit/system/test_host_rule_state_spec.py | Q1 | Active |
+| Job Queue | system/job-queue.spec.yaml | tests/backend/unit/system/test_job_queue_spec.py | Q1-D | Active |
 | Architecture | system/architecture.spec.yaml | tests/backend/unit/system/test_architecture_spec.py | 8 | Active |
 | Documentation | system/documentation.spec.yaml | tests/backend/unit/system/test_documentation_spec.py | 8 | Active |
 | Integration Testing | system/integration-testing.spec.yaml | tests/backend/integration/test_*.py (40 files) | 9 | Active |
@@ -60,7 +60,7 @@ Coverage is checked by `scripts/check-spec-coverage.py`.
 | Remediation Lifecycle | pipelines/remediation-lifecycle.spec.yaml | tests/backend/unit/pipelines/test_remediation_lifecycle.py | 2 | Active |
 | Drift Detection | pipelines/drift-detection.spec.yaml | tests/backend/unit/services/engine/test_drift_detection.py | 1 | Active |
 
-## Service Specs (21 Active, 8 Draft)
+## Service Specs (29 Active)
 
 | Spec | File | Tests | Phase | Status |
 |------|------|-------|-------|--------|
@@ -85,14 +85,14 @@ Coverage is checked by `scripts/check-spec-coverage.py`.
 | Host Discovery | services/discovery/host-discovery.spec.yaml | tests/backend/unit/services/discovery/test_host_discovery_spec.py | 9 | Active |
 | Rule Reference | services/rules/rule-reference.spec.yaml | tests/backend/unit/services/rules/test_rule_reference_spec.py | 9 | Active |
 | Server Intelligence | services/system-info/server-intelligence.spec.yaml | tests/backend/unit/services/system_info/test_server_intelligence_spec.py | 9 | Active |
-| Host Liveness | services/monitoring/host-liveness.spec.yaml | tests/backend/unit/services/monitoring/test_host_liveness_spec.py | Q1 | Draft |
-| Notification Channels | services/infrastructure/notification-channels.spec.yaml | tests/backend/unit/services/infrastructure/test_notification_channels_spec.py | Q1 | Draft |
-| SSO Federation | services/auth/sso-federation.spec.yaml | tests/backend/unit/services/auth/test_sso_federation_spec.py | Q1 | Draft |
-| Evidence Signing | services/signing/evidence-signing.spec.yaml | tests/backend/unit/services/signing/test_evidence_signing_spec.py | Q2 | Draft |
-| Jira Sync | services/infrastructure/jira-sync.spec.yaml | tests/backend/unit/services/infrastructure/test_jira_sync_spec.py | Q2 | Draft |
-| Baseline Management | services/compliance/baseline-management.spec.yaml | tests/backend/unit/services/compliance/test_baseline_management_spec.py | Q2 | Draft |
-| Alert Routing | services/compliance/alert-routing.spec.yaml | tests/backend/unit/services/compliance/test_alert_routing_spec.py | Q2 | Draft |
-| Retention Policy | services/compliance/retention-policy.spec.yaml | tests/backend/unit/services/compliance/test_retention_policy_spec.py | Q2 | Draft |
+| Host Liveness | services/monitoring/host-liveness.spec.yaml | tests/backend/unit/services/monitoring/test_host_liveness_spec.py | Q1 | Active |
+| Notification Channels | services/infrastructure/notification-channels.spec.yaml | tests/backend/unit/services/infrastructure/test_notification_channels_spec.py | Q1 | Active |
+| SSO Federation | services/auth/sso-federation.spec.yaml | tests/backend/unit/services/auth/test_sso_federation_spec.py | Q1 | Active |
+| Evidence Signing | services/signing/evidence-signing.spec.yaml | tests/backend/unit/services/signing/test_evidence_signing_spec.py | Q2 | Active |
+| Jira Sync | services/infrastructure/jira-sync.spec.yaml | tests/backend/unit/services/infrastructure/test_jira_sync_spec.py | Q2 | Active |
+| Baseline Management | services/compliance/baseline-management.spec.yaml | tests/backend/unit/services/compliance/test_baseline_management_spec.py | Q2 | Active |
+| Alert Routing | services/compliance/alert-routing.spec.yaml | tests/backend/unit/services/compliance/test_alert_routing_spec.py | Q2 | Active |
+| Retention Policy | services/compliance/retention-policy.spec.yaml | tests/backend/unit/services/compliance/test_retention_policy_spec.py | Q2 | Active |
 
 ## API Route Specs (28 Active)
 
@@ -127,7 +127,7 @@ Coverage is checked by `scripts/check-spec-coverage.py`.
 | Webhooks | api/integrations/webhooks.spec.yaml | tests/backend/unit/api/test_webhooks_spec.py | 9 | Active |
 | System Health | api/system/system-health.spec.yaml | tests/backend/unit/api/test_system_health_spec.py | 9 | Active |
 
-## Frontend Specs (13 Active, 3 Draft)
+## Frontend Specs (16 Active)
 
 | Spec | File | Tests | Phase | Status |
 |------|------|-------|-------|--------|
@@ -144,9 +144,9 @@ Coverage is checked by `scripts/check-spec-coverage.py`.
 | Rule Reference | frontend/rule-reference.spec.yaml | tests/frontend/content/rule-reference.spec.test.ts | 9 | Active |
 | Compliance Groups | frontend/compliance-groups.spec.yaml | tests/frontend/host-groups/compliance-groups.spec.test.ts | 9 | Active |
 | Scans List | frontend/scans-list.spec.yaml | tests/frontend/scans/scans-list.spec.test.ts | 9 | Active |
-| Exception Workflow | frontend/exception-workflow.spec.yaml | tests/frontend/compliance/exception-workflow.spec.test.ts | Q2 | Draft |
-| Scheduled Scans | frontend/scheduled-scans.spec.yaml | tests/frontend/scans/scheduled-scans.spec.test.ts | Q2 | Draft |
-| Host Audit Timeline | frontend/host-audit-timeline.spec.yaml | tests/frontend/hosts/host-audit-timeline.spec.test.ts | Q2 | Draft |
+| Exception Workflow | frontend/exception-workflow.spec.yaml | tests/frontend/compliance/exception-workflow.spec.test.ts | Q2 | Active |
+| Scheduled Scans | frontend/scheduled-scans.spec.yaml | tests/frontend/scans/scheduled-scans.spec.test.ts | Q2 | Active |
+| Host Audit Timeline | frontend/host-audit-timeline.spec.yaml | tests/frontend/hosts/host-audit-timeline.spec.test.ts | Q2 | Active |
 
 ## Plugin Specs (1 Active)
 
@@ -169,16 +169,16 @@ Coverage is checked by `scripts/check-spec-coverage.py`.
 
 | Category | Total Specs | Active | Draft | Deprecated |
 |----------|-------------|--------|-------|------------|
-| System | 13 | 10 | 3 | 0 |
+| System | 13 | 13 | 0 | 0 |
 | Pipelines | 3 | 3 | 0 | 0 |
-| Services | 29 | 21 | 8 | 0 |
+| Services | 29 | 29 | 0 | 0 |
 | API | 28 | 28 | 0 | 0 |
 | Plugins | 1 | 1 | 0 | 0 |
 | Release | 4 | 4 | 0 | 0 |
-| Frontend | 16 | 13 | 3 | 0 |
-| **Total** | **94** | **80** | **14** | **0** |
+| Frontend | 16 | 16 | 0 | 0 |
+| **Total** | **94** | **94** | **0** | **0** |
 
-**Active ACs: 762 (100% covered by tests) + 50 Q2 draft ACs (specs created, code pending)**
+**Active ACs: 813 (100% covered by tests)**
 
 ### Q1 Draft Specs
 
