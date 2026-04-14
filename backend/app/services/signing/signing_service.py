@@ -15,6 +15,7 @@ Usage:
 import base64
 import json
 import logging
+import os
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
@@ -27,6 +28,18 @@ from sqlalchemy.orm import Session
 from app.utils.mutation_builders import InsertBuilder
 
 logger = logging.getLogger(__name__)
+
+
+# SEC-SIGN-01 fix: explicit dev-mode override so production deploys that
+# misconfigure EncryptionService surface the error loudly instead of
+# silently storing private keys as plain base64. Set via environment for
+# tests / local dev only.
+_DEV_MODE_ENV = "OPENWATCH_SIGNING_DEV_MODE"
+
+
+def _dev_mode_enabled() -> bool:
+    """True only if the explicit dev-mode env var is set to a truthy value."""
+    return os.environ.get(_DEV_MODE_ENV, "").lower() in ("1", "true", "yes")
 
 
 @dataclass
@@ -87,11 +100,30 @@ class SigningService:
 
         pub_b64 = base64.b64encode(pub_bytes).decode()
 
-        # Encrypt private key at rest via EncryptionService (AC-8)
+        # Encrypt private key at rest via EncryptionService (AC-8).
+        # SEC-SIGN-01 fix: hard-fail if EncryptionService is missing in
+        # production. Plain-base64 fallback is gated behind an explicit
+        # dev-mode env var so misconfiguration surfaces loudly.
         if self._enc:
             priv_encrypted = base64.b64encode(self._enc.encrypt(priv_bytes)).decode()
-        else:
+        elif _dev_mode_enabled():
+            logger.warning(
+                "EncryptionService not configured; storing signing key as plain "
+                "base64 because %s is set. NEVER use this in production.",
+                _DEV_MODE_ENV,
+            )
             priv_encrypted = base64.b64encode(priv_bytes).decode()
+        else:
+            raise RuntimeError(
+                "Cannot generate signing key: EncryptionService is required for "
+                "encryption at rest (spec AC-8). To bypass for development or "
+                f"testing, set {_DEV_MODE_ENV}=true."
+            )
+
+        # SEC-SIGN-02 fix: wrap deactivate + insert in a single transaction
+        # with FOR UPDATE on the previously active row, preventing concurrent
+        # generate_key() calls from leaving two rows with active=true.
+        self.db.execute(text("SELECT id FROM deployment_signing_keys " "WHERE active = true FOR UPDATE")).fetchall()
 
         # Deactivate current active key (rotation support, AC-4)
         self.db.execute(
@@ -149,12 +181,18 @@ class SigningService:
         if not row:
             raise ValueError("No active signing key. Call generate_key() first.")
 
-        # Decrypt private key
+        # Decrypt private key. SEC-SIGN-01 fix: same dev-mode gate as
+        # generate_key — refuse to read plain-base64 keys in production.
         priv_encrypted = base64.b64decode(row.private_key_encrypted)
         if self._enc:
             priv_bytes = self._enc.decrypt(priv_encrypted)
-        else:
+        elif _dev_mode_enabled():
             priv_bytes = priv_encrypted
+        else:
+            raise RuntimeError(
+                "Cannot sign: EncryptionService is required to decrypt the "
+                f"signing key. Set {_DEV_MODE_ENV}=true for dev/test only."
+            )
 
         private_key = Ed25519PrivateKey.from_private_bytes(priv_bytes)
 
