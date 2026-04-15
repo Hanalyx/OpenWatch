@@ -7,7 +7,7 @@
 fastapi==0.129.0
 uvicorn[standard]==0.40.0
 starlette==0.52.1  # Security: CVE-2025-62727 fixed
-python-multipart==0.0.22
+python-multipart==0.0.26
 
 # Database (PostgreSQL only)
 SQLAlchemy==2.0.46
