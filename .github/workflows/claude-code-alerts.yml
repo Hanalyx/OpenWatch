@@ -129,7 +129,7 @@ jobs:
           echo "  Can Auto-Fix: $CAN_AUTO_FIX"
 
       - name: Upload Alert Data
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: alert-data
           path: /tmp/alerts/
