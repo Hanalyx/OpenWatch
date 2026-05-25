@@ -72,18 +72,12 @@ jobs:
           install-mode: binary
 
       - name: Set up specter
+        env:
+          # Pinned so CI is reproducible. Bump in lockstep with any
+          # spec-schema change required by app/specs/.
+          SPECTER_VERSION: "0.13.2"
         run: |
-          # Specter ships its linux-amd64 binary inside a tarball (asset
-          # name pattern: specter_<version>_linux_amd64.tar.gz). Resolve
-          # the latest release's tag, fetch the matching tarball, and
-          # install the binary on PATH.
-          tag=$(curl -fsSL https://api.github.com/repos/Hanalyx/specter/releases/latest \
-              | grep -m1 '"tag_name"' | sed -E 's/.*"v?([^"]+)".*/\1/')
-          if [ -z "$tag" ]; then
-              echo "could not resolve latest specter tag" >&2
-              exit 1
-          fi
-          curl -fsSL "https://github.com/Hanalyx/specter/releases/download/v${tag}/specter_${tag}_linux_amd64.tar.gz" \
+          curl -fsSL "https://github.com/Hanalyx/specter/releases/download/v${SPECTER_VERSION}/specter_${SPECTER_VERSION}_linux_amd64.tar.gz" \
               -o /tmp/specter.tar.gz
           tar -xzf /tmp/specter.tar.gz -C /tmp specter
           install -m 0755 /tmp/specter /usr/local/bin/specter
