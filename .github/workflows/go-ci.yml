@@ -63,13 +63,13 @@ jobs:
           cache-dependency-path: app/go.sum
 
       - name: Set up golangci-lint
-        uses: golangci/golangci-lint-action@v6
-        with:
-          version: v1.64.8
-          working-directory: app
-          # We run via `make lint` below; this step just installs the binary.
-          args: --help
-          install-mode: binary
+        # Build from source against the runner's Go toolchain. The
+        # prebuilt v1.64.8 binary was compiled with Go 1.24, which
+        # refuses to load configs targeting Go 1.25. Building from
+        # source gets us a binary matched to the runner's toolchain.
+        run: |
+          go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.8
+          golangci-lint --version
 
       - name: Set up specter
         env:
