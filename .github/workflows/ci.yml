@@ -1,10 +1,20 @@
 name: CI Pipeline
 
+# This pipeline is the legacy OpenWatch (Python backend + React
+# frontend) gate. The Go rebuild under app/ has its own workflow at
+# .github/workflows/go-ci.yml; changes confined to app/ or the Go
+# rebuild's CI workflow do not need this pipeline.
 on:
   push:
     branches: [ main, develop ]
+    paths-ignore:
+      - 'app/**'
+      - '.github/workflows/go-ci.yml'
   pull_request:
     branches: [ main, develop ]
+    paths-ignore:
+      - 'app/**'
+      - '.github/workflows/go-ci.yml'
   workflow_dispatch:  # Allow manual trigger
 
 env:
