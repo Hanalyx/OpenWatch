@@ -1,0 +1,384 @@
+openapi: 3.1.0
+
+# ============================================================================
+# License & Feature Gating API
+# ============================================================================
+# Surface for license state inspection, feature/quota discovery, and operator
+# license management.
+#
+# Design source: app/docs/licensing_foundation.md
+#
+# Endpoints in this spec:
+#   - GET  /license                       # current license info (sanitized)
+#   - GET  /license/features              # active feature set + quotas
+#   - POST /admin/license:verify          # validate a license file (no install)
+#   - POST /admin/license:install         # install a license file (with reload)
+#   - GET  /admin/license/history         # past licenses (superseded log)
+#
+# Plus the /capabilities endpoint references license state (separate spec).
+#
+# Status: DRAFT for design review
+# Last updated: 2026-04-28
+# ============================================================================
+
+info:
+  title: OpenWatch License API
+  version: 1.0.0-draft
+  description: |
+    License state inspection and operator license management. Validation
+    happens entirely offline against the embedded public key. The API never
+    phones home.
+
+servers:
+  - url: https://openwatch.example.com/api/v1
+
+components:
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      schema: {type: string, format: uuid}
+
+    CorrelationId:
+      name: X-Correlation-Id
+      in: header
+      required: false
+      schema: {type: string}
+
+  responses:
+    BadRequest: {description: Validation error, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}}
+    Unauthorized: {description: Auth required, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}}
+    Forbidden: {description: Permission denied, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}}
+    NotFound: {description: Not found, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}}
+
+  schemas:
+    ErrorEnvelope:
+      # See app/api/error_codes.yaml for the canonical registry of codes.
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, fault, retryable, human_message]
+          properties:
+            code: {type: string, examples: [license.invalid, license.feature_unavailable, license.fingerprint_mismatch]}
+            fault: {type: string, enum: [client, server, policy, external]}
+            retryable: {type: boolean}
+            human_message: {type: string}
+            detail: {type: object, additionalProperties: true}
+            correlation_id: {type: string}
+
+    # ----------------------------------------------------------------
+    # License (sanitized — no JWT raw, no signing details)
+    # ----------------------------------------------------------------
+    License:
+      type: object
+      required: [tier, status, features, quotas]
+      properties:
+        license_id:
+          type: string
+          format: uuid
+          description: |
+            JTI from the JWT. Null if running in default Free tier with no
+            installed license file.
+        tier:
+          type: string
+          enum: [free, openwatch_plus]
+        status:
+          type: string
+          enum: [active, grace, expired, invalid, no_license]
+          description: |
+            - `active`: license valid, not expired
+            - `grace`: past `expires_at`, within 30-day grace window
+            - `expired`: past grace window; only Free-tier features available
+            - `invalid`: license file present but rejected (signature/fingerprint/clock)
+            - `no_license`: no license file installed; running default Free tier
+        customer_id: {type: string}
+        customer_name: {type: string}
+        issued_at: {type: string, format: date-time}
+        not_before: {type: string, format: date-time}
+        expires_at: {type: string, format: date-time}
+        days_until_expiry:
+          type: integer
+          description: Negative if past expiry. Null if no_license.
+        features:
+          type: array
+          items: {type: string}
+          description: Active feature IDs.
+        quotas:
+          $ref: '#/components/schemas/Quotas'
+        deployment_fingerprint_bound:
+          type: boolean
+          description: True if license includes a deployment fingerprint binding.
+        installed_at: {type: string, format: date-time}
+        installed_by:
+          type: string
+          format: uuid
+          description: User who ran `owadm license install`. Null if installed pre-rebuild or via direct file write.
+        last_validated_at: {type: string, format: date-time}
+        support_contact: {type: string}
+        warnings:
+          type: array
+          description: Non-fatal observations (e.g., "deprecated key", "expiring soon")
+          items:
+            type: object
+            properties:
+              code: {type: string, examples: [license.using_deprecated_key, license.expiring_soon]}
+              human_message: {type: string}
+
+    Quotas:
+      type: object
+      properties:
+        max_hosts:
+          type: object
+          properties:
+            limit: {type: [integer, 'null'], description: Null = unlimited}
+            current_usage: {type: integer}
+            remaining: {type: [integer, 'null']}
+        max_scans_per_day:
+          type: object
+          properties:
+            limit: {type: [integer, 'null']}
+            current_usage: {type: integer}
+            window_resets_at: {type: string, format: date-time}
+        max_users:
+          type: object
+          properties:
+            limit: {type: [integer, 'null']}
+            current_usage: {type: integer}
+        max_concurrent_scans:
+          type: object
+          properties:
+            limit: {type: [integer, 'null']}
+            current_usage: {type: integer}
+
+    FeatureCatalog:
+      type: object
+      description: |
+        The full feature registry. Active features are flagged true, inactive
+        flagged false. Lets clients render "available" vs "upgrade" UI without
+        needing the registry shipped client-side.
+      required: [active, available]
+      properties:
+        active:
+          type: array
+          items: {type: string}
+          description: Features currently enabled by the license.
+        available:
+          type: array
+          description: All known features in the registry.
+          items:
+            type: object
+            required: [id, tier, description, active]
+            properties:
+              id: {type: string}
+              tier: {type: string, enum: [free, openwatch_plus]}
+              description: {type: string}
+              introduced: {type: string, description: Semver}
+              deprecated_in: {type: string, description: Semver, nullable: true}
+              active: {type: boolean, description: Enabled by current license}
+
+    LicenseVerifyRequest:
+      type: object
+      required: [license_jwt]
+      properties:
+        license_jwt:
+          type: string
+          description: |
+            The contents of a `.lic` file (compact JWT). Validated but not
+            installed.
+
+    LicenseVerifyResult:
+      type: object
+      required: [is_valid, checks]
+      properties:
+        is_valid: {type: boolean}
+        checks:
+          type: array
+          description: Per-check pass/fail breakdown for operator visibility
+          items:
+            type: object
+            properties:
+              check: {type: string, examples: [structure, signature, issuer, audience, validity_window, fingerprint, clock_rollback]}
+              passed: {type: boolean}
+              message: {type: string}
+        license_preview:
+          $ref: '#/components/schemas/License'
+          description: What this license would look like if installed. Null if invalid.
+
+    LicenseInstallRequest:
+      type: object
+      required: [license_jwt]
+      properties:
+        license_jwt:
+          type: string
+        backup_existing:
+          type: boolean
+          default: true
+          description: |
+            If true, the previous license file is renamed to `license.lic.bak`
+            before the new one is written.
+
+    LicenseHistoryEntry:
+      type: object
+      properties:
+        license_id: {type: string, format: uuid}
+        tier: {type: string}
+        customer_name: {type: string}
+        issued_at: {type: string, format: date-time}
+        expires_at: {type: string, format: date-time}
+        installed_at: {type: string, format: date-time}
+        installed_by: {type: string, format: uuid}
+        superseded_at: {type: string, format: date-time}
+        superseded_by_license_id: {type: string, format: uuid}
+
+  securitySchemes:
+    BearerJWT: {type: http, scheme: bearer, bearerFormat: JWT}
+    ApiKey: {type: http, scheme: bearer, bearerFormat: ApiKey}
+
+security:
+  - BearerJWT: []
+  - ApiKey: []
+
+# ============================================================================
+# PATHS
+# ============================================================================
+paths:
+
+  # =========================================================================
+  # /license — current license, readable to anyone authenticated
+  # =========================================================================
+  /license:
+    get:
+      summary: Get current license state
+      description: |
+        Returns the active license (sanitized — no JWT raw, no signature data).
+        Returns Free-tier metadata if no license is installed.
+
+        Available to any authenticated user; license state isn't a secret.
+      x-required-permission: SYSTEM_READ
+      responses:
+        '200':
+          description: Current license
+          headers:
+            Warning:
+              schema: {type: string}
+              description: |
+                Set during grace period or when using a deprecated signing key.
+                RFC 7234 Warning header.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/License'}
+
+  /license/features:
+    get:
+      summary: List active features and full feature catalog
+      description: |
+        For frontend rendering: shows which features are currently active
+        AND the complete catalog with descriptions, so the UI can render
+        "Upgrade" CTAs for inactive features.
+      x-required-permission: SYSTEM_READ
+      responses:
+        '200':
+          description: Feature catalog
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/FeatureCatalog'}
+
+  # =========================================================================
+  # /admin/license — operator-only license management
+  # =========================================================================
+  /admin/license:verify:
+    post:
+      summary: Validate a license file without installing
+      description: |
+        Useful for verifying a license file from the issuer before installing.
+        Performs all the checks of `install` but does not write the file or
+        reload the service.
+
+        Mirrors `owadm license verify <file>`.
+      x-required-permission: SYSTEM_ADMIN
+      x-rate-limit-bucket: admin-write
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/LicenseVerifyRequest'}
+      responses:
+        '200':
+          description: Verification result. Always 200 — `is_valid=false` is reported in the body.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/LicenseVerifyResult'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+
+  /admin/license:install:
+    post:
+      summary: Install a license file
+      description: |
+        Verifies the license, writes it to `/etc/openwatch/license.lic`, and
+        reloads the in-memory state (no service restart). Emits
+        `license.installed` audit event.
+
+        Mirrors `owadm license install <file>` but available via API for
+        deployment automation.
+      x-required-permission: SYSTEM_ADMIN
+      x-rate-limit-bucket: admin-write
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/LicenseInstallRequest'}
+      responses:
+        '200':
+          description: License installed and active
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/License'}
+        '400':
+          description: License file invalid (signature, structure, etc.)
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409':
+          description: |
+            Possible:
+              - `license.fingerprint_mismatch`
+              - `license.clock_rollback_detected`
+              - `idempotency.key_reused`
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
+  /admin/license/history:
+    get:
+      summary: List previously-installed licenses
+      description: |
+        Returns the audit trail of license installs. Useful for compliance
+        ("when did we upgrade to OpenWatch+?") and forensic review.
+      x-required-permission: AUDIT_READ
+      parameters:
+        - {name: limit, in: query, schema: {type: integer, default: 50, maximum: 500}}
+        - {name: cursor, in: query, schema: {type: string}}
+      responses:
+        '200':
+          description: Page of license history
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: {$ref: '#/components/schemas/LicenseHistoryEntry'}
+                  next_cursor: {type: [string, 'null']}
+
+# Error codes for this domain are registered in app/api/error_codes.yaml under
+# categories `license` and `quota`. The registry is the source of truth.

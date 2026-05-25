@@ -1,0 +1,97 @@
+# Pre-merge gates for the Go rebuild in app/.
+#
+# Runs: make vet, make lint (staticcheck + gosec + ...), make vuln
+# (govulncheck), make test-race (data races + full integration suite
+# against a Postgres service container), and `specter sync` (spec
+# validation + strict AC coverage).
+#
+# Spec: app/specs/release/ci-gates.spec.yaml.
+
+name: Go CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'app/**'
+      - '.github/workflows/go-ci.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'app/**'
+      - '.github/workflows/go-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  gates:
+    name: Quality + security gates
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: openwatch
+          POSTGRES_PASSWORD: openwatch_ci
+          POSTGRES_DB: openwatch_go_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    defaults:
+      run:
+        working-directory: app
+        shell: bash
+
+    env:
+      OPENWATCH_TEST_DSN: postgres://openwatch:openwatch_ci@127.0.0.1:5432/openwatch_go_test?sslmode=disable
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.10'
+          cache: true
+          cache-dependency-path: app/go.sum
+
+      - name: Set up golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: v1.64.8
+          working-directory: app
+          # We run via `make lint` below; this step just installs the binary.
+          args: --help
+          install-mode: binary
+
+      - name: Set up specter
+        run: |
+          curl -fsSL https://github.com/Hanalyx/specter/releases/latest/download/specter-linux-amd64 \
+              -o /usr/local/bin/specter
+          chmod +x /usr/local/bin/specter
+          specter --version
+
+      - name: make vet
+        run: make vet
+
+      - name: make lint
+        run: make lint
+
+      - name: make vuln
+        run: make vuln
+
+      - name: make test-race
+        run: make test-race
+
+      - name: specter sync (strict AC coverage)
+        run: |
+          go test -json -timeout 360s -p 1 ./... > /tmp/go-test.json
+          specter ingest --go-test /tmp/go-test.json
+          specter sync

@@ -1,0 +1,27 @@
+# Build artifacts
+dist/
+*.bundled.yaml
+
+# Generated code (committed where the design says it should be; gitignored where it shouldn't)
+# (None yet on Day 1; codegen targets land in later days)
+
+# Local config
+.env
+.env.local
+*.local.toml
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Go test
+*.test
+*.out
+coverage.html
+coverage.txt

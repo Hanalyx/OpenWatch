@@ -1,0 +1,103 @@
+spec:
+  id: system-ssh-connectivity
+  title: SSH connectivity check against resolved credentials
+  version: "1.0.0"
+  status: approved
+  tier: 2
+
+  context:
+    system: openwatch-go
+    feature: SSH dial layer
+    description: >
+      Performs an SSH handshake against a host using the credential
+      returned by credential.Resolve. The dial layer is the only path
+      that consumes plaintext secrets; the api-hosts connectivity-check
+      endpoint and the future Kensa scan executor both go through it.
+      Key validation follows NIST SP 800-57 (RSA ≥ 2048, Ed25519 always
+      OK). Host-key verification has two modes: strict (known-hosts
+      lookup; reject unknown) and TOFU (trust-on-first-use, then
+      strict). Timeouts are mandatory.
+    related_specs:
+      - system-credential-store
+      - system-host-inventory
+
+  objective:
+    summary: >
+      Make "can the platform reach this host?" answerable in one call
+      with a hard timeout, a clean error per failure mode, and no
+      leaked credential material in any log or audit row.
+    scope:
+      includes:
+        - Dial(ctx, host, cred) with timeout enforcement
+        - Known-hosts policy (Strict, TOFU)
+        - NIST SP 800-57 key validator (RSA ≥ 2048, Ed25519, ECDSA P-256+)
+        - Distinct error sentinels per failure mode for forensic clarity
+      excludes:
+        - "Running commands over SSH (Slice B's scan executor)"
+        - "Connection pooling / session reuse (no demand in Slice A)"
+        - "SSH cert auth (deferred — operators rarely use it)"
+
+  constraints:
+    - id: C-01
+      description: Dial MUST enforce a connect+handshake timeout no greater than DefaultDialTimeout (10 seconds); callers may supply a shorter ctx deadline
+      type: performance
+      enforcement: error
+    - id: C-02
+      description: Dial MUST reject RSA keys below 2048 bits per NIST SP 800-57
+      type: security
+      enforcement: error
+    - id: C-03
+      description: Dial MUST NEVER include a credential's password or private key in any error message, log line, or audit detail
+      type: security
+      enforcement: error
+    - id: C-04
+      description: Strict known-hosts mode MUST reject a connection when the host's presented key does not match any known-hosts entry for that hostname
+      type: security
+      enforcement: error
+    - id: C-05
+      description: TOFU known-hosts mode MUST accept the first key presented for a hostname and store it; subsequent connections behave like Strict against that stored key
+      type: security
+      enforcement: error
+    - id: C-06
+      description: A failed handshake MUST surface a distinct error sentinel (ErrAuthFailed / ErrHostKeyUnknown / ErrHostKeyMismatch / ErrDialTimeout / ErrConnect) so callers can audit by reason
+      type: technical
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: Dial against a reachable test SSH server with a valid password credential completes the handshake within 1 second.
+      priority: critical
+    - id: AC-02
+      description: Dial against a reachable test SSH server with a valid Ed25519 private-key credential completes the handshake within 1 second.
+      priority: critical
+    - id: AC-03
+      description: Dial against a TCP address that refuses connections returns ErrConnect within DefaultDialTimeout (10s).
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-04
+      description: Dial with a context that times out before the underlying dial returns surfaces ErrDialTimeout (not a generic ctx.DeadlineExceeded).
+      priority: critical
+      references_constraints: [C-01, C-06]
+    - id: AC-05
+      description: ValidateAuthKey rejects an RSA key with bitlen < 2048 with ErrWeakKey; accepts an RSA key with bitlen >= 2048; always accepts an Ed25519 key.
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-06
+      description: KnownHostsPolicy Strict mode rejects an unknown-host-key handshake with ErrHostKeyUnknown; the connection is NOT cached.
+      priority: critical
+      references_constraints: [C-04, C-06]
+    - id: AC-07
+      description: KnownHostsPolicy TOFU mode accepts the first connection to a hostname and persists the key; a second connection with the SAME key succeeds; a second connection with a DIFFERENT key returns ErrHostKeyMismatch.
+      priority: critical
+      references_constraints: [C-05, C-06]
+    - id: AC-08
+      description: A failed Dial's returned error AND any audit emission MUST NOT contain the cleartext password or the cleartext private key from the credential.
+      priority: critical
+      references_constraints: [C-03]
+    - id: AC-09
+      description: Dial returns ErrAuthFailed (distinct from ErrConnect / ErrHostKeyUnknown) when credentials are rejected by the server.
+      priority: critical
+      references_constraints: [C-06]
+    - id: AC-10
+      description: Dial against an unparseable private-key credential returns ErrInvalidKey BEFORE any network I/O — invariant verified by mocking the dial network func.
+      priority: high

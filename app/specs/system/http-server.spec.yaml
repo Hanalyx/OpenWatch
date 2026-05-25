@@ -1,0 +1,106 @@
+spec:
+  id: system-http-server
+  title: HTTPS server with TLS hot-reload
+  version: "1.0.0"
+  status: approved
+  tier: 2
+
+  context:
+    system: openwatch-go
+    feature: HTTP server bootstrap
+    description: >
+      HTTPS server with chi router and TLS cert hot-reload (mtime-cached
+      GetCertificate). Foundation middleware mounted first; Day-5+ routes
+      register onto the router exposed via api.HandlerFromMux.
+
+  objective:
+    summary: >
+      Get a real HTTPS endpoint serving traffic with the foundation
+      middleware chain in place, so Day-5+ endpoints land into a working
+      request lifecycle.
+    scope:
+      includes:
+        - chi router with correlation + idempotency middleware
+        - http.Server with locked timeouts
+        - TLS GetCertificate with mtime cache
+      excludes:
+        - Graceful shutdown verification under load
+        - HTTP/3, QUIC
+
+  constraints:
+    - id: C-01
+      description: chi MUST be the router; net/http and the stdlib mux MUST NOT be used in production paths
+      type: technical
+      enforcement: error
+    - id: C-02
+      description: Correlation middleware MUST run before any other middleware
+      type: technical
+      enforcement: error
+    - id: C-03
+      description: ReadHeaderTimeout MUST be 10s
+      type: performance
+      enforcement: error
+    - id: C-04
+      description: ReadTimeout MUST be 30s
+      type: performance
+      enforcement: error
+    - id: C-05
+      description: WriteTimeout MUST be 60s
+      type: performance
+      enforcement: error
+    - id: C-06
+      description: IdleTimeout MUST be 120s
+      type: performance
+      enforcement: error
+    - id: C-07
+      description: MaxHeaderBytes MUST be 65536 (64 KiB)
+      type: security
+      enforcement: error
+    - id: C-08
+      description: tls.Config.MinVersion MUST be tls.VersionTLS12 or higher
+      type: security
+      enforcement: error
+    - id: C-09
+      description: Cert cache validity period MUST be 5 seconds (cert hot-reload within seconds)
+      type: technical
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: Server.Run() binds to cfg.Server.Listen and accepts HTTPS connections using TLSCert and TLSKey via GetCertificate.
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-02
+      description: http.Server constructed with ReadHeaderTimeout=10s, ReadTimeout=30s, WriteTimeout=60s, IdleTimeout=120s, MaxHeaderBytes=65536.
+      priority: critical
+      references_constraints: [C-03, C-04, C-05, C-06, C-07]
+    - id: AC-03
+      description: tls.Config.MinVersion is tls.VersionTLS12 (or higher); GetCertificate callback set.
+      priority: critical
+      references_constraints: [C-08]
+    - id: AC-04
+      description: GetCertificate called twice within 5-second cache window returns cached cert (one disk read).
+      priority: high
+      references_constraints: [C-09]
+    - id: AC-05
+      description: GetCertificate called after cache window expires re-reads from disk.
+      priority: high
+    - id: AC-06
+      description: Replacing cert/key files on disk causes subsequent (post-cache) handshake to present new certificate.
+      priority: critical
+    - id: AC-07
+      description: GetCertificate returns non-nil error if cert or key file is missing/malformed.
+      priority: high
+    - id: AC-08
+      description: chi router has correlation.HTTPMiddleware mounted as first middleware before any handler.
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-09
+      description: GET to any path returns a response carrying an X-Correlation-Id header (req- prefix when no client header).
+      priority: critical
+    - id: AC-10
+      description: HTTP request during ctx cancellation is either served to completion or rejected cleanly; no panic.
+      priority: high
+    - id: AC-11
+      description: Run returns the first non-nil error from ListenAndServeTLS that is not http.ErrServerClosed.
+      priority: medium

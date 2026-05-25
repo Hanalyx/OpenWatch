@@ -1,0 +1,114 @@
+spec:
+  id: api-auth
+  title: Auth HTTP surface (login, MFA, refresh, me, password change)
+  version: "1.0.0"
+  status: approved
+  tier: 1
+
+  context:
+    system: openwatch-go
+    feature: HTTP auth endpoints
+    description: >
+      The HTTP face of internal/identity. Login is single-step with an
+      optional otp field: when the user has MFA enrolled the otp is
+      required and validated server-side. Successful login returns both
+      a Bearer access token (for API consumers) AND a session cookie
+      (for browser sign-in) bound to the same users row, so a UI can
+      consume either path interchangeably. Refresh-token rotation
+      reuses the system-auth-identity reuse-detection chain. Password
+      changes re-run the policy validator.
+    related_specs:
+      - system-auth-identity
+      - system-user-management
+
+  objective:
+    summary: >
+      Replace the Stage-0 X-Stub-Role header with real authenticated
+      requests. Every existing endpoint can already enforce
+      auth.RequirePermission via the identity binder; this spec wires
+      the binder's identity from a real login flow.
+    scope:
+      includes:
+        - POST /auth/login with optional otp
+        - POST /auth/logout (revokes session)
+        - POST /auth/refresh (rotates JWT pair)
+        - GET /auth/me (identity + role from binder)
+        - POST /auth/mfa:enroll
+        - POST /auth/mfa:verify (used only by enroll confirmation flow)
+        - POST /auth/password:change
+      excludes:
+        - "API keys (no operator demand)"
+        - "OIDC/SAML real flows (Slice A.5)"
+        - "Password reset via email (operator-mediated until email transport exists)"
+
+  constraints:
+    - id: C-01
+      description: POST /auth/login MUST emit auth.login.success or auth.login.failure audit on every call with detail.reason populated on failures
+      type: security
+      enforcement: error
+    - id: C-02
+      description: Failed login MUST NOT distinguish "user does not exist" from "wrong password" in the response — both surface as 401 with the same error.code "auth.invalid_credentials"
+      type: security
+      enforcement: error
+    - id: C-03
+      description: Login response MUST set the openwatch_session cookie with HttpOnly, Secure, SameSite=Lax
+      type: security
+      enforcement: error
+    - id: C-04
+      description: POST /auth/refresh MUST consume the supplied token via identity.ConsumeRefreshToken; reuse-detection cascade is the package's responsibility, not the handler's
+      type: security
+      enforcement: error
+    - id: C-05
+      description: POST /auth/password:change MUST require the current password to be supplied AND verified before applying the new password
+      type: security
+      enforcement: error
+    - id: C-06
+      description: GET /auth/me MUST return 401 anonymous responses through the canonical error envelope, not a custom shape
+      type: technical
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: POST /auth/login with valid username+password (no MFA enrolled) returns 200 with {access_token, refresh_token, user} body, sets the openwatch_session cookie, and emits an auth.login.success audit event.
+      priority: critical
+      references_constraints: [C-01, C-03]
+    - id: AC-02
+      description: POST /auth/login with a wrong password returns 401 with error.code = "auth.invalid_credentials" and emits auth.login.failure with detail.reason = "wrong_password".
+      priority: critical
+      references_constraints: [C-01, C-02]
+    - id: AC-03
+      description: POST /auth/login with an unknown username returns 401 with error.code = "auth.invalid_credentials" (same body shape as wrong-password — no enumeration oracle).
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-04
+      description: POST /auth/login with valid creds for a user with MFA enrolled and NO otp supplied returns 401 with error.code = "auth.mfa_required".
+      priority: critical
+    - id: AC-05
+      description: POST /auth/login with valid creds + valid otp succeeds (200); auth.login.success emitted; auth.mfa.failed NOT emitted.
+      priority: critical
+    - id: AC-06
+      description: POST /auth/login with valid creds + wrong otp returns 401 error.code = "auth.mfa_invalid"; emits auth.mfa.failed audit.
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-07
+      description: POST /auth/logout with a valid session cookie revokes the session (subsequent GET /auth/me returns 401); emits auth.logout audit.
+      priority: critical
+    - id: AC-08
+      description: POST /auth/refresh with a valid refresh token returns a new (access_token, refresh_token) pair; the old refresh token becomes invalid for any subsequent /auth/refresh call.
+      priority: critical
+      references_constraints: [C-04]
+    - id: AC-09
+      description: POST /auth/refresh with a refresh token that was already consumed (reuse) returns 401 error.code = "auth.refresh_reused" AND every active session for the user is revoked.
+      priority: critical
+      references_constraints: [C-04]
+    - id: AC-10
+      description: GET /auth/me with a valid session cookie returns 200 with {id, username, email, role, is_admin}; GET /auth/me anonymous returns 401 with error.code = "auth.required".
+      priority: critical
+      references_constraints: [C-06]
+    - id: AC-11
+      description: POST /auth/mfa:enroll with a session for a user who is NOT yet enrolled returns 200 with provisioning_uri; second call after VerifyMFA confirms enrollment.
+      priority: high
+    - id: AC-12
+      description: POST /auth/password:change with current_password + new_password validates the current password, applies the NIST policy to the new password, updates the hash, and emits auth.password.changed audit; wrong current_password returns 401 auth.invalid_credentials.
+      priority: critical
+      references_constraints: [C-05]

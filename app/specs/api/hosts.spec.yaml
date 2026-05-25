@@ -1,0 +1,102 @@
+spec:
+  id: api-hosts
+  title: Host inventory CRUD HTTP surface
+  version: "1.0.0"
+  status: approved
+  tier: 2
+
+  context:
+    system: openwatch-go
+    feature: Admin endpoints for managing the host inventory
+    description: >
+      HTTP face of the host inventory service. Lists, creates, fetches,
+      updates (PATCH), and soft-deletes host records. List supports
+      environment + tag filters (single-tag for Slice A; multi-tag and
+      cursor pagination land in Slice B). All endpoints require host:*
+      permissions enforced by auth.EnforcePermission.
+    related_specs:
+      - system-host-inventory
+      - system-rbac
+      - api-credentials
+
+  objective:
+    summary: >
+      One endpoint group for "what machines does the platform know about
+      and how do we reach them." Hostname + IP + port + environment +
+      tags = the minimum identity-and-routing surface. Scan history,
+      connectivity probe results, and OS discovery are produced by other
+      services and land here as joined reads in later slices.
+    scope:
+      includes:
+        - GET / POST /admin/hosts
+        - GET / PATCH / DELETE /admin/hosts/{id}
+        - "Filters: ?environment=..., ?tag=..."
+      excludes:
+        - "Bulk import — deferred to A.5"
+        - "Connectivity-check trigger — needs scan executor, deferred"
+        - "Joined reads (scan summary, last seen) — Slice B"
+        - "Cursor pagination + multi-tag — Slice B"
+
+  constraints:
+    - id: C-01
+      description: POST and PATCH MUST validate IP address syntax at the API boundary; net.ParseIP rejects malformed input
+      type: security
+      enforcement: error
+    - id: C-02
+      description: POST MUST require host:write; GET MUST require host:read; PATCH MUST require host:write; DELETE MUST require host:delete
+      type: security
+      enforcement: error
+    - id: C-03
+      description: DELETE is soft delete — sets deleted_at; subsequent GET returns 404; the row remains physically present (deleted_at IS NOT NULL)
+      type: technical
+      enforcement: error
+    - id: C-04
+      description: PATCH MUST NOT change hostname, created_by, created_at, or id (immutable in Slice A); only the patchable fields the UpdateParams struct exposes may be mutated
+      type: technical
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: POST /admin/hosts with admin caller and valid body (hostname, ip_address) returns 201 with the host JSON.
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-02
+      description: POST /admin/hosts with a caller missing host:write returns 403 authz.permission_denied; no host is inserted.
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-03
+      description: POST /admin/hosts with an empty hostname or malformed ip_address returns 400 hosts.invalid_input; no row inserted.
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-04
+      description: POST /admin/hosts with a hostname that already exists in the same environment returns 409 hosts.duplicate.
+      priority: critical
+    - id: AC-05
+      description: GET /admin/hosts with host:read returns 200 with a JSON array of hosts; soft-deleted rows are excluded.
+      priority: critical
+      references_constraints: [C-02, C-03]
+    - id: AC-06
+      description: GET /admin/hosts?environment=staging returns only hosts whose environment matches the filter exactly.
+      priority: critical
+    - id: AC-07
+      description: GET /admin/hosts?tag=critical returns only hosts whose tags array contains "critical".
+      priority: critical
+    - id: AC-08
+      description: GET /admin/hosts/{id} returns 200 with the host JSON for an active row; 404 hosts.not_found for unknown or soft-deleted ids.
+      priority: critical
+    - id: AC-09
+      description: PATCH /admin/hosts/{id} with valid fields returns 200 with the updated host; updated_at advances; immutable fields (hostname, created_by, created_at, id) are preserved per C-04.
+      priority: critical
+      references_constraints: [C-04]
+    - id: AC-10
+      description: PATCH /admin/hosts/{id} with a malformed ip_address returns 400 hosts.invalid_input; no fields are mutated.
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-11
+      description: DELETE /admin/hosts/{id} with host:delete returns 204; subsequent GET returns 404; the underlying row still exists (deleted_at IS NOT NULL).
+      priority: critical
+      references_constraints: [C-02, C-03]
+    - id: AC-12
+      description: DELETE /admin/hosts/{id} with a caller missing host:delete returns 403; the row is NOT soft-deleted.
+      priority: critical
+      references_constraints: [C-02]

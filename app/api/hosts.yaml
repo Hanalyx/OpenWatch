@@ -1,0 +1,1069 @@
+openapi: 3.1.0
+
+# ============================================================================
+# Hosts API — Worked example for OpenWatch rebuild
+# ============================================================================
+# This file is a worked-example OpenAPI 3.1 spec demonstrating the principles
+# in app/docs/api_design_principles.md applied to the Hosts domain.
+#
+# Today's backend exposes ~40+ host-related endpoints split across CRUD,
+# discovery, intelligence, baseline, connectivity, and bulk operations.
+# This consolidated design covers the same MUST capabilities in ~22 endpoints
+# (or ~30 with the optional intelligence sub-collections).
+#
+# Status: DRAFT for design review (not yet wired to oapi-codegen)
+# Owner: rebuild planning
+# Last updated: 2026-04-27
+# ============================================================================
+
+info:
+  title: OpenWatch Hosts API
+  version: 1.0.0-draft
+  description: |
+    Manage hosts, their platform metadata, intelligence collection, baselines,
+    and connectivity state.
+
+    All mutating operations support `Idempotency-Key`. All list operations are
+    cursor-paginated. All errors follow the canonical error envelope.
+
+servers:
+  - url: https://openwatch.example.com/api/v1
+
+# ============================================================================
+# Reusable components
+# ============================================================================
+components:
+
+  # ----------------------------------------------------------------
+  # Common parameters
+  # ----------------------------------------------------------------
+  parameters:
+    HostId:
+      name: host_id
+      in: path
+      required: true
+      schema: {type: string, format: uuid}
+      description: Host UUID
+
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      schema: {type: string, format: uuid}
+      description: |
+        Required on POST/PUT/PATCH/DELETE for safe retries. Same key replays
+        return the original response. See api_design_principles.md §9.
+
+    CorrelationId:
+      name: X-Correlation-Id
+      in: header
+      required: false
+      schema: {type: string}
+      description: |
+        End-to-end request correlation. If absent, the server generates one
+        and returns it in the response. See api_design_principles.md §10.
+
+    Limit:
+      name: limit
+      in: query
+      required: false
+      schema: {type: integer, minimum: 1, maximum: 500, default: 50}
+      description: Page size. Max 500.
+
+    Cursor:
+      name: cursor
+      in: query
+      required: false
+      schema: {type: string}
+      description: Opaque pagination cursor from a prior response.
+
+    Sort:
+      name: sort
+      in: query
+      required: false
+      schema: {type: string}
+      description: |
+        Comma-separated list of `field:direction` (e.g., `created_at:desc,hostname:asc`).
+        Default sort is documented per endpoint.
+
+    Fields:
+      name: fields
+      in: query
+      required: false
+      schema: {type: string}
+      description: |
+        Comma-separated subset of fields to return. Omit for default field set.
+
+    Include:
+      name: include
+      in: query
+      required: false
+      schema: {type: string}
+      description: |
+        Comma-separated related resources to embed. Documented per endpoint.
+
+  # ----------------------------------------------------------------
+  # Common responses
+  # ----------------------------------------------------------------
+  responses:
+    BadRequest:
+      description: Validation error
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+    Unauthorized:
+      description: Missing or invalid credentials
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+    Forbidden:
+      description: Authenticated but lacks required permission
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+    Conflict:
+      description: |
+        State transition invalid, idempotency key reused with different body,
+        or policy version mismatch. See `error.code` for specifics.
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+    TooManyRequests:
+      description: Rate limit exceeded
+      headers:
+        Retry-After: {schema: {type: integer}, description: Seconds to wait}
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+    ServerError:
+      description: Internal error
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
+  # ----------------------------------------------------------------
+  # Error registry — codes registered in app/api/error_codes.yaml
+  # ----------------------------------------------------------------
+  schemas:
+    ErrorEnvelope:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, fault, retryable, human_message]
+          properties:
+            code:
+              type: string
+              description: Stable dotted code from app/api/error_codes.yaml (e.g., `host.unreachable`)
+              examples: [host.unreachable, host.ssh_authentication_failed, transition.invalid]
+            fault:
+              type: string
+              description: Who is at fault (drives agent retry/abort logic)
+              enum: [client, server, policy, external]
+            retryable: {type: boolean, description: True if same call may succeed later without modification}
+            human_message: {type: string}
+            detail: {type: object, additionalProperties: true, description: Shape constrained by detail_schema in registry when present}
+            correlation_id: {type: string}
+
+    Cursor:
+      type: object
+      required: [items, next_cursor]
+      properties:
+        items: {type: array, items: {}}     # overridden in concrete responses
+        next_cursor:
+          type: [string, 'null']
+          description: Pass to subsequent request; null if no more results.
+        total_estimate:
+          type: integer
+          description: Approximate total. May be omitted when computing it is expensive.
+        _links:
+          type: object
+          properties:
+            next: {type: string, format: uri}
+
+    # ----------------------------------------------------------------
+    # Host
+    # ----------------------------------------------------------------
+    Host:
+      type: object
+      x-state-machine:
+        states: [pending, active, unreachable, disabled]
+        transitions:
+          - {from: pending, to: active}
+          - {from: pending, to: unreachable}
+          - {from: active, to: unreachable}
+          - {from: active, to: disabled}
+          - {from: unreachable, to: active}
+          - {from: unreachable, to: disabled}
+          - {from: disabled, to: active}
+      required: [id, hostname, ip_address, status, created_at]
+      properties:
+        id: {type: string, format: uuid}
+        hostname: {type: string}
+        ip_address: {type: string, format: ipv4}      # or ipv6
+        display_name: {type: string}
+        port: {type: integer, default: 22}
+        username: {type: string}
+        auth_method: {type: string, enum: [ssh_key, password, system_default]}
+        status: {type: string, enum: [pending, active, unreachable, disabled]}
+        environment: {type: string, examples: [production, staging, dev]}
+        tags: {type: array, items: {type: string}}
+        owner: {type: string}
+        compliance_score:
+          type: number
+          format: float
+          description: |
+            Latest compliance score (0–100). Null if no scan completed yet.
+            For full posture, see GET /hosts/{id}/compliance.
+        last_scan_at: {type: string, format: date-time}
+        platform_identifier: {type: string, examples: [rhel9, ubuntu24]}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+
+    HostCreate:
+      type: object
+      required: [hostname, ip_address]
+      properties:
+        hostname: {type: string}
+        ip_address: {type: string}
+        display_name: {type: string}
+        port: {type: integer, default: 22}
+        username: {type: string}
+        auth_method: {type: string, enum: [ssh_key, password, system_default]}
+        ssh_key: {type: string, description: PEM-encoded private key. Stored encrypted.}
+        password: {type: string}
+        environment: {type: string, default: production}
+        tags: {type: array, items: {type: string}}
+        owner: {type: string}
+
+    HostPatch:
+      type: object
+      description: Partial update. Only provided fields are changed.
+      properties:
+        hostname: {type: string}
+        ip_address: {type: string}
+        display_name: {type: string}
+        port: {type: integer}
+        username: {type: string}
+        auth_method: {type: string, enum: [ssh_key, password, system_default]}
+        ssh_key: {type: string}
+        password: {type: string}
+        environment: {type: string}
+        tags: {type: array, items: {type: string}}
+        owner: {type: string}
+        status:
+          type: string
+          enum: [active, disabled]
+          description: |
+            Allowed transitions only. See Host.x-state-machine.
+            Returns 409 + `transition.invalid` for illegal transitions.
+
+    # ----------------------------------------------------------------
+    # Validation / pre-create
+    # ----------------------------------------------------------------
+    CredentialsValidationRequest:
+      type: object
+      required: [auth_method]
+      properties:
+        auth_method: {type: string, enum: [ssh_key, password]}
+        ssh_key: {type: string}
+        password: {type: string}
+
+    CredentialsValidationResult:
+      type: object
+      required: [is_valid]
+      properties:
+        is_valid: {type: boolean}
+        key_type: {type: string, examples: [rsa, ed25519, ecdsa]}
+        key_bits: {type: integer}
+        security_level: {type: string, enum: [strong, weak, deprecated]}
+        warnings: {type: array, items: {type: string}}
+        recommendations: {type: array, items: {type: string}}
+
+    ConnectionTestRequest:
+      type: object
+      required: [hostname]
+      properties:
+        hostname: {type: string}
+        port: {type: integer, default: 22}
+        username: {type: string}
+        auth_method: {type: string, enum: [ssh_key, password, system_default], default: system_default}
+        ssh_key: {type: string}
+        password: {type: string}
+        timeout_seconds: {type: integer, default: 30}
+
+    ConnectionTestResult:
+      type: object
+      required: [success, network_connectivity, authentication]
+      properties:
+        success: {type: boolean}
+        network_connectivity: {type: boolean}
+        authentication: {type: boolean}
+        detected_os: {type: string}
+        detected_version: {type: string}
+        ssh_version: {type: string}
+        response_time_ms: {type: integer}
+
+    # ----------------------------------------------------------------
+    # Platform
+    # ----------------------------------------------------------------
+    Platform:
+      type: object
+      properties:
+        os_family: {type: string, examples: [rhel, ubuntu, debian]}
+        os_version: {type: string}
+        architecture: {type: string, examples: [x86_64, aarch64]}
+        platform_identifier: {type: string, examples: [rhel9, ubuntu24]}
+        kernel_version: {type: string}
+        last_detection_at: {type: string, format: date-time}
+        detection_status: {type: string, enum: [unknown, pending, completed, failed]}
+
+    # ----------------------------------------------------------------
+    # Intelligence
+    # ----------------------------------------------------------------
+    IntelligenceOverview:
+      type: object
+      properties:
+        last_collected_at: {type: string, format: date-time}
+        package_count: {type: integer}
+        service_count: {type: integer}
+        running_service_count: {type: integer}
+        user_count: {type: integer}
+        network_interface_count: {type: integer}
+        firewall_rule_count: {type: integer}
+        recent_audit_event_count: {type: integer}
+
+    IntelligenceStatus:
+      type: object
+      properties:
+        collections:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              last_collected_at: {type: string, format: date-time}
+              status: {type: string, enum: [success, failed, never]}
+              item_count: {type: integer}
+              error: {type: string}
+
+    IntelligenceRefreshRequest:
+      type: object
+      properties:
+        include:
+          type: array
+          items:
+            type: string
+            enum: [packages, services, users, network-interfaces, firewall-rules, routes, audit-events, metrics]
+          description: |
+            Subset to refresh. Omit to refresh all.
+
+    Package:
+      type: object
+      required: [name, version]
+      properties:
+        name: {type: string}
+        version: {type: string}
+        installed_at: {type: string, format: date-time}
+        source: {type: string, examples: [rpm, deb, pip, npm]}
+
+    Service:
+      type: object
+      required: [name, status]
+      properties:
+        name: {type: string}
+        status: {type: string, enum: [running, stopped, failed, unknown]}
+        enabled: {type: boolean}
+        listening_ports: {type: array, items: {type: integer}}
+
+    # ----------------------------------------------------------------
+    # Baseline
+    # ----------------------------------------------------------------
+    Baseline:
+      type: object
+      required: [id, host_id, baseline_type, established_at, baseline_score]
+      properties:
+        id: {type: string, format: uuid}
+        host_id: {type: string, format: uuid}
+        baseline_type: {type: string, enum: [initial, manual, rolling_avg]}
+        baseline_score: {type: number, format: float}
+        baseline_passed_rules: {type: integer}
+        baseline_failed_rules: {type: integer}
+        baseline_total_rules: {type: integer}
+        drift_threshold_major: {type: number, format: float, default: 10.0}
+        drift_threshold_minor: {type: number, format: float, default: 5.0}
+        is_active: {type: boolean}
+        established_at: {type: string, format: date-time}
+        established_by: {type: string, format: uuid}
+
+    BaselineEstablishRequest:
+      type: object
+      required: [scan_id]
+      properties:
+        scan_id:
+          type: string
+          format: uuid
+          description: A completed scan whose results form the baseline.
+        baseline_type: {type: string, enum: [initial, manual, rolling_avg], default: manual}
+
+    # ----------------------------------------------------------------
+    # Connectivity
+    # ----------------------------------------------------------------
+    Connectivity:
+      type: object
+      properties:
+        host_id: {type: string, format: uuid}
+        ping_success: {type: boolean}
+        port_open: {type: boolean}
+        ssh_accessible: {type: boolean}
+        response_time_ms: {type: integer}
+        last_check_at: {type: string, format: date-time}
+        consecutive_failures: {type: integer}
+
+    # ----------------------------------------------------------------
+    # Compliance posture
+    # ----------------------------------------------------------------
+    HostCompliance:
+      type: object
+      properties:
+        host_id: {type: string, format: uuid}
+        compliance_score: {type: number, format: float}
+        passed_rules: {type: integer}
+        failed_rules: {type: integer}
+        skipped_rules: {type: integer}
+        severity_breakdown:
+          type: object
+          properties:
+            critical: {type: object, properties: {passed: {type: integer}, failed: {type: integer}}}
+            high: {type: object, properties: {passed: {type: integer}, failed: {type: integer}}}
+            medium: {type: object, properties: {passed: {type: integer}, failed: {type: integer}}}
+            low: {type: object, properties: {passed: {type: integer}, failed: {type: integer}}}
+        last_scan_id: {type: string, format: uuid}
+        last_scan_at: {type: string, format: date-time}
+        active_baseline_id: {type: string, format: uuid}
+
+    # ----------------------------------------------------------------
+    # Bulk operation envelope
+    # ----------------------------------------------------------------
+    Job:
+      type: object
+      required: [job_id, status]
+      properties:
+        job_id: {type: string, format: uuid}
+        status: {type: string, enum: [queued, running, completed, failed]}
+        progress:
+          type: object
+          properties:
+            total: {type: integer}
+            completed: {type: integer}
+            failed: {type: integer}
+        result: {type: object, additionalProperties: true}
+        error: {$ref: '#/components/schemas/ErrorEnvelope'}
+        _links:
+          type: object
+          properties:
+            self: {type: string, format: uri}
+
+  securitySchemes:
+    BearerJWT:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    ApiKey:
+      type: http
+      scheme: bearer
+      bearerFormat: ApiKey
+      description: API keys with `owk_` prefix.
+
+# ============================================================================
+# Default security: every endpoint requires auth unless overridden with security: []
+# ============================================================================
+security:
+  - BearerJWT: []
+  - ApiKey: []
+
+# ============================================================================
+# PATHS
+# ============================================================================
+paths:
+
+  # =========================================================================
+  # Hosts collection
+  # =========================================================================
+  /hosts:
+    get:
+      summary: List hosts
+      description: |
+        Cursor-paginated list of hosts. Supports filtering, sorting, sparse
+        responses (`fields`), and embedding (`include=group,latest_scan`).
+      x-required-permission: HOST_READ
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Sort'
+        - $ref: '#/components/parameters/Fields'
+        - $ref: '#/components/parameters/Include'
+        - {name: status, in: query, schema: {type: string}, description: "Comma-separated. Filter by status (active,unreachable,...)."}
+        - {name: os_family, in: query, schema: {type: string}, description: "Comma-separated."}
+        - {name: environment, in: query, schema: {type: string}}
+        - {name: group_id, in: query, schema: {type: string, format: uuid}}
+        - {name: tag, in: query, schema: {type: string}, description: "Repeated for AND-of-tags semantics."}
+      responses:
+        '200':
+          description: Page of hosts
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Cursor'
+                  - properties:
+                      items:
+                        type: array
+                        items: {$ref: '#/components/schemas/Host'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+
+    post:
+      summary: Create one or many hosts
+      description: |
+        Body may be a single Host or `{items: [Host, ...]}` for batch creation.
+        Single returns 201 + Host. Batch returns 207 with per-item status.
+      x-required-permission: HOST_WRITE
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: '#/components/schemas/HostCreate'
+                - type: object
+                  required: [items]
+                  properties:
+                    items:
+                      type: array
+                      items: {$ref: '#/components/schemas/HostCreate'}
+                      maxItems: 100
+      responses:
+        '201':
+          description: Single host created
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Host'}
+        '207':
+          description: Multi-status (per-item results in body)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        status: {type: integer, enum: [201, 400, 409]}
+                        host: {$ref: '#/components/schemas/Host'}
+                        error: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '409': {$ref: '#/components/responses/Conflict'}
+
+  # =========================================================================
+  # Hosts — pre-create validation actions (no resource state changed)
+  # =========================================================================
+  /hosts:validate-credentials:
+    post:
+      summary: Validate SSH credentials without creating a host
+      description: |
+        Used by the Add Host UI to give immediate feedback on key strength
+        and validity before the host is persisted. No resource is created.
+      x-required-permission: HOST_READ
+      x-rate-limit-bucket: validation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CredentialsValidationRequest'}
+      responses:
+        '200':
+          description: Validation result
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CredentialsValidationResult'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+
+  /hosts:test-connection:
+    post:
+      summary: Probe SSH connectivity without creating a host
+      description: |
+        TCP probe + SSH auth + minimal OS detection (`cat /etc/os-release`).
+        Used by Add Host UI before persistence.
+      x-required-permission: HOST_READ
+      x-rate-limit-bucket: validation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ConnectionTestRequest'}
+      responses:
+        '200':
+          description: Connection test result. Note `success=false` is still 200.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ConnectionTestResult'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+
+  # =========================================================================
+  # Bulk operations
+  # =========================================================================
+  /hosts:import:
+    post:
+      summary: Bulk import hosts (async)
+      description: |
+        Accepts CSV (multipart/form-data) or JSON array (application/json).
+        Returns a job ID for polling at `/jobs/{job_id}`. See principles §3.3.
+      x-required-permission: HOST_WRITE
+      x-rate-limit-bucket: bulk-write
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: {type: string, format: binary}
+                update_existing: {type: boolean, default: false}
+                dry_run: {type: boolean, default: false}
+          application/json:
+            schema:
+              type: object
+              required: [items]
+              properties:
+                items:
+                  type: array
+                  items: {$ref: '#/components/schemas/HostCreate'}
+                  maxItems: 10000
+                update_existing: {type: boolean, default: false}
+                dry_run: {type: boolean, default: false}
+      responses:
+        '202':
+          description: Import job queued
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Job'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+
+  /hosts:export:
+    get:
+      summary: Export hosts
+      description: |
+        Returns inline for small fleets. For >5,000 hosts, returns 202 + job ID.
+        Format chosen by `Accept` header: `text/csv` or `application/json`.
+      x-required-permission: HOST_READ
+      parameters:
+        - {name: status, in: query, schema: {type: string}}
+        - {name: environment, in: query, schema: {type: string}}
+        - {name: group_id, in: query, schema: {type: string, format: uuid}}
+      responses:
+        '200':
+          description: Inline export
+          content:
+            text/csv: {schema: {type: string}}
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/Host'}
+        '202':
+          description: Large export queued; poll job
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Job'}
+
+  # =========================================================================
+  # Single host
+  # =========================================================================
+  /hosts/{host_id}:
+    parameters:
+      - $ref: '#/components/parameters/HostId'
+
+    get:
+      summary: Get host
+      x-required-permission: HOST_READ
+      parameters:
+        - $ref: '#/components/parameters/Fields'
+        - $ref: '#/components/parameters/Include'
+      responses:
+        '200':
+          description: Host
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Host'}
+        '404': {$ref: '#/components/responses/NotFound'}
+
+    patch:
+      summary: Update host (partial)
+      description: |
+        Only provided fields change. The `status` field accepts only legal
+        transitions per `Host.x-state-machine`. Illegal transitions return
+        409 + `error.code = "transition.invalid"`.
+      x-required-permission: HOST_WRITE
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/HostPatch'}
+      responses:
+        '200':
+          description: Updated host
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Host'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+
+    delete:
+      summary: Delete host
+      description: Cascade-deletes scans, scan_results, and findings for this host.
+      x-required-permission: HOST_DELETE
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '204': {description: Deleted}
+        '404': {$ref: '#/components/responses/NotFound'}
+
+  # =========================================================================
+  # SSH key (singleton sub-resource)
+  # =========================================================================
+  /hosts/{host_id}/ssh-key:
+    parameters:
+      - $ref: '#/components/parameters/HostId'
+
+    delete:
+      summary: Clear stored SSH key
+      description: |
+        Drops the SSH key metadata (fingerprint, type, bits, comment) and
+        deletes the encrypted credential. Host falls back to system_default.
+      x-required-permission: HOST_WRITE
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '204': {description: SSH key cleared}
+        '404': {$ref: '#/components/responses/NotFound'}
+
+  # =========================================================================
+  # Platform sub-resource
+  # =========================================================================
+  /hosts/{host_id}/platform:
+    parameters:
+      - $ref: '#/components/parameters/HostId'
+
+    get:
+      summary: Get cached platform info
+      description: |
+        Returns the last-known OS family, version, kernel, architecture, and
+        platform_identifier. Does NOT trigger a probe.
+      x-required-permission: HOST_READ
+      responses:
+        '200':
+          description: Platform info
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Platform'}
+        '404': {$ref: '#/components/responses/NotFound'}
+
+  /hosts/{host_id}/platform:detect:
+    parameters:
+      - $ref: '#/components/parameters/HostId'
+
+    post:
+      summary: Synchronous JIT platform detection
+      description: |
+        Performs an immediate SSH probe to detect OS/kernel/arch and returns
+        the result. Used by the scan wizard for immediate feedback.
+        For background async discovery, use `/platform:discover`.
+      x-required-permission: HOST_WRITE
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Detected platform info
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Platform'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '502':
+          description: SSH probe failed
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
+  /hosts/{host_id}/platform:discover:
+    parameters:
+      - $ref: '#/components/parameters/HostId'
+
+    post:
+      summary: Async platform discovery
+      description: |
+        Queues a background job to perform deep platform discovery.
+        Returns a job ID; poll `/jobs/{job_id}`.
+      x-required-permission: HOST_WRITE
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '202':
+          description: Discovery job queued
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Job'}
+        '404': {$ref: '#/components/responses/NotFound'}
+
+  # =========================================================================
+  # Intelligence sub-resource
+  # =========================================================================
+  /hosts/{host_id}/intelligence:
+    parameters:
+      - $ref: '#/components/parameters/HostId'
+
+    get:
+      summary: Intelligence overview snapshot
+      description: |
+        Aggregate counts and last-collected timestamps. For full per-collection
+        lists, use `/intelligence/{collection}` sub-resources.
+
+        Note: server intelligence beyond basic platform is currently MAYBE
+        in the rebuild triage. Treat this surface as best-effort in Phase 1.
+      x-required-permission: HOST_READ
+      responses:
+        '200':
+          description: Overview
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/IntelligenceOverview'}
+        '404': {$ref: '#/components/responses/NotFound'}
+
+  /hosts/{host_id}/intelligence:refresh:
+    parameters:
+      - $ref: '#/components/parameters/HostId'
+
+    post:
+      summary: Trigger intelligence re-collection
+      description: |
+        Async. Queues a job to re-collect specified intelligence categories.
+        Default refreshes all known collectors. Poll `/jobs/{job_id}`.
+      x-required-permission: HOST_WRITE
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/IntelligenceRefreshRequest'}
+      responses:
+        '202':
+          description: Refresh job queued
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Job'}
+        '404': {$ref: '#/components/responses/NotFound'}
+
+  /hosts/{host_id}/intelligence/status:
+    parameters:
+      - $ref: '#/components/parameters/HostId'
+
+    get:
+      summary: Per-collection intelligence status
+      x-required-permission: HOST_READ
+      responses:
+        '200':
+          description: Status per collection
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/IntelligenceStatus'}
+        '404': {$ref: '#/components/responses/NotFound'}
+
+  # ----------------------------------------------------------------
+  # Intelligence sub-collections (paginated lists)
+  # ----------------------------------------------------------------
+  # Pattern: GET /hosts/{host_id}/intelligence/{collection}
+  # Defining one (packages); the others (services, users, network-interfaces,
+  # firewall-rules, routes, audit-events, metrics) follow the same shape.
+  # In production, all 8 are spelled out individually for type-safe codegen.
+  # ----------------------------------------------------------------
+  /hosts/{host_id}/intelligence/packages:
+    parameters:
+      - $ref: '#/components/parameters/HostId'
+
+    get:
+      summary: List installed packages
+      description: |
+        MAYBE feature in Phase 1 triage; ship only if customer demand surfaces.
+        Pattern repeats for services, users, network-interfaces, firewall-rules,
+        routes, audit-events, metrics — all paginated, all use the same envelope.
+      x-required-permission: HOST_READ
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Sort'
+      responses:
+        '200':
+          description: Page of packages
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Cursor'
+                  - properties:
+                      items:
+                        type: array
+                        items: {$ref: '#/components/schemas/Package'}
+        '404': {$ref: '#/components/responses/NotFound'}
+
+  # =========================================================================
+  # Baseline sub-resource
+  # =========================================================================
+  /hosts/{host_id}/baseline:
+    parameters:
+      - $ref: '#/components/parameters/HostId'
+
+    get:
+      summary: Get active baseline
+      x-required-permission: COMPLIANCE_READ
+      responses:
+        '200':
+          description: Active baseline
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Baseline'}
+        '404':
+          description: No active baseline
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
+    delete:
+      summary: Clear active baseline
+      x-required-permission: COMPLIANCE_WRITE
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '204': {description: Baseline cleared}
+        '404': {$ref: '#/components/responses/NotFound'}
+
+  /hosts/{host_id}/baseline:establish:
+    parameters:
+      - $ref: '#/components/parameters/HostId'
+
+    post:
+      summary: Establish baseline from a completed scan
+      description: |
+        Creates a baseline using the rule outcomes of the specified scan as
+        the reference. Supersedes any existing active baseline.
+      x-required-permission: COMPLIANCE_WRITE
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/BaselineEstablishRequest'}
+      responses:
+        '201':
+          description: Baseline established
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Baseline'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409':
+          description: Scan not completed, or baseline_type conflicts
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
+  # =========================================================================
+  # Connectivity sub-resource
+  # =========================================================================
+  /hosts/{host_id}/connectivity:
+    parameters:
+      - $ref: '#/components/parameters/HostId'
+
+    get:
+      summary: Last-known connectivity state
+      description: Cached state from the heartbeat / liveness service.
+      x-required-permission: HOST_READ
+      responses:
+        '200':
+          description: Connectivity state
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Connectivity'}
+        '404': {$ref: '#/components/responses/NotFound'}
+
+  /hosts/{host_id}/connectivity:check:
+    parameters:
+      - $ref: '#/components/parameters/HostId'
+
+    post:
+      summary: Synchronous connectivity probe
+      description: |
+        TCP + SSH probe with response-time measurement. Updates the host's
+        cached connectivity state. Use `/connectivity` for cached reads.
+      x-required-permission: HOST_READ
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Probe result
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Connectivity'}
+        '404': {$ref: '#/components/responses/NotFound'}
+
+  # =========================================================================
+  # Compliance posture sub-resource
+  # =========================================================================
+  /hosts/{host_id}/compliance:
+    parameters:
+      - $ref: '#/components/parameters/HostId'
+
+    get:
+      summary: Current compliance posture
+      description: |
+        Aggregated from `host_rule_state`. For historical posture, use
+        `/compliance/posture` (separate domain spec).
+      x-required-permission: COMPLIANCE_READ
+      responses:
+        '200':
+          description: Compliance posture
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/HostCompliance'}
+        '404': {$ref: '#/components/responses/NotFound'}
+
+# ============================================================================
+# Endpoints intentionally NOT in this spec (rationale)
+# ============================================================================
+# - /hosts/capabilities → moved to /capabilities?component=hosts (top-level)
+# - /hosts/summary       → moved to /analytics/hosts (top-level analytics)
+# - /monitoring/hosts/check, /monitoring/hosts/status → connectivity sub-resource
+# - All /discovery/* sub-domain endpoints → consolidated under /intelligence
+# - All /bulk-* endpoints → /hosts:import + /hosts:export (action form)
+# - All /report/{format} endpoints → handled via Accept header (other domains)
+# - All /acknowledge|/resolve|/approve|/reject|/cancel verbs → PATCH with status
+# - /system-info → merged into /platform + /intelligence
+# - Per-format CSV/HTML/JSON report endpoints → Accept header content negotiation
+#
+# Total endpoints in this spec: ~22 (or ~30 with all 8 intelligence sub-collections)
+# Same MUST capabilities as ~40+ in current backend.
+# ============================================================================

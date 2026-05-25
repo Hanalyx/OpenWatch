@@ -1,0 +1,126 @@
+spec:
+  id: system-rbac
+  title: RBAC permission registry and middleware
+  version: "1.0.0"
+  status: approved
+  tier: 1
+
+  context:
+    system: openwatch-go
+    feature: Role-based access control
+    description: >
+      Permissions are a registry, not a vocabulary. The permissions.yaml
+      file is the single source of truth; codegen produces typed Permission
+      and RoleID constants plus metadata maps. The RequirePermission
+      middleware combines RBAC and license-gate checks in one pass:
+      RBAC fails first (403), license fails second (402). Stage 0 ships
+      with an X-Stub-Role header for demo purposes; real identity binds
+      in Stage 2.
+    related_specs:
+      - system-license-features
+      - system-audit-emission
+
+  objective:
+    summary: >
+      Eliminate permission-string drift by making the registry the only
+      surface that defines a permission. OpenAPI x-required-permission,
+      handler middleware, and built-in roles all resolve through the same
+      codegen output. Misspell anywhere → compile error.
+    scope:
+      includes:
+        - Codegen-typed Permission constants from permissions.yaml
+        - Codegen-typed RoleID constants + BuiltInRoles map with wildcards expanded
+        - RequirePermission middleware (RBAC + license combined)
+        - Runtime lookup helpers (HasPermission, LicenseGate, IsDangerous)
+        - Stub identity via X-Stub-Role header (Stage 0)
+      excludes:
+        - Real identity binding (Stage 2)
+        - Custom-role CRUD (Stage 2)
+        - Policy cross-validation (Stage 2)
+
+  constraints:
+    - id: C-01
+      description: Each permissions.yaml entry MUST emit a typed Permission constant
+      type: technical
+      enforcement: error
+    - id: C-02
+      description: Each permissions.yaml roles entry MUST emit a typed RoleID constant with permissions expanded (no runtime wildcard resolution)
+      type: technical
+      enforcement: error
+    - id: C-03
+      description: RequirePermission MUST check RBAC first and license second (403 wins over 402 for the same request)
+      type: security
+      enforcement: error
+    - id: C-04
+      description: RBAC denial MUST emit authz.permission_denied audit event with detail.required_permission populated
+      type: security
+      enforcement: error
+    - id: C-05
+      description: License-gated permission denial MUST emit license.feature_check_denied (not authz.permission_denied) when RBAC passes
+      type: security
+      enforcement: error
+    - id: C-06
+      description: Stage-0 X-Stub-Role header MUST be ignored in production (build flag or env gate)
+      type: security
+      enforcement: error
+    - id: C-07
+      description: Codegen output MUST be deterministic (re-running with no changes produces no diff)
+      type: technical
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: Codegen produces permissions.gen.go with one typed Permission constant per entry in permissions.yaml.
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-02
+      description: Codegen produces Permissions map with Category, Description, Dangerous, LicenseGated per id.
+      priority: critical
+    - id: AC-03
+      description: Codegen produces roles.gen.go with one RoleID constant per entry in permissions.yaml roles section.
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-04
+      description: BuiltInRoles map resolves category wildcards (e.g., "host:*") at codegen time to the explicit list of host permissions.
+      priority: critical
+      references_constraints: [C-02, C-07]
+    - id: AC-05
+      description: HasPermission(perm) returns true iff the calling identity's role grants perm.
+      priority: critical
+    - id: AC-06
+      description: IsDangerous(perm) returns the registry's dangerous flag for perm.
+      priority: high
+    - id: AC-07
+      description: LicenseGate(perm) returns the feature id for license-gated perms, "" otherwise.
+      priority: high
+    - id: AC-08
+      description: RequirePermission middleware allows the request when the identity grants the permission and the license gate passes.
+      priority: critical
+    - id: AC-09
+      description: RequirePermission middleware denies with 403 authz.permission_denied when the identity lacks the permission.
+      priority: critical
+      references_constraints: [C-03, C-04]
+    - id: AC-10
+      description: RequirePermission middleware denies with 402 license.feature_unavailable when RBAC passes but the license-gated feature is not enabled.
+      priority: critical
+      references_constraints: [C-03, C-05]
+    - id: AC-11
+      description: RequirePermission emits audit event with detail.required_permission set to the permission id on denial.
+      priority: critical
+      references_constraints: [C-04]
+    - id: AC-12
+      description: The production binary MUST NOT contain any header-based identity bypass. The previously-shipped X-Stub-Role / X-Stub-User-Id mechanism has been removed entirely from internal/auth (no exported symbols, no middleware mount). Identity is bound exclusively by the production binder via session cookie or Bearer JWT.
+      priority: critical
+      references_constraints: [C-06]
+    - id: AC-13
+      description: GET /auth/me/permissions returns the effective permission list of the calling identity.
+      priority: high
+    - id: AC-14
+      description: GET /auth/permissions:registry returns the full registry (categories, permissions, built-in roles).
+      priority: high
+    - id: AC-15
+      description: GET /admin/roles returns the 5 built-in roles.
+      priority: high
+    - id: AC-16
+      description: RequirePermission p99 latency < 1µs for the hot path (registry lookup is a map read).
+      priority: medium

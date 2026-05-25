@@ -1,0 +1,84 @@
+# OpenWatch — License Feature Registry
+#
+# Source of truth for license feature IDs. Codegen produces:
+#   - internal/license/features.gen.go (typed Go constants and Feature -> metadata map)
+#   - documentation rendered for /license/features endpoint
+#
+# Build invariants enforced by scripts/validate-features.go:
+#   - Every feature id matches ^[a-z][a-z0-9_]*$
+#   - Every tier is one of: free | openwatch_plus | enterprise
+#   - Every introduced version is valid semver
+#   - permissions.yaml license_gated values resolve to a feature here
+#   - OpenAPI specs: every x-required-feature value matches an active feature id
+#   - No duplicates between features and deprecated_features
+#
+# Adding a feature: registry-first workflow.
+#   1. Add entry here.
+#   2. `go generate ./internal/license/...`.
+#   3. Reference from permissions.yaml `license_gated:` and/or OpenAPI
+#      `x-required-feature:`.
+#   4. CI fails if a handler emits a string literal that isn't a registered id.
+#
+# Design: app/docs/licensing_foundation.md §3 (feature registry).
+
+version: 1
+
+features:
+  - id: compliance_check
+    tier: free
+    description: Run compliance scans against hosts (core capability)
+    introduced: "1.0.0"
+
+  - id: audit_query
+    tier: openwatch_plus
+    description: Saved and ad-hoc audit query DSL via POST /audit/events:query
+    introduced: "1.0.0"
+
+  - id: audit_export
+    tier: openwatch_plus
+    description: Export audit data as JSON/CSV with signed bundles
+    introduced: "1.0.0"
+
+  - id: temporal_queries
+    tier: openwatch_plus
+    description: Point-in-time compliance posture queries, drift forecasts, historical reconstruction from the transaction log
+    introduced: "1.0.0"
+
+  - id: remediation_execution
+    tier: openwatch_plus
+    description: Apply Kensa remediation against hosts with dry-run, execute, and rollback
+    introduced: "1.0.0"
+
+  - id: structured_exceptions
+    tier: openwatch_plus
+    description: Multi-stage exception approval workflow with policy enforcement
+    introduced: "1.0.0"
+
+  - id: priority_updates
+    tier: openwatch_plus
+    description: Early access to Kensa rule updates and framework mappings
+    introduced: "1.0.0"
+
+  - id: sso_saml
+    tier: openwatch_plus
+    description: SAML 2.0 single sign-on integration
+    introduced: "1.0.0"
+
+  - id: fido2_mfa
+    tier: openwatch_plus
+    description: FIDO2 / WebAuthn second factor for user authentication
+    introduced: "1.0.0"
+
+  # Stage 0 demo feature — used by the walking skeleton's
+  # POST /diagnostics:premium-echo endpoint to exercise the license gate
+  # end-to-end. Retained post-Stage-0 only if a genuine premium diagnostic
+  # surface emerges; otherwise marked deprecated and removed.
+  - id: premium_diagnostics
+    tier: openwatch_plus
+    description: Premium diagnostic endpoints (Stage 0 demo and future operator tooling)
+    introduced: "1.0.0"
+
+# Deprecated feature IDs retained for backwards compatibility on old licenses.
+# Existing licenses including these continue to validate; new licenses should
+# not include them. Build fails if any source emits a deprecated id.
+deprecated_features: []

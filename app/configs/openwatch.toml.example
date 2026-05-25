@@ -1,0 +1,23 @@
+# OpenWatch — example configuration file
+#
+# In production this file lives at /etc/openwatch/openwatch.toml.
+# For local development, point to it with `--config configs/openwatch.toml.example`.
+#
+# Layering (highest precedence first):
+#   1. CLI flags        (--listen, --log-level, ...)
+#   2. Env vars         (OPENWATCH_<SECTION>_<KEY>)
+#   3. This TOML file
+#   4. Built-in defaults
+
+[server]
+listen   = "0.0.0.0:8443"
+tls_cert = "/etc/openwatch/tls/cert.pem"
+tls_key  = "/etc/openwatch/tls/key.pem"
+
+[database]
+dsn             = "postgres://openwatch@localhost/openwatch?sslmode=disable"
+max_connections = 25
+
+[logging]
+level  = "info"     # debug | info | warn | error
+format = "json"     # json | text

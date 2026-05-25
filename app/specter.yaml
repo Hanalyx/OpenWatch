@@ -1,0 +1,53 @@
+# Specter Project Manifest
+# See: https://github.com/Hanalyx/specter
+
+schema_version: 1
+system:
+    name: openwatch-go
+    tier: 2
+domains:
+    default:
+        tier: 2
+        description: 12 .spec.yaml file(s) were discovered but could not be parsed — add their spec IDs here after fixing them. Run `specter doctor` for a drift analysis.
+        specs:
+            - api-audit-events-query
+            - api-diagnostics-echo
+            - api-health
+            - api-license
+            - system-audit-emission
+            - system-config
+            - system-correlation
+            - system-db
+            - system-http-server
+            - system-idempotency
+            - system-license-features
+            - system-license-validation
+            - system-rbac
+            - system-job-queue
+            - system-policy
+            - release-package-build
+            - release-fips-build
+            - release-stage-0-signoff
+            - release-ci-gates
+            - system-auth-identity
+            - system-user-management
+            - system-credential-store
+            - system-host-inventory
+            - system-ssh-connectivity
+            - api-auth
+            - api-users
+            - api-credentials
+            - api-hosts
+            - release-admin-signoff
+settings:
+    specs_dir: specs
+    coverage:
+        tier1: 100
+        tier2: 80
+        tier3: 50
+    exclude:
+        - node_modules
+        - dist
+        - .git
+        - vendor
+    strictness: threshold

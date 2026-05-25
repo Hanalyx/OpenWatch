@@ -1,0 +1,116 @@
+spec:
+  id: system-audit-emission
+  title: Audit event emission
+  version: "1.0.0"
+  status: approved
+  tier: 1
+
+  context:
+    system: openwatch-go
+    feature: Audit event taxonomy and writer
+    description: >
+      Audit events are emitted via codegen-typed constants from
+      app/audit/events.yaml. Async path (Emit) writes through a buffered
+      channel + 100/100ms batch insert. Sync path (EmitSync) blocks until
+      committed; reserved for critical events. Pre-write redaction
+      scrubs sensitive field names from detail JSON.
+
+  objective:
+    summary: >
+      Audit emission is a one-call invariant. Handlers call
+      audit.Emit(ctx, audit.HostCreated, ...) — the package handles
+      redaction, batching, persistence, and correlation threading. Drift
+      is impossible because the only way to refer to an event code is via
+      the codegen-typed constant.
+    scope:
+      includes:
+        - Async batched writer (channel + 100/100ms)
+        - Sync writer for critical events
+        - Pre-write redaction
+        - UUIDv7 event IDs
+      excludes:
+        - Audit chain signing (Day 7+ Ed25519 signature column)
+        - Audit retention sweep cron
+
+  constraints:
+    - id: C-01
+      description: Event codes MUST come from app/audit/events.yaml; hand-typed strings forbidden by lint
+      type: technical
+      enforcement: error
+    - id: C-02
+      description: Emit MUST return without blocking on DB I/O (channel send only)
+      type: performance
+      enforcement: error
+    - id: C-03
+      description: Channel buffer MUST be 1024; overflow drops events and increments a counter
+      type: technical
+      enforcement: error
+    - id: C-04
+      description: EmitSync timeout MUST be 1 second; longer = bug
+      type: performance
+      enforcement: error
+    - id: C-05
+      description: Pre-write scrub MUST apply to password, ssh_key, api_key, token, secret, license_jwt
+      type: security
+      enforcement: error
+    - id: C-06
+      description: Scrubbing MUST replace value with literal string '<REDACTED>' and record in redactions column
+      type: security
+      enforcement: error
+    - id: C-07
+      description: Event ID MUST be UUIDv7 (time-ordered)
+      type: technical
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: Codegen produces events.gen.go with one typed constant per event in events.yaml.
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-02
+      description: Codegen produces Metadata map keyed by event code with severity, description, actor_types.
+      priority: critical
+    - id: AC-03
+      description: Re-running codegen with no changes produces no diff in events.gen.go.
+      priority: high
+    - id: AC-04
+      description: Emit p99 latency < 10µs even under sustained load (channel send only).
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-05
+      description: 1000 sequential Emit calls persist all 1000 rows within 200ms wall-clock.
+      priority: high
+    - id: AC-06
+      description: EmitSync blocks until row is in audit_events; returns any DB error.
+      priority: critical
+      references_constraints: [C-04]
+    - id: AC-07
+      description: EmitSync p99 latency < 500µs against healthy local DB.
+      priority: high
+    - id: AC-08
+      description: Emitting detail.password="secret" stores detail.password="<REDACTED>" and redactions=["password"].
+      priority: critical
+      references_constraints: [C-05, C-06]
+    - id: AC-09
+      description: All six sensitive field names (password, ssh_key, api_key, token, secret, license_jwt) redacted; non-sensitive unchanged.
+      priority: critical
+    - id: AC-10
+      description: Redaction recurses; detail={auth:{password:"x"}} → detail.auth.password="<REDACTED>" and redactions=["auth.password"].
+      priority: critical
+    - id: AC-11
+      description: Emit with ctx carrying correlation_id sets row's correlation_id to that value.
+      priority: critical
+    - id: AC-12
+      description: Emit with ctx lacking correlation_id stores empty string AND increments audit.missing_correlation counter.
+      priority: high
+    - id: AC-13
+      description: Channel overflow (1024 in-flight) causes Emit to drop new events and increment audit.dropped.
+      priority: high
+      references_constraints: [C-03]
+    - id: AC-14
+      description: Shutdown via Shutdown(deadline) drains channel; pending events flush to DB before return.
+      priority: high
+    - id: AC-15
+      description: Event id is UUIDv7; two consecutive emits within the same ms produce ids that sort lexicographically in emit order.
+      priority: medium
+      references_constraints: [C-07]

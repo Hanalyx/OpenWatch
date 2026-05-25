@@ -1,0 +1,13 @@
+#!/bin/sh
+# Post-install: reload systemd so the new unit is visible.
+# Spec release-package-build AC-08.
+
+set -e
+
+if [ "$1" = "configure" ]; then
+    if command -v systemctl >/dev/null 2>&1; then
+        systemctl daemon-reload || :
+    fi
+fi
+
+exit 0
