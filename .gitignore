@@ -705,6 +705,8 @@ dist/
 # RPM spec files (development versions)
 *.spec
 !packaging/rpm/*.spec
+# Same exception for the Go rebuild's RPM spec
+!app/packaging/rpm/*.spec
 
 # RPM creation scripts (temporary)
 create-rpm.sh
@@ -742,6 +744,11 @@ system_credentials_backup.sql
 
 # Temporary credential files
 create_test_credential.py
+
+# Exception (again, for the patterns above): re-include the Go
+# rebuild's migration files. The 0007_credentials.sql migration
+# describes the credentials table schema; it's source, not data.
+!app/internal/db/migrations/*.sql
 
 # ======================================
 # VIRTUAL ENVIRONMENTS AND SCRIPTS
