@@ -56,7 +56,7 @@ $(DIST_DIR):
 # -----------------------------------------------------------------------------
 
 .PHONY: test
-test:
+test: internal/server/openapi_embed.yaml
 	go test ./...
 
 .PHONY: tidy
@@ -68,13 +68,16 @@ tidy:
 # -----------------------------------------------------------------------------
 
 # vet: built-in suspicious-construct check. Always available.
+# Depends on internal/server/openapi_embed.yaml because go:embed
+# resolves at vet time too — the source tree must contain the embedded
+# file for vet to type-check the embedding declaration.
 .PHONY: vet
-vet:
+vet: internal/server/openapi_embed.yaml
 	go vet ./...
 
 # lint: golangci-lint runs staticcheck + gosec + govet + others per .golangci.yml.
 .PHONY: lint
-lint:
+lint: internal/server/openapi_embed.yaml
 	@if command -v golangci-lint >/dev/null 2>&1; then \
 	  golangci-lint run; \
 	else \
@@ -84,7 +87,7 @@ lint:
 # vuln: known-CVE scan against deps + stdlib (call-graph aware).
 # Auto-installs govulncheck if absent.
 .PHONY: vuln
-vuln:
+vuln: internal/server/openapi_embed.yaml
 	@if ! command -v govulncheck >/dev/null 2>&1; then \
 	  echo "installing govulncheck..."; \
 	  go install golang.org/x/vuln/cmd/govulncheck@latest; \
@@ -95,7 +98,7 @@ vuln:
 # Integration tests still need OPENWATCH_TEST_DSN; without it they skip.
 # -p 1 serializes packages so they don't trample each other's DB state.
 .PHONY: test-race
-test-race:
+test-race: internal/server/openapi_embed.yaml
 	go test -race -p 1 ./...
 
 # check: the single pre-push gate. Chains vet → lint → vuln → test-race.
