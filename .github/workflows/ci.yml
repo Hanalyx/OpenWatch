@@ -10,11 +10,15 @@ on:
     paths-ignore:
       - 'app/**'
       - '.github/workflows/go-ci.yml'
+      - '.github/workflows/ci.yml'
+      - '.secrets.baseline'
   pull_request:
     branches: [ main, develop ]
     paths-ignore:
       - 'app/**'
       - '.github/workflows/go-ci.yml'
+      - '.github/workflows/ci.yml'
+      - '.secrets.baseline'
   workflow_dispatch:  # Allow manual trigger
 
 env:
