@@ -16,9 +16,9 @@ import (
 	openapitypes "github.com/oapi-codegen/runtime/types"
 )
 
-// GetAdminHosts lists active hosts.
+// GetHosts lists active hosts.
 // Spec api-hosts AC-05, AC-06, AC-07.
-func (h *handlers) GetAdminHosts(w http.ResponseWriter, r *http.Request, params api.GetAdminHostsParams) {
+func (h *handlers) GetHosts(w http.ResponseWriter, r *http.Request, params api.GetHostsParams) {
 	if denied := auth.EnforcePermission(w, r, auth.HostRead); denied {
 		return
 	}
@@ -42,9 +42,9 @@ func (h *handlers) GetAdminHosts(w http.ResponseWriter, r *http.Request, params 
 	writeJSON(w, http.StatusOK, api.HostListResponse{Hosts: out})
 }
 
-// PostAdminHosts creates a host.
+// PostHosts creates a host.
 // Spec api-hosts AC-01, AC-03, AC-04.
-func (h *handlers) PostAdminHosts(w http.ResponseWriter, r *http.Request) {
+func (h *handlers) PostHosts(w http.ResponseWriter, r *http.Request) {
 	if denied := auth.EnforcePermission(w, r, auth.HostWrite); denied {
 		return
 	}
@@ -108,9 +108,9 @@ func (h *handlers) PostAdminHosts(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, hostResponse(created))
 }
 
-// GetAdminHostByID fetches a host.
+// GetHostByID fetches a host.
 // Spec api-hosts AC-08.
-func (h *handlers) GetAdminHostByID(w http.ResponseWriter, r *http.Request, id openapitypes.UUID) {
+func (h *handlers) GetHostByID(w http.ResponseWriter, r *http.Request, id openapitypes.UUID) {
 	if denied := auth.EnforcePermission(w, r, auth.HostRead); denied {
 		return
 	}
@@ -128,9 +128,9 @@ func (h *handlers) GetAdminHostByID(w http.ResponseWriter, r *http.Request, id o
 	writeJSON(w, http.StatusOK, hostResponse(got))
 }
 
-// PatchAdminHostByID updates mutable host fields.
+// PatchHostByID updates mutable host fields.
 // Spec api-hosts AC-09, AC-10.
-func (h *handlers) PatchAdminHostByID(w http.ResponseWriter, r *http.Request, id openapitypes.UUID) {
+func (h *handlers) PatchHostByID(w http.ResponseWriter, r *http.Request, id openapitypes.UUID) {
 	if denied := auth.EnforcePermission(w, r, auth.HostWrite); denied {
 		return
 	}
@@ -175,9 +175,9 @@ func (h *handlers) PatchAdminHostByID(w http.ResponseWriter, r *http.Request, id
 	writeJSON(w, http.StatusOK, hostResponse(updated))
 }
 
-// DeleteAdminHostByID soft-deletes a host.
+// DeleteHostByID soft-deletes a host.
 // Spec api-hosts AC-11, AC-12.
-func (h *handlers) DeleteAdminHostByID(w http.ResponseWriter, r *http.Request, id openapitypes.UUID) {
+func (h *handlers) DeleteHostByID(w http.ResponseWriter, r *http.Request, id openapitypes.UUID) {
 	if denied := auth.EnforcePermission(w, r, auth.HostDelete); denied {
 		return
 	}

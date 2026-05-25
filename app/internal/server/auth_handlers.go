@@ -315,13 +315,14 @@ func (h *handlers) PostAuthPasswordChange(w http.ResponseWriter, r *http.Request
 }
 
 // userToMe maps a users.User + role string into the AuthMeResponse shape.
+// Admin status is implicit in role == "admin"; no separate field is
+// surfaced.
 func userToMe(u users.User, role string) api.AuthMeResponse {
 	return api.AuthMeResponse{
 		Id:       openapitypes.UUID(u.ID),
 		Username: u.Username,
 		Email:    u.Email,
 		Role:     role,
-		IsAdmin:  u.IsAdmin,
 	}
 }
 

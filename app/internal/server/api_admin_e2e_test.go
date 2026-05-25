@@ -42,9 +42,8 @@ func TestAdminE2E_RealIdentity(t *testing.T) {
 			"username": "e2e-admin",
 			"email":    "e2e-admin@example.com",
 			"password": realPw,
-			"is_admin": true,
 		}
-		req := asRole(t, "POST", url+"/api/v1/admin/users", "admin", body)
+		req := asRole(t, "POST", url+"/api/v1/users", "admin", body)
 		resp := doReq(t, req)
 		if resp.StatusCode != http.StatusCreated {
 			b, _ := io.ReadAll(resp.Body)
@@ -57,7 +56,7 @@ func TestAdminE2E_RealIdentity(t *testing.T) {
 		uid := createdUser["id"].(string)
 
 		req = asRole(t, "POST",
-			url+"/api/v1/admin/users/"+uid+"/roles:assign", "admin",
+			url+"/api/v1/users/"+uid+"/roles:assign", "admin",
 			map[string]string{"role_id": "admin"})
 		resp = doReq(t, req)
 		resp.Body.Close()
@@ -125,7 +124,7 @@ func TestAdminE2E_RealIdentity(t *testing.T) {
 		}
 
 		// Step 4 — Create a host through real identity.
-		resp = doReq(t, realReq("POST", "/api/v1/admin/hosts", map[string]any{
+		resp = doReq(t, realReq("POST", "/api/v1/hosts", map[string]any{
 			"hostname":    "e2e-host",
 			"ip_address":  "192.0.2.77",
 			"environment": "production",
@@ -150,7 +149,7 @@ func TestAdminE2E_RealIdentity(t *testing.T) {
 		hid := createdHost["id"].(string)
 
 		// Step 5 — Create a system-default credential.
-		resp = doReq(t, realReq("POST", "/api/v1/admin/credentials", map[string]any{
+		resp = doReq(t, realReq("POST", "/api/v1/credentials", map[string]any{
 			"scope": "system", "name": "e2e-sys", "username": "sysuser",
 			"auth_method": "password", "password": "sys-pw", "is_default": true,
 		}))
@@ -164,7 +163,7 @@ func TestAdminE2E_RealIdentity(t *testing.T) {
 		// Step 6 — Resolve credential for the host: with no host-scope
 		// row, we should get the system default.
 		resp = doReq(t, realReq("POST",
-			"/api/v1/admin/hosts/"+hid+"/credentials:resolve", nil))
+			"/api/v1/hosts/"+hid+"/credentials:resolve", nil))
 		var resolved map[string]any
 		_ = json.NewDecoder(resp.Body).Decode(&resolved)
 		resp.Body.Close()
@@ -174,7 +173,7 @@ func TestAdminE2E_RealIdentity(t *testing.T) {
 
 		// Step 7 — Create a host-scope credential and re-resolve. It
 		// must shadow the system default per spec C-06.
-		resp = doReq(t, realReq("POST", "/api/v1/admin/credentials", map[string]any{
+		resp = doReq(t, realReq("POST", "/api/v1/credentials", map[string]any{
 			"scope": "host", "scope_id": hid,
 			"name": "e2e-host-override", "username": "hostuser",
 			"auth_method": "password", "password": "host-pw",
@@ -190,7 +189,7 @@ func TestAdminE2E_RealIdentity(t *testing.T) {
 		hcid := hostCred["id"].(string)
 
 		resp = doReq(t, realReq("POST",
-			"/api/v1/admin/hosts/"+hid+"/credentials:resolve", nil))
+			"/api/v1/hosts/"+hid+"/credentials:resolve", nil))
 		_ = json.NewDecoder(resp.Body).Decode(&resolved)
 		resp.Body.Close()
 		if resolved["scope"] != "host" || resolved["username"] != "hostuser" {
@@ -199,13 +198,13 @@ func TestAdminE2E_RealIdentity(t *testing.T) {
 
 		// Step 8 — Soft-delete the host-scope cred. Resolver must fall
 		// back to system default.
-		resp = doReq(t, realReq("DELETE", "/api/v1/admin/credentials/"+hcid, nil))
+		resp = doReq(t, realReq("DELETE", "/api/v1/credentials/"+hcid, nil))
 		resp.Body.Close()
 		if resp.StatusCode != http.StatusNoContent {
 			t.Fatalf("delete host cred: status=%d", resp.StatusCode)
 		}
 		resp = doReq(t, realReq("POST",
-			"/api/v1/admin/hosts/"+hid+"/credentials:resolve", nil))
+			"/api/v1/hosts/"+hid+"/credentials:resolve", nil))
 		_ = json.NewDecoder(resp.Body).Decode(&resolved)
 		resp.Body.Close()
 		if resolved["scope"] != "system" {
@@ -213,12 +212,12 @@ func TestAdminE2E_RealIdentity(t *testing.T) {
 		}
 
 		// Step 9 — Soft-delete the host. GET must 404.
-		resp = doReq(t, realReq("DELETE", "/api/v1/admin/hosts/"+hid, nil))
+		resp = doReq(t, realReq("DELETE", "/api/v1/hosts/"+hid, nil))
 		resp.Body.Close()
 		if resp.StatusCode != http.StatusNoContent {
 			t.Fatalf("delete host: status=%d", resp.StatusCode)
 		}
-		resp = doReq(t, realReq("GET", "/api/v1/admin/hosts/"+hid, nil))
+		resp = doReq(t, realReq("GET", "/api/v1/hosts/"+hid, nil))
 		resp.Body.Close()
 		if resp.StatusCode != http.StatusNotFound {
 			t.Errorf("post-delete host get: status=%d, want 404", resp.StatusCode)

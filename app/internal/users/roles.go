@@ -40,7 +40,7 @@ type Role struct {
 // cursor pagination lands when scan volumes make it necessary.
 func (s *Service) ListUsers(ctx context.Context) ([]User, error) {
 	const stmt = `
-		SELECT id, username, email, is_admin, last_password_change_at, created_at, updated_at
+		SELECT id, username, email, last_password_change_at, created_at, updated_at
 		FROM users
 		WHERE deleted_at IS NULL
 		ORDER BY created_at ASC`
@@ -53,7 +53,7 @@ func (s *Service) ListUsers(ctx context.Context) ([]User, error) {
 	for rows.Next() {
 		var u User
 		if err := rows.Scan(
-			&u.ID, &u.Username, &u.Email, &u.IsAdmin,
+			&u.ID, &u.Username, &u.Email,
 			&u.LastPasswordChangeAt, &u.CreatedAt, &u.UpdatedAt,
 		); err != nil {
 			return nil, fmt.Errorf("users: scan: %w", err)

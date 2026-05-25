@@ -17,7 +17,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// createHostAPI is the canonical happy-path POST /admin/hosts helper.
+// createHostAPI is the canonical happy-path POST /hosts helper.
 func createHostAPI(t *testing.T, srvURL, hostname, env string) map[string]any {
 	t.Helper()
 	body := map[string]any{
@@ -25,7 +25,7 @@ func createHostAPI(t *testing.T, srvURL, hostname, env string) map[string]any {
 		"ip_address":  "192.0.2.10",
 		"environment": env,
 	}
-	req := asRole(t, "POST", srvURL+"/api/v1/admin/hosts", auth.RoleAdmin, body)
+	req := asRole(t, "POST", srvURL+"/api/v1/hosts", auth.RoleAdmin, body)
 	resp := doReq(t, req)
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusCreated {
@@ -38,7 +38,7 @@ func createHostAPI(t *testing.T, srvURL, hostname, env string) map[string]any {
 }
 
 // @ac AC-01
-// AC-01: POST /admin/hosts with valid body → 201 + host JSON.
+// AC-01: POST /hosts with valid body → 201 + host JSON.
 func TestHosts_Create_Success(t *testing.T) {
 	t.Run("api-hosts/AC-01", func(t *testing.T) {
 		url, _ := freshAPIServer(t)
@@ -46,7 +46,7 @@ func TestHosts_Create_Success(t *testing.T) {
 			"hostname":   "ac01-host",
 			"ip_address": "192.0.2.10",
 		}
-		req := asRole(t, "POST", url+"/api/v1/admin/hosts", auth.RoleAdmin, body)
+		req := asRole(t, "POST", url+"/api/v1/hosts", auth.RoleAdmin, body)
 		resp := doReq(t, req)
 		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusCreated {
@@ -80,7 +80,7 @@ func TestHosts_Create_DeniedWithoutPermission(t *testing.T) {
 			"hostname": "denied", "ip_address": "192.0.2.50",
 		}
 		// viewer lacks host:write.
-		req := asRole(t, "POST", url+"/api/v1/admin/hosts", auth.RoleViewer, body)
+		req := asRole(t, "POST", url+"/api/v1/hosts", auth.RoleViewer, body)
 		resp := doReq(t, req)
 		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusForbidden {
@@ -105,7 +105,7 @@ func TestHosts_Create_InvalidInput(t *testing.T) {
 		body := map[string]any{
 			"hostname": "", "ip_address": "192.0.2.10",
 		}
-		req := asRole(t, "POST", url+"/api/v1/admin/hosts", auth.RoleAdmin, body)
+		req := asRole(t, "POST", url+"/api/v1/hosts", auth.RoleAdmin, body)
 		resp := doReq(t, req)
 		resp.Body.Close()
 		if resp.StatusCode != http.StatusBadRequest {
@@ -116,7 +116,7 @@ func TestHosts_Create_InvalidInput(t *testing.T) {
 		body = map[string]any{
 			"hostname": "bad-ip", "ip_address": "not.an.ip.address",
 		}
-		req = asRole(t, "POST", url+"/api/v1/admin/hosts", auth.RoleAdmin, body)
+		req = asRole(t, "POST", url+"/api/v1/hosts", auth.RoleAdmin, body)
 		resp = doReq(t, req)
 		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusBadRequest {
@@ -142,7 +142,7 @@ func TestHosts_Create_Duplicate(t *testing.T) {
 			"ip_address":  "192.0.2.99",
 			"environment": "staging",
 		}
-		req := asRole(t, "POST", url+"/api/v1/admin/hosts", auth.RoleAdmin, body)
+		req := asRole(t, "POST", url+"/api/v1/hosts", auth.RoleAdmin, body)
 		resp := doReq(t, req)
 		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusConflict {
@@ -157,7 +157,7 @@ func TestHosts_Create_Duplicate(t *testing.T) {
 }
 
 // @ac AC-05
-// AC-05: GET /admin/hosts returns active rows; soft-deleted excluded.
+// AC-05: GET /hosts returns active rows; soft-deleted excluded.
 func TestHosts_List_ExcludesDeleted(t *testing.T) {
 	t.Run("api-hosts/AC-05", func(t *testing.T) {
 		url, _ := freshAPIServer(t)
@@ -166,14 +166,14 @@ func TestHosts_List_ExcludesDeleted(t *testing.T) {
 
 		// Soft-delete dead.
 		req := asRole(t, "DELETE",
-			url+"/api/v1/admin/hosts/"+dead["id"].(string), auth.RoleAdmin, nil)
+			url+"/api/v1/hosts/"+dead["id"].(string), auth.RoleAdmin, nil)
 		resp := doReq(t, req)
 		resp.Body.Close()
 		if resp.StatusCode != http.StatusNoContent {
 			t.Fatalf("delete status = %d", resp.StatusCode)
 		}
 
-		req = asRole(t, "GET", url+"/api/v1/admin/hosts", auth.RoleAdmin, nil)
+		req = asRole(t, "GET", url+"/api/v1/hosts", auth.RoleAdmin, nil)
 		resp = doReq(t, req)
 		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusOK {
@@ -205,7 +205,7 @@ func TestHosts_List_FilterByEnvironment(t *testing.T) {
 		_ = createHostAPI(t, url, "stage-2", "staging")
 		_ = createHostAPI(t, url, "prod-1", "production")
 
-		req := asRole(t, "GET", url+"/api/v1/admin/hosts?environment=staging",
+		req := asRole(t, "GET", url+"/api/v1/hosts?environment=staging",
 			auth.RoleAdmin, nil)
 		resp := doReq(t, req)
 		defer resp.Body.Close()
@@ -234,24 +234,24 @@ func TestHosts_List_FilterByTag(t *testing.T) {
 			"hostname": "crit-1", "ip_address": "192.0.2.11",
 			"tags": []string{"critical", "edge"},
 		}
-		req := asRole(t, "POST", url+"/api/v1/admin/hosts", auth.RoleAdmin, body)
+		req := asRole(t, "POST", url+"/api/v1/hosts", auth.RoleAdmin, body)
 		_ = doReq(t, req).Body.Close()
 
 		body = map[string]any{
 			"hostname": "crit-2", "ip_address": "192.0.2.12",
 			"tags": []string{"critical"},
 		}
-		req = asRole(t, "POST", url+"/api/v1/admin/hosts", auth.RoleAdmin, body)
+		req = asRole(t, "POST", url+"/api/v1/hosts", auth.RoleAdmin, body)
 		_ = doReq(t, req).Body.Close()
 
 		body = map[string]any{
 			"hostname": "non-crit", "ip_address": "192.0.2.13",
 			"tags": []string{"edge"},
 		}
-		req = asRole(t, "POST", url+"/api/v1/admin/hosts", auth.RoleAdmin, body)
+		req = asRole(t, "POST", url+"/api/v1/hosts", auth.RoleAdmin, body)
 		_ = doReq(t, req).Body.Close()
 
-		req = asRole(t, "GET", url+"/api/v1/admin/hosts?tag=critical",
+		req = asRole(t, "GET", url+"/api/v1/hosts?tag=critical",
 			auth.RoleAdmin, nil)
 		resp := doReq(t, req)
 		defer resp.Body.Close()
@@ -279,14 +279,14 @@ func TestHosts_List_FilterByTag(t *testing.T) {
 }
 
 // @ac AC-08
-// AC-08: GET /admin/hosts/{id} → 200 / 404.
+// AC-08: GET /hosts/{id} → 200 / 404.
 func TestHosts_GetByID(t *testing.T) {
 	t.Run("api-hosts/AC-08", func(t *testing.T) {
 		url, _ := freshAPIServer(t)
 		created := createHostAPI(t, url, "by-id", "production")
 		id := created["id"].(string)
 
-		req := asRole(t, "GET", url+"/api/v1/admin/hosts/"+id, auth.RoleAdmin, nil)
+		req := asRole(t, "GET", url+"/api/v1/hosts/"+id, auth.RoleAdmin, nil)
 		resp := doReq(t, req)
 		if resp.StatusCode != http.StatusOK {
 			b, _ := io.ReadAll(resp.Body)
@@ -301,7 +301,7 @@ func TestHosts_GetByID(t *testing.T) {
 		}
 
 		// Unknown id → 404.
-		req = asRole(t, "GET", url+"/api/v1/admin/hosts/"+uuid.New().String(),
+		req = asRole(t, "GET", url+"/api/v1/hosts/"+uuid.New().String(),
 			auth.RoleAdmin, nil)
 		resp = doReq(t, req)
 		defer resp.Body.Close()
@@ -329,7 +329,7 @@ func TestHosts_Patch_Update(t *testing.T) {
 			"port":         2222,
 			"tags":         []string{"linux", "frontend"},
 		}
-		req := asRole(t, "PATCH", url+"/api/v1/admin/hosts/"+id, auth.RoleAdmin, body)
+		req := asRole(t, "PATCH", url+"/api/v1/hosts/"+id, auth.RoleAdmin, body)
 		resp := doReq(t, req)
 		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusOK {
@@ -373,7 +373,7 @@ func TestHosts_Patch_InvalidIP(t *testing.T) {
 		body := map[string]any{
 			"ip_address": "not.a.real.ip",
 		}
-		req := asRole(t, "PATCH", url+"/api/v1/admin/hosts/"+id, auth.RoleAdmin, body)
+		req := asRole(t, "PATCH", url+"/api/v1/hosts/"+id, auth.RoleAdmin, body)
 		resp := doReq(t, req)
 		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusBadRequest {
@@ -386,7 +386,7 @@ func TestHosts_Patch_InvalidIP(t *testing.T) {
 		}
 
 		// Confirm IP wasn't mutated by re-reading.
-		req = asRole(t, "GET", url+"/api/v1/admin/hosts/"+id, auth.RoleAdmin, nil)
+		req = asRole(t, "GET", url+"/api/v1/hosts/"+id, auth.RoleAdmin, nil)
 		resp = doReq(t, req)
 		var got map[string]any
 		_ = json.NewDecoder(resp.Body).Decode(&got)
@@ -405,14 +405,14 @@ func TestHosts_Delete_SoftDelete(t *testing.T) {
 		created := createHostAPI(t, url, "to-delete", "production")
 		id := created["id"].(string)
 
-		req := asRole(t, "DELETE", url+"/api/v1/admin/hosts/"+id, auth.RoleAdmin, nil)
+		req := asRole(t, "DELETE", url+"/api/v1/hosts/"+id, auth.RoleAdmin, nil)
 		resp := doReq(t, req)
 		resp.Body.Close()
 		if resp.StatusCode != http.StatusNoContent {
 			t.Fatalf("delete status = %d, want 204", resp.StatusCode)
 		}
 
-		req = asRole(t, "GET", url+"/api/v1/admin/hosts/"+id, auth.RoleAdmin, nil)
+		req = asRole(t, "GET", url+"/api/v1/hosts/"+id, auth.RoleAdmin, nil)
 		resp = doReq(t, req)
 		resp.Body.Close()
 		if resp.StatusCode != http.StatusNotFound {
@@ -441,7 +441,7 @@ func TestHosts_Delete_DeniedWithoutPermission(t *testing.T) {
 		id := created["id"].(string)
 
 		// ops_lead has host:read+write but NOT host:delete.
-		req := asRole(t, "DELETE", url+"/api/v1/admin/hosts/"+id, auth.RoleOpsLead, nil)
+		req := asRole(t, "DELETE", url+"/api/v1/hosts/"+id, auth.RoleOpsLead, nil)
 		resp := doReq(t, req)
 		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusForbidden {

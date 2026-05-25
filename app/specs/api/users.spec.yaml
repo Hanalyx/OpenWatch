@@ -27,14 +27,14 @@ spec:
       Permissions map) and role membership in DB (roles.permissions).
     scope:
       includes:
-        - GET/POST /admin/users
-        - GET/DELETE /admin/users/{id}
-        - POST /admin/users/{id}/roles:assign
-        - POST /admin/users/{id}/roles:unassign
-        - POST /admin/roles (custom role create)
+        - GET/POST /users
+        - GET/DELETE /users/{id}
+        - POST /users/{id}/roles:assign
+        - POST /users/{id}/roles:unassign
+        - POST /roles (custom role create)
       excludes:
-        - "PUT /admin/users/{id} (email/is_admin patch) — deferred to A.5"
-        - "DELETE / PUT /admin/roles (built-ins can't be touched, custom-role delete deferred)"
+        - "PUT /users/{id} (email patch) — deferred to A.5"
+        - "DELETE / PUT /roles (built-ins can't be touched, custom-role delete deferred)"
         - "Pagination — Slice A returns a flat slice; Slice B adds cursor pagination"
 
   constraints:
@@ -43,11 +43,11 @@ spec:
       type: security
       enforcement: error
     - id: C-02
-      description: POST /admin/users MUST require auth.UserWrite; GET requires auth.UserRead; DELETE requires auth.UserDelete; role assign/unassign require auth.RoleAssign; POST /admin/roles requires auth.RoleWrite
+      description: POST /users MUST require auth.UserWrite; GET requires auth.UserRead; DELETE requires auth.UserDelete; role assign/unassign require auth.RoleAssign; POST /roles requires auth.RoleWrite
       type: security
       enforcement: error
     - id: C-03
-      description: POST /admin/roles MUST validate every permission against auth.Permissions; unknown permission ⇒ 400 with detail.invalid_permissions
+      description: POST /roles MUST validate every permission against auth.Permissions; unknown permission ⇒ 400 with detail.invalid_permissions
       type: security
       enforcement: error
     - id: C-04
@@ -57,46 +57,46 @@ spec:
 
   acceptance_criteria:
     - id: AC-01
-      description: POST /admin/users with admin caller and valid body returns 201 with the new user JSON; response body does NOT contain a password_hash key.
+      description: POST /users with admin caller and valid body returns 201 with the new user JSON; response body does NOT contain a password_hash key.
       priority: critical
       references_constraints: [C-01, C-02]
     - id: AC-02
-      description: POST /admin/users with a caller missing user:write returns 403 authz.permission_denied; no user is inserted.
+      description: POST /users with a caller missing user:write returns 403 authz.permission_denied; no user is inserted.
       priority: critical
       references_constraints: [C-02]
     - id: AC-03
-      description: POST /admin/users with a weak password (fails NIST policy) returns 400; no user inserted.
+      description: POST /users with a weak password (fails NIST policy) returns 400; no user inserted.
       priority: critical
     - id: AC-04
-      description: GET /admin/users with auth.UserRead returns 200 with a JSON array of users; each item lacks password_hash.
+      description: GET /users with auth.UserRead returns 200 with a JSON array of users; each item lacks password_hash.
       priority: critical
       references_constraints: [C-01, C-02]
     - id: AC-05
-      description: GET /admin/users with a caller missing user:read returns 403.
+      description: GET /users with a caller missing user:read returns 403.
       priority: critical
       references_constraints: [C-02]
     - id: AC-06
-      description: GET /admin/users/{id} with admin caller returns 200 with the user; unknown id returns 404.
+      description: GET /users/{id} with admin caller returns 200 with the user; unknown id returns 404.
       priority: critical
     - id: AC-07
-      description: DELETE /admin/users/{id} with auth.UserDelete returns 204; subsequent GET returns 404.
+      description: DELETE /users/{id} with auth.UserDelete returns 204; subsequent GET returns 404.
       priority: critical
       references_constraints: [C-02]
     - id: AC-08
-      description: POST /admin/users/{id}/roles:assign with body {role_id - "viewer"} returns 204; user_roles row created; role:assign permission enforced.
+      description: POST /users/{id}/roles:assign with body {role_id - "viewer"} returns 204; user_roles row created; role:assign permission enforced.
       priority: critical
       references_constraints: [C-02]
     - id: AC-09
-      description: POST /admin/users/{id}/roles:assign with unknown role id returns 400 with error.code = "users.unknown_role".
+      description: POST /users/{id}/roles:assign with unknown role id returns 400 with error.code = "users.unknown_role".
       priority: critical
     - id: AC-10
-      description: POST /admin/users/{id}/roles:unassign returns 204; idempotent (second call also 204).
+      description: POST /users/{id}/roles:unassign returns 204; idempotent (second call also 204).
       priority: high
     - id: AC-11
-      description: POST /admin/roles with a fresh id and a list of valid permissions returns 201 with the role JSON; roles.permissions TEXT[] column populated.
+      description: POST /roles with a fresh id and a list of valid permissions returns 201 with the role JSON; roles.permissions TEXT[] column populated.
       priority: critical
       references_constraints: [C-03]
     - id: AC-12
-      description: POST /admin/roles with id="admin" (built-in collision) returns 409 with error.code = "users.role_id_taken"; POST /admin/roles with an unknown permission returns 400 with error.code = "users.unknown_permission" and detail.invalid_permissions listing them.
+      description: POST /roles with id="admin" (built-in collision) returns 409 with error.code = "users.role_id_taken"; POST /roles with an unknown permission returns 400 with error.code = "users.unknown_permission" and detail.invalid_permissions listing them.
       priority: critical
       references_constraints: [C-03, C-04]

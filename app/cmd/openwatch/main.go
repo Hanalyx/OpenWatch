@@ -383,10 +383,10 @@ func cmdCreateAdmin(cfg *config.Config, args []string, stdout, stderr *os.File) 
 
 	svc := users.NewService(pool, nil)
 	u, err := svc.CreateUser(ctx, users.CreateParams{
-		Username: *username,
-		Email:    *email,
-		Password: pw,
-		IsAdmin:  true,
+		Username:    *username,
+		Email:       *email,
+		Password:    pw,
+		AdminPolicy: true, // CLI bootstraps admins → require 15-char password
 	})
 	if err != nil {
 		fmt.Fprintf(stderr, "openwatch create-admin: %v\n", err)

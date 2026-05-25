@@ -38,6 +38,7 @@ domains:
             - api-users
             - api-credentials
             - api-hosts
+            - api-openapi-docs
             - release-admin-signoff
 settings:
     specs_dir: specs

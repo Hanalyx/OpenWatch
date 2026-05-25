@@ -49,7 +49,7 @@ func asRole(t *testing.T, method, url string, role auth.RoleID, body any) *http.
 	return req
 }
 
-// createUser is the canonical happy-path POST /admin/users helper used
+// createUser is the canonical happy-path POST /users helper used
 // by setup in multiple AC tests.
 func createUser(t *testing.T, srvURL, username string) map[string]any {
 	t.Helper()
@@ -58,7 +58,7 @@ func createUser(t *testing.T, srvURL, username string) map[string]any {
 		"email":    username + "@example.com",
 		"password": "test-passphrase-strong-zZ-" + username,
 	}
-	req := asRole(t, "POST", srvURL+"/api/v1/admin/users", auth.RoleAdmin, body)
+	req := asRole(t, "POST", srvURL+"/api/v1/users", auth.RoleAdmin, body)
 	resp := doReq(t, req)
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusCreated {
@@ -73,7 +73,7 @@ func createUser(t *testing.T, srvURL, username string) map[string]any {
 }
 
 // @ac AC-01
-// AC-01: POST /admin/users with admin caller and valid body returns 201
+// AC-01: POST /users with admin caller and valid body returns 201
 // with the new user JSON; response body does NOT contain password_hash.
 func TestUsers_Create_Success(t *testing.T) {
 	t.Run("api-users/AC-01", func(t *testing.T) {
@@ -83,7 +83,7 @@ func TestUsers_Create_Success(t *testing.T) {
 			"email":    "ac01@example.com",
 			"password": "test-passphrase-strong-zZ-ac01",
 		}
-		req := asRole(t, "POST", url+"/api/v1/admin/users", auth.RoleAdmin, body)
+		req := asRole(t, "POST", url+"/api/v1/users", auth.RoleAdmin, body)
 		resp := doReq(t, req)
 		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusCreated {
@@ -106,7 +106,7 @@ func TestUsers_Create_Success(t *testing.T) {
 }
 
 // @ac AC-02
-// AC-02: POST /admin/users with a caller missing user:write returns 403
+// AC-02: POST /users with a caller missing user:write returns 403
 // authz.permission_denied; no user is inserted.
 func TestUsers_Create_DeniedWithoutPermission(t *testing.T) {
 	t.Run("api-users/AC-02", func(t *testing.T) {
@@ -117,7 +117,7 @@ func TestUsers_Create_DeniedWithoutPermission(t *testing.T) {
 			"password": "test-passphrase-strong-zZ-ac02",
 		}
 		// viewer lacks user:write.
-		req := asRole(t, "POST", url+"/api/v1/admin/users", auth.RoleViewer, body)
+		req := asRole(t, "POST", url+"/api/v1/users", auth.RoleViewer, body)
 		resp := doReq(t, req)
 		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusForbidden {
@@ -138,7 +138,7 @@ func TestUsers_Create_DeniedWithoutPermission(t *testing.T) {
 }
 
 // @ac AC-03
-// AC-03: POST /admin/users with a weak password (fails NIST policy)
+// AC-03: POST /users with a weak password (fails NIST policy)
 // returns 400; no user inserted.
 func TestUsers_Create_WeakPasswordRejected(t *testing.T) {
 	t.Run("api-users/AC-03", func(t *testing.T) {
@@ -148,7 +148,7 @@ func TestUsers_Create_WeakPasswordRejected(t *testing.T) {
 			"email":    "ac03@example.com",
 			"password": "short", // way below NIST 800-63B minimum length.
 		}
-		req := asRole(t, "POST", url+"/api/v1/admin/users", auth.RoleAdmin, body)
+		req := asRole(t, "POST", url+"/api/v1/users", auth.RoleAdmin, body)
 		resp := doReq(t, req)
 		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusBadRequest {
@@ -169,7 +169,7 @@ func TestUsers_Create_WeakPasswordRejected(t *testing.T) {
 }
 
 // @ac AC-04
-// AC-04: GET /admin/users with auth.UserRead returns 200 with a JSON
+// AC-04: GET /users with auth.UserRead returns 200 with a JSON
 // array of users; each item lacks password_hash.
 func TestUsers_List_Success(t *testing.T) {
 	t.Run("api-users/AC-04", func(t *testing.T) {
@@ -177,7 +177,7 @@ func TestUsers_List_Success(t *testing.T) {
 		_ = createUser(t, url, "ac04a")
 		_ = createUser(t, url, "ac04b")
 
-		req := asRole(t, "GET", url+"/api/v1/admin/users", auth.RoleAdmin, nil)
+		req := asRole(t, "GET", url+"/api/v1/users", auth.RoleAdmin, nil)
 		resp := doReq(t, req)
 		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusOK {
@@ -199,12 +199,12 @@ func TestUsers_List_Success(t *testing.T) {
 }
 
 // @ac AC-05
-// AC-05: GET /admin/users with a caller missing user:read returns 403.
+// AC-05: GET /users with a caller missing user:read returns 403.
 func TestUsers_List_DeniedWithoutPermission(t *testing.T) {
 	t.Run("api-users/AC-05", func(t *testing.T) {
 		url, _ := freshAPIServer(t)
 		// ops_lead lacks user:read.
-		req := asRole(t, "GET", url+"/api/v1/admin/users", auth.RoleOpsLead, nil)
+		req := asRole(t, "GET", url+"/api/v1/users", auth.RoleOpsLead, nil)
 		resp := doReq(t, req)
 		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusForbidden {
@@ -214,7 +214,7 @@ func TestUsers_List_DeniedWithoutPermission(t *testing.T) {
 }
 
 // @ac AC-06
-// AC-06: GET /admin/users/{id} with admin caller returns 200 with the
+// AC-06: GET /users/{id} with admin caller returns 200 with the
 // user; unknown id returns 404.
 func TestUsers_Get_HappyAndNotFound(t *testing.T) {
 	t.Run("api-users/AC-06", func(t *testing.T) {
@@ -222,7 +222,7 @@ func TestUsers_Get_HappyAndNotFound(t *testing.T) {
 		created := createUser(t, url, "ac06user")
 		uid := created["id"].(string)
 
-		req := asRole(t, "GET", url+"/api/v1/admin/users/"+uid, auth.RoleAdmin, nil)
+		req := asRole(t, "GET", url+"/api/v1/users/"+uid, auth.RoleAdmin, nil)
 		resp := doReq(t, req)
 		if resp.StatusCode != http.StatusOK {
 			b, _ := io.ReadAll(resp.Body)
@@ -238,7 +238,7 @@ func TestUsers_Get_HappyAndNotFound(t *testing.T) {
 
 		// Unknown id → 404.
 		other := uuid.New().String()
-		req = asRole(t, "GET", url+"/api/v1/admin/users/"+other, auth.RoleAdmin, nil)
+		req = asRole(t, "GET", url+"/api/v1/users/"+other, auth.RoleAdmin, nil)
 		resp = doReq(t, req)
 		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusNotFound {
@@ -248,7 +248,7 @@ func TestUsers_Get_HappyAndNotFound(t *testing.T) {
 }
 
 // @ac AC-07
-// AC-07: DELETE /admin/users/{id} with auth.UserDelete returns 204;
+// AC-07: DELETE /users/{id} with auth.UserDelete returns 204;
 // subsequent GET returns 404.
 func TestUsers_Delete(t *testing.T) {
 	t.Run("api-users/AC-07", func(t *testing.T) {
@@ -256,7 +256,7 @@ func TestUsers_Delete(t *testing.T) {
 		created := createUser(t, url, "ac07user")
 		uid := created["id"].(string)
 
-		req := asRole(t, "DELETE", url+"/api/v1/admin/users/"+uid, auth.RoleAdmin, nil)
+		req := asRole(t, "DELETE", url+"/api/v1/users/"+uid, auth.RoleAdmin, nil)
 		resp := doReq(t, req)
 		resp.Body.Close()
 		if resp.StatusCode != http.StatusNoContent {
@@ -264,7 +264,7 @@ func TestUsers_Delete(t *testing.T) {
 		}
 
 		// Get returns 404.
-		req = asRole(t, "GET", url+"/api/v1/admin/users/"+uid, auth.RoleAdmin, nil)
+		req = asRole(t, "GET", url+"/api/v1/users/"+uid, auth.RoleAdmin, nil)
 		resp = doReq(t, req)
 		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusNotFound {
@@ -274,7 +274,7 @@ func TestUsers_Delete(t *testing.T) {
 }
 
 // @ac AC-08
-// AC-08: POST /admin/users/{id}/roles:assign with body {role_id: "viewer"}
+// AC-08: POST /users/{id}/roles:assign with body {role_id: "viewer"}
 // returns 204; user_roles row created; role:assign permission enforced.
 func TestUsers_AssignRole(t *testing.T) {
 	t.Run("api-users/AC-08", func(t *testing.T) {
@@ -282,7 +282,7 @@ func TestUsers_AssignRole(t *testing.T) {
 		created := createUser(t, url, "ac08user")
 		uid := created["id"].(string)
 
-		req := asRole(t, "POST", url+"/api/v1/admin/users/"+uid+"/roles:assign", auth.RoleAdmin,
+		req := asRole(t, "POST", url+"/api/v1/users/"+uid+"/roles:assign", auth.RoleAdmin,
 			map[string]string{"role_id": "viewer"})
 		resp := doReq(t, req)
 		resp.Body.Close()
@@ -299,7 +299,7 @@ func TestUsers_AssignRole(t *testing.T) {
 		}
 
 		// Caller without role:assign → 403.
-		req = asRole(t, "POST", url+"/api/v1/admin/users/"+uid+"/roles:assign", auth.RoleViewer,
+		req = asRole(t, "POST", url+"/api/v1/users/"+uid+"/roles:assign", auth.RoleViewer,
 			map[string]string{"role_id": "auditor"})
 		resp = doReq(t, req)
 		defer resp.Body.Close()
@@ -310,7 +310,7 @@ func TestUsers_AssignRole(t *testing.T) {
 }
 
 // @ac AC-09
-// AC-09: POST /admin/users/{id}/roles:assign with unknown role id returns
+// AC-09: POST /users/{id}/roles:assign with unknown role id returns
 // 400 with error.code = "users.unknown_role".
 func TestUsers_AssignRole_Unknown(t *testing.T) {
 	t.Run("api-users/AC-09", func(t *testing.T) {
@@ -318,7 +318,7 @@ func TestUsers_AssignRole_Unknown(t *testing.T) {
 		created := createUser(t, url, "ac09user")
 		uid := created["id"].(string)
 
-		req := asRole(t, "POST", url+"/api/v1/admin/users/"+uid+"/roles:assign", auth.RoleAdmin,
+		req := asRole(t, "POST", url+"/api/v1/users/"+uid+"/roles:assign", auth.RoleAdmin,
 			map[string]string{"role_id": "does_not_exist"})
 		resp := doReq(t, req)
 		defer resp.Body.Close()
@@ -334,7 +334,7 @@ func TestUsers_AssignRole_Unknown(t *testing.T) {
 }
 
 // @ac AC-10
-// AC-10: POST /admin/users/{id}/roles:unassign returns 204; idempotent
+// AC-10: POST /users/{id}/roles:unassign returns 204; idempotent
 // (second call also 204).
 func TestUsers_UnassignRole_Idempotent(t *testing.T) {
 	t.Run("api-users/AC-10", func(t *testing.T) {
@@ -343,13 +343,13 @@ func TestUsers_UnassignRole_Idempotent(t *testing.T) {
 		uid := created["id"].(string)
 
 		// Assign first.
-		req := asRole(t, "POST", url+"/api/v1/admin/users/"+uid+"/roles:assign", auth.RoleAdmin,
+		req := asRole(t, "POST", url+"/api/v1/users/"+uid+"/roles:assign", auth.RoleAdmin,
 			map[string]string{"role_id": "viewer"})
 		resp := doReq(t, req)
 		resp.Body.Close()
 
 		// Unassign once.
-		req = asRole(t, "POST", url+"/api/v1/admin/users/"+uid+"/roles:unassign", auth.RoleAdmin,
+		req = asRole(t, "POST", url+"/api/v1/users/"+uid+"/roles:unassign", auth.RoleAdmin,
 			map[string]string{"role_id": "viewer"})
 		resp = doReq(t, req)
 		resp.Body.Close()
@@ -358,7 +358,7 @@ func TestUsers_UnassignRole_Idempotent(t *testing.T) {
 		}
 
 		// Unassign again — still 204.
-		req = asRole(t, "POST", url+"/api/v1/admin/users/"+uid+"/roles:unassign", auth.RoleAdmin,
+		req = asRole(t, "POST", url+"/api/v1/users/"+uid+"/roles:unassign", auth.RoleAdmin,
 			map[string]string{"role_id": "viewer"})
 		resp = doReq(t, req)
 		defer resp.Body.Close()
@@ -369,7 +369,7 @@ func TestUsers_UnassignRole_Idempotent(t *testing.T) {
 }
 
 // @ac AC-11
-// AC-11: POST /admin/roles:create with a fresh id and valid permissions
+// AC-11: POST /roles:create with a fresh id and valid permissions
 // returns 201; roles.permissions TEXT[] column populated.
 func TestUsers_CreateCustomRole(t *testing.T) {
 	t.Run("api-users/AC-11", func(t *testing.T) {
@@ -379,7 +379,7 @@ func TestUsers_CreateCustomRole(t *testing.T) {
 			"description": "read-only host + scan auditor",
 			"permissions": []string{"host:read", "scan:read"},
 		}
-		req := asRole(t, "POST", url+"/api/v1/admin/roles:create", auth.RoleAdmin, body)
+		req := asRole(t, "POST", url+"/api/v1/roles:create", auth.RoleAdmin, body)
 		resp := doReq(t, req)
 		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusCreated {
@@ -409,7 +409,7 @@ func TestUsers_CreateCustomRole(t *testing.T) {
 }
 
 // @ac AC-12
-// AC-12: POST /admin/roles:create with id="admin" (built-in collision)
+// AC-12: POST /roles:create with id="admin" (built-in collision)
 // returns 409 with error.code = "users.role_id_taken"; POST with unknown
 // permission returns 400 with error.code = "users.unknown_permission" and
 // detail.invalid_permissions listing them.
@@ -423,7 +423,7 @@ func TestUsers_CreateCustomRole_Conflicts(t *testing.T) {
 			"description": "would clash with built-in",
 			"permissions": []string{"host:read"},
 		}
-		req := asRole(t, "POST", url+"/api/v1/admin/roles:create", auth.RoleAdmin, body)
+		req := asRole(t, "POST", url+"/api/v1/roles:create", auth.RoleAdmin, body)
 		resp := doReq(t, req)
 		if resp.StatusCode != http.StatusConflict {
 			b, _ := io.ReadAll(resp.Body)
@@ -442,7 +442,7 @@ func TestUsers_CreateCustomRole_Conflicts(t *testing.T) {
 			"description": "grants a fictional permission",
 			"permissions": []string{"host:read", "doesnt:exist"},
 		}
-		req = asRole(t, "POST", url+"/api/v1/admin/roles:create", auth.RoleAdmin, body)
+		req = asRole(t, "POST", url+"/api/v1/roles:create", auth.RoleAdmin, body)
 		resp = doReq(t, req)
 		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusBadRequest {

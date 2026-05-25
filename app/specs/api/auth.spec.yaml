@@ -102,7 +102,7 @@ spec:
       priority: critical
       references_constraints: [C-04]
     - id: AC-10
-      description: GET /auth/me with a valid session cookie returns 200 with {id, username, email, role, is_admin}; GET /auth/me anonymous returns 401 with error.code = "auth.required".
+      description: GET /auth/me with a valid session cookie returns 200 with {id, username, email, role}; GET /auth/me anonymous returns 401 with error.code = "auth.required". Admin status is implicit in role == "admin"; no separate is_admin field is surfaced.
       priority: critical
       references_constraints: [C-06]
     - id: AC-11

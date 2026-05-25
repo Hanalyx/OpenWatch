@@ -234,7 +234,7 @@ func TestRuntimeBoot_LoginEndToEnd(t *testing.T) {
 			RefreshToken string `json:"refresh_token"`
 			User         struct {
 				Username string `json:"username"`
-				IsAdmin  bool   `json:"is_admin"`
+				Role     string `json:"role"`
 			} `json:"user"`
 		}
 		if err := json.Unmarshal(body, &loginResp); err != nil {
@@ -243,8 +243,8 @@ func TestRuntimeBoot_LoginEndToEnd(t *testing.T) {
 		if loginResp.AccessToken == "" {
 			t.Error("login returned empty access_token (jwt signing key not wired?)")
 		}
-		if loginResp.User.Username != adminUser || !loginResp.User.IsAdmin {
-			t.Errorf("login user = %+v, want %s/admin", loginResp.User, adminUser)
+		if loginResp.User.Username != adminUser || loginResp.User.Role != "admin" {
+			t.Errorf("login user = %+v, want username=%s role=admin", loginResp.User, adminUser)
 		}
 		var sessCookie *http.Cookie
 		for _, c := range resp.Cookies() {
@@ -265,7 +265,7 @@ func TestRuntimeBoot_LoginEndToEnd(t *testing.T) {
 			"environment": "staging",
 			"tags":        []string{"runtime-boot-test"},
 		})
-		req, _ = http.NewRequest("POST", base+"/api/v1/admin/hosts", bytes.NewReader(hostBody))
+		req, _ = http.NewRequest("POST", base+"/api/v1/hosts", bytes.NewReader(hostBody))
 		req.Header.Set("Content-Type", "application/json")
 		if sessCookie != nil {
 			req.AddCookie(sessCookie)

@@ -32,14 +32,17 @@ type authTestUser struct {
 	Password string
 }
 
-func seedAuthUser(t *testing.T, svc *users.Service, username string, isAdmin bool) authTestUser {
+// seedAuthUser creates a user. The adminPolicy flag selects which
+// password-strength policy is applied at creation; pass true when the
+// caller's test will assign the admin role to mirror production.
+func seedAuthUser(t *testing.T, svc *users.Service, username string, adminPolicy bool) authTestUser {
 	t.Helper()
 	pw := "test-passphrase-strong-zZ-" + username
 	u, err := svc.CreateUser(context.Background(), users.CreateParams{
-		Username: username,
-		Email:    username + "@example.com",
-		Password: pw,
-		IsAdmin:  isAdmin,
+		Username:    username,
+		Email:       username + "@example.com",
+		Password:    pw,
+		AdminPolicy: adminPolicy,
 	})
 	if err != nil {
 		t.Fatalf("seedAuthUser %s: %v", username, err)

@@ -72,16 +72,16 @@ spec:
       description: DoD-21 — GET /api/v1/auth/me with a real session cookie returns the user's username + primary role. Covered by api-auth AC-10.
       priority: critical
     - id: AC-04
-      description: DoD-22 — POST /api/v1/admin/users with admin caller and valid body creates a user; the response JSON does NOT contain password_hash. Covered by api-users AC-01.
+      description: DoD-22 — POST /api/v1/users with admin caller and valid body creates a user; the response JSON does NOT contain password_hash. Covered by api-users AC-01.
       priority: critical
     - id: AC-05
-      description: DoD-23 — POST /api/v1/admin/hosts with admin caller and a valid hostname + ip_address returns 201 with the host. Covered by api-hosts AC-01.
+      description: DoD-23 — POST /api/v1/hosts with admin caller and a valid hostname + ip_address returns 201 with the host. Covered by api-hosts AC-01.
       priority: critical
     - id: AC-06
-      description: DoD-24 — POST /api/v1/admin/credentials with admin caller creates a credential; the response body does NOT contain plaintext or ciphertext secret fields. Covered by api-credentials AC-01.
+      description: DoD-24 — POST /api/v1/credentials with admin caller creates a credential; the response body does NOT contain plaintext or ciphertext secret fields. Covered by api-credentials AC-01.
       priority: critical
     - id: AC-07
-      description: POST /api/v1/admin/hosts/{host_id}/credentials:resolve returns the resolved credential's metadata — host-scope wins, otherwise system default. Covered by api-credentials AC-10, AC-11.
+      description: POST /api/v1/hosts/{host_id}/credentials:resolve returns the resolved credential's metadata — host-scope wins, otherwise system default. Covered by api-credentials AC-10, AC-11.
       priority: critical
     - id: AC-08
       description: DoD-26 (OIDC/SAML) — explicitly deferred; no SSO endpoint ships in 0.2.0. The sso_saml license feature exists in the registry; the endpoint that returns 402 lands with the SSO implementation.

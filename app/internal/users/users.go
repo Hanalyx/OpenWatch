@@ -31,23 +31,31 @@ var (
 // intentionally NOT a field on this struct — spec C-01 says reads must
 // never return it. Use the lower-level repository if you need it for
 // password verification at login.
+//
+// Admin status is derived from user_roles (presence of the "admin"
+// role); no separate is_admin flag exists on the wire or the table.
+// Callers needing to render "is this user an admin?" should consult
+// RolesForUser or PrimaryRoleFor.
 type User struct {
 	ID                   uuid.UUID
 	Username             string
 	Email                string
-	IsAdmin              bool
 	LastPasswordChangeAt time.Time
 	CreatedAt            time.Time
 	UpdatedAt            time.Time
 }
 
 // CreateParams is the input to CreateUser. Plaintext password is hashed
-// and validated inside Create; never persists outside the hash.
+// and validated inside Create; never persists outside the hash. The
+// AdminPolicy flag selects which password-strength policy is applied
+// at creation; callers who know the user will hold the admin role set
+// it true (the create-admin CLI does this). Role assignment happens
+// separately via AssignRole.
 type CreateParams struct {
-	Username string
-	Email    string
-	Password string
-	IsAdmin  bool
+	Username    string
+	Email       string
+	Password    string
+	AdminPolicy bool // true → AdminPolicy at password validation; false → DefaultPolicy
 }
 
 // rolePrecedence is the "highest privilege wins" ordering for
@@ -79,7 +87,7 @@ func NewService(pool *pgxpool.Pool, corpus identity.BreachCorpus) *Service {
 // Spec AC-01, AC-02, AC-03.
 func (s *Service) CreateUser(ctx context.Context, p CreateParams) (User, error) {
 	policy := identity.DefaultPolicy()
-	if p.IsAdmin {
+	if p.AdminPolicy {
 		policy = identity.AdminPolicy()
 	}
 	if err := identity.ValidatePassword(p.Password, policy, s.corpus); err != nil {
@@ -96,12 +104,12 @@ func (s *Service) CreateUser(ctx context.Context, p CreateParams) (User, error) 
 		return User{}, fmt.Errorf("users: uuid: %w", err)
 	}
 	const stmt = `
-		INSERT INTO users (id, username, email, password_hash, is_admin)
-		VALUES ($1, $2, $3, $4, $5)
-		RETURNING id, username, email, is_admin, last_password_change_at, created_at, updated_at`
+		INSERT INTO users (id, username, email, password_hash)
+		VALUES ($1, $2, $3, $4)
+		RETURNING id, username, email, last_password_change_at, created_at, updated_at`
 	var u User
-	err = s.pool.QueryRow(ctx, stmt, id, p.Username, p.Email, hash, p.IsAdmin).Scan(
-		&u.ID, &u.Username, &u.Email, &u.IsAdmin,
+	err = s.pool.QueryRow(ctx, stmt, id, p.Username, p.Email, hash).Scan(
+		&u.ID, &u.Username, &u.Email,
 		&u.LastPasswordChangeAt, &u.CreatedAt, &u.UpdatedAt,
 	)
 	if err != nil {
@@ -116,7 +124,7 @@ func (s *Service) CreateUser(ctx context.Context, p CreateParams) (User, error) 
 // Spec AC-04.
 func (s *Service) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
 	const stmt = `
-		SELECT id, username, email, is_admin, last_password_change_at, created_at, updated_at
+		SELECT id, username, email, last_password_change_at, created_at, updated_at
 		FROM users
 		WHERE id = $1 AND deleted_at IS NULL`
 	return s.queryOne(ctx, stmt, id)
@@ -128,7 +136,7 @@ func (s *Service) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
 // Spec AC-05.
 func (s *Service) GetUserByUsername(ctx context.Context, username string) (User, error) {
 	const stmt = `
-		SELECT id, username, email, is_admin, last_password_change_at, created_at, updated_at
+		SELECT id, username, email, last_password_change_at, created_at, updated_at
 		FROM users
 		WHERE username = $1 AND deleted_at IS NULL`
 	return s.queryOne(ctx, stmt, username)
@@ -140,13 +148,13 @@ func (s *Service) GetUserByUsername(ctx context.Context, username string) (User,
 // returns the hash to the caller.
 func (s *Service) VerifyUserPassword(ctx context.Context, username, password string) (User, error) {
 	const stmt = `
-		SELECT id, username, email, is_admin, last_password_change_at, created_at, updated_at, password_hash
+		SELECT id, username, email, last_password_change_at, created_at, updated_at, password_hash
 		FROM users
 		WHERE username = $1 AND deleted_at IS NULL`
 	var u User
 	var hash string
 	err := s.pool.QueryRow(ctx, stmt, username).Scan(
-		&u.ID, &u.Username, &u.Email, &u.IsAdmin,
+		&u.ID, &u.Username, &u.Email,
 		&u.LastPasswordChangeAt, &u.CreatedAt, &u.UpdatedAt,
 		&hash,
 	)
@@ -165,15 +173,18 @@ func (s *Service) VerifyUserPassword(ctx context.Context, username, password str
 // UpdatePassword re-runs the policy validator and on success updates
 // password_hash + bumps last_password_change_at.
 //
+// Policy selection is derived from the user's primary role at change
+// time: admin role → AdminPolicy (15-char minimum), any other role
+// (or no role) → DefaultPolicy. Replaces the legacy users.is_admin
+// column which had drift-prone semantics.
+//
 // Spec AC-06.
 func (s *Service) UpdatePassword(ctx context.Context, id uuid.UUID, newPassword string) error {
-	// Resolve the policy from the user's is_admin flag.
-	u, err := s.GetUserByID(ctx, id)
-	if err != nil {
+	if _, err := s.GetUserByID(ctx, id); err != nil {
 		return err
 	}
 	policy := identity.DefaultPolicy()
-	if u.IsAdmin {
+	if role, err := s.PrimaryRoleFor(ctx, id); err == nil && role == auth.RoleAdmin {
 		policy = identity.AdminPolicy()
 	}
 	if err := identity.ValidatePassword(newPassword, policy, s.corpus); err != nil {
@@ -314,7 +325,7 @@ func (s *Service) RoleForUser(ctx context.Context, userID uuid.UUID) (auth.RoleI
 func (s *Service) queryOne(ctx context.Context, stmt string, arg any) (User, error) {
 	var u User
 	err := s.pool.QueryRow(ctx, stmt, arg).Scan(
-		&u.ID, &u.Username, &u.Email, &u.IsAdmin,
+		&u.ID, &u.Username, &u.Email,
 		&u.LastPasswordChangeAt, &u.CreatedAt, &u.UpdatedAt,
 	)
 	if err != nil {

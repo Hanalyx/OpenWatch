@@ -550,8 +550,8 @@ func (h *handlers) GetAuthPermissionsRegistry(w http.ResponseWriter, _ *http.Req
 	})
 }
 
-// GetAdminRoles returns the 5 built-in roles. Spec system-rbac AC-15.
-func (h *handlers) GetAdminRoles(w http.ResponseWriter, r *http.Request) {
+// GetRoles returns the 5 built-in roles. Spec system-rbac AC-15.
+func (h *handlers) GetRoles(w http.ResponseWriter, r *http.Request) {
 	if denied := auth.EnforcePermission(w, r, auth.RoleRead); denied {
 		return
 	}

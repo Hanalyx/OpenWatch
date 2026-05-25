@@ -12,6 +12,93 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [0.2.0-rc.3] Eyrie — 2026-05-25
+
+API hygiene pass driven by manual testing of the rc.2 surface. Three
+related cleanups that all surfaced from the same underlying issue —
+inconsistent naming between API paths/fields and the role/permission
+model behind them.
+
+### Added
+
+- `GET /api/v1/openapi.yaml` — serves the embedded OpenAPI 3 spec.
+- `GET /docs/` — Swagger UI mounted from the binary (assets embedded
+  via go:embed; no CDN dependency, air-gap clean).
+- New spec `api-openapi-docs` with 4 ACs pinning the spec/UI endpoints,
+  same-origin asset constraint, and byte-identical embed.
+- Build-time copy: `make build` now syncs `api/openapi.yaml` into
+  `internal/server/openapi_embed.yaml` (gitignored) before compiling.
+- Migration 0010 — drops the `users.is_admin` column.
+
+### Changed
+
+**Path rename: resource CRUD moves off `/admin/`.**
+
+The design doc (`docs/api_design_principles.md` §12.2) reserves the
+`/admin/` namespace for system operations (`POST /admin/operations:*`),
+not resource CRUD. Slice A inadvertently put resource endpoints under
+`/admin/` which read as a role gate but isn't — `host:read` for example
+is held by `viewer`. The rename collapses the disconnect:
+
+| Before | After |
+|---|---|
+| `/api/v1/admin/users` | `/api/v1/users` |
+| `/api/v1/admin/users/{id}` | `/api/v1/users/{id}` |
+| `/api/v1/admin/users/{id}/roles:{assign,unassign}` | `/api/v1/users/{id}/roles:{assign,unassign}` |
+| `/api/v1/admin/roles` | `/api/v1/roles` |
+| `/api/v1/admin/roles:create` | `/api/v1/roles:create` |
+| `/api/v1/admin/credentials*` | `/api/v1/credentials*` |
+| `/api/v1/admin/hosts*` | `/api/v1/hosts*` |
+
+Genuine operations stay where they belong:
+- `/api/v1/admin/license:verify` (unchanged)
+- `/api/v1/admin/policies:reload` (unchanged)
+
+`operationId`s renamed in parallel (`postAdminUsers` → `postUsers`,
+etc.) so the Swagger UI labels match.
+
+**`users.is_admin` removed entirely.**
+
+The column only ever drove password-policy selection but the API
+exposed it as if it were a permission marker. Manual testing showed
+the resulting drift case: unassigning the admin role left
+`users.is_admin = true` because the column and `user_roles` had
+independent lifecycles. The inverse case (assign admin role to a user
+created with `is_admin: false`) was also possible and represented a
+security gap (admin-tier user, default-tier password policy).
+
+Replacement: password policy now derives from one source. At creation,
+`CreateUser` takes an explicit `AdminPolicy` flag (the `create-admin`
+CLI sets it true; the HTTP `POST /users` does not). On password
+change, `UpdatePassword` looks up the user's primary role: admin role
+→ AdminPolicy (15-char minimum), other → DefaultPolicy. No second
+column to drift.
+
+Wire response changes:
+- `/auth/me` no longer carries `is_admin`. Admin status is implicit
+  in `role == "admin"`.
+- `/users/{id}` and `/users` response items no longer carry `is_admin`.
+- `POST /users` request body no longer accepts `is_admin`.
+
+### Fixed
+
+- Test fixture `freshAPIServer` no longer sets the obsolete `is_admin`
+  column when seeding role users.
+- `seedAuthUser` test helper renamed parameter `isAdmin` → `adminPolicy`
+  to reflect its actual effect.
+
+### Lessons captured
+
+Two API-design issues caught in two sessions of manual testing (the
+`/admin/*` prefix overload and the `is_admin` drift) — both
+semantic-conflation bugs that 100% per-spec coverage missed because
+each individual behavior was tested in isolation. The Slice B spec
+template will add a meta-AC pattern requiring that any wire field
+naming a permission/role/state declare whether it's the SSOT or
+documents how it stays in sync with the underlying data.
+
+---
+
 ## [0.2.0-rc.2] Eyrie — 2026-05-25
 
 Boot-wiring fixes for the admin surface. `rc.1` shipped a binary whose

@@ -141,11 +141,10 @@ func freshAPIServer(t *testing.T) (string, *pgxpool.Pool) {
 		uid, _ := uuid.NewV7()
 		username := "fixture-" + string(role)
 		_, err := pool.Exec(ctx,
-			`INSERT INTO users (id, username, email, password_hash, is_admin)
-			 VALUES ($1, $2, $3, $4, $5)`,
+			`INSERT INTO users (id, username, email, password_hash)
+			 VALUES ($1, $2, $3, $4)`,
 			uid, username, username+"@example.com",
 			"$argon2id$v=19$m=65536,t=3,p=1$00$00",
-			role == auth.RoleAdmin,
 		)
 		if err != nil {
 			t.Fatalf("seed user for role %s: %v", role, err)

@@ -17,9 +17,9 @@ import (
 	openapitypes "github.com/oapi-codegen/runtime/types"
 )
 
-// GetAdminUsers lists active users.
+// GetUsers lists active users.
 // Spec api-users AC-04, AC-05.
-func (h *handlers) GetAdminUsers(w http.ResponseWriter, r *http.Request) {
+func (h *handlers) GetUsers(w http.ResponseWriter, r *http.Request) {
 	if denied := auth.EnforcePermission(w, r, auth.UserRead); denied {
 		return
 	}
@@ -36,9 +36,9 @@ func (h *handlers) GetAdminUsers(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, api.UsersListResponse{Users: out})
 }
 
-// PostAdminUsers creates a user.
+// PostUsers creates a user.
 // Spec api-users AC-01, AC-02, AC-03.
-func (h *handlers) PostAdminUsers(w http.ResponseWriter, r *http.Request) {
+func (h *handlers) PostUsers(w http.ResponseWriter, r *http.Request) {
 	if denied := auth.EnforcePermission(w, r, auth.UserWrite); denied {
 		return
 	}
@@ -48,12 +48,12 @@ func (h *handlers) PostAdminUsers(w http.ResponseWriter, r *http.Request) {
 			"username, email, password required", false)
 		return
 	}
-	isAdmin := false
-	if req.IsAdmin != nil {
-		isAdmin = *req.IsAdmin
-	}
+	// API-created users get DefaultPolicy at creation. Promotion to admin
+	// happens via POST /users/{id}/roles:assign; that role assignment
+	// triggers AdminPolicy on the next password change. The create-admin
+	// CLI bootstraps the first admin and applies AdminPolicy directly.
 	u, err := h.users.CreateUser(r.Context(), users.CreateParams{
-		Username: req.Username, Email: req.Email, Password: req.Password, IsAdmin: isAdmin,
+		Username: req.Username, Email: req.Email, Password: req.Password,
 	})
 	if err != nil {
 		switch {
@@ -75,9 +75,9 @@ func (h *handlers) PostAdminUsers(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, userResponse(u))
 }
 
-// GetAdminUserByID fetches a user.
+// GetUserByID fetches a user.
 // Spec api-users AC-06.
-func (h *handlers) GetAdminUserByID(w http.ResponseWriter, r *http.Request, id openapitypes.UUID) {
+func (h *handlers) GetUserByID(w http.ResponseWriter, r *http.Request, id openapitypes.UUID) {
 	if denied := auth.EnforcePermission(w, r, auth.UserRead); denied {
 		return
 	}
@@ -95,9 +95,9 @@ func (h *handlers) GetAdminUserByID(w http.ResponseWriter, r *http.Request, id o
 	writeJSON(w, http.StatusOK, userResponse(u))
 }
 
-// DeleteAdminUserByID soft-deletes a user.
+// DeleteUserByID soft-deletes a user.
 // Spec api-users AC-07.
-func (h *handlers) DeleteAdminUserByID(w http.ResponseWriter, r *http.Request, id openapitypes.UUID) {
+func (h *handlers) DeleteUserByID(w http.ResponseWriter, r *http.Request, id openapitypes.UUID) {
 	if denied := auth.EnforcePermission(w, r, auth.UserDelete); denied {
 		return
 	}
@@ -115,9 +115,9 @@ func (h *handlers) DeleteAdminUserByID(w http.ResponseWriter, r *http.Request, i
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// PostAdminUserRolesAssign attaches a role.
+// PostUserRolesAssign attaches a role.
 // Spec api-users AC-08, AC-09.
-func (h *handlers) PostAdminUserRolesAssign(w http.ResponseWriter, r *http.Request, id openapitypes.UUID) {
+func (h *handlers) PostUserRolesAssign(w http.ResponseWriter, r *http.Request, id openapitypes.UUID) {
 	if denied := auth.EnforcePermission(w, r, auth.RoleAssign); denied {
 		return
 	}
@@ -143,9 +143,9 @@ func (h *handlers) PostAdminUserRolesAssign(w http.ResponseWriter, r *http.Reque
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// PostAdminUserRolesUnassign removes a role.
+// PostUserRolesUnassign removes a role.
 // Spec api-users AC-10.
-func (h *handlers) PostAdminUserRolesUnassign(w http.ResponseWriter, r *http.Request, id openapitypes.UUID) {
+func (h *handlers) PostUserRolesUnassign(w http.ResponseWriter, r *http.Request, id openapitypes.UUID) {
 	if denied := auth.EnforcePermission(w, r, auth.RoleAssign); denied {
 		return
 	}
@@ -164,9 +164,9 @@ func (h *handlers) PostAdminUserRolesUnassign(w http.ResponseWriter, r *http.Req
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// PostAdminRolesCreate creates a custom role.
+// PostRolesCreate creates a custom role.
 // Spec api-users AC-11, AC-12, C-03, C-04.
-func (h *handlers) PostAdminRolesCreate(w http.ResponseWriter, r *http.Request) {
+func (h *handlers) PostRolesCreate(w http.ResponseWriter, r *http.Request) {
 	if denied := auth.EnforcePermission(w, r, auth.RoleWrite); denied {
 		return
 	}
@@ -230,13 +230,14 @@ func (h *handlers) identityUUID(r *http.Request) *uuid.UUID {
 	return &u
 }
 
-// userResponse maps users.User into the wire shape.
+// userResponse maps users.User into the wire shape. Admin status is
+// inferred from the user's role assignments at the call site; this
+// struct intentionally carries no is_admin flag.
 func userResponse(u users.User) api.UserResponse {
 	return api.UserResponse{
 		Id:                   openapitypes.UUID(u.ID),
 		Username:             u.Username,
 		Email:                u.Email,
-		IsAdmin:              u.IsAdmin,
 		LastPasswordChangeAt: &u.LastPasswordChangeAt,
 		CreatedAt:            &u.CreatedAt,
 		UpdatedAt:            &u.UpdatedAt,

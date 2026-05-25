@@ -44,7 +44,7 @@ LDFLAGS_FIPS := -ldflags "\
 # -----------------------------------------------------------------------------
 
 .PHONY: build
-build: $(DIST_DIR)
+build: $(DIST_DIR) internal/server/openapi_embed.yaml
 	go build $(LDFLAGS) -o $(DIST_DIR)/$(BINARY) $(CMD_DIR)
 	@echo "built $(DIST_DIR)/$(BINARY) ($(VERSION) / $(COMMIT))"
 
@@ -135,6 +135,13 @@ generate-api:
 	fi
 	$(HOME)/go/bin/oapi-codegen --config api/oapi-codegen.yaml api/openapi.yaml
 	@echo "generated internal/server/api/server.gen.go"
+
+# The OpenAPI spec is also embedded into the binary so the /api/v1/openapi.yaml
+# and /docs routes can serve it air-gap-clean. go:embed cannot follow paths
+# outside the package directory, so we keep a build-time copy under
+# internal/server/. The copy is gitignored; rebuilt by `make build`.
+internal/server/openapi_embed.yaml: api/openapi.yaml
+	cp $< $@
 
 # -----------------------------------------------------------------------------
 # Database migrations (Day 3)

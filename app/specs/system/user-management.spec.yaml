@@ -42,7 +42,7 @@ spec:
       type: security
       enforcement: error
     - id: C-02
-      description: CreateUser MUST hash the password via identity.HashPassword and validate against the registered policy (admin policy for is_admin=true, default policy otherwise)
+      description: CreateUser MUST hash the password via identity.HashPassword and validate against the registered policy (admin policy when CreateParams.AdminPolicy=true, default policy otherwise). UpdatePassword derives the policy from the user's primary role (admin role → AdminPolicy).
       type: security
       enforcement: error
     - id: C-03
@@ -72,7 +72,7 @@ spec:
       priority: critical
       references_constraints: [C-02]
     - id: AC-03
-      description: CreateUser with is_admin=true applies the admin policy (15-char minimum) instead of the default (8-char).
+      description: CreateUser with CreateParams.AdminPolicy=true applies the admin policy (15-char minimum) instead of the default (8-char). UpdatePassword for a user holding the admin role applies the same admin policy on password change.
       priority: critical
       references_constraints: [C-02]
     - id: AC-04

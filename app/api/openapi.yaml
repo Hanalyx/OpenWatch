@@ -407,9 +407,9 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/PermissionsRegistryResponse'}
 
-  /api/v1/admin/users:
+  /api/v1/users:
     get:
-      operationId: getAdminUsers
+      operationId: getUsers
       summary: List users
       x-required-permission: user:read
       responses:
@@ -424,7 +424,7 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
     post:
-      operationId: postAdminUsers
+      operationId: postUsers
       summary: Create a user
       x-required-permission: user:write
       requestBody:
@@ -449,9 +449,9 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
 
-  /api/v1/admin/users/{id}:
+  /api/v1/users/{id}:
     get:
-      operationId: getAdminUserByID
+      operationId: getUserByID
       summary: Fetch a user
       x-required-permission: user:read
       parameters:
@@ -468,7 +468,7 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
     delete:
-      operationId: deleteAdminUserByID
+      operationId: deleteUserByID
       summary: Soft-delete a user
       x-required-permission: user:delete
       parameters:
@@ -482,9 +482,9 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
 
-  /api/v1/admin/users/{id}/roles:assign:
+  /api/v1/users/{id}/roles:assign:
     post:
-      operationId: postAdminUserRolesAssign
+      operationId: postUserRolesAssign
       summary: Assign a role to a user
       x-required-permission: role:assign
       parameters:
@@ -503,9 +503,9 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
 
-  /api/v1/admin/users/{id}/roles:unassign:
+  /api/v1/users/{id}/roles:unassign:
     post:
-      operationId: postAdminUserRolesUnassign
+      operationId: postUserRolesUnassign
       summary: Remove a role from a user
       x-required-permission: role:assign
       parameters:
@@ -519,9 +519,9 @@ paths:
         '204':
           description: Role removed (idempotent)
 
-  /api/v1/admin/roles:create:
+  /api/v1/roles:create:
     post:
-      operationId: postAdminRolesCreate
+      operationId: postRolesCreate
       summary: Create a custom role
       x-required-permission: role:write
       requestBody:
@@ -546,9 +546,9 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
 
-  /api/v1/admin/roles:
+  /api/v1/roles:
     get:
-      operationId: getAdminRoles
+      operationId: getRoles
       summary: List built-in roles
       x-required-permission: role:read
       responses:
@@ -563,9 +563,9 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
 
-  /api/v1/admin/credentials:
+  /api/v1/credentials:
     get:
-      operationId: getAdminCredentials
+      operationId: getCredentials
       summary: List credentials (metadata only)
       x-required-permission: credential:read
       responses:
@@ -580,7 +580,7 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
     post:
-      operationId: postAdminCredentials
+      operationId: postCredentials
       summary: Create a credential
       x-required-permission: credential:write
       requestBody:
@@ -605,9 +605,9 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
 
-  /api/v1/admin/credentials/{id}:
+  /api/v1/credentials/{id}:
     get:
-      operationId: getAdminCredentialByID
+      operationId: getCredentialByID
       summary: Fetch a credential's metadata
       x-required-permission: credential:read
       parameters:
@@ -624,7 +624,7 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
     delete:
-      operationId: deleteAdminCredentialByID
+      operationId: deleteCredentialByID
       summary: Soft-delete a credential
       x-required-permission: credential:delete
       parameters:
@@ -638,9 +638,9 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
 
-  /api/v1/admin/hosts:
+  /api/v1/hosts:
     get:
-      operationId: getAdminHosts
+      operationId: getHosts
       summary: List hosts
       x-required-permission: host:read
       parameters:
@@ -658,7 +658,7 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
     post:
-      operationId: postAdminHosts
+      operationId: postHosts
       summary: Create a host
       x-required-permission: host:write
       requestBody:
@@ -683,9 +683,9 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
 
-  /api/v1/admin/hosts/{id}:
+  /api/v1/hosts/{id}:
     get:
-      operationId: getAdminHostByID
+      operationId: getHostByID
       summary: Fetch a host
       x-required-permission: host:read
       parameters:
@@ -702,7 +702,7 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
     patch:
-      operationId: patchAdminHostByID
+      operationId: patchHostByID
       summary: Update mutable host fields
       x-required-permission: host:write
       parameters:
@@ -729,7 +729,7 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
     delete:
-      operationId: deleteAdminHostByID
+      operationId: deleteHostByID
       summary: Soft-delete a host
       x-required-permission: host:delete
       parameters:
@@ -743,9 +743,9 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
 
-  /api/v1/admin/hosts/{host_id}/credentials:resolve:
+  /api/v1/hosts/{host_id}/credentials:resolve:
     post:
-      operationId: postAdminHostCredentialsResolve
+      operationId: postHostCredentialsResolve
       summary: Resolve the credential that will be used for a host
       x-required-permission: credential:read
       parameters:
@@ -836,13 +836,12 @@ components:
 
     AuthMeResponse:
       type: object
-      required: [id, username, email, role, is_admin]
+      required: [id, username, email, role]
       properties:
         id:       {type: string, format: uuid}
         username: {type: string}
         email:    {type: string}
         role:     {type: string}
-        is_admin: {type: boolean}
 
     AuthMFAEnrollResponse:
       type: object
@@ -865,12 +864,11 @@ components:
 
     UserResponse:
       type: object
-      required: [id, username, email, is_admin]
+      required: [id, username, email]
       properties:
         id:                       {type: string, format: uuid}
         username:                 {type: string}
         email:                    {type: string}
-        is_admin:                 {type: boolean}
         last_password_change_at:  {type: string, format: date-time}
         created_at:               {type: string, format: date-time}
         updated_at:               {type: string, format: date-time}
@@ -890,7 +888,6 @@ components:
         username: {type: string, minLength: 1, maxLength: 256}
         email:    {type: string, minLength: 3, maxLength: 256}
         password: {type: string, minLength: 8, maxLength: 256}
-        is_admin: {type: boolean}
 
     UserRoleAssignRequest:
       type: object

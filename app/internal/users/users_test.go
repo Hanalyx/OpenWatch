@@ -110,21 +110,23 @@ func TestCreateUser_PolicyErrors(t *testing.T) {
 }
 
 // @ac AC-03
-// AC-03: is_admin=true triggers the 15-char minimum; 14 chars rejected,
-// 15 chars accepted.
+// AC-03: AdminPolicy=true triggers the 15-char minimum; 14 chars rejected,
+// 15 chars accepted. Replaces the legacy is_admin flag which has been
+// removed from the table; callers now opt into AdminPolicy explicitly
+// at creation time.
 func TestCreateUser_AdminPolicy(t *testing.T) {
 	t.Run("system-user-management/AC-03", func(t *testing.T) {
 		svc, _ := freshService(t, nil)
 		_, err := svc.CreateUser(context.Background(), CreateParams{
 			Username: "admin14", Email: "a14@example.com",
-			Password: "aaaaaaaaaaaaaa", IsAdmin: true, // 14 chars
+			Password: "aaaaaaaaaaaaaa", AdminPolicy: true, // 14 chars
 		})
 		if !errors.Is(err, identity.ErrPasswordTooShort) {
 			t.Errorf("14-char admin password err = %v, want ErrPasswordTooShort", err)
 		}
 		_, err = svc.CreateUser(context.Background(), CreateParams{
 			Username: "admin15", Email: "a15@example.com",
-			Password: "aaaaaaaaaaaaaaa", IsAdmin: true, // 15 chars
+			Password: "aaaaaaaaaaaaaaa", AdminPolicy: true, // 15 chars
 		})
 		if err != nil {
 			t.Errorf("15-char admin password rejected: %v", err)

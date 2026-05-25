@@ -245,10 +245,10 @@ func TestAPI_RBAC_GetPermissionsRegistry(t *testing.T) {
 // @ac AC-15
 // AC-15: GET /admin/roles returns the 5 built-in roles. Caller must hold
 // role:read; viewer role does, so we use it.
-func TestAPI_RBAC_GetAdminRoles(t *testing.T) {
+func TestAPI_RBAC_GetRoles(t *testing.T) {
 	t.Run("system-rbac/AC-15", func(t *testing.T) {
 		url, _ := freshAPIServer(t)
-		req, _ := http.NewRequest("GET", url+"/api/v1/admin/roles", nil)
+		req, _ := http.NewRequest("GET", url+"/api/v1/roles", nil)
 		req.AddCookie(roleCookies[auth.RoleViewer])
 		resp := doReq(t, req)
 		defer resp.Body.Close()
@@ -286,7 +286,7 @@ func TestAPI_RBAC_GetAdminRoles(t *testing.T) {
 func TestAPI_RBAC_AdminRolesDeniesAnonymous(t *testing.T) {
 	t.Run("system-rbac/AC-15/anon", func(t *testing.T) {
 		url, _ := freshAPIServer(t)
-		resp := doGet(t, url+"/api/v1/admin/roles")
+		resp := doGet(t, url+"/api/v1/roles")
 		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusForbidden {
 			t.Errorf("status = %d, want 403 (no role)", resp.StatusCode)

@@ -50,7 +50,9 @@ func New(cfg *config.Config, pool *pgxpool.Pool) *Server {
 
 	// Identity binder. Reads session cookie or Bearer JWT, translates to
 	// auth.Identity via the users.Service Lookups adapter. Sets a
-	// non-anonymous Identity on success. Per app/specs/system/auth-identity.spec.yaml AC-17.
+	// non-anonymous Identity on success (anonymous if not). Does NOT
+	// reject on its own — that's the handler's job via EnforcePermission.
+	// Per app/specs/system/auth-identity.spec.yaml AC-17.
 	usrSvc := users.NewService(pool, nil)
 	r.Use(identity.Binder(pool, usrSvc))
 
@@ -80,6 +82,13 @@ func New(cfg *config.Config, pool *pgxpool.Pool) *Server {
 	apiHandlers := newHandlers(pool)
 	api.HandlerFromMux(apiHandlers, r)
 	_ = license.PremiumDiagnostics // ensure import is exercised
+
+	// OpenAPI spec + Swagger UI. The handlers do not call
+	// EnforcePermission, so they remain reachable for anonymous
+	// callers — reviewers in air-gapped environments can browse the
+	// docs without first bootstrapping an admin.
+	// Spec: app/specs/api/openapi-docs.spec.yaml.
+	mountOpenAPIDocs(r)
 
 	cm := newCertManager(cfg.Server.TLSCert, cfg.Server.TLSKey)
 

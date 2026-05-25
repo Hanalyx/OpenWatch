@@ -256,7 +256,6 @@ type AuthMePermissionsResponse struct {
 type AuthMeResponse struct {
 	Email    string             `json:"email"`
 	Id       openapi_types.UUID `json:"id"`
-	IsAdmin  bool               `json:"is_admin"`
 	Role     string             `json:"role"`
 	Username string             `json:"username"`
 }
@@ -513,7 +512,6 @@ type RoleEntry struct {
 // UserCreateRequest defines model for UserCreateRequest.
 type UserCreateRequest struct {
 	Email    string `json:"email"`
-	IsAdmin  *bool  `json:"is_admin,omitempty"`
 	Password string `json:"password"`
 	Username string `json:"username"`
 }
@@ -523,7 +521,6 @@ type UserResponse struct {
 	CreatedAt            *time.Time         `json:"created_at,omitempty"`
 	Email                string             `json:"email"`
 	Id                   openapi_types.UUID `json:"id"`
-	IsAdmin              bool               `json:"is_admin"`
 	LastPasswordChangeAt *time.Time         `json:"last_password_change_at,omitempty"`
 	UpdatedAt            *time.Time         `json:"updated_at,omitempty"`
 	Username             string             `json:"username"`
@@ -544,12 +541,6 @@ type BadRequest = ErrorEnvelope
 
 // MethodNotAllowed defines model for MethodNotAllowed.
 type MethodNotAllowed = ErrorEnvelope
-
-// GetAdminHostsParams defines parameters for GetAdminHosts.
-type GetAdminHostsParams struct {
-	Environment *string `form:"environment,omitempty" json:"environment,omitempty"`
-	Tag         *string `form:"tag,omitempty" json:"tag,omitempty"`
-}
 
 // GetAuditEventsParams defines parameters for GetAuditEvents.
 type GetAuditEventsParams struct {
@@ -588,29 +579,14 @@ type PostDiagnosticsRequireRemediationExecuteParams struct {
 	IdempotencyKey string `json:"Idempotency-Key"`
 }
 
-// PostAdminCredentialsJSONRequestBody defines body for PostAdminCredentials for application/json ContentType.
-type PostAdminCredentialsJSONRequestBody = CredentialCreateRequest
-
-// PostAdminHostsJSONRequestBody defines body for PostAdminHosts for application/json ContentType.
-type PostAdminHostsJSONRequestBody = HostCreateRequest
-
-// PatchAdminHostByIDJSONRequestBody defines body for PatchAdminHostByID for application/json ContentType.
-type PatchAdminHostByIDJSONRequestBody = HostUpdateRequest
+// GetHostsParams defines parameters for GetHosts.
+type GetHostsParams struct {
+	Environment *string `form:"environment,omitempty" json:"environment,omitempty"`
+	Tag         *string `form:"tag,omitempty" json:"tag,omitempty"`
+}
 
 // PostAdminLicenseVerifyJSONRequestBody defines body for PostAdminLicenseVerify for application/json ContentType.
 type PostAdminLicenseVerifyJSONRequestBody = LicenseVerifyRequest
-
-// PostAdminRolesCreateJSONRequestBody defines body for PostAdminRolesCreate for application/json ContentType.
-type PostAdminRolesCreateJSONRequestBody = CustomRoleCreateRequest
-
-// PostAdminUsersJSONRequestBody defines body for PostAdminUsers for application/json ContentType.
-type PostAdminUsersJSONRequestBody = UserCreateRequest
-
-// PostAdminUserRolesAssignJSONRequestBody defines body for PostAdminUserRolesAssign for application/json ContentType.
-type PostAdminUserRolesAssignJSONRequestBody = UserRoleAssignRequest
-
-// PostAdminUserRolesUnassignJSONRequestBody defines body for PostAdminUserRolesUnassign for application/json ContentType.
-type PostAdminUserRolesUnassignJSONRequestBody = UserRoleAssignRequest
 
 // PostAuthLoginJSONRequestBody defines body for PostAuthLogin for application/json ContentType.
 type PostAuthLoginJSONRequestBody = AuthLoginRequest
@@ -623,6 +599,9 @@ type PostAuthPasswordChangeJSONRequestBody = AuthPasswordChangeRequest
 
 // PostAuthRefreshJSONRequestBody defines body for PostAuthRefresh for application/json ContentType.
 type PostAuthRefreshJSONRequestBody = AuthRefreshRequest
+
+// PostCredentialsJSONRequestBody defines body for PostCredentials for application/json ContentType.
+type PostCredentialsJSONRequestBody = CredentialCreateRequest
 
 // PostDiagnosticsEchoJSONRequestBody defines body for PostDiagnosticsEcho for application/json ContentType.
 type PostDiagnosticsEchoJSONRequestBody = EchoRequest
@@ -642,68 +621,32 @@ type PostDiagnosticsRequireHostWriteJSONRequestBody = EchoRequest
 // PostDiagnosticsRequireRemediationExecuteJSONRequestBody defines body for PostDiagnosticsRequireRemediationExecute for application/json ContentType.
 type PostDiagnosticsRequireRemediationExecuteJSONRequestBody = EchoRequest
 
+// PostHostsJSONRequestBody defines body for PostHosts for application/json ContentType.
+type PostHostsJSONRequestBody = HostCreateRequest
+
+// PatchHostByIDJSONRequestBody defines body for PatchHostByID for application/json ContentType.
+type PatchHostByIDJSONRequestBody = HostUpdateRequest
+
+// PostRolesCreateJSONRequestBody defines body for PostRolesCreate for application/json ContentType.
+type PostRolesCreateJSONRequestBody = CustomRoleCreateRequest
+
+// PostUsersJSONRequestBody defines body for PostUsers for application/json ContentType.
+type PostUsersJSONRequestBody = UserCreateRequest
+
+// PostUserRolesAssignJSONRequestBody defines body for PostUserRolesAssign for application/json ContentType.
+type PostUserRolesAssignJSONRequestBody = UserRoleAssignRequest
+
+// PostUserRolesUnassignJSONRequestBody defines body for PostUserRolesUnassign for application/json ContentType.
+type PostUserRolesUnassignJSONRequestBody = UserRoleAssignRequest
+
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
-	// List credentials (metadata only)
-	// (GET /api/v1/admin/credentials)
-	GetAdminCredentials(w http.ResponseWriter, r *http.Request)
-	// Create a credential
-	// (POST /api/v1/admin/credentials)
-	PostAdminCredentials(w http.ResponseWriter, r *http.Request)
-	// Soft-delete a credential
-	// (DELETE /api/v1/admin/credentials/{id})
-	DeleteAdminCredentialByID(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
-	// Fetch a credential's metadata
-	// (GET /api/v1/admin/credentials/{id})
-	GetAdminCredentialByID(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
-	// List hosts
-	// (GET /api/v1/admin/hosts)
-	GetAdminHosts(w http.ResponseWriter, r *http.Request, params GetAdminHostsParams)
-	// Create a host
-	// (POST /api/v1/admin/hosts)
-	PostAdminHosts(w http.ResponseWriter, r *http.Request)
-	// Resolve the credential that will be used for a host
-	// (POST /api/v1/admin/hosts/{host_id}/credentials:resolve)
-	PostAdminHostCredentialsResolve(w http.ResponseWriter, r *http.Request, hostId openapi_types.UUID)
-	// Soft-delete a host
-	// (DELETE /api/v1/admin/hosts/{id})
-	DeleteAdminHostByID(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
-	// Fetch a host
-	// (GET /api/v1/admin/hosts/{id})
-	GetAdminHostByID(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
-	// Update mutable host fields
-	// (PATCH /api/v1/admin/hosts/{id})
-	PatchAdminHostByID(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
 	// Dry-run validate a JWT license without installing it
 	// (POST /api/v1/admin/license:verify)
 	PostAdminLicenseVerify(w http.ResponseWriter, r *http.Request)
 	// Reload signed policy files from the configured directory
 	// (POST /api/v1/admin/policies:reload)
 	PostAdminPoliciesReload(w http.ResponseWriter, r *http.Request)
-	// List built-in roles
-	// (GET /api/v1/admin/roles)
-	GetAdminRoles(w http.ResponseWriter, r *http.Request)
-	// Create a custom role
-	// (POST /api/v1/admin/roles:create)
-	PostAdminRolesCreate(w http.ResponseWriter, r *http.Request)
-	// List users
-	// (GET /api/v1/admin/users)
-	GetAdminUsers(w http.ResponseWriter, r *http.Request)
-	// Create a user
-	// (POST /api/v1/admin/users)
-	PostAdminUsers(w http.ResponseWriter, r *http.Request)
-	// Soft-delete a user
-	// (DELETE /api/v1/admin/users/{id})
-	DeleteAdminUserByID(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
-	// Fetch a user
-	// (GET /api/v1/admin/users/{id})
-	GetAdminUserByID(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
-	// Assign a role to a user
-	// (POST /api/v1/admin/users/{id}/roles:assign)
-	PostAdminUserRolesAssign(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
-	// Remove a role from a user
-	// (POST /api/v1/admin/users/{id}/roles:unassign)
-	PostAdminUserRolesUnassign(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
 	// List audit events (cursor-paginated, newest first)
 	// (GET /api/v1/audit/events)
 	GetAuditEvents(w http.ResponseWriter, r *http.Request, params GetAuditEventsParams)
@@ -734,6 +677,18 @@ type ServerInterface interface {
 	// Rotate the refresh token; mint a new access+refresh pair
 	// (POST /api/v1/auth/refresh)
 	PostAuthRefresh(w http.ResponseWriter, r *http.Request)
+	// List credentials (metadata only)
+	// (GET /api/v1/credentials)
+	GetCredentials(w http.ResponseWriter, r *http.Request)
+	// Create a credential
+	// (POST /api/v1/credentials)
+	PostCredentials(w http.ResponseWriter, r *http.Request)
+	// Soft-delete a credential
+	// (DELETE /api/v1/credentials/{id})
+	DeleteCredentialByID(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+	// Fetch a credential's metadata
+	// (GET /api/v1/credentials/{id})
+	GetCredentialByID(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
 	// Echo the request message; exercises idempotency + audit
 	// (POST /api/v1/diagnostics:echo)
 	PostDiagnosticsEcho(w http.ResponseWriter, r *http.Request, params PostDiagnosticsEchoParams)
@@ -758,74 +713,56 @@ type ServerInterface interface {
 	// Liveness + readiness probe (anonymous)
 	// (GET /api/v1/health)
 	GetHealth(w http.ResponseWriter, r *http.Request)
+	// List hosts
+	// (GET /api/v1/hosts)
+	GetHosts(w http.ResponseWriter, r *http.Request, params GetHostsParams)
+	// Create a host
+	// (POST /api/v1/hosts)
+	PostHosts(w http.ResponseWriter, r *http.Request)
+	// Resolve the credential that will be used for a host
+	// (POST /api/v1/hosts/{host_id}/credentials:resolve)
+	PostHostCredentialsResolve(w http.ResponseWriter, r *http.Request, hostId openapi_types.UUID)
+	// Soft-delete a host
+	// (DELETE /api/v1/hosts/{id})
+	DeleteHostByID(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+	// Fetch a host
+	// (GET /api/v1/hosts/{id})
+	GetHostByID(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+	// Update mutable host fields
+	// (PATCH /api/v1/hosts/{id})
+	PatchHostByID(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
 	// Get the current license state (tier, features, quotas, status)
 	// (GET /api/v1/license)
 	GetLicense(w http.ResponseWriter, r *http.Request)
+	// List built-in roles
+	// (GET /api/v1/roles)
+	GetRoles(w http.ResponseWriter, r *http.Request)
+	// Create a custom role
+	// (POST /api/v1/roles:create)
+	PostRolesCreate(w http.ResponseWriter, r *http.Request)
+	// List users
+	// (GET /api/v1/users)
+	GetUsers(w http.ResponseWriter, r *http.Request)
+	// Create a user
+	// (POST /api/v1/users)
+	PostUsers(w http.ResponseWriter, r *http.Request)
+	// Soft-delete a user
+	// (DELETE /api/v1/users/{id})
+	DeleteUserByID(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+	// Fetch a user
+	// (GET /api/v1/users/{id})
+	GetUserByID(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+	// Assign a role to a user
+	// (POST /api/v1/users/{id}/roles:assign)
+	PostUserRolesAssign(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+	// Remove a role from a user
+	// (POST /api/v1/users/{id}/roles:unassign)
+	PostUserRolesUnassign(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
 }
 
 // Unimplemented server implementation that returns http.StatusNotImplemented for each endpoint.
 
 type Unimplemented struct{}
-
-// List credentials (metadata only)
-// (GET /api/v1/admin/credentials)
-func (_ Unimplemented) GetAdminCredentials(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// Create a credential
-// (POST /api/v1/admin/credentials)
-func (_ Unimplemented) PostAdminCredentials(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// Soft-delete a credential
-// (DELETE /api/v1/admin/credentials/{id})
-func (_ Unimplemented) DeleteAdminCredentialByID(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// Fetch a credential's metadata
-// (GET /api/v1/admin/credentials/{id})
-func (_ Unimplemented) GetAdminCredentialByID(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// List hosts
-// (GET /api/v1/admin/hosts)
-func (_ Unimplemented) GetAdminHosts(w http.ResponseWriter, r *http.Request, params GetAdminHostsParams) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// Create a host
-// (POST /api/v1/admin/hosts)
-func (_ Unimplemented) PostAdminHosts(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// Resolve the credential that will be used for a host
-// (POST /api/v1/admin/hosts/{host_id}/credentials:resolve)
-func (_ Unimplemented) PostAdminHostCredentialsResolve(w http.ResponseWriter, r *http.Request, hostId openapi_types.UUID) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// Soft-delete a host
-// (DELETE /api/v1/admin/hosts/{id})
-func (_ Unimplemented) DeleteAdminHostByID(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// Fetch a host
-// (GET /api/v1/admin/hosts/{id})
-func (_ Unimplemented) GetAdminHostByID(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// Update mutable host fields
-// (PATCH /api/v1/admin/hosts/{id})
-func (_ Unimplemented) PatchAdminHostByID(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
 
 // Dry-run validate a JWT license without installing it
 // (POST /api/v1/admin/license:verify)
@@ -836,54 +773,6 @@ func (_ Unimplemented) PostAdminLicenseVerify(w http.ResponseWriter, r *http.Req
 // Reload signed policy files from the configured directory
 // (POST /api/v1/admin/policies:reload)
 func (_ Unimplemented) PostAdminPoliciesReload(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// List built-in roles
-// (GET /api/v1/admin/roles)
-func (_ Unimplemented) GetAdminRoles(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// Create a custom role
-// (POST /api/v1/admin/roles:create)
-func (_ Unimplemented) PostAdminRolesCreate(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// List users
-// (GET /api/v1/admin/users)
-func (_ Unimplemented) GetAdminUsers(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// Create a user
-// (POST /api/v1/admin/users)
-func (_ Unimplemented) PostAdminUsers(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// Soft-delete a user
-// (DELETE /api/v1/admin/users/{id})
-func (_ Unimplemented) DeleteAdminUserByID(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// Fetch a user
-// (GET /api/v1/admin/users/{id})
-func (_ Unimplemented) GetAdminUserByID(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// Assign a role to a user
-// (POST /api/v1/admin/users/{id}/roles:assign)
-func (_ Unimplemented) PostAdminUserRolesAssign(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// Remove a role from a user
-// (POST /api/v1/admin/users/{id}/roles:unassign)
-func (_ Unimplemented) PostAdminUserRolesUnassign(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -947,6 +836,30 @@ func (_ Unimplemented) PostAuthRefresh(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// List credentials (metadata only)
+// (GET /api/v1/credentials)
+func (_ Unimplemented) GetCredentials(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Create a credential
+// (POST /api/v1/credentials)
+func (_ Unimplemented) PostCredentials(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Soft-delete a credential
+// (DELETE /api/v1/credentials/{id})
+func (_ Unimplemented) DeleteCredentialByID(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Fetch a credential's metadata
+// (GET /api/v1/credentials/{id})
+func (_ Unimplemented) GetCredentialByID(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // Echo the request message; exercises idempotency + audit
 // (POST /api/v1/diagnostics:echo)
 func (_ Unimplemented) PostDiagnosticsEcho(w http.ResponseWriter, r *http.Request, params PostDiagnosticsEchoParams) {
@@ -995,9 +908,93 @@ func (_ Unimplemented) GetHealth(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// List hosts
+// (GET /api/v1/hosts)
+func (_ Unimplemented) GetHosts(w http.ResponseWriter, r *http.Request, params GetHostsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Create a host
+// (POST /api/v1/hosts)
+func (_ Unimplemented) PostHosts(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Resolve the credential that will be used for a host
+// (POST /api/v1/hosts/{host_id}/credentials:resolve)
+func (_ Unimplemented) PostHostCredentialsResolve(w http.ResponseWriter, r *http.Request, hostId openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Soft-delete a host
+// (DELETE /api/v1/hosts/{id})
+func (_ Unimplemented) DeleteHostByID(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Fetch a host
+// (GET /api/v1/hosts/{id})
+func (_ Unimplemented) GetHostByID(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Update mutable host fields
+// (PATCH /api/v1/hosts/{id})
+func (_ Unimplemented) PatchHostByID(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // Get the current license state (tier, features, quotas, status)
 // (GET /api/v1/license)
 func (_ Unimplemented) GetLicense(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// List built-in roles
+// (GET /api/v1/roles)
+func (_ Unimplemented) GetRoles(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Create a custom role
+// (POST /api/v1/roles:create)
+func (_ Unimplemented) PostRolesCreate(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// List users
+// (GET /api/v1/users)
+func (_ Unimplemented) GetUsers(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Create a user
+// (POST /api/v1/users)
+func (_ Unimplemented) PostUsers(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Soft-delete a user
+// (DELETE /api/v1/users/{id})
+func (_ Unimplemented) DeleteUserByID(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Fetch a user
+// (GET /api/v1/users/{id})
+func (_ Unimplemented) GetUserByID(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Assign a role to a user
+// (POST /api/v1/users/{id}/roles:assign)
+func (_ Unimplemented) PostUserRolesAssign(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Remove a role from a user
+// (POST /api/v1/users/{id}/roles:unassign)
+func (_ Unimplemented) PostUserRolesUnassign(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -1009,250 +1006,6 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(http.Handler) http.Handler
-
-// GetAdminCredentials operation middleware
-func (siw *ServerInterfaceWrapper) GetAdminCredentials(w http.ResponseWriter, r *http.Request) {
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetAdminCredentials(w, r)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// PostAdminCredentials operation middleware
-func (siw *ServerInterfaceWrapper) PostAdminCredentials(w http.ResponseWriter, r *http.Request) {
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.PostAdminCredentials(w, r)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// DeleteAdminCredentialByID operation middleware
-func (siw *ServerInterfaceWrapper) DeleteAdminCredentialByID(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "id" -------------
-	var id openapi_types.UUID
-
-	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
-		return
-	}
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.DeleteAdminCredentialByID(w, r, id)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// GetAdminCredentialByID operation middleware
-func (siw *ServerInterfaceWrapper) GetAdminCredentialByID(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "id" -------------
-	var id openapi_types.UUID
-
-	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
-		return
-	}
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetAdminCredentialByID(w, r, id)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// GetAdminHosts operation middleware
-func (siw *ServerInterfaceWrapper) GetAdminHosts(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-	_ = err
-
-	// Parameter object where we will unmarshal all parameters from the context
-	var params GetAdminHostsParams
-
-	// ------------- Optional query parameter "environment" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "environment", r.URL.Query(), &params.Environment, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
-	if err != nil {
-		var requiredError *runtime.RequiredParameterError
-		if errors.As(err, &requiredError) {
-			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "environment"})
-		} else {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "environment", Err: err})
-		}
-		return
-	}
-
-	// ------------- Optional query parameter "tag" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "tag", r.URL.Query(), &params.Tag, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
-	if err != nil {
-		var requiredError *runtime.RequiredParameterError
-		if errors.As(err, &requiredError) {
-			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "tag"})
-		} else {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "tag", Err: err})
-		}
-		return
-	}
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetAdminHosts(w, r, params)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// PostAdminHosts operation middleware
-func (siw *ServerInterfaceWrapper) PostAdminHosts(w http.ResponseWriter, r *http.Request) {
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.PostAdminHosts(w, r)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// PostAdminHostCredentialsResolve operation middleware
-func (siw *ServerInterfaceWrapper) PostAdminHostCredentialsResolve(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "host_id" -------------
-	var hostId openapi_types.UUID
-
-	err = runtime.BindStyledParameterWithOptions("simple", "host_id", chi.URLParam(r, "host_id"), &hostId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "host_id", Err: err})
-		return
-	}
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.PostAdminHostCredentialsResolve(w, r, hostId)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// DeleteAdminHostByID operation middleware
-func (siw *ServerInterfaceWrapper) DeleteAdminHostByID(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "id" -------------
-	var id openapi_types.UUID
-
-	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
-		return
-	}
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.DeleteAdminHostByID(w, r, id)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// GetAdminHostByID operation middleware
-func (siw *ServerInterfaceWrapper) GetAdminHostByID(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "id" -------------
-	var id openapi_types.UUID
-
-	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
-		return
-	}
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetAdminHostByID(w, r, id)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// PatchAdminHostByID operation middleware
-func (siw *ServerInterfaceWrapper) PatchAdminHostByID(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "id" -------------
-	var id openapi_types.UUID
-
-	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
-		return
-	}
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.PatchAdminHostByID(w, r, id)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
 
 // PostAdminLicenseVerify operation middleware
 func (siw *ServerInterfaceWrapper) PostAdminLicenseVerify(w http.ResponseWriter, r *http.Request) {
@@ -1273,166 +1026,6 @@ func (siw *ServerInterfaceWrapper) PostAdminPoliciesReload(w http.ResponseWriter
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.PostAdminPoliciesReload(w, r)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// GetAdminRoles operation middleware
-func (siw *ServerInterfaceWrapper) GetAdminRoles(w http.ResponseWriter, r *http.Request) {
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetAdminRoles(w, r)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// PostAdminRolesCreate operation middleware
-func (siw *ServerInterfaceWrapper) PostAdminRolesCreate(w http.ResponseWriter, r *http.Request) {
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.PostAdminRolesCreate(w, r)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// GetAdminUsers operation middleware
-func (siw *ServerInterfaceWrapper) GetAdminUsers(w http.ResponseWriter, r *http.Request) {
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetAdminUsers(w, r)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// PostAdminUsers operation middleware
-func (siw *ServerInterfaceWrapper) PostAdminUsers(w http.ResponseWriter, r *http.Request) {
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.PostAdminUsers(w, r)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// DeleteAdminUserByID operation middleware
-func (siw *ServerInterfaceWrapper) DeleteAdminUserByID(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "id" -------------
-	var id openapi_types.UUID
-
-	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
-		return
-	}
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.DeleteAdminUserByID(w, r, id)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// GetAdminUserByID operation middleware
-func (siw *ServerInterfaceWrapper) GetAdminUserByID(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "id" -------------
-	var id openapi_types.UUID
-
-	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
-		return
-	}
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetAdminUserByID(w, r, id)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// PostAdminUserRolesAssign operation middleware
-func (siw *ServerInterfaceWrapper) PostAdminUserRolesAssign(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "id" -------------
-	var id openapi_types.UUID
-
-	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
-		return
-	}
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.PostAdminUserRolesAssign(w, r, id)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// PostAdminUserRolesUnassign operation middleware
-func (siw *ServerInterfaceWrapper) PostAdminUserRolesUnassign(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "id" -------------
-	var id openapi_types.UUID
-
-	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
-		return
-	}
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.PostAdminUserRolesUnassign(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1670,6 +1263,86 @@ func (siw *ServerInterfaceWrapper) PostAuthRefresh(w http.ResponseWriter, r *htt
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.PostAuthRefresh(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetCredentials operation middleware
+func (siw *ServerInterfaceWrapper) GetCredentials(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetCredentials(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostCredentials operation middleware
+func (siw *ServerInterfaceWrapper) PostCredentials(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostCredentials(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteCredentialByID operation middleware
+func (siw *ServerInterfaceWrapper) DeleteCredentialByID(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteCredentialByID(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetCredentialByID operation middleware
+func (siw *ServerInterfaceWrapper) GetCredentialByID(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetCredentialByID(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1965,11 +1638,335 @@ func (siw *ServerInterfaceWrapper) GetHealth(w http.ResponseWriter, r *http.Requ
 	handler.ServeHTTP(w, r)
 }
 
+// GetHosts operation middleware
+func (siw *ServerInterfaceWrapper) GetHosts(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetHostsParams
+
+	// ------------- Optional query parameter "environment" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "environment", r.URL.Query(), &params.Environment, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "environment"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "environment", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "tag" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "tag", r.URL.Query(), &params.Tag, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "tag"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "tag", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetHosts(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostHosts operation middleware
+func (siw *ServerInterfaceWrapper) PostHosts(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostHosts(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostHostCredentialsResolve operation middleware
+func (siw *ServerInterfaceWrapper) PostHostCredentialsResolve(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "host_id" -------------
+	var hostId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "host_id", chi.URLParam(r, "host_id"), &hostId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "host_id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostHostCredentialsResolve(w, r, hostId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteHostByID operation middleware
+func (siw *ServerInterfaceWrapper) DeleteHostByID(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteHostByID(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetHostByID operation middleware
+func (siw *ServerInterfaceWrapper) GetHostByID(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetHostByID(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PatchHostByID operation middleware
+func (siw *ServerInterfaceWrapper) PatchHostByID(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PatchHostByID(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetLicense operation middleware
 func (siw *ServerInterfaceWrapper) GetLicense(w http.ResponseWriter, r *http.Request) {
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetLicense(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetRoles operation middleware
+func (siw *ServerInterfaceWrapper) GetRoles(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetRoles(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostRolesCreate operation middleware
+func (siw *ServerInterfaceWrapper) PostRolesCreate(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostRolesCreate(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetUsers operation middleware
+func (siw *ServerInterfaceWrapper) GetUsers(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetUsers(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostUsers operation middleware
+func (siw *ServerInterfaceWrapper) PostUsers(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostUsers(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteUserByID operation middleware
+func (siw *ServerInterfaceWrapper) DeleteUserByID(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteUserByID(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetUserByID operation middleware
+func (siw *ServerInterfaceWrapper) GetUserByID(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetUserByID(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostUserRolesAssign operation middleware
+func (siw *ServerInterfaceWrapper) PostUserRolesAssign(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostUserRolesAssign(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostUserRolesUnassign operation middleware
+func (siw *ServerInterfaceWrapper) PostUserRolesUnassign(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostUserRolesUnassign(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -2093,64 +2090,10 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	}
 
 	r.Group(func(r chi.Router) {
-		r.Get(options.BaseURL+"/api/v1/admin/credentials", wrapper.GetAdminCredentials)
-	})
-	r.Group(func(r chi.Router) {
-		r.Post(options.BaseURL+"/api/v1/admin/credentials", wrapper.PostAdminCredentials)
-	})
-	r.Group(func(r chi.Router) {
-		r.Delete(options.BaseURL+"/api/v1/admin/credentials/{id}", wrapper.DeleteAdminCredentialByID)
-	})
-	r.Group(func(r chi.Router) {
-		r.Get(options.BaseURL+"/api/v1/admin/credentials/{id}", wrapper.GetAdminCredentialByID)
-	})
-	r.Group(func(r chi.Router) {
-		r.Get(options.BaseURL+"/api/v1/admin/hosts", wrapper.GetAdminHosts)
-	})
-	r.Group(func(r chi.Router) {
-		r.Post(options.BaseURL+"/api/v1/admin/hosts", wrapper.PostAdminHosts)
-	})
-	r.Group(func(r chi.Router) {
-		r.Post(options.BaseURL+"/api/v1/admin/hosts/{host_id}/credentials:resolve", wrapper.PostAdminHostCredentialsResolve)
-	})
-	r.Group(func(r chi.Router) {
-		r.Delete(options.BaseURL+"/api/v1/admin/hosts/{id}", wrapper.DeleteAdminHostByID)
-	})
-	r.Group(func(r chi.Router) {
-		r.Get(options.BaseURL+"/api/v1/admin/hosts/{id}", wrapper.GetAdminHostByID)
-	})
-	r.Group(func(r chi.Router) {
-		r.Patch(options.BaseURL+"/api/v1/admin/hosts/{id}", wrapper.PatchAdminHostByID)
-	})
-	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/api/v1/admin/license:verify", wrapper.PostAdminLicenseVerify)
 	})
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/api/v1/admin/policies:reload", wrapper.PostAdminPoliciesReload)
-	})
-	r.Group(func(r chi.Router) {
-		r.Get(options.BaseURL+"/api/v1/admin/roles", wrapper.GetAdminRoles)
-	})
-	r.Group(func(r chi.Router) {
-		r.Post(options.BaseURL+"/api/v1/admin/roles:create", wrapper.PostAdminRolesCreate)
-	})
-	r.Group(func(r chi.Router) {
-		r.Get(options.BaseURL+"/api/v1/admin/users", wrapper.GetAdminUsers)
-	})
-	r.Group(func(r chi.Router) {
-		r.Post(options.BaseURL+"/api/v1/admin/users", wrapper.PostAdminUsers)
-	})
-	r.Group(func(r chi.Router) {
-		r.Delete(options.BaseURL+"/api/v1/admin/users/{id}", wrapper.DeleteAdminUserByID)
-	})
-	r.Group(func(r chi.Router) {
-		r.Get(options.BaseURL+"/api/v1/admin/users/{id}", wrapper.GetAdminUserByID)
-	})
-	r.Group(func(r chi.Router) {
-		r.Post(options.BaseURL+"/api/v1/admin/users/{id}/roles:assign", wrapper.PostAdminUserRolesAssign)
-	})
-	r.Group(func(r chi.Router) {
-		r.Post(options.BaseURL+"/api/v1/admin/users/{id}/roles:unassign", wrapper.PostAdminUserRolesUnassign)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/audit/events", wrapper.GetAuditEvents)
@@ -2183,6 +2126,18 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Post(options.BaseURL+"/api/v1/auth/refresh", wrapper.PostAuthRefresh)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/credentials", wrapper.GetCredentials)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/credentials", wrapper.PostCredentials)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/api/v1/credentials/{id}", wrapper.DeleteCredentialByID)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/credentials/{id}", wrapper.GetCredentialByID)
+	})
+	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/api/v1/diagnostics:echo", wrapper.PostDiagnosticsEcho)
 	})
 	r.Group(func(r chi.Router) {
@@ -2207,7 +2162,49 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/api/v1/health", wrapper.GetHealth)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/hosts", wrapper.GetHosts)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/hosts", wrapper.PostHosts)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/hosts/{host_id}/credentials:resolve", wrapper.PostHostCredentialsResolve)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/api/v1/hosts/{id}", wrapper.DeleteHostByID)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/hosts/{id}", wrapper.GetHostByID)
+	})
+	r.Group(func(r chi.Router) {
+		r.Patch(options.BaseURL+"/api/v1/hosts/{id}", wrapper.PatchHostByID)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/license", wrapper.GetLicense)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/roles", wrapper.GetRoles)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/roles:create", wrapper.PostRolesCreate)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/users", wrapper.GetUsers)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/users", wrapper.PostUsers)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/api/v1/users/{id}", wrapper.DeleteUserByID)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/users/{id}", wrapper.GetUserByID)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/users/{id}/roles:assign", wrapper.PostUserRolesAssign)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/users/{id}/roles:unassign", wrapper.PostUserRolesUnassign)
 	})
 
 	return r
@@ -2218,85 +2215,85 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
-	"Etx9vPv/AAAA//8=",
+	"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",
+	"RLXQWY6/PH78KLj5ePP/AQAA//8=",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,
