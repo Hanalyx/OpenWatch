@@ -107,6 +107,9 @@ var envOverrides = []envOverride{
 
 	{"OPENWATCH_LOGGING_LEVEL", func(c *Config, v string) error { c.Logging.Level = v; return nil }},
 	{"OPENWATCH_LOGGING_FORMAT", func(c *Config, v string) error { c.Logging.Format = v; return nil }},
+
+	{"OPENWATCH_IDENTITY_JWT_PRIVATE_KEY", func(c *Config, v string) error { c.Identity.JWTPrivateKey = v; return nil }},
+	{"OPENWATCH_IDENTITY_CREDENTIAL_KEY_FILE", func(c *Config, v string) error { c.Identity.CredentialKeyFile = v; return nil }},
 }
 
 // applyEnv consults each registered env-var; the lookup returns ok=false for

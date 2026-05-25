@@ -104,3 +104,7 @@ spec:
       description: The previously-shipped X-Stub-Role / X-Stub-User-Id identity bypass is removed entirely from the production binary — no exported symbol in internal/auth, no middleware mount in server.go, no test-only header path. Tests authenticate via real session cookies minted by IssueSession against a per-role seeded user in the fixture. Covered by system-rbac AC-12 (negative source-inspection invariant).
       priority: critical
       references_constraints: [C-02]
+    - id: AC-14
+      description: The actual openwatch binary boots with the JWT signing key and credential DEK loaded from the configured paths, applies migrations, accepts the `create-admin` bootstrap subcommand, and serves /auth/login → 200 with a real access_token and openwatch_session cookie. Tested end-to-end by TestRuntimeBoot_LoginEndToEnd in packaging/tests/runtime_boot_test.go, which exercises the dist/openwatch binary against a real Postgres. Pins the negative invariant — running `serve` with an empty OPENWATCH_IDENTITY_JWT_PRIVATE_KEY MUST fail at boot (no silent fallback to ephemeral keys).
+      priority: critical
+      references_constraints: [C-02]

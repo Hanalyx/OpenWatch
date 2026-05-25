@@ -22,6 +22,23 @@ type Config struct {
 	Server   ServerConfig   `toml:"server"`
 	Database DatabaseConfig `toml:"database"`
 	Logging  LoggingConfig  `toml:"logging"`
+	Identity IdentityConfig `toml:"identity"`
+}
+
+// IdentityConfig holds paths to the at-rest cryptographic material the
+// auth + credential surfaces need at boot. Both fields are required for
+// any endpoint that issues JWTs (POST /auth/login) or encrypts secrets
+// (POST /auth/mfa:enroll, POST /admin/credentials). Empty paths cause
+// `openwatch serve` to fail with an explicit error — there is no silent
+// fallback to ephemeral keys in production.
+type IdentityConfig struct {
+	// JWTPrivateKey points at a PEM-encoded RSA private key (PKCS#1 or
+	// PKCS#8), >= 2048 bits. Mode 0600. Used to sign access + refresh
+	// tokens.
+	JWTPrivateKey string `toml:"jwt_private_key"`
+	// CredentialKeyFile points at a 32-byte raw-binary AES-256 key.
+	// Mode 0600. Encrypts MFA secrets and stored SSH credentials.
+	CredentialKeyFile string `toml:"credential_key_file"`
 }
 
 // ServerConfig governs the HTTPS listener.
@@ -60,6 +77,10 @@ func Defaults() *Config {
 			Level:  "info",
 			Format: "json",
 		},
+		Identity: IdentityConfig{
+			JWTPrivateKey:     "/etc/openwatch/keys/jwt_private.pem",
+			CredentialKeyFile: "/etc/openwatch/keys/credential.key",
+		},
 	}
 }
 
@@ -80,6 +101,9 @@ func (c *Config) Summary() string {
 	b.WriteString("\n[logging]\n")
 	fmt.Fprintf(&b, "  level  = %s\n", c.Logging.Level)
 	fmt.Fprintf(&b, "  format = %s\n", c.Logging.Format)
+	b.WriteString("\n[identity]\n")
+	fmt.Fprintf(&b, "  jwt_private_key     = %s\n", c.Identity.JWTPrivateKey)
+	fmt.Fprintf(&b, "  credential_key_file = %s\n", c.Identity.CredentialKeyFile)
 	return b.String()
 }
 

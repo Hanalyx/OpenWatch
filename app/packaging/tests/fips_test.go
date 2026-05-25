@@ -136,7 +136,9 @@ func TestFIPS_TLSHandshakeAndHealth(t *testing.T) {
 		bin := fipsBinary(t)
 		dir := appDir(t)
 
-		// Generate a self-signed cert pair in a temp dir.
+		// Generate a self-signed cert pair + identity keys in a temp dir.
+		// The identity keys (JWT signing + credential DEK) are required
+		// for the binary to boot now — see release-admin-signoff AC-14.
 		certDir := t.TempDir()
 		if err := runShell(t, dir, "bash", []string{
 			filepath.Join("packaging", "common", "gen-demo-cert.sh"),
@@ -144,6 +146,10 @@ func TestFIPS_TLSHandshakeAndHealth(t *testing.T) {
 		}); err != nil {
 			t.Fatalf("gen-demo-cert.sh: %v", err)
 		}
+		jwtKey := filepath.Join(certDir, "jwt_private.pem")
+		dek := filepath.Join(certDir, "credential.key")
+		genJWTKey(t, jwtKey)
+		genDEK(t, dek)
 
 		port := pickFreePortStr(t)
 		// Launch the FIPS binary with an env-driven config. --listen is a
@@ -156,6 +162,8 @@ func TestFIPS_TLSHandshakeAndHealth(t *testing.T) {
 			"OPENWATCH_DATABASE_DSN="+dsn,
 			"OPENWATCH_SERVER_TLS_CERT="+filepath.Join(certDir, "cert.pem"),
 			"OPENWATCH_SERVER_TLS_KEY="+filepath.Join(certDir, "key.pem"),
+			"OPENWATCH_IDENTITY_JWT_PRIVATE_KEY="+jwtKey,
+			"OPENWATCH_IDENTITY_CREDENTIAL_KEY_FILE="+dek,
 			"OPENWATCH_LOGGING_LEVEL=warn",
 		)
 		stderr := &bytes.Buffer{}

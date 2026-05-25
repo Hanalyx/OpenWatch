@@ -26,9 +26,12 @@ import (
 	"github.com/Hanalyx/openwatch/internal/correlation"
 	"github.com/Hanalyx/openwatch/internal/db"
 	"github.com/Hanalyx/openwatch/internal/db/migrations"
+	"github.com/Hanalyx/openwatch/internal/identity"
 	"github.com/Hanalyx/openwatch/internal/license"
 	openlog "github.com/Hanalyx/openwatch/internal/log"
+	"github.com/Hanalyx/openwatch/internal/secretkey"
 	"github.com/Hanalyx/openwatch/internal/server"
+	"github.com/Hanalyx/openwatch/internal/users"
 	"github.com/Hanalyx/openwatch/internal/version"
 )
 
@@ -97,6 +100,8 @@ func run(args []string, stdout, stderr *os.File) int {
 		return cmdMigrate(cfg, rest, stdout, stderr)
 	case "check-config":
 		return cmdCheckConfig(cfg, rest, stdout, stderr)
+	case "create-admin":
+		return cmdCreateAdmin(cfg, rest, stdout, stderr)
 	default:
 		fmt.Fprintf(stderr, "openwatch: unknown subcommand %q\n\n", subcommand)
 		printUsage(stderr)
@@ -140,6 +145,35 @@ func cmdServe(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 		return 1
 	}
 	defer pool.Close()
+
+	// Load the JWT signing key. Required for /auth/login and refresh-token
+	// rotation. There is no silent fallback to ephemeral — a binary with
+	// no signing key would 500 every login.
+	if cfg.Identity.JWTPrivateKey == "" {
+		slog.ErrorContext(bootCtx, "identity.jwt_private_key is empty",
+			slog.String("hint", "set [identity].jwt_private_key in the TOML file or OPENWATCH_IDENTITY_JWT_PRIVATE_KEY env"))
+		return 1
+	}
+	if err := identity.LoadJWTKey(cfg.Identity.JWTPrivateKey); err != nil {
+		slog.ErrorContext(bootCtx, "load jwt key failed",
+			slog.String("path", cfg.Identity.JWTPrivateKey),
+			slog.String("error", err.Error()))
+		return 1
+	}
+
+	// Load the credential DEK. Required for MFA secret encryption and
+	// stored SSH credential encryption.
+	if cfg.Identity.CredentialKeyFile == "" {
+		slog.ErrorContext(bootCtx, "identity.credential_key_file is empty",
+			slog.String("hint", "set [identity].credential_key_file in the TOML file or OPENWATCH_IDENTITY_CREDENTIAL_KEY_FILE env"))
+		return 1
+	}
+	if err := secretkey.LoadFromFile(cfg.Identity.CredentialKeyFile); err != nil {
+		slog.ErrorContext(bootCtx, "load credential key failed",
+			slog.String("path", cfg.Identity.CredentialKeyFile),
+			slog.String("error", err.Error()))
+		return 1
+	}
 
 	// Init audit (writer goroutine starts; package becomes ready to emit).
 	audit.Init(audit.NewStore(pool), audit.DefaultWriterOptions())
@@ -292,6 +326,82 @@ func cmdMigrate(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 	return 0
 }
 
+// cmdCreateAdmin creates the first admin user from the CLI. Closes the
+// chicken-and-egg gap: the API requires an admin to create users, so
+// the very first user must be inserted out-of-band. Idempotency:
+// re-running with an existing username fails fast — no silent
+// promotion of an existing user to admin.
+//
+// Usage: openwatch create-admin --username NAME --email EMAIL [--password PW]
+// If --password is omitted, reads the password from stdin (no echo
+// when stdin is a TTY; piped input is accepted for automation).
+func cmdCreateAdmin(cfg *config.Config, args []string, stdout, stderr *os.File) int {
+	fs := flag.NewFlagSet("create-admin", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	username := fs.String("username", "", "admin username (required)")
+	email := fs.String("email", "", "admin email (required)")
+	password := fs.String("password", "", "admin password (read from stdin if omitted)")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if *username == "" || *email == "" {
+		fmt.Fprintln(stderr, "openwatch create-admin: --username and --email are required")
+		return 2
+	}
+	pw := *password
+	if pw == "" {
+		// Read one line from stdin (no echo handling — operators run
+		// this from automation more often than interactively).
+		var line string
+		_, err := fmt.Fscanln(os.Stdin, &line)
+		if err != nil {
+			fmt.Fprintf(stderr, "openwatch create-admin: read password from stdin: %v\n", err)
+			return 1
+		}
+		pw = line
+	}
+	if pw == "" {
+		fmt.Fprintln(stderr, "openwatch create-admin: password is empty")
+		return 1
+	}
+
+	if err := cfg.Validate(); err != nil {
+		fmt.Fprintf(stderr, "openwatch create-admin: invalid config:\n%v\n", err)
+		return 1
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	pool, err := db.NewPool(ctx, cfg.Database.DSN, cfg.Database.MaxConnections)
+	if err != nil {
+		fmt.Fprintf(stderr, "openwatch create-admin: connect %s: %v\n",
+			config.RedactDSN(cfg.Database.DSN), err)
+		return 1
+	}
+	defer pool.Close()
+
+	svc := users.NewService(pool, nil)
+	u, err := svc.CreateUser(ctx, users.CreateParams{
+		Username: *username,
+		Email:    *email,
+		Password: pw,
+		IsAdmin:  true,
+	})
+	if err != nil {
+		fmt.Fprintf(stderr, "openwatch create-admin: %v\n", err)
+		return 1
+	}
+	if err := svc.AssignRole(ctx, u.ID, "admin", nil); err != nil {
+		fmt.Fprintf(stderr, "openwatch create-admin: assign admin role: %v\n", err)
+		// User was created but role wasn't — surface both states.
+		return 1
+	}
+	fmt.Fprintf(stdout, "created admin user %s (%s) with id=%s\n",
+		u.Username, u.Email, u.ID)
+	return 0
+}
+
 // cmdCheckConfig prints the resolved configuration (secrets redacted) and
 // runs validation. Exit 0 = valid; exit 1 = invalid.
 func cmdCheckConfig(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
@@ -321,9 +431,10 @@ usage:
   openwatch [global flags] <subcommand> [subcommand args]
 
 subcommands:
-  serve         run the HTTPS API server (default)        [Day 4]
-  migrate       apply pending goose migrations             [Day 3]
-  check-config  validate and print resolved config         [Day 2]
+  serve         run the HTTPS API server (default)
+  migrate       apply pending goose migrations
+  create-admin  create the first admin user (requires --username --email --password)
+  check-config  validate and print resolved config
 
 global flags:
   --config <path>       TOML config file (default %s)

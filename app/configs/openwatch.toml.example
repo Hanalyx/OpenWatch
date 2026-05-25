@@ -21,3 +21,14 @@ max_connections = 25
 [logging]
 level  = "info"     # debug | info | warn | error
 format = "json"     # json | text
+
+[identity]
+# RSA private key (PEM, PKCS#1 or PKCS#8, >= 2048 bits, mode 0600).
+# Signs access + refresh tokens. Required — `serve` fails to boot
+# without it.
+jwt_private_key = "/etc/openwatch/keys/jwt_private.pem"
+
+# AES-256 raw-binary key (32 bytes, mode 0600). Encrypts MFA secrets
+# and stored SSH credentials. Required — `serve` fails to boot without
+# it.
+credential_key_file = "/etc/openwatch/keys/credential.key"

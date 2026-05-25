@@ -12,7 +12,52 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
-## [0.2.0-rc.1] Eyrie — 2026-05-25
+## [0.2.0-rc.2] Eyrie — 2026-05-25
+
+Boot-wiring fixes for the admin surface. `rc.1` shipped a binary whose
+JWT signing key and credential DEK were never loaded at boot, so every
+`/auth/login` returned 500 and every credential / MFA action failed. The
+tests passed because fixtures installed ephemeral keys directly; the
+binary's `main.go` did not.
+
+### Added
+
+- `[identity]` config section with `jwt_private_key` and
+  `credential_key_file` paths. Both are required for `openwatch serve` —
+  no silent fallback to ephemeral keys.
+- Env-var overrides: `OPENWATCH_IDENTITY_JWT_PRIVATE_KEY`,
+  `OPENWATCH_IDENTITY_CREDENTIAL_KEY_FILE`.
+- `openwatch create-admin --username --email --password` subcommand.
+  Closes the chicken-and-egg in the bootstrap flow (`/admin/users`
+  requires an existing admin).
+- `release-admin-signoff` AC-14 + `TestRuntimeBoot_LoginEndToEnd` in
+  `packaging/tests/runtime_boot_test.go`. Spawns the actual
+  `dist/openwatch` binary against a real Postgres and exercises
+  migrate → create-admin → serve → login → POST host. Catches the
+  "tests pass but binary broken" class of bug that produced `rc.1`.
+
+### Fixed
+
+- `cmd/openwatch/main.go` now calls `identity.LoadJWTKey()` and
+  `secretkey.LoadFromFile()` at boot. Missing or unreadable keys fail
+  the server with an explicit error instead of allowing the binary to
+  serve traffic that 500s on the first login.
+
+### Security note
+
+The `rc.1` regression was not a security issue (`/auth/login` 500-ed
+rather than admitted attackers) but it was a release-blocking
+correctness gap that 100% spec coverage missed. The new AC-14 binds
+sign-off to the artifact, not just the unit tests.
+
+---
+
+## [0.2.0-rc.1] Eyrie — 2026-05-25 (yanked)
+
+Tagged locally, never pushed. Superseded by 0.2.0-rc.2 — `cmd/openwatch/main.go`
+did not load the JWT signing key or credential DEK at boot, so login
+returned 500 against the actual binary. See 0.2.0-rc.2 entry for the
+fix. Original deliverable details preserved below for traceability.
 
 Release-candidate sign-off for real identity, user CRUD, host inventory,
 credential store, the SSH dial layer, and the four admin HTTP surfaces
