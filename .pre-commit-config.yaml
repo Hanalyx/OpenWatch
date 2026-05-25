@@ -39,7 +39,13 @@ repos:
             app/internal/identity/jwt\.go|
             app/internal/ssh/dial\.go|
             app/internal/license/testdata/.*|
-            app/internal/policy/testdata/.*
+            app/internal/policy/testdata/.*|
+            app/internal/credential/credential_test\.go|
+            app/internal/ssh/ssh_test\.go|
+            app/internal/server/tls_test\.go|
+            app/internal/server/server_test\.go|
+            app/internal/server/api_credentials_test\.go|
+            app/packaging/tests/runtime_boot_test\.go
           )$
       - id: mixed-line-ending
         args: ['--fix=lf']
