@@ -1,13 +1,35 @@
 spec: evidence-signing
-version: "1.0"
+version: "2.0"
 status: active
 owner: engineering
 summary: >
-  Workstream F1: Cryptographic signing of evidence envelopes using Ed25519 keys.
-  SigningService signs transaction evidence envelopes, producing SignedBundle
-  objects that can be independently verified. Signing keys are stored encrypted
-  at rest and support rotation without breaking verification of previously
-  signed bundles. Public keys are exposed via API for external verifiers.
+  Ed25519 signing for OpenWatch-originated aggregate artifacts (cross-host
+  audit exports, quarterly posture reports, State-of-Production releases).
+  Per-transaction evidence envelope signing moved to Kensa on 2026-04-14 —
+  see context below. SigningService signs aggregate artifacts, producing
+  SignedBundle objects that external auditors can independently verify.
+  Signing keys are stored encrypted at rest and support rotation without
+  breaking verification of previously signed bundles.
+
+# Context for the v2.0 scope narrow
+context:
+  scope_narrow_rationale: |
+    Per KENSA_GO_DAY1_PLAN.md §8.2 and the Kensa↔OpenWatch coordination
+    (docs/KENSA_OPENWATCH_COORDINATION_2026-04-14.md §3.2; Kensa response
+    §2.2), per-transaction evidence envelope signing moved to Kensa —
+    where the evidence originates. OpenWatch signing now covers only
+    aggregate artifacts OpenWatch itself produces.
+  trust_layer_boundary: |
+    Kensa signs: per-transaction evidence envelope at capture/execute time.
+      Attests: "This execution happened on this host at this time."
+    OpenWatch signs: aggregate audit exports, quarterly posture reports,
+      State-of-Production releases.
+      Attests: "OpenWatch aggregated this data from N hosts and produced
+      this artifact."
+  kensa_convergence: |
+    OpenWatch audit UIs verify per-transaction envelopes via
+    kensa.api.Kensa.VerifyEnvelope() starting at Kensa Week 22
+    (KENSA_GO_DAY1_PLAN.md §3.5.4).
 
 acceptance_criteria:
   - id: AC-1
@@ -17,34 +39,63 @@ acceptance_criteria:
 
   - id: AC-2
     description: >
-      SigningService.sign_envelope(envelope) returns a SignedBundle with
-      Ed25519 signature.
+      SigningService.sign_envelope(envelope) signs OpenWatch-originated
+      aggregate artifacts (audit exports, quarterly reports). Returns a
+      SignedBundle with Ed25519 signature.
 
   - id: AC-3
     description: >
-      SigningService.verify(bundle) validates signature against public key.
+      SigningService.verify(bundle) validates the signature of an
+      OpenWatch-originated signed bundle against the public key.
 
   - id: AC-4
     description: >
-      Key rotation: new key becomes active, old keys remain verifiable.
+      Key rotation: new key becomes active, old keys remain verifiable
+      so historical aggregate artifacts remain checkable.
 
   - id: AC-5
     description: >
-      GET /api/signing/public-keys returns all active and retired public keys.
+      GET /api/signing/public-keys returns all active and retired public
+      keys for external auditors verifying OpenWatch-originated bundles.
 
   - id: AC-6
     description: >
-      POST /api/transactions/{id}/sign signs a transaction's evidence envelope.
+      POST /api/signing/verify accepts an OpenWatch-signed bundle and
+      returns valid/invalid. Unauthenticated — external auditors do not
+      need OpenWatch credentials.
 
   - id: AC-7
     description: >
-      POST /api/signing/verify accepts a signed bundle and returns valid/invalid.
+      Signing keys are encrypted at rest via EncryptionService. Production
+      deploys that misconfigure EncryptionService hard-fail at
+      generate_key/sign_envelope unless OPENWATCH_SIGNING_DEV_MODE=true
+      (per SEC-SIGN-01 remediation in docs/SIGNING_SECURITY_REVIEW_2026-04-14.md).
 
   - id: AC-8
     description: >
-      Signing keys are encrypted at rest via EncryptionService.
+      Aggregate artifact callers (audit_export._generate_json) that invoke
+      signing write signed_bundle=null + signing_error to the produced
+      artifact on signing failure so the unsigned state is
+      machine-detectable (per SEC-SIGN-03 remediation).
+
+  - id: AC-9
+    description: >
+      Per-transaction signing is NOT in scope. Source inspection confirms
+      routes/signing/routes.py does not register a
+      POST /api/transactions/{id}/sign endpoint; that surface is
+      Kensa's per the v2.0 scope narrow.
 
 changelog:
+  - version: "2.0"
+    date: "2026-04-14"
+    changes:
+      - "BREAKING: scope narrowed to OpenWatch-originated aggregate artifacts"
+      - "Per-transaction signing endpoint removed; that surface moves to Kensa"
+      - "AC-6 retitled: now refers to /api/signing/verify (was POST /api/transactions/{id}/sign)"
+      - "AC-9 added: per-transaction signing explicitly out of scope (Kensa's domain)"
+      - "AC-7 expanded with the SEC-SIGN-01 dev-mode gate"
+      - "AC-8 expanded with the SEC-SIGN-03 machine-detectable unsigned state"
+      - "context: block documents the trust-layer boundary and Kensa convergence"
   - version: "1.0"
     date: "2026-04-11"
     changes:

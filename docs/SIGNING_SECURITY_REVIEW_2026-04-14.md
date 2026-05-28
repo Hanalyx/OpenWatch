@@ -1,10 +1,40 @@
 # Evidence Signing Security Review
 
 **Date**: 2026-04-14
+**Last updated**: 2026-04-14 (scope narrow per Kensa↔OpenWatch coordination)
 **Scope**: `backend/app/services/signing/`, `backend/app/routes/signing/`, signing integration in `backend/app/services/compliance/audit_export.py`, schema migration `051_add_signing_keys.py`
 **Reviewer**: Automated (Bandit 1.9.4, Semgrep 239 rules) + manual code review
-**Spec**: `specs/services/signing/evidence-signing.spec.yaml` (8 ACs, active)
+**Spec**: `specs/services/signing/evidence-signing.spec.yaml` (9 ACs, active, **v2.0**)
 **Phase**: Phase 4 mandatory security review per `docs/OPENWATCH_Q1_Q3_PLAN.md` §"Security review gates"
+
+---
+
+## Scope narrow (2026-04-14)
+
+Per the Kensa↔OpenWatch coordination (`docs/KENSA_OPENWATCH_COORDINATION_2026-04-14.md` §3.2; Kensa team response §2.2), this review covered two trust layers that must not be conflated. The signing scope has been narrowed accordingly.
+
+### Trust-layer boundary
+
+| Layer | Who signs | What it attests | Storage |
+|---|---|---|---|
+| **Per-transaction evidence envelope** | **Kensa** (not OpenWatch) | "This execution happened on this host at this time" | Kensa SQLite store at capture time; envelope travels with the transaction log record |
+| **Aggregate audit export / quarterly posture report / State-of-Production release** | OpenWatch | "OpenWatch aggregated this data from N hosts and produced this artifact" | OpenWatch PostgreSQL; signed at export time by `SigningService` |
+
+### What was removed from OpenWatch
+
+- `POST /api/transactions/{id}/sign` endpoint — that surface belongs to Kensa per `KENSA_GO_DAY1_PLAN.md` §8.2
+- Any future per-transaction signing code path — OpenWatch does not attempt to co-sign what Kensa already signed
+
+### What remains in OpenWatch (covered by this review)
+
+- `SigningService.sign_envelope()` used **only** by `audit_export._generate_json()` and future aggregate-report services
+- `GET /api/signing/public-keys` — public key list so auditors can verify OpenWatch-signed aggregate bundles
+- `POST /api/signing/verify` — verification endpoint for OpenWatch-signed aggregate bundles
+- All five findings below remain valid for the narrowed scope
+
+### OpenWatch audit-UI verification of Kensa-signed envelopes
+
+At Kensa Week 22, OpenWatch audit UIs verify per-transaction envelopes via `kensa.api.Kensa.VerifyEnvelope()` (see `KENSA_GO_DAY1_PLAN.md` §3.5.4). OpenWatch does **not** maintain its own Kensa-envelope verification code path — Kensa owns that verification logic.
 
 ## Summary
 

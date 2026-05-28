@@ -1,14 +1,38 @@
-"""Ed25519 evidence envelope signing and verification.
+"""Ed25519 signing for OpenWatch-originated aggregate artifacts.
 
-This module provides cryptographic signing of compliance evidence envelopes
-using Ed25519 keys. Signing keys are stored encrypted at rest via
-EncryptionService and support rotation without breaking verification of
-previously signed bundles.
+SCOPE NARROWED 2026-04-14 per Kensa↔OpenWatch coordination
+(docs/KENSA_OPENWATCH_COORDINATION_2026-04-14.md §3.2; Kensa response §2.2).
 
-Usage:
+This module signs **aggregate artifacts that OpenWatch itself produces** —
+cross-host audit exports, quarterly posture reports, the future State-of-
+Production report. It does NOT sign per-transaction evidence envelopes;
+those are Kensa-signed at evidence-capture time per
+KENSA_GO_DAY1_PLAN.md §8.2. OpenWatch audit UIs display Kensa's
+per-transaction signatures via kensa.api.Kensa.VerifyEnvelope() starting
+at Kensa Week 22.
+
+Trust-layer boundary::
+
+    +--------------------------------+   +---------------------------------+
+    | Kensa (per-transaction)        |   | OpenWatch (aggregate)           |
+    |                                |   |                                 |
+    | Signs: evidence envelope at    |   | Signs: audit export, quarterly  |
+    |   capture/execute time         |   |   posture report, State-of-     |
+    |                                |   |   Production release            |
+    | Attests: "This execution       |   | Attests: "OpenWatch aggregated  |
+    |   happened on this host at     |   |   this data from N hosts and    |
+    |   this time"                   |   |   produced this artifact"       |
+    +--------------------------------+   +---------------------------------+
+
+Signing keys are stored encrypted at rest via EncryptionService and
+support rotation without breaking verification of previously signed
+bundles.
+
+Usage (aggregate artifacts only)::
+
     service = SigningService(db, encryption_service=enc)
-    key_id = service.generate_key()
-    bundle = service.sign_envelope(envelope, signer="openwatch")
+    key_id = service.generate_key()  # once per deployment
+    bundle = service.sign_envelope(export_data, signer="openwatch")
     valid = service.verify(bundle)
 """
 
