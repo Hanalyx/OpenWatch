@@ -32,7 +32,7 @@ func TestCIGates_VetTarget(t *testing.T) {
 	t.Run("release-ci-gates/AC-01", func(t *testing.T) {
 		mf := readAppFile(t, "Makefile")
 		// The target body must contain "go vet ./...".
-		re := regexp.MustCompile(`(?ms)^\.PHONY: vet\nvet:\n.*?go vet \./\.\.\.`)
+		re := regexp.MustCompile(`(?ms)^\.PHONY: vet\nvet:[^\n]*\n.*?go vet \./\.\.\.`)
 		if !re.MatchString(mf) {
 			t.Error("Makefile missing `make vet` target running `go vet ./...`")
 		}
@@ -67,7 +67,7 @@ func TestCIGates_LintTargetAndLinters(t *testing.T) {
 func TestCIGates_VulnTarget(t *testing.T) {
 	t.Run("release-ci-gates/AC-03", func(t *testing.T) {
 		mf := readAppFile(t, "Makefile")
-		re := regexp.MustCompile(`(?ms)^\.PHONY: vuln\nvuln:\n.*?govulncheck`)
+		re := regexp.MustCompile(`(?ms)^\.PHONY: vuln\nvuln:[^\n]*\n.*?govulncheck`)
 		if !re.MatchString(mf) {
 			t.Error("Makefile missing `make vuln` target invoking govulncheck")
 		}
@@ -82,7 +82,7 @@ func TestCIGates_VulnTarget(t *testing.T) {
 func TestCIGates_TestRaceTarget(t *testing.T) {
 	t.Run("release-ci-gates/AC-04", func(t *testing.T) {
 		mf := readAppFile(t, "Makefile")
-		re := regexp.MustCompile(`(?ms)^\.PHONY: test-race\ntest-race:\n.*?go test -race`)
+		re := regexp.MustCompile(`(?ms)^\.PHONY: test-race\ntest-race:[^\n]*\n.*?go test -race`)
 		if !re.MatchString(mf) {
 			t.Error("Makefile missing `make test-race` target invoking `go test -race`")
 		}
