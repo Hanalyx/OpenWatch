@@ -212,6 +212,14 @@ components:
           properties:
             type: {type: string, enum: [user, scheduler, api_key, agent]}
             id: {type: string}
+        policy_version:
+          type: string
+          description: |
+            Snapshotted version of the `schedules` policy at enqueue time.
+            Policy reloads do not affect in-flight scans; threshold lookups
+            (alert routing, drift sensitivity) for this scan use this exact
+            version. Absent on legacy scans created before Slice B.
+          examples: [1.7.0, 1.8.0-rc.2]
         session_id:
           type: string
           format: uuid

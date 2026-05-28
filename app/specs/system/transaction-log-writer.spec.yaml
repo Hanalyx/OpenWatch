@@ -1,0 +1,123 @@
+spec:
+  id: system-transaction-log-writer
+  title: Transaction log writer (write-on-change)
+  version: "1.0.0"
+  status: draft
+  tier: 1
+
+  context:
+    system: openwatch-go
+    feature: Compliance state persistence
+    description: >
+      The transaction log writer takes a Kensa scan result and records
+      what changed. host_rule_state holds one row per (host, rule) with
+      current_status, severity, evidence. transactions records only state
+      CHANGES (pass→fail, fail→pass, first-seen). host_rule_state is
+      updated on every scan; transactions are appended only on change.
+      This is the Q1-decided write-on-change model — same intent as the
+      Python implementation, but with FK constraints and a typed evidence
+      schema from the start.
+
+  objective:
+    summary: >
+      One call — writer.Apply(ctx, scanID, hostID, kensaResult) — persists
+      the result. Atomic per scan (whole result or nothing). Idempotent
+      under retry (same scanID is a no-op on second call). For each rule
+      result, compares the prior host_rule_state row; identical state
+      updates last_checked_at + check_count only, changed state appends a
+      transactions row and updates host_rule_state.
+    scope:
+      includes:
+        - host_rule_state UPSERT (one row per host×rule)
+        - transactions INSERT on state change or first-seen
+        - Evidence envelope stored in JSONB, schema-validated
+        - Foreign keys to hosts(id) and scans(id), ON DELETE RESTRICT
+        - Single-transaction atomicity per Apply call
+        - Audit emission of finding.persisted per state change
+      excludes:
+        - Drift detection (separate consumer reads transactions)
+        - Posture rollups (fleet rollup service is the read side)
+        - Evidence retention/GC (separate sweep task)
+        - Cross-scan aggregation
+
+  constraints:
+    - id: C-01
+      description: writer.Apply MUST be wrapped in a single DB transaction; partial writes are forbidden
+      type: technical
+      enforcement: error
+    - id: C-02
+      description: host_rule_state writes MUST use ON CONFLICT (host_id, rule_id) DO UPDATE
+      type: technical
+      enforcement: error
+    - id: C-03
+      description: transactions row MUST be inserted ONLY when (prior_status != current_status) OR (prior row absent — first-seen)
+      type: technical
+      enforcement: error
+    - id: C-04
+      description: Re-applying the same scanID MUST be a no-op; enforced via UNIQUE (scan_id, rule_id) on transactions plus check-then-skip on host_rule_state.last_scan_id
+      type: technical
+      enforcement: error
+    - id: C-05
+      description: Evidence JSONB MUST conform to the KensaEvidence schema (defined in app/api/openapi.yaml components.schemas.KensaEvidence)
+      type: technical
+      enforcement: warning
+    - id: C-06
+      description: FK constraints from transactions and host_rule_state to hosts(id) and scans(id) MUST be present and ON DELETE RESTRICT — historical findings outlive their host references
+      type: technical
+      enforcement: error
+    - id: C-07
+      description: writer.Apply MUST emit one finding.persisted audit event per state CHANGE row (not per result); summary scan.completed (emitted by executor) covers the totals
+      type: technical
+      enforcement: error
+    - id: C-08
+      description: writer.Apply MUST NOT write to scan_baselines — the prior transactions row IS the baseline (Python's scan_baselines table is explicitly dropped)
+      type: technical
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: writer.Apply with N rule results performs exactly one DB transaction (BEGIN/COMMIT), regardless of N or how many rules changed.
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-02
+      description: First scan against a host inserts N host_rule_state rows and N transactions rows (all marked change_kind="first_seen").
+      priority: critical
+      references_constraints: [C-02, C-03]
+    - id: AC-03
+      description: Second scan with identical results UPDATES N host_rule_state rows via ON CONFLICT (host_id, rule_id) DO UPDATE (last_checked_at advances, check_count++) and inserts 0 transactions rows.
+      priority: critical
+      references_constraints: [C-02, C-03]
+    - id: AC-04
+      description: Second scan with exactly one rule flipping pass→fail UPDATES N host_rule_state rows via ON CONFLICT and inserts exactly 1 transactions row with change_kind="state_changed".
+      priority: critical
+      references_constraints: [C-02, C-03]
+    - id: AC-05
+      description: Calling writer.Apply twice with the same scanID and same body is a no-op on the second call; host_rule_state and transactions row counts unchanged.
+      priority: critical
+      references_constraints: [C-04]
+    - id: AC-06
+      description: A simulated DB error mid-Apply (e.g., FK violation injected on rule 50 of 100) rolls back the entire batch; zero rows persist across host_rule_state and transactions.
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-07
+      description: DELETE on hosts with extant transactions rows fails with FK violation; verifies ON DELETE RESTRICT on the parent.
+      priority: high
+      references_constraints: [C-06]
+    - id: AC-08
+      description: Evidence JSONB that fails KensaEvidence schema validation (missing required field, wrong type) is rejected before INSERT with a typed error.
+      priority: high
+      references_constraints: [C-05]
+    - id: AC-09
+      description: finding.persisted audit event count for a scan equals the number of transactions rows inserted by that scan; verified end-to-end.
+      priority: high
+      references_constraints: [C-07]
+    - id: AC-10
+      description: 1000-rule writer.Apply completes in under 2 seconds wall-clock against shared-CI Postgres, mirroring the system-audit-emission AC-05 budget pattern.
+      priority: high
+    - id: AC-11
+      description: Concurrent writer.Apply calls for two distinct scanIDs against different hosts complete without deadlock under -race; verified with 50 parallel calls.
+      priority: high
+    - id: AC-12
+      description: The codebase contains no scan_baselines table reference (no migration, no query, no model); verified by a repo-wide grep test.
+      priority: high
+      references_constraints: [C-08]
