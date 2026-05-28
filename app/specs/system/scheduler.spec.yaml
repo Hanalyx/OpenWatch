@@ -63,6 +63,22 @@ spec:
       description: Manual scans via POST /scans MUST bypass the schedule (no row update, no policy-version side effect on the row)
       type: technical
       enforcement: error
+    - id: C-08
+      description: Tier intervals MUST be clamped to a minimum of 5 minutes regardless of policy values; protects against scan-storm DoS via misconfigured (malicious or accidental) policy
+      type: business
+      enforcement: error
+    - id: C-09
+      description: Every UPDATE to host_compliance_schedule MUST emit a scheduler.schedule.updated audit event with the prior + new state in detail
+      type: security
+      enforcement: error
+    - id: C-10
+      description: Policy signatures MUST be checked against the current active signing key AND a revocation list; policies signed by a revoked key MUST be rejected even if the signature is otherwise valid (defense against signing-key-leak replay)
+      type: security
+      enforcement: error
+    - id: C-11
+      description: Each scan job payload MUST include an HMAC-SHA256 over (host_id, framework_id, policy_version, enqueued_at) using a server-side key; dequeue MUST verify the HMAC before executing, rejecting tampered payloads
+      type: security
+      enforcement: error
 
   acceptance_criteria:
     - id: AC-01
@@ -101,8 +117,24 @@ spec:
       priority: critical
       references_constraints: [C-06]
     - id: AC-10
-      description: When the schedules policy is missing or fails Ed25519 verification at boot, scheduler refuses to start and emits scheduler.startup.failed audit event.
+      description: Schedules policy is Ed25519-verified at boot AND at every runtime reload. A reload with an invalid signature is rejected; the previous valid policy stays active and scheduler.policy.reload.rejected is emitted with the failure reason.
       priority: critical
     - id: AC-11
-      description: scheduler metrics expose last_tick_at, due_count, dispatched_count, skipped_maintenance_count, refuse_count counters.
+      description: scheduler metrics expose last_tick_at, due_count, dispatched_count, skipped_maintenance_count, refuse_count, policy_clamped_count, hmac_reject_count counters.
       priority: medium
+    - id: AC-12
+      description: A policy tier interval below 5 minutes is clamped to 5 minutes at load time; scheduler.policy.clamped audit event is emitted with the offending tier and original value.
+      priority: critical
+      references_constraints: [C-08]
+    - id: AC-13
+      description: Every UPDATE to host_compliance_schedule (next_scheduled_scan write, maintenance_mode toggle, manual override) emits exactly one scheduler.schedule.updated audit event with prior and new state in detail.
+      priority: critical
+      references_constraints: [C-09]
+    - id: AC-14
+      description: A schedules policy signed by a previously-rotated (revoked) signing key is rejected at load time even though its Ed25519 signature is mathematically valid; scheduler.policy.revoked_key.rejected audit event emitted.
+      priority: critical
+      references_constraints: [C-10]
+    - id: AC-15
+      description: A scan job whose stored payload has been tampered (host_id mutated post-enqueue) fails HMAC verification at dequeue; the job is rejected, marked failed in the queue, and scheduler.job.hmac_rejected audit event is emitted.
+      priority: critical
+      references_constraints: [C-11]

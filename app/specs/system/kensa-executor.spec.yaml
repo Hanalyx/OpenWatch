@@ -72,6 +72,18 @@ spec:
       description: Kensa is the only allowed scan engine in Slice B; no engine abstraction is permitted at this layer (preserves the boundary doc's "Kensa is a pure measurement engine" framing)
       type: technical
       enforcement: error
+    - id: C-09
+      description: SSH host-key verification MUST go through internal/ssh/known_hosts (per system-ssh-connectivity); first-connect policy (tofu vs require_known) MUST come from policy.Schedules.HostKeyPolicy. Unknown hosts under require_known mode MUST fail before any auth attempt
+      type: security
+      enforcement: error
+    - id: C-10
+      description: Per-rule Kensa response data persisted into the executor's result MUST be bounded; max 10 MB per rule evidence blob. Oversized results MUST be truncated and surfaced as scan.failed (defense against malicious/buggy targets OOM-ing the executor)
+      type: security
+      enforcement: error
+    - id: C-11
+      description: Per-host failure backoff state MUST be tracked by the executor; three consecutive failures push next-attempt += 2x current interval up to a 24h ceiling. Backoff state is reported back to the scheduler so subsequent ticks respect it
+      type: security
+      enforcement: error
 
   acceptance_criteria:
     - id: AC-01
@@ -119,3 +131,19 @@ spec:
       description: app/internal/kensa source files do not define a generic scan-engine interface (e.g., type ScanEngine interface) — Kensa is invoked directly. Source-inspection verifies no engine-abstraction type is declared.
       priority: high
       references_constraints: [C-08]
+    - id: AC-13
+      description: SSH dial to an unknown host (not in known_hosts) under require_known policy fails before authentication; emits scan.failed with detail.reason="host_key_unknown". No credential is decrypted, no scan.started emitted.
+      priority: critical
+      references_constraints: [C-09]
+    - id: AC-14
+      description: A Kensa rule result whose evidence blob exceeds 10 MB is truncated to a marker value; the scan transitions to failed with detail.reason="evidence_oversize" and detail.rule_id set.
+      priority: critical
+      references_constraints: [C-10]
+    - id: AC-15
+      description: Credential decryption failure (corrupt ciphertext, wrong DEK) emits scan.failed with detail.reason="credential_decryption_failed". No scan.started is emitted for that attempt; no Kensa session opened.
+      priority: critical
+      references_constraints: [C-05]
+    - id: AC-16
+      description: A host with three consecutive scan failures has its next-attempt clock doubled (relative to its tier interval) up to 24h ceiling; the scheduler observes the backoff and skips dispatch until the backoff window passes.
+      priority: high
+      references_constraints: [C-11]

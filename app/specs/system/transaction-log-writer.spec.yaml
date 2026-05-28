@@ -54,8 +54,8 @@ spec:
       type: technical
       enforcement: error
     - id: C-04
-      description: Re-applying the same scanID MUST be a no-op; enforced via UNIQUE (scan_id, rule_id) on transactions plus check-then-skip on host_rule_state.last_scan_id
-      type: technical
+      description: Re-applying the same scanID MUST be a no-op; enforced via UNIQUE (scan_id, rule_id) on transactions plus check-then-skip on host_rule_state.last_scan_id. scan_id MUST be a server-generated UUIDv4 (never client-supplied) so it cannot be forged for replay
+      type: security
       enforcement: error
     - id: C-05
       description: Evidence JSONB MUST conform to the KensaEvidence schema (defined in app/api/openapi.yaml components.schemas.KensaEvidence)
@@ -72,6 +72,14 @@ spec:
     - id: C-08
       description: writer.Apply MUST NOT write to scan_baselines — the prior transactions row IS the baseline (Python's scan_baselines table is explicitly dropped)
       type: technical
+      enforcement: error
+    - id: C-09
+      description: All DB access in this package MUST use sqlc-generated typed queries; no raw string-concat SQL via db.Exec/db.Query/text() is permitted. Defense against SQL injection via evidence content or rule metadata
+      type: security
+      enforcement: error
+    - id: C-10
+      description: Evidence JSONB per rule MUST be 256 KB or smaller; oversized evidence is rejected by writer.Apply with a typed error before INSERT. Caller (Kensa executor) is expected to enforce its own 10 MB ceiling earlier; this writer-side limit is defense in depth and protects against storage DoS
+      type: security
       enforcement: error
 
   acceptance_criteria:
@@ -121,3 +129,15 @@ spec:
       description: The codebase contains no scan_baselines table reference (no migration, no query, no model); verified by a repo-wide grep test.
       priority: high
       references_constraints: [C-08]
+    - id: AC-13
+      description: app/internal/transactionlog source files (or wherever writer.Apply lives) contain no calls to db.Exec, db.Query, or text() with string-interpolated SQL; source-inspection verifies sqlc-generated functions are the only DB entry points.
+      priority: critical
+      references_constraints: [C-09]
+    - id: AC-14
+      description: writer.Apply rejects a Kensa result whose any single rule's evidence exceeds 256 KB; returns a typed ErrEvidenceTooLarge with the offending rule_id; no row is inserted into host_rule_state or transactions for that batch.
+      priority: critical
+      references_constraints: [C-10]
+    - id: AC-15
+      description: A DB error during writer.Apply (FK violation, deadlock, disk full) causes rollback AND emits exactly one writer.apply.failed audit event with detail.reason and detail.rule_count_attempted populated.
+      priority: critical
+      references_constraints: [C-01]
