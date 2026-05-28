@@ -95,8 +95,36 @@ jobs:
       - name: make test-race
         run: make test-race
 
-      - name: specter sync (strict AC coverage)
+      # Spec coverage gate. Split into discrete steps so a failure
+      # attributes to the actual command (go test vs. ingest vs. sync)
+      # instead of getting hidden behind a single bundled step.
+      - name: go test (json) for specter ingest
         run: |
+          set +e
           go test -json -timeout 360s -p 1 ./... > /tmp/go-test.json
-          specter ingest --go-test /tmp/go-test.json
-          specter sync
+          EXIT=$?
+          if [ "$EXIT" -ne 0 ]; then
+            echo "::group::Failed tests"
+            jq -r 'select(.Action=="fail" and .Test != null) | "FAIL  \(.Package)  \(.Test)"' /tmp/go-test.json | sort -u
+            echo "::endgroup::"
+            echo "::group::Failure output (last 80 lines)"
+            jq -r 'select(.Action=="output" and (.Output | ascii_downcase | test("--- fail|panic:|fatal error|error:"))) | "\(.Package): \(.Output)"' /tmp/go-test.json | tail -80
+            echo "::endgroup::"
+          fi
+          exit $EXIT
+
+      - name: specter ingest
+        run: specter ingest --go-test /tmp/go-test.json
+
+      - name: specter sync (AC coverage thresholds)
+        run: specter sync
+
+      - name: upload specter artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: specter-results
+          path: |
+            app/.specter-results.json
+            /tmp/go-test.json
+          retention-days: 7
