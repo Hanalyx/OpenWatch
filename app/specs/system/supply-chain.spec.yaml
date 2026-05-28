@@ -64,7 +64,7 @@ spec:
       type: security
       enforcement: error
     - id: C-06
-      description: The release workflow MUST produce a CycloneDX 1.5+ JSON SBOM artifact for every tagged release; produced by cyclonedx-gomod or equivalent and uploaded as a workflow artifact
+      description: The release workflow MUST produce a CycloneDX 1.5+ JSON SBOM artifact for every tagged release. The SBOM MUST describe the deployed artifact (the built binary, the RPM, the DEB) — not just the Go source manifest — because compliance reviewers ask for what's in the package, not what's in the source. Tool choice (syft) recorded in AC-07
       type: security
       enforcement: error
     - id: C-07
@@ -113,7 +113,7 @@ spec:
       priority: critical
       references_constraints: [C-05]
     - id: AC-08
-      description: .github/workflows/release.yml (or equivalent release workflow) has a step that runs cyclonedx-gomod (or syft) and uploads the resulting SBOM as a workflow artifact named appropriately for the release tag.
+      description: .github/workflows/release.yml (or equivalent release workflow) has a step that runs `syft` against the built binary plus the RPM and DEB packages and uploads the resulting CycloneDX SBOM as a workflow artifact named for the release tag. syft is chosen over cyclonedx-gomod because it scans the actual deployed artifact, not just the source manifest.
       priority: high
       references_constraints: [C-06]
     - id: AC-09
