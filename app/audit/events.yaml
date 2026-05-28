@@ -42,6 +42,8 @@ categories:
     description: External system integration (Jira, webhooks, plugins)
   - id: system
     description: Service lifecycle and configuration
+  - id: scheduler
+    description: Adaptive scheduler ticks, dispatch, policy enforcement (Slice B.1a)
   - id: admin
     description: Administrative operations
   - id: diagnostics
@@ -528,6 +530,89 @@ events:
 
   - code: system.health.recovered
     severity: info
+
+  # =========================================================================
+  # scheduler — adaptive scheduler ticks, dispatch, policy enforcement
+  # =========================================================================
+  - code: scheduler.startup.failed
+    severity: error
+    actor_types: [system]
+    description: Scheduler refused to start because the schedules policy was missing or failed Ed25519 verification
+    detail_schema:
+      type: object
+      properties:
+        reason: {type: string, enum: [policy_missing, signature_invalid, revoked_key, parse_error]}
+        policy_path: {type: string}
+
+  - code: scheduler.schedule.updated
+    severity: info
+    actor_types: [system, user]
+    description: A row in host_compliance_schedule was updated (next_scheduled_scan, maintenance_mode, or manual override)
+    detail_schema:
+      type: object
+      properties:
+        host_id: {type: string}
+        change_kind: {type: string, enum: [next_scan_advanced, maintenance_set, maintenance_cleared, post_scan_update, manual_override]}
+        prior:
+          type: object
+        new:
+          type: object
+
+  - code: scheduler.policy.reload.rejected
+    severity: error
+    actor_types: [system]
+    description: Runtime policy reload was rejected; the previous valid policy remains active
+    detail_schema:
+      type: object
+      properties:
+        reason: {type: string, enum: [signature_invalid, revoked_key, parse_error, version_regression]}
+        policy_version_attempted: {type: string}
+        policy_version_active: {type: string}
+
+  - code: scheduler.policy.clamped
+    severity: warning
+    actor_types: [system]
+    description: A tier interval in the schedules policy was clamped to the safety floor (5 min) or ceiling (48 h)
+    detail_schema:
+      type: object
+      properties:
+        tier: {type: string}
+        original_minutes: {type: integer}
+        clamped_minutes: {type: integer}
+        clamp_kind: {type: string, enum: [min_floor, max_ceiling]}
+
+  - code: scheduler.policy.revoked_key.rejected
+    severity: error
+    actor_types: [system]
+    description: A schedules policy was signed by a previously-rotated (revoked) signing key and rejected even though the Ed25519 signature was mathematically valid
+    detail_schema:
+      type: object
+      properties:
+        key_fingerprint: {type: string}
+        policy_version: {type: string}
+
+  - code: scheduler.job.hmac_rejected
+    severity: error
+    actor_types: [system]
+    description: A dequeued scan job failed HMAC verification; the job payload was tampered after enqueue
+    detail_schema:
+      type: object
+      properties:
+        job_id: {type: string}
+        host_id: {type: string}
+        failure: {type: string, enum: [hmac_mismatch, payload_missing_hmac]}
+
+  - code: scheduler.tick.dispatched
+    severity: info
+    actor_types: [system]
+    description: Scheduler tick dispatched zero or more scan jobs to the queue
+    detail_schema:
+      type: object
+      properties:
+        due_count: {type: integer}
+        dispatched_count: {type: integer}
+        skipped_maintenance_count: {type: integer}
+        skipped_backoff_count: {type: integer}
 
   # =========================================================================
   # admin — high-privilege operations

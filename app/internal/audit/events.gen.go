@@ -195,6 +195,20 @@ const (
 	SystemHealthDegraded Code = "system.health.degraded"
 	//
 	SystemHealthRecovered Code = "system.health.recovered"
+	// Scheduler refused to start because the schedules policy was missing or failed Ed25519 verification
+	SchedulerStartupFailed Code = "scheduler.startup.failed"
+	// A row in host_compliance_schedule was updated (next_scheduled_scan, maintenance_mode, or manual override)
+	SchedulerScheduleUpdated Code = "scheduler.schedule.updated"
+	// Runtime policy reload was rejected; the previous valid policy remains active
+	SchedulerPolicyReloadRejected Code = "scheduler.policy.reload.rejected"
+	// A tier interval in the schedules policy was clamped to the safety floor (5 min) or ceiling (48 h)
+	SchedulerPolicyClamped Code = "scheduler.policy.clamped"
+	// A schedules policy was signed by a previously-rotated (revoked) signing key and rejected even though the Ed25519 signature was mathematically valid
+	SchedulerPolicyRevokedKeyRejected Code = "scheduler.policy.revoked_key.rejected"
+	// A dequeued scan job failed HMAC verification; the job payload was tampered after enqueue
+	SchedulerJobHmacRejected Code = "scheduler.job.hmac_rejected"
+	// Scheduler tick dispatched zero or more scan jobs to the queue
+	SchedulerTickDispatched Code = "scheduler.tick.dispatched"
 	//
 	AdminUserCreated Code = "admin.user.created"
 	//
@@ -830,6 +844,55 @@ var Metadata = map[Code]EventMeta{
 		Description: ``,
 		ActorTypes:  nil,
 	},
+	SchedulerStartupFailed: {
+		Code:        SchedulerStartupFailed,
+		Category:    "scheduler",
+		Severity:    SeverityError,
+		Description: `Scheduler refused to start because the schedules policy was missing or failed Ed25519 verification`,
+		ActorTypes:  []string{"system"},
+	},
+	SchedulerScheduleUpdated: {
+		Code:        SchedulerScheduleUpdated,
+		Category:    "scheduler",
+		Severity:    SeverityInfo,
+		Description: `A row in host_compliance_schedule was updated (next_scheduled_scan, maintenance_mode, or manual override)`,
+		ActorTypes:  []string{"system", "user"},
+	},
+	SchedulerPolicyReloadRejected: {
+		Code:        SchedulerPolicyReloadRejected,
+		Category:    "scheduler",
+		Severity:    SeverityError,
+		Description: `Runtime policy reload was rejected; the previous valid policy remains active`,
+		ActorTypes:  []string{"system"},
+	},
+	SchedulerPolicyClamped: {
+		Code:        SchedulerPolicyClamped,
+		Category:    "scheduler",
+		Severity:    SeverityWarning,
+		Description: `A tier interval in the schedules policy was clamped to the safety floor (5 min) or ceiling (48 h)`,
+		ActorTypes:  []string{"system"},
+	},
+	SchedulerPolicyRevokedKeyRejected: {
+		Code:        SchedulerPolicyRevokedKeyRejected,
+		Category:    "scheduler",
+		Severity:    SeverityError,
+		Description: `A schedules policy was signed by a previously-rotated (revoked) signing key and rejected even though the Ed25519 signature was mathematically valid`,
+		ActorTypes:  []string{"system"},
+	},
+	SchedulerJobHmacRejected: {
+		Code:        SchedulerJobHmacRejected,
+		Category:    "scheduler",
+		Severity:    SeverityError,
+		Description: `A dequeued scan job failed HMAC verification; the job payload was tampered after enqueue`,
+		ActorTypes:  []string{"system"},
+	},
+	SchedulerTickDispatched: {
+		Code:        SchedulerTickDispatched,
+		Category:    "scheduler",
+		Severity:    SeverityInfo,
+		Description: `Scheduler tick dispatched zero or more scan jobs to the queue`,
+		ActorTypes:  []string{"system"},
+	},
 	AdminUserCreated: {
 		Code:        AdminUserCreated,
 		Category:    "admin",
@@ -996,6 +1059,13 @@ var codeOrder = []Code{
 	SystemMigrationApplied,
 	SystemHealthDegraded,
 	SystemHealthRecovered,
+	SchedulerStartupFailed,
+	SchedulerScheduleUpdated,
+	SchedulerPolicyReloadRejected,
+	SchedulerPolicyClamped,
+	SchedulerPolicyRevokedKeyRejected,
+	SchedulerJobHmacRejected,
+	SchedulerTickDispatched,
 	AdminUserCreated,
 	AdminUserUpdated,
 	AdminUserDeleted,
