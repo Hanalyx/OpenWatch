@@ -893,7 +893,7 @@ docs/images/*
 !docs/OPENWATCH_Q1_Q3_PLAN.md
 !docs/OPENWATCH_VISION.md
 !docs/OPENWATCH_VISION_STATUS.md
-!docs/KENSA_OPENWATCH_COORDINATION_*.md
+!docs/KENSA_OPENWATCH_*.md
 PRD/
 backend/docs/
 frontend/docs/
