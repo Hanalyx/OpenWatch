@@ -1,0 +1,124 @@
+package identity
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"net/http"
+	"strings"
+
+	"github.com/Hanalyx/openwatch/internal/audit"
+	"github.com/Hanalyx/openwatch/internal/auth"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+// SessionCookieName is the cookie the browser path uses for session
+// presentation tokens. Server-set; client reads it back over HTTPS.
+const SessionCookieName = "openwatch_session"
+
+// Lookups is the interface the binder uses to translate a user_id into
+// the role it needs to attach to auth.Identity. Decoupled from the
+// users package (which doesn't exist yet — Week 1 Day 2 task) so the
+// binder + its tests can wire up before that package lands.
+//
+// Implementation lives in Slice A Week 1 Day 2 (`internal/users`).
+type Lookups interface {
+	RoleForUser(ctx context.Context, userID uuid.UUID) (auth.RoleID, error)
+}
+
+// Binder is the production identity-binding middleware. Reads either:
+//
+//	Cookie "openwatch_session"   → looks up via VerifySession
+//	Authorization "Bearer <jwt>" → verifies via VerifyJWT, claims.Role
+//
+// Cookie path wins if both are present (browser sign-in is more
+// authoritative than a leaked bearer token). On any rejection emits
+// auth.login.failure with detail.reason populated, then falls through
+// to anonymous. Anonymous identities are denied by RBAC middleware
+// downstream.
+//
+// Spec system-auth-identity AC-17, AC-18, C-11.
+func Binder(pool *pgxpool.Pool, lookups Lookups) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			id, reason := resolveIdentity(r.Context(), pool, lookups, r)
+			if reason != "" {
+				emitLoginFailure(r, reason)
+			}
+			next.ServeHTTP(w, r.WithContext(auth.SetIdentity(r.Context(), id)))
+		})
+	}
+}
+
+// resolveIdentity inspects the request for a session cookie or bearer
+// token. Returns (identity, "") on success, (anonymous, reason) on any
+// rejection. Anonymous-because-nothing-was-presented also returns "" for
+// reason (no audit emission for unauthenticated probes; only for
+// presented-but-rejected credentials).
+func resolveIdentity(ctx context.Context, pool *pgxpool.Pool, lookups Lookups, r *http.Request) (auth.Identity, string) {
+	if cookie, err := r.Cookie(SessionCookieName); err == nil && cookie.Value != "" {
+		sess, err := VerifySession(ctx, pool, cookie.Value)
+		switch {
+		case errors.Is(err, ErrSessionNotFound):
+			return anon(), "invalid_session_token"
+		case errors.Is(err, ErrSessionRevoked):
+			return anon(), "session_revoked"
+		case errors.Is(err, ErrSessionExpired):
+			return anon(), "session_expired"
+		case err != nil:
+			return anon(), "session_lookup_failed"
+		}
+		role, err := lookups.RoleForUser(ctx, sess.UserID)
+		if err != nil {
+			return anon(), "session_user_lookup_failed"
+		}
+		return auth.Identity{
+			ID:     sess.UserID.String(),
+			RoleID: role,
+		}, ""
+	}
+
+	if h := r.Header.Get("Authorization"); strings.HasPrefix(h, "Bearer ") {
+		token := strings.TrimPrefix(h, "Bearer ")
+		claims, err := VerifyJWT(token)
+		switch {
+		case errors.Is(err, ErrJWTExpired):
+			return anon(), "jwt_expired"
+		case errors.Is(err, ErrJWTInvalid):
+			return anon(), "invalid_jwt"
+		case err != nil:
+			return anon(), "jwt_verify_failed"
+		}
+		// The role baked into the JWT is the contract. RBAC middleware
+		// downstream re-evaluates whether that role actually grants the
+		// request's required permission — so a stale role still gets
+		// caught by the registry.
+		return auth.Identity{
+			ID:     claims.Subject,
+			RoleID: auth.RoleID(claims.Role),
+		}, ""
+	}
+
+	return anon(), "" // genuinely unauthenticated; no audit
+}
+
+func anon() auth.Identity { return auth.Identity{IsAnonymous: true} }
+
+// emitLoginFailure records the rejection with the canonical reason
+// string so operators can grep auth.login.failure events to find
+// brute-force / token-theft patterns.
+//
+// Spec AC-18, C-11.
+func emitLoginFailure(r *http.Request, reason string) {
+	detail, _ := json.Marshal(map[string]any{
+		"reason":      reason,
+		"remote_addr": r.RemoteAddr,
+		"user_agent":  r.UserAgent(),
+	})
+	audit.Emit(r.Context(), audit.AuthLoginFailure, audit.Event{
+		ActorType: "anonymous",
+		ActorIP:   r.RemoteAddr,
+		Detail:    detail,
+	})
+}

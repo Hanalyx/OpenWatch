@@ -1,0 +1,355 @@
+# OpenWatch — Compliance domain (skeleton)
+#
+# Compliance state, posture queries (point-in-time + drift), exception
+# lifecycle, and baseline management. The largest backend domain by surface
+# area; foundation validation pressure-test.
+#
+# Fidelity: skeleton — operations, extensions, descriptions; schemas stubbed.
+#
+# Registry cross-references:
+#   - Permissions: app/auth/permissions.yaml
+#       compliance:read; baseline:{read,write,delete}; exception:{read,request,comment,approve,revoke}
+#   - License features: app/license/features.yaml — temporal_queries gates
+#       point-in-time posture and drift forecasts (openwatch_plus tier)
+#   - Audit events: app/audit/events.yaml — `compliance.*` namespace
+#   - Error codes: app/api/error_codes.yaml — `policy.denied`, `transition.invalid`, `resource.not_found`
+#   - Policies: `exceptions` policy governs duration/class/approver requirements
+#       (see app/docs/policies_as_data.md §5.1)
+
+openapi: 3.1.0
+info:
+  title: OpenWatch — Compliance API
+  version: 0.1.0-skeleton
+
+paths:
+
+  # ===========================================================================
+  # Posture (current and point-in-time)
+  # ===========================================================================
+
+  /api/v1/compliance/posture:
+    get:
+      operationId: getCurrentPosture
+      summary: Current compliance posture across hosts and frameworks.
+      description: |
+        Aggregated current posture: score per framework, host counts by state
+        (compliant/drifted/failed/unknown). Filterable by framework, host tag,
+        and host group.
+      x-required-permission: compliance:read
+      parameters:
+        - {name: framework, in: query, schema: {type: string}}
+        - {name: host_tag,  in: query, schema: {type: string}}
+        - {name: host_group, in: query, schema: {type: string}}
+      responses:
+        '200': {description: Posture summary.}
+
+  /api/v1/compliance/posture:at:
+    get:
+      operationId: getPostureAt
+      summary: Point-in-time posture reconstruction from the transaction log.
+      description: |
+        Reconstructs posture as of a specific timestamp by replaying the
+        write-on-change transaction log. Subject to retention window.
+        License-gated under `temporal_queries` (openwatch_plus tier).
+      x-required-permission: compliance:read
+      x-required-feature: temporal_queries
+      parameters:
+        - {name: at, in: query, required: true, schema: {type: string, format: date-time}}
+        - {name: framework, in: query, schema: {type: string}}
+        - {name: host_id,  in: query, schema: {type: string, format: uuid}}
+      responses:
+        '200': {description: Reconstructed posture snapshot.}
+        '422':
+          description: Requested timestamp is outside the retention window.
+          content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}
+
+  /api/v1/compliance/frameworks/{framework}/posture:
+    parameters:
+      - {name: framework, in: path, required: true, schema: {type: string}, description: 'e.g., cis-rhel9-v2.0.0'}
+    get:
+      operationId: getFrameworkPosture
+      summary: Per-framework posture detail (rule pass/fail breakdown, control coverage).
+      x-required-permission: compliance:read
+      responses:
+        '200': {description: Framework posture detail.}
+        '404':
+          description: Framework not known to the loaded Kensa mappings.
+          content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}
+
+  # ===========================================================================
+  # Drift
+  # ===========================================================================
+
+  /api/v1/compliance/drift:
+    get:
+      operationId: listDriftEvents
+      summary: Recent drift detections (pass→fail and fail→pass transitions).
+      description: |
+        Page of drift events derived from the transaction log. Each event
+        identifies the host, rule, framework, and drift type (major/minor/
+        improvement) with the score delta.
+      x-required-permission: compliance:read
+      parameters:
+        - {name: since, in: query, schema: {type: string, format: date-time}}
+        - {name: until, in: query, schema: {type: string, format: date-time}}
+        - {name: host_id, in: query, schema: {type: string, format: uuid}}
+        - {name: framework, in: query, schema: {type: string}}
+        - {name: drift_type, in: query, schema: {type: string, enum: [major, minor, improvement]}}
+        - {name: cursor, in: query, schema: {type: [string, 'null']}}
+        - {name: limit,  in: query, schema: {type: integer, minimum: 1, maximum: 200, default: 50}}
+      responses:
+        '200':
+          description: Page of drift events.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: {type: array, items: {type: object}}
+                  next_cursor: {type: [string, 'null']}
+
+  # ===========================================================================
+  # Exceptions — lifecycle governed by the `exceptions` policy
+  # ===========================================================================
+
+  /api/v1/compliance/exceptions:
+    get:
+      operationId: listExceptions
+      summary: List exception requests and active exceptions.
+      x-required-permission: exception:read
+      parameters:
+        - {name: status, in: query, schema: {type: string, enum: [pending, approved, rejected, revoked, expired]}}
+        - {name: class,  in: query, schema: {type: string, enum: [false_positive, accepted_risk, compensating_control]}}
+        - {name: host_id, in: query, schema: {type: string, format: uuid}}
+        - {name: rule_id, in: query, schema: {type: string}}
+        - {name: cursor, in: query, schema: {type: [string, 'null']}}
+        - {name: limit,  in: query, schema: {type: integer, minimum: 1, maximum: 200, default: 50}}
+      responses:
+        '200':
+          description: Page of exceptions.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: {type: array, items: {type: object}}
+                  next_cursor: {type: [string, 'null']}
+
+    post:
+      operationId: requestException
+      summary: Submit a new exception request.
+      description: |
+        Evaluated by the `exceptions` policy: validates class, duration, scope
+        blocklist, justification length, and required approver roles. Returns
+        `202` with `pending_approval` when approval is required, `201` when
+        the policy permits immediate apply (rare; specific classes only).
+      x-required-permission: exception:request
+      x-policy-evaluated: [exceptions]
+      x-audit-events: [compliance.exception.requested]
+      parameters:
+        - {name: Idempotency-Key, in: header, required: true, schema: {type: string}}
+      requestBody:
+        required: true
+        content: {application/json: {schema: {type: object, additionalProperties: true}}}
+      responses:
+        '201': {description: Exception applied immediately (per policy class allow-rules).}
+        '202': {description: Pending approval; approval_id returned.}
+        '403':
+          description: Denied by the `exceptions` policy (out of scope, duration exceeded, blocklisted rule, etc.).
+          content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}
+
+  /api/v1/compliance/exceptions/{exception_id}:
+    parameters:
+      - {name: exception_id, in: path, required: true, schema: {type: string, format: uuid}}
+    get:
+      operationId: getException
+      summary: Get an exception by id (request or active).
+      x-required-permission: exception:read
+      responses:
+        '200': {description: Exception detail.}
+        '404':
+          description: Not found.
+          content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}
+
+  /api/v1/compliance/exceptions/{exception_id}:comment:
+    parameters:
+      - {name: exception_id, in: path, required: true, schema: {type: string, format: uuid}}
+    post:
+      operationId: commentOnException
+      summary: Add a comment to an exception request (any reviewer).
+      x-required-permission: exception:comment
+      requestBody:
+        required: true
+        content: {application/json: {schema: {type: object, additionalProperties: true}}}
+      responses:
+        '201': {description: Comment added.}
+        '404': {$ref: '#/components/responses/NotFound'}
+
+  /api/v1/compliance/exceptions/{exception_id}:approve:
+    parameters:
+      - {name: exception_id, in: path, required: true, schema: {type: string, format: uuid}}
+    post:
+      operationId: approveException
+      summary: Approve an exception request (transitions pending → approved).
+      x-required-permission: exception:approve
+      x-audit-events: [compliance.exception.approved]
+      parameters:
+        - {name: Idempotency-Key, in: header, required: true, schema: {type: string}}
+      requestBody:
+        content: {application/json: {schema: {type: object, additionalProperties: true}}}
+      responses:
+        '200': {description: Approved.}
+        '409':
+          description: Illegal transition (e.g., already approved or revoked).
+          content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}
+
+  /api/v1/compliance/exceptions/{exception_id}:reject:
+    parameters:
+      - {name: exception_id, in: path, required: true, schema: {type: string, format: uuid}}
+    post:
+      operationId: rejectException
+      summary: Reject an exception request (transitions pending → rejected).
+      x-required-permission: exception:approve
+      x-audit-events: [compliance.exception.rejected]
+      parameters:
+        - {name: Idempotency-Key, in: header, required: true, schema: {type: string}}
+      requestBody:
+        required: true
+        content: {application/json: {schema: {type: object, additionalProperties: true}}}
+      responses:
+        '200': {description: Rejected.}
+        '409':
+          description: Illegal transition.
+          content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}
+
+  /api/v1/compliance/exceptions/{exception_id}:revoke:
+    parameters:
+      - {name: exception_id, in: path, required: true, schema: {type: string, format: uuid}}
+    post:
+      operationId: revokeException
+      summary: Revoke an active exception before its expiry (dangerous).
+      x-required-permission: exception:revoke
+      x-audit-events: [compliance.exception.revoked]
+      parameters:
+        - {name: Idempotency-Key, in: header, required: true, schema: {type: string}}
+      requestBody:
+        required: true
+        content: {application/json: {schema: {type: object, additionalProperties: true}}}
+      responses:
+        '200': {description: Revoked.}
+        '409':
+          description: Illegal transition (e.g., not currently active).
+          content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}
+
+  /api/v1/compliance/exceptions/{exception_id}/audit-events:
+    parameters:
+      - {name: exception_id, in: path, required: true, schema: {type: string, format: uuid}}
+    get:
+      operationId: getExceptionAuditEvents
+      summary: Audit-event sub-resource for one exception (request → approve → revoke chain).
+      x-required-permission: exception:read
+      parameters:
+        - {name: cursor, in: query, schema: {type: [string, 'null']}}
+        - {name: limit,  in: query, schema: {type: integer, minimum: 1, maximum: 200, default: 50}}
+      responses:
+        '200':
+          description: Page of audit events related to this exception.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: {type: array, items: {type: object}}
+                  next_cursor: {type: [string, 'null']}
+
+  # ===========================================================================
+  # Baselines
+  # ===========================================================================
+
+  /api/v1/compliance/baselines:
+    get:
+      operationId: listBaselines
+      summary: List established baselines.
+      x-required-permission: baseline:read
+      parameters:
+        - {name: framework, in: query, schema: {type: string}}
+        - {name: host_id, in: query, schema: {type: string, format: uuid}}
+        - {name: cursor, in: query, schema: {type: [string, 'null']}}
+        - {name: limit,  in: query, schema: {type: integer, minimum: 1, maximum: 200, default: 50}}
+      responses:
+        '200':
+          description: Page of baselines.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: {type: array, items: {type: object}}
+                  next_cursor: {type: [string, 'null']}
+
+    post:
+      operationId: establishBaseline
+      summary: Establish a new baseline from a scan or current state.
+      x-required-permission: baseline:write
+      x-audit-events: [compliance.baseline.established]
+      parameters:
+        - {name: Idempotency-Key, in: header, required: true, schema: {type: string}}
+      requestBody:
+        required: true
+        content: {application/json: {schema: {type: object, additionalProperties: true}}}
+      responses:
+        '201': {description: Baseline established.}
+
+  /api/v1/compliance/baselines/{baseline_id}:
+    parameters:
+      - {name: baseline_id, in: path, required: true, schema: {type: string, format: uuid}}
+    get:
+      operationId: getBaseline
+      summary: Get a baseline by id.
+      x-required-permission: baseline:read
+      responses:
+        '200': {description: Baseline detail.}
+        '404': {$ref: '#/components/responses/NotFound'}
+
+    delete:
+      operationId: clearBaseline
+      summary: Clear a baseline (resets drift detection for its scope; dangerous).
+      x-required-permission: baseline:delete
+      x-audit-events: [compliance.baseline.cleared]
+      responses:
+        '204': {description: Baseline cleared.}
+        '404': {$ref: '#/components/responses/NotFound'}
+
+# =============================================================================
+# Shared components
+# =============================================================================
+
+components:
+
+  responses:
+    Unauthorized:
+      description: Authentication required.
+      content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}
+    Forbidden:
+      description: Permission denied or policy denial.
+      content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}
+    NotFound:
+      description: Resource not found.
+      content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}
+
+  schemas:
+    ErrorEnvelope:
+      # See app/api/error_codes.yaml for the canonical registry of codes.
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, fault, retryable, human_message]
+          properties:
+            code: {type: string, examples: [policy.denied, transition.invalid, resource.not_found]}
+            fault: {type: string, enum: [client, server, policy, external]}
+            retryable: {type: boolean}
+            human_message: {type: string}
+            detail: {type: object, additionalProperties: true}
+            correlation_id: {type: string}

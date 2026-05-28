@@ -1,0 +1,106 @@
+spec:
+  id: system-host-inventory
+  title: Host inventory CRUD with soft delete and tags
+  version: "1.0.0"
+  status: approved
+  tier: 2
+
+  context:
+    system: openwatch-go
+    feature: Host registration + lookup
+    description: >
+      Persists the hosts the platform can scan. Slice A ships the
+      identity/connectivity columns only — OS discovery and monitoring
+      state columns are added by their producers in Slice B (Kensa
+      scanner for OS detection, adaptive scheduler for monitoring state).
+      A nullable group_id column is included for forward compatibility
+      so a future host_groups slice doesn't need a schema migration.
+    related_specs:
+      - system-credential-store
+      - system-user-management
+
+  objective:
+    summary: >
+      One row per host the platform can talk to. CRUD is small and
+      explicit; soft delete with deleted_at lets operators reclaim
+      a hostname after retirement; tags are a TEXT[] (Postgres array)
+      with a GIN index, not a comma-separated string.
+    scope:
+      includes:
+        - hosts table with identity, connectivity, and tagging columns
+        - UNIQUE(hostname, environment) WHERE deleted_at IS NULL
+        - tags TEXT[] with GIN index
+        - CreateHost, GetByID, UpdateHost, SoftDelete, List(env, tag)
+        - FK on credentials.scope_id → hosts(id), added in this migration
+      excludes:
+        - "OS fingerprinting columns (Slice B — Kensa lands them)"
+        - "Monitoring state columns (post-Slice-B — adaptive scheduler lands them)"
+        - "Host groups (later slice; group_id column is forward-compat only)"
+
+  constraints:
+    - id: C-01
+      description: hosts MUST have UNIQUE(hostname, environment) WHERE deleted_at IS NULL — duplicates blocked among active rows but reusable after soft delete
+      type: technical
+      enforcement: error
+    - id: C-02
+      description: tags MUST be TEXT[] (not TEXT) with a GIN index so `WHERE 'X' = ANY(tags)` is indexed
+      type: technical
+      enforcement: error
+    - id: C-03
+      description: SoftDelete MUST set deleted_at; subsequent lookups MUST return ErrHostNotFound; the row remains physically present for audit forensics
+      type: technical
+      enforcement: error
+    - id: C-04
+      description: credentials.scope_id MUST have a FK to hosts(id) ON DELETE RESTRICT (a host with credentials cannot be hard-deleted; soft delete is the only path)
+      type: technical
+      enforcement: error
+    - id: C-05
+      description: created_by MUST reference a users(id) row that is not soft-deleted at creation time (FK enforces existence; check enforces "not soft-deleted")
+      type: technical
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: Migration 0008 creates hosts with id UUID PK, hostname TEXT, ip_address INET, port INTEGER, display_name TEXT, description TEXT, environment TEXT, tags TEXT[], group_id UUID, username TEXT, created_by UUID FK, created_at/updated_at/deleted_at TIMESTAMPTZ.
+      priority: critical
+    - id: AC-02
+      description: Migration 0008 adds the FK constraint on credentials.scope_id → hosts(id) ON DELETE RESTRICT so host-scope credentials cannot orphan.
+      priority: critical
+      references_constraints: [C-04]
+    - id: AC-03
+      description: CreateHost persists a row with the supplied fields; returns Host struct with all fields populated; created_by FK to users(id) enforced (insert with unknown created_by returns ErrInvalidCreator).
+      priority: critical
+      references_constraints: [C-05]
+    - id: AC-04
+      description: CreateHost with empty hostname returns ErrInvalidHost; no row is inserted.
+      priority: critical
+    - id: AC-05
+      description: A second CreateHost with the same (hostname, environment) while the first is still active returns ErrDuplicateHost.
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-06
+      description: After SoftDelete the (hostname, environment) is reusable — a new CreateHost with the same pair succeeds.
+      priority: critical
+      references_constraints: [C-01, C-03]
+    - id: AC-07
+      description: GetByID returns the host when active; returns ErrHostNotFound for unknown or soft-deleted IDs.
+      priority: critical
+      references_constraints: [C-03]
+    - id: AC-08
+      description: UpdateHost modifies the supplied fields and bumps updated_at; immutable fields (id, created_by, created_at) are preserved.
+      priority: high
+    - id: AC-09
+      description: List with no filters returns all active hosts; soft-deleted hosts are excluded.
+      priority: high
+      references_constraints: [C-03]
+    - id: AC-10
+      description: List filtered by environment="production" returns only production hosts.
+      priority: high
+    - id: AC-11
+      description: List filtered by tag="critical" returns only hosts whose tags array contains "critical"; uses the GIN index path (`tag = ANY(tags)`).
+      priority: high
+      references_constraints: [C-02]
+    - id: AC-12
+      description: SoftDelete sets deleted_at and returns nil; subsequent GetByID returns ErrHostNotFound; the row remains physically present (verifiable via a raw COUNT(*) query on hosts).
+      priority: critical
+      references_constraints: [C-03]

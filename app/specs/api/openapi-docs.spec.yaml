@@ -1,0 +1,68 @@
+spec:
+  id: api-openapi-docs
+  title: OpenAPI spec + Swagger UI served from the binary
+  version: "1.0.0"
+  status: approved
+  tier: 3
+
+  context:
+    system: openwatch-go
+    feature: Built-in API documentation
+    description: >
+      The Go rebuild ships no frontend in 0.2.0. Operators and reviewers
+      need a way to discover and test the API surface from a browser
+      without installing a separate tool (Postman / Insomnia / etc.).
+      This spec describes two endpoints — one that serves the OpenAPI
+      YAML, one that serves a Swagger UI page that loads it — both
+      embedded in the binary via go:embed so the docs ship with the
+      same air-gapped tarball as the server.
+    related_specs:
+      - system-http-server
+      - api-health
+
+  objective:
+    summary: >
+      Make the API self-documenting. A fresh install plus a browser is
+      enough to discover every endpoint, see its schema, and execute
+      requests against the live server (using Swagger UI's Try it out
+      button + a session cookie obtained via /auth/login).
+    scope:
+      includes:
+        - "GET /api/v1/openapi.yaml — serves the embedded OpenAPI spec"
+        - "GET /docs — serves a Swagger UI HTML page pre-pointed at the spec above"
+        - "Both endpoints unauthenticated (they're reference material, not data)"
+      excludes:
+        - "Redoc / Stoplight Elements / alternative renderers — Swagger UI is sufficient"
+        - "Multi-version docs (only the binary's bundled spec is served)"
+
+  constraints:
+    - id: C-01
+      description: The OpenAPI spec and Swagger UI assets MUST be embedded in the binary via go:embed — no CDN, no runtime filesystem path. Operators in air-gapped environments rely on this.
+      type: security
+      enforcement: error
+    - id: C-02
+      description: Both endpoints MUST be reachable without authentication — they are reference material, not data. An unauthenticated GET on either MUST NOT return 401 or 403.
+      type: technical
+      enforcement: error
+    - id: C-03
+      description: GET /api/v1/openapi.yaml MUST return the spec file shipped with this binary version, byte-identical to the source app/api/openapi.yaml at build time.
+      type: technical
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: GET /api/v1/openapi.yaml returns 200 with Content-Type application/yaml (or text/yaml) and a body that starts with "openapi:". No session cookie or Bearer token required.
+      priority: critical
+      references_constraints: [C-02, C-03]
+    - id: AC-02
+      description: GET /docs returns 200 with Content-Type text/html and a body that contains both "swagger-ui" (the rendered page's marker) and a reference to /api/v1/openapi.yaml (the spec URL the Swagger UI loads from). No authentication required.
+      priority: critical
+      references_constraints: [C-01, C-02]
+    - id: AC-03
+      description: The Swagger UI page's required JavaScript and CSS assets are served from the binary (same origin), not from a public CDN. A reviewer in an air-gapped environment can view the docs with the network firewalled.
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-04
+      description: The embedded openapi.yaml is identical byte-for-byte to app/api/openapi.yaml at the time the binary was built. Verified by reading both at test time and comparing.
+      priority: high
+      references_constraints: [C-03]

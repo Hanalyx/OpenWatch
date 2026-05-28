@@ -1,0 +1,127 @@
+spec:
+  id: system-policy
+  title: Policies-as-data framework
+  version: "1.0.0"
+  status: approved
+  tier: 1
+
+  context:
+    system: openwatch-go
+    feature: Policy framework (loader + evaluator + state)
+    description: >
+      Policies are signed YAML documents loaded from disk into an
+      atomic.Pointer[State] cache. The framework owns the loader,
+      signature verification, version monotonic check, history snapshot,
+      and audit emission. Stage 0 ships one typed evaluator
+      (alert_thresholds) as the demo; remaining types (exceptions,
+      approvals, schedules, remediation) land alongside their Stage-2
+      consumers.
+    related_specs:
+      - system-license-validation
+      - system-audit-emission
+      - system-rbac
+
+  objective:
+    summary: >
+      Every value that could differ between deployments (alert
+      thresholds, approval routes, exception lifecycle rules) lives in
+      a signed policy file, not hard-coded. The loader pipeline
+      validates, snapshots, and audits each load atomically; evaluation
+      is lock-free on the hot path.
+    scope:
+      includes:
+        - Generic loader (Ed25519 verify + semver monotonic + atomic swap)
+        - Per-type state cache + Evaluate() entry point
+        - policy_history snapshot on every successful load
+        - policy.loaded / policy.invalid / policy.applied audit events
+        - One typed evaluator (alert_thresholds)
+        - Built-in defaults at version 0.0.0
+      excludes:
+        - Remaining typed evaluators (Stage 2 alongside consumers)
+        - File-watching auto-reload (operator drops file + SIGHUP/admin endpoint)
+
+  constraints:
+    - id: C-01
+      description: Policy documents MUST be signed with Ed25519; the signature MUST verify against an embedded admin public key
+      type: security
+      enforcement: error
+    - id: C-02
+      description: Loading a policy with version <= the current active version of the same type MUST be rejected as policy.invalid (monotonic check)
+      type: security
+      enforcement: error
+    - id: C-03
+      description: The runtime state MUST be served from an atomic.Pointer[State] (lock-free reads)
+      type: performance
+      enforcement: error
+    - id: C-04
+      description: Boot MUST install built-in default policies (version 0.0.0) so the service is operable without any policy file on disk
+      type: technical
+      enforcement: error
+    - id: C-05
+      description: Every successful load MUST insert a row into policy_history with version, source_hash, loaded_at, signed_by
+      type: technical
+      enforcement: error
+    - id: C-06
+      description: Every successful load MUST emit a policy.loaded audit event with policy_type, new_version, previous_version
+      type: security
+      enforcement: error
+    - id: C-07
+      description: Every failed load MUST emit a policy.invalid audit event with policy_type, attempted_version, error list; the prior active state MUST be preserved
+      type: security
+      enforcement: error
+    - id: C-08
+      description: Evaluate() MUST emit a policy.applied audit event recording outcome and policy_version
+      type: security
+      enforcement: error
+    - id: C-09
+      description: OPENWATCH_DEV_MODE=true MUST allow loading unsigned policies (dev-mode bypass); production builds reject unsigned files
+      type: security
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: Boot with no policies on disk installs built-in defaults for every registered policy type; policy.loaded audit emitted per type with previous_version="".
+      priority: critical
+      references_constraints: [C-04, C-06]
+    - id: AC-02
+      description: LoadFile against a signed policy with version 1.0.0 succeeds, swaps the active state, and emits policy.loaded with previous_version="0.0.0".
+      priority: critical
+      references_constraints: [C-01, C-06]
+    - id: AC-03
+      description: LoadFile against the same signed file twice produces outcome="unchanged" on the second call (source_hash matches); no new history row, no new audit event.
+      priority: high
+    - id: AC-04
+      description: LoadFile against a version 0.9.0 file when active is 1.0.0 returns outcome="invalid" with policy.invalid audit event listing "version regression"; prior state retained.
+      priority: critical
+      references_constraints: [C-02, C-07]
+    - id: AC-05
+      description: LoadFile against a file with a broken signature returns outcome="invalid" with policy.invalid audit event listing "signature_invalid"; prior state retained.
+      priority: critical
+      references_constraints: [C-01, C-07]
+    - id: AC-06
+      description: LoadFile against a file that fails type-specific validation (e.g., alert_thresholds with thresholds out of [0,100]) returns outcome="invalid" with errors listed; prior state retained.
+      priority: critical
+      references_constraints: [C-07]
+    - id: AC-07
+      description: Get(policyType) returns the active state pointer; lock-free atomic.Pointer read.
+      priority: critical
+      references_constraints: [C-03]
+    - id: AC-08
+      description: Evaluate(alert_thresholds, input) returns a Decision whose Outcome reflects which threshold band the input score falls into; emits policy.applied audit event.
+      priority: critical
+      references_constraints: [C-08]
+    - id: AC-09
+      description: policy_history table has one row per successful load with policy_type, version, source_hash, loaded_at, signed_by populated.
+      priority: high
+      references_constraints: [C-05]
+    - id: AC-10
+      description: OPENWATCH_DEV_MODE=true loads an unsigned policy with policy.loaded.warnings containing "unsigned_dev_mode".
+      priority: high
+      references_constraints: [C-09]
+    - id: AC-11
+      description: Reload(policyType) performs the same load pipeline as LoadFile and emits the same audit events.
+      priority: high
+    - id: AC-12
+      description: Evaluate hot path p99 < 50µs (atomic.Pointer load + map lookup; no I/O).
+      priority: medium
+      references_constraints: [C-03]

@@ -20,8 +20,8 @@ repos:
       - id: check-merge-conflict
       - id: check-case-conflict
       - id: detect-private-key
-        # Exclude files with SSH key validation code (contain key format strings, not actual keys)
-        # Also exclude backup certificates and documentation
+        # Exclude files with SSH key validation code (contain key format strings, not actual keys),
+        # backup certificates, documentation, and test-only PEM fixtures.
         exclude: |
           (?x)^(
             docs/.*|
@@ -35,7 +35,17 @@ repos:
             frontend/src/utils/hostValidation\.ts|
             frontend/src/pages/hosts/AddHost\.tsx|
             frontend/src/pages/hosts/Hosts\.tsx|
-            frontend/src/pages/settings/Settings\.tsx
+            frontend/src/pages/settings/Settings\.tsx|
+            app/internal/identity/jwt\.go|
+            app/internal/ssh/dial\.go|
+            app/internal/license/testdata/.*|
+            app/internal/policy/testdata/.*|
+            app/internal/credential/credential_test\.go|
+            app/internal/ssh/ssh_test\.go|
+            app/internal/server/tls_test\.go|
+            app/internal/server/server_test\.go|
+            app/internal/server/api_credentials_test\.go|
+            app/packaging/tests/runtime_boot_test\.go
           )$
       - id: mixed-line-ending
         args: ['--fix=lf']

@@ -1,0 +1,1212 @@
+# OpenWatch — Stage-0 OpenAPI manifest.
+#
+# Self-contained 3-endpoint surface that oapi-codegen turns into typed
+# Go server stubs. The full 14-domain manifest lives in openapi.full.yaml
+# for Stage 2+ reference.
+#
+# Endpoints:
+#   GET  /api/v1/health                — anonymous liveness probe
+#   POST /api/v1/diagnostics:echo      — exercises idempotency + audit
+#   GET  /api/v1/audit/events          — cursor-paginated audit list
+#
+# Specs:
+#   app/specs/api/health.spec.yaml
+#   app/specs/api/diagnostics-echo.spec.yaml
+#   app/specs/api/audit-events-query.spec.yaml
+
+openapi: 3.0.3
+
+info:
+  title: OpenWatch (Stage 0)
+  version: 0.1.0-alpha.1
+  description: |
+    Stage 0 walking-skeleton surface — three endpoints that exercise the
+    foundation stack (correlation, idempotency, audit, error envelope).
+
+servers:
+  - url: https://localhost:8443
+    description: Local development
+
+paths:
+
+  /api/v1/auth/login:
+    post:
+      operationId: postAuthLogin
+      summary: Username/password login with optional TOTP
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AuthLoginRequest'}
+      responses:
+        '200':
+          description: Login succeeded; tokens issued
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AuthLoginResponse'}
+        '401':
+          description: Invalid credentials or MFA required
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
+  /api/v1/auth/logout:
+    post:
+      operationId: postAuthLogout
+      summary: Revoke the calling session
+      responses:
+        '204':
+          description: Session revoked
+
+  /api/v1/auth/refresh:
+    post:
+      operationId: postAuthRefresh
+      summary: Rotate the refresh token; mint a new access+refresh pair
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AuthRefreshRequest'}
+      responses:
+        '200':
+          description: New token pair issued
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AuthLoginResponse'}
+        '401':
+          description: Refresh token invalid, expired, or reused (cascade revoke triggered)
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
+  /api/v1/auth/me:
+    get:
+      operationId: getAuthMe
+      summary: Return the calling identity
+      responses:
+        '200':
+          description: Identity
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AuthMeResponse'}
+        '401':
+          description: No valid session or bearer
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
+  /api/v1/auth/mfa:enroll:
+    post:
+      operationId: postAuthMFAEnroll
+      summary: Enroll the calling user in TOTP MFA
+      responses:
+        '200':
+          description: Provisioning URI returned for the authenticator app
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AuthMFAEnrollResponse'}
+
+  /api/v1/auth/mfa:verify:
+    post:
+      operationId: postAuthMFAVerify
+      summary: Confirm an enrolled MFA secret by verifying a generated OTP
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AuthMFAVerifyRequest'}
+      responses:
+        '204':
+          description: MFA verified
+        '401':
+          description: MFA OTP invalid or replayed
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
+  /api/v1/auth/password:change:
+    post:
+      operationId: postAuthPasswordChange
+      summary: Change the calling user's password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AuthPasswordChangeRequest'}
+      responses:
+        '204':
+          description: Password updated
+        '401':
+          description: Current password wrong
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '400':
+          description: New password rejected by policy
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
+  /api/v1/health:
+    get:
+      operationId: getHealth
+      summary: Liveness + readiness probe (anonymous)
+      security: []
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/HealthResponse'}
+        '503':
+          description: Service is degraded or unavailable
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
+  /api/v1/diagnostics:echo:
+    post:
+      operationId: postDiagnosticsEcho
+      summary: Echo the request message; exercises idempotency + audit
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema: {type: string, minLength: 1, maxLength: 255}
+        - name: X-Correlation-Id
+          in: header
+          required: false
+          schema: {type: string}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/EchoRequest'}
+      responses:
+        '200':
+          description: Echo succeeded
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/EchoResponse'}
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed'
+        '409':
+          description: Idempotency-Key reused with different body
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
+  /api/v1/license:
+    get:
+      operationId: getLicense
+      summary: Get the current license state (tier, features, quotas, status)
+      responses:
+        '200':
+          description: License state
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/LicenseStateResponse'}
+
+  /api/v1/admin/license:verify:
+    post:
+      operationId: postAdminLicenseVerify
+      summary: Dry-run validate a JWT license without installing it
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/LicenseVerifyRequest'}
+      responses:
+        '200':
+          description: Verification result (success or typed failure)
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/LicenseVerifyResponse'}
+
+  /api/v1/diagnostics:premium-echo:
+    post:
+      operationId: postDiagnosticsPremiumEcho
+      summary: License-gated echo; requires premium_diagnostics feature
+      x-required-feature: premium_diagnostics
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema: {type: string, minLength: 1, maxLength: 255}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/EchoRequest'}
+      responses:
+        '200':
+          description: Echoed
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/EchoResponse'}
+        '402':
+          description: License does not include premium_diagnostics feature
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
+  /api/v1/diagnostics:require-host-read:
+    post:
+      operationId: postDiagnosticsRequireHostRead
+      summary: Stage-0 RBAC demo; requires host:read permission
+      x-required-permission: host:read
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema: {type: string, minLength: 1, maxLength: 255}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/EchoRequest'}
+      responses:
+        '200':
+          description: Echoed (caller holds host:read)
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/EchoResponse'}
+        '403':
+          description: Caller lacks host:read
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
+  /api/v1/diagnostics:require-host-write:
+    post:
+      operationId: postDiagnosticsRequireHostWrite
+      summary: Stage-0 RBAC demo; requires host:write permission
+      x-required-permission: host:write
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema: {type: string, minLength: 1, maxLength: 255}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/EchoRequest'}
+      responses:
+        '200':
+          description: Echoed (caller holds host:write)
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/EchoResponse'}
+        '403':
+          description: Caller lacks host:write
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
+  /api/v1/diagnostics:evaluate-alert:
+    post:
+      operationId: postDiagnosticsEvaluateAlert
+      summary: Stage-0 policy demo; evaluates the alert_thresholds policy
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/EvaluateAlertRequest'}
+      responses:
+        '200':
+          description: Policy decision
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PolicyDecisionResponse'}
+
+  /api/v1/diagnostics:enqueue-test-job:
+    post:
+      operationId: postDiagnosticsEnqueueTestJob
+      summary: Stage-0 queue demo; enqueues a no-op job processed by the in-process worker
+      responses:
+        '202':
+          description: Job accepted; worker will drain
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/EnqueueTestJobResponse'}
+
+  /api/v1/admin/policies:reload:
+    post:
+      operationId: postAdminPoliciesReload
+      summary: Reload signed policy files from the configured directory
+      x-required-permission: policy:reload
+      responses:
+        '200':
+          description: Per-type reload outcomes
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PoliciesReloadResponse'}
+        '403':
+          description: Caller lacks policy:reload
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
+  /api/v1/diagnostics:require-remediation-execute:
+    post:
+      operationId: postDiagnosticsRequireRemediationExecute
+      summary: Stage-0 RBAC+license demo; requires remediation:execute + remediation_execution feature
+      x-required-permission: remediation:execute
+      x-required-feature: remediation_execution
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema: {type: string, minLength: 1, maxLength: 255}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/EchoRequest'}
+      responses:
+        '200':
+          description: Echoed
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/EchoResponse'}
+        '402':
+          description: License does not include remediation_execution
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '403':
+          description: Caller lacks remediation:execute
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
+  /api/v1/auth/me/permissions:
+    get:
+      operationId: getAuthMePermissions
+      summary: Effective permissions for the calling identity
+      responses:
+        '200':
+          description: Permission list
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AuthMePermissionsResponse'}
+
+  /api/v1/auth/permissions:registry:
+    get:
+      operationId: getAuthPermissionsRegistry
+      summary: Full RBAC registry (categories, permissions, built-in roles)
+      responses:
+        '200':
+          description: Registry
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PermissionsRegistryResponse'}
+
+  /api/v1/users:
+    get:
+      operationId: getUsers
+      summary: List users
+      x-required-permission: user:read
+      responses:
+        '200':
+          description: User list
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/UsersListResponse'}
+        '403':
+          description: Caller lacks user:read
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+    post:
+      operationId: postUsers
+      summary: Create a user
+      x-required-permission: user:write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/UserCreateRequest'}
+      responses:
+        '201':
+          description: User created
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/UserResponse'}
+        '400':
+          description: Validation or policy failure
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '403':
+          description: Caller lacks user:write
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
+  /api/v1/users/{id}:
+    get:
+      operationId: getUserByID
+      summary: Fetch a user
+      x-required-permission: user:read
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200':
+          description: User
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/UserResponse'}
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+    delete:
+      operationId: deleteUserByID
+      summary: Soft-delete a user
+      x-required-permission: user:delete
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '204':
+          description: Deleted
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
+  /api/v1/users/{id}/roles:assign:
+    post:
+      operationId: postUserRolesAssign
+      summary: Assign a role to a user
+      x-required-permission: role:assign
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/UserRoleAssignRequest'}
+      responses:
+        '204':
+          description: Role assigned
+        '400':
+          description: Unknown role id
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
+  /api/v1/users/{id}/roles:unassign:
+    post:
+      operationId: postUserRolesUnassign
+      summary: Remove a role from a user
+      x-required-permission: role:assign
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/UserRoleAssignRequest'}
+      responses:
+        '204':
+          description: Role removed (idempotent)
+
+  /api/v1/roles:create:
+    post:
+      operationId: postRolesCreate
+      summary: Create a custom role
+      x-required-permission: role:write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CustomRoleCreateRequest'}
+      responses:
+        '201':
+          description: Custom role created
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CustomRoleResponse'}
+        '400':
+          description: Permission unknown
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '409':
+          description: Role id taken
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
+  /api/v1/roles:
+    get:
+      operationId: getRoles
+      summary: List built-in roles
+      x-required-permission: role:read
+      responses:
+        '200':
+          description: Role list
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AdminRolesResponse'}
+        '403':
+          description: Caller lacks role:read
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
+  /api/v1/credentials:
+    get:
+      operationId: getCredentials
+      summary: List credentials (metadata only)
+      x-required-permission: credential:read
+      responses:
+        '200':
+          description: Credential metadata list
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CredentialListResponse'}
+        '403':
+          description: Caller lacks credential:read
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+    post:
+      operationId: postCredentials
+      summary: Create a credential
+      x-required-permission: credential:write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CredentialCreateRequest'}
+      responses:
+        '201':
+          description: Credential created
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CredentialResponse'}
+        '400':
+          description: Validation, invalid scope, host not found, or invalid SSH key
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '409':
+          description: Multiple system defaults
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
+  /api/v1/credentials/{id}:
+    get:
+      operationId: getCredentialByID
+      summary: Fetch a credential's metadata
+      x-required-permission: credential:read
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200':
+          description: Credential metadata
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CredentialResponse'}
+        '404':
+          description: Credential not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+    delete:
+      operationId: deleteCredentialByID
+      summary: Soft-delete a credential
+      x-required-permission: credential:delete
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '204':
+          description: Deleted (is_active=false)
+        '404':
+          description: Credential not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
+  /api/v1/hosts:
+    get:
+      operationId: getHosts
+      summary: List hosts
+      x-required-permission: host:read
+      parameters:
+        - {name: environment, in: query, required: false, schema: {type: string}}
+        - {name: tag, in: query, required: false, schema: {type: string}}
+      responses:
+        '200':
+          description: Host list
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/HostListResponse'}
+        '403':
+          description: Caller lacks host:read
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+    post:
+      operationId: postHosts
+      summary: Create a host
+      x-required-permission: host:write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/HostCreateRequest'}
+      responses:
+        '201':
+          description: Host created
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/HostResponse'}
+        '400':
+          description: Validation failure (bad hostname, ip, port, etc.)
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '409':
+          description: Hostname already exists in environment
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
+  /api/v1/hosts/{id}:
+    get:
+      operationId: getHostByID
+      summary: Fetch a host
+      x-required-permission: host:read
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200':
+          description: Host
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/HostResponse'}
+        '404':
+          description: Host not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+    patch:
+      operationId: patchHostByID
+      summary: Update mutable host fields
+      x-required-permission: host:write
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/HostUpdateRequest'}
+      responses:
+        '200':
+          description: Host updated
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/HostResponse'}
+        '400':
+          description: Validation failure
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '404':
+          description: Host not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+    delete:
+      operationId: deleteHostByID
+      summary: Soft-delete a host
+      x-required-permission: host:delete
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '204':
+          description: Deleted (deleted_at set)
+        '404':
+          description: Host not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
+  /api/v1/hosts/{host_id}/credentials:resolve:
+    post:
+      operationId: postHostCredentialsResolve
+      summary: Resolve the credential that will be used for a host
+      x-required-permission: credential:read
+      parameters:
+        - {name: host_id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200':
+          description: Resolved credential metadata
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CredentialResponse'}
+        '404':
+          description: No credential available for host or system default
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
+  /api/v1/audit/events:
+    get:
+      operationId: getAuditEvents
+      summary: List audit events (cursor-paginated, newest first)
+      parameters:
+        - name: action
+          in: query
+          schema: {type: string}
+        - name: correlation_id
+          in: query
+          schema: {type: string}
+        - name: actor_type
+          in: query
+          schema: {type: string}
+        - name: since
+          in: query
+          schema: {type: string, format: date-time}
+        - name: until
+          in: query
+          schema: {type: string, format: date-time}
+        - name: cursor
+          in: query
+          schema: {type: string}
+        - name: limit
+          in: query
+          schema: {type: integer, minimum: 1, maximum: 200, default: 50}
+      responses:
+        '200':
+          description: Page of audit events
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AuditEventsPage'}
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+components:
+  responses:
+    BadRequest:
+      description: Validation, pagination, or idempotency error
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+    MethodNotAllowed:
+      description: Wrong HTTP method
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
+  schemas:
+
+    AuthLoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username: {type: string, minLength: 1, maxLength: 256}
+        password: {type: string, minLength: 1, maxLength: 256}
+        otp:      {type: string, minLength: 6, maxLength: 6}
+
+    AuthLoginResponse:
+      type: object
+      required: [access_token, refresh_token, user]
+      properties:
+        access_token:  {type: string}
+        refresh_token: {type: string}
+        user:          {$ref: '#/components/schemas/AuthMeResponse'}
+
+    AuthRefreshRequest:
+      type: object
+      required: [refresh_token]
+      properties:
+        refresh_token: {type: string}
+
+    AuthMeResponse:
+      type: object
+      required: [id, username, email, role]
+      properties:
+        id:       {type: string, format: uuid}
+        username: {type: string}
+        email:    {type: string}
+        role:     {type: string}
+
+    AuthMFAEnrollResponse:
+      type: object
+      required: [provisioning_uri]
+      properties:
+        provisioning_uri: {type: string}
+
+    AuthMFAVerifyRequest:
+      type: object
+      required: [otp]
+      properties:
+        otp: {type: string, minLength: 6, maxLength: 6}
+
+    AuthPasswordChangeRequest:
+      type: object
+      required: [current_password, new_password]
+      properties:
+        current_password: {type: string, minLength: 1}
+        new_password:     {type: string, minLength: 1}
+
+    UserResponse:
+      type: object
+      required: [id, username, email]
+      properties:
+        id:                       {type: string, format: uuid}
+        username:                 {type: string}
+        email:                    {type: string}
+        last_password_change_at:  {type: string, format: date-time}
+        created_at:               {type: string, format: date-time}
+        updated_at:               {type: string, format: date-time}
+
+    UsersListResponse:
+      type: object
+      required: [users]
+      properties:
+        users:
+          type: array
+          items: {$ref: '#/components/schemas/UserResponse'}
+
+    UserCreateRequest:
+      type: object
+      required: [username, email, password]
+      properties:
+        username: {type: string, minLength: 1, maxLength: 256}
+        email:    {type: string, minLength: 3, maxLength: 256}
+        password: {type: string, minLength: 8, maxLength: 256}
+
+    UserRoleAssignRequest:
+      type: object
+      required: [role_id]
+      properties:
+        role_id: {type: string, minLength: 1}
+
+    CustomRoleCreateRequest:
+      type: object
+      required: [id, description, permissions]
+      properties:
+        id:          {type: string, pattern: '^[a-z][a-z0-9_]{1,63}$'}
+        description: {type: string, minLength: 1, maxLength: 256}
+        permissions:
+          type: array
+          minItems: 1
+          items: {type: string}
+
+    CustomRoleResponse:
+      type: object
+      required: [id, description, is_built_in, permissions]
+      properties:
+        id:           {type: string}
+        description:  {type: string}
+        is_built_in:  {type: boolean}
+        permissions:
+          type: array
+          items: {type: string}
+
+    CredentialResponse:
+      type: object
+      required: [id, scope, name, username, auth_method, is_default, is_active]
+      properties:
+        id:                    {type: string, format: uuid}
+        scope:                 {type: string, enum: [system, host]}
+        scope_id:              {type: string, format: uuid, nullable: true}
+        name:                  {type: string}
+        description:           {type: string}
+        username:              {type: string}
+        auth_method:           {type: string, enum: [ssh_key, password, both]}
+        ssh_key_fingerprint:   {type: string}
+        ssh_key_type:          {type: string}
+        ssh_key_bits:          {type: integer}
+        ssh_key_comment:       {type: string}
+        is_default:            {type: boolean}
+        is_active:             {type: boolean}
+        created_by:            {type: string, format: uuid}
+        created_at:            {type: string, format: date-time}
+        updated_at:            {type: string, format: date-time}
+
+    CredentialListResponse:
+      type: object
+      required: [credentials]
+      properties:
+        credentials:
+          type: array
+          items: {$ref: '#/components/schemas/CredentialResponse'}
+
+    HostResponse:
+      type: object
+      required: [id, hostname, ip_address, port, environment]
+      properties:
+        id:           {type: string, format: uuid}
+        hostname:     {type: string}
+        ip_address:   {type: string}
+        port:         {type: integer}
+        display_name: {type: string}
+        description:  {type: string}
+        environment:  {type: string}
+        tags:
+          type: array
+          items: {type: string}
+        group_id:     {type: string, format: uuid, nullable: true}
+        username:     {type: string}
+        created_by:   {type: string, format: uuid}
+        created_at:   {type: string, format: date-time}
+        updated_at:   {type: string, format: date-time}
+
+    HostListResponse:
+      type: object
+      required: [hosts]
+      properties:
+        hosts:
+          type: array
+          items: {$ref: '#/components/schemas/HostResponse'}
+
+    HostCreateRequest:
+      type: object
+      required: [hostname, ip_address]
+      properties:
+        hostname:     {type: string, minLength: 1, maxLength: 256}
+        ip_address:   {type: string, minLength: 1, maxLength: 64}
+        port:         {type: integer, minimum: 1, maximum: 65535}
+        display_name: {type: string, maxLength: 256}
+        description:  {type: string, maxLength: 1024}
+        environment:  {type: string, maxLength: 64}
+        tags:
+          type: array
+          items: {type: string, maxLength: 64}
+        group_id:     {type: string, format: uuid, nullable: true}
+        username:     {type: string, maxLength: 256}
+
+    HostUpdateRequest:
+      type: object
+      properties:
+        ip_address:   {type: string, minLength: 1, maxLength: 64}
+        port:         {type: integer, minimum: 1, maximum: 65535}
+        display_name: {type: string, maxLength: 256}
+        description:  {type: string, maxLength: 1024}
+        environment:  {type: string, minLength: 1, maxLength: 64}
+        tags:
+          type: array
+          items: {type: string, maxLength: 64}
+        group_id:     {type: string, format: uuid, nullable: true}
+        username:     {type: string, maxLength: 256}
+
+    CredentialCreateRequest:
+      type: object
+      required: [scope, name, username, auth_method]
+      properties:
+        scope:                  {type: string, enum: [system, host]}
+        scope_id:               {type: string, format: uuid, nullable: true}
+        name:                   {type: string, minLength: 1, maxLength: 256}
+        description:            {type: string, maxLength: 1024}
+        username:               {type: string, minLength: 1, maxLength: 256}
+        auth_method:            {type: string, enum: [ssh_key, password, both]}
+        password:               {type: string}
+        private_key:            {type: string}
+        private_key_passphrase: {type: string}
+        is_default:             {type: boolean}
+
+    HealthResponse:
+      type: object
+      required: [status, db_connected, version]
+      properties:
+        status: {type: string, enum: [healthy, degraded]}
+        db_connected: {type: boolean}
+        version: {type: string}
+
+    EchoRequest:
+      type: object
+      required: [message]
+      properties:
+        message: {type: string, minLength: 1, maxLength: 1024}
+
+    EchoResponse:
+      type: object
+      required: [echoed, correlation_id]
+      properties:
+        echoed: {type: string}
+        correlation_id: {type: string}
+        audit_event_id: {type: string, format: uuid}
+
+    LicenseStateResponse:
+      type: object
+      required: [tier, status, features]
+      properties:
+        tier: {type: string, enum: [free, openwatch_plus, enterprise]}
+        status: {type: string, enum: [active, grace, expired, no_license, invalid]}
+        features: {type: array, items: {type: string}}
+        customer_id: {type: string}
+        expires_at: {type: string, format: date-time, nullable: true}
+        in_grace_period: {type: boolean}
+        using_prev_key: {type: boolean}
+
+    LicenseVerifyRequest:
+      type: object
+      required: [license_jwt]
+      properties:
+        license_jwt: {type: string}
+
+    LicenseVerifyResponse:
+      type: object
+      required: [is_valid, verify_result]
+      properties:
+        is_valid: {type: boolean}
+        verify_result: {type: string}
+        tier: {type: string, nullable: true}
+        features: {type: array, items: {type: string}, nullable: true}
+        expires_at: {type: string, format: date-time, nullable: true}
+        warnings: {type: array, items: {type: string}, nullable: true}
+
+    AuditEvent:
+      type: object
+      required: [id, correlation_id, action, actor_type, occurred_at]
+      properties:
+        id: {type: string, format: uuid}
+        correlation_id: {type: string}
+        action: {type: string}
+        severity: {type: string}
+        actor_type: {type: string}
+        actor_id: {type: string, nullable: true}
+        resource_type: {type: string, nullable: true}
+        resource_id: {type: string, nullable: true}
+        occurred_at: {type: string, format: date-time}
+        recorded_at: {type: string, format: date-time}
+        detail: {type: object, additionalProperties: true}
+        redactions: {type: array, items: {type: string}}
+
+    AuditEventsPage:
+      type: object
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          items: {$ref: '#/components/schemas/AuditEvent'}
+        next_cursor:
+          type: string
+          nullable: true
+          description: Opaque cursor; pass as ?cursor= to fetch the next page
+
+    ErrorEnvelope:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, fault, retryable, human_message]
+          properties:
+            code: {type: string}
+            fault: {type: string, enum: [client, server, policy, external]}
+            retryable: {type: boolean}
+            human_message: {type: string}
+            detail: {type: object, additionalProperties: true}
+            correlation_id: {type: string}
+
+    AuthMePermissionsResponse:
+      type: object
+      required: [identity, permissions]
+      properties:
+        identity:
+          type: object
+          required: [id, role, is_anonymous]
+          properties:
+            id: {type: string}
+            role: {type: string}
+            is_anonymous: {type: boolean}
+        permissions:
+          type: array
+          items: {type: string}
+
+    PermissionEntry:
+      type: object
+      required: [id, category, description, dangerous]
+      properties:
+        id: {type: string}
+        category: {type: string}
+        description: {type: string}
+        dangerous: {type: boolean}
+        license_gated: {type: string}
+
+    CategoryEntry:
+      type: object
+      required: [id, description]
+      properties:
+        id: {type: string}
+        description: {type: string}
+
+    RoleEntry:
+      type: object
+      required: [id, description, permissions, is_built_in]
+      properties:
+        id: {type: string}
+        description: {type: string}
+        is_built_in: {type: boolean}
+        permissions:
+          type: array
+          items: {type: string}
+
+    PermissionsRegistryResponse:
+      type: object
+      required: [categories, permissions, roles]
+      properties:
+        categories:
+          type: array
+          items: {$ref: '#/components/schemas/CategoryEntry'}
+        permissions:
+          type: array
+          items: {$ref: '#/components/schemas/PermissionEntry'}
+        roles:
+          type: array
+          items: {$ref: '#/components/schemas/RoleEntry'}
+
+    AdminRolesResponse:
+      type: object
+      required: [roles]
+      properties:
+        roles:
+          type: array
+          items: {$ref: '#/components/schemas/RoleEntry'}
+
+    EvaluateAlertRequest:
+      type: object
+      required: [score]
+      properties:
+        score: {type: integer, minimum: 0, maximum: 100}
+
+    PolicyDecisionResponse:
+      type: object
+      required: [outcome, policy_type, policy_version, reason]
+      properties:
+        outcome:        {type: string}
+        policy_type:    {type: string}
+        policy_version: {type: string}
+        reason:         {type: string}
+        human_message:  {type: string}
+        detail:         {type: object, additionalProperties: true}
+
+    EnqueueTestJobResponse:
+      type: object
+      required: [job_id, correlation_id]
+      properties:
+        job_id:         {type: string, format: uuid}
+        correlation_id: {type: string}
+
+    PoliciesReloadResponse:
+      type: object
+      required: [outcomes]
+      properties:
+        outcomes:
+          type: object
+          additionalProperties: {type: string}

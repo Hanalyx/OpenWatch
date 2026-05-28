@@ -585,6 +585,16 @@ cache/
 !backend/app/services/auth/credential_service.py
 !backend/app/services/auth/credential_handler.py
 
+# Exception: Go-rebuild source under app/ — the "safety net" patterns
+# above (*credential*, *secret*, *password*, *_credential*.sql, etc.)
+# were written for the legacy Python project's runtime files. The Go
+# rebuild has packages whose names legitimately include those words
+# (internal/credential, internal/secretkey, identity/password*,
+# migrations/*_credentials.sql) — they are source code, not secrets.
+# Re-include all files under app/ here; the app/.gitignore still
+# applies for genuine build artifacts (dist/, openapi_embed.yaml).
+!app/**
+
 # Configuration files that might contain secrets
 *config.local.*
 *settings.local.*
@@ -695,6 +705,8 @@ dist/
 # RPM spec files (development versions)
 *.spec
 !packaging/rpm/*.spec
+# Same exception for the Go rebuild's RPM spec
+!app/packaging/rpm/*.spec
 
 # RPM creation scripts (temporary)
 create-rpm.sh
@@ -732,6 +744,11 @@ system_credentials_backup.sql
 
 # Temporary credential files
 create_test_credential.py
+
+# Exception (again, for the patterns above): re-include the Go
+# rebuild's migration files. The 0007_credentials.sql migration
+# describes the credentials table schema; it's source, not data.
+!app/internal/db/migrations/*.sql
 
 # ======================================
 # VIRTUAL ENVIRONMENTS AND SCRIPTS

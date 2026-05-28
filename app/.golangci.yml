@@ -1,0 +1,129 @@
+# OpenWatch (Go rebuild) — golangci-lint configuration
+#
+# Most rules are baseline Go hygiene; the `forbidigo` rules enforce the
+# foundation-doc drift-prevention contracts:
+#
+#   - RBAC: raw permission strings must use codegen-typed constants
+#     (per app/docs/rbac_registry.md §10.1)
+#   - Correlation: slog.Info/Warn/Error/Debug without Context skip the
+#     correlation_id attr (per app/docs/correlation_id_propagation.md §7.1)
+#   - Correlation: http.DefaultClient skips X-Correlation-Id forwarding
+#   - Correlation: raw `INSERT INTO job_queue` outside internal/queue/
+#     skips correlation propagation
+#
+# These forbid rules are active from Day 1. They trigger no false positives
+# today because the foundation packages don't exist yet (they land Days 4-8).
+# As foundation code lands, drift is caught at the build, not in code review.
+
+run:
+  timeout: 5m
+  go: "1.25"
+  tests: true
+
+linters:
+  disable-all: true
+  enable:
+    # Go best practices
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - gofmt
+    - goimports
+    - misspell
+    - errcheck
+    - revive
+    - gosec
+
+    # OpenWatch-specific drift prevention
+    - forbidigo
+
+linters-settings:
+
+  forbidigo:
+    analyze-types: true
+    forbid:
+      # ---- Correlation propagation contract -------------------------------
+      # slog calls without Context skip the correlation_id attr.
+      # Use slog.InfoContext / WarnContext / ErrorContext / DebugContext.
+      - p: '^slog\.Info$'
+        msg: "use slog.InfoContext(ctx, ...) — slog.Info skips correlation_id"
+      - p: '^slog\.Warn$'
+        msg: "use slog.WarnContext(ctx, ...) — slog.Warn skips correlation_id"
+      - p: '^slog\.Error$'
+        msg: "use slog.ErrorContext(ctx, ...) — slog.Error skips correlation_id"
+      - p: '^slog\.Debug$'
+        msg: "use slog.DebugContext(ctx, ...) — slog.Debug skips correlation_id"
+
+      # http.DefaultClient skips X-Correlation-Id forwarding.
+      # Use internal/httpclient.Client (lands Day 4).
+      - p: '^http\.DefaultClient$'
+        msg: "use internal/httpclient.Client — http.DefaultClient skips X-Correlation-Id forwarding"
+
+      # ---- RBAC registry contract -----------------------------------------
+      # Raw permission strings drift from the codegen-typed registry.
+      # Use auth.<PermissionConstant> from internal/auth/permissions.gen.go (lands Day 8).
+      # Pattern intentionally broad; reviewers add //nolint:forbidigo annotations
+      # for legitimate exceptions (test fixtures, schema validators).
+      # Disabled until Day 8 to keep Day 1 noise-free; uncomment when codegen lands.
+      #
+      # - p: '"[a-z][a-z0-9_]*:[a-z][a-z0-9_]*"'
+      #   msg: "use auth.<PermissionConstant> from internal/auth/permissions.gen.go"
+
+      # ---- Queue correlation contract -------------------------------------
+      # Raw INSERT INTO job_queue strings skip correlation propagation.
+      # Use queue.Enqueue(ctx, ...) — internal/queue/ is the only allowed site.
+      # Per spec system-job-queue AC-11 + C-06. Day-9 enforcement.
+      - p: 'INSERT INTO job_queue'
+        msg: "use queue.Enqueue(ctx, ...) — raw INSERT INTO job_queue skips correlation propagation"
+
+    exclude-godoc-examples: true
+
+  gosec:
+    excludes:
+      - G104  # errcheck handles unchecked errors more precisely
+
+  revive:
+    rules:
+      - name: exported
+        severity: warning
+        arguments: [checkPrivateReceivers, sayRepetitiveInsteadOfStutters]
+      - name: package-comments
+        severity: warning
+      - name: var-naming
+        severity: warning
+
+issues:
+  exclude-rules:
+    # Stub files in Day 1 placeholders have no real logic to lint.
+    - path: 'internal/(server|config)/.*\.go'
+      linters: [unused, revive]
+      text: "is unused|stutters"
+    # The queue package legitimately uses INSERT INTO job_queue in
+    # internal/queue/enqueue.go — the rule's whole point is that the
+    # ONLY allowed callsite is here.
+    - path: 'internal/queue/.*\.go'
+      linters: [forbidigo]
+      text: 'INSERT INTO job_queue'
+    # Tests intentionally inspect .golangci.yml string contents.
+    - path: '.*_test\.go'
+      linters: [forbidigo]
+      text: 'INSERT INTO job_queue|http\.DefaultClient'
+
+    # Test-only false positives:
+    #   G107 — test HTTP requests use locally-generated httptest URLs;
+    #   G306 — TLS certs are world-readable by design (key is 0600);
+    #   G204 — test subprocess invocations use controlled, hard-coded args.
+    - path: '.*_test\.go'
+      linters: [gosec]
+      text: 'G107|G306|G204|G101'
+
+    # io.Copy(io.Discard, body) in tests intentionally drops the error —
+    # we're draining the body for next-call reuse, not transferring data.
+    - path: '.*_test\.go'
+      linters: [errcheck]
+      text: 'Error return value of `io\.Copy` is not checked'
+
+  # Day-1 placeholder packages are intentionally empty.
+  exclude-dirs:
+    - dist

@@ -1,0 +1,578 @@
+# OpenWatch Audit Event Registry
+#
+# Source of truth for the audit taxonomy. Codegen produces:
+#   - internal/audit/events.gen.go (typed Go constants)
+#   - documentation rendered for /audit/events:taxonomy endpoint
+#
+# Build invariants enforced:
+#   - Every event code matches ^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*){1,2}$
+#   - Every code references a defined category
+#   - detail_schema (when present) is valid JSON Schema
+#   - No duplicates between events and deprecated_events
+#
+# Naming rules: see app/docs/audit_event_taxonomy.md §4.1
+# Adding a new code: see §4.2
+
+version: 1
+
+categories:
+  - id: auth
+    description: Authentication and session lifecycle
+  - id: authz
+    description: Authorization decisions and RBAC
+  - id: host
+    description: Host management and discovery
+  - id: credential
+    description: SSH credential lifecycle
+  - id: scan
+    description: Scan execution and lifecycle
+  - id: compliance
+    description: Compliance state, exceptions, baselines, drift
+  - id: alert
+    description: Alert generation and lifecycle
+  - id: notification
+    description: Notification dispatch and delivery
+  - id: license
+    description: License install, expiry, feature gating
+  - id: policy
+    description: Policy load, validation, application (Principle 2)
+  - id: remediation
+    description: Remediation requests and execution
+  - id: integration
+    description: External system integration (Jira, webhooks, plugins)
+  - id: system
+    description: Service lifecycle and configuration
+  - id: admin
+    description: Administrative operations
+  - id: diagnostics
+    description: Stage-0 diagnostic endpoints and worker
+
+events:
+  # =========================================================================
+  # auth — authentication and session lifecycle
+  # =========================================================================
+  - code: auth.login.success
+    severity: info
+    description: User authenticated successfully
+    actor_types: [user]
+    detail_schema:
+      type: object
+      properties:
+        auth_method: {type: string, enum: [password, sso_oidc, sso_saml, api_key]}
+        mfa_used: {type: boolean}
+
+  - code: auth.login.failure
+    severity: warning
+    description: Authentication attempt failed
+    actor_types: [user]
+    detail_schema:
+      type: object
+      properties:
+        reason: {type: string, enum: [invalid_credentials, account_locked, mfa_required, mfa_failed, sso_failed]}
+        auth_method: {type: string}
+
+  - code: auth.logout
+    severity: info
+    description: User explicitly logged out
+    actor_types: [user]
+
+  - code: auth.token.issued
+    severity: info
+    description: Access or refresh token issued
+    detail_schema:
+      type: object
+      properties:
+        token_type: {type: string, enum: [access, refresh]}
+        ttl_seconds: {type: integer}
+
+  - code: auth.token.refreshed
+    severity: info
+    description: Refresh token used to issue new access token
+    actor_types: [user, api_key]
+
+  - code: auth.token.revoked
+    severity: warning
+    description: Token added to revocation blacklist
+    actor_types: [user, system]
+    detail_schema:
+      type: object
+      properties:
+        reason: {type: string, enum: [user_logout, admin_revoke, suspicious_activity, token_rotation, session_expiry]}
+
+  - code: auth.mfa.enrolled
+    severity: info
+    description: User completed MFA enrollment
+    detail_schema:
+      type: object
+      properties:
+        method: {type: string, enum: [totp, fido2]}
+
+  - code: auth.mfa.validated
+    severity: info
+    description: MFA challenge passed during login
+
+  - code: auth.mfa.failed
+    severity: warning
+    description: MFA challenge failed
+
+  - code: auth.mfa.disabled
+    severity: warning
+    description: User disabled MFA on their account
+
+  - code: auth.session.created
+    severity: info
+    description: New session opened
+
+  - code: auth.session.expired
+    severity: info
+    description: Session timed out (idle or absolute)
+    detail_schema:
+      type: object
+      properties:
+        reason: {type: string, enum: [idle_timeout, absolute_timeout]}
+
+  - code: auth.session.revoked
+    severity: info
+    description: Session revoked (explicit logout or admin action)
+
+  - code: auth.password.changed
+    severity: info
+    description: User's password was successfully updated
+
+  - code: auth.password.policy_failed
+    severity: warning
+    description: Password change rejected by the NIST 800-63B policy validator
+
+  - code: auth.api_key.created
+    severity: info
+    description: API key issued
+
+  - code: auth.api_key.revoked
+    severity: warning
+    description: API key invalidated
+
+  # =========================================================================
+  # authz — RBAC and authorization
+  # =========================================================================
+  - code: authz.permission.denied
+    severity: warning
+    description: RBAC denied an authenticated request
+    detail_schema:
+      type: object
+      properties:
+        required_permission: {type: string}
+        route: {type: string}
+
+  - code: authz.role.assigned
+    severity: warning
+    description: Role assigned to user
+
+  - code: authz.role.removed
+    severity: warning
+    description: Role removed from user
+
+  # =========================================================================
+  # host — host management and discovery
+  # =========================================================================
+  - code: host.created
+    severity: info
+
+  - code: host.updated
+    severity: info
+
+  - code: host.deleted
+    severity: warning
+
+  - code: host.connectivity.checked
+    severity: info
+    detail_schema:
+      type: object
+      properties:
+        ping_success: {type: boolean}
+        ssh_accessible: {type: boolean}
+        response_time_ms: {type: integer}
+
+  - code: host.platform.detected
+    severity: info
+    detail_schema:
+      type: object
+      properties:
+        os_family: {type: string}
+        os_version: {type: string}
+        platform_identifier: {type: string}
+
+  - code: host.intelligence.refreshed
+    severity: info
+
+  - code: host.bulk_imported
+    severity: info
+    detail_schema:
+      type: object
+      properties:
+        total_processed: {type: integer}
+        successful: {type: integer}
+        failed: {type: integer}
+
+  # =========================================================================
+  # credential — SSH credential lifecycle
+  # =========================================================================
+  - code: credential.created
+    severity: info
+    detail_schema:
+      type: object
+      properties:
+        credential_id: {type: string}
+        scope: {type: string, enum: [system, host]}
+        auth_method: {type: string, enum: [ssh_key, password, both]}
+
+  - code: credential.deleted
+    severity: warning
+    detail_schema:
+      type: object
+      properties:
+        credential_id: {type: string}
+
+  # =========================================================================
+  # scan — scan execution and lifecycle
+  # =========================================================================
+  - code: scan.queued
+    severity: info
+    detail_schema:
+      type: object
+      properties:
+        framework: {type: string}
+        template_id: {type: [string, 'null']}
+
+  - code: scan.started
+    severity: info
+
+  - code: scan.completed
+    severity: info
+    detail_schema:
+      type: object
+      properties:
+        compliance_score: {type: number}
+        passed: {type: integer}
+        failed: {type: integer}
+        skipped: {type: integer}
+
+  - code: scan.failed
+    severity: error
+    detail_schema:
+      type: object
+      properties:
+        error_code: {type: string}
+        error_message: {type: string}
+
+  - code: scan.cancelled
+    severity: warning
+    detail_schema:
+      type: object
+      properties:
+        cancellation_reason: {type: string}
+
+  - code: scan.session.created
+    severity: info
+    detail_schema:
+      type: object
+      properties:
+        total_hosts: {type: integer}
+
+  - code: scan.session.cancelled
+    severity: warning
+
+  - code: scan.template.created
+    severity: info
+
+  - code: scan.template.updated
+    severity: info
+
+  - code: scan.template.deleted
+    severity: warning
+
+  # =========================================================================
+  # compliance — state, exceptions, baselines, drift
+  # =========================================================================
+  - code: compliance.state.changed
+    severity: info
+    description: Rule state transition (write-on-change pattern)
+    detail_schema:
+      type: object
+      properties:
+        rule_id: {type: string}
+        previous_status: {type: string, enum: [pass, fail, skip, error]}
+        new_status: {type: string, enum: [pass, fail, skip, error]}
+
+  - code: compliance.exception.requested
+    severity: info
+
+  - code: compliance.exception.approved
+    severity: warning
+
+  - code: compliance.exception.rejected
+    severity: info
+
+  - code: compliance.exception.revoked
+    severity: warning
+
+  - code: compliance.exception.expired
+    severity: info
+
+  - code: compliance.baseline.established
+    severity: info
+
+  - code: compliance.baseline.cleared
+    severity: warning
+
+  - code: compliance.drift.detected
+    severity: warning
+    detail_schema:
+      type: object
+      properties:
+        drift_type: {type: string, enum: [major, minor, improvement]}
+        score_delta: {type: number}
+
+  - code: compliance.snapshot.created
+    severity: info
+
+  # =========================================================================
+  # alert — alert lifecycle
+  # =========================================================================
+  - code: alert.created
+    severity: info
+    detail_schema:
+      type: object
+      properties:
+        alert_type: {type: string}
+        alert_severity: {type: string}
+
+  - code: alert.acknowledged
+    severity: info
+
+  - code: alert.resolved
+    severity: info
+
+  - code: alert.threshold.changed
+    severity: warning
+
+  # =========================================================================
+  # notification — channel dispatch
+  # =========================================================================
+  - code: notification.dispatched
+    severity: info
+    detail_schema:
+      type: object
+      properties:
+        channel_type: {type: string, enum: [slack, email, webhook, jira, pagerduty]}
+        delivery_id: {type: string}
+
+  - code: notification.delivery.failed
+    severity: error
+
+  - code: notification.delivery.succeeded
+    severity: info
+
+  - code: notification.channel.created
+    severity: info
+
+  - code: notification.channel.updated
+    severity: info
+
+  - code: notification.channel.deleted
+    severity: warning
+
+  # =========================================================================
+  # license — install, expiry, feature gating, quotas
+  # =========================================================================
+  - code: license.installed
+    severity: info
+
+  - code: license.invalid
+    severity: error
+
+  - code: license.expiring_soon
+    severity: warning
+
+  - code: license.expired
+    severity: error
+
+  - code: license.feature_check_denied
+    severity: warning
+    detail_schema:
+      type: object
+      properties:
+        feature: {type: string}
+        suppressed_count: {type: integer, description: Events deduped within 1-min window}
+
+  - code: license.quota_exceeded
+    severity: warning
+    detail_schema:
+      type: object
+      properties:
+        quota: {type: string}
+        limit: {type: integer}
+        current: {type: integer}
+
+  - code: license.clock_rollback_detected
+    severity: critical
+
+  - code: license.tampered
+    severity: critical
+
+  # =========================================================================
+  # policy — domain logic as data (agent-first Principle 2)
+  # =========================================================================
+  - code: policy.loaded
+    severity: info
+    detail_schema:
+      type: object
+      properties:
+        policy_type: {type: string}
+        policy_version: {type: string}
+
+  - code: policy.invalid
+    severity: error
+
+  - code: policy.applied
+    severity: info
+    description: Operation evaluated against a versioned policy
+    detail_schema:
+      type: object
+      properties:
+        policy_type: {type: string}
+        policy_version: {type: string}
+        decision: {type: string, enum: [allow, deny, defer]}
+
+  # =========================================================================
+  # remediation — license-gated
+  # =========================================================================
+  - code: remediation.requested
+    severity: info
+
+  - code: remediation.approved
+    severity: warning
+
+  - code: remediation.executed
+    severity: warning
+    detail_schema:
+      type: object
+      properties:
+        dry_run: {type: boolean}
+        steps_succeeded: {type: integer}
+        steps_failed: {type: integer}
+
+  - code: remediation.rolled_back
+    severity: warning
+
+  # =========================================================================
+  # integration — external systems
+  # =========================================================================
+  - code: integration.webhook.delivered
+    severity: info
+
+  - code: integration.webhook.failed
+    severity: error
+
+  - code: integration.webhook.subscribed
+    severity: info
+    description: External subscriber registered for event delivery
+    detail_schema:
+      type: object
+      properties:
+        event_types: {type: array, items: {type: string}}
+        target_url: {type: string}
+
+  - code: integration.webhook.unsubscribed
+    severity: warning
+    description: Webhook subscription deleted; no further deliveries
+
+  - code: integration.plugin.installed
+    severity: info
+
+  - code: integration.plugin.executed
+    severity: info
+
+  # =========================================================================
+  # system — service lifecycle and configuration
+  # =========================================================================
+  - code: system.startup
+    severity: info
+    actor_types: [system]
+    description: Service has booted and is accepting requests
+
+  - code: system.shutdown
+    severity: info
+    actor_types: [system]
+
+  - code: system.config.changed
+    severity: warning
+    detail_schema:
+      type: object
+      properties:
+        config_key: {type: string}
+
+  - code: system.migration.applied
+    severity: info
+    detail_schema:
+      type: object
+      properties:
+        migration_id: {type: string}
+
+  - code: system.health.degraded
+    severity: error
+    detail_schema:
+      type: object
+      properties:
+        component: {type: string}
+        reason: {type: string}
+
+  - code: system.health.recovered
+    severity: info
+
+  # =========================================================================
+  # admin — high-privilege operations
+  # =========================================================================
+  - code: admin.user.created
+    severity: warning
+
+  - code: admin.user.updated
+    severity: warning
+
+  - code: admin.user.deleted
+    severity: warning
+
+  - code: admin.role.changed
+    severity: warning
+
+  - code: admin.system_setting.changed
+    severity: warning
+
+  - code: admin.retention_policy.changed
+    severity: warning
+
+  - code: admin.sso_provider.created
+    severity: warning
+
+  - code: admin.sso_provider.updated
+    severity: warning
+    description: SSO provider config changed (enable/disable, secret rotation, metadata refresh)
+    detail_schema:
+      type: object
+      properties:
+        provider_type: {type: string, enum: [oidc, saml]}
+        fields_changed: {type: array, items: {type: string}}
+
+  - code: admin.sso_provider.deleted
+    severity: warning
+
+  # =========================================================================
+  # diagnostics — Stage 0 demo endpoints and worker
+  # =========================================================================
+  - code: diagnostics.test_job_completed
+    severity: info
+    description: Worker drained a diagnostics.test_job and emitted this completion event
+    actor_types: [system]
+
+# Deprecated codes retained for read compatibility on historical data.
+# Never emit these from new code. Build fails if any source emits a deprecated code.
+deprecated_events: []

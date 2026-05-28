@@ -1,0 +1,520 @@
+# OpenWatch RBAC Registry
+#
+# Source of truth for permissions and built-in roles. Codegen produces:
+#   - internal/auth/permissions.gen.go (typed Go constants for permissions)
+#   - internal/auth/roles.gen.go (built-in role definitions)
+#   - documentation rendered for /auth/permissions:registry endpoint
+#
+# Build invariants enforced by scripts/validate-rbac.go:
+#   - Every permission id matches ^[a-z][a-z0-9_]*:[a-z][a-z0-9_]*$
+#       (or, for category wildcards: ^[a-z][a-z0-9_]*:\*$)
+#   - Every permission's prefix references a defined category
+#   - dangerous is bool; license_gated (if present) references a feature in app/license/features.yaml
+#   - Every built-in role's permissions are either defined permission ids OR registered category wildcards
+#   - The bare wildcard "*" is only permitted on the built-in `admin` role
+#   - No duplicates between permissions and deprecated_permissions
+#   - OpenAPI specs: every x-required-permission value matches an active permission id
+#
+# Adding a permission: see app/docs/rbac_registry.md §4.2 (registry-first workflow)
+# Adding a built-in role: see §5.3 (migration-driven; never an ad-hoc edit)
+
+version: 1
+
+categories:
+  - id: auth
+    description: Self-service authentication and profile
+  - id: user
+    description: Admin-managed user accounts
+  - id: host
+    description: Host management and discovery
+  - id: credential
+    description: SSH credential storage and resolution
+  - id: scan
+    description: Scan execution
+  - id: scan_template
+    description: Scan template lifecycle
+  - id: compliance
+    description: Compliance state and posture queries
+  - id: baseline
+    description: Compliance baseline management
+  - id: exception
+    description: Compliance exception lifecycle
+  - id: alert
+    description: Alert lifecycle and threshold management
+  - id: notification
+    description: Notification channels and dispatch
+  - id: license
+    description: License install, view, history
+  - id: policy
+    description: Policy reload, install, history
+  - id: remediation
+    description: Remediation request, approve, execute, rollback
+  - id: integration
+    description: External plugin and webhook configuration
+  - id: audit
+    description: Audit log query and export
+  - id: system
+    description: System config and health
+  - id: role
+    description: Role and permission administration
+  - id: admin
+    description: High-privilege administrative operations
+
+permissions:
+  # =========================================================================
+  # auth - self-service
+  # =========================================================================
+  - id: auth:read
+    category: auth
+    description: View own profile, sessions, MFA status
+
+  - id: auth:write
+    category: auth
+    description: Change own password, manage own MFA, revoke own sessions
+
+  # =========================================================================
+  # user - admin-managed accounts
+  # =========================================================================
+  - id: user:read
+    category: user
+    description: List users, view user details
+
+  - id: user:write
+    category: user
+    description: Create or update user records (excluding role assignment)
+
+  - id: user:delete
+    category: user
+    description: Delete user accounts
+    dangerous: true
+
+  # =========================================================================
+  # host
+  # =========================================================================
+  - id: host:read
+    category: host
+    description: View host details, list hosts, view host audit history
+
+  - id: host:write
+    category: host
+    description: Create, update, bulk-import hosts
+
+  - id: host:delete
+    category: host
+    description: Delete a host record and its scan history pointer
+    dangerous: true
+
+  - id: host:connectivity_check
+    category: host
+    description: Trigger an on-demand SSH/ping connectivity check
+
+  - id: host:intelligence_refresh
+    category: host
+    description: Trigger an on-demand server-intelligence collection
+
+  # =========================================================================
+  # credential
+  # =========================================================================
+  - id: credential:read
+    category: credential
+    description: List credentials (metadata only — secrets never returned), resolve credential for a host
+
+  - id: credential:write
+    category: credential
+    description: Create credentials (system or host scope), set is_default
+
+  - id: credential:delete
+    category: credential
+    description: Soft-delete credentials (set is_active=false)
+    dangerous: true
+
+  # =========================================================================
+  # scan
+  # =========================================================================
+  - id: scan:read
+    category: scan
+    description: View scans, scan sessions, and scan results
+
+  - id: scan:execute
+    category: scan
+    description: Queue or start a scan against a host or fleet
+
+  - id: scan:cancel
+    category: scan
+    description: Cancel a running or queued scan
+
+  # =========================================================================
+  # scan_template
+  # =========================================================================
+  - id: scan_template:read
+    category: scan_template
+    description: List and view scan templates
+
+  - id: scan_template:write
+    category: scan_template
+    description: Create or update scan templates
+
+  - id: scan_template:delete
+    category: scan_template
+    description: Delete a scan template (does not affect historical scans)
+    dangerous: true
+
+  # =========================================================================
+  # compliance - posture and state queries
+  # =========================================================================
+  - id: compliance:read
+    category: compliance
+    description: View compliance state, drift detection results, posture queries
+
+  # =========================================================================
+  # baseline
+  # =========================================================================
+  - id: baseline:read
+    category: baseline
+    description: View compliance baselines
+
+  - id: baseline:write
+    category: baseline
+    description: Establish or update a compliance baseline
+
+  - id: baseline:delete
+    category: baseline
+    description: Clear an existing baseline (resets drift detection)
+    dangerous: true
+
+  # =========================================================================
+  # exception - compliance exception workflow
+  # =========================================================================
+  - id: exception:read
+    category: exception
+    description: View exception requests and active exceptions
+
+  - id: exception:request
+    category: exception
+    description: Submit a new exception request
+
+  - id: exception:comment
+    category: exception
+    description: Add comments to exception requests
+
+  - id: exception:approve
+    category: exception
+    description: Approve or reject exception requests
+
+  - id: exception:revoke
+    category: exception
+    description: Revoke an active exception before its expiry
+    dangerous: true
+
+  # =========================================================================
+  # alert
+  # =========================================================================
+  - id: alert:read
+    category: alert
+    description: View alerts and alert history
+
+  - id: alert:acknowledge
+    category: alert
+    description: Acknowledge an alert (suppresses repeat notifications)
+
+  - id: alert:resolve
+    category: alert
+    description: Mark an alert as resolved
+
+  - id: alert:write
+    category: alert
+    description: Create or modify alert thresholds
+
+  # =========================================================================
+  # notification
+  # =========================================================================
+  - id: notification:read
+    category: notification
+    description: View notification channels and delivery history
+
+  - id: notification:write
+    category: notification
+    description: Create or update notification channels
+
+  - id: notification:delete
+    category: notification
+    description: Delete notification channels
+    dangerous: true
+
+  - id: notification:test
+    category: notification
+    description: Send a test notification through a channel
+
+  # =========================================================================
+  # license
+  # =========================================================================
+  - id: license:read
+    category: license
+    description: View license status, features, quotas, and history
+
+  - id: license:install
+    category: license
+    description: Install or replace the active license file
+    dangerous: true
+
+  - id: license:revoke
+    category: license
+    description: Mark the current license as revoked (forces Free tier)
+    dangerous: true
+
+  # =========================================================================
+  # policy - policies-as-data lifecycle
+  # =========================================================================
+  - id: policy:read
+    category: policy
+    description: View active policies, policy_history, and reload outcomes
+
+  - id: policy:reload
+    category: policy
+    description: Trigger a policy reload (SIGHUP equivalent via API)
+
+  - id: policy:install
+    category: policy
+    description: Install a new policy version (writes a signed file)
+    dangerous: true
+
+  # =========================================================================
+  # remediation - license-gated execution
+  # =========================================================================
+  - id: remediation:read
+    category: remediation
+    description: View remediation requests and history
+
+  - id: remediation:request
+    category: remediation
+    description: Submit a remediation request
+
+  - id: remediation:approve
+    category: remediation
+    description: Approve or reject remediation requests
+
+  - id: remediation:execute
+    category: remediation
+    description: Execute an approved remediation against hosts
+    dangerous: true
+    license_gated: remediation_execution
+
+  - id: remediation:rollback
+    category: remediation
+    description: Roll back a previously executed remediation
+    dangerous: true
+    license_gated: remediation_execution
+
+  # =========================================================================
+  # integration - plugins and webhooks
+  # =========================================================================
+  - id: integration:read
+    category: integration
+    description: View configured plugins and webhook endpoints
+
+  - id: integration:write
+    category: integration
+    description: Configure plugins and webhook endpoints
+
+  - id: integration:execute
+    category: integration
+    description: Manually invoke a plugin (out-of-band of the normal trigger)
+
+  # =========================================================================
+  # audit
+  # =========================================================================
+  - id: audit:read
+    category: audit
+    description: Query the audit log via filters or DSL
+
+  - id: audit:export
+    category: audit
+    description: Export the audit log to file (large extracts)
+    license_gated: audit_export
+
+  # =========================================================================
+  # system
+  # =========================================================================
+  - id: system:read
+    category: system
+    description: View system health, version, and non-secret configuration
+
+  - id: system:config_write
+    category: system
+    description: Modify runtime system configuration
+    dangerous: true
+
+  # =========================================================================
+  # role - role administration
+  # =========================================================================
+  - id: role:read
+    category: role
+    description: View roles and built-in role definitions
+
+  - id: role:write
+    category: role
+    description: Create or update custom roles (Stage 2)
+    dangerous: true
+
+  - id: role:assign
+    category: role
+    description: Assign roles to users
+    dangerous: true
+
+  # =========================================================================
+  # admin - high-privilege bundles
+  # =========================================================================
+  - id: admin:user_manage
+    category: admin
+    description: Manage users including role assignments
+    dangerous: true
+
+  - id: admin:role_manage
+    category: admin
+    description: Create, update, delete custom roles; assign roles to users
+    dangerous: true
+
+  - id: admin:retention_policy
+    category: admin
+    description: Modify audit/scan/log retention policies
+    dangerous: true
+
+  - id: admin:sso_provider
+    category: admin
+    description: Configure SSO providers (OIDC, SAML)
+    dangerous: true
+
+  - id: admin:system_setting
+    category: admin
+    description: Modify high-impact system settings (TLS, listener, FIPS mode hint)
+    dangerous: true
+
+# Deprecated permissions retained for read compatibility (custom roles in DB may
+# still reference them during the deprecation window). Build fails if any
+# x-required-permission or handler emits a deprecated id.
+deprecated_permissions: []
+
+# =============================================================================
+# Built-in roles
+# =============================================================================
+#
+# Loaded into the `roles` table by migration. is_built_in=true. PUT/DELETE on
+# these rows return 405 Method Not Allowed. Custom roles (created at runtime
+# via POST /admin/roles) live in the same table with is_built_in=false.
+#
+# Wildcard rules:
+#   - "<category>:*" expands to all current permissions in that category
+#   - bare "*" is reserved for the built-in `admin` role only
+#
+# Built-in role updates ship as migrations. Custom roles are unaffected by
+# built-in role changes.
+
+roles:
+  - id: viewer
+    description: Read-only access across the platform
+    permissions:
+      - auth:read
+      - host:read
+      - scan:read
+      - scan_template:read
+      - compliance:read
+      - role:read
+      - baseline:read
+      - exception:read
+      - alert:read
+      - notification:read
+      - license:read
+      - policy:read
+      - remediation:read
+      - integration:read
+      - audit:read
+      - system:read
+
+  - id: auditor
+    description: Read-only plus exception authority and audit export
+    permissions:
+      - auth:read
+      - auth:write
+      - host:read
+      - scan:read
+      - scan_template:read
+      - compliance:read
+      - baseline:read
+      - exception:read
+      - exception:request
+      - exception:comment
+      - exception:approve
+      - alert:read
+      - notification:read
+      - license:read
+      - policy:read
+      - remediation:read
+      - integration:read
+      - audit:read
+      - audit:export
+      - system:read
+
+  - id: ops_lead
+    description: Day-to-day operations - hosts, scans, alerts
+    permissions:
+      - auth:read
+      - auth:write
+      - host:read
+      - host:write
+      - host:connectivity_check
+      - host:intelligence_refresh
+      - credential:read
+      - scan:read
+      - scan:execute
+      - scan:cancel
+      - scan_template:read
+      - scan_template:write
+      - compliance:read
+      - baseline:read
+      - baseline:write
+      - exception:read
+      - exception:request
+      - exception:comment
+      - alert:read
+      - alert:acknowledge
+      - alert:resolve
+      - notification:read
+      - notification:test
+      - license:read
+      - policy:read
+      - remediation:read
+      - remediation:request
+      - integration:read
+      - audit:read
+      - system:read
+
+  - id: security_admin
+    description: Full security operations including dangerous and license-gated actions
+    permissions:
+      - auth:read
+      - auth:write
+      - user:read
+      - user:write
+      - host:*
+      - credential:*
+      - scan:*
+      - scan_template:*
+      - compliance:read
+      - baseline:*
+      - exception:*
+      - alert:*
+      - notification:*
+      - license:read
+      - license:install
+      - policy:read
+      - policy:reload
+      - policy:install
+      - remediation:*
+      - integration:*
+      - audit:*
+      - system:read
+
+  - id: admin
+    description: Full system administration
+    permissions:
+      - "*"

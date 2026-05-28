@@ -1,0 +1,97 @@
+spec:
+  id: api-health
+  title: HTTP health endpoint
+  version: "1.0.0"
+  status: approved
+  tier: 3
+
+  context:
+    system: openwatch-go
+    feature: HTTP health endpoint
+    description: >
+      GET /api/v1/health is the liveness + readiness probe. Anonymous,
+      cheap (one DB ping with short timeout), high-frequency-friendly.
+      Returns 200 with {status, db_connected, version} when healthy; 503
+      with the canonical error envelope when the service cannot serve
+      traffic.
+    related_specs:
+      - system-correlation
+      - system-http-server
+
+  objective:
+    summary: >
+      Give operators a one-call check that the service has booted, has a
+      DB connection, and is ready to serve. Cheap enough to call every
+      few seconds; honest enough that a 200 means the next request will
+      work.
+    scope:
+      includes:
+        - GET endpoint shape
+        - DB ping with timeout
+        - Canonical error envelope on degraded
+      excludes:
+        - Authentication (anonymous by design)
+        - Deep dependency checks (DB only for Stage 0)
+
+  constraints:
+    - id: C-01
+      description: Endpoint MUST accept GET only
+      type: technical
+      enforcement: error
+    - id: C-02
+      description: Endpoint MUST be anonymous (no auth required)
+      type: technical
+      enforcement: error
+    - id: C-03
+      description: Response MUST be returned within 100ms for a healthy service
+      type: performance
+      enforcement: warning
+    - id: C-04
+      description: Response MUST carry X-Correlation-Id (foundation contract)
+      type: technical
+      enforcement: error
+    - id: C-05
+      description: DB ping timeout MUST be 2 seconds; longer = treat as unavailable
+      type: technical
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: >
+        GET /api/v1/health with no auth headers returns 200 OK with
+        Content-Type application/json.
+      priority: critical
+      references_constraints: [C-01, C-02]
+
+    - id: AC-02
+      description: >
+        Response body for a healthy service includes status="healthy",
+        db_connected=true, and a non-empty version string.
+      priority: critical
+
+    - id: AC-03
+      description: >
+        Response carries an X-Correlation-Id header (req- prefix when no
+        client header was supplied).
+      priority: high
+      references_constraints: [C-04]
+
+    - id: AC-04
+      description: >
+        When the database is unreachable, the endpoint returns 503 with
+        error.code = "server.unavailable" in the canonical envelope.
+      priority: high
+      references_constraints: [C-05]
+
+    - id: AC-05
+      description: >
+        Healthy-path response latency at p99 is < 100ms over 100 calls
+        against the local development DB.
+      priority: medium
+      references_constraints: [C-03]
+
+    - id: AC-06
+      description: >
+        The endpoint MUST NOT emit an audit event per request (high-volume
+        probe traffic would drown the signal); reads are not audit-emitting.
+      priority: high
