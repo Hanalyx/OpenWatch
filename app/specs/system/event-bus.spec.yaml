@@ -135,7 +135,7 @@ spec:
     - id: AC-12
       description: Source-inspection — internal/eventbus source files import no external broker packages (segmentio/kafka-go, nats-io, streadway/amqp, redis pub/sub, etc.). Enforces the in-process invariant.
       priority: critical
-      references_constraints: [C-09]
+      references_constraints: [C-01, C-09]
     - id: AC-13
       description: Bus.Subscribe returns a Subscription value with Unsubscribe() that removes the subscriber. After Unsubscribe, subsequent Publish does NOT deliver to the unsubscribed channel and does NOT block.
       priority: critical
