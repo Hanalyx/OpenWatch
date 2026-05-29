@@ -1,381 +1,326 @@
 # Branch Management Policy
 
-This document outlines the branch management strategy, naming conventions, and automated workflows for the OpenWatch project.
+This document outlines branch strategy, naming conventions, and automated
+workflows for the OpenWatch repository. The repo is a polyglot monorepo:
 
-## Branch Types and Naming Conventions
+| Subtree | Stack | CI workflow |
+|---------|-------|-------------|
+| `backend/` | Python 3.12 + FastAPI + Pytest | `ci.yml` (jobs: Backend CI, Frontend CI, E2E Tests) |
+| `frontend/` | React 19 + TypeScript + Vite + Playwright | `ci.yml` (same) |
+| `app/` | Go 1.26 rebuild + pgxpool + goose + specter | `go-ci.yml` (job: Quality + security gates) |
+| `packaging/` | RPM / DEB native packages | `release.yml` |
 
-### Main Branches
+The two pipelines run on disjoint path filters — `ci.yml` ignores `app/**`,
+`go-ci.yml` only triggers on `app/**`. A PR generally exercises one or the
+other, not both.
 
-- **`main`** - Production-ready code, protected branch
-- **`develop`** - Integration branch for features (if using GitFlow)
+## Branch naming
 
-### Feature Branches
+The repository follows [Conventional Commits](https://www.conventionalcommits.org/)
+prefixes for branches as well as commits. The commitlint config
+(`.commitlintrc.json`) enforces this on every commit.
 
-**Format:** `feature/<issue-number>-<short-description>`
+### Allowed prefixes
 
-**Examples:**
-- `feature/123-ssh-configuration-ui`
-- `feature/456-scap-scanning-improvements`
-- `feature/789-user-authentication-system`
+| Prefix | When | Example |
+|--------|------|---------|
+| `feat/` | New feature or capability | `feat/host-detail-redesign` |
+| `fix/` | Bug fix | `fix/auth-token-localstorage-key` |
+| `chore/` | Maintenance, refactor, infra | `chore/bump-postgres-16.4` |
+| `docs/` | Documentation only | `docs/kensa-integration-guide` |
+| `refactor/` | Internal restructure, no behavior change | `refactor/extract-scan-service` |
+| `perf/` | Performance change | `perf/transactions-query-index` |
+| `test/` | Test-only changes | `test/regression-mfa-flow` |
+| `build/`, `ci/` | Build system, CI config | `ci/add-go-ci-workflow` |
+| `revert/` | Reverting a prior change | `revert/redux-removal` |
 
-**Rules:**
-- All feature development happens in feature branches
-- Branch from `main` (or `develop` if using GitFlow)
-- Merge back to `main` via Pull Request
-- Delete after successful merge
+### Slice-based naming for the Go rebuild
 
-### Bug Fix Branches
+Spec-driven work in `app/` follows the slice naming convention from
+`internal/sdd/plans/`:
 
-**Format:** `bugfix/<issue-number>-<short-description>` or `fix/<short-description>`
-
-**Examples:**
-- `bugfix/234-auth-token-expiration`
-- `fix/scan-results-parsing`
-- `fix/docker-compose-networking`
-
-**Rules:**
-- For non-critical bug fixes
-- Branch from `main`
-- Merge back to `main` via Pull Request
-- Delete after successful merge
-
-### Hotfix Branches
-
-**Format:** `hotfix/<version>-<critical-issue>`
-
-**Examples:**
-- `hotfix/1.2.1-security-vulnerability`
-- `hotfix/1.2.2-database-connection-leak`
-
-**Rules:**
-- For critical production fixes only
-- Branch from `main`
-- Merge to both `main` and `develop` (if exists)
-- Tag with version number after merge
-- Delete after successful merge
-
-### Dependency Update Branches
-
-**Format:** `dependabot/<ecosystem>/<package-name>-<version>`
-
-**Examples:**
-- `dependabot/npm_and_yarn/frontend/vite-7.1.5`
-- `dependabot/pip/backend/fastapi-0.104.1`
-- `dependabot/docker/postgres-16.1`
-
-**Rules:**
-- Auto-created by Dependabot
-- Handled by automated workflow
-- Auto-merged for patch updates and security fixes
-- Manual review required for major/minor updates
-
-### Release Branches
-
-**Format:** `release/<version>`
-
-**Examples:**
-- `release/1.2.0`
-- `release/2.0.0-beta`
-
-**Rules:**
-- Branch from `develop` (if using GitFlow)
-- Only bug fixes and documentation updates allowed
-- Merge to `main` and tag when ready
-- Delete after successful release
-
-### Experimental/Research Branches
-
-**Format:** `experiment/<description>` or `research/<topic>`
-
-**Examples:**
-- `experiment/new-authentication-system`
-- `research/performance-optimization`
-
-**Rules:**
-- For experimental features or research
-- May not follow standard review process
-- Delete when experiment concludes or merge to feature branch
-
-## Branch Protection Rules
-
-### Main Branch Protection
-
-The `main` branch is protected with the following rules:
-
-- **Require pull request reviews before merging**
-  - Required reviewers: 1
-  - Dismiss stale reviews when new commits are pushed
-  - Require review from code owners
-
-- **Require status checks to pass before merging**
-  - Frontend tests
-  - Backend tests
-  - Security audit
-  - Build validation
-  - Integration tests
-
-- **Enforce restrictions for administrators**
-- **Require linear history** (rebase and merge)
-- **Do not allow bypassing the above settings**
-
-### Additional Protections
-
-- **Require signed commits** for security-critical changes
-- **Restrict pushes that create public merge commits**
-- **Require deployments to succeed** for certain environments
-
-## Automated Branch Management
-
-### Dependabot Configuration
-
-```yaml
-# .github/dependabot.yml
-version: 2
-updates:
-  # Frontend dependencies
-  - package-ecosystem: "npm"
-    directory: "/frontend"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "09:00"
-    reviewers:
-      - "maintainers"
-    assignees:
-      - "sofia-alvarez"  # Frontend lead
-    open-pull-requests-limit: 10
-
-  # Backend dependencies
-  - package-ecosystem: "pip"
-    directory: "/backend"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "09:00"
-    reviewers:
-      - "maintainers"
-    assignees:
-      - "daniel-kim"  # Backend lead
-    open-pull-requests-limit: 10
-
-  # Docker dependencies
-  - package-ecosystem: "docker"
-    directory: "/"
-    schedule:
-      interval: "weekly"
-      day: "tuesday"
-      time: "09:00"
-    reviewers:
-      - "maintainers"
-    assignees:
-      - "marcus-rodriguez"  # DevOps lead
+```
+feat/slice-<letter>-<sub-id>-<short-name>
 ```
 
-### Auto-merge Criteria
+Examples (from Slice B):
+- `feat/slice-b-b1a-scheduler`
+- `feat/slice-b-b3a-event-bus`
+- `feat/slice-b-b4-fleet-rollup`
 
-**Eligible for Auto-merge:**
-- Patch version updates (x.x.X)
-- Security updates (any version)
-- Development dependencies (low risk)
-- Documentation updates
-- Docker base image updates (if tests pass)
+Each slice PR pairs a spec change with the code that implements it.
+See `app/specs/SPEC_REGISTRY.md` and `app/specs/SPEC_GOVERNANCE.md`.
 
-**Requires Manual Review:**
-- Major version updates (X.x.x)
-- Minor version updates with breaking changes
-- Production dependencies with high risk
-- Updates that affect security configurations
-- Updates that modify API contracts
+### Dependabot branches
 
-### Branch Cleanup Automation
+Dependabot creates branches in the form `dependabot/<ecosystem>/<scope>-<version>`.
+They are not subject to the prefixes above. See `.github/dependabot.yml`.
 
-Automated cleanup occurs for:
+### Release branches
 
-- **Merged feature branches**: Deleted after 7 days
-- **Abandoned branches**: Tagged for review after 30 days of inactivity
-- **Dependabot branches**: Deleted immediately after merge/closure
-- **Experiment branches**: Tagged for cleanup after 60 days
+`release/<version>` — branch from `main`, only bug fixes and doc updates
+allowed, tag on merge.
 
-## Manual Branch Management Commands
+## Main branch protection
 
-### Common Operations
+The `main` branch is the only long-lived branch (no `develop`). It is
+protected with:
+
+- **Required status checks** (strict, branch must be up-to-date):
+  - `Quality + security gates` — Go pipeline (`go-ci.yml`)
+- **Required reviews**: 0 approvals (small team), but enforced via the
+  `enforce_admins` flag so even admins go through PRs
+- **Dismiss stale reviews** on new commits
+- **No force pushes** to `main`
+- **No deletion** of `main`
+
+If you need to add a check (e.g., when a new pipeline lands), update the
+required-status-checks list via the GitHub UI or `gh api`. Do not remove
+checks to work around failing CI — fix the underlying issue.
+
+### Backend/Frontend CI status
+
+The legacy `Backend CI`, `Frontend CI`, and `E2E Tests` checks from `ci.yml`
+are *not* currently required by branch protection. They run for changes
+outside `app/**` and should be respected by reviewers, but they do not gate
+merge. If you want them re-required, add them via branch protection settings;
+note that re-adding them blocks any pure-`app/**` PR from merging unless
+they are removed or made optional for that path.
+
+## Automated branch management
+
+### Dependabot configuration
+
+`.github/dependabot.yml` covers four ecosystems today:
+
+- `pip` (`/backend`) — Python deps, weekly Monday
+- `npm` (`/frontend`) — JS/TS deps, weekly Monday
+- `docker` (`/`) — base image updates, weekly
+- `github-actions` (`/`) — workflow action versions
+
+**Gap to close**: the Go module under `/app` has no Dependabot entry.
+Adding it requires a `gomod` ecosystem block — track in a follow-up issue.
+
+### Auto-merge eligibility
+
+Auto-merge respects branch protection — it queues, then merges when checks
+pass. Set via `gh pr merge <N> --squash --auto`.
+
+**Generally eligible**:
+- Patch version dependency updates with green CI
+- Documentation-only PRs (`docs/`)
+- Test-only PRs (`test/`)
+- Conventional-commit-compliant PRs whose CI is green
+
+**Requires manual review** (do not auto-merge):
+- Major version updates
+- Minor updates that touch security configuration, auth flow, or
+  cryptography
+- Schema migrations (`backend/alembic/versions/`, `app/internal/db/migrations/`)
+- Anything changing required-status-checks or branch protection
+- Anything touching CODEOWNERS, GitHub Actions permissions, or secrets
+
+### Branch cleanup
+
+Merged feature branches are deleted automatically by GitHub's "Automatically
+delete head branches" repo setting. If a branch persists after merge,
+delete it manually:
 
 ```bash
-# Create and switch to feature branch
-git checkout -b feature/123-new-feature main
-
-# Update branch with latest main
-git checkout feature/123-new-feature
-git rebase main
-
-# Clean up local branches after remote deletion
+git push origin --delete feat/foo-completed
 git remote prune origin
-git branch -vv | grep ': gone]' | awk '{print $1}' | xargs git branch -d
+```
 
-# Force update local main with remote
-git checkout main
+## Local branch operations
+
+### Common operations
+
+```bash
+# Create a feature branch from current main
 git fetch origin
-git reset --hard origin/main
+git checkout -b feat/short-description origin/main
 
-# Interactive cleanup of local branches
-git branch --merged main | grep -v main | xargs -p git branch -d
+# Update branch with latest main (rebase preferred — keeps linear history)
+git fetch origin
+git rebase origin/main
+
+# Clean up local branches whose remote tracking ref is gone
+git remote prune origin
+git branch -vv | grep ': gone]' | awk '{print $1}' | xargs -r git branch -d
 ```
 
-### Emergency Procedures
+### Force-push policy
 
-#### Rollback Bad Merge
+Force pushes are allowed on feature branches but should use
+`--force-with-lease` so a stale local checkout never overwrites someone
+else's work:
+
 ```bash
-# If bad merge just happened on main
-git checkout main
-git reset --hard HEAD~1
-git push --force-with-lease origin main
-
-# If merge is older, use revert
-git checkout main
-git revert -m 1 <merge-commit-hash>
-git push origin main
+git push --force-with-lease origin feat/your-branch
 ```
 
-#### Recover Accidentally Deleted Branch
+`--force` and `--force-with-lease` are **never** allowed on `main`.
+
+## Emergency procedures
+
+### Pre-merge: undo work on a feature branch
+
 ```bash
-# Find the commit hash from reflog
-git reflog
+# Discard the last local commit but keep changes staged
+git reset --soft HEAD~1
 
-# Recreate branch
-git checkout -b recovered-branch <commit-hash>
+# Discard the last commit AND its changes
+git reset --hard HEAD~1   # only ever on your own feature branch
+
+# Force-push the rewrite
+git push --force-with-lease origin <branch>
 ```
 
-## Branch Lifecycle
+### Post-merge: roll back a bad change on main
 
-### Feature Branch Lifecycle
+If a bad PR merged to `main`, **revert via a new PR**. Do not reset or
+force-push `main`:
 
-1. **Creation**
-   - Branch from `main`
-   - Follow naming convention
-   - Set up tracking: `git push -u origin feature/123-description`
+```bash
+git fetch origin
+git checkout -b revert/bad-pr-NNN origin/main
+git revert -m 1 <merge-commit-sha>   # -m 1 for squash/merge commits
+git push -u origin revert/bad-pr-NNN
+gh pr create --title "revert: <subject of bad PR>" --base main
+```
 
-2. **Development**
-   - Regular commits with meaningful messages
-   - Keep branch updated with main: `git rebase main`
-   - Run tests locally before pushing
+The revert PR is subject to the same required checks as any other.
 
-3. **Review**
-   - Create Pull Request when ready
-   - Address review feedback
-   - Ensure CI/CD passes
+### Recover an accidentally deleted branch
 
-4. **Merge**
-   - Squash commits for clean history
-   - Update issue references
-   - Delete branch after merge
+```bash
+git reflog                              # find the tip commit of the lost branch
+git checkout -b recovered-branch <sha>  # recreate from that commit
+git push -u origin recovered-branch
+```
 
-5. **Cleanup**
-   - Automated deletion of remote branch
-   - Manual cleanup of local branch
+### What we do NOT do
 
-### Hotfix Lifecycle
+- We do **not** disable branch protection to land a "must-go" change.
+  If protection blocks a legitimate merge, fix the failing check or
+  update the protection rules through the GitHub UI as a deliberate,
+  reviewed change — not a transient bypass.
+- We do **not** push directly to `main`. All changes go through PRs.
+- We do **not** use `--admin` to bypass required status checks.
+- We do **not** skip pre-commit hooks (`--no-verify`) or commit signing
+  to land a change. If a hook fails, the underlying issue is the work.
 
-1. **Immediate Response**
-   - Create hotfix branch from main
-   - Implement minimal fix
-   - Test thoroughly
+These are durable rules; treat them as load-bearing.
 
-2. **Fast-Track Review**
-   - Emergency review process
-   - Override normal waiting periods if critical
-   - Document decision rationale
+## Quality gates
 
-3. **Deployment**
-   - Merge to main
-   - Tag with patch version
-   - Deploy immediately
-   - Monitor for regressions
+### Python (`backend/`)
 
-## Quality Gates
+Enforced by `backend/Makefile` and `ci.yml`:
 
-### Pre-merge Checks
+- **Pytest** with markers: `unit`, `integration`, `slow`, `regression`
+- **Coverage** threshold: 42% (target 80%, 100% for auth/encryption/scan paths)
+- **Black** — formatter, line length 120
+- **Flake8** — linting
+- **MyPy** — strict type checking
+- **Bandit** — security scanner
+- **isort** — import order
+- **Pre-commit hooks** — Black, Flake8, regression tests
 
-All branches must pass:
+See `backend/CLAUDE.md` for the deeper Python conventions.
 
-- **Automated Tests**
-  - Unit tests (≥80% coverage)
-  - Integration tests
-  - E2E tests for UI changes
-  - Security scans
+### TypeScript (`frontend/`)
 
-- **Code Quality**
-  - Linting (ESLint, Pylint)
-  - Type checking (TypeScript, mypy)
-  - Code formatting (Prettier, Black)
-  - Import sorting
+Enforced by `frontend/package.json` scripts and `ci.yml`:
 
-- **Security**
-  - Dependency vulnerability scan
-  - SAST (Static Application Security Testing)
-  - Secrets detection
-  - License compliance
+- **TypeScript strict mode** — `tsc --noEmit`
+- **ESLint** with React + Hooks rules
+- **Vitest** for unit tests
+- **Playwright** for E2E
 
-- **Performance**
-  - Build time < 5 minutes
-  - Bundle size analysis
-  - Load time validation
+### Go (`app/`)
 
-### Review Requirements
+Enforced by `app/Makefile` and `go-ci.yml`. All of these must pass for the
+single required check (`Quality + security gates`) to go green:
 
-- **Code Review**: At least one approving review
-- **Security Review**: Required for authentication/authorization changes
-- **Documentation Review**: Required for API changes
-- **UX Review**: Required for UI/UX changes
+- `make vet` — `go vet ./...`
+- `make lint` — `golangci-lint` (vet, ineffassign, staticcheck, unused,
+  gofmt, goimports, misspell, errcheck, revive, gosec, forbidigo)
+- `make vuln` — `govulncheck ./...`
+- `make test-race` — full test suite under `-race`, against a Postgres
+  service container (DSN from `OPENWATCH_TEST_DSN`)
+- `specter sync` — spec validation + 100% AC coverage gate for every
+  `status: approved` spec under `app/specs/`
 
-## Metrics and Monitoring
+`forbidigo` enforces the foundation-doc contracts: typed RBAC constants,
+correlation-id propagation, queue-only INSERTs into `job_queue`. See
+`app/.golangci.yml` for the full rule list.
 
-### Branch Health Metrics
+### Spec-driven development gates (Go only)
 
-- **Average PR Lifetime**: Target < 3 days
-- **Time to First Review**: Target < 1 day
-- **Merge Frequency**: Measure deployment velocity
-- **Hotfix Frequency**: Monitor stability
-- **Failed CI/CD Rate**: Target < 5%
+For specs marked `status: approved`:
 
-### Automated Reports
+- Every `C-NN` constraint must be referenced by at least one `AC-N`
+- Every `AC-N` must have a corresponding test annotated with
+  `// @ac AC-N` and a `// @spec system-<name>` file header
+- 100% coverage on approved specs is gated by `scripts/check-spec-coverage.py --enforce-active`
 
-Weekly reports include:
+If you change scope, update the spec AND the source code AND the tests in
+the same PR. Spec drift is caught at CI, not in review.
 
-- Active branches by age
-- Dependabot merge success rate
-- Branch protection compliance
-- Security vulnerability trends
-- Technical debt indicators
+## Review requirements
+
+Beyond automated checks:
+
+- **Code review**: at least one approving review for non-trivial PRs.
+  Smaller chore/docs PRs may self-merge by the author after CI passes,
+  at the author's discretion.
+- **Security review**: required for changes touching auth, authorization,
+  cryptography, secrets handling, or session management.
+- **Schema review**: required for new Alembic migrations or new
+  `app/internal/db/migrations/*.sql`. Confirm forward-only, idempotent,
+  and reversible where reasonable.
+- **Documentation**: API changes require corresponding doc updates
+  (`backend/app/routes/` route docstrings, `app/specs/api/` spec, or
+  the relevant `docs/` page).
+
+## Metrics
+
+Track via GitHub Insights and the weekly `BACKLOG.md` sweep:
+
+- Average PR lifetime (target < 3 days)
+- Time to first review (target < 1 day)
+- CI failure rate (target < 5%)
+- Dependabot auto-merge success rate
+- Open PRs older than 14 days (review weekly)
 
 ## Troubleshooting
 
-### Common Issues
+**CI failing on a feature branch with errors unrelated to your changes** —
+likely a flaky test or a stdlib CVE bump landed on main. Rebase onto
+latest main, re-run failed jobs, and check `go-ci.yml` Go version against
+the latest `govulncheck` advisory list.
 
-**Issue**: Merge conflicts in Dependabot PRs
-**Solution**:
-1. Checkout the branch locally
-2. Rebase onto main: `git rebase main`
-3. Resolve conflicts
-4. Force push: `git push --force-with-lease`
+**Dependabot PR has merge conflicts** — close and let Dependabot recreate.
+For repeated conflicts on the same dep, manually rebase locally and
+force-push.
 
-**Issue**: CI/CD failing on auto-merge
-**Solution**:
-1. Review failure logs
-2. If test failure: Fix and commit
-3. If infrastructure: Retry workflow
-4. If persistent: Disable auto-merge for that update
+**Auto-merge queued but never fires** — the most common cause is
+required-status-check drift (a check name was renamed but protection
+still requires the old name). Fix the required-checks list to match the
+workflow output, do not bypass protection.
 
-**Issue**: Branch protection bypass needed
-**Solution**:
-1. Document emergency justification
-2. Temporary disable protection
-3. Make necessary changes
-4. Re-enable protection immediately
-5. Follow up with incident review
+**`mergeStateStatus: BLOCKED` despite green CI** — same root cause: a
+required check is not reporting. Inspect via
+`gh pr view <N> --json statusCheckRollup` and compare against branch
+protection's `required_status_checks.contexts`.
 
 ## References
 
-- [GitHub Flow](https://guides.github.com/introduction/flow/)
-- [Semantic Versioning](https://semver.org/)
+- [GitHub Flow](https://guides.github.com/introduction/flow/) — trunk-based workflow
 - [Conventional Commits](https://www.conventionalcommits.org/)
+- [Semantic Versioning](https://semver.org/)
 - [Dependabot Documentation](https://docs.github.com/en/code-security/dependabot)
+- `app/specs/SPEC_GOVERNANCE.md` — spec-driven development discipline
+- `app/.golangci.yml` — Go linter configuration with drift-prevention rules
+- `CLAUDE.md` — repository-wide AI-collaboration rules (also applies to humans)
