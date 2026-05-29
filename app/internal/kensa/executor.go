@@ -94,14 +94,18 @@ func NewExecutor(creds CredentialBridge, emit EmitFunc) *Executor {
 	}
 }
 
-// WithScanFunc returns a copy of the Executor with the given ScanFunc
-// substituted. Tests use this to inject controllable scan behavior;
-// production passes the live Kensa wrapper. The receiver is not
-// mutated.
+// WithScanFunc returns a new Executor that mirrors the receiver's
+// hooks but uses the given ScanFunc. Tests use this to inject
+// controllable scan behavior; production passes the live Kensa
+// wrapper. The receiver is not mutated; the returned Executor has its
+// own inFlight set (no shared sync.Map between original and copy).
 func (e *Executor) WithScanFunc(fn ScanFunc) *Executor {
-	clone := *e
-	clone.scanFunc = fn
-	return &clone
+	return &Executor{
+		credential: e.credential,
+		emit:       e.emit,
+		clock:      e.clock,
+		scanFunc:   fn,
+	}
 }
 
 // unwiredScanFunc is the placeholder until the live Kensa integration
