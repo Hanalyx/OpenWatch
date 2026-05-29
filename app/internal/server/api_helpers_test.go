@@ -98,6 +98,16 @@ func freshAPIServer(t *testing.T) (string, *pgxpool.Pool) {
 	}
 	_, _ = pool.Exec(ctx, "TRUNCATE TABLE audit_events")
 	_, _ = pool.Exec(ctx, "TRUNCATE TABLE idempotency_keys")
+	// Slice-B tables. Clear children before hosts to avoid FK violations.
+	// transactions + host_rule_state FK to hosts ON DELETE RESTRICT;
+	// host_compliance_schedule + host_backoff_state FK to hosts;
+	// host_liveness FK CASCADE so it's safe at any order but explicit
+	// is clearer.
+	_, _ = pool.Exec(ctx, "TRUNCATE TABLE transactions")
+	_, _ = pool.Exec(ctx, "TRUNCATE TABLE host_rule_state")
+	_, _ = pool.Exec(ctx, "TRUNCATE TABLE host_liveness")
+	_, _ = pool.Exec(ctx, "TRUNCATE TABLE host_compliance_schedule")
+	_, _ = pool.Exec(ctx, "TRUNCATE TABLE host_backoff_state")
 	// Slice-A tables. Order matters: credentials FK → hosts, so clear
 	// credentials first. users CASCADE clears sessions/refresh/mfa.
 	_, _ = pool.Exec(ctx, "TRUNCATE TABLE credentials")

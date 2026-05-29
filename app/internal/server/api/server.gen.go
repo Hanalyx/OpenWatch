@@ -123,6 +123,51 @@ func (e ErrorEnvelopeErrorFault) Valid() bool {
 	}
 }
 
+// Defines values for FleetTransactionChangeKind.
+const (
+	FirstSeen       FleetTransactionChangeKind = "first_seen"
+	SeverityChanged FleetTransactionChangeKind = "severity_changed"
+	StateChanged    FleetTransactionChangeKind = "state_changed"
+)
+
+// Valid indicates whether the value is a known member of the FleetTransactionChangeKind enum.
+func (e FleetTransactionChangeKind) Valid() bool {
+	switch e {
+	case FirstSeen:
+		return true
+	case SeverityChanged:
+		return true
+	case StateChanged:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FleetTransactionStatus.
+const (
+	Error   FleetTransactionStatus = "error"
+	Fail    FleetTransactionStatus = "fail"
+	Pass    FleetTransactionStatus = "pass"
+	Skipped FleetTransactionStatus = "skipped"
+)
+
+// Valid indicates whether the value is a known member of the FleetTransactionStatus enum.
+func (e FleetTransactionStatus) Valid() bool {
+	switch e {
+	case Error:
+		return true
+	case Fail:
+		return true
+	case Pass:
+		return true
+	case Skipped:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for HealthResponseStatus.
 const (
 	Degraded HealthResponseStatus = "degraded"
@@ -381,6 +426,67 @@ type EvaluateAlertRequest struct {
 	Score int `json:"score"`
 }
 
+// FleetHostFailure defines model for FleetHostFailure.
+type FleetHostFailure struct {
+	FailingRuleCount int64              `json:"failing_rule_count"`
+	HostId           openapi_types.UUID `json:"host_id"`
+}
+
+// FleetLiveness defines model for FleetLiveness.
+type FleetLiveness struct {
+	NeverProbed int64 `json:"never_probed"`
+	Reachable   int64 `json:"reachable"`
+	Unknown     int64 `json:"unknown"`
+	Unreachable int64 `json:"unreachable"`
+}
+
+// FleetRecentChanges defines model for FleetRecentChanges.
+type FleetRecentChanges struct {
+	Items []FleetTransaction `json:"items"`
+}
+
+// FleetRuleFailure defines model for FleetRuleFailure.
+type FleetRuleFailure struct {
+	FailingHostCount int64  `json:"failing_host_count"`
+	RuleId           string `json:"rule_id"`
+}
+
+// FleetScore defines model for FleetScore.
+type FleetScore struct {
+	// PassingFraction Passing rules / (passing + failing) across all hosts. 0..1.
+	PassingFraction float64 `json:"passing_fraction"`
+
+	// TotalEvaluations Count of host_rule_state rows where current_status is pass or fail.
+	TotalEvaluations int64 `json:"total_evaluations"`
+}
+
+// FleetTopFailingHosts defines model for FleetTopFailingHosts.
+type FleetTopFailingHosts struct {
+	Items []FleetHostFailure `json:"items"`
+}
+
+// FleetTopFailingRules defines model for FleetTopFailingRules.
+type FleetTopFailingRules struct {
+	Items []FleetRuleFailure `json:"items"`
+}
+
+// FleetTransaction defines model for FleetTransaction.
+type FleetTransaction struct {
+	ChangeKind FleetTransactionChangeKind `json:"change_kind"`
+	HostId     openapi_types.UUID         `json:"host_id"`
+	Id         openapi_types.UUID         `json:"id"`
+	OccurredAt time.Time                  `json:"occurred_at"`
+	RuleId     string                     `json:"rule_id"`
+	Severity   *string                    `json:"severity,omitempty"`
+	Status     FleetTransactionStatus     `json:"status"`
+}
+
+// FleetTransactionChangeKind defines model for FleetTransaction.ChangeKind.
+type FleetTransactionChangeKind string
+
+// FleetTransactionStatus defines model for FleetTransaction.Status.
+type FleetTransactionStatus string
+
 // HealthResponse defines model for HealthResponse.
 type HealthResponse struct {
 	DbConnected bool                 `json:"db_connected"`
@@ -579,6 +685,23 @@ type PostDiagnosticsRequireRemediationExecuteParams struct {
 	IdempotencyKey string `json:"Idempotency-Key"`
 }
 
+// GetFleetRecentChangesParams defines parameters for GetFleetRecentChanges.
+type GetFleetRecentChangesParams struct {
+	// Since Filter to transactions strictly newer than this RFC3339 timestamp
+	Since *time.Time `form:"since,omitempty" json:"since,omitempty"`
+	Limit *int       `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// GetFleetTopFailingHostsParams defines parameters for GetFleetTopFailingHosts.
+type GetFleetTopFailingHostsParams struct {
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// GetFleetTopFailingRulesParams defines parameters for GetFleetTopFailingRules.
+type GetFleetTopFailingRulesParams struct {
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
 // GetHostsParams defines parameters for GetHosts.
 type GetHostsParams struct {
 	Environment *string `form:"environment,omitempty" json:"environment,omitempty"`
@@ -710,6 +833,21 @@ type ServerInterface interface {
 	// Stage-0 RBAC+license demo; requires remediation:execute + remediation_execution feature
 	// (POST /api/v1/diagnostics:require-remediation-execute)
 	PostDiagnosticsRequireRemediationExecute(w http.ResponseWriter, r *http.Request, params PostDiagnosticsRequireRemediationExecuteParams)
+	// Host counts by reachability status
+	// (GET /api/v1/fleet/liveness)
+	GetFleetLiveness(w http.ResponseWriter, r *http.Request)
+	// Recent transactions (state changes), newest first
+	// (GET /api/v1/fleet/recent-changes)
+	GetFleetRecentChanges(w http.ResponseWriter, r *http.Request, params GetFleetRecentChangesParams)
+	// Fleet-wide compliance score (passing/total)
+	// (GET /api/v1/fleet/score)
+	GetFleetScore(w http.ResponseWriter, r *http.Request)
+	// Hosts with the most failing rules (descending)
+	// (GET /api/v1/fleet/top-failing-hosts)
+	GetFleetTopFailingHosts(w http.ResponseWriter, r *http.Request, params GetFleetTopFailingHostsParams)
+	// Rules with the most failing hosts (descending)
+	// (GET /api/v1/fleet/top-failing-rules)
+	GetFleetTopFailingRules(w http.ResponseWriter, r *http.Request, params GetFleetTopFailingRulesParams)
 	// Liveness + readiness probe (anonymous)
 	// (GET /api/v1/health)
 	GetHealth(w http.ResponseWriter, r *http.Request)
@@ -899,6 +1037,36 @@ func (_ Unimplemented) PostDiagnosticsRequireHostWrite(w http.ResponseWriter, r 
 // Stage-0 RBAC+license demo; requires remediation:execute + remediation_execution feature
 // (POST /api/v1/diagnostics:require-remediation-execute)
 func (_ Unimplemented) PostDiagnosticsRequireRemediationExecute(w http.ResponseWriter, r *http.Request, params PostDiagnosticsRequireRemediationExecuteParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Host counts by reachability status
+// (GET /api/v1/fleet/liveness)
+func (_ Unimplemented) GetFleetLiveness(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Recent transactions (state changes), newest first
+// (GET /api/v1/fleet/recent-changes)
+func (_ Unimplemented) GetFleetRecentChanges(w http.ResponseWriter, r *http.Request, params GetFleetRecentChangesParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Fleet-wide compliance score (passing/total)
+// (GET /api/v1/fleet/score)
+func (_ Unimplemented) GetFleetScore(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Hosts with the most failing rules (descending)
+// (GET /api/v1/fleet/top-failing-hosts)
+func (_ Unimplemented) GetFleetTopFailingHosts(w http.ResponseWriter, r *http.Request, params GetFleetTopFailingHostsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Rules with the most failing hosts (descending)
+// (GET /api/v1/fleet/top-failing-rules)
+func (_ Unimplemented) GetFleetTopFailingRules(w http.ResponseWriter, r *http.Request, params GetFleetTopFailingRulesParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -1624,6 +1792,146 @@ func (siw *ServerInterfaceWrapper) PostDiagnosticsRequireRemediationExecute(w ht
 	handler.ServeHTTP(w, r)
 }
 
+// GetFleetLiveness operation middleware
+func (siw *ServerInterfaceWrapper) GetFleetLiveness(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetFleetLiveness(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetFleetRecentChanges operation middleware
+func (siw *ServerInterfaceWrapper) GetFleetRecentChanges(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetFleetRecentChangesParams
+
+	// ------------- Optional query parameter "since" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "since", r.URL.Query(), &params.Since, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "since"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "since", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetFleetRecentChanges(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetFleetScore operation middleware
+func (siw *ServerInterfaceWrapper) GetFleetScore(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetFleetScore(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetFleetTopFailingHosts operation middleware
+func (siw *ServerInterfaceWrapper) GetFleetTopFailingHosts(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetFleetTopFailingHostsParams
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetFleetTopFailingHosts(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetFleetTopFailingRules operation middleware
+func (siw *ServerInterfaceWrapper) GetFleetTopFailingRules(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetFleetTopFailingRulesParams
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetFleetTopFailingRules(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetHealth operation middleware
 func (siw *ServerInterfaceWrapper) GetHealth(w http.ResponseWriter, r *http.Request) {
 
@@ -2159,6 +2467,21 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Post(options.BaseURL+"/api/v1/diagnostics:require-remediation-execute", wrapper.PostDiagnosticsRequireRemediationExecute)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/fleet/liveness", wrapper.GetFleetLiveness)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/fleet/recent-changes", wrapper.GetFleetRecentChanges)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/fleet/score", wrapper.GetFleetScore)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/fleet/top-failing-hosts", wrapper.GetFleetTopFailingHosts)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/fleet/top-failing-rules", wrapper.GetFleetTopFailingRules)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/health", wrapper.GetHealth)
 	})
 	r.Group(func(r chi.Router) {
@@ -2215,85 +2538,96 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
-	"RLXQWY6/PH78KLj5ePP/AQAA//8=",
+	"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",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,
