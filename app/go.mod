@@ -1,12 +1,13 @@
 module github.com/Hanalyx/openwatch
 
-go 1.25.10
+go 1.26.3
 
 require (
 	github.com/BurntSushi/toml v1.6.0 // indirect
+	github.com/Hanalyx/kensa v0.2.1 // indirect
 	github.com/anmitsu/go-shlex v0.0.0-20200514113438-38f4b401e2be // indirect
 	github.com/apapsch/go-jsonmerge/v2 v2.0.0 // indirect
-	github.com/boombuler/barcode v1.0.1-0.20190219062509-6c824513bacc // indirect
+	github.com/boombuler/barcode v1.1.0 // indirect
 	github.com/getkin/kin-openapi v0.139.0 // indirect
 	github.com/gliderlabs/ssh v0.3.8 // indirect
 	github.com/go-chi/chi/v5 v5.3.0 // indirect
@@ -38,5 +39,6 @@ require (
 	golang.org/x/sync v0.20.0 // indirect
 	golang.org/x/sys v0.45.0 // indirect
 	golang.org/x/text v0.37.0 // indirect
+	google.golang.org/protobuf v1.36.11 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

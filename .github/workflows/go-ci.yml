@@ -86,7 +86,7 @@ jobs:
         if: steps.paths.outputs.go == 'true'
         uses: actions/setup-go@v5
         with:
-          go-version: '1.25.10'
+          go-version: '1.26.3'
           cache: true
           cache-dependency-path: app/go.sum
 
