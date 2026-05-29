@@ -138,13 +138,16 @@ func withMaintenance(b bool) func(*scheduleSeed) { return func(c *scheduleSeed) 
 
 // newTestService builds a Service ready for Dispatch with a deterministic
 // clock pinned to a passed-in time. Uses an in-memory audit recorder so
-// the test can assert on emissions.
+// the test can assert on emissions. The recorder's append is guarded
+// by emitMu so concurrent-Dispatch tests stay race-clean.
 func newTestService(t *testing.T, pool *pgxpool.Pool, now time.Time, calls *[]emitCall) *Service {
 	t.Helper()
 	ladder := LoadIntervals(validTiers()).Ladder
 	load := LoadResult{Ladder: ladder, PolicyVersion: "1.0.0"}
 
 	emit := func(ctx context.Context, code audit.Code, ev audit.Event) {
+		emitMu.Lock()
+		defer emitMu.Unlock()
 		*calls = append(*calls, emitCall{Code: code, Event: ev})
 	}
 
@@ -152,6 +155,10 @@ func newTestService(t *testing.T, pool *pgxpool.Pool, now time.Time, calls *[]em
 	svc.Now = func() time.Time { return now }
 	return svc
 }
+
+// emitMu serializes appends to the *[]emitCall recorder from concurrent
+// Dispatch goroutines in AC-04's SKIP-LOCKED test.
+var emitMu sync.Mutex
 
 // withCorrelation seeds a correlation_id into the context (required by
 // queue.Enqueue).
