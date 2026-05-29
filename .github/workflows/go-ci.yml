@@ -9,17 +9,17 @@
 
 name: Go CI
 
+# Triggers on every push/PR to main. The gates job detects whether the
+# change touches app/** internally; if not, the job short-circuits to
+# success so the required-status-check ("Quality + security gates") is
+# present even for doc-only, packaging-only, or backend/frontend-only
+# PRs. This avoids the "missing required check" bootstrap problem
+# described in .github/BRANCH_MANAGEMENT.md under Troubleshooting.
 on:
   push:
     branches: [main]
-    paths:
-      - 'app/**'
-      - '.github/workflows/go-ci.yml'
   pull_request:
     branches: [main]
-    paths:
-      - 'app/**'
-      - '.github/workflows/go-ci.yml'
 
 permissions:
   contents: read
@@ -54,8 +54,36 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Detect whether this push/PR touches app/** (or the workflow
+      # file itself). For non-Go changes the job short-circuits to
+      # success below — this keeps "Quality + security gates" present
+      # as a green check for doc/packaging/backend/frontend PRs.
+      - id: paths
+        name: Detect app/** changes
+        working-directory: ${{ github.workspace }}
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            base="${{ github.event.pull_request.base.sha }}"
+            head="${{ github.event.pull_request.head.sha }}"
+            changed=$(git diff --name-only "$base" "$head" || git diff --name-only "origin/${{ github.event.pull_request.base.ref }}...HEAD")
+          else
+            base="${{ github.event.before }}"
+            head="${{ github.sha }}"
+            changed=$(git diff --name-only "$base" "$head" 2>/dev/null || git ls-files)
+          fi
+          if echo "$changed" | grep -qE '^(app/|\.github/workflows/go-ci\.yml$)'; then
+            echo "go=true" >> "$GITHUB_OUTPUT"
+            echo "Go-relevant changes detected — running full pipeline."
+          else
+            echo "go=false" >> "$GITHUB_OUTPUT"
+            echo "No app/** changes — gate trivially passes."
+          fi
 
       - name: Set up Go
+        if: steps.paths.outputs.go == 'true'
         uses: actions/setup-go@v5
         with:
           go-version: '1.25.10'
@@ -63,6 +91,7 @@ jobs:
           cache-dependency-path: app/go.sum
 
       - name: Set up golangci-lint
+        if: steps.paths.outputs.go == 'true'
         # Build from source against the runner's Go toolchain. The
         # prebuilt v1.64.8 binary was compiled with Go 1.24, which
         # refuses to load configs targeting Go 1.25. Building from
@@ -72,6 +101,7 @@ jobs:
           golangci-lint --version
 
       - name: Set up specter
+        if: steps.paths.outputs.go == 'true'
         env:
           # Pinned so CI is reproducible. Bump in lockstep with any
           # spec-schema change required by app/specs/.
@@ -84,21 +114,26 @@ jobs:
           specter --version
 
       - name: make vet
+        if: steps.paths.outputs.go == 'true'
         run: make vet
 
       - name: make lint
+        if: steps.paths.outputs.go == 'true'
         run: make lint
 
       - name: make vuln
+        if: steps.paths.outputs.go == 'true'
         run: make vuln
 
       - name: make test-race
+        if: steps.paths.outputs.go == 'true'
         run: make test-race
 
       # Spec coverage gate. Split into discrete steps so a failure
       # attributes to the actual command (go test vs. ingest vs. sync)
       # instead of getting hidden behind a single bundled step.
       - name: go test (json) for specter ingest
+        if: steps.paths.outputs.go == 'true'
         run: |
           set +e
           go test -json -timeout 360s -p 1 ./... > /tmp/go-test.json
@@ -114,13 +149,15 @@ jobs:
           exit $EXIT
 
       - name: specter ingest
+        if: steps.paths.outputs.go == 'true'
         run: specter ingest --go-test /tmp/go-test.json
 
       - name: specter sync (AC coverage thresholds)
+        if: steps.paths.outputs.go == 'true'
         run: specter sync
 
       - name: upload specter artifacts
-        if: always()
+        if: always() && steps.paths.outputs.go == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: specter-results
