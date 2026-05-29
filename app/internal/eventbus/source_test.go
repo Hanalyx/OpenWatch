@@ -38,15 +38,15 @@ func TestNoExternalBrokerImports(t *testing.T) {
 		// when new brokers come on the market.
 		forbiddenPrefixes := []string{
 			"github.com/segmentio/kafka",
-			"github.com/Shopify/sarama",      // kafka client
+			"github.com/Shopify/sarama", // kafka client
 			"github.com/IBM/sarama",
 			"github.com/confluentinc/confluent-kafka",
-			"github.com/nats-io",             // NATS
-			"github.com/streadway/amqp",      // RabbitMQ
+			"github.com/nats-io",        // NATS
+			"github.com/streadway/amqp", // RabbitMQ
 			"github.com/rabbitmq",
-			"github.com/redis/go-redis",      // redis pub/sub
+			"github.com/redis/go-redis", // redis pub/sub
 			"github.com/go-redis/redis",
-			"cloud.google.com/go/pubsub",     // GCP Pub/Sub
+			"cloud.google.com/go/pubsub", // GCP Pub/Sub
 			"github.com/aws/aws-sdk-go-v2/service/sns",
 			"github.com/aws/aws-sdk-go-v2/service/sqs",
 		}
