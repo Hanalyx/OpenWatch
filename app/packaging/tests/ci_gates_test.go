@@ -118,16 +118,38 @@ func TestCIGates_HelpListsGates(t *testing.T) {
 }
 
 // @ac AC-07
-// AC-07: .github/workflows/go-ci.yml exists with path filter scoped to
-// app/** plus the workflow itself.
+// AC-07: go-ci.yml triggers on every PR/push to main without a paths
+// filter, references app/** in a path-detection step, and gates the
+// heavy gate steps on that step so non-Go PRs short-circuit to success
+// while still producing the "Quality + security gates" required check.
 func TestCIGates_WorkflowExistsAndScoped(t *testing.T) {
 	t.Run("release-ci-gates/AC-07", func(t *testing.T) {
 		wf := readAppFile(t, "../.github/workflows/go-ci.yml")
-		if !strings.Contains(wf, "app/**") {
-			t.Error("go-ci.yml is not path-filtered to app/**")
+
+		// Triggers must NOT have a paths filter — that would make the
+		// required check structurally missing on non-Go PRs and block
+		// every doc/packaging/backend/frontend merge.
+		triggerPathsFilter := regexp.MustCompile(`(?m)^\s+(pull_request|push):\s*\n(\s+[^p].*\n)*\s+paths:\s*$`)
+		if triggerPathsFilter.MatchString(wf) {
+			t.Error("go-ci.yml has a paths filter on its trigger block — the required check would be missing for non-Go PRs")
 		}
-		if !strings.Contains(wf, ".github/workflows/go-ci.yml") {
-			t.Error("go-ci.yml does not self-include its own path in the filter")
+
+		// The path-detection step still references app/** so the heavy
+		// pipeline runs for Go-relevant changes.
+		if !strings.Contains(wf, "app/**") &&
+			!strings.Contains(wf, "^(app/") &&
+			!strings.Contains(wf, "'^app/") {
+			t.Error("go-ci.yml must reference app/** in its path-detection step")
+		}
+
+		// The gates steps must be gated on the path-detection output.
+		if !strings.Contains(wf, "steps.paths.outputs.go") {
+			t.Error("go-ci.yml must gate heavy steps on steps.paths.outputs.go (path-detection step output)")
+		}
+
+		// Path-detect step is present.
+		if !regexp.MustCompile(`(?m)id:\s*paths\b`).MatchString(wf) {
+			t.Error("go-ci.yml must include a step with id: paths that detects app/** changes")
 		}
 	})
 }
