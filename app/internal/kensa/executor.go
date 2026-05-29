@@ -33,7 +33,32 @@ type Executor struct {
 	credential CredentialBridge
 	emit       EmitFunc
 	clock      func() time.Time
+
+	// scanFunc is the per-Run scan-invocation closure. Production
+	// wires this to a function that constructs a fresh Kensa client
+	// with our in-memory TransportFactory and calls Kensa.Scan. Tests
+	// substitute a function that respects ctx and returns a typed
+	// outcome — letting cancellation, success, and failure paths be
+	// exercised without standing up a real Kensa Default service.
+	//
+	// NOT a public field and NOT exported as a method receiver type;
+	// just a function-typed value. Function types are not interfaces,
+	// so this does not violate AC-12's "no engine abstraction" rule.
+	scanFunc ScanFunc
 }
+
+// ScanFunc is the per-Run scan-invocation closure. Production wires
+// this to a Kensa.Scan call; tests inject a controllable function.
+//
+// MUST honor ctx (return ctx.Err() when ctx is cancelled before the
+// scan completes). MUST NOT touch the credential plaintext for any
+// purpose other than passing through to the SSH session via the
+// in-memory ssh.Signer constructed from it.
+//
+// Returns either a populated *KensaResult on success, or a typed
+// FailureReason classifying the failure (the caller emits the
+// scan.failed audit and maps the reason to a sentinel error).
+type ScanFunc func(ctx context.Context, hostID uuid.UUID, framework, policyVersion string, plain []byte) (*KensaResult, FailureReason, error)
 
 // CredentialBridge is the contract for resolving a host's SSH
 // credential into in-memory plaintext bytes ready to be parsed by
@@ -57,12 +82,33 @@ type EmitFunc func(ctx context.Context, code audit.Code, ev audit.Event)
 
 // NewExecutor wires the executor. Pass the real CredentialBridge and
 // audit.Emit from cmd/openwatch/main.go.
+//
+// scanFunc defaults to the placeholder unwiredScanFunc until the live
+// Kensa integration lands; tests using WithScanFunc inject their own.
 func NewExecutor(creds CredentialBridge, emit EmitFunc) *Executor {
 	return &Executor{
 		credential: creds,
 		emit:       emit,
 		clock:      time.Now,
+		scanFunc:   unwiredScanFunc,
 	}
+}
+
+// WithScanFunc returns a copy of the Executor with the given ScanFunc
+// substituted. Tests use this to inject controllable scan behavior;
+// production passes the live Kensa wrapper. The receiver is not
+// mutated.
+func (e *Executor) WithScanFunc(fn ScanFunc) *Executor {
+	clone := *e
+	clone.scanFunc = fn
+	return &clone
+}
+
+// unwiredScanFunc is the placeholder until the live Kensa integration
+// chunk wires Kensa.Scan + the in-memory TransportFactory. Returns the
+// kensa_error reason so the failure-emit path runs end-to-end.
+func unwiredScanFunc(ctx context.Context, hostID uuid.UUID, framework, policyVersion string, plain []byte) (*KensaResult, FailureReason, error) {
+	return nil, ReasonKensaError, errors.New("kensa: scan path not yet wired (AC-01 pending)")
 }
 
 // Run executes a single-framework Kensa scan against hostID.
@@ -114,10 +160,74 @@ func (e *Executor) Run(ctx context.Context, hostID uuid.UUID, framework string, 
 	// Successful credential resolve → scan.started (AC-05 first half).
 	e.emitStarted(ctx, hostID, framework, policyVersion)
 
-	// Placeholder for the Kensa-scan invocation (AC-01/02/04/05-completed)
-	// which lands in the next chunk.
-	_ = plain
-	return nil, errors.New("kensa: executor.Run scan path not yet wired (B.1b in progress)")
+	// Invoke the per-Run scan function. Production wires this to a
+	// Kensa.Scan call constructed with an in-memory TransportFactory;
+	// tests inject controllable behavior via WithScanFunc.
+	//
+	// Spec AC-04: ctx cancellation must propagate. The scanFunc is
+	// contracted to honor ctx.Done(); Run trusts the contract here
+	// and returns ctx.Err() unchanged if the scan returns it.
+	result, reason, scanErr := e.scanFunc(ctx, hostID, framework, policyVersion, plain)
+	if scanErr != nil {
+		// Cancellation passes through without scan.failed (the scan
+		// didn't fail — it was cancelled before completion).
+		if errors.Is(scanErr, context.Canceled) || errors.Is(scanErr, context.DeadlineExceeded) {
+			return nil, scanErr
+		}
+		// Any other failure: emit scan.failed with the classified reason.
+		// reason MUST be one of the FailureReason values (closed enum
+		// per AC-06).
+		e.emitFailure(ctx, hostID, framework, policyVersion, reason, "")
+		// Map reason → sentinel error for the caller.
+		return nil, mapReasonToErr(reason, scanErr)
+	}
+
+	// Successful scan → scan.completed with summary (AC-05 second half).
+	e.emitCompleted(ctx, hostID, framework, policyVersion, summaryFromResult(result))
+	return result, nil
+}
+
+// summaryFromResult extracts severity counts from a KensaResult for
+// emission in scan.completed audit detail. Empty result → empty summary.
+func summaryFromResult(r *KensaResult) map[string]any {
+	if r == nil {
+		return map[string]any{}
+	}
+	var passed, failed, skipped, errored int
+	for _, o := range r.Outcomes {
+		switch o.Status {
+		case StatusPass:
+			passed++
+		case StatusFail:
+			failed++
+		case StatusSkipped:
+			skipped++
+		case StatusError:
+			errored++
+		}
+	}
+	return map[string]any{
+		"passed":  passed,
+		"failed":  failed,
+		"skipped": skipped,
+		"errored": errored,
+	}
+}
+
+// mapReasonToErr classifies a non-cancellation scan failure into the
+// matching sentinel error. The fallback is ErrKensaInternal so the
+// caller always gets a typed value.
+func mapReasonToErr(reason FailureReason, scanErr error) error {
+	switch reason {
+	case ReasonHostKeyUnknown:
+		return ErrHostKeyUnknown
+	case ReasonCredentialDecryptionFailed:
+		return ErrCredentialDecryption
+	case ReasonEvidenceOversize:
+		return ErrEvidenceOversize
+	default:
+		return ErrKensaInternal
+	}
 }
 
 // emitStarted produces a scan.started audit event. Called exactly once

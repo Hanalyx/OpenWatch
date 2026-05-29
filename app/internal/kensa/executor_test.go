@@ -518,3 +518,246 @@ func TestReportKensaError_EmitsScanFailedWithKensaErrorReason(t *testing.T) {
 		}
 	})
 }
+
+// @ac AC-04
+// AC-04: a context with a deadline causes Run to return ctx.Err()
+// before the underlying scan completes. The injected ScanFunc blocks
+// until ctx.Done() to simulate a long-running Kensa.Scan; the test
+// asserts Run propagates ctx.Err() and emits NO scan.completed.
+func TestRun_ContextDeadline_PropagatesAsCtxErr(t *testing.T) {
+	t.Run("system-kensa-executor/AC-04", func(t *testing.T) {
+		hostID := uuid.New()
+		bridge := &fakeCredentialBridge{errorFor: make(map[uuid.UUID]error)}
+		var mu sync.Mutex
+		var calls []emitCall
+		exec := NewExecutor(bridge, fakeEmitFunc(&mu, &calls))
+
+		// scanFunc blocks until ctx.Done() and returns ctx.Err().
+		// Models Kensa.Scan honoring its context contract.
+		blocking := func(ctx context.Context, _ uuid.UUID, _, _ string, _ []byte) (*KensaResult, FailureReason, error) {
+			<-ctx.Done()
+			return nil, "", ctx.Err()
+		}
+		exec = exec.WithScanFunc(blocking)
+
+		// 100ms deadline, per the spec's example value in AC-04.
+		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+		defer cancel()
+
+		start := time.Now()
+		_, err := exec.Run(ctx, hostID, "cis-rhel9-v2.0.0", "1.0.0")
+		elapsed := time.Since(start)
+
+		// Run must return the ctx error verbatim (errors.Is recognizes
+		// DeadlineExceeded as the cause of context.Canceled-or-Timeout).
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Errorf("err = %v, want context.DeadlineExceeded", err)
+		}
+
+		// Hard upper bound on elapsed time — proves the scan wasn't
+		// allowed to run to completion.
+		if elapsed > 500*time.Millisecond {
+			t.Errorf("Run took %v, expected to return within ~100ms after ctx deadline", elapsed)
+		}
+
+		// scan.started should have fired (we got past credential resolve).
+		// scan.completed and scan.failed must NOT have fired.
+		if got := len(findCallsByCode(&mu, &calls, audit.ScanStarted)); got != 1 {
+			t.Errorf("scan.started count = %d, want 1", got)
+		}
+		if got := len(findCallsByCode(&mu, &calls, audit.ScanCompleted)); got != 0 {
+			t.Errorf("scan.completed count = %d on cancellation, want 0", got)
+		}
+		if got := len(findCallsByCode(&mu, &calls, audit.ScanFailed)); got != 0 {
+			t.Errorf("scan.failed count = %d on cancellation, want 0 (cancellation is not a failure)", got)
+		}
+
+		// Credential was still wiped (defer runs on every return path).
+		if got := atomic.LoadInt64(&bridge.wipeCalls); got != 1 {
+			t.Errorf("wipeCalls = %d after cancellation, want 1 (AC-07 still applies)", got)
+		}
+	})
+}
+
+// @ac AC-04
+// AC-04 (already-cancelled ctx): if ctx is already cancelled when
+// Run is called, Run propagates ctx.Err() promptly without doing
+// any work that could outlive the cancellation.
+func TestRun_AlreadyCancelledCtx_ReturnsImmediately(t *testing.T) {
+	t.Run("system-kensa-executor/AC-04", func(t *testing.T) {
+		hostID := uuid.New()
+		bridge := &fakeCredentialBridge{errorFor: make(map[uuid.UUID]error)}
+		var mu sync.Mutex
+		var calls []emitCall
+		exec := NewExecutor(bridge, fakeEmitFunc(&mu, &calls))
+
+		blocking := func(ctx context.Context, _ uuid.UUID, _, _ string, _ []byte) (*KensaResult, FailureReason, error) {
+			<-ctx.Done()
+			return nil, "", ctx.Err()
+		}
+		exec = exec.WithScanFunc(blocking)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel() // cancel BEFORE calling Run
+
+		start := time.Now()
+		_, err := exec.Run(ctx, hostID, "cis-rhel9-v2.0.0", "1.0.0")
+		elapsed := time.Since(start)
+
+		if !errors.Is(err, context.Canceled) {
+			t.Errorf("err = %v, want context.Canceled", err)
+		}
+		if elapsed > 200*time.Millisecond {
+			t.Errorf("Run took %v on already-cancelled ctx, want fast return", elapsed)
+		}
+	})
+}
+
+// @ac AC-05
+// AC-05 (second half): a successful scan emits exactly one scan.completed
+// after Kensa returns. Detail carries policy_version + the per-status
+// counts derived from the result.
+func TestRun_SuccessfulScan_EmitsScanCompleted(t *testing.T) {
+	t.Run("system-kensa-executor/AC-05", func(t *testing.T) {
+		hostID := uuid.New()
+		bridge := &fakeCredentialBridge{errorFor: make(map[uuid.UUID]error)}
+		var mu sync.Mutex
+		var calls []emitCall
+		exec := NewExecutor(bridge, fakeEmitFunc(&mu, &calls))
+
+		// Successful scan returning a typed result.
+		successful := func(ctx context.Context, h uuid.UUID, fw, pv string, _ []byte) (*KensaResult, FailureReason, error) {
+			return &KensaResult{
+				HostID:        h,
+				FrameworkID:   fw,
+				PolicyVersion: pv,
+				Outcomes: []RuleOutcome{
+					{RuleID: "sshd-disable-root", Status: StatusPass},
+					{RuleID: "sshd-strong-ciphers", Status: StatusFail},
+					{RuleID: "selinux-enforcing", Status: StatusSkipped},
+				},
+			}, "", nil
+		}
+		exec = exec.WithScanFunc(successful)
+
+		result, err := exec.Run(context.Background(), hostID, "cis-rhel9-v2.0.0", "1.7.0")
+		if err != nil {
+			t.Fatalf("Run: %v", err)
+		}
+		if result == nil {
+			t.Fatal("Run returned nil result on success")
+		}
+
+		completed := findCallsByCode(&mu, &calls, audit.ScanCompleted)
+		if len(completed) != 1 {
+			t.Fatalf("scan.completed count = %d, want 1", len(completed))
+		}
+	})
+}
+
+// @ac AC-01
+// AC-01: a successful Run returns a non-nil *KensaResult populated
+// with rule outcomes, per-rule evidence, and framework_refs.
+// Tested structurally via the injected ScanFunc; the contract is that
+// whatever the live Kensa.Scan call produces, Run hands back unchanged.
+// The live-Kensa wiring is a separate production-wiring concern (the
+// scanFunc field is the seam): exercising it would require an in-process
+// SSH server + Kensa's Default infrastructure, which the spec's "executor
+// invokes Kensa" responsibility tests structurally here.
+func TestRun_PopulatedKensaResult_AllFieldsFlowThrough(t *testing.T) {
+	t.Run("system-kensa-executor/AC-01", func(t *testing.T) {
+		hostID := uuid.New()
+		bridge := &fakeCredentialBridge{errorFor: make(map[uuid.UUID]error)}
+		var mu sync.Mutex
+		var calls []emitCall
+		exec := NewExecutor(bridge, fakeEmitFunc(&mu, &calls))
+
+		// Build a result with every field populated: 3 rules with mixed
+		// status, evidence bytes, and a framework reference per rule.
+		// The spec calls out outcomes + evidence + framework_refs
+		// explicitly — the test fails if Run silently drops any of them.
+		expected := &KensaResult{
+			HostID:        hostID,
+			FrameworkID:   "cis-rhel9-v2.0.0",
+			PolicyVersion: "1.7.0",
+			StartedAt:     time.Date(2026, 5, 28, 10, 0, 0, 0, time.UTC),
+			CompletedAt:   time.Date(2026, 5, 28, 10, 0, 5, 0, time.UTC),
+			Outcomes: []RuleOutcome{
+				{
+					RuleID:        "sshd-disable-root",
+					Status:        StatusPass,
+					Severity:      "high",
+					Evidence:      []byte(`{"command":"sshd -T","stdout":"permitrootlogin no"}`),
+					FrameworkRefs: map[string]string{"cis_rhel9_v2": "5.2.7"},
+				},
+				{
+					RuleID:        "sshd-strong-ciphers",
+					Status:        StatusFail,
+					Severity:      "medium",
+					Evidence:      []byte(`{"command":"sshd -T","stdout":"ciphers aes128-cbc"}`),
+					FrameworkRefs: map[string]string{"cis_rhel9_v2": "5.2.13"},
+				},
+				{
+					RuleID:        "selinux-enforcing",
+					Status:        StatusSkipped,
+					SkipReason:    "host_capability_missing:selinux",
+					FrameworkRefs: map[string]string{"cis_rhel9_v2": "1.6.1.2"},
+				},
+			},
+		}
+
+		exec = exec.WithScanFunc(func(ctx context.Context, h uuid.UUID, fw, pv string, _ []byte) (*KensaResult, FailureReason, error) {
+			return expected, "", nil
+		})
+
+		got, err := exec.Run(context.Background(), hostID, "cis-rhel9-v2.0.0", "1.7.0")
+		if err != nil {
+			t.Fatalf("Run: %v", err)
+		}
+		if got == nil {
+			t.Fatal("Run returned nil *KensaResult; AC-01 requires non-nil on success")
+		}
+
+		// Spec-named requirements: outcomes, evidence, framework_refs.
+		if len(got.Outcomes) != len(expected.Outcomes) {
+			t.Errorf("Outcomes length = %d, want %d", len(got.Outcomes), len(expected.Outcomes))
+		}
+
+		for i, w := range expected.Outcomes {
+			if i >= len(got.Outcomes) {
+				break
+			}
+			g := got.Outcomes[i]
+			if g.RuleID != w.RuleID {
+				t.Errorf("Outcomes[%d].RuleID = %q, want %q", i, g.RuleID, w.RuleID)
+			}
+			if g.Status != w.Status {
+				t.Errorf("Outcomes[%d].Status = %q, want %q", i, g.Status, w.Status)
+			}
+			// Evidence: spec requirement.
+			if string(g.Evidence) != string(w.Evidence) {
+				t.Errorf("Outcomes[%d].Evidence not preserved through Run", i)
+			}
+			// FrameworkRefs: spec requirement.
+			if len(g.FrameworkRefs) != len(w.FrameworkRefs) {
+				t.Errorf("Outcomes[%d].FrameworkRefs length = %d, want %d",
+					i, len(g.FrameworkRefs), len(w.FrameworkRefs))
+			}
+			for k, wv := range w.FrameworkRefs {
+				if g.FrameworkRefs[k] != wv {
+					t.Errorf("Outcomes[%d].FrameworkRefs[%q] = %q, want %q",
+						i, k, g.FrameworkRefs[k], wv)
+				}
+			}
+		}
+
+		// FrameworkID must match the request.
+		if got.FrameworkID != "cis-rhel9-v2.0.0" {
+			t.Errorf("FrameworkID = %q, want %q", got.FrameworkID, "cis-rhel9-v2.0.0")
+		}
+		// PolicyVersion preserved (the job-payload snapshot).
+		if got.PolicyVersion != "1.7.0" {
+			t.Errorf("PolicyVersion = %q, want %q", got.PolicyVersion, "1.7.0")
+		}
+	})
+}

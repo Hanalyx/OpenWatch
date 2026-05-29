@@ -1,6 +1,7 @@
 // @spec system-kensa-executor
 //
 // AC traceability (this file):
+//   AC-02  TestSource_NoDiskWriteOfCredentialBytes
 //   AC-10  TestKensaModuleVersion_MatchesGoMod
 //          TestSpec_VersionPin_MatchesGoMod
 //   AC-11  TestImports_OnlyCredentialFromInternal
@@ -204,4 +205,50 @@ func mustReadFile(t *testing.T, f string) string {
 		t.Fatalf("read %s: %v", f, err)
 	}
 	return string(b)
+}
+
+// @ac AC-02
+// AC-02: SSH key bytes are NEVER written to /tmp or any disk path
+// during executor.Run. Source-inspection enforces this at lint level:
+// scan every non-test .go file in this package for forbidden
+// disk-write patterns. If a future contributor reaches for
+// os.WriteFile / os.Create / io.WriteString on a file handle in this
+// package, the test fails and the contributor must use the in-memory
+// crypto/ssh.Signer pattern via the custom TransportFactory.
+//
+// Strace-style runtime tracing is an alternative (mentioned in the
+// spec), but is platform-dependent and fragile. Source-inspection
+// is the same guarantee with a tighter feedback loop.
+func TestSource_NoDiskWriteOfCredentialBytes(t *testing.T) {
+	t.Run("system-kensa-executor/AC-02", func(t *testing.T) {
+		files := goSourceFiles(t, packageDir(t))
+		if len(files) == 0 {
+			t.Skip("no source files yet")
+		}
+
+		// Forbidden patterns. Any of these in package source means
+		// the contributor has introduced a disk-write path that
+		// could touch credential bytes.
+		forbidden := []struct {
+			pattern string
+			reason  string
+		}{
+			{`os.WriteFile(`, "use crypto/ssh.ParsePrivateKey on in-memory bytes; do not write to disk"},
+			{`os.Create(`, "use crypto/ssh.ParsePrivateKey on in-memory bytes; do not open a file for writing"},
+			{`ioutil.WriteFile(`, "deprecated; same prohibition as os.WriteFile"},
+			{`ioutil.TempFile(`, "deprecated; if you need an ssh-agent socket use net.Listen / unix socket — never a file"},
+			{`os.CreateTemp(`, "tempting for SSH keypath but explicitly forbidden — use in-memory signer"},
+			{`/tmp/`, "no path under /tmp may appear; keys live in memory only"},
+		}
+
+		for _, f := range files {
+			src := mustReadFile(t, f)
+			for _, p := range forbidden {
+				if strings.Contains(src, p.pattern) {
+					t.Errorf("%s contains forbidden pattern %q — AC-02: %s",
+						f, p.pattern, p.reason)
+				}
+			}
+		}
+	})
 }
