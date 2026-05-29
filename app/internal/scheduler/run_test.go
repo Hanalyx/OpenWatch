@@ -17,8 +17,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/google/uuid"
 )
 
 // @ac AC-03
@@ -65,11 +63,9 @@ func TestDispatch_NoDoubleDispatch_OnRepeatedTick(t *testing.T) {
 		pool := freshPool(t)
 		user := seedUser(t, pool)
 		const N = 5
-		var hosts []uuid.UUID
 		for i := 0; i < N; i++ {
 			h := seedHost(t, pool, user)
 			seedSchedule(t, pool, h)
-			hosts = append(hosts, h)
 		}
 
 		var calls []emitCall

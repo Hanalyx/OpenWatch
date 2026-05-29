@@ -51,7 +51,7 @@ func TestJobPayload_HasRequiredFields(t *testing.T) {
 			name string
 			kind reflect.Kind
 		}{
-			{"HostID", reflect.Array},  // uuid.UUID is [16]byte
+			{"HostID", reflect.Array}, // uuid.UUID is [16]byte
 			{"FrameworkID", reflect.String},
 			{"PolicyVersion", reflect.String},
 			{"EnqueuedAt", reflect.Struct}, // time.Time

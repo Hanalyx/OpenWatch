@@ -106,11 +106,11 @@ func (p JobPayload) Encode() []byte {
 	buf = append(buf, p.HostID[:]...)
 
 	lenBuf := make([]byte, 4)
-	binary.BigEndian.PutUint32(lenBuf, uint32(len(fid)))
+	binary.BigEndian.PutUint32(lenBuf, uint32(len(fid))) //nolint:gosec // length is bounded by struct field size
 	buf = append(buf, lenBuf...)
 	buf = append(buf, fid...)
 
-	binary.BigEndian.PutUint32(lenBuf, uint32(len(pv)))
+	binary.BigEndian.PutUint32(lenBuf, uint32(len(pv))) //nolint:gosec // length is bounded by struct field size
 	buf = append(buf, lenBuf...)
 	buf = append(buf, pv...)
 

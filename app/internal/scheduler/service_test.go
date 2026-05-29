@@ -110,8 +110,8 @@ func seedHost(t *testing.T, pool *pgxpool.Pool, createdBy uuid.UUID) uuid.UUID {
 func seedSchedule(t *testing.T, pool *pgxpool.Pool, hostID uuid.UUID, opts ...func(*scheduleSeed)) {
 	t.Helper()
 	cfg := scheduleSeed{
-		state:      StateCritical, // due-now and 1h interval makes the math obvious
-		next:       time.Now().Add(-1 * time.Minute),
+		state:       StateCritical, // due-now and 1h interval makes the math obvious
+		next:        time.Now().Add(-1 * time.Minute),
 		maintenance: false,
 	}
 	for _, o := range opts {
@@ -133,9 +133,8 @@ type scheduleSeed struct {
 	maintenance bool
 }
 
-func withState(s ComplianceState) func(*scheduleSeed)   { return func(c *scheduleSeed) { c.state = s } }
-func withNext(t time.Time) func(*scheduleSeed)          { return func(c *scheduleSeed) { c.next = t } }
-func withMaintenance(b bool) func(*scheduleSeed)        { return func(c *scheduleSeed) { c.maintenance = b } }
+func withNext(t time.Time) func(*scheduleSeed)   { return func(c *scheduleSeed) { c.next = t } }
+func withMaintenance(b bool) func(*scheduleSeed) { return func(c *scheduleSeed) { c.maintenance = b } }
 
 // newTestService builds a Service ready for Dispatch with a deterministic
 // clock pinned to a passed-in time. Uses an in-memory audit recorder so
@@ -183,9 +182,9 @@ func TestDispatch_SkipLocked_DisjointClaim(t *testing.T) {
 		// Two concurrent Dispatch goroutines. Each gets its own ctx
 		// (and its own correlation_id) so queue.Enqueue accepts.
 		var (
-			wg                 sync.WaitGroup
-			countA, countB     int
-			errA, errB         error
+			wg             sync.WaitGroup
+			countA, countB int
+			errA, errB     error
 		)
 		wg.Add(2)
 		go func() {

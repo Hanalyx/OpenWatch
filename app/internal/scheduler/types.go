@@ -37,11 +37,11 @@ import (
 type ComplianceState string
 
 const (
-	StateUnknown        ComplianceState = "unknown"
-	StateCritical       ComplianceState = "critical"
-	StateNonCompliant   ComplianceState = "non_compliant"
-	StatePartial        ComplianceState = "partial"
-	StateCompliant      ComplianceState = "compliant"
+	StateUnknown      ComplianceState = "unknown"
+	StateCritical     ComplianceState = "critical"
+	StateNonCompliant ComplianceState = "non_compliant"
+	StatePartial      ComplianceState = "partial"
+	StateCompliant    ComplianceState = "compliant"
 )
 
 // Hard safety floors / ceilings — spec C-04, C-08. Independent of policy
@@ -65,8 +65,8 @@ type TierLadder map[ComplianceState]time.Duration
 // package don't need a signed policy file; the real policy loader is
 // wired in cmd/openwatch/main.go.
 type PolicyTiers struct {
-	Version       string                  // policy.Schedules.Version snapshot
-	IntervalMins  map[ComplianceState]int // tier → minutes
+	Version      string                  // policy.Schedules.Version snapshot
+	IntervalMins map[ComplianceState]int // tier → minutes
 }
 
 // LoadResult is what LoadIntervals returns: the clamped ladder plus a
@@ -91,6 +91,6 @@ type ClampRecord struct {
 type ClampKind string
 
 const (
-	ClampMinFloor  ClampKind = "min_floor"
+	ClampMinFloor   ClampKind = "min_floor"
 	ClampMaxCeiling ClampKind = "max_ceiling"
 )
