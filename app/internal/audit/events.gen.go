@@ -103,6 +103,10 @@ const (
 	ScanTemplateDeleted Code = "scan.template.deleted"
 	// Rule state transition (write-on-change pattern)
 	ComplianceStateChanged Code = "compliance.state.changed"
+	// A single rule finding was persisted to the transaction log (one per transactions row insert). Spec system-transaction-log-writer AC-09.
+	FindingPersisted Code = "finding.persisted"
+	// writer.Apply rolled back the entire batch due to a DB error (FK violation, deadlock, oversize evidence). Spec system-transaction-log-writer AC-15.
+	WriterApplyFailed Code = "writer.apply.failed"
 	//
 	ComplianceExceptionRequested Code = "compliance.exception.requested"
 	//
@@ -521,6 +525,20 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityInfo,
 		Description: `Rule state transition (write-on-change pattern)`,
 		ActorTypes:  nil,
+	},
+	FindingPersisted: {
+		Code:        FindingPersisted,
+		Category:    "finding",
+		Severity:    SeverityInfo,
+		Description: `A single rule finding was persisted to the transaction log (one per transactions row insert). Spec system-transaction-log-writer AC-09.`,
+		ActorTypes:  []string{"system"},
+	},
+	WriterApplyFailed: {
+		Code:        WriterApplyFailed,
+		Category:    "writer",
+		Severity:    SeverityError,
+		Description: `writer.Apply rolled back the entire batch due to a DB error (FK violation, deadlock, oversize evidence). Spec system-transaction-log-writer AC-15.`,
+		ActorTypes:  []string{"system"},
 	},
 	ComplianceExceptionRequested: {
 		Code:        ComplianceExceptionRequested,
@@ -1013,6 +1031,8 @@ var codeOrder = []Code{
 	ScanTemplateUpdated,
 	ScanTemplateDeleted,
 	ComplianceStateChanged,
+	FindingPersisted,
+	WriterApplyFailed,
 	ComplianceExceptionRequested,
 	ComplianceExceptionApproved,
 	ComplianceExceptionRejected,
