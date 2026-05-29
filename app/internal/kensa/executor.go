@@ -2,11 +2,14 @@ package kensa
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
+
+	"github.com/Hanalyx/openwatch/internal/audit"
 )
 
 // Executor is the live Kensa-scan wrapper. Constructed once at boot
@@ -28,7 +31,7 @@ type Executor struct {
 	// fakes; production wires the real internal/credential resolver
 	// and audit.Emit.
 	credential CredentialBridge
-	emit       AuditEmitter
+	emit       EmitFunc
 	clock      func() time.Time
 }
 
@@ -47,16 +50,14 @@ type CredentialBridge interface {
 	Resolve(ctx context.Context, hostID uuid.UUID) (plain []byte, wipe func(), err error)
 }
 
-// AuditEmitter is the contract for emitting audit events. Matches
-// audit.Emit's signature so production code passes audit.Emit
-// directly; tests pass a fake recorder.
-type AuditEmitter interface {
-	Emit(ctx context.Context, code string, hostID uuid.UUID, detail map[string]any)
-}
+// EmitFunc is the audit-emission shape the executor depends on. Matches
+// audit.Emit's signature so production wires audit.Emit directly; tests
+// pass a fake recorder. Same pattern as internal/scheduler.EmitFunc.
+type EmitFunc func(ctx context.Context, code audit.Code, ev audit.Event)
 
 // NewExecutor wires the executor. Pass the real CredentialBridge and
-// AuditEmitter implementations from cmd/openwatch/main.go.
-func NewExecutor(creds CredentialBridge, emit AuditEmitter) *Executor {
+// audit.Emit from cmd/openwatch/main.go.
+func NewExecutor(creds CredentialBridge, emit EmitFunc) *Executor {
 	return &Executor{
 		credential: creds,
 		emit:       emit,
@@ -86,34 +87,126 @@ func NewExecutor(creds CredentialBridge, emit AuditEmitter) *Executor {
 //   - AC-08: parallel safety verified under -race
 //   - AC-13/14/15: host-key, evidence cap, decryption-failure audits
 //   - AC-16: backoff state writes to host_backoff_state
-func (e *Executor) Run(ctx context.Context, hostID uuid.UUID, framework string) (*KensaResult, error) {
+func (e *Executor) Run(ctx context.Context, hostID uuid.UUID, framework string, policyVersion string) (*KensaResult, error) {
 	// Concurrency guard (AC-03). LoadOrStore returns loaded=true if
-	// the key was already present; in that case another goroutine
-	// owns this hostID's scan, and we bow out.
+	// the key was already present; another goroutine owns this hostID.
 	if _, loaded := e.inFlight.LoadOrStore(hostID, struct{}{}); loaded {
 		return nil, ErrHostBusy
 	}
-	// Release the slot on every return path.
 	defer e.inFlight.Delete(hostID)
 
-	// Resolve credential. ErrNoCredential is the only condition under
-	// which Run returns WITHOUT emitting scan.started (AC-09); other
-	// resolver errors are classified as decryption failures and DO
-	// emit scan.failed (AC-15 in a later chunk).
+	// Resolve credential. Two failure modes:
+	//   - ErrNoCredential: AC-09. Return WITHOUT emitting scan.started
+	//     (the scan never started; there's nothing to fail).
+	//   - any other err: AC-15. Treat as decryption failure; emit
+	//     scan.failed with reason=credential_decryption_failed. Still
+	//     no scan.started (consistent with the spec wording).
 	plain, wipe, err := e.credential.Resolve(ctx, hostID)
 	if err != nil {
 		if errors.Is(err, ErrNoCredential) {
 			return nil, ErrNoCredential
 		}
-		return nil, err
+		e.emitFailure(ctx, hostID, framework, policyVersion, ReasonCredentialDecryptionFailed, "")
+		return nil, ErrCredentialDecryption
 	}
-	defer wipe() // AC-07 wired here; verified in a later chunk
+	defer wipe() // AC-07
 
-	// Placeholder: subsequent chunks wire crypto/ssh.ParsePrivateKey,
-	// the TransportFactory bridge to Kensa, and Kensa.Scan invocation.
+	// Successful credential resolve → scan.started (AC-05 first half).
+	e.emitStarted(ctx, hostID, framework, policyVersion)
+
+	// Placeholder for the Kensa-scan invocation (AC-01/02/04/05-completed)
+	// which lands in the next chunk.
 	_ = plain
-	_ = framework
 	return nil, errors.New("kensa: executor.Run scan path not yet wired (B.1b in progress)")
+}
+
+// emitStarted produces a scan.started audit event. Called exactly once
+// per Run that successfully resolves a credential. Spec AC-05.
+func (e *Executor) emitStarted(ctx context.Context, hostID uuid.UUID, framework, policyVersion string) {
+	e.emit(ctx, audit.ScanStarted, audit.Event{
+		ActorType: "system",
+		Detail: mustJSON(map[string]string{
+			"host_id":        hostID.String(),
+			"framework_id":   framework,
+			"policy_version": policyVersion,
+		}),
+	})
+}
+
+// emitCompleted produces a scan.completed audit event. Called exactly
+// once per Run that finished a Kensa scan successfully. Spec AC-05.
+func (e *Executor) emitCompleted(ctx context.Context, hostID uuid.UUID, framework, policyVersion string, summary map[string]any) {
+	detail := map[string]any{
+		"host_id":        hostID.String(),
+		"framework_id":   framework,
+		"policy_version": policyVersion,
+	}
+	for k, v := range summary {
+		detail[k] = v
+	}
+	e.emit(ctx, audit.ScanCompleted, audit.Event{
+		ActorType: "system",
+		Detail:    mustJSON(detail),
+	})
+}
+
+// emitFailure produces a scan.failed audit event with detail.reason set
+// to one of the closed-enum FailureReason values. Called by:
+//
+//   - AC-13: SSH host key unknown (reason=host_key_unknown). No
+//     credential decrypted before this fires.
+//   - AC-14: per-rule evidence > 10 MB (reason=evidence_oversize).
+//     detail.rule_id is also set.
+//   - AC-15: credential decryption failed
+//     (reason=credential_decryption_failed). No scan.started before this.
+//   - AC-06: Kensa-side failure (reason=kensa_error).
+func (e *Executor) emitFailure(ctx context.Context, hostID uuid.UUID, framework, policyVersion string, reason FailureReason, ruleID string) {
+	detail := map[string]string{
+		"host_id":        hostID.String(),
+		"framework_id":   framework,
+		"policy_version": policyVersion,
+		"reason":         string(reason),
+	}
+	if ruleID != "" {
+		detail["rule_id"] = ruleID
+	}
+	e.emit(ctx, audit.ScanFailed, audit.Event{
+		ActorType: "system",
+		Detail:    mustJSON(detail),
+	})
+}
+
+// reportHostKeyUnknown is the entry point the future SSH dial code
+// calls when known_hosts verification fails before authentication.
+// Centralizes the AC-13 audit emission so the SSH path can stay focused.
+// Returns ErrHostKeyUnknown so callers can wrap and bubble up.
+func (e *Executor) reportHostKeyUnknown(ctx context.Context, hostID uuid.UUID, framework, policyVersion string) error {
+	e.emitFailure(ctx, hostID, framework, policyVersion, ReasonHostKeyUnknown, "")
+	return ErrHostKeyUnknown
+}
+
+// reportEvidenceOversize is the entry point the result-handling code
+// calls when a rule's evidence exceeds MaxEvidenceBytes. Returns
+// ErrEvidenceOversize. Spec AC-14.
+func (e *Executor) reportEvidenceOversize(ctx context.Context, hostID uuid.UUID, framework, policyVersion, ruleID string) error {
+	e.emitFailure(ctx, hostID, framework, policyVersion, ReasonEvidenceOversize, ruleID)
+	return ErrEvidenceOversize
+}
+
+// reportKensaError is the entry point the Kensa-invocation code calls
+// when Kensa.Scan (or any execution method) returns a non-classified
+// error: SSH refused, framework unsupported, planner error, etc.
+// Emits scan.failed with reason=kensa_error and returns ErrKensaInternal.
+// Spec AC-06.
+func (e *Executor) reportKensaError(ctx context.Context, hostID uuid.UUID, framework, policyVersion string) error {
+	e.emitFailure(ctx, hostID, framework, policyVersion, ReasonKensaError, "")
+	return ErrKensaInternal
+}
+
+// mustJSON marshals v; map[string]X with simple values never errors.
+func mustJSON(v any) []byte {
+	b, _ := json.Marshal(v)
+	return b
 }
 
 // inFlightCount returns the number of hostIDs currently being scanned.
