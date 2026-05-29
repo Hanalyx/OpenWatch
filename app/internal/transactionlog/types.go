@@ -47,11 +47,11 @@ const (
 type FailureReason string
 
 const (
-	ReasonFKViolation       FailureReason = "fk_violation"
-	ReasonDeadlock          FailureReason = "deadlock"
-	ReasonEvidenceOversize  FailureReason = "evidence_oversize"
-	ReasonSQLCError         FailureReason = "sqlc_error"
-	ReasonUnknown           FailureReason = "unknown"
+	ReasonFKViolation      FailureReason = "fk_violation"
+	ReasonDeadlock         FailureReason = "deadlock"
+	ReasonEvidenceOversize FailureReason = "evidence_oversize"
+	ReasonSQLCError        FailureReason = "sqlc_error"
+	ReasonUnknown          FailureReason = "unknown"
 )
 
 // Result is one rule's outcome from a Kensa scan, ready to be persisted

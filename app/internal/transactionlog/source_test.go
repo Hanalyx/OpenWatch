@@ -169,14 +169,3 @@ func TestNoRawSQLConcat_InPackage(t *testing.T) {
 		}
 	})
 }
-
-// mustReadFile is a small helper used by additional source-inspection
-// tests landing in later commits.
-func mustReadFile(t *testing.T, f string) string {
-	t.Helper()
-	b, err := os.ReadFile(f)
-	if err != nil {
-		t.Fatalf("read %s: %v", f, err)
-	}
-	return string(b)
-}

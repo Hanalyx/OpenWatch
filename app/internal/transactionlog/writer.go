@@ -183,12 +183,12 @@ func (w *Writer) Apply(ctx context.Context, batch ApplyBatch) error {
 
 		// host_rule_state UPSERT runs every Apply, change or not.
 		// Spec C-02: ON CONFLICT (host_id, rule_id) DO UPDATE.
+		// When state is unchanged AND a prior row exists, the UPSERT
+		// guard below preserves the prior last_changed_at via a
+		// COALESCE-style expression; the lastChangedAt local is only
+		// applied for new/changed states.
 		frameworkRefsJSON, _ := json.Marshal(r.FrameworkRefs)
 		lastChangedAt := now
-		if changeKind == "" && hasPrior {
-			// state unchanged → keep prior last_changed_at. The UPSERT
-			// below handles this via the COALESCE-style guard.
-		}
 		if _, err = tx.Exec(ctx, `
 			INSERT INTO host_rule_state
 				(host_id, rule_id, current_status, severity,
