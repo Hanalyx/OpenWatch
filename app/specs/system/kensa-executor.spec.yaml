@@ -10,14 +10,17 @@ spec:
     feature: Kensa scan execution bridge
     description: >
       The executor invokes Kensa (Go module github.com/Hanalyx/kensa
-      pinned to v0.1.1) to run a single framework's scan against a
+      pinned to v0.2.1) to run a single framework's scan against a
       single host. It bridges OpenWatch's credential store to Kensa's
       SSH session, captures the structured result, and hands it to the
       transaction log writer. Credentials are loaded once into memory;
       no SSH key file is written to disk. The wrapper is the only place
-      in OpenWatch that imports Kensa packages. Version pin: v0.1.1
+      in OpenWatch that imports Kensa packages. Version pin: v0.2.1
       (source-inspection AC-10 verifies this string is also the version
-      in app/go.mod).
+      in app/go.mod). Bumped from v0.1.1 to v0.2.1 — the v0.2.1 release
+      is a packaging-UX hardening with a byte-identical binary to v0.2.0
+      and zero changes under api/ since v0.1.1, so the bump is risk-free
+      for OpenWatch's library-import use case.
 
   objective:
     summary: >
