@@ -10,7 +10,7 @@
 //   AC-07  TestValidateThresholds_RejectsOutOfRange
 //          TestValidateThresholds_RejectsMajorBelowMinor
 //          TestValidateThresholds_AcceptsValid
-//   AC-13  TestDriftKindEnum_HasExactlyFourValues
+//   AC-13  TestKindEnum_HasExactlyFourValues
 //   AC-14  TestComplianceScore_ExcludesSkipped
 
 package drift
@@ -149,23 +149,23 @@ func TestValidateThresholds_AcceptsValid(t *testing.T) {
 }
 
 // @ac AC-13
-// AC-13: the DriftKind enum has exactly 4 values and AllDriftKinds lists them.
-func TestDriftKindEnum_HasExactlyFourValues(t *testing.T) {
+// AC-13: the Kind enum has exactly 4 values and AllKinds lists them.
+func TestKindEnum_HasExactlyFourValues(t *testing.T) {
 	t.Run("system-drift-detector/AC-13", func(t *testing.T) {
-		if len(AllDriftKinds) != 4 {
-			t.Errorf("AllDriftKinds = %d, want 4", len(AllDriftKinds))
+		if len(AllKinds) != 4 {
+			t.Errorf("AllKinds = %d, want 4", len(AllKinds))
 		}
 		// Set-membership check: every expected value is in the slice.
-		expected := map[DriftKind]bool{
+		expected := map[Kind]bool{
 			DriftStable: false, DriftMinorWorsening: false,
 			DriftMajorWorsening: false, DriftImprovement: false,
 		}
-		for _, k := range AllDriftKinds {
+		for _, k := range AllKinds {
 			expected[k] = true
 		}
 		for k, seen := range expected {
 			if !seen {
-				t.Errorf("AllDriftKinds missing %q", k)
+				t.Errorf("AllKinds missing %q", k)
 			}
 		}
 	})

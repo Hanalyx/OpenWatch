@@ -59,17 +59,17 @@ func (s *Service) Thresholds() Thresholds { return s.thresholds }
 //   - AC-09 (C-08): per-severity transition counts populated from
 //     transactions.
 //   - AC-10/11 (C-04): emission gates on Kind != DriftStable.
-func (s *Service) DetectForScan(ctx context.Context, hostID, scanID uuid.UUID) (DriftReport, error) {
+func (s *Service) DetectForScan(ctx context.Context, hostID, scanID uuid.UUID) (Report, error) {
 	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{AccessMode: pgx.ReadOnly})
 	if err != nil {
-		return DriftReport{}, fmt.Errorf("drift: begin: %w", err)
+		return Report{}, fmt.Errorf("drift: begin: %w", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
 	// Current score from host_rule_state (post-Apply).
 	currentPassed, currentFailed, totalRows, err := s.readCurrentCounts(ctx, tx, hostID)
 	if err != nil {
-		return DriftReport{}, err
+		return Report{}, err
 	}
 	currentScore := ComplianceScore(currentPassed, currentFailed)
 
@@ -80,20 +80,20 @@ func (s *Service) DetectForScan(ctx context.Context, hostID, scanID uuid.UUID) (
 	// state in the transactions table.
 	priorPassed, priorFailed, hadPrior, err := s.reconstructPriorCounts(ctx, tx, hostID, scanID, currentPassed, currentFailed)
 	if err != nil {
-		return DriftReport{}, err
+		return Report{}, err
 	}
 
 	// Per-severity transitions from the transactions table.
 	transitions, err := s.readSeverityTransitions(ctx, tx, hostID, scanID)
 	if err != nil {
-		return DriftReport{}, err
+		return Report{}, err
 	}
 
 	if err := tx.Commit(ctx); err != nil {
-		return DriftReport{}, fmt.Errorf("drift: commit: %w", err)
+		return Report{}, fmt.Errorf("drift: commit: %w", err)
 	}
 
-	report := DriftReport{
+	report := Report{
 		HostID:           hostID,
 		ScanID:           scanID,
 		CurrentScore:     currentScore,
@@ -279,7 +279,7 @@ func (s *Service) readSeverityTransitions(ctx context.Context, tx pgx.Tx, hostID
 }
 
 // fillTransitions copies the counts into the report's fields.
-func (r *DriftReport) fillTransitions(t severityTransitions) {
+func (r *Report) fillTransitions(t severityTransitions) {
 	r.CriticalBecameFailing = t.CriticalBecameFailing
 	r.HighBecameFailing = t.HighBecameFailing
 	r.MediumBecameFailing = t.MediumBecameFailing
@@ -292,13 +292,13 @@ func (r *DriftReport) fillTransitions(t severityTransitions) {
 
 // emitDriftDetected emits the compliance.drift.detected audit event.
 // Only called for non-stable kinds. Spec C-04 / AC-10.
-func (s *Service) emitDriftDetected(ctx context.Context, r DriftReport) {
+func (s *Service) emitDriftDetected(ctx context.Context, r Report) {
 	detail := map[string]any{
-		"host_id":     r.HostID.String(),
-		"scan_id":     r.ScanID.String(),
-		"drift_type":  DriftTypeForAudit(r.Kind),
-		"score_delta": r.ScoreDelta,
-		"prior_score": r.PriorScore,
+		"host_id":       r.HostID.String(),
+		"scan_id":       r.ScanID.String(),
+		"drift_type":    TypeForAudit(r.Kind),
+		"score_delta":   r.ScoreDelta,
+		"prior_score":   r.PriorScore,
 		"current_score": r.CurrentScore,
 		"severity_transitions": map[string]any{
 			"critical_became_failing": r.CriticalBecameFailing,

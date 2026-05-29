@@ -17,7 +17,7 @@
 //     percent-of-percent miscalculation). Spec C-03.
 //
 //   - Classify is a pure function. Given (prior_score, current_score,
-//     thresholds), it returns one of four DriftKind values
+//     thresholds), it returns one of four Kind values
 //     deterministically. No I/O, no side effects, trivially testable
 //     without a database. Spec C-01.
 //

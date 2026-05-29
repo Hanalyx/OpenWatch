@@ -1,12 +1,12 @@
 package drift
 
-// Classify maps a score delta to a DriftKind given the active
+// Classify maps a score delta to a Kind given the active
 // thresholds. Pure function — no I/O, no side effects, deterministic.
 //
 // Spec ACs satisfied here:
 //
 //   - AC-01 (C-01, C-02, C-03): pure-function classifier returning a
-//     closed-enum DriftKind from percentage-point math.
+//     closed-enum Kind from percentage-point math.
 //   - AC-05 (C-04): scores within all thresholds return DriftStable.
 //   - AC-06 (C-05): the function uses the passed thresholds, NOT
 //     hardcoded values.
@@ -21,7 +21,7 @@ package drift
 //
 // Comparisons use >= / <= so the threshold value itself fires the
 // classification (a 5pp gain matches Improvement when ImprovementPP=5).
-func Classify(prior, current float64, t Thresholds) DriftKind {
+func Classify(prior, current float64, t Thresholds) Kind {
 	delta := current - prior
 
 	// Improvement: large positive delta.

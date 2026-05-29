@@ -7,31 +7,31 @@ import (
 	"github.com/google/uuid"
 )
 
-// DriftKind classifies a per-host score delta. Closed enum per spec
+// Kind classifies a per-host score delta. Closed enum per spec
 // AC-13. Maps 1:1 to compliance.drift.detected detail.drift_type values
 // (where "stable" is not emitted — see spec C-04).
-type DriftKind string
+type Kind string
 
 const (
-	DriftStable         DriftKind = "stable"
-	DriftMinorWorsening DriftKind = "minor_worsening"
-	DriftMajorWorsening DriftKind = "major_worsening"
-	DriftImprovement    DriftKind = "improvement"
+	DriftStable         Kind = "stable"
+	DriftMinorWorsening Kind = "minor_worsening"
+	DriftMajorWorsening Kind = "major_worsening"
+	DriftImprovement    Kind = "improvement"
 )
 
-// AllDriftKinds is the closed set, in registration order. Used by
+// AllKinds is the closed set, in registration order. Used by
 // AC-13's reflection-style check.
-var AllDriftKinds = []DriftKind{
+var AllKinds = []Kind{
 	DriftStable,
 	DriftMinorWorsening,
 	DriftMajorWorsening,
 	DriftImprovement,
 }
 
-// DriftTypeForAudit converts a DriftKind to the detail.drift_type
+// TypeForAudit converts a Kind to the detail.drift_type
 // string the compliance.drift.detected event uses ({major, minor,
 // improvement}). Returns "" for DriftStable (which doesn't emit).
-func DriftTypeForAudit(k DriftKind) string {
+func TypeForAudit(k Kind) string {
 	switch k {
 	case DriftMajorWorsening:
 		return "major"
@@ -92,13 +92,13 @@ func ValidateThresholds(t Thresholds) error {
 	return nil
 }
 
-// DriftReport is what DetectForScan returns. Carries the classified
+// Report is what DetectForScan returns. Carries the classified
 // kind, the raw scores + delta, and per-severity transition counts so
 // the alert router (B.3) can route by severity.
-type DriftReport struct {
+type Report struct {
 	HostID       uuid.UUID
 	ScanID       uuid.UUID
-	Kind         DriftKind
+	Kind         Kind
 	PriorScore   float64
 	CurrentScore float64
 	ScoreDelta   float64 // current - prior; negative when worsening
