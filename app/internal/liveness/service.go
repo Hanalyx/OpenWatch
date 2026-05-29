@@ -31,14 +31,14 @@ type ProbeFunc func(ctx context.Context, addr string, timeout time.Duration) Pro
 
 // Service is the live probe runner.
 type Service struct {
-	pool       *pgxpool.Pool
-	emit       EmitFunc
-	probeFunc  ProbeFunc
-	timeout    time.Duration
-	threshold  int
-	metrics    *Metrics
-	inFlight   sync.Map // map[uuid.UUID]struct{}
-	clock      func() time.Time
+	pool      *pgxpool.Pool
+	emit      EmitFunc
+	probeFunc ProbeFunc
+	timeout   time.Duration
+	threshold int
+	metrics   *Metrics
+	inFlight  sync.Map // map[uuid.UUID]struct{}
+	clock     func() time.Time
 }
 
 // NewService wires the live probe runner. timeout defaults to
@@ -55,12 +55,20 @@ func NewService(pool *pgxpool.Pool, emit EmitFunc) *Service {
 	}
 }
 
-// WithProbeFunc substitutes the probe seam — tests inject a fake; the
-// future Kensa.Reachable() bridge calls this at boot.
+// WithProbeFunc returns a new Service that mirrors the receiver's
+// configuration but uses the given ProbeFunc. The receiver is not
+// mutated; the returned Service has its own inFlight set (no shared
+// sync.Map between original and copy).
 func (s *Service) WithProbeFunc(fn ProbeFunc) *Service {
-	clone := *s
-	clone.probeFunc = fn
-	return &clone
+	return &Service{
+		pool:      s.pool,
+		emit:      s.emit,
+		probeFunc: fn,
+		timeout:   s.timeout,
+		threshold: s.threshold,
+		metrics:   s.metrics,
+		clock:     s.clock,
+	}
 }
 
 // Metrics returns the runtime counters handle.
@@ -117,9 +125,9 @@ func (s *Service) ProbeHost(ctx context.Context, hostID uuid.UUID, addr string) 
 func (s *Service) persist(ctx context.Context, hostID uuid.UUID, result ProbeResult, now time.Time) error {
 	// Read prior row.
 	var (
-		priorStatus       string
-		priorConsecutive  int
-		hasPrior          bool
+		priorStatus      string
+		priorConsecutive int
+		hasPrior         bool
 	)
 	err := s.pool.QueryRow(ctx, `
 		SELECT reachability_status, consecutive_failures
