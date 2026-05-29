@@ -305,6 +305,33 @@ events:
         previous_status: {type: string, enum: [pass, fail, skip, error]}
         new_status: {type: string, enum: [pass, fail, skip, error]}
 
+  - code: finding.persisted
+    severity: info
+    actor_types: [system]
+    description: A single rule finding was persisted to the transaction log (one per transactions row insert). Spec system-transaction-log-writer AC-09.
+    detail_schema:
+      type: object
+      properties:
+        host_id: {type: string}
+        rule_id: {type: string}
+        scan_id: {type: string}
+        change_kind: {type: string, enum: [first_seen, state_changed, severity_changed]}
+        status: {type: string, enum: [pass, fail, skipped, error]}
+        prior_status: {type: string, enum: [pass, fail, skipped, error, none]}
+
+  - code: writer.apply.failed
+    severity: error
+    actor_types: [system]
+    description: writer.Apply rolled back the entire batch due to a DB error (FK violation, deadlock, oversize evidence). Spec system-transaction-log-writer AC-15.
+    detail_schema:
+      type: object
+      properties:
+        scan_id: {type: string}
+        host_id: {type: string}
+        reason: {type: string, enum: [fk_violation, deadlock, evidence_oversize, sqlc_error, unknown]}
+        rule_count_attempted: {type: integer}
+        offending_rule_id: {type: string}
+
   - code: compliance.exception.requested
     severity: info
 
