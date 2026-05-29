@@ -1,0 +1,140 @@
+spec:
+  id: system-fleet-rollup
+  title: Fleet rollup queries
+  version: "1.0.0"
+  status: approved
+  tier: 1
+
+  context:
+    system: openwatch-go
+    feature: Read-only fleet-wide aggregations over transactions, host_rule_state, and host_liveness
+    description: >
+      The fleet rollup service answers "how is my fleet doing right
+      now?" via a small, fixed set of typed queries. It reads from the
+      write-on-change tables produced by Slice B (host_rule_state for
+      current compliance state per host×rule; transactions for
+      meaningful state changes; host_liveness for reachability).
+
+      Every query is read-only, parameterized, context-aware, and
+      returns typed structs (no map[string]any). The package has no
+      side effects — it never writes, mutates, or emits audit events.
+      Results are bounded in size (LIMIT clauses) so large fleets
+      don't blow up callers.
+    related_specs:
+      - system-transaction-log-writer
+      - system-host-inventory
+      - service-host-liveness
+
+  objective:
+    summary: >
+      One Service value, constructed once with a *pgxpool.Pool. Each
+      query method returns a typed result struct + error. No internal
+      mutable state. Production wires this to the FastAPI/HTTP layer
+      via the dashboard endpoints (lands in a follow-up); tests hit it
+      directly with a freshly migrated DB.
+    scope:
+      includes:
+        - FleetComplianceScore — fleet-wide passing fraction (0..1)
+        - FleetLiveness — host counts by reachability status
+        - TopFailingRules — rules with most failing hosts (current state)
+        - TopFailingHosts — hosts with most failing rules (current state)
+        - RecentChanges — last N transactions ordered by observed_at DESC
+        - Parameterized SQL only; source-inspection enforces
+        - Closed enums for stable identifiers (e.g., reachability statuses)
+      excludes:
+        - Time-series histograms (drift over time) — follow-up after
+          we know which time grain the UI actually consumes
+        - Caching layer (Postgres is fast enough for v1 dashboards;
+          slot a Redis or in-process LRU behind the same interface
+          if the dashboard endpoints get hot)
+        - WebSocket / SSE push (clients poll; subscribe-style fanout
+          is event-bus territory, not fleet rollup territory)
+        - Mutation of any kind — this package is strictly read-only
+
+  constraints:
+    - id: C-01
+      description: The package MUST contain no INSERT/UPDATE/DELETE statements. Source-inspection enforces (AC-11)
+      type: security
+      enforcement: error
+    - id: C-02
+      description: Every SQL statement MUST be parameterized — no fmt.Sprintf or string concatenation of values into SQL. Source-inspection enforces (AC-12)
+      type: security
+      enforcement: error
+    - id: C-03
+      description: TopFailingRules and TopFailingHosts MUST enforce a hard maximum limit (1000) regardless of caller input
+      type: technical
+      enforcement: error
+    - id: C-04
+      description: RecentChanges MUST enforce a hard maximum limit (1000) regardless of caller input
+      type: technical
+      enforcement: error
+    - id: C-05
+      description: FleetComplianceScore on an empty fleet (zero host_rule_state rows) MUST return a Score with PassingFraction=0 and TotalEvaluations=0 — never an error
+      type: technical
+      enforcement: error
+    - id: C-06
+      description: FleetLiveness MUST count exactly four buckets — reachable, unreachable, unknown, never_probed (hosts with no host_liveness row)
+      type: technical
+      enforcement: error
+    - id: C-07
+      description: Every method MUST respect ctx cancellation. Tests use canceled contexts to verify
+      type: technical
+      enforcement: error
+    - id: C-08
+      description: All result structs MUST be typed (no map[string]any returned across the API). Encoding to JSON happens at the HTTP layer, not here
+      type: technical
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: FleetComplianceScore on a fleet with mixed pass/fail returns PassingFraction = passing / (passing + failing) and TotalEvaluations = passing + failing. Verified with seeded host_rule_state rows.
+      priority: critical
+      references_constraints: [C-05]
+    - id: AC-02
+      description: FleetComplianceScore on an empty fleet returns Score{PassingFraction=0, TotalEvaluations=0} with nil error — never ErrNoRows.
+      priority: critical
+      references_constraints: [C-05]
+    - id: AC-03
+      description: FleetComplianceScore counts only current_status IN ('passing','failing') — skipped/error rows are excluded from both numerator and denominator.
+      priority: critical
+      references_constraints: [C-05]
+    - id: AC-04
+      description: FleetLiveness returns counts for each of four statuses — reachable, unreachable, unknown, never_probed. The four counts sum to len(hosts where deleted_at IS NULL).
+      priority: critical
+      references_constraints: [C-06]
+    - id: AC-05
+      description: TopFailingRules orders results by FailingHostCount DESC. Returns up to caller-requested limit, capped at 1000.
+      priority: critical
+      references_constraints: [C-03]
+    - id: AC-06
+      description: TopFailingRules with limit=0 returns an empty slice — never an error.
+      priority: high
+      references_constraints: [C-03]
+    - id: AC-07
+      description: TopFailingHosts orders results by FailingRuleCount DESC. Returns up to caller-requested limit, capped at 1000.
+      priority: critical
+      references_constraints: [C-03]
+    - id: AC-08
+      description: RecentChanges returns transactions ordered by observed_at DESC, up to the caller's limit (capped at 1000). A since cursor filters to rows strictly newer than the given timestamp.
+      priority: critical
+      references_constraints: [C-04]
+    - id: AC-09
+      description: Every method respects context cancellation — a context canceled before the call returns context.Canceled (wrapped in the error chain).
+      priority: critical
+      references_constraints: [C-07]
+    - id: AC-10
+      description: Caller-provided limit < 0 is coerced to 0 (returns empty slice, never an error). limit > 1000 is coerced to 1000.
+      priority: high
+      references_constraints: [C-03, C-04]
+    - id: AC-11
+      description: Source-inspection — internal/fleetrollup contains no INSERT, UPDATE, or DELETE SQL statements (case-insensitive). Enforces the read-only invariant.
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-12
+      description: Source-inspection — internal/fleetrollup contains no fmt.Sprintf-into-SQL nor string-concatenated SQL. Enforces parameterization invariant.
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-13
+      description: All result types are typed Go structs — verified by reflection-style check that exported methods on Service return concrete struct types (not map[string]any).
+      priority: high
+      references_constraints: [C-08]
