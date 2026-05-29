@@ -49,15 +49,15 @@ var (
 type FailureReason string
 
 const (
-	ReasonHostKeyUnknown          FailureReason = "host_key_unknown"
-	ReasonCredentialDecryptionFailed FailureReason = "credential_decryption_failed"
-	ReasonEvidenceOversize        FailureReason = "evidence_oversize"
-	ReasonKensaError              FailureReason = "kensa_error"
-	ReasonHostBusy                FailureReason = "host_busy"
-	ReasonTimeout                 FailureReason = "timeout"
+	ReasonHostKeyUnknown             FailureReason = "host_key_unknown"
+	ReasonCredentialDecryptionFailed FailureReason = "credential_decryption_failed" //nolint:gosec // typed reason enum value, not a credential
+	ReasonEvidenceOversize           FailureReason = "evidence_oversize"
+	ReasonKensaError                 FailureReason = "kensa_error"
+	ReasonHostBusy                   FailureReason = "host_busy"
+	ReasonTimeout                    FailureReason = "timeout"
 )
 
-// ResultStatus classifies each rule's outcome inside a KensaResult.
+// ResultStatus classifies each rule's outcome inside a Result.
 type ResultStatus string
 
 const (
@@ -72,10 +72,10 @@ const (
 // scan to transition to failed with ReasonEvidenceOversize.
 const MaxEvidenceBytes = 10 * 1024 * 1024 // 10 MiB
 
-// KensaResult is what Executor.Run returns on success. It mirrors the
+// Result is what Executor.Run returns on success. It mirrors the
 // Kensa-side ScanResult but flattens transactions into rule outcomes
 // suitable for the transaction log writer (B.1c).
-type KensaResult struct {
+type Result struct {
 	HostID        uuid.UUID
 	FrameworkID   string
 	Outcomes      []RuleOutcome
@@ -84,12 +84,12 @@ type KensaResult struct {
 	PolicyVersion string // snapshotted from the job payload
 }
 
-// RuleOutcome is one rule's outcome inside a KensaResult.
+// RuleOutcome is one rule's outcome inside a Result.
 type RuleOutcome struct {
-	RuleID         string
-	Status         ResultStatus
-	Severity       string
-	Evidence       []byte            // raw evidence bytes; capped at MaxEvidenceBytes
-	FrameworkRefs  map[string]string // e.g. "cis_rhel9_v2": "5.1.12"
-	SkipReason     string            // populated when Status == StatusSkipped
+	RuleID        string
+	Status        ResultStatus
+	Severity      string
+	Evidence      []byte            // raw evidence bytes; capped at MaxEvidenceBytes
+	FrameworkRefs map[string]string // e.g. "cis_rhel9_v2": "5.1.12"
+	SkipReason    string            // populated when Status == StatusSkipped
 }

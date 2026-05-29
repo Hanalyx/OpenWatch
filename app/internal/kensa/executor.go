@@ -55,10 +55,10 @@ type Executor struct {
 // purpose other than passing through to the SSH session via the
 // in-memory ssh.Signer constructed from it.
 //
-// Returns either a populated *KensaResult on success, or a typed
+// Returns either a populated *Result on success, or a typed
 // FailureReason classifying the failure (the caller emits the
 // scan.failed audit and maps the reason to a sentinel error).
-type ScanFunc func(ctx context.Context, hostID uuid.UUID, framework, policyVersion string, plain []byte) (*KensaResult, FailureReason, error)
+type ScanFunc func(ctx context.Context, hostID uuid.UUID, framework, policyVersion string, plain []byte) (*Result, FailureReason, error)
 
 // CredentialBridge is the contract for resolving a host's SSH
 // credential into in-memory plaintext bytes ready to be parsed by
@@ -111,7 +111,7 @@ func (e *Executor) WithScanFunc(fn ScanFunc) *Executor {
 // unwiredScanFunc is the placeholder until the live Kensa integration
 // chunk wires Kensa.Scan + the in-memory TransportFactory. Returns the
 // kensa_error reason so the failure-emit path runs end-to-end.
-func unwiredScanFunc(ctx context.Context, hostID uuid.UUID, framework, policyVersion string, plain []byte) (*KensaResult, FailureReason, error) {
+func unwiredScanFunc(ctx context.Context, hostID uuid.UUID, framework, policyVersion string, plain []byte) (*Result, FailureReason, error) {
 	return nil, ReasonKensaError, errors.New("kensa: scan path not yet wired (AC-01 pending)")
 }
 
@@ -129,7 +129,7 @@ func unwiredScanFunc(ctx context.Context, hostID uuid.UUID, framework, policyVer
 //
 // ACs landing in later chunks of this PR:
 //
-//   - AC-01: live Kensa.Scan invocation returning a populated KensaResult
+//   - AC-01: live Kensa.Scan invocation returning a populated Result
 //   - AC-02: in-memory SSH key (TransportFactory hook)
 //   - AC-04: context cancellation propagation
 //   - AC-05/06: scan.started / scan.completed / scan.failed audit
@@ -137,7 +137,7 @@ func unwiredScanFunc(ctx context.Context, hostID uuid.UUID, framework, policyVer
 //   - AC-08: parallel safety verified under -race
 //   - AC-13/14/15: host-key, evidence cap, decryption-failure audits
 //   - AC-16: backoff state writes to host_backoff_state
-func (e *Executor) Run(ctx context.Context, hostID uuid.UUID, framework string, policyVersion string) (*KensaResult, error) {
+func (e *Executor) Run(ctx context.Context, hostID uuid.UUID, framework string, policyVersion string) (*Result, error) {
 	// Concurrency guard (AC-03). LoadOrStore returns loaded=true if
 	// the key was already present; another goroutine owns this hostID.
 	if _, loaded := e.inFlight.LoadOrStore(hostID, struct{}{}); loaded {
@@ -191,9 +191,9 @@ func (e *Executor) Run(ctx context.Context, hostID uuid.UUID, framework string, 
 	return result, nil
 }
 
-// summaryFromResult extracts severity counts from a KensaResult for
+// summaryFromResult extracts severity counts from a Result for
 // emission in scan.completed audit detail. Empty result → empty summary.
-func summaryFromResult(r *KensaResult) map[string]any {
+func summaryFromResult(r *Result) map[string]any {
 	if r == nil {
 		return map[string]any{}
 	}

@@ -534,7 +534,7 @@ func TestRun_ContextDeadline_PropagatesAsCtxErr(t *testing.T) {
 
 		// scanFunc blocks until ctx.Done() and returns ctx.Err().
 		// Models Kensa.Scan honoring its context contract.
-		blocking := func(ctx context.Context, _ uuid.UUID, _, _ string, _ []byte) (*KensaResult, FailureReason, error) {
+		blocking := func(ctx context.Context, _ uuid.UUID, _, _ string, _ []byte) (*Result, FailureReason, error) {
 			<-ctx.Done()
 			return nil, "", ctx.Err()
 		}
@@ -591,7 +591,7 @@ func TestRun_AlreadyCancelledCtx_ReturnsImmediately(t *testing.T) {
 		var calls []emitCall
 		exec := NewExecutor(bridge, fakeEmitFunc(&mu, &calls))
 
-		blocking := func(ctx context.Context, _ uuid.UUID, _, _ string, _ []byte) (*KensaResult, FailureReason, error) {
+		blocking := func(ctx context.Context, _ uuid.UUID, _, _ string, _ []byte) (*Result, FailureReason, error) {
 			<-ctx.Done()
 			return nil, "", ctx.Err()
 		}
@@ -626,8 +626,8 @@ func TestRun_SuccessfulScan_EmitsScanCompleted(t *testing.T) {
 		exec := NewExecutor(bridge, fakeEmitFunc(&mu, &calls))
 
 		// Successful scan returning a typed result.
-		successful := func(ctx context.Context, h uuid.UUID, fw, pv string, _ []byte) (*KensaResult, FailureReason, error) {
-			return &KensaResult{
+		successful := func(ctx context.Context, h uuid.UUID, fw, pv string, _ []byte) (*Result, FailureReason, error) {
+			return &Result{
 				HostID:        h,
 				FrameworkID:   fw,
 				PolicyVersion: pv,
@@ -656,7 +656,7 @@ func TestRun_SuccessfulScan_EmitsScanCompleted(t *testing.T) {
 }
 
 // @ac AC-01
-// AC-01: a successful Run returns a non-nil *KensaResult populated
+// AC-01: a successful Run returns a non-nil *Result populated
 // with rule outcomes, per-rule evidence, and framework_refs.
 // Tested structurally via the injected ScanFunc; the contract is that
 // whatever the live Kensa.Scan call produces, Run hands back unchanged.
@@ -664,7 +664,7 @@ func TestRun_SuccessfulScan_EmitsScanCompleted(t *testing.T) {
 // scanFunc field is the seam): exercising it would require an in-process
 // SSH server + Kensa's Default infrastructure, which the spec's "executor
 // invokes Kensa" responsibility tests structurally here.
-func TestRun_PopulatedKensaResult_AllFieldsFlowThrough(t *testing.T) {
+func TestRun_PopulatedResult_AllFieldsFlowThrough(t *testing.T) {
 	t.Run("system-kensa-executor/AC-01", func(t *testing.T) {
 		hostID := uuid.New()
 		bridge := &fakeCredentialBridge{errorFor: make(map[uuid.UUID]error)}
@@ -676,7 +676,7 @@ func TestRun_PopulatedKensaResult_AllFieldsFlowThrough(t *testing.T) {
 		// status, evidence bytes, and a framework reference per rule.
 		// The spec calls out outcomes + evidence + framework_refs
 		// explicitly — the test fails if Run silently drops any of them.
-		expected := &KensaResult{
+		expected := &Result{
 			HostID:        hostID,
 			FrameworkID:   "cis-rhel9-v2.0.0",
 			PolicyVersion: "1.7.0",
@@ -706,7 +706,7 @@ func TestRun_PopulatedKensaResult_AllFieldsFlowThrough(t *testing.T) {
 			},
 		}
 
-		exec = exec.WithScanFunc(func(ctx context.Context, h uuid.UUID, fw, pv string, _ []byte) (*KensaResult, FailureReason, error) {
+		exec = exec.WithScanFunc(func(ctx context.Context, h uuid.UUID, fw, pv string, _ []byte) (*Result, FailureReason, error) {
 			return expected, "", nil
 		})
 
@@ -715,7 +715,7 @@ func TestRun_PopulatedKensaResult_AllFieldsFlowThrough(t *testing.T) {
 			t.Fatalf("Run: %v", err)
 		}
 		if got == nil {
-			t.Fatal("Run returned nil *KensaResult; AC-01 requires non-nil on success")
+			t.Fatal("Run returned nil *Result; AC-01 requires non-nil on success")
 		}
 
 		// Spec-named requirements: outcomes, evidence, framework_refs.
