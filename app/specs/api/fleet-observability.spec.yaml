@@ -1,0 +1,127 @@
+spec:
+  id: api-fleet-observability
+  title: Fleet observability endpoints (read-only Slice B exposure)
+  version: "1.0.0"
+  status: approved
+  tier: 2
+
+  context:
+    system: openwatch-go
+    feature: Read-only HTTP exposure of internal/fleetrollup aggregations
+    description: >
+      Slice B built fleetrollup as a Go-level API but exposed nothing
+      over HTTP. This spec adds five read-only endpoints that wrap
+      the existing fleetrollup.Service methods — fleet compliance
+      score, fleet liveness counts, top failing rules, top failing
+      hosts, and recent change transactions. The handlers are thin:
+      parse + validate + delegate + JSON-encode. All heavy logic
+      stays in internal/fleetrollup.
+
+      Every endpoint requires the system:read permission via
+      auth.EnforcePermission middleware. No mutation, no side
+      effects.
+    related_specs:
+      - system-fleet-rollup
+      - system-host-inventory
+      - system-rbac
+
+  objective:
+    summary: >
+      Five GET routes under /api/v1/fleet. Each returns a typed JSON
+      response that mirrors the fleetrollup struct shape. Caller-
+      provided limits are clamped (negative -> 0, > 1000 -> 1000)
+      inside fleetrollup; the handler returns 400 only for malformed
+      input (non-numeric limit, malformed since timestamp).
+    scope:
+      includes:
+        - "GET /api/v1/fleet/score"
+        - "GET /api/v1/fleet/liveness"
+        - "GET /api/v1/fleet/top-failing-rules"
+        - "GET /api/v1/fleet/top-failing-hosts"
+        - "GET /api/v1/fleet/recent-changes"
+        - RBAC enforcement (system:read)
+        - Typed response schemas in openapi.yaml
+      excludes:
+        - Push/SSE (this is poll-only; subscribe-style fanout is
+          event-bus territory)
+        - Mutating operations (read-only by C-01)
+        - Cross-tenant scoping (single-tenant Stage 0)
+
+  constraints:
+    - id: C-01
+      description: All endpoints MUST be GET only. POST/PUT/DELETE return 405
+      type: technical
+      enforcement: error
+    - id: C-02
+      description: Every endpoint MUST require the system:read permission via auth.EnforcePermission. Both anonymous callers and authenticated callers without system:read return 403 authz.permission_denied (matches the established RBAC pattern — see system-rbac AC-09)
+      type: security
+      enforcement: error
+    - id: C-03
+      description: Default limit for paginated endpoints (top-failing-rules, top-failing-hosts, recent-changes) MUST be 50; maximum 1000 (matches fleetrollup.MaxLimit). Caller-provided limit < 1 or > 1000 returns 400 pagination.limit_exceeded
+      type: technical
+      enforcement: error
+    - id: C-04
+      description: GET /fleet/recent-changes MUST accept optional since (RFC3339 timestamp). Malformed since returns 400 (per oapi-codegen's default validation handler)
+      type: technical
+      enforcement: error
+    - id: C-05
+      description: All response shapes MUST be typed structs in openapi.yaml — no map[string]any in responses
+      type: technical
+      enforcement: error
+    - id: C-06
+      description: Handlers MUST delegate query work to internal/fleetrollup.Service without re-implementing SQL or aggregation logic. Source-inspection enforces (AC-13)
+      type: technical
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: GET /api/v1/fleet/score returns 200 with {passing_fraction, total_evaluations} populated from host_rule_state — typed response struct, no map[string]any.
+      priority: critical
+      references_constraints: [C-01, C-05]
+    - id: AC-02
+      description: GET /api/v1/fleet/score on an empty fleet returns 200 with {passing_fraction=0, total_evaluations=0} — never an error.
+      priority: critical
+    - id: AC-03
+      description: GET /api/v1/fleet/liveness returns 200 with four counts (reachable, unreachable, unknown, never_probed) that sum to the count of active hosts.
+      priority: critical
+    - id: AC-04
+      description: GET /api/v1/fleet/top-failing-rules returns 200 with items sorted by failing_host_count DESC. Default limit 50, ?limit=10 returns at most 10.
+      priority: critical
+    - id: AC-05
+      description: GET /api/v1/fleet/top-failing-hosts returns 200 with items sorted by failing_rule_count DESC. Default limit 50.
+      priority: critical
+    - id: AC-06
+      description: GET /api/v1/fleet/recent-changes returns 200 with transactions ordered by occurred_at DESC. Default limit 50.
+      priority: critical
+    - id: AC-07
+      description: GET /api/v1/fleet/recent-changes?since=2026-05-01T00:00:00Z filters to transactions strictly newer than the cursor.
+      priority: high
+      references_constraints: [C-04]
+    - id: AC-08
+      description: GET /api/v1/fleet/recent-changes?since=not-a-date returns 400 (handled by oapi-codegen's default ErrorHandlerFunc on InvalidParamFormatError).
+      priority: high
+      references_constraints: [C-04]
+    - id: AC-09
+      description: ?limit=2000 on any paginated endpoint returns 400 pagination.limit_exceeded.
+      priority: high
+      references_constraints: [C-03]
+    - id: AC-10
+      description: ?limit=-1 on any paginated endpoint returns 400 pagination.limit_exceeded.
+      priority: high
+      references_constraints: [C-03]
+    - id: AC-11
+      description: Anonymous (no session) request to any /fleet endpoint returns 403 authz.permission_denied (per system-rbac AC-09).
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-12
+      description: For one or more /fleet endpoints, the happy path with a viewer session returns 200 — confirming the system:read permission included in RoleViewer suffices.
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-13
+      description: Source-inspection — internal/server/fleet_handlers.go contains no SQL statements (no SELECT/INSERT/UPDATE) and no direct pool.Query/Exec calls. All data access goes through fleetrollup.Service methods.
+      priority: critical
+      references_constraints: [C-06]
+    - id: AC-14
+      description: POST /api/v1/fleet/score returns 405 method_not_allowed (and similarly for the other four endpoints).
+      priority: high
+      references_constraints: [C-01]

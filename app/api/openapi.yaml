@@ -797,6 +797,131 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
 
+  # Spec: app/specs/api/fleet-observability.spec.yaml
+  /api/v1/fleet/score:
+    get:
+      operationId: getFleetScore
+      summary: Fleet-wide compliance score (passing/total)
+      responses:
+        '200':
+          description: Fleet score
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/FleetScore'}
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '403':
+          description: Caller lacks system:read permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
+  /api/v1/fleet/liveness:
+    get:
+      operationId: getFleetLiveness
+      summary: Host counts by reachability status
+      responses:
+        '200':
+          description: Liveness rollup
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/FleetLiveness'}
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '403':
+          description: Caller lacks system:read permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
+  /api/v1/fleet/top-failing-rules:
+    get:
+      operationId: getFleetTopFailingRules
+      summary: Rules with the most failing hosts (descending)
+      parameters:
+        - name: limit
+          in: query
+          schema: {type: integer, minimum: 1, maximum: 1000, default: 50}
+      responses:
+        '200':
+          description: Ranked rule failures
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/FleetTopFailingRules'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '403':
+          description: Caller lacks system:read permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
+  /api/v1/fleet/top-failing-hosts:
+    get:
+      operationId: getFleetTopFailingHosts
+      summary: Hosts with the most failing rules (descending)
+      parameters:
+        - name: limit
+          in: query
+          schema: {type: integer, minimum: 1, maximum: 1000, default: 50}
+      responses:
+        '200':
+          description: Ranked host failures
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/FleetTopFailingHosts'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '403':
+          description: Caller lacks system:read permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
+  /api/v1/fleet/recent-changes:
+    get:
+      operationId: getFleetRecentChanges
+      summary: Recent transactions (state changes), newest first
+      parameters:
+        - name: since
+          in: query
+          description: Filter to transactions strictly newer than this RFC3339 timestamp
+          schema: {type: string, format: date-time}
+        - name: limit
+          in: query
+          schema: {type: integer, minimum: 1, maximum: 1000, default: 50}
+      responses:
+        '200':
+          description: Recent transaction page
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/FleetRecentChanges'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '403':
+          description: Caller lacks system:read permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
 components:
   responses:
     BadRequest:
@@ -1098,6 +1223,79 @@ components:
           type: string
           nullable: true
           description: Opaque cursor; pass as ?cursor= to fetch the next page
+
+    # Fleet observability schemas (spec: api-fleet-observability)
+    FleetScore:
+      type: object
+      required: [passing_fraction, total_evaluations]
+      properties:
+        passing_fraction:
+          type: number
+          format: double
+          description: Passing rules / (passing + failing) across all hosts. 0..1.
+        total_evaluations:
+          type: integer
+          format: int64
+          description: Count of host_rule_state rows where current_status is pass or fail.
+
+    FleetLiveness:
+      type: object
+      required: [reachable, unreachable, unknown, never_probed]
+      properties:
+        reachable:    {type: integer, format: int64}
+        unreachable:  {type: integer, format: int64}
+        unknown:      {type: integer, format: int64}
+        never_probed: {type: integer, format: int64}
+
+    FleetRuleFailure:
+      type: object
+      required: [rule_id, failing_host_count]
+      properties:
+        rule_id: {type: string}
+        failing_host_count: {type: integer, format: int64}
+
+    FleetTopFailingRules:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: {$ref: '#/components/schemas/FleetRuleFailure'}
+
+    FleetHostFailure:
+      type: object
+      required: [host_id, failing_rule_count]
+      properties:
+        host_id: {type: string, format: uuid}
+        failing_rule_count: {type: integer, format: int64}
+
+    FleetTopFailingHosts:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: {$ref: '#/components/schemas/FleetHostFailure'}
+
+    FleetTransaction:
+      type: object
+      required: [id, host_id, rule_id, status, change_kind, occurred_at]
+      properties:
+        id:          {type: string, format: uuid}
+        host_id:     {type: string, format: uuid}
+        rule_id:     {type: string}
+        status:      {type: string, enum: [pass, fail, skipped, error]}
+        severity:    {type: string}
+        change_kind: {type: string, enum: [first_seen, state_changed, severity_changed]}
+        occurred_at: {type: string, format: date-time}
+
+    FleetRecentChanges:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: {$ref: '#/components/schemas/FleetTransaction'}
 
     ErrorEnvelope:
       type: object

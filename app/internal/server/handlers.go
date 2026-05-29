@@ -12,6 +12,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/auth"
 	"github.com/Hanalyx/openwatch/internal/correlation"
 	"github.com/Hanalyx/openwatch/internal/credential"
+	"github.com/Hanalyx/openwatch/internal/fleetrollup"
 	"github.com/Hanalyx/openwatch/internal/host"
 	"github.com/Hanalyx/openwatch/internal/license"
 	"github.com/Hanalyx/openwatch/internal/policy"
@@ -35,6 +36,7 @@ type handlers struct {
 	users       *users.Service
 	credentials *credential.Service
 	hosts       *host.Service
+	fleet       *fleetrollup.Service
 }
 
 // newHandlers constructs the ServerInterface implementation. The user
@@ -46,6 +48,7 @@ func newHandlers(pool *pgxpool.Pool) *handlers {
 		users:       users.NewService(pool, nil),
 		credentials: credential.NewService(pool),
 		hosts:       host.NewService(pool),
+		fleet:       fleetrollup.NewService(pool),
 	}
 }
 
