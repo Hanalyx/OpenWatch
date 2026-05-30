@@ -686,16 +686,16 @@ paths:
   /api/v1/hosts/{id}:
     get:
       operationId: getHostByID
-      summary: Fetch a host
+      summary: Fetch a host with liveness + compliance enrichment
       x-required-permission: host:read
       parameters:
         - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
       responses:
         '200':
-          description: Host
+          description: Host detail (includes liveness + compliance_summary)
           content:
             application/json:
-              schema: {$ref: '#/components/schemas/HostResponse'}
+              schema: {$ref: '#/components/schemas/HostDetailResponse'}
         '404':
           description: Host not found
           content:
@@ -1090,6 +1090,47 @@ components:
         created_by:   {type: string, format: uuid}
         created_at:   {type: string, format: date-time}
         updated_at:   {type: string, format: date-time}
+
+    # Per-host enrichment (spec api-hosts v1.1.0 C-05).
+    # Populated on GET /hosts/{id} when host_liveness has a row for the host.
+    HostLiveness:
+      type: object
+      required: [reachability_status]
+      properties:
+        reachability_status:
+          type: string
+          enum: [reachable, unreachable, unknown]
+        last_probe_at:        {type: string, format: date-time, nullable: true}
+        last_response_ms:     {type: integer, nullable: true}
+        consecutive_failures: {type: integer}
+        last_state_change_at: {type: string, format: date-time, nullable: true}
+        last_error_type:      {type: string, nullable: true}
+
+    # Per-host compliance roll-up (spec api-hosts v1.1.0 C-06).
+    # Always populated on GET /hosts/{id} — zero counts when no rule_state.
+    HostComplianceSummary:
+      type: object
+      required: [passing, failing, skipped, error, total]
+      properties:
+        passing: {type: integer, format: int64}
+        failing: {type: integer, format: int64}
+        skipped: {type: integer, format: int64}
+        error:   {type: integer, format: int64}
+        total:   {type: integer, format: int64}
+
+    # Detail-view response: HostResponse plus enrichments. Used by
+    # GET /hosts/{id} only; the list endpoint keeps HostResponse to
+    # avoid per-host join overhead on bulk reads.
+    HostDetailResponse:
+      type: object
+      required: [host, compliance_summary]
+      properties:
+        host: {$ref: '#/components/schemas/HostResponse'}
+        liveness:
+          allOf: [{$ref: '#/components/schemas/HostLiveness'}]
+          nullable: true
+          description: Null when no liveness probe has ever run against this host.
+        compliance_summary: {$ref: '#/components/schemas/HostComplianceSummary'}
 
     HostListResponse:
       type: object

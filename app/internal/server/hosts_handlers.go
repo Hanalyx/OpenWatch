@@ -108,13 +108,16 @@ func (h *handlers) PostHosts(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, hostResponse(created))
 }
 
-// GetHostByID fetches a host.
-// Spec api-hosts AC-08.
+// GetHostByID fetches a host with liveness + compliance_summary enrichment.
+// Spec api-hosts AC-08, AC-13, AC-14, AC-15, AC-16.
 func (h *handlers) GetHostByID(w http.ResponseWriter, r *http.Request, id openapitypes.UUID) {
 	if denied := auth.EnforcePermission(w, r, auth.HostRead); denied {
 		return
 	}
-	got, err := h.hosts.GetByID(r.Context(), uuid.UUID(id))
+	ctx := r.Context()
+	hostID := uuid.UUID(id)
+
+	got, err := h.hosts.GetByID(ctx, hostID)
 	if err != nil {
 		if errors.Is(err, host.ErrHostNotFound) {
 			writeError(w, http.StatusNotFound, "hosts.not_found", "client",
@@ -125,7 +128,26 @@ func (h *handlers) GetHostByID(w http.ResponseWriter, r *http.Request, id openap
 			"lookup failed", true)
 		return
 	}
-	writeJSON(w, http.StatusOK, hostResponse(got))
+
+	liveness, err := loadHostLiveness(ctx, h.pool, hostID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "server.error", "server",
+			"liveness lookup failed", true)
+		return
+	}
+	summary, err := loadHostComplianceSummary(ctx, h.pool, hostID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "server.error", "server",
+			"compliance summary lookup failed", true)
+		return
+	}
+
+	resp := api.HostDetailResponse{
+		Host:              hostResponse(got),
+		Liveness:          liveness,
+		ComplianceSummary: summary,
+	}
+	writeJSON(w, http.StatusOK, resp)
 }
 
 // PatchHostByID updates mutable host fields.

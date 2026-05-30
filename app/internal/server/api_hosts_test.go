@@ -293,11 +293,13 @@ func TestHosts_GetByID(t *testing.T) {
 			resp.Body.Close()
 			t.Fatalf("get status = %d body=%s", resp.StatusCode, b)
 		}
-		var got map[string]any
+		var got struct {
+			Host map[string]any `json:"host"`
+		}
 		_ = json.NewDecoder(resp.Body).Decode(&got)
 		resp.Body.Close()
-		if got["hostname"] != "by-id" {
-			t.Errorf("hostname = %v, want by-id", got["hostname"])
+		if got.Host["hostname"] != "by-id" {
+			t.Errorf("host.hostname = %v, want by-id", got.Host["hostname"])
 		}
 
 		// Unknown id → 404.
@@ -388,11 +390,13 @@ func TestHosts_Patch_InvalidIP(t *testing.T) {
 		// Confirm IP wasn't mutated by re-reading.
 		req = asRole(t, "GET", url+"/api/v1/hosts/"+id, auth.RoleAdmin, nil)
 		resp = doReq(t, req)
-		var got map[string]any
+		var got struct {
+			Host map[string]any `json:"host"`
+		}
 		_ = json.NewDecoder(resp.Body).Decode(&got)
 		resp.Body.Close()
-		if got["ip_address"] != origIP {
-			t.Errorf("ip_address mutated despite 400: %v vs %v", got["ip_address"], origIP)
+		if got.Host["ip_address"] != origIP {
+			t.Errorf("ip_address mutated despite 400: %v vs %v", got.Host["ip_address"], origIP)
 		}
 	})
 }
