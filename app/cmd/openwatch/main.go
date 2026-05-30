@@ -21,13 +21,17 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/Hanalyx/openwatch/internal/alertrouter"
+	stdoutchan "github.com/Hanalyx/openwatch/internal/alertrouter/channels/stdout"
 	"github.com/Hanalyx/openwatch/internal/audit"
 	"github.com/Hanalyx/openwatch/internal/config"
 	"github.com/Hanalyx/openwatch/internal/correlation"
 	"github.com/Hanalyx/openwatch/internal/db"
 	"github.com/Hanalyx/openwatch/internal/db/migrations"
+	"github.com/Hanalyx/openwatch/internal/eventbus"
 	"github.com/Hanalyx/openwatch/internal/identity"
 	"github.com/Hanalyx/openwatch/internal/license"
+	"github.com/Hanalyx/openwatch/internal/liveness"
 	openlog "github.com/Hanalyx/openwatch/internal/log"
 	"github.com/Hanalyx/openwatch/internal/secretkey"
 	"github.com/Hanalyx/openwatch/internal/server"
@@ -255,8 +259,50 @@ func cmdServe(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 		}
 	}()
 
+	// ---------------------------------------------------------------
+	// Slice B wiring. Spec: system-daemon-orchestration.
+	//
+	// Boot order (C-01, C-09):
+	//   1. Pub/sub bus           - Bucket B events
+	//   2. Alert router          - subscriber, MUST register and Start
+	//                              BEFORE any producer publishes (C-09)
+	//   3. Liveness probe loop   - producer: HeartbeatPulse on transitions
+	//
+	// drift service is constructed elsewhere with no long-lived loop;
+	// the worker subcommand calls DetectForScan per-scan-completion
+	// in a follow-up PR.
+	//
+	// The scheduler + cron tick land in a follow-up that adds
+	// policy schedules loading + queue HMAC key derivation - both
+	// require a credential DEK accessor not yet exposed.
+	// ---------------------------------------------------------------
+
+	bus := eventbus.NewBus()
+	defer bus.Shutdown()
+
+	router, err := alertrouter.NewRouter(bus, alertrouter.Config{})
+	if err != nil {
+		slog.ErrorContext(bootCtx, "alertrouter init failed", slog.String("error", err.Error()))
+		return 1
+	}
+	// AC-13: register the stdout channel against an empty Tags filter
+	// (wildcard — receives every alert). Operators see fired alerts
+	// in `journalctl -u openwatch -g alertrouter.alert.sent`.
+	router.Register(alertrouter.ChannelRegistration{
+		Channel: stdoutchan.New("stdout"),
+	})
+	router.Start(ctx) // C-09: subscriber active before any publisher.
+
+	liveSvc := liveness.NewService(pool, audit.Emit, bus)
+	go liveSvc.Run(ctx)
+
 	srv := server.New(cfg, pool)
 	runErr := srv.Run(ctx)
+
+	// Shutdown order REVERSE of boot (C-02). liveness.Run + alertrouter
+	// observe ctx cancellation via the same ctx srv.Run watched.
+	router.Stop()
+	// liveSvc.Run returns when ctx is canceled; no explicit Stop call.
 
 	// system.shutdown: best-effort sync emit; failures logged but ignored
 	// because shutdown is in progress.

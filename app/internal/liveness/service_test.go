@@ -181,7 +181,7 @@ func TestProbeHost_ConcurrencyGuard_SecondReturnsInFlight(t *testing.T) {
 			<-release
 			return ProbeResult{Reachable: true, ResponseTime: 10 * time.Millisecond, BannerSeen: true}
 		}
-		svc := NewService(pool, fakeEmitter(&mu, &calls)).WithProbeFunc(blocking)
+		svc := NewService(pool, fakeEmitter(&mu, &calls), nil).WithProbeFunc(blocking)
 
 		// Start first probe.
 		started := make(chan struct{})
@@ -226,7 +226,7 @@ func TestProbeHost_DifferentHosts_ParallelRaceClean(t *testing.T) {
 
 		var mu sync.Mutex
 		var calls []emitCall
-		svc := NewService(pool, fakeEmitter(&mu, &calls)).WithProbeFunc(alwaysReachable(15))
+		svc := NewService(pool, fakeEmitter(&mu, &calls), nil).WithProbeFunc(alwaysReachable(15))
 
 		var wg sync.WaitGroup
 		for _, h := range hosts {
@@ -262,7 +262,7 @@ func TestProbeHost_FirstSuccess_EmitsAuditAndStatusReachable(t *testing.T) {
 
 		var mu sync.Mutex
 		var calls []emitCall
-		svc := NewService(pool, fakeEmitter(&mu, &calls)).WithProbeFunc(alwaysReachable(20))
+		svc := NewService(pool, fakeEmitter(&mu, &calls), nil).WithProbeFunc(alwaysReachable(20))
 
 		_, err := svc.ProbeHost(context.Background(), hostID, "192.0.2.10:22")
 		if err != nil {
@@ -311,7 +311,7 @@ func TestProbeHost_FirstFailureFromReachable_NoTransition(t *testing.T) {
 
 		var mu sync.Mutex
 		var calls []emitCall
-		svc := NewService(pool, fakeEmitter(&mu, &calls)).WithProbeFunc(alwaysReachable(20))
+		svc := NewService(pool, fakeEmitter(&mu, &calls), nil).WithProbeFunc(alwaysReachable(20))
 
 		// Initial reachable probe to seed status.
 		if _, err := svc.ProbeHost(context.Background(), hostID, "192.0.2.10:22"); err != nil {
@@ -348,7 +348,7 @@ func TestProbeHost_NConsecutiveFailures_FlipsToUnreachable(t *testing.T) {
 
 		var mu sync.Mutex
 		var calls []emitCall
-		svc := NewService(pool, fakeEmitter(&mu, &calls)).WithProbeFunc(alwaysReachable(20))
+		svc := NewService(pool, fakeEmitter(&mu, &calls), nil).WithProbeFunc(alwaysReachable(20))
 
 		// Seed reachable.
 		_, _ = svc.ProbeHost(context.Background(), hostID, "192.0.2.10:22")
@@ -388,7 +388,7 @@ func TestProbeHost_SuccessAfterUnreachable_FlipsBackToReachable(t *testing.T) {
 
 		var mu sync.Mutex
 		var calls []emitCall
-		svc := NewService(pool, fakeEmitter(&mu, &calls)).WithProbeFunc(alwaysFails("timeout"))
+		svc := NewService(pool, fakeEmitter(&mu, &calls), nil).WithProbeFunc(alwaysFails("timeout"))
 
 		// Two failures get us to unreachable.
 		_, _ = svc.ProbeHost(context.Background(), hostID, "192.0.2.10:22")

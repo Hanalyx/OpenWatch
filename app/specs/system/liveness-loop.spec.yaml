@@ -1,7 +1,7 @@
 spec:
   id: system-liveness-loop
   title: Host liveness probe loop
-  version: "1.0.0"
+  version: "1.1.0"
   status: approved
   tier: 1
 
@@ -87,6 +87,22 @@ spec:
       description: host_liveness writes use ON CONFLICT (host_id) DO UPDATE so the table has at most one row per host
       type: technical
       enforcement: error
+    - id: C-10
+      description: Service MUST expose Run(ctx) — a blocking loop that walks the active host inventory at the policy-configured cadence and calls ProbeHost for each. Run returns when ctx is canceled, draining in-flight probes. v1.1.0 NEW
+      type: technical
+      enforcement: error
+    - id: C-11
+      description: Run MUST skip hosts whose host_backoff_state.suppress_until is in the future at tick time — those hosts are explicitly back-offed by the executor/worker and re-probing immediately would not change the picture. v1.1.0 NEW
+      type: technical
+      enforcement: error
+    - id: C-12
+      description: On every reachability state transition (the same trigger as the host.connectivity.checked audit emission), Service MUST publish a typed HeartbeatPulse event to the eventbus. The publish is best-effort — bus errors are logged but do not affect ProbeHost's return value. v1.1.0 NEW
+      type: technical
+      enforcement: error
+    - id: C-13
+      description: NewService signature is NewService(pool, emit, bus). The bus parameter MAY be nil — in that case the service still emits audit events but skips bus publishes (testable in isolation). v1.1.0 NEW
+      type: technical
+      enforcement: error
 
   acceptance_criteria:
     - id: AC-01
@@ -148,3 +164,35 @@ spec:
     - id: AC-15
       description: Service exposes Metrics with last_probe_at, probe_count, probe_success_count, probe_failure_count, state_transition_count counters; all atomic-safe for concurrent read/write.
       priority: high
+    - id: AC-16
+      description: Service.Run(ctx) blocks; calling Run on a Service with no hosts in the inventory ticks at the configured cadence without panicking and produces zero ProbeHost invocations per tick.
+      priority: critical
+      references_constraints: [C-10]
+    - id: AC-17
+      description: Service.Run(ctx) walks active hosts and calls ProbeHost for each on every tick; a test with 3 seeded hosts and a controllable clock observes exactly 3 ProbeHost invocations per tick.
+      priority: critical
+      references_constraints: [C-10]
+    - id: AC-18
+      description: Run skips hosts whose host_backoff_state.suppress_until > now; a test seeding 3 hosts where 1 has suppress_until in the future observes exactly 2 probes per tick.
+      priority: critical
+      references_constraints: [C-11]
+    - id: AC-19
+      description: Run returns within 2 seconds of ctx cancellation; any in-flight ProbeHost call is allowed to complete (no abandonment), then Run exits.
+      priority: critical
+      references_constraints: [C-10]
+    - id: AC-20
+      description: On a reachable → unreachable transition, the service publishes a HeartbeatPulse{Reachable=false} to the eventbus; verified with an in-memory bus + subscriber.
+      priority: critical
+      references_constraints: [C-12]
+    - id: AC-21
+      description: On an unreachable → reachable transition, the service publishes a HeartbeatPulse{Reachable=true, PriorReachable=false} to the eventbus.
+      priority: critical
+      references_constraints: [C-12]
+    - id: AC-22
+      description: A steady-state probe (no transition) does NOT publish a HeartbeatPulse — the bus subscriber sees zero events for that probe.
+      priority: critical
+      references_constraints: [C-12]
+    - id: AC-23
+      description: NewService(pool, emit, nil) — when the bus is nil, ProbeHost still works and the audit emission still fires; the only difference is no bus publish.
+      priority: high
+      references_constraints: [C-13]

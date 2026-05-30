@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -14,6 +15,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/Hanalyx/openwatch/internal/audit"
+	"github.com/Hanalyx/openwatch/internal/eventbus"
 )
 
 // EmitFunc mirrors audit.Emit's signature; same pattern as
@@ -33,9 +35,11 @@ type ProbeFunc func(ctx context.Context, addr string, timeout time.Duration) Pro
 type Service struct {
 	pool      *pgxpool.Pool
 	emit      EmitFunc
+	bus       *eventbus.Bus // may be nil; see v1.1.0 C-13
 	probeFunc ProbeFunc
 	timeout   time.Duration
 	threshold int
+	interval  time.Duration
 	metrics   *Metrics
 	inFlight  sync.Map // map[uuid.UUID]struct{}
 	clock     func() time.Time
@@ -43,13 +47,18 @@ type Service struct {
 
 // NewService wires the live probe runner. timeout defaults to
 // DefaultProbeTimeout, threshold defaults to DefaultUnreachableThreshold.
-func NewService(pool *pgxpool.Pool, emit EmitFunc) *Service {
+//
+// v1.1.0: bus may be nil. When nil, the service still emits audit
+// events but skips bus publishes. Spec system-liveness-loop C-13.
+func NewService(pool *pgxpool.Pool, emit EmitFunc, bus *eventbus.Bus) *Service {
 	return &Service{
 		pool:      pool,
 		emit:      emit,
+		bus:       bus,
 		probeFunc: Probe,
 		timeout:   DefaultProbeTimeout,
 		threshold: DefaultUnreachableThreshold,
+		interval:  DefaultProbeInterval,
 		metrics:   NewMetrics(),
 		clock:     time.Now,
 	}
@@ -63,9 +72,28 @@ func (s *Service) WithProbeFunc(fn ProbeFunc) *Service {
 	return &Service{
 		pool:      s.pool,
 		emit:      s.emit,
+		bus:       s.bus,
 		probeFunc: fn,
 		timeout:   s.timeout,
 		threshold: s.threshold,
+		interval:  s.interval,
+		metrics:   s.metrics,
+		clock:     s.clock,
+	}
+}
+
+// WithInterval returns a new Service that ticks at the given interval.
+// Used by tests (and policy.Liveness.IntervalSec loading at boot) to
+// override the default 5-minute cadence. Spec system-liveness-loop C-03.
+func (s *Service) WithInterval(d time.Duration) *Service {
+	return &Service{
+		pool:      s.pool,
+		emit:      s.emit,
+		bus:       s.bus,
+		probeFunc: s.probeFunc,
+		timeout:   s.timeout,
+		threshold: s.threshold,
+		interval:  d,
 		metrics:   s.metrics,
 		clock:     s.clock,
 	}
@@ -73,6 +101,93 @@ func (s *Service) WithProbeFunc(fn ProbeFunc) *Service {
 
 // Metrics returns the runtime counters handle.
 func (s *Service) Metrics() *Metrics { return s.metrics }
+
+// Run is the blocking liveness loop. On every tick at the configured
+// interval it walks the active host inventory and calls ProbeHost for
+// each host whose backoff state allows a probe. Returns when ctx is
+// canceled, allowing the in-flight tick to complete.
+//
+// Spec system-liveness-loop v1.1.0:
+//   - C-10 / AC-16 / AC-17: tick-and-walk semantics.
+//   - C-11 / AC-18: skip hosts whose host_backoff_state.suppress_until is in the future.
+//   - AC-19: returns within 2s of ctx cancellation.
+func (s *Service) Run(ctx context.Context) {
+	t := time.NewTicker(s.interval)
+	defer t.Stop()
+
+	// Tick once at start so the loop produces a result before the first
+	// interval elapses. The initial tick respects ctx like any other.
+	s.tick(ctx)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			s.tick(ctx)
+		}
+	}
+}
+
+// tick performs one probe walk. Surface for tests: exercising tick
+// directly avoids relying on time.Ticker.
+func (s *Service) tick(ctx context.Context) {
+	hosts, err := s.listProbeTargets(ctx)
+	if err != nil {
+		slog.WarnContext(ctx, "liveness: list probe targets failed",
+			slog.String("err", err.Error()))
+		return
+	}
+	for _, h := range hosts {
+		// Per-host probe respects its own ctx — if Run's ctx is
+		// canceled, the probe call sees it and returns quickly.
+		_, _ = s.ProbeHost(ctx, h.HostID, h.Addr)
+		if ctx.Err() != nil {
+			return
+		}
+	}
+}
+
+// probeTarget is one host the tick will probe.
+type probeTarget struct {
+	HostID uuid.UUID
+	Addr   string // host:port — derived from hosts.ip_address + hosts.port (defaults to 22)
+}
+
+// listProbeTargets returns active (non-soft-deleted) hosts whose
+// host_backoff_state does not suppress probes at this moment. Spec
+// AC-17 / AC-18.
+func (s *Service) listProbeTargets(ctx context.Context) ([]probeTarget, error) {
+	now := s.clock()
+	const q = `
+		SELECT h.id, h.ip_address::text, COALESCE(h.port, 22)
+		  FROM hosts h
+		  LEFT JOIN host_backoff_state b
+		    ON b.host_id = h.id AND b.probe_type = 'scan'
+		 WHERE h.deleted_at IS NULL
+		   AND (b.suppress_until IS NULL OR b.suppress_until <= $1)`
+	rows, err := s.pool.Query(ctx, q, now)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []probeTarget
+	for rows.Next() {
+		var (
+			id   uuid.UUID
+			ip   string
+			port int
+		)
+		if err := rows.Scan(&id, &ip, &port); err != nil {
+			return nil, err
+		}
+		out = append(out, probeTarget{
+			HostID: id,
+			Addr:   fmt.Sprintf("%s:%d", ip, port),
+		})
+	}
+	return out, rows.Err()
+}
 
 // ProbeHost runs one probe against the given host and persists the result.
 //
@@ -177,8 +292,29 @@ func (s *Service) persist(ctx context.Context, hostID uuid.UUID, result ProbeRes
 	if didTransition {
 		s.metrics.StateTransitionCount.Add(1)
 		s.emitTransition(ctx, hostID, result, newStatus)
+		// v1.1.0 C-12: publish HeartbeatPulse to the eventbus on the
+		// same trigger. Bus may be nil (test path) — skip in that case.
+		s.publishHeartbeat(ctx, hostID, result, Status(priorStatus), newStatus, now)
 	}
 	return nil
+}
+
+// publishHeartbeat publishes a typed HeartbeatPulse to the eventbus on
+// every reachability state transition. Best-effort: a nil bus is a
+// no-op; publish failures are not propagated to the caller (matches
+// the bus's own "drop on full / dropped count" contract). Spec v1.1.0
+// C-12 / AC-20 / AC-21 / AC-22.
+func (s *Service) publishHeartbeat(ctx context.Context, hostID uuid.UUID, result ProbeResult, prior, current Status, now time.Time) {
+	if s.bus == nil {
+		return
+	}
+	s.bus.Publish(ctx, eventbus.HeartbeatPulse{
+		HostID:         hostID,
+		Reachable:      current == StatusReachable,
+		PriorReachable: prior == StatusReachable,
+		OccurredAt:     now,
+		ResponseTimeMS: int(result.ResponseTime / time.Millisecond),
+	})
 }
 
 // computeNewState applies the hysteresis rules.
