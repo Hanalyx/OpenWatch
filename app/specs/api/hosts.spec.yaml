@@ -1,7 +1,7 @@
 spec:
   id: api-hosts
-  title: Host inventory CRUD HTTP surface
-  version: "1.0.0"
+  title: Host inventory CRUD HTTP surface + Slice B enrichments
+  version: "1.1.0"
   status: approved
   tier: 2
 
@@ -31,11 +31,12 @@ spec:
         - GET / POST /hosts
         - GET / PATCH / DELETE /hosts/{id}
         - "Filters: ?environment=..., ?tag=..."
+        - "GET /hosts/{id} response carries optional liveness sub-object (host_liveness LEFT JOIN) — v1.1.0"
+        - "GET /hosts/{id} response carries compliance_summary sub-object (passing/failing/total derived from host_rule_state) — v1.1.0"
       excludes:
         - "Bulk import — deferred to A.5"
         - "Connectivity-check trigger — needs scan executor, deferred"
-        - "Joined reads (scan summary, last seen) — Slice B"
-        - "Cursor pagination + multi-tag — Slice B"
+        - "Cursor pagination + multi-tag — deferred"
 
   constraints:
     - id: C-01
@@ -52,6 +53,14 @@ spec:
       enforcement: error
     - id: C-04
       description: PATCH MUST NOT change hostname, created_by, created_at, or id (immutable in Slice A); only the patchable fields the UpdateParams struct exposes may be mutated
+      type: technical
+      enforcement: error
+    - id: C-05
+      description: GET /hosts/{id} response MUST include the host's liveness as either a populated sub-object (when host_liveness has a row) or null (when no probe has run yet); reachability values are constrained to the host_liveness CHECK enum (reachable/unreachable/unknown)
+      type: technical
+      enforcement: error
+    - id: C-06
+      description: GET /hosts/{id} response MUST include a compliance_summary sub-object with passing, failing, skipped, error, and total counts derived from host_rule_state. A host with no rule_state rows MUST receive zeros — never null and never an error
       type: technical
       enforcement: error
 
@@ -100,3 +109,19 @@ spec:
       description: DELETE /hosts/{id} with a caller missing host:delete returns 403; the row is NOT soft-deleted.
       priority: critical
       references_constraints: [C-02]
+    - id: AC-13
+      description: GET /hosts/{id} for a host that has a host_liveness row returns 200 with liveness.reachability_status equal to the stored value and liveness.last_probe_at populated.
+      priority: critical
+      references_constraints: [C-05]
+    - id: AC-14
+      description: GET /hosts/{id} for a host that has no host_liveness row returns 200 with liveness=null — never an error, never a synthesised default.
+      priority: critical
+      references_constraints: [C-05]
+    - id: AC-15
+      description: GET /hosts/{id} for a host with seeded host_rule_state rows returns 200 with compliance_summary populated with the correct passing, failing, skipped, error, and total counts.
+      priority: critical
+      references_constraints: [C-06]
+    - id: AC-16
+      description: GET /hosts/{id} for a host with no host_rule_state rows returns 200 with compliance_summary populated with all zero counts — never null and never an error.
+      priority: critical
+      references_constraints: [C-06]
