@@ -1,7 +1,7 @@
 spec:
   id: system-drift-detector
   title: Compliance drift detector
-  version: "1.0.0"
+  version: "1.1.0"
   status: approved
   tier: 1
 
@@ -78,6 +78,14 @@ spec:
       description: DriftReport MUST include the per-severity transition counts (critical_became_failing, high_became_failing, etc.) — operators need this granularity for alert routing in B.3
       type: technical
       enforcement: error
+    - id: C-09
+      description: On every non-stable detection (Kind != Stable), Service MUST publish a typed DriftDetected event to the eventbus carrying the same per-severity transition counts that the audit detail carries. The publish is best-effort — bus errors are logged but do not affect DetectForScan's return. v1.1.0 NEW
+      type: technical
+      enforcement: error
+    - id: C-10
+      description: NewService signature is NewService(pool, emit, thresholds, bus). The bus parameter MAY be nil — in that case the service still emits audit events but skips bus publishes. v1.1.0 NEW
+      type: technical
+      enforcement: error
 
   acceptance_criteria:
     - id: AC-01
@@ -136,3 +144,19 @@ spec:
       description: DetectForScan computes score as (passed / total) × 100 where total excludes skipped rules — skipped doesn't count for or against compliance.
       priority: high
       references_constraints: [C-03]
+    - id: AC-15
+      description: On a major-worsening detection, DetectForScan publishes a DriftDetected{DriftType="major"} event to the eventbus; verified with an in-memory bus + subscriber.
+      priority: critical
+      references_constraints: [C-09]
+    - id: AC-16
+      description: On a stable detection (no drift), DetectForScan does NOT publish a DriftDetected event — the bus subscriber sees zero events.
+      priority: critical
+      references_constraints: [C-09]
+    - id: AC-17
+      description: The DriftDetected event's per-severity transition counts match the audit detail values; verified by asserting both produced from the same Report.
+      priority: critical
+      references_constraints: [C-09]
+    - id: AC-18
+      description: NewService(pool, emit, thresholds, nil) — when the bus is nil, DetectForScan still emits the audit event; the only difference is no bus publish.
+      priority: high
+      references_constraints: [C-10]

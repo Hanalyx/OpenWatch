@@ -5,12 +5,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/Hanalyx/openwatch/internal/audit"
+	"github.com/Hanalyx/openwatch/internal/eventbus"
 )
 
 // EmitFunc mirrors audit.Emit. Same pattern as B.1a / B.1b / B.1c /
@@ -22,17 +24,21 @@ type EmitFunc func(ctx context.Context, code audit.Code, ev audit.Event)
 type Service struct {
 	pool       *pgxpool.Pool
 	emit       EmitFunc
+	bus        *eventbus.Bus // may be nil; see v1.1.0 C-10
 	thresholds Thresholds
 }
 
 // NewService wires the detector. emit is audit.Emit in production,
 // a fake recorder in tests. thresholds defaults to DefaultThresholds
 // when unset (any value 0); production wires from policy.AlertThresholds.
-func NewService(pool *pgxpool.Pool, emit EmitFunc, thresholds Thresholds) *Service {
+//
+// v1.1.0: bus may be nil. When nil, the service still emits audit
+// events but skips bus publishes. Spec system-drift-detector C-10.
+func NewService(pool *pgxpool.Pool, emit EmitFunc, thresholds Thresholds, bus *eventbus.Bus) *Service {
 	if thresholds.MajorWorseningPP == 0 && thresholds.MinorWorseningPP == 0 && thresholds.ImprovementPP == 0 {
 		thresholds = DefaultThresholds()
 	}
-	return &Service{pool: pool, emit: emit, thresholds: thresholds}
+	return &Service{pool: pool, emit: emit, bus: bus, thresholds: thresholds}
 }
 
 // Thresholds returns the active thresholds — useful for tests and
@@ -115,9 +121,38 @@ func (s *Service) DetectForScan(ctx context.Context, hostID, scanID uuid.UUID) (
 	// Emit on non-stable kinds (spec C-04).
 	if report.Kind != DriftStable {
 		s.emitDriftDetected(ctx, report)
+		// v1.1.0 C-09: publish DriftDetected on the same trigger.
+		s.publishDrift(ctx, report)
 	}
 
 	return report, nil
+}
+
+// publishDrift publishes a typed DriftDetected event to the eventbus
+// carrying the same per-severity counts the audit detail carries.
+// Best-effort: nil bus is a no-op; bus errors don't affect DetectForScan.
+// Spec v1.1.0 C-09 / AC-15 / AC-16 / AC-17.
+func (s *Service) publishDrift(ctx context.Context, r Report) {
+	if s.bus == nil {
+		return
+	}
+	s.bus.Publish(ctx, eventbus.DriftDetected{
+		HostID:                r.HostID,
+		ScanID:                r.ScanID,
+		OccurredAt:            time.Now().UTC(),
+		DriftType:             TypeForAudit(r.Kind),
+		PriorScore:            r.PriorScore,
+		CurrentScore:          r.CurrentScore,
+		ScoreDelta:            r.ScoreDelta,
+		CriticalBecameFailing: r.CriticalBecameFailing,
+		HighBecameFailing:     r.HighBecameFailing,
+		MediumBecameFailing:   r.MediumBecameFailing,
+		LowBecameFailing:      r.LowBecameFailing,
+		CriticalBecamePassing: r.CriticalBecamePassing,
+		HighBecamePassing:     r.HighBecamePassing,
+		MediumBecamePassing:   r.MediumBecamePassing,
+		LowBecamePassing:      r.LowBecamePassing,
+	})
 }
 
 // readCurrentCounts returns the passed / failed / total counts from

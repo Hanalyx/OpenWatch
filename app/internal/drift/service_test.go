@@ -164,7 +164,7 @@ func TestDetectForScan_FirstEverScan_ReturnsStable(t *testing.T) {
 
 		var mu sync.Mutex
 		var calls []emitCall
-		svc := NewService(pool, fakeEmitter(&mu, &calls), DefaultThresholds())
+		svc := NewService(pool, fakeEmitter(&mu, &calls), DefaultThresholds(), nil)
 
 		report, err := svc.DetectForScan(context.Background(), hostID, scanID)
 		if err != nil {
@@ -212,7 +212,7 @@ func TestDetectForScan_PopulatesSeverityTransitionCounts(t *testing.T) {
 
 		var mu sync.Mutex
 		var calls []emitCall
-		svc := NewService(pool, fakeEmitter(&mu, &calls), DefaultThresholds())
+		svc := NewService(pool, fakeEmitter(&mu, &calls), DefaultThresholds(), nil)
 
 		report, err := svc.DetectForScan(context.Background(), hostID, scanID)
 		if err != nil {
@@ -264,7 +264,7 @@ func TestDetectForScan_MajorWorsening_EmitsAuditWithDelta(t *testing.T) {
 
 		var mu sync.Mutex
 		var calls []emitCall
-		svc := NewService(pool, fakeEmitter(&mu, &calls), DefaultThresholds())
+		svc := NewService(pool, fakeEmitter(&mu, &calls), DefaultThresholds(), nil)
 
 		report, err := svc.DetectForScan(context.Background(), hostID, scanID)
 		if err != nil {
@@ -334,7 +334,7 @@ func TestDetectForScan_Stable_EmitsNoAudit(t *testing.T) {
 
 		var mu sync.Mutex
 		var calls []emitCall
-		svc := NewService(pool, fakeEmitter(&mu, &calls), DefaultThresholds())
+		svc := NewService(pool, fakeEmitter(&mu, &calls), DefaultThresholds(), nil)
 
 		report, err := svc.DetectForScan(context.Background(), hostID, scanID)
 		if err != nil {
