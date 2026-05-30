@@ -75,9 +75,12 @@ const MaxEvidenceBytes = 10 * 1024 * 1024 // 10 MiB
 // Result is what Executor.Run returns on success. It mirrors the
 // Kensa-side ScanResult but flattens transactions into rule outcomes
 // suitable for the transaction log writer (B.1c).
+//
+// v2.0.0 breaking change: FrameworkID is removed. A scan covers the
+// full rule corpus applicable to the host; per-rule framework
+// metadata lives on RuleOutcome.FrameworkRefs.
 type Result struct {
 	HostID        uuid.UUID
-	FrameworkID   string
 	Outcomes      []RuleOutcome
 	StartedAt     time.Time
 	CompletedAt   time.Time

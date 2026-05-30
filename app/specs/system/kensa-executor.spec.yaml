@@ -1,7 +1,7 @@
 spec:
   id: system-kensa-executor
   title: Kensa executor wrapper
-  version: "1.0.0"
+  version: "2.0.0"
   status: approved
   tier: 1
 
@@ -10,39 +10,64 @@ spec:
     feature: Kensa scan execution bridge
     description: >
       The executor invokes Kensa (Go module github.com/Hanalyx/kensa
-      pinned to v0.2.1) to run a single framework's scan against a
-      single host. It bridges OpenWatch's credential store to Kensa's
-      SSH session, captures the structured result, and hands it to the
+      pinned to v0.2.1) to run a scan against a single host using the
+      FULL rule corpus applicable to the host's detected OS
+      capabilities. The Kensa API (`Kensa.Scan(ctx, host, rules,
+      opts...)` per kensa-go/api/kensa.go:228) takes a `[]*api.Rule`
+      slice and, internally, calls `detect.Detect` to obtain the
+      host's `CapabilitySet`, then `rule.Select` to pick the right
+      implementation per rule. Framework identity is per-rule
+      metadata (rule.References, normalised by mappings.RefsFromReferences
+      in kensa-go/internal/mappings/mappings.go) — it is NOT a scan
+      input. Framework-scoped views are produced by OpenWatch at
+      query time via host_rule_state.framework_refs JSONB.
+
+      It bridges OpenWatch's credential store to Kensa's SSH session,
+      captures the structured per-rule result, and hands it to the
       transaction log writer. Credentials are loaded once into memory;
       no SSH key file is written to disk. The wrapper is the only place
-      in OpenWatch that imports Kensa packages. Version pin: v0.2.1
-      (source-inspection AC-10 verifies this string is also the version
-      in app/go.mod). Bumped from v0.1.1 to v0.2.1 — the v0.2.1 release
-      is a packaging-UX hardening with a byte-identical binary to v0.2.0
-      and zero changes under api/ since v0.1.1, so the bump is risk-free
-      for OpenWatch's library-import use case.
+      in OpenWatch that imports Kensa packages.
+
+      Version 2.0.0 breaking change (from 1.0.0):
+        - Run signature: was Run(ctx, hostID, framework, policyVersion);
+          now Run(ctx, hostID, policyVersion). The framework parameter
+          is dropped because Kensa.Scan is framework-agnostic by
+          construction.
+        - unwiredScanFunc placeholder is removed. ScanFunc seam
+          remains for test injection, but the default production
+          binding is the live Kensa.Scan call via
+          github.com/Hanalyx/kensa/pkg/kensa.Default.
+        - Result.Outcomes carries every rule applicable to the host
+          (selected by Kensa) — not just those mapped to one
+          framework.
+        - RuleOutcome.FrameworkRefs continues to carry per-rule
+          framework metadata, used by transactionlog.Writer.Apply
+          and queried later by fleet rollup + hosts enrichment.
 
   objective:
     summary: >
-      One function — executor.Run(ctx, hostID, framework) — returns a
-      KensaResult or a typed error. The function never writes to disk
-      (key material stays in memory), never blocks indefinitely (per-host
-      timeout), and never executes more than one concurrent scan against
-      the same host (concurrency guard). Reusable from both the scheduler
-      tick and POST /scans handler.
+      One function — executor.Run(ctx, hostID, policyVersion) —
+      returns a *Result or a typed error. The function never writes
+      to disk (key material stays in memory), never blocks
+      indefinitely (per-host timeout), and never executes more than
+      one concurrent scan against the same host (concurrency guard).
+      Called from openwatch worker; production wires the live
+      Kensa.Scan via pkg/kensa.Default.
     scope:
       includes:
         - Credential fetch via Slice A internal/credential resolver
         - In-memory SSH key load (crypto/ssh.ParsePrivateKey)
-        - Kensa Go module invocation
+        - Rule-corpus load (full OS-applicable corpus per kensa-rules package)
+        - Kensa Go module invocation (Kensa.Scan over the full corpus)
         - Per-host concurrency guard (sync.Map of in-flight host IDs)
         - Per-scan timeout enforcement (default 600s, policy-tunable)
         - Audit emission for scan.started, scan.completed, scan.failed
+        - Per-rule outcome flattening into transactionlog-friendly shape
       excludes:
         - Persisting the result (transaction log writer's job)
         - Retry logic (caller's responsibility)
         - Reachability pre-check (liveness loop is source of truth)
-        - Multi-framework batching in a single call
+        - Framework-scoped scanning (frameworks are query-time projections)
 
   constraints:
     - id: C-01
@@ -89,11 +114,24 @@ spec:
       description: Per-host failure backoff state MUST be tracked by the executor; three consecutive failures push next-attempt += 2x current interval up to a 24h ceiling. Backoff state is reported back to the scheduler so subsequent ticks respect it
       type: security
       enforcement: error
+    - id: C-12
+      description: Executor.Run signature MUST be Run(ctx, hostID, policyVersion) — no framework parameter. The Run method MUST load the FULL rule corpus applicable to the host (no framework filter) before invoking Kensa.Scan. Source-inspection enforces (AC-17)
+      type: technical
+      enforcement: error
+    - id: C-13
+      description: The production scanFunc binding MUST invoke github.com/Hanalyx/kensa/pkg/kensa.Default to construct a real Kensa with TransportFactory + Scanner wired; unwiredScanFunc placeholder MUST NOT remain in the source tree. Tests may inject fakes via WithScanFunc, but the default executor returned by NewExecutor MUST be production-ready
+      type: technical
+      enforcement: error
+    - id: C-14
+      description: Result.Outcomes MUST contain one entry per rule that Kensa.Scan returned a result for. RuleOutcome.FrameworkRefs MUST be populated from the rule's References block normalised via mappings.RefsFromReferences. Empty FrameworkRefs (rule belongs to no framework) is valid; the rule is still recorded
+      type: technical
+      enforcement: error
 
   acceptance_criteria:
     - id: AC-01
-      description: executor.Run(ctx, hostID, framework) returns a non-nil KensaResult on success with rule outcomes, evidence, and framework_refs populated for the requested framework.
+      description: executor.Run(ctx, hostID, policyVersion) returns a non-nil *Result on success with one entry per rule that Kensa scanned (rules whose `when:` capability gate didn't match the host are absent — by Kensa's design). Each entry carries rule_id, status, severity, evidence, and framework_refs flattened from the rule's References block.
       priority: critical
+      references_constraints: [C-12, C-14]
     - id: AC-02
       description: SSH key bytes are never written to /tmp or any disk path during executor.Run; verified by tracing open/openat syscalls in a strace-style test.
       priority: critical
@@ -111,7 +149,7 @@ spec:
       priority: critical
       references_constraints: [C-05]
     - id: AC-06
-      description: A Kensa-side failure (SSH refused, key invalid, framework unsupported) returns a typed error; executor emits scan.failed with detail.reason set to a short error code from a closed enum.
+      description: A Kensa-side failure (SSH refused, key invalid, transport error) returns a typed error; executor emits scan.failed with detail.reason set to a short error code from a closed enum. No "framework_unsupported" reason exists — framework is no longer a scan input.
       priority: critical
       references_constraints: [C-05]
     - id: AC-07
@@ -152,3 +190,11 @@ spec:
       description: A host with three consecutive scan failures has its next-attempt clock doubled (relative to its tier interval) up to 24h ceiling; the scheduler observes the backoff and skips dispatch until the backoff window passes.
       priority: high
       references_constraints: [C-11]
+    - id: AC-17
+      description: Source-inspection of internal/kensa/ — Executor.Run signature is Run(ctx context.Context, hostID uuid.UUID, policyVersion string); no framework parameter is present. The string "framework" appears in source only as part of FrameworkRefs (per-rule metadata field) or in documentation comments referencing the legacy v1 behavior.
+      priority: critical
+      references_constraints: [C-12]
+    - id: AC-18
+      description: Source-inspection of internal/kensa/ — the unwiredScanFunc symbol is absent OR is marked //nolint:unused with a comment explaining it is a test-only fallback. NewExecutor binds scanFunc to a real implementation that imports github.com/Hanalyx/kensa/pkg/kensa.
+      priority: critical
+      references_constraints: [C-13]

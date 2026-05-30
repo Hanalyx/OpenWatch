@@ -690,6 +690,10 @@ paths:
       x-required-permission: host:read
       parameters:
         - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+        - name: framework
+          in: query
+          description: Filter compliance_summary to host_rule_state rows whose framework_refs contains this key (v1.2.0). Liveness is unaffected.
+          schema: {type: string}
       responses:
         '200':
           description: Host detail (includes liveness + compliance_summary)
@@ -797,11 +801,16 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
 
-  # Spec: app/specs/api/fleet-observability.spec.yaml
+  # Spec: app/specs/api/fleet-observability.spec.yaml (v1.1.0)
   /api/v1/fleet/score:
     get:
       operationId: getFleetScore
       summary: Fleet-wide compliance score (passing/total)
+      parameters:
+        - name: framework
+          in: query
+          description: Filter to host_rule_state rows whose framework_refs contains this key (v1.1.0).
+          schema: {type: string}
       responses:
         '200':
           description: Fleet score
@@ -845,6 +854,10 @@ paths:
       operationId: getFleetTopFailingRules
       summary: Rules with the most failing hosts (descending)
       parameters:
+        - name: framework
+          in: query
+          description: Filter to host_rule_state rows whose framework_refs contains this key (v1.1.0).
+          schema: {type: string}
         - name: limit
           in: query
           schema: {type: integer, minimum: 1, maximum: 1000, default: 50}
@@ -871,6 +884,10 @@ paths:
       operationId: getFleetTopFailingHosts
       summary: Hosts with the most failing rules (descending)
       parameters:
+        - name: framework
+          in: query
+          description: Filter to host_rule_state rows whose framework_refs contains this key (v1.1.0).
+          schema: {type: string}
         - name: limit
           in: query
           schema: {type: integer, minimum: 1, maximum: 1000, default: 50}
@@ -897,6 +914,10 @@ paths:
       operationId: getFleetRecentChanges
       summary: Recent transactions (state changes), newest first
       parameters:
+        - name: framework
+          in: query
+          description: Filter to transactions whose framework_refs contains this key (v1.1.0).
+          schema: {type: string}
         - name: since
           in: query
           description: Filter to transactions strictly newer than this RFC3339 timestamp

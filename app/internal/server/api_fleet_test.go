@@ -13,7 +13,12 @@
 //   AC-10  TestAPI_Fleet_Limit_Negative_Returns400
 //   AC-11  TestAPI_Fleet_Anonymous_Returns403
 //   AC-12  TestAPI_Fleet_ViewerSession_HappyPath
-//   AC-14  TestAPI_Fleet_NonGET_Returns405
+//   AC-13  TestFleetHandlers_NoSQL_NoPoolAccess (in fleet_source_test.go)
+//   AC-14  TestAPI_Fleet_Score_FrameworkFilter (v1.1.0)
+//   AC-15  TestAPI_Fleet_TopFailingRules_FrameworkFilter (v1.1.0)
+//   AC-16  TestAPI_Fleet_RecentChanges_FrameworkFilter (v1.1.0)
+//   AC-17  TestAPI_Fleet_Score_EmptyFrameworkParam_SameAsNoParam (v1.1.0)
+//   AC-18  TestAPI_Fleet_NonGET_Returns405 (renumbered from v1.0.0 AC-14)
 
 package server
 
@@ -51,15 +56,31 @@ func seedFleetHost(t *testing.T, pool *pgxpool.Pool, createdBy uuid.UUID) uuid.U
 
 func seedFleetRuleState(t *testing.T, pool *pgxpool.Pool, hostID uuid.UUID, ruleID, status string) {
 	t.Helper()
+	seedFleetRuleStateWithFrameworks(t, pool, hostID, ruleID, status, nil)
+}
+
+// seedFleetRuleStateWithFrameworks variant lets a test attach a
+// framework_refs JSONB so v1.1.0/v1.2.0 ?framework= filter ACs can be
+// exercised. frameworks=nil → '{}'::jsonb (the legacy default).
+func seedFleetRuleStateWithFrameworks(t *testing.T, pool *pgxpool.Pool, hostID uuid.UUID, ruleID, status string, frameworks map[string]string) {
+	t.Helper()
 	now := time.Now().UTC()
 	scanID, _ := uuid.NewV7()
+	refsJSON := []byte("{}")
+	if len(frameworks) > 0 {
+		var err error
+		refsJSON, err = json.Marshal(frameworks)
+		if err != nil {
+			t.Fatalf("marshal framework refs: %v", err)
+		}
+	}
 	_, err := pool.Exec(context.Background(), `
 		INSERT INTO host_rule_state
 			(host_id, rule_id, current_status, severity,
 			 last_checked_at, check_count, last_scan_id, evidence,
 			 framework_refs, first_seen_at, last_changed_at)
-		VALUES ($1, $2, $3, 'medium', $4, 1, $5, '{}'::jsonb, '{}'::jsonb, $4, $4)`,
-		hostID, ruleID, status, now, scanID,
+		VALUES ($1, $2, $3, 'medium', $4, 1, $5, '{}'::jsonb, $6::jsonb, $4, $4)`,
+		hostID, ruleID, status, now, scanID, refsJSON,
 	)
 	if err != nil {
 		t.Fatalf("seed rule_state: %v", err)
@@ -77,15 +98,27 @@ func seedFleetLiveness(t *testing.T, pool *pgxpool.Pool, hostID uuid.UUID, statu
 }
 
 func seedFleetTransaction(t *testing.T, pool *pgxpool.Pool, hostID uuid.UUID, ruleID, status, changeKind string, occurredAt time.Time) uuid.UUID {
+	return seedFleetTransactionWithFrameworks(t, pool, hostID, ruleID, status, changeKind, occurredAt, nil)
+}
+
+func seedFleetTransactionWithFrameworks(t *testing.T, pool *pgxpool.Pool, hostID uuid.UUID, ruleID, status, changeKind string, occurredAt time.Time, frameworks map[string]string) uuid.UUID {
 	t.Helper()
 	id, _ := uuid.NewV7()
 	scanID, _ := uuid.NewV7()
+	refsJSON := []byte("{}")
+	if len(frameworks) > 0 {
+		var err error
+		refsJSON, err = json.Marshal(frameworks)
+		if err != nil {
+			t.Fatalf("marshal framework refs: %v", err)
+		}
+	}
 	_, err := pool.Exec(context.Background(), `
 		INSERT INTO transactions
 			(id, host_id, rule_id, scan_id, status, severity,
-			 change_kind, evidence, occurred_at)
-		VALUES ($1, $2, $3, $4, $5, 'medium', $6, '{}'::jsonb, $7)`,
-		id, hostID, ruleID, scanID, status, changeKind, occurredAt,
+			 change_kind, evidence, framework_refs, occurred_at)
+		VALUES ($1, $2, $3, $4, $5, 'medium', $6, '{}'::jsonb, $7::jsonb, $8)`,
+		id, hostID, ruleID, scanID, status, changeKind, refsJSON, occurredAt,
 	)
 	if err != nil {
 		t.Fatalf("seed transaction: %v", err)
@@ -471,10 +504,11 @@ func TestAPI_Fleet_ViewerSession_HappyPath(t *testing.T) {
 	})
 }
 
-// @ac AC-14
-// AC-14: POST against a /fleet endpoint returns 405.
+// @ac AC-18
+// AC-18 (renumbered from v1.0.0 AC-14 in v1.1.0): POST against a
+// /fleet endpoint returns 405.
 func TestAPI_Fleet_NonGET_Returns405(t *testing.T) {
-	t.Run("api-fleet-observability/AC-14", func(t *testing.T) {
+	t.Run("api-fleet-observability/AC-18", func(t *testing.T) {
 		url, _ := freshAPIServer(t)
 		for _, ep := range []string{
 			"/api/v1/fleet/score",
@@ -490,6 +524,137 @@ func TestAPI_Fleet_NonGET_Returns405(t *testing.T) {
 			if resp.StatusCode != http.StatusMethodNotAllowed {
 				t.Errorf("POST %s status = %d, want 405; body=%s", ep, resp.StatusCode, body)
 			}
+		}
+	})
+}
+
+// @ac AC-14
+// AC-14 (v1.1.0): GET /fleet/score?framework=cis_rhel9_v2.0.0 computes
+// the score only from host_rule_state rows whose framework_refs
+// contains "cis_rhel9_v2.0.0" as a top-level key.
+func TestAPI_Fleet_Score_FrameworkFilter(t *testing.T) {
+	t.Run("api-fleet-observability/AC-14", func(t *testing.T) {
+		url, pool := freshAPIServer(t)
+		user := firstSeededUserID(t, pool)
+		h := seedFleetHost(t, pool, user)
+		// 3 rules in CIS, 1 also in STIG, 1 in STIG-only, 1 in neither.
+		seedFleetRuleStateWithFrameworks(t, pool, h, "r.cis.pass", "pass",
+			map[string]string{"cis_rhel9_v2.0.0": "1.1"})
+		seedFleetRuleStateWithFrameworks(t, pool, h, "r.cis.fail", "fail",
+			map[string]string{"cis_rhel9_v2.0.0": "1.2"})
+		seedFleetRuleStateWithFrameworks(t, pool, h, "r.cis.stig.pass", "pass",
+			map[string]string{"cis_rhel9_v2.0.0": "1.3", "stig_rhel9_v2r7": "ABC-1"})
+		seedFleetRuleStateWithFrameworks(t, pool, h, "r.stig.fail", "fail",
+			map[string]string{"stig_rhel9_v2r7": "ABC-2"})
+		seedFleetRuleState(t, pool, h, "r.neither", "pass") // no framework refs
+
+		req := asRole(t, "GET", url+"/api/v1/fleet/score?framework=cis_rhel9_v2.0.0", auth.RoleViewer, nil)
+		resp := doReq(t, req)
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			b, _ := io.ReadAll(resp.Body)
+			t.Fatalf("status = %d; body=%s", resp.StatusCode, b)
+		}
+		var body struct {
+			PassingFraction  float64 `json:"passing_fraction"`
+			TotalEvaluations int64   `json:"total_evaluations"`
+		}
+		_ = json.NewDecoder(resp.Body).Decode(&body)
+		// CIS rules: 2 pass, 1 fail → 2/3.
+		if body.TotalEvaluations != 3 {
+			t.Errorf("total_evaluations = %d, want 3 (CIS only)", body.TotalEvaluations)
+		}
+		want := 2.0 / 3.0
+		if body.PassingFraction != want {
+			t.Errorf("passing_fraction = %v, want %v", body.PassingFraction, want)
+		}
+	})
+}
+
+// @ac AC-15
+// AC-15 (v1.1.0): GET /fleet/top-failing-rules?framework=stig_rhel9_v2r7
+// returns only rules mapped to STIG.
+func TestAPI_Fleet_TopFailingRules_FrameworkFilter(t *testing.T) {
+	t.Run("api-fleet-observability/AC-15", func(t *testing.T) {
+		url, pool := freshAPIServer(t)
+		user := firstSeededUserID(t, pool)
+		h1 := seedFleetHost(t, pool, user)
+		h2 := seedFleetHost(t, pool, user)
+		seedFleetRuleStateWithFrameworks(t, pool, h1, "rule.cis-only", "fail",
+			map[string]string{"cis_rhel9_v2.0.0": "1.1"})
+		seedFleetRuleStateWithFrameworks(t, pool, h2, "rule.cis-only", "fail",
+			map[string]string{"cis_rhel9_v2.0.0": "1.1"})
+		seedFleetRuleStateWithFrameworks(t, pool, h1, "rule.stig", "fail",
+			map[string]string{"stig_rhel9_v2r7": "X-1"})
+
+		req := asRole(t, "GET", url+"/api/v1/fleet/top-failing-rules?framework=stig_rhel9_v2r7", auth.RoleViewer, nil)
+		resp := doReq(t, req)
+		defer resp.Body.Close()
+		var body struct {
+			Items []struct {
+				RuleID string `json:"rule_id"`
+			} `json:"items"`
+		}
+		_ = json.NewDecoder(resp.Body).Decode(&body)
+		if len(body.Items) != 1 || body.Items[0].RuleID != "rule.stig" {
+			t.Errorf("expected only rule.stig, got %+v", body.Items)
+		}
+	})
+}
+
+// @ac AC-16
+// AC-16 (v1.1.0): GET /fleet/recent-changes?framework=cis_rhel9_v2.0.0
+// returns only transactions whose framework_refs contains that key.
+func TestAPI_Fleet_RecentChanges_FrameworkFilter(t *testing.T) {
+	t.Run("api-fleet-observability/AC-16", func(t *testing.T) {
+		url, pool := freshAPIServer(t)
+		user := firstSeededUserID(t, pool)
+		h := seedFleetHost(t, pool, user)
+		t0 := time.Now().UTC().Truncate(time.Second)
+		seedFleetTransactionWithFrameworks(t, pool, h, "rule.cis", "fail", "state_changed", t0,
+			map[string]string{"cis_rhel9_v2.0.0": "1.1"})
+		seedFleetTransactionWithFrameworks(t, pool, h, "rule.stig", "pass", "state_changed", t0.Add(time.Minute),
+			map[string]string{"stig_rhel9_v2r7": "X-1"})
+
+		req := asRole(t, "GET", url+"/api/v1/fleet/recent-changes?framework=cis_rhel9_v2.0.0", auth.RoleViewer, nil)
+		resp := doReq(t, req)
+		defer resp.Body.Close()
+		var body struct {
+			Items []struct {
+				RuleID string `json:"rule_id"`
+			} `json:"items"`
+		}
+		_ = json.NewDecoder(resp.Body).Decode(&body)
+		if len(body.Items) != 1 || body.Items[0].RuleID != "rule.cis" {
+			t.Errorf("expected only rule.cis, got %+v", body.Items)
+		}
+	})
+}
+
+// @ac AC-17
+// AC-17 (v1.1.0): GET /fleet/score (no framework) and
+// GET /fleet/score?framework= (empty value) both return the same
+// unfiltered Score.
+func TestAPI_Fleet_Score_EmptyFrameworkParam_SameAsNoParam(t *testing.T) {
+	t.Run("api-fleet-observability/AC-17", func(t *testing.T) {
+		url, pool := freshAPIServer(t)
+		user := firstSeededUserID(t, pool)
+		h := seedFleetHost(t, pool, user)
+		seedFleetRuleState(t, pool, h, "rule.a", "pass")
+		seedFleetRuleState(t, pool, h, "rule.b", "fail")
+
+		req := asRole(t, "GET", url+"/api/v1/fleet/score", auth.RoleViewer, nil)
+		resp := doReq(t, req)
+		b1, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+
+		req = asRole(t, "GET", url+"/api/v1/fleet/score?framework=", auth.RoleViewer, nil)
+		resp = doReq(t, req)
+		b2, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+
+		if string(b1) != string(b2) {
+			t.Errorf("?framework= empty differs from no-param: %s vs %s", b1, b2)
 		}
 	})
 }

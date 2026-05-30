@@ -27,27 +27,26 @@ type Service struct {
 	// Now is the wall-clock function used by Dispatch. Defaults to
 	// time.Now; tests override with a deterministic clock.
 	Now func() time.Time
-
-	// DefaultFramework is the framework the scheduler enqueues for hosts
-	// whose preferred framework is not set. Sourced from policy.Schedules.
-	DefaultFramework string
 }
 
 // NewService wires the scheduler. The pool is the shared application
 // pgxpool; load carries the clamped ladder + snapshotted policy_version;
 // hmacKey is the DeriveQueueKey-derived HMAC key; emit is audit.Emit in
-// production (or a fake in tests); defaultFramework is the framework
-// to schedule (e.g. "cis-rhel9-v2.0.0").
-func NewService(pool *pgxpool.Pool, load LoadResult, hmacKey []byte, emit EmitFunc, defaultFramework string) *Service {
+// production (or a fake in tests).
+//
+// v2.0.0 breaking change: the defaultFramework parameter is removed.
+// Per the framework-at-query-time architecture, the scheduler does
+// not carry a framework — the executor scans the full applicable
+// rule corpus and framework slicing is a query-time projection.
+func NewService(pool *pgxpool.Pool, load LoadResult, hmacKey []byte, emit EmitFunc) *Service {
 	return &Service{
-		pool:             pool,
-		ladder:           load.Ladder,
-		policyVersion:    load.PolicyVersion,
-		hmacKey:          hmacKey,
-		emit:             emit,
-		metrics:          NewMetrics(),
-		Now:              time.Now,
-		DefaultFramework: defaultFramework,
+		pool:          pool,
+		ladder:        load.Ladder,
+		policyVersion: load.PolicyVersion,
+		hmacKey:       hmacKey,
+		emit:          emit,
+		metrics:       NewMetrics(),
+		Now:           time.Now,
 	}
 }
 
@@ -88,7 +87,7 @@ const dispatchBatchSize = 100
 //     calls (from two workers or two ticks) claim disjoint rows.
 //   - AC-05 (C-05): maintenance_mode = true rows are excluded from the
 //     SELECT and so never dispatched.
-//   - AC-06 (C-06): each job payload carries host_id, framework_id,
+//   - AC-06 (C-06, C-12): each job payload carries host_id,
 //     policy_version, enqueued_at; all HMAC-signed.
 //   - AC-13 (C-09): every UPDATE to host_compliance_schedule emits
 //     scheduler.schedule.updated.
@@ -135,7 +134,6 @@ func (s *Service) Dispatch(ctx context.Context) (int, error) {
 	for _, r := range due {
 		payload := JobPayload{
 			HostID:        r.HostID,
-			FrameworkID:   s.DefaultFramework,
 			PolicyVersion: s.policyVersion,
 			EnqueuedAt:    now,
 		}
@@ -143,9 +141,9 @@ func (s *Service) Dispatch(ctx context.Context) (int, error) {
 
 		// JobPayload encoded into JSONB. host_id is a string for
 		// JSON-friendly storage; the HMAC tag is hex for the same.
+		// v2.0.0 — no framework_id key (per system-scheduler v2 C-12).
 		body := map[string]any{
 			"host_id":        payload.HostID.String(),
-			"framework_id":   payload.FrameworkID,
 			"policy_version": payload.PolicyVersion,
 			"enqueued_at":    payload.EnqueuedAt.UTC().Format(time.RFC3339Nano),
 			"hmac":           fmt.Sprintf("%x", tag[:]),

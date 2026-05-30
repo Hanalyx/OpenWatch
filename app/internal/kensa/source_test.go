@@ -7,6 +7,8 @@
 //   AC-11  TestImports_OnlyCredentialFromInternal
 //          TestImports_NoDirectEncryptionAESCalls
 //   AC-12  TestNoEngineAbstractionInterface
+//   AC-17  TestRunSignature_HasNoFrameworkParameter
+//   AC-18  TestScanFunc_HasNoFrameworkParameter
 
 package kensa
 
@@ -249,6 +251,61 @@ func TestSource_NoDiskWriteOfCredentialBytes(t *testing.T) {
 						f, p.pattern, p.reason)
 				}
 			}
+		}
+	})
+}
+
+// @ac AC-17
+// AC-17 (v2.0.0): Executor.Run signature is Run(ctx, hostID, policyVersion).
+// No framework parameter. The string "framework" appears only in
+// FrameworkRefs (per-rule metadata) or in v1-history doc comments.
+func TestRunSignature_HasNoFrameworkParameter(t *testing.T) {
+	t.Run("system-kensa-executor/AC-17", func(t *testing.T) {
+		src, err := os.ReadFile(filepath.Join(packageDir(t), "executor.go"))
+		if err != nil {
+			t.Fatalf("read executor.go: %v", err)
+		}
+		// Match the Run method signature line specifically.
+		// Allow whitespace variations.
+		signaturePattern := regexp.MustCompile(`(?m)^func \(e \*Executor\) Run\(([^)]*)\)`)
+		m := signaturePattern.FindStringSubmatch(string(src))
+		if m == nil {
+			t.Fatal("could not locate Executor.Run signature in executor.go")
+		}
+		params := m[1]
+		// Acceptable: ctx context.Context, hostID uuid.UUID, policyVersion string
+		// Forbidden: any occurrence of "framework" in the parameter list.
+		if strings.Contains(params, "framework") {
+			t.Errorf("Executor.Run signature still references 'framework': params=%q (v2.0.0 AC-17 requires removal)", params)
+		}
+	})
+}
+
+// @ac AC-18
+// AC-18 (v2.0.0): the ScanFunc type signature has no framework
+// parameter. unwiredScanFunc still exists as a test-only fallback
+// (annotated //nolint:unused) — the production binding via
+// pkg/kensa.Default lands with the worker subcommand.
+func TestScanFunc_HasNoFrameworkParameter(t *testing.T) {
+	t.Run("system-kensa-executor/AC-18", func(t *testing.T) {
+		src, err := os.ReadFile(filepath.Join(packageDir(t), "executor.go"))
+		if err != nil {
+			t.Fatalf("read executor.go: %v", err)
+		}
+		// Match the ScanFunc type alias.
+		typePattern := regexp.MustCompile(`type ScanFunc func\(([^)]*)\)`)
+		m := typePattern.FindStringSubmatch(string(src))
+		if m == nil {
+			t.Fatal("could not locate ScanFunc type definition in executor.go")
+		}
+		if strings.Contains(m[1], "framework") {
+			t.Errorf("ScanFunc signature still references 'framework': params=%q (v2.0.0 AC-18 requires removal)", m[1])
+		}
+		// unwiredScanFunc is allowed to remain but MUST be marked
+		// //nolint:unused — otherwise it would fail the unused linter
+		// once removed from NewExecutor's binding.
+		if !strings.Contains(string(src), "//nolint:unused") {
+			t.Log("note: unwiredScanFunc lacks //nolint:unused — fine if still referenced; will fail unused-lint once production binding lands")
 		}
 	})
 }

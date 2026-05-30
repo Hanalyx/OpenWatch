@@ -15,20 +15,24 @@ import (
 
 // JobPayload is the typed payload of a scheduler-enqueued scan job.
 //
+// Spec system-scheduler v2.0.0 (breaking change from v1.0.0): the
+// FrameworkID field is REMOVED. Per the framework-at-query-time
+// architecture, a scan job names a host and a policy version;
+// the executor runs the full rule corpus applicable to the host
+// and per-rule framework mapping is metadata, not a scan input.
+//
 // Spec ACs satisfied here:
 //
-//   - AC-06 (C-06): a scheduler-enqueued job payload contains host_id,
-//     framework_id, AND policy_version (snapshotted at enqueue time).
+//   - AC-06 (C-06, C-12): a scheduler-enqueued job payload contains
+//     host_id, policy_version, enqueued_at — NOT framework_id.
+//   - AC-16 (C-12): source-inspection — JobPayload has no FrameworkID
+//     field (this struct's source is what AC-16 inspects).
 //   - C-11 / AC-15: the payload is signed with an HMAC over its canonical
 //     byte representation; the dequeue path verifies before executing.
 //     Tampered fields cause Verify to return false.
 type JobPayload struct {
 	// HostID identifies the target host (FK to hosts.id). Required.
 	HostID uuid.UUID
-
-	// FrameworkID is the compliance framework being scanned (e.g.,
-	// "cis-rhel9-v2.0.0"). Required.
-	FrameworkID string
 
 	// PolicyVersion is the snapshot of policy.Schedules.Version at the
 	// moment the job was enqueued. Reloads of the policy do not affect
@@ -87,29 +91,26 @@ func DeriveQueueKey(dek []byte) ([]byte, error) {
 // MUST use this exact encoding so a stable HMAC is computed regardless
 // of how the payload is otherwise serialized to JSONB on the queue row.
 //
-// Layout (big-endian throughout):
+// Layout (big-endian throughout), v2.0.0 — framework_id removed:
 //
-//	[0:16]   host_id (raw 16-byte UUID)
-//	[16:20]  framework_id length (uint32)
-//	[20:..]  framework_id bytes
-//	[..:..]  policy_version length (uint32)
-//	[..:..]  policy_version bytes
+//	[0:16]    host_id (raw 16-byte UUID)
+//	[16:20]   policy_version length (uint32)
+//	[20:..]   policy_version bytes
 //	[..:..+8] enqueued_at as int64 Unix nanoseconds
+//
+// Old (v1.0.0) payloads with a framework_id segment will produce a
+// different tag under this encoding and so fail Verify; that is the
+// intended migration behavior — pre-v2 queued jobs are dead-lettered.
 func (p JobPayload) Encode() []byte {
-	fid := []byte(p.FrameworkID)
 	pv := []byte(p.PolicyVersion)
 
-	// 16 (uuid) + 4 + len(fid) + 4 + len(pv) + 8 (unix nanos)
-	size := 16 + 4 + len(fid) + 4 + len(pv) + 8
+	// 16 (uuid) + 4 + len(pv) + 8 (unix nanos)
+	size := 16 + 4 + len(pv) + 8
 	buf := make([]byte, 0, size)
 
 	buf = append(buf, p.HostID[:]...)
 
 	lenBuf := make([]byte, 4)
-	binary.BigEndian.PutUint32(lenBuf, uint32(len(fid))) //nolint:gosec // length is bounded by struct field size
-	buf = append(buf, lenBuf...)
-	buf = append(buf, fid...)
-
 	binary.BigEndian.PutUint32(lenBuf, uint32(len(pv))) //nolint:gosec // length is bounded by struct field size
 	buf = append(buf, lenBuf...)
 	buf = append(buf, pv...)

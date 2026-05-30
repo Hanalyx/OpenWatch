@@ -141,7 +141,7 @@ func TestRun_PerHostConcurrencyGuard_SecondCallReturnsErrHostBusy(t *testing.T) 
 		go func() {
 			defer close(firstDone)
 			close(started)
-			_, _ = exec.Run(context.Background(), hostID, "cis-rhel9-v2.0.0", "1.0.0")
+			_, _ = exec.Run(context.Background(), hostID, "1.0.0")
 		}()
 		<-started
 
@@ -149,7 +149,7 @@ func TestRun_PerHostConcurrencyGuard_SecondCallReturnsErrHostBusy(t *testing.T) 
 		time.Sleep(50 * time.Millisecond)
 
 		callsBefore := atomic.LoadInt64(&bridge.resolveCalls)
-		_, err := exec.Run(context.Background(), hostID, "cis-rhel9-v2.0.0", "1.0.0")
+		_, err := exec.Run(context.Background(), hostID, "1.0.0")
 		callsAfter := atomic.LoadInt64(&bridge.resolveCalls)
 
 		if !errors.Is(err, ErrHostBusy) {
@@ -183,10 +183,10 @@ func TestRun_DifferentHosts_RunInParallel(t *testing.T) {
 		hostB := uuid.New()
 
 		go func() {
-			_, _ = exec.Run(context.Background(), hostA, "cis-rhel9-v2.0.0", "1.0.0")
+			_, _ = exec.Run(context.Background(), hostA, "1.0.0")
 		}()
 		go func() {
-			_, _ = exec.Run(context.Background(), hostB, "cis-rhel9-v2.0.0", "1.0.0")
+			_, _ = exec.Run(context.Background(), hostB, "1.0.0")
 		}()
 
 		// Both goroutines block in credential resolve. Wait until the
@@ -220,13 +220,13 @@ func TestRun_GuardReleasedOnReturn(t *testing.T) {
 		exec := NewExecutor(bridge, fakeEmitFunc(&mu, &calls))
 
 		hostID := uuid.New()
-		_, _ = exec.Run(context.Background(), hostID, "cis-rhel9-v2.0.0", "1.0.0")
+		_, _ = exec.Run(context.Background(), hostID, "1.0.0")
 
 		if exec.inFlightCount() != 0 {
 			t.Errorf("inFlightCount = %d after Run returned, want 0 (guard slot leaked)", exec.inFlightCount())
 		}
 
-		_, err := exec.Run(context.Background(), hostID, "cis-rhel9-v2.0.0", "1.0.0")
+		_, err := exec.Run(context.Background(), hostID, "1.0.0")
 		if errors.Is(err, ErrHostBusy) {
 			t.Error("second Run got ErrHostBusy; guard slot was not released after the first Run")
 		}
@@ -249,7 +249,7 @@ func TestRun_NoCredential_NoScanStarted_NoGuardConsumed(t *testing.T) {
 		var calls []emitCall
 		exec := NewExecutor(bridge, fakeEmitFunc(&mu, &calls))
 
-		_, err := exec.Run(context.Background(), hostID, "cis-rhel9-v2.0.0", "1.0.0")
+		_, err := exec.Run(context.Background(), hostID, "1.0.0")
 		if !errors.Is(err, ErrNoCredential) {
 			t.Errorf("err = %v, want ErrNoCredential", err)
 		}
@@ -258,7 +258,7 @@ func TestRun_NoCredential_NoScanStarted_NoGuardConsumed(t *testing.T) {
 			t.Errorf("emitted %d audit events on no-credential path, want 0", emitCallCount(&mu, &calls))
 		}
 
-		_, err = exec.Run(context.Background(), hostID, "cis-rhel9-v2.0.0", "1.0.0")
+		_, err = exec.Run(context.Background(), hostID, "1.0.0")
 		if errors.Is(err, ErrHostBusy) {
 			t.Error("second Run got ErrHostBusy; the no-credential path leaked a guard slot")
 		}
@@ -267,8 +267,9 @@ func TestRun_NoCredential_NoScanStarted_NoGuardConsumed(t *testing.T) {
 
 // @ac AC-05
 // AC-05 (first half): when credential resolve succeeds, Run emits
-// exactly one scan.started carrying host_id, framework_id, and
-// policy_version. The completed half lands when the scan path is wired.
+// exactly one scan.started carrying host_id + policy_version. The
+// completed half lands when the scan path is wired.
+// v2.0.0: no framework_id in detail — scans are framework-agnostic.
 func TestRun_SuccessfulCredentialResolve_EmitsScanStarted(t *testing.T) {
 	t.Run("system-kensa-executor/AC-05", func(t *testing.T) {
 		hostID := uuid.New()
@@ -280,7 +281,7 @@ func TestRun_SuccessfulCredentialResolve_EmitsScanStarted(t *testing.T) {
 		var calls []emitCall
 		exec := NewExecutor(bridge, fakeEmitFunc(&mu, &calls))
 
-		_, _ = exec.Run(context.Background(), hostID, "cis-rhel9-v2.0.0", "1.7.0")
+		_, _ = exec.Run(context.Background(), hostID, "1.7.0")
 
 		started := findCallsByCode(&mu, &calls, audit.ScanStarted)
 		if len(started) != 1 {
@@ -291,11 +292,12 @@ func TestRun_SuccessfulCredentialResolve_EmitsScanStarted(t *testing.T) {
 		if detail["host_id"] != hostID.String() {
 			t.Errorf("Detail.host_id = %q, want %q", detail["host_id"], hostID.String())
 		}
-		if detail["framework_id"] != "cis-rhel9-v2.0.0" {
-			t.Errorf("Detail.framework_id = %q, want %q", detail["framework_id"], "cis-rhel9-v2.0.0")
-		}
 		if detail["policy_version"] != "1.7.0" {
 			t.Errorf("Detail.policy_version = %q, want %q", detail["policy_version"], "1.7.0")
+		}
+		// v2.0.0: framework_id must NOT be in detail.
+		if _, present := detail["framework_id"]; present {
+			t.Errorf("Detail.framework_id is still present — v2.0.0 removed it")
 		}
 	})
 }
@@ -318,14 +320,14 @@ func TestRun_CredentialWipeCalledOnEveryReturnPath(t *testing.T) {
 		// Run returns an error because the scan path isn't wired yet,
 		// but the credential resolve succeeded so wipe MUST have been
 		// called exactly once.
-		_, _ = exec.Run(context.Background(), hostID, "cis-rhel9-v2.0.0", "1.0.0")
+		_, _ = exec.Run(context.Background(), hostID, "1.0.0")
 
 		if got := atomic.LoadInt64(&bridge.wipeCalls); got != 1 {
 			t.Errorf("wipeCalls = %d after one Run, want 1 (AC-07: every return path zeros the credential)", got)
 		}
 
 		// Run again — wipe should fire a second time.
-		_, _ = exec.Run(context.Background(), hostID, "cis-rhel9-v2.0.0", "1.0.0")
+		_, _ = exec.Run(context.Background(), hostID, "1.0.0")
 		if got := atomic.LoadInt64(&bridge.wipeCalls); got != 2 {
 			t.Errorf("wipeCalls after two Runs = %d, want 2", got)
 		}
@@ -358,7 +360,7 @@ func TestRun_100ParallelDistinctHosts_RaceClean(t *testing.T) {
 			wg.Add(1)
 			go func(host uuid.UUID) {
 				defer wg.Done()
-				_, _ = exec.Run(context.Background(), host, "cis-rhel9-v2.0.0", "1.0.0")
+				_, _ = exec.Run(context.Background(), host, "1.0.0")
 			}(h)
 		}
 		wg.Wait()
@@ -395,7 +397,7 @@ func TestReportHostKeyUnknown_EmitsScanFailedWithHostKeyReason(t *testing.T) {
 		var calls []emitCall
 		exec := NewExecutor(bridge, fakeEmitFunc(&mu, &calls))
 
-		err := exec.reportHostKeyUnknown(context.Background(), hostID, "cis-rhel9-v2.0.0", "1.0.0")
+		err := exec.reportHostKeyUnknown(context.Background(), hostID, "1.0.0")
 		if !errors.Is(err, ErrHostKeyUnknown) {
 			t.Errorf("err = %v, want ErrHostKeyUnknown", err)
 		}
@@ -428,7 +430,7 @@ func TestReportEvidenceOversize_EmitsScanFailedWithRuleID(t *testing.T) {
 		var calls []emitCall
 		exec := NewExecutor(bridge, fakeEmitFunc(&mu, &calls))
 
-		err := exec.reportEvidenceOversize(context.Background(), hostID, "cis-rhel9-v2.0.0", "1.0.0", "sshd-disable-root-login")
+		err := exec.reportEvidenceOversize(context.Background(), hostID, "1.0.0", "sshd-disable-root-login")
 		if !errors.Is(err, ErrEvidenceOversize) {
 			t.Errorf("err = %v, want ErrEvidenceOversize", err)
 		}
@@ -463,7 +465,7 @@ func TestRun_DecryptionFailure_EmitsScanFailedAndNoScanStarted(t *testing.T) {
 		var calls []emitCall
 		exec := NewExecutor(bridge, fakeEmitFunc(&mu, &calls))
 
-		_, err := exec.Run(context.Background(), hostID, "cis-rhel9-v2.0.0", "1.0.0")
+		_, err := exec.Run(context.Background(), hostID, "1.0.0")
 		if !errors.Is(err, ErrCredentialDecryption) {
 			t.Errorf("err = %v, want ErrCredentialDecryption", err)
 		}
@@ -500,7 +502,7 @@ func TestReportKensaError_EmitsScanFailedWithKensaErrorReason(t *testing.T) {
 		var calls []emitCall
 		exec := NewExecutor(bridge, fakeEmitFunc(&mu, &calls))
 
-		err := exec.reportKensaError(context.Background(), hostID, "cis-rhel9-v2.0.0", "1.0.0")
+		err := exec.reportKensaError(context.Background(), hostID, "1.0.0")
 		if !errors.Is(err, ErrKensaInternal) {
 			t.Errorf("err = %v, want ErrKensaInternal", err)
 		}
@@ -534,7 +536,7 @@ func TestRun_ContextDeadline_PropagatesAsCtxErr(t *testing.T) {
 
 		// scanFunc blocks until ctx.Done() and returns ctx.Err().
 		// Models Kensa.Scan honoring its context contract.
-		blocking := func(ctx context.Context, _ uuid.UUID, _, _ string, _ []byte) (*Result, FailureReason, error) {
+		blocking := func(ctx context.Context, _ uuid.UUID, _ string, _ []byte) (*Result, FailureReason, error) {
 			<-ctx.Done()
 			return nil, "", ctx.Err()
 		}
@@ -545,7 +547,7 @@ func TestRun_ContextDeadline_PropagatesAsCtxErr(t *testing.T) {
 		defer cancel()
 
 		start := time.Now()
-		_, err := exec.Run(ctx, hostID, "cis-rhel9-v2.0.0", "1.0.0")
+		_, err := exec.Run(ctx, hostID, "1.0.0")
 		elapsed := time.Since(start)
 
 		// Run must return the ctx error verbatim (errors.Is recognizes
@@ -591,7 +593,7 @@ func TestRun_AlreadyCancelledCtx_ReturnsImmediately(t *testing.T) {
 		var calls []emitCall
 		exec := NewExecutor(bridge, fakeEmitFunc(&mu, &calls))
 
-		blocking := func(ctx context.Context, _ uuid.UUID, _, _ string, _ []byte) (*Result, FailureReason, error) {
+		blocking := func(ctx context.Context, _ uuid.UUID, _ string, _ []byte) (*Result, FailureReason, error) {
 			<-ctx.Done()
 			return nil, "", ctx.Err()
 		}
@@ -601,7 +603,7 @@ func TestRun_AlreadyCancelledCtx_ReturnsImmediately(t *testing.T) {
 		cancel() // cancel BEFORE calling Run
 
 		start := time.Now()
-		_, err := exec.Run(ctx, hostID, "cis-rhel9-v2.0.0", "1.0.0")
+		_, err := exec.Run(ctx, hostID, "1.0.0")
 		elapsed := time.Since(start)
 
 		if !errors.Is(err, context.Canceled) {
@@ -626,10 +628,9 @@ func TestRun_SuccessfulScan_EmitsScanCompleted(t *testing.T) {
 		exec := NewExecutor(bridge, fakeEmitFunc(&mu, &calls))
 
 		// Successful scan returning a typed result.
-		successful := func(ctx context.Context, h uuid.UUID, fw, pv string, _ []byte) (*Result, FailureReason, error) {
+		successful := func(ctx context.Context, h uuid.UUID, pv string, _ []byte) (*Result, FailureReason, error) {
 			return &Result{
 				HostID:        h,
-				FrameworkID:   fw,
 				PolicyVersion: pv,
 				Outcomes: []RuleOutcome{
 					{RuleID: "sshd-disable-root", Status: StatusPass},
@@ -640,7 +641,7 @@ func TestRun_SuccessfulScan_EmitsScanCompleted(t *testing.T) {
 		}
 		exec = exec.WithScanFunc(successful)
 
-		result, err := exec.Run(context.Background(), hostID, "cis-rhel9-v2.0.0", "1.7.0")
+		result, err := exec.Run(context.Background(), hostID, "1.7.0")
 		if err != nil {
 			t.Fatalf("Run: %v", err)
 		}
@@ -678,7 +679,6 @@ func TestRun_PopulatedResult_AllFieldsFlowThrough(t *testing.T) {
 		// explicitly — the test fails if Run silently drops any of them.
 		expected := &Result{
 			HostID:        hostID,
-			FrameworkID:   "cis-rhel9-v2.0.0",
 			PolicyVersion: "1.7.0",
 			StartedAt:     time.Date(2026, 5, 28, 10, 0, 0, 0, time.UTC),
 			CompletedAt:   time.Date(2026, 5, 28, 10, 0, 5, 0, time.UTC),
@@ -706,11 +706,11 @@ func TestRun_PopulatedResult_AllFieldsFlowThrough(t *testing.T) {
 			},
 		}
 
-		exec = exec.WithScanFunc(func(ctx context.Context, h uuid.UUID, fw, pv string, _ []byte) (*Result, FailureReason, error) {
+		exec = exec.WithScanFunc(func(ctx context.Context, h uuid.UUID, pv string, _ []byte) (*Result, FailureReason, error) {
 			return expected, "", nil
 		})
 
-		got, err := exec.Run(context.Background(), hostID, "cis-rhel9-v2.0.0", "1.7.0")
+		got, err := exec.Run(context.Background(), hostID, "1.7.0")
 		if err != nil {
 			t.Fatalf("Run: %v", err)
 		}
@@ -751,10 +751,8 @@ func TestRun_PopulatedResult_AllFieldsFlowThrough(t *testing.T) {
 			}
 		}
 
-		// FrameworkID must match the request.
-		if got.FrameworkID != "cis-rhel9-v2.0.0" {
-			t.Errorf("FrameworkID = %q, want %q", got.FrameworkID, "cis-rhel9-v2.0.0")
-		}
+		// v2.0.0: Result has no FrameworkID — framework metadata lives
+		// per-rule in RuleOutcome.FrameworkRefs (already verified above).
 		// PolicyVersion preserved (the job-payload snapshot).
 		if got.PolicyVersion != "1.7.0" {
 			t.Errorf("PolicyVersion = %q, want %q", got.PolicyVersion, "1.7.0")

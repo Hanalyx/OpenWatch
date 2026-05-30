@@ -29,7 +29,6 @@ import (
 func fixedPayload() JobPayload {
 	return JobPayload{
 		HostID:        uuid.MustParse("00000000-0000-0000-0000-000000000001"),
-		FrameworkID:   "cis-rhel9-v2.0.0",
 		PolicyVersion: "1.0.0",
 		EnqueuedAt:    time.Date(2026, 5, 28, 10, 0, 0, 0, time.UTC),
 	}
@@ -41,9 +40,9 @@ func testKey() []byte {
 }
 
 // @ac AC-06
-// AC-06: the JobPayload struct exposes host_id, framework_id, and
-// policy_version (plus enqueued_at for HMAC binding). Verified via
-// reflection so a future rename or removal is caught immediately.
+// AC-06: the JobPayload struct exposes host_id, policy_version,
+// enqueued_at (v2.0.0 — no FrameworkID). Reflection-checks both
+// presence and absence.
 func TestJobPayload_HasRequiredFields(t *testing.T) {
 	t.Run("system-scheduler/AC-06", func(t *testing.T) {
 		typ := reflect.TypeOf(JobPayload{})
@@ -52,7 +51,6 @@ func TestJobPayload_HasRequiredFields(t *testing.T) {
 			kind reflect.Kind
 		}{
 			{"HostID", reflect.Array}, // uuid.UUID is [16]byte
-			{"FrameworkID", reflect.String},
 			{"PolicyVersion", reflect.String},
 			{"EnqueuedAt", reflect.Struct}, // time.Time
 		}
@@ -65,6 +63,10 @@ func TestJobPayload_HasRequiredFields(t *testing.T) {
 			if f.Type.Kind() != r.kind {
 				t.Errorf("JobPayload.%s: kind = %v, want %v", r.name, f.Type.Kind(), r.kind)
 			}
+		}
+		// v2.0.0 AC-16 also enforced here: FrameworkID MUST NOT exist.
+		if _, ok := typ.FieldByName("FrameworkID"); ok {
+			t.Error("JobPayload still has FrameworkID field — v2.0.0 removed it (system-scheduler AC-16)")
 		}
 	})
 }
@@ -85,7 +87,6 @@ func TestJobPayload_Encode_IncludesAllFields(t *testing.T) {
 			{"HostID", func(p *JobPayload) {
 				p.HostID = uuid.MustParse("00000000-0000-0000-0000-000000000002")
 			}},
-			{"FrameworkID", func(p *JobPayload) { p.FrameworkID = "stig-rhel9-v2r7" }},
 			{"PolicyVersion", func(p *JobPayload) { p.PolicyVersion = "1.0.1" }},
 			{"EnqueuedAt", func(p *JobPayload) { p.EnqueuedAt = p.EnqueuedAt.Add(time.Second) }},
 		}
@@ -134,23 +135,12 @@ func TestVerify_TamperedHostID_Rejected(t *testing.T) {
 	})
 }
 
-// @ac AC-15
-// AC-15: tampered FrameworkID fails verification (scope-escalation
-// threat: change "cis-rhel9-v2.0.0" → some other framework after enqueue).
-func TestVerify_TamperedFramework_Rejected(t *testing.T) {
-	t.Run("system-scheduler/AC-15", func(t *testing.T) {
-		key := testKey()
-		p := fixedPayload()
-		mac := Sign(key, p)
-
-		tampered := p
-		tampered.FrameworkID = "stig-rhel9-v2r7"
-
-		if Verify(key, tampered, mac) {
-			t.Error("Verify accepted payload with mutated FrameworkID; AC-15 broken")
-		}
-	})
-}
+// v2.0.0: TestVerify_TamperedFramework_Rejected removed. The
+// FrameworkID field no longer exists in JobPayload; the scope-
+// escalation threat it modeled (change framework post-enqueue)
+// is now impossible because no framework identifier is carried on
+// the wire. AC-15 retains coverage via TestVerify_TamperedHostID_Rejected
+// and TestVerify_TamperedPolicyVersion_Rejected.
 
 // @ac AC-15
 // AC-15: tampered PolicyVersion fails verification (policy-bypass threat:
