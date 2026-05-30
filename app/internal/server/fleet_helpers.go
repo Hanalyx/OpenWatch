@@ -7,6 +7,16 @@ import (
 	"github.com/Hanalyx/openwatch/internal/fleetrollup"
 )
 
+// frameworkOpts produces the fleetrollup.Option list for the optional
+// ?framework= query parameter. Nil or empty value returns no options
+// (unfiltered). Spec api-fleet-observability v1.1.0 C-07 / C-08.
+func frameworkOpts(framework *string) []fleetrollup.Option {
+	if framework == nil || *framework == "" {
+		return nil
+	}
+	return []fleetrollup.Option{fleetrollup.WithFramework(*framework)}
+}
+
 // validatePaginatedLimit reads the optional ?limit= parameter and
 // returns the value to pass into fleetrollup. On nil it returns the
 // default (50). On values outside [1, fleetrollup.MaxLimit] it writes

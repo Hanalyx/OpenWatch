@@ -54,7 +54,12 @@ func loadHostLiveness(ctx context.Context, pool *pgxpool.Pool, hostID uuid.UUID)
 // loadHostComplianceSummary reads the per-status counts from
 // host_rule_state for the given host. A host with no rule_state rows
 // returns all zeros — never an error. Spec api-hosts C-06 / AC-16.
-func loadHostComplianceSummary(ctx context.Context, pool *pgxpool.Pool, hostID uuid.UUID) (api.HostComplianceSummary, error) {
+//
+// framework, when non-empty, filters rows to those whose framework_refs
+// JSONB contains the given key (api-hosts v1.2.0 AC-17 / AC-18). A host
+// whose rule_state has no rows mapped to the requested framework
+// returns all-zero counts (AC-18).
+func loadHostComplianceSummary(ctx context.Context, pool *pgxpool.Pool, hostID uuid.UUID, framework string) (api.HostComplianceSummary, error) {
 	const q = `
 		SELECT
 			COUNT(*) FILTER (WHERE current_status = 'pass')::BIGINT    AS passing,
@@ -63,9 +68,14 @@ func loadHostComplianceSummary(ctx context.Context, pool *pgxpool.Pool, hostID u
 			COUNT(*) FILTER (WHERE current_status = 'error')::BIGINT   AS errors,
 			COUNT(*)::BIGINT                                           AS total
 		  FROM host_rule_state
-		 WHERE host_id = $1`
+		 WHERE host_id = $1
+		   AND ($2::text IS NULL OR framework_refs ? $2)`
 	var s api.HostComplianceSummary
-	if err := pool.QueryRow(ctx, q, hostID).Scan(
+	var frameworkParam any
+	if framework != "" {
+		frameworkParam = framework
+	}
+	if err := pool.QueryRow(ctx, q, hostID, frameworkParam).Scan(
 		&s.Passing, &s.Failing, &s.Skipped, &s.Error, &s.Total,
 	); err != nil {
 		return api.HostComplianceSummary{}, fmt.Errorf("loadHostComplianceSummary: %w", err)

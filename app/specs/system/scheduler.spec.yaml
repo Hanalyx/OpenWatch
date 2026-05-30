@@ -1,7 +1,7 @@
 spec:
   id: system-scheduler
   title: Adaptive compliance scheduler
-  version: "1.0.0"
+  version: "2.0.0"
   status: approved
   tier: 1
 
@@ -9,12 +9,25 @@ spec:
     system: openwatch-go
     feature: Adaptive scan scheduling
     description: >
-      The scheduler decides when to run which framework against which host.
-      A cron tick (60s via robfig/cron) sweeps host_compliance_schedule for
-      rows where next_scheduled_scan <= now() and enqueues a scan job to
-      the PostgreSQL SKIP LOCKED queue. Tier intervals are read from the
-      Ed25519-signed `schedules` policy YAML; after each scan, the row is
-      updated based on the resulting compliance state.
+      The scheduler decides WHEN to run a scan against a host. A scan
+      runs the FULL rule corpus applicable to the host's detected OS
+      capabilities — not a single framework. Framework-scoped views
+      are produced at query time by joining transactions /
+      host_rule_state to the per-rule framework_refs JSONB.
+
+      A cron tick (60s via robfig/cron) sweeps host_compliance_schedule
+      for rows where next_scheduled_scan <= now() and enqueues one
+      job per due host to the PostgreSQL SKIP LOCKED queue. Tier
+      intervals are read from the Ed25519-signed `schedules` policy
+      YAML; after each scan, the row is updated based on the
+      resulting compliance state.
+
+      Version 2.0.0 breaking change (from 1.0.0): JobPayload no
+      longer carries framework_id. HMAC inputs change accordingly.
+      The DefaultFramework constructor parameter is dropped. See
+      docs/CANONICAL_RULE_SCHEMA_V1.md §3.3 (framework_refs as
+      per-rule metadata) and api/kensa.go (Kensa.Scan takes []*Rule,
+      not a framework identifier) for the upstream rationale.
 
   objective:
     summary: >
@@ -76,8 +89,12 @@ spec:
       type: security
       enforcement: error
     - id: C-11
-      description: Each scan job payload MUST include an HMAC-SHA256 over (host_id, framework_id, policy_version, enqueued_at) using a server-side key; dequeue MUST verify the HMAC before executing, rejecting tampered payloads
+      description: Each scan job payload MUST include an HMAC-SHA256 over (host_id, policy_version, enqueued_at) using a server-side key; dequeue MUST verify the HMAC before executing, rejecting tampered payloads. NOTE v2.0.0 breaking change — framework_id removed from the HMAC inputs; old payloads (with framework_id) MUST fail verification under the new HMAC scheme and are dead-lettered
       type: security
+      enforcement: error
+    - id: C-12
+      description: Scheduler.NewService MUST NOT take a defaultFramework parameter — scans no longer carry a framework identifier. JobPayload struct has no FrameworkID field. Source-inspection enforces (AC-16)
+      type: technical
       enforcement: error
 
   acceptance_criteria:
@@ -102,9 +119,9 @@ spec:
       priority: high
       references_constraints: [C-05]
     - id: AC-06
-      description: Scheduler-enqueued scan job payload contains policy_version, host_id, framework_id; downstream services use the snapshotted version for audit and threshold lookup.
+      description: Scheduler-enqueued scan job payload contains policy_version, host_id, enqueued_at, hmac — NOT framework_id; downstream services use the snapshotted policy_version for audit and threshold lookup. Verified by decoding a freshly enqueued payload and asserting its field set.
       priority: critical
-      references_constraints: [C-06]
+      references_constraints: [C-06, C-12]
     - id: AC-07
       description: Manual scan via POST /scans does not write to host_compliance_schedule (no UPDATE to next_scheduled_scan, no row lock acquired by scheduler).
       priority: high
@@ -138,3 +155,7 @@ spec:
       description: A scan job whose stored payload has been tampered (host_id mutated post-enqueue) fails HMAC verification at dequeue; the job is rejected, marked failed in the queue, and scheduler.job.hmac_rejected audit event is emitted.
       priority: critical
       references_constraints: [C-11]
+    - id: AC-16
+      description: Source-inspection of internal/scheduler/ — JobPayload struct has no FrameworkID field; NewService signature has no defaultFramework parameter; Dispatch emit payload does not contain the "framework_id" key. Confirms the v2.0.0 architectural correction is materially in place, not just spec'd.
+      priority: critical
+      references_constraints: [C-12]

@@ -1,7 +1,7 @@
 spec:
   id: api-hosts
   title: Host inventory CRUD HTTP surface + Slice B enrichments
-  version: "1.1.0"
+  version: "1.2.0"
   status: approved
   tier: 2
 
@@ -61,6 +61,14 @@ spec:
       enforcement: error
     - id: C-06
       description: GET /hosts/{id} response MUST include a compliance_summary sub-object with passing, failing, skipped, error, and total counts derived from host_rule_state. A host with no rule_state rows MUST receive zeros — never null and never an error
+      type: technical
+      enforcement: error
+    - id: C-07
+      description: GET /hosts/{id} MUST accept optional ?framework=<framework_id> (v1.2.0 addendum). When present, compliance_summary counts are derived ONLY from host_rule_state rows whose framework_refs JSONB contains the given framework_id key. The liveness sub-object is unaffected by ?framework= (liveness is OS-agnostic, not framework-scoped)
+      type: technical
+      enforcement: error
+    - id: C-08
+      description: ?framework= matching is exact-key lookup on the framework_refs JSONB, same semantics as api-fleet-observability C-08. No fuzzy matching, no case folding
       type: technical
       enforcement: error
 
@@ -125,3 +133,11 @@ spec:
       description: GET /hosts/{id} for a host with no host_rule_state rows returns 200 with compliance_summary populated with all zero counts — never null and never an error.
       priority: critical
       references_constraints: [C-06]
+    - id: AC-17
+      description: GET /hosts/{id}?framework=cis_rhel9_v2.0.0 returns compliance_summary counts computed only from host_rule_state rows whose framework_refs contains "cis_rhel9_v2.0.0" as a top-level key. Rows mapped to other frameworks are excluded; the liveness sub-object is identical to the unfiltered response.
+      priority: critical
+      references_constraints: [C-07, C-08]
+    - id: AC-18
+      description: GET /hosts/{id}?framework=<framework_id> on a host whose rule_state rows do NOT reference that framework returns 200 with compliance_summary all zeros — never an error, never a 404.
+      priority: high
+      references_constraints: [C-07]

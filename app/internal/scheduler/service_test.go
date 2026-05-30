@@ -151,7 +151,7 @@ func newTestService(t *testing.T, pool *pgxpool.Pool, now time.Time, calls *[]em
 		*calls = append(*calls, emitCall{Code: code, Event: ev})
 	}
 
-	svc := NewService(pool, load, testKey(), emit, "cis-rhel9-v2.0.0")
+	svc := NewService(pool, load, testKey(), emit)
 	svc.Now = func() time.Time { return now }
 	return svc
 }

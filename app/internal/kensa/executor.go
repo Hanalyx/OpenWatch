@@ -58,7 +58,13 @@ type Executor struct {
 // Returns either a populated *Result on success, or a typed
 // FailureReason classifying the failure (the caller emits the
 // scan.failed audit and maps the reason to a sentinel error).
-type ScanFunc func(ctx context.Context, hostID uuid.UUID, framework, policyVersion string, plain []byte) (*Result, FailureReason, error)
+// ScanFunc is the per-Run scan-invocation seam. Production binds it
+// to a closure that constructs a Kensa via pkg/kensa.Default and calls
+// Kensa.Scan over the full rule corpus applicable to the host.
+//
+// v2.0.0 breaking change: the framework parameter is removed.
+// Per system-kensa-executor v2 C-12, scans are framework-agnostic.
+type ScanFunc func(ctx context.Context, hostID uuid.UUID, policyVersion string, plain []byte) (*Result, FailureReason, error)
 
 // CredentialBridge is the contract for resolving a host's SSH
 // credential into in-memory plaintext bytes ready to be parsed by
@@ -108,14 +114,26 @@ func (e *Executor) WithScanFunc(fn ScanFunc) *Executor {
 	}
 }
 
-// unwiredScanFunc is the placeholder until the live Kensa integration
-// chunk wires Kensa.Scan + the in-memory TransportFactory. Returns the
-// kensa_error reason so the failure-emit path runs end-to-end.
-func unwiredScanFunc(ctx context.Context, hostID uuid.UUID, framework, policyVersion string, plain []byte) (*Result, FailureReason, error) {
-	return nil, ReasonKensaError, errors.New("kensa: scan path not yet wired (AC-01 pending)")
+// unwiredScanFunc is the test-only fallback scanFunc bound by
+// NewExecutor when production wiring isn't set up (e.g., during the
+// transition period before cmd/openwatch/main.go calls
+// WithScanFunc(pkg/kensa.Default-backed closure)). Tests typically
+// inject their own via WithScanFunc; this exists so an executor
+// constructed in isolation still has a sane non-nil scanFunc.
+//
+// system-kensa-executor v2 AC-18 will be fully satisfied once
+// cmd/openwatch/main.go's worker wiring binds the live ScanFunc.
+//
+//nolint:unused // test-only fallback per AC-18; live binding added in worker subcommand.
+func unwiredScanFunc(ctx context.Context, hostID uuid.UUID, policyVersion string, plain []byte) (*Result, FailureReason, error) {
+	return nil, ReasonKensaError, errors.New("kensa: scan path not yet wired (production wiring pending — see system-kensa-executor v2 AC-18)")
 }
 
-// Run executes a single-framework Kensa scan against hostID.
+// Run executes a Kensa scan against hostID using the FULL rule corpus
+// applicable to the host's detected OS capabilities. Framework
+// identity is per-rule metadata, not a scan input.
+//
+// v2.0.0 signature change: framework parameter removed.
 //
 // Spec ACs satisfied here (this chunk):
 //
@@ -127,9 +145,10 @@ func unwiredScanFunc(ctx context.Context, hostID uuid.UUID, framework, policyVer
 //     ErrNoCredential, Run returns immediately without emitting
 //     scan.started and without consuming a concurrency-guard slot.
 //
-// ACs landing in later chunks of this PR:
+// ACs landing in later chunks of this PR family:
 //
 //   - AC-01: live Kensa.Scan invocation returning a populated Result
+//     covering every rule applicable to the host
 //   - AC-02: in-memory SSH key (TransportFactory hook)
 //   - AC-04: context cancellation propagation
 //   - AC-05/06: scan.started / scan.completed / scan.failed audit
@@ -137,7 +156,9 @@ func unwiredScanFunc(ctx context.Context, hostID uuid.UUID, framework, policyVer
 //   - AC-08: parallel safety verified under -race
 //   - AC-13/14/15: host-key, evidence cap, decryption-failure audits
 //   - AC-16: backoff state writes to host_backoff_state
-func (e *Executor) Run(ctx context.Context, hostID uuid.UUID, framework string, policyVersion string) (*Result, error) {
+//   - AC-17 (this PR): source-inspection confirms Run signature
+//   - AC-18: production scanFunc binds pkg/kensa.Default
+func (e *Executor) Run(ctx context.Context, hostID uuid.UUID, policyVersion string) (*Result, error) {
 	// Concurrency guard (AC-03). LoadOrStore returns loaded=true if
 	// the key was already present; another goroutine owns this hostID.
 	if _, loaded := e.inFlight.LoadOrStore(hostID, struct{}{}); loaded {
@@ -156,22 +177,22 @@ func (e *Executor) Run(ctx context.Context, hostID uuid.UUID, framework string, 
 		if errors.Is(err, ErrNoCredential) {
 			return nil, ErrNoCredential
 		}
-		e.emitFailure(ctx, hostID, framework, policyVersion, ReasonCredentialDecryptionFailed, "")
+		e.emitFailure(ctx, hostID, policyVersion, ReasonCredentialDecryptionFailed, "")
 		return nil, ErrCredentialDecryption
 	}
 	defer wipe() // AC-07
 
 	// Successful credential resolve → scan.started (AC-05 first half).
-	e.emitStarted(ctx, hostID, framework, policyVersion)
+	e.emitStarted(ctx, hostID, policyVersion)
 
 	// Invoke the per-Run scan function. Production wires this to a
-	// Kensa.Scan call constructed with an in-memory TransportFactory;
-	// tests inject controllable behavior via WithScanFunc.
+	// Kensa.Scan call constructed with pkg/kensa.Default; tests inject
+	// controllable behavior via WithScanFunc.
 	//
 	// Spec AC-04: ctx cancellation must propagate. The scanFunc is
 	// contracted to honor ctx.Done(); Run trusts the contract here
 	// and returns ctx.Err() unchanged if the scan returns it.
-	result, reason, scanErr := e.scanFunc(ctx, hostID, framework, policyVersion, plain)
+	result, reason, scanErr := e.scanFunc(ctx, hostID, policyVersion, plain)
 	if scanErr != nil {
 		// Cancellation passes through without scan.failed (the scan
 		// didn't fail — it was cancelled before completion).
@@ -181,13 +202,13 @@ func (e *Executor) Run(ctx context.Context, hostID uuid.UUID, framework string, 
 		// Any other failure: emit scan.failed with the classified reason.
 		// reason MUST be one of the FailureReason values (closed enum
 		// per AC-06).
-		e.emitFailure(ctx, hostID, framework, policyVersion, reason, "")
+		e.emitFailure(ctx, hostID, policyVersion, reason, "")
 		// Map reason → sentinel error for the caller.
 		return nil, mapReasonToErr(reason, scanErr)
 	}
 
 	// Successful scan → scan.completed with summary (AC-05 second half).
-	e.emitCompleted(ctx, hostID, framework, policyVersion, summaryFromResult(result))
+	e.emitCompleted(ctx, hostID, policyVersion, summaryFromResult(result))
 	return result, nil
 }
 
@@ -236,12 +257,12 @@ func mapReasonToErr(reason FailureReason, scanErr error) error {
 
 // emitStarted produces a scan.started audit event. Called exactly once
 // per Run that successfully resolves a credential. Spec AC-05.
-func (e *Executor) emitStarted(ctx context.Context, hostID uuid.UUID, framework, policyVersion string) {
+// v2.0.0: no framework_id in detail.
+func (e *Executor) emitStarted(ctx context.Context, hostID uuid.UUID, policyVersion string) {
 	e.emit(ctx, audit.ScanStarted, audit.Event{
 		ActorType: "system",
 		Detail: mustJSON(map[string]string{
 			"host_id":        hostID.String(),
-			"framework_id":   framework,
 			"policy_version": policyVersion,
 		}),
 	})
@@ -249,10 +270,11 @@ func (e *Executor) emitStarted(ctx context.Context, hostID uuid.UUID, framework,
 
 // emitCompleted produces a scan.completed audit event. Called exactly
 // once per Run that finished a Kensa scan successfully. Spec AC-05.
-func (e *Executor) emitCompleted(ctx context.Context, hostID uuid.UUID, framework, policyVersion string, summary map[string]any) {
+// v2.0.0: no framework_id in detail; the summary carries per-status
+// counts aggregated across all rules in the scan result.
+func (e *Executor) emitCompleted(ctx context.Context, hostID uuid.UUID, policyVersion string, summary map[string]any) {
 	detail := map[string]any{
 		"host_id":        hostID.String(),
-		"framework_id":   framework,
 		"policy_version": policyVersion,
 	}
 	for k, v := range summary {
@@ -265,7 +287,8 @@ func (e *Executor) emitCompleted(ctx context.Context, hostID uuid.UUID, framewor
 }
 
 // emitFailure produces a scan.failed audit event with detail.reason set
-// to one of the closed-enum FailureReason values. Called by:
+// to one of the closed-enum FailureReason values. v2.0.0: no
+// framework_id in detail. Called by:
 //
 //   - AC-13: SSH host key unknown (reason=host_key_unknown). No
 //     credential decrypted before this fires.
@@ -274,10 +297,9 @@ func (e *Executor) emitCompleted(ctx context.Context, hostID uuid.UUID, framewor
 //   - AC-15: credential decryption failed
 //     (reason=credential_decryption_failed). No scan.started before this.
 //   - AC-06: Kensa-side failure (reason=kensa_error).
-func (e *Executor) emitFailure(ctx context.Context, hostID uuid.UUID, framework, policyVersion string, reason FailureReason, ruleID string) {
+func (e *Executor) emitFailure(ctx context.Context, hostID uuid.UUID, policyVersion string, reason FailureReason, ruleID string) {
 	detail := map[string]string{
 		"host_id":        hostID.String(),
-		"framework_id":   framework,
 		"policy_version": policyVersion,
 		"reason":         string(reason),
 	}
@@ -294,26 +316,27 @@ func (e *Executor) emitFailure(ctx context.Context, hostID uuid.UUID, framework,
 // calls when known_hosts verification fails before authentication.
 // Centralizes the AC-13 audit emission so the SSH path can stay focused.
 // Returns ErrHostKeyUnknown so callers can wrap and bubble up.
-func (e *Executor) reportHostKeyUnknown(ctx context.Context, hostID uuid.UUID, framework, policyVersion string) error {
-	e.emitFailure(ctx, hostID, framework, policyVersion, ReasonHostKeyUnknown, "")
+// v2.0.0: no framework parameter.
+func (e *Executor) reportHostKeyUnknown(ctx context.Context, hostID uuid.UUID, policyVersion string) error {
+	e.emitFailure(ctx, hostID, policyVersion, ReasonHostKeyUnknown, "")
 	return ErrHostKeyUnknown
 }
 
 // reportEvidenceOversize is the entry point the result-handling code
 // calls when a rule's evidence exceeds MaxEvidenceBytes. Returns
-// ErrEvidenceOversize. Spec AC-14.
-func (e *Executor) reportEvidenceOversize(ctx context.Context, hostID uuid.UUID, framework, policyVersion, ruleID string) error {
-	e.emitFailure(ctx, hostID, framework, policyVersion, ReasonEvidenceOversize, ruleID)
+// ErrEvidenceOversize. Spec AC-14. v2.0.0: no framework parameter.
+func (e *Executor) reportEvidenceOversize(ctx context.Context, hostID uuid.UUID, policyVersion, ruleID string) error {
+	e.emitFailure(ctx, hostID, policyVersion, ReasonEvidenceOversize, ruleID)
 	return ErrEvidenceOversize
 }
 
 // reportKensaError is the entry point the Kensa-invocation code calls
 // when Kensa.Scan (or any execution method) returns a non-classified
-// error: SSH refused, framework unsupported, planner error, etc.
+// error: SSH refused, transport error, planner error, etc.
 // Emits scan.failed with reason=kensa_error and returns ErrKensaInternal.
-// Spec AC-06.
-func (e *Executor) reportKensaError(ctx context.Context, hostID uuid.UUID, framework, policyVersion string) error {
-	e.emitFailure(ctx, hostID, framework, policyVersion, ReasonKensaError, "")
+// Spec AC-06. v2.0.0: no framework parameter.
+func (e *Executor) reportKensaError(ctx context.Context, hostID uuid.UUID, policyVersion string) error {
+	e.emitFailure(ctx, hostID, policyVersion, ReasonKensaError, "")
 	return ErrKensaInternal
 }
 

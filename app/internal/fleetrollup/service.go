@@ -29,14 +29,23 @@ func NewService(pool *pgxpool.Pool) *Service {
 //
 // On an empty fleet, returns Score{0, 0} with nil error (NOT
 // pgx.ErrNoRows). Spec AC-01 / AC-02 / AC-03.
-func (s *Service) FleetComplianceScore(ctx context.Context) (Score, error) {
+//
+// WithFramework filters to rows whose framework_refs JSONB contains
+// the given key (api-fleet-observability v1.1.0 AC-14).
+func (s *Service) FleetComplianceScore(ctx context.Context, opts ...Option) (Score, error) {
+	o := applyOpts(opts)
+
+	// Single SQL covers both the unfiltered (framework="") and
+	// framework-filtered paths via NULLIF + ? operator. PostgreSQL
+	// short-circuits to TRUE when $1 is NULL (no framework given).
 	const q = `
 		SELECT
 			COUNT(*) FILTER (WHERE current_status = 'pass')                  AS passing,
 			COUNT(*) FILTER (WHERE current_status IN ('pass','fail'))        AS evaluations
-		  FROM host_rule_state`
+		  FROM host_rule_state
+		 WHERE ($1::text IS NULL OR framework_refs ? $1)`
 	var passing, evaluations int64
-	if err := s.pool.QueryRow(ctx, q).Scan(&passing, &evaluations); err != nil {
+	if err := s.pool.QueryRow(ctx, q, nullableFramework(o.framework)).Scan(&passing, &evaluations); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			// Filtered COUNT never returns NoRows but defend anyway.
 			return Score{}, nil
@@ -50,6 +59,16 @@ func (s *Service) FleetComplianceScore(ctx context.Context) (Score, error) {
 		PassingFraction:  float64(passing) / float64(evaluations),
 		TotalEvaluations: evaluations,
 	}, nil
+}
+
+// nullableFramework returns nil for the empty string (so the query's
+// "$1::text IS NULL OR …" short-circuits to TRUE = unfiltered) or the
+// string otherwise. Keeps the SQL constant across both code paths.
+func nullableFramework(framework string) any {
+	if framework == "" {
+		return nil
+	}
+	return framework
 }
 
 // FleetLiveness returns host counts by reachability status. The four
@@ -79,19 +98,24 @@ func (s *Service) FleetLiveness(ctx context.Context) (LivenessRollup, error) {
 // descending order. limit is coerced to [0, MaxLimit]. A coerced
 // limit of 0 returns an empty slice with nil error (no query
 // executed). Spec AC-05 / AC-06 / AC-10.
-func (s *Service) TopFailingRules(ctx context.Context, limit int) ([]RuleFailureRollup, error) {
+//
+// WithFramework filters to rows whose framework_refs JSONB contains
+// the given key (api-fleet-observability v1.1.0 AC-15).
+func (s *Service) TopFailingRules(ctx context.Context, limit int, opts ...Option) ([]RuleFailureRollup, error) {
 	n := clampLimit(limit)
 	if n == 0 {
 		return []RuleFailureRollup{}, nil
 	}
+	o := applyOpts(opts)
 	const q = `
 		SELECT rule_id, COUNT(*)::BIGINT AS failing_host_count
 		  FROM host_rule_state
 		 WHERE current_status = 'fail'
+		   AND ($2::text IS NULL OR framework_refs ? $2)
 		 GROUP BY rule_id
 		 ORDER BY failing_host_count DESC, rule_id ASC
 		 LIMIT $1`
-	rows, err := s.pool.Query(ctx, q, n)
+	rows, err := s.pool.Query(ctx, q, n, nullableFramework(o.framework))
 	if err != nil {
 		return nil, fmt.Errorf("fleetrollup: TopFailingRules: %w", err)
 	}
@@ -113,19 +137,24 @@ func (s *Service) TopFailingRules(ctx context.Context, limit int) ([]RuleFailure
 
 // TopFailingHosts returns the hosts with the most failing rules, in
 // descending order. limit is coerced to [0, MaxLimit]. Spec AC-07 / AC-10.
-func (s *Service) TopFailingHosts(ctx context.Context, limit int) ([]HostFailureRollup, error) {
+//
+// WithFramework filters to rows whose framework_refs JSONB contains
+// the given key (api-fleet-observability v1.1.0).
+func (s *Service) TopFailingHosts(ctx context.Context, limit int, opts ...Option) ([]HostFailureRollup, error) {
 	n := clampLimit(limit)
 	if n == 0 {
 		return []HostFailureRollup{}, nil
 	}
+	o := applyOpts(opts)
 	const q = `
 		SELECT host_id, COUNT(*)::BIGINT AS failing_rule_count
 		  FROM host_rule_state
 		 WHERE current_status = 'fail'
+		   AND ($2::text IS NULL OR framework_refs ? $2)
 		 GROUP BY host_id
 		 ORDER BY failing_rule_count DESC, host_id ASC
 		 LIMIT $1`
-	rows, err := s.pool.Query(ctx, q, n)
+	rows, err := s.pool.Query(ctx, q, n, nullableFramework(o.framework))
 	if err != nil {
 		return nil, fmt.Errorf("fleetrollup: TopFailingHosts: %w", err)
 	}
@@ -149,25 +178,29 @@ func (s *Service) TopFailingHosts(ctx context.Context, limit int) ([]HostFailure
 // occurred_at DESC. since filters to rows strictly newer than the
 // given timestamp. Pass time.Time{} (the zero value) to disable the
 // cursor. limit is coerced to [0, MaxLimit]. Spec AC-08 / AC-10.
-func (s *Service) RecentChanges(ctx context.Context, since time.Time, limit int) ([]TransactionRollup, error) {
+//
+// WithFramework filters to transactions whose framework_refs JSONB
+// contains the given key (api-fleet-observability v1.1.0 AC-16).
+func (s *Service) RecentChanges(ctx context.Context, since time.Time, limit int, opts ...Option) ([]TransactionRollup, error) {
 	n := clampLimit(limit)
 	if n == 0 {
 		return []TransactionRollup{}, nil
 	}
+	o := applyOpts(opts)
 	// The "$2::timestamptz IS NULL" idiom lets us encode "no cursor"
-	// without branching the SQL. Pass NULL for since to skip the
-	// filter, otherwise apply the strict >.
+	// without branching the SQL. Same trick for framework via $3::text.
 	const q = `
 		SELECT id, host_id, rule_id, status, COALESCE(severity, ''), change_kind, occurred_at
 		  FROM transactions
 		 WHERE ($2::timestamptz IS NULL OR occurred_at > $2)
+		   AND ($3::text IS NULL OR framework_refs ? $3)
 		 ORDER BY occurred_at DESC
 		 LIMIT $1`
 	var sinceParam any
 	if !since.IsZero() {
 		sinceParam = since
 	}
-	rows, err := s.pool.Query(ctx, q, n, sinceParam)
+	rows, err := s.pool.Query(ctx, q, n, sinceParam, nullableFramework(o.framework))
 	if err != nil {
 		return nil, fmt.Errorf("fleetrollup: RecentChanges: %w", err)
 	}

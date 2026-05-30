@@ -109,8 +109,8 @@ func (h *handlers) PostHosts(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetHostByID fetches a host with liveness + compliance_summary enrichment.
-// Spec api-hosts AC-08, AC-13, AC-14, AC-15, AC-16.
-func (h *handlers) GetHostByID(w http.ResponseWriter, r *http.Request, id openapitypes.UUID) {
+// Spec api-hosts AC-08, AC-13, AC-14, AC-15, AC-16, AC-17, AC-18.
+func (h *handlers) GetHostByID(w http.ResponseWriter, r *http.Request, id openapitypes.UUID, params api.GetHostByIDParams) {
 	if denied := auth.EnforcePermission(w, r, auth.HostRead); denied {
 		return
 	}
@@ -135,7 +135,13 @@ func (h *handlers) GetHostByID(w http.ResponseWriter, r *http.Request, id openap
 			"liveness lookup failed", true)
 		return
 	}
-	summary, err := loadHostComplianceSummary(ctx, h.pool, hostID)
+	// v1.2.0: optional ?framework= filters the compliance_summary;
+	// liveness is unaffected (spec C-07).
+	var framework string
+	if params.Framework != nil {
+		framework = *params.Framework
+	}
+	summary, err := loadHostComplianceSummary(ctx, h.pool, hostID, framework)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "server.error", "server",
 			"compliance summary lookup failed", true)

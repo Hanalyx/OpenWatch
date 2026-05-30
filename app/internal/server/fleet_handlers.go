@@ -19,12 +19,12 @@ import (
 // SQL-free invariant via source inspection.
 
 // GetFleetScore implements api.ServerInterface.GetFleetScore.
-// Spec api-fleet-observability AC-01, AC-02, AC-11, AC-12.
-func (h *handlers) GetFleetScore(w http.ResponseWriter, r *http.Request) {
+// Spec api-fleet-observability AC-01, AC-02, AC-11, AC-12, AC-14, AC-17.
+func (h *handlers) GetFleetScore(w http.ResponseWriter, r *http.Request, params api.GetFleetScoreParams) {
 	if denied := auth.EnforcePermission(w, r, auth.SystemRead); denied {
 		return
 	}
-	score, err := h.fleet.FleetComplianceScore(r.Context())
+	score, err := h.fleet.FleetComplianceScore(r.Context(), frameworkOpts(params.Framework)...)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "server.error", "server",
 			"failed to compute fleet compliance score", true)
@@ -38,6 +38,7 @@ func (h *handlers) GetFleetScore(w http.ResponseWriter, r *http.Request) {
 
 // GetFleetLiveness implements api.ServerInterface.GetFleetLiveness.
 // Spec api-fleet-observability AC-03, AC-11, AC-12.
+// (?framework= has no effect on liveness — host_liveness is OS-agnostic.)
 func (h *handlers) GetFleetLiveness(w http.ResponseWriter, r *http.Request) {
 	if denied := auth.EnforcePermission(w, r, auth.SystemRead); denied {
 		return
@@ -57,7 +58,7 @@ func (h *handlers) GetFleetLiveness(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetFleetTopFailingRules implements api.ServerInterface.GetFleetTopFailingRules.
-// Spec api-fleet-observability AC-04, AC-09, AC-10, AC-11, AC-12.
+// Spec api-fleet-observability AC-04, AC-09, AC-10, AC-11, AC-12, AC-15.
 func (h *handlers) GetFleetTopFailingRules(w http.ResponseWriter, r *http.Request, params api.GetFleetTopFailingRulesParams) {
 	if denied := auth.EnforcePermission(w, r, auth.SystemRead); denied {
 		return
@@ -66,7 +67,7 @@ func (h *handlers) GetFleetTopFailingRules(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
-	rows, err := h.fleet.TopFailingRules(r.Context(), limit)
+	rows, err := h.fleet.TopFailingRules(r.Context(), limit, frameworkOpts(params.Framework)...)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "server.error", "server",
 			"failed to query top failing rules", true)
@@ -83,7 +84,7 @@ func (h *handlers) GetFleetTopFailingRules(w http.ResponseWriter, r *http.Reques
 }
 
 // GetFleetTopFailingHosts implements api.ServerInterface.GetFleetTopFailingHosts.
-// Spec api-fleet-observability AC-05, AC-09, AC-10, AC-11, AC-12.
+// Spec api-fleet-observability AC-05, AC-09, AC-10, AC-11, AC-12 (+v1.1.0 framework filter).
 func (h *handlers) GetFleetTopFailingHosts(w http.ResponseWriter, r *http.Request, params api.GetFleetTopFailingHostsParams) {
 	if denied := auth.EnforcePermission(w, r, auth.SystemRead); denied {
 		return
@@ -92,7 +93,7 @@ func (h *handlers) GetFleetTopFailingHosts(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
-	rows, err := h.fleet.TopFailingHosts(r.Context(), limit)
+	rows, err := h.fleet.TopFailingHosts(r.Context(), limit, frameworkOpts(params.Framework)...)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "server.error", "server",
 			"failed to query top failing hosts", true)
@@ -109,7 +110,7 @@ func (h *handlers) GetFleetTopFailingHosts(w http.ResponseWriter, r *http.Reques
 }
 
 // GetFleetRecentChanges implements api.ServerInterface.GetFleetRecentChanges.
-// Spec api-fleet-observability AC-06, AC-07, AC-09, AC-10, AC-11, AC-12.
+// Spec api-fleet-observability AC-06, AC-07, AC-09, AC-10, AC-11, AC-12, AC-16.
 func (h *handlers) GetFleetRecentChanges(w http.ResponseWriter, r *http.Request, params api.GetFleetRecentChangesParams) {
 	if denied := auth.EnforcePermission(w, r, auth.SystemRead); denied {
 		return
@@ -121,7 +122,7 @@ func (h *handlers) GetFleetRecentChanges(w http.ResponseWriter, r *http.Request,
 	// since is already typed *time.Time by oapi-codegen — malformed
 	// values are rejected upstream by the codegen wrapper with 400.
 	var since = nilOrTime(params.Since)
-	rows, err := h.fleet.RecentChanges(r.Context(), since, limit)
+	rows, err := h.fleet.RecentChanges(r.Context(), since, limit, frameworkOpts(params.Framework)...)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "server.error", "server",
 			"failed to query recent changes", true)
