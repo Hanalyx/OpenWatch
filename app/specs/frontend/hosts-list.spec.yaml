@@ -85,7 +85,7 @@ spec:
     - id: AC-01
       description: Navigating to /hosts authenticated with host:read against a fleet of 60 hosts renders the table with the first 50 rows. A "Next" control is visible; clicking it advances to rows 51-60.
       priority: critical
-      references_constraints: [C-02, C-05]
+      references_constraints: [C-01, C-02, C-05]
     - id: AC-02
       description: Navigating to /hosts with zero hosts and no filters renders the first-run empty state with a link to /hosts/new (visible only to roles with host:write).
       priority: critical

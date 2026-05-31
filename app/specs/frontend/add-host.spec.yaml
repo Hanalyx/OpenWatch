@@ -124,6 +124,7 @@ spec:
     - id: AC-01
       description: Navigating to /hosts/new authenticated with host:write renders the form with hostname, ip_address, environment dropdown, auth_method radio, and a "Use system default credential" toggle.
       priority: critical
+      references_constraints: [C-01]
     - id: AC-02
       description: Submitting a complete valid form (auth_method=ssh_key, system-default off, private_key supplied) issues exactly one POST /api/v1/hosts then exactly one POST /api/v1/credentials with scope="host" and scope_id matching the new host's ID; on 201 from both, redirects to /hosts/{newID}.
       priority: critical
