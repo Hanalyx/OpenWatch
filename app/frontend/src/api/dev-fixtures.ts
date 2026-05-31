@@ -18,7 +18,9 @@ export interface DevHost {
   passed: number | null;
   failed: number | null;
   total: number;
-  lastCheckMinutes: number;
+  // null when no host_liveness row exists ("never probed"). The list
+  // cell renders "—" in that case rather than the misleading "0m ago".
+  lastCheckMinutes: number | null;
   lastScan: string;       // "Xh ago" or "Xm ago"
 }
 

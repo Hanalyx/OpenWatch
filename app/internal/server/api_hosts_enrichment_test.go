@@ -7,6 +7,7 @@
 //   AC-16  TestHosts_GetByID_Enrichment_ComplianceSummaryZerosOnEmpty
 //   AC-17  TestHosts_GetByID_Enrichment_FrameworkFilterCounts
 //   AC-18  TestHosts_GetByID_Enrichment_FrameworkFilterEmpty
+//   AC-19  TestHosts_GetHosts_ListLivenessJoined
 
 package server
 
@@ -236,6 +237,75 @@ func TestHosts_GetByID_Enrichment_FrameworkFilterCounts(t *testing.T) {
 		s := got.ComplianceSummary
 		if s.Passing != 2 || s.Failing != 1 || s.Total != 3 {
 			t.Errorf("CIS-filtered summary = %+v, want passing=2 failing=1 total=3", s)
+		}
+	})
+}
+
+// @ac AC-19
+// AC-19 (v1.3.0): GET /hosts response items carry liveness inline. One
+// host with a probe row → liveness populated; another with no
+// host_liveness row → liveness null. Both come back in the same list
+// response, mirroring the GET /hosts/{id} sub-object shape.
+func TestHosts_GetHosts_ListLivenessJoined(t *testing.T) {
+	t.Run("api-hosts/AC-19", func(t *testing.T) {
+		url, pool := freshAPIServer(t)
+		probed := createHostAPI(t, url, "probed-host", "production")
+		probedID, _ := uuid.Parse(probed["id"].(string))
+		unprobed := createHostAPI(t, url, "unprobed-host", "production")
+		unprobedID := unprobed["id"].(string)
+
+		probedAt := time.Now().UTC().Truncate(time.Second)
+		seedLivenessForHost(t, pool, probedID, "unreachable", probedAt, 2)
+
+		req := asRole(t, "GET", url+"/api/v1/hosts", auth.RoleAdmin, nil)
+		resp := doReq(t, req)
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("status = %d, want 200", resp.StatusCode)
+		}
+		var body struct {
+			Hosts []struct {
+				ID       string `json:"id"`
+				Liveness *struct {
+					ReachabilityStatus  string     `json:"reachability_status"`
+					LastProbeAt         *time.Time `json:"last_probe_at"`
+					ConsecutiveFailures *int       `json:"consecutive_failures"`
+				} `json:"liveness"`
+			} `json:"hosts"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+
+		var sawProbed, sawUnprobed bool
+		for _, h := range body.Hosts {
+			switch h.ID {
+			case probedID.String():
+				sawProbed = true
+				if h.Liveness == nil {
+					t.Fatal("probed host liveness is nil; want populated")
+				}
+				if h.Liveness.ReachabilityStatus != "unreachable" {
+					t.Errorf("reachability_status = %q, want unreachable", h.Liveness.ReachabilityStatus)
+				}
+				if h.Liveness.LastProbeAt == nil {
+					t.Error("last_probe_at is nil; want populated")
+				}
+				if h.Liveness.ConsecutiveFailures == nil || *h.Liveness.ConsecutiveFailures != 2 {
+					t.Errorf("consecutive_failures = %v, want 2", h.Liveness.ConsecutiveFailures)
+				}
+			case unprobedID:
+				sawUnprobed = true
+				if h.Liveness != nil {
+					t.Errorf("unprobed host liveness = %+v, want nil", h.Liveness)
+				}
+			}
+		}
+		if !sawProbed {
+			t.Error("probed host not present in /hosts response")
+		}
+		if !sawUnprobed {
+			t.Error("unprobed host not present in /hosts response")
 		}
 	})
 }

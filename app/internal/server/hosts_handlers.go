@@ -35,9 +35,24 @@ func (h *handlers) GetHosts(w http.ResponseWriter, r *http.Request, params api.G
 			"list hosts failed", true)
 		return
 	}
-	out := make([]api.HostResponse, len(list))
+
+	// Batch-load liveness for every host in the page — one query for
+	// the whole set. Hosts without a host_liveness row stay null on
+	// the response. Spec api-hosts v1.3.0 list-liveness.
+	ids := make([]uuid.UUID, len(list))
 	for i, h := range list {
-		out[i] = hostResponse(h)
+		ids[i] = h.ID
+	}
+	liveByID, err := loadHostLivenessByIDs(r.Context(), h.pool, ids)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "server.error", "server",
+			"liveness join failed", true)
+		return
+	}
+
+	out := make([]api.HostListItem, len(list))
+	for i, item := range list {
+		out[i] = hostListItem(item, liveByID[item.ID])
 	}
 	writeJSON(w, http.StatusOK, api.HostListResponse{Hosts: out})
 }
@@ -250,5 +265,38 @@ func hostResponse(h host.Host) api.HostResponse {
 		CreatedBy:   &createdBy,
 		CreatedAt:   &h.CreatedAt,
 		UpdatedAt:   &h.UpdatedAt,
+	}
+}
+
+// hostListItem builds the list-page item: every HostResponse field
+// plus an optional liveness sub-object joined from host_liveness.
+// liveness MAY be nil when no probe has run against the host.
+func hostListItem(h host.Host, liveness *api.HostLiveness) api.HostListItem {
+	desc := h.Description
+	displayName := h.DisplayName
+	env := h.Environment
+	username := h.Username
+	tags := h.Tags
+	createdBy := openapitypes.UUID(h.CreatedBy)
+	var groupID *openapitypes.UUID
+	if h.GroupID != nil {
+		u := openapitypes.UUID(*h.GroupID)
+		groupID = &u
+	}
+	return api.HostListItem{
+		Id:          openapitypes.UUID(h.ID),
+		Hostname:    h.Hostname,
+		IpAddress:   h.IPAddress,
+		Port:        h.Port,
+		DisplayName: &displayName,
+		Description: &desc,
+		Environment: env,
+		Tags:        &tags,
+		GroupId:     groupID,
+		Username:    &username,
+		CreatedBy:   &createdBy,
+		CreatedAt:   &h.CreatedAt,
+		UpdatedAt:   &h.UpdatedAt,
+		Liveness:    liveness,
 	}
 }

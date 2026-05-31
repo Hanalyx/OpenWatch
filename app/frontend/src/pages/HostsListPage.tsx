@@ -56,6 +56,12 @@ interface HostsListSearch {
   group?: 'none' | 'team' | 'status' | 'os';
 }
 
+interface ApiHostLiveness {
+  reachability_status: 'reachable' | 'unreachable' | 'unknown';
+  last_probe_at?: string | null;
+  consecutive_failures?: number;
+}
+
 interface ApiHost {
   id: string;
   hostname: string;
@@ -67,6 +73,7 @@ interface ApiHost {
   username?: string;
   created_at: string;
   updated_at: string;
+  liveness?: ApiHostLiveness | null;
 }
 
 const OS_COLOR: Record<DevHost['os'], string> = {
@@ -860,7 +867,9 @@ function HostCard({ host }: { host: DevHost }) {
       >
         <StatusPill status={isDown ? 'down' : 'online'} />
         <span style={{ fontSize: 12, color: 'var(--ow-fg-2)' }}>
-          Checked {host.lastCheckMinutes}m ago
+          {host.lastCheckMinutes === null
+            ? 'Never probed'
+            : `Checked ${formatMinutesAgo(host.lastCheckMinutes)}`}
         </span>
       </div>
 
@@ -1128,7 +1137,9 @@ function HostRow({ host }: { host: DevHost }) {
       <td style={td}>
         <StatusPill status={isDown ? 'down' : 'online'} />
         <div style={{ color: 'var(--ow-fg-3)', fontSize: 11, marginTop: 2 }}>
-          {host.lastCheckMinutes}m ago
+          {host.lastCheckMinutes === null
+            ? 'Never probed'
+            : formatMinutesAgo(host.lastCheckMinutes)}
         </div>
       </td>
       <td style={td}>
@@ -1370,18 +1381,39 @@ function detectOS(hostname: string): DevHost['os'] {
   return 'Ubuntu';
 }
 
+// formatMinutesAgo turns a minute count into a humane "Xm ago" / "Xh ago"
+// / "Xd ago" string. Under 1m reads as "just now" since that's the
+// 30-second tick range from the adaptive health checks loop.
+function formatMinutesAgo(minutes: number): string {
+  if (minutes < 1) return 'just now';
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.round(hours / 24)}d ago`;
+}
+
 function apiHostToDev(h: ApiHost): DevHost {
+  // Derive "online" from the joined liveness sub-object — null means
+  // never probed (we render that as a muted "down" rather than guessing).
+  const reachable = h.liveness?.reachability_status === 'reachable';
+  let lastCheckMinutes: number | null = null;
+  if (h.liveness?.last_probe_at) {
+    const probedAt = new Date(h.liveness.last_probe_at).getTime();
+    if (!Number.isNaN(probedAt)) {
+      lastCheckMinutes = Math.max(0, Math.round((Date.now() - probedAt) / 60_000));
+    }
+  }
   return {
     id: h.id,
     hostname: h.hostname,
     ip_address: h.ip_address,
     os: detectOS(h.hostname),
-    status: 'down',
+    status: reachable ? 'online' : 'down',
     compliance: null,
     passed: null,
     failed: null,
     total: 0,
-    lastCheckMinutes: 0,
+    lastCheckMinutes,
     lastScan: '—',
   };
 }
