@@ -87,139 +87,149 @@ func (c *capture) snapshot() []captured {
 // AC-01: no row → defaults, no error.
 // @ac AC-01
 func TestLoadConnectivity_NoRow_ReturnsDefaults(t *testing.T) {
-	pool := freshPool(t)
-	s := NewStore(pool, nil)
-	got, err := s.LoadConnectivity(context.Background())
-	if err != nil {
-		t.Fatalf("LoadConnectivity: %v", err)
-	}
-	want := DefaultConnectivity()
-	if got != want {
-		t.Errorf("expected defaults %+v, got %+v", want, got)
-	}
+	t.Run("services-connectivity-config/AC-01", func(t *testing.T) {
+		pool := freshPool(t)
+		s := NewStore(pool, nil)
+		got, err := s.LoadConnectivity(context.Background())
+		if err != nil {
+			t.Fatalf("LoadConnectivity: %v", err)
+		}
+		want := DefaultConnectivity()
+		if got != want {
+			t.Errorf("expected defaults %+v, got %+v", want, got)
+		}
+	})
 }
 
 // AC-02: Set then Load returns the saved snapshot.
 // @ac AC-02
 func TestSetThenLoad_RoundTripsSavedSnapshot(t *testing.T) {
-	pool := freshPool(t)
-	cap := &capture{}
-	s := NewStore(pool, cap.emit)
+	t.Run("services-connectivity-config/AC-02", func(t *testing.T) {
+		pool := freshPool(t)
+		cap := &capture{}
+		s := NewStore(pool, cap.emit)
 
-	want := ConnectivityConfig{
-		OnlineSec:            600,
-		DegradedSec:          180,
-		CriticalSec:          60,
-		DownSec:              1200,
-		MaintenanceSec:       1800,
-		TimeoutSec:           10,
-		UnreachableThreshold: 3,
-		RateLimit:            25,
-		MaintenanceGlobal:    true,
-	}
-	if err := s.SetConnectivity(context.Background(), want, "alice"); err != nil {
-		t.Fatalf("SetConnectivity: %v", err)
-	}
-	got, err := s.LoadConnectivity(context.Background())
-	if err != nil {
-		t.Fatalf("LoadConnectivity: %v", err)
-	}
-	if got != want {
-		t.Errorf("expected %+v, got %+v", want, got)
-	}
+		want := ConnectivityConfig{
+			OnlineSec:            600,
+			DegradedSec:          180,
+			CriticalSec:          60,
+			DownSec:              1200,
+			MaintenanceSec:       1800,
+			TimeoutSec:           10,
+			UnreachableThreshold: 3,
+			RateLimit:            25,
+			MaintenanceGlobal:    true,
+		}
+		if err := s.SetConnectivity(context.Background(), want, "alice"); err != nil {
+			t.Fatalf("SetConnectivity: %v", err)
+		}
+		got, err := s.LoadConnectivity(context.Background())
+		if err != nil {
+			t.Fatalf("LoadConnectivity: %v", err)
+		}
+		if got != want {
+			t.Errorf("expected %+v, got %+v", want, got)
+		}
+	})
 }
 
 // AC-03: out-of-range online_sec rejected; persisted state unchanged.
 // @ac AC-03
 func TestSetConnectivity_RejectsIntervalBelowMinimum(t *testing.T) {
-	pool := freshPool(t)
-	s := NewStore(pool, nil)
-	bad := DefaultConnectivity()
-	bad.OnlineSec = 10 // below 60
-	err := s.SetConnectivity(context.Background(), bad, "alice")
-	if !errors.Is(err, ErrInvalidConfig) {
-		t.Errorf("expected ErrInvalidConfig, got %v", err)
-	}
-	// Persisted state stays at defaults.
-	got, _ := s.LoadConnectivity(context.Background())
-	if got != DefaultConnectivity() {
-		t.Errorf("persisted state should be defaults, got %+v", got)
-	}
+	t.Run("services-connectivity-config/AC-03", func(t *testing.T) {
+		pool := freshPool(t)
+		s := NewStore(pool, nil)
+		bad := DefaultConnectivity()
+		bad.OnlineSec = 10 // below 60
+		err := s.SetConnectivity(context.Background(), bad, "alice")
+		if !errors.Is(err, ErrInvalidConfig) {
+			t.Errorf("expected ErrInvalidConfig, got %v", err)
+		}
+		// Persisted state stays at defaults.
+		got, _ := s.LoadConnectivity(context.Background())
+		if got != DefaultConnectivity() {
+			t.Errorf("persisted state should be defaults, got %+v", got)
+		}
+	})
 }
 
 // AC-04: down_sec above maximum rejected.
 // @ac AC-04
 func TestSetConnectivity_RejectsThresholdZero(t *testing.T) {
-	pool := freshPool(t)
-	s := NewStore(pool, nil)
-	bad := DefaultConnectivity()
-	bad.DownSec = 100000 // above 86400
-	err := s.SetConnectivity(context.Background(), bad, "alice")
-	if !errors.Is(err, ErrInvalidConfig) {
-		t.Errorf("expected ErrInvalidConfig, got %v", err)
-	}
+	t.Run("services-connectivity-config/AC-04", func(t *testing.T) {
+		pool := freshPool(t)
+		s := NewStore(pool, nil)
+		bad := DefaultConnectivity()
+		bad.DownSec = 100000 // above 86400
+		err := s.SetConnectivity(context.Background(), bad, "alice")
+		if !errors.Is(err, ErrInvalidConfig) {
+			t.Errorf("expected ErrInvalidConfig, got %v", err)
+		}
+	})
 }
 
 // AC-05: a successful Set emits exactly one system.config.changed
 // event with old_value (snapshot prior to write) and new_value populated.
 // @ac AC-05
 func TestSetConnectivity_EmitsConfigChangedWithOldAndNew(t *testing.T) {
-	pool := freshPool(t)
-	cap := &capture{}
-	s := NewStore(pool, cap.emit)
+	t.Run("services-connectivity-config/AC-05", func(t *testing.T) {
+		pool := freshPool(t)
+		cap := &capture{}
+		s := NewStore(pool, cap.emit)
 
-	// First Set populates the row with custom values.
-	first := DefaultConnectivity()
-	first.OnlineSec = 600
-	first.TimeoutSec = 10
-	first.UnreachableThreshold = 3
-	first.RateLimit = 25
-	if err := s.SetConnectivity(context.Background(), first, "alice"); err != nil {
-		t.Fatalf("first Set: %v", err)
-	}
-	// Second Set should capture the first as old_value.
-	second := DefaultConnectivity()
-	second.OnlineSec = 1200
-	second.TimeoutSec = 15
-	second.UnreachableThreshold = 4
-	second.RateLimit = 30
-	second.MaintenanceGlobal = true
-	if err := s.SetConnectivity(context.Background(), second, "bob"); err != nil {
-		t.Fatalf("second Set: %v", err)
-	}
-
-	got := cap.snapshot()
-	if len(got) != 2 {
-		t.Fatalf("expected 2 audit events, got %d", len(got))
-	}
-	for _, ev := range got {
-		if ev.code != audit.SystemConfigChanged {
-			t.Errorf("expected SystemConfigChanged, got %s", ev.code)
+		// First Set populates the row with custom values.
+		first := DefaultConnectivity()
+		first.OnlineSec = 600
+		first.TimeoutSec = 10
+		first.UnreachableThreshold = 3
+		first.RateLimit = 25
+		if err := s.SetConnectivity(context.Background(), first, "alice"); err != nil {
+			t.Fatalf("first Set: %v", err)
 		}
-	}
+		// Second Set should capture the first as old_value.
+		second := DefaultConnectivity()
+		second.OnlineSec = 1200
+		second.TimeoutSec = 15
+		second.UnreachableThreshold = 4
+		second.RateLimit = 30
+		second.MaintenanceGlobal = true
+		if err := s.SetConnectivity(context.Background(), second, "bob"); err != nil {
+			t.Fatalf("second Set: %v", err)
+		}
 
-	// Inspect the second event — old_value should be `first`, new_value `second`.
-	var detail struct {
-		ConfigKey string             `json:"config_key"`
-		OldValue  ConnectivityConfig `json:"old_value"`
-		NewValue  ConnectivityConfig `json:"new_value"`
-		ChangedBy string             `json:"changed_by"`
-	}
-	if err := json.Unmarshal(got[1].ev.Detail, &detail); err != nil {
-		t.Fatalf("unmarshal detail: %v", err)
-	}
-	if detail.ConfigKey != KeyConnectivity {
-		t.Errorf("expected config_key=%q, got %q", KeyConnectivity, detail.ConfigKey)
-	}
-	if detail.OldValue != first {
-		t.Errorf("old_value mismatch: want %+v, got %+v", first, detail.OldValue)
-	}
-	if detail.NewValue != second {
-		t.Errorf("new_value mismatch: want %+v, got %+v", second, detail.NewValue)
-	}
-	if detail.ChangedBy != "bob" {
-		t.Errorf("changed_by: want bob, got %s", detail.ChangedBy)
-	}
+		got := cap.snapshot()
+		if len(got) != 2 {
+			t.Fatalf("expected 2 audit events, got %d", len(got))
+		}
+		for _, ev := range got {
+			if ev.code != audit.SystemConfigChanged {
+				t.Errorf("expected SystemConfigChanged, got %s", ev.code)
+			}
+		}
+
+		// Inspect the second event — old_value should be `first`, new_value `second`.
+		var detail struct {
+			ConfigKey string             `json:"config_key"`
+			OldValue  ConnectivityConfig `json:"old_value"`
+			NewValue  ConnectivityConfig `json:"new_value"`
+			ChangedBy string             `json:"changed_by"`
+		}
+		if err := json.Unmarshal(got[1].ev.Detail, &detail); err != nil {
+			t.Fatalf("unmarshal detail: %v", err)
+		}
+		if detail.ConfigKey != KeyConnectivity {
+			t.Errorf("expected config_key=%q, got %q", KeyConnectivity, detail.ConfigKey)
+		}
+		if detail.OldValue != first {
+			t.Errorf("old_value mismatch: want %+v, got %+v", first, detail.OldValue)
+		}
+		if detail.NewValue != second {
+			t.Errorf("new_value mismatch: want %+v, got %+v", second, detail.NewValue)
+		}
+		if detail.ChangedBy != "bob" {
+			t.Errorf("changed_by: want bob, got %s", detail.ChangedBy)
+		}
+	})
 }
 
 // AC-09: two concurrent Set calls complete cleanly; final state is one
