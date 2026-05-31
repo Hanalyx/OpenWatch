@@ -1,0 +1,579 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Activity — openwatch</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg-0: #0b0c0f; --bg-1: #111317; --bg-2: #161a20; --bg-3: #1c2129;
+    --line: #232831; --line-2: #2c323d;
+    --fg-0: #f3f5f8; --fg-1: #cfd4dd; --fg-2: #8a93a3; --fg-3: #5b6473;
+    --crit: oklch(64% 0.20 25); --crit-bg: oklch(35% 0.12 25 / 0.18);
+    --warn: oklch(78% 0.15 75); --warn-bg: oklch(50% 0.12 75 / 0.16);
+    --ok: oklch(72% 0.16 155); --ok-bg: oklch(45% 0.10 155 / 0.18);
+    --info: oklch(70% 0.13 245); --info-bg: oklch(45% 0.12 245 / 0.18);
+    --radius: 8px; --radius-sm: 6px;
+  }
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body { background: var(--bg-0); color: var(--fg-0); font-family: 'Inter', system-ui, sans-serif; font-size: 14px; line-height: 1.45; -webkit-font-smoothing: antialiased; }
+  .mono { font-family: 'JetBrains Mono', ui-monospace, monospace; font-feature-settings: "calt" 0; }
+  a { color: inherit; text-decoration: none; }
+
+  .app { display: grid; grid-template-columns: 56px 1fr; min-height: 100vh; }
+  .sidebar { background: var(--bg-1); border-right: 1px solid var(--line); display: flex; flex-direction: column; align-items: center; padding: 14px 0; gap: 4px; position: sticky; top: 0; height: 100vh; }
+  .logo { width: 32px; height: 32px; border-radius: 8px; background: linear-gradient(135deg, oklch(70% 0.13 245), oklch(60% 0.20 290)); display: grid; place-items: center; font-weight: 700; color: white; margin-bottom: 12px; }
+  .nav-btn { width: 40px; height: 40px; display: grid; place-items: center; border-radius: 8px; color: var(--fg-2); cursor: pointer; transition: 120ms; background: transparent; border: 0; }
+  .nav-btn:hover { background: var(--bg-2); color: var(--fg-0); }
+  .nav-btn.active { background: var(--bg-3); color: var(--fg-0); box-shadow: inset 2px 0 0 var(--info); }
+  .nav-spacer { flex: 1; }
+
+  .topbar { position: sticky; top: 0; z-index: 30; background: color-mix(in oklab, var(--bg-0) 92%, transparent); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); }
+  .topbar-row { display: flex; align-items: center; padding: 14px 28px; gap: 16px; }
+  .crumbs { color: var(--fg-2); font-size: 13px; display: flex; align-items: center; gap: 8px; }
+  .crumbs .sep { color: var(--fg-3); }
+  .topbar-actions { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+  .avatar { width: 30px; height: 30px; background: var(--info); color: #0a1424; border-radius: 50%; display: grid; place-items: center; font-weight: 600; font-size: 13px; }
+  .icon-btn { width: 34px; height: 34px; border-radius: 6px; color: var(--fg-2); cursor: pointer; background: var(--bg-1); border: 1px solid var(--line); display: inline-grid; place-items: center; transition: 120ms; }
+  .icon-btn:hover { background: var(--bg-2); color: var(--fg-0); }
+  .icon-btn.active { background: var(--bg-3); color: var(--fg-0); border-color: var(--line-2); }
+
+  .btn { height: 32px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--bg-1); color: var(--fg-0); font-family: inherit; font-weight: 500; font-size: 13px; padding: 0 12px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; transition: 120ms; }
+  .btn:hover { background: var(--bg-2); border-color: var(--line-2); }
+  .btn.sm { height: 28px; font-size: 12px; padding: 0 10px; }
+  .btn.primary { background: var(--info); border-color: var(--info); color: #0a1424; font-weight: 600; }
+
+  /* Avatar dropdown */
+  .user-menu { position: relative; }
+  .avatar-btn { border: 0; cursor: pointer; font-family: inherit; padding: 0; }
+  .avatar-menu { position: absolute; right: 0; top: calc(100% + 10px); width: 244px; background: var(--bg-1); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 16px 40px rgba(0,0,0,0.45); padding: 6px; z-index: 60; }
+  .avatar-menu[hidden] { display: none; }
+  .am-head { display: flex; align-items: center; gap: 10px; padding: 10px; border-bottom: 1px solid var(--line); margin-bottom: 6px; }
+  .am-head .avatar { width: 36px; height: 36px; }
+  .am-name { font-weight: 600; font-size: 13px; }
+  .am-email { color: var(--fg-2); font-size: 12px; }
+  .am-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 6px; color: var(--fg-1); font-size: 13px; cursor: pointer; }
+  .am-item:hover { background: var(--bg-2); color: var(--fg-0); }
+  .am-item svg { color: var(--fg-2); }
+  .am-item.danger { color: var(--crit); }
+  .am-item.danger:hover { background: var(--crit-bg); }
+  .am-div { height: 1px; background: var(--line); margin: 6px 4px; }
+
+  /* Activity shell */
+  .activity-shell { display: block; }
+
+  /* Filter dropdowns */
+  .filter-bar { display: flex; align-items: center; gap: 8px; padding: 12px 24px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  .fdrop { position: relative; }
+  .fdrop-btn { height: 32px; padding: 0 10px; border: 1px solid var(--line); background: var(--bg-1); color: var(--fg-1); border-radius: 6px; font-family: inherit; font-size: 13px; font-weight: 500; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; }
+  .fdrop-btn:hover { background: var(--bg-2); border-color: var(--line-2); }
+  .fdrop.active .fdrop-btn { border-color: color-mix(in oklab, var(--info) 50%, var(--line)); color: var(--fg-0); }
+  .fdrop-btn .cnt { background: var(--info-bg); color: var(--info); font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 999px; font-variant-numeric: tabular-nums; }
+  .fdrop-btn .chev { color: var(--fg-3); display: inline-flex; transition: transform 120ms; }
+  .fdrop.open .fdrop-btn .chev { transform: rotate(180deg); }
+  .fdrop-menu { position: absolute; top: calc(100% + 6px); left: 0; min-width: 230px; background: var(--bg-1); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 16px 40px rgba(0,0,0,0.45); padding: 6px; z-index: 50; }
+  .fdrop-menu[hidden] { display: none; }
+  .fopt { display: flex; align-items: center; gap: 9px; padding: 7px 8px; border-radius: 6px; cursor: pointer; font-size: 13px; color: var(--fg-1); }
+  .fopt:hover { background: var(--bg-2); }
+  .fopt .box { width: 15px; height: 15px; border: 1.5px solid var(--line-2); border-radius: 4px; flex-shrink: 0; display: grid; place-items: center; }
+  .fopt.on .box { background: var(--info); border-color: var(--info); }
+  .fopt.on .box::after { content: ""; width: 7px; height: 4px; border-left: 2px solid #0a1424; border-bottom: 2px solid #0a1424; transform: rotate(-45deg) translate(0, -1px); }
+  .fopt .lbl { flex: 1; display: flex; align-items: center; gap: 7px; min-width: 0; }
+  .fopt .lbl .sw { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .fopt .ct { color: var(--fg-3); font-size: 11px; font-variant-numeric: tabular-nums; }
+  .filter-clear { color: var(--info); font-size: 12px; font-weight: 500; cursor: pointer; margin-left: 2px; }
+  .filter-clear:hover { text-decoration: underline; }
+
+  /* Facet rail */
+  .facets { border-right: 1px solid var(--line); background: var(--bg-1); position: sticky; top: 60px; height: calc(100vh - 60px); overflow-y: auto; padding: 18px 14px; }
+  .facets-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .facets-head h2 { margin: 0; font-size: 13px; font-weight: 600; }
+  .facets-head a { color: var(--info); font-size: 12px; font-weight: 500; cursor: pointer; }
+  .facet-group { margin-bottom: 16px; }
+  .facet-group h4 { margin: 0 6px 6px; font-size: 10px; font-weight: 600; color: var(--fg-3); text-transform: uppercase; letter-spacing: 0.08em; }
+  .facet { display: flex; align-items: center; gap: 9px; padding: 6px 8px; border-radius: 6px; cursor: pointer; font-size: 13px; color: var(--fg-1); transition: 100ms; }
+  .facet:hover { background: var(--bg-2); }
+  .facet .box { width: 15px; height: 15px; border: 1.5px solid var(--line-2); border-radius: 4px; flex-shrink: 0; display: grid; place-items: center; }
+  .facet.on .box { background: var(--info); border-color: var(--info); }
+  .facet.on .box::after { content: ""; width: 7px; height: 4px; border-left: 2px solid #0a1424; border-bottom: 2px solid #0a1424; transform: rotate(-45deg) translate(0, -1px); }
+  .facet .lbl { flex: 1; display: flex; align-items: center; gap: 7px; min-width: 0; }
+  .facet .lbl .sw { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .facet .lbl .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .facet .ct { color: var(--fg-3); font-size: 11px; font-variant-numeric: tabular-nums; }
+  .facet.on .ct { color: var(--fg-2); }
+
+  /* sev dots */
+  .sw.high, .dot.high { background: var(--crit); } .sw.med, .dot.med { background: var(--warn); } .sw.info, .dot.info { background: var(--info); }
+
+  /* Content */
+  .content { min-width: 0; }
+  .toolbar { display: flex; align-items: center; gap: 10px; padding: 14px 24px; border-bottom: 1px solid var(--line); position: sticky; top: 60px; background: color-mix(in oklab, var(--bg-0) 92%, transparent); backdrop-filter: blur(8px); z-index: 20; flex-wrap: wrap; }
+  .search { flex: 1; min-width: 220px; max-width: 380px; height: 32px; background: var(--bg-1); border: 1px solid var(--line); border-radius: var(--radius-sm); display: flex; align-items: center; padding: 0 10px; gap: 8px; color: var(--fg-2); }
+  .search input { flex: 1; background: transparent; border: 0; outline: 0; color: var(--fg-0); font-family: inherit; font-size: 13px; }
+  .seg { display: inline-flex; background: var(--bg-1); border: 1px solid var(--line); border-radius: 6px; padding: 3px; gap: 2px; }
+  .seg button { border: 0; background: transparent; color: var(--fg-2); font-family: inherit; font-size: 12px; font-weight: 500; padding: 5px 11px; border-radius: 4px; cursor: pointer; }
+  .seg button.active { background: var(--bg-3); color: var(--fg-0); }
+  .live-toggle { display: inline-flex; align-items: center; gap: 8px; height: 32px; padding: 0 12px; background: var(--bg-1); border: 1px solid var(--line); border-radius: var(--radius-sm); cursor: pointer; font-size: 13px; font-weight: 500; color: var(--fg-1); }
+  .live-toggle.on { border-color: color-mix(in oklab, var(--info) 50%, var(--line)); color: var(--info); }
+  .live-toggle .d { width: 8px; height: 8px; border-radius: 50%; background: var(--fg-3); }
+  .live-toggle.on .d { background: var(--info); animation: pulse 1.6s infinite; }
+  @keyframes pulse { 0% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--info) 50%, transparent); } 70% { box-shadow: 0 0 0 7px transparent; } 100% { box-shadow: 0 0 0 0 transparent; } }
+  .count-note { color: var(--fg-2); font-size: 12px; }
+
+  /* Histogram */
+  .histo { display: flex; align-items: flex-end; gap: 3px; height: 56px; padding: 14px 24px 8px; border-bottom: 1px solid var(--line); }
+  .histo .bar { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; gap: 1px; cursor: pointer; min-width: 0; opacity: 0.85; transition: 100ms; height: 100%; }
+  .histo .bar:hover { opacity: 1; }
+  .histo .bar.sel { opacity: 1; }
+  .histo .bar .seg-h { background: var(--crit); border-radius: 1px 1px 0 0; }
+  .histo .bar .seg-m { background: var(--warn); }
+  .histo .bar .seg-i { background: var(--info); }
+  .histo .bar.empty::after { content: ""; height: 2px; background: var(--bg-3); border-radius: 1px; }
+  .histo-axis { display: flex; justify-content: space-between; padding: 0 24px 10px; color: var(--fg-3); font-size: 10px; font-family: 'JetBrains Mono', monospace; }
+
+  .sel-banner { display: none; align-items: center; gap: 10px; padding: 8px 24px; background: var(--info-bg); border-bottom: 1px solid color-mix(in oklab, var(--info) 30%, var(--line)); font-size: 12px; color: var(--fg-1); }
+  .sel-banner.show { display: flex; }
+  .sel-banner a { color: var(--info); font-weight: 600; cursor: pointer; }
+
+  /* Stream */
+  .stream { padding: 0 0 60px; }
+  .day-div { padding: 12px 24px 6px; color: var(--fg-3); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; position: sticky; top: 113px; background: color-mix(in oklab, var(--bg-0) 94%, transparent); backdrop-filter: blur(8px); z-index: 10; }
+  .ev { display: grid; grid-template-columns: 64px 1fr auto; gap: 14px; align-items: baseline; padding: 9px 24px; border-top: 1px solid var(--line); cursor: pointer; transition: 100ms; position: relative; }
+  .ev:hover { background: var(--bg-1); }
+  .ev.acked, .ev.muted { opacity: 0.5; }
+  .ev::before { content: ""; position: absolute; left: 0; top: 8px; bottom: 8px; width: 3px; background: transparent; }
+  .ev.sev-high::before { background: var(--crit); }
+  .ev.sev-med::before { background: var(--warn); }
+  .ev.sev-info::before { background: var(--info); }
+  .ev .t { color: var(--fg-3); font-size: 12px; font-family: 'JetBrains Mono', monospace; white-space: nowrap; }
+  .ev .body { min-width: 0; }
+  .ev .line1 { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .ev .etype { font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 500; }
+  .ev.sev-high .etype { color: var(--crit); } .ev.sev-med .etype { color: var(--warn); } .ev.sev-info .etype { color: var(--fg-1); }
+  .ev .cat-chip { font-size: 10px; font-weight: 600; padding: 1px 7px; border-radius: 3px; text-transform: uppercase; letter-spacing: 0.03em; background: var(--bg-3); color: var(--fg-2); }
+  .ev .dedupe { font-size: 11px; color: var(--warn); font-weight: 600; background: var(--warn-bg); padding: 1px 6px; border-radius: 999px; }
+  .ev .msg { color: var(--fg-1); font-size: 13px; margin-top: 3px; }
+  .ev .ent { display: inline-flex; align-items: center; gap: 5px; padding: 0 6px; height: 18px; border-radius: 4px; background: var(--bg-2); border: 1px solid var(--line); font-size: 11px; color: var(--fg-1); margin: 0 1px; }
+  .ev .ent.host { font-family: 'JetBrains Mono', monospace; }
+  .ev .meta { color: var(--fg-3); font-size: 11px; margin-top: 4px; display: flex; gap: 10px; align-items: center; }
+  .ev .right { display: flex; align-items: center; gap: 6px; }
+  .ev .src { color: var(--fg-3); font-size: 11px; font-family: 'JetBrains Mono', monospace; }
+  .ev .acts { display: flex; gap: 3px; opacity: 0; transition: 100ms; }
+  .ev:hover .acts { opacity: 1; }
+  .ev .status-tag { font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 999px; text-transform: uppercase; letter-spacing: 0.03em; }
+  .ev .status-tag.acked { background: var(--ok-bg); color: var(--ok); }
+  .ev .status-tag.muted { background: var(--bg-3); color: var(--fg-2); }
+
+  .platform-glyph { color: var(--fg-3); display: inline-flex; }
+
+  /* Drawer */
+  .scrim { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 70; opacity: 0; pointer-events: none; transition: 160ms; }
+  .scrim.show { opacity: 1; pointer-events: auto; }
+  .drawer { position: fixed; top: 0; right: 0; height: 100vh; width: 460px; max-width: 92vw; background: var(--bg-1); border-left: 1px solid var(--line); z-index: 80; transform: translateX(100%); transition: transform 200ms ease; display: flex; flex-direction: column; }
+  .drawer.show { transform: translateX(0); }
+  .dr-head { padding: 18px 20px; border-bottom: 1px solid var(--line); }
+  .dr-head .dr-top { display: flex; align-items: center; justify-content: space-between; }
+  .dr-type { font-family: 'JetBrains Mono', monospace; font-weight: 600; font-size: 15px; display: flex; align-items: center; gap: 10px; }
+  .dr-type .sevdot { width: 10px; height: 10px; border-radius: 50%; }
+  .dr-sub { color: var(--fg-2); font-size: 12px; margin-top: 8px; display: flex; gap: 10px; flex-wrap: wrap; }
+  .dr-body { flex: 1; overflow-y: auto; padding: 18px 20px; }
+  .dr-sect { margin-bottom: 20px; }
+  .dr-sect h5 { margin: 0 0 8px; font-size: 11px; color: var(--fg-3); text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; }
+  .dr-msg { color: var(--fg-0); font-size: 14px; line-height: 1.5; }
+  .kv { display: grid; grid-template-columns: 130px 1fr; row-gap: 8px; column-gap: 12px; font-size: 12px; }
+  .kv dt { color: var(--fg-2); } .kv dd { margin: 0; color: var(--fg-1); font-family: 'JetBrains Mono', monospace; }
+  .routed { display: flex; flex-direction: column; gap: 6px; }
+  .routed .r { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--fg-1); }
+  .routed .r .ok { color: var(--ok); } .routed .r .fail { color: var(--crit); }
+  .related .rel { display: flex; align-items: baseline; gap: 10px; font-size: 12px; padding: 6px 0; border-top: 1px solid var(--line); }
+  .related .rel:first-child { border-top: 0; }
+  .related .rel .rt { color: var(--fg-3); font-family: 'JetBrains Mono', monospace; }
+  .dr-foot { padding: 14px 20px; border-top: 1px solid var(--line); display: flex; gap: 8px; flex-wrap: wrap; }
+  .ent.host, .ent.group, .ent.user { cursor: pointer; }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <aside class="sidebar">
+    <div class="logo">ow</div>
+    <a href="Dashboard.html"><button class="nav-btn" title="Dashboard"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg></button></a>
+    <a href="Host Management.html"><button class="nav-btn" title="Hosts"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg></button></a>
+    <a href="Groups.html"><button class="nav-btn" title="Groups"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2 9 5-9 5-9-5 9-5z"/><path d="m3 12 9 5 9-5"/><path d="m3 17 9 5 9-5"/></svg></button></a>
+        <a href="Scans.html"><button class="nav-btn" title="Scans"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg></button></a>
+    <button class="nav-btn active" title="Activity"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></button>
+    <a href="Reports.html"><button class="nav-btn" title="Reports"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m7 14 4-4 3 3 5-6"/></svg></button></a>
+    <a href="Terminal.html"><button class="nav-btn" title="Terminal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg></button></a>
+    <div class="nav-spacer"></div>
+    <button class="nav-btn" title="Settings" onclick="location.href='Settings.html'"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .4 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.4 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.9.4l-.1.1A2 2 0 1 1 4.3 17.1l.1-.1a1.7 1.7 0 0 0 .4-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.4-1.9l-.1-.1A2 2 0 1 1 6.9 4.3l.1.1a1.7 1.7 0 0 0 1.9.4H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.4l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.4 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
+  </aside>
+
+  <main>
+    <div class="topbar">
+      <div class="topbar-row">
+        <div class="crumbs"><span>Infrastructure</span><span class="sep">/</span><span style="color: var(--fg-0)">Activity</span></div>
+        <div class="topbar-actions">
+          <button class="icon-btn" title="Notification routing" onclick="location.href='Settings.html#notifications'"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10 21a2 2 0 0 0 4 0"/></svg></button>
+          <div class="user-menu">
+            <button class="avatar avatar-btn" id="avatarBtn" aria-haspopup="menu" aria-expanded="false" title="Account">A</button>
+            <div class="avatar-menu" id="avatarMenu" hidden role="menu">
+              <div class="am-head"><div class="avatar">A</div><div><div class="am-name">Alex Liang</div><div class="am-email">alex@gonaibo.com</div></div></div>
+              <a class="am-item" role="menuitem" href="Settings.html#profile"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>Your profile</a>
+              <a class="am-item" role="menuitem" href="Settings.html"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .4 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.4 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.9.4l-.1.1A2 2 0 1 1 4.3 17.1l.1-.1a1.7 1.7 0 0 0 .4-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.4-1.9l-.1-.1A2 2 0 1 1 6.9 4.3l.1.1a1.7 1.7 0 0 0 1.9.4H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.4l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.4 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>Settings</a>
+              <a class="am-item" role="menuitem" href="Settings.html#about"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>Help &amp; docs</a>
+              <div class="am-div"></div>
+              <a class="am-item danger" role="menuitem" href="#"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></svg>Sign out</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="activity-shell">
+      <!-- Content -->
+      <div class="content">
+        <div class="toolbar">
+          <div class="search"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg><input id="search" placeholder="Search events, hosts, messages…" /></div>
+          <div class="seg" id="range">
+            <button data-range="1h">1h</button>
+            <button data-range="24h" class="active">24h</button>
+            <button data-range="7d">7d</button>
+            <button data-range="all">All</button>
+          </div>
+          <div class="live-toggle" id="live"><span class="d"></span>Live</div>
+          <div style="flex:1"></div>
+          <span class="count-note" id="countNote">—</span>
+          <button class="btn sm" id="ackAll">Acknowledge all</button>
+        </div>
+
+        <div class="filter-bar" id="filter-bar"></div>
+
+        <div class="histo" id="histo"></div>
+        <div class="histo-axis"><span>−24h</span><span>−18h</span><span>−12h</span><span>−6h</span><span>now</span></div>
+
+        <div class="sel-banner" id="selBanner">Filtered to a time bucket. <a id="clearSel">Clear selection</a></div>
+
+        <div class="stream" id="stream"></div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer" aria-hidden="true"></aside>
+
+<script>
+  // ───────── Data: alert-router events across the 7-host fleet ─────────
+  const HOSTS = {
+    "owas-ub5s2": { group: "Production", os: "Ubuntu" },
+    "owas-rhn01": { group: "Production", os: "RHEL" },
+    "owas-hrm01": { group: "Production", os: "RHEL" },
+    "owas-ub4m2": { group: "Development", os: "Ubuntu" },
+    "192.168.1.212": { group: "Development", os: "Ubuntu" },
+    "owas-tst01": { group: "Development", os: "RHEL" },
+    "owas-tst02": { group: "Development", os: "RHEL" },
+  };
+
+  // category meta
+  const CATS = {
+    compliance: "Compliance & drift",
+    scan: "Scan execution",
+    lifecycle: "Host lifecycle",
+    platform: "Platform health",
+    governance: "Governance",
+    security: "Security",
+  };
+  const SOURCES = { liveness: "liveness", drift: "drift", executor: "executor", alertrouter: "alertrouter", api: "api", auth: "auth" };
+
+  // b = time bucket index (0 oldest … 23 now) for the 24h histogram; older days use negative-ish small buckets clamped to 0
+  const EVENTS = [
+    { id:"e1",  b:23, day:"Today", time:"14:46", type:"host_unreachable", cat:"lifecycle", sev:"high", host:"owas-rhn01", src:"liveness", count:3, status:"active",
+      msg:"Host transitioned reachable → unreachable. SSH connection refused on retry 3/3.",
+      payload:{ "from_state":"reachable", "to_state":"unreachable", "consecutive_failures":"3", "last_contact":"14:34" }, routed:[["Slack #infra-alerts","ok"],["Email alex@gonaibo.com","ok"]] },
+    { id:"e2",  b:23, day:"Today", time:"14:46", type:"host_unreachable", cat:"lifecycle", sev:"high", host:"owas-hrm01", src:"liveness", status:"active",
+      msg:"Host transitioned reachable → unreachable. SSH connection refused on retry 3/3.",
+      payload:{ "from_state":"reachable", "to_state":"unreachable", "consecutive_failures":"3" }, routed:[["Slack #infra-alerts","ok"]] },
+    { id:"e3",  b:23, day:"Today", time:"14:43", type:"drift_major", cat:"compliance", sev:"high", host:"owas-ub5s2", src:"drift", status:"active",
+      msg:"Compliance dropped 37.6% → 25.1% (−12.5pp) since the prior scan — classified major worsening (≥10pp).",
+      payload:{ "prev_score":"37.6%", "new_score":"25.1%", "delta":"−12.5pp", "threshold":"10pp", "rules_regressed":"14" }, routed:[["Slack #infra-alerts","ok"],["PagerDuty","ok"]] },
+    { id:"e4",  b:22, day:"Today", time:"14:30", type:"score_below_threshold", cat:"compliance", sev:"med", host:"owas-ub5s2", src:"drift", status:"active",
+      msg:"Score 25.1% fell below the fleet threshold of 80%.",
+      payload:{ "score":"25.1%", "threshold":"80%", "scope":"fleet-default" }, routed:[["Slack #infra-alerts","ok"]] },
+    { id:"e5",  b:22, day:"Today", time:"14:12", type:"critical_rule_failed", cat:"compliance", sev:"high", host:"owas-ub5s2", src:"drift", status:"active",
+      msg:"Rule CIS-3.5.1.1 (host firewall) transitioned pass → fail. Tagged severity: critical in rule YAML.",
+      payload:{ "rule_id":"firewall-enabled", "ref":"CIS-3.5.1.1", "transition":"pass→fail", "mechanism":"service_enabled" }, routed:[["Slack #infra-alerts","ok"]] },
+    { id:"e6",  b:21, day:"Today", time:"09:14", type:"scan_failed_credential", cat:"scan", sev:"high", host:"owas-tst02", src:"executor", status:"acked", ackBy:"jordan@gonaibo.com",
+      msg:"Scan aborted: credential_decryption_failed. The stored SSH credential could not be decrypted with the workspace key.",
+      payload:{ "reason":"credential_decryption_failed", "credential":"owadmin", "retry":"no — config error" }, routed:[["Email alex@gonaibo.com","ok"]] },
+    { id:"e7",  b:20, day:"Today", time:"09:00", type:"drift_improvement", cat:"compliance", sev:"info", host:"owas-ub5s2", src:"drift", status:"active",
+      msg:"Compliance improved +0.4pp on the scheduled scan — classified improvement.",
+      payload:{ "prev_score":"37.2%", "new_score":"37.6%", "delta":"+0.4pp" }, routed:[["In-app","ok"]] },
+    { id:"e8",  b:19, day:"Today", time:"08:30", type:"alert_channel_failure", cat:"platform", sev:"med", host:null, src:"alertrouter", status:"active", platform:true,
+      msg:"Slack channel #infra-alerts returned HTTP 500 on 3 consecutive deliveries. Alerts to this channel are not being delivered.",
+      payload:{ "channel":"slack:#infra-alerts", "failure_count":"3", "last_error":"500 Internal Server Error" }, routed:[["Email alex@gonaibo.com","ok"]] },
+    { id:"e9",  b:18, day:"Today", time:"02:00", type:"audit_writer_overflow", cat:"platform", sev:"med", host:null, src:"alertrouter", status:"active", platform:true,
+      msg:"Audit ring buffer dropped 142 events under load. Audit data was lost — compliance evidence may be incomplete for this window.",
+      payload:{ "dropped_count":"142", "buffer_size":"8192", "window":"01:58–02:00" }, routed:[["Email alex@gonaibo.com","ok"],["Slack #infra-alerts","fail"]] },
+
+    { id:"e10", b:12, day:"Yesterday", time:"23:14", type:"host_backoff_ceiling", cat:"scan", sev:"high", host:"owas-rhn01", src:"executor", status:"active",
+      msg:"5 consecutive scan failures — host_backoff_state.suppress_until set to the 24h ceiling. This host has effectively dropped out of compliance reporting.",
+      payload:{ "consecutive_failures":"5", "suppress_until":"+24h", "last_success":"4/19 14:36" }, routed:[["Slack #infra-alerts","ok"],["PagerDuty","ok"]] },
+    { id:"e11", b:11, day:"Yesterday", time:"18:20", type:"host_credential_failing", cat:"lifecycle", sev:"high", host:"owas-ub4m2", src:"liveness", status:"muted", muteBy:"alex@gonaibo.com",
+      msg:"Repeated SSH auth failures on a host whose credentials previously worked — likely rotated key, not a down host.",
+      payload:{ "auth_failures":"4", "credential":"owadmin", "host_reachable":"yes", "distinguishes":"bad-creds vs host-down" }, routed:[["In-app","ok"]] },
+    { id:"e12", b:10, day:"Yesterday", time:"16:09", type:"mfa_disabled", cat:"security", sev:"med", user:"kira@gonaibo.com", src:"auth", status:"active",
+      msg:"Two-factor authentication was disabled for dana@gonaibo.com by kira@gonaibo.com.",
+      payload:{ "target":"dana@gonaibo.com", "actor":"kira@gonaibo.com", "method":"web UI" }, routed:[["Email alex@gonaibo.com","ok"]] },
+    { id:"e13", b:9,  day:"Yesterday", time:"11:27", type:"host_recovered", cat:"lifecycle", sev:"info", host:"owas-ub5s2", src:"liveness", status:"active",
+      msg:"Host transitioned unreachable → reachable after a 6-minute outage.",
+      payload:{ "from_state":"unreachable", "to_state":"reachable", "downtime":"6m" }, routed:[["In-app","ok"]] },
+    { id:"e14", b:8,  day:"Yesterday", time:"09:40", type:"exception_expiring_soon", cat:"governance", sev:"med", host:"owas-ub4m2", src:"alertrouter", status:"active",
+      msg:"Approved waiver for CIS-1.7.1 (MOTD banner) expires in 7 days. The rule will start failing again unless renewed.",
+      payload:{ "rule_id":"motd-banner", "ref":"CIS-1.7.1", "expires_in":"7d", "approved_by":"alex@gonaibo.com" }, routed:[["Email alex@gonaibo.com","ok"]] },
+
+    { id:"e15", b:2,  day:"Apr 19", time:"14:36", type:"drift_baseline_established", cat:"compliance", sev:"info", host:"owas-ub4m2", src:"drift", status:"active",
+      msg:"First-ever scan recorded. Baseline is today's state (36.2%), not a clean reference image — treat as a starting point, not a target.",
+      payload:{ "baseline_score":"36.2%", "rules":"508", "note":"no prior to compare" }, routed:[["In-app","ok"]] },
+    { id:"e16", b:2,  day:"Apr 19", time:"14:32", type:"host_added", cat:"lifecycle", sev:"info", host:"owas-ub4m2", user:"alex@gonaibo.com", src:"api", status:"active",
+      msg:"New host registered via POST /api/v1/hosts by alex@gonaibo.com.",
+      payload:{ "ip":"192.168.1.214", "agent_version":"2.4.1", "registered_by":"alex@gonaibo.com" }, routed:[["In-app","ok"]] },
+    { id:"e17", b:1,  day:"Apr 19", time:"10:02", type:"repeated_login_failures", cat:"security", sev:"high", user:"alex@gonaibo.com", src:"auth", status:"active",
+      msg:"8 failed sign-in attempts for alex@gonaibo.com from 10.20.4.9 within 5 minutes.",
+      payload:{ "identity":"alex@gonaibo.com", "source_ip":"10.20.4.9", "failures":"8", "window":"5m" }, routed:[["Slack #infra-alerts","ok"],["Email alex@gonaibo.com","ok"]] },
+    { id:"e18", b:0,  day:"Apr 19", time:"09:15", type:"admin_role_assigned", cat:"security", sev:"med", user:"alex@gonaibo.com", src:"auth", status:"active",
+      msg:"kira@gonaibo.com was granted the Admin role by alex@gonaibo.com.",
+      payload:{ "target":"kira@gonaibo.com", "role":"Admin", "actor":"alex@gonaibo.com" }, routed:[["Email alex@gonaibo.com","ok"]] },
+  ];
+
+  const SEV_RANK = { high: 0, med: 1, info: 2 };
+
+  // ───────── Filter state ─────────
+  const state = { status: new Set(["active"]), severity: new Set(), category: new Set(), source: new Set(), host: new Set(), group: new Set(), query: "", range: "24h", bucket: null };
+
+  function countBy(keyFn) {
+    const m = {};
+    EVENTS.forEach(e => { const ks = keyFn(e); (Array.isArray(ks) ? ks : [ks]).forEach(k => { if (k == null) return; m[k] = (m[k] || 0) + 1; }); });
+    return m;
+  }
+
+  // ───────── Filter dropdowns ─────────
+  const FGROUPS = [
+    { key: "status", title: "Status", items: [["active","Active"],["acked","Acknowledged"],["muted","Muted"]] },
+    { key: "severity", title: "Severity", items: [["high","High"],["med","Medium"],["info","Info"]], sw: true },
+    { key: "category", title: "Category", items: Object.entries(CATS) },
+    { key: "source", title: "Source", items: Object.entries(SOURCES) },
+    { key: "group", title: "Group", items: [["Production","Production"],["Development","Development"]] },
+  ];
+  const COUNTERS = {
+    status: e => e.status, severity: e => e.sev, category: e => e.cat,
+    source: e => e.src, group: e => (e.host ? HOSTS[e.host].group : null),
+  };
+
+  function buildFilters() {
+    const bar = document.getElementById("filter-bar");
+    bar.innerHTML = FGROUPS.map(g => {
+      const opts = g.items.map(([val, label]) => {
+        const sw = g.sw ? '<span class="sw ' + val + '"></span>' : '';
+        return '<div class="fopt" data-key="' + g.key + '" data-val="' + val + '"><span class="box"></span><span class="lbl">' + sw + '<span>' + label + '</span></span><span class="ct">0</span></div>';
+      }).join("");
+      return '<div class="fdrop" data-key="' + g.key + '">' +
+        '<button class="fdrop-btn">' + g.title + '<span class="cnt" style="display:none">0</span>' +
+        '<span class="chev"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></span></button>' +
+        '<div class="fdrop-menu" hidden>' + opts + '</div></div>';
+    }).join("") + '<span class="filter-clear" id="clearFacets">Clear all</span>';
+
+    // Toggle menus
+    bar.querySelectorAll(".fdrop-btn").forEach(btn => btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const drop = btn.closest(".fdrop");
+      const open = drop.classList.contains("open");
+      bar.querySelectorAll(".fdrop").forEach(d => { d.classList.remove("open"); d.querySelector(".fdrop-menu").hidden = true; });
+      if (!open) { drop.classList.add("open"); drop.querySelector(".fdrop-menu").hidden = false; }
+    }));
+    // Option toggles (menu stays open for multi-select)
+    bar.querySelectorAll(".fopt").forEach(o => o.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const k = o.dataset.key, v = o.dataset.val;
+      if (state[k].has(v)) state[k].delete(v); else state[k].add(v);
+      render();
+    }));
+    document.getElementById("clearFacets").addEventListener("click", () => {
+      ["status","severity","category","source","group"].forEach(k => state[k].clear());
+      state.bucket = null; render();
+    });
+  }
+
+  // Close menus on outside click
+  document.addEventListener("click", (e) => {
+    if (!e.target.closest(".fdrop")) document.querySelectorAll(".fdrop").forEach(d => { d.classList.remove("open"); d.querySelector(".fdrop-menu").hidden = true; });
+  });
+
+  function syncFilters() {
+    const counts = {};
+    Object.keys(COUNTERS).forEach(k => counts[k] = countBy(COUNTERS[k]));
+    document.querySelectorAll(".fopt").forEach(o => {
+      const k = o.dataset.key, v = o.dataset.val;
+      o.classList.toggle("on", state[k].has(v));
+      o.querySelector(".ct").textContent = counts[k][v] || 0;
+    });
+    document.querySelectorAll(".fdrop").forEach(d => {
+      const k = d.dataset.key, n = state[k].size;
+      d.classList.toggle("active", n > 0);
+      const badge = d.querySelector(".cnt");
+      badge.style.display = n > 0 ? "" : "none";
+      badge.textContent = n;
+    });
+  }
+
+  // ───────── Histogram ─────────
+  function buildHisto() {
+    const buckets = Array.from({ length: 24 }, () => ({ high: 0, med: 0, info: 0, total: 0 }));
+    EVENTS.forEach(e => { const b = buckets[e.b]; if (!b) return; b[e.sev]++; b.total++; });
+    const max = Math.max(1, ...buckets.map(b => b.total));
+    const el = document.getElementById("histo");
+    el.innerHTML = buckets.map((b, i) => {
+      if (b.total === 0) return '<div class="bar empty" data-b="' + i + '"></div>';
+      const h = (n) => n ? Math.max(2, Math.round((n / max) * 40)) : 0;
+      return '<div class="bar' + (state.bucket === i ? " sel" : "") + '" data-b="' + i + '" title="' + b.total + ' events">' +
+        (b.high ? '<div class="seg-h" style="height:' + h(b.high) + 'px"></div>' : '') +
+        (b.med ? '<div class="seg-m" style="height:' + h(b.med) + 'px"></div>' : '') +
+        (b.info ? '<div class="seg-i" style="height:' + h(b.info) + 'px"></div>' : '') +
+      '</div>';
+    }).join("");
+    el.querySelectorAll(".bar").forEach(bar => bar.addEventListener("click", () => {
+      const b = +bar.dataset.b;
+      state.bucket = state.bucket === b ? null : b;
+      render();
+    }));
+  }
+
+  // ───────── Filtering ─────────
+  function rangeBuckets() { return state.range === "1h" ? [23] : state.range === "24h" ? null : null; }
+  function passes(e) {
+    if (state.status.size && !state.status.has(e.status)) return false;
+    if (state.severity.size && !state.severity.has(e.sev)) return false;
+    if (state.category.size && !state.category.has(e.cat)) return false;
+    if (state.source.size && !state.source.has(e.src)) return false;
+    if (state.host.size && !state.host.has(e.host)) return false;
+    if (state.group.size && !(e.host && state.group.has(HOSTS[e.host].group))) return false;
+    if (state.bucket != null && e.b !== state.bucket) return false;
+    if (state.range === "1h" && e.b < 23) return false;
+    if (state.range === "24h" && e.b < 0) return false;
+    if (state.query) {
+      const hay = (e.type + " " + e.msg + " " + (e.host || "") + " " + (e.user || "") + " " + e.cat + " " + e.src).toLowerCase();
+      if (!hay.includes(state.query.toLowerCase())) return false;
+    }
+    return true;
+  }
+
+  function entChip(e) {
+    let out = "";
+    if (e.host) out += '<span class="ent host" data-host="' + e.host + '"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="13" rx="2"/></svg>' + e.host + '</span>';
+    if (e.host && HOSTS[e.host]) out += '<span class="ent group" data-group="' + HOSTS[e.host].group + '">' + HOSTS[e.host].group + '</span>';
+    if (e.user) out += '<span class="ent user"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>' + e.user + '</span>';
+    return out;
+  }
+
+  function render() {
+    syncFilters();
+    document.getElementById("selBanner").classList.toggle("show", state.bucket != null);
+    buildHisto();
+
+    const rows = EVENTS.filter(passes);
+    const stream = document.getElementById("stream");
+    let html = "", lastDay = null;
+    rows.forEach(e => {
+      if (e.day !== lastDay) { html += '<div class="day-div">' + e.day + '</div>'; lastDay = e.day; }
+      const statusTag = e.status === "acked" ? '<span class="status-tag acked">acked</span>' : e.status === "muted" ? '<span class="status-tag muted">muted</span>' : '';
+      const dedupe = e.count && e.count > 1 ? '<span class="dedupe">×' + e.count + '</span>' : '';
+      const glyph = e.platform ? '<span class="platform-glyph" title="openwatch platform"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h6v6H9z"/></svg></span>' : '';
+      html += '<div class="ev sev-' + e.sev + ' ' + e.status + '" data-id="' + e.id + '">' +
+        '<div class="t">' + e.time + '</div>' +
+        '<div class="body">' +
+          '<div class="line1">' + glyph + '<span class="etype">' + e.type + '</span><span class="cat-chip">' + CATS[e.cat] + '</span>' + dedupe + statusTag + '</div>' +
+          '<div class="msg">' + e.msg + '</div>' +
+          '<div class="meta">' + entChip(e) + '</div>' +
+        '</div>' +
+        '<div class="right"><span class="src">' + e.src + '</span>' +
+          '<div class="acts">' +
+            (e.status === "active" ? '<button class="icon-btn" style="width:26px;height:26px;" title="Acknowledge" data-ack="' + e.id + '"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg></button><button class="icon-btn" style="width:26px;height:26px;" title="Mute this type" data-mute="' + e.id + '"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="m23 9-6 6M17 9l6 6"/></svg></button>' : '') +
+          '</div>' +
+        '</div>' +
+      '</div>';
+    });
+    stream.innerHTML = html || '<div style="padding:60px 24px; text-align:center; color:var(--fg-3);">No events match these filters.</div>';
+
+    document.getElementById("countNote").textContent = rows.length + " of " + EVENTS.length + " events";
+
+    stream.querySelectorAll(".ev").forEach(ev => ev.addEventListener("click", (e) => {
+      if (e.target.closest("[data-ack],[data-mute],.ent")) return;
+      openDrawer(ev.dataset.id);
+    }));
+    stream.querySelectorAll("[data-ack]").forEach(b => b.addEventListener("click", (e) => { e.stopPropagation(); const ev = EVENTS.find(x => x.id === b.dataset.ack); ev.status = "acked"; ev.ackBy = "alex@gonaibo.com"; render(); }));
+    stream.querySelectorAll("[data-mute]").forEach(b => b.addEventListener("click", (e) => { e.stopPropagation(); const ev = EVENTS.find(x => x.id === b.dataset.mute); ev.status = "muted"; render(); }));
+    stream.querySelectorAll(".ent.host").forEach(c => c.addEventListener("click", (e) => { e.stopPropagation(); location.href = "Host Detail.html"; }));
+    stream.querySelectorAll(".ent.group").forEach(c => c.addEventListener("click", (e) => { e.stopPropagation(); location.href = "Groups.html"; }));
+  }
+
+  // ───────── Drawer ─────────
+  function openDrawer(id) {
+    const e = EVENTS.find(x => x.id === id);
+    if (!e) return;
+    const sevColor = e.sev === "high" ? "var(--crit)" : e.sev === "med" ? "var(--warn)" : "var(--info)";
+    const related = EVENTS.filter(x => x.id !== e.id && x.host && x.host === e.host).slice(0, 4);
+    const kv = Object.entries(e.payload).map(([k, v]) => '<dt>' + k + '</dt><dd>' + v + '</dd>').join("");
+    const routed = e.routed.map(([ch, st]) => '<div class="r"><span class="' + st + '">' + (st === "ok" ? "✓" : "✕") + '</span>' + ch + (st === "fail" ? ' <span style="color:var(--crit); font-size:11px;">delivery failed</span>' : '') + '</div>').join("");
+    const relHtml = related.length ? related.map(r => '<div class="rel"><span class="rt">' + r.time + '</span><span style="color:' + (r.sev === "high" ? "var(--crit)" : r.sev === "med" ? "var(--warn)" : "var(--fg-1)") + '">' + r.type + '</span></div>').join("") : '<div style="color:var(--fg-3); font-size:12px;">No related events for this entity.</div>';
+
+    const isCompliance = e.cat === "compliance";
+    document.getElementById("drawer").innerHTML =
+      '<div class="dr-head"><div class="dr-top"><div class="dr-type"><span class="sevdot" style="background:' + sevColor + '"></span>' + e.type + '</div>' +
+        '<button class="icon-btn" id="drClose" title="Close"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>' +
+        '<div class="dr-sub"><span class="cat-chip" style="background:var(--bg-3); padding:2px 8px; border-radius:4px;">' + CATS[e.cat] + '</span><span>' + e.day + ' · ' + e.time + '</span><span class="mono">src: ' + e.src + '</span>' + (e.status !== "active" ? '<span class="status-tag ' + e.status + '" style="padding:2px 8px;">' + e.status + '</span>' : '') + '</div></div>' +
+      '<div class="dr-body">' +
+        '<div class="dr-sect"><div class="dr-msg">' + e.msg + '</div></div>' +
+        (e.host || e.user ? '<div class="dr-sect"><h5>Entity</h5><div class="meta" style="display:flex; gap:6px;">' + entChip(e) + '</div></div>' : '') +
+        '<div class="dr-sect"><h5>Payload</h5><dl class="kv">' + kv + '</dl></div>' +
+        '<div class="dr-sect"><h5>Routed to</h5><div class="routed">' + routed + '</div></div>' +
+        '<div class="dr-sect related"><h5>Related on this entity</h5>' + relHtml + '</div>' +
+      '</div>' +
+      '<div class="dr-foot">' +
+        (e.status === "active" ? '<button class="btn primary" id="drAck">Acknowledge</button><button class="btn" id="drMute">Mute this type</button><button class="btn">Snooze 1h</button>' : '<button class="btn" id="drReopen">Reopen</button>') +
+        (e.host ? '<button class="btn" onclick="location.href=\'Host Detail.html\'">Open host</button>' : '') +
+        (isCompliance ? '<button class="btn">Create exception</button>' : '') +
+      '</div>';
+    document.getElementById("drawer").classList.add("show");
+    document.getElementById("scrim").classList.add("show");
+    document.getElementById("drClose").addEventListener("click", closeDrawer);
+    const a = document.getElementById("drAck"); if (a) a.addEventListener("click", () => { e.status = "acked"; closeDrawer(); render(); });
+    const m = document.getElementById("drMute"); if (m) m.addEventListener("click", () => { e.status = "muted"; closeDrawer(); render(); });
+    const r = document.getElementById("drReopen"); if (r) r.addEventListener("click", () => { e.status = "active"; closeDrawer(); render(); });
+  }
+  function closeDrawer() { document.getElementById("drawer").classList.remove("show"); document.getElementById("scrim").classList.remove("show"); }
+  document.getElementById("scrim").addEventListener("click", closeDrawer);
+  document.addEventListener("keydown", e => { if (e.key === "Escape") closeDrawer(); });
+
+  // ───────── Wiring ─────────
+  document.getElementById("search").addEventListener("input", e => { state.query = e.target.value; render(); });
+  document.getElementById("range").addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; document.querySelectorAll("#range button").forEach(x => x.classList.toggle("active", x === b)); state.range = b.dataset.range; render(); });
+  document.getElementById("live").addEventListener("click", () => document.getElementById("live").classList.toggle("on"));
+  document.getElementById("clearSel").addEventListener("click", () => { state.bucket = null; render(); });
+  document.getElementById("ackAll").addEventListener("click", () => { EVENTS.filter(passes).forEach(e => { if (e.status === "active") e.status = "acked"; }); render(); });
+
+  // Avatar
+  (function () {
+    const btn = document.getElementById('avatarBtn'), menu = document.getElementById('avatarMenu');
+    btn.addEventListener('click', function (e) { e.stopPropagation(); const open = menu.hidden; menu.hidden = !open; btn.setAttribute('aria-expanded', String(open)); });
+    document.addEventListener('click', function (e) { if (!menu.hidden && !menu.contains(e.target) && e.target !== btn) menu.hidden = true; });
+  })();
+
+  buildFilters();
+  render();
+</script>
+
+</body>
+</html>

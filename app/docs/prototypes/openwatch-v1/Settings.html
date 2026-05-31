@@ -1,0 +1,2529 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Settings — openwatch</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg-0: #0b0c0f;
+    --bg-1: #111317;
+    --bg-2: #161a20;
+    --bg-3: #1c2129;
+    --line: #232831;
+    --line-2: #2c323d;
+
+    --fg-0: #f3f5f8;
+    --fg-1: #cfd4dd;
+    --fg-2: #8a93a3;
+    --fg-3: #5b6473;
+
+    --crit:  oklch(64% 0.20 25);
+    --crit-bg: oklch(35% 0.12 25 / 0.18);
+    --warn:  oklch(78% 0.15 75);
+    --warn-bg: oklch(50% 0.12 75 / 0.16);
+    --ok:    oklch(72% 0.16 155);
+    --ok-bg: oklch(45% 0.10 155 / 0.18);
+    --info:  oklch(70% 0.13 245);
+    --info-bg: oklch(45% 0.12 245 / 0.18);
+
+    --radius: 8px;
+    --radius-sm: 6px;
+  }
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg-0);
+    color: var(--fg-0);
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    font-size: 14px;
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+  }
+  .mono { font-family: 'JetBrains Mono', ui-monospace, monospace; font-feature-settings: "calt" 0; }
+  a { color: inherit; text-decoration: none; }
+
+  .app { display: grid; grid-template-columns: 56px 1fr; min-height: 100vh; }
+
+  /* Primary sidebar */
+  .sidebar {
+    background: var(--bg-1);
+    border-right: 1px solid var(--line);
+    display: flex; flex-direction: column; align-items: center;
+    padding: 14px 0; gap: 4px;
+    position: sticky; top: 0; height: 100vh;
+  }
+  .logo {
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, oklch(70% 0.13 245), oklch(60% 0.20 290));
+    display: grid; place-items: center;
+    font-weight: 700; color: white;
+    margin-bottom: 12px;
+  }
+  .nav-btn {
+    width: 40px; height: 40px;
+    display: grid; place-items: center;
+    border-radius: 8px;
+    color: var(--fg-2); cursor: pointer;
+    transition: 120ms; background: transparent; border: 0;
+  }
+  .nav-btn:hover { background: var(--bg-2); color: var(--fg-0); }
+  .nav-btn.active { background: var(--bg-3); color: var(--fg-0); box-shadow: inset 2px 0 0 var(--info); }
+  .nav-spacer { flex: 1; }
+
+  /* Top bar */
+  .topbar {
+    position: sticky; top: 0; z-index: 30;
+    background: color-mix(in oklab, var(--bg-0) 92%, transparent);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--line);
+  }
+  .topbar-row {
+    display: flex; align-items: center; padding: 14px 28px; gap: 16px;
+  }
+  .crumbs { color: var(--fg-2); font-size: 13px; display: flex; align-items: center; gap: 8px; }
+  .crumbs .sep { color: var(--fg-3); }
+  .topbar-actions { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+  .avatar { width: 30px; height: 30px; background: var(--info); color: #0a1424; border-radius: 50%; display: grid; place-items: center; font-weight: 600; font-size: 13px; }
+  .icon-btn {
+    width: 34px; height: 34px; border-radius: 6px;
+    color: var(--fg-2); cursor: pointer;
+    background: var(--bg-1); border: 1px solid var(--line);
+    display: inline-grid; place-items: center; transition: 120ms;
+  }
+  .icon-btn:hover { background: var(--bg-2); color: var(--fg-0); }
+
+  /* Buttons */
+  .btn {
+    height: 34px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--line);
+    background: var(--bg-1);
+    color: var(--fg-0);
+    font-family: inherit; font-weight: 500; font-size: 13px;
+    padding: 0 14px; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 8px;
+    transition: 120ms;
+  }
+  .btn:hover { background: var(--bg-2); border-color: var(--line-2); }
+  .btn.primary { background: var(--info); border-color: var(--info); color: #0a1424; font-weight: 600; }
+  .btn.primary:hover { filter: brightness(1.08); }
+  .btn.ghost { background: transparent; border-color: transparent; }
+  .btn.ghost:hover { background: var(--bg-2); }
+  .btn.sm { height: 28px; font-size: 12px; padding: 0 10px; }
+  .btn.danger { color: var(--crit); border-color: color-mix(in oklab, var(--crit) 30%, var(--line)); }
+  .btn.danger:hover { background: var(--crit-bg); }
+
+  /* Settings layout */
+  .settings-shell {
+    display: grid;
+    grid-template-columns: 260px 1fr;
+    align-items: start;
+    min-height: calc(100vh - 60px);
+  }
+  .settings-nav {
+    background: var(--bg-1);
+    border-right: 1px solid var(--line);
+    position: sticky; top: 60px;
+    height: calc(100vh - 60px);
+    overflow-y: auto;
+    padding: 18px 14px;
+  }
+  .settings-nav .sn-search {
+    height: 32px;
+    background: var(--bg-2);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    display: flex; align-items: center;
+    padding: 0 10px; gap: 8px;
+    color: var(--fg-2);
+    margin-bottom: 14px;
+  }
+  .settings-nav .sn-search input {
+    flex: 1; background: transparent; border: 0; outline: 0;
+    color: var(--fg-0); font-family: inherit; font-size: 13px;
+  }
+  .sn-group { margin-bottom: 14px; }
+  .sn-group h4 {
+    margin: 0 8px 6px;
+    font-size: 10px; font-weight: 600;
+    color: var(--fg-3);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .sn-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 7px 10px;
+    border-radius: 6px;
+    color: var(--fg-1);
+    cursor: pointer;
+    font-size: 13px;
+    transition: 100ms;
+  }
+  .sn-item:hover { background: var(--bg-2); }
+  .sn-item.active {
+    background: var(--bg-3);
+    color: var(--fg-0);
+    font-weight: 500;
+  }
+  .sn-item.active svg { color: var(--info); }
+  .sn-item svg { color: var(--fg-3); flex-shrink: 0; }
+  .sn-item .count {
+    margin-left: auto;
+    font-size: 11px;
+    color: var(--fg-3);
+    background: var(--bg-3);
+    padding: 1px 7px;
+    border-radius: 999px;
+    font-variant-numeric: tabular-nums;
+  }
+  .sn-item.active .count { background: var(--info-bg); color: var(--info); }
+  .sn-item .pip {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--warn);
+    margin-left: auto;
+  }
+
+  /* Settings content */
+  .settings-main {
+    padding: 24px 32px 96px;
+    max-width: 1100px;
+    width: 100%;
+  }
+  .settings-page[hidden] { display: none; }
+
+  /* Key list (for SSH keys) */
+  .key-list { display: flex; flex-direction: column; }
+  .key-row {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    gap: 16px;
+    align-items: center;
+    padding: 14px 20px;
+    border-top: 1px solid var(--line);
+  }
+  .key-row:first-child { border-top: 0; }
+  .key-row .left { display: flex; align-items: center; gap: 12px; min-width: 0; }
+  .key-row .key-ico {
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    background: var(--bg-3);
+    display: grid; place-items: center;
+    color: var(--fg-1);
+    flex-shrink: 0;
+  }
+  .key-row .key-name { font-weight: 500; }
+  .key-row .key-sub { color: var(--fg-3); font-size: 11px; margin-top: 2px; font-family: 'JetBrains Mono', monospace; }
+  .key-row .meta-strip {
+    display: flex; gap: 18px;
+    color: var(--fg-2); font-size: 12px;
+  }
+  .key-row .meta-strip .k { color: var(--fg-3); font-size: 11px; }
+  .key-row .meta-strip .v { color: var(--fg-1); }
+  .page-head {
+    display: flex; align-items: flex-end; justify-content: space-between;
+    gap: 20px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--line);
+    margin-bottom: 24px;
+  }
+  .page-head h1 {
+    margin: 0 0 4px;
+    font-size: 22px; font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  .page-head p { margin: 0; color: var(--fg-2); font-size: 13px; }
+
+  /* Section */
+  .section { margin-bottom: 32px; }
+  .section > h2 {
+    display: flex; align-items: center; gap: 10px;
+    margin: 0 0 4px;
+    font-size: 16px; font-weight: 600;
+  }
+  .section > h2 .badge {
+    background: var(--ok-bg);
+    color: var(--ok);
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 999px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .section > h2 .badge.warn { background: var(--warn-bg); color: var(--warn); }
+  .section > p.lead {
+    margin: 0 0 16px;
+    color: var(--fg-2);
+    font-size: 13px;
+    max-width: 720px;
+  }
+
+  /* Setting row — single key-value horizontal layout */
+  .setting-card {
+    background: var(--bg-1);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .setting-row {
+    display: grid;
+    grid-template-columns: 1fr minmax(180px, auto);
+    gap: 20px;
+    align-items: center;
+    padding: 16px 20px;
+    border-top: 1px solid var(--line);
+  }
+  .setting-row:first-child { border-top: 0; }
+  .setting-row .meta .name {
+    font-weight: 500;
+    color: var(--fg-0);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .setting-row .meta .desc {
+    color: var(--fg-2);
+    font-size: 12px;
+    margin-top: 4px;
+    line-height: 1.5;
+  }
+  .setting-row .meta .desc .mono { color: var(--fg-1); }
+  .setting-row .control { display: flex; justify-content: flex-end; }
+
+  /* Toggle */
+  .toggle {
+    width: 36px; height: 20px;
+    background: var(--bg-3);
+    border-radius: 999px;
+    position: relative;
+    cursor: pointer;
+    transition: 160ms;
+    border: 1px solid var(--line-2);
+    flex-shrink: 0;
+  }
+  .toggle::after {
+    content: "";
+    position: absolute;
+    top: 2px; left: 2px;
+    width: 14px; height: 14px;
+    background: var(--fg-2);
+    border-radius: 50%;
+    transition: 160ms;
+  }
+  .toggle.on {
+    background: var(--info);
+    border-color: var(--info);
+  }
+  .toggle.on::after {
+    left: 17px;
+    background: white;
+  }
+
+  /* Number stepper */
+  .stepper {
+    display: inline-flex;
+    align-items: stretch;
+    background: var(--bg-2);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    overflow: hidden;
+    height: 32px;
+  }
+  .stepper button {
+    width: 28px;
+    border: 0;
+    background: transparent;
+    color: var(--fg-2);
+    cursor: pointer;
+    font-size: 14px;
+  }
+  .stepper button:hover { background: var(--bg-3); color: var(--fg-0); }
+  .stepper input {
+    width: 56px;
+    border: 0;
+    background: transparent;
+    color: var(--fg-0);
+    text-align: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    outline: 0;
+  }
+  .stepper .unit {
+    padding: 0 10px;
+    color: var(--fg-2);
+    align-self: center;
+    font-size: 12px;
+    border-left: 1px solid var(--line);
+  }
+
+  /* Select */
+  select.field {
+    height: 32px;
+    background: var(--bg-2);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    color: var(--fg-0);
+    font-family: inherit;
+    font-size: 13px;
+    padding: 0 28px 0 10px;
+    cursor: pointer;
+    appearance: none;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238a93a3' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='m6 9 6 6 6-6'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right 8px center;
+  }
+  input.field, textarea.field {
+    background: var(--bg-2);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    color: var(--fg-0);
+    font-family: inherit;
+    font-size: 13px;
+    padding: 0 10px;
+    height: 32px;
+    outline: 0;
+  }
+  textarea.field { height: auto; padding: 8px 10px; }
+  input.field:focus, select.field:focus { border-color: var(--info); }
+
+  /* Scheduler hero */
+  .sched-summary {
+    background: var(--bg-1);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 18px 20px;
+    margin-bottom: 14px;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 20px;
+    align-items: center;
+  }
+  .sched-summary .head { display: flex; align-items: center; gap: 12px; }
+  .sched-summary .head .ico {
+    width: 36px; height: 36px;
+    border-radius: 8px;
+    background: var(--info-bg);
+    color: var(--info);
+    display: grid; place-items: center;
+    flex-shrink: 0;
+  }
+  .sched-summary .head .title { font-weight: 600; font-size: 15px; }
+  .sched-summary .head .sub { color: var(--fg-2); font-size: 12px; margin-top: 2px; }
+  .sched-summary .actions { display: flex; align-items: center; gap: 10px; }
+  .sched-summary .actions .next {
+    text-align: right;
+    color: var(--fg-2);
+    font-size: 12px;
+  }
+  .sched-summary .actions .next .mono { color: var(--fg-1); }
+
+  /* State-interval table */
+  .state-tbl {
+    background: var(--bg-1);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .state-tbl-head {
+    display: grid;
+    grid-template-columns: 1fr 200px 160px 90px;
+    gap: 16px;
+    padding: 10px 20px;
+    background: var(--bg-2);
+    border-bottom: 1px solid var(--line);
+    color: var(--fg-2);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-weight: 600;
+  }
+  .state-row {
+    display: grid;
+    grid-template-columns: 1fr 200px 160px 90px;
+    gap: 16px;
+    padding: 14px 20px;
+    align-items: center;
+    border-top: 1px solid var(--line);
+  }
+  .state-row:first-of-type { border-top: 0; }
+  .state-row .label { display: flex; align-items: center; gap: 12px; }
+  .state-row .label .pip {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .state-row.crit .pip { background: var(--crit); box-shadow: 0 0 0 3px color-mix(in oklab, var(--crit) 25%, transparent); }
+  .state-row.warn .pip { background: var(--warn); }
+  .state-row.info .pip { background: var(--info); }
+  .state-row.ok   .pip { background: var(--ok); }
+  .state-row.muted .pip { background: var(--fg-3); }
+  .state-row .name { font-weight: 500; }
+  .state-row .desc { color: var(--fg-2); font-size: 12px; margin-top: 2px; }
+
+  .state-row .hosts {
+    color: var(--fg-2); font-size: 12px;
+  }
+  .state-row .hosts .n {
+    font-weight: 600; color: var(--fg-0);
+    font-variant-numeric: tabular-nums;
+  }
+  .state-row.crit .hosts .n { color: var(--crit); }
+
+  .state-row .cadence {
+    color: var(--fg-2);
+    font-size: 11px;
+    text-align: right;
+  }
+  .state-row .cadence .strong {
+    color: var(--fg-1); font-weight: 600;
+    display: block;
+    font-size: 13px;
+    margin-bottom: 2px;
+  }
+
+  /* Timeline visualization */
+  .schedule-strip {
+    background: var(--bg-1);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 16px 20px;
+    margin-bottom: 14px;
+  }
+  .schedule-strip h4 {
+    margin: 0 0 12px;
+    font-size: 12px;
+    color: var(--fg-2);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-weight: 600;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .strip-track {
+    position: relative;
+    height: 64px;
+    background: var(--bg-2);
+    border-radius: 6px;
+    overflow: hidden;
+    border: 1px solid var(--line);
+  }
+  .strip-axis {
+    position: absolute; inset: 0;
+    display: flex; align-items: flex-end;
+    padding-bottom: 4px;
+    pointer-events: none;
+  }
+  .strip-axis .tick {
+    flex: 1;
+    text-align: center;
+    color: var(--fg-3);
+    font-size: 10px;
+    font-family: 'JetBrains Mono', monospace;
+    border-left: 1px solid color-mix(in oklab, var(--line) 50%, transparent);
+  }
+  .strip-axis .tick:first-child { border-left: 0; }
+  .strip-lane {
+    position: absolute;
+    left: 0; right: 0;
+    height: 8px;
+    display: flex; gap: 1px;
+  }
+  .strip-lane .pulse {
+    height: 100%;
+    width: 1.5px;
+    border-radius: 1px;
+  }
+  .strip-legend {
+    display: flex; gap: 16px;
+    margin-top: 10px;
+    flex-wrap: wrap;
+  }
+  .strip-legend .item {
+    display: flex; align-items: center; gap: 6px;
+    color: var(--fg-2); font-size: 12px;
+  }
+  .strip-legend .item .pip { width: 8px; height: 8px; border-radius: 2px; }
+
+  /* Maintenance & advanced */
+  .advanced-toggle {
+    display: inline-flex; align-items: center; gap: 6px;
+    color: var(--info); font-size: 13px;
+    cursor: pointer;
+    margin-top: 14px;
+    font-weight: 500;
+    user-select: none;
+  }
+  .advanced-toggle:hover { text-decoration: underline; }
+
+  /* Credential table */
+  .cred-tbl {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  .cred-tbl thead th {
+    text-align: left;
+    font-weight: 500;
+    color: var(--fg-2);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 10px 20px;
+    background: var(--bg-2);
+    border-bottom: 1px solid var(--line);
+  }
+  .cred-tbl tbody tr { border-top: 1px solid var(--line); }
+  .cred-tbl tbody tr:hover { background: var(--bg-2); }
+  .cred-tbl td { padding: 14px 20px; }
+  .cred-tbl .name-cell { display: flex; align-items: center; gap: 10px; }
+  .cred-tbl .key-ico {
+    width: 28px; height: 28px;
+    border-radius: 6px;
+    background: var(--bg-3);
+    display: grid; place-items: center;
+    color: var(--fg-1);
+  }
+  .cred-tbl .name { font-weight: 500; }
+  .cred-tbl .sub { color: var(--fg-3); font-size: 11px; }
+  .default-tag {
+    background: var(--info-bg);
+    color: var(--info);
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 3px 7px;
+    border-radius: 4px;
+  }
+  .status-pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 12px;
+    font-weight: 500;
+  }
+  .status-pill .pip { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 3px color-mix(in oklab, var(--ok) 25%, transparent); }
+  .status-pill.ok { color: var(--ok); }
+
+  /* Save bar */
+  .save-bar {
+    position: fixed;
+    left: 56px; right: 0;
+    bottom: 0;
+    z-index: 40;
+    background: color-mix(in oklab, var(--bg-0) 88%, transparent);
+    backdrop-filter: blur(12px);
+    border-top: 1px solid var(--line);
+    padding: 14px 28px;
+    display: flex; align-items: center; gap: 12px;
+    transform: translateY(120%);
+    transition: transform 200ms ease;
+  }
+  .save-bar.visible { transform: translateY(0); }
+  .save-bar .marker {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--warn);
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--warn) 25%, transparent);
+  }
+  .save-bar .summary { color: var(--fg-1); font-size: 13px; }
+  .save-bar .summary strong { color: var(--fg-0); font-weight: 600; }
+  .save-bar .actions { margin-left: auto; display: flex; gap: 8px; }
+
+  /* Inline help — sentence next to label */
+  .help {
+    display: inline-flex;
+    align-items: center;
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: var(--bg-3);
+    color: var(--fg-2);
+    cursor: help;
+    font-size: 10px;
+    justify-content: center;
+    font-weight: 600;
+  }
+  .help:hover { background: var(--line-2); color: var(--fg-0); }
+
+  /* Note callout */
+  .callout {
+    background: color-mix(in oklab, var(--info-bg) 80%, transparent);
+    border: 1px solid color-mix(in oklab, var(--info) 30%, var(--line));
+    border-left: 3px solid var(--info);
+    border-radius: var(--radius);
+    padding: 12px 16px;
+    display: flex; gap: 12px; align-items: flex-start;
+    margin-top: 14px;
+  }
+  .callout .ico { color: var(--info); flex-shrink: 0; margin-top: 1px; }
+  .callout .copy { font-size: 12px; color: var(--fg-1); line-height: 1.5; }
+  .callout .copy strong { color: var(--fg-0); }
+  .callout .copy a { color: var(--info); font-weight: 500; }
+
+  /* Status badge in section header */
+  .stat-mini-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+  .stat-mini {
+    background: var(--bg-1);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+  }
+  .stat-mini .k {
+    color: var(--fg-2); font-size: 11px;
+    text-transform: uppercase; letter-spacing: 0.06em;
+    font-weight: 500;
+  }
+  .stat-mini .v {
+    font-size: 22px; font-weight: 600;
+    letter-spacing: -0.01em;
+    margin-top: 4px;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+  .stat-mini .s {
+    color: var(--fg-3); font-size: 11px; margin-top: 4px;
+  }
+  .stat-mini.crit .v { color: var(--crit); }
+  .stat-mini.ok   .v { color: var(--ok); }
+
+  /* ───── Members table ───── */
+  .member-cell { display: flex; align-items: center; gap: 12px; }
+  .m-avatar {
+    width: 34px; height: 34px;
+    border-radius: 50%;
+    display: grid; place-items: center;
+    color: white; font-weight: 600; font-size: 13px;
+    flex-shrink: 0;
+  }
+  .member-cell .m-name { font-weight: 500; }
+  .member-cell .m-email { color: var(--fg-3); font-size: 12px; margin-top: 1px; }
+  .role-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    height: 22px; padding: 0 10px;
+    border-radius: 999px;
+    font-size: 11px; font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+  .role-badge.owner { background: var(--crit-bg); color: var(--crit); }
+  .role-badge.admin { background: var(--info-bg); color: var(--info); }
+  .role-badge.editor { background: var(--ok-bg); color: var(--ok); }
+  .role-badge.viewer { background: var(--bg-3); color: var(--fg-2); }
+
+  /* ───── Team chips ───── */
+  .team-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+  }
+  .team-card {
+    background: var(--bg-1);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 16px;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .team-card .t-head { display: flex; align-items: center; gap: 10px; }
+  .team-card .t-swatch {
+    width: 32px; height: 32px; border-radius: 8px;
+    display: grid; place-items: center;
+    color: white; flex-shrink: 0;
+  }
+  .team-card .t-name { font-weight: 600; }
+  .team-card .t-meta { color: var(--fg-2); font-size: 12px; }
+  .team-card .t-foot {
+    display: flex; align-items: center; justify-content: space-between;
+    border-top: 1px solid var(--line); padding-top: 10px;
+    font-size: 12px; color: var(--fg-2);
+  }
+  .avatar-stack { display: flex; }
+  .avatar-stack .a {
+    width: 24px; height: 24px; border-radius: 50%;
+    border: 2px solid var(--bg-1);
+    display: grid; place-items: center;
+    font-size: 10px; font-weight: 600; color: white;
+    margin-left: -8px;
+  }
+  .avatar-stack .a:first-child { margin-left: 0; }
+  .avatar-stack .more {
+    background: var(--bg-3); color: var(--fg-2);
+  }
+
+  /* ───── Integration cards ───── */
+  .integ-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+  .integ-card {
+    background: var(--bg-1);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 16px 18px;
+    display: flex; align-items: flex-start; gap: 14px;
+  }
+  .integ-card .logo-box {
+    width: 40px; height: 40px;
+    border-radius: 10px;
+    display: grid; place-items: center;
+    flex-shrink: 0;
+    font-weight: 700; font-size: 16px; color: white;
+  }
+  .integ-card .body { flex: 1; min-width: 0; }
+  .integ-card .i-name { font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  .integ-card .i-desc { color: var(--fg-2); font-size: 12px; margin-top: 3px; line-height: 1.5; }
+  .integ-card .i-foot { margin-top: 12px; display: flex; align-items: center; gap: 10px; }
+  .conn-tag {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 11px; font-weight: 600;
+    color: var(--ok);
+  }
+  .conn-tag .pip { width: 6px; height: 6px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 3px var(--ok-bg); }
+
+  /* ───── Notification matrix ───── */
+  .notif-matrix { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .notif-matrix thead th {
+    text-align: center; font-weight: 500; color: var(--fg-2);
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em;
+    padding: 12px 14px; background: var(--bg-2);
+    border-bottom: 1px solid var(--line);
+  }
+  .notif-matrix thead th:first-child { text-align: left; }
+  .notif-matrix tbody tr { border-top: 1px solid var(--line); }
+  .notif-matrix tbody tr:hover { background: var(--bg-2); }
+  .notif-matrix td { padding: 14px; text-align: center; }
+  .notif-matrix td:first-child { text-align: left; }
+  .notif-matrix .ev-name { font-weight: 500; }
+  .notif-matrix .ev-desc { color: var(--fg-3); font-size: 12px; margin-top: 2px; }
+  .check-toggle {
+    width: 20px; height: 20px;
+    border: 1.5px solid var(--line-2);
+    border-radius: 5px;
+    background: var(--bg-2);
+    cursor: pointer;
+    display: inline-grid; place-items: center;
+    transition: 120ms;
+  }
+  .check-toggle.on { background: var(--info); border-color: var(--info); }
+  .check-toggle svg { opacity: 0; color: #0a1424; }
+  .check-toggle.on svg { opacity: 1; }
+
+  /* ───── Profile / forms ───── */
+  .form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px 20px;
+    padding: 20px;
+  }
+  .form-field { display: flex; flex-direction: column; gap: 6px; }
+  .form-field.full { grid-column: 1 / -1; }
+  .form-field label {
+    font-size: 12px; font-weight: 500; color: var(--fg-1);
+  }
+  .form-field .field { height: 36px; width: 100%; }
+  .form-field .hint { color: var(--fg-3); font-size: 11px; }
+  .profile-hero {
+    display: flex; align-items: center; gap: 18px;
+    padding: 20px;
+    border-bottom: 1px solid var(--line);
+  }
+  .profile-hero .big-avatar {
+    width: 64px; height: 64px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, oklch(60% 0.13 245), oklch(50% 0.18 290));
+    color: white; display: grid; place-items: center;
+    font-weight: 600; font-size: 26px;
+  }
+  .profile-hero .ph-info .n { font-size: 16px; font-weight: 600; }
+  .profile-hero .ph-info .e { color: var(--fg-2); font-size: 13px; margin-top: 2px; }
+
+  /* Segmented control */
+  .segmented {
+    display: inline-flex;
+    background: var(--bg-2);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 3px;
+    gap: 2px;
+  }
+  .segmented button {
+    border: 0; background: transparent;
+    color: var(--fg-2); font-family: inherit;
+    font-size: 12px; font-weight: 500;
+    padding: 5px 14px; border-radius: 4px; cursor: pointer;
+  }
+  .segmented button.active { background: var(--bg-3); color: var(--fg-0); }
+
+  /* About list */
+  .about-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+  }
+  .about-tile {
+    background: var(--bg-1);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 16px 18px;
+  }
+  .about-tile .k { color: var(--fg-2); font-size: 12px; }
+  .about-tile .v { font-size: 15px; font-weight: 600; margin-top: 4px; font-variant-numeric: tabular-nums; }
+  .about-tile .v.mono { font-family: 'JetBrains Mono', monospace; font-size: 14px; }
+
+  /* Token row */
+  .token-mono {
+    font-family: 'JetBrains Mono', monospace;
+    background: var(--bg-2);
+    padding: 4px 10px;
+    border-radius: 6px;
+    color: var(--fg-1);
+    font-size: 12px;
+    border: 1px solid var(--line);
+  }
+  .ref-chip-x {
+    display: inline-flex; align-items: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    background: var(--bg-3);
+    color: var(--fg-1);
+    padding: 3px 8px;
+    border-radius: 4px;
+  }
+</style>
+<style>
+  /* Avatar dropdown */
+  .user-menu { position: relative; }
+  .avatar-btn { border: 0; cursor: pointer; font-family: inherit; padding: 0; }
+  .avatar-btn:focus-visible { outline: 2px solid var(--info); outline-offset: 2px; }
+  .avatar-menu {
+    position: absolute; right: 0; top: calc(100% + 10px);
+    width: 244px;
+    background: var(--bg-1);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    box-shadow: 0 16px 40px rgba(0,0,0,0.45);
+    padding: 6px;
+    z-index: 60;
+  }
+  .avatar-menu[hidden] { display: none; }
+  .am-head { display: flex; align-items: center; gap: 10px; padding: 10px; border-bottom: 1px solid var(--line); margin-bottom: 6px; }
+  .am-head .avatar { width: 36px; height: 36px; }
+  .am-id { min-width: 0; }
+  .am-name { font-weight: 600; font-size: 13px; }
+  .am-email { color: var(--fg-2); font-size: 12px; overflow: hidden; text-overflow: ellipsis; }
+  .am-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 6px; color: var(--fg-1); font-size: 13px; cursor: pointer; text-decoration: none; }
+  .am-item:hover { background: var(--bg-2); color: var(--fg-0); }
+  .am-item svg { color: var(--fg-2); flex-shrink: 0; }
+  .am-item.danger { color: var(--crit); }
+  .am-item.danger svg { color: var(--crit); }
+  .am-item.danger:hover { background: var(--crit-bg); }
+  .am-div { height: 1px; background: var(--line); margin: 6px 4px; }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <aside class="sidebar">
+    <div class="logo">ow</div>
+    <a href="Dashboard.html"><button class="nav-btn" title="Dashboard"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg></button></a>
+    <a href="Host Management.html"><button class="nav-btn" title="Hosts"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg></button></a>
+    <a href="Groups.html"><button class="nav-btn" title="Groups"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2 9 5-9 5-9-5 9-5z"/><path d="m3 12 9 5 9-5"/><path d="m3 17 9 5 9-5"/></svg></button></a>
+        <a href="Scans.html"><button class="nav-btn" title="Scans"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg></button></a>
+    <a href="Activity.html"><button class="nav-btn" title="Activity"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></button></a>
+    <a href="Reports.html"><button class="nav-btn" title="Reports"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m7 14 4-4 3 3 5-6"/></svg></button></a>
+    <a href="Terminal.html"><button class="nav-btn" title="Terminal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg></button></a>
+    <div class="nav-spacer"></div>
+    <button class="nav-btn active" title="Settings" onclick="location.href='Settings.html'"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .4 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.4 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.9.4l-.1.1A2 2 0 1 1 4.3 17.1l.1-.1a1.7 1.7 0 0 0 .4-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.4-1.9l-.1-.1A2 2 0 1 1 6.9 4.3l.1.1a1.7 1.7 0 0 0 1.9.4H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.4l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.4 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
+  </aside>
+
+  <main>
+    <!-- Top bar -->
+    <div class="topbar">
+      <div class="topbar-row">
+        <div class="crumbs"><span>Workspace</span><span class="sep">/</span><span style="color: var(--fg-0)">Settings</span></div>
+        <div class="topbar-actions">
+          <button class="icon-btn" title="Theme"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg></button>
+          <button class="icon-btn" title="Notifications" style="position:relative;" onclick="location.href='Activity.html'">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10 21a2 2 0 0 0 4 0"/></svg>
+            <span style="position:absolute; top:6px; right:6px; width:7px; height:7px; background: var(--crit); border-radius:50%; box-shadow: 0 0 0 2px var(--bg-0);"></span>
+          </button>
+          <div class="user-menu">
+          <button class="avatar avatar-btn" id="avatarBtn" aria-haspopup="menu" aria-expanded="false" title="Account">A</button>
+          <div class="avatar-menu" id="avatarMenu" hidden role="menu">
+            <div class="am-head">
+              <div class="avatar">A</div>
+              <div class="am-id"><div class="am-name">Alex Liang</div><div class="am-email">alex@gonaibo.com</div></div>
+            </div>
+            <a class="am-item" role="menuitem" href="Settings.html#profile"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>Your profile</a>
+            <a class="am-item" role="menuitem" href="Settings.html"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .4 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.4 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.9.4l-.1.1A2 2 0 1 1 4.3 17.1l.1-.1a1.7 1.7 0 0 0 .4-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.4-1.9l-.1-.1A2 2 0 1 1 6.9 4.3l.1.1a1.7 1.7 0 0 0 1.9.4H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.4l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.4 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>Settings</a>
+            <a class="am-item" role="menuitem" href="Settings.html#about"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>Help &amp; docs</a>
+            <div class="am-div"></div>
+            <a class="am-item danger" role="menuitem" href="#"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></svg>Sign out</a>
+          </div>
+        </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="settings-shell">
+      <!-- Settings nav -->
+      <nav class="settings-nav">
+        <div class="sn-search">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+          <input placeholder="Search settings…" />
+        </div>
+
+        <div class="sn-group">
+          <h4>Workspace</h4>
+          <div class="sn-item active" data-page="scanning">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+            Scanning &amp; monitoring
+          </div>
+          <div class="sn-item" data-page="ssh">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            SSH &amp; credentials
+            <span class="count">1</span>
+          </div>
+          <div class="sn-item" data-page="policies">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            Compliance policies
+          </div>
+          <div class="sn-item" data-page="notifications">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10 21a2 2 0 0 0 4 0"/></svg>
+            Notifications
+          </div>
+          <div class="sn-item" data-page="integrations">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/></svg>
+            Integrations
+          </div>
+        </div>
+
+        <div class="sn-group">
+          <h4>Access</h4>
+          <div class="sn-item" data-page="users">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3"/><path d="M3 21c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M15 21c0-2.5 1.7-4.5 4-5"/></svg>
+            Users &amp; teams
+            <span class="count">12</span>
+          </div>
+          <div class="sn-item" data-page="security">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            Security &amp; auth
+            <span class="pip"></span>
+          </div>
+          <div class="sn-item" data-page="audit">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m7 14 4-4 3 3 5-6"/></svg>
+            Audit log
+          </div>
+        </div>
+
+        <div class="sn-group">
+          <h4>Personal</h4>
+          <div class="sn-item" data-page="profile">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>
+            Profile
+          </div>
+          <div class="sn-item" data-page="preferences">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v6M12 17v6"/></svg>
+            Preferences
+          </div>
+          <div class="sn-item" data-page="about">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+            About
+          </div>
+        </div>
+      </nav>
+
+      <!-- Settings content -->
+      <div class="settings-main">
+
+        <!-- ═══════ Scanning & monitoring page ═══════ -->
+        <div class="settings-page" data-page="scanning">
+        <div class="page-head">
+          <div>
+            <h1>Scanning &amp; monitoring</h1>
+            <p>Control how often openwatch scans hosts for compliance and probes them for connectivity. Both schedulers adapt cadence based on host state.</p>
+          </div>
+          <button class="btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9"/><path d="M3 12V3h9"/></svg>Reset to defaults</button>
+        </div>
+
+        <!-- ───── Compliance scanner ───── -->
+        <section class="section">
+          <h2>Compliance scanner <span class="badge">Running</span></h2>
+          <p class="lead">Re-runs the active CIS / STIG profile against each host. Cadence is set per compliance state — failing hosts get re-checked more often.</p>
+
+          <div class="sched-summary">
+            <div class="head">
+              <div class="ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+              <div>
+                <div class="title">Automatic compliance scanning</div>
+                <div class="sub">Hard ceiling of 48h per host even when state hasn't changed</div>
+              </div>
+            </div>
+            <div class="actions">
+              <div class="next"><div>Next scan</div><div class="mono">in 2 min · <a style="color: var(--info);">5 hosts queued</a></div></div>
+              <div class="toggle on" data-toggle></div>
+            </div>
+          </div>
+
+          <!-- Visual schedule strip showing 24h cadence per state -->
+          <div class="schedule-strip">
+            <h4>What this will run · next 24 hours</h4>
+            <div class="strip-track" id="strip-compliance">
+              <!-- Pulses injected by script -->
+              <div class="strip-axis">
+                <span class="tick">now</span>
+                <span class="tick">+4h</span>
+                <span class="tick">+8h</span>
+                <span class="tick">+12h</span>
+                <span class="tick">+16h</span>
+                <span class="tick">+20h</span>
+              </div>
+            </div>
+            <div class="strip-legend">
+              <span class="item"><span class="pip" style="background: var(--crit)"></span>Critical · every 1h</span>
+              <span class="item"><span class="pip" style="background: var(--warn)"></span>Low · every 2h</span>
+              <span class="item"><span class="pip" style="background: var(--info)"></span>Partial · every 6h</span>
+              <span class="item"><span class="pip" style="background: oklch(72% 0.16 155 / 0.5)"></span>Mostly compliant · every 12h</span>
+              <span class="item"><span class="pip" style="background: var(--ok)"></span>Compliant · every 24h</span>
+            </div>
+          </div>
+
+          <div class="state-tbl">
+            <div class="state-tbl-head">
+              <span>State</span>
+              <span>Hosts</span>
+              <span style="text-align:right;">Interval</span>
+              <span style="text-align:right;">Current</span>
+            </div>
+
+            <div class="state-row crit">
+              <div class="label">
+                <span class="pip"></span>
+                <div>
+                  <div class="name">Critical</div>
+                  <div class="desc">Compliance &lt; 20%</div>
+                </div>
+              </div>
+              <div class="hosts"><span class="n">5</span> of 7 hosts</div>
+              <div class="control" style="justify-content: flex-end;">
+                <div class="stepper">
+                  <button>−</button>
+                  <input value="60" />
+                  <span class="unit">min</span>
+                  <button>+</button>
+                </div>
+              </div>
+              <div class="cadence"><span class="strong">Every 1h</span>120 scans/day</div>
+            </div>
+
+            <div class="state-row warn">
+              <div class="label">
+                <span class="pip"></span>
+                <div>
+                  <div class="name">Low</div>
+                  <div class="desc">Compliance 20–49%</div>
+                </div>
+              </div>
+              <div class="hosts"><span class="n">2</span> of 7 hosts</div>
+              <div class="control" style="justify-content: flex-end;">
+                <div class="stepper">
+                  <button>−</button>
+                  <input value="120" />
+                  <span class="unit">min</span>
+                  <button>+</button>
+                </div>
+              </div>
+              <div class="cadence"><span class="strong">Every 2h</span>24 scans/day</div>
+            </div>
+
+            <div class="state-row info">
+              <div class="label">
+                <span class="pip"></span>
+                <div>
+                  <div class="name">Partial</div>
+                  <div class="desc">Compliance 50–69%</div>
+                </div>
+              </div>
+              <div class="hosts"><span class="n">0</span> hosts</div>
+              <div class="control" style="justify-content: flex-end;">
+                <div class="stepper">
+                  <button>−</button>
+                  <input value="360" />
+                  <span class="unit">min</span>
+                  <button>+</button>
+                </div>
+              </div>
+              <div class="cadence"><span class="strong">Every 6h</span>—</div>
+            </div>
+
+            <div class="state-row ok" style="opacity: 0.85;">
+              <div class="label">
+                <span class="pip" style="opacity: 0.6;"></span>
+                <div>
+                  <div class="name">Mostly compliant</div>
+                  <div class="desc">Compliance 70–89%</div>
+                </div>
+              </div>
+              <div class="hosts"><span class="n">0</span> hosts</div>
+              <div class="control" style="justify-content: flex-end;">
+                <div class="stepper">
+                  <button>−</button>
+                  <input value="720" />
+                  <span class="unit">min</span>
+                  <button>+</button>
+                </div>
+              </div>
+              <div class="cadence"><span class="strong">Every 12h</span>—</div>
+            </div>
+
+            <div class="state-row ok">
+              <div class="label">
+                <span class="pip"></span>
+                <div>
+                  <div class="name">Compliant</div>
+                  <div class="desc">Compliance ≥ 90%</div>
+                </div>
+              </div>
+              <div class="hosts"><span class="n">0</span> hosts</div>
+              <div class="control" style="justify-content: flex-end;">
+                <div class="stepper">
+                  <button>−</button>
+                  <input value="1440" />
+                  <span class="unit">min</span>
+                  <button>+</button>
+                </div>
+              </div>
+              <div class="cadence"><span class="strong">Every 24h</span>—</div>
+            </div>
+          </div>
+
+          <div class="advanced-toggle">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+            Advanced — quiet hours, jitter, retry policy
+          </div>
+        </section>
+
+        <!-- ───── Host connectivity monitor ───── -->
+        <section class="section">
+          <h2>Host connectivity monitor <span class="badge">Running</span></h2>
+          <p class="lead">Pings each host over SSH to confirm it's reachable. Frequency increases with consecutive failures.</p>
+
+          <div class="sched-summary">
+            <div class="head">
+              <div class="ico" style="background: var(--ok-bg); color: var(--ok);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.6A10 10 0 0 1 12 9"/><path d="M2 8.8A14 14 0 0 1 11 5"/><path d="M9 16a4 4 0 0 1 6 0"/><path d="M12 20h.01"/></svg></div>
+              <div>
+                <div class="title">Adaptive health checks</div>
+                <div class="sub">2 online · 5 down · backs off automatically during maintenance</div>
+              </div>
+            </div>
+            <div class="actions">
+              <div class="next"><div>Last sweep</div><div class="mono">38 sec ago</div></div>
+              <div class="toggle on" data-toggle></div>
+            </div>
+          </div>
+
+          <div class="state-tbl">
+            <div class="state-tbl-head">
+              <span>Host state</span>
+              <span>Hosts</span>
+              <span style="text-align:right;">Check every</span>
+              <span style="text-align:right;">Range</span>
+            </div>
+
+            <div class="state-row muted">
+              <div class="label">
+                <span class="pip"></span>
+                <div>
+                  <div class="name">Unknown</div>
+                  <div class="desc">Newly added · no checks yet</div>
+                </div>
+              </div>
+              <div class="hosts"><span class="n">0</span> hosts</div>
+              <div class="control" style="justify-content: flex-end;">
+                <div class="stepper">
+                  <button>−</button>
+                  <input value="0" />
+                  <span class="unit">min</span>
+                  <button>+</button>
+                </div>
+              </div>
+              <div class="cadence"><span class="strong">Immediate</span>0–60 min</div>
+            </div>
+
+            <div class="state-row ok">
+              <div class="label">
+                <span class="pip"></span>
+                <div>
+                  <div class="name">Online</div>
+                  <div class="desc">Healthy · 0 failures</div>
+                </div>
+              </div>
+              <div class="hosts"><span class="n">2</span> hosts</div>
+              <div class="control" style="justify-content: flex-end;">
+                <div class="stepper">
+                  <button>−</button>
+                  <input value="15" />
+                  <span class="unit">min</span>
+                  <button>+</button>
+                </div>
+              </div>
+              <div class="cadence"><span class="strong">Every 15 min</span>5–60 min</div>
+            </div>
+
+            <div class="state-row info">
+              <div class="label">
+                <span class="pip"></span>
+                <div>
+                  <div class="name">Degraded</div>
+                  <div class="desc">1 consecutive failure</div>
+                </div>
+              </div>
+              <div class="hosts"><span class="n">0</span> hosts</div>
+              <div class="control" style="justify-content: flex-end;">
+                <div class="stepper">
+                  <button>−</button>
+                  <input value="5" />
+                  <span class="unit">min</span>
+                  <button>+</button>
+                </div>
+              </div>
+              <div class="cadence"><span class="strong">Every 5 min</span>1–15 min</div>
+            </div>
+
+            <div class="state-row warn">
+              <div class="label">
+                <span class="pip"></span>
+                <div>
+                  <div class="name">Critical</div>
+                  <div class="desc">2 consecutive failures</div>
+                </div>
+              </div>
+              <div class="hosts"><span class="n">0</span> hosts</div>
+              <div class="control" style="justify-content: flex-end;">
+                <div class="stepper">
+                  <button>−</button>
+                  <input value="2" />
+                  <span class="unit">min</span>
+                  <button>+</button>
+                </div>
+              </div>
+              <div class="cadence"><span class="strong">Every 2 min</span>1–10 min</div>
+            </div>
+
+            <div class="state-row crit">
+              <div class="label">
+                <span class="pip"></span>
+                <div>
+                  <div class="name">Down</div>
+                  <div class="desc">3+ consecutive failures</div>
+                </div>
+              </div>
+              <div class="hosts"><span class="n">5</span> hosts</div>
+              <div class="control" style="justify-content: flex-end;">
+                <div class="stepper">
+                  <button>−</button>
+                  <input value="30" />
+                  <span class="unit">min</span>
+                  <button>+</button>
+                </div>
+              </div>
+              <div class="cadence"><span class="strong">Every 30 min</span>10–120 min</div>
+            </div>
+
+            <div class="state-row muted">
+              <div class="label">
+                <span class="pip"></span>
+                <div>
+                  <div class="name">Maintenance</div>
+                  <div class="desc">Manually paused by an operator</div>
+                </div>
+              </div>
+              <div class="hosts"><span class="n">0</span> hosts</div>
+              <div class="control" style="justify-content: flex-end;">
+                <div class="stepper">
+                  <button>−</button>
+                  <input value="60" />
+                  <span class="unit">min</span>
+                  <button>+</button>
+                </div>
+              </div>
+              <div class="cadence"><span class="strong">Every 1h</span>15 min – 24h</div>
+            </div>
+          </div>
+
+          <div class="setting-card" style="margin-top: 14px;">
+            <div class="setting-row">
+              <div class="meta">
+                <div class="name">Maintenance mode behavior <span class="help" title="What openwatch does when an operator pauses a host">?</span></div>
+                <div class="desc">When a host is put into maintenance, choose whether to keep checking it at a reduced cadence or pause entirely.</div>
+              </div>
+              <div class="control">
+                <select class="field" style="min-width: 180px;">
+                  <option>Reduced checks · 60 min</option>
+                  <option>Pause checks entirely</option>
+                  <option>Continue normal cadence</option>
+                </select>
+              </div>
+            </div>
+            <div class="setting-row">
+              <div class="meta">
+                <div class="name">Network rate limit</div>
+                <div class="desc">Cap concurrent SSH connections to prevent flooding during fleet-wide sweeps.</div>
+              </div>
+              <div class="control">
+                <div class="stepper">
+                  <button>−</button>
+                  <input value="25" />
+                  <span class="unit">conns</span>
+                  <button>+</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="advanced-toggle">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+            Advanced — failure thresholds, jitter window, alert routing
+          </div>
+        </section>
+
+        <!-- ───── OS discovery ───── -->
+        <section class="section">
+          <h2>OS discovery <span class="badge">Scheduled daily</span></h2>
+          <p class="lead">Detects OS family, version, and platform on each host. Runs once on host registration, then nightly for anything still missing.</p>
+
+          <div class="setting-card">
+            <div class="setting-row">
+              <div class="meta">
+                <div class="name">Nightly re-scan</div>
+                <div class="desc">Sweeps any host with missing platform data. Runs at <span class="mono">02:00 UTC</span>.</div>
+              </div>
+              <div class="control" style="gap: 8px; align-items: center; display: flex;">
+                <button class="btn sm"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6,4 20,12 6,20"/></svg>Run now</button>
+                <div class="toggle on" data-toggle></div>
+              </div>
+            </div>
+            <div class="setting-row">
+              <div class="meta">
+                <div class="name">Detect on first contact</div>
+                <div class="desc">Always run platform detection when a host is added with credentials. <em style="color: var(--fg-3);">Recommended.</em></div>
+              </div>
+              <div class="control"><div class="toggle on" data-toggle></div></div>
+            </div>
+            <div class="setting-row">
+              <div class="meta">
+                <div class="name">Just-in-time detection</div>
+                <div class="desc">Re-detect during a scan if the recorded platform looks wrong. <em style="color: var(--fg-3);">Always on.</em></div>
+              </div>
+              <div class="control"><div class="toggle on" style="opacity: 0.5; cursor: not-allowed;"></div></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ───── Maintenance ───── -->
+        <section class="section">
+          <h2>Maintenance</h2>
+          <p class="lead">Pause scanning, connectivity checks, and alerting — fleet-wide, per group, or per host. A host is in maintenance if <strong>global</strong>, <strong>any of its groups</strong>, or the <strong>host itself</strong> is paused.</p>
+
+          <div class="setting-card" style="margin-bottom: 14px;">
+            <div class="setting-row">
+              <div class="meta">
+                <div class="name">Global maintenance mode <span class="help" title="Silences the entire fleet">?</span></div>
+                <div class="desc">Pause <strong>all</strong> scanning and alerting across every host. Use during planned infrastructure-wide work. <span style="color: var(--warn);">Nothing is monitored while this is on.</span></div>
+              </div>
+              <div class="control"><div class="toggle" data-toggle id="globalMaintToggle"></div></div>
+            </div>
+            <div class="setting-row">
+              <div class="meta">
+                <div class="name">Auto-resume</div>
+                <div class="desc">Automatically lift global maintenance after a set duration, so it can't be left on by accident.</div>
+              </div>
+              <div class="control"><select class="field" style="min-width:160px;"><option>After 4 hours</option><option>After 1 hour</option><option>After 8 hours</option><option>Manual only</option></select></div>
+            </div>
+          </div>
+
+          <div class="callout" style="margin-top:0; margin-bottom:14px;">
+            <div class="ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg></div>
+            <div class="copy"><strong>Precedence is OR, not override.</strong> Putting a group into maintenance pauses every host in it, even if the host's own toggle is off. Each host shows <em>why</em> it's paused (global, a group name, or direct).</div>
+          </div>
+
+          <h3 style="margin: 0 0 10px; font-size: 13px; color: var(--fg-2); text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600;">Group maintenance</h3>
+          <div class="setting-card">
+            <div class="setting-row">
+              <div class="meta"><div class="name">Production <span class="role-badge admin" style="background:var(--info-bg); color:var(--info);">Site</span></div><div class="desc">3 hosts · environment</div></div>
+              <div class="control" style="display:flex; gap:12px; align-items:center;"><button class="btn sm">Schedule window</button><div class="toggle" data-toggle></div></div>
+            </div>
+            <div class="setting-row">
+              <div class="meta"><div class="name">Development <span class="role-badge admin" style="background:var(--info-bg); color:var(--info);">Site</span></div><div class="desc">4 hosts · environment · <span style="color:var(--warn);">currently paused</span></div></div>
+              <div class="control" style="display:flex; gap:12px; align-items:center;"><button class="btn sm">Schedule window</button><div class="toggle on" data-toggle></div></div>
+            </div>
+            <div class="setting-row">
+              <div class="meta"><div class="name">DR · Warm standby <span class="role-badge admin" style="background:var(--info-bg); color:var(--info);">Site</span></div><div class="desc">2 hosts · disaster recovery</div></div>
+              <div class="control" style="display:flex; gap:12px; align-items:center;"><button class="btn sm">Schedule window</button><div class="toggle" data-toggle></div></div>
+            </div>
+            <div class="setting-row">
+              <div class="meta"><div class="name">RHEL <span class="role-badge" style="background:oklch(45% 0.12 300 / 0.2); color:oklch(74% 0.13 300);">OS</span></div><div class="desc">4 hosts · auto · <span class="mono">caps.os.family == rhel</span></div></div>
+              <div class="control" style="display:flex; gap:12px; align-items:center;"><button class="btn sm">Schedule window</button><div class="toggle" data-toggle></div></div>
+            </div>
+            <div class="setting-row">
+              <div class="meta"><div class="name">Ubuntu <span class="role-badge" style="background:oklch(45% 0.12 300 / 0.2); color:oklch(74% 0.13 300);">OS</span></div><div class="desc">3 hosts · auto · <span class="mono">caps.os.family == ubuntu</span></div></div>
+              <div class="control" style="display:flex; gap:12px; align-items:center;"><button class="btn sm">Schedule window</button><div class="toggle" data-toggle></div></div>
+            </div>
+            <div style="padding:12px 20px; border-top:1px solid var(--line); display:flex; justify-content:space-between; align-items:center;">
+              <span style="color: var(--fg-3); font-size: 12px;">Database &amp; App workload groups have no active maintenance.</span>
+              <a href="Groups.html" style="color: var(--info); font-weight: 500; font-size: 13px;">Open Groups →</a>
+            </div>
+          </div>
+        </section>
+
+        <!-- ───── Default SSH credentials moved to SSH & credentials page ───── -->
+        </div>
+        <!-- /scanning page -->
+
+        <!-- ═══════ SSH & credentials page ═══════ -->
+        <div class="settings-page" data-page="ssh" hidden>
+          <div class="page-head">
+            <div>
+              <h1>SSH &amp; credentials</h1>
+              <p>Credentials openwatch uses to reach your hosts, plus global SSH client settings. Credentials are encrypted at rest with the workspace master key.</p>
+            </div>
+            <button class="btn primary"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Add credential</button>
+          </div>
+
+          <!-- Coverage callout -->
+          <div class="stat-mini-row">
+            <div class="stat-mini ok">
+              <div class="k">Covered hosts</div>
+              <div class="v">7<span style="font-size: 13px; color: var(--fg-3); font-weight: 500;"> / 7</span></div>
+              <div class="s">All hosts reachable via credentials</div>
+            </div>
+            <div class="stat-mini">
+              <div class="k">Credentials</div>
+              <div class="v">1</div>
+              <div class="s">1 default · 0 host-specific</div>
+            </div>
+            <div class="stat-mini">
+              <div class="k">Keys on file</div>
+              <div class="v">2</div>
+              <div class="s">1 in active use</div>
+            </div>
+          </div>
+
+          <!-- Credentials section (moved from Scanning & monitoring) -->
+          <section class="section">
+            <h2>Credentials</h2>
+            <p class="lead">A host inherits the <strong>default</strong> credential unless an override is set on the host page. Test a credential to verify it can authenticate before saving.</p>
+
+            <div class="setting-card">
+              <table class="cred-tbl">
+                <thead>
+                  <tr>
+                    <th>Credential</th>
+                    <th>Username</th>
+                    <th>Method</th>
+                    <th>Used by</th>
+                    <th>Status</th>
+                    <th style="text-align:right;">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>
+                      <div class="name-cell">
+                        <div class="key-ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"/><path d="m10.85 12.15 7.85-7.85"/><path d="m18 7 1 1M14 11l1.5 1.5"/></svg></div>
+                        <div>
+                          <div class="name">owadmin <span class="default-tag">Default</span></div>
+                          <div class="sub mono">Created 4/11/2026 by alex@gonaibo.com</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td class="mono" style="color: var(--fg-1);">owadmin</td>
+                    <td>Key + password fallback</td>
+                    <td><span style="color: var(--fg-1); font-weight: 500;">7 hosts</span></td>
+                    <td><span class="status-pill ok"><span class="pip"></span>Active</span></td>
+                    <td style="text-align:right; white-space: nowrap;">
+                      <button class="icon-btn" style="width: 28px; height: 28px;" title="Test"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></button>
+                      <button class="icon-btn" style="width: 28px; height: 28px;" title="Edit"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 1 1 3 3L7 19l-4 1 1-4z"/></svg></button>
+                      <button class="icon-btn" style="width: 28px; height: 28px;" title="More"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+              <div style="padding: 12px 20px; border-top: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center;">
+                <span style="color: var(--fg-3); font-size: 12px;">A host can override the default in its own settings. Per-host overrides take precedence.</span>
+                <button class="btn sm"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Add credential</button>
+              </div>
+            </div>
+          </section>
+
+          <!-- SSH keys section -->
+          <section class="section">
+            <h2>SSH keys</h2>
+            <p class="lead">Private keys stored in the workspace vault. Each credential references one of these keys by name.</p>
+
+            <div class="setting-card">
+              <div class="key-list">
+                <div class="key-row">
+                  <div class="left">
+                    <div class="key-ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"/><path d="m10.85 12.15 7.85-7.85"/><path d="m18 7 1 1M14 11l1.5 1.5"/></svg></div>
+                    <div>
+                      <div class="key-name">owadmin_id_ed25519</div>
+                      <div class="key-sub">SHA256:8x4Q…vJzM · 2048-bit · added 4/11/2026</div>
+                    </div>
+                  </div>
+                  <div class="meta-strip">
+                    <div><div class="k">Type</div><div class="v">ED25519</div></div>
+                    <div><div class="k">Used by</div><div class="v">1 credential</div></div>
+                    <div><div class="k">Last used</div><div class="v">38s ago</div></div>
+                  </div>
+                  <div>
+                    <button class="icon-btn" style="width: 28px; height: 28px;" title="Copy fingerprint"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button>
+                    <button class="icon-btn" style="width: 28px; height: 28px; color: var(--crit);" title="Remove"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></button>
+                  </div>
+                </div>
+                <div class="key-row">
+                  <div class="left">
+                    <div class="key-ico" style="opacity: 0.5;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"/><path d="m10.85 12.15 7.85-7.85"/><path d="m18 7 1 1M14 11l1.5 1.5"/></svg></div>
+                    <div>
+                      <div class="key-name" style="color: var(--fg-2);">legacy_rsa_2024 <span style="font-size: 11px; color: var(--fg-3); margin-left: 4px;">unused</span></div>
+                      <div class="key-sub">SHA256:rK9p…aL2x · 4096-bit · added 1/02/2024</div>
+                    </div>
+                  </div>
+                  <div class="meta-strip">
+                    <div><div class="k">Type</div><div class="v">RSA</div></div>
+                    <div><div class="k">Used by</div><div class="v" style="color: var(--fg-3);">0 credentials</div></div>
+                    <div><div class="k">Last used</div><div class="v" style="color: var(--fg-3);">263 days ago</div></div>
+                  </div>
+                  <div>
+                    <button class="icon-btn" style="width: 28px; height: 28px;" title="Copy fingerprint"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button>
+                    <button class="icon-btn" style="width: 28px; height: 28px; color: var(--crit);" title="Remove"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></button>
+                  </div>
+                </div>
+              </div>
+              <div style="padding: 12px 20px; border-top: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center;">
+                <span style="color: var(--fg-3); font-size: 12px;">Private keys never leave the workspace vault. Only fingerprints are displayed.</span>
+                <div style="display: flex; gap: 8px;">
+                  <button class="btn sm">Generate key</button>
+                  <button class="btn sm"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 8 5-5 5 5"/><path d="M5 21h14"/></svg>Upload key</button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Connection defaults -->
+          <section class="section">
+            <h2>Connection defaults</h2>
+            <p class="lead">Applied to every SSH connection unless a host overrides the value. These map onto standard <span class="mono" style="color: var(--fg-1);">ssh_config</span> options.</p>
+
+            <div class="setting-card">
+              <div class="setting-row">
+                <div class="meta">
+                  <div class="name">Default SSH port</div>
+                  <div class="desc">Port used when a host doesn't specify one. Standard is <span class="mono">22</span>.</div>
+                </div>
+                <div class="control">
+                  <div class="stepper">
+                    <button>−</button>
+                    <input value="22" />
+                    <span class="unit">port</span>
+                    <button>+</button>
+                  </div>
+                </div>
+              </div>
+              <div class="setting-row">
+                <div class="meta">
+                  <div class="name">Connect timeout</div>
+                  <div class="desc">How long to wait for a TCP handshake before giving up. Counts toward the connectivity-failure tally.</div>
+                </div>
+                <div class="control">
+                  <div class="stepper">
+                    <button>−</button>
+                    <input value="30" />
+                    <span class="unit">sec</span>
+                    <button>+</button>
+                  </div>
+                </div>
+              </div>
+              <div class="setting-row">
+                <div class="meta">
+                  <div class="name">Keep-alive interval</div>
+                  <div class="desc">Send <span class="mono">ServerAliveInterval</span> probes during long scans so idle hosts don't drop the session.</div>
+                </div>
+                <div class="control">
+                  <div class="stepper">
+                    <button>−</button>
+                    <input value="60" />
+                    <span class="unit">sec</span>
+                    <button>+</button>
+                  </div>
+                </div>
+              </div>
+              <div class="setting-row">
+                <div class="meta">
+                  <div class="name">Concurrent connections</div>
+                  <div class="desc">Cap on simultaneous SSH sessions across the fleet. Higher = faster sweeps, more network load.</div>
+                </div>
+                <div class="control">
+                  <div class="stepper">
+                    <button>−</button>
+                    <input value="25" />
+                    <span class="unit">conns</span>
+                    <button>+</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Host key verification -->
+          <section class="section">
+            <h2>Host key verification</h2>
+            <p class="lead">Controls how openwatch handles new or changed SSH host keys. Stricter settings prevent man-in-the-middle attacks; relaxed settings make rotation easier.</p>
+
+            <div class="setting-card">
+              <div class="setting-row">
+                <div class="meta">
+                  <div class="name">Strict host key checking <span class="help" title="Maps to ssh_config StrictHostKeyChecking">?</span></div>
+                  <div class="desc">When a host key changes, what should openwatch do?</div>
+                </div>
+                <div class="control">
+                  <select class="field" style="min-width: 220px;">
+                    <option>Warn and continue (default)</option>
+                    <option>Reject the connection</option>
+                    <option>Accept silently — not recommended</option>
+                  </select>
+                </div>
+              </div>
+              <div class="setting-row">
+                <div class="meta">
+                  <div class="name">Auto-add new host keys</div>
+                  <div class="desc">Add a host's public key to <span class="mono">known_hosts</span> on first contact. Disable to require manual approval.</div>
+                </div>
+                <div class="control"><div class="toggle on" data-toggle></div></div>
+              </div>
+              <div class="setting-row">
+                <div class="meta">
+                  <div class="name">Allowed key algorithms</div>
+                  <div class="desc">Restrict which host key types openwatch will accept. Older algorithms are disabled by default.</div>
+                </div>
+                <div class="control">
+                  <select class="field" style="min-width: 220px;">
+                    <option>Modern (ED25519 + ECDSA + RSA-SHA2)</option>
+                    <option>Strict (ED25519 only)</option>
+                    <option>Permissive (allow legacy RSA)</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div class="callout">
+              <div class="ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg></div>
+              <div class="copy">
+                <strong>known_hosts is workspace-scoped.</strong> All connections share one trusted-keys database. To inspect or revoke individual entries, use <a href="#">Manage known hosts →</a>
+              </div>
+            </div>
+          </section>
+
+        </div>
+        <!-- /ssh page -->
+
+        <!-- ═══════ Compliance policies page ═══════ -->
+        <div class="settings-page" data-page="policies" hidden>
+          <div class="page-head">
+            <div>
+              <h1>Compliance policies</h1>
+              <p>openwatch scans every host against one rule set; frameworks are reporting lenses over the results. Set which rules are in scope, which framework scores to track, and how exceptions are handled.</p>
+            </div>
+            <button class="btn primary"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Add framework</button>
+          </div>
+
+          <div class="stat-mini-row">
+            <div class="stat-mini"><div class="k">Rules in scope</div><div class="v">560</div><div class="s">508 executed · 52 gated N/A</div></div>
+            <div class="stat-mini"><div class="k">Tracked lenses</div><div class="v">3</div><div class="s">CIS · STIG · NIST 800-53</div></div>
+            <div class="stat-mini warn"><div class="k">Pending exceptions</div><div class="v">1</div><div class="s">Awaiting approval</div></div>
+          </div>
+
+          <section class="section">
+            <h2>Framework lenses</h2>
+            <p class="lead">Frameworks are <strong>metadata on rules</strong>, not scan inputs — one rule can satisfy CIS, STIG and NIST at once. Toggle a framework <em>tracked</em> to score and display it on every host's Compliance tab.</p>
+            <div class="setting-card">
+              <table class="cred-tbl">
+                <thead><tr><th>Framework</th><th>Version</th><th>Mapped rules</th><th>Status</th><th style="text-align:right;">Tracked</th></tr></thead>
+                <tbody>
+                  <tr>
+                    <td><div class="name-cell"><div class="key-ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div><div><div class="name">CIS Benchmarks</div><div class="sub mono">Ubuntu 24.04 · RHEL 9</div></div></div></td>
+                    <td class="mono" style="color: var(--fg-1);">v1.0.0</td>
+                    <td><span style="color: var(--fg-1); font-weight: 500;">410</span> <span style="color:var(--fg-3);">rules</span></td>
+                    <td><span class="status-pill ok"><span class="pip"></span>Tracked</span></td>
+                    <td style="text-align:right; white-space:nowrap;"><div class="toggle on" data-toggle style="display:inline-block; vertical-align:middle;"></div></td>
+                  </tr>
+                  <tr>
+                    <td><div class="name-cell"><div class="key-ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div><div><div class="name">DISA STIG</div><div class="sub mono">Canonical Ubuntu 24.04 · RHEL 9</div></div></div></td>
+                    <td class="mono" style="color: var(--fg-1);">V1R3 / V2R7</td>
+                    <td><span style="color: var(--fg-1); font-weight: 500;">380</span> <span style="color:var(--fg-3);">rules</span></td>
+                    <td><span class="status-pill ok"><span class="pip"></span>Tracked</span></td>
+                    <td style="text-align:right; white-space:nowrap;"><div class="toggle on" data-toggle style="display:inline-block; vertical-align:middle;"></div></td>
+                  </tr>
+                  <tr>
+                    <td><div class="name-cell"><div class="key-ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div><div><div class="name">NIST SP 800-53</div><div class="sub mono">Rev 5 · low/moderate baseline</div></div></div></td>
+                    <td class="mono" style="color: var(--fg-1);">Rev 5</td>
+                    <td><span style="color: var(--fg-1); font-weight: 500;">540</span> <span style="color:var(--fg-3);">rules</span></td>
+                    <td><span class="status-pill ok"><span class="pip"></span>Tracked</span></td>
+                    <td style="text-align:right; white-space:nowrap;"><div class="toggle on" data-toggle style="display:inline-block; vertical-align:middle;"></div></td>
+                  </tr>
+                  <tr>
+                    <td><div class="name-cell"><div class="key-ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div><div><div class="name">PCI DSS</div><div class="sub mono">v4.0</div></div></div></td>
+                    <td class="mono" style="color: var(--fg-1);">v4.0</td>
+                    <td><span style="color: var(--fg-1); font-weight: 500;">210</span> <span style="color:var(--fg-3);">rules</span></td>
+                    <td><span class="status-pill" style="color: var(--fg-2);"><span class="pip" style="background: var(--fg-3); box-shadow:none;"></span>Available</span></td>
+                    <td style="text-align:right; white-space:nowrap;"><div class="toggle" data-toggle style="display:inline-block; vertical-align:middle;"></div></td>
+                  </tr>
+                </tbody>
+              </table>
+              <div style="padding:12px 20px; border-top:1px solid var(--line); display:flex; justify-content:space-between; align-items:center;">
+                <span style="color: var(--fg-3); font-size: 12px;">Untracked frameworks still tag rules — you just don't see their score until tracked.</span>
+                <button class="btn sm"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Import framework</button>
+              </div>
+            </div>
+          </section>
+
+          <section class="section">
+            <h2>Rule scope</h2>
+            <p class="lead">Which rules <span class="mono">Kensa.Scan</span> is handed for every host. Capability gates then drop rules that don't apply to the detected platform — you don't curate per-OS.</p>
+            <div class="setting-card">
+              <div class="setting-row">
+                <div class="meta"><div class="name">Rules to load</div><div class="desc">Start from the full library, or restrict to rules that map to chosen frameworks.</div></div>
+                <div class="control"><select class="field" style="min-width:260px;"><option>All rules mapping to tracked frameworks</option><option>Entire rule library</option><option>Custom selection…</option></select></div>
+              </div>
+              <div class="setting-row">
+                <div class="meta"><div class="name">Excluded rule tags</div><div class="desc">Drop rules carrying these tags before the scan (e.g. workstation-only checks on servers).</div></div>
+                <div class="control" style="display:flex; gap:6px; align-items:center;"><span class="ref-chip-x">workstation</span><span class="ref-chip-x">experimental</span><button class="btn sm">Edit</button></div>
+              </div>
+              <div class="setting-row">
+                <div class="meta"><div class="name">Capability detection <span class="help" title="detect.Detect() runs automatically at scan time">?</span></div><div class="desc">OS, packages and services are detected automatically; the <span class="mono">when:</span> gate skips rules that don't apply. <em style="color:var(--fg-3);">Always on — nothing to configure.</em></div></div>
+                <div class="control"><span class="status-pill ok"><span class="pip"></span>Automatic</span></div>
+              </div>
+            </div>
+            <div class="callout">
+              <div class="ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg></div>
+              <div class="copy"><strong>Last scan loaded 560 rules.</strong> 52 were gated out by capability detection (SELinux on an AppArmor host, auditd &amp; AIDE absent), leaving 508 executed across all tracked frameworks.</div>
+            </div>
+          </section>
+
+          <section class="section">
+            <h2>Exception workflow</h2>
+            <p class="lead">How rule exceptions (suppressing a failing check) are reviewed before they take effect.</p>
+            <div class="setting-card">
+              <div class="setting-row">
+                <div class="meta"><div class="name">Require approval for exceptions <span class="help" title="When on, a second operator must approve any suppressed rule">?</span></div><div class="desc">A second admin must approve before a rule is suppressed on any host.</div></div>
+                <div class="control"><div class="toggle on" data-toggle></div></div>
+              </div>
+              <div class="setting-row">
+                <div class="meta"><div class="name">Exception expiry</div><div class="desc">Auto-expire suppressions so they're periodically re-reviewed instead of lingering forever.</div></div>
+                <div class="control"><select class="field" style="min-width:160px;"><option>90 days</option><option>30 days</option><option>180 days</option><option>Never expire</option></select></div>
+              </div>
+              <div class="setting-row">
+                <div class="meta"><div class="name">Require justification note</div><div class="desc">Force the requester to document why a rule is being suppressed.</div></div>
+                <div class="control"><div class="toggle on" data-toggle></div></div>
+              </div>
+            </div>
+            <div class="callout">
+              <div class="ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg></div>
+              <div class="copy"><strong>1 exception is awaiting your approval.</strong> <a href="#">Review CIS-1.7.1 (MOTD banner) on owas-ub4m2 →</a></div>
+            </div>
+          </section>
+        </div>
+        <!-- /policies page -->
+
+        <!-- ═══════ Notifications page ═══════ -->
+        <div class="settings-page" data-page="notifications" hidden>
+          <div class="page-head">
+            <div>
+              <h1>Notifications</h1>
+              <p>Choose which events reach you and through which channels. Settings here apply to your account; team-wide routing lives under Integrations.</p>
+            </div>
+          </div>
+
+          <section class="section">
+            <h2>Channels</h2>
+            <p class="lead">Destinations openwatch can send to. Toggle a column on in the matrix below to route an event there.</p>
+            <div class="setting-card">
+              <div class="setting-row">
+                <div class="meta"><div class="name">Email <span class="default-tag">Verified</span></div><div class="desc mono">alex@gonaibo.com</div></div>
+                <div class="control"><div class="toggle on" data-toggle></div></div>
+              </div>
+              <div class="setting-row">
+                <div class="meta"><div class="name">Slack</div><div class="desc">Posts to <span class="mono">#infra-alerts</span> · connected via workspace integration</div></div>
+                <div class="control"><div class="toggle on" data-toggle></div></div>
+              </div>
+              <div class="setting-row">
+                <div class="meta"><div class="name">In-app</div><div class="desc">The bell menu in the top bar. Always on for critical events.</div></div>
+                <div class="control"><div class="toggle on" data-toggle></div></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="section">
+            <h2>Event routing</h2>
+            <p class="lead">Pick which channels fire for each event type.</p>
+            <div class="setting-card">
+              <table class="notif-matrix">
+                <thead><tr><th>Event</th><th>Email</th><th>Slack</th><th>In-app</th></tr></thead>
+                <tbody>
+                  <tr>
+                    <td><div class="ev-name">Host goes down</div><div class="ev-desc">3+ consecutive connectivity failures</div></td>
+                    <td><span class="check-toggle on"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span></td>
+                    <td><span class="check-toggle on"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span></td>
+                    <td><span class="check-toggle on"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span></td>
+                  </tr>
+                  <tr>
+                    <td><div class="ev-name">Compliance drops below baseline</div><div class="ev-desc">Score falls under the host's target</div></td>
+                    <td><span class="check-toggle on"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span></td>
+                    <td><span class="check-toggle on"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span></td>
+                    <td><span class="check-toggle on"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span></td>
+                  </tr>
+                  <tr>
+                    <td><div class="ev-name">Scan fails repeatedly</div><div class="ev-desc">Auto-scan exhausts all retries</div></td>
+                    <td><span class="check-toggle on"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span></td>
+                    <td><span class="check-toggle"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span></td>
+                    <td><span class="check-toggle on"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span></td>
+                  </tr>
+                  <tr>
+                    <td><div class="ev-name">New security update available</div><div class="ev-desc">CVE-flagged package on a host</div></td>
+                    <td><span class="check-toggle"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span></td>
+                    <td><span class="check-toggle on"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span></td>
+                    <td><span class="check-toggle on"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span></td>
+                  </tr>
+                  <tr>
+                    <td><div class="ev-name">Exception requested</div><div class="ev-desc">Someone asks to suppress a rule</div></td>
+                    <td><span class="check-toggle on"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span></td>
+                    <td><span class="check-toggle"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span></td>
+                    <td><span class="check-toggle on"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="section">
+            <h2>Delivery</h2>
+            <div class="setting-card">
+              <div class="setting-row">
+                <div class="meta"><div class="name">Daily digest</div><div class="desc">One summary email instead of per-event mail for non-critical items.</div></div>
+                <div class="control" style="display:flex; gap:8px; align-items:center;"><select class="field" style="min-width:120px;"><option>08:00</option><option>09:00</option><option>18:00</option></select><div class="toggle on" data-toggle></div></div>
+              </div>
+              <div class="setting-row">
+                <div class="meta"><div class="name">Quiet hours</div><div class="desc">Hold non-critical notifications overnight. Critical alerts always come through.</div></div>
+                <div class="control" style="display:flex; gap:8px; align-items:center;"><span style="color:var(--fg-2); font-size:12px;">22:00–07:00</span><div class="toggle on" data-toggle></div></div>
+              </div>
+            </div>
+          </section>
+        </div>
+        <!-- /notifications page -->
+
+        <!-- ═══════ Integrations page ═══════ -->
+        <div class="settings-page" data-page="integrations" hidden>
+          <div class="page-head">
+            <div>
+              <h1>Integrations</h1>
+              <p>Connect openwatch to the tools your team already uses for alerting, ticketing, and log forwarding.</p>
+            </div>
+            <button class="btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg>Browse all</button>
+          </div>
+
+          <section class="section">
+            <h2>Connected <span class="badge">2 active</span></h2>
+            <div class="integ-grid">
+              <div class="integ-card">
+                <div class="logo-box" style="background:#4A154B;">S</div>
+                <div class="body">
+                  <div class="i-name">Slack</div>
+                  <div class="i-desc">Posts alerts to <span class="mono">#infra-alerts</span>. Used by 3 notification rules.</div>
+                  <div class="i-foot"><span class="conn-tag"><span class="pip"></span>Connected</span><button class="btn sm">Configure</button></div>
+                </div>
+              </div>
+              <div class="integ-card">
+                <div class="logo-box" style="background:#1B1F23;">●</div>
+                <div class="body">
+                  <div class="i-name">PagerDuty</div>
+                  <div class="i-desc">Escalates host-down events to the on-call rotation.</div>
+                  <div class="i-foot"><span class="conn-tag"><span class="pip"></span>Connected</span><button class="btn sm">Configure</button></div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="section">
+            <h2>Available</h2>
+            <div class="integ-grid">
+              <div class="integ-card">
+                <div class="logo-box" style="background:#0052CC;">J</div>
+                <div class="body">
+                  <div class="i-name">Jira</div>
+                  <div class="i-desc">Open a ticket automatically when a high-severity rule fails.</div>
+                  <div class="i-foot"><button class="btn sm primary">Connect</button></div>
+                </div>
+              </div>
+              <div class="integ-card">
+                <div class="logo-box" style="background:#000000;">▲</div>
+                <div class="body">
+                  <div class="i-name">Splunk</div>
+                  <div class="i-desc">Forward scan results and audit events to your SIEM via HEC.</div>
+                  <div class="i-foot"><button class="btn sm primary">Connect</button></div>
+                </div>
+              </div>
+              <div class="integ-card">
+                <div class="logo-box" style="background:var(--bg-3); color:var(--fg-1);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg></div>
+                <div class="body">
+                  <div class="i-name">Webhook</div>
+                  <div class="i-desc">POST a JSON payload to any endpoint for custom automations.</div>
+                  <div class="i-foot"><button class="btn sm primary">Connect</button></div>
+                </div>
+              </div>
+              <div class="integ-card">
+                <div class="logo-box" style="background:#FF4F00;">G</div>
+                <div class="body">
+                  <div class="i-name">Grafana</div>
+                  <div class="i-desc">Expose compliance metrics on a Prometheus-compatible endpoint.</div>
+                  <div class="i-foot"><button class="btn sm primary">Connect</button></div>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+        <!-- /integrations page -->
+
+        <!-- ═══════ Users & teams page ═══════ -->
+        <div class="settings-page" data-page="users" hidden>
+          <div class="page-head">
+            <div>
+              <h1>Users &amp; teams</h1>
+              <p>Manage who has access to this workspace, what they can do, and how they're grouped into teams.</p>
+            </div>
+            <button class="btn primary"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg>Invite member</button>
+          </div>
+
+          <div class="stat-mini-row">
+            <div class="stat-mini"><div class="k">Members</div><div class="v">12</div><div class="s">2 admins · 8 editors · 2 viewers</div></div>
+            <div class="stat-mini"><div class="k">Teams</div><div class="v">3</div><div class="s">Infra · Security · Platform</div></div>
+            <div class="stat-mini warn"><div class="k">Pending invites</div><div class="v">1</div><div class="s">Sent 2 days ago</div></div>
+          </div>
+
+          <section class="section">
+            <h2>Teams</h2>
+            <div class="team-grid">
+              <div class="team-card">
+                <div class="t-head"><div class="t-swatch" style="background:oklch(60% 0.18 250);"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8"/></svg></div><div><div class="t-name">Infra</div><div class="t-meta">5 hosts</div></div></div>
+                <div class="t-foot"><div class="avatar-stack"><span class="a" style="background:oklch(60% 0.18 25);">AL</span><span class="a" style="background:oklch(60% 0.16 160);">JM</span><span class="a" style="background:oklch(60% 0.16 290);">Rs</span><span class="a more">+2</span></div><span>5 members</span></div>
+              </div>
+              <div class="team-card">
+                <div class="t-head"><div class="t-swatch" style="background:oklch(58% 0.2 25);"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div><div><div class="t-name">Security</div><div class="t-meta">2 hosts</div></div></div>
+                <div class="t-foot"><div class="avatar-stack"><span class="a" style="background:oklch(60% 0.16 200);">KP</span><span class="a" style="background:oklch(60% 0.16 60);">DV</span><span class="a more">+2</span></div><span>4 members</span></div>
+              </div>
+              <div class="team-card">
+                <div class="t-head"><div class="t-swatch" style="background:oklch(62% 0.16 160);"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-9 6 9 6 9-6-9-6z"/><path d="m3 15 9 6 9-6"/></svg></div><div><div class="t-name">Platform</div><div class="t-meta">0 hosts</div></div></div>
+                <div class="t-foot"><div class="avatar-stack"><span class="a" style="background:oklch(60% 0.18 320);">SN</span><span class="a" style="background:oklch(60% 0.16 110);">Ta</span><span class="a more">+1</span></div><span>3 members</span></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="section">
+            <h2>Members</h2>
+            <div class="setting-card">
+              <div class="rules-toolbar" style="border-bottom:1px solid var(--line); padding:14px 18px; display:flex; gap:10px; align-items:center;">
+                <div class="sn-search" style="margin:0; flex:1; max-width:320px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg><input placeholder="Search members…" /></div>
+                <div style="flex:1"></div>
+                <button class="btn sm">All roles ▾</button>
+                <button class="btn sm">All teams ▾</button>
+              </div>
+              <table class="cred-tbl">
+                <thead><tr><th>Member</th><th>Role</th><th>Teams</th><th>Last active</th><th style="text-align:right;">Actions</th></tr></thead>
+                <tbody>
+                  <tr>
+                    <td><div class="member-cell"><div class="m-avatar" style="background:oklch(60% 0.18 25);">AL</div><div><div class="m-name">Alex Liang <span style="color:var(--fg-3); font-weight:400; font-size:11px;">· you</span></div><div class="m-email">alex@gonaibo.com</div></div></div></td>
+                    <td><span class="role-badge owner">Owner</span></td>
+                    <td style="color:var(--fg-2); font-size:12px;">Infra · Security</td>
+                    <td style="color:var(--fg-2); font-size:12px;">Active now</td>
+                    <td style="text-align:right;"><button class="icon-btn" style="width:28px;height:28px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg></button></td>
+                  </tr>
+                  <tr>
+                    <td><div class="member-cell"><div class="m-avatar" style="background:oklch(60% 0.16 160);">JM</div><div><div class="m-name">Jordan Mehta</div><div class="m-email">jordan@gonaibo.com</div></div></div></td>
+                    <td><span class="role-badge admin">Admin</span></td>
+                    <td style="color:var(--fg-2); font-size:12px;">Infra</td>
+                    <td style="color:var(--fg-2); font-size:12px;">12 min ago</td>
+                    <td style="text-align:right;"><button class="icon-btn" style="width:28px;height:28px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg></button></td>
+                  </tr>
+                  <tr>
+                    <td><div class="member-cell"><div class="m-avatar" style="background:oklch(60% 0.16 200);">KP</div><div><div class="m-name">Kira Patel</div><div class="m-email">kira@gonaibo.com</div></div></div></td>
+                    <td><span class="role-badge admin">Admin</span></td>
+                    <td style="color:var(--fg-2); font-size:12px;">Security</td>
+                    <td style="color:var(--fg-2); font-size:12px;">1 hour ago</td>
+                    <td style="text-align:right;"><button class="icon-btn" style="width:28px;height:28px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg></button></td>
+                  </tr>
+                  <tr>
+                    <td><div class="member-cell"><div class="m-avatar" style="background:oklch(60% 0.16 290);">RS</div><div><div class="m-name">Riley Santos</div><div class="m-email">riley@gonaibo.com</div></div></div></td>
+                    <td><span class="role-badge editor">Editor</span></td>
+                    <td style="color:var(--fg-2); font-size:12px;">Infra · Platform</td>
+                    <td style="color:var(--fg-2); font-size:12px;">Yesterday</td>
+                    <td style="text-align:right;"><button class="icon-btn" style="width:28px;height:28px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg></button></td>
+                  </tr>
+                  <tr>
+                    <td><div class="member-cell"><div class="m-avatar" style="background:oklch(60% 0.16 60);">DV</div><div><div class="m-name">Dana Voss</div><div class="m-email">dana@gonaibo.com</div></div></div></td>
+                    <td><span class="role-badge viewer">Viewer</span></td>
+                    <td style="color:var(--fg-2); font-size:12px;">Security</td>
+                    <td style="color:var(--fg-2); font-size:12px;">3 days ago</td>
+                    <td style="text-align:right;"><button class="icon-btn" style="width:28px;height:28px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg></button></td>
+                  </tr>
+                  <tr>
+                    <td><div class="member-cell"><div class="m-avatar" style="background:var(--bg-3); color:var(--fg-2);">?</div><div><div class="m-name" style="color:var(--fg-2);">sam@gonaibo.com</div><div class="m-email">Invite pending · sent 2 days ago</div></div></div></td>
+                    <td><span class="role-badge editor">Editor</span></td>
+                    <td style="color:var(--fg-3); font-size:12px;">—</td>
+                    <td style="color:var(--fg-3); font-size:12px;">Never</td>
+                    <td style="text-align:right;"><button class="btn sm">Resend</button></td>
+                  </tr>
+                </tbody>
+              </table>
+              <div style="padding:12px 20px; border-top:1px solid var(--line); color:var(--fg-3); font-size:12px;">Showing 6 of 12 members · <a style="color:var(--info); font-weight:500;">Show all</a></div>
+            </div>
+          </section>
+        </div>
+        <!-- /users page -->
+
+        <!-- ═══════ Security & auth page ═══════ -->
+        <div class="settings-page" data-page="security" hidden>
+          <div class="page-head">
+            <div>
+              <h1>Security &amp; auth</h1>
+              <p>Authentication, session policy, and API access for the workspace.</p>
+            </div>
+          </div>
+
+          <div class="callout" style="margin-top:0; margin-bottom:20px; border-left-color:var(--warn); background:color-mix(in oklab, var(--warn-bg) 70%, transparent); border-color:color-mix(in oklab, var(--warn) 30%, var(--line));">
+            <div class="ico" style="color:var(--warn);"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.7a2 2 0 0 1 3.4 0l8 14a2 2 0 0 1-1.7 3H4.3a2 2 0 0 1-1.7-3z"/></svg></div>
+            <div class="copy"><strong>MFA is not enforced.</strong> 4 of 12 members don't have two-factor enabled. <a href="#">Require MFA workspace-wide →</a></div>
+          </div>
+
+          <section class="section">
+            <h2>Single sign-on</h2>
+            <div class="setting-card">
+              <div class="setting-row">
+                <div class="meta"><div class="name">SAML SSO</div><div class="desc">Let members sign in through your identity provider. <span class="mono">Okta</span> configured.</div></div>
+                <div class="control"><div class="toggle on" data-toggle></div></div>
+              </div>
+              <div class="setting-row">
+                <div class="meta"><div class="name">Just-in-time provisioning</div><div class="desc">Create accounts automatically on first SSO login.</div></div>
+                <div class="control"><div class="toggle on" data-toggle></div></div>
+              </div>
+              <div class="setting-row">
+                <div class="meta"><div class="name">Enforce SSO only</div><div class="desc">Disable password login. Members must authenticate through the IdP.</div></div>
+                <div class="control"><div class="toggle" data-toggle></div></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="section">
+            <h2>Authentication policy</h2>
+            <div class="setting-card">
+              <div class="setting-row">
+                <div class="meta"><div class="name">Require two-factor (MFA)</div><div class="desc">Force every member to enrol a second factor. <span style="color:var(--warn);">4 members not yet enrolled.</span></div></div>
+                <div class="control"><div class="toggle" data-toggle></div></div>
+              </div>
+              <div class="setting-row">
+                <div class="meta"><div class="name">Session timeout</div><div class="desc">Sign members out after a period of inactivity.</div></div>
+                <div class="control"><select class="field" style="min-width:160px;"><option>8 hours</option><option>1 hour</option><option>24 hours</option><option>7 days</option></select></div>
+              </div>
+              <div class="setting-row">
+                <div class="meta"><div class="name">Minimum password length</div><div class="desc">Applies to password logins when SSO-only is off.</div></div>
+                <div class="control"><div class="stepper"><button>−</button><input value="12" /><span class="unit">chars</span><button>+</button></div></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="section">
+            <h2>API tokens</h2>
+            <p class="lead">Programmatic access to the openwatch API. Scope tokens narrowly and rotate them regularly.</p>
+            <div class="setting-card">
+              <table class="cred-tbl">
+                <thead><tr><th>Token</th><th>Scope</th><th>Last used</th><th>Expires</th><th style="text-align:right;">Actions</th></tr></thead>
+                <tbody>
+                  <tr>
+                    <td><div class="name-cell"><div class="key-ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"/><path d="m10.85 12.15 7.85-7.85"/><path d="m18 7 1 1M14 11l1.5 1.5"/></svg></div><div><div class="name">ci-pipeline</div><div class="sub"><span class="token-mono">owk_live_••••4f9a</span></div></div></div></td>
+                    <td>Read-only</td>
+                    <td style="color:var(--fg-2); font-size:12px;">2 hours ago</td>
+                    <td style="color:var(--fg-2); font-size:12px;">in 89 days</td>
+                    <td style="text-align:right;"><button class="btn sm danger">Revoke</button></td>
+                  </tr>
+                  <tr>
+                    <td><div class="name-cell"><div class="key-ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"/><path d="m10.85 12.15 7.85-7.85"/><path d="m18 7 1 1M14 11l1.5 1.5"/></svg></div><div><div class="name">terraform-provisioner</div><div class="sub"><span class="token-mono">owk_live_••••1c0d</span></div></div></div></td>
+                    <td>Read + write</td>
+                    <td style="color:var(--fg-2); font-size:12px;">5 days ago</td>
+                    <td style="color:var(--warn); font-size:12px;">in 6 days</td>
+                    <td style="text-align:right;"><button class="btn sm danger">Revoke</button></td>
+                  </tr>
+                </tbody>
+              </table>
+              <div style="padding:12px 20px; border-top:1px solid var(--line); display:flex; justify-content:space-between; align-items:center;">
+                <span style="color:var(--fg-3); font-size:12px;">Tokens are shown once at creation and never again.</span>
+                <button class="btn sm"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Generate token</button>
+              </div>
+            </div>
+          </section>
+        </div>
+        <!-- /security page -->
+
+        <!-- ═══════ Audit log page ═══════ -->
+        <div class="settings-page" data-page="audit" hidden>
+          <div class="page-head">
+            <div>
+              <h1>Audit log</h1>
+              <p>An immutable record of configuration changes and access events across the workspace.</p>
+            </div>
+            <button class="btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>Export CSV</button>
+          </div>
+
+          <div class="setting-card">
+            <div class="rules-toolbar" style="border-bottom:1px solid var(--line); padding:14px 18px; display:flex; gap:10px; align-items:center;">
+              <div class="sn-search" style="margin:0; flex:1; max-width:320px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg><input placeholder="Search by actor, action, or object…" /></div>
+              <div style="flex:1"></div>
+              <button class="btn sm">All actors ▾</button>
+              <button class="btn sm">Last 7 days ▾</button>
+            </div>
+            <table class="cred-tbl">
+              <thead><tr><th>Actor</th><th>Action</th><th>Object</th><th style="text-align:right;">When</th></tr></thead>
+              <tbody>
+                <tr>
+                  <td><div class="member-cell"><div class="m-avatar" style="width:28px; height:28px; font-size:11px; background:oklch(60% 0.18 25);">AL</div><div class="m-name" style="font-size:13px;">Alex Liang</div></div></td>
+                  <td>Updated baseline target</td>
+                  <td><span class="mono" style="color:var(--fg-1);">owas-ub4m2</span> <span style="color:var(--fg-3);">35.8% → 36.2%</span></td>
+                  <td style="text-align:right; color:var(--fg-2); font-size:12px;">Today, 23:14</td>
+                </tr>
+                <tr>
+                  <td><div class="member-cell"><div class="m-avatar" style="width:28px; height:28px; font-size:11px; background:var(--bg-3); color:var(--fg-2);">sys</div><div class="m-name" style="font-size:13px; color:var(--fg-2);">system</div></div></td>
+                  <td>Auto-scan failed</td>
+                  <td><span class="mono" style="color:var(--fg-1);">owas-ub4m2</span> <span style="color:var(--fg-3);">timeout ×3</span></td>
+                  <td style="text-align:right; color:var(--fg-2); font-size:12px;">Today, 14:43</td>
+                </tr>
+                <tr>
+                  <td><div class="member-cell"><div class="m-avatar" style="width:28px; height:28px; font-size:11px; background:oklch(60% 0.16 160);">JM</div><div class="m-name" style="font-size:13px;">Jordan Mehta</div></div></td>
+                  <td>Revoked API token</td>
+                  <td><span class="mono" style="color:var(--fg-1);">legacy-exporter</span></td>
+                  <td style="text-align:right; color:var(--fg-2); font-size:12px;">Yesterday, 16:09</td>
+                </tr>
+                <tr>
+                  <td><div class="member-cell"><div class="m-avatar" style="width:28px; height:28px; font-size:11px; background:oklch(60% 0.16 200);">KP</div><div class="m-name" style="font-size:13px;">Kira Patel</div></div></td>
+                  <td>Changed scan interval</td>
+                  <td>Compliance · Critical <span style="color:var(--fg-3);">30 → 60 min</span></td>
+                  <td style="text-align:right; color:var(--fg-2); font-size:12px;">Yesterday, 11:27</td>
+                </tr>
+                <tr>
+                  <td><div class="member-cell"><div class="m-avatar" style="width:28px; height:28px; font-size:11px; background:oklch(60% 0.18 25);">AL</div><div class="m-name" style="font-size:13px;">Alex Liang</div></div></td>
+                  <td>Invited member</td>
+                  <td><span class="mono" style="color:var(--fg-1);">sam@gonaibo.com</span> <span style="color:var(--fg-3);">as Editor</span></td>
+                  <td style="text-align:right; color:var(--fg-2); font-size:12px;">2 days ago</td>
+                </tr>
+                <tr>
+                  <td><div class="member-cell"><div class="m-avatar" style="width:28px; height:28px; font-size:11px; background:oklch(60% 0.16 290);">RS</div><div class="m-name" style="font-size:13px;">Riley Santos</div></div></td>
+                  <td>Requested rule exception</td>
+                  <td><span class="mono" style="color:var(--fg-1);">CIS-1.7.1</span> <span style="color:var(--fg-3);">on owas-ub4m2</span></td>
+                  <td style="text-align:right; color:var(--fg-2); font-size:12px;">2 days ago</td>
+                </tr>
+                <tr>
+                  <td><div class="member-cell"><div class="m-avatar" style="width:28px; height:28px; font-size:11px; background:oklch(60% 0.16 200);">KP</div><div class="m-name" style="font-size:13px;">Kira Patel</div></div></td>
+                  <td>Connected integration</td>
+                  <td>PagerDuty</td>
+                  <td style="text-align:right; color:var(--fg-2); font-size:12px;">4 days ago</td>
+                </tr>
+              </tbody>
+            </table>
+            <div style="padding:12px 20px; border-top:1px solid var(--line); color:var(--fg-3); font-size:12px;">Showing 7 of 1,284 events · retained for 1 year</div>
+          </div>
+        </div>
+        <!-- /audit page -->
+
+        <!-- ═══════ Profile page ═══════ -->
+        <div class="settings-page" data-page="profile" hidden>
+          <div class="page-head">
+            <div>
+              <h1>Profile</h1>
+              <p>Your personal account details. Visible to other members of this workspace.</p>
+            </div>
+          </div>
+
+          <section class="section">
+            <div class="setting-card">
+              <div class="profile-hero">
+                <div class="big-avatar">AL</div>
+                <div class="ph-info"><div class="n">Alex Liang</div><div class="e">alex@gonaibo.com · Owner</div></div>
+                <div style="margin-left:auto; display:flex; gap:8px;"><button class="btn sm">Upload photo</button><button class="btn sm danger">Remove</button></div>
+              </div>
+              <div class="form-grid">
+                <div class="form-field"><label>Full name</label><input class="field" value="Alex Liang" /></div>
+                <div class="form-field"><label>Display name</label><input class="field" value="Alex" /></div>
+                <div class="form-field"><label>Email</label><input class="field" value="alex@gonaibo.com" /><span class="hint">Used for sign-in and email notifications.</span></div>
+                <div class="form-field"><label>Job title</label><input class="field" value="Infrastructure Lead" /></div>
+                <div class="form-field"><label>Timezone</label><select class="field"><option>America/Los_Angeles (PT)</option><option>America/New_York (ET)</option><option>UTC</option><option>Europe/London (GMT)</option></select></div>
+                <div class="form-field"><label>Phone (for critical alerts)</label><input class="field" value="+1 415 ••• ••42" /></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="section">
+            <h2>Password</h2>
+            <div class="setting-card">
+              <div class="setting-row">
+                <div class="meta"><div class="name">Change password</div><div class="desc">Last changed 234 days ago. <span style="color:var(--warn);">Consider rotating.</span></div></div>
+                <div class="control"><button class="btn">Update password</button></div>
+              </div>
+              <div class="setting-row">
+                <div class="meta"><div class="name">Two-factor authentication</div><div class="desc">Authenticator app enrolled. Recovery codes generated.</div></div>
+                <div class="control"><span class="status-pill ok"><span class="pip"></span>Enabled</span></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="section">
+            <h2>Active sessions</h2>
+            <div class="setting-card">
+              <div class="setting-row">
+                <div class="meta"><div class="name">MacBook Pro · Chrome <span class="default-tag">This device</span></div><div class="desc mono">San Francisco, US · 10.20.4.18 · active now</div></div>
+                <div class="control"><span style="color:var(--fg-3); font-size:12px;">Current session</span></div>
+              </div>
+              <div class="setting-row">
+                <div class="meta"><div class="name">iPhone · openwatch app</div><div class="desc mono">San Francisco, US · last active 3h ago</div></div>
+                <div class="control"><button class="btn sm danger">Revoke</button></div>
+              </div>
+            </div>
+          </section>
+        </div>
+        <!-- /profile page -->
+
+        <!-- ═══════ Preferences page ═══════ -->
+        <div class="settings-page" data-page="preferences" hidden>
+          <div class="page-head">
+            <div>
+              <h1>Preferences</h1>
+              <p>Personalize how openwatch looks and behaves for your account.</p>
+            </div>
+          </div>
+
+          <section class="section">
+            <h2>Appearance</h2>
+            <div class="setting-card">
+              <div class="setting-row">
+                <div class="meta"><div class="name">Theme</div><div class="desc">openwatch is designed for low-light NOC environments.</div></div>
+                <div class="control"><div class="segmented"><button>Light</button><button class="active">Dark</button><button>System</button></div></div>
+              </div>
+              <div class="setting-row">
+                <div class="meta"><div class="name">Density</div><div class="desc">Compact fits more rows per screen on the host and rule tables.</div></div>
+                <div class="control"><div class="segmented"><button class="active">Comfortable</button><button>Compact</button></div></div>
+              </div>
+              <div class="setting-row">
+                <div class="meta"><div class="name">Accent color</div><div class="desc">Used for primary actions and active states.</div></div>
+                <div class="control" style="display:flex; gap:8px;"><span style="width:24px; height:24px; border-radius:6px; background:oklch(70% 0.13 245); outline:2px solid var(--fg-0); outline-offset:2px;"></span><span style="width:24px; height:24px; border-radius:6px; background:oklch(62% 0.16 160); cursor:pointer;"></span><span style="width:24px; height:24px; border-radius:6px; background:oklch(60% 0.2 290); cursor:pointer;"></span></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="section">
+            <h2>Defaults</h2>
+            <div class="setting-card">
+              <div class="setting-row">
+                <div class="meta"><div class="name">Landing page</div><div class="desc">Where openwatch takes you on sign-in.</div></div>
+                <div class="control"><select class="field" style="min-width:160px;"><option>Hosts</option><option>Dashboard</option><option>Reports</option></select></div>
+              </div>
+              <div class="setting-row">
+                <div class="meta"><div class="name">Default host view</div><div class="desc">Table or cards on the Hosts page.</div></div>
+                <div class="control"><div class="segmented"><button class="active">Table</button><button>Cards</button></div></div>
+              </div>
+              <div class="setting-row">
+                <div class="meta"><div class="name">Date &amp; time format</div><div class="desc">How timestamps render across the app.</div></div>
+                <div class="control"><select class="field" style="min-width:200px;"><option>5/24/2026, 2:36 PM</option><option>2026-05-24 14:36</option><option>24 May 2026, 14:36</option></select></div>
+              </div>
+              <div class="setting-row">
+                <div class="meta"><div class="name">Reduce motion</div><div class="desc">Minimize animations like the status-pulse and save bar.</div></div>
+                <div class="control"><div class="toggle" data-toggle></div></div>
+              </div>
+            </div>
+          </section>
+        </div>
+        <!-- /preferences page -->
+
+        <!-- ═══════ About page ═══════ -->
+        <div class="settings-page" data-page="about" hidden>
+          <div class="page-head">
+            <div>
+              <h1>About</h1>
+              <p>Version, license, and support information for this openwatch deployment.</p>
+            </div>
+            <button class="btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9"/><path d="M3 12V3h9"/></svg>Check for updates</button>
+          </div>
+
+          <section class="section">
+            <div class="about-grid">
+              <div class="about-tile"><div class="k">Version</div><div class="v mono">2.4.1</div></div>
+              <div class="about-tile"><div class="k">Build</div><div class="v mono">a3f9c1e</div></div>
+              <div class="about-tile"><div class="k">Released</div><div class="v">May 18, 2026</div></div>
+              <div class="about-tile"><div class="k">Agent version</div><div class="v mono">2.4.1</div></div>
+              <div class="about-tile"><div class="k">License</div><div class="v">Enterprise · 50 hosts</div></div>
+              <div class="about-tile"><div class="k">Hosts in use</div><div class="v">7 <span style="font-size:13px; color:var(--fg-3); font-weight:500;">/ 50</span></div></div>
+            </div>
+          </section>
+
+          <section class="section">
+            <h2>Support</h2>
+            <div class="setting-card">
+              <div class="setting-row">
+                <div class="meta"><div class="name">Documentation</div><div class="desc">Guides, API reference, and CIS profile catalog.</div></div>
+                <div class="control"><button class="btn sm">Open docs ↗</button></div>
+              </div>
+              <div class="setting-row">
+                <div class="meta"><div class="name">Contact support</div><div class="desc">Enterprise support · response within 4 business hours.</div></div>
+                <div class="control"><button class="btn sm">New ticket</button></div>
+              </div>
+              <div class="setting-row">
+                <div class="meta"><div class="name">System status</div><div class="desc">All openwatch cloud services operational.</div></div>
+                <div class="control"><span class="status-pill ok"><span class="pip"></span>Operational</span></div>
+              </div>
+              <div class="setting-row">
+                <div class="meta"><div class="name">Diagnostics bundle</div><div class="desc">Download logs and config to share with support.</div></div>
+                <div class="control"><button class="btn sm">Download</button></div>
+              </div>
+            </div>
+          </section>
+        </div>
+        <!-- /about page -->
+
+      </div>
+      <!-- /settings-main -->
+    </div>
+    <!-- /settings-shell -->
+
+    <!-- Sticky save bar -->
+    <div class="save-bar" id="save-bar">
+      <span class="marker"></span>
+      <span class="summary"><strong>2 changes</strong> · Critical: 60 → 45 min · Online: 15 → 10 min</span>
+      <div class="actions">
+        <button class="btn" id="discard-btn">Discard</button>
+        <button class="btn primary">Save changes</button>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+  // Build the 24h schedule strip — pulses for each compliance state
+  function paintStrip(id, schedule, width = 24 * 60) {
+    const track = document.getElementById(id);
+    if (!track) return;
+    // Each minute is mapped to (1/width) of the track.
+    // For each state, draw vertical pulses at the right intervals.
+    schedule.forEach((s, laneIdx) => {
+      const lane = document.createElement("div");
+      lane.className = "strip-lane";
+      lane.style.top = (8 + laneIdx * 9) + "px";
+      lane.style.height = "6px";
+      for (let t = 0; t <= width; t += s.intervalMin) {
+        const pulse = document.createElement("div");
+        pulse.className = "pulse";
+        pulse.style.background = s.color;
+        pulse.style.opacity = s.hosts > 0 ? 1 : 0.25;
+        pulse.style.position = "absolute";
+        pulse.style.left = `calc(${(t / width) * 100}% - 1px)`;
+        pulse.style.top = "0";
+        pulse.style.height = "100%";
+        lane.appendChild(pulse);
+      }
+      track.appendChild(lane);
+    });
+  }
+
+  paintStrip("strip-compliance", [
+    { intervalMin: 60,   color: "var(--crit)", hosts: 5 },
+    { intervalMin: 120,  color: "var(--warn)", hosts: 2 },
+    { intervalMin: 360,  color: "var(--info)", hosts: 0 },
+    { intervalMin: 720,  color: "oklch(72% 0.16 155 / 0.5)", hosts: 0 },
+    { intervalMin: 1440, color: "var(--ok)",   hosts: 0 },
+  ]);
+
+  // Toggles
+  document.querySelectorAll("[data-toggle]").forEach(t => {
+    t.addEventListener("click", () => t.classList.toggle("on"));
+  });
+
+  // Save bar — show when any input/stepper changes, or any toggle clicked
+  const bar = document.getElementById("save-bar");
+  function showBar() { bar.classList.add("visible"); }
+  document.querySelectorAll(".stepper input, input.field, select.field").forEach(el => {
+    el.addEventListener("input", showBar);
+    el.addEventListener("change", showBar);
+  });
+  document.querySelectorAll(".stepper button").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const input = btn.parentElement.querySelector("input");
+      const cur = parseInt(input.value, 10) || 0;
+      input.value = btn.textContent.trim() === "+" ? cur + 5 : Math.max(0, cur - 5);
+      showBar();
+    });
+  });
+  document.querySelectorAll("[data-toggle]").forEach(t => t.addEventListener("click", showBar));
+  document.getElementById("discard-btn").addEventListener("click", () => bar.classList.remove("visible"));
+
+  // Notification matrix check-toggles
+  document.querySelectorAll(".check-toggle").forEach(c => {
+    c.addEventListener("click", () => { c.classList.toggle("on"); showBar(); });
+  });
+
+  // Segmented controls
+  document.querySelectorAll(".segmented").forEach(seg => {
+    seg.addEventListener("click", (e) => {
+      const btn = e.target.closest("button");
+      if (!btn) return;
+      seg.querySelectorAll("button").forEach(b => b.classList.toggle("active", b === btn));
+      showBar();
+    });
+  });
+
+  // Settings nav (panel switcher)
+  document.querySelectorAll(".sn-item").forEach(i => {
+    i.addEventListener("click", () => {
+      document.querySelectorAll(".sn-item").forEach(x => x.classList.remove("active"));
+      i.classList.add("active");
+      const page = i.dataset.page;
+      if (!page) return;
+      document.querySelectorAll(".settings-page").forEach(p => {
+        p.hidden = p.dataset.page !== page;
+      });
+      bar.classList.remove("visible");
+      window.scrollTo({ top: 0, behavior: "instant" });
+    });
+  });
+</script>
+
+<script>
+  (function () {
+    var btn = document.getElementById('avatarBtn');
+    var menu = document.getElementById('avatarMenu');
+    if (!btn || !menu) return;
+    function closeMenu() { menu.hidden = true; btn.setAttribute('aria-expanded', 'false'); }
+    btn.addEventListener('click', function (e) { e.stopPropagation(); var open = menu.hidden; menu.hidden = !open; btn.setAttribute('aria-expanded', String(open)); });
+    document.addEventListener('click', function (e) { if (!menu.hidden && !menu.contains(e.target) && e.target !== btn) closeMenu(); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeMenu(); });
+  })();
+</script>
+<script>
+  (function () {
+    function applyHash() {
+      var h = (location.hash || '').slice(1);
+      if (!h) return;
+      var item = document.querySelector('.sn-item[data-page="' + h + '"]');
+      if (item) item.click();
+    }
+    window.addEventListener('DOMContentLoaded', applyHash);
+    window.addEventListener('hashchange', applyHash);
+    applyHash();
+  })();
+</script>
+</body>
+</html>

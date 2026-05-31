@@ -1,0 +1,883 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Scans — openwatch</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg-0: #0b0c0f; --bg-1: #111317; --bg-2: #161a20; --bg-3: #1c2129;
+    --line: #232831; --line-2: #2c323d;
+    --fg-0: #f3f5f8; --fg-1: #cfd4dd; --fg-2: #8a93a3; --fg-3: #5b6473;
+    --crit: oklch(64% 0.20 25); --crit-bg: oklch(35% 0.12 25 / 0.18);
+    --warn: oklch(78% 0.15 75); --warn-bg: oklch(50% 0.12 75 / 0.16);
+    --ok: oklch(72% 0.16 155); --ok-bg: oklch(45% 0.10 155 / 0.18);
+    --info: oklch(70% 0.13 245); --info-bg: oklch(45% 0.12 245 / 0.18);
+    --ubuntu: #e95420; --rhel: #ee0000;
+    --radius: 8px; --radius-sm: 6px;
+  }
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body { background: var(--bg-0); color: var(--fg-0); font-family: 'Inter', system-ui, sans-serif; font-size: 14px; line-height: 1.45; -webkit-font-smoothing: antialiased; }
+  .mono { font-family: 'JetBrains Mono', ui-monospace, monospace; font-feature-settings: "calt" 0; }
+  a { color: inherit; text-decoration: none; }
+
+  .app { display: grid; grid-template-columns: 56px 1fr; min-height: 100vh; }
+  .sidebar { background: var(--bg-1); border-right: 1px solid var(--line); display: flex; flex-direction: column; align-items: center; padding: 14px 0; gap: 4px; position: sticky; top: 0; height: 100vh; }
+  .logo { width: 32px; height: 32px; border-radius: 8px; background: linear-gradient(135deg, oklch(70% 0.13 245), oklch(60% 0.20 290)); display: grid; place-items: center; font-weight: 700; color: white; margin-bottom: 12px; }
+  .nav-btn { width: 40px; height: 40px; display: grid; place-items: center; border-radius: 8px; color: var(--fg-2); cursor: pointer; transition: 120ms; background: transparent; border: 0; }
+  .nav-btn:hover { background: var(--bg-2); color: var(--fg-0); }
+  .nav-btn.active { background: var(--bg-3); color: var(--fg-0); box-shadow: inset 2px 0 0 var(--info); }
+  .nav-spacer { flex: 1; }
+
+  .topbar { position: sticky; top: 0; z-index: 30; background: color-mix(in oklab, var(--bg-0) 92%, transparent); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); }
+  .topbar-row { display: flex; align-items: center; padding: 14px 28px; gap: 16px; }
+  .crumbs { color: var(--fg-2); font-size: 13px; display: flex; align-items: center; gap: 8px; }
+  .crumbs .sep { color: var(--fg-3); }
+  .topbar-actions { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+  .avatar { width: 30px; height: 30px; background: var(--info); color: #0a1424; border-radius: 50%; display: grid; place-items: center; font-weight: 600; font-size: 13px; }
+  .icon-btn { width: 34px; height: 34px; border-radius: 6px; color: var(--fg-2); cursor: pointer; background: var(--bg-1); border: 1px solid var(--line); display: inline-grid; place-items: center; transition: 120ms; }
+  .icon-btn:hover { background: var(--bg-2); color: var(--fg-0); }
+
+  .btn { height: 34px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--bg-1); color: var(--fg-0); font-family: inherit; font-weight: 500; font-size: 13px; padding: 0 14px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; transition: 120ms; }
+  .btn:hover { background: var(--bg-2); border-color: var(--line-2); }
+  .btn.primary { background: var(--info); border-color: var(--info); color: #0a1424; font-weight: 600; }
+  .btn.primary:hover { filter: brightness(1.08); }
+  .btn.sm { height: 28px; font-size: 12px; padding: 0 10px; }
+
+  /* Avatar dropdown */
+  .user-menu { position: relative; }
+  .avatar-btn { border: 0; cursor: pointer; font-family: inherit; padding: 0; }
+  .avatar-menu { position: absolute; right: 0; top: calc(100% + 10px); width: 244px; background: var(--bg-1); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 16px 40px rgba(0,0,0,0.45); padding: 6px; z-index: 60; }
+  .avatar-menu[hidden] { display: none; }
+  .am-head { display: flex; align-items: center; gap: 10px; padding: 10px; border-bottom: 1px solid var(--line); margin-bottom: 6px; }
+  .am-head .avatar { width: 36px; height: 36px; }
+  .am-name { font-weight: 600; font-size: 13px; }
+  .am-email { color: var(--fg-2); font-size: 12px; }
+  .am-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 6px; color: var(--fg-1); font-size: 13px; cursor: pointer; }
+  .am-item:hover { background: var(--bg-2); color: var(--fg-0); }
+  .am-item svg { color: var(--fg-2); }
+  .am-item.danger { color: var(--crit); }
+  .am-item.danger:hover { background: var(--crit-bg); }
+  .am-div { height: 1px; background: var(--line); margin: 6px 4px; }
+
+  /* Page header */
+  .page-head { padding: 22px 28px 8px; display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; }
+  .page-title { font-size: 22px; font-weight: 600; letter-spacing: -0.01em; margin: 0; }
+  .page-sub { color: var(--fg-2); font-size: 13px; margin-top: 2px; }
+
+  /* KPI row */
+  .kpis { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; padding: 14px 28px 6px; }
+  .kpi { background: var(--bg-1); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; }
+  .kpi .k { color: var(--fg-2); font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.06em; }
+  .kpi .v { font-size: 26px; font-weight: 600; letter-spacing: -0.02em; margin-top: 8px; line-height: 1; font-variant-numeric: tabular-nums; display: flex; align-items: baseline; gap: 6px; }
+  .kpi .v .unit { font-size: 14px; color: var(--fg-2); font-weight: 500; }
+  .kpi .s { color: var(--fg-3); font-size: 11px; margin-top: 8px; }
+  .kpi.crit .v { color: var(--crit); }
+  .kpi.warn .v { color: var(--warn); }
+  .kpi.ok .v { color: var(--ok); }
+  .kpi.live .v { color: var(--info); }
+  .kpi .live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--info); box-shadow: 0 0 0 0 color-mix(in oklab, var(--info) 60%, transparent); animation: pulse 1.6s infinite; align-self: center; }
+  @keyframes pulse { 0% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--info) 50%, transparent); } 70% { box-shadow: 0 0 0 8px transparent; } 100% { box-shadow: 0 0 0 0 transparent; } }
+
+  /* Tabs */
+  .tabs { margin: 10px 28px 0; border-bottom: 1px solid var(--line); display: flex; gap: 4px; }
+  .tab { background: transparent; border: 0; color: var(--fg-2); font-family: inherit; font-size: 13px; font-weight: 500; padding: 10px 14px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: 120ms; }
+  .tab:hover { color: var(--fg-0); }
+  .tab.active { color: var(--fg-0); border-bottom-color: var(--info); }
+  .tab .badge { background: var(--bg-3); color: var(--fg-2); font-size: 11px; padding: 1px 6px; border-radius: 999px; font-weight: 500; }
+  .tab.active .badge { background: var(--info-bg); color: var(--info); }
+  .tab .live-badge { background: var(--info-bg); color: var(--info); display: inline-flex; align-items: center; gap: 5px; }
+  .tab .live-badge .d { width: 5px; height: 5px; border-radius: 50%; background: var(--info); animation: pulse 1.6s infinite; }
+
+  .panel { padding: 18px 28px 32px; }
+  .panel[hidden] { display: none; }
+
+  .card { background: var(--bg-1); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+  .sect-head { padding: 14px 18px; border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; }
+  .sect-head h3 { margin: 0; font-size: 14px; font-weight: 600; }
+  .sect-head .right { color: var(--fg-3); font-size: 12px; display: flex; gap: 8px; align-items: center; }
+
+  /* Runner banner */
+  .runner { background: linear-gradient(90deg, var(--info-bg), transparent 70%), var(--bg-1); border: 1px solid color-mix(in oklab, var(--info) 35%, var(--line)); border-radius: var(--radius); padding: 16px 18px; margin-bottom: 14px; display: flex; align-items: center; gap: 16px; }
+  .runner .ico { width: 38px; height: 38px; border-radius: 9px; background: var(--info-bg); color: var(--info); display: grid; place-items: center; flex-shrink: 0; }
+  .runner .body { flex: 1; }
+  .runner .title { font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  .runner .sub { color: var(--fg-2); font-size: 12px; margin-top: 2px; }
+  .runner .counts { display: flex; gap: 18px; }
+  .runner .count { text-align: center; }
+  .runner .count .n { font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .runner .count .l { color: var(--fg-3); font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .runner .count.run .n { color: var(--info); }
+  .runner .count.fail .n { color: var(--crit); }
+  .runner .count.skip .n { color: var(--fg-2); }
+
+  /* Scan rows (live) */
+  .scan-row { display: grid; grid-template-columns: 220px 130px 1fr 150px 90px; gap: 16px; align-items: center; padding: 14px 18px; border-top: 1px solid var(--line); }
+  .scan-row:first-child { border-top: 0; }
+  .scan-host { display: flex; align-items: center; gap: 10px; }
+  .scan-host .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .scan-host .dot.online { background: var(--ok); box-shadow: 0 0 0 3px var(--ok-bg); }
+  .scan-host .dot.down { background: var(--crit); }
+  .scan-host .dot.paused { background: var(--warn); }
+  .scan-host .hn { font-weight: 500; }
+  .scan-host .hsub { color: var(--fg-3); font-size: 11px; font-family: 'JetBrains Mono', monospace; }
+  .scan-type { font-size: 12px; }
+  .scan-type .badge { display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px; border-radius: 4px; font-weight: 600; font-size: 11px; }
+  .scan-type .badge.check { background: var(--info-bg); color: var(--info); }
+  .scan-type .badge.remediate { background: oklch(45% 0.12 300 / 0.2); color: oklch(74% 0.13 300); }
+  .scan-type .trig { color: var(--fg-3); font-size: 11px; margin-top: 3px; }
+
+  .progress-wrap { display: flex; flex-direction: column; gap: 6px; }
+  .progress-wrap .ptop { display: flex; justify-content: space-between; font-size: 12px; color: var(--fg-2); }
+  .progress-wrap .ptop .phase { color: var(--fg-1); font-weight: 500; }
+  .progress { height: 6px; background: var(--bg-3); border-radius: 3px; overflow: hidden; }
+  .progress > span { display: block; height: 100%; background: var(--info); border-radius: 3px; transition: width 400ms; }
+  .progress.indeterminate > span { width: 30% !important; animation: indet 1.4s ease-in-out infinite; }
+  @keyframes indet { 0% { margin-left: -30%; } 100% { margin-left: 100%; } }
+
+  .state-tag { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500; }
+  .state-tag .pip { width: 7px; height: 7px; border-radius: 50%; }
+  .state-tag.running { color: var(--info); } .state-tag.running .pip { background: var(--info); animation: pulse 1.6s infinite; }
+  .state-tag.failed { color: var(--crit); } .state-tag.failed .pip { background: var(--crit); }
+  .state-tag.skipped { color: var(--fg-2); } .state-tag.skipped .pip { background: var(--fg-3); }
+  .state-tag.queued { color: var(--warn); } .state-tag.queued .pip { background: var(--warn); }
+
+  .scan-when { color: var(--fg-2); font-size: 12px; font-variant-numeric: tabular-nums; }
+
+  /* Live log */
+  .live-log { background: #06070a; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; margin-top: 14px; }
+  .live-log .lh { padding: 10px 14px; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--fg-2); background: var(--bg-1); }
+  .live-log .lb { padding: 12px 14px; font-family: 'JetBrains Mono', monospace; font-size: 12px; line-height: 1.7; max-height: 220px; overflow: auto; }
+  .live-log .lb .ln { display: flex; gap: 10px; }
+  .live-log .lb .ts { color: var(--fg-3); }
+  .live-log .lb .ok { color: oklch(72% 0.16 155); }
+  .live-log .lb .info { color: #8ad7ff; }
+  .live-log .lb .warn { color: oklch(78% 0.15 75); }
+  .live-log .lb .err { color: oklch(72% 0.18 25); }
+  .live-log .lb .dim { color: var(--fg-3); }
+
+  /* Generic table */
+  table.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.tbl thead th { text-align: left; font-weight: 500; color: var(--fg-2); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; padding: 10px 16px; background: var(--bg-2); border-bottom: 1px solid var(--line); white-space: nowrap; }
+  table.tbl tbody tr { border-bottom: 1px solid var(--line); transition: 100ms; }
+  table.tbl tbody tr:last-child { border-bottom: 0; }
+  table.tbl tbody tr:hover { background: var(--bg-2); }
+  table.tbl td { padding: 12px 16px; vertical-align: middle; color: var(--fg-1); }
+
+  .fresh { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 500; }
+  .fresh .pip { width: 8px; height: 8px; border-radius: 50%; }
+  .fresh.current { color: var(--ok); } .fresh.current .pip { background: var(--ok); box-shadow: 0 0 0 3px var(--ok-bg); }
+  .fresh.failing { color: var(--crit); } .fresh.failing .pip { background: var(--crit); }
+  .fresh.paused { color: var(--warn); } .fresh.paused .pip { background: var(--warn); }
+  .fresh.never { color: var(--fg-3); } .fresh.never .pip { background: var(--fg-3); }
+
+  .age-bar { width: 120px; height: 6px; background: var(--bg-3); border-radius: 3px; overflow: hidden; }
+  .age-bar > span { display: block; height: 100%; border-radius: 3px; }
+
+  .status-pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500; }
+  .status-pill .pip { width: 7px; height: 7px; border-radius: 50%; }
+  .status-pill.ok { color: var(--ok); } .status-pill.ok .pip { background: var(--ok); }
+  .status-pill.fail { color: var(--crit); } .status-pill.fail .pip { background: var(--crit); }
+  .status-pill.partial { color: var(--warn); } .status-pill.partial .pip { background: var(--warn); }
+  .status-pill.skip { color: var(--fg-2); } .status-pill.skip .pip { background: var(--fg-3); }
+
+  .type-chip { display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px; border-radius: 4px; font-weight: 600; font-size: 11px; }
+  .type-chip.check { background: var(--info-bg); color: var(--info); }
+  .type-chip.remediate { background: oklch(45% 0.12 300 / 0.2); color: oklch(74% 0.13 300); }
+
+  .delta { font-variant-numeric: tabular-nums; font-weight: 600; font-family: 'JetBrains Mono', monospace; font-size: 12px; }
+  .delta.up { color: var(--ok); } .delta.down { color: var(--crit); } .delta.flat { color: var(--fg-3); }
+
+  .trig-chip { font-size: 11px; color: var(--fg-2); display: inline-flex; align-items: center; gap: 5px; }
+
+  /* Config */
+  .section { margin-bottom: 28px; }
+  .section > h2 { margin: 0 0 4px; font-size: 16px; font-weight: 600; display: flex; align-items: center; gap: 10px; }
+  .section > h2 .badge { background: var(--ok-bg); color: var(--ok); font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 999px; letter-spacing: 0.04em; text-transform: uppercase; }
+  .section > h2 .badge.off { background: var(--bg-3); color: var(--fg-2); }
+  .section > p.lead { margin: 0 0 16px; color: var(--fg-2); font-size: 13px; max-width: 760px; }
+
+  .setting-row { display: grid; grid-template-columns: 1fr minmax(180px, auto); gap: 20px; align-items: center; padding: 16px 20px; border-top: 1px solid var(--line); }
+  .setting-row:first-child { border-top: 0; }
+  .setting-row .name { font-weight: 500; display: flex; align-items: center; gap: 8px; }
+  .setting-row .desc { color: var(--fg-2); font-size: 12px; margin-top: 4px; line-height: 1.5; }
+  .setting-row .desc .mono { color: var(--fg-1); }
+  .setting-row .control { display: flex; justify-content: flex-end; align-items: center; gap: 10px; }
+
+  .toggle { width: 36px; height: 20px; background: var(--bg-3); border-radius: 999px; position: relative; cursor: pointer; transition: 160ms; border: 1px solid var(--line-2); flex-shrink: 0; }
+  .toggle::after { content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; background: var(--fg-2); border-radius: 50%; transition: 160ms; }
+  .toggle.on { background: var(--info); border-color: var(--info); }
+  .toggle.on::after { left: 17px; background: white; }
+
+  select.field { height: 32px; background: var(--bg-2); border: 1px solid var(--line); border-radius: 6px; color: var(--fg-0); font-family: inherit; font-size: 13px; padding: 0 28px 0 10px; cursor: pointer; appearance: none; background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238a93a3' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='m6 9 6 6 6-6'/></svg>"); background-repeat: no-repeat; background-position: right 8px center; }
+  .stepper { display: inline-flex; align-items: stretch; background: var(--bg-2); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; height: 32px; }
+  .stepper button { width: 28px; border: 0; background: transparent; color: var(--fg-2); cursor: pointer; font-size: 14px; }
+  .stepper button:hover { background: var(--bg-3); color: var(--fg-0); }
+  .stepper input { width: 48px; border: 0; background: transparent; color: var(--fg-0); text-align: center; font-family: 'JetBrains Mono', monospace; font-size: 13px; outline: 0; }
+  .stepper .unit { padding: 0 10px; color: var(--fg-2); align-self: center; font-size: 12px; border-left: 1px solid var(--line); }
+
+  .callout { background: color-mix(in oklab, var(--warn-bg) 70%, transparent); border: 1px solid color-mix(in oklab, var(--warn) 30%, var(--line)); border-left: 3px solid var(--warn); border-radius: var(--radius); padding: 12px 16px; display: flex; gap: 12px; align-items: flex-start; margin-bottom: 14px; }
+  .callout .ico { color: var(--warn); flex-shrink: 0; margin-top: 1px; }
+  .callout .copy { font-size: 12px; color: var(--fg-1); line-height: 1.5; }
+  .callout .copy strong { color: var(--fg-0); }
+  .callout.info { background: color-mix(in oklab, var(--info-bg) 70%, transparent); border-color: color-mix(in oklab, var(--info) 30%, var(--line)); border-left-color: var(--info); }
+  .callout.info .ico { color: var(--info); }
+
+  /* Severity policy rows */
+  .sev-policy { display: grid; grid-template-columns: 140px 1fr 220px; gap: 16px; align-items: center; padding: 14px 20px; border-top: 1px solid var(--line); }
+  .sev-policy:first-child { border-top: 0; }
+  .sev-label { display: flex; align-items: center; gap: 10px; font-weight: 600; }
+  .sev-label .tag { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; padding: 3px 8px; border-radius: 4px; }
+  .sev-label .tag.high { background: var(--crit-bg); color: var(--crit); }
+  .sev-label .tag.med { background: var(--warn-bg); color: var(--warn); }
+  .sev-label .tag.low { background: var(--info-bg); color: var(--info); }
+  .sev-policy .desc { color: var(--fg-2); font-size: 12px; }
+  .seg { display: inline-flex; background: var(--bg-2); border: 1px solid var(--line); border-radius: 6px; padding: 3px; gap: 2px; }
+  .seg button { border: 0; background: transparent; color: var(--fg-2); font-family: inherit; font-size: 12px; font-weight: 500; padding: 5px 12px; border-radius: 4px; cursor: pointer; }
+  .seg button.active { background: var(--bg-3); color: var(--fg-0); }
+  .seg button.active.auto { color: var(--ok); }
+  .seg button.active.approve { color: var(--warn); }
+  .seg button.active.off { color: var(--fg-2); }
+
+  .mech-chip { font-family: 'JetBrains Mono', monospace; font-size: 10px; background: var(--bg-3); color: var(--fg-1); padding: 2px 6px; border-radius: 3px; }
+  .help { display: inline-flex; align-items: center; width: 14px; height: 14px; border-radius: 50%; background: var(--bg-3); color: var(--fg-2); cursor: help; font-size: 10px; justify-content: center; font-weight: 600; }
+
+  /* Rules library */
+  .ref-chips { display: inline-flex; gap: 4px; flex-wrap: wrap; }
+  .ref-chip { font-family: 'JetBrains Mono', monospace; font-size: 10px; padding: 2px 6px; border-radius: 3px; white-space: nowrap; }
+  .ref-chip.cis { background: oklch(45% 0.12 245 / 0.18); color: oklch(72% 0.12 245); }
+  .ref-chip.stig { background: oklch(45% 0.13 300 / 0.18); color: oklch(74% 0.13 300); }
+  .ref-chip.nist { background: oklch(45% 0.10 185 / 0.18); color: oklch(72% 0.11 185); }
+  .ref-chip.pci { background: oklch(50% 0.10 75 / 0.18); color: oklch(80% 0.12 75); }
+  .sev-tag { display: inline-flex; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; padding: 3px 8px; border-radius: 4px; }
+  .sev-tag.high { background: var(--crit-bg); color: var(--crit); }
+  .sev-tag.med { background: var(--warn-bg); color: var(--warn); }
+  .sev-tag.low { background: var(--info-bg); color: var(--info); }
+  .cat-chip { font-size: 11px; background: var(--bg-2); color: var(--fg-1); padding: 3px 8px; border-radius: 4px; border: 1px solid var(--line); white-space: nowrap; }
+  .cap-tag { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: var(--fg-2); margin-top: 5px; }
+  .cap-tag .d { width: 6px; height: 6px; border-radius: 50%; }
+  .cap-tag.yes .d { background: var(--ok); }
+  .cap-tag.no .d { background: var(--warn); }
+  .cap-tag.no { color: var(--warn); }
+  .r-title { font-weight: 500; color: var(--fg-0); }
+  .r-desc { color: var(--fg-2); font-size: 12px; margin-top: 3px; line-height: 1.45; max-width: 540px; }
+  .r-id { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--fg-3); margin-top: 4px; }
+  .chip { height: 28px; padding: 0 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--bg-2); color: var(--fg-2); font-size: 12px; font-weight: 500; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; font-family: inherit; }
+  .chip:hover { color: var(--fg-0); }
+  .chip.active { background: var(--bg-3); color: var(--fg-0); border-color: var(--line-2); }
+  .chip .dot { width: 6px; height: 6px; border-radius: 50%; }
+  .chip .dot.high { background: var(--crit); } .chip .dot.med { background: var(--warn); } .chip .dot.low { background: var(--info); }
+  .r-disabled td { opacity: 0.5; }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <aside class="sidebar">
+    <div class="logo">ow</div>
+    <a href="Dashboard.html"><button class="nav-btn" title="Dashboard"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg></button></a>
+    <a href="Host Management.html"><button class="nav-btn" title="Hosts"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg></button></a>
+    <a href="Groups.html"><button class="nav-btn" title="Groups"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2 9 5-9 5-9-5 9-5z"/><path d="m3 12 9 5 9-5"/><path d="m3 17 9 5 9-5"/></svg></button></a>
+        <button class="nav-btn active" title="Scans"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg></button>
+    <a href="Activity.html"><button class="nav-btn" title="Activity"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></button></a>
+    <a href="Reports.html"><button class="nav-btn" title="Reports"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m7 14 4-4 3 3 5-6"/></svg></button></a>
+    <a href="Terminal.html"><button class="nav-btn" title="Terminal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg></button></a>
+    <div class="nav-spacer"></div>
+    <button class="nav-btn" title="Settings" onclick="location.href='Settings.html'"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .4 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.4 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.9.4l-.1.1A2 2 0 1 1 4.3 17.1l.1-.1a1.7 1.7 0 0 0 .4-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.4-1.9l-.1-.1A2 2 0 1 1 6.9 4.3l.1.1a1.7 1.7 0 0 0 1.9.4H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.4l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.4 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
+  </aside>
+
+  <main>
+    <div class="topbar">
+      <div class="topbar-row">
+        <div class="crumbs"><span>Infrastructure</span><span class="sep">/</span><span style="color: var(--fg-0)">Scans</span></div>
+        <div class="topbar-actions">
+          <button class="icon-btn" title="Theme"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg></button>
+          <button class="icon-btn" title="Notifications" style="position:relative;" onclick="location.href='Activity.html'"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10 21a2 2 0 0 0 4 0"/></svg><span style="position:absolute; top:6px; right:6px; width:7px; height:7px; background: var(--crit); border-radius:50%; box-shadow: 0 0 0 2px var(--bg-0);"></span></button>
+          <div class="user-menu">
+            <button class="avatar avatar-btn" id="avatarBtn" aria-haspopup="menu" aria-expanded="false" title="Account">A</button>
+            <div class="avatar-menu" id="avatarMenu" hidden role="menu">
+              <div class="am-head"><div class="avatar">A</div><div><div class="am-name">Alex Liang</div><div class="am-email">alex@gonaibo.com</div></div></div>
+              <a class="am-item" role="menuitem" href="Settings.html#profile"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>Your profile</a>
+              <a class="am-item" role="menuitem" href="Settings.html"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .4 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.4 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.9.4l-.1.1A2 2 0 1 1 4.3 17.1l.1-.1a1.7 1.7 0 0 0 .4-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.4-1.9l-.1-.1A2 2 0 1 1 6.9 4.3l.1.1a1.7 1.7 0 0 0 1.9.4H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.4l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.4 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>Settings</a>
+              <a class="am-item" role="menuitem" href="Settings.html#about"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>Help &amp; docs</a>
+              <div class="am-div"></div>
+              <a class="am-item danger" role="menuitem" href="#"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></svg>Sign out</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="page-head">
+      <div>
+        <h1 class="page-title">Scans</h1>
+        <p class="page-sub">Fleet-wide scan operations — what's running now, how fresh your coverage is, the full history, and how scans &amp; auto-remediation behave.</p>
+      </div>
+      <div style="display:flex; gap:8px;">
+        <button class="btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9"/><path d="M3 12V3h9"/></svg>kensa plan</button>
+        <button class="btn primary"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6,4 20,12 6,20"/></svg>Run scan</button>
+      </div>
+    </div>
+
+    <div class="kpis">
+      <div class="kpi ok"><div class="k">Up to date</div><div class="v">1<span class="unit">/ 7</span></div><div class="s">scanned in last 24h</div></div>
+      <div class="kpi live"><div class="k">Running now</div><div class="v"><span class="live-dot"></span>1</div><div class="s">scheduled sweep</div></div>
+      <div class="kpi crit"><div class="k">Failed (24h)</div><div class="v">2</div><div class="s">unreachable hosts</div></div>
+      <div class="kpi warn"><div class="k">Skipped</div><div class="v">4</div><div class="s">maintenance</div></div>
+      <div class="kpi"><div class="k">Auto-remediations</div><div class="v">0</div><div class="s">today · policy active</div></div>
+    </div>
+
+    <nav class="tabs" id="tabs">
+      <button class="tab active" data-tab="live"><span class="live-badge"><span class="d"></span>Live</span></button>
+      <button class="tab" data-tab="coverage">Coverage <span class="badge">7</span></button>
+      <button class="tab" data-tab="history">History <span class="badge">1,284</span></button>
+      <button class="tab" data-tab="rules">Rules <span class="badge">539</span></button>
+      <button class="tab" data-tab="config">Configuration</button>
+    </nav>
+
+    <!-- ═══════ LIVE ═══════ -->
+    <div class="panel" data-panel="live">
+      <div class="runner">
+        <div class="ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg></div>
+        <div class="body">
+          <div class="title">Scheduled compliance sweep <span class="state-tag running"><span class="pip"></span>in progress</span></div>
+          <div class="sub">Triggered by scheduler · started 14:46 · runner concurrency 25 · framework lenses CIS · STIG · NIST</div>
+        </div>
+        <div class="counts">
+          <div class="count run"><div class="n">1</div><div class="l">Running</div></div>
+          <div class="count"><div class="n">1</div><div class="l">Done</div></div>
+          <div class="count fail"><div class="n">2</div><div class="l">Failed</div></div>
+          <div class="count skip"><div class="n">4</div><div class="l">Skipped</div></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="sect-head"><h3>Active &amp; queued</h3><div class="right">Auto-refreshing · updated just now</div></div>
+
+        <div class="scan-row">
+          <div class="scan-host"><span class="dot online"></span><div><div class="hn">owas-ub5s2</div><div class="hsub">192.168.1.217</div></div></div>
+          <div class="scan-type"><span class="badge check">Check</span><div class="trig">scheduler</div></div>
+          <div class="progress-wrap"><div class="ptop"><span class="phase">Evaluating rules</span><span id="rulen">312 / 508</span></div><div class="progress"><span id="prog" style="width:61%"></span></div></div>
+          <div class="state-tag running"><span class="pip"></span>Running · 00:31</div>
+          <div style="text-align:right;"><button class="icon-btn" style="width:28px;height:28px;" title="Cancel"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
+        </div>
+
+        <div class="scan-row">
+          <div class="scan-host"><span class="dot down"></span><div><div class="hn">owas-rhn01</div><div class="hsub">192.168.1.213</div></div></div>
+          <div class="scan-type"><span class="badge check">Check</span><div class="trig">scheduler</div></div>
+          <div class="progress-wrap"><div class="ptop"><span class="phase" style="color:var(--crit)">SSH connection refused</span><span>retry 3/3</span></div><div class="progress"><span style="width:100%; background:var(--crit)"></span></div></div>
+          <div class="state-tag failed"><span class="pip"></span>Failed</div>
+          <div style="text-align:right;"><button class="btn sm">Retry</button></div>
+        </div>
+
+        <div class="scan-row">
+          <div class="scan-host"><span class="dot down"></span><div><div class="hn">owas-hrm01</div><div class="hsub">192.168.1.202</div></div></div>
+          <div class="scan-type"><span class="badge check">Check</span><div class="trig">scheduler</div></div>
+          <div class="progress-wrap"><div class="ptop"><span class="phase" style="color:var(--crit)">SSH connection refused</span><span>retry 3/3</span></div><div class="progress"><span style="width:100%; background:var(--crit)"></span></div></div>
+          <div class="state-tag failed"><span class="pip"></span>Failed</div>
+          <div style="text-align:right;"><button class="btn sm">Retry</button></div>
+        </div>
+
+        <div class="scan-row">
+          <div class="scan-host"><span class="dot paused"></span><div><div class="hn">owas-tst01</div><div class="hsub">192.168.1.203</div></div></div>
+          <div class="scan-type"><span class="badge check">Check</span><div class="trig">scheduler</div></div>
+          <div class="progress-wrap"><div class="ptop"><span class="phase">Skipped — Development in maintenance</span></div><div class="progress"><span style="width:100%; background:var(--warn); opacity:0.4"></span></div></div>
+          <div class="state-tag skipped"><span class="pip"></span>Skipped</div>
+          <div style="text-align:right;"><a href="Groups.html" class="btn sm">Group</a></div>
+        </div>
+
+        <div class="scan-row">
+          <div class="scan-host"><span class="dot paused"></span><div><div class="hn">owas-tst02</div><div class="hsub">192.168.1.211</div></div></div>
+          <div class="scan-type"><span class="badge check">Check</span><div class="trig">scheduler</div></div>
+          <div class="progress-wrap"><div class="ptop"><span class="phase">Skipped — Development in maintenance</span></div><div class="progress"><span style="width:100%; background:var(--warn); opacity:0.4"></span></div></div>
+          <div class="state-tag skipped"><span class="pip"></span>Skipped</div>
+          <div style="text-align:right;"><a href="Groups.html" class="btn sm">Group</a></div>
+        </div>
+
+        <div class="scan-row">
+          <div class="scan-host"><span class="dot paused"></span><div><div class="hn">owas-ub4m2</div><div class="hsub">192.168.1.214</div></div></div>
+          <div class="scan-type"><span class="badge check">Check</span><div class="trig">scheduler</div></div>
+          <div class="progress-wrap"><div class="ptop"><span class="phase">Skipped — Development in maintenance</span></div><div class="progress"><span style="width:100%; background:var(--warn); opacity:0.4"></span></div></div>
+          <div class="state-tag skipped"><span class="pip"></span>Skipped</div>
+          <div style="text-align:right;"><a href="Groups.html" class="btn sm">Group</a></div>
+        </div>
+      </div>
+
+      <div class="live-log">
+        <div class="lh"><span class="state-tag running"><span class="pip"></span></span>Live event stream · owas-ub5s2</div>
+        <div class="lb" id="logbody">
+          <div class="ln"><span class="ts">14:46:31</span><span class="info">[check]</span><span>owas-ub5s2 · detect.Detect → Ubuntu 24.04 · AppArmor · auditd absent</span></div>
+          <div class="ln"><span class="ts">14:46:32</span><span class="dim">[gate]</span><span class="dim">52 rules dropped (capability gate): selinux, auditd, aide</span></div>
+          <div class="ln"><span class="ts">14:46:40</span><span class="ok">[pass]</span><span>CIS-1.6.1 core dumps restricted</span></div>
+          <div class="ln"><span class="ts">14:46:41</span><span class="err">[fail]</span><span>CIS-5.2.8 sshd PermitRootLogin = yes</span></div>
+          <div class="ln"><span class="ts">14:46:43</span><span class="err">[fail]</span><span>CIS-3.5.1.1 ufw inactive</span></div>
+          <div class="ln"><span class="ts">14:46:44</span><span class="warn">[skip]</span><span class="dim">auto-remediation: High severity requires approval (policy)</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════ COVERAGE ═══════ -->
+    <div class="panel" data-panel="coverage" hidden>
+      <div class="callout">
+        <div class="ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.7a2 2 0 0 1 3.4 0l8 14a2 2 0 0 1-1.7 3H4.3a2 2 0 0 1-1.7-3z"/></svg></div>
+        <div class="copy"><strong>Only 1 of 7 hosts has fresh data.</strong> 2 are failing to scan (unreachable) and 4 are paused for maintenance — their compliance figures are stale. Coverage gaps are the real risk, not just low scores.</div>
+      </div>
+
+      <div class="card">
+        <div class="sect-head"><h3>Scan freshness</h3><div class="right">Last <em>successful</em> check per host · target ≤ 24h</div></div>
+        <table class="tbl">
+          <thead><tr><th>Host</th><th>Group</th><th>Last successful</th><th style="width:200px;">Age</th><th>Coverage</th><th style="text-align:right;">Actions</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><div class="scan-host"><span class="dot online"></span><div><div class="hn">owas-ub5s2</div><div class="hsub">192.168.1.217</div></div></div></td>
+              <td style="color:var(--fg-2); font-size:12px;">Production · Ubuntu</td>
+              <td class="mono" style="font-size:12px;">today 14:46</td>
+              <td><div class="age-bar"><span style="width:6%; background:var(--ok)"></span></div><span style="color:var(--fg-3); font-size:11px;">just now</span></td>
+              <td><span class="fresh current"><span class="pip"></span>Current</span></td>
+              <td style="text-align:right;"><button class="btn sm">Re-scan</button></td>
+            </tr>
+            <tr>
+              <td><div class="scan-host"><span class="dot down"></span><div><div class="hn">owas-rhn01</div><div class="hsub">192.168.1.213</div></div></div></td>
+              <td style="color:var(--fg-2); font-size:12px;">Production · RHEL</td>
+              <td class="mono" style="font-size:12px;">4/19 14:36</td>
+              <td><div class="age-bar"><span style="width:100%; background:var(--crit)"></span></div><span style="color:var(--crit); font-size:11px;">41 days · failing</span></td>
+              <td><span class="fresh failing"><span class="pip"></span>Failing</span></td>
+              <td style="text-align:right;"><button class="btn sm">Retry</button></td>
+            </tr>
+            <tr>
+              <td><div class="scan-host"><span class="dot down"></span><div><div class="hn">owas-hrm01</div><div class="hsub">192.168.1.202</div></div></div></td>
+              <td style="color:var(--fg-2); font-size:12px;">Production · RHEL</td>
+              <td class="mono" style="font-size:12px;">4/19 14:36</td>
+              <td><div class="age-bar"><span style="width:100%; background:var(--crit)"></span></div><span style="color:var(--crit); font-size:11px;">41 days · failing</span></td>
+              <td><span class="fresh failing"><span class="pip"></span>Failing</span></td>
+              <td style="text-align:right;"><button class="btn sm">Retry</button></td>
+            </tr>
+            <tr>
+              <td><div class="scan-host"><span class="dot paused"></span><div><div class="hn">owas-ub4m2</div><div class="hsub">192.168.1.214</div></div></div></td>
+              <td style="color:var(--fg-2); font-size:12px;">Development · Ubuntu</td>
+              <td class="mono" style="font-size:12px;">4/19 14:36</td>
+              <td><div class="age-bar"><span style="width:100%; background:var(--warn)"></span></div><span style="color:var(--warn); font-size:11px;">41 days · paused</span></td>
+              <td><span class="fresh paused"><span class="pip"></span>Paused (maint.)</span></td>
+              <td style="text-align:right;"><button class="btn sm">Resume</button></td>
+            </tr>
+            <tr>
+              <td><div class="scan-host"><span class="dot paused"></span><div><div class="hn">192.168.1.212</div><div class="hsub">no hostname</div></div></div></td>
+              <td style="color:var(--fg-2); font-size:12px;">Development · Ubuntu</td>
+              <td class="mono" style="font-size:12px;">4/19 14:36</td>
+              <td><div class="age-bar"><span style="width:100%; background:var(--warn)"></span></div><span style="color:var(--warn); font-size:11px;">41 days · paused</span></td>
+              <td><span class="fresh paused"><span class="pip"></span>Paused (maint.)</span></td>
+              <td style="text-align:right;"><button class="btn sm">Resume</button></td>
+            </tr>
+            <tr>
+              <td><div class="scan-host"><span class="dot paused"></span><div><div class="hn">owas-tst01</div><div class="hsub">192.168.1.203</div></div></div></td>
+              <td style="color:var(--fg-2); font-size:12px;">Development · RHEL</td>
+              <td class="mono" style="font-size:12px;">4/19 14:36</td>
+              <td><div class="age-bar"><span style="width:100%; background:var(--warn)"></span></div><span style="color:var(--warn); font-size:11px;">41 days · paused</span></td>
+              <td><span class="fresh paused"><span class="pip"></span>Paused (maint.)</span></td>
+              <td style="text-align:right;"><button class="btn sm">Resume</button></td>
+            </tr>
+            <tr>
+              <td><div class="scan-host"><span class="dot paused"></span><div><div class="hn">owas-tst02</div><div class="hsub">192.168.1.211</div></div></div></td>
+              <td style="color:var(--fg-2); font-size:12px;">Development · RHEL</td>
+              <td class="mono" style="font-size:12px;">4/19 14:36</td>
+              <td><div class="age-bar"><span style="width:100%; background:var(--warn)"></span></div><span style="color:var(--warn); font-size:11px;">41 days · paused</span></td>
+              <td><span class="fresh paused"><span class="pip"></span>Paused (maint.)</span></td>
+              <td style="text-align:right;"><button class="btn sm">Resume</button></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ═══════ HISTORY ═══════ -->
+    <div class="panel" data-panel="history" hidden>
+      <div class="card" style="margin-bottom:14px;">
+        <div style="padding:14px 18px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+          <div style="flex:1; min-width:240px; max-width:340px; height:32px; background:var(--bg-2); border:1px solid var(--line); border-radius:6px; display:flex; align-items:center; padding:0 10px; gap:8px; color:var(--fg-2);">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+            <input placeholder="Search by host, rule, transaction…" style="flex:1; background:transparent; border:0; outline:0; color:var(--fg-0); font-family:inherit; font-size:13px;" />
+          </div>
+          <div style="flex:1"></div>
+          <button class="btn sm">All hosts ▾</button>
+          <button class="btn sm">All types ▾</button>
+          <button class="btn sm">Last 30 days ▾</button>
+          <button class="btn sm"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>Export</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <table class="tbl">
+          <thead><tr><th>When</th><th>Host</th><th>Type</th><th>Trigger</th><th>Result</th><th>Δ compliance</th><th>Duration</th><th>Status</th><th style="text-align:right;">Evidence</th></tr></thead>
+          <tbody>
+            <tr>
+              <td class="mono" style="font-size:12px;">today 14:46</td>
+              <td><span class="hn">owas-ub5s2</span></td>
+              <td><span class="type-chip check">Check</span></td>
+              <td><span class="trig-chip"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>scheduler</span></td>
+              <td><span style="color:var(--ok)">191</span> / <span style="color:var(--crit)">317</span> <span style="color:var(--fg-3); font-size:11px;">508 rules</span></td>
+              <td><span class="delta flat">±0.0</span></td>
+              <td class="mono" style="font-size:12px; color:var(--fg-2);">31s</td>
+              <td><span class="status-pill ok"><span class="pip"></span>Completed</span></td>
+              <td style="text-align:right;"><button class="icon-btn" style="width:28px;height:28px;" title="kensa verify"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/></svg></button></td>
+            </tr>
+            <tr>
+              <td class="mono" style="font-size:12px;">today 14:43</td>
+              <td><span class="hn">owas-rhn01</span></td>
+              <td><span class="type-chip check">Check</span></td>
+              <td><span class="trig-chip"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>scheduler</span></td>
+              <td style="color:var(--fg-3);">— unreachable</td>
+              <td><span class="delta flat">—</span></td>
+              <td class="mono" style="font-size:12px; color:var(--fg-2);">30s</td>
+              <td><span class="status-pill fail"><span class="pip"></span>Failed</span></td>
+              <td style="text-align:right; color:var(--fg-3);">—</td>
+            </tr>
+            <tr>
+              <td class="mono" style="font-size:12px;">today 09:00</td>
+              <td><span class="hn">owas-ub5s2</span></td>
+              <td><span class="type-chip check">Check</span></td>
+              <td><span class="trig-chip"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>scheduler</span></td>
+              <td><span style="color:var(--ok)">189</span> / <span style="color:var(--crit)">319</span></td>
+              <td><span class="delta up">+0.4</span></td>
+              <td class="mono" style="font-size:12px; color:var(--fg-2);">29s</td>
+              <td><span class="status-pill ok"><span class="pip"></span>Completed</span></td>
+              <td style="text-align:right;"><button class="icon-btn" style="width:28px;height:28px;" title="kensa verify"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/></svg></button></td>
+            </tr>
+            <tr>
+              <td class="mono" style="font-size:12px;">4/19 14:36</td>
+              <td><span class="hn">owas-ub4m2</span></td>
+              <td><span class="type-chip remediate">Remediate</span></td>
+              <td><span class="trig-chip"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20a8 8 0 0 1 16 0"/></svg>alex@gonaibo.com</span></td>
+              <td><span style="color:var(--ok)">17</span> committed · <span style="color:var(--warn)">1</span> rolled_back</td>
+              <td><span class="delta up">+3.3</span></td>
+              <td class="mono" style="font-size:12px; color:var(--fg-2);">52s</td>
+              <td><span class="status-pill partial"><span class="pip"></span>Partial</span></td>
+              <td style="text-align:right;"><button class="icon-btn" style="width:28px;height:28px;" title="kensa verify"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/></svg></button></td>
+            </tr>
+            <tr>
+              <td class="mono" style="font-size:12px;">4/19 14:36</td>
+              <td><span class="hn">owas-ub4m2</span></td>
+              <td><span class="type-chip check">Check</span></td>
+              <td><span class="trig-chip"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/></svg>API · ci-pipeline</span></td>
+              <td><span style="color:var(--ok)">184</span> / <span style="color:var(--crit)">324</span></td>
+              <td><span class="delta flat">first scan</span></td>
+              <td class="mono" style="font-size:12px; color:var(--fg-2);">47s</td>
+              <td><span class="status-pill ok"><span class="pip"></span>Completed</span></td>
+              <td style="text-align:right;"><button class="icon-btn" style="width:28px;height:28px;" title="kensa verify"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/></svg></button></td>
+            </tr>
+          </tbody>
+        </table>
+        <div style="padding:12px 18px; border-top:1px solid var(--line); color:var(--fg-3); font-size:12px; display:flex; justify-content:space-between; align-items:center;">
+          <span>Showing 5 of 1,284 runs · all evidence signed (Ed25519) and verifiable</span>
+          <a style="color:var(--info); font-weight:500;">Load more</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════ RULES ═══════ -->
+    <div class="panel" data-panel="rules" hidden>
+      <div class="card" style="margin-bottom:14px;">
+        <div style="padding:14px 18px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+          <div style="flex:1; min-width:240px; max-width:340px; height:32px; background:var(--bg-2); border:1px solid var(--line); border-radius:6px; display:flex; align-items:center; padding:0 10px; gap:8px; color:var(--fg-2);">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+            <input id="rule-search" placeholder="Search rules, IDs, frameworks…" style="flex:1; background:transparent; border:0; outline:0; color:var(--fg-0); font-family:inherit; font-size:13px;" />
+          </div>
+          <div class="chips" id="rule-sev" style="display:flex; gap:6px;">
+            <button class="chip active" data-sev="all">All</button>
+            <button class="chip" data-sev="high"><span class="dot high"></span>High</button>
+            <button class="chip" data-sev="med"><span class="dot med"></span>Med</button>
+            <button class="chip" data-sev="low"><span class="dot low"></span>Low</button>
+          </div>
+          <div style="flex:1"></div>
+          <select class="field" id="rule-cat" style="min-width:150px;">
+            <option value="all">All categories</option>
+            <option value="access-control">access-control</option>
+            <option value="audit">audit</option>
+            <option value="filesystem">filesystem</option>
+            <option value="kernel">kernel</option>
+            <option value="logging">logging</option>
+            <option value="network">network</option>
+            <option value="services">services</option>
+            <option value="system">system</option>
+          </select>
+          <select class="field" id="rule-fw" style="min-width:130px;">
+            <option value="all">All frameworks</option>
+            <option value="cis">CIS</option>
+            <option value="stig">STIG</option>
+            <option value="nist">NIST 800-53</option>
+            <option value="pci">PCI DSS</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="sect-head">
+          <h3>Rule library <span style="color:var(--fg-2); font-weight:400;" id="rule-count">539</span></h3>
+          <div class="right"><span id="rule-showing">showing 16 of 539</span><button class="btn sm"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>Export</button></div>
+        </div>
+        <table class="tbl">
+          <thead>
+            <tr>
+              <th style="width:28px;"></th>
+              <th>Rule</th>
+              <th style="width:200px;">Frameworks</th>
+              <th style="width:90px;">Severity</th>
+              <th style="width:130px;">Category</th>
+              <th style="width:180px;">Remediation</th>
+              <th style="width:50px; text-align:right;"></th>
+            </tr>
+          </thead>
+          <tbody id="rules-body"></tbody>
+        </table>
+        <div style="padding:12px 18px; border-top:1px solid var(--line); color:var(--fg-3); font-size:12px; display:flex; justify-content:space-between; align-items:center;">
+          <span id="rule-foot">16 shown · capability gates decide which actually run per host</span>
+          <a style="color:var(--info); font-weight:500;">Load all 539</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════ CONFIGURATION ═══════ -->
+    <div class="panel" data-panel="config" hidden>
+
+      <section class="section">
+        <h2>Auto-remediation <span class="badge">Active</span></h2>
+        <p class="lead">Kensa mutates the host, so auto-remediation is gated by policy. Choose per severity whether failed rules <strong>auto-fix</strong>, <strong>require approval</strong>, or stay <strong>off</strong> — and scope it by group. Only capturable handlers (full rollback) ever auto-apply.</p>
+
+        <div class="callout info">
+          <div class="ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg></div>
+          <div class="copy"><strong>Guardrails apply to every auto-fix.</strong> Non-capturable handlers (<span class="mech-chip">transactional: false</span>) are never auto-applied; each fix still runs Capture → Apply → Validate → Commit with per-rule rollback.</div>
+        </div>
+
+        <div class="card" style="margin-bottom:14px;">
+          <div class="sect-head"><h3>Policy by severity</h3><div class="right">applies after each check</div></div>
+          <div class="sev-policy">
+            <div class="sev-label"><span class="tag high">High</span></div>
+            <div class="desc">Highest-impact failures (root login, firewall off). Safest to review first.</div>
+            <div class="seg"><button>Auto-fix</button><button class="active approve">Require approval</button><button>Off</button></div>
+          </div>
+          <div class="sev-policy">
+            <div class="sev-label"><span class="tag med">Med</span></div>
+            <div class="desc">Config hardening with low blast radius (password policy, mount options).</div>
+            <div class="seg"><button class="active auto">Auto-fix</button><button>Require approval</button><button>Off</button></div>
+          </div>
+          <div class="sev-policy">
+            <div class="sev-label"><span class="tag low">Low</span></div>
+            <div class="desc">Cosmetic / advisory (banners, MOTD). Safe to auto-apply.</div>
+            <div class="seg"><button class="active auto">Auto-fix</button><button>Require approval</button><button>Off</button></div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-bottom:14px;">
+          <div class="sect-head"><h3>Scope &amp; guardrails</h3></div>
+          <div class="setting-row">
+            <div><div class="name">Auto-remediate in these groups</div><div class="desc">Restrict auto-fixing to lower-risk environments. Production is approval-only by default.</div></div>
+            <div class="control"><select class="field" style="min-width:200px;"><option>Development only</option><option>Development + DR</option><option>All groups</option><option>None</option></select></div>
+          </div>
+          <div class="setting-row">
+            <div><div class="name">Canary first <span class="help" title="Apply to one host, validate, then roll out">?</span></div><div class="desc">Apply to one host in the group, validate, then continue to the rest.</div></div>
+            <div class="control"><div class="toggle on" data-toggle></div></div>
+          </div>
+          <div class="setting-row">
+            <div><div class="name">Max changes per run</div><div class="desc">Cap how many rules a single auto-run will commit on one host.</div></div>
+            <div class="control"><div class="stepper"><button>−</button><input value="25" /><span class="unit">rules</span><button>+</button></div></div>
+          </div>
+          <div class="setting-row">
+            <div><div class="name">Circuit breaker <span class="help" title="Pause auto-remediation if rollbacks spike">?</span></div><div class="desc">Pause all auto-remediation if more than N rollbacks occur in a run.</div></div>
+            <div class="control"><div class="stepper"><button>−</button><input value="3" /><span class="unit">rollbacks</span><button>+</button></div></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <h2>Disabled rules &amp; exceptions <span class="badge off">2 suppressed</span></h2>
+        <p class="lead">Rules excluded from scanning or scoring. A disabled rule is never evaluated; an exception suppresses a known failure with justification and expiry. Both apply at the scope you set.</p>
+        <div class="card">
+          <table class="tbl">
+            <thead><tr><th>Rule</th><th>Kind</th><th>Scope</th><th>Reason</th><th>Requested by</th><th>Expires</th><th style="text-align:right;"></th></tr></thead>
+            <tbody>
+              <tr>
+                <td><div class="hn">MOTD legal banner</div><div class="hsub mono">CIS-1.7.1</div></td>
+                <td><span class="status-pill partial"><span class="pip"></span>Exception</span></td>
+                <td style="color:var(--fg-2); font-size:12px;">owas-ub4m2</td>
+                <td style="color:var(--fg-2); font-size:12px;">Banner managed by golden image</td>
+                <td style="color:var(--fg-2); font-size:12px;">alex@gonaibo.com</td>
+                <td style="color:var(--warn); font-size:12px;">in 88 days</td>
+                <td style="text-align:right;"><span style="color:var(--warn); font-size:11px; font-weight:600;">Pending approval</span></td>
+              </tr>
+              <tr>
+                <td><div class="hn">Wireless interfaces disabled</div><div class="hsub mono">CIS-3.1.2</div></td>
+                <td><span class="status-pill skip"><span class="pip"></span>Disabled</span></td>
+                <td style="color:var(--fg-2); font-size:12px;">Group: Development</td>
+                <td style="color:var(--fg-2); font-size:12px;">Lab hosts need Wi-Fi</td>
+                <td style="color:var(--fg-2); font-size:12px;">jordan@gonaibo.com</td>
+                <td style="color:var(--fg-3); font-size:12px;">never</td>
+                <td style="text-align:right;"><button class="btn sm">Re-enable</button></td>
+              </tr>
+            </tbody>
+          </table>
+          <div style="padding:12px 18px; border-top:1px solid var(--line); display:flex; justify-content:space-between; align-items:center;">
+            <span style="color:var(--fg-3); font-size:12px;">Exception policy (approval, expiry) is set in <a href="Settings.html" style="color:var(--info); font-weight:500;">Compliance policies</a>.</span>
+            <button class="btn sm"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Add exception</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <h2>Scan runner</h2>
+        <p class="lead">How scans are scheduled and executed across the fleet. Per-state cadence lives in <a href="Settings.html" style="color:var(--info); font-weight:500;">Scanning &amp; monitoring</a>; runner limits are set here.</p>
+        <div class="card">
+          <div class="setting-row">
+            <div><div class="name">Adaptive schedule</div><div class="desc">Failing &amp; non-compliant hosts are re-scanned more often. <span class="mono">Critical → 1h, Compliant → 24h</span>.</div></div>
+            <div class="control"><a href="Settings.html" class="btn sm">Edit cadence</a><div class="toggle on" data-toggle></div></div>
+          </div>
+          <div class="setting-row">
+            <div><div class="name">Max concurrent hosts</div><div class="desc">Cap parallel SSH sessions during a fleet sweep.</div></div>
+            <div class="control"><div class="stepper"><button>−</button><input value="25" /><span class="unit">hosts</span><button>+</button></div></div>
+          </div>
+          <div class="setting-row">
+            <div><div class="name">Per-scan timeout</div><div class="desc">Abandon a host's scan after this long; counts toward connectivity failure.</div></div>
+            <div class="control"><div class="stepper"><button>−</button><input value="30" /><span class="unit">sec</span><button>+</button></div></div>
+          </div>
+          <div class="setting-row">
+            <div><div class="name">Skip hosts in maintenance</div><div class="desc">Don't attempt scans on paused hosts or groups; report them as <span class="mono">skipped</span>, not failed.</div></div>
+            <div class="control"><div class="toggle on" data-toggle></div></div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+
+  </main>
+</div>
+
+<script>
+  // Tabs
+  document.getElementById("tabs").addEventListener("click", (e) => {
+    const tab = e.target.closest(".tab");
+    if (!tab) return;
+    document.querySelectorAll("#tabs .tab").forEach(t => t.classList.toggle("active", t === tab));
+    document.querySelectorAll(".panel").forEach(p => { p.hidden = p.dataset.panel !== tab.dataset.tab; });
+  });
+
+  // Segmented controls (severity policy)
+  document.querySelectorAll(".seg").forEach(seg => {
+    seg.addEventListener("click", (e) => {
+      const b = e.target.closest("button");
+      if (!b) return;
+      seg.querySelectorAll("button").forEach(x => { x.classList.remove("active", "auto", "approve", "off"); });
+      b.classList.add("active");
+      const t = b.textContent.trim();
+      if (t === "Auto-fix") b.classList.add("auto");
+      else if (t === "Require approval") b.classList.add("approve");
+      else b.classList.add("off");
+    });
+  });
+
+  // Toggles
+  document.querySelectorAll("[data-toggle]").forEach(t => t.addEventListener("click", () => t.classList.toggle("on")));
+
+  // Faux live progress on the running scan
+  (function () {
+    const prog = document.getElementById("prog");
+    const rulen = document.getElementById("rulen");
+    if (!prog) return;
+    let n = 312;
+    setInterval(() => {
+      if (n >= 508) return;
+      n = Math.min(508, n + Math.floor(Math.random() * 9) + 1);
+      prog.style.width = Math.round((n / 508) * 100) + "%";
+      rulen.textContent = n + " / 508";
+    }, 1500);
+  })();
+
+  // Avatar menu
+  (function () {
+    const btn = document.getElementById('avatarBtn'), menu = document.getElementById('avatarMenu');
+    btn.addEventListener('click', function (e) { e.stopPropagation(); const open = menu.hidden; menu.hidden = !open; btn.setAttribute('aria-expanded', String(open)); });
+    document.addEventListener('click', function (e) { if (!menu.hidden && !menu.contains(e.target) && e.target !== btn) menu.hidden = true; });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') menu.hidden = true; });
+  })();
+
+  // Rules library
+  (function () {
+    const RULES = [
+      { title: "Disable SSH root login", desc: "PermitRootLogin must be set to no in sshd_config so administrators authenticate as themselves, not a shared root account.", id: "sshd-root-login-disabled", cat: "network", sev: "high", mech: "config_set_dropin", cap: true, refs: { cis: "CIS-5.2.8", stig: "UBTU-24-411045", nist: "AC-6(2)" } },
+      { title: "Ensure host firewall is enabled", desc: "A host firewall (firewalld/ufw/nftables) must be active with a default-deny inbound policy.", id: "firewall-enabled", cat: "network", sev: "high", mech: "service_enabled", cap: true, refs: { cis: "CIS-3.5.1.1", stig: "UBTU-24-251010", nist: "SC-7", pci: "1.2.1" } },
+      { title: "Install and enable auditd", desc: "The audit daemon must be installed and running to capture system-call and file-access events for forensics.", id: "auditd-enabled", cat: "audit", sev: "high", mech: "package_present", cap: true, refs: { cis: "CIS-4.1.1.1", stig: "UBTU-24-653010", nist: "AU-2", pci: "10.2.1" } },
+      { title: "Mount /tmp with noexec, nodev, nosuid", desc: "The /tmp filesystem must carry hardening flags to prevent execution of binaries and device nodes from a world-writable path.", id: "tmp-mount-options", cat: "filesystem", sev: "med", mech: "mount_option_set", cap: true, reboot: true, refs: { cis: "CIS-1.1.2.2", stig: "UBTU-24-231015" } },
+      { title: "Set maximum password age ≤ 365 days", desc: "PASS_MAX_DAYS in /etc/login.defs bounds how long a password may be used before it must be changed.", id: "login-defs-pass-max-days", cat: "access-control", sev: "med", mech: "config_set", cap: true, refs: { cis: "CIS-5.4.1.1", stig: "UBTU-24-411025", nist: "IA-5(1)" } },
+      { title: "Restrict core dumps", desc: "fs.suid_dumpable must be 0 and limits.conf must disallow core dumps to avoid leaking memory from privileged processes.", id: "core-dumps-restricted", cat: "kernel", sev: "high", mech: "sysctl_set", cap: true, refs: { cis: "CIS-1.6.1", nist: "SI-11" } },
+      { title: "Install AIDE file-integrity tool", desc: "A host-based integrity checker (AIDE) must be installed to detect unauthorized changes to system files.", id: "aide-installed", cat: "system", sev: "med", mech: "package_present", cap: true, refs: { cis: "CIS-1.5.1", nist: "SI-7" } },
+      { title: "SELinux in enforcing mode", desc: "On SELinux platforms, the policy must be loaded and enforcing. Gated out on AppArmor hosts.", id: "selinux-enforcing", cat: "system", sev: "high", mech: "config_set", cap: true, refs: { stig: "RHEL-09-431015", nist: "AC-3(4)" } },
+      { title: "SSH MaxAuthTries ≤ 4", desc: "Limit authentication attempts per connection to slow credential-guessing.", id: "sshd-max-auth-tries", cat: "network", sev: "med", mech: "config_set_dropin", cap: true, refs: { cis: "CIS-5.2.5", stig: "UBTU-24-411035", nist: "AC-7" } },
+      { title: "Authorized-use banner in MOTD", desc: "/etc/motd, issue and issue.net must display the organization-approved legal banner before login.", id: "motd-banner", cat: "access-control", sev: "low", mech: "file_content", cap: true, refs: { cis: "CIS-1.7.1", stig: "UBTU-24-291010" } },
+      { title: "Disable usb-storage kernel module", desc: "Blacklist the usb-storage module to prevent data exfiltration via removable media.", id: "kmod-usb-storage-disabled", cat: "kernel", sev: "med", mech: "kernel_module_disable", cap: true, reboot: true, refs: { cis: "CIS-1.1.1.1", stig: "UBTU-24-231040" } },
+      { title: "Forward logs to a remote host", desc: "rsyslog must forward a copy of logs to a central collector so they survive host compromise.", id: "rsyslog-remote-forward", cat: "logging", sev: "med", mech: "config_append", cap: true, refs: { cis: "CIS-4.2.1.5", nist: "AU-4(1)", pci: "10.5.4" } },
+      { title: "Lock account after 5 failed logins", desc: "pam_faillock must lock an account after 5 consecutive failures within the deny interval.", id: "pam-faillock-deny", cat: "access-control", sev: "med", mech: "pam_module_arg", cap: true, refs: { cis: "CIS-5.3.3.1.1", stig: "UBTU-24-411045", nist: "AC-7" } },
+      { title: "Disable unused network services", desc: "Mask telnet, rsh and other cleartext daemons that must never run on a hardened host.", id: "services-cleartext-absent", cat: "services", sev: "high", mech: "service_masked", cap: true, refs: { cis: "CIS-2.1.1", stig: "UBTU-24-251050", nist: "CM-7" } },
+      { title: "Set bootloader (GRUB) password", desc: "A superuser password must protect GRUB so single-user/recovery boot cannot bypass authentication.", id: "grub-password-set", cat: "kernel", sev: "high", mech: "grub_parameter_set", cap: false, refs: { cis: "CIS-1.4.1", stig: "UBTU-24-212010" } },
+      { title: "Set system-wide crypto policy", desc: "Apply the FUTURE/DEFAULT crypto policy so all TLS/SSH services share a hardened algorithm set.", id: "crypto-policy-set", cat: "system", sev: "med", mech: "crypto_policy_set", cap: true, refs: { stig: "RHEL-09-672010", nist: "SC-13" } },
+    ];
+
+    const REF_ORDER = ["cis", "stig", "nist", "pci"];
+    const SEV_LABEL = { high: "High", med: "Med", low: "Low" };
+    const body = document.getElementById("rules-body");
+    if (!body) return;
+    let sevFilter = "all";
+
+    function refChips(refs) {
+      return '<div class="ref-chips">' + REF_ORDER.filter(fw => refs[fw]).map(fw =>
+        '<span class="ref-chip ' + fw + '">' + refs[fw] + '</span>').join("") + "</div>";
+    }
+
+    function matches(r) {
+      if (sevFilter !== "all" && r.sev !== sevFilter) return false;
+      const cat = document.getElementById("rule-cat").value;
+      if (cat !== "all" && r.cat !== cat) return false;
+      const fw = document.getElementById("rule-fw").value;
+      if (fw !== "all" && !r.refs[fw]) return false;
+      const q = document.getElementById("rule-search").value.trim().toLowerCase();
+      if (q) {
+        const hay = (r.title + " " + r.desc + " " + r.id + " " + r.mech + " " + Object.values(r.refs).join(" ")).toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    }
+
+    function render() {
+      const rows = RULES.filter(matches);
+      body.innerHTML = rows.map(r =>
+        '<tr>' +
+          '<td><input type="checkbox" style="width:16px;height:16px; accent-color: var(--info);"/></td>' +
+          '<td><div class="r-title">' + r.title + '</div><div class="r-desc">' + r.desc + '</div><div class="r-id">' + r.id + '</div></td>' +
+          '<td>' + refChips(r.refs) + '</td>' +
+          '<td><span class="sev-tag ' + r.sev + '">' + SEV_LABEL[r.sev] + '</span></td>' +
+          '<td><span class="cat-chip">' + r.cat + '</span></td>' +
+          '<td><span class="mech-chip">' + r.mech + '</span>' +
+            '<div class="cap-tag ' + (r.cap ? "yes" : "no") + '"><span class="d"></span>' + (r.cap ? "atomic" + (r.reboot ? " · reboot" : "") : "manual · no rollback") + '</div></td>' +
+          '<td style="text-align:right;"><button class="icon-btn" style="width:28px;height:28px;" title="Disable / add exception"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg></button></td>' +
+        '</tr>'
+      ).join("");
+      document.getElementById("rule-showing").textContent = "showing " + rows.length + " of 539";
+      document.getElementById("rule-foot").textContent = rows.length + " shown · capability gates decide which actually run per host";
+    }
+
+    document.getElementById("rule-sev").addEventListener("click", (e) => {
+      const b = e.target.closest(".chip");
+      if (!b) return;
+      document.querySelectorAll("#rule-sev .chip").forEach(x => x.classList.toggle("active", x === b));
+      sevFilter = b.dataset.sev;
+      render();
+    });
+    document.getElementById("rule-cat").addEventListener("change", render);
+    document.getElementById("rule-fw").addEventListener("change", render);
+    document.getElementById("rule-search").addEventListener("input", render);
+    render();
+  })();
+</script>
+
+</body>
+</html>
