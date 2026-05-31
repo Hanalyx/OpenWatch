@@ -5,11 +5,13 @@
 //	AC-24  TestBandIntervalFor_MapsStateAndConsecutiveToBand
 //	AC-25  TestPersist_WritesNextProbeAtFromBand
 //	AC-26  TestListProbeTargets_FiltersByNextProbeAt
+//	AC-27  TestListProbeTargets_StripsCIDRPrefixFromIP
 
 package liveness
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -142,6 +144,41 @@ func TestListProbeTargets_FiltersByNextProbeAt(t *testing.T) {
 		}
 		if ids[hFuture] {
 			t.Errorf("expected hFuture (next_probe_at in future) to be skipped, got it back")
+		}
+	})
+}
+
+// @ac AC-27
+// AC-27: listProbeTargets MUST strip PostgreSQL inet's /N prefix length
+// before handing the IP to the dialer. inet::text yields "1.2.3.4/32"
+// which net.Dial rejects as malformed — every probe would fail and every
+// host would be misclassified unreachable.
+func TestListProbeTargets_StripsCIDRPrefixFromIP(t *testing.T) {
+	t.Run("system-liveness-loop/AC-27", func(t *testing.T) {
+		pool := freshPool(t)
+		userID := seedUser(t, pool)
+		hostID := seedHost(t, pool, userID)
+
+		svc := NewService(pool, noopEmit, nil)
+		targets, err := svc.listProbeTargets(context.Background())
+		if err != nil {
+			t.Fatalf("listProbeTargets: %v", err)
+		}
+		var seen bool
+		for _, tgt := range targets {
+			if tgt.HostID != hostID {
+				continue
+			}
+			seen = true
+			if strings.Contains(tgt.Addr, "/") {
+				t.Errorf("Addr=%q contains '/'; inet prefix not stripped — dialer will fail", tgt.Addr)
+			}
+			if tgt.Addr != "192.0.2.10:22" {
+				t.Errorf("Addr=%q, want 192.0.2.10:22", tgt.Addr)
+			}
+		}
+		if !seen {
+			t.Errorf("seeded host %s not present in probe targets", hostID)
 		}
 	})
 }

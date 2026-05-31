@@ -1,7 +1,7 @@
 spec:
   id: system-liveness-loop
   title: Host liveness probe loop
-  version: "1.2.0"
+  version: "1.2.1"
   status: approved
   tier: 1
 
@@ -115,6 +115,10 @@ spec:
       description: Service.Run tick cadence MUST be a short polling interval (default 30s) — per-host effective cadence comes from the band, not from the tick rate. The 30s tick discovers due hosts; the 60..86400s band intervals decide per-host probe spacing. v1.2.0 NEW
       type: technical
       enforcement: error
+    - id: C-17
+      description: listProbeTargets MUST select hosts.ip_address via host(ip_address) (not ::text). PostgreSQL's inet type renders via ::text with a CIDR prefix length appended (192.0.2.10/32) which net.Dial rejects as malformed. v1.2.1 — regression hardening
+      type: technical
+      enforcement: error
 
   acceptance_criteria:
     - id: AC-01
@@ -220,3 +224,7 @@ spec:
       description: listProbeTargets seeded with three hosts — H1 with next_probe_at=NULL, H2 with next_probe_at in the past, H3 with next_probe_at in the future — returns exactly H1 and H2. The short Run-tick (Service.effectiveInterval defaulting to 30s) drives this query — per-host effective cadence comes from the band, not the tick rate.
       priority: critical
       references_constraints: [C-15, C-16]
+    - id: AC-27
+      description: listProbeTargets returns probeTarget.Addr of the form "<ip>:<port>" — never "<ip>/<prefix>:<port>". A host seeded as ip_address='192.0.2.10' MUST produce Addr="192.0.2.10:22". Regression hardening for the inet::text bug that marked every host unreachable in v1.2.0.
+      priority: critical
+      references_constraints: [C-17]

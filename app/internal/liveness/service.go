@@ -296,8 +296,12 @@ type probeTarget struct {
 // tick scales to large fleets without re-walking every host.
 func (s *Service) listProbeTargets(ctx context.Context) ([]probeTarget, error) {
 	now := s.clock()
+	// host(inet) strips the /N prefix length that PostgreSQL's inet type
+	// renders via ::text — "192.168.1.10/32" → "192.168.1.10". The
+	// `/32` slipping through here would yield "192.168.1.10/32:22"
+	// which net.Dial rejects, marking every host unreachable.
 	const q = `
-		SELECT h.id, h.ip_address::text, COALESCE(h.port, 22)
+		SELECT h.id, host(h.ip_address), COALESCE(h.port, 22)
 		  FROM hosts h
 		  LEFT JOIN host_backoff_state b
 		    ON b.host_id = h.id AND b.probe_type = 'scan'
