@@ -15,6 +15,107 @@ const (
 	StatusUnreachable Status = "unreachable"
 )
 
+// MonitoringState is the 5-band classification surfaced to the operator
+// (v1.3.0). Derived from the multi-layer probe outcome: it tells the UI
+// not just "up or down" but WHICH layer is failing.
+//
+//	online       — ping + SSH + privilege all OK
+//	degraded     — ping + SSH OK, privilege (sudo) failing
+//	critical     — ping OK, SSH/TCP-22 failing
+//	down         — no ping; host is off the network
+//	maintenance  — explicitly excluded from probes (per-host or global)
+//	unknown      — added but not yet probed
+//
+// Stored as TEXT with a CHECK constraint in host_liveness.monitoring_state.
+type MonitoringState string
+
+const (
+	StateOnline      MonitoringState = "online"
+	StateDegraded    MonitoringState = "degraded"
+	StateCritical    MonitoringState = "critical"
+	StateDown        MonitoringState = "down"
+	StateMaintenance MonitoringState = "maintenance"
+	StateUnknown     MonitoringState = "unknown"
+)
+
+// FailedLayer names the lowest layer that failed in a multi-layer probe.
+// Empty string when all layers passed. Surface for diagnostics and for
+// the state machine's transition logic.
+type FailedLayer string
+
+const (
+	LayerNone      FailedLayer = ""
+	LayerPing      FailedLayer = "ping"
+	LayerSSH       FailedLayer = "ssh"
+	LayerPrivilege FailedLayer = "privilege"
+)
+
+// MultiLayerResult is the structured outcome of one multi-layer probe
+// (ping → TCP/SSH banner → SSH auth + sudo). Each layer is short-circuit
+// evaluated: if ping fails we don't try SSH; if SSH fails we don't try
+// privilege. Per-layer fields stay zero when the layer wasn't attempted.
+type MultiLayerResult struct {
+	// PingOK is true when ICMP Echo Request received a matching reply
+	// within the timeout. False on timeout, destination unreachable, or
+	// socket error.
+	PingOK   bool
+	PingRTT  time.Duration
+	PingErr  error
+
+	// SSHOK is true when TCP-22 accepted a connection AND the server's
+	// banner began with "SSH-". A non-SSH banner on port 22 is SSHOk=false.
+	SSHOK       bool
+	SSHRTT      time.Duration
+	SSHBanner   []byte
+	SSHErr      error
+	SSHAttempted bool // true if ping succeeded so SSH was tried
+
+	// PrivilegeOK is true when an SSH session authenticated successfully
+	// AND `sudo -n true` returned exit 0. Skipped when SSH layer failed
+	// or when no usable credential exists for the host.
+	PrivilegeOK       bool
+	PrivilegeRTT      time.Duration
+	PrivilegeErr      error
+	PrivilegeAttempted bool
+
+	// TotalRTT is the wall-clock cost of the whole multi-layer probe.
+	TotalRTT time.Duration
+
+	// FirstFailedLayer names the lowest layer that failed. LayerNone
+	// when every attempted layer passed. The state machine uses this
+	// directly to pick the destination band.
+	FirstFailedLayer FailedLayer
+}
+
+// Reachable reports whether the host satisfies the legacy "SSH banner"
+// criterion. Used to map MultiLayerResult onto the existing
+// host_liveness.reachability_status (3-value) enum so the v1.3.0
+// rollout doesn't break callers that haven't migrated to the
+// multi-layer view yet.
+func (m MultiLayerResult) Reachable() bool { return m.SSHOK }
+
+// AsProbeResult flattens a MultiLayerResult into the legacy ProbeResult
+// shape so all the existing single-layer code paths (persist hysteresis
+// against reachability_status, audit emission, etc.) keep working
+// unchanged. Multi-layer fields live alongside it on the persisted row.
+func (m MultiLayerResult) AsProbeResult() ProbeResult {
+	r := ProbeResult{
+		Reachable:    m.SSHOK,
+		ResponseTime: m.TotalRTT,
+		BannerSeen:   len(m.SSHBanner) > 0,
+		Banner:       m.SSHBanner,
+	}
+	switch {
+	case m.PingErr != nil && !m.PingOK:
+		r.Error = m.PingErr
+	case m.SSHErr != nil && !m.SSHOK:
+		r.Error = m.SSHErr
+	case m.PrivilegeErr != nil && !m.PrivilegeOK:
+		r.Error = m.PrivilegeErr
+	}
+	return r
+}
+
 // Probe-cadence safety limits. Spec C-03 enforces the [60s, 3600s] range
 // independent of policy.Liveness.IntervalSec. Defaults sized for typical
 // fleet sizes (1000 hosts × 5 min cadence = ~3 probes/sec — trivial).

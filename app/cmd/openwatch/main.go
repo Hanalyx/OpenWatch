@@ -26,6 +26,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/audit"
 	"github.com/Hanalyx/openwatch/internal/config"
 	"github.com/Hanalyx/openwatch/internal/correlation"
+	"github.com/Hanalyx/openwatch/internal/credential"
 	"github.com/Hanalyx/openwatch/internal/db"
 	"github.com/Hanalyx/openwatch/internal/db/migrations"
 	"github.com/Hanalyx/openwatch/internal/eventbus"
@@ -35,6 +36,7 @@ import (
 	openlog "github.com/Hanalyx/openwatch/internal/log"
 	"github.com/Hanalyx/openwatch/internal/secretkey"
 	"github.com/Hanalyx/openwatch/internal/server"
+	"github.com/Hanalyx/openwatch/internal/sshprivilege"
 	"github.com/Hanalyx/openwatch/internal/systemconfig"
 	"github.com/Hanalyx/openwatch/internal/users"
 	"github.com/Hanalyx/openwatch/internal/version"
@@ -301,8 +303,31 @@ func cmdServe(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 	// maintenance) hot-loads through this. Spec
 	// services-connectivity-config.
 	cfgStore := systemconfig.NewStore(pool, audit.Emit)
+
+	// v1.3.0 multi-layer adaptive health checks: ICMP ping → SSH
+	// banner → sudo. The Pinger picks the best available ICMP
+	// strategy at boot (raw with CAP_NET_RAW, else unprivileged via
+	// ping_group_range). Both failure modes are logged so operators
+	// can confirm — a nil pinger silently falls back to the legacy
+	// single-layer SSH-only path. Spec system-liveness-loop C-18.
+	pinger, perr := liveness.NewPinger()
+	if perr != nil {
+		slog.WarnContext(bootCtx, "liveness: ICMP unavailable; falling back to SSH-only probes",
+			slog.String("err", perr.Error()))
+	} else {
+		slog.InfoContext(bootCtx, "liveness: ICMP pinger ready",
+			slog.String("mode", string(pinger.Mode())))
+		defer func() { _ = pinger.Close() }()
+	}
+
+	credSvc := credential.NewService(pool)
+	privProbe := sshprivilege.Probe(credSvc)
+
 	liveSvc := liveness.NewService(pool, audit.Emit, bus).
-		WithConfigLoader(cfgStore.LoadConnectivity)
+		WithConfigLoader(cfgStore.LoadConnectivity).
+		WithPinger(pinger).
+		WithPrivilegeProbe(privProbe).
+		WithMonitoringHistory(true)
 	go liveSvc.Run(ctx)
 
 	srv := server.New(cfg, pool).WithConnectivityConfig(cfgStore, liveSvc)

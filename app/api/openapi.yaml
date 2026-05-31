@@ -805,6 +805,62 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
 
+  /api/v1/hosts/{host_id}/maintenance:
+    put:
+      operationId: putHostMaintenance
+      summary: Pause/resume liveness probes for a single host
+      description: >
+        Toggling maintenance_mode=true causes listProbeTargets to skip
+        the host on every subsequent tick. The host_liveness row is left
+        untouched, so resuming maintenance picks up from the last
+        recorded state. v1.3.0.
+      x-required-permission: host:write
+      parameters:
+        - {name: host_id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/HostMaintenanceRequest'}
+      responses:
+        '200':
+          description: Updated host
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/HostResponse'}
+        '404':
+          description: Host not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
+  /api/v1/hosts/{host_id}/monitoring/history:
+    get:
+      operationId: getHostMonitoringHistory
+      summary: Tail the host's monitoring-history rows (most recent first)
+      description: >
+        Returns up to `limit` most-recent host_monitoring_history rows
+        for diagnostics. Each row captures the per-layer pass/fail flags
+        the multi-layer probe recorded. v1.3.0.
+      x-required-permission: host:read
+      parameters:
+        - {name: host_id, in: path, required: true, schema: {type: string, format: uuid}}
+        - name: limit
+          in: query
+          required: false
+          schema: {type: integer, minimum: 1, maximum: 500, default: 50}
+      responses:
+        '200':
+          description: History rows newest-first
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/HostMonitoringHistoryResponse'}
+        '404':
+          description: Host not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
   /api/v1/audit/events:
     get:
       operationId: getAuditEvents
@@ -1280,11 +1336,57 @@ components:
         reachability_status:
           type: string
           enum: [reachable, unreachable, unknown]
+        # 5-band classification (v1.3.0). Derived from which layer of
+        # the multi-layer probe failed. UI rolls reachability_status +
+        # monitoring_state into a single badge.
+        monitoring_state:
+          type: string
+          enum: [online, degraded, critical, down, maintenance, unknown]
         last_probe_at:        {type: string, format: date-time, nullable: true}
         last_response_ms:     {type: integer, nullable: true}
         consecutive_failures: {type: integer}
+        # Per-layer counters (v1.3.0). Surface for the operator to see
+        # WHICH axis is failing without parsing last_error_type.
+        ping_consecutive_failures:      {type: integer}
+        ping_consecutive_successes:     {type: integer}
+        ssh_consecutive_failures:       {type: integer}
+        ssh_consecutive_successes:      {type: integer}
+        privilege_consecutive_failures: {type: integer}
+        privilege_consecutive_successes: {type: integer}
         last_state_change_at: {type: string, format: date-time, nullable: true}
         last_error_type:      {type: string, nullable: true}
+
+    HostMaintenanceRequest:
+      type: object
+      required: [enabled]
+      properties:
+        enabled: {type: boolean, description: "true = pause probes; false = resume"}
+
+    HostMonitoringHistoryEntry:
+      type: object
+      required: [id, host_id, check_time, monitoring_state]
+      properties:
+        id:                {type: integer, format: int64}
+        host_id:           {type: string, format: uuid}
+        check_time:        {type: string, format: date-time}
+        monitoring_state:  {type: string, enum: [online, degraded, critical, down, maintenance, unknown]}
+        previous_state:    {type: string, enum: [online, degraded, critical, down, maintenance, unknown], nullable: true}
+        response_time_ms:  {type: integer, nullable: true}
+        ping_ok:           {type: boolean, nullable: true}
+        ssh_ok:            {type: boolean, nullable: true}
+        privilege_ok:      {type: boolean, nullable: true}
+        failed_layer:      {type: string, enum: [ping, ssh, privilege], nullable: true}
+        error_message:     {type: string, nullable: true}
+        error_type:        {type: string, nullable: true}
+
+    HostMonitoringHistoryResponse:
+      type: object
+      required: [host_id, entries]
+      properties:
+        host_id: {type: string, format: uuid}
+        entries:
+          type: array
+          items: {$ref: '#/components/schemas/HostMonitoringHistoryEntry'}
 
     # Per-host compliance roll-up (spec api-hosts v1.1.0 C-06).
     # Always populated on GET /hosts/{id} — zero counts when no rule_state.
