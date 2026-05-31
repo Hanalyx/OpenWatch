@@ -1441,13 +1441,33 @@ components:
 
     ConnectivityConfig:
       type: object
-      required: [interval_sec, timeout_sec, unreachable_threshold, rate_limit, maintenance_global]
+      required: [online_sec, degraded_sec, critical_sec, down_sec, maintenance_sec, timeout_sec, unreachable_threshold, rate_limit, maintenance_global]
       properties:
-        interval_sec:
+        online_sec:
           type: integer
           minimum: 60
           maximum: 86400
-          description: Seconds between probe-loop ticks (60..86400)
+          description: Probe interval for reachable hosts with consecutive_failures=0 (60..86400). Default 900 (15m)
+        degraded_sec:
+          type: integer
+          minimum: 60
+          maximum: 86400
+          description: Probe interval for reachable hosts with consecutive_failures>=1 (60..86400). Default 300 (5m)
+        critical_sec:
+          type: integer
+          minimum: 60
+          maximum: 86400
+          description: Probe interval for unreachable hosts below the threshold (60..86400). Default 120 (2m)
+        down_sec:
+          type: integer
+          minimum: 60
+          maximum: 86400
+          description: Probe interval for hosts at or above the threshold (60..86400). Default 1800 (30m)
+        maintenance_sec:
+          type: integer
+          minimum: 60
+          maximum: 86400
+          description: Persisted band interval for hosts in maintenance (60..86400). Default 3600 (60m). Not yet auto-applied; tracked for the per-host maintenance slice
         timeout_sec:
           type: integer
           minimum: 1

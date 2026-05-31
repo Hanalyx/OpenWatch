@@ -107,7 +107,11 @@ func TestSetThenLoad_RoundTripsSavedSnapshot(t *testing.T) {
 	s := NewStore(pool, cap.emit)
 
 	want := ConnectivityConfig{
-		IntervalSec:          600,
+		OnlineSec:            600,
+		DegradedSec:          180,
+		CriticalSec:          60,
+		DownSec:              1200,
+		MaintenanceSec:       1800,
 		TimeoutSec:           10,
 		UnreachableThreshold: 3,
 		RateLimit:            25,
@@ -125,17 +129,14 @@ func TestSetThenLoad_RoundTripsSavedSnapshot(t *testing.T) {
 	}
 }
 
-// AC-03: out-of-range interval_sec rejected; persisted state unchanged.
+// AC-03: out-of-range online_sec rejected; persisted state unchanged.
 // @ac AC-03
 func TestSetConnectivity_RejectsIntervalBelowMinimum(t *testing.T) {
 	pool := freshPool(t)
 	s := NewStore(pool, nil)
-	err := s.SetConnectivity(context.Background(), ConnectivityConfig{
-		IntervalSec:          30, // below 60
-		TimeoutSec:           5,
-		UnreachableThreshold: 2,
-		RateLimit:            50,
-	}, "alice")
+	bad := DefaultConnectivity()
+	bad.OnlineSec = 10 // below 60
+	err := s.SetConnectivity(context.Background(), bad, "alice")
 	if !errors.Is(err, ErrInvalidConfig) {
 		t.Errorf("expected ErrInvalidConfig, got %v", err)
 	}
@@ -146,17 +147,14 @@ func TestSetConnectivity_RejectsIntervalBelowMinimum(t *testing.T) {
 	}
 }
 
-// AC-04: unreachable_threshold=0 rejected.
+// AC-04: down_sec above maximum rejected.
 // @ac AC-04
 func TestSetConnectivity_RejectsThresholdZero(t *testing.T) {
 	pool := freshPool(t)
 	s := NewStore(pool, nil)
-	err := s.SetConnectivity(context.Background(), ConnectivityConfig{
-		IntervalSec:          300,
-		TimeoutSec:           5,
-		UnreachableThreshold: 0, // below 1
-		RateLimit:            50,
-	}, "alice")
+	bad := DefaultConnectivity()
+	bad.DownSec = 100000 // above 86400
+	err := s.SetConnectivity(context.Background(), bad, "alice")
 	if !errors.Is(err, ErrInvalidConfig) {
 		t.Errorf("expected ErrInvalidConfig, got %v", err)
 	}
@@ -171,16 +169,21 @@ func TestSetConnectivity_EmitsConfigChangedWithOldAndNew(t *testing.T) {
 	s := NewStore(pool, cap.emit)
 
 	// First Set populates the row with custom values.
-	first := ConnectivityConfig{
-		IntervalSec: 600, TimeoutSec: 10, UnreachableThreshold: 3, RateLimit: 25, MaintenanceGlobal: false,
-	}
+	first := DefaultConnectivity()
+	first.OnlineSec = 600
+	first.TimeoutSec = 10
+	first.UnreachableThreshold = 3
+	first.RateLimit = 25
 	if err := s.SetConnectivity(context.Background(), first, "alice"); err != nil {
 		t.Fatalf("first Set: %v", err)
 	}
 	// Second Set should capture the first as old_value.
-	second := ConnectivityConfig{
-		IntervalSec: 1200, TimeoutSec: 15, UnreachableThreshold: 4, RateLimit: 30, MaintenanceGlobal: true,
-	}
+	second := DefaultConnectivity()
+	second.OnlineSec = 1200
+	second.TimeoutSec = 15
+	second.UnreachableThreshold = 4
+	second.RateLimit = 30
+	second.MaintenanceGlobal = true
 	if err := s.SetConnectivity(context.Background(), second, "bob"); err != nil {
 		t.Fatalf("second Set: %v", err)
 	}
@@ -226,12 +229,10 @@ func TestConcurrentSet_LastWriterWins_NoDeadlock(t *testing.T) {
 	pool := freshPool(t)
 	s := NewStore(pool, nil)
 
-	a := ConnectivityConfig{
-		IntervalSec: 600, TimeoutSec: 5, UnreachableThreshold: 2, RateLimit: 50,
-	}
-	b := ConnectivityConfig{
-		IntervalSec: 1200, TimeoutSec: 5, UnreachableThreshold: 2, RateLimit: 50,
-	}
+	a := DefaultConnectivity()
+	a.OnlineSec = 600
+	b := DefaultConnectivity()
+	b.OnlineSec = 1200
 
 	done := make(chan error, 2)
 	go func() { done <- s.SetConnectivity(context.Background(), a, "alice") }()

@@ -57,8 +57,11 @@ func TestAPI_SystemConnectivity_Config_GET_ReturnsDefaultsWhenEmpty(t *testing.T
 		if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
 			t.Fatalf("decode: %v", err)
 		}
-		if got := body.Config["interval_sec"].(float64); got != 300 {
-			t.Errorf("config.interval_sec: want 300, got %v", got)
+		if got := body.Config["online_sec"].(float64); got != 900 {
+			t.Errorf("config.online_sec: want 900, got %v", got)
+		}
+		if got := body.Defaults["down_sec"].(float64); got != 1800 {
+			t.Errorf("defaults.down_sec: want 1800, got %v", got)
 		}
 		if got := body.Defaults["unreachable_threshold"].(float64); got != 2 {
 			t.Errorf("defaults.unreachable_threshold: want 2, got %v", got)
@@ -67,17 +70,29 @@ func TestAPI_SystemConnectivity_Config_GET_ReturnsDefaultsWhenEmpty(t *testing.T
 }
 
 // AC-02: PUT with valid body persists; subsequent GET returns the same.
+// validConnectivityBody returns a v1.1.0-shaped PUT body that passes
+// every range check. Callers override a field to exercise one rule.
+func validConnectivityBody() map[string]any {
+	return map[string]any{
+		"online_sec":            900,
+		"degraded_sec":          300,
+		"critical_sec":          120,
+		"down_sec":              1800,
+		"maintenance_sec":       3600,
+		"timeout_sec":           5,
+		"unreachable_threshold": 2,
+		"rate_limit":            50,
+		"maintenance_global":    false,
+	}
+}
+
 // @ac AC-02
 func TestAPI_SystemConnectivity_Config_PUT_RoundTrip(t *testing.T) {
 	t.Run("api-system-connectivity/AC-02", func(t *testing.T) {
 		url, _ := freshAPIServer(t)
-		body := map[string]any{
-			"interval_sec":          600,
-			"timeout_sec":           10,
-			"unreachable_threshold": 3,
-			"rate_limit":            25,
-			"maintenance_global":    false,
-		}
+		body := validConnectivityBody()
+		body["online_sec"] = 600
+		body["down_sec"] = 1200
 		req := asRole(t, "PUT", url+"/api/v1/system/connectivity/config", auth.RoleAdmin, body)
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
@@ -100,8 +115,11 @@ func TestAPI_SystemConnectivity_Config_PUT_RoundTrip(t *testing.T) {
 		if err := json.NewDecoder(resp2.Body).Decode(&roundTrip); err != nil {
 			t.Fatalf("decode: %v", err)
 		}
-		if got := roundTrip.Config["interval_sec"].(float64); got != 600 {
-			t.Errorf("interval_sec round-trip: want 600, got %v", got)
+		if got := roundTrip.Config["online_sec"].(float64); got != 600 {
+			t.Errorf("online_sec round-trip: want 600, got %v", got)
+		}
+		if got := roundTrip.Config["down_sec"].(float64); got != 1200 {
+			t.Errorf("down_sec round-trip: want 1200, got %v", got)
 		}
 	})
 }
@@ -111,13 +129,8 @@ func TestAPI_SystemConnectivity_Config_PUT_RoundTrip(t *testing.T) {
 func TestAPI_SystemConnectivity_Config_PUT_RejectsBelowMinimum(t *testing.T) {
 	t.Run("api-system-connectivity/AC-03", func(t *testing.T) {
 		url, _ := freshAPIServer(t)
-		body := map[string]any{
-			"interval_sec":          10, // below 60
-			"timeout_sec":           5,
-			"unreachable_threshold": 2,
-			"rate_limit":            50,
-			"maintenance_global":    false,
-		}
+		body := validConnectivityBody()
+		body["online_sec"] = 10 // below 60
 		req := asRole(t, "PUT", url+"/api/v1/system/connectivity/config", auth.RoleAdmin, body)
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
@@ -135,13 +148,8 @@ func TestAPI_SystemConnectivity_Config_PUT_RejectsBelowMinimum(t *testing.T) {
 func TestAPI_SystemConnectivity_Config_PUT_RejectsAboveMaximum(t *testing.T) {
 	t.Run("api-system-connectivity/AC-04", func(t *testing.T) {
 		url, _ := freshAPIServer(t)
-		body := map[string]any{
-			"interval_sec":          99999, // above 86400
-			"timeout_sec":           5,
-			"unreachable_threshold": 2,
-			"rate_limit":            50,
-			"maintenance_global":    false,
-		}
+		body := validConnectivityBody()
+		body["down_sec"] = 99999 // above 86400
 		req := asRole(t, "PUT", url+"/api/v1/system/connectivity/config", auth.RoleAdmin, body)
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
@@ -159,13 +167,7 @@ func TestAPI_SystemConnectivity_Config_PUT_RejectsAboveMaximum(t *testing.T) {
 func TestAPI_SystemConnectivity_Config_PUT_AsViewer_Forbidden(t *testing.T) {
 	t.Run("api-system-connectivity/AC-06", func(t *testing.T) {
 		url, _ := freshAPIServer(t)
-		body := map[string]any{
-			"interval_sec":          600,
-			"timeout_sec":           5,
-			"unreachable_threshold": 2,
-			"rate_limit":            50,
-			"maintenance_global":    false,
-		}
+		body := validConnectivityBody()
 		req := asRole(t, "PUT", url+"/api/v1/system/connectivity/config", auth.RoleViewer, body)
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {

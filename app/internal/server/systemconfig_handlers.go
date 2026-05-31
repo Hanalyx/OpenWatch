@@ -65,7 +65,11 @@ func (h *handlers) PutSystemConnectivityConfig(w http.ResponseWriter, r *http.Re
 	}
 
 	cfg := systemconfig.ConnectivityConfig{
-		IntervalSec:          req.IntervalSec,
+		OnlineSec:            req.OnlineSec,
+		DegradedSec:          req.DegradedSec,
+		CriticalSec:          req.CriticalSec,
+		DownSec:              req.DownSec,
+		MaintenanceSec:       req.MaintenanceSec,
 		TimeoutSec:           req.TimeoutSec,
 		UnreachableThreshold: req.UnreachableThreshold,
 		RateLimit:            req.RateLimit,
@@ -163,7 +167,11 @@ func configResponse(active systemconfig.ConnectivityConfig) api.ConnectivityConf
 
 func toAPIConfig(c systemconfig.ConnectivityConfig) api.ConnectivityConfig {
 	return api.ConnectivityConfig{
-		IntervalSec:          c.IntervalSec,
+		OnlineSec:            c.OnlineSec,
+		DegradedSec:          c.DegradedSec,
+		CriticalSec:          c.CriticalSec,
+		DownSec:              c.DownSec,
+		MaintenanceSec:       c.MaintenanceSec,
 		TimeoutSec:           c.TimeoutSec,
 		UnreachableThreshold: c.UnreachableThreshold,
 		RateLimit:            c.RateLimit,
@@ -177,8 +185,16 @@ func toAPIConfig(c systemconfig.ConnectivityConfig) api.ConnectivityConfig {
 // one the user actually broke first.
 func firstInvalidField(c systemconfig.ConnectivityConfig) string {
 	switch {
-	case c.IntervalSec < 60 || c.IntervalSec > 86400:
-		return "interval_sec"
+	case c.OnlineSec < 60 || c.OnlineSec > 86400:
+		return "online_sec"
+	case c.DegradedSec < 60 || c.DegradedSec > 86400:
+		return "degraded_sec"
+	case c.CriticalSec < 60 || c.CriticalSec > 86400:
+		return "critical_sec"
+	case c.DownSec < 60 || c.DownSec > 86400:
+		return "down_sec"
+	case c.MaintenanceSec < 60 || c.MaintenanceSec > 86400:
+		return "maintenance_sec"
 	case c.TimeoutSec < 1 || c.TimeoutSec > 30:
 		return "timeout_sec"
 	case c.UnreachableThreshold < 1 || c.UnreachableThreshold > 10:

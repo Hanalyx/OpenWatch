@@ -193,7 +193,11 @@ function formatTimeAgo(iso: string | null | undefined): string {
 // ─────────────────────────────────────────────────────────────────────────
 
 interface ConnectivityConfigDraft {
-  interval_sec: number;
+  online_sec: number;
+  degraded_sec: number;
+  critical_sec: number;
+  down_sec: number;
+  maintenance_sec: number;
   timeout_sec: number;
   unreachable_threshold: number;
   rate_limit: number;
@@ -250,7 +254,11 @@ export function ScanningPage() {
   useEffect(() => {
     if (configQuery.data && !draft) {
       setDraft({
-        interval_sec: configQuery.data.config.interval_sec,
+        online_sec: configQuery.data.config.online_sec,
+        degraded_sec: configQuery.data.config.degraded_sec,
+        critical_sec: configQuery.data.config.critical_sec,
+        down_sec: configQuery.data.config.down_sec,
+        maintenance_sec: configQuery.data.config.maintenance_sec,
         timeout_sec: configQuery.data.config.timeout_sec,
         unreachable_threshold: configQuery.data.config.unreachable_threshold,
         rate_limit: configQuery.data.config.rate_limit,
@@ -277,7 +285,11 @@ export function ScanningPage() {
     if (!draft || !configQuery.data) return false;
     const live = configQuery.data.config;
     return (
-      draft.interval_sec !== live.interval_sec ||
+      draft.online_sec !== live.online_sec ||
+      draft.degraded_sec !== live.degraded_sec ||
+      draft.critical_sec !== live.critical_sec ||
+      draft.down_sec !== live.down_sec ||
+      draft.maintenance_sec !== live.maintenance_sec ||
       draft.timeout_sec !== live.timeout_sec ||
       draft.unreachable_threshold !== live.unreachable_threshold ||
       draft.rate_limit !== live.rate_limit ||
@@ -288,7 +300,11 @@ export function ScanningPage() {
   const onResetConnectivity = () => {
     if (!configQuery.data) return;
     setDraft({
-      interval_sec: configQuery.data.defaults.interval_sec,
+      online_sec: configQuery.data.defaults.online_sec,
+      degraded_sec: configQuery.data.defaults.degraded_sec,
+      critical_sec: configQuery.data.defaults.critical_sec,
+      down_sec: configQuery.data.defaults.down_sec,
+      maintenance_sec: configQuery.data.defaults.maintenance_sec,
       timeout_sec: configQuery.data.defaults.timeout_sec,
       unreachable_threshold: configQuery.data.defaults.unreachable_threshold,
       rate_limit: configQuery.data.defaults.rate_limit,
@@ -314,7 +330,24 @@ export function ScanningPage() {
   // ─── Live-derived display values ─────────────────────────────────────
   const breakdown = breakdownQuery.data;
   const status = statusQuery.data;
-  const connectivityIntervalMin = draft ? Math.round(draft.interval_sec / 60) : 5;
+  // Per-state interval (minutes) — comes from draft, which mirrors what
+  // the backend's bandIntervalFor() will pick. Spec
+  // services-connectivity-config v1.1.0 + system-liveness-loop v1.2.0.
+  const bandIntervalMin = (seedId: string): number => {
+    if (!draft) return 5;
+    switch (seedId) {
+      case 'online':
+        return Math.round(draft.online_sec / 60);
+      case 'degraded':
+        return Math.round(draft.degraded_sec / 60);
+      case 'critical':
+        return Math.round(draft.critical_sec / 60);
+      case 'down':
+        return Math.round(draft.down_sec / 60);
+      default:
+        return 0; // never_probed: immediate
+    }
+  };
   const connectivityRows = useMemo<StateRowConfig[]>(
     () =>
       CONNECTIVITY_ROW_SEEDS.map((seed) => {
@@ -337,12 +370,13 @@ export function ScanningPage() {
           name: seed.name,
           desc: seed.desc,
           hosts,
-          intervalMin: connectivityIntervalMin,
+          intervalMin: bandIntervalMin(seed.id),
           rangeText: seed.rangeText,
           cadenceText: (m: number) => (m > 0 ? `Every ${m} min` : 'Immediate'),
         };
       }),
-    [breakdown, connectivityIntervalMin],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [breakdown, draft],
   );
 
   const breakdownTotal = breakdown
@@ -468,23 +502,79 @@ export function ScanningPage() {
             <FirstSettingRow
               name={
                 <>
-                  Probe interval{' '}
+                  Online interval{' '}
                   <HelpCircle
                     size={13}
                     color="var(--ow-fg-3)"
-                    aria-label="Single global probe interval — applies to every reachable host"
+                    aria-label="Probe cadence for stable, reachable hosts (consecutive_failures = 0)"
                   />
                 </>
               }
-              description={`How often the loop sweeps the fleet (60..86400 seconds). Currently every ${connectivityIntervalMin} min. Hot-applied on save.`}
+              description="Reachable hosts with no recent failures. Bias high — nothing's changing. (60..86400 sec)"
               control={
                 <Stepper
-                  value={draft?.interval_sec ?? 300}
+                  value={draft?.online_sec ?? 900}
+                  min={60}
+                  max={86400}
+                  step={60}
+                  unit="sec"
+                  onChange={(v) => setDraft((d) => (d ? { ...d, online_sec: v } : d))}
+                />
+              }
+            />
+            <SettingRow
+              name="Degraded interval"
+              description="Reachable hosts with at least one recent failure — watch closely. (60..86400 sec)"
+              control={
+                <Stepper
+                  value={draft?.degraded_sec ?? 300}
                   min={60}
                   max={86400}
                   step={30}
                   unit="sec"
-                  onChange={(v) => setDraft((d) => (d ? { ...d, interval_sec: v } : d))}
+                  onChange={(v) => setDraft((d) => (d ? { ...d, degraded_sec: v } : d))}
+                />
+              }
+            />
+            <SettingRow
+              name="Critical interval"
+              description="Unreachable hosts still below the failure threshold — confirm fast. (60..86400 sec)"
+              control={
+                <Stepper
+                  value={draft?.critical_sec ?? 120}
+                  min={60}
+                  max={86400}
+                  step={30}
+                  unit="sec"
+                  onChange={(v) => setDraft((d) => (d ? { ...d, critical_sec: v } : d))}
+                />
+              }
+            />
+            <SettingRow
+              name="Down interval"
+              description="Hosts at or above the failure threshold — back off, don't hammer dead. (60..86400 sec)"
+              control={
+                <Stepper
+                  value={draft?.down_sec ?? 1800}
+                  min={60}
+                  max={86400}
+                  step={60}
+                  unit="sec"
+                  onChange={(v) => setDraft((d) => (d ? { ...d, down_sec: v } : d))}
+                />
+              }
+            />
+            <SettingRow
+              name="Maintenance interval"
+              description="Persisted for the per-host maintenance slice (not yet auto-applied). (60..86400 sec)"
+              control={
+                <Stepper
+                  value={draft?.maintenance_sec ?? 3600}
+                  min={60}
+                  max={86400}
+                  step={60}
+                  unit="sec"
+                  onChange={(v) => setDraft((d) => (d ? { ...d, maintenance_sec: v } : d))}
                 />
               }
             />
@@ -661,7 +751,11 @@ export function ScanningPage() {
           onReset={() => {
             if (!configQuery.data) return;
             setDraft({
-              interval_sec: configQuery.data.config.interval_sec,
+              online_sec: configQuery.data.config.online_sec,
+              degraded_sec: configQuery.data.config.degraded_sec,
+              critical_sec: configQuery.data.config.critical_sec,
+              down_sec: configQuery.data.config.down_sec,
+              maintenance_sec: configQuery.data.config.maintenance_sec,
               timeout_sec: configQuery.data.config.timeout_sec,
               unreachable_threshold: configQuery.data.config.unreachable_threshold,
               rate_limit: configQuery.data.config.rate_limit,
