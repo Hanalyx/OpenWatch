@@ -1,0 +1,151 @@
+spec:
+  id: frontend-host-detail
+  title: Host detail — single-host posture, liveness, transactions
+  version: "1.0.0"
+  status: approved
+  tier: 2
+
+  context:
+    system: openwatch-go
+    feature: First user-facing page that surfaces Slice B data — host posture + liveness + recent transactions
+    description: >
+      Route /hosts/{id} renders a single host's compliance posture
+      using the API surface shipped in Slice B plus the
+      framework-at-query-time addendum: GET /api/v1/hosts/{id} (host +
+      liveness + compliance summary) and GET /api/v1/fleet/recent-changes
+      filtered to host_id (recent state transitions).
+
+      The page has three regions: identity header (hostname, IP,
+      environment, liveness state), compliance body (passing / failing /
+      skipped / error counts + derived pass percentage + framework
+      filter), and footer (recent transactions table with cursor
+      pagination).
+
+      Per the framework-at-query-time architecture, an optional
+      ?framework= URL param is propagated to every fetch that supports
+      it. The URL is the source of truth — reloading restores the same
+      view.
+
+      Ported from the original frontend-findings-ui spec at
+      /tmp/findings-spec.yaml; updated for the Go rebuild's MUI v7 +
+      TanStack stack.
+    related_specs:
+      - api-hosts
+      - api-fleet-observability
+      - system-rbac
+      - system-fleet-rollup
+      - frontend-hosts-list
+
+  objective:
+    summary: >
+      An operator with host:read opens /hosts/{id}, sees identity
+      header + compliance summary + recent transactions table. A
+      framework dropdown filters the visible counts and transactions.
+      URL preserves the framework selection across reloads. Empty,
+      loading, and error states render distinctly per region.
+    scope:
+      includes:
+        - "Route /hosts/{id} requires host:read"
+        - "Three regions: identity header, compliance body, transactions footer"
+        - "Optional ?framework=<id> URL param honored across all data fetches"
+        - "Empty / loading / error states for every fetch"
+        - "Recent transactions table with cursor pagination (50 per page)"
+        - "Liveness state rendering (reachable, unreachable, unknown, not-yet-probed)"
+        - "axe-clean rendering in both color modes"
+      excludes:
+        - "Multi-host bulk views (deferred)"
+        - "Trigger-a-scan button (needs scheduler mutation API)"
+        - "Trend lines / time-series (needs temporal API)"
+        - "Remediation actions (different RBAC surface)"
+        - "Per-transaction detail page (TBD by follow-up spec)"
+
+  constraints:
+    - id: C-01
+      description: The route /hosts/{id} MUST require host:read. Unauthenticated requests redirect to /login with return_to; authenticated requests without host:read render the 403 region surfacing authz.permission_denied
+      type: security
+      enforcement: error
+    - id: C-02
+      description: Every API fetch in the view MUST handle three terminal states — success, 4xx/5xx error, network failure. Each state renders a distinct UI region with a human-readable message and (where retryable) a Retry control
+      type: technical
+      enforcement: error
+    - id: C-03
+      description: When the URL carries ?framework=<id>, the value MUST be propagated to GET /api/v1/hosts/{id}?framework=<id> AND GET /api/v1/fleet/recent-changes?host_id=<uuid>&framework=<id>. Changing the filter MUST update the URL via the router; reloading restores the same view
+      type: technical
+      enforcement: error
+    - id: C-04
+      description: The compliance summary region MUST render passing / failing / skipped / error counts AND a derived pass percentage when total > 0. When total = 0 the region MUST render an empty-state message ("No compliance data for this host yet") rather than "0%"
+      type: technical
+      enforcement: error
+    - id: C-05
+      description: The liveness region MUST render one of three states — reachable, unreachable, unknown — with the corresponding semantic color/icon. A null liveness object from the API (never-probed host) MUST render a distinct fourth state ("Not yet probed")
+      type: technical
+      enforcement: error
+    - id: C-06
+      description: The recent-transactions table MUST cap visible rows at 50; a "Show more" or "Next" control fetches the next page via cursor. Rows MAY link to a per-transaction detail view (route TBD); broken links MUST NOT crash the page
+      type: technical
+      enforcement: error
+    - id: C-07
+      description: Every interactive element MUST be reachable by keyboard alone and carry an explicit ARIA label. The page MUST pass axe-core wcag2a + wcag2aa with zero violations in both color modes
+      type: technical
+      enforcement: error
+    - id: C-08
+      description: No PII or secret value MAY appear in client-side console output. The data fetcher MUST scrub error.detail.evidence and error.detail.token if present before any console emission
+      type: security
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: Navigating to /hosts/<existing-uuid> while authenticated with host:read renders the identity header with hostname + ip_address + environment matching the API response.
+      priority: critical
+    - id: AC-02
+      description: Navigating to /hosts/<unknown-uuid> renders a 404 region (host_not_found from API) — not the loading state forever and not a generic JS exception.
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-03
+      description: Navigating to /hosts/{id} authenticated without host:read renders the 403 region surfacing authz.permission_denied.
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-04
+      description: A host with seeded host_rule_state (3 pass / 2 fail / 1 skipped) renders the compliance summary as "3 passing, 2 failing, 1 skipped, 6 total — 50%".
+      priority: critical
+      references_constraints: [C-04]
+    - id: AC-05
+      description: A host with NO host_rule_state renders the compliance summary as "No compliance data for this host yet" — not "0% — 0 of 0".
+      priority: critical
+      references_constraints: [C-04]
+    - id: AC-06
+      description: A host with liveness=null renders "Not yet probed" in the liveness region — not a missing element and not "unknown".
+      priority: critical
+      references_constraints: [C-05]
+    - id: AC-07
+      description: A host with liveness.reachability_status="reachable" renders the reachable state with last_probe_at in the user's local timezone format.
+      priority: critical
+      references_constraints: [C-05]
+    - id: AC-08
+      description: The page contains a framework filter control; selecting "cis_rhel9_v2.0.0" updates the URL to /hosts/{id}?framework=cis_rhel9_v2.0.0 AND triggers re-fetches of /api/v1/hosts/{id} + /api/v1/fleet/recent-changes with the same framework value.
+      priority: critical
+      references_constraints: [C-03]
+    - id: AC-09
+      description: Reloading /hosts/{id}?framework=stig_rhel9_v2r7 restores the framework filter in the control (no manual re-selection) — URL is the SSOT.
+      priority: critical
+      references_constraints: [C-03]
+    - id: AC-10
+      description: The recent-transactions table renders up to 50 rows from /api/v1/fleet/recent-changes filtered to the current host_id; a host with 60 recent transactions shows "Show more" which fetches the 51..60 cursor page.
+      priority: critical
+      references_constraints: [C-06]
+    - id: AC-11
+      description: axe-core scan of the rendered page returns zero violations across wcag2a + wcag2aa rule sets in both color modes.
+      priority: critical
+      references_constraints: [C-07]
+    - id: AC-12
+      description: Tab-key navigation reaches every interactive element in document order; each element has a visible focus indicator and an explicit ARIA label.
+      priority: high
+      references_constraints: [C-07]
+    - id: AC-13
+      description: Triggering a 500 from the hosts API renders the error region with a Retry control; clicking Retry re-fetches with the same parameters.
+      priority: high
+      references_constraints: [C-02]
+    - id: AC-14
+      description: Source-inspection — no console.log / console.warn / console.error in the compiled frontend bundle contains the literal string "evidence" or "token" as a field name.
+      priority: critical
+      references_constraints: [C-08]
