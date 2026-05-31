@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from '@tanstack/react-router';
+import { useQuery } from '@tanstack/react-query';
 import {
   AlertCircle,
   CheckCircle2,
@@ -23,12 +24,28 @@ import {
   th,
 } from './wizardStyles';
 
+interface CredentialListEntry {
+  id: string;
+  name: string;
+  scope: 'system' | 'host';
+  username: string;
+  auth_method: 'ssh_key' | 'password' | 'both';
+  is_default: boolean;
+  is_active: boolean;
+}
+
 // Step 3: validate every row against the host-create zod schema, show a
 // preview, and (when the operator clicks Import) submit sequentially via
-// POST /api/v1/hosts. Bulk credential association is out of scope for v1
-// — operators attach credentials per-host afterwards. This mirrors the
-// `system-default credential` constraint the single-host form already
-// enforces in bulk mode.
+// POST /api/v1/hosts. Two credential strategies are wired:
+//
+//   - 'system_default' (default) — POST /hosts, no follow-up. Each host
+//     resolves to the system-default credential at scan time.
+//   - 'clone_template' — POST /hosts, then POST /credentials/{srcId}:clone
+//     with scope=host + scope_id=newHostId. The host gets a dedicated
+//     host-scoped credential that mirrors the chosen template's secret
+//     material verbatim (server-side ciphertext copy — no plaintext
+//     crosses the wire). A failed clone surfaces as 'partial' so the
+//     operator can fix the credential association without losing the host.
 
 interface Props {
   csvText: string;
@@ -59,6 +76,25 @@ export function PreviewImportStep({ csvText, mappings, options, onOptionsChange 
   const [submitting, setSubmitting] = useState(false);
   const [globalError, setGlobalError] = useState<string | null>(null);
   const [finished, setFinished] = useState(false);
+
+  const credentialsQuery = useQuery({
+    queryKey: ['credentials'],
+    queryFn: async () => {
+      const { data, response, error } = await api.GET('/api/v1/credentials');
+      if (!response.ok || error) {
+        // 403 → operator can't read credentials. Treat as empty so the
+        // wizard still works (system-default mode), instead of breaking.
+        return [] as CredentialListEntry[];
+      }
+      const raw = data as unknown as { credentials?: CredentialListEntry[] } | null;
+      return (raw?.credentials ?? []).filter((c) => c.is_active);
+    },
+  });
+
+  const credentialOptions = useMemo(
+    () => credentialsQuery.data ?? [],
+    [credentialsQuery.data],
+  );
 
   useEffect(() => {
     // Re-seed pending outcomes whenever the preview changes (e.g. operator
@@ -123,6 +159,43 @@ export function PreviewImportStep({ csvText, mappings, options, onOptionsChange 
         });
         if (response.ok && data) {
           const hostId = (data as { id: string }).id;
+          let credentialNote: string | undefined;
+
+          // Clone-template mode: attach a host-scoped credential by
+          // cloning the chosen system credential into this host's
+          // scope. Server-side ciphertext copy — no secret material
+          // crosses the wire.
+          if (
+            options.credentialMode === 'clone_template' &&
+            options.cloneSourceId
+          ) {
+            try {
+              const cloneRes = await api.POST(
+                '/api/v1/credentials/{id}:clone',
+                {
+                  params: { path: { id: options.cloneSourceId } },
+                  body: {
+                    scope: 'host',
+                    scope_id: hostId,
+                    name: `${row.payload.hostname} credential`,
+                  } as never,
+                },
+              );
+              if (!cloneRes.response.ok) {
+                const cerr = cloneRes.error as
+                  | { error?: { message?: string } }
+                  | undefined;
+                credentialNote =
+                  cerr?.error?.message ??
+                  `Host created but credential attach failed (HTTP ${cloneRes.response.status}). Attach manually under Settings → Credentials.`;
+              }
+            } catch (cloneErr) {
+              credentialNote =
+                describeNetworkError(cloneErr) ||
+                'Host created but credential attach failed. Attach manually under Settings → Credentials.';
+            }
+          }
+
           states[i] = {
             preview: row,
             outcome: {
@@ -130,6 +203,7 @@ export function PreviewImportStep({ csvText, mappings, options, onOptionsChange 
               status: 'created',
               action: 'create',
               hostId,
+              error: credentialNote,
             },
           };
         } else {
@@ -209,7 +283,7 @@ export function PreviewImportStep({ csvText, mappings, options, onOptionsChange 
               <strong>Dry run</strong> — validate every row but skip the POST. No hosts are created.
             </span>
           </label>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
             <input
               type="checkbox"
               checked={options.updateExisting}
@@ -222,6 +296,134 @@ export function PreviewImportStep({ csvText, mappings, options, onOptionsChange 
               regardless.
             </span>
           </label>
+
+          <fieldset
+            style={{
+              border: '1px solid var(--ow-line)',
+              borderRadius: 6,
+              padding: '10px 14px',
+              margin: 0,
+            }}
+            disabled={submitting}
+          >
+            <legend
+              style={{
+                fontSize: 12,
+                fontWeight: 600,
+                color: 'var(--ow-fg-1)',
+                padding: '0 6px',
+              }}
+            >
+              Credentials
+            </legend>
+            <label
+              style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: 8,
+                marginBottom: 8,
+              }}
+            >
+              <input
+                type="radio"
+                name="bulk-credential-mode"
+                value="system_default"
+                checked={options.credentialMode === 'system_default'}
+                onChange={() =>
+                  onOptionsChange({
+                    ...options,
+                    credentialMode: 'system_default',
+                    cloneSourceId: undefined,
+                  })
+                }
+                style={{ marginTop: 3 }}
+              />
+              <span style={{ fontSize: 13 }}>
+                <strong>Use system default</strong> — each imported host falls back to the system-default credential at scan time. No per-host credential is created.
+              </span>
+            </label>
+            <label
+              style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: 8,
+              }}
+            >
+              <input
+                type="radio"
+                name="bulk-credential-mode"
+                value="clone_template"
+                checked={options.credentialMode === 'clone_template'}
+                onChange={() =>
+                  onOptionsChange({
+                    ...options,
+                    credentialMode: 'clone_template',
+                    cloneSourceId:
+                      options.cloneSourceId ?? credentialOptions[0]?.id,
+                  })
+                }
+                disabled={credentialOptions.length === 0}
+                style={{ marginTop: 3 }}
+              />
+              <div style={{ flex: 1 }}>
+                <span style={{ fontSize: 13 }}>
+                  <strong>Clone an existing credential</strong> — every imported host gets a dedicated host-scoped credential cloned from the template you choose. The template&apos;s key / password is copied server-side as ciphertext; no secret material crosses the wire.
+                </span>
+                {options.credentialMode === 'clone_template' && (
+                  <div style={{ marginTop: 6 }}>
+                    {credentialsQuery.isLoading ? (
+                      <span style={{ fontSize: 12, color: 'var(--ow-fg-3)' }}>
+                        Loading credentials…
+                      </span>
+                    ) : credentialOptions.length === 0 ? (
+                      <span style={{ fontSize: 12, color: 'var(--ow-warn)' }}>
+                        No credentials available. Add one under Settings → Credentials first.
+                      </span>
+                    ) : (
+                      <select
+                        value={options.cloneSourceId ?? ''}
+                        onChange={(e) =>
+                          onOptionsChange({
+                            ...options,
+                            cloneSourceId: e.target.value || undefined,
+                          })
+                        }
+                        aria-label="Credential template to clone"
+                        style={{
+                          fontSize: 13,
+                          padding: '4px 8px',
+                          background: 'var(--ow-bg-2)',
+                          color: 'var(--ow-fg-0)',
+                          border: '1px solid var(--ow-line)',
+                          borderRadius: 4,
+                          minWidth: 320,
+                        }}
+                      >
+                        {credentialOptions.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.name} — {c.username} ({c.auth_method})
+                            {c.is_default ? ' · default' : ''}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                )}
+                {credentialOptions.length === 0 &&
+                  options.credentialMode === 'system_default' && (
+                    <div
+                      style={{
+                        fontSize: 11,
+                        color: 'var(--ow-fg-3)',
+                        marginTop: 4,
+                      }}
+                    >
+                      You have no credentials yet — the clone option will become available once you add one.
+                    </div>
+                  )}
+              </div>
+            </label>
+          </fieldset>
         </div>
       </section>
 

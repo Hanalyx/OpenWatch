@@ -173,6 +173,125 @@ func (s *Service) GetByID(ctx context.Context, id uuid.UUID) (*Credential, error
 	return s.queryOne(ctx, `WHERE id = $1 AND is_active = true`, id)
 }
 
+// CloneParams describes the target row CloneCredential should create.
+// The source row's secret material (ciphertext columns) is copied
+// verbatim — no decrypt/re-encrypt round-trip. This keeps the DEK off
+// the call path entirely and avoids re-exposing plaintext anywhere
+// outside the original create.
+type CloneParams struct {
+	SourceID  uuid.UUID
+	Scope     Scope
+	ScopeID   *uuid.UUID
+	Name      string // when "", server appends " (clone)" to the source name
+	IsDefault bool
+	CreatedBy uuid.UUID
+}
+
+// CloneCredential creates a new credential row whose secret material
+// (encrypted_password, encrypted_private_key, encrypted_private_key_passphrase)
+// and identity fields (username, auth_method, ssh_key_*) match the
+// source. The clone gets a fresh id, the caller's scope/scope_id, and
+// the caller's choice of name + is_default.
+//
+// Validates scope/scope_id consistency. Returns:
+//   - ErrNotFound when the source id is unknown or inactive
+//   - ErrInvalidScope when target scope/scope_id are inconsistent
+//   - ErrMultipleSystemDefaults when is_default=true collides with an
+//     existing system default
+//
+// Spec api-credentials C-05 / AC-13..15.
+func (s *Service) CloneCredential(ctx context.Context, p CloneParams) (uuid.UUID, error) {
+	if err := validateCloneScope(p); err != nil {
+		return uuid.Nil, err
+	}
+
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("credential: clone begin: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	const srcQuery = `
+		SELECT name, COALESCE(description, ''), username, auth_method,
+		       encrypted_password, encrypted_private_key, encrypted_private_key_passphrase,
+		       COALESCE(ssh_key_fingerprint, ''), COALESCE(ssh_key_type, ''),
+		       COALESCE(ssh_key_bits, 0), COALESCE(ssh_key_comment, '')
+		  FROM credentials
+		 WHERE id = $1 AND is_active = true
+		 FOR UPDATE`
+	var (
+		srcName, srcDesc, srcUser, srcMethod string
+		srcEncPw, srcEncKey, srcEncPass      []byte
+		srcKeyFP, srcKeyType, srcKeyComment  string
+		srcKeyBits                           int
+	)
+	if err := tx.QueryRow(ctx, srcQuery, p.SourceID).Scan(
+		&srcName, &srcDesc, &srcUser, &srcMethod,
+		&srcEncPw, &srcEncKey, &srcEncPass,
+		&srcKeyFP, &srcKeyType, &srcKeyBits, &srcKeyComment,
+	); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return uuid.Nil, ErrNotFound
+		}
+		return uuid.Nil, fmt.Errorf("credential: clone source: %w", err)
+	}
+
+	newName := p.Name
+	if newName == "" {
+		newName = srcName + " (clone)"
+	}
+
+	newID, err := uuid.NewV7()
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("credential: clone uuid: %w", err)
+	}
+
+	const insertStmt = `
+		INSERT INTO credentials (
+			id, scope, scope_id, name, description, username, auth_method,
+			encrypted_password, encrypted_private_key, encrypted_private_key_passphrase,
+			ssh_key_fingerprint, ssh_key_type, ssh_key_bits, ssh_key_comment,
+			is_default, is_active, created_by
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, true, $16)`
+	_, err = tx.Exec(ctx, insertStmt,
+		newID, string(p.Scope), p.ScopeID, newName, nilIfEmpty(srcDesc),
+		srcUser, srcMethod,
+		srcEncPw, srcEncKey, srcEncPass,
+		nilIfEmpty(srcKeyFP), nilIfEmpty(srcKeyType),
+		nilIfZero(srcKeyBits), nilIfEmpty(srcKeyComment),
+		p.IsDefault, p.CreatedBy,
+	)
+	if err != nil {
+		if isUniqueViolation(err) && strings.Contains(err.Error(), "idx_credentials_one_system_default") {
+			return uuid.Nil, ErrMultipleSystemDefaults
+		}
+		return uuid.Nil, fmt.Errorf("credential: clone insert: %w", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return uuid.Nil, fmt.Errorf("credential: clone commit: %w", err)
+	}
+	return newID, nil
+}
+
+// validateCloneScope enforces scope/scope_id consistency for the clone
+// target. Mirrors validateNewParams but skips the auth_method/secret
+// checks since the source row already satisfied them.
+func validateCloneScope(p CloneParams) error {
+	switch p.Scope {
+	case ScopeSystem:
+		if p.ScopeID != nil {
+			return ErrInvalidScope
+		}
+	case ScopeHost:
+		if p.ScopeID == nil {
+			return ErrInvalidScope
+		}
+	default:
+		return ErrInvalidScope
+	}
+	return nil
+}
+
 // Resolve returns the highest-precedence credential for the given host:
 // host-scope row first, then system-default. Returns ErrNoCredential
 // when neither is available.

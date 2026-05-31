@@ -463,6 +463,153 @@ func TestCredentials_Resolve_FallsBackToSystem(t *testing.T) {
 	})
 }
 
+// @ac AC-13
+// AC-13: Clone a system credential into a host scope; new row inherits
+// the source's auth_method + key metadata + username but lives at the
+// new (scope=host, scope_id) coordinates.
+func TestCredentials_Clone_SystemToHost(t *testing.T) {
+	t.Run("api-credentials/AC-13", func(t *testing.T) {
+		url, pool := freshAPIServer(t)
+
+		// Source: system credential.
+		srcReq := asRole(t, "POST", url+"/api/v1/credentials", auth.RoleAdmin, map[string]any{
+			"scope":       "system",
+			"name":        "ac13-src",
+			"username":    "operator",
+			"auth_method": "password",
+			"password":    "src-pw-from-template",
+		})
+		srcResp := doReq(t, srcReq)
+		if srcResp.StatusCode != http.StatusCreated {
+			b, _ := io.ReadAll(srcResp.Body)
+			srcResp.Body.Close()
+			t.Fatalf("seed source: status=%d body=%s", srcResp.StatusCode, b)
+		}
+		var src map[string]any
+		_ = json.NewDecoder(srcResp.Body).Decode(&src)
+		srcResp.Body.Close()
+		srcID, _ := src["id"].(string)
+
+		// Target host for the clone.
+		hostID := seedAPIHost(t, pool)
+
+		cloneReq := asRole(t, "POST",
+			url+"/api/v1/credentials/"+srcID+":clone", auth.RoleAdmin, map[string]any{
+				"scope":    "host",
+				"scope_id": hostID.String(),
+				"name":     "ac13-clone",
+			})
+		cloneResp := doReq(t, cloneReq)
+		defer cloneResp.Body.Close()
+		if cloneResp.StatusCode != http.StatusCreated {
+			b, _ := io.ReadAll(cloneResp.Body)
+			t.Fatalf("clone status=%d body=%s", cloneResp.StatusCode, b)
+		}
+		raw, _ := io.ReadAll(cloneResp.Body)
+		// Response must NEVER leak secret material.
+		for _, leaky := range []string{
+			`"password":`, `"private_key":`, `"private_key_passphrase":`,
+			`"encrypted_password":`, `"encrypted_private_key":`,
+		} {
+			if strings.Contains(string(raw), leaky) {
+				t.Errorf("clone response leaks %s: %s", leaky, raw)
+			}
+		}
+		var got map[string]any
+		_ = json.Unmarshal(raw, &got)
+		if got["scope"] != "host" {
+			t.Errorf("scope = %v, want host", got["scope"])
+		}
+		if got["scope_id"] != hostID.String() {
+			t.Errorf("scope_id = %v, want %s", got["scope_id"], hostID.String())
+		}
+		// Source identity inherited: username + auth_method match.
+		if got["username"] != "operator" {
+			t.Errorf("username = %v, want operator (inherited from source)", got["username"])
+		}
+		if got["auth_method"] != "password" {
+			t.Errorf("auth_method = %v, want password", got["auth_method"])
+		}
+		if got["id"] == srcID {
+			t.Errorf("clone reused source id %s; expected fresh id", srcID)
+		}
+		if got["name"] != "ac13-clone" {
+			t.Errorf("name = %v, want ac13-clone", got["name"])
+		}
+	})
+}
+
+// @ac AC-14
+// AC-14: Clone with unknown source id returns 404 credentials.not_found.
+func TestCredentials_Clone_UnknownSource(t *testing.T) {
+	t.Run("api-credentials/AC-14", func(t *testing.T) {
+		url, pool := freshAPIServer(t)
+		hostID := seedAPIHost(t, pool)
+		bogus, _ := uuid.NewV7()
+
+		req := asRole(t, "POST",
+			url+"/api/v1/credentials/"+bogus.String()+":clone", auth.RoleAdmin, map[string]any{
+				"scope":    "host",
+				"scope_id": hostID.String(),
+			})
+		resp := doReq(t, req)
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusNotFound {
+			b, _ := io.ReadAll(resp.Body)
+			t.Fatalf("status=%d body=%s", resp.StatusCode, b)
+		}
+		b, _ := io.ReadAll(resp.Body)
+		if !strings.Contains(string(b), "credentials.not_found") {
+			t.Errorf("body lacks credentials.not_found: %s", b)
+		}
+	})
+}
+
+// @ac AC-15
+// AC-15: Clone with scope=host but a non-existent scope_id returns
+// 400 credentials.host_not_found.
+func TestCredentials_Clone_HostNotFound(t *testing.T) {
+	t.Run("api-credentials/AC-15", func(t *testing.T) {
+		url, _ := freshAPIServer(t)
+
+		// Real source.
+		srcReq := asRole(t, "POST", url+"/api/v1/credentials", auth.RoleAdmin, map[string]any{
+			"scope":       "system",
+			"name":        "ac15-src",
+			"username":    "operator",
+			"auth_method": "password",
+			"password":    "src-pw",
+		})
+		srcResp := doReq(t, srcReq)
+		if srcResp.StatusCode != http.StatusCreated {
+			b, _ := io.ReadAll(srcResp.Body)
+			srcResp.Body.Close()
+			t.Fatalf("seed source: status=%d body=%s", srcResp.StatusCode, b)
+		}
+		var src map[string]any
+		_ = json.NewDecoder(srcResp.Body).Decode(&src)
+		srcResp.Body.Close()
+		srcID, _ := src["id"].(string)
+
+		ghost, _ := uuid.NewV7()
+		req := asRole(t, "POST",
+			url+"/api/v1/credentials/"+srcID+":clone", auth.RoleAdmin, map[string]any{
+				"scope":    "host",
+				"scope_id": ghost.String(),
+			})
+		resp := doReq(t, req)
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusBadRequest {
+			b, _ := io.ReadAll(resp.Body)
+			t.Fatalf("status=%d body=%s", resp.StatusCode, b)
+		}
+		b, _ := io.ReadAll(resp.Body)
+		if !strings.Contains(string(b), "credentials.host_not_found") {
+			t.Errorf("body lacks credentials.host_not_found: %s", b)
+		}
+	})
+}
+
 // @ac AC-12
 // AC-12: Resolve returns 404 credentials.none_available when neither
 // host-scope nor system-default is present.

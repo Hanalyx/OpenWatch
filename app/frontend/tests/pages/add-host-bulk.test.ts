@@ -7,6 +7,7 @@
 //   AC-13  test('frontend-add-host/AC-13 — auto-mapping + required-field validation in Map step')
 //   AC-14  test('frontend-add-host/AC-14 — applyMappings runs zod validation; valid-row count shown')
 //   AC-17  test('frontend-add-host/AC-17 — failed-rows CSV download button surfaced in Preview step')
+//   AC-18  test('frontend-add-host/AC-18 — bulk credential selector clones template per host')
 
 import { describe, expect, test } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -89,6 +90,26 @@ describe('frontend-add-host — structural', () => {
     expect(PREVIEW_SRC).toContain('downloadFailedRowsCSV');
     // Helper exported from applyMappings.
     expect(APPLY_SRC).toContain('export function downloadFailedRowsCSV');
+  });
+
+  // @ac AC-18
+  test('frontend-add-host/AC-18 — bulk credential selector clones template per host', () => {
+    // Wizard seeds the default credential mode.
+    expect(WIZARD_SRC).toContain("credentialMode: 'system_default'");
+    // Preview step renders both modes as a radio group.
+    expect(PREVIEW_SRC).toContain('Use system default');
+    expect(PREVIEW_SRC).toContain('Clone an existing credential');
+    // Credentials list is fetched via the React Query 'credentials' key.
+    expect(PREVIEW_SRC).toMatch(/queryKey:\s*\[['"]credentials['"]\]/);
+    expect(PREVIEW_SRC).toContain("api.GET('/api/v1/credentials')");
+    // Submission loop calls the clone endpoint with the chosen source id
+    // and scopes the new credential to the freshly-created host id.
+    expect(PREVIEW_SRC).toContain("'/api/v1/credentials/{id}:clone'");
+    expect(PREVIEW_SRC).toContain("scope: 'host'");
+    expect(PREVIEW_SRC).toContain('scope_id: hostId');
+    // Failure of the clone is surfaced as a credential note on the row
+    // (host stays created — partial outcome, not a hard failure).
+    expect(PREVIEW_SRC).toContain('credentialNote');
   });
 });
 
