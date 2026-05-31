@@ -217,6 +217,6 @@ spec:
       priority: critical
       references_constraints: [C-14]
     - id: AC-26
-      description: listProbeTargets seeded with three hosts — H1 with next_probe_at=NULL, H2 with next_probe_at in the past, H3 with next_probe_at in the future — returns exactly H1 and H2.
+      description: listProbeTargets seeded with three hosts — H1 with next_probe_at=NULL, H2 with next_probe_at in the past, H3 with next_probe_at in the future — returns exactly H1 and H2. The short Run-tick (Service.effectiveInterval defaulting to 30s) drives this query — per-host effective cadence comes from the band, not the tick rate.
       priority: critical
-      references_constraints: [C-15]
+      references_constraints: [C-15, C-16]
