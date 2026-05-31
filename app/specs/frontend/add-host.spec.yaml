@@ -104,11 +104,11 @@ spec:
       type: technical
       enforcement: error
     - id: C-10
-      description: Bulk mode MUST parse a JSON array whose elements match the HostCreateRequest shape. The same zod schema used by Single mode validates each element BEFORE any POST; rows that fail validation MUST NOT be submitted
+      description: Bulk mode MUST validate every parsed row against the same zod schema used by Single mode BEFORE any POST. The validation pipeline is column-mapping → typed payload → zod safeParse; rows that fail validation MUST NOT be submitted
       type: technical
       enforcement: error
     - id: C-11
-      description: Bulk mode MUST display a pre-flight review grid showing every row with a parse-or-validate status BEFORE the operator clicks Submit. Only rows with status valid are submitted; failed rows render their failure reason inline
+      description: Bulk mode MUST display a pre-flight review grid showing every row with a parse-or-validate status BEFORE the operator clicks Submit/Import. Only rows with status valid are submitted; failed rows render their failure reason inline
       type: technical
       enforcement: error
     - id: C-12
@@ -116,7 +116,11 @@ spec:
       type: technical
       enforcement: error
     - id: C-13
-      description: After bulk submission completes, the outcome table MUST classify each row as one of created (with link to /hosts/{id}), validation_failed (pre-flight), or api_failed (with error.code from the API response). A "Download failed rows as CSV" button MUST be visible when ANY row failed
+      description: After bulk submission completes, the outcome table MUST classify each row as one of created (with link to /hosts/{id}), skipped (dry-run or duplicate), or failed (with error message from the API response or validation failure). A "Download failed rows as CSV" button MUST be visible when ANY row failed
+      type: technical
+      enforcement: error
+    - id: C-14
+      description: Bulk mode MUST present a 3-step wizard (Upload CSV → Map fields → Preview & import). Upload runs client-side CSV analysis (column type detection, auto-mapping, template detection). Map lets the operator override per-column mappings to HostCreate target fields. Preview shows the typed-payload review grid plus dry-run + update-existing options BEFORE any POST
       type: technical
       enforcement: error
 
@@ -164,27 +168,27 @@ spec:
       description: Navigating to /hosts/new renders a two-tab interface — Single and Bulk — with Single active by default. Tab navigation is keyboard accessible with arrow keys (WAI-ARIA tabs pattern).
       priority: critical
     - id: AC-12
-      description: Switching to the Bulk tab reveals two input modes — a file picker for CSV upload AND a textarea for JSON paste. Selecting either populates the review grid below.
+      description: Switching to the Bulk tab reveals a 3-step wizard with a stepper labeled "Upload CSV", "Map fields", "Preview & import". Step 1 has a drag-drop CSV file area accepting .csv / .txt up to 5 MB.
       priority: critical
-      references_constraints: [C-09, C-10]
+      references_constraints: [C-09, C-14]
     - id: AC-13
-      description: Uploading a CSV with unknown column headers (e.g., "passowrd" misspelling) renders a parse-level error BEFORE the review grid AND no rows are added to the review.
+      description: Uploading a CSV (the wizard's analyzeCSV helper) records per-column type detection and auto-mappings. The Map step pre-fills target fields from auto-detected source columns; the operator may override or pick "(skip)" per column. Required target fields (hostname, ip_address) MUST be mapped before Next is enabled.
       priority: critical
-      references_constraints: [C-09]
+      references_constraints: [C-09, C-14]
     - id: AC-14
-      description: Pasting a JSON array with one invalid row (e.g., missing hostname) renders the review grid with that row marked status=validation_failed AND a per-row error message; the submit button shows the count of valid rows ("Submit 4 valid rows" when 5 are pasted and 1 is invalid).
+      description: The Preview step's applyMappings helper validates every row against the same zod hostCreateSchema as Single mode. Invalid rows are marked with validationError; the import button shows the count of valid rows ("Import 4 valid rows" when 5 parsed and 1 is invalid).
       priority: critical
       references_constraints: [C-10, C-11]
     - id: AC-15
-      description: Clicking Submit on the bulk review grid issues sequential POST /api/v1/hosts calls. The current row in flight is marked with an in-progress indicator; completed rows update in the outcome table in real time.
+      description: Clicking Import on the Preview step issues sequential POST /api/v1/hosts calls. The current row in flight is marked with status=pending; completed rows update in the outcome table in real time. Dry-run mode validates the rows but skips the POST.
       priority: critical
       references_constraints: [C-12]
     - id: AC-16
-      description: When 5 rows are submitted and row 3 fails with 409 hostname_already_exists, rows 1+2 show created (with /hosts/{id} link), row 3 shows api_failed with error.code "hostname_already_exists", and rows 4+5 still complete (no abort).
+      description: When 5 rows are submitted and row 3 fails with 409 (duplicate hostname), rows 1+2 show created (with /hosts/{id} link), row 3 shows skipped with a duplicate-hostname reason, and rows 4+5 still complete (no abort).
       priority: critical
       references_constraints: [C-12, C-13]
     - id: AC-17
-      description: After a bulk submission with at least one failure, a "Download failed rows as CSV" button is visible. Clicking it triggers a browser download of a CSV containing only the failed rows plus a "failure_reason" column.
+      description: After a bulk submission with at least one failure, a "Download failed rows as CSV" button is visible in the Preview step. Clicking it triggers a browser download of a CSV containing only the failed rows plus a "failure_reason" column.
       priority: high
       references_constraints: [C-13]
     - id: AC-18
