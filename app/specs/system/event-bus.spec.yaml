@@ -1,7 +1,7 @@
 spec:
   id: system-event-bus
   title: In-process event bus
-  version: "1.0.0"
+  version: "1.1.0"
   status: approved
   tier: 1
 
@@ -114,7 +114,7 @@ spec:
       priority: critical
       references_constraints: [C-03, C-04]
     - id: AC-07
-      description: EventKind enum is closed — exactly the values exposed in AllEventKinds (initially HeartbeatPulse + DriftDetected). Verified by reflection-style count check.
+      description: EventKind enum is closed — exactly the values exposed in AllEventKinds. v1.0.0 shipped two (HeartbeatPulse + DriftDetected); v1.1.0 adds HostChanged + MonitoringBandChanged so the SSE layer can fan host CRUD + multi-layer band transitions out to operators in real time. Verified by reflection-style count check.
       priority: critical
       references_constraints: [C-02]
     - id: AC-08

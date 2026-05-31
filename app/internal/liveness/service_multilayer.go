@@ -104,9 +104,10 @@ func (s *Service) multiLayerEnabled() bool {
 }
 
 // probeMultiLayerHost runs one multi-layer probe and persists the
-// result. Used by tickMultiLayer. Returns the (band, transition?) pair
-// so callers can audit on a state flip without re-reading the row.
-func (s *Service) probeMultiLayerHost(ctx context.Context, hostID uuid.UUID, ip string, port int) (MonitoringState, bool, error) {
+// result. Used by tickMultiLayer. Returns (newBand, priorBand,
+// changed, err) so callers can audit + publish a transition event
+// without re-reading the row.
+func (s *Service) probeMultiLayerHost(ctx context.Context, hostID uuid.UUID, ip string, port int) (MonitoringState, MonitoringState, bool, error) {
 	addr := fmt.Sprintf("%s:%d", ip, port)
 	mp := NewMultiLayerProbe(s.pinger, s.privProbe, s.effectiveTimeout())
 	result := mp.Probe(ctx, HostID(hostID.String()), ip, addr)
@@ -124,9 +125,10 @@ func (s *Service) effectiveTimeout() time.Duration {
 }
 
 // persistMultiLayer UPSERTs the new host_liveness columns + appends a
-// history row (when enabled). Returns the resulting band and whether
-// the band changed (the caller decides whether to emit an audit).
-func (s *Service) persistMultiLayer(ctx context.Context, hostID uuid.UUID, r MultiLayerResult) (MonitoringState, bool, error) {
+// history row (when enabled). Returns (newBand, priorBand, changed,
+// err) — the caller decides whether to emit audit + bus events on a
+// transition.
+func (s *Service) persistMultiLayer(ctx context.Context, hostID uuid.UUID, r MultiLayerResult) (MonitoringState, MonitoringState, bool, error) {
 	now := s.clock()
 
 	// Read prior counters + band.
@@ -149,7 +151,7 @@ func (s *Service) persistMultiLayer(ctx context.Context, hostID uuid.UUID, r Mul
 	)
 	hasPrior := err == nil
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		return StateUnknown, false, fmt.Errorf("read prior multilayer: %w", err)
+		return StateUnknown, StateUnknown, false, fmt.Errorf("read prior multilayer: %w", err)
 	}
 	if !hasPrior {
 		priorBand = string(StateUnknown)
@@ -227,7 +229,7 @@ func (s *Service) persistMultiLayer(ctx context.Context, hostID uuid.UUID, r Mul
 		next.PrivilegeFail, next.PrivilegeOK,
 	)
 	if err != nil {
-		return band, false, fmt.Errorf("upsert multilayer: %w", err)
+		return band, MonitoringState(priorBand), false, fmt.Errorf("upsert multilayer: %w", err)
 	}
 
 	if s.historyEnabled {
@@ -237,7 +239,7 @@ func (s *Service) persistMultiLayer(ctx context.Context, hostID uuid.UUID, r Mul
 				slog.String("host_id", hostID.String()), slog.String("err", err.Error()))
 		}
 	}
-	return band, changed, nil
+	return band, MonitoringState(priorBand), changed, nil
 }
 
 // totalFailures projects layer-specific counters back onto the legacy

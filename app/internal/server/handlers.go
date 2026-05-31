@@ -12,6 +12,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/auth"
 	"github.com/Hanalyx/openwatch/internal/correlation"
 	"github.com/Hanalyx/openwatch/internal/credential"
+	"github.com/Hanalyx/openwatch/internal/eventbus"
 	"github.com/Hanalyx/openwatch/internal/fleetrollup"
 	"github.com/Hanalyx/openwatch/internal/host"
 	"github.com/Hanalyx/openwatch/internal/license"
@@ -45,6 +46,11 @@ type handlers struct {
 	// Spec api-system-connectivity, api-host-connectivity-check.
 	sysCfg  *systemconfig.Store
 	liveSvc *liveness.Service
+
+	// SSE fan-out. Set via (*Server).WithEventBus before Run; nil
+	// disables the live-events stream (tests + early-boot phases).
+	// Spec api-events-stream (Track B).
+	bus *eventbus.Bus
 }
 
 // newHandlers constructs the ServerInterface implementation. The user

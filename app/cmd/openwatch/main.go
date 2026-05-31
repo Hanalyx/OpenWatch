@@ -330,7 +330,9 @@ func cmdServe(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 		WithMonitoringHistory(true)
 	go liveSvc.Run(ctx)
 
-	srv := server.New(cfg, pool).WithConnectivityConfig(cfgStore, liveSvc)
+	srv := server.New(cfg, pool).
+		WithConnectivityConfig(cfgStore, liveSvc).
+		WithEventBus(bus)
 	runErr := srv.Run(ctx)
 
 	// Shutdown order REVERSE of boot (C-02). liveness.Run + alertrouter

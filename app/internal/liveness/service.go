@@ -286,7 +286,7 @@ func (s *Service) tick(ctx context.Context) {
 		if useMultiLayer {
 			// v1.3.0: multi-layer path writes the new schema columns
 			// and emits transitions on band changes. Spec C-18 / AC-32.
-			band, changed, err := s.probeMultiLayerHost(ctx, h.HostID, h.IP, h.Port)
+			band, priorBand, changed, err := s.probeMultiLayerHost(ctx, h.HostID, h.IP, h.Port)
 			if err != nil {
 				slog.WarnContext(ctx, "liveness: multilayer probe failed",
 					slog.String("host_id", h.HostID.String()),
@@ -295,6 +295,16 @@ func (s *Service) tick(ctx context.Context) {
 			if changed {
 				s.metrics.StateTransitionCount.Add(1)
 				s.emitBandTransition(ctx, h.HostID, band)
+				// Track B SSE: publish a typed event so the UI can
+				// flip the StatusPill without polling.
+				if s.bus != nil {
+					s.bus.Publish(ctx, eventbus.MonitoringBandChanged{
+						HostID:     h.HostID,
+						PriorBand:  string(priorBand),
+						NewBand:    string(band),
+						OccurredAt: s.clock(),
+					})
+				}
 			}
 		} else {
 			_, _ = s.ProbeHost(ctx, h.HostID, h.Addr)

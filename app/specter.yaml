@@ -37,6 +37,7 @@ domains:
             - api-auth
             - api-users
             - api-credentials
+            - api-events-stream
             - api-hosts
             - api-openapi-docs
             - release-admin-signoff

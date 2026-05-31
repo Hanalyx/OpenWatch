@@ -24,6 +24,7 @@ import (
 
 	"github.com/Hanalyx/openwatch/internal/audit"
 	"github.com/Hanalyx/openwatch/internal/auth"
+	"github.com/Hanalyx/openwatch/internal/eventbus"
 	"github.com/Hanalyx/openwatch/internal/host"
 	"github.com/Hanalyx/openwatch/internal/server/api"
 )
@@ -72,6 +73,7 @@ func (h *handlers) PutHostMaintenance(w http.ResponseWriter, r *http.Request, id
 	emitAudit(r, audit.HostUpdated, hostID.String(), map[string]any{
 		"maintenance_mode": req.Enabled,
 	})
+	h.publishHostChange(r.Context(), hostID, eventbus.HostChangeMaintenance)
 	writeJSON(w, http.StatusOK, hostResponse(updated))
 }
 

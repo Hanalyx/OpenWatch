@@ -11,6 +11,7 @@ import (
 
 	"github.com/Hanalyx/openwatch/internal/audit"
 	"github.com/Hanalyx/openwatch/internal/auth"
+	"github.com/Hanalyx/openwatch/internal/eventbus"
 	"github.com/Hanalyx/openwatch/internal/host"
 	"github.com/Hanalyx/openwatch/internal/server/api"
 	"github.com/google/uuid"
@@ -127,6 +128,7 @@ func (h *handlers) PostHosts(w http.ResponseWriter, r *http.Request) {
 		"hostname":    created.Hostname,
 		"environment": created.Environment,
 	})
+	h.publishHostChange(r.Context(), created.ID, eventbus.HostChangeCreated)
 	writeJSON(w, http.StatusCreated, hostResponse(created))
 }
 
@@ -222,6 +224,7 @@ func (h *handlers) PatchHostByID(w http.ResponseWriter, r *http.Request, id open
 		return
 	}
 	emitAudit(r, audit.HostUpdated, updated.ID.String(), nil)
+	h.publishHostChange(r.Context(), updated.ID, eventbus.HostChangeUpdated)
 	writeJSON(w, http.StatusOK, hostResponse(updated))
 }
 
@@ -242,6 +245,7 @@ func (h *handlers) DeleteHostByID(w http.ResponseWriter, r *http.Request, id ope
 		return
 	}
 	emitAudit(r, audit.HostDeleted, id.String(), nil)
+	h.publishHostChange(r.Context(), uuid.UUID(id), eventbus.HostChangeDeleted)
 	w.WriteHeader(http.StatusNoContent)
 }
 

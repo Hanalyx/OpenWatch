@@ -1,0 +1,115 @@
+spec:
+  id: api-events-stream
+  title: SSE live-events stream for the operator UI
+  version: "1.0.0"
+  status: approved
+  tier: 2
+
+  context:
+    system: openwatch-go
+    feature: Server-Sent Events fan-out of in-process bus events to operator browsers
+    description: >
+      One persistent SSE connection per browser tab carries every
+      relevant in-process event (host CRUD, multi-layer monitoring
+      band transitions, …). The frontend maps each event to a
+      TanStack Query invalidation so open pages refresh in place
+      without polling.
+
+      The endpoint is a thin shim over internal/eventbus: subscribe
+      with the topics requested via the query string, write each
+      matching event as an SSE message, send a `:keepalive` comment
+      every 15s so intermediaries with short idle timeouts don't kill
+      the socket. Disconnect on ctx.Done().
+
+      Auth: the identity middleware has already bound auth.Identity
+      from a session cookie or bearer header before the route is
+      reached. Browsers' EventSource cannot send custom headers, so
+      a future iteration will likely add a short-lived ticket pattern
+      — for v1.0.0 we accept connections from the same-origin cookie
+      session. Spec is explicit that bearer-token-via-query-string
+      is NOT part of v1.0.0 to avoid leaking tokens via access logs.
+
+    related_specs:
+      - system-event-bus
+      - system-http-server
+      - api-hosts
+      - system-liveness-loop
+
+  objective:
+    summary: >
+      GET /api/v1/events?topics=<csv> upgrades to text/event-stream and
+      writes each matching event as JSON inside an SSE message frame
+      until the client disconnects. Empty/unknown topics return 400 so
+      operators don't silently subscribe to nothing.
+    scope:
+      includes:
+        - 'GET /api/v1/events with ?topics=<csv of EventKind values>'
+        - 'JSON-framed events with event line + data line + blank terminator'
+        - '15s keepalive comments'
+        - 'Disconnect on ctx.Done()'
+        - 'Drop unknown topic names silently (typo-tolerance)'
+      excludes:
+        - 'Bearer-token-via-query-string — tokens in URL leak via logs'
+        - 'WebSocket alternative — one-way fan-out is enough; SSE is simpler'
+        - 'Replay / resume cursor — Last-Event-ID is backlog'
+        - 'Per-subscriber rate limits — the eventbus per-subscriber buffer overflow plus drop counter is the cap'
+
+  constraints:
+    - id: C-01
+      description: GET /api/v1/events MUST respond with Content-Type text/event-stream, Cache-Control no-cache, and X-Accel-Buffering no. The handler MUST call http.Flusher.Flush() after the initial response headers and after every write
+      type: technical
+      enforcement: error
+    - id: C-02
+      description: ?topics is required and parsed as a CSV of EventKind values. Empty or missing returns 400 ("no topics requested"). Unknown kinds are silently dropped; a query of only-unknown-kinds returns 400 (no subscription would be created)
+      type: technical
+      enforcement: error
+    - id: C-03
+      description: The handler MUST send a `:keepalive\n\n` comment line every 15 seconds. The frame is invisible to EventSource but keeps idle TCP sockets alive through proxies with short idle timeouts
+      type: technical
+      enforcement: error
+    - id: C-04
+      description: The handler MUST disconnect when r.Context() is canceled OR the eventbus subscription channel is closed. No goroutine leaks
+      type: technical
+      enforcement: error
+    - id: C-05
+      description: The endpoint MUST require host:read at minimum (the events carry host_id values; access control mirrors GET /hosts). The auth check happens via the standard identity binder + auth.EnforcePermission inside the handler
+      type: security
+      enforcement: error
+    - id: C-06
+      description: Bearer tokens MUST NOT be accepted via ?token query parameter. URL params are logged by intermediaries; this would leak the credential. Operators authenticate via the same-origin cookie session
+      type: security
+      enforcement: error
+    - id: C-07
+      description: 'SSE message frames MUST use LF line endings (not CRLF). The spec mandates the format event-line, data-line, blank-terminator with single newlines'
+      type: technical
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: GET /api/v1/events?topics=host.changed with a host:read caller returns 200 with Content-Type "text/event-stream" and the initial response is flushed before any event arrives.
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-02
+      description: GET /api/v1/events without ?topics (or with ?topics=) returns 400 with body containing "no topics requested".
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-03
+      description: GET /api/v1/events?topics=unknown.kind returns 400 — the topic parser drops unknown kinds, leaving zero subscriptions, which the handler MUST treat as "no topics requested".
+      priority: high
+      references_constraints: [C-02]
+    - id: AC-04
+      description: 'After subscribing, publishing eventbus.HostChanged on the bus causes the handler to write a correctly-framed SSE message (event line + JSON data line + blank terminator) to the response within 100ms. The data line decodes as JSON whose kind field matches the event kind.'
+      priority: critical
+      references_constraints: [C-01, C-07]
+    - id: AC-05
+      description: GET /api/v1/events without an authenticated identity returns 401 (or whatever the standard auth path returns) — the handler MUST NOT serve events to anonymous callers.
+      priority: critical
+      references_constraints: [C-05]
+    - id: AC-06
+      description: The handler MUST NOT read a `token` query parameter. Source-inspection — calling pattern `r.URL.Query().Get("token")` is forbidden in sse_handler.go.
+      priority: critical
+      references_constraints: [C-06]
+    - id: AC-07
+      description: 'When r.Context() is canceled (client disconnect), the handler returns within 500ms. The eventbus subscription is unsubscribed — verified via Bus.Metrics where NoSubscribersCount advances on the next publish.'
+      priority: high
+      references_constraints: [C-04]
