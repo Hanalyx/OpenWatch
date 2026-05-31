@@ -110,10 +110,14 @@ func seedUser(t *testing.T, pool *pgxpool.Pool) uuid.UUID {
 func seedHost(t *testing.T, pool *pgxpool.Pool, createdBy uuid.UUID) uuid.UUID {
 	t.Helper()
 	id, _ := uuid.NewV7()
+	// Use the FULL UUID for hostname uniqueness. UUID-v7 shares a
+	// timestamp prefix, so the first 8 chars can collide when seeding
+	// many hosts in the same millisecond — that trips the
+	// (hostname, environment, active) unique constraint on CI.
 	_, err := pool.Exec(context.Background(),
 		`INSERT INTO hosts (id, hostname, ip_address, created_by)
 		 VALUES ($1, $2, $3::inet, $4)`,
-		id, "host-"+id.String()[:8], "192.0.2.10", createdBy)
+		id, "host-"+id.String(), "192.0.2.10", createdBy)
 	if err != nil {
 		t.Fatalf("seed host: %v", err)
 	}
