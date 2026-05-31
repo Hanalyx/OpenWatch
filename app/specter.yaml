@@ -40,6 +40,7 @@ domains:
             - api-hosts
             - api-openapi-docs
             - release-admin-signoff
+            - system-worker-subcommand
 settings:
     specs_dir: specs
     coverage:

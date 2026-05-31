@@ -100,6 +100,8 @@ func run(args []string, stdout, stderr *os.File) int {
 	switch subcommand {
 	case "serve":
 		return cmdServe(cfg, rest, stdout, stderr)
+	case "worker":
+		return cmdWorker(cfg, rest, stdout, stderr)
 	case "migrate":
 		return cmdMigrate(cfg, rest, stdout, stderr)
 	case "check-config":
@@ -478,6 +480,7 @@ usage:
 
 subcommands:
   serve         run the HTTPS API server (default)
+  worker        run the scan-job claimer/dispatcher loop
   migrate       apply pending goose migrations
   create-admin  create the first admin user (requires --username --email --password)
   check-config  validate and print resolved config

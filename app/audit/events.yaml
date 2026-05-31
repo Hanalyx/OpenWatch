@@ -641,6 +641,18 @@ events:
         skipped_maintenance_count: {type: integer}
         skipped_backoff_count: {type: integer}
 
+  - code: worker.loop.tick
+    severity: info
+    actor_types: [system]
+    description: Periodic heartbeat from openwatch worker — at 55..65s intervals (60s nominal with jitter)
+    detail_schema:
+      type: object
+      properties:
+        idle_count: {type: integer}
+        claimed_count: {type: integer}
+        in_flight_count: {type: integer}
+        completed_since_last_tick: {type: integer}
+
   # =========================================================================
   # admin — high-privilege operations
   # =========================================================================
