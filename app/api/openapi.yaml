@@ -1326,6 +1326,10 @@ components:
         created_by:   {type: string, format: uuid}
         created_at:   {type: string, format: date-time}
         updated_at:   {type: string, format: date-time}
+        # v1.3.0 — per-host probe pause + priority. Sourced from
+        # hosts.maintenance_mode + hosts.check_priority.
+        maintenance_mode: {type: boolean}
+        check_priority:   {type: integer, minimum: 1, maximum: 10}
 
     # Per-host enrichment (spec api-hosts v1.1.0 C-05).
     # Populated on GET /hosts/{id} when host_liveness has a row for the host.
@@ -1437,6 +1441,12 @@ components:
         created_by:   {type: string, format: uuid}
         created_at:   {type: string, format: date-time}
         updated_at:   {type: string, format: date-time}
+        maintenance_mode: {type: boolean}
+        check_priority:   {type: integer, minimum: 1, maximum: 10}
+        # v1.3.0 — MAX(host_rule_state.last_checked_at) per host. NULL
+        # when no compliance check has ever run against the host.
+        # Surface for the operator dashboard's "last scan X ago" cell.
+        last_scan_at: {type: string, format: date-time, nullable: true}
         liveness:
           allOf: [{$ref: '#/components/schemas/HostLiveness'}]
           nullable: true

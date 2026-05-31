@@ -140,6 +140,39 @@ func loadHostLivenessByIDs(ctx context.Context, pool *pgxpool.Pool, ids []uuid.U
 	return out, rows.Err()
 }
 
+// loadHostLastScanByIDs returns MAX(host_rule_state.last_checked_at)
+// keyed by host id. Hosts with no rule_state rows don't appear in the
+// map — the list handler renders that as null ("Never scanned").
+//
+// Spec api-hosts v1.5.0 — surfaces "last scan" without requiring a
+// separate scans table. host_rule_state's last_checked_at is the
+// source of truth because every compliance check writes there.
+func loadHostLastScanByIDs(ctx context.Context, pool *pgxpool.Pool, ids []uuid.UUID) (map[uuid.UUID]time.Time, error) {
+	out := map[uuid.UUID]time.Time{}
+	if len(ids) == 0 {
+		return out, nil
+	}
+	const q = `
+		SELECT host_id, MAX(last_checked_at)
+		  FROM host_rule_state
+		 WHERE host_id = ANY($1)
+		 GROUP BY host_id`
+	rows, err := pool.Query(ctx, q, ids)
+	if err != nil {
+		return nil, fmt.Errorf("loadHostLastScanByIDs: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var hid uuid.UUID
+		var last time.Time
+		if err := rows.Scan(&hid, &last); err != nil {
+			return nil, fmt.Errorf("loadHostLastScanByIDs scan: %w", err)
+		}
+		out[hid] = last
+	}
+	return out, rows.Err()
+}
+
 // loadHostComplianceSummary reads the per-status counts from
 // host_rule_state for the given host. A host with no rule_state rows
 // returns all zeros — never an error. Spec api-hosts C-06 / AC-16.

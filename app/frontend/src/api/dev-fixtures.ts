@@ -8,12 +8,27 @@
 // IMPORTANT: this file MUST NEVER be imported from non-dev code paths
 // or surfaced in production builds with the flag forced on.
 
+// v1.3.0: monitoring_state distinguishes WHICH layer is failing
+// (sudo broken vs ssh down vs network outage). 'status' stays as the
+// coarse online/down view for legacy renderers.
+export type MonitoringBand =
+  | 'online'
+  | 'degraded'
+  | 'critical'
+  | 'down'
+  | 'maintenance'
+  | 'unknown';
+
 export interface DevHost {
   id: string;
   hostname: string;       // "—" if no hostname registered (display falls back to IP)
   ip_address: string;
   os: 'Ubuntu' | 'RHEL' | 'Debian' | 'SUSE';
   status: 'down' | 'online';
+  /** v1.3.0 — 5-band classification, populated from host_liveness.monitoring_state */
+  monitoring: MonitoringBand;
+  /** v1.3.0 — operator paused per-host probes */
+  maintenance?: boolean;
   compliance: number | null;  // 0..100, null when no scan data
   passed: number | null;
   failed: number | null;
@@ -25,13 +40,13 @@ export interface DevHost {
 }
 
 export const devHosts: DevHost[] = [
-  { id: '1', hostname: 'owas-ub4m2', ip_address: '192.168.1.214', os: 'Ubuntu', status: 'down', compliance: null, passed: null, failed: null, total: 508, lastCheckMinutes: 18, lastScan: '2h ago' },
-  { id: '2', hostname: '—',          ip_address: '192.168.1.212', os: 'Ubuntu', status: 'down', compliance: null, passed: null, failed: null, total: 508, lastCheckMinutes: 18, lastScan: '2h ago' },
-  { id: '3', hostname: 'owas-tst02', ip_address: '192.168.1.211', os: 'RHEL',   status: 'down', compliance: 14.0, passed: 71,   failed: 437,  total: 508, lastCheckMinutes: 18, lastScan: '2h ago' },
-  { id: '4', hostname: 'owas-rhn01', ip_address: '192.168.1.213', os: 'RHEL',   status: 'down', compliance: 14.0, passed: 71,   failed: 437,  total: 508, lastCheckMinutes: 18, lastScan: '2h ago' },
-  { id: '5', hostname: 'owas-tst01', ip_address: '192.168.1.203', os: 'RHEL',   status: 'down', compliance: 14.0, passed: 71,   failed: 437,  total: 508, lastCheckMinutes: 16, lastScan: '2h ago' },
-  { id: '6', hostname: 'owas-hrm01', ip_address: '192.168.1.202', os: 'RHEL',   status: 'down', compliance: 14.0, passed: 71,   failed: 437,  total: 508, lastCheckMinutes: 17, lastScan: '2h ago' },
-  { id: '7', hostname: 'owas-ub5s2', ip_address: '192.168.1.217', os: 'Ubuntu', status: 'online', compliance: 37.6, passed: 191, failed: 317, total: 508, lastCheckMinutes: 8,  lastScan: '1h ago' },
+  { id: '1', hostname: 'owas-ub4m2', ip_address: '192.168.1.214', os: 'Ubuntu', status: 'down', monitoring: 'down', compliance: null, passed: null, failed: null, total: 508, lastCheckMinutes: 18, lastScan: '2h ago' },
+  { id: '2', hostname: '—',          ip_address: '192.168.1.212', os: 'Ubuntu', status: 'down', monitoring: 'down', compliance: null, passed: null, failed: null, total: 508, lastCheckMinutes: 18, lastScan: '2h ago' },
+  { id: '3', hostname: 'owas-tst02', ip_address: '192.168.1.211', os: 'RHEL',   status: 'down', monitoring: 'critical', compliance: 14.0, passed: 71,   failed: 437,  total: 508, lastCheckMinutes: 18, lastScan: '2h ago' },
+  { id: '4', hostname: 'owas-rhn01', ip_address: '192.168.1.213', os: 'RHEL',   status: 'down', monitoring: 'critical', compliance: 14.0, passed: 71,   failed: 437,  total: 508, lastCheckMinutes: 18, lastScan: '2h ago' },
+  { id: '5', hostname: 'owas-tst01', ip_address: '192.168.1.203', os: 'RHEL',   status: 'down', monitoring: 'degraded', compliance: 14.0, passed: 71,   failed: 437,  total: 508, lastCheckMinutes: 16, lastScan: '2h ago' },
+  { id: '6', hostname: 'owas-hrm01', ip_address: '192.168.1.202', os: 'RHEL',   status: 'down', monitoring: 'degraded', compliance: 14.0, passed: 71,   failed: 437,  total: 508, lastCheckMinutes: 17, lastScan: '2h ago' },
+  { id: '7', hostname: 'owas-ub5s2', ip_address: '192.168.1.217', os: 'Ubuntu', status: 'online', monitoring: 'online', compliance: 37.6, passed: 191, failed: 317, total: 508, lastCheckMinutes: 8,  lastScan: '1h ago' },
 ];
 
 export type DeltaTier = 'crit' | 'warn' | 'ok' | 'neutral';

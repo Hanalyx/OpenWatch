@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/Hanalyx/openwatch/internal/audit"
 	"github.com/Hanalyx/openwatch/internal/auth"
@@ -36,9 +37,9 @@ func (h *handlers) GetHosts(w http.ResponseWriter, r *http.Request, params api.G
 		return
 	}
 
-	// Batch-load liveness for every host in the page — one query for
-	// the whole set. Hosts without a host_liveness row stay null on
-	// the response. Spec api-hosts v1.3.0 list-liveness.
+	// Batch-load liveness + last-scan-time for every host in the page
+	// — two queries for the whole set, no per-row N+1. Spec api-hosts
+	// v1.3.0 (liveness) + v1.5.0 (last_scan_at).
 	ids := make([]uuid.UUID, len(list))
 	for i, h := range list {
 		ids[i] = h.ID
@@ -49,10 +50,16 @@ func (h *handlers) GetHosts(w http.ResponseWriter, r *http.Request, params api.G
 			"liveness join failed", true)
 		return
 	}
+	lastScanByID, err := loadHostLastScanByIDs(r.Context(), h.pool, ids)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "server.error", "server",
+			"last_scan_at join failed", true)
+		return
+	}
 
 	out := make([]api.HostListItem, len(list))
 	for i, item := range list {
-		out[i] = hostListItem(item, liveByID[item.ID])
+		out[i] = hostListItem(item, liveByID[item.ID], lastScanByID[item.ID])
 	}
 	writeJSON(w, http.StatusOK, api.HostListResponse{Hosts: out})
 }
@@ -251,27 +258,32 @@ func hostResponse(h host.Host) api.HostResponse {
 		u := openapitypes.UUID(*h.GroupID)
 		groupID = &u
 	}
+	maint := h.MaintenanceMode
+	prio := h.CheckPriority
 	return api.HostResponse{
-		Id:          openapitypes.UUID(h.ID),
-		Hostname:    h.Hostname,
-		IpAddress:   h.IPAddress,
-		Port:        h.Port,
-		DisplayName: &displayName,
-		Description: &desc,
-		Environment: env,
-		Tags:        &tags,
-		GroupId:     groupID,
-		Username:    &username,
-		CreatedBy:   &createdBy,
-		CreatedAt:   &h.CreatedAt,
-		UpdatedAt:   &h.UpdatedAt,
+		Id:              openapitypes.UUID(h.ID),
+		Hostname:        h.Hostname,
+		IpAddress:       h.IPAddress,
+		Port:            h.Port,
+		DisplayName:     &displayName,
+		Description:     &desc,
+		Environment:     env,
+		Tags:            &tags,
+		GroupId:         groupID,
+		Username:        &username,
+		CreatedBy:       &createdBy,
+		CreatedAt:       &h.CreatedAt,
+		UpdatedAt:       &h.UpdatedAt,
+		MaintenanceMode: &maint,
+		CheckPriority:   &prio,
 	}
 }
 
 // hostListItem builds the list-page item: every HostResponse field
-// plus an optional liveness sub-object joined from host_liveness.
-// liveness MAY be nil when no probe has run against the host.
-func hostListItem(h host.Host, liveness *api.HostLiveness) api.HostListItem {
+// plus an optional liveness sub-object joined from host_liveness and
+// an optional last_scan_at timestamp from MAX(host_rule_state.last_checked_at).
+// Both may be nil — never probed and never scanned, respectively.
+func hostListItem(h host.Host, liveness *api.HostLiveness, lastScan time.Time) api.HostListItem {
 	desc := h.Description
 	displayName := h.DisplayName
 	env := h.Environment
@@ -283,20 +295,28 @@ func hostListItem(h host.Host, liveness *api.HostLiveness) api.HostListItem {
 		u := openapitypes.UUID(*h.GroupID)
 		groupID = &u
 	}
-	return api.HostListItem{
-		Id:          openapitypes.UUID(h.ID),
-		Hostname:    h.Hostname,
-		IpAddress:   h.IPAddress,
-		Port:        h.Port,
-		DisplayName: &displayName,
-		Description: &desc,
-		Environment: env,
-		Tags:        &tags,
-		GroupId:     groupID,
-		Username:    &username,
-		CreatedBy:   &createdBy,
-		CreatedAt:   &h.CreatedAt,
-		UpdatedAt:   &h.UpdatedAt,
-		Liveness:    liveness,
+	maint := h.MaintenanceMode
+	prio := h.CheckPriority
+	item := api.HostListItem{
+		Id:              openapitypes.UUID(h.ID),
+		Hostname:        h.Hostname,
+		IpAddress:       h.IPAddress,
+		Port:            h.Port,
+		DisplayName:     &displayName,
+		Description:     &desc,
+		Environment:     env,
+		Tags:            &tags,
+		GroupId:         groupID,
+		Username:        &username,
+		CreatedBy:       &createdBy,
+		CreatedAt:       &h.CreatedAt,
+		UpdatedAt:       &h.UpdatedAt,
+		MaintenanceMode: &maint,
+		CheckPriority:   &prio,
+		Liveness:        liveness,
 	}
+	if !lastScan.IsZero() {
+		item.LastScanAt = &lastScan
+	}
+	return item
 }

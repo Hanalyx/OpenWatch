@@ -558,6 +558,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/hosts/{host_id}/maintenance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Pause/resume liveness probes for a single host
+         * @description Toggling maintenance_mode=true causes listProbeTargets to skip the host on every subsequent tick. The host_liveness row is left untouched, so resuming maintenance picks up from the last recorded state. v1.3.0.
+         */
+        put: operations["putHostMaintenance"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/hosts/{host_id}/monitoring/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Tail the host's monitoring-history rows (most recent first)
+         * @description Returns up to `limit` most-recent host_monitoring_history rows for diagnostics. Each row captures the per-layer pass/fail flags the multi-layer probe recorded. v1.3.0.
+         */
+        get: operations["getHostMonitoringHistory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/audit/events": {
         parameters: {
             query?: never;
@@ -863,17 +903,56 @@ export interface components {
             created_at?: string;
             /** Format: date-time */
             updated_at?: string;
+            maintenance_mode?: boolean;
+            check_priority?: number;
         };
         HostLiveness: {
             /** @enum {string} */
             reachability_status: "reachable" | "unreachable" | "unknown";
+            /** @enum {string} */
+            monitoring_state?: "online" | "degraded" | "critical" | "down" | "maintenance" | "unknown";
             /** Format: date-time */
             last_probe_at?: string | null;
             last_response_ms?: number | null;
             consecutive_failures?: number;
+            ping_consecutive_failures?: number;
+            ping_consecutive_successes?: number;
+            ssh_consecutive_failures?: number;
+            ssh_consecutive_successes?: number;
+            privilege_consecutive_failures?: number;
+            privilege_consecutive_successes?: number;
             /** Format: date-time */
             last_state_change_at?: string | null;
             last_error_type?: string | null;
+        };
+        HostMaintenanceRequest: {
+            /** @description true = pause probes; false = resume */
+            enabled: boolean;
+        };
+        HostMonitoringHistoryEntry: {
+            /** Format: int64 */
+            id: number;
+            /** Format: uuid */
+            host_id: string;
+            /** Format: date-time */
+            check_time: string;
+            /** @enum {string} */
+            monitoring_state: "online" | "degraded" | "critical" | "down" | "maintenance" | "unknown";
+            /** @enum {string|null} */
+            previous_state?: "online" | "degraded" | "critical" | "down" | "maintenance" | "unknown" | null;
+            response_time_ms?: number | null;
+            ping_ok?: boolean | null;
+            ssh_ok?: boolean | null;
+            privilege_ok?: boolean | null;
+            /** @enum {string|null} */
+            failed_layer?: "ping" | "ssh" | "privilege" | null;
+            error_message?: string | null;
+            error_type?: string | null;
+        };
+        HostMonitoringHistoryResponse: {
+            /** Format: uuid */
+            host_id: string;
+            entries: components["schemas"]["HostMonitoringHistoryEntry"][];
         };
         HostComplianceSummary: {
             /** Format: int64 */
@@ -912,6 +991,10 @@ export interface components {
             created_at?: string;
             /** Format: date-time */
             updated_at?: string;
+            maintenance_mode?: boolean;
+            check_priority?: number;
+            /** Format: date-time */
+            last_scan_at?: string | null;
             /** @description Null when no liveness probe has ever run against this host. */
             liveness?: components["schemas"]["HostLiveness"] | null;
         };
@@ -2489,6 +2572,74 @@ export interface operations {
                 };
             };
             /** @description No credential available for host or system default */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    putHostMaintenance: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                host_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HostMaintenanceRequest"];
+            };
+        };
+        responses: {
+            /** @description Updated host */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HostResponse"];
+                };
+            };
+            /** @description Host not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getHostMonitoringHistory: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                host_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description History rows newest-first */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HostMonitoringHistoryResponse"];
+                };
+            };
+            /** @description Host not found */
             404: {
                 headers: {
                     [name: string]: unknown;

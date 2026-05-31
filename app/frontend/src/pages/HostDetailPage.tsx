@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams, useSearch, useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
 import { ArrowLeft, RefreshCw, Circle, Pencil } from 'lucide-react';
@@ -28,13 +28,27 @@ interface HostResponse {
   display_name?: string;
   description?: string;
   username?: string;
+  maintenance_mode?: boolean;
+  check_priority?: number;
 }
+
+type MonitoringBand =
+  | 'online'
+  | 'degraded'
+  | 'critical'
+  | 'down'
+  | 'maintenance'
+  | 'unknown';
 
 interface HostLiveness {
   reachability_status: 'reachable' | 'unreachable' | 'unknown';
+  monitoring_state?: MonitoringBand;
   last_probe_at?: string | null;
   last_response_ms?: number | null;
   consecutive_failures: number;
+  ping_consecutive_failures?: number;
+  ssh_consecutive_failures?: number;
+  privilege_consecutive_failures?: number;
   last_state_change_at?: string | null;
   last_error_type?: string | null;
 }
@@ -267,6 +281,7 @@ function IdentityHeader({
         </div>
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16 }}>
           <LivenessIndicator liveness={liveness} />
+          <MaintenanceToggle host={host} />
           <button
             type="button"
             onClick={() => setEditOpen(true)}
@@ -295,6 +310,77 @@ function IdentityHeader({
         host={host}
       />
     </section>
+  );
+}
+
+// MaintenanceToggle — flips hosts.maintenance_mode via PUT
+// /hosts/{id}/maintenance. While in maintenance the periodic probe
+// skips the host entirely (no probe, no audit, no history row). Surface
+// for operators to quiet a known-broken host without deleting it.
+function MaintenanceToggle({ host }: { host: HostResponse }) {
+  const queryClient = useQueryClient();
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const inMaintenance = host.maintenance_mode === true;
+
+  const toggle = async () => {
+    if (pending) return;
+    setPending(true);
+    setError(null);
+    try {
+      const { response, error: apiErr } = await api.PUT('/api/v1/hosts/{host_id}/maintenance', {
+        params: { path: { host_id: host.id } },
+        body: { enabled: !inMaintenance },
+      });
+      if (!response.ok) {
+        const e = apiErr as { error?: { message?: string } } | undefined;
+        setError(e?.error?.message ?? `HTTP ${response.status}`);
+        return;
+      }
+      // Refetch the host so the badge + button label flip in place.
+      queryClient.invalidateQueries({ queryKey: ['host', host.id] });
+      queryClient.invalidateQueries({ queryKey: ['hosts'] });
+    } catch (e) {
+      setError((e as Error)?.message ?? 'Network error');
+    } finally {
+      setPending(false);
+    }
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <button
+        type="button"
+        onClick={toggle}
+        disabled={pending}
+        aria-pressed={inMaintenance}
+        title={
+          inMaintenance
+            ? 'Resume periodic probes for this host'
+            : 'Pause periodic probes — no audits or history rows while in maintenance'
+        }
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 6,
+          background: inMaintenance ? 'var(--ow-warn-bg)' : 'var(--ow-bg-2)',
+          color: inMaintenance ? 'var(--ow-warn)' : 'var(--ow-fg-1)',
+          border: '1px solid var(--ow-line)',
+          borderRadius: 6,
+          padding: '6px 12px',
+          fontSize: 12,
+          cursor: pending ? 'wait' : 'pointer',
+          opacity: pending ? 0.6 : 1,
+        }}
+      >
+        {inMaintenance ? 'Resume probes' : 'Pause probes'}
+      </button>
+      {error && (
+        <span role="alert" style={{ fontSize: 11, color: 'var(--ow-crit)' }}>
+          {error}
+        </span>
+      )}
+    </div>
   );
 }
 
