@@ -1,1334 +1,188 @@
 {
   "results": [
     {
-      "spec_id": "system-audit-emission",
+      "spec_id": "frontend-foundation",
       "ac_id": "AC-01",
       "status": "passed",
       "passed": true
     },
     {
-      "spec_id": "system-audit-emission",
+      "spec_id": "frontend-foundation",
       "ac_id": "AC-02",
       "status": "passed",
       "passed": true
     },
     {
-      "spec_id": "system-audit-emission",
+      "spec_id": "frontend-foundation",
       "ac_id": "AC-03",
       "status": "passed",
       "passed": true
     },
     {
-      "spec_id": "system-audit-emission",
-      "ac_id": "AC-06",
+      "spec_id": "frontend-foundation",
+      "ac_id": "AC-04",
       "status": "passed",
       "passed": true
     },
     {
-      "spec_id": "system-audit-emission",
-      "ac_id": "AC-07",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-audit-emission",
-      "ac_id": "AC-11",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-audit-emission",
-      "ac_id": "AC-12",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-audit-emission",
-      "ac_id": "AC-13",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-audit-emission",
-      "ac_id": "AC-14",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-audit-emission",
-      "ac_id": "AC-05",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-audit-emission",
+      "spec_id": "frontend-foundation",
       "ac_id": "AC-15",
       "status": "passed",
       "passed": true
     },
     {
-      "spec_id": "system-audit-emission",
-      "ac_id": "AC-04",
+      "spec_id": "frontend-foundation",
+      "ac_id": "AC-14",
       "status": "passed",
       "passed": true
     },
     {
-      "spec_id": "system-audit-emission",
-      "ac_id": "AC-08",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-audit-emission",
-      "ac_id": "AC-09",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-audit-emission",
-      "ac_id": "AC-10",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-rbac",
-      "ac_id": "AC-01",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-rbac",
-      "ac_id": "AC-02",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-rbac",
-      "ac_id": "AC-03",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-rbac",
-      "ac_id": "AC-04",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-rbac",
-      "ac_id": "AC-05",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-rbac",
+      "spec_id": "frontend-foundation",
       "ac_id": "AC-06",
       "status": "passed",
       "passed": true
     },
     {
-      "spec_id": "system-rbac",
+      "spec_id": "frontend-foundation",
       "ac_id": "AC-07",
       "status": "passed",
       "passed": true
     },
     {
-      "spec_id": "system-rbac",
+      "spec_id": "system-worker-subcommand",
+      "ac_id": "AC-15",
+      "status": "passed",
+      "passed": true
+    },
+    {
+      "spec_id": "system-worker-subcommand",
+      "ac_id": "AC-04",
+      "status": "skipped",
+      "passed": false
+    },
+    {
+      "spec_id": "system-worker-subcommand",
+      "ac_id": "AC-10",
+      "status": "passed",
+      "passed": true
+    },
+    {
+      "spec_id": "system-worker-subcommand",
+      "ac_id": "AC-01",
+      "status": "skipped",
+      "passed": false
+    },
+    {
+      "spec_id": "system-worker-subcommand",
+      "ac_id": "AC-02",
+      "status": "skipped",
+      "passed": false
+    },
+    {
+      "spec_id": "system-worker-subcommand",
+      "ac_id": "AC-03",
+      "status": "skipped",
+      "passed": false
+    },
+    {
+      "spec_id": "system-worker-subcommand",
+      "ac_id": "AC-05",
+      "status": "skipped",
+      "passed": false
+    },
+    {
+      "spec_id": "system-worker-subcommand",
+      "ac_id": "AC-06",
+      "status": "skipped",
+      "passed": false
+    },
+    {
+      "spec_id": "system-worker-subcommand",
+      "ac_id": "AC-07",
+      "status": "skipped",
+      "passed": false
+    },
+    {
+      "spec_id": "system-worker-subcommand",
+      "ac_id": "AC-08",
+      "status": "passed",
+      "passed": true
+    },
+    {
+      "spec_id": "system-worker-subcommand",
+      "ac_id": "AC-11",
+      "status": "skipped",
+      "passed": false
+    },
+    {
+      "spec_id": "system-worker-subcommand",
+      "ac_id": "AC-09",
+      "status": "passed",
+      "passed": true
+    },
+    {
+      "spec_id": "system-worker-subcommand",
       "ac_id": "AC-12",
       "status": "passed",
       "passed": true
     },
     {
-      "spec_id": "system-rbac",
+      "spec_id": "system-worker-subcommand",
+      "ac_id": "AC-14",
+      "status": "passed",
+      "passed": true
+    },
+    {
+      "spec_id": "system-daemon-orchestration",
+      "ac_id": "AC-01",
+      "status": "passed",
+      "passed": true
+    },
+    {
+      "spec_id": "system-daemon-orchestration",
+      "ac_id": "AC-02",
+      "status": "passed",
+      "passed": true
+    },
+    {
+      "spec_id": "system-daemon-orchestration",
+      "ac_id": "AC-03",
+      "status": "passed",
+      "passed": true
+    },
+    {
+      "spec_id": "system-daemon-orchestration",
+      "ac_id": "AC-04",
+      "status": "passed",
+      "passed": true
+    },
+    {
+      "spec_id": "system-daemon-orchestration",
+      "ac_id": "AC-05",
+      "status": "passed",
+      "passed": true
+    },
+    {
+      "spec_id": "system-daemon-orchestration",
+      "ac_id": "AC-06",
+      "status": "passed",
+      "passed": true
+    },
+    {
+      "spec_id": "system-worker-subcommand",
+      "ac_id": "AC-13",
+      "status": "passed",
+      "passed": true
+    },
+    {
+      "spec_id": "system-worker-subcommand",
       "ac_id": "AC-16",
       "status": "passed",
       "passed": true
     },
     {
-      "spec_id": "system-config",
-      "ac_id": "AC-01",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-config",
-      "ac_id": "AC-02",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-config",
-      "ac_id": "AC-03",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-config",
-      "ac_id": "AC-04",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-config",
-      "ac_id": "AC-07",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-config",
-      "ac_id": "AC-08",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-config",
-      "ac_id": "AC-06",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-config",
-      "ac_id": "AC-05",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-config",
-      "ac_id": "AC-09",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-config",
-      "ac_id": "AC-10",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-config",
-      "ac_id": "AC-11",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-config",
-      "ac_id": "AC-12",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-config",
-      "ac_id": "AC-13",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-config",
-      "ac_id": "AC-14",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-config",
-      "ac_id": "AC-15",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-correlation",
-      "ac_id": "AC-01",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-correlation",
-      "ac_id": "AC-02",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-correlation",
-      "ac_id": "AC-03",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-correlation",
-      "ac_id": "AC-04",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-correlation",
-      "ac_id": "AC-05",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-correlation",
-      "ac_id": "AC-06",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-correlation",
-      "ac_id": "AC-07",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-correlation",
-      "ac_id": "AC-08",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-correlation",
-      "ac_id": "AC-09",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-correlation",
-      "ac_id": "AC-10",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-correlation",
-      "ac_id": "AC-11",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-db",
-      "ac_id": "AC-01",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-db",
-      "ac_id": "AC-07",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-db",
-      "ac_id": "AC-09",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-db",
-      "ac_id": "AC-10",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-db",
-      "ac_id": "AC-11",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-db",
-      "ac_id": "AC-02",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-db",
-      "ac_id": "AC-03",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-db",
-      "ac_id": "AC-04",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-db",
-      "ac_id": "AC-05",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-db",
-      "ac_id": "AC-06",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-db",
-      "ac_id": "AC-08",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-db",
-      "ac_id": "AC-12",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-correlation",
-      "ac_id": "AC-14",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-correlation",
-      "ac_id": "AC-15",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-correlation",
-      "ac_id": "AC-16",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-idempotency",
-      "ac_id": "AC-01",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-idempotency",
-      "ac_id": "AC-02",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-idempotency",
-      "ac_id": "AC-03",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-idempotency",
-      "ac_id": "AC-05",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-idempotency",
-      "ac_id": "AC-06",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-idempotency",
-      "ac_id": "AC-08",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-idempotency",
-      "ac_id": "AC-04",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-idempotency",
-      "ac_id": "AC-07",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-idempotency",
-      "ac_id": "AC-09",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-license-features",
-      "ac_id": "AC-01",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-license-features",
-      "ac_id": "AC-02",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-license-features",
-      "ac_id": "AC-03",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-license-features",
-      "ac_id": "AC-04",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-license-features",
-      "ac_id": "AC-05",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-license-features",
-      "ac_id": "AC-06",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-license-features",
-      "ac_id": "AC-07",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-license-features",
-      "ac_id": "AC-09",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-license-features",
-      "ac_id": "AC-08",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-license-features",
-      "ac_id": "AC-10",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-license-features",
-      "ac_id": "AC-11",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-license-features",
-      "ac_id": "AC-12",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-license-validation",
-      "ac_id": "AC-01",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-license-validation",
-      "ac_id": "AC-02",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-license-validation",
-      "ac_id": "AC-04",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-license-validation",
-      "ac_id": "AC-05",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-license-validation",
-      "ac_id": "AC-06",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-license-validation",
-      "ac_id": "AC-07",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-license-validation",
-      "ac_id": "AC-08",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-license-validation",
-      "ac_id": "AC-09",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-license-validation",
-      "ac_id": "AC-11",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-license-validation",
-      "ac_id": "AC-12",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-license-validation",
-      "ac_id": "AC-03",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-license-validation",
-      "ac_id": "AC-10",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-license-validation",
-      "ac_id": "AC-13",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-correlation",
-      "ac_id": "AC-12",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-correlation",
-      "ac_id": "AC-13",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-policy",
-      "ac_id": "AC-01",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-policy",
-      "ac_id": "AC-02",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-policy",
-      "ac_id": "AC-03",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-policy",
-      "ac_id": "AC-04",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-policy",
-      "ac_id": "AC-05",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-policy",
-      "ac_id": "AC-06",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-policy",
-      "ac_id": "AC-07",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-policy",
-      "ac_id": "AC-08",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-policy",
-      "ac_id": "AC-09",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-policy",
-      "ac_id": "AC-10",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-policy",
-      "ac_id": "AC-11",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-policy",
-      "ac_id": "AC-12",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-job-queue",
-      "ac_id": "AC-01",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-job-queue",
-      "ac_id": "AC-02",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-job-queue",
-      "ac_id": "AC-03",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-job-queue",
-      "ac_id": "AC-04",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-job-queue",
-      "ac_id": "AC-05",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-job-queue",
-      "ac_id": "AC-06",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-job-queue",
-      "ac_id": "AC-07",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-job-queue",
-      "ac_id": "AC-08",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-job-queue",
-      "ac_id": "AC-09",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-job-queue",
-      "ac_id": "AC-10",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-job-queue",
-      "ac_id": "AC-11",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "api-audit-events-query",
-      "ac_id": "AC-01",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "api-audit-events-query",
-      "ac_id": "AC-03",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "api-audit-events-query",
-      "ac_id": "AC-02",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "api-audit-events-query",
-      "ac_id": "AC-04",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "api-audit-events-query",
-      "ac_id": "AC-05",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "api-audit-events-query",
-      "ac_id": "AC-06",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "api-audit-events-query",
-      "ac_id": "AC-07",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "api-audit-events-query",
-      "ac_id": "AC-08",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "api-audit-events-query",
-      "ac_id": "AC-09",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "api-audit-events-query",
-      "ac_id": "AC-10",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "api-diagnostics-echo",
-      "ac_id": "AC-01",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "api-diagnostics-echo",
-      "ac_id": "AC-03",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "api-diagnostics-echo",
-      "ac_id": "AC-07",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "api-diagnostics-echo",
-      "ac_id": "AC-08",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "api-diagnostics-echo",
-      "ac_id": "AC-02",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "api-diagnostics-echo",
-      "ac_id": "AC-04",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "api-diagnostics-echo",
-      "ac_id": "AC-05",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "api-diagnostics-echo",
-      "ac_id": "AC-06",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "api-diagnostics-echo",
-      "ac_id": "AC-09",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "api-diagnostics-echo",
-      "ac_id": "AC-10",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "api-health",
-      "ac_id": "AC-01",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "api-health",
-      "ac_id": "AC-02",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "api-health",
-      "ac_id": "AC-03",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "api-health",
-      "ac_id": "AC-04",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "api-health",
-      "ac_id": "AC-05",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "api-health",
-      "ac_id": "AC-06",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "api-license",
-      "ac_id": "AC-01",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "api-license",
-      "ac_id": "AC-05",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "api-license",
-      "ac_id": "AC-07",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "api-license",
-      "ac_id": "AC-02",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "api-license",
-      "ac_id": "AC-03",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "api-license",
-      "ac_id": "AC-04",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "api-license",
-      "ac_id": "AC-06",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "api-license",
-      "ac_id": "AC-08",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "api-license",
-      "ac_id": "AC-09",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "api-license",
-      "ac_id": "AC-10",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-rbac",
-      "ac_id": "AC-08",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-rbac",
-      "ac_id": "AC-09",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-rbac",
-      "ac_id": "AC-10",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-rbac",
-      "ac_id": "AC-11",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-rbac",
-      "ac_id": "AC-13",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-rbac",
-      "ac_id": "AC-14",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-rbac",
-      "ac_id": "AC-15",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "release-stage-0-signoff",
-      "ac_id": "AC-01",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "release-stage-0-signoff",
-      "ac_id": "AC-02",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "release-stage-0-signoff",
-      "ac_id": "AC-03",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "release-stage-0-signoff",
-      "ac_id": "AC-04",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "release-stage-0-signoff",
-      "ac_id": "AC-05",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "release-stage-0-signoff",
-      "ac_id": "AC-06",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "release-stage-0-signoff",
-      "ac_id": "AC-07",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "release-stage-0-signoff",
-      "ac_id": "AC-08",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "release-stage-0-signoff",
-      "ac_id": "AC-09",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "release-stage-0-signoff",
-      "ac_id": "AC-10",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "release-stage-0-signoff",
-      "ac_id": "AC-11",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "release-stage-0-signoff",
-      "ac_id": "AC-12",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "release-stage-0-signoff",
-      "ac_id": "AC-13",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-http-server",
-      "ac_id": "AC-02",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-http-server",
-      "ac_id": "AC-03",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-http-server",
-      "ac_id": "AC-08",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-http-server",
-      "ac_id": "AC-01",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-http-server",
-      "ac_id": "AC-10",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-http-server",
-      "ac_id": "AC-11",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-http-server",
-      "ac_id": "AC-09",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-http-server",
-      "ac_id": "AC-04",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-http-server",
-      "ac_id": "AC-05",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-http-server",
-      "ac_id": "AC-06",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "system-http-server",
-      "ac_id": "AC-07",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "release-ci-gates",
-      "ac_id": "AC-01",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "release-ci-gates",
-      "ac_id": "AC-02",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "release-ci-gates",
-      "ac_id": "AC-03",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "release-ci-gates",
-      "ac_id": "AC-04",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "release-ci-gates",
-      "ac_id": "AC-05",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "release-ci-gates",
-      "ac_id": "AC-06",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "release-ci-gates",
-      "ac_id": "AC-07",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "release-ci-gates",
-      "ac_id": "AC-08",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "release-ci-gates",
-      "ac_id": "AC-09",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "release-ci-gates",
-      "ac_id": "AC-10",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "release-fips-build",
-      "ac_id": "AC-01",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "release-fips-build",
-      "ac_id": "AC-02",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "release-fips-build",
-      "ac_id": "AC-03",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "release-fips-build",
-      "ac_id": "AC-04",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "release-fips-build",
-      "ac_id": "AC-05",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "release-fips-build",
-      "ac_id": "AC-06",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "release-fips-build",
-      "ac_id": "AC-07",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "release-fips-build",
-      "ac_id": "AC-08",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "release-package-build",
-      "ac_id": "AC-01",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "release-package-build",
-      "ac_id": "AC-02",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "release-package-build",
-      "ac_id": "AC-03",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "release-package-build",
-      "ac_id": "AC-04",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "release-package-build",
-      "ac_id": "AC-05",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "release-package-build",
-      "ac_id": "AC-06",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "release-package-build",
-      "ac_id": "AC-07",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "release-package-build",
-      "ac_id": "AC-08",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "release-package-build",
-      "ac_id": "AC-09",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "release-package-build",
-      "ac_id": "AC-10",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "release-package-build",
-      "ac_id": "AC-11",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "release-package-build",
-      "ac_id": "AC-12",
-      "status": "passed",
-      "passed": true
-    },
-    {
-      "spec_id": "release-package-build",
-      "ac_id": "AC-13",
+      "spec_id": "system-worker-subcommand",
+      "ac_id": "AC-17",
       "status": "passed",
       "passed": true
     }
