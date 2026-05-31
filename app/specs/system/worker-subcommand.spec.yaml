@@ -1,0 +1,182 @@
+spec:
+  id: system-worker-subcommand
+  title: openwatch worker — scan job claimer and dispatcher
+  version: "1.0.0"
+  status: approved
+  tier: 1
+
+  context:
+    system: openwatch-go
+    feature: Long-lived process that claims scan jobs and runs them via the kensa executor
+    description: >
+      openwatch worker is the second long-lived subcommand alongside
+      openwatch serve. It is the only process that executes Kensa
+      scans: serve enqueues jobs via the scheduler tick (future PR),
+      worker claims them via SKIP LOCKED, runs the kensa executor,
+      and applies per-rule results via the transactionlog writer.
+      Multiple workers MAY run concurrently against the same database;
+      SKIP LOCKED guarantees no two workers claim the same job.
+
+      Per the framework-at-query-time architecture (system-scheduler
+      v2.0.0, system-kensa-executor v2.0.0), each scan job runs the
+      FULL rule corpus applicable to the host's detected OS
+      capabilities. Framework slicing happens at query time via
+      host_rule_state.framework_refs JSONB — not at scan time.
+
+      Retry model. The current internal/queue has no retry
+      infrastructure — `Fail` is terminal, no `next_attempt_at`. So
+      transient failures are NOT in-place re-queued. Instead, the
+      worker classifies executor errors, calls queue.Fail on the
+      current job, and UPSERTs host_backoff_state.suppress_until
+      with exponential backoff based on consecutive_failures. The
+      scheduler dispatcher (future PR) honors suppress_until and
+      will NOT enqueue a new job for that host until the window
+      passes. After 5 consecutive transient failures, suppress_until
+      is set to a long ceiling (24h) — that is the "dead-letter."
+    related_specs:
+      - system-job-queue
+      - system-scheduler
+      - system-kensa-executor
+      - system-transaction-log-writer
+      - system-daemon-orchestration
+
+  objective:
+    summary: >
+      One Worker.Run goroutine per process. The loop per iteration:
+      queue.Dequeue (SKIP LOCKED claim) -> scheduler.Verify HMAC ->
+      acquire pg_advisory_xact_lock on the host -> credential resolve
+      via internal/credential -> executor.Run(ctx, hostID, policyVersion)
+      -> classify outcome -> transactionlog.Writer.Apply on success
+      OR host_backoff_state UPSERT on transient failure -> queue.Complete
+      or queue.Fail -> repeat. SIGTERM stops new dequeues, allows the
+      in-flight job to complete, then the process exits 0.
+    scope:
+      includes:
+        - "Worker.Run dequeue -> verify -> execute -> persist -> mark loop"
+        - "HMAC verification via scheduler.Verify before any side effect"
+        - "Per-host concurrency guard via PostgreSQL transaction-scoped advisory lock"
+        - "Graceful drain on SIGTERM/ctx cancel"
+        - "Host-level backoff via host_backoff_state on transient executor errors"
+        - "Dead-letter via queue.Fail + 24h suppress_until ceiling after 5 consecutive failures"
+        - "Idle-loop poll interval when queue is empty"
+      excludes:
+        - "Job enqueue (scheduler dispatcher tick, follow-up PR)"
+        - "Cron tick (lives in serve, not worker)"
+        - "Per-job evidence redaction (executor + transactionlog handle)"
+        - "Multi-worker leader election (SKIP LOCKED is the only coordination)"
+        - "Job-level retry with next_attempt_at (queue does not support it; future migration)"
+
+  constraints:
+    - id: C-01
+      description: Worker.Run MUST claim jobs via queue.Dequeue, which uses `SELECT ... FOR UPDATE SKIP LOCKED LIMIT 1`. Two workers running concurrently MUST make progress on disjoint job sets — no double-claim
+      type: technical
+      enforcement: error
+    - id: C-02
+      description: Every claimed job payload MUST be HMAC-verified via scheduler.Verify before ANY side effect (no credential resolve, no SSH session, no executor.Run). HMAC mismatch MUST mark the job failed via queue.Fail and emit scheduler.job.hmac_rejected (the audit event already in events.yaml since B.1a; the name is historical — the worker reuses it)
+      type: security
+      enforcement: error
+    - id: C-03
+      description: Worker.Run MUST call executor.Run with the signature Run(ctx, hostID, policyVersion) — NO framework parameter. Source-inspection enforces (AC-12)
+      type: technical
+      enforcement: error
+    - id: C-04
+      description: A successful executor.Run MUST apply results via transactionlog.Writer.Apply in a single ApplyBatch — never per-rule individual inserts. Apply is atomic; partial failure rolls back the whole batch
+      type: technical
+      enforcement: error
+    - id: C-05
+      description: A transient executor error (ErrHostBusy, transport timeout, ssh disconnected — any error NOT classified as permanent by C-06) MUST cause queue.Fail on the current job AND UPSERT host_backoff_state for (host_id, probe_type='scan') with suppress_until = now() + backoff(consecutive_failures), where backoff = 1m, 2m, 4m, 8m, 16m for failures 1..5 and 24h for failures >= 5. The scheduler dispatcher (future PR) honors suppress_until and will not enqueue a new job until it passes
+      type: technical
+      enforcement: error
+    - id: C-06
+      description: A permanent executor error (ErrCredentialDecryption, ErrEvidenceOversize, ErrKensaInternal returned by reportKensaError, ErrHostKeyUnknown returned by reportHostKeyUnknown) MUST cause queue.Fail on the current job. The executor has already emitted scan.failed with the typed reason — the worker does NOT emit a second scan.failed. The worker does NOT touch host_backoff_state for permanent errors (host's identity / credentials / known_hosts is the problem, not transient connectivity)
+      type: technical
+      enforcement: error
+    - id: C-07
+      description: SIGTERM or ctx cancellation during the worker loop MUST stop new Dequeue calls immediately, allow the in-flight executor.Run to complete (or hit its own per-scan timeout — see system-kensa-executor C-04), apply its result (queue.Complete + transactionlog.Apply on success; queue.Fail + host_backoff_state on transient failure; queue.Fail on permanent failure), then return from Worker.Run. The process exit code reflects whether the loop returned normally (0) or via a fatal error (1)
+      type: technical
+      enforcement: error
+    - id: C-08
+      description: Worker.Run MUST emit worker.loop.tick at intervals of 55-65 seconds (60s nominal with jitter) with idle_count, claimed_count, in_flight_count, completed_since_last_tick in the audit detail. Per-job spans use the existing scan.started / scan.completed / scan.failed already emitted by the executor — the worker does NOT emit per-job events
+      type: technical
+      enforcement: error
+    - id: C-09
+      description: Worker.Run MUST acquire a PostgreSQL transaction-scoped advisory lock keyed on the host_id BEFORE calling executor.Run, and release it via transaction commit/rollback. The lock key is derived deterministically from the host's uuid.UUID via the FNV-1a 64-bit hash of the 16 raw bytes — interpreted as int64 (two's complement). Two workers MUST NOT both execute scans against the same host_id at the same instant
+      type: technical
+      enforcement: error
+    - id: C-10
+      description: Worker.Run on an empty queue (queue.Dequeue returns ErrNoJob) MUST sleep poll_interval (default 1s, configurable, max 5s) before the next Dequeue attempt. No busy-spin CPU usage
+      type: performance
+      enforcement: error
+    - id: C-11
+      description: openwatch worker MUST share the boot prerequisites of openwatch serve — config + DB pool + audit.Init + license.Init + identity.LoadJWTKey + secretkey.LoadFromFile + scheduler.DeriveQueueKey from the DEK. It MUST NOT instantiate eventbus / alertrouter / liveness / HTTP server — those are serve-side subsystems
+      type: technical
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: Two concurrent Worker.Run goroutines against 10 pending jobs (10 distinct host_ids, one job each) claim disjoint subsets — no double-claim observed. queue.Dequeue's SELECT FOR UPDATE SKIP LOCKED is the only mechanism in play.
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-02
+      description: A claimed job with a forged HMAC tag fails scheduler.Verify; the worker calls queue.Fail with errMsg containing "hmac_rejected"; emits scheduler.job.hmac_rejected; executor.Run is NOT invoked; no credential is resolved; no advisory lock is acquired.
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-03
+      description: A successful executor.Run produces exactly one transactionlog.Writer.Apply call carrying every RuleOutcome from the executor's *Result, plus exactly one queue.Complete call. No second scan.failed audit emitted by the worker.
+      priority: critical
+      references_constraints: [C-04]
+    - id: AC-04
+      description: A transient ErrHostBusy from executor.Run causes queue.Fail on the current job AND a host_backoff_state UPSERT for (host_id, probe_type='scan') with consecutive_failures += 1 and suppress_until = now() + 1m on the first failure (verified against a controllable clock). No retry-in-place attempt.
+      priority: critical
+      references_constraints: [C-05]
+    - id: AC-05
+      description: A permanent error from executor.Run (e.g., ErrCredentialDecryption) causes queue.Fail with the typed reason in errMsg; host_backoff_state is NOT modified by the worker. The executor's own scan.failed audit event is the only scan.failed for this attempt — the worker does not emit a second one.
+      priority: critical
+      references_constraints: [C-06]
+    - id: AC-06
+      description: "SIGTERM during an active executor.Run cancels Dequeue's parent context (no new claims); the in-flight executor.Run completes or hits its own timeout; its result is applied via the appropriate queue call (Complete or Fail) and host_backoff_state UPSERT if applicable; then Worker.Run RETURNS. The PROCESS exits with code 0 from main once cmdWorker returns. Distinct from the function-return contract — AC-06 asserts the function returns; the process exit code is asserted via a separate end-to-end test or visual log inspection."
+      priority: critical
+      references_constraints: [C-07]
+    - id: AC-07
+      description: Two workers attempting executor.Run for the same host_id simultaneously — the second to attempt pg_advisory_xact_lock blocks until the first commits/rolls back its transaction; no concurrent executor.Run runs against the same host_id. Verified with a barrier-coordinated test using a controllable executor that signals when it enters and waits for unblock.
+      priority: critical
+      references_constraints: [C-09]
+    - id: AC-08
+      description: Worker.Run emits worker.loop.tick at intervals in [55s, 65s]; per-tick payload includes idle_count, claimed_count, in_flight_count, completed_since_last_tick. The event is registered in audit/events.yaml under category=system or =scheduler with this exact code.
+      priority: high
+      references_constraints: [C-08]
+    - id: AC-09
+      description: Source-inspection of internal/worker/worker.go (the new file that lives alongside the existing diagnostics-job worker at internal/worker/worker.go OR at internal/worker/scan_worker.go — TBD by implementation) — the call to executor.Run has signature (ctx, hostID, policyVersion) with exactly 3 arguments. Source-inspection finds no "framework" in the executor.Run call site.
+      priority: critical
+      references_constraints: [C-03]
+    - id: AC-10
+      description: The ladder is exhaustive — after 6+ consecutive transient failures the host_backoff_state row has consecutive_failures >= 6 and suppress_until = now() + 24h (the ceiling). The ladder values for failures 1..5 are 1m, 2m, 4m, 8m, 16m respectively; the 24h ceiling kicks in at failure 6. Subsequent dispatcher ticks (verified by reading the row via SQL) reflect this state.
+      priority: critical
+      references_constraints: [C-05]
+    - id: AC-11
+      description: Worker.Run on a queue with zero pending jobs sleeps poll_interval between Dequeue attempts; observed by counting Dequeue invocations over a 5-second window (must be at most 5+1 with default poll_interval=1s, allowing for the initial pre-sleep dequeue).
+      priority: high
+      references_constraints: [C-10]
+    - id: AC-12
+      description: Source-inspection — the new worker package source files (internal/worker/*.go for the scan-job worker, excluding the existing diagnostics-job worker) do NOT contain the substring "framework_id" outside of comments referencing legacy v1 behavior; the production call to executor.Run does not pass a framework argument.
+      priority: critical
+      references_constraints: [C-03]
+    - id: AC-13
+      description: openwatch worker --help prints usage including --config, --log-level, --version; --version prints the same build metadata as openwatch serve (Version, Commit, BuildTime).
+      priority: high
+    - id: AC-14
+      description: Source-inspection — the scan-job worker package imports github.com/Hanalyx/openwatch/internal/scheduler and references its Verify function (or whatever scheduler exports for verification — confirmed at write time to be scheduler.Verify). Confirms the HMAC-verification dependency is real, not duplicated in the worker.
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-15
+      description: Source-inspection — the advisory-lock helper computes its int64 key via FNV-1a 64-bit hash of uuid.UUID's 16 bytes. The pattern hash/fnv.New64a + Write(uuid[:]) + Sum64() + int64(cast) appears verbatim in the worker source. Locks the derivation strategy so a future contributor doesn't silently change it (which would split workers across pre/post-change deployments and let two concurrent scans run against the same host).
+      priority: critical
+      references_constraints: [C-09]
+    - id: AC-16
+      description: cmdWorker boot path in cmd/openwatch/main.go calls config + db pool + audit.Init + license.Init + identity.LoadJWTKey + secretkey.LoadFromFile + scheduler.DeriveQueueKey, then constructs the worker and calls Worker.Run, then defers audit.Shutdown. Verified by source-inspection of the cmdWorker function.
+      priority: critical
+      references_constraints: [C-11]
+    - id: AC-17
+      description: Source-inspection — cmdWorker does NOT instantiate eventbus.NewBus, alertrouter.NewRouter, liveness.NewService, or server.New. The worker is HTTP-free.
+      priority: critical
+      references_constraints: [C-11]

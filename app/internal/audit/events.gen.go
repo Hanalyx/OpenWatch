@@ -213,6 +213,8 @@ const (
 	SchedulerJobHmacRejected Code = "scheduler.job.hmac_rejected"
 	// Scheduler tick dispatched zero or more scan jobs to the queue
 	SchedulerTickDispatched Code = "scheduler.tick.dispatched"
+	// Periodic heartbeat from openwatch worker — at 55..65s intervals (60s nominal with jitter)
+	WorkerLoopTick Code = "worker.loop.tick"
 	//
 	AdminUserCreated Code = "admin.user.created"
 	//
@@ -911,6 +913,13 @@ var Metadata = map[Code]EventMeta{
 		Description: `Scheduler tick dispatched zero or more scan jobs to the queue`,
 		ActorTypes:  []string{"system"},
 	},
+	WorkerLoopTick: {
+		Code:        WorkerLoopTick,
+		Category:    "worker",
+		Severity:    SeverityInfo,
+		Description: `Periodic heartbeat from openwatch worker — at 55..65s intervals (60s nominal with jitter)`,
+		ActorTypes:  []string{"system"},
+	},
 	AdminUserCreated: {
 		Code:        AdminUserCreated,
 		Category:    "admin",
@@ -1086,6 +1095,7 @@ var codeOrder = []Code{
 	SchedulerPolicyRevokedKeyRejected,
 	SchedulerJobHmacRejected,
 	SchedulerTickDispatched,
+	WorkerLoopTick,
 	AdminUserCreated,
 	AdminUserUpdated,
 	AdminUserDeleted,

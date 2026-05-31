@@ -36,6 +36,21 @@ var (
 // allocated once at load time and reused.
 type Key struct {
 	aead cipher.AEAD
+	// raw holds the original 32-byte key material. Required for HKDF
+	// sub-key derivation (e.g., scheduler.DeriveQueueKey). The AES
+	// round keys derived from this value are already in memory via
+	// the cipher.Block held inside aead, so retaining the raw bytes
+	// does not meaningfully expand the in-process attack surface.
+	// Callers MUST NOT log this value.
+	raw []byte
+}
+
+// Material returns the raw 32-byte key material for HKDF sub-key
+// derivation only. The returned slice MUST be treated as read-only —
+// mutating it would corrupt every subsequent Encrypt/Decrypt call.
+// Callers MUST NOT log, transmit, or persist this value.
+func (k *Key) Material() []byte {
+	return k.raw
 }
 
 // Encrypt seals plaintext with a fresh nonce, returning nonce||ciphertext.
@@ -76,7 +91,12 @@ func keyFromBytes(b []byte) (*Key, error) {
 	if err != nil {
 		return nil, fmt.Errorf("secretkey: new gcm: %w", err)
 	}
-	return &Key{aead: aead}, nil
+	// Copy the bytes so a caller mutating the input slice does not
+	// affect us. The copy lives for the process lifetime alongside
+	// the AEAD's internal round keys.
+	raw := make([]byte, len(b))
+	copy(raw, b)
+	return &Key{aead: aead, raw: raw}, nil
 }
 
 // Package-level active key. Loaders set it; consumers read it via Active.
