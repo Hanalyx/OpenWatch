@@ -54,6 +54,7 @@ func stripComments(src string) string {
 // AC-09: source inspection — the executor.Run call site has signature
 // Run(ctx, hostID, policyVersion) — exactly 3 arguments. The call MUST
 // NOT pass a framework argument.
+// @ac AC-09
 func TestSource_ExecutorRun_NoFrameworkArg(t *testing.T) {
 	t.Run("system-worker-subcommand/AC-09", func(t *testing.T) {
 		src := readWorkerSource(t, "scan_worker.go")
@@ -84,6 +85,7 @@ func TestSource_ExecutorRun_NoFrameworkArg(t *testing.T) {
 // (excluding the existing Stage-0 diagnostics worker) do NOT contain
 // the substring "framework_id" outside of comments. Documentation in
 // comments that references the v1 legacy is allowed.
+// @ac AC-12
 func TestSource_NoFrameworkID_InScanWorker(t *testing.T) {
 	t.Run("system-worker-subcommand/AC-12", func(t *testing.T) {
 		for _, name := range scanWorkerSourceFiles {
@@ -100,6 +102,7 @@ func TestSource_NoFrameworkID_InScanWorker(t *testing.T) {
 // internal/scheduler and references its Verify function. Pins the
 // HMAC-verification dependency to the canonical scheduler package
 // rather than a worker-local duplicate.
+// @ac AC-14
 func TestSource_ImportsSchedulerVerify(t *testing.T) {
 	t.Run("system-worker-subcommand/AC-14", func(t *testing.T) {
 		src := readWorkerSource(t, "scan_worker.go")
@@ -120,6 +123,7 @@ func TestSource_ImportsSchedulerVerify(t *testing.T) {
 // pattern hash/fnv.New64a + Write(uuid[:]) + Sum64() + int64(cast)
 // appears verbatim. Locks the derivation strategy so a future
 // contributor doesn't silently change it.
+// @ac AC-15
 func TestSource_AdvisoryLockKeyDerivation_FNV1a64(t *testing.T) {
 	t.Run("system-worker-subcommand/AC-15", func(t *testing.T) {
 		src := readWorkerSource(t, "advisory_lock.go")

@@ -40,6 +40,7 @@ func workerGoSource(t *testing.T) string {
 //     flag.ContinueOnError behavior).
 //   - --version is handled at the top level in run() — same code path
 //     for every subcommand, so worker shares it.
+// @ac AC-13
 func TestCmdWorker_HelpAndVersion_Sourced(t *testing.T) {
 	t.Run("system-worker-subcommand/AC-13", func(t *testing.T) {
 		mainSrc := mainGoSource(t)
@@ -71,6 +72,7 @@ func TestCmdWorker_HelpAndVersion_Sourced(t *testing.T) {
 // JWT key load, secret-key load, audit init, license init, scheduler
 // queue-key derivation. The order matters less than the presence; we
 // check both.
+// @ac AC-16
 func TestCmdWorker_BootPrerequisites(t *testing.T) {
 	t.Run("system-worker-subcommand/AC-16", func(t *testing.T) {
 		src := workerGoSource(t)
@@ -107,6 +109,7 @@ func TestCmdWorker_BootPrerequisites(t *testing.T) {
 // AC-17 — cmdWorker is HTTP-free. It must NOT instantiate eventbus.NewBus,
 // alertrouter.NewRouter, liveness.NewService, or server.New. The worker
 // is a long-lived consumer, not a server.
+// @ac AC-17
 func TestCmdWorker_NoHTTPSubsystems(t *testing.T) {
 	t.Run("system-worker-subcommand/AC-17", func(t *testing.T) {
 		src := workerGoSource(t)

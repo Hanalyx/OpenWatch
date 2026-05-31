@@ -268,6 +268,7 @@ func backoffRow(t *testing.T, pool *pgxpool.Pool, hostID uuid.UUID) (consecutive
 // AC-01: SKIP LOCKED no double-claim
 // ---------------------------------------------------------------------
 
+// @ac AC-01
 func TestScanWorker_SKIPLOCKED_NoDoubleClaim(t *testing.T) {
 	t.Run("system-worker-subcommand/AC-01", func(t *testing.T) {
 		pool := freshPool(t)
@@ -331,6 +332,7 @@ func TestScanWorker_SKIPLOCKED_NoDoubleClaim(t *testing.T) {
 // AC-02: HMAC mismatch → dead-letter, no executor.Run, no advisory lock
 // ---------------------------------------------------------------------
 
+// @ac AC-02
 func TestScanWorker_HMACMismatch_DeadLettered_NoExecutorCall(t *testing.T) {
 	t.Run("system-worker-subcommand/AC-02", func(t *testing.T) {
 		pool := freshPool(t)
@@ -394,6 +396,7 @@ func TestScanWorker_HMACMismatch_DeadLettered_NoExecutorCall(t *testing.T) {
 // AC-03: success → exactly one writer.Apply + queue.Complete
 // ---------------------------------------------------------------------
 
+// @ac AC-03
 func TestScanWorker_Success_OneApplyOneComplete(t *testing.T) {
 	t.Run("system-worker-subcommand/AC-03", func(t *testing.T) {
 		pool := freshPool(t)
@@ -462,6 +465,7 @@ func TestScanWorker_Success_OneApplyOneComplete(t *testing.T) {
 // AC-04: ErrHostBusy → queue.Fail + host_backoff_state UPSERT (f=1, 1m)
 // ---------------------------------------------------------------------
 
+// @ac AC-04
 func TestScanWorker_TransientHostBusy_BackoffUpsert(t *testing.T) {
 	t.Run("system-worker-subcommand/AC-04", func(t *testing.T) {
 		pool := freshPool(t)
@@ -516,6 +520,7 @@ func TestScanWorker_TransientHostBusy_BackoffUpsert(t *testing.T) {
 // AC-05: permanent error → queue.Fail, no host_backoff_state mutation
 // ---------------------------------------------------------------------
 
+// @ac AC-05
 func TestScanWorker_PermanentError_QueueFail_NoBackoff(t *testing.T) {
 	t.Run("system-worker-subcommand/AC-05", func(t *testing.T) {
 		pool := freshPool(t)
@@ -569,6 +574,7 @@ func TestScanWorker_PermanentError_QueueFail_NoBackoff(t *testing.T) {
 // AC-06: SIGTERM during scan → in-flight completes + persists + Run returns
 // ---------------------------------------------------------------------
 
+// @ac AC-06
 func TestScanWorker_SIGTERMDuringScan_DrainsBeforeReturn(t *testing.T) {
 	t.Run("system-worker-subcommand/AC-06", func(t *testing.T) {
 		pool := freshPool(t)
@@ -659,6 +665,7 @@ func TestScanWorker_SIGTERMDuringScan_DrainsBeforeReturn(t *testing.T) {
 // AC-07: concurrent same-host → advisory lock serializes
 // ---------------------------------------------------------------------
 
+// @ac AC-07
 func TestScanWorker_ConcurrentSameHost_AdvisoryLockSerializes(t *testing.T) {
 	t.Run("system-worker-subcommand/AC-07", func(t *testing.T) {
 		pool := freshPool(t)
@@ -727,6 +734,7 @@ func TestScanWorker_ConcurrentSameHost_AdvisoryLockSerializes(t *testing.T) {
 // AC-08: tickWindowedInterval lies in [55s, 65s]
 // ---------------------------------------------------------------------
 
+// @ac AC-08
 func TestTickWindowedInterval_InWindow(t *testing.T) {
 	t.Run("system-worker-subcommand/AC-08", func(t *testing.T) {
 		const trials = 200
@@ -743,6 +751,7 @@ func TestTickWindowedInterval_InWindow(t *testing.T) {
 // AC-11: empty queue → poll_interval sleep, no busy-loop
 // ---------------------------------------------------------------------
 
+// @ac AC-11
 func TestScanWorker_EmptyQueue_PollIntervalSleep(t *testing.T) {
 	t.Run("system-worker-subcommand/AC-11", func(t *testing.T) {
 		pool := freshPool(t)

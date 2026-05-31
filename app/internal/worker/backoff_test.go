@@ -26,6 +26,7 @@ func TestTransientBackoff_FirstFailure_OneMinute(t *testing.T) {
 
 // AC-10: the full ladder is 1m, 2m, 4m, 8m, 16m for failures 1..5;
 // failures >= 6 hit the 24h ceiling.
+// @ac AC-10
 func TestTransientBackoff_LadderAndCeiling(t *testing.T) {
 	t.Run("system-worker-subcommand/AC-10", func(t *testing.T) {
 		cases := []struct {
