@@ -21,6 +21,27 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
+// Defines values for ConnectivityCheckResultNewReachabilityStatus.
+const (
+	ConnectivityCheckResultNewReachabilityStatusReachable   ConnectivityCheckResultNewReachabilityStatus = "reachable"
+	ConnectivityCheckResultNewReachabilityStatusUnknown     ConnectivityCheckResultNewReachabilityStatus = "unknown"
+	ConnectivityCheckResultNewReachabilityStatusUnreachable ConnectivityCheckResultNewReachabilityStatus = "unreachable"
+)
+
+// Valid indicates whether the value is a known member of the ConnectivityCheckResultNewReachabilityStatus enum.
+func (e ConnectivityCheckResultNewReachabilityStatus) Valid() bool {
+	switch e {
+	case ConnectivityCheckResultNewReachabilityStatusReachable:
+		return true
+	case ConnectivityCheckResultNewReachabilityStatusUnknown:
+		return true
+	case ConnectivityCheckResultNewReachabilityStatusUnreachable:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for CredentialCreateRequestAuthMethod.
 const (
 	CredentialCreateRequestAuthMethodBoth     CredentialCreateRequestAuthMethod = "both"
@@ -188,19 +209,19 @@ func (e HealthResponseStatus) Valid() bool {
 
 // Defines values for HostLivenessReachabilityStatus.
 const (
-	Reachable   HostLivenessReachabilityStatus = "reachable"
-	Unknown     HostLivenessReachabilityStatus = "unknown"
-	Unreachable HostLivenessReachabilityStatus = "unreachable"
+	HostLivenessReachabilityStatusReachable   HostLivenessReachabilityStatus = "reachable"
+	HostLivenessReachabilityStatusUnknown     HostLivenessReachabilityStatus = "unknown"
+	HostLivenessReachabilityStatusUnreachable HostLivenessReachabilityStatus = "unreachable"
 )
 
 // Valid indicates whether the value is a known member of the HostLivenessReachabilityStatus enum.
 func (e HostLivenessReachabilityStatus) Valid() bool {
 	switch e {
-	case Reachable:
+	case HostLivenessReachabilityStatusReachable:
 		return true
-	case Unknown:
+	case HostLivenessReachabilityStatusUnknown:
 		return true
-	case Unreachable:
+	case HostLivenessReachabilityStatusUnreachable:
 		return true
 	default:
 		return false
@@ -341,6 +362,78 @@ type AuthRefreshRequest struct {
 type CategoryEntry struct {
 	Description string `json:"description"`
 	Id          string `json:"id"`
+}
+
+// ConnectivityBreakdown defines model for ConnectivityBreakdown.
+type ConnectivityBreakdown struct {
+	// Critical unreachable + consecutive_failures<3
+	Critical int64 `json:"critical"`
+
+	// Degraded reachable + consecutive_failures>=1
+	Degraded int64 `json:"degraded"`
+
+	// Down consecutive_failures>=3
+	Down int64 `json:"down"`
+
+	// NeverProbed no host_liveness row exists
+	NeverProbed int64 `json:"never_probed"`
+
+	// Online reachable + consecutive_failures=0
+	Online int64 `json:"online"`
+}
+
+// ConnectivityCheckResult defines model for ConnectivityCheckResult.
+type ConnectivityCheckResult struct {
+	// ErrorType tcp_timeout, connection_refused, banner_mismatch, or tcp_error; null on success
+	ErrorType *string `json:"error_type,omitempty"`
+
+	// NewReachabilityStatus Post-hysteresis status (same value the periodic loop would write)
+	NewReachabilityStatus ConnectivityCheckResultNewReachabilityStatus `json:"new_reachability_status"`
+	ProbedAt              time.Time                                    `json:"probed_at"`
+	Reachable             bool                                         `json:"reachable"`
+
+	// ResponseTimeMs 0 on failure
+	ResponseTimeMs int `json:"response_time_ms"`
+}
+
+// ConnectivityCheckResultNewReachabilityStatus Post-hysteresis status (same value the periodic loop would write)
+type ConnectivityCheckResultNewReachabilityStatus string
+
+// ConnectivityConfig defines model for ConnectivityConfig.
+type ConnectivityConfig struct {
+	// IntervalSec Seconds between probe-loop ticks (60..86400)
+	IntervalSec int `json:"interval_sec"`
+
+	// MaintenanceGlobal When true, probe loop ticks but probes no hosts
+	MaintenanceGlobal bool `json:"maintenance_global"`
+
+	// RateLimit Max concurrent SSH connections during fleet sweeps (1..200)
+	RateLimit int `json:"rate_limit"`
+
+	// TimeoutSec Per-probe TCP-banner timeout in seconds (1..30)
+	TimeoutSec int `json:"timeout_sec"`
+
+	// UnreachableThreshold Consecutive failures before reachable→unreachable (1..10)
+	UnreachableThreshold int `json:"unreachable_threshold"`
+}
+
+// ConnectivityConfigResponse defines model for ConnectivityConfigResponse.
+type ConnectivityConfigResponse struct {
+	Config   ConnectivityConfig `json:"config"`
+	Defaults ConnectivityConfig `json:"defaults"`
+}
+
+// ConnectivityStatus defines model for ConnectivityStatus.
+type ConnectivityStatus struct {
+	// LastProbeAt Most recent probe-start time; null until the first tick
+	LastProbeAt *time.Time `json:"last_probe_at,omitempty"`
+
+	// MaintenanceActive Mirrors connectivity_config.maintenance_global
+	MaintenanceActive    bool  `json:"maintenance_active"`
+	ProbeCount           int64 `json:"probe_count"`
+	ProbeFailureCount    int64 `json:"probe_failure_count"`
+	ProbeSuccessCount    int64 `json:"probe_success_count"`
+	StateTransitionCount int64 `json:"state_transition_count"`
 }
 
 // CredentialCreateRequest defines model for CredentialCreateRequest.
@@ -779,6 +872,11 @@ type GetHostByIDParams struct {
 	Framework *string `form:"framework,omitempty" json:"framework,omitempty"`
 }
 
+// PostHostConnectivityCheckParams defines parameters for PostHostConnectivityCheck.
+type PostHostConnectivityCheckParams struct {
+	IdempotencyKey string `json:"Idempotency-Key"`
+}
+
 // PostAdminLicenseVerifyJSONRequestBody defines body for PostAdminLicenseVerify for application/json ContentType.
 type PostAdminLicenseVerifyJSONRequestBody = LicenseVerifyRequest
 
@@ -823,6 +921,9 @@ type PatchHostByIDJSONRequestBody = HostUpdateRequest
 
 // PostRolesCreateJSONRequestBody defines body for PostRolesCreate for application/json ContentType.
 type PostRolesCreateJSONRequestBody = CustomRoleCreateRequest
+
+// PutSystemConnectivityConfigJSONRequestBody defines body for PutSystemConnectivityConfig for application/json ContentType.
+type PutSystemConnectivityConfigJSONRequestBody = ConnectivityConfig
 
 // PostUsersJSONRequestBody defines body for PostUsers for application/json ContentType.
 type PostUsersJSONRequestBody = UserCreateRequest
@@ -904,6 +1005,9 @@ type ServerInterface interface {
 	// Stage-0 RBAC+license demo; requires remediation:execute + remediation_execution feature
 	// (POST /api/v1/diagnostics:require-remediation-execute)
 	PostDiagnosticsRequireRemediationExecute(w http.ResponseWriter, r *http.Request, params PostDiagnosticsRequireRemediationExecuteParams)
+	// 4-state connectivity breakdown (online/degraded/critical/down/never_probed)
+	// (GET /api/v1/fleet/connectivity/breakdown)
+	GetFleetConnectivityBreakdown(w http.ResponseWriter, r *http.Request)
 	// Host counts by reachability status
 	// (GET /api/v1/fleet/liveness)
 	GetFleetLiveness(w http.ResponseWriter, r *http.Request)
@@ -940,6 +1044,9 @@ type ServerInterface interface {
 	// Update mutable host fields
 	// (PATCH /api/v1/hosts/{id})
 	PatchHostByID(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+	// Synchronous on-demand reachability probe for a single host
+	// (POST /api/v1/hosts/{id}/connectivity:check)
+	PostHostConnectivityCheck(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params PostHostConnectivityCheckParams)
 	// Get the current license state (tier, features, quotas, status)
 	// (GET /api/v1/license)
 	GetLicense(w http.ResponseWriter, r *http.Request)
@@ -949,6 +1056,15 @@ type ServerInterface interface {
 	// Create a custom role
 	// (POST /api/v1/roles:create)
 	PostRolesCreate(w http.ResponseWriter, r *http.Request)
+	// Read the connectivity-monitor runtime config + baked-in defaults
+	// (GET /api/v1/system/connectivity/config)
+	GetSystemConnectivityConfig(w http.ResponseWriter, r *http.Request)
+	// Update connectivity-monitor runtime config
+	// (PUT /api/v1/system/connectivity/config)
+	PutSystemConnectivityConfig(w http.ResponseWriter, r *http.Request)
+	// Read the connectivity-monitor in-process metrics + maintenance flag
+	// (GET /api/v1/system/connectivity/status)
+	GetSystemConnectivityStatus(w http.ResponseWriter, r *http.Request)
 	// List users
 	// (GET /api/v1/users)
 	GetUsers(w http.ResponseWriter, r *http.Request)
@@ -1111,6 +1227,12 @@ func (_ Unimplemented) PostDiagnosticsRequireRemediationExecute(w http.ResponseW
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// 4-state connectivity breakdown (online/degraded/critical/down/never_probed)
+// (GET /api/v1/fleet/connectivity/breakdown)
+func (_ Unimplemented) GetFleetConnectivityBreakdown(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // Host counts by reachability status
 // (GET /api/v1/fleet/liveness)
 func (_ Unimplemented) GetFleetLiveness(w http.ResponseWriter, r *http.Request) {
@@ -1183,6 +1305,12 @@ func (_ Unimplemented) PatchHostByID(w http.ResponseWriter, r *http.Request, id 
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// Synchronous on-demand reachability probe for a single host
+// (POST /api/v1/hosts/{id}/connectivity:check)
+func (_ Unimplemented) PostHostConnectivityCheck(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params PostHostConnectivityCheckParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // Get the current license state (tier, features, quotas, status)
 // (GET /api/v1/license)
 func (_ Unimplemented) GetLicense(w http.ResponseWriter, r *http.Request) {
@@ -1198,6 +1326,24 @@ func (_ Unimplemented) GetRoles(w http.ResponseWriter, r *http.Request) {
 // Create a custom role
 // (POST /api/v1/roles:create)
 func (_ Unimplemented) PostRolesCreate(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Read the connectivity-monitor runtime config + baked-in defaults
+// (GET /api/v1/system/connectivity/config)
+func (_ Unimplemented) GetSystemConnectivityConfig(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Update connectivity-monitor runtime config
+// (PUT /api/v1/system/connectivity/config)
+func (_ Unimplemented) PutSystemConnectivityConfig(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Read the connectivity-monitor in-process metrics + maintenance flag
+// (GET /api/v1/system/connectivity/status)
+func (_ Unimplemented) GetSystemConnectivityStatus(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -1863,6 +2009,20 @@ func (siw *ServerInterfaceWrapper) PostDiagnosticsRequireRemediationExecute(w ht
 	handler.ServeHTTP(w, r)
 }
 
+// GetFleetConnectivityBreakdown operation middleware
+func (siw *ServerInterfaceWrapper) GetFleetConnectivityBreakdown(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetFleetConnectivityBreakdown(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetFleetLiveness operation middleware
 func (siw *ServerInterfaceWrapper) GetFleetLiveness(w http.ResponseWriter, r *http.Request) {
 
@@ -2255,6 +2415,60 @@ func (siw *ServerInterfaceWrapper) PatchHostByID(w http.ResponseWriter, r *http.
 	handler.ServeHTTP(w, r)
 }
 
+// PostHostConnectivityCheck operation middleware
+func (siw *ServerInterfaceWrapper) PostHostConnectivityCheck(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params PostHostConnectivityCheckParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey string
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostHostConnectivityCheck(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetLicense operation middleware
 func (siw *ServerInterfaceWrapper) GetLicense(w http.ResponseWriter, r *http.Request) {
 
@@ -2288,6 +2502,48 @@ func (siw *ServerInterfaceWrapper) PostRolesCreate(w http.ResponseWriter, r *htt
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.PostRolesCreate(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetSystemConnectivityConfig operation middleware
+func (siw *ServerInterfaceWrapper) GetSystemConnectivityConfig(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetSystemConnectivityConfig(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PutSystemConnectivityConfig operation middleware
+func (siw *ServerInterfaceWrapper) PutSystemConnectivityConfig(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PutSystemConnectivityConfig(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetSystemConnectivityStatus operation middleware
+func (siw *ServerInterfaceWrapper) GetSystemConnectivityStatus(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetSystemConnectivityStatus(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -2612,6 +2868,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Post(options.BaseURL+"/api/v1/diagnostics:require-remediation-execute", wrapper.PostDiagnosticsRequireRemediationExecute)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/fleet/connectivity/breakdown", wrapper.GetFleetConnectivityBreakdown)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/fleet/liveness", wrapper.GetFleetLiveness)
 	})
 	r.Group(func(r chi.Router) {
@@ -2648,6 +2907,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Patch(options.BaseURL+"/api/v1/hosts/{id}", wrapper.PatchHostByID)
 	})
 	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/hosts/{id}/connectivity:check", wrapper.PostHostConnectivityCheck)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/license", wrapper.GetLicense)
 	})
 	r.Group(func(r chi.Router) {
@@ -2655,6 +2917,15 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/api/v1/roles:create", wrapper.PostRolesCreate)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/system/connectivity/config", wrapper.GetSystemConnectivityConfig)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/api/v1/system/connectivity/config", wrapper.PutSystemConnectivityConfig)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/system/connectivity/status", wrapper.GetSystemConnectivityStatus)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/users", wrapper.GetUsers)
@@ -2683,101 +2954,124 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
+	"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",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

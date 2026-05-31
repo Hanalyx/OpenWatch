@@ -94,6 +94,54 @@ func (s *Service) FleetLiveness(ctx context.Context) (LivenessRollup, error) {
 	return out, nil
 }
 
+// ConnectivityBreakdown returns the 4-state per-host count breakdown.
+// All five buckets are derived in one round-trip from host_liveness;
+// hosts without a liveness row are counted as never_probed. Spec
+// api-fleet-connectivity-breakdown AC-02/03/04/05.
+//
+// Band rules (priority — down dominates):
+//
+//	consecutive_failures>=3                                  -> down
+//	reachable AND consecutive_failures=0                      -> online
+//	reachable AND consecutive_failures>=1                     -> degraded
+//	unreachable AND consecutive_failures<3                    -> critical
+//	(no host_liveness row)                                    -> never_probed
+//	unknown OR any other state with consecutive_failures<3    -> never_probed
+//
+// The last fallback keeps the sum invariant — a host with
+// reachability_status='unknown' but a stub row is still NOT online.
+func (s *Service) ConnectivityBreakdown(ctx context.Context) (ConnectivityBreakdown, error) {
+	const q = `
+		SELECT
+			COUNT(*) FILTER (WHERE hl.host_id IS NOT NULL
+			                   AND hl.consecutive_failures < 3
+			                   AND hl.reachability_status = 'reachable'
+			                   AND hl.consecutive_failures = 0)                       AS online,
+			COUNT(*) FILTER (WHERE hl.host_id IS NOT NULL
+			                   AND hl.consecutive_failures < 3
+			                   AND hl.reachability_status = 'reachable'
+			                   AND hl.consecutive_failures >= 1)                      AS degraded,
+			COUNT(*) FILTER (WHERE hl.host_id IS NOT NULL
+			                   AND hl.consecutive_failures < 3
+			                   AND hl.reachability_status = 'unreachable')             AS critical,
+			COUNT(*) FILTER (WHERE hl.host_id IS NOT NULL
+			                   AND hl.consecutive_failures >= 3)                       AS down,
+			COUNT(*) FILTER (WHERE hl.host_id IS NULL
+			                    OR (hl.host_id IS NOT NULL
+			                       AND hl.consecutive_failures < 3
+			                       AND hl.reachability_status NOT IN ('reachable','unreachable'))) AS never_probed
+		  FROM hosts h
+		  LEFT JOIN host_liveness hl ON hl.host_id = h.id
+		 WHERE h.deleted_at IS NULL`
+	var out ConnectivityBreakdown
+	if err := s.pool.QueryRow(ctx, q).Scan(
+		&out.Online, &out.Degraded, &out.Critical, &out.Down, &out.NeverProbed,
+	); err != nil {
+		return ConnectivityBreakdown{}, fmt.Errorf("fleetrollup: ConnectivityBreakdown: %w", err)
+	}
+	return out, nil
+}
+
 // TopFailingRules returns the rules with the most failing hosts, in
 // descending order. limit is coerced to [0, MaxLimit]. A coerced
 // limit of 0 returns an empty slice with nil error (no query

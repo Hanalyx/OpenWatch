@@ -41,6 +41,10 @@ domains:
             - api-openapi-docs
             - release-admin-signoff
             - system-worker-subcommand
+            - services-connectivity-config
+            - api-system-connectivity
+            - api-fleet-connectivity-breakdown
+            - api-host-connectivity-check
 settings:
     specs_dir: specs
     coverage:

@@ -943,6 +943,126 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
 
+  /api/v1/fleet/connectivity/breakdown:
+    get:
+      operationId: getFleetConnectivityBreakdown
+      summary: 4-state connectivity breakdown (online/degraded/critical/down/never_probed)
+      description: |
+        Derived per-state host counts for the Settings → Scanning &
+        monitoring page. Bands come from `consecutive_failures`
+        hysteresis: online=reachable+consec=0, degraded=reachable+consec>=1,
+        critical=unreachable+consec<3, down=consec>=3, never_probed=no row.
+        Counts sum to active host count. Spec api-fleet-connectivity-breakdown.
+      responses:
+        '200':
+          description: Per-state counts
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ConnectivityBreakdown'}
+        '403':
+          description: Caller lacks system:read permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
+  /api/v1/system/connectivity/config:
+    get:
+      operationId: getSystemConnectivityConfig
+      summary: Read the connectivity-monitor runtime config + baked-in defaults
+      responses:
+        '200':
+          description: Current config + defaults sub-object
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ConnectivityConfigResponse'}
+        '403':
+          description: Caller lacks system:read permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+    put:
+      operationId: putSystemConnectivityConfig
+      summary: Update connectivity-monitor runtime config
+      description: |
+        Persists the new config, signals the in-process liveness service
+        to Reload, and emits system.config.changed. Bounds are validated
+        at the handler boundary — out-of-range values return 400.
+        Spec api-system-connectivity.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ConnectivityConfig'}
+      responses:
+        '200':
+          description: Updated config snapshot
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ConnectivityConfig'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '403':
+          description: Caller lacks system:write permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
+  /api/v1/system/connectivity/status:
+    get:
+      operationId: getSystemConnectivityStatus
+      summary: Read the connectivity-monitor in-process metrics + maintenance flag
+      responses:
+        '200':
+          description: Metrics snapshot
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ConnectivityStatus'}
+        '403':
+          description: Caller lacks system:read permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
+  /api/v1/hosts/{id}/connectivity:check:
+    post:
+      operationId: postHostConnectivityCheck
+      summary: Synchronous on-demand reachability probe for a single host
+      description: |
+        Calls the same in-process probe machinery the periodic loop uses
+        (credential-free TCP-banner on port 22), persists to
+        host_liveness, and returns the fresh result. Idempotency-Key
+        required. Spec api-host-connectivity-check.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema: {type: string, minLength: 1, maxLength: 128}
+      responses:
+        '200':
+          description: Probe result
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ConnectivityCheckResult'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '403':
+          description: Caller lacks host:read permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '404':
+          description: Host not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '409':
+          description: A probe for this host is already in flight
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
 components:
   responses:
     BadRequest:
@@ -1308,6 +1428,84 @@ components:
         unreachable:  {type: integer, format: int64}
         unknown:      {type: integer, format: int64}
         never_probed: {type: integer, format: int64}
+
+    ConnectivityBreakdown:
+      type: object
+      required: [online, degraded, critical, down, never_probed]
+      properties:
+        online:       {type: integer, format: int64, description: reachable + consecutive_failures=0}
+        degraded:     {type: integer, format: int64, description: reachable + consecutive_failures>=1}
+        critical:     {type: integer, format: int64, description: unreachable + consecutive_failures<3}
+        down:         {type: integer, format: int64, description: consecutive_failures>=3}
+        never_probed: {type: integer, format: int64, description: no host_liveness row exists}
+
+    ConnectivityConfig:
+      type: object
+      required: [interval_sec, timeout_sec, unreachable_threshold, rate_limit, maintenance_global]
+      properties:
+        interval_sec:
+          type: integer
+          minimum: 60
+          maximum: 86400
+          description: Seconds between probe-loop ticks (60..86400)
+        timeout_sec:
+          type: integer
+          minimum: 1
+          maximum: 30
+          description: Per-probe TCP-banner timeout in seconds (1..30)
+        unreachable_threshold:
+          type: integer
+          minimum: 1
+          maximum: 10
+          description: Consecutive failures before reachable→unreachable (1..10)
+        rate_limit:
+          type: integer
+          minimum: 1
+          maximum: 200
+          description: Max concurrent SSH connections during fleet sweeps (1..200)
+        maintenance_global:
+          type: boolean
+          description: When true, probe loop ticks but probes no hosts
+
+    ConnectivityConfigResponse:
+      type: object
+      required: [config, defaults]
+      properties:
+        config:   {$ref: '#/components/schemas/ConnectivityConfig'}
+        defaults: {$ref: '#/components/schemas/ConnectivityConfig'}
+
+    ConnectivityStatus:
+      type: object
+      required: [probe_count, probe_success_count, probe_failure_count, state_transition_count, maintenance_active]
+      properties:
+        last_probe_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Most recent probe-start time; null until the first tick
+        probe_count:           {type: integer, format: int64}
+        probe_success_count:   {type: integer, format: int64}
+        probe_failure_count:   {type: integer, format: int64}
+        state_transition_count: {type: integer, format: int64}
+        maintenance_active:
+          type: boolean
+          description: Mirrors connectivity_config.maintenance_global
+
+    ConnectivityCheckResult:
+      type: object
+      required: [reachable, response_time_ms, probed_at, new_reachability_status]
+      properties:
+        reachable:        {type: boolean}
+        response_time_ms: {type: integer, description: 0 on failure}
+        error_type:
+          type: string
+          nullable: true
+          description: tcp_timeout, connection_refused, banner_mismatch, or tcp_error; null on success
+        probed_at:        {type: string, format: date-time}
+        new_reachability_status:
+          type: string
+          enum: [reachable, unreachable, unknown]
+          description: Post-hysteresis status (same value the periodic loop would write)
 
     FleetRuleFailure:
       type: object

@@ -35,6 +35,7 @@ import (
 	openlog "github.com/Hanalyx/openwatch/internal/log"
 	"github.com/Hanalyx/openwatch/internal/secretkey"
 	"github.com/Hanalyx/openwatch/internal/server"
+	"github.com/Hanalyx/openwatch/internal/systemconfig"
 	"github.com/Hanalyx/openwatch/internal/users"
 	"github.com/Hanalyx/openwatch/internal/version"
 )
@@ -295,10 +296,16 @@ func cmdServe(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 	})
 	router.Start(ctx) // C-09: subscriber active before any publisher.
 
-	liveSvc := liveness.NewService(pool, audit.Emit, bus)
+	// systemconfig store backs operator-tunable runtime values.
+	// Connectivity-monitor config (interval, timeout, threshold,
+	// maintenance) hot-loads through this. Spec
+	// services-connectivity-config.
+	cfgStore := systemconfig.NewStore(pool, audit.Emit)
+	liveSvc := liveness.NewService(pool, audit.Emit, bus).
+		WithConfigLoader(cfgStore.LoadConnectivity)
 	go liveSvc.Run(ctx)
 
-	srv := server.New(cfg, pool)
+	srv := server.New(cfg, pool).WithConnectivityConfig(cfgStore, liveSvc)
 	runErr := srv.Run(ctx)
 
 	// Shutdown order REVERSE of boot (C-02). liveness.Run + alertrouter

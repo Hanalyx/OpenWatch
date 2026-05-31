@@ -26,15 +26,30 @@ import (
 	"github.com/Hanalyx/openwatch/internal/worker"
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/Hanalyx/openwatch/internal/liveness"
+	"github.com/Hanalyx/openwatch/internal/systemconfig"
 )
 
 // Server holds the running HTTP server state. Build via New; start with Run.
 type Server struct {
-	cfg    *config.Config
-	router chi.Router
-	srv    *http.Server
-	cm     *certManager
-	wkr    *worker.Worker
+	cfg      *config.Config
+	router   chi.Router
+	srv      *http.Server
+	cm       *certManager
+	wkr      *worker.Worker
+	handlers *handlers
+}
+
+// WithConnectivityConfig threads the systemconfig store + live
+// liveness Service into the API handlers so the /system/connectivity/*
+// endpoints can read/write config and the on-demand
+// /hosts/{id}/connectivity:check endpoint can trigger probes.
+// Spec api-system-connectivity, api-host-connectivity-check.
+func (s *Server) WithConnectivityConfig(store *systemconfig.Store, live *liveness.Service) *Server {
+	s.handlers.sysCfg = store
+	s.handlers.liveSvc = live
+	return s
 }
 
 // New constructs a Server from validated config and DB pool. The returned
@@ -113,7 +128,7 @@ func New(cfg *config.Config, pool *pgxpool.Pool) *Server {
 	if pool != nil {
 		wkr = worker.New(pool)
 	}
-	return &Server{cfg: cfg, router: r, srv: srv, cm: cm, wkr: wkr}
+	return &Server{cfg: cfg, router: r, srv: srv, cm: cm, wkr: wkr, handlers: apiHandlers}
 }
 
 // Routes returns the chi router so handler packages can register their

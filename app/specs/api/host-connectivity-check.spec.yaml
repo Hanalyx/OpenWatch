@@ -1,0 +1,142 @@
+spec:
+  id: api-host-connectivity-check
+  title: On-demand connectivity probe — POST /hosts/{id}/connectivity:check
+  version: "1.0.0"
+  status: approved
+  tier: 2
+
+  context:
+    system: openwatch-go
+    feature: Operator-triggered synchronous host reachability probe
+    description: >
+      Slice A deferred this endpoint (stage_2_slice_a.md step 25, line
+      361 — "Spec 25 (connectivity-check) is NOT in Slice A. The plan
+      reserved it for POST /hosts/{id}:connectivity-check"). The
+      colon-segment path lands here so the Settings → Scanning &
+      monitoring page (and Host detail) can show a "Test
+      connectivity now" button.
+
+      The endpoint calls liveness.Service.ProbeHost(hostID, addr)
+      directly — same in-process probe machinery the periodic loop
+      uses, same persistence to host_liveness, same audit on state
+      transition. The HTTP response carries the fresh ProbeResult.
+
+      Idempotency: synchronous probes are intentionally NOT
+      idempotent on the persistence side (each call is a real probe
+      attempt and the host_liveness row updates accordingly). But
+      the audit envelope keeps Idempotency-Key for client-retry
+      semantics — repeated POSTs with the same key within 24h
+      return the cached response (matches system-idempotency).
+
+    related_specs:
+      - system-liveness-loop
+      - api-hosts
+      - system-rbac
+      - system-idempotency
+
+  objective:
+    summary: >
+      One POST endpoint under /api/v1/hosts/{id}/connectivity:check
+      that triggers a synchronous probe and returns the result.
+      Requires host:read (probes don't mutate the host, only the
+      liveness side-table).
+    scope:
+      includes:
+        - "POST /api/v1/hosts/{id}/connectivity:check"
+        - host:read RBAC
+        - Idempotency-Key header support (system-idempotency C-01)
+        - Typed response struct ConnectivityCheckResult in
+          openapi.yaml (reachable, response_time_ms, error_type,
+          probed_at, new_reachability_status)
+        - Audit emit (host.connectivity.checked) on state transition
+          — same path the periodic loop uses
+      excludes:
+        - GET /hosts/{id}/connectivity (cached read — already
+          available via GET /hosts/{id} liveness sub-object)
+        - Batch probe across many hosts (the periodic loop covers
+          this)
+        - Per-credential SSH dial (this is a TCP-banner probe to
+          port 22 — same as the periodic loop)
+
+  constraints:
+    - id: C-01
+      description: The endpoint MUST require host:read permission via auth.EnforcePermission. host:write is NOT required because the probe does not mutate the host record; only host_liveness rows change
+      type: security
+      enforcement: error
+    - id: C-02
+      description: The handler MUST resolve the host from the path UUID, validate it exists and is not soft-deleted (404 hosts.not_found otherwise), then call liveness.Service.ProbeHost(hostID, addr)
+      type: technical
+      enforcement: error
+    - id: C-03
+      description: addr MUST be derived from host.ip_address + COALESCE(host.port, 22) — same string the periodic loop builds. NO operator-supplied override
+      type: security
+      enforcement: error
+    - id: C-04
+      description: The response MUST include reachable (bool), response_time_ms (int), error_type (nullable string), probed_at (RFC3339 timestamp), new_reachability_status (reachable|unreachable|unknown — post-hysteresis from the same ProbeHost call)
+      type: technical
+      enforcement: error
+    - id: C-05
+      description: A concurrent on-demand probe AND a periodic-loop probe of the same host MUST NOT both run. The existing inFlight sync.Map in liveness.Service handles this — if ProbeHost returns ErrProbeInFlight, the handler returns 409 conflict.probe_in_flight
+      type: technical
+      enforcement: error
+    - id: C-06
+      description: Idempotency-Key header is REQUIRED on this POST (matches system-idempotency C-01 — colon-segment routes are mutation-like). Missing header returns 400 validation.field_required with detail.field="Idempotency-Key"
+      type: technical
+      enforcement: error
+    - id: C-07
+      description: The audit emit happens INSIDE ProbeHost (state-transition audit only — same as the periodic loop). The handler MUST NOT emit a duplicate event for on-demand probes
+      type: technical
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: POST /api/v1/hosts/{id}/connectivity:check with a valid Idempotency-Key against a host whose IP responds on port 22 returns 200 with {reachable:true, response_time_ms:>0, error_type:null, probed_at, new_reachability_status:"reachable"}.
+      priority: critical
+      references_constraints: [C-04]
+    - id: AC-02
+      description: POST against a host whose IP refuses port 22 returns 200 with {reachable:false, response_time_ms:0, error_type:"connection_refused", probed_at, new_reachability_status:"unreachable" OR "reachable" depending on hysteresis — same value the periodic loop would write}.
+      priority: critical
+      references_constraints: [C-04]
+    - id: AC-03
+      description: POST against {id} that doesn't exist returns 404 hosts.not_found.
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-04
+      description: POST against a soft-deleted host returns 404 hosts.not_found.
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-05
+      description: POST without an Idempotency-Key header returns 400 validation.field_required with detail.field="Idempotency-Key".
+      priority: critical
+      references_constraints: [C-06]
+    - id: AC-06
+      description: Two POSTs with the same Idempotency-Key within 24h return the SAME response body (the first probe's result), AND only one real probe attempt is recorded — second call hits the idempotency cache.
+      priority: critical
+      references_constraints: [C-06]
+    - id: AC-07
+      description: POST as anonymous returns 403 authz.permission_denied.
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-08
+      description: POST as authenticated viewer (RoleViewer has host:read) returns 200 — confirms host:write is NOT required.
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-09
+      description: When a periodic-loop probe for the SAME host is already in flight, POST returns 409 conflict.probe_in_flight. Verified by stubbing liveness.Service to return ErrProbeInFlight.
+      priority: high
+      references_constraints: [C-05]
+    - id: AC-10
+      description: A successful probe that flips reachability writes exactly one host.connectivity.checked audit event with detail {host_id, ssh_accessible, response_time_ms, new_status} — same envelope the periodic loop emits.
+      priority: critical
+      references_constraints: [C-07]
+    - id: AC-11
+      description: A successful probe that does NOT flip reachability (steady-state) emits ZERO audit events — same hysteresis as the periodic loop.
+      priority: high
+      references_constraints: [C-07]
+    - id: AC-12
+      description: Source inspection — internal/server/hosts_handlers.go's PostHostConnectivityCheck handler does NOT decrypt or read host credentials. The probe is credential-free (TCP-banner only, mirrors system-liveness-loop AC-14).
+      priority: critical
+      references_constraints: [C-03]
+    - id: AC-13
+      description: GET /api/v1/hosts/{id}/connectivity:check returns 405 method_not_allowed.
+      priority: high

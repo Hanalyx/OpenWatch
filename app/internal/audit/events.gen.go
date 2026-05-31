@@ -191,7 +191,7 @@ const (
 	SystemStartup Code = "system.startup"
 	//
 	SystemShutdown Code = "system.shutdown"
-	//
+	// An operator-tunable runtime config value was updated via the system_config table
 	SystemConfigChanged Code = "system.config.changed"
 	//
 	SystemMigrationApplied Code = "system.migration.applied"
@@ -840,8 +840,8 @@ var Metadata = map[Code]EventMeta{
 		Code:        SystemConfigChanged,
 		Category:    "system",
 		Severity:    SeverityWarning,
-		Description: ``,
-		ActorTypes:  nil,
+		Description: `An operator-tunable runtime config value was updated via the system_config table`,
+		ActorTypes:  []string{"system", "user"},
 	},
 	SystemMigrationApplied: {
 		Code:        SystemMigrationApplied,
