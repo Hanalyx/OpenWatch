@@ -8,6 +8,7 @@
 //   AC-05  test('frontend-host-detail/AC-05 — empty summary renders friendly message')
 //   AC-06  test('frontend-host-detail/AC-06 — liveness=null renders "Not yet probed"')
 //   AC-08  test('frontend-host-detail/AC-08 — framework filter updates URL + re-fetches')
+//   AC-09  test('frontend-host-detail/AC-09 — Edit button opens modal wired to PATCH /hosts/{id}')
 //   AC-14  test('frontend-host-detail/AC-14 — no PII field names in console.*')
 
 import { describe, expect, test } from 'vitest';
@@ -66,6 +67,27 @@ describe('frontend-host-detail — structural', () => {
     // URL update on framework change
     expect(PAGE_SRC).toContain('onFrameworkChange');
     expect(PAGE_SRC).toContain('navigate');
+  });
+
+  // @ac AC-09
+  test('frontend-host-detail/AC-09 — Edit button opens modal wired to PATCH /hosts/{id}', () => {
+    // Source of truth lives in EditHostModal; the page imports it and
+    // mounts it from the IdentityHeader.
+    expect(PAGE_SRC).toContain('EditHostModal');
+    expect(PAGE_SRC).toContain('setEditOpen');
+    expect(PAGE_SRC).toMatch(/aria-label=.*Edit \$\{host\.hostname\}/);
+
+    const MODAL_SRC = readFileSync(
+      resolve(process.cwd(), 'src/components/hosts/EditHostModal.tsx'),
+      'utf8',
+    );
+    // The modal uses PATCH /hosts/{id} (api-hosts AC-09) and invalidates
+    // both the per-host query and the list query on success.
+    expect(MODAL_SRC).toContain("api.PATCH('/api/v1/hosts/{id}'");
+    expect(MODAL_SRC).toContain("queryKey: ['host', host.id]");
+    expect(MODAL_SRC).toContain("queryKey: ['hosts']");
+    // Hostname is immutable per api-hosts C-04 — modal must say so.
+    expect(MODAL_SRC).toContain('Hostname is immutable');
   });
 
   // @ac AC-14

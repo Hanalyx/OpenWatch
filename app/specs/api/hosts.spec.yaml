@@ -1,7 +1,7 @@
 spec:
   id: api-hosts
   title: Host inventory CRUD HTTP surface + Slice B enrichments
-  version: "1.2.0"
+  version: "1.3.0"
   status: approved
   tier: 2
 
@@ -33,6 +33,7 @@ spec:
         - "Filters: ?environment=..., ?tag=..."
         - "GET /hosts/{id} response carries optional liveness sub-object (host_liveness LEFT JOIN) — v1.1.0"
         - "GET /hosts/{id} response carries compliance_summary sub-object (passing/failing/total derived from host_rule_state) — v1.1.0"
+        - "GET /hosts response items carry optional liveness sub-object so the list view can render reachability + freshness without per-row follow-up calls — v1.3.0"
       excludes:
         - "Bulk import — deferred to A.5"
         - "Connectivity-check trigger — needs scan executor, deferred"
@@ -69,6 +70,10 @@ spec:
       enforcement: error
     - id: C-08
       description: ?framework= matching is exact-key lookup on the framework_refs JSONB, same semantics as api-fleet-observability C-08. No fuzzy matching, no case folding
+      type: technical
+      enforcement: error
+    - id: C-09
+      description: GET /hosts response items MUST include a liveness sub-object (when host_liveness has a row for the host) or null (when no probe has run yet). The shape matches the GET /hosts/{id} liveness sub-object exactly — same field names, same enum values. The list endpoint MUST load liveness via a single batched query keyed by host_id (no N+1)
       type: technical
       enforcement: error
 
@@ -141,3 +146,7 @@ spec:
       description: GET /hosts/{id}?framework=<framework_id> on a host whose rule_state rows do NOT reference that framework returns 200 with compliance_summary all zeros — never an error, never a 404.
       priority: high
       references_constraints: [C-07]
+    - id: AC-19
+      description: GET /hosts returns 200 with each host item carrying a populated liveness sub-object (when a host_liveness row exists) or null (when no probe has run). Field shape matches GET /hosts/{id}.liveness exactly. The handler MUST issue at most one liveness query for the whole list (batched WHERE host_id = ANY($1)) — never one query per host.
+      priority: critical
+      references_constraints: [C-09]

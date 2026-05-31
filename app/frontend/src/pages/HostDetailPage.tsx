@@ -1,9 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
 import { useParams, useSearch, useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
-import { ArrowLeft, RefreshCw, Circle } from 'lucide-react';
+import { ArrowLeft, RefreshCw, Circle, Pencil } from 'lucide-react';
 import { Link } from '@tanstack/react-router';
 import api from '@/api/client';
+import { EditHostModal } from '@/components/hosts/EditHostModal';
 
 // HostDetailPage — one host's identity + liveness + compliance + recent transactions.
 //
@@ -24,6 +25,9 @@ interface HostResponse {
   port?: number;
   environment?: string;
   tags?: string[];
+  display_name?: string;
+  description?: string;
+  username?: string;
 }
 
 interface HostLiveness {
@@ -208,6 +212,7 @@ function IdentityHeader({
   host: HostResponse;
   liveness: HostLiveness | null;
 }) {
+  const [editOpen, setEditOpen] = useState(false);
   return (
     <section
       style={{
@@ -260,8 +265,35 @@ function IdentityHeader({
             )}
           </div>
         </div>
-        <LivenessIndicator liveness={liveness} />
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16 }}>
+          <LivenessIndicator liveness={liveness} />
+          <button
+            type="button"
+            onClick={() => setEditOpen(true)}
+            aria-label={`Edit ${host.hostname}`}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              background: 'var(--ow-bg-2)',
+              border: '1px solid var(--ow-line)',
+              borderRadius: 6,
+              padding: '6px 12px',
+              color: 'var(--ow-fg-1)',
+              fontSize: 12,
+              cursor: 'pointer',
+            }}
+          >
+            <Pencil size={12} />
+            Edit
+          </button>
+        </div>
       </div>
+      <EditHostModal
+        open={editOpen}
+        onClose={() => setEditOpen(false)}
+        host={host}
+      />
     </section>
   );
 }

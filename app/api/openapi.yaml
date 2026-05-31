@@ -1273,13 +1273,41 @@ components:
           description: Null when no liveness probe has ever run against this host.
         compliance_summary: {$ref: '#/components/schemas/HostComplianceSummary'}
 
+    # List-view item: HostResponse plus optional liveness sub-object.
+    # Liveness comes from a single LEFT JOIN — bounded overhead even on
+    # large fleets. compliance_summary stays on the detail endpoint
+    # only (per-host aggregation is too expensive to do in a list).
+    HostListItem:
+      type: object
+      required: [id, hostname, ip_address, port, environment]
+      properties:
+        id:           {type: string, format: uuid}
+        hostname:     {type: string}
+        ip_address:   {type: string}
+        port:         {type: integer}
+        display_name: {type: string}
+        description:  {type: string}
+        environment:  {type: string}
+        tags:
+          type: array
+          items: {type: string}
+        group_id:     {type: string, format: uuid, nullable: true}
+        username:     {type: string}
+        created_by:   {type: string, format: uuid}
+        created_at:   {type: string, format: date-time}
+        updated_at:   {type: string, format: date-time}
+        liveness:
+          allOf: [{$ref: '#/components/schemas/HostLiveness'}]
+          nullable: true
+          description: Null when no liveness probe has ever run against this host.
+
     HostListResponse:
       type: object
       required: [hosts]
       properties:
         hosts:
           type: array
-          items: {$ref: '#/components/schemas/HostResponse'}
+          items: {$ref: '#/components/schemas/HostListItem'}
 
     HostCreateRequest:
       type: object

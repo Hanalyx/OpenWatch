@@ -873,8 +873,30 @@ export interface components {
             liveness?: components["schemas"]["HostLiveness"] | null;
             compliance_summary: components["schemas"]["HostComplianceSummary"];
         };
+        HostListItem: {
+            /** Format: uuid */
+            id: string;
+            hostname: string;
+            ip_address: string;
+            port: number;
+            display_name?: string;
+            description?: string;
+            environment: string;
+            tags?: string[];
+            /** Format: uuid */
+            group_id?: string | null;
+            username?: string;
+            /** Format: uuid */
+            created_by?: string;
+            /** Format: date-time */
+            created_at?: string;
+            /** Format: date-time */
+            updated_at?: string;
+            /** @description Null when no liveness probe has ever run against this host. */
+            liveness?: components["schemas"]["HostLiveness"] | null;
+        };
         HostListResponse: {
-            hosts: components["schemas"]["HostResponse"][];
+            hosts: components["schemas"]["HostListItem"][];
         };
         HostCreateRequest: {
             hostname: string;

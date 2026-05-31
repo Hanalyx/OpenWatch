@@ -51,6 +51,53 @@ func loadHostLiveness(ctx context.Context, pool *pgxpool.Pool, hostID uuid.UUID)
 	return out, nil
 }
 
+// loadHostLivenessByIDs returns liveness sub-objects keyed by host ID.
+// Single batched query — one round-trip regardless of fleet size.
+// Hosts with no liveness row simply don't appear in the map (the list
+// handler renders that as null on the response item).
+func loadHostLivenessByIDs(ctx context.Context, pool *pgxpool.Pool, ids []uuid.UUID) (map[uuid.UUID]*api.HostLiveness, error) {
+	out := map[uuid.UUID]*api.HostLiveness{}
+	if len(ids) == 0 {
+		return out, nil
+	}
+	const q = `
+		SELECT host_id, reachability_status, last_probe_at, last_response_ms,
+		       consecutive_failures, last_state_change_at, last_error_type
+		  FROM host_liveness
+		 WHERE host_id = ANY($1)`
+	rows, err := pool.Query(ctx, q, ids)
+	if err != nil {
+		return nil, fmt.Errorf("loadHostLivenessByIDs: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var (
+			hostID            uuid.UUID
+			status            string
+			lastProbeAt       *time.Time
+			lastResponseMS    *int
+			consecutiveFails  int
+			lastStateChangeAt *time.Time
+			lastErrorType     *string
+		)
+		if err := rows.Scan(
+			&hostID, &status, &lastProbeAt, &lastResponseMS,
+			&consecutiveFails, &lastStateChangeAt, &lastErrorType,
+		); err != nil {
+			return nil, fmt.Errorf("loadHostLivenessByIDs scan: %w", err)
+		}
+		out[hostID] = &api.HostLiveness{
+			ReachabilityStatus:  api.HostLivenessReachabilityStatus(status),
+			ConsecutiveFailures: &consecutiveFails,
+			LastProbeAt:         lastProbeAt,
+			LastResponseMs:      lastResponseMS,
+			LastStateChangeAt:   lastStateChangeAt,
+			LastErrorType:       lastErrorType,
+		}
+	}
+	return out, rows.Err()
+}
+
 // loadHostComplianceSummary reads the per-status counts from
 // host_rule_state for the given host. A host with no rule_state rows
 // returns all zeros — never an error. Spec api-hosts C-06 / AC-16.
