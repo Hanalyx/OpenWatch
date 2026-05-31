@@ -40,6 +40,7 @@ func workerGoSource(t *testing.T) string {
 //     flag.ContinueOnError behavior).
 //   - --version is handled at the top level in run() — same code path
 //     for every subcommand, so worker shares it.
+//
 // @ac AC-13
 func TestCmdWorker_HelpAndVersion_Sourced(t *testing.T) {
 	t.Run("system-worker-subcommand/AC-13", func(t *testing.T) {
