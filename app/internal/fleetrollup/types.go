@@ -54,6 +54,27 @@ func (l LivenessRollup) Total() int64 {
 	return l.Reachable + l.Unreachable + l.Unknown + l.NeverProbed
 }
 
+// ConnectivityBreakdown is the 4-state per-host count breakdown for
+// the Settings → Scanning & monitoring page. Spec
+// api-fleet-connectivity-breakdown.
+//
+// Bands come from consecutive_failures hysteresis:
+//
+//	online       — reachable + consecutive_failures=0
+//	degraded     — reachable + consecutive_failures>=1
+//	critical     — unreachable + consecutive_failures<3
+//	down         — consecutive_failures>=3 (regardless of status)
+//	never_probed — no host_liveness row exists
+//
+// The five counts sum to the count of active hosts.
+type ConnectivityBreakdown struct {
+	Online      int64 `json:"online"`
+	Degraded    int64 `json:"degraded"`
+	Critical    int64 `json:"critical"`
+	Down        int64 `json:"down"`
+	NeverProbed int64 `json:"never_probed"`
+}
+
 // RuleFailureRollup is one entry in TopFailingRules.
 type RuleFailureRollup struct {
 	RuleID           string `json:"rule_id"`

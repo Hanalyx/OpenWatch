@@ -16,7 +16,14 @@ import (
 
 	"github.com/Hanalyx/openwatch/internal/audit"
 	"github.com/Hanalyx/openwatch/internal/eventbus"
+	"github.com/Hanalyx/openwatch/internal/systemconfig"
 )
+
+// ConfigLoaderFunc returns the current ConnectivityConfig. The
+// Service calls this on boot and on every Reload to pick up
+// operator-tunable values without restart. Spec
+// services-connectivity-config C-04.
+type ConfigLoaderFunc func(context.Context) (systemconfig.ConnectivityConfig, error)
 
 // EmitFunc mirrors audit.Emit's signature; same pattern as
 // internal/scheduler.EmitFunc and internal/kensa.EmitFunc.
@@ -43,6 +50,13 @@ type Service struct {
 	metrics   *Metrics
 	inFlight  sync.Map // map[uuid.UUID]struct{}
 	clock     func() time.Time
+
+	// cfgLoader, when set, is called on Reload to fetch fresh runtime
+	// config from systemconfig. The returned snapshot is stored under
+	// cfgPtr for lock-free read-side access. Spec
+	// services-connectivity-config C-04.
+	cfgLoader ConfigLoaderFunc
+	cfgPtr    atomic.Pointer[systemconfig.ConnectivityConfig]
 }
 
 // NewService wires the live probe runner. timeout defaults to
@@ -86,7 +100,7 @@ func (s *Service) WithProbeFunc(fn ProbeFunc) *Service {
 // Used by tests (and policy.Liveness.IntervalSec loading at boot) to
 // override the default 5-minute cadence. Spec system-liveness-loop C-03.
 func (s *Service) WithInterval(d time.Duration) *Service {
-	return &Service{
+	out := &Service{
 		pool:      s.pool,
 		emit:      s.emit,
 		bus:       s.bus,
@@ -96,7 +110,66 @@ func (s *Service) WithInterval(d time.Duration) *Service {
 		interval:  d,
 		metrics:   s.metrics,
 		clock:     s.clock,
+		cfgLoader: s.cfgLoader,
 	}
+	if p := s.cfgPtr.Load(); p != nil {
+		out.cfgPtr.Store(p)
+	}
+	return out
+}
+
+// WithConfigLoader returns a new Service that calls the given loader
+// on every Reload to refresh runtime config (interval, timeout,
+// threshold, maintenance). The loader is also invoked immediately so
+// boot-time config takes effect before the first tick. Spec
+// services-connectivity-config C-04.
+func (s *Service) WithConfigLoader(loader ConfigLoaderFunc) *Service {
+	out := &Service{
+		pool:      s.pool,
+		emit:      s.emit,
+		bus:       s.bus,
+		probeFunc: s.probeFunc,
+		timeout:   s.timeout,
+		threshold: s.threshold,
+		interval:  s.interval,
+		metrics:   s.metrics,
+		clock:     s.clock,
+		cfgLoader: loader,
+	}
+	if loader != nil {
+		// Best-effort initial load; failures fall back to defaults.
+		if cfg, err := loader(context.Background()); err == nil {
+			out.cfgPtr.Store(&cfg)
+		}
+	}
+	return out
+}
+
+// Reload re-reads the config via the loader and atomically swaps the
+// in-process snapshot. The next tick uses the new values for
+// maintenance, timeout, threshold, and interval. Returns nil with no
+// loader configured (defaults stay in effect).
+func (s *Service) Reload(ctx context.Context) error {
+	if s.cfgLoader == nil {
+		return nil
+	}
+	cfg, err := s.cfgLoader(ctx)
+	if err != nil {
+		return err
+	}
+	s.cfgPtr.Store(&cfg)
+	return nil
+}
+
+// readConfig returns the current config snapshot. Falls back to
+// systemconfig.DefaultConnectivity() when no loader has populated the
+// pointer — keeps tests and bare-bones boot paths working with no
+// behavior change vs the pre-config Service.
+func (s *Service) readConfig() systemconfig.ConnectivityConfig {
+	if p := s.cfgPtr.Load(); p != nil {
+		return *p
+	}
+	return systemconfig.DefaultConnectivity()
 }
 
 // Metrics returns the runtime counters handle.
@@ -112,7 +185,8 @@ func (s *Service) Metrics() *Metrics { return s.metrics }
 //   - C-11 / AC-18: skip hosts whose host_backoff_state.suppress_until is in the future.
 //   - AC-19: returns within 2s of ctx cancellation.
 func (s *Service) Run(ctx context.Context) {
-	t := time.NewTicker(s.interval)
+	interval := s.effectiveInterval()
+	t := time.NewTicker(interval)
 	defer t.Stop()
 
 	// Tick once at start so the loop produces a result before the first
@@ -125,13 +199,37 @@ func (s *Service) Run(ctx context.Context) {
 			return
 		case <-t.C:
 			s.tick(ctx)
+			// Honor config reloads: if the operator changed
+			// IntervalSec via PUT /system/connectivity/config, the next
+			// tick fires at the new cadence. Spec
+			// services-connectivity-config C-04.
+			if next := s.effectiveInterval(); next != interval && next > 0 {
+				interval = next
+				t.Reset(interval)
+			}
 		}
 	}
+}
+
+// effectiveInterval returns the configured interval (config takes
+// precedence) or the construction-time default.
+func (s *Service) effectiveInterval() time.Duration {
+	if p := s.cfgPtr.Load(); p != nil && p.IntervalSec > 0 {
+		return time.Duration(p.IntervalSec) * time.Second
+	}
+	return s.interval
 }
 
 // tick performs one probe walk. Surface for tests: exercising tick
 // directly avoids relying on time.Ticker.
 func (s *Service) tick(ctx context.Context) {
+	// Maintenance: when MaintenanceGlobal=true, the loop ticks but
+	// probes no hosts. Spec services-connectivity-config C-05.
+	if s.readConfig().MaintenanceGlobal {
+		slog.InfoContext(ctx, "liveness: tick skipped",
+			slog.Bool("maintenance_active", true))
+		return
+	}
 	hosts, err := s.listProbeTargets(ctx)
 	if err != nil {
 		slog.WarnContext(ctx, "liveness: list probe targets failed",
@@ -210,7 +308,14 @@ func (s *Service) ProbeHost(ctx context.Context, hostID uuid.UUID, addr string) 
 	s.metrics.SetLastProbeAt(now)
 	s.metrics.ProbeCount.Add(1)
 
-	result := s.probeFunc(ctx, addr, s.timeout)
+	// Per-probe timeout comes from config (with falls-back to the
+	// construction default when no config is loaded). Spec
+	// services-connectivity-config C-04.
+	timeout := s.timeout
+	if p := s.cfgPtr.Load(); p != nil && p.TimeoutSec > 0 {
+		timeout = time.Duration(p.TimeoutSec) * time.Second
+	}
+	result := s.probeFunc(ctx, addr, timeout)
 	if result.Reachable {
 		s.metrics.ProbeSuccessCount.Add(1)
 	} else {
@@ -321,6 +426,13 @@ func (s *Service) publishHeartbeat(ctx context.Context, hostID uuid.UUID, result
 func (s *Service) computeNewState(
 	hasPrior bool, prior Status, priorConsecutive int, r ProbeResult,
 ) (newStatus Status, newConsecutive int, didTransition bool) {
+	// Threshold comes from the live config when set; otherwise the
+	// construction default. Spec services-connectivity-config C-04.
+	threshold := s.threshold
+	if p := s.cfgPtr.Load(); p != nil && p.UnreachableThreshold > 0 {
+		threshold = p.UnreachableThreshold
+	}
+
 	if !hasPrior {
 		// First time we've seen this host. Record state, emit.
 		if r.Reachable {
@@ -340,7 +452,7 @@ func (s *Service) computeNewState(
 	newConsecutive = priorConsecutive + 1
 	if prior == StatusReachable {
 		// Still in the grace window unless threshold reached.
-		if newConsecutive >= s.threshold {
+		if newConsecutive >= threshold {
 			return StatusUnreachable, newConsecutive, true
 		}
 		// Hysteresis: status stays reachable.

@@ -640,6 +640,94 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/fleet/connectivity/breakdown": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 4-state connectivity breakdown (online/degraded/critical/down/never_probed)
+         * @description Derived per-state host counts for the Settings → Scanning &
+         *     monitoring page. Bands come from `consecutive_failures`
+         *     hysteresis: online=reachable+consec=0, degraded=reachable+consec>=1,
+         *     critical=unreachable+consec<3, down=consec>=3, never_probed=no row.
+         *     Counts sum to active host count. Spec api-fleet-connectivity-breakdown.
+         */
+        get: operations["getFleetConnectivityBreakdown"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/system/connectivity/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read the connectivity-monitor runtime config + baked-in defaults */
+        get: operations["getSystemConnectivityConfig"];
+        /**
+         * Update connectivity-monitor runtime config
+         * @description Persists the new config, signals the in-process liveness service
+         *     to Reload, and emits system.config.changed. Bounds are validated
+         *     at the handler boundary — out-of-range values return 400.
+         *     Spec api-system-connectivity.
+         */
+        put: operations["putSystemConnectivityConfig"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/system/connectivity/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read the connectivity-monitor in-process metrics + maintenance flag */
+        get: operations["getSystemConnectivityStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/hosts/{id}/connectivity:check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Synchronous on-demand reachability probe for a single host
+         * @description Calls the same in-process probe machinery the periodic loop uses
+         *     (credential-free TCP-banner on port 22), persists to
+         *     host_liveness, and returns the fresh result. Idempotency-Key
+         *     required. Spec api-host-connectivity-check.
+         */
+        post: operations["postHostConnectivityCheck"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -910,6 +998,80 @@ export interface components {
             unknown: number;
             /** Format: int64 */
             never_probed: number;
+        };
+        ConnectivityBreakdown: {
+            /**
+             * Format: int64
+             * @description reachable + consecutive_failures=0
+             */
+            online: number;
+            /**
+             * Format: int64
+             * @description reachable + consecutive_failures>=1
+             */
+            degraded: number;
+            /**
+             * Format: int64
+             * @description unreachable + consecutive_failures<3
+             */
+            critical: number;
+            /**
+             * Format: int64
+             * @description consecutive_failures>=3
+             */
+            down: number;
+            /**
+             * Format: int64
+             * @description no host_liveness row exists
+             */
+            never_probed: number;
+        };
+        ConnectivityConfig: {
+            /** @description Seconds between probe-loop ticks (60..86400) */
+            interval_sec: number;
+            /** @description Per-probe TCP-banner timeout in seconds (1..30) */
+            timeout_sec: number;
+            /** @description Consecutive failures before reachable→unreachable (1..10) */
+            unreachable_threshold: number;
+            /** @description Max concurrent SSH connections during fleet sweeps (1..200) */
+            rate_limit: number;
+            /** @description When true, probe loop ticks but probes no hosts */
+            maintenance_global: boolean;
+        };
+        ConnectivityConfigResponse: {
+            config: components["schemas"]["ConnectivityConfig"];
+            defaults: components["schemas"]["ConnectivityConfig"];
+        };
+        ConnectivityStatus: {
+            /**
+             * Format: date-time
+             * @description Most recent probe-start time; null until the first tick
+             */
+            last_probe_at?: string | null;
+            /** Format: int64 */
+            probe_count: number;
+            /** Format: int64 */
+            probe_success_count: number;
+            /** Format: int64 */
+            probe_failure_count: number;
+            /** Format: int64 */
+            state_transition_count: number;
+            /** @description Mirrors connectivity_config.maintenance_global */
+            maintenance_active: boolean;
+        };
+        ConnectivityCheckResult: {
+            reachable: boolean;
+            /** @description 0 on failure */
+            response_time_ms: number;
+            /** @description tcp_timeout, connection_refused, banner_mismatch, or tcp_error; null on success */
+            error_type?: string | null;
+            /** Format: date-time */
+            probed_at: string;
+            /**
+             * @description Post-hysteresis status (same value the periodic loop would write)
+             * @enum {string}
+             */
+            new_reachability_status: "reachable" | "unreachable" | "unknown";
         };
         FleetRuleFailure: {
             rule_id: string;
@@ -2451,6 +2613,179 @@ export interface operations {
             };
             /** @description Caller lacks system:read permission */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getFleetConnectivityBreakdown: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Per-state counts */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConnectivityBreakdown"];
+                };
+            };
+            /** @description Caller lacks system:read permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getSystemConnectivityConfig: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current config + defaults sub-object */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConnectivityConfigResponse"];
+                };
+            };
+            /** @description Caller lacks system:read permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    putSystemConnectivityConfig: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConnectivityConfig"];
+            };
+        };
+        responses: {
+            /** @description Updated config snapshot */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConnectivityConfig"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            /** @description Caller lacks system:write permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getSystemConnectivityStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Metrics snapshot */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConnectivityStatus"];
+                };
+            };
+            /** @description Caller lacks system:read permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    postHostConnectivityCheck: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Probe result */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConnectivityCheckResult"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            /** @description Caller lacks host:read permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Host not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description A probe for this host is already in flight */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

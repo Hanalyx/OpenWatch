@@ -121,7 +121,7 @@ describe('frontend-add-host — bulk parse + validate', () => {
 
   // @ac AC-14
   test('frontend-add-host/AC-14 — applyMappings produces valid + invalid rows; valid count formatting matches Preview step button label', () => {
-    const validCount = 4;
+    const validCount: number = 4;
     const buttonLabel = `Import ${validCount} valid row${validCount === 1 ? '' : 's'}`;
     expect(buttonLabel).toBe('Import 4 valid rows');
   });

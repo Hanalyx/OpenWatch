@@ -36,6 +36,28 @@ func (h *handlers) GetFleetScore(w http.ResponseWriter, r *http.Request, params 
 	})
 }
 
+// GetFleetConnectivityBreakdown implements
+// api.ServerInterface.GetFleetConnectivityBreakdown.
+// Spec api-fleet-connectivity-breakdown AC-01..AC-08.
+func (h *handlers) GetFleetConnectivityBreakdown(w http.ResponseWriter, r *http.Request) {
+	if denied := auth.EnforcePermission(w, r, auth.SystemRead); denied {
+		return
+	}
+	bd, err := h.fleet.ConnectivityBreakdown(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "server.error", "server",
+			"failed to compute connectivity breakdown", true)
+		return
+	}
+	writeJSON(w, http.StatusOK, api.ConnectivityBreakdown{
+		Online:      bd.Online,
+		Degraded:    bd.Degraded,
+		Critical:    bd.Critical,
+		Down:        bd.Down,
+		NeverProbed: bd.NeverProbed,
+	})
+}
+
 // GetFleetLiveness implements api.ServerInterface.GetFleetLiveness.
 // Spec api-fleet-observability AC-03, AC-11, AC-12.
 // (?framework= has no effect on liveness — host_liveness is OS-agnostic.)

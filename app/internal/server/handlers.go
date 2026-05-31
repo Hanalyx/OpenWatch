@@ -15,9 +15,11 @@ import (
 	"github.com/Hanalyx/openwatch/internal/fleetrollup"
 	"github.com/Hanalyx/openwatch/internal/host"
 	"github.com/Hanalyx/openwatch/internal/license"
+	"github.com/Hanalyx/openwatch/internal/liveness"
 	"github.com/Hanalyx/openwatch/internal/policy"
 	"github.com/Hanalyx/openwatch/internal/queue"
 	"github.com/Hanalyx/openwatch/internal/server/api"
+	"github.com/Hanalyx/openwatch/internal/systemconfig"
 	"github.com/Hanalyx/openwatch/internal/users"
 	"github.com/Hanalyx/openwatch/internal/version"
 	"github.com/google/uuid"
@@ -37,6 +39,12 @@ type handlers struct {
 	credentials *credential.Service
 	hosts       *host.Service
 	fleet       *fleetrollup.Service
+
+	// Connectivity-monitor wiring. Set via (*Server).WithConnectivityConfig
+	// before Run; nil in tests that don't exercise these endpoints.
+	// Spec api-system-connectivity, api-host-connectivity-check.
+	sysCfg  *systemconfig.Store
+	liveSvc *liveness.Service
 }
 
 // newHandlers constructs the ServerInterface implementation. The user

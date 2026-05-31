@@ -535,10 +535,15 @@ events:
 
   - code: system.config.changed
     severity: warning
+    actor_types: [user, system]
+    description: An operator-tunable runtime config value was updated via the system_config table
     detail_schema:
       type: object
       properties:
         config_key: {type: string}
+        old_value: {type: object}
+        new_value: {type: object}
+        changed_by: {type: string}
 
   - code: system.migration.applied
     severity: info

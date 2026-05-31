@@ -22,7 +22,9 @@ import (
 	"github.com/Hanalyx/openwatch/internal/db/migrations"
 	"github.com/Hanalyx/openwatch/internal/identity"
 	"github.com/Hanalyx/openwatch/internal/license"
+	"github.com/Hanalyx/openwatch/internal/liveness"
 	"github.com/Hanalyx/openwatch/internal/secretkey"
+	"github.com/Hanalyx/openwatch/internal/systemconfig"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -98,6 +100,7 @@ func freshAPIServer(t *testing.T) (string, *pgxpool.Pool) {
 	}
 	_, _ = pool.Exec(ctx, "TRUNCATE TABLE audit_events")
 	_, _ = pool.Exec(ctx, "TRUNCATE TABLE idempotency_keys")
+	_, _ = pool.Exec(ctx, "TRUNCATE TABLE system_config")
 	// Slice-B tables. Clear children before hosts to avoid FK violations.
 	// transactions + host_rule_state FK to hosts ON DELETE RESTRICT;
 	// host_compliance_schedule + host_backoff_state FK to hosts;
@@ -175,6 +178,17 @@ func freshAPIServer(t *testing.T) (string, *pgxpool.Pool) {
 
 	cfg := config.Defaults()
 	s := New(cfg, pool)
+
+	// Wire the connectivity-monitor surface so the new /system/connectivity/*
+	// + /fleet/connectivity/breakdown + /hosts/{id}/connectivity:check
+	// endpoints have a backing store and live liveness Service. The
+	// liveness service is constructed but not started (tests don't need
+	// the periodic loop; they exercise endpoints directly).
+	cfgStore := systemconfig.NewStore(pool, audit.Emit)
+	liveSvc := liveness.NewService(pool, audit.Emit, nil).
+		WithConfigLoader(cfgStore.LoadConnectivity)
+	s.WithConnectivityConfig(cfgStore, liveSvc)
+
 	// Start the in-process worker. httptest.NewServer bypasses s.Run(),
 	// so the worker would never start otherwise — tests that exercise
 	// the queue → worker → audit chain (release-stage-0-signoff AC-10)
