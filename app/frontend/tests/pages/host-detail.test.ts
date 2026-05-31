@@ -20,17 +20,20 @@ const PAGE_SRC = readFileSync(
 );
 
 describe('frontend-host-detail — structural', () => {
+  // @ac AC-02
   test('frontend-host-detail/AC-02 — 404 renders distinct region', () => {
     expect(PAGE_SRC).toContain('host_not_found');
     expect(PAGE_SRC).toContain('Host not found');
     expect(PAGE_SRC).toContain('Back to hosts');
   });
 
+  // @ac AC-03
   test('frontend-host-detail/AC-03 — 403 renders authz.permission_denied', () => {
     expect(PAGE_SRC).toContain("'authz.permission_denied'");
     expect(PAGE_SRC).toContain('Access denied');
   });
 
+  // @ac AC-04
   test('frontend-host-detail/AC-04 — populated summary math: passing / total', () => {
     // The component computes pct = Math.round(passing / total * 100).
     expect(PAGE_SRC).toContain('summary.passing / summary.total');
@@ -42,16 +45,19 @@ describe('frontend-host-detail — structural', () => {
     expect(PAGE_SRC).toMatch(/label="error"/);
   });
 
+  // @ac AC-05
   test('frontend-host-detail/AC-05 — empty summary renders friendly message', () => {
     expect(PAGE_SRC).toContain('No compliance data for this host yet');
     expect(PAGE_SRC).toContain('summary.total === 0');
   });
 
+  // @ac AC-06
   test('frontend-host-detail/AC-06 — liveness=null renders "Not yet probed"', () => {
     expect(PAGE_SRC).toContain('Not yet probed');
     expect(PAGE_SRC).toContain('liveness === null');
   });
 
+  // @ac AC-08
   test('frontend-host-detail/AC-08 — framework filter updates URL + re-fetches', () => {
     expect(PAGE_SRC).toContain("'/api/v1/hosts/{id}'");
     expect(PAGE_SRC).toContain('framework');
@@ -62,6 +68,7 @@ describe('frontend-host-detail — structural', () => {
     expect(PAGE_SRC).toContain('navigate');
   });
 
+  // @ac AC-14
   test('frontend-host-detail/AC-14 — no PII field names in console.*', () => {
     const deny = ['evidence', 'token', 'password', 'secret'];
     for (const field of deny) {

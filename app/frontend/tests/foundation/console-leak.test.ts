@@ -30,6 +30,7 @@ function listFiles(dir: string): string[] {
 const CONSOLE_RE = /console\.(log|warn|error)\s*\(([^)]*)\)/g;
 
 describe('frontend-foundation', () => {
+  // @ac AC-14
   test('frontend-foundation/AC-14 — no PII field names in console.* calls', () => {
     const offenders: { file: string; match: string; field: string }[] = [];
     for (const f of listFiles(SRC_DIR)) {

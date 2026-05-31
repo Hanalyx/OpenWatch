@@ -31,6 +31,7 @@ function listFiles(dir: string): string[] {
 }
 
 describe('frontend-foundation', () => {
+  // @ac AC-06
   test('frontend-foundation/AC-06 — every documented token is present', () => {
     // Surfaces
     const surfaceKeys = ['bg0', 'bg1', 'bg2', 'bg3', 'line', 'line2'] as const;
@@ -108,6 +109,7 @@ describe('frontend-foundation', () => {
     }
   });
 
+  // @ac AC-07
   test('frontend-foundation/AC-07 — no var(--mui-*) references in source', () => {
     const offenders: string[] = [];
     for (const f of listFiles(SRC_DIR)) {

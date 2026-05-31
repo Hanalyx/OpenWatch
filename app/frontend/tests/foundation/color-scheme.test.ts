@@ -27,6 +27,7 @@ describe('frontend-foundation — color scheme', () => {
     document.documentElement.removeAttribute('data-mui-color-scheme');
   });
 
+  // @ac AC-01
   test('frontend-foundation/AC-01 — first paint uses system mode when localStorage unset', async () => {
     localStorage.clear();
     const { useColorSchemeStore } = await importStore();
@@ -37,6 +38,7 @@ describe('frontend-foundation — color scheme', () => {
     );
   });
 
+  // @ac AC-02
   test('frontend-foundation/AC-02 — localStorage="light" overrides system', async () => {
     localStorage.setItem('ow-color-scheme', 'light');
     const { useColorSchemeStore } = await importStore();
@@ -44,12 +46,14 @@ describe('frontend-foundation — color scheme', () => {
     expect(document.documentElement.getAttribute('data-mui-color-scheme')).toBe('light');
   });
 
+  // @ac AC-03
   test('frontend-foundation/AC-03 — invalid value falls back to system', async () => {
     localStorage.setItem('ow-color-scheme', 'sparkle');
     const { useColorSchemeStore } = await importStore();
     expect(useColorSchemeStore.getState().mode).toBe('system');
   });
 
+  // @ac AC-04
   test('frontend-foundation/AC-04 — setMode persists + updates store + DOM attribute', async () => {
     localStorage.clear();
     const { useColorSchemeStore } = await importStore();
@@ -62,6 +66,7 @@ describe('frontend-foundation — color scheme', () => {
     expect(document.documentElement.getAttribute('data-mui-color-scheme')).toBe('dark');
   });
 
+  // @ac AC-15
   test('frontend-foundation/AC-15 — index.html has no-FOUC script before bundle', () => {
     const { resolve } = require('node:path');
     const html = readFileSync(resolve(process.cwd(), 'index.html'), 'utf8');

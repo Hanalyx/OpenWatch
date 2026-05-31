@@ -41,12 +41,6 @@ domains:
             - api-openapi-docs
             - release-admin-signoff
             - system-worker-subcommand
-            - frontend-foundation
-            - frontend-auth-login
-            - frontend-hosts-list
-            - frontend-add-host
-            - frontend-host-detail
-            - frontend-settings
 settings:
     specs_dir: specs
     coverage:

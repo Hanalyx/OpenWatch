@@ -43,6 +43,7 @@ const APPLY_SRC = readFileSync(
 );
 
 describe('frontend-add-host — structural', () => {
+  // @ac AC-11
   test('frontend-add-host/AC-11 — tablist + tabpanel markup', () => {
     // ARIA tabs pattern: a role="tablist" wraps role="tab" buttons, and
     // each panel carries role="tabpanel" with aria-labelledby referencing
@@ -56,6 +57,7 @@ describe('frontend-add-host — structural', () => {
     expect(PAGE_SRC).toContain('label="Bulk"');
   });
 
+  // @ac AC-12
   test('frontend-add-host/AC-12 — bulk wizard with 3-step stepper + drag-drop CSV upload', () => {
     // BulkPanel shim mounts the wizard.
     expect(PAGE_SRC).toContain('BulkImportWizard');
@@ -68,6 +70,7 @@ describe('frontend-add-host — structural', () => {
     expect(UPLOAD_SRC).toMatch(/accept:\s*\{\s*'text\/csv'/);
   });
 
+  // @ac AC-13
   test('frontend-add-host/AC-13 — auto-mapping + required-field validation in Map step', () => {
     // The mapper surfaces a Maps-to <select> per column AND blocks Next
     // until hostname + ip_address (the two required target fields) are
@@ -80,6 +83,7 @@ describe('frontend-add-host — structural', () => {
     expect(WIZARD_SRC).toContain('auto_mappings');
   });
 
+  // @ac AC-17
   test('frontend-add-host/AC-17 — failed-rows CSV download button surfaced in Preview step', () => {
     expect(PREVIEW_SRC).toContain('Download failed rows as CSV');
     expect(PREVIEW_SRC).toContain('downloadFailedRowsCSV');
@@ -99,6 +103,7 @@ describe('frontend-add-host — structural', () => {
 // ─────────────────────────────────────────────────────────────────────────
 
 describe('frontend-add-host — bulk parse + validate', () => {
+  // @ac AC-13
   test('frontend-add-host/AC-13 — required-field validation rejects when hostname is unmapped', () => {
     // mappingsAreValid requires both hostname and ip_address mapped.
     // Verified by source inspection of FieldMapperStep + TARGET_FIELDS.
@@ -114,6 +119,7 @@ describe('frontend-add-host — bulk parse + validate', () => {
     expect(ok).toBe(false);
   });
 
+  // @ac AC-14
   test('frontend-add-host/AC-14 — applyMappings produces valid + invalid rows; valid count formatting matches Preview step button label', () => {
     const validCount = 4;
     const buttonLabel = `Import ${validCount} valid row${validCount === 1 ? '' : 's'}`;
