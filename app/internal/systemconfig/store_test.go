@@ -85,6 +85,7 @@ func (c *capture) snapshot() []captured {
 }
 
 // AC-01: no row → defaults, no error.
+// @ac AC-01
 func TestLoadConnectivity_NoRow_ReturnsDefaults(t *testing.T) {
 	pool := freshPool(t)
 	s := NewStore(pool, nil)
@@ -99,6 +100,7 @@ func TestLoadConnectivity_NoRow_ReturnsDefaults(t *testing.T) {
 }
 
 // AC-02: Set then Load returns the saved snapshot.
+// @ac AC-02
 func TestSetThenLoad_RoundTripsSavedSnapshot(t *testing.T) {
 	pool := freshPool(t)
 	cap := &capture{}
@@ -124,6 +126,7 @@ func TestSetThenLoad_RoundTripsSavedSnapshot(t *testing.T) {
 }
 
 // AC-03: out-of-range interval_sec rejected; persisted state unchanged.
+// @ac AC-03
 func TestSetConnectivity_RejectsIntervalBelowMinimum(t *testing.T) {
 	pool := freshPool(t)
 	s := NewStore(pool, nil)
@@ -144,6 +147,7 @@ func TestSetConnectivity_RejectsIntervalBelowMinimum(t *testing.T) {
 }
 
 // AC-04: unreachable_threshold=0 rejected.
+// @ac AC-04
 func TestSetConnectivity_RejectsThresholdZero(t *testing.T) {
 	pool := freshPool(t)
 	s := NewStore(pool, nil)
@@ -160,6 +164,7 @@ func TestSetConnectivity_RejectsThresholdZero(t *testing.T) {
 
 // AC-05: a successful Set emits exactly one system.config.changed
 // event with old_value (snapshot prior to write) and new_value populated.
+// @ac AC-05
 func TestSetConnectivity_EmitsConfigChangedWithOldAndNew(t *testing.T) {
 	pool := freshPool(t)
 	cap := &capture{}
@@ -216,6 +221,7 @@ func TestSetConnectivity_EmitsConfigChangedWithOldAndNew(t *testing.T) {
 
 // AC-09: two concurrent Set calls complete cleanly; final state is one
 // of the two writers' inputs.
+// @ac AC-09
 func TestConcurrentSet_LastWriterWins_NoDeadlock(t *testing.T) {
 	pool := freshPool(t)
 	s := NewStore(pool, nil)

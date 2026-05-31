@@ -37,6 +37,7 @@ import (
 
 // AC-01: GET on a fresh DB returns the baked-in defaults + defaults
 // sub-object equal to the same values.
+// @ac AC-01
 func TestAPI_SystemConnectivity_Config_GET_ReturnsDefaultsWhenEmpty(t *testing.T) {
 	t.Run("api-system-connectivity/AC-01", func(t *testing.T) {
 		url, _ := freshAPIServer(t)
@@ -66,6 +67,7 @@ func TestAPI_SystemConnectivity_Config_GET_ReturnsDefaultsWhenEmpty(t *testing.T
 }
 
 // AC-02: PUT with valid body persists; subsequent GET returns the same.
+// @ac AC-02
 func TestAPI_SystemConnectivity_Config_PUT_RoundTrip(t *testing.T) {
 	t.Run("api-system-connectivity/AC-02", func(t *testing.T) {
 		url, _ := freshAPIServer(t)
@@ -105,6 +107,7 @@ func TestAPI_SystemConnectivity_Config_PUT_RoundTrip(t *testing.T) {
 }
 
 // AC-03: PUT below minimum rejects with 400 + field name.
+// @ac AC-03
 func TestAPI_SystemConnectivity_Config_PUT_RejectsBelowMinimum(t *testing.T) {
 	t.Run("api-system-connectivity/AC-03", func(t *testing.T) {
 		url, _ := freshAPIServer(t)
@@ -128,6 +131,7 @@ func TestAPI_SystemConnectivity_Config_PUT_RejectsBelowMinimum(t *testing.T) {
 }
 
 // AC-04: PUT above maximum rejects with 400.
+// @ac AC-04
 func TestAPI_SystemConnectivity_Config_PUT_RejectsAboveMaximum(t *testing.T) {
 	t.Run("api-system-connectivity/AC-04", func(t *testing.T) {
 		url, _ := freshAPIServer(t)
@@ -151,6 +155,7 @@ func TestAPI_SystemConnectivity_Config_PUT_RejectsAboveMaximum(t *testing.T) {
 }
 
 // AC-06: PUT as viewer (no system:config_write) returns 403.
+// @ac AC-06
 func TestAPI_SystemConnectivity_Config_PUT_AsViewer_Forbidden(t *testing.T) {
 	t.Run("api-system-connectivity/AC-06", func(t *testing.T) {
 		url, _ := freshAPIServer(t)
@@ -174,6 +179,7 @@ func TestAPI_SystemConnectivity_Config_PUT_AsViewer_Forbidden(t *testing.T) {
 }
 
 // AC-07: PUT anonymous returns 403.
+// @ac AC-07
 func TestAPI_SystemConnectivity_Config_PUT_Anonymous_Forbidden(t *testing.T) {
 	t.Run("api-system-connectivity/AC-07", func(t *testing.T) {
 		url, _ := freshAPIServer(t)
@@ -191,6 +197,7 @@ func TestAPI_SystemConnectivity_Config_PUT_Anonymous_Forbidden(t *testing.T) {
 }
 
 // AC-08: GET status returns the typed snapshot.
+// @ac AC-08
 func TestAPI_SystemConnectivity_Status_ReturnsTypedSnapshot(t *testing.T) {
 	t.Run("api-system-connectivity/AC-08", func(t *testing.T) {
 		url, _ := freshAPIServer(t)
@@ -220,6 +227,7 @@ func TestAPI_SystemConnectivity_Status_ReturnsTypedSnapshot(t *testing.T) {
 }
 
 // AC-09: GET status anonymous returns 403.
+// @ac AC-09
 func TestAPI_SystemConnectivity_Status_Anonymous_Forbidden(t *testing.T) {
 	t.Run("api-system-connectivity/AC-09", func(t *testing.T) {
 		url, _ := freshAPIServer(t)
@@ -241,6 +249,7 @@ func TestAPI_SystemConnectivity_Status_Anonymous_Forbidden(t *testing.T) {
 
 // AC-01..AC-03: classifies online vs degraded vs critical vs down vs
 // never_probed based on consecutive_failures + reachability_status.
+// @ac AC-02
 func TestAPI_FleetConnectivity_Breakdown_ClassifiesByHysteresisBand(t *testing.T) {
 	t.Run("api-fleet-connectivity-breakdown/AC-02", func(t *testing.T) {
 		url, pool := freshAPIServer(t)
@@ -304,6 +313,7 @@ func TestAPI_FleetConnectivity_Breakdown_ClassifiesByHysteresisBand(t *testing.T
 
 // AC-05: a host with consecutive_failures>=3 lands in "down" regardless
 // of reachability_status value.
+// @ac AC-05
 func TestAPI_FleetConnectivity_Breakdown_HighConsecDominates(t *testing.T) {
 	t.Run("api-fleet-connectivity-breakdown/AC-05", func(t *testing.T) {
 		url, pool := freshAPIServer(t)
@@ -336,6 +346,7 @@ func TestAPI_FleetConnectivity_Breakdown_HighConsecDominates(t *testing.T) {
 }
 
 // AC-06: empty fleet returns all zeros, never an error.
+// @ac AC-06
 func TestAPI_FleetConnectivity_Breakdown_EmptyFleet_ZeroNotError(t *testing.T) {
 	t.Run("api-fleet-connectivity-breakdown/AC-06", func(t *testing.T) {
 		url, _ := freshAPIServer(t)
@@ -363,6 +374,7 @@ func TestAPI_FleetConnectivity_Breakdown_EmptyFleet_ZeroNotError(t *testing.T) {
 }
 
 // AC-07: anonymous request returns 403.
+// @ac AC-07
 func TestAPI_FleetConnectivity_Breakdown_Anonymous_Forbidden(t *testing.T) {
 	t.Run("api-fleet-connectivity-breakdown/AC-07", func(t *testing.T) {
 		url, _ := freshAPIServer(t)
@@ -383,6 +395,7 @@ func TestAPI_FleetConnectivity_Breakdown_Anonymous_Forbidden(t *testing.T) {
 // ---------------------------------------------------------------------
 
 // AC-03: POST against {id} that doesn't exist returns 404.
+// @ac AC-03
 func TestAPI_HostConnectivity_Check_NotFound_Returns404(t *testing.T) {
 	t.Run("api-host-connectivity-check/AC-03", func(t *testing.T) {
 		url, _ := freshAPIServer(t)
@@ -401,6 +414,7 @@ func TestAPI_HostConnectivity_Check_NotFound_Returns404(t *testing.T) {
 }
 
 // AC-05: POST without an Idempotency-Key header returns 400.
+// @ac AC-05
 func TestAPI_HostConnectivity_Check_MissingIdempotencyKey_Returns400(t *testing.T) {
 	t.Run("api-host-connectivity-check/AC-05", func(t *testing.T) {
 		url, pool := freshAPIServer(t)
