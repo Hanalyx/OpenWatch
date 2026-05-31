@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Shield,
   Activity,
   RotateCcw,
   PlayCircle,
   HelpCircle,
+  Loader2,
 } from 'lucide-react';
+import api from '@/api/client';
 import { useBreadcrumbStore } from '@/store/useBreadcrumbStore';
 import { SettingsLayout } from '@/components/settings/SettingsLayout';
 import {
@@ -26,17 +29,28 @@ import {
 
 // Settings → Scanning & monitoring.
 //
-// Port of the prototype's full surface: two state-driven schedulers
-// (compliance + connectivity), OS-discovery toggles, and fleet
-// maintenance controls. Every value lives in local component state
-// — backend save endpoints land with the scheduler API. The save
-// bar at the bottom is the single confirmation point for "this
-// would persist if backend were live."
-//
 // Spec: frontend-settings v1.1.0 (Scanning & monitoring section).
+//
+// Wiring honesty:
+//
+//   • Compliance scanner    — local state only. The Go backend has no
+//                              compliance scheduler yet; tracked as
+//                              post-Slice-B (Slice C).
+//   • Connectivity monitor  — fully wired against
+//                              GET /api/v1/system/connectivity/config,
+//                              PUT /api/v1/system/connectivity/config,
+//                              GET /api/v1/system/connectivity/status,
+//                              GET /api/v1/fleet/connectivity/breakdown.
+//   • OS discovery          — local state only. No OS-discovery
+//                              scheduler in the backend yet.
+//   • Maintenance (global)  — wired via the connectivity config's
+//                              maintenance_global flag.
+//   • Group maintenance     — local state only. No group entity yet.
 
 // ─────────────────────────────────────────────────────────────────────────
 // Compliance scanner — 5 state buckets with per-state intervals
+//
+// Backend pending. Defaults stay as visual UI; no save endpoint.
 // ─────────────────────────────────────────────────────────────────────────
 
 type Tier = 'crit' | 'warn' | 'info' | 'mostlyOk' | 'ok' | 'muted';
@@ -58,17 +72,17 @@ const COMPLIANCE_DEFAULTS: StateRowConfig[] = [
     tier: 'crit',
     name: 'Critical',
     desc: 'Compliance < 20%',
-    hosts: 5,
+    hosts: 0,
     intervalMin: 60,
     rangeText: '15 min – 6h',
-    cadenceText: (m, h) => `${(60 / m) * 24 * h} scans/day`,
+    cadenceText: (m, h) => (h === 0 ? '—' : `${Math.round((60 / m) * 24 * h)} scans/day`),
   },
   {
     id: 'low',
     tier: 'warn',
     name: 'Low',
     desc: 'Compliance 20–49%',
-    hosts: 2,
+    hosts: 0,
     intervalMin: 120,
     rangeText: '30 min – 12h',
     cadenceText: (m, h) => (h === 0 ? '—' : `${Math.round((60 / m) * 24 * h)} scans/day`),
@@ -105,67 +119,25 @@ const COMPLIANCE_DEFAULTS: StateRowConfig[] = [
   },
 ];
 
-const CONNECTIVITY_DEFAULTS: StateRowConfig[] = [
-  {
-    id: 'unknown',
-    tier: 'muted',
-    name: 'Unknown',
-    desc: 'Newly added · no checks yet',
-    hosts: 0,
-    intervalMin: 0,
-    rangeText: '0–60 min',
-    cadenceText: () => 'Immediate',
-  },
-  {
-    id: 'online',
-    tier: 'ok',
-    name: 'Online',
-    desc: 'Healthy · 0 failures',
-    hosts: 2,
-    intervalMin: 15,
-    rangeText: '5–60 min',
-    cadenceText: (m) => `Every ${m} min`,
-  },
-  {
-    id: 'degraded',
-    tier: 'info',
-    name: 'Degraded',
-    desc: '1 consecutive failure',
-    hosts: 0,
-    intervalMin: 5,
-    rangeText: '1–15 min',
-    cadenceText: (m) => `Every ${m} min`,
-  },
-  {
-    id: 'crit-conn',
-    tier: 'warn',
-    name: 'Critical',
-    desc: '2 consecutive failures',
-    hosts: 0,
-    intervalMin: 2,
-    rangeText: '1–10 min',
-    cadenceText: (m) => `Every ${m} min`,
-  },
-  {
-    id: 'down',
-    tier: 'crit',
-    name: 'Down',
-    desc: '3+ consecutive failures',
-    hosts: 5,
-    intervalMin: 30,
-    rangeText: '10–120 min',
-    cadenceText: (m) => `Every ${m} min`,
-  },
-  {
-    id: 'maint-conn',
-    tier: 'muted',
-    name: 'Maintenance',
-    desc: 'Manually paused by an operator',
-    hosts: 0,
-    intervalMin: 60,
-    rangeText: '15 min – 24h',
-    cadenceText: (m) => (m >= 60 ? `Every ${Math.round(m / 60)}h` : `Every ${m} min`),
-  },
+// ─────────────────────────────────────────────────────────────────────────
+// Connectivity monitor — 4-state breakdown derived from host_liveness
+// ─────────────────────────────────────────────────────────────────────────
+
+interface ConnectivityRowSeed {
+  id: string;
+  tier: Tier;
+  name: string;
+  desc: string;
+  rangeText: string;
+}
+
+// Visual seed only; hosts/intervalMin/cadenceText come from live data.
+const CONNECTIVITY_ROW_SEEDS: ConnectivityRowSeed[] = [
+  { id: 'never', tier: 'muted', name: 'Never probed', desc: 'New host · no probe yet', rangeText: '—' },
+  { id: 'online', tier: 'ok', name: 'Online', desc: 'Reachable · 0 failures', rangeText: 'Healthy' },
+  { id: 'degraded', tier: 'info', name: 'Degraded', desc: 'Reachable · 1+ recent failures', rangeText: 'Watch' },
+  { id: 'critical', tier: 'warn', name: 'Critical', desc: 'Unreachable · 1–2 failures', rangeText: 'Backoff escalating' },
+  { id: 'down', tier: 'crit', name: 'Down', desc: '3+ consecutive failures', rangeText: 'Use on-demand probe to retest' },
 ];
 
 const GROUPS = [
@@ -206,9 +178,27 @@ function formatCadence(intervalMin: number): string {
   return `Every ${intervalMin} min`;
 }
 
+function formatTimeAgo(iso: string | null | undefined): string {
+  if (!iso) return 'No tick yet';
+  const t = new Date(iso).getTime();
+  if (Number.isNaN(t)) return 'Unknown';
+  const seconds = Math.round((Date.now() - t) / 1000);
+  if (seconds < 60) return `${seconds} sec ago`;
+  if (seconds < 3600) return `${Math.round(seconds / 60)} min ago`;
+  return `${Math.round(seconds / 3600)} h ago`;
+}
+
 // ─────────────────────────────────────────────────────────────────────────
 // Page
 // ─────────────────────────────────────────────────────────────────────────
+
+interface ConnectivityConfigDraft {
+  interval_sec: number;
+  timeout_sec: number;
+  unreachable_threshold: number;
+  rate_limit: number;
+  maintenance_global: boolean;
+}
 
 export function ScanningPage() {
   const setCrumbs = useBreadcrumbStore((s) => s.setCrumbs);
@@ -217,132 +207,198 @@ export function ScanningPage() {
     return () => setCrumbs([]);
   }, [setCrumbs]);
 
-  // Master state for each section.
-  const [complianceRows, setComplianceRows] = useState(COMPLIANCE_DEFAULTS);
+  const queryClient = useQueryClient();
+
+  // ─── Wired: connectivity config ────────────────────────────────────
+  const configQuery = useQuery({
+    queryKey: ['system', 'connectivity', 'config'],
+    queryFn: async () => {
+      const { data, error, response } = await api.GET('/api/v1/system/connectivity/config', {});
+      if (error) throw error;
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return data!;
+    },
+  });
+
+  const statusQuery = useQuery({
+    queryKey: ['system', 'connectivity', 'status'],
+    queryFn: async () => {
+      const { data, error, response } = await api.GET('/api/v1/system/connectivity/status', {});
+      if (error) throw error;
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return data!;
+    },
+    refetchInterval: 30_000,
+  });
+
+  const breakdownQuery = useQuery({
+    queryKey: ['fleet', 'connectivity', 'breakdown'],
+    queryFn: async () => {
+      const { data, error, response } = await api.GET(
+        '/api/v1/fleet/connectivity/breakdown',
+        {},
+      );
+      if (error) throw error;
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return data!;
+    },
+    refetchInterval: 30_000,
+  });
+
+  // Local edit buffer over the server config — drives the save bar.
+  const [draft, setDraft] = useState<ConnectivityConfigDraft | null>(null);
+  useEffect(() => {
+    if (configQuery.data && !draft) {
+      setDraft({
+        interval_sec: configQuery.data.config.interval_sec,
+        timeout_sec: configQuery.data.config.timeout_sec,
+        unreachable_threshold: configQuery.data.config.unreachable_threshold,
+        rate_limit: configQuery.data.config.rate_limit,
+        maintenance_global: configQuery.data.config.maintenance_global,
+      });
+    }
+  }, [configQuery.data, draft]);
+
+  const saveMutation = useMutation({
+    mutationFn: async (body: ConnectivityConfigDraft) => {
+      const { error, response } = await api.PUT('/api/v1/system/connectivity/config', {
+        body,
+      });
+      if (error) throw error;
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['system', 'connectivity', 'config'] });
+      queryClient.invalidateQueries({ queryKey: ['system', 'connectivity', 'status'] });
+    },
+  });
+
+  const dirty = useMemo(() => {
+    if (!draft || !configQuery.data) return false;
+    const live = configQuery.data.config;
+    return (
+      draft.interval_sec !== live.interval_sec ||
+      draft.timeout_sec !== live.timeout_sec ||
+      draft.unreachable_threshold !== live.unreachable_threshold ||
+      draft.rate_limit !== live.rate_limit ||
+      draft.maintenance_global !== live.maintenance_global
+    );
+  }, [draft, configQuery.data]);
+
+  const onResetConnectivity = () => {
+    if (!configQuery.data) return;
+    setDraft({
+      interval_sec: configQuery.data.defaults.interval_sec,
+      timeout_sec: configQuery.data.defaults.timeout_sec,
+      unreachable_threshold: configQuery.data.defaults.unreachable_threshold,
+      rate_limit: configQuery.data.defaults.rate_limit,
+      maintenance_global: configQuery.data.defaults.maintenance_global,
+    });
+  };
+
+  // ─── Local-only sections (compliance scanner + OS discovery + groups) ──
+  const [complianceRows] = useState(COMPLIANCE_DEFAULTS);
   const [complianceEnabled, setComplianceEnabled] = useState(true);
   const [complianceAdvancedOpen, setComplianceAdvancedOpen] = useState(false);
 
-  const [connectivityRows, setConnectivityRows] = useState(CONNECTIVITY_DEFAULTS);
-  const [connectivityEnabled, setConnectivityEnabled] = useState(true);
   const [connectivityAdvancedOpen, setConnectivityAdvancedOpen] = useState(false);
-  const [maintenanceBehavior, setMaintenanceBehavior] = useState('reduced-60');
-  const [networkRateLimit, setNetworkRateLimit] = useState(25);
 
   const [nightlyRescan, setNightlyRescan] = useState(true);
   const [detectOnFirstContact, setDetectOnFirstContact] = useState(true);
 
-  const [globalMaintenance, setGlobalMaintenance] = useState(false);
   const [autoResume, setAutoResume] = useState('4h');
   const [groupMaintenance, setGroupMaintenance] = useState(
     () => Object.fromEntries(GROUPS.map((g) => [g.id, g.paused])) as Record<string, boolean>,
   );
 
-  // Detect any "edits" — bare-bones dirty flag for the save bar.
-  const dirty = useMemo(() => {
-    return (
-      JSON.stringify(complianceRows) !== JSON.stringify(COMPLIANCE_DEFAULTS) ||
-      JSON.stringify(connectivityRows) !== JSON.stringify(CONNECTIVITY_DEFAULTS) ||
-      !complianceEnabled ||
-      !connectivityEnabled ||
-      !nightlyRescan ||
-      !detectOnFirstContact ||
-      globalMaintenance ||
-      maintenanceBehavior !== 'reduced-60' ||
-      networkRateLimit !== 25 ||
-      autoResume !== '4h' ||
-      Object.entries(groupMaintenance).some(
-        ([id, v]) => v !== (GROUPS.find((g) => g.id === id)?.paused ?? false),
-      )
-    );
-  }, [
-    complianceRows,
-    connectivityRows,
-    complianceEnabled,
-    connectivityEnabled,
-    nightlyRescan,
-    detectOnFirstContact,
-    globalMaintenance,
-    maintenanceBehavior,
-    networkRateLimit,
-    autoResume,
-    groupMaintenance,
-  ]);
+  // ─── Live-derived display values ─────────────────────────────────────
+  const breakdown = breakdownQuery.data;
+  const status = statusQuery.data;
+  const connectivityIntervalMin = draft ? Math.round(draft.interval_sec / 60) : 5;
+  const connectivityRows = useMemo<StateRowConfig[]>(
+    () =>
+      CONNECTIVITY_ROW_SEEDS.map((seed) => {
+        const hosts = !breakdown
+          ? 0
+          : seed.id === 'online'
+          ? Number(breakdown.online)
+          : seed.id === 'degraded'
+          ? Number(breakdown.degraded)
+          : seed.id === 'critical'
+          ? Number(breakdown.critical)
+          : seed.id === 'down'
+          ? Number(breakdown.down)
+          : seed.id === 'never'
+          ? Number(breakdown.never_probed)
+          : 0;
+        return {
+          id: seed.id,
+          tier: seed.tier,
+          name: seed.name,
+          desc: seed.desc,
+          hosts,
+          intervalMin: connectivityIntervalMin,
+          rangeText: seed.rangeText,
+          cadenceText: (m: number) => (m > 0 ? `Every ${m} min` : 'Immediate'),
+        };
+      }),
+    [breakdown, connectivityIntervalMin],
+  );
 
-  const resetAll = () => {
-    setComplianceRows(COMPLIANCE_DEFAULTS);
-    setConnectivityRows(CONNECTIVITY_DEFAULTS);
-    setComplianceEnabled(true);
-    setConnectivityEnabled(true);
-    setNightlyRescan(true);
-    setDetectOnFirstContact(true);
-    setGlobalMaintenance(false);
-    setMaintenanceBehavior('reduced-60');
-    setNetworkRateLimit(25);
-    setAutoResume('4h');
-    setGroupMaintenance(
-      Object.fromEntries(GROUPS.map((g) => [g.id, g.paused])) as Record<string, boolean>,
-    );
-  };
+  const breakdownTotal = breakdown
+    ? Number(breakdown.online) +
+      Number(breakdown.degraded) +
+      Number(breakdown.critical) +
+      Number(breakdown.down) +
+      Number(breakdown.never_probed)
+    : 0;
+
+  const connectivitySubtitle = breakdown
+    ? `${breakdown.online} online · ${breakdown.degraded} degraded · ${breakdown.critical} critical · ${breakdown.down} down · ${breakdown.never_probed} never probed`
+    : 'Loading fleet breakdown…';
 
   return (
     <SettingsLayout>
       <PageHead
         title="Scanning & monitoring"
-        description="Control how often OpenWatch scans hosts for compliance and probes them for connectivity. Both schedulers adapt cadence based on host state."
+        description="Control how often OpenWatch scans hosts for compliance and probes them for connectivity."
         actions={
-          <Btn onClick={resetAll}>
-            <RotateCcw size={14} /> Reset to defaults
+          <Btn onClick={onResetConnectivity} disabled={!configQuery.data || saveMutation.isPending}>
+            <RotateCcw size={14} /> Reset connectivity to defaults
           </Btn>
         }
       />
 
-      <BackendPendingBanner
-        slice="Slice B (scheduler API)"
-        text="UI is fully wired; values are local until POST /api/v1/scheduler/config ships."
-      />
-
       {/* ────────── Compliance scanner ────────── */}
-      <Section title="Compliance scanner" badge="Running" badgeTier="ok">
+      <Section title="Compliance scanner" badge="UI only" badgeTier="warn">
+        <BackendPendingBanner
+          slice="Compliance scheduler (post-Slice-B / Slice C)"
+          text="The Go backend has no compliance scheduler yet — this section is a UI preview. Save is disabled."
+        />
         <p style={leadStyle}>
-          Re-runs the active CIS / STIG profile against each host. Cadence is set per
-          compliance state — failing hosts get re-checked more often.
+          Re-runs the active CIS / STIG profile against each host. Cadence is set per compliance
+          state — failing hosts get re-checked more often.
         </p>
 
         <SchedSummary
           icon={<Shield size={18} />}
           iconTier="info"
           title="Automatic compliance scanning"
-          subtitle="Hard ceiling of 48h per host even when state hasn't changed"
-          rightLabel="Next scan"
-          rightValue="in 2 min · 5 hosts queued"
+          subtitle="Adaptive scheduler not yet implemented in the Go backend"
+          rightLabel="Status"
+          rightValue="UI only"
           toggleValue={complianceEnabled}
           onToggleChange={setComplianceEnabled}
         />
 
-        <ScheduleStrip
-          title="What this will run · next 24 hours"
-          schedule={complianceRows.map((r) => ({
-            intervalMin: r.intervalMin,
-            color: tierToColorVar(r.tier),
-            hosts: r.hosts,
-          }))}
-          legend={complianceRows.map((r) => ({
-            color: tierToColorVar(r.tier),
-            label: `${r.name} · ${formatCadence(r.intervalMin)}`,
-          }))}
-        />
-
         <StateTable
           rows={complianceRows}
-          onIntervalChange={(idx, v) => {
-            setComplianceRows((rows) =>
-              rows.map((r, i) => (i === idx ? { ...r, intervalMin: v } : r)),
-            );
-          }}
+          readOnly
+          onIntervalChange={() => {}}
         />
 
         <AdvancedDisclosure
-          label="Advanced — quiet hours, jitter, retry policy"
+          label="Advanced — quiet hours, jitter, retry policy (not yet wired)"
           open={complianceAdvancedOpen}
           onToggle={() => setComplianceAdvancedOpen((v) => !v)}
         >
@@ -357,51 +413,48 @@ export function ScanningPage() {
                   options={[
                     { value: 'off', label: 'Off' },
                     { value: '00-06', label: '00:00 – 06:00' },
-                    { value: '22-06', label: '22:00 – 06:00' },
                   ]}
                 />
               }
-            />
-            <SettingRow
-              name="Jitter window"
-              description="Random delay added per scan to avoid synchronized fleet pulses."
-              control={<Stepper value={5} min={0} max={30} step={1} unit="min" onChange={() => {}} />}
-            />
-            <SettingRow
-              name="Retry on transient failure"
-              description="Apply the C-05 backoff ladder after a transient executor error."
-              control={<Toggle value={true} onChange={() => {}} />}
             />
           </SettingCard>
         </AdvancedDisclosure>
       </Section>
 
-      {/* ────────── Host connectivity monitor ────────── */}
-      <Section title="Host connectivity monitor" badge="Running" badgeTier="ok">
+      {/* ────────── Host connectivity monitor (LIVE) ────────── */}
+      <Section
+        title="Host connectivity monitor"
+        badge={status?.maintenance_active ? 'Paused' : 'Running'}
+        badgeTier={status?.maintenance_active ? 'warn' : 'ok'}
+      >
+        {configQuery.isError && (
+          <Callout tier="crit">
+            Failed to load connectivity config: {(configQuery.error as Error)?.message ?? 'unknown error'}
+          </Callout>
+        )}
+
         <p style={leadStyle}>
-          Pings each host over SSH to confirm it's reachable. Frequency increases with
-          consecutive failures.
+          Pings each host over TCP port 22 to confirm it's reachable. The cadence + per-probe
+          timeout + hysteresis threshold come from the values below; the periodic loop hot-reloads
+          on save.
         </p>
 
         <SchedSummary
           icon={<Activity size={18} />}
           iconTier="ok"
           title="Adaptive health checks"
-          subtitle="2 online · 5 down · backs off automatically during maintenance"
+          subtitle={connectivitySubtitle}
           rightLabel="Last sweep"
-          rightValue="38 sec ago"
-          toggleValue={connectivityEnabled}
-          onToggleChange={setConnectivityEnabled}
+          rightValue={formatTimeAgo(status?.last_probe_at)}
+          toggleValue={!(draft?.maintenance_global ?? false)}
+          onToggleChange={(v) => setDraft((d) => (d ? { ...d, maintenance_global: !v } : d))}
         />
 
         <StateTable
           rows={connectivityRows}
-          onIntervalChange={(idx, v) => {
-            setConnectivityRows((rows) =>
-              rows.map((r, i) => (i === idx ? { ...r, intervalMin: v } : r)),
-            );
-          }}
-          headers={['Host state', 'Hosts', 'Check every', 'Range']}
+          readOnly
+          onIntervalChange={() => {}}
+          headers={['Host state', 'Hosts', 'Cadence', 'Notes']}
           rightColumnRenderer={(r) => (
             <div style={cadenceStyle}>
               <span style={cadenceStrong}>{r.cadenceText(r.intervalMin, r.hosts)}</span>
@@ -415,39 +468,64 @@ export function ScanningPage() {
             <FirstSettingRow
               name={
                 <>
-                  Maintenance mode behavior{' '}
+                  Probe interval{' '}
                   <HelpCircle
                     size={13}
                     color="var(--ow-fg-3)"
-                    aria-label="What OpenWatch does when an operator pauses a host"
+                    aria-label="Single global probe interval — applies to every reachable host"
                   />
                 </>
               }
-              description="When a host is put into maintenance, choose whether to keep checking it at a reduced cadence or pause entirely."
+              description={`How often the loop sweeps the fleet (60..86400 seconds). Currently every ${connectivityIntervalMin} min. Hot-applied on save.`}
               control={
-                <Select
-                  value={maintenanceBehavior}
-                  onChange={setMaintenanceBehavior}
-                  options={[
-                    { value: 'reduced-60', label: 'Reduced checks · 60 min' },
-                    { value: 'pause', label: 'Pause checks entirely' },
-                    { value: 'normal', label: 'Continue normal cadence' },
-                  ]}
-                  width={200}
+                <Stepper
+                  value={draft?.interval_sec ?? 300}
+                  min={60}
+                  max={86400}
+                  step={30}
+                  unit="sec"
+                  onChange={(v) => setDraft((d) => (d ? { ...d, interval_sec: v } : d))}
+                />
+              }
+            />
+            <SettingRow
+              name="Probe timeout"
+              description="Per-probe TCP-banner timeout (1..30 seconds)."
+              control={
+                <Stepper
+                  value={draft?.timeout_sec ?? 5}
+                  min={1}
+                  max={30}
+                  step={1}
+                  unit="sec"
+                  onChange={(v) => setDraft((d) => (d ? { ...d, timeout_sec: v } : d))}
+                />
+              }
+            />
+            <SettingRow
+              name="Unreachable threshold"
+              description="Consecutive failures before a reachable host flips to unreachable (1..10)."
+              control={
+                <Stepper
+                  value={draft?.unreachable_threshold ?? 2}
+                  min={1}
+                  max={10}
+                  step={1}
+                  onChange={(v) => setDraft((d) => (d ? { ...d, unreachable_threshold: v } : d))}
                 />
               }
             />
             <SettingRow
               name="Network rate limit"
-              description="Cap concurrent SSH connections to prevent flooding during fleet-wide sweeps."
+              description="Max concurrent SSH-banner connections during fleet sweeps (1..200)."
               control={
                 <Stepper
-                  value={networkRateLimit}
-                  onChange={setNetworkRateLimit}
+                  value={draft?.rate_limit ?? 50}
                   min={1}
                   max={200}
                   step={1}
                   unit="conns"
+                  onChange={(v) => setDraft((d) => (d ? { ...d, rate_limit: v } : d))}
                 />
               }
             />
@@ -455,51 +533,44 @@ export function ScanningPage() {
         </div>
 
         <AdvancedDisclosure
-          label="Advanced — failure thresholds, jitter window, alert routing"
+          label="Status snapshot"
           open={connectivityAdvancedOpen}
           onToggle={() => setConnectivityAdvancedOpen((v) => !v)}
         >
           <SettingCard>
             <FirstSettingRow
-              name="Failures before degraded"
-              description="Consecutive failed probes that move a host into Degraded state."
-              control={<Stepper value={1} min={1} max={5} step={1} onChange={() => {}} />}
+              name="Probe count"
+              description={`${status?.probe_count ?? 0} probes since service start (${status?.probe_success_count ?? 0} success / ${status?.probe_failure_count ?? 0} failure).`}
+              control={<></>}
             />
             <SettingRow
-              name="Failures before down"
-              description="Consecutive failed probes that move a host into Down state."
-              control={<Stepper value={3} min={1} max={10} step={1} onChange={() => {}} />}
+              name="State transitions"
+              description={`${status?.state_transition_count ?? 0} reachability flips audited.`}
+              control={<></>}
             />
             <SettingRow
-              name="Probe jitter"
-              description="Spread probe timing to prevent network synchronisation."
-              control={<Stepper value={3} min={0} max={30} step={1} unit="sec" onChange={() => {}} />}
+              name="Fleet size (active hosts)"
+              description={`${breakdownTotal} hosts in the active inventory (deleted_at IS NULL).`}
+              control={<></>}
             />
           </SettingCard>
         </AdvancedDisclosure>
       </Section>
 
-      {/* ────────── OS discovery ────────── */}
-      <Section title="OS discovery" badge="Scheduled daily" badgeTier="ok">
-        <p style={leadStyle}>
-          Detects OS family, version, and platform on each host. Runs once on host
-          registration, then nightly for anything still missing.
-        </p>
-
+      {/* ────────── OS discovery (UI only) ────────── */}
+      <Section title="OS discovery" badge="UI only" badgeTier="warn">
+        <BackendPendingBanner
+          slice="OS-discovery sweeper (post-Slice-B)"
+          text="Per-host OS family + version detection lands with the OS discovery service. Toggles below are display-only."
+        />
         <SettingCard>
           <FirstSettingRow
             name="Nightly re-scan"
-            description={
-              <>
-                Sweeps any host with missing platform data. Runs at{' '}
-                <code style={{ fontFamily: 'var(--ow-font-mono)' }}>02:00 UTC</code>.
-              </>
-            }
+            description="Sweeps any host with missing platform data — runs at 02:00 UTC when wired."
             control={
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <Btn size="sm">
-                  <PlayCircle size={12} />
-                  Run now
+                <Btn size="sm" disabled>
+                  <PlayCircle size={12} /> Run now
                 </Btn>
                 <Toggle value={nightlyRescan} onChange={setNightlyRescan} ariaLabel="Nightly re-scan" />
               </div>
@@ -507,12 +578,7 @@ export function ScanningPage() {
           />
           <SettingRow
             name="Detect on first contact"
-            description={
-              <>
-                Always run platform detection when a host is added with credentials.{' '}
-                <em style={{ color: 'var(--ow-fg-3)' }}>Recommended.</em>
-              </>
-            }
+            description="Always run platform detection when a host is added with credentials."
             control={
               <Toggle
                 value={detectOnFirstContact}
@@ -521,93 +587,58 @@ export function ScanningPage() {
               />
             }
           />
-          <SettingRow
-            name="Just-in-time detection"
-            description={
-              <>
-                Re-detect during a scan if the recorded platform looks wrong.{' '}
-                <em style={{ color: 'var(--ow-fg-3)' }}>Always on.</em>
-              </>
-            }
-            control={<Toggle value={true} onChange={() => {}} disabled />}
-          />
         </SettingCard>
       </Section>
 
-      {/* ────────── Maintenance ────────── */}
+      {/* ────────── Maintenance (global flag wired; groups UI only) ────────── */}
       <Section title="Maintenance">
         <p style={leadStyle}>
-          Pause scanning, connectivity checks, and alerting — fleet-wide, per group, or per
-          host. A host is in maintenance if <strong>global</strong>,{' '}
-          <strong>any of its groups</strong>, or the <strong>host itself</strong> is paused.
+          When global maintenance is on, the connectivity monitor ticks but probes no hosts. The
+          flag is persisted via the connectivity config.
         </p>
+        <SettingCard>
+          <FirstSettingRow
+            name={
+              <>
+                Global maintenance mode{' '}
+                <HelpCircle size={13} color="var(--ow-fg-3)" aria-label="Silences the entire fleet" />
+              </>
+            }
+            description="Pause all connectivity probes across every host."
+            control={
+              <Toggle
+                value={draft?.maintenance_global ?? false}
+                onChange={(v) =>
+                  setDraft((d) => (d ? { ...d, maintenance_global: v } : d))
+                }
+                ariaLabel="Global maintenance mode"
+              />
+            }
+          />
+          <SettingRow
+            name="Auto-resume"
+            description="(Not yet wired) Automatically lift global maintenance after a set duration."
+            control={
+              <Select
+                value={autoResume}
+                onChange={setAutoResume}
+                options={[
+                  { value: '1h', label: 'After 1 hour' },
+                  { value: '4h', label: 'After 4 hours' },
+                  { value: '8h', label: 'After 8 hours' },
+                  { value: 'manual', label: 'Manual only' },
+                ]}
+              />
+            }
+          />
+        </SettingCard>
 
-        <div style={{ marginBottom: 14 }}>
-          <SettingCard>
-            <FirstSettingRow
-              name={
-                <>
-                  Global maintenance mode{' '}
-                  <HelpCircle size={13} color="var(--ow-fg-3)" aria-label="Silences the entire fleet" />
-                </>
-              }
-              description={
-                <>
-                  Pause <strong>all</strong> scanning and alerting across every host. Use during
-                  planned infrastructure-wide work.{' '}
-                  <span style={{ color: 'var(--ow-warn)' }}>
-                    Nothing is monitored while this is on.
-                  </span>
-                </>
-              }
-              control={
-                <Toggle
-                  value={globalMaintenance}
-                  onChange={setGlobalMaintenance}
-                  ariaLabel="Global maintenance mode"
-                />
-              }
-            />
-            <SettingRow
-              name="Auto-resume"
-              description="Automatically lift global maintenance after a set duration, so it can't be left on by accident."
-              control={
-                <Select
-                  value={autoResume}
-                  onChange={setAutoResume}
-                  options={[
-                    { value: '1h', label: 'After 1 hour' },
-                    { value: '4h', label: 'After 4 hours' },
-                    { value: '8h', label: 'After 8 hours' },
-                    { value: 'manual', label: 'Manual only' },
-                  ]}
-                />
-              }
-            />
-          </SettingCard>
+        <div style={{ marginTop: 14 }}>
+          <BackendPendingBanner
+            slice="Group maintenance (groups entity)"
+            text="Per-group pause requires a groups entity (not in the Go backend yet). Toggles below are display-only."
+          />
         </div>
-
-        <div style={{ marginBottom: 14 }}>
-          <Callout tier="info">
-            <strong style={{ color: 'var(--ow-fg-0)' }}>Precedence is OR, not override.</strong>{' '}
-            Putting a group into maintenance pauses every host in it, even if the host's own
-            toggle is off. Each host shows <em>why</em> it's paused (global, a group name, or
-            direct).
-          </Callout>
-        </div>
-
-        <h3
-          style={{
-            margin: '0 0 10px',
-            fontSize: 13,
-            color: 'var(--ow-fg-2)',
-            textTransform: 'uppercase',
-            letterSpacing: '0.06em',
-            fontWeight: 600,
-          }}
-        >
-          Group maintenance
-        </h3>
         <SettingCard>
           {GROUPS.map((group, i) => (
             <GroupRow
@@ -625,8 +656,28 @@ export function ScanningPage() {
         </SettingCard>
       </Section>
 
-      {/* Save bar */}
-      {dirty && <SaveBar onReset={resetAll} />}
+      {dirty && draft && (
+        <SaveBar
+          onReset={() => {
+            if (!configQuery.data) return;
+            setDraft({
+              interval_sec: configQuery.data.config.interval_sec,
+              timeout_sec: configQuery.data.config.timeout_sec,
+              unreachable_threshold: configQuery.data.config.unreachable_threshold,
+              rate_limit: configQuery.data.config.rate_limit,
+              maintenance_global: configQuery.data.config.maintenance_global,
+            });
+            saveMutation.reset();
+          }}
+          onSave={() => saveMutation.mutate(draft)}
+          saving={saveMutation.isPending}
+          error={
+            saveMutation.error
+              ? (saveMutation.error as Error)?.message ?? 'Save failed'
+              : null
+          }
+        />
+      )}
     </SettingsLayout>
   );
 }
@@ -640,11 +691,13 @@ function StateTable({
   headers = ['State', 'Hosts', 'Interval', 'Current'],
   onIntervalChange,
   rightColumnRenderer,
+  readOnly = false,
 }: {
   rows: StateRowConfig[];
   headers?: [string, string, string, string];
   onIntervalChange: (idx: number, v: number) => void;
   rightColumnRenderer?: (r: StateRowConfig) => React.ReactNode;
+  readOnly?: boolean;
 }) {
   return (
     <div
@@ -682,6 +735,7 @@ function StateTable({
           isFirst={i === 0}
           onIntervalChange={(v) => onIntervalChange(i, v)}
           rightColumn={rightColumnRenderer ? rightColumnRenderer(row) : undefined}
+          readOnly={readOnly}
         />
       ))}
     </div>
@@ -693,11 +747,13 @@ function StateRow({
   isFirst,
   onIntervalChange,
   rightColumn,
+  readOnly,
 }: {
   row: StateRowConfig;
   isFirst: boolean;
   onIntervalChange: (v: number) => void;
   rightColumn?: React.ReactNode;
+  readOnly?: boolean;
 }) {
   const color = tierToColorVar(row.tier);
   return (
@@ -741,17 +797,23 @@ function StateRow({
         >
           {row.hosts}
         </span>{' '}
-        {row.hosts === 1 ? 'host' : row.hosts === 0 ? 'hosts' : 'of 7 hosts'}
+        {row.hosts === 1 ? 'host' : 'hosts'}
       </div>
       <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-        <Stepper
-          value={row.intervalMin}
-          onChange={onIntervalChange}
-          min={0}
-          max={1440 * 7}
-          step={row.intervalMin >= 60 ? 30 : 1}
-          unit="min"
-        />
+        {readOnly ? (
+          <span style={{ color: 'var(--ow-fg-2)', fontSize: 12 }}>
+            {formatCadence(row.intervalMin)}
+          </span>
+        ) : (
+          <Stepper
+            value={row.intervalMin}
+            onChange={onIntervalChange}
+            min={0}
+            max={1440 * 7}
+            step={row.intervalMin >= 60 ? 30 : 1}
+            unit="min"
+          />
+        )}
       </div>
       <div style={cadenceStyle}>
         {rightColumn ?? (
@@ -760,150 +822,6 @@ function StateRow({
             {row.cadenceText(row.intervalMin, row.hosts)}
           </>
         )}
-      </div>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────
-// Schedule strip — 24h visualization with pulses per state
-// ─────────────────────────────────────────────────────────────────────────
-
-interface ScheduleEntry {
-  intervalMin: number;
-  color: string;
-  hosts: number;
-}
-
-function ScheduleStrip({
-  title,
-  schedule,
-  legend,
-}: {
-  title: string;
-  schedule: ScheduleEntry[];
-  legend: { color: string; label: string }[];
-}) {
-  const WIDTH_MIN = 24 * 60; // 24 hours
-  return (
-    <div
-      style={{
-        background: 'var(--ow-bg-1)',
-        border: '1px solid var(--ow-line)',
-        borderRadius: 'var(--ow-radius)',
-        padding: '16px 20px',
-        marginBottom: 14,
-      }}
-    >
-      <h4
-        style={{
-          margin: '0 0 12px',
-          fontSize: 12,
-          color: 'var(--ow-fg-2)',
-          textTransform: 'uppercase',
-          letterSpacing: '0.06em',
-          fontWeight: 600,
-        }}
-      >
-        {title}
-      </h4>
-      <div
-        style={{
-          position: 'relative',
-          height: 64,
-          background: 'var(--ow-bg-2)',
-          borderRadius: 6,
-          overflow: 'hidden',
-          border: '1px solid var(--ow-line)',
-        }}
-      >
-        {schedule.map((s, laneIdx) => (
-          <div
-            key={laneIdx}
-            style={{
-              position: 'absolute',
-              left: 0,
-              right: 0,
-              top: 8 + laneIdx * 9,
-              height: 6,
-            }}
-          >
-            {s.intervalMin > 0 &&
-              Array.from({ length: Math.floor(WIDTH_MIN / s.intervalMin) + 1 }, (_, i) => i).map(
-                (i) => {
-                  const t = i * s.intervalMin;
-                  return (
-                    <span
-                      key={i}
-                      style={{
-                        position: 'absolute',
-                        left: `calc(${(t / WIDTH_MIN) * 100}% - 1px)`,
-                        top: 0,
-                        height: '100%',
-                        width: 1.5,
-                        background: s.color,
-                        opacity: s.hosts > 0 ? 1 : 0.25,
-                        borderRadius: 1,
-                      }}
-                    />
-                  );
-                },
-              )}
-          </div>
-        ))}
-        <div
-          style={{
-            position: 'absolute',
-            inset: 0,
-            display: 'flex',
-            alignItems: 'flex-end',
-            paddingBottom: 4,
-            pointerEvents: 'none',
-          }}
-        >
-          {['now', '+4h', '+8h', '+12h', '+16h', '+20h'].map((t, i) => (
-            <span
-              key={t}
-              style={{
-                flex: 1,
-                textAlign: 'center',
-                color: 'var(--ow-fg-3)',
-                fontSize: 10,
-                fontFamily: 'var(--ow-font-mono)',
-                borderLeft:
-                  i === 0
-                    ? 'none'
-                    : '1px solid color-mix(in oklab, var(--ow-line) 50%, transparent)',
-              }}
-            >
-              {t}
-            </span>
-          ))}
-        </div>
-      </div>
-      <div style={{ display: 'flex', gap: 16, marginTop: 10, flexWrap: 'wrap' }}>
-        {legend.map((entry, i) => (
-          <span
-            key={i}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              color: 'var(--ow-fg-2)',
-              fontSize: 12,
-            }}
-          >
-            <span
-              style={{
-                width: 8,
-                height: 8,
-                borderRadius: 2,
-                background: entry.color,
-              }}
-            />
-            {entry.label}
-          </span>
-        ))}
       </div>
     </div>
   );
@@ -968,7 +886,7 @@ function GroupRow({
         <div style={{ color: 'var(--ow-fg-2)', fontSize: 12, marginTop: 4 }}>{desc}</div>
       </div>
       <div style={{ display: 'flex', gap: 12, alignItems: 'center', justifyContent: 'flex-end' }}>
-        <Btn size="sm">Schedule window</Btn>
+        <Btn size="sm" disabled>Schedule window</Btn>
         <Toggle value={paused} onChange={onPauseChange} ariaLabel={`Pause ${name}`} />
       </div>
     </div>
@@ -976,10 +894,20 @@ function GroupRow({
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// Save bar — sticky footer that appears when there are unsaved edits
+// Save bar
 // ─────────────────────────────────────────────────────────────────────────
 
-function SaveBar({ onReset }: { onReset: () => void }) {
+function SaveBar({
+  onReset,
+  onSave,
+  saving,
+  error,
+}: {
+  onReset: () => void;
+  onSave: () => void;
+  saving: boolean;
+  error: string | null;
+}) {
   return (
     <div
       role="region"
@@ -1001,12 +929,21 @@ function SaveBar({ onReset }: { onReset: () => void }) {
       <div style={{ flex: 1, fontSize: 13, color: 'var(--ow-fg-1)' }}>
         <strong>Unsaved changes.</strong>{' '}
         <span style={{ color: 'var(--ow-fg-2)' }}>
-          Persisting requires the scheduler config endpoint (Slice B).
+          Saving applies the new connectivity config and signals the live probe loop to reload.
         </span>
+        {error && (
+          <div style={{ marginTop: 4, color: 'var(--ow-crit)', fontSize: 12 }}>{error}</div>
+        )}
       </div>
-      <Btn onClick={onReset}>Discard</Btn>
-      <Btn variant="primary" disabled>
-        Save changes
+      <Btn onClick={onReset} disabled={saving}>Discard</Btn>
+      <Btn variant="primary" onClick={onSave} disabled={saving}>
+        {saving ? (
+          <>
+            <Loader2 size={14} /> Saving…
+          </>
+        ) : (
+          'Save changes'
+        )}
       </Btn>
     </div>
   );
