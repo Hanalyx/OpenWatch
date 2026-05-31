@@ -13,25 +13,43 @@ const (
 
 // ConnectivityConfig is the typed shape stored under KeyConnectivity.
 //
-// Spec: services-connectivity-config C-01 + C-06. Field bounds and
-// defaults match the liveness Default* constants verbatim so an
-// out-of-the-box deployment with zero system_config rows behaves
-// exactly like Slice B did before this config layer landed.
+// Spec: services-connectivity-config v1.1.0 C-01 + C-02. Per-state
+// intervals replace the v1.0.0 single IntervalSec — the liveness loop
+// computes each host's next_probe_at from the band the host is in
+// (Online / Degraded / Critical / Down).
+//
+// Maintenance band stays here as a persisted config so the UI can
+// edit it, but the loop doesn't read it yet — per-host maintenance is
+// in the backlog. MaintenanceGlobal still pauses the whole loop.
 type ConnectivityConfig struct {
-	IntervalSec          int  `json:"interval_sec"`
+	// Per-state probe intervals in seconds. v1.1.0 NEW.
+	OnlineSec      int `json:"online_sec"`
+	DegradedSec    int `json:"degraded_sec"`
+	CriticalSec    int `json:"critical_sec"`
+	DownSec        int `json:"down_sec"`
+	MaintenanceSec int `json:"maintenance_sec"`
+
 	TimeoutSec           int  `json:"timeout_sec"`
 	UnreachableThreshold int  `json:"unreachable_threshold"`
 	RateLimit            int  `json:"rate_limit"`
 	MaintenanceGlobal    bool `json:"maintenance_global"`
 }
 
-// DefaultConnectivity returns the baked-in defaults. Matches
-// liveness.DefaultProbeInterval (5m = 300s),
-// liveness.DefaultProbeTimeout (5s), and
-// liveness.DefaultUnreachableThreshold (2).
+// DefaultConnectivity returns the baked-in defaults — the band table
+// in services-connectivity-config v1.1.0.
+//
+//	Online      — 15m (consec=0, reachable: nothing's changing)
+//	Degraded    —  5m (consec>=1, reachable: watch closely)
+//	Critical    —  2m (consec<3, unreachable: confirm fast)
+//	Down        — 30m (consec>=3: back off, don't hammer dead)
+//	Maintenance — 60m (UI/persisted band, not yet auto-applied)
 func DefaultConnectivity() ConnectivityConfig {
 	return ConnectivityConfig{
-		IntervalSec:          300,
+		OnlineSec:            900,
+		DegradedSec:          300,
+		CriticalSec:          120,
+		DownSec:              1800,
+		MaintenanceSec:       3600,
 		TimeoutSec:           5,
 		UnreachableThreshold: 2,
 		RateLimit:            50,
@@ -46,8 +64,19 @@ var ErrInvalidConfig = errors.New("systemconfig: invalid config")
 // Validate enforces the bounds in services-connectivity-config C-01.
 // Returns a wrapped ErrInvalidConfig naming the offending field.
 func (c ConnectivityConfig) Validate() error {
-	if c.IntervalSec < 60 || c.IntervalSec > 86400 {
-		return fmt.Errorf("%w: interval_sec=%d must be 60..86400", ErrInvalidConfig, c.IntervalSec)
+	for _, f := range []struct {
+		name string
+		val  int
+	}{
+		{"online_sec", c.OnlineSec},
+		{"degraded_sec", c.DegradedSec},
+		{"critical_sec", c.CriticalSec},
+		{"down_sec", c.DownSec},
+		{"maintenance_sec", c.MaintenanceSec},
+	} {
+		if f.val < 60 || f.val > 86400 {
+			return fmt.Errorf("%w: %s=%d must be 60..86400", ErrInvalidConfig, f.name, f.val)
+		}
 	}
 	if c.TimeoutSec < 1 || c.TimeoutSec > 30 {
 		return fmt.Errorf("%w: timeout_sec=%d must be 1..30", ErrInvalidConfig, c.TimeoutSec)

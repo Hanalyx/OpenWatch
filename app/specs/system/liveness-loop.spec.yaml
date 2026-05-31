@@ -1,7 +1,7 @@
 spec:
   id: system-liveness-loop
   title: Host liveness probe loop
-  version: "1.1.0"
+  version: "1.2.0"
   status: approved
   tier: 1
 
@@ -103,6 +103,18 @@ spec:
       description: NewService signature is NewService(pool, emit, bus). The bus parameter MAY be nil — in that case the service still emits audit events but skips bus publishes (testable in isolation). v1.1.0 NEW
       type: technical
       enforcement: error
+    - id: C-14
+      description: persist() MUST compute next_probe_at = now + bandIntervalFor(newStatus, newConsecutive, cfg) on every probe. The band-to-interval mapping uses the per-state seconds from services-connectivity-config v1.1.0 (Online=OnlineSec, Degraded=DegradedSec, Critical=CriticalSec, Down=DownSec, Maintenance ignored — the maintenance band is UI-only until per-host maintenance ships). v1.2.0 NEW
+      type: technical
+      enforcement: error
+    - id: C-15
+      description: listProbeTargets MUST filter to hosts where host_liveness.next_probe_at IS NULL OR next_probe_at <= now() (in addition to the existing soft-delete + backoff_state filter). A host that's been probed within its band's interval MUST be skipped. v1.2.0 NEW
+      type: technical
+      enforcement: error
+    - id: C-16
+      description: Service.Run tick cadence MUST be a short polling interval (default 30s) — per-host effective cadence comes from the band, not from the tick rate. The 30s tick discovers due hosts; the 60..86400s band intervals decide per-host probe spacing. v1.2.0 NEW
+      type: technical
+      enforcement: error
 
   acceptance_criteria:
     - id: AC-01
@@ -196,3 +208,15 @@ spec:
       description: NewService(pool, emit, nil) — when the bus is nil, ProbeHost still works and the audit emission still fires; the only difference is no bus publish.
       priority: high
       references_constraints: [C-13]
+    - id: AC-24
+      description: bandIntervalFor maps (status, consecutive_failures, cfg) to the right interval seconds — reachable + consec=0 → OnlineSec, reachable + consec>=1 → DegradedSec, unreachable + consec<threshold → CriticalSec, consec>=threshold → DownSec. Pure-function-testable, no DB.
+      priority: critical
+      references_constraints: [C-14]
+    - id: AC-25
+      description: After persist() writes a reachable + consec=0 row at time T, host_liveness.next_probe_at equals T + OnlineSec (within 1s of clock skew). After a failed probe that flips a host to unreachable + consec=threshold, next_probe_at equals T + DownSec.
+      priority: critical
+      references_constraints: [C-14]
+    - id: AC-26
+      description: listProbeTargets seeded with three hosts — H1 with next_probe_at=NULL, H2 with next_probe_at in the past, H3 with next_probe_at in the future — returns exactly H1 and H2. The short Run-tick (Service.effectiveInterval defaulting to 30s) drives this query — per-host effective cadence comes from the band, not the tick rate.
+      priority: critical
+      references_constraints: [C-15, C-16]

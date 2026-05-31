@@ -211,13 +211,46 @@ func (s *Service) Run(ctx context.Context) {
 	}
 }
 
-// effectiveInterval returns the configured interval (config takes
-// precedence) or the construction-time default.
+// effectiveInterval returns the Run-loop tick cadence. v1.2.0 makes
+// this a short polling interval — per-host effective cadence comes
+// from the band intervals in ConnectivityConfig, not from the tick
+// rate. Spec system-liveness-loop C-16.
+//
+// 30s gives sub-band-floor latency for the "due now" check without
+// hammering the DB. For tests, s.interval (settable via WithInterval)
+// can override it.
 func (s *Service) effectiveInterval() time.Duration {
-	if p := s.cfgPtr.Load(); p != nil && p.IntervalSec > 0 {
-		return time.Duration(p.IntervalSec) * time.Second
+	if s.interval > 0 && s.interval < 30*time.Second {
+		// Test path — respect the explicit short interval.
+		return s.interval
 	}
-	return s.interval
+	return 30 * time.Second
+}
+
+// bandIntervalFor maps (status, consecutive_failures, cfg) to the
+// per-host probe interval — the duration before this host is next
+// due. Spec system-liveness-loop v1.2.0 C-14, AC-24:
+//
+//	reachable    + consec=0                → OnlineSec   (stable)
+//	reachable    + consec>=1                → DegradedSec (watch)
+//	unreachable  + consec<threshold         → CriticalSec (confirm)
+//	any          + consec>=threshold        → DownSec     (back off)
+//	unknown / anything else                 → OnlineSec   (treat as healthy default)
+func bandIntervalFor(status Status, consecutive int, cfg systemconfig.ConnectivityConfig) time.Duration {
+	threshold := cfg.UnreachableThreshold
+	if threshold <= 0 {
+		threshold = 2
+	}
+	switch {
+	case consecutive >= threshold:
+		return time.Duration(cfg.DownSec) * time.Second
+	case status == StatusUnreachable:
+		return time.Duration(cfg.CriticalSec) * time.Second
+	case status == StatusReachable && consecutive >= 1:
+		return time.Duration(cfg.DegradedSec) * time.Second
+	default:
+		return time.Duration(cfg.OnlineSec) * time.Second
+	}
 }
 
 // tick performs one probe walk. Surface for tests: exercising tick
@@ -253,8 +286,14 @@ type probeTarget struct {
 }
 
 // listProbeTargets returns active (non-soft-deleted) hosts whose
-// host_backoff_state does not suppress probes at this moment. Spec
-// AC-17 / AC-18.
+//
+//   - host_backoff_state does not suppress probes at this moment
+//     (AC-18), AND
+//   - host_liveness.next_probe_at is NULL (never probed / fresh row)
+//     OR <= now (probe is due). v1.2.0 C-15 / AC-26.
+//
+// Hosts probed within their band's interval are skipped here so the
+// tick scales to large fleets without re-walking every host.
 func (s *Service) listProbeTargets(ctx context.Context) ([]probeTarget, error) {
 	now := s.clock()
 	const q = `
@@ -262,8 +301,11 @@ func (s *Service) listProbeTargets(ctx context.Context) ([]probeTarget, error) {
 		  FROM hosts h
 		  LEFT JOIN host_backoff_state b
 		    ON b.host_id = h.id AND b.probe_type = 'scan'
+		  LEFT JOIN host_liveness hl
+		    ON hl.host_id = h.id
 		 WHERE h.deleted_at IS NULL
-		   AND (b.suppress_until IS NULL OR b.suppress_until <= $1)`
+		   AND (b.suppress_until IS NULL OR b.suppress_until <= $1)
+		   AND (hl.next_probe_at IS NULL OR hl.next_probe_at <= $1)`
 	rows, err := s.pool.Query(ctx, q, now)
 	if err != nil {
 		return nil, err
@@ -372,13 +414,19 @@ func (s *Service) persist(ctx context.Context, hostID uuid.UUID, result ProbeRes
 	lastErrType := nullableString(result.LastErrorType())
 	stateChangeAt := pickStateChangeTime(hasPrior, Status(priorStatus), newStatus, now)
 
-	// UPSERT spec C-09.
+	// Adaptive next_probe_at — the band the host now sits in decides
+	// how long until we probe it again. Spec system-liveness-loop
+	// v1.2.0 C-14 / AC-25.
+	cfg := s.readConfig()
+	nextProbeAt := now.Add(bandIntervalFor(newStatus, newConsecutive, cfg))
+
+	// UPSERT spec C-09 (+v1.2.0 next_probe_at).
 	if _, err := s.pool.Exec(ctx, `
 		INSERT INTO host_liveness
 			(host_id, reachability_status, last_probe_at,
 			 last_response_ms, consecutive_failures,
-			 last_state_change_at, last_error_type, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $3)
+			 last_state_change_at, last_error_type, next_probe_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $3)
 		ON CONFLICT (host_id) DO UPDATE SET
 			reachability_status  = EXCLUDED.reachability_status,
 			last_probe_at        = EXCLUDED.last_probe_at,
@@ -386,9 +434,10 @@ func (s *Service) persist(ctx context.Context, hostID uuid.UUID, result ProbeRes
 			consecutive_failures = EXCLUDED.consecutive_failures,
 			last_state_change_at = EXCLUDED.last_state_change_at,
 			last_error_type      = EXCLUDED.last_error_type,
+			next_probe_at        = EXCLUDED.next_probe_at,
 			updated_at           = EXCLUDED.updated_at`,
 		hostID, string(newStatus), now, responseMS, newConsecutive,
-		stateChangeAt, lastErrType,
+		stateChangeAt, lastErrType, nextProbeAt,
 	); err != nil {
 		return fmt.Errorf("upsert: %w", err)
 	}

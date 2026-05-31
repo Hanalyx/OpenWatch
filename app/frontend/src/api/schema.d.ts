@@ -1027,8 +1027,16 @@ export interface components {
             never_probed: number;
         };
         ConnectivityConfig: {
-            /** @description Seconds between probe-loop ticks (60..86400) */
-            interval_sec: number;
+            /** @description Probe interval for reachable hosts with consecutive_failures=0 (60..86400). Default 900 (15m) */
+            online_sec: number;
+            /** @description Probe interval for reachable hosts with consecutive_failures>=1 (60..86400). Default 300 (5m) */
+            degraded_sec: number;
+            /** @description Probe interval for unreachable hosts below the threshold (60..86400). Default 120 (2m) */
+            critical_sec: number;
+            /** @description Probe interval for hosts at or above the threshold (60..86400). Default 1800 (30m) */
+            down_sec: number;
+            /** @description Persisted band interval for hosts in maintenance (60..86400). Default 3600 (60m). Not yet auto-applied; tracked for the per-host maintenance slice */
+            maintenance_sec: number;
             /** @description Per-probe TCP-banner timeout in seconds (1..30) */
             timeout_sec: number;
             /** @description Consecutive failures before reachable→unreachable (1..10) */
