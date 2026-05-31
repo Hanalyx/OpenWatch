@@ -29,7 +29,11 @@ import (
 func hostLockKey(hostID uuid.UUID) int64 {
 	h := fnv.New64a()
 	h.Write(hostID[:])
-	return int64(h.Sum64())
+	// pg_advisory_xact_lock takes a bigint (int64). The bit pattern of
+	// the uint64 hash is what matters — collisions are managed by Postgres'
+	// own advisory-lock semantics. The two-complement reinterpretation is
+	// intentional, not a numeric truncation.
+	return int64(h.Sum64()) // #nosec G115 -- bit-cast for advisory lock keyspace
 }
 
 // acquireHostLock takes a pg_advisory_xact_lock keyed on the host. The

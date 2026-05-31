@@ -25,7 +25,7 @@ func TestHostLockKey_Deterministic_FNV1a64(t *testing.T) {
 
 		h := fnv.New64a()
 		h.Write(id[:])
-		want := int64(h.Sum64())
+		want := int64(h.Sum64()) // #nosec G115 -- mirrors production hostLockKey bit-cast
 
 		if got != want {
 			t.Errorf("hostLockKey = %d, independent FNV-1a 64-bit = %d", got, want)

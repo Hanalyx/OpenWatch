@@ -22,7 +22,6 @@
 // its result is persisted; then Run returns.
 //
 // Spec: app/specs/system/worker-subcommand.spec.yaml
-
 package worker
 
 import (
@@ -422,9 +421,13 @@ func (w *ScanWorker) emitTick(ctx context.Context) {
 // tickWindowedInterval returns a jittered duration in [55s, 65s] so
 // multiple workers in the same fleet don't synchronize tick emission.
 // Spec C-08 / AC-08.
+//
+// math/rand/v2 is intentional here: this is timing jitter (scheduling
+// noise), NOT a security-sensitive secret. Crypto-strong randomness
+// would just burn entropy for no defensive benefit.
 func tickWindowedInterval() time.Duration {
 	// rand.Int64N is range [0, n); we want [-tickJitter, +tickJitter].
-	jitter := time.Duration(rand.Int64N(int64(2*tickJitter))) - tickJitter
+	jitter := time.Duration(rand.Int64N(int64(2*tickJitter))) - tickJitter // #nosec G404 -- scheduling jitter, not a secret
 	return TickInterval + jitter
 }
 
