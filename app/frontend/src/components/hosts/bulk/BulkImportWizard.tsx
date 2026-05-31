@@ -19,7 +19,11 @@ export function BulkImportWizard() {
   const [fileName, setFileName] = useState<string | null>(null);
   const [analysis, setAnalysis] = useState<CSVAnalysis | null>(null);
   const [mappings, setMappings] = useState<FieldMapping[]>([]);
-  const [options, setOptions] = useState<ImportOptions>({ dryRun: false, updateExisting: false });
+  const [options, setOptions] = useState<ImportOptions>({
+    dryRun: false,
+    updateExisting: false,
+    credentialMode: 'system_default',
+  });
 
   const handleAnalyzed = (text: string, name: string, a: CSVAnalysis) => {
     setCsvText(text);

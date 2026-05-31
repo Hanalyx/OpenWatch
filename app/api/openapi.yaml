@@ -638,6 +638,45 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
 
+  /api/v1/credentials/{id}:clone:
+    post:
+      operationId: postCredentialClone
+      summary: Clone a credential into a new scope (system → host or host → host)
+      description: >
+        Copies the source credential's encrypted secret material verbatim
+        into a new row with the target scope/scope_id. Used by the bulk
+        import flow to attach a chosen credential template to each newly
+        imported host without re-prompting for the secret material.
+      x-required-permission: credential:write
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CredentialCloneRequest'}
+      responses:
+        '201':
+          description: Clone created
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CredentialResponse'}
+        '400':
+          description: Invalid scope, host not found, or validation failure
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '404':
+          description: Source credential not found or already soft-deleted
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '409':
+          description: is_default=true collides with an existing system default
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
   /api/v1/hosts:
     get:
       operationId: getHosts
@@ -1353,6 +1392,18 @@ components:
         private_key:            {type: string}
         private_key_passphrase: {type: string}
         is_default:             {type: boolean}
+
+    # Clone target shape. The source credential's secret material is
+    # inherited verbatim (no plaintext crosses the wire); only the new
+    # scope, scope_id, name, and is_default are operator-controlled.
+    CredentialCloneRequest:
+      type: object
+      required: [scope]
+      properties:
+        scope:      {type: string, enum: [system, host]}
+        scope_id:   {type: string, format: uuid, nullable: true, description: "Required when scope=host"}
+        name:       {type: string, minLength: 1, maxLength: 256, description: "Defaults to '<source name> (clone)' when omitted"}
+        is_default: {type: boolean, description: "Mark this clone as the system default (only valid when scope=system)"}
 
     HealthResponse:
       type: object

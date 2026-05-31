@@ -484,6 +484,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/credentials/{id}:clone": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Clone a credential into a new scope (system → host or host → host)
+         * @description Copies the source credential's encrypted secret material verbatim into a new row with the target scope/scope_id. Used by the bulk import flow to attach a chosen credential template to each newly imported host without re-prompting for the secret material.
+         */
+        post: operations["postCredentialClone"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/hosts": {
         parameters: {
             query?: never;
@@ -934,6 +954,19 @@ export interface components {
             password?: string;
             private_key?: string;
             private_key_passphrase?: string;
+            is_default?: boolean;
+        };
+        CredentialCloneRequest: {
+            /** @enum {string} */
+            scope: "system" | "host";
+            /**
+             * Format: uuid
+             * @description Required when scope=host
+             */
+            scope_id?: string | null;
+            /** @description Defaults to '<source name> (clone)' when omitted */
+            name?: string;
+            /** @description Mark this clone as the system default (only valid when scope=system) */
             is_default?: boolean;
         };
         HealthResponse: {
@@ -2192,6 +2225,59 @@ export interface operations {
             };
             /** @description Credential not found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    postCredentialClone: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CredentialCloneRequest"];
+            };
+        };
+        responses: {
+            /** @description Clone created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CredentialResponse"];
+                };
+            };
+            /** @description Invalid scope, host not found, or validation failure */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Source credential not found or already soft-deleted */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description is_default=true collides with an existing system default */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

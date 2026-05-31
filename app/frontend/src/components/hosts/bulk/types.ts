@@ -65,6 +65,11 @@ export interface ImportResult {
 export interface ImportOptions {
   updateExisting: boolean;
   dryRun: boolean;
+  /** Which credential strategy applies to every imported host. */
+  credentialMode: 'system_default' | 'clone_template';
+  /** When credentialMode === 'clone_template', the source credential id
+   *  to clone into a host-scoped row for each created host. */
+  cloneSourceId?: string;
 }
 
 export interface TargetField {

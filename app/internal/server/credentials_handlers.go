@@ -140,6 +140,90 @@ func (h *handlers) GetCredentialByID(w http.ResponseWriter, r *http.Request, id 
 	writeJSON(w, http.StatusOK, credentialResponse(m))
 }
 
+// PostCredentialClone copies the source credential's secret material
+// into a new row with the target scope/scope_id. The bulk-import flow
+// uses this to attach a chosen credential template to every newly
+// imported host without re-prompting the operator for the key/password.
+//
+// Spec api-credentials v1.1.0 AC-13, AC-14, AC-15.
+func (h *handlers) PostCredentialClone(w http.ResponseWriter, r *http.Request, srcID openapitypes.UUID) {
+	if denied := auth.EnforcePermission(w, r, auth.CredentialWrite); denied {
+		return
+	}
+	var req api.CredentialCloneRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "validation.field_required", "client",
+			"scope is required", false)
+		return
+	}
+
+	var scopeID *uuid.UUID
+	if req.ScopeId != nil {
+		u := uuid.UUID(*req.ScopeId)
+		scopeID = &u
+	}
+	params := credential.CloneParams{
+		SourceID: uuid.UUID(srcID),
+		Scope:    credential.Scope(req.Scope),
+		ScopeID:  scopeID,
+	}
+	if req.Name != nil {
+		params.Name = *req.Name
+	}
+	if req.IsDefault != nil {
+		params.IsDefault = *req.IsDefault
+	}
+	if creator := h.identityUUID(r); creator != nil {
+		params.CreatedBy = *creator
+	}
+
+	// Mirror PostCredentials AC-04: when scope=host, the target host MUST exist.
+	if params.Scope == credential.ScopeHost && params.ScopeID != nil {
+		if _, err := h.hosts.GetByID(r.Context(), *params.ScopeID); err != nil {
+			if errors.Is(err, host.ErrHostNotFound) {
+				writeError(w, http.StatusBadRequest, "credentials.host_not_found", "client",
+					"scope_id does not match an active host", false)
+				return
+			}
+			writeError(w, http.StatusInternalServerError, "server.error", "server",
+				"host lookup failed", true)
+			return
+		}
+	}
+
+	newID, err := h.credentials.CloneCredential(r.Context(), params)
+	if err != nil {
+		switch {
+		case errors.Is(err, credential.ErrNotFound):
+			writeError(w, http.StatusNotFound, "credentials.not_found", "client",
+				"source credential not found", false)
+		case errors.Is(err, credential.ErrInvalidScope):
+			writeError(w, http.StatusBadRequest, "credentials.invalid_scope", "client",
+				"scope and scope_id mismatch", false)
+		case errors.Is(err, credential.ErrMultipleSystemDefaults):
+			writeError(w, http.StatusConflict, "credentials.multiple_system_defaults", "client",
+				"another system default already exists", false)
+		default:
+			writeError(w, http.StatusInternalServerError, "server.error", "server",
+				err.Error(), true)
+		}
+		return
+	}
+	emitAudit(r, audit.CredentialCreated, newID.String(), map[string]any{
+		"credential_id": newID.String(),
+		"cloned_from":   uuid.UUID(srcID).String(),
+		"scope":         string(params.Scope),
+	})
+
+	created, err := h.credentials.GetMetadataByID(r.Context(), newID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "server.error", "server",
+			"clone succeeded but lookup failed", true)
+		return
+	}
+	writeJSON(w, http.StatusCreated, credentialResponse(created))
+}
+
 // DeleteCredentialByID soft-deletes a credential.
 // Spec api-credentials AC-09.
 func (h *handlers) DeleteCredentialByID(w http.ResponseWriter, r *http.Request, id openapitypes.UUID) {
