@@ -21,42 +21,42 @@ type Code string
 
 // Account / identity codes.
 const (
-	CodeAccountUserLocked              Code = "account.user.locked"
-	CodeAccountUserUnlocked            Code = "account.user.unlocked"
-	CodeAccountUserCreated             Code = "account.user.created"
-	CodeAccountUserDeleted             Code = "account.user.deleted"
-	CodeAccountUserPrivilegedGroupAdd  Code = "account.user.privileged_group_added"
-	CodeAccountPasswordExpired         Code = "account.password.expired"
-	CodeAccountPasswordExpiring        Code = "account.password.expiring"
-	CodeAccountSSHKeyAdded             Code = "account.ssh_key.added"
-	CodeAccountSSHKeyRemoved           Code = "account.ssh_key.removed"
-	CodeAccountSudoFailureThreshold    Code = "account.sudo.failure_threshold"
+	CodeAccountUserLocked             Code = "account.user.locked"
+	CodeAccountUserUnlocked           Code = "account.user.unlocked"
+	CodeAccountUserCreated            Code = "account.user.created"
+	CodeAccountUserDeleted            Code = "account.user.deleted"
+	CodeAccountUserPrivilegedGroupAdd Code = "account.user.privileged_group_added"
+	CodeAccountPasswordExpired        Code = "account.password.expired"
+	CodeAccountPasswordExpiring       Code = "account.password.expiring"
+	CodeAccountSSHKeyAdded            Code = "account.ssh_key.added"
+	CodeAccountSSHKeyRemoved          Code = "account.ssh_key.removed"
+	CodeAccountSudoFailureThreshold   Code = "account.sudo.failure_threshold"
 )
 
 // Security codes.
 const (
-	CodeSecurityLoginNewSourceIP       Code = "security.login.new_source_ip"
-	CodeSecurityLoginFailedThreshold   Code = "security.login.failed_threshold"
-	CodeSecuritySELinuxDenied          Code = "security.selinux.denied"
-	CodeSecurityAppArmorDenied         Code = "security.apparmor.denied"
-	CodeSecurityFirewallRuleChanged    Code = "security.firewall.rule_changed"
-	CodeSecurityPortOpened             Code = "security.port.opened"
+	CodeSecurityLoginNewSourceIP     Code = "security.login.new_source_ip"
+	CodeSecurityLoginFailedThreshold Code = "security.login.failed_threshold"
+	CodeSecuritySELinuxDenied        Code = "security.selinux.denied"
+	CodeSecurityAppArmorDenied       Code = "security.apparmor.denied"
+	CodeSecurityFirewallRuleChanged  Code = "security.firewall.rule_changed"
+	CodeSecurityPortOpened           Code = "security.port.opened"
 )
 
 // System codes.
 const (
-	CodeSystemPackageInstalled         Code = "system.package.installed"
-	CodeSystemPackageUpdated           Code = "system.package.updated"
-	CodeSystemPackageRemoved           Code = "system.package.removed"
-	CodeSystemKernelUpdated            Code = "system.kernel.updated"
-	CodeSystemRebootRequired           Code = "system.reboot.required"
-	CodeSystemRebootCompleted          Code = "system.reboot.completed"
-	CodeSystemConfigChanged            Code = "system.config.file_changed"
-	CodeSystemServiceStarted           Code = "system.service.started"
-	CodeSystemServiceStopped           Code = "system.service.stopped"
-	CodeSystemServiceFailed            Code = "system.service.failed"
-	CodeSystemFilesystemMounted        Code = "system.filesystem.mounted"
-	CodeSystemFilesystemUnmounted      Code = "system.filesystem.unmounted"
+	CodeSystemPackageInstalled    Code = "system.package.installed"
+	CodeSystemPackageUpdated      Code = "system.package.updated"
+	CodeSystemPackageRemoved      Code = "system.package.removed"
+	CodeSystemKernelUpdated       Code = "system.kernel.updated"
+	CodeSystemRebootRequired      Code = "system.reboot.required"
+	CodeSystemRebootCompleted     Code = "system.reboot.completed"
+	CodeSystemConfigChanged       Code = "system.config.file_changed"
+	CodeSystemServiceStarted      Code = "system.service.started"
+	CodeSystemServiceStopped      Code = "system.service.stopped"
+	CodeSystemServiceFailed       Code = "system.service.failed"
+	CodeSystemFilesystemMounted   Code = "system.filesystem.mounted"
+	CodeSystemFilesystemUnmounted Code = "system.filesystem.unmounted"
 )
 
 // taxonomyCodes is the registration-order list. Code-correctness checks

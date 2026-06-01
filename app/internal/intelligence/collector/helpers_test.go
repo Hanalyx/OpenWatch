@@ -71,15 +71,15 @@ func (s *stubSSHTransport) SeedAll() {
 	s.outputs["sudo -n cat /etc/shadow"] = stubResult{out: []byte("root:$6$abc:19000:0:99999:7:::\nalice:!!:19500:0:99999:7:::\n"), exitCode: 0}
 	s.outputs["getent group"] = stubResult{out: []byte("root:x:0:root\nwheel:x:10:root,alice\n"), exitCode: 0}
 	s.outputs["ss -tln"] = stubResult{
-		out: []byte("State    Recv-Q   Send-Q     Local Address:Port      Peer Address:Port\nLISTEN   0        128              0.0.0.0:22              0.0.0.0:*\n"),
+		out:      []byte("State    Recv-Q   Send-Q     Local Address:Port      Peer Address:Port\nLISTEN   0        128              0.0.0.0:22              0.0.0.0:*\n"),
 		exitCode: 0,
 	}
 	s.outputs["rpm -qa --queryformat='%{NAME} %{VERSION}-%{RELEASE}\\n' 2>/dev/null || dpkg -l 2>/dev/null"] = stubResult{
-		out: []byte("openssh 9.0p1-19\nglibc 2.34-83.el9\n"),
+		out:      []byte("openssh 9.0p1-19\nglibc 2.34-83.el9\n"),
 		exitCode: 0,
 	}
 	s.outputs["systemctl list-units --type=service --all --no-legend --plain"] = stubResult{
-		out: []byte("sshd.service loaded active running OpenSSH server daemon\n"),
+		out:      []byte("sshd.service loaded active running OpenSSH server daemon\n"),
 		exitCode: 0,
 	}
 	s.outputs["uname -r"] = stubResult{out: []byte("5.14.0-362.el9.x86_64\n"), exitCode: 0}
