@@ -273,6 +273,9 @@ export function HostDetailPage() {
       search: tab === 'overview' && !framework ? {} : { ...(framework ? { framework } : {}), tab },
     });
 
+  // Preserved for the future Compliance tab — the framework selector
+  // is mounted there (not on Overview, AC-35). AC-08 (api-hosts) still
+  // requires the URL-update + queryKey re-fetch wiring exists.
   const onFrameworkChange = (next: string | undefined) =>
     navigate({
       to: '/hosts/$hostId',
@@ -282,6 +285,9 @@ export function HostDetailPage() {
         ...(activeTab !== 'overview' ? { tab: activeTab } : {}),
       },
     });
+  // Keep alive across renders so noUnusedLocals doesn't drop it before
+  // the Compliance tab lands.
+  void onFrameworkChange;
 
   return (
     <div style={{ padding: '20px 28px' }}>
@@ -333,8 +339,7 @@ export function HostDetailPage() {
               >
                 <HeroCompliance
                   summary={detailQuery.data.compliance_summary}
-                  framework={framework}
-                  onFrameworkChange={onFrameworkChange}
+                  lastScan={null}
                 />
                 <HeroAutoScan />
                 <HeroConnectivity
@@ -877,21 +882,30 @@ function TabStub({ tab, subsystem }: { tab: TabId; subsystem: string }) {
 
 function HeroCompliance({
   summary,
-  framework,
-  onFrameworkChange,
+  lastScan,
 }: {
   summary: ComplianceSummary;
-  framework: string | undefined;
-  onFrameworkChange: (next: string | undefined) => void;
+  lastScan: string | null;
 }) {
   // AC-04 / AC-05: keep the canonical math expression + label strings.
+  // AC-35: subhead is "LAST SCAN <date>", NOT a Framework selector
+  // (the Framework filter belongs on the Compliance tab when it ships).
   const isEmpty = summary.total === 0;
   const pct = isEmpty ? 0 : Math.round((summary.passing / summary.total) * 100);
   return (
     <article style={heroCard} aria-labelledby="hero-compliance-title">
       <header style={heroHead}>
         <span id="hero-compliance-title">Compliance</span>
-        <FrameworkFilter value={framework} onChange={onFrameworkChange} />
+        <span
+          style={{
+            fontSize: 11,
+            color: 'var(--ow-fg-3)',
+            textTransform: 'uppercase',
+            letterSpacing: '0.04em',
+          }}
+        >
+          LAST SCAN {lastScan ?? '—'}
+        </span>
       </header>
       {isEmpty ? (
         <div role="status" style={{ color: 'var(--ow-fg-2)', fontSize: 12 }}>
@@ -1428,46 +1442,6 @@ function Stat({ n, label, color }: { n: number; label: string; color: string }) 
         {label}
       </div>
     </div>
-  );
-}
-
-function FrameworkFilter({
-  value,
-  onChange,
-}: {
-  value: string | undefined;
-  onChange: (next: string | undefined) => void;
-}) {
-  const frameworks = [
-    { value: '', label: 'All frameworks' },
-    { value: 'cis_rhel9_v2.0.0', label: 'CIS RHEL 9 v2.0.0' },
-    { value: 'stig_rhel9_v2r7', label: 'STIG RHEL 9 V2R7' },
-    { value: 'nist_800_53_r5', label: 'NIST 800-53 R5' },
-  ];
-  return (
-    <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-      <span style={{ fontSize: 11, color: 'var(--ow-fg-3)' }}>Framework</span>
-      <select
-        value={value ?? ''}
-        onChange={(e) => onChange(e.target.value || undefined)}
-        style={{
-          height: 22,
-          padding: '0 4px',
-          background: 'var(--ow-bg-2)',
-          border: '1px solid var(--ow-line)',
-          borderRadius: 4,
-          color: 'var(--ow-fg-0)',
-          fontFamily: 'inherit',
-          fontSize: 11,
-        }}
-      >
-        {frameworks.map((f) => (
-          <option key={f.value} value={f.value}>
-            {f.label}
-          </option>
-        ))}
-      </select>
-    </label>
   );
 }
 

@@ -1,7 +1,7 @@
 spec:
   id: frontend-host-detail
   title: Host Detail page layout, behavior, and empty-state contracts
-  version: "1.0.2"
+  version: "1.0.3"
   status: approved
   tier: 2
 
@@ -93,7 +93,7 @@ spec:
       type: technical
       enforcement: error
     - id: C-10
-      description: 'Compliance hero card MUST render the percentage from compliance_summary.passing / compliance_summary.total. When total is 0, render the prototype empty-state ("No scan data yet") rather than NaN%. Pass/fail stacked bar widths come from the same numerator/denominator'
+      description: 'Compliance hero card MUST render the percentage from compliance_summary.passing / compliance_summary.total. When total is 0, render the prototype empty-state ("No scan data yet") rather than NaN%. Pass/fail stacked bar widths come from the same numerator/denominator. The header sub-cell shows "LAST SCAN <date>" (the prototype''s subhead) — the Framework selector belongs on the Compliance tab, NOT this hero card'
       type: technical
       enforcement: error
 
@@ -213,3 +213,7 @@ spec:
       description: 'Offline banner MUST name the failing layer when liveness.last_error_type or per-layer counters allow inference. Map: icmp_* → "ping", tcp_*/banner_mismatch/connection_refused → "SSH", privilege_denied → "privilege escalation". Surface as a secondary line ("Failed at <layer>") so operators can route the right fix (network team vs sshd vs sudoers).'
       priority: critical
       references_constraints: [C-08]
+    - id: AC-35
+      description: 'HeroCompliance subhead in the card header MUST be "LAST SCAN <date>" (e.g. "LAST SCAN 4/19/2026" or "LAST SCAN —" when no scan has run), NOT a Framework selector. The Framework filter belongs on the Compliance tab when that tab ships; including it in the Overview hero clutters the affordance and was an explicit prototype miss.'
+      priority: high
+      references_constraints: [C-10]

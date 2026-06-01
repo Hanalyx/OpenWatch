@@ -26,6 +26,7 @@
 //   AC-32  test('frontend-host-detail/AC-32 — round chevron back button in page-head')
 //   AC-33  test('frontend-host-detail/AC-33 — Maintenance toggle is a switch with knob')
 //   AC-34  test('frontend-host-detail/AC-34 — offline banner names failing layer')
+//   AC-35  test('frontend-host-detail/AC-35 — Compliance hero subhead is LAST SCAN, not Framework selector')
 
 import { describe, expect, test } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -321,6 +322,18 @@ describe('frontend-host-detail — prototype shell', () => {
     // No checkbox input — the switch is a button with role="switch".
     expect(body).toMatch(/role=["'`]switch["'`]/);
     expect(body).toMatch(/aria-checked=/);
+  });
+
+  // @ac AC-35
+  test('frontend-host-detail/AC-35 — Compliance hero subhead is LAST SCAN, not Framework selector', () => {
+    const heroFn = PAGE_SRC.indexOf('function HeroCompliance');
+    expect(heroFn).toBeGreaterThan(-1);
+    const next = PAGE_SRC.indexOf('\nfunction ', heroFn + 1);
+    const body = PAGE_SRC.slice(heroFn, next);
+    // The Last-Scan subhead is mounted in the header sub-cell.
+    expect(body).toMatch(/LAST SCAN/);
+    // No FrameworkFilter mounted inside the hero card.
+    expect(body).not.toContain('<FrameworkFilter');
   });
 
   // @ac AC-34
