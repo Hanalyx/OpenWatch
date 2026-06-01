@@ -46,6 +46,7 @@ domains:
             - api-users
             - api-credentials
             - api-events-stream
+            - frontend-live-events
             - api-hosts
             - frontend-host-detail
             - api-openapi-docs

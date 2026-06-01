@@ -1,0 +1,116 @@
+spec:
+  id: frontend-live-events
+  title: useLiveEvents SSE hook — topic ↔ query-key invalidation contract
+  version: "1.0.0"
+  status: approved
+  tier: 2
+
+  context:
+    system: openwatch-go
+    feature: Client-side SSE subscriber that auto-invalidates TanStack Query keys on bus events
+    description: >
+      The frontend opens ONE SSE connection to /api/v1/events (spec
+      api-events-stream) at app mount time and converts each incoming
+      bus event into a TanStack Query invalidation. This spec locks
+      the topic-to-query-key map so the backend's published
+      EventKinds stay aligned with the frontend's invalidation
+      vocabulary.
+
+      v1.0.0 closed set of subscribed topics (each MUST appear in
+      eventbus.AllEventKinds — verified by the backend's
+      system-event-bus AC-07 + matched at this spec's AC-01):
+
+        - host.changed                — list + detail invalidation
+        - monitoring.band.changed     — list + detail invalidation
+        - host.discovered             — list + detail invalidation
+                                        (denormalized OS fields landed)
+        - intelligence.event          — detail intelligence_events query
+                                        invalidation; list page is NOT
+                                        invalidated (intel events don't
+                                        affect the list view)
+
+      Spec system-event-bus AC-07 enumerates the backend closed enum;
+      this spec mirrors the frontend's subset. The two MUST stay in
+      lock-step: every kind we subscribe to here MUST exist on the
+      backend; new backend kinds without a frontend handler are
+      acceptable (no invalidation needed yet) but new frontend topics
+      without a matching backend kind cause silent no-ops.
+
+    related_specs:
+      - api-events-stream
+      - system-event-bus
+      - system-host-discovery
+      - system-os-intelligence
+
+  objective:
+    summary: >
+      Source of truth for the ALL_TOPICS array exported from
+      app/frontend/src/hooks/useLiveEvents.ts and the handlers
+      mapping each topic to a TanStack Query invalidation. Tests
+      mount the hook with a stubbed EventSource, fire each topic,
+      and assert the right query keys are invalidated.
+    scope:
+      includes:
+        - ALL_TOPICS exported as a closed const tuple
+        - Per-topic handler invalidating the right query keys
+        - Single EventSource connection per mounted hook (no per-topic sockets)
+      excludes:
+        - Reconnect / backoff policy — owned by the EventSource browser implementation
+        - Auth flow — cookie session; spec api-events-stream owns
+        - Per-tab dedup — out of scope; the hook is mounted once at app root
+
+  constraints:
+    - id: C-01
+      description: 'ALL_TOPICS MUST be a closed const-tuple containing exactly the four kinds: host.changed, monitoring.band.changed, host.discovered, intelligence.event. Adding a fifth requires bumping this spec''s version and updating the test'
+      type: technical
+      enforcement: error
+    - id: C-02
+      description: 'host.changed and monitoring.band.changed handlers MUST invalidate [hosts] AND when the envelope carries a host_id also [host, id]'
+      type: technical
+      enforcement: error
+    - id: C-03
+      description: 'host.discovered handler MUST invalidate [hosts] AND [host, id]. Rationale: HostListItem and HostResponse both carry os_family/os_version (denormalized columns); Discovery completion changes both views'
+      type: technical
+      enforcement: error
+    - id: C-04
+      description: 'intelligence.event handler MUST invalidate [host_intelligence_events, host_id]. It MUST NOT invalidate [hosts] — intel events fire on packages/services/users changes, none of which appear on the list page. Avoiding the list invalidation prevents a fleet-wide re-fetch on every intel event'
+      type: performance
+      enforcement: error
+    - id: C-05
+      description: 'The hook MUST open EXACTLY ONE EventSource per mount cycle. Multiple useEffect re-runs from React Strict Mode dev re-mounts close the previous socket before opening the new one (cleanup function in the useEffect return)'
+      type: technical
+      enforcement: error
+    - id: C-06
+      description: 'Each topic handler MUST tolerate a missing host_id in the envelope (defensive — the eventbus contract carries one, but a malformed event must not throw). Missing host_id falls back to the list-only invalidation path'
+      type: technical
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: 'ALL_TOPICS as exported from useLiveEvents.ts equals exactly the closed set ["host.changed", "monitoring.band.changed", "host.discovered", "intelligence.event"]. Verified by importing the const and asserting the array contents + length'
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-02
+      description: 'Mounting useLiveEvents with stub EventSource and firing a host.changed event carrying host_id=H invokes queryClient.invalidateQueries with queryKey=["hosts"] AND ["host", H]'
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-03
+      description: 'Same as AC-02 but with monitoring.band.changed: invalidates ["hosts"] and ["host", H]'
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-04
+      description: 'Firing host.discovered with host_id=H invalidates ["hosts"] AND ["host", H] — both views render denormalized OS fields'
+      priority: critical
+      references_constraints: [C-03]
+    - id: AC-05
+      description: 'Firing intelligence.event with host_id=H invalidates ["host_intelligence_events", H]. Spies on queryClient.invalidateQueries observe ZERO calls with queryKey=["hosts"]'
+      priority: critical
+      references_constraints: [C-04]
+    - id: AC-06
+      description: 'Firing host.discovered with an envelope missing host_id falls back to invalidating ["hosts"] only — no throw, no error log, no spurious ["host", undefined] invalidation'
+      priority: high
+      references_constraints: [C-06]
+    - id: AC-07
+      description: 'Source inspection: useLiveEvents.ts opens exactly ONE `new EventSource(...)` call. Multiple sockets per mount cycle are forbidden'
+      priority: critical
+      references_constraints: [C-05]
