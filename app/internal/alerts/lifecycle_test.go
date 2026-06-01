@@ -407,17 +407,25 @@ func TestService_SweepExpiredSilences(t *testing.T) {
 
 		emits := newAuditCounter()
 		svc := NewService(pool, emits.Emit)
-		pastUntil := time.Now().UTC().Add(-1 * time.Minute)
 		futureUntil := time.Now().UTC().Add(1 * time.Hour)
-		_ = svc.Silence(context.Background(), past, actor, &pastUntil, "")
-		_ = svc.Silence(context.Background(), future, actor, &futureUntil, "")
-
-		// Force past-silence's silenced_until into the past — Silence
-		// rejected our past timestamp, but we can simulate
-		// post-silence elapsing by manually setting the column.
-		_, _ = pool.Exec(context.Background(),
+		// Silence both with future until so state advances to silenced
+		// (Silence rejects past timestamps via ErrInvalidSilenceWindow).
+		if err := svc.Silence(context.Background(), past, actor, &futureUntil, ""); err != nil {
+			t.Fatalf("Silence past seed: %v", err)
+		}
+		if err := svc.Silence(context.Background(), future, actor, &futureUntil, ""); err != nil {
+			t.Fatalf("Silence future seed: %v", err)
+		}
+		// Simulate the first row's silenced_until having elapsed.
+		_, err := pool.Exec(context.Background(),
 			`UPDATE alerts SET silenced_until = now() - interval '1 minute' WHERE id = $1`,
 			past)
+		if err != nil {
+			t.Fatalf("simulate elapsed: %v", err)
+		}
+		// Reset the audit counter so we only count the sweep's emission,
+		// not the two Silence calls above.
+		emits.Reset("alert.unsilenced.auto")
 
 		n, err := svc.SweepExpiredSilences(context.Background())
 		if err != nil {

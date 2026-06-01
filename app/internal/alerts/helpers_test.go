@@ -28,3 +28,12 @@ func (a *auditCounter) CountFor(code string) int {
 	defer a.mu.Unlock()
 	return a.counts[audit.Code(code)]
 }
+
+// Reset clears the counter for a specific code (useful when a test
+// setup emits via Service and the assertion only cares about a later
+// emission).
+func (a *auditCounter) Reset(code string) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	delete(a.counts, audit.Code(code))
+}
