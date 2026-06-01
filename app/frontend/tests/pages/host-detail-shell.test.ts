@@ -77,15 +77,23 @@ describe('frontend-host-detail — prototype shell', () => {
   });
 
   // @ac AC-15
-  test('frontend-host-detail/AC-15 — sub-line metadata: prototype-style prefixes', () => {
-    // v1.0.1: Kernel + Uptime carry the bare prefix (no colon). The
-    // ugly "OS: unknown" pattern from v1.0.0 must NOT be present.
+  test('frontend-host-detail/AC-15 — sub-line metadata: OS, Kernel, Uptime in order', () => {
+    // v1.0.4: OS slot ALWAYS renders before Kernel — even when the
+    // distribution is unknown. Bare prefixes (no colon).
     expect(PAGE_SRC).not.toMatch(/'OS:'/);
     expect(PAGE_SRC).not.toMatch(/'Kernel:'/);
     expect(PAGE_SRC).not.toMatch(/'Uptime:'/);
+    expect(PAGE_SRC).toContain("'OS '");
     expect(PAGE_SRC).toContain("'Kernel '");
     expect(PAGE_SRC).toContain("'Uptime '");
-    // OS slot rendered conditionally when distribution data exists.
+    // Order: OS prefix MUST appear before Kernel prefix, which MUST
+    // appear before Uptime prefix.
+    const osIdx = PAGE_SRC.indexOf("'OS '");
+    const kernelIdx = PAGE_SRC.indexOf("'Kernel '");
+    const uptimeIdx = PAGE_SRC.indexOf("'Uptime '");
+    expect(osIdx).toBeLessThan(kernelIdx);
+    expect(kernelIdx).toBeLessThan(uptimeIdx);
+    // osDistribution variable still drives the colored-dot path.
     expect(PAGE_SRC).toMatch(/osDistribution|os_distribution/);
   });
 

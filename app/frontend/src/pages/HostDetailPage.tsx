@@ -493,10 +493,13 @@ function PageHead({
                 {host.environment}
               </span>
             )}
-            {osDistribution && (
-              <>
-                <span style={{ color: 'var(--ow-fg-3)' }}>·</span>
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ color: 'var(--ow-fg-3)' }}>·</span>
+            <span
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+              title="OS distribution — populated by Server Intelligence (BACKLOG)"
+            >
+              {osDistribution ? (
+                <>
                   <span
                     style={{
                       display: 'inline-block',
@@ -507,9 +510,14 @@ function PageHead({
                     }}
                   />
                   <span style={{ color: 'var(--ow-fg-1)' }}>{osDistribution}</span>
-                </span>
-              </>
-            )}
+                </>
+              ) : (
+                <>
+                  {'OS '}
+                  <span style={{ color: 'var(--ow-fg-1)' }}>—</span>
+                </>
+              )}
+            </span>
             <span style={{ color: 'var(--ow-fg-3)' }}>·</span>
             <span title="Kernel version — populated by Server Intelligence (BACKLOG)">
               {'Kernel '}

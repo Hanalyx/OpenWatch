@@ -1,7 +1,7 @@
 spec:
   id: frontend-host-detail
   title: Host Detail page layout, behavior, and empty-state contracts
-  version: "1.0.3"
+  version: "1.0.4"
   status: approved
   tier: 2
 
@@ -65,7 +65,7 @@ spec:
       type: technical
       enforcement: error
     - id: C-03
-      description: 'Sub-line metadata row matches the prototype''s spacing pattern: IP (mono), environment chip, OS slot (colored dot + distribution name; HIDDEN when distribution is unknown), Kernel slot (prefix "Kernel" + mono value or em-dash placeholder), Uptime slot (prefix "Uptime" + value or em-dash placeholder). NO colon-style "OS:" / "Kernel:" / "Uptime:" prefixes — those are the v1.0.0 misstep that this v1.0.1 spec corrects. Server intelligence collection populates the OS / Kernel / Uptime values (BACKLOG)'
+      description: 'Sub-line metadata row matches the prototype''s spacing pattern: IP (mono), environment chip, OS slot, Kernel slot, Uptime slot — in that order. OS appears BEFORE Kernel always (v1.0.4 — operator UX). When the distribution is known, the OS slot renders as "colored dot + distribution name" with no label prefix. When unknown, the slot still renders with bare "OS" prefix + em-dash placeholder (matching the Kernel / Uptime placeholder pattern). Kernel and Uptime carry their bare prefix + value or em-dash. NO colon-style "OS:" / "Kernel:" / "Uptime:" prefixes. Server intelligence collection populates these values (BACKLOG)'
       type: technical
       enforcement: error
     - id: C-04
@@ -134,7 +134,7 @@ spec:
       description: 'No console.log/warn/error call site embeds a PII field name (token, password, secret, evidence). Source-inspection of HostDetailPage.tsx.'
       priority: critical
     - id: AC-15
-      description: 'Page-head sub-line carries IP (mono), environment chip, and the prototype-style Kernel + Uptime slots — each with the bare prefix (no colon) and the value or em-dash when unknown. The OS slot renders the distribution name with a colored dot prefix when known and is HIDDEN when unknown (the colon-prefixed "OS: unknown" pattern from v1.0.0 was ugly and is removed in v1.0.1).'
+      description: 'Page-head sub-line carries IP (mono), environment chip, then THREE prototype-style slots in this exact order: OS, Kernel, Uptime. Each slot carries a bare prefix (no colon). OS renders the distribution name with a leading colored dot when known; when unknown it still renders with "OS" prefix + em-dash (v1.0.4 — operator wants the OS slot ALWAYS visible, before Kernel). Kernel + Uptime render their prefix + value or em-dash.'
       priority: critical
       references_constraints: [C-03]
     - id: AC-16
