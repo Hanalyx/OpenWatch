@@ -297,6 +297,14 @@ func hostResponse(h host.Host) api.HostResponse {
 		UpdatedAt:       &h.UpdatedAt,
 		MaintenanceMode: &maint,
 		CheckPriority:   &prio,
+		// v1.4.0 — denormalized OS fields. Pre-Discovery these are nil
+		// (host.Host's *string pointers), which JSON-encodes to null —
+		// keys always present per spec AC-20.
+		OsFamily:           h.OSFamily,
+		OsVersion:          h.OSVersion,
+		Architecture:       h.Architecture,
+		PlatformIdentifier: h.PlatformIdentifier,
+		OsDiscoveredAt:     h.OSDiscoveredAt,
 	}
 }
 
@@ -335,6 +343,12 @@ func hostListItem(h host.Host, liveness *api.HostLiveness, lastScan time.Time) a
 		MaintenanceMode: &maint,
 		CheckPriority:   &prio,
 		Liveness:        liveness,
+		// v1.4.0 — denormalized OS fields from migration 0017.
+		OsFamily:           h.OSFamily,
+		OsVersion:          h.OSVersion,
+		Architecture:       h.Architecture,
+		PlatformIdentifier: h.PlatformIdentifier,
+		OsDiscoveredAt:     h.OSDiscoveredAt,
 	}
 	if !lastScan.IsZero() {
 		item.LastScanAt = &lastScan
