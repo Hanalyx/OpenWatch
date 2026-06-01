@@ -187,8 +187,14 @@ const (
 	AlertCreated Code = "alert.created"
 	//
 	AlertAcknowledged Code = "alert.acknowledged"
+	// Operator silenced an alert (active -> silenced)
+	AlertSilenced Code = "alert.silenced"
+	// Lifecycle sweep re-armed a silenced alert whose silenced_until elapsed
+	AlertUnsilencedAuto Code = "alert.unsilenced.auto"
 	//
 	AlertResolved Code = "alert.resolved"
+	// Operator marked an alert as irrelevant (terminal state)
+	AlertDismissed Code = "alert.dismissed"
 	//
 	AlertThresholdChanged Code = "alert.threshold.changed"
 	//
@@ -880,11 +886,32 @@ var Metadata = map[Code]EventMeta{
 		Description: ``,
 		ActorTypes:  nil,
 	},
+	AlertSilenced: {
+		Code:        AlertSilenced,
+		Category:    "alert",
+		Severity:    SeverityInfo,
+		Description: `Operator silenced an alert (active -> silenced)`,
+		ActorTypes:  nil,
+	},
+	AlertUnsilencedAuto: {
+		Code:        AlertUnsilencedAuto,
+		Category:    "alert",
+		Severity:    SeverityInfo,
+		Description: `Lifecycle sweep re-armed a silenced alert whose silenced_until elapsed`,
+		ActorTypes:  nil,
+	},
 	AlertResolved: {
 		Code:        AlertResolved,
 		Category:    "alert",
 		Severity:    SeverityInfo,
 		Description: ``,
+		ActorTypes:  nil,
+	},
+	AlertDismissed: {
+		Code:        AlertDismissed,
+		Category:    "alert",
+		Severity:    SeverityWarning,
+		Description: `Operator marked an alert as irrelevant (terminal state)`,
 		ActorTypes:  nil,
 	},
 	AlertThresholdChanged: {
@@ -1343,7 +1370,10 @@ var codeOrder = []Code{
 	ComplianceSnapshotCreated,
 	AlertCreated,
 	AlertAcknowledged,
+	AlertSilenced,
+	AlertUnsilencedAuto,
 	AlertResolved,
+	AlertDismissed,
 	AlertThresholdChanged,
 	NotificationDispatched,
 	NotificationDeliveryFailed,

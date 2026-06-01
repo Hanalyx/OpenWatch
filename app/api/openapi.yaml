@@ -1235,6 +1235,227 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
 
+  /api/v1/alerts:
+    get:
+      operationId: getAlerts
+      summary: List persisted alerts (paginated, filterable)
+      description: |
+        Returns alerts in the alerts table — written by the
+        system-alert-router persistence amendment (v1.1.0). Cursor
+        pagination on occurred_at DESC. RBAC: alert:read. Spec
+        api-alerts.
+      parameters:
+        - name: state
+          in: query
+          schema: {type: string, enum: [active, acknowledged, silenced, resolved, dismissed]}
+        - name: host_id
+          in: query
+          schema: {type: string, format: uuid}
+        - name: severity
+          in: query
+          schema: {type: string, enum: [info, low, medium, high, critical]}
+        - name: since
+          in: query
+          schema: {type: string, format: date-time}
+        - name: until
+          in: query
+          schema: {type: string, format: date-time}
+        - name: cursor
+          in: query
+          schema: {type: string}
+        - name: limit
+          in: query
+          schema: {type: integer, minimum: 1, maximum: 200, default: 50}
+      responses:
+        '200':
+          description: Alerts page
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AlertsPage'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '403':
+          description: Caller lacks alert:read permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
+  /api/v1/alerts/{id}:
+    get:
+      operationId: getAlertByID
+      summary: Single alert by id
+      description: |
+        Returns the alert row (including terminal states — resolved /
+        dismissed are still queryable). RBAC: alert:read. Spec api-alerts.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: Alert
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Alert'}
+        '403':
+          description: Caller lacks alert:read permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '404':
+          description: Alert not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
+  /api/v1/alerts/{id}:acknowledge:
+    post:
+      operationId: postAlertAcknowledge
+      summary: Acknowledge an active alert
+      description: 'active -> acknowledged. RBAC: alert:write. Spec api-alerts.'
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AlertLifecycleRequest'}
+      responses:
+        '200':
+          description: Updated alert
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Alert'}
+        '403':
+          description: Caller lacks alert:write permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '404':
+          description: Alert not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '409':
+          description: Invalid transition for current state
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
+  /api/v1/alerts/{id}:silence:
+    post:
+      operationId: postAlertSilence
+      summary: Silence an alert until a timestamp (or indefinitely)
+      description: |
+        active|acknowledged -> silenced. Optional body.until specifies
+        when the silence elapses; missing means indefinite. Past until
+        returns 400. RBAC: alert:write. Spec api-alerts.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AlertLifecycleRequest'}
+      responses:
+        '200':
+          description: Updated alert
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Alert'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '403':
+          description: Caller lacks alert:write permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '404':
+          description: Alert not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '409':
+          description: Invalid transition for current state
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
+  /api/v1/alerts/{id}:resolve:
+    post:
+      operationId: postAlertResolve
+      summary: Resolve an alert
+      description: 'active|acknowledged|silenced -> resolved. RBAC: alert:write. Spec api-alerts.'
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AlertLifecycleRequest'}
+      responses:
+        '200':
+          description: Updated alert
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Alert'}
+        '403':
+          description: Caller lacks alert:write permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '404':
+          description: Alert not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '409':
+          description: Invalid transition for current state
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
+  /api/v1/alerts/{id}:dismiss:
+    post:
+      operationId: postAlertDismiss
+      summary: Dismiss an alert (terminal)
+      description: 'Any non-dismissed state -> dismissed. RBAC: alert:write. Spec api-alerts.'
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AlertLifecycleRequest'}
+      responses:
+        '200':
+          description: Updated alert
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Alert'}
+        '403':
+          description: Caller lacks alert:write permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '404':
+          description: Alert not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '409':
+          description: Invalid transition for current state
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
   /api/v1/hosts/{id}/discovery:run:
     post:
       operationId: postHostDiscoveryRun
@@ -1880,6 +2101,52 @@ components:
           additionalProperties: true
           description: Free-form host_intelligence_state.snapshot — mirrors collector.Snapshot
         collected_at: {type: string, format: date-time}
+
+    Alert:
+      type: object
+      required: [id, dedup_key, alert_type, severity, title, state, occurred_at]
+      properties:
+        id:           {type: string, format: uuid}
+        dedup_key:    {type: string}
+        alert_type:   {type: string}
+        severity:     {type: string, enum: [info, low, medium, high, critical]}
+        host_id:      {type: string, format: uuid, nullable: true}
+        rule_id:      {type: string}
+        title:        {type: string}
+        body:         {type: string}
+        tags:
+          type: object
+          additionalProperties: {type: string}
+        state:        {type: string, enum: [active, acknowledged, silenced, resolved, dismissed]}
+        occurred_at:  {type: string, format: date-time}
+        acknowledged_by: {type: string, format: uuid, nullable: true}
+        acknowledged_at: {type: string, format: date-time, nullable: true}
+        silenced_by:     {type: string, format: uuid, nullable: true}
+        silenced_until:  {type: string, format: date-time, nullable: true}
+        resolved_by:     {type: string, format: uuid, nullable: true}
+        resolved_at:     {type: string, format: date-time, nullable: true}
+        dismissed_by:    {type: string, format: uuid, nullable: true}
+        dismissed_at:    {type: string, format: date-time, nullable: true}
+        created_at:      {type: string, format: date-time}
+        updated_at:      {type: string, format: date-time}
+
+    AlertsPage:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: {$ref: '#/components/schemas/Alert'}
+        next_cursor:
+          type: string
+          nullable: true
+
+    AlertLifecycleRequest:
+      type: object
+      description: 'Optional body for POST lifecycle endpoints. silence accepts an optional until; all accept a reason for the audit detail.'
+      properties:
+        reason: {type: string, maxLength: 256}
+        until:  {type: string, format: date-time, nullable: true}
 
     HostSystemInfo:
       type: object

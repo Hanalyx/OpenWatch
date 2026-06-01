@@ -602,8 +602,35 @@ events:
   - code: alert.acknowledged
     severity: info
 
+  - code: alert.silenced
+    severity: info
+    description: Operator silenced an alert (active -> silenced)
+    detail_schema:
+      type: object
+      properties:
+        prior_state:    {type: string}
+        until:          {type: [string, 'null'], format: date-time}
+        reason:         {type: string}
+
+  - code: alert.unsilenced.auto
+    severity: info
+    description: Lifecycle sweep re-armed a silenced alert whose silenced_until elapsed
+    detail_schema:
+      type: object
+      properties:
+        silenced_until: {type: string, format: date-time}
+
   - code: alert.resolved
     severity: info
+
+  - code: alert.dismissed
+    severity: warning
+    description: Operator marked an alert as irrelevant (terminal state)
+    detail_schema:
+      type: object
+      properties:
+        prior_state: {type: string}
+        reason:      {type: string}
 
   - code: alert.threshold.changed
     severity: warning

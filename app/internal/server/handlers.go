@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Hanalyx/openwatch/internal/alerts"
 	"github.com/Hanalyx/openwatch/internal/audit"
 	"github.com/Hanalyx/openwatch/internal/auth"
 	"github.com/Hanalyx/openwatch/internal/correlation"
@@ -57,6 +58,11 @@ type handlers struct {
 	// that don't exercise /hosts/{id}/discovery:run.
 	// Spec system-host-discovery.
 	discoSvc *discovery.Service
+
+	// Alerts lifecycle. Set via (*Server).WithAlerts; nil in tests
+	// that don't exercise /alerts.
+	// Spec system-alerts + api-alerts.
+	alertsSvc *alerts.Service
 }
 
 // newHandlers constructs the ServerInterface implementation. The user

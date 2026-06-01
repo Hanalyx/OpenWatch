@@ -36,6 +36,8 @@ domains:
             - system-os-intelligence
             - system-intelligence-scheduler
             - api-os-intelligence
+            - system-alerts
+            - api-alerts
             - system-host-inventory
             - system-ssh-connectivity
             - api-auth
