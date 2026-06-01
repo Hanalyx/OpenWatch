@@ -54,6 +54,15 @@ domains:
             - system-worker-subcommand
 settings:
     specs_dir: specs
+    # Default discovery is limited to .test.ts / _test.go. The frontend
+    # mixes .test.ts (source-inspection) with .test.tsx (component tests
+    # that need JSX), so explicitly include both. Without this, .tsx
+    # tests are silently invisible and frontend specs covered only by
+    # .tsx tests report 0% coverage.
+    tests_glob:
+        - '**/*_test.go'
+        - '**/*.test.ts'
+        - '**/*.test.tsx'
     coverage:
         tier1: 100
         tier2: 80
