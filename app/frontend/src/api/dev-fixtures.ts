@@ -23,7 +23,16 @@ export interface DevHost {
   id: string;
   hostname: string;       // "—" if no hostname registered (display falls back to IP)
   ip_address: string;
-  os: 'Ubuntu' | 'RHEL' | 'Debian' | 'SUSE';
+  /**
+   * v1.4.0 (api-hosts) — display label produced by osDisplayLabel()
+   * from the real hosts.os_family column (populated by Discovery).
+   * "Unknown" for pre-Discovery hosts. The legacy closed union
+   * (Ubuntu | RHEL | Debian | SUSE) was widened to string so the
+   * OSChip can render unmapped families with the neutral color
+   * instead of crashing the OS_COLOR lookup.
+   * Spec: frontend-host-list-os.
+   */
+  os: string;
   status: 'down' | 'online';
   /** v1.3.0 — 5-band classification, populated from host_liveness.monitoring_state */
   monitoring: MonitoringBand;

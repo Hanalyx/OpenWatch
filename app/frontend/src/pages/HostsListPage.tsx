@@ -20,6 +20,7 @@ import {
 import api from '@/api/client';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useBreadcrumbStore } from '@/store/useBreadcrumbStore';
+import { osDisplayLabel } from '@/utils/osLabel';
 import {
   devHosts,
   devKpis,
@@ -66,7 +67,7 @@ interface ApiHostLiveness {
   privilege_consecutive_failures?: number;
 }
 
-interface ApiHost {
+export interface ApiHost {
   id: string;
   hostname: string;
   ip_address: string;
@@ -82,14 +83,30 @@ interface ApiHost {
   /** v1.5.0 — MAX(host_rule_state.last_checked_at); null when never scanned. */
   last_scan_at?: string | null;
   liveness?: ApiHostLiveness | null;
+  /**
+   * v1.4.0 (api-hosts) — denormalized OS columns populated by
+   * system-host-discovery via Kensa. NULL on hosts that have not yet
+   * been discovered. Drives the OS column display per
+   * frontend-host-list-os v1.0.0.
+   */
+  os_family?: string | null;
+  os_version?: string | null;
+  architecture?: string | null;
+  platform_identifier?: string | null;
+  os_discovered_at?: string | null;
 }
 
-const OS_COLOR: Record<DevHost['os'], string> = {
+// Per-vendor accent for the OS chip. Widened to a string-keyed map so
+// that unmapped families (Unknown — pre-Discovery hosts) get the
+// neutral var(--ow-fg-dim) fallback rather than crashing the lookup.
+// Spec: frontend-host-list-os C-03.
+const OS_COLOR: Record<string, string> = {
   Ubuntu: '#e95420',
   RHEL: '#ee0000',
   Debian: '#a80030',
   SUSE: '#30ba78',
 };
+const OS_COLOR_FALLBACK = 'var(--ow-fg-dim)';
 
 function complianceTier(v: number | null): 'crit' | 'warn' | 'ok' {
   if (v == null || v < 40) return 'crit';
@@ -1293,7 +1310,7 @@ function StatusPill({ band }: { band: MonitoringBand }) {
 }
 
 function OSChip({ os }: { os: DevHost['os'] }) {
-  const color = OS_COLOR[os];
+  const color = OS_COLOR[os] ?? OS_COLOR_FALLBACK;
   return (
     <span
       style={{
@@ -1409,14 +1426,6 @@ function EmptyRegion({
 // API → DevHost mapping (when backend has real data)
 // ─────────────────────────────────────────────────────────────────────────
 
-function detectOS(hostname: string): DevHost['os'] {
-  const h = hostname.toLowerCase();
-  if (h.includes('rhn') || h.includes('rhel') || h.includes('rh')) return 'RHEL';
-  if (h.includes('deb')) return 'Debian';
-  if (h.includes('suse')) return 'SUSE';
-  return 'Ubuntu';
-}
-
 // formatMinutesAgo turns a minute count into a humane "Xm ago" / "Xh ago"
 // / "Xd ago" string. Under 1m reads as "just now" since that's the
 // 30-second tick range from the adaptive health checks loop.
@@ -1428,7 +1437,7 @@ function formatMinutesAgo(minutes: number): string {
   return `${Math.round(hours / 24)}d ago`;
 }
 
-function apiHostToDev(h: ApiHost): DevHost {
+export function apiHostToDev(h: ApiHost): DevHost {
   // v1.3.0: derive both the legacy 'status' (online/down) for components
   // that still consume the binary view, AND the new 'monitoring' band so
   // the StatusPill can render degraded vs critical vs down distinctly.
@@ -1458,7 +1467,7 @@ function apiHostToDev(h: ApiHost): DevHost {
     id: h.id,
     hostname: h.hostname,
     ip_address: h.ip_address,
-    os: detectOS(h.hostname),
+    os: osDisplayLabel(h.os_family),
     status: reachable ? 'online' : 'down',
     monitoring,
     maintenance: h.maintenance_mode === true,

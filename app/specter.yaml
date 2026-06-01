@@ -49,6 +49,7 @@ domains:
             - frontend-live-events
             - api-hosts
             - frontend-host-detail
+            - frontend-host-list-os
             - api-openapi-docs
             - release-admin-signoff
             - system-worker-subcommand
