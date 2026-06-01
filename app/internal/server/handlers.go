@@ -15,6 +15,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/eventbus"
 	"github.com/Hanalyx/openwatch/internal/fleetrollup"
 	"github.com/Hanalyx/openwatch/internal/host"
+	"github.com/Hanalyx/openwatch/internal/intelligence/discovery"
 	"github.com/Hanalyx/openwatch/internal/license"
 	"github.com/Hanalyx/openwatch/internal/liveness"
 	"github.com/Hanalyx/openwatch/internal/policy"
@@ -51,6 +52,11 @@ type handlers struct {
 	// disables the live-events stream (tests + early-boot phases).
 	// Spec api-events-stream (Track B).
 	bus *eventbus.Bus
+
+	// Discovery wiring. Set via (*Server).WithDiscovery; nil in tests
+	// that don't exercise /hosts/{id}/discovery:run.
+	// Spec system-host-discovery.
+	discoSvc *discovery.Service
 }
 
 // newHandlers constructs the ServerInterface implementation. The user

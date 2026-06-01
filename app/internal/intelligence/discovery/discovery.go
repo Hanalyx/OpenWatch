@@ -21,6 +21,52 @@ import (
 // response returns immediately. Spec C-05 / AC-13.
 const JobKindHostDiscovery = "host.discovery"
 
+// HostDiscoveryJobPayload is the JSON shape of the host.discovery job
+// payload the worker reads. Carries the host id so the worker can
+// invoke Service.Discover. Exported so the worker package can decode
+// it without importing service internals.
+type HostDiscoveryJobPayload struct {
+	HostID uuid.UUID `json:"host_id"`
+}
+
+// PoolHostLookup adapts a *pgxpool.Pool into the HostLookup interface
+// expected by Service. Production wires this; tests stub the
+// interface directly.
+type PoolHostLookup struct {
+	Pool *pgxpool.Pool
+}
+
+// GetForDiscovery reads the host's address + port. Returns
+// pgx.ErrNoRows-like sentinel via a separate ErrHostNotFound if the
+// host is missing or soft-deleted.
+func (p PoolHostLookup) GetForDiscovery(ctx context.Context, hostID uuid.UUID) (Addr, error) {
+	const q = `
+		SELECT host(ip_address), COALESCE(port, 22)
+		  FROM hosts
+		 WHERE id = $1 AND deleted_at IS NULL`
+	var addr Addr
+	if err := p.Pool.QueryRow(ctx, q, hostID).Scan(&addr.Host, &addr.Port); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return Addr{}, ErrHostNotFound
+		}
+		return Addr{}, fmt.Errorf("discovery: lookup host: %w", err)
+	}
+	return addr, nil
+}
+
+// ErrHostNotFound is returned by HostLookup.GetForDiscovery when the
+// host is unknown or soft-deleted. The handler maps this to HTTP 404.
+var ErrHostNotFound = errors.New("discovery: host not found")
+
+// RunDiscovery is the error-only adapter the worker uses (matches
+// worker.HostDiscoveryRunner interface signature). Discards the
+// SystemFacts return — the worker only cares about success / failure,
+// since persist + bus + audit are already done inside Discover.
+func (s *Service) RunDiscovery(ctx context.Context, hostID uuid.UUID) error {
+	_, err := s.Discover(ctx, hostID)
+	return err
+}
+
 // SystemFacts is the typed bundle of every fact one Discover run
 // collected. Mirrors the host_system_info column layout one-for-one so
 // persist() is a straight value-to-column map.

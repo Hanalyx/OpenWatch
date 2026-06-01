@@ -28,6 +28,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/Hanalyx/openwatch/internal/intelligence/discovery"
 	"github.com/Hanalyx/openwatch/internal/liveness"
 	"github.com/Hanalyx/openwatch/internal/systemconfig"
 )
@@ -64,6 +65,18 @@ func (s *Server) WithEventBus(bus *eventbus.Bus) *Server {
 	// via a query-string token because browsers' EventSource cannot
 	// send custom headers.
 	s.router.Get("/api/v1/events", s.handlers.GetEventsStream)
+	return s
+}
+
+// WithDiscovery threads the OS Discovery service into the API handlers
+// AND the in-process worker so /hosts/{id}/discovery:run can trigger a
+// one-shot fingerprint and the worker can drain host.discovery jobs.
+// Spec system-host-discovery.
+func (s *Server) WithDiscovery(d *discovery.Service) *Server {
+	s.handlers.discoSvc = d
+	if s.wkr != nil {
+		s.wkr.WithDiscovery(d)
+	}
 	return s
 }
 

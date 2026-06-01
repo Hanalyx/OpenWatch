@@ -18,9 +18,11 @@ import (
 	"github.com/Hanalyx/openwatch/internal/audit"
 	"github.com/Hanalyx/openwatch/internal/auth"
 	"github.com/Hanalyx/openwatch/internal/config"
+	"github.com/Hanalyx/openwatch/internal/credential"
 	"github.com/Hanalyx/openwatch/internal/db"
 	"github.com/Hanalyx/openwatch/internal/db/migrations"
 	"github.com/Hanalyx/openwatch/internal/identity"
+	"github.com/Hanalyx/openwatch/internal/intelligence/discovery"
 	"github.com/Hanalyx/openwatch/internal/license"
 	"github.com/Hanalyx/openwatch/internal/liveness"
 	"github.com/Hanalyx/openwatch/internal/secretkey"
@@ -188,6 +190,17 @@ func freshAPIServer(t *testing.T) (string, *pgxpool.Pool) {
 	liveSvc := liveness.NewService(pool, audit.Emit, nil).
 		WithConfigLoader(cfgStore.LoadConnectivity)
 	s.WithConnectivityConfig(cfgStore, liveSvc)
+
+	// Spec system-host-discovery: wire a Discovery service so
+	// /hosts/{id}/discovery:run reaches a real handler in tests. The
+	// service has no SSH transport wired here — tests that exercise the
+	// full Discover path inject one via the service interface; the
+	// not-found path (AC-10) and RBAC denial path (AC-09) reach the
+	// authz / lookup gate before SSH would matter.
+	discoSvc := discovery.NewService(pool, audit.Emit, nil).
+		WithHostLookup(discovery.PoolHostLookup{Pool: pool}).
+		WithCredentialService(credential.NewService(pool))
+	s.WithDiscovery(discoSvc)
 
 	// Start the in-process worker. httptest.NewServer bypasses s.Run(),
 	// so the worker would never start otherwise — tests that exercise

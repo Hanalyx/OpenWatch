@@ -1158,6 +1158,55 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
 
+  /api/v1/hosts/{id}/discovery:run:
+    post:
+      operationId: postHostDiscoveryRun
+      summary: Synchronous on-demand OS fingerprint discovery for a single host
+      description: |
+        Opens one SSH session against the host using its resolved
+        credential, runs the closed-set probe batch (os-release, uname,
+        meminfo, df, hostname, getenforce, aa-status, firewall), parses
+        the outputs, upserts host_system_info + denormalized hosts.os_*
+        columns in a single transaction, publishes
+        eventbus.HostDiscovered, and emits the host.discovery.completed
+        audit event. Spec system-host-discovery.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema: {type: string, minLength: 1, maxLength: 128}
+      responses:
+        '200':
+          description: Discovery result — the captured SystemFacts
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/HostSystemInfo'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '403':
+          description: Caller lacks host:write permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '404':
+          description: Host not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '502':
+          description: Host unreachable — SSH dial or credential resolve failed
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '503':
+          description: Discovery service not wired on the server
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
 components:
   responses:
     BadRequest:
@@ -1717,6 +1766,47 @@ components:
           type: string
           enum: [reachable, unreachable, unknown]
           description: Post-hysteresis status (same value the periodic loop would write)
+
+    HostSystemInfo:
+      type: object
+      required: [host_id, collected_at]
+      description: |
+        Result of a Discovery run. Mirrors the host_system_info table
+        column-for-column. Spec system-host-discovery.
+      properties:
+        host_id:             {type: string, format: uuid}
+        # /etc/os-release
+        os_name:             {type: string, nullable: true}
+        os_version:          {type: string, nullable: true}
+        os_version_full:     {type: string, nullable: true}
+        os_id:               {type: string, nullable: true}
+        os_id_like:          {type: string, nullable: true}
+        os_pretty_name:      {type: string, nullable: true}
+        platform_identifier: {type: string, nullable: true}
+        os_family:           {type: string, nullable: true, description: 'Rollup family — rhel, debian, suse, alpine, arch, gentoo, other'}
+        # uname -srvm
+        kernel_name:    {type: string, nullable: true}
+        kernel_release: {type: string, nullable: true}
+        kernel_version: {type: string, nullable: true}
+        architecture:   {type: string, nullable: true}
+        # /proc/meminfo
+        mem_total_mb:     {type: integer, nullable: true}
+        mem_available_mb: {type: integer, nullable: true}
+        swap_total_mb:    {type: integer, nullable: true}
+        # df -BG /
+        disk_total_gb: {type: integer, nullable: true}
+        disk_used_gb:  {type: integer, nullable: true}
+        disk_free_gb:  {type: integer, nullable: true}
+        # hostname
+        hostname: {type: string, nullable: true}
+        fqdn:     {type: string, nullable: true}
+        # security posture
+        selinux_status:   {type: string, nullable: true, description: 'Enforcing | Permissive | Disabled | empty if not present'}
+        apparmor_enabled: {type: boolean, nullable: true}
+        # firewall (may be empty if sudo unavailable — partial success per spec C-03)
+        firewall_service: {type: string, nullable: true, description: 'firewalld | ufw | nftables | iptables | empty'}
+        firewall_status:  {type: string, nullable: true}
+        collected_at:     {type: string, format: date-time}
 
     FleetRuleFailure:
       type: object
