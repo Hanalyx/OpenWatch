@@ -23,6 +23,9 @@
 //   AC-29  test('frontend-host-detail/AC-29 — Auto-scan empty state shows structured rows')
 //   AC-30  test('frontend-host-detail/AC-30 — Watchlist empty state shows structured rows')
 //   AC-31  test('frontend-host-detail/AC-31 — Connectivity hero has prominent band status line')
+//   AC-32  test('frontend-host-detail/AC-32 — round chevron back button in page-head')
+//   AC-33  test('frontend-host-detail/AC-33 — Maintenance toggle is a switch with knob')
+//   AC-34  test('frontend-host-detail/AC-34 — offline banner names failing layer')
 
 import { describe, expect, test } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -45,12 +48,11 @@ const BAND_MARKERS = [
 
 describe('frontend-host-detail — prototype shell', () => {
   // @ac AC-01
-  test('frontend-host-detail/AC-01 — six structural bands in declaration order', () => {
-    // Back link comes first as a JSX element pointing to /hosts; we
-    // detect it by the existing aria-label or the chevron icon.
-    const backIdx = PAGE_SRC.indexOf('to="/hosts"');
-    expect(backIdx).toBeGreaterThan(-1);
-    let prevIdx = backIdx;
+  test('frontend-host-detail/AC-01 — five structural band markers in declaration order', () => {
+    // The back-link affordance moved inside PageHead (the round chevron
+    // pill, AC-32) and the breadcrumb lives in the TopBar (AC-27), so
+    // AC-01 only enforces the five JSX band markers' relative order.
+    let prevIdx = -1;
     for (const marker of BAND_MARKERS) {
       const idx = PAGE_SRC.indexOf(marker);
       expect(idx, `${marker} missing from HostDetailPage`).toBeGreaterThan(-1);
@@ -291,5 +293,49 @@ describe('frontend-host-detail — prototype shell', () => {
     const body = PAGE_SRC.slice(connFn, next);
     // BAND_LABEL_TEXT or similar derives the human label from the band.
     expect(body).toMatch(/bandLabel|BAND_HEADLINE/);
+  });
+
+  // @ac AC-32
+  test('frontend-host-detail/AC-32 — round chevron back button in page-head', () => {
+    // Round chevron pill back button inside PageHead, NOT a separate
+    // text link above the page.
+    const pageHeadStart = PAGE_SRC.indexOf('function PageHead(');
+    const nextFn = PAGE_SRC.indexOf('\nfunction ', pageHeadStart + 1);
+    const body = PAGE_SRC.slice(pageHeadStart, nextFn);
+    expect(body).toContain('ChevronLeft');
+    expect(body).toMatch(/aria-label=["'`]Back to hosts/);
+    // The standalone "Hosts" text link is removed from the page body.
+    // Specifically: no <ArrowLeft size={14} /> Hosts</Link> pattern.
+    expect(PAGE_SRC).not.toMatch(/<ArrowLeft size=\{14\} \/> Hosts/);
+  });
+
+  // @ac AC-33
+  test('frontend-host-detail/AC-33 — Maintenance toggle is a switch with knob', () => {
+    const mtFn = PAGE_SRC.indexOf('function MaintenanceToggle');
+    expect(mtFn).toBeGreaterThan(-1);
+    const next = PAGE_SRC.indexOf('\nfunction ', mtFn + 1);
+    const body = PAGE_SRC.slice(mtFn, next);
+    // The switch has a track + knob element; we mark the knob node so
+    // a future regression is easy to catch.
+    expect(body).toMatch(/data-maintenance-knob/);
+    // No checkbox input — the switch is a button with role="switch".
+    expect(body).toMatch(/role=["'`]switch["'`]/);
+    expect(body).toMatch(/aria-checked=/);
+  });
+
+  // @ac AC-34
+  test('frontend-host-detail/AC-34 — offline banner names failing layer', () => {
+    const bannerFn = PAGE_SRC.indexOf('function OfflineBanner');
+    expect(bannerFn).toBeGreaterThan(-1);
+    const next = PAGE_SRC.indexOf('\nfunction ', bannerFn + 1);
+    const body = PAGE_SRC.slice(bannerFn, next);
+    // failedLayer derivation + the human label in the banner body.
+    expect(body).toMatch(/failedLayer|failed_layer|inferFailedLayer/);
+    expect(body).toMatch(/Failed at/);
+    // The three known layer names appear so source inspection confirms
+    // each branch of the mapping is wired.
+    expect(body).toMatch(/['"]ping['"]/);
+    expect(body).toMatch(/['"]SSH['"]/);
+    expect(body).toMatch(/['"]privilege escalation['"]/);
   });
 });

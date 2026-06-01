@@ -1,7 +1,7 @@
 spec:
   id: frontend-host-detail
   title: Host Detail page layout, behavior, and empty-state contracts
-  version: "1.0.1"
+  version: "1.0.2"
   status: approved
   tier: 2
 
@@ -201,3 +201,15 @@ spec:
       description: 'HeroConnectivity MUST render a prominent status line under the header showing "● <band>" with the band color (e.g. "● Down" in red, "● Online" in green) so the operator can read connectivity state at a glance, matching the prototype.'
       priority: high
       references_constraints: [C-05]
+    - id: AC-32
+      description: 'Back navigation in the page-head MUST be a round chevron pill button to the LEFT of the hostname (matching the prototype''s back-btn affordance). The standalone "Hosts" text link above the page-head is removed; the breadcrumb in the TopBar plus the chevron pill cover both discoverability and one-click return.'
+      priority: high
+      references_constraints: [C-01]
+    - id: AC-33
+      description: 'Maintenance toggle MUST be a switch-style control with a visible round knob that slides on/off (not a checkbox-in-pill). The track + knob respect the band color when ON (warn-tinted). Matches the prototype''s switch affordance.'
+      priority: high
+      references_constraints: [C-07]
+    - id: AC-34
+      description: 'Offline banner MUST name the failing layer when liveness.last_error_type or per-layer counters allow inference. Map: icmp_* → "ping", tcp_*/banner_mismatch/connection_refused → "SSH", privilege_denied → "privilege escalation". Surface as a secondary line ("Failed at <layer>") so operators can route the right fix (network team vs sshd vs sudoers).'
+      priority: critical
+      references_constraints: [C-08]

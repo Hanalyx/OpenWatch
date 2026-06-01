@@ -3,8 +3,8 @@ import { useParams, useSearch, useNavigate, Link } from '@tanstack/react-router'
 import { useEffect, useMemo, useState } from 'react';
 import {
   Activity as ActivityIcon,
-  ArrowLeft,
   Bell,
+  ChevronLeft,
   Circle,
   Clock,
   FileText,
@@ -291,22 +291,6 @@ export function HostDetailPage() {
           : 'Host — OpenWatch'}
       </title>
 
-      <div style={{ marginBottom: 14 }}>
-        <Link
-          to="/hosts"
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 6,
-            color: 'var(--ow-fg-2)',
-            fontSize: 13,
-            textDecoration: 'none',
-          }}
-        >
-          <ArrowLeft size={14} /> Hosts
-        </Link>
-      </div>
-
       {detailQuery.isError && (
         <ErrorState
           code={(detailQuery.error as Error & { code?: string })?.code}
@@ -442,20 +426,41 @@ function PageHead({
           gap: 16,
         }}
       >
-        <div style={{ minWidth: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <h1
-              id="host-identity"
-              style={{
-                margin: 0,
-                fontSize: 22,
-                fontFamily: 'var(--ow-font-mono)',
-              }}
-            >
-              {host.hostname}
-            </h1>
-            <StatusPill band={band} />
-          </div>
+        <div style={{ display: 'flex', gap: 14, minWidth: 0, alignItems: 'flex-start' }}>
+          <Link
+            to="/hosts"
+            aria-label="Back to hosts"
+            title="Back to hosts"
+            style={{
+              flexShrink: 0,
+              width: 36,
+              height: 36,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: 'var(--ow-bg-2)',
+              border: '1px solid var(--ow-line)',
+              borderRadius: 8,
+              color: 'var(--ow-fg-1)',
+              textDecoration: 'none',
+            }}
+          >
+            <ChevronLeft size={16} />
+          </Link>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <h1
+                id="host-identity"
+                style={{
+                  margin: 0,
+                  fontSize: 22,
+                  fontFamily: 'var(--ow-font-mono)',
+                }}
+              >
+                {host.hostname}
+              </h1>
+              <StatusPill band={band} />
+            </div>
           <div
             style={{
               color: 'var(--ow-fg-2)',
@@ -512,6 +517,7 @@ function PageHead({
               {'Uptime '}
               <span style={{ color: 'var(--ow-fg-1)' }}>{uptimeText ?? '—'}</span>
             </span>
+          </div>
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
@@ -573,13 +579,23 @@ function MaintenanceToggle({ host }: { host: HostResponse }) {
     }
   };
 
+  // Switch-style control: a button with role="switch" + aria-checked.
+  // The visible affordance is a label text + a small track with a
+  // sliding round knob. AC-33.
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-      <label
+      <button
+        type="button"
+        role="switch"
+        aria-checked={inMaintenance}
+        onClick={toggle}
+        disabled={pending}
+        aria-label={`Toggle maintenance for ${host.hostname}`}
+        title="Pause scans & alerts while maintenance is on"
         style={{
           display: 'inline-flex',
           alignItems: 'center',
-          gap: 8,
+          gap: 10,
           padding: '6px 12px',
           background: inMaintenance ? 'var(--ow-warn-bg)' : 'var(--ow-bg-2)',
           color: inMaintenance ? 'var(--ow-warn)' : 'var(--ow-fg-1)',
@@ -589,18 +605,36 @@ function MaintenanceToggle({ host }: { host: HostResponse }) {
           cursor: pending ? 'wait' : 'pointer',
           opacity: pending ? 0.6 : 1,
         }}
-        title="Pause scans & alerts while maintenance is on"
       >
         <span>Maintenance</span>
-        <input
-          type="checkbox"
-          checked={inMaintenance}
-          onChange={toggle}
-          disabled={pending}
-          aria-label={`Toggle maintenance for ${host.hostname}`}
-          style={{ margin: 0 }}
-        />
-      </label>
+        <span
+          aria-hidden
+          style={{
+            position: 'relative',
+            display: 'inline-block',
+            width: 28,
+            height: 16,
+            background: inMaintenance ? 'var(--ow-warn)' : 'var(--ow-line)',
+            borderRadius: 999,
+            transition: 'background 120ms ease',
+          }}
+        >
+          <span
+            data-maintenance-knob
+            style={{
+              position: 'absolute',
+              top: 2,
+              left: inMaintenance ? 14 : 2,
+              width: 12,
+              height: 12,
+              background: '#fff',
+              borderRadius: '50%',
+              transition: 'left 120ms ease',
+              boxShadow: '0 1px 2px rgba(0,0,0,0.3)',
+            }}
+          />
+        </span>
+      </button>
       {error && (
         <span role="alert" style={{ fontSize: 11, color: 'var(--ow-crit)' }}>
           {error}
@@ -663,6 +697,28 @@ function StatusPill({ band }: { band: MonitoringBand }) {
 // AC-17 enforces the dwell threshold via source inspection.
 // ─────────────────────────────────────────────────────────────────────────
 
+// inferFailedLayer maps the liveness error signals to a human-readable
+// "Failed at ping / SSH / privilege escalation" line. The mapping is
+// belt-and-suspenders: last_error_type is the primary signal, and the
+// per-layer counter that's > 0 is the fallback. AC-34.
+function inferFailedLayer(liveness: HostLiveness | null): string | null {
+  if (!liveness) return null;
+  const errType = liveness.last_error_type ?? '';
+  if (errType.startsWith('icmp_')) return 'ping';
+  if (errType === 'privilege_denied') return 'privilege escalation';
+  if (
+    errType === 'banner_mismatch' ||
+    errType === 'connection_refused' ||
+    errType.startsWith('tcp_')
+  )
+    return 'SSH';
+  // Fallback: pick the layer with the most recent failure spike.
+  if ((liveness.ping_consecutive_failures ?? 0) > 0) return 'ping';
+  if ((liveness.ssh_consecutive_failures ?? 0) > 0) return 'SSH';
+  if ((liveness.privilege_consecutive_failures ?? 0) > 0) return 'privilege escalation';
+  return null;
+}
+
 function OfflineBanner({ liveness }: { liveness: HostLiveness | null }) {
   const band = liveness?.monitoring_state ?? 'unknown';
   // Banner only fires for hard-down hosts (band === 'down' or band === 'critical').
@@ -674,6 +730,7 @@ function OfflineBanner({ liveness }: { liveness: HostLiveness | null }) {
   const dwellMs = Date.now() - since;
   if (dwellMs < 5 * 60 * 1000) return null;
   const minutes = Math.max(1, Math.round(dwellMs / 60_000));
+  const failedLayer = inferFailedLayer(liveness);
   return (
     <div
       role="alert"
@@ -694,8 +751,19 @@ function OfflineBanner({ liveness }: { liveness: HostLiveness | null }) {
           Host unreachable for {minutes} minute{minutes === 1 ? '' : 's'}
         </div>
         <div style={{ color: 'var(--ow-fg-2)', fontSize: 12, marginTop: 2 }}>
-          Compliance figures and inventory below reflect the last completed scan and may be stale
-          until connectivity is restored.
+          {failedLayer ? (
+            <>
+              <strong style={{ color: 'var(--ow-fg-1)' }}>Failed at {failedLayer}.</strong>{' '}
+              {failedLayer === 'ping' &&
+                'Network team — host is off the LAN or ICMP is blocked upstream.'}
+              {failedLayer === 'SSH' &&
+                'Daemon down, port mismatch, or firewall rule — check sshd on the host.'}
+              {failedLayer === 'privilege escalation' &&
+                'sudo is broken or the credential lost privilege — host reachable but not scannable.'}
+            </>
+          ) : (
+            'Compliance figures and inventory below reflect the last completed scan and may be stale until connectivity is restored.'
+          )}
         </div>
       </div>
     </div>
