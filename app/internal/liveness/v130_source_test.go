@@ -2,6 +2,7 @@
 //
 // AC traceability (this file):
 //
+//	AC-27  TestListProbeTargetsAddrUsesHostInet
 //	AC-32  TestTickRoutesMultiLayerWhenEnabled
 //	AC-33  TestListProbeTargetsExcludesMaintenance
 //	AC-34  TestListProbeTargetsOrdersByPriorityThenNextProbeAt
@@ -29,6 +30,29 @@ func readSourceFile(t *testing.T, name string) string {
 		t.Fatalf("read %s: %v", name, err)
 	}
 	return string(b)
+}
+
+// @ac AC-27
+// AC-27: listProbeTargets returns Addr as "<ip>:<port>" — never
+// "<ip>/<prefix>:<port>". Postgres' inet::text rendering appends the
+// CIDR prefix length ("/32") which net.Dial rejects, marking every host
+// unreachable. The fix is the `host(h.ip_address)` call in the SELECT
+// clause + the literal-format Sprintf "%s:%d". Source-inspection guards
+// against the v1.2.0 regression returning.
+func TestListProbeTargetsAddrUsesHostInet(t *testing.T) {
+	t.Run("system-liveness-loop/AC-27", func(t *testing.T) {
+		src := readSourceFile(t, "service.go")
+		// The SELECT clause MUST call host() on the inet column so the
+		// CIDR suffix is stripped.
+		if !strings.Contains(src, "host(h.ip_address)") {
+			t.Errorf("listProbeTargets SELECT must use host(h.ip_address) — raw inet leaks /N CIDR prefix")
+		}
+		// The Addr field MUST be built as "<ip>:<port>" with no CIDR
+		// suffix in between.
+		if !strings.Contains(src, `fmt.Sprintf("%s:%d", ip, port)`) {
+			t.Errorf("listProbeTargets Addr formatter changed — must remain %q", `fmt.Sprintf("%s:%d", ip, port)`)
+		}
+	})
 }
 
 // @ac AC-32
