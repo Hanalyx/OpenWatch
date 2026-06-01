@@ -36,6 +36,12 @@ const (
 	// on every successful Discover run (one-shot fingerprint on first
 	// contact + on-demand). Spec system-host-discovery AC-11.
 	EventKindHostDiscovered EventKind = "host.discovered"
+
+	// EventKindIntelligenceEvent is emitted by
+	// internal/intelligence/collector per detected change during a
+	// RunCycle. Carries the taxonomy code, severity, and detail. Spec
+	// system-os-intelligence AC-11.
+	EventKindIntelligenceEvent EventKind = "intelligence.event"
 )
 
 // AllEventKinds is the closed set, in registration order. Spec AC-07's
@@ -46,6 +52,7 @@ var AllEventKinds = []EventKind{
 	EventKindHostChanged,
 	EventKindMonitoringBandChanged,
 	EventKindHostDiscovered,
+	EventKindIntelligenceEvent,
 }
 
 // Event is the contract every bus event satisfies. Implementations are
@@ -174,6 +181,23 @@ func (h HostDiscovered) Kind() EventKind { return EventKindHostDiscovered }
 
 // Timestamp satisfies Event.
 func (h HostDiscovered) Timestamp() time.Time { return h.DiscoveredAt }
+
+// IntelligenceEvent is fired by the OS Intelligence collector per
+// detected change. Detail mirrors the taxonomy entry's detail_schema
+// in app/audit/events.yaml.
+type IntelligenceEvent struct {
+	HostID     uuid.UUID
+	Code       string         // taxonomy code, e.g. "system.package.updated"
+	Severity   string         // info|low|medium|high|critical
+	Detail     map[string]any // per-code typed payload
+	OccurredAt time.Time
+}
+
+// Kind satisfies Event.
+func (i IntelligenceEvent) Kind() EventKind { return EventKindIntelligenceEvent }
+
+// Timestamp satisfies Event.
+func (i IntelligenceEvent) Timestamp() time.Time { return i.OccurredAt }
 
 // DefaultBufferSize is the per-subscriber channel buffer when
 // SubscribeOptions.BufferSize is zero. Spec C-04.

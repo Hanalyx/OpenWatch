@@ -77,6 +77,62 @@ const (
 	HostDiscoveryCompleted Code = "host.discovery.completed"
 	//
 	HostIntelligenceRefreshed Code = "host.intelligence.refreshed"
+	// User account lock detected via passwd/shadow comparison
+	AccountUserLocked Code = "account.user.locked"
+	// User account unlock detected via passwd/shadow comparison
+	AccountUserUnlocked Code = "account.user.unlocked"
+	// New user account appeared in /etc/passwd since prior snapshot
+	AccountUserCreated Code = "account.user.created"
+	// User account removed from /etc/passwd since prior snapshot
+	AccountUserDeleted Code = "account.user.deleted"
+	// User added to wheel/sudo/admin group since prior snapshot
+	AccountUserPrivilegedGroupAdded Code = "account.user.privileged_group_added"
+	// Password expiry crossed since prior snapshot
+	AccountPasswordExpired Code = "account.password.expired"
+	// Password expiry within warning window
+	AccountPasswordExpiring Code = "account.password.expiring"
+	// New authorized_keys entry detected for a user
+	AccountSshKeyAdded Code = "account.ssh_key.added"
+	// authorized_keys entry removed for a user
+	AccountSshKeyRemoved Code = "account.ssh_key.removed"
+	// Sudo failure count crossed the per-cycle threshold
+	AccountSudoFailureThreshold Code = "account.sudo.failure_threshold"
+	// Known user logged in from previously-unseen source IP
+	SecurityLoginNewSourceIp Code = "security.login.new_source_ip"
+	// Failed login count crossed the per-cycle threshold
+	SecurityLoginFailedThreshold Code = "security.login.failed_threshold"
+	// SELinux denial entry observed in audit log since prior cycle
+	SecuritySelinuxDenied Code = "security.selinux.denied"
+	// AppArmor denial entry observed in audit log since prior cycle
+	SecurityApparmorDenied Code = "security.apparmor.denied"
+	// Firewall ruleset hash changed since prior cycle
+	SecurityFirewallRuleChanged Code = "security.firewall.rule_changed"
+	// New listening port observed
+	SecurityPortOpened Code = "security.port.opened"
+	// Newly installed package observed
+	SystemPackageInstalled Code = "system.package.installed"
+	// Package upgraded to a new version
+	SystemPackageUpdated Code = "system.package.updated"
+	// Previously-installed package no longer present
+	SystemPackageRemoved Code = "system.package.removed"
+	// New kernel installed; reboot likely pending
+	SystemKernelUpdated Code = "system.kernel.updated"
+	// Host indicates a reboot is required (vendor marker file present)
+	SystemRebootRequired Code = "system.reboot.required"
+	// Host uptime fell below the prior cycle's value — reboot completed
+	SystemRebootCompleted Code = "system.reboot.completed"
+	// Critical host config file content hash changed (e.g. /etc/sudoers)
+	SystemConfigFileChanged Code = "system.config.file_changed"
+	// Systemd unit transitioned to active
+	SystemServiceStarted Code = "system.service.started"
+	// Systemd unit transitioned to inactive
+	SystemServiceStopped Code = "system.service.stopped"
+	// Systemd unit transitioned to failed
+	SystemServiceFailed Code = "system.service.failed"
+	// Mountpoint that did not exist in prior cycle is now mounted
+	SystemFilesystemMounted Code = "system.filesystem.mounted"
+	// Previously-mounted mountpoint is no longer mounted
+	SystemFilesystemUnmounted Code = "system.filesystem.unmounted"
 	//
 	HostBulkImported Code = "host.bulk_imported"
 	//
@@ -437,6 +493,202 @@ var Metadata = map[Code]EventMeta{
 		Category:    "host",
 		Severity:    SeverityInfo,
 		Description: ``,
+		ActorTypes:  nil,
+	},
+	AccountUserLocked: {
+		Code:        AccountUserLocked,
+		Category:    "account",
+		Severity:    SeverityWarning,
+		Description: `User account lock detected via passwd/shadow comparison`,
+		ActorTypes:  nil,
+	},
+	AccountUserUnlocked: {
+		Code:        AccountUserUnlocked,
+		Category:    "account",
+		Severity:    SeverityInfo,
+		Description: `User account unlock detected via passwd/shadow comparison`,
+		ActorTypes:  nil,
+	},
+	AccountUserCreated: {
+		Code:        AccountUserCreated,
+		Category:    "account",
+		Severity:    SeverityWarning,
+		Description: `New user account appeared in /etc/passwd since prior snapshot`,
+		ActorTypes:  nil,
+	},
+	AccountUserDeleted: {
+		Code:        AccountUserDeleted,
+		Category:    "account",
+		Severity:    SeverityWarning,
+		Description: `User account removed from /etc/passwd since prior snapshot`,
+		ActorTypes:  nil,
+	},
+	AccountUserPrivilegedGroupAdded: {
+		Code:        AccountUserPrivilegedGroupAdded,
+		Category:    "account",
+		Severity:    SeverityCritical,
+		Description: `User added to wheel/sudo/admin group since prior snapshot`,
+		ActorTypes:  nil,
+	},
+	AccountPasswordExpired: {
+		Code:        AccountPasswordExpired,
+		Category:    "account",
+		Severity:    SeverityWarning,
+		Description: `Password expiry crossed since prior snapshot`,
+		ActorTypes:  nil,
+	},
+	AccountPasswordExpiring: {
+		Code:        AccountPasswordExpiring,
+		Category:    "account",
+		Severity:    SeverityInfo,
+		Description: `Password expiry within warning window`,
+		ActorTypes:  nil,
+	},
+	AccountSshKeyAdded: {
+		Code:        AccountSshKeyAdded,
+		Category:    "account",
+		Severity:    SeverityWarning,
+		Description: `New authorized_keys entry detected for a user`,
+		ActorTypes:  nil,
+	},
+	AccountSshKeyRemoved: {
+		Code:        AccountSshKeyRemoved,
+		Category:    "account",
+		Severity:    SeverityInfo,
+		Description: `authorized_keys entry removed for a user`,
+		ActorTypes:  nil,
+	},
+	AccountSudoFailureThreshold: {
+		Code:        AccountSudoFailureThreshold,
+		Category:    "account",
+		Severity:    SeverityWarning,
+		Description: `Sudo failure count crossed the per-cycle threshold`,
+		ActorTypes:  nil,
+	},
+	SecurityLoginNewSourceIp: {
+		Code:        SecurityLoginNewSourceIp,
+		Category:    "security",
+		Severity:    SeverityWarning,
+		Description: `Known user logged in from previously-unseen source IP`,
+		ActorTypes:  nil,
+	},
+	SecurityLoginFailedThreshold: {
+		Code:        SecurityLoginFailedThreshold,
+		Category:    "security",
+		Severity:    SeverityWarning,
+		Description: `Failed login count crossed the per-cycle threshold`,
+		ActorTypes:  nil,
+	},
+	SecuritySelinuxDenied: {
+		Code:        SecuritySelinuxDenied,
+		Category:    "security",
+		Severity:    SeverityWarning,
+		Description: `SELinux denial entry observed in audit log since prior cycle`,
+		ActorTypes:  nil,
+	},
+	SecurityApparmorDenied: {
+		Code:        SecurityApparmorDenied,
+		Category:    "security",
+		Severity:    SeverityWarning,
+		Description: `AppArmor denial entry observed in audit log since prior cycle`,
+		ActorTypes:  nil,
+	},
+	SecurityFirewallRuleChanged: {
+		Code:        SecurityFirewallRuleChanged,
+		Category:    "security",
+		Severity:    SeverityError,
+		Description: `Firewall ruleset hash changed since prior cycle`,
+		ActorTypes:  nil,
+	},
+	SecurityPortOpened: {
+		Code:        SecurityPortOpened,
+		Category:    "security",
+		Severity:    SeverityError,
+		Description: `New listening port observed`,
+		ActorTypes:  nil,
+	},
+	SystemPackageInstalled: {
+		Code:        SystemPackageInstalled,
+		Category:    "system",
+		Severity:    SeverityInfo,
+		Description: `Newly installed package observed`,
+		ActorTypes:  nil,
+	},
+	SystemPackageUpdated: {
+		Code:        SystemPackageUpdated,
+		Category:    "system",
+		Severity:    SeverityInfo,
+		Description: `Package upgraded to a new version`,
+		ActorTypes:  nil,
+	},
+	SystemPackageRemoved: {
+		Code:        SystemPackageRemoved,
+		Category:    "system",
+		Severity:    SeverityWarning,
+		Description: `Previously-installed package no longer present`,
+		ActorTypes:  nil,
+	},
+	SystemKernelUpdated: {
+		Code:        SystemKernelUpdated,
+		Category:    "system",
+		Severity:    SeverityWarning,
+		Description: `New kernel installed; reboot likely pending`,
+		ActorTypes:  nil,
+	},
+	SystemRebootRequired: {
+		Code:        SystemRebootRequired,
+		Category:    "system",
+		Severity:    SeverityWarning,
+		Description: `Host indicates a reboot is required (vendor marker file present)`,
+		ActorTypes:  nil,
+	},
+	SystemRebootCompleted: {
+		Code:        SystemRebootCompleted,
+		Category:    "system",
+		Severity:    SeverityInfo,
+		Description: `Host uptime fell below the prior cycle's value — reboot completed`,
+		ActorTypes:  nil,
+	},
+	SystemConfigFileChanged: {
+		Code:        SystemConfigFileChanged,
+		Category:    "system",
+		Severity:    SeverityError,
+		Description: `Critical host config file content hash changed (e.g. /etc/sudoers)`,
+		ActorTypes:  nil,
+	},
+	SystemServiceStarted: {
+		Code:        SystemServiceStarted,
+		Category:    "system",
+		Severity:    SeverityInfo,
+		Description: `Systemd unit transitioned to active`,
+		ActorTypes:  nil,
+	},
+	SystemServiceStopped: {
+		Code:        SystemServiceStopped,
+		Category:    "system",
+		Severity:    SeverityInfo,
+		Description: `Systemd unit transitioned to inactive`,
+		ActorTypes:  nil,
+	},
+	SystemServiceFailed: {
+		Code:        SystemServiceFailed,
+		Category:    "system",
+		Severity:    SeverityError,
+		Description: `Systemd unit transitioned to failed`,
+		ActorTypes:  nil,
+	},
+	SystemFilesystemMounted: {
+		Code:        SystemFilesystemMounted,
+		Category:    "system",
+		Severity:    SeverityInfo,
+		Description: `Mountpoint that did not exist in prior cycle is now mounted`,
+		ActorTypes:  nil,
+	},
+	SystemFilesystemUnmounted: {
+		Code:        SystemFilesystemUnmounted,
+		Category:    "system",
+		Severity:    SeverityWarning,
+		Description: `Previously-mounted mountpoint is no longer mounted`,
 		ActorTypes:  nil,
 	},
 	HostBulkImported: {
@@ -1036,6 +1288,34 @@ var codeOrder = []Code{
 	HostPlatformDetected,
 	HostDiscoveryCompleted,
 	HostIntelligenceRefreshed,
+	AccountUserLocked,
+	AccountUserUnlocked,
+	AccountUserCreated,
+	AccountUserDeleted,
+	AccountUserPrivilegedGroupAdded,
+	AccountPasswordExpired,
+	AccountPasswordExpiring,
+	AccountSshKeyAdded,
+	AccountSshKeyRemoved,
+	AccountSudoFailureThreshold,
+	SecurityLoginNewSourceIp,
+	SecurityLoginFailedThreshold,
+	SecuritySelinuxDenied,
+	SecurityApparmorDenied,
+	SecurityFirewallRuleChanged,
+	SecurityPortOpened,
+	SystemPackageInstalled,
+	SystemPackageUpdated,
+	SystemPackageRemoved,
+	SystemKernelUpdated,
+	SystemRebootRequired,
+	SystemRebootCompleted,
+	SystemConfigFileChanged,
+	SystemServiceStarted,
+	SystemServiceStopped,
+	SystemServiceFailed,
+	SystemFilesystemMounted,
+	SystemFilesystemUnmounted,
 	HostBulkImported,
 	CredentialCreated,
 	CredentialDeleted,

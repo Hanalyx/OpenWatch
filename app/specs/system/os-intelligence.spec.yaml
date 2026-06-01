@@ -1,0 +1,176 @@
+spec:
+  id: system-os-intelligence
+  title: Host OS Intelligence — recurring snapshot + diff-driven event log
+  version: "1.0.0"
+  status: approved
+  tier: 2
+
+  context:
+    system: openwatch-go
+    feature: Recurring SSH-pull snapshot of operator-visible host state with write-on-change event emission
+    description: >
+      OS Intelligence is the recurring, write-on-change counterpart to
+      OS Discovery (system-host-discovery). Where Discovery captures a
+      one-shot fingerprint (os_family, kernel, hardware) on first
+      contact + on-demand, Intelligence runs on a per-host cadence
+      (default 1 h, clamped to [5 min, 24 h]) and detects operator-
+      visible STATE CHANGES — newly opened ports, packages installed,
+      services that started failing, kernel updates pending a reboot,
+      account lockouts, sudo failures, SSH key additions.
+
+      The model mirrors the write-on-change discipline established by
+      Slice B (transactions + host_rule_state, 99.7% write reduction):
+      one full snapshot per host kept in host_intelligence_state
+      (UPSERT, no history), and one row appended to
+      host_intelligence_events for each detected change. The taxonomy
+      is a closed enum of ~25 codes spanning account, security, and
+      system categories.
+
+      Collection is pull-via-SSH using the same internal/credential +
+      internal/ssh path Discovery uses. The probe runs in one session
+      per collection cycle. Sudo failure gracefully degrades — the
+      category whose data needed root simply records no change for
+      that cycle.
+
+      Eventbus + audit on every detected change: each emitted event
+      both publishes an EventBus event (subscribers route alerts /
+      SSE) and emits a per-code audit event so the long-term forensic
+      log stays correlated.
+
+      Cadence is interval-driven from policy.Intelligence.IntervalSec,
+      clamped to the spec's safety bounds. Per-host backoff piggybacks
+      on host_backoff_state with probe_type='intelligence' so a host
+      that times out repeatedly does not starve the collection loop.
+
+    related_specs:
+      - system-host-discovery
+      - system-ssh-connectivity
+      - system-credential-store
+      - system-event-bus
+      - system-audit-emission
+      - system-transaction-log
+      - system-host-inventory
+
+  objective:
+    summary: >
+      A new sub-package internal/intelligence/collector owns the
+      recurring SSH-driven Intelligence flow. The taxonomy lives in
+      internal/intelligence/taxonomy.go and mirrors audit/events.yaml.
+      A Service exposes RunCycle(ctx, hostID) which: resolves the
+      credential, opens one SSH session, runs the closed probe batch,
+      parses outputs, diffs against the prior snapshot in
+      host_intelligence_state, appends event rows to
+      host_intelligence_events for each change, UPSERTs the new
+      snapshot, publishes events on the bus, and emits per-code audit
+      events. Loop wiring (the cron-like driver) is out of scope for
+      v1.0.0 — that lands in PR 1.3 / 1.4 alongside the API.
+    scope:
+      includes:
+        - 'Migration 0018: host_intelligence_state (snapshot per host) + host_intelligence_events (diff log) + indexes'
+        - 'Taxonomy with ~25 closed-enum codes covering account, security, system categories'
+        - 'collector.Service.RunCycle(ctx, hostID) — orchestrates probe + diff + persist + bus + audit'
+        - 'Pure parsers for each command (parsers_account.go, parsers_security.go, parsers_system.go)'
+        - 'Diff engine — given (prior, current) snapshots returns the closed-set list of change events to emit'
+        - 'Eventbus: new EventKindIntelligenceEvent published per detected change'
+        - 'Audit codes registered in events.yaml for each taxonomy entry'
+      excludes:
+        - 'The recurring scheduler loop / cron — PR 1.3+'
+        - 'GET /api/v1/intelligence/{events,state} endpoints — PR 1.3'
+        - 'Per-event severity-threshold → alert-router promotion — covered separately by system-alert-router amendment'
+        - 'Frontend /activity page — depends on frontend stack decision'
+
+  constraints:
+    - id: C-01
+      description: 'collector.Service.RunCycle MUST open EXACTLY ONE ssh.Dial per host per cycle. The probe batch (account, security, system) runs in one session. Multi-dial is forbidden — same rationale as system-host-discovery C-10 (sshd connection rate limits)'
+      type: performance
+      enforcement: error
+    - id: C-02
+      description: 'Parsers in internal/intelligence/collector MUST be pure functions (byte input → typed struct + error). NO SSH, NO database, NO HTTP. Parser tests run from fixture strings alone — same purity discipline as probe.go in Discovery'
+      type: technical
+      enforcement: error
+    - id: C-03
+      description: 'host_intelligence_state UPSERT keyed by host_id (UNIQUE). The table represents the LAST snapshot, never a history. Subsequent cycles UPDATE the existing row'
+      type: technical
+      enforcement: error
+    - id: C-04
+      description: 'host_intelligence_events is append-only. The diff engine appends one row per detected change with UNIQUE (host_id, event_code, occurred_at) for idempotency under retry'
+      type: technical
+      enforcement: error
+    - id: C-05
+      description: 'event_code MUST be a value in the closed taxonomy enum. Storage CHECK constraint enforces. Adding a new code requires updating taxonomy.go + audit/events.yaml + the migration enum + the diff engine — by design, so reviews catch unmapped events at PR time'
+      type: technical
+      enforcement: error
+    - id: C-06
+      description: 'Per detected change, the service MUST publish eventbus.IntelligenceEvent AND emit one audit event whose code matches the taxonomy event_code. Drift between bus and audit is forbidden — the alert router subscribes to the bus; auditors trail the audit log'
+      type: security
+      enforcement: error
+    - id: C-07
+      description: 'Sudo failure on a probe sub-command MUST NOT fail the whole cycle. The category whose data needed root records no change for that cycle; other categories continue. Same partial-success discipline as system-host-discovery C-03'
+      type: technical
+      enforcement: error
+    - id: C-08
+      description: 'RunCycle is invoked per-host. Concurrency control is the caller''s responsibility (the scheduler in PR 1.3 will use pg_advisory_xact_lock the same way the scan worker does). The service itself MUST NOT serialize globally'
+      type: technical
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: 'taxonomy.Codes() returns at least 20 entries spanning account, security, system categories. Every code matches the dotted regex ^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*){2}$ — three-segment hierarchy (category.subcategory.action)'
+      priority: critical
+      references_constraints: [C-05]
+    - id: AC-02
+      description: 'Every code in taxonomy.Codes() has a matching entry in audit/events.yaml. Source-inspection: parse events.yaml + the Go const list and assert the two sets are equal'
+      priority: critical
+      references_constraints: [C-05, C-06]
+    - id: AC-03
+      description: 'parsers_account.ParsePasswdShadow on a fixture /etc/passwd + /etc/shadow returns the typed AccountFacts with the locked-out users flagged. Lockout detection: shadow.password_field starts with "!" or "*" or has expiry in the past'
+      priority: high
+      references_constraints: [C-02]
+    - id: AC-04
+      description: 'parsers_security.ParseListeningPorts on `ss -tln` fixture output returns the typed list of listening sockets {protocol, address, port} with no error. Empty input yields empty list, not an error'
+      priority: high
+      references_constraints: [C-02]
+    - id: AC-05
+      description: 'parsers_system.ParseInstalledPackages on `rpm -qa` and on `dpkg -l` fixture outputs both return a typed map[name]version. The same parser handles both family conventions; missing fields yield empty values'
+      priority: high
+      references_constraints: [C-02]
+    - id: AC-06
+      description: 'collector.Diff given a prior snapshot with package "openssh" v9.0 and a current snapshot with "openssh" v9.6 emits exactly one event with code="system.package.updated", detail={"name":"openssh","prior":"9.0","current":"9.6"}'
+      priority: critical
+      references_constraints: [C-04, C-05]
+    - id: AC-07
+      description: 'collector.Diff given a prior with port 22 open and a current with ports 22 + 443 open emits exactly one event code="security.port.opened" detail={"port":443}. Port 22 (unchanged) does NOT emit'
+      priority: critical
+      references_constraints: [C-04]
+    - id: AC-08
+      description: 'collector.Diff with a user newly added to the "wheel" group emits exactly one event code="account.user.privileged_group_added" detail={"user":...,"group":"wheel"}. Unchanged group memberships do not emit'
+      priority: critical
+      references_constraints: [C-04]
+    - id: AC-09
+      description: 'Service.RunCycle MUST open EXACTLY ONE ssh.Dial per call. Verified with a stub SSH transport that counts dials — exactly 1 regardless of how many categories the probe runs'
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-10
+      description: 'Service.RunCycle on a host where sudo-required sub-commands fail (Permission denied) returns the partial result for non-sudo categories and emits NO events for the sudo-blocked category. The cycle returns a nil error'
+      priority: critical
+      references_constraints: [C-07]
+    - id: AC-11
+      description: 'Per detected change, Service.RunCycle publishes EventKindIntelligenceEvent to the bus with the same event_code that ends up in host_intelligence_events. A subscriber registered for that kind receives the event within 100 ms'
+      priority: critical
+      references_constraints: [C-06]
+    - id: AC-12
+      description: 'Per detected change, Service.RunCycle emits exactly one audit event whose Code matches the taxonomy entry. The resource_type is "host" and resource_id is the host id. Failure paths (probe error, persist failure) MUST NOT emit'
+      priority: critical
+      references_constraints: [C-06]
+    - id: AC-13
+      description: 'A second RunCycle with NO changes since the prior cycle appends ZERO rows to host_intelligence_events and UPSERTs host_intelligence_state with collected_at advanced. write-on-change discipline preserved'
+      priority: critical
+      references_constraints: [C-03, C-04]
+    - id: AC-14
+      description: 'host_intelligence_events.UNIQUE (host_id, event_code, occurred_at) — a retried RunCycle that re-detects the same change at the same occurred_at MUST NOT insert a duplicate row. Idempotent under retry'
+      priority: high
+      references_constraints: [C-04]
+    - id: AC-15
+      description: 'host_intelligence_events.event_code is constrained by a CHECK clause that enumerates the taxonomy. Attempting to INSERT a code not in the enum fails the constraint. Verified by attempting an out-of-enum insert and expecting failure'
+      priority: high
+      references_constraints: [C-05]
