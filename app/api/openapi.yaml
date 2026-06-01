@@ -1158,6 +1158,83 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
 
+  /api/v1/intelligence/events:
+    get:
+      operationId: getIntelligenceEvents
+      summary: List OS Intelligence change events
+      description: |
+        Returns the change events the OS Intelligence collector
+        recorded — newly opened ports, package updates, service
+        failures, etc. Cursor pagination on detected_at DESC. Filter
+        by host_id, event_code, severity, since/until. Spec
+        api-os-intelligence.
+      parameters:
+        - name: host_id
+          in: query
+          schema: {type: string, format: uuid}
+        - name: event_code
+          in: query
+          schema: {type: string, minLength: 1, maxLength: 64}
+        - name: severity
+          in: query
+          schema: {type: string, enum: [info, low, medium, high, critical]}
+        - name: since
+          in: query
+          schema: {type: string, format: date-time}
+        - name: until
+          in: query
+          schema: {type: string, format: date-time}
+        - name: cursor
+          in: query
+          schema: {type: string}
+        - name: limit
+          in: query
+          schema: {type: integer, minimum: 1, maximum: 200, default: 50}
+      responses:
+        '200':
+          description: Events page
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/IntelligenceEventsPage'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '403':
+          description: Caller lacks host:read permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
+  /api/v1/intelligence/state/{host_id}:
+    get:
+      operationId: getIntelligenceState
+      summary: Last full Intelligence snapshot for one host
+      description: |
+        Returns the most recent host_intelligence_state row for the
+        given host. 404 hosts.not_found if the host is unknown OR if
+        no Intelligence cycle has populated the row yet (operators
+        cannot probe host existence via this endpoint). Spec
+        api-os-intelligence.
+      parameters:
+        - name: host_id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: Last snapshot
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/IntelligenceState'}
+        '403':
+          description: Caller lacks host:read permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '404':
+          description: Host unknown OR no snapshot yet
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
   /api/v1/hosts/{id}/discovery:run:
     post:
       operationId: postHostDiscoveryRun
@@ -1766,6 +1843,43 @@ components:
           type: string
           enum: [reachable, unreachable, unknown]
           description: Post-hysteresis status (same value the periodic loop would write)
+
+    IntelligenceEvent:
+      type: object
+      required: [id, host_id, event_code, severity, occurred_at, detected_at]
+      properties:
+        id:             {type: string, format: uuid}
+        host_id:        {type: string, format: uuid}
+        event_code:     {type: string, description: 'Closed taxonomy: e.g. system.package.updated'}
+        severity:       {type: string, enum: [info, low, medium, high, critical]}
+        detail:
+          type: object
+          additionalProperties: true
+        occurred_at:    {type: string, format: date-time}
+        detected_at:    {type: string, format: date-time}
+        correlation_id: {type: string}
+
+    IntelligenceEventsPage:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: {$ref: '#/components/schemas/IntelligenceEvent'}
+        next_cursor:
+          type: string
+          nullable: true
+
+    IntelligenceState:
+      type: object
+      required: [host_id, snapshot, collected_at]
+      properties:
+        host_id:      {type: string, format: uuid}
+        snapshot:
+          type: object
+          additionalProperties: true
+          description: Free-form host_intelligence_state.snapshot — mirrors collector.Snapshot
+        collected_at: {type: string, format: date-time}
 
     HostSystemInfo:
       type: object

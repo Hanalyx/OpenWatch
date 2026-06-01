@@ -34,6 +34,7 @@ domains:
             - system-credential-store
             - system-host-discovery
             - system-os-intelligence
+            - api-os-intelligence
             - system-host-inventory
             - system-ssh-connectivity
             - api-auth
