@@ -69,10 +69,15 @@ func TestService_RateLimit_BoundsConcurrency(t *testing.T) {
 // AC-14: Stop blocks until in-flight RunCycles complete.
 func TestService_Stop_WaitsForInflightCycle(t *testing.T) {
 	t.Run("system-intelligence-scheduler/AC-14", func(t *testing.T) {
+		// Synchronous handshake — no time.Sleep guessing. Under -race
+		// the previous 20ms sleep was unreliable.
+		started := make(chan struct{})
+		release := make(chan struct{})
 		runFinished := make(chan struct{})
 		stub := &stubRunner{
 			run: func(_ context.Context, _ uuid.UUID) error {
-				time.Sleep(80 * time.Millisecond)
+				close(started)
+				<-release
 				close(runFinished)
 				return nil
 			},
@@ -80,8 +85,7 @@ func TestService_Stop_WaitsForInflightCycle(t *testing.T) {
 		svc := NewService(nil, stub).WithRateLimit(1)
 
 		go svc.dispatchHostInPool(context.Background(), newUUID())
-		// Let the stub start.
-		time.Sleep(20 * time.Millisecond)
+		<-started
 
 		stopReturned := make(chan struct{})
 		go func() {
@@ -89,19 +93,20 @@ func TestService_Stop_WaitsForInflightCycle(t *testing.T) {
 			close(stopReturned)
 		}()
 
-		// Stop MUST NOT return before the in-flight cycle finishes.
+		// Stop MUST NOT return while the stub is blocked on release.
 		select {
 		case <-stopReturned:
 			t.Fatalf("Stop returned before in-flight RunCycle finished")
-		case <-time.After(20 * time.Millisecond):
+		case <-time.After(100 * time.Millisecond):
 			// Expected — still in flight.
 		}
+		close(release)
 		<-runFinished
 		select {
 		case <-stopReturned:
 			// Expected — Stop returns now that the cycle's done.
-		case <-time.After(500 * time.Millisecond):
-			t.Fatalf("Stop did not return within 500ms of in-flight RunCycle completing")
+		case <-time.After(2 * time.Second):
+			t.Fatalf("Stop did not return within 2s of in-flight RunCycle completing")
 		}
 	})
 }
