@@ -118,3 +118,85 @@ func (s *Store) SetConnectivity(ctx context.Context, cfg ConnectivityConfig, cha
 	}
 	return nil
 }
+
+// LoadIntelligence returns the persisted IntelligenceConfig OR
+// DefaultIntelligence when no row exists for KeyIntelligence. Only
+// returns an error for DB / unmarshal failures.
+//
+// Spec api-system-intelligence-config AC-01.
+func (s *Store) LoadIntelligence(ctx context.Context) (IntelligenceConfig, error) {
+	var raw []byte
+	err := s.pool.QueryRow(ctx, `SELECT value FROM system_config WHERE key = $1`, KeyIntelligence).Scan(&raw)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return DefaultIntelligence(), nil
+	}
+	if err != nil {
+		return IntelligenceConfig{}, fmt.Errorf("systemconfig: load %s: %w", KeyIntelligence, err)
+	}
+	cfg := DefaultIntelligence()
+	if err := json.Unmarshal(raw, &cfg); err != nil {
+		return IntelligenceConfig{}, fmt.Errorf("systemconfig: unmarshal %s: %w", KeyIntelligence, err)
+	}
+	return cfg, nil
+}
+
+// SetIntelligence validates the input, UPSERTs the row, and emits
+// audit.SystemConfigChanged with the old + new snapshot captured in
+// the same transaction.
+//
+// Spec api-system-intelligence-config AC-03 / AC-05 / AC-08.
+func (s *Store) SetIntelligence(ctx context.Context, cfg IntelligenceConfig, changedBy string) error {
+	if err := cfg.Validate(); err != nil {
+		return err
+	}
+	newBytes, err := json.Marshal(cfg)
+	if err != nil {
+		return fmt.Errorf("systemconfig: marshal: %w", err)
+	}
+
+	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return fmt.Errorf("systemconfig: begin: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	var oldRaw []byte
+	err = tx.QueryRow(ctx, `SELECT value FROM system_config WHERE key = $1 FOR UPDATE`, KeyIntelligence).Scan(&oldRaw)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return fmt.Errorf("systemconfig: read old: %w", err)
+	}
+	oldCfg := DefaultIntelligence()
+	if len(oldRaw) > 0 {
+		_ = json.Unmarshal(oldRaw, &oldCfg)
+	}
+
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO system_config (key, value, updated_at, updated_by)
+		VALUES ($1, $2, now(), $3)
+		ON CONFLICT (key) DO UPDATE
+		   SET value      = EXCLUDED.value,
+		       updated_at = EXCLUDED.updated_at,
+		       updated_by = EXCLUDED.updated_by`,
+		KeyIntelligence, newBytes, changedBy,
+	); err != nil {
+		return fmt.Errorf("systemconfig: upsert: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("systemconfig: commit: %w", err)
+	}
+
+	if s.emit != nil {
+		s.emit(ctx, audit.SystemConfigChanged, audit.Event{
+			ActorType: "user",
+			ActorID:   changedBy,
+			Detail: audit.MakeDetail(map[string]any{
+				"config_key": KeyIntelligence,
+				"old_value":  oldCfg,
+				"new_value":  cfg,
+				"changed_by": changedBy,
+			}),
+		})
+	}
+	return nil
+}

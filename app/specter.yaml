@@ -48,6 +48,7 @@ domains:
             - api-events-stream
             - frontend-live-events
             - api-hosts
+            - api-system-intelligence-config
             - frontend-host-detail
             - frontend-host-list-os
             - frontend-host-detail-system-card
