@@ -171,6 +171,6 @@ spec:
       priority: high
       references_constraints: [C-04]
     - id: AC-15
-      description: 'host_intelligence_events.event_code is constrained by a CHECK clause that enumerates the taxonomy. Attempting to INSERT a code not in the enum fails the constraint. Verified by attempting an out-of-enum insert and expecting failure'
+      description: 'host_intelligence_events.event_code is constrained by a CHECK clause that enumerates the taxonomy. Attempting to INSERT a code not in the enum fails the constraint. Verified by attempting an out-of-enum insert and expecting failure. Also covers the per-host RunCycle contract from C-08: source-inspect that the service does not introduce a global mutex around RunCycle (concurrency is the caller''s job)'
       priority: high
-      references_constraints: [C-05]
+      references_constraints: [C-05, C-08]
