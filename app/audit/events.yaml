@@ -203,6 +203,18 @@ events:
         os_version: {type: string}
         platform_identifier: {type: string}
 
+  - code: host.discovery.completed
+    severity: info
+    description: Host OS fingerprint Discovery run finished successfully; carries the captured facts as detail
+    detail_schema:
+      type: object
+      properties:
+        os_family: {type: string}
+        os_version: {type: string}
+        kernel_release: {type: string}
+        architecture: {type: string}
+        discovered_at: {type: string, format: date-time}
+
   - code: host.intelligence.refreshed
     severity: info
 

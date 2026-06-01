@@ -243,23 +243,28 @@ func TestSubscribe_TinyBuffer_DropsAfterFull(t *testing.T) {
 }
 
 // @ac AC-07
-// AC-07: EventKind enum has exactly the values in AllEventKinds.
-// v1.0.0 shipped two (HeartbeatPulse, DriftDetected); v1.1.0 added
-// HostChanged + MonitoringBandChanged for the SSE layer.
+// AC-07: EventKind enum is closed — every value the bus carries
+// appears exactly once in AllEventKinds. The invariant is that
+// AllEventKinds enumerates the closed set, not that the count is
+// frozen at any particular version.
 func TestEventKindEnum_HasExactlyTwoValues(t *testing.T) {
 	t.Run("system-event-bus/AC-07", func(t *testing.T) {
+		// Closed set: v1.0 HeartbeatPulse + DriftDetected; v1.1 added
+		// HostChanged + MonitoringBandChanged for the SSE layer;
+		// HostDiscovered added by system-host-discovery PR 1.1.
 		expected := map[EventKind]bool{
 			EventKindHeartbeatPulse:        false,
 			EventKindDriftDetected:         false,
 			EventKindHostChanged:           false,
 			EventKindMonitoringBandChanged: false,
+			EventKindHostDiscovered:        false,
 		}
 		if len(AllEventKinds) != len(expected) {
 			t.Errorf("AllEventKinds = %d, want %d", len(AllEventKinds), len(expected))
 		}
 		for _, k := range AllEventKinds {
 			if _, ok := expected[k]; !ok {
-				t.Errorf("AllEventKinds has unexpected kind %q", k)
+				t.Errorf("AllEventKinds contains unexpected kind %q", k)
 				continue
 			}
 			expected[k] = true

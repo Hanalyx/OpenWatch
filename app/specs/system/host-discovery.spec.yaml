@@ -1,0 +1,194 @@
+spec:
+  id: system-host-discovery
+  title: Host OS fingerprint discovery via SSH
+  version: "1.0.0"
+  status: approved
+  tier: 1
+
+  context:
+    system: openwatch-go
+    feature: One-shot OS / kernel / hardware fingerprint on first contact + on-demand
+    description: >
+      Host Discovery is the operator-facing inventory layer that
+      answers "what is this host?" — distribution name, OS version,
+      kernel release, CPU architecture, hostname / FQDN, primary IP,
+      uptime, SELinux + AppArmor + firewall enablement, hardware
+      summary (CPU model + cores / threads, memory total, disk total /
+      used / free on /). It is independent of the Kensa compliance
+      scanner — Kensa auto-detects OS internally for its own rule
+      selection, but operators need the same facts on the host detail
+      page, list-page filters, group-by, alert routing, and policy
+      decisions ("STIG profile only for RHEL hosts"). Hosting that
+      knowledge in OpenWatch (not delegating to Kensa) keeps the
+      fact-of-record on OpenWatch's side and lets Discovery run before
+      a first scan.
+
+      Cadence: one-shot on host creation (auto-trigger via the
+      existing job queue), plus on-demand re-run via POST
+      /api/v1/hosts/{id}/discovery:run. Re-discovers gracefully when
+      the OS changes (rare — distro upgrade, distro switch).
+
+      Collection model: pull via SSH using the existing credential
+      resolution + dial path. Reuses internal/ssh + internal/credential.
+      No agent on the host. Probe is a closed set of commands
+      executed in one session: /etc/os-release, uname -a, /proc/meminfo,
+      df -BG /, getenforce, aa-status --enabled, firewall detection
+      (systemctl is-active firewalld / ufw status / nft list ruleset /
+      iptables -L), hostname / hostname -f.
+
+      Sudo gracefully degrades: most facts come from world-readable
+      files. Where sudo is needed (firewall introspection on some
+      distros), failure returns the partial fact set rather than
+      erroring the whole probe — the host stays "discovered" with
+      missing firewall data.
+
+      Persistence: a wide host_system_info row per host (upserted on
+      each Discovery run), plus a denormalized subset of fields on
+      the hosts row itself (os_family, os_version, architecture,
+      platform_identifier, os_discovered_at) so list-page queries
+      stay one-table.
+
+    related_specs:
+      - system-host-inventory
+      - system-ssh-connectivity
+      - system-credential-store
+      - system-job-queue
+      - system-event-bus
+      - api-hosts
+
+  objective:
+    summary: >
+      A new package internal/intelligence/{probe,discovery} owns the
+      SSH-driven OS fingerprint flow. The probe module exposes pure
+      parsers for each command's output (testable without SSH). The
+      discovery service resolves the host's credential, opens one SSH
+      session, runs the probe batch, parses, and upserts into
+      host_system_info + denormalized hosts.os_* columns inside a
+      single transaction. POST /api/v1/hosts/{id}/discovery:run is the
+      synchronous on-demand entry point (RBAC: host:write); the host
+      create flow auto-enqueues a discovery job via the existing
+      SKIP-LOCKED queue.
+    scope:
+      includes:
+        - 'Pure parsers in internal/intelligence/probe for /etc/os-release, uname -a, /proc/meminfo, df -BG /, getenforce, aa-status, firewall detection, hostname / FQDN'
+        - 'Service internal/intelligence/discovery.Service with Discover(ctx, hostID) and DiscoverHost(ctx, hostID, addr, cred) seams'
+        - 'POST /api/v1/hosts/{id}/discovery:run synchronous endpoint, RBAC host:write'
+        - 'Auto-trigger on host.created via internal/queue (job kind host.discovery)'
+        - 'Migration 0017: extend hosts (os_family, os_version, architecture, platform_identifier, os_discovered_at); add host_system_info table'
+        - 'Eventbus: new EventKindHostDiscovered published on success'
+        - 'Audit: host.discovery.completed event per successful run'
+        - 'Sudo failure on firewall introspection → partial result, no probe-level error'
+      excludes:
+        - 'Recurring Intelligence collection (packages / services / users / network / firewall_rules / routes) — that is Phase 2 (system-intelligence-collector)'
+        - 'Diff-driven host_intelligence_events — Phase 3'
+        - 'Hardware metric time-series (host_metrics) — Phase 2'
+        - 'Windows host support — Linux-only in v1.0.0'
+        - 'Host-side agent / push collection'
+
+  constraints:
+    - id: C-01
+      description: 'Parsers in internal/intelligence/probe MUST be pure functions that take a bytes input (a single command''s raw stdout) and return a typed struct + error. NO SSH dial, NO database, NO HTTP — purity is what lets parser tests run without fixtures of full host snapshots'
+      type: technical
+      enforcement: error
+    - id: C-02
+      description: 'Discover(ctx, hostID) MUST resolve the host credential via internal/credential.Service.Resolve, dial SSH with the resolved auth, run the closed-set probe batch in ONE session, parse outputs, then UPSERT host_system_info AND denormalized hosts.os_* columns in a SINGLE transaction. Two writes that could leave hosts.os_* stale relative to host_system_info are forbidden'
+      type: technical
+      enforcement: error
+    - id: C-03
+      description: 'Sudo failure on probe sub-commands that require root (firewall introspection on some distros) MUST NOT fail the overall Discover call. The probe returns the SystemFacts it could collect; missing fields are zero / empty, and the success path runs. AC-05 enforces'
+      type: technical
+      enforcement: error
+    - id: C-04
+      description: 'POST /api/v1/hosts/{id}/discovery:run MUST require host:write permission. The endpoint is synchronous — returns the resulting SystemInfo response with the same shape stored in host_system_info. 404 for unknown / soft-deleted host, 502 (host.unreachable) for SSH dial failure, 200 with the partial SystemInfo when probe succeeds even if some sub-commands failed'
+      type: security
+      enforcement: error
+    - id: C-05
+      description: 'Host creation MUST auto-enqueue a host.discovery job via internal/queue. The job runs the discovery flow asynchronously so POST /api/v1/hosts returns immediately. Job failures retry with exponential backoff up to N attempts (default 3); permanent failure stops retrying but leaves hosts.os_discovered_at NULL — the host stays in the inventory and the on-demand endpoint can re-attempt'
+      type: technical
+      enforcement: error
+    - id: C-06
+      description: 'Successful Discover MUST publish eventbus.HostDiscovered{HostID, OSFamily, OSVersion, DiscoveredAt} to the bus. The publish is best-effort; bus errors are logged but do not affect the Discover return value (same contract as eventbus.HostChanged in v1.1.0)'
+      type: technical
+      enforcement: error
+    - id: C-07
+      description: 'Successful Discover MUST emit audit.HostDiscoveryCompleted with detail {os_family, os_version, kernel_release, architecture, discovered_at}. Audit emission is mandatory — Discovery is the genesis of an operator-visible fact'
+      type: security
+      enforcement: error
+    - id: C-08
+      description: 'host_system_info table MUST upsert keyed by host_id (UNIQUE constraint). Subsequent Discover runs UPDATE the existing row + bump collected_at + updated_at. The table NEVER appends — it represents the CURRENT fingerprint, not a history'
+      type: technical
+      enforcement: error
+    - id: C-09
+      description: 'Denormalized hosts.os_family / os_version / architecture / platform_identifier / os_discovered_at columns MUST be added by migration 0017 and updated in-step with host_system_info on every Discover. Operators query the hosts table for filters and grouping; missing those columns would force a join'
+      type: technical
+      enforcement: error
+    - id: C-10
+      description: 'The probe batch MUST run in a single SSH session per host. Opening one session per command would multiply dial cost N-fold and trigger sshd connection rate limits on locked-down hosts. The discovery package MUST NOT call ssh.Dial more than once per Discover(ctx, hostID)'
+      type: performance
+      enforcement: error
+    - id: C-11
+      description: 'Credential isolation: the discovery package MAY import internal/credential and golang.org/x/crypto/ssh (it owns the dial + sudo path). Unlike internal/liveness, Discovery is intentionally credential-aware. This MUST be documented in the package doc comment so future readers do not mistake the discovery package for a credential-free sensor'
+      type: security
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: 'probe.ParseOSRelease on /etc/os-release contents from RHEL 9 (NAME="Red Hat Enterprise Linux", VERSION_ID="9.4", ID="rhel", ID_LIKE="fedora") returns {OSName: "Red Hat Enterprise Linux", OSVersion: "9.4", OSID: "rhel", OSIDLike: "fedora"} with no error.'
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-02
+      description: 'probe.ParseOSRelease on Ubuntu 24.04 contents (NAME="Ubuntu", VERSION_ID="24.04", VERSION="24.04.3 LTS (Noble Numbat)", ID="ubuntu", ID_LIKE="debian") returns the matching fields. AC-01 + AC-02 together prove the parser handles both distro family conventions.'
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-03
+      description: 'probe.ParseUname on the output of "uname -srvm" returns {KernelName: "Linux", KernelRelease: <e.g. "5.14.0-362.el9.x86_64">, KernelVersion: <full string>, Architecture: <e.g. "x86_64">}.'
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-04
+      description: 'probe.ParseMemInfo on /proc/meminfo extracts MemTotal, MemAvailable, SwapTotal into MB-rounded integers. A missing field (e.g. SwapTotal on a swap-disabled host) MUST yield zero, not an error.'
+      priority: high
+      references_constraints: [C-01]
+    - id: AC-05
+      description: 'discovery.Discover with a credential whose user lacks sudo on a host where firewall introspection requires root returns the SystemFacts populated from the world-readable probes (os, kernel, meminfo, df, hostname) with empty FirewallStatus / FirewallService fields and a NIL error. The probe-level missing-sudo case is a partial success, not a hard failure.'
+      priority: critical
+      references_constraints: [C-03]
+    - id: AC-06
+      description: 'discovery.Discover MUST open EXACTLY ONE ssh.Dial per call. A test-mode SSH transport that counts dials registers exactly 1 per Discover invocation regardless of how many sub-commands the probe runs.'
+      priority: critical
+      references_constraints: [C-10]
+    - id: AC-07
+      description: 'A successful discovery.Discover writes the host_system_info row AND updates hosts.os_family / os_version / architecture / platform_identifier / os_discovered_at WITHIN ONE TRANSACTION. Killing the process between the two writes (verified by inspecting the SQL the service emits) MUST be impossible — a single BEGIN / COMMIT covers both.'
+      priority: critical
+      references_constraints: [C-02, C-08, C-09]
+    - id: AC-08
+      description: 'POST /api/v1/hosts/{id}/discovery:run with a host:write caller returns 200 with the SystemInfo JSON for a reachable host that completes Discovery successfully. The response shape matches the HostSystemInfo schema defined in the OpenAPI spec.'
+      priority: critical
+      references_constraints: [C-04]
+    - id: AC-09
+      description: 'POST /api/v1/hosts/{id}/discovery:run with a host:read-only caller returns 403 authz.permission_denied; no Discovery is attempted, no audit event emitted.'
+      priority: critical
+      references_constraints: [C-04]
+    - id: AC-10
+      description: 'POST /api/v1/hosts/{id}/discovery:run with an unknown host id returns 404 hosts.not_found.'
+      priority: critical
+      references_constraints: [C-04]
+    - id: AC-11
+      description: 'Successful Discover publishes eventbus.HostDiscovered to the bus. A subscriber registered for EventKindHostDiscovered receives the event with the expected HostID + OSFamily + OSVersion + DiscoveredAt within 100ms of the Discover return.'
+      priority: critical
+      references_constraints: [C-06]
+    - id: AC-12
+      description: 'Successful Discover emits exactly one audit.HostDiscoveryCompleted event. The detail map carries os_family, os_version, kernel_release, architecture. Failure paths (unreachable host, parser error) MUST NOT emit this event.'
+      priority: critical
+      references_constraints: [C-07]
+    - id: AC-13
+      description: 'Host creation via POST /api/v1/hosts enqueues a host.discovery job in the job_queue table with the host id as payload, BEFORE returning the 201 response. The worker (already running per system-job-queue spec) drains it asynchronously.'
+      priority: high
+      references_constraints: [C-05]
+    - id: AC-14
+      description: 'A second Discover for the same host UPDATES the existing host_system_info row in place (unique constraint on host_id). No duplicate rows are created. collected_at advances; created_at stays unchanged.'
+      priority: critical
+      references_constraints: [C-08]
+    - id: AC-15
+      description: 'internal/intelligence/discovery package source MAY import internal/credential and golang.org/x/crypto/ssh — the AC-14-from-liveness invariant does NOT apply here. The package doc comment explicitly states the credential-aware boundary so future readers know the difference vs internal/liveness.'
+      priority: high
+      references_constraints: [C-11]
