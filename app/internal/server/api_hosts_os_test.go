@@ -169,22 +169,24 @@ func TestHosts_List_OSFields_AndSingleSelect(t *testing.T) {
 		}
 
 		// Source inspection (Spec C-11): the list query SELECT clause
-		// includes the OS columns directly — no follow-up read, no JOIN
-		// to host_system_info. The denormalized columns exist precisely
+		// (in internal/host/host.go where the SQL lives) includes the
+		// OS columns directly — no follow-up read, no JOIN to
+		// host_system_info. The denormalized columns exist precisely
 		// to make this single-SELECT.
 		_, file, _, _ := runtime.Caller(0)
-		src, err := os.ReadFile(filepath.Join(filepath.Dir(file), "hosts_handlers.go"))
+		hostSrcPath := filepath.Join(filepath.Dir(file), "..", "host", "host.go")
+		src, err := os.ReadFile(hostSrcPath)
 		if err != nil {
-			t.Fatalf("read hosts_handlers.go: %v", err)
+			t.Fatalf("read %s: %v", hostSrcPath, err)
 		}
 		s := string(src)
 		for _, col := range []string{"os_family", "os_version", "architecture", "platform_identifier", "os_discovered_at"} {
 			if !strings.Contains(s, col) {
-				t.Errorf("hosts_handlers.go does not reference %q in any SELECT — list handler must read OS columns directly", col)
+				t.Errorf("internal/host/host.go does not reference %q in any SELECT — list query must read OS columns directly", col)
 			}
 		}
 		if strings.Contains(s, "JOIN host_system_info") {
-			t.Errorf("hosts_handlers.go contains JOIN host_system_info — must use denormalized hosts.os_* columns instead (Spec C-11)")
+			t.Errorf("internal/host/host.go contains JOIN host_system_info — must use denormalized hosts.os_* columns instead (Spec C-11)")
 		}
 	})
 }

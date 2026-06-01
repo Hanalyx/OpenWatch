@@ -343,6 +343,12 @@ func hostListItem(h host.Host, liveness *api.HostLiveness, lastScan time.Time) a
 		MaintenanceMode: &maint,
 		CheckPriority:   &prio,
 		Liveness:        liveness,
+		// v1.4.0 — denormalized OS fields from migration 0017.
+		OsFamily:           h.OSFamily,
+		OsVersion:          h.OSVersion,
+		Architecture:       h.Architecture,
+		PlatformIdentifier: h.PlatformIdentifier,
+		OsDiscoveredAt:     h.OSDiscoveredAt,
 	}
 	if !lastScan.IsZero() {
 		item.LastScanAt = &lastScan

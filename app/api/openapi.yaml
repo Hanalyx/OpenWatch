@@ -1850,6 +1850,13 @@ components:
           allOf: [{$ref: '#/components/schemas/HostLiveness'}]
           nullable: true
           description: Null when no liveness probe has ever run against this host.
+        # v1.4.0 — denormalized OS fields. Same semantics as HostResponse.
+        # Spec api-hosts C-10.
+        os_family:           {type: string, nullable: true}
+        os_version:          {type: string, nullable: true}
+        architecture:        {type: string, nullable: true}
+        platform_identifier: {type: string, nullable: true}
+        os_discovered_at:    {type: string, format: date-time, nullable: true}
 
     HostListResponse:
       type: object
