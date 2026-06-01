@@ -28,6 +28,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/Hanalyx/openwatch/internal/activity"
 	"github.com/Hanalyx/openwatch/internal/alerts"
 	"github.com/Hanalyx/openwatch/internal/intelligence/discovery"
 	"github.com/Hanalyx/openwatch/internal/liveness"
@@ -86,6 +87,13 @@ func (s *Server) WithDiscovery(d *discovery.Service) *Server {
 // Spec system-alerts + api-alerts.
 func (s *Server) WithAlerts(a *alerts.Service) *Server {
 	s.handlers.alertsSvc = a
+	return s
+}
+
+// WithActivity threads the unified Activity feed service into the API
+// handlers so /api/v1/activity is routable. Spec api-activity.
+func (s *Server) WithActivity(a *activity.Service) *Server {
+	s.handlers.activitySvc = a
 	return s
 }
 
