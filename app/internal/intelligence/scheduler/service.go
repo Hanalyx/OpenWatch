@@ -53,8 +53,8 @@ type Service struct {
 	sem  chan struct{}
 	semO sync.Once
 
-	stop    chan struct{}
-	stopO   sync.Once
+	stop       chan struct{}
+	stopO      sync.Once
 	inFlightWG sync.WaitGroup
 }
 
@@ -62,9 +62,9 @@ type Service struct {
 // exercise only the in-process pool seam (RateLimit / Stop tests).
 func NewService(pool *pgxpool.Pool, runner RunCycleRunner) *Service {
 	return &Service{
-		pool:    pool,
-		runner:  runner,
-		stop:    make(chan struct{}),
+		pool:   pool,
+		runner: runner,
+		stop:   make(chan struct{}),
 	}
 }
 
