@@ -50,6 +50,7 @@ domains:
             - api-hosts
             - frontend-host-detail
             - frontend-host-list-os
+            - frontend-host-detail-system-card
             - api-openapi-docs
             - release-admin-signoff
             - system-worker-subcommand

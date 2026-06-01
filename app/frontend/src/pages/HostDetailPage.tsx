@@ -26,6 +26,7 @@ import type { LucideIcon } from 'lucide-react';
 import api from '@/api/client';
 import { EditHostModal } from '@/components/hosts/EditHostModal';
 import { useBreadcrumbStore } from '@/store/useBreadcrumbStore';
+import { CardSystem } from '@/pages/host-detail/CardSystem';
 
 // HostDetailPage — prototype-faithful Host Detail surface (v1.0.0).
 //
@@ -66,6 +67,13 @@ interface HostResponse {
   username?: string;
   maintenance_mode?: boolean;
   check_priority?: number;
+  // v1.4.0 (api-hosts) — denormalized OS columns populated by
+  // system-host-discovery. NULL until Discovery has run.
+  os_family?: string | null;
+  os_version?: string | null;
+  architecture?: string | null;
+  platform_identifier?: string | null;
+  os_discovered_at?: string | null;
 }
 
 type MonitoringBand =
@@ -253,6 +261,27 @@ export function HostDetailPage() {
     retry: false,
   });
 
+  // IntelligenceState feeds the System card (kernel_release, uptime_seconds).
+  // 404 = no snapshot yet OR host unknown (handler intentionally
+  // collapses both per api-os-intelligence C-04). We treat it as
+  // "no snapshot" — the host-detail query owns the unknown-host path.
+  // Query key matches frontend-host-detail-system-card C-05 / AC-06.
+  const intelligenceStateQuery = useQuery({
+    queryKey: ['intelligence_state', hostId],
+    queryFn: async () => {
+      const { data, error, response } = await api.GET(
+        '/api/v1/intelligence/state/{host_id}',
+        { params: { path: { host_id: hostId } } },
+      );
+      if (response.status === 404) return null;
+      if (error) throw error;
+      const raw = data as unknown as { snapshot?: Record<string, unknown> } | null;
+      return raw?.snapshot ?? null;
+    },
+    enabled: !!hostId,
+    retry: false,
+  });
+
   // Topbar breadcrumb — pushes "Infrastructure / Hosts / <hostname>"
   // into the global useBreadcrumbStore so the sticky header renders
   // it (same pattern as HostsListPage). AC-27.
@@ -365,7 +394,10 @@ export function HostDetailPage() {
                   <CardComplianceTrend />
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0 }}>
-                  <CardSystem host={detailQuery.data.host} />
+                  <CardSystem
+                    host={detailQuery.data.host}
+                    intelligenceSnapshot={intelligenceStateQuery.data ?? null}
+                  />
                   <CardRecentActivity
                     isLoading={historyQuery.isLoading}
                     isError={historyQuery.isError}
@@ -1179,45 +1211,6 @@ function CardComplianceTrend() {
   );
 }
 
-function CardSystem({ host }: { host: HostResponse }) {
-  return (
-    <Card title="System">
-      <SpecGroup title="Operating system">
-        <DefList
-          rows={[
-            ['Distribution', <span key="d">unknown</span>],
-            ['Kernel', <span key="k" style={{ fontFamily: 'var(--ow-font-mono)' }}>unknown</span>],
-            ['FQDN', <span key="f" style={{ fontFamily: 'var(--ow-font-mono)' }}>{host.hostname}</span>],
-            ['Uptime', <span key="u">unknown</span>],
-          ]}
-        />
-      </SpecGroup>
-      <SpecGroup title="Hardware">
-        <EmptyState
-          primary="Hardware metrics not collected"
-          secondary="Populated by Server Intelligence (CPU / disk / memory). Deferred — see BACKLOG."
-          compact
-        />
-      </SpecGroup>
-      <SpecGroup title="Network">
-        <DefList
-          rows={[
-            ['Primary IP', <span key="ip" style={{ fontFamily: 'var(--ow-font-mono)' }}>{host.ip_address}</span>],
-            [
-              'SSH endpoint',
-              <span key="ssh" style={{ fontFamily: 'var(--ow-font-mono)' }}>
-                {host.username ? `${host.username}@` : ''}
-                {host.ip_address}:{host.port ?? 22}
-              </span>,
-            ],
-            ['Firewall', <span key="fw">unknown</span>],
-          ]}
-        />
-      </SpecGroup>
-    </Card>
-  );
-}
-
 function CardRecentActivity({
   isLoading,
   isError,
@@ -1338,51 +1331,6 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
       <div>{children}</div>
     </section>
   );
-}
-
-function SpecGroup({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div style={{ marginBottom: 14 }}>
-      <h4
-        style={{
-          margin: '0 0 8px',
-          fontSize: 11,
-          textTransform: 'uppercase',
-          letterSpacing: '0.06em',
-          color: 'var(--ow-fg-2)',
-        }}
-      >
-        {title}
-      </h4>
-      {children}
-    </div>
-  );
-}
-
-function DefList({ rows }: { rows: [string, React.ReactNode][] }) {
-  return (
-    <dl
-      style={{
-        display: 'grid',
-        gridTemplateColumns: 'max-content 1fr',
-        rowGap: 6,
-        columnGap: 14,
-        margin: 0,
-        fontSize: 12,
-      }}
-    >
-      {rows.map(([k, v]) => (
-        <ReactFrag key={k}>
-          <dt style={{ color: 'var(--ow-fg-3)' }}>{k}</dt>
-          <dd style={{ margin: 0, color: 'var(--ow-fg-1)', minWidth: 0 }}>{v}</dd>
-        </ReactFrag>
-      ))}
-    </dl>
-  );
-}
-
-function ReactFrag({ children }: { children: React.ReactNode }) {
-  return <>{children}</>;
 }
 
 function EmptyState({
