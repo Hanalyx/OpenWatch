@@ -353,7 +353,7 @@ func auditCount(t *testing.T, pool *pgxpool.Pool, code audit.Code) int {
 	t.Helper()
 	var n int
 	row := pool.QueryRow(context.Background(),
-		`SELECT count(*) FROM audit_events WHERE event_code = $1`, string(code))
+		`SELECT count(*) FROM audit_events WHERE action = $1`, string(code))
 	if err := row.Scan(&n); err != nil {
 		t.Fatalf("audit count: %v", err)
 	}
@@ -364,7 +364,7 @@ func mostRecentAuditDetail(t *testing.T, pool *pgxpool.Pool, code audit.Code) ma
 	t.Helper()
 	var raw []byte
 	row := pool.QueryRow(context.Background(),
-		`SELECT detail FROM audit_events WHERE event_code = $1 ORDER BY emitted_at DESC LIMIT 1`,
+		`SELECT detail FROM audit_events WHERE action = $1 ORDER BY recorded_at DESC LIMIT 1`,
 		string(code))
 	if err := row.Scan(&raw); err != nil {
 		t.Fatalf("audit detail scan: %v", err)
