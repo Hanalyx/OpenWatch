@@ -22,9 +22,14 @@ import { useAuthStore } from '@/store/useAuthStore';
 // 3-5s backoff. If we ever need explicit backoff control we'll switch
 // to a manual fetch + ReadableStream loop.
 
+// Closed v1.0 set of topics this hook subscribes to. Each MUST exist
+// in backend eventbus.AllEventKinds (Go-side closed enum). Spec
+// frontend-live-events C-01 + AC-01 enforce.
 export const ALL_TOPICS = [
   'host.changed',
   'monitoring.band.changed',
+  'host.discovered',
+  'intelligence.event',
 ] as const;
 
 type Topic = (typeof ALL_TOPICS)[number];
@@ -89,6 +94,38 @@ export function useLiveEvents(options: UseLiveEventsOptions = {}) {
         queryClient.invalidateQueries({ queryKey: ['hosts'] });
         if (hostId) {
           queryClient.invalidateQueries({ queryKey: ['host', hostId] });
+        }
+      },
+      // Spec frontend-live-events C-03 + AC-04 — Discovery completion
+      // updates the denormalized hosts.os_family / os_version columns
+      // that BOTH the list and the detail page render. Same
+      // invalidation shape as host.changed.
+      'host.discovered': (e) => {
+        const env = parseEnvelope(e);
+        if (!env) return;
+        const hostId = (env.payload?.HostID ?? env.payload?.host_id) as
+          | string
+          | undefined;
+        queryClient.invalidateQueries({ queryKey: ['hosts'] });
+        if (hostId) {
+          queryClient.invalidateQueries({ queryKey: ['host', hostId] });
+        }
+      },
+      // Spec frontend-live-events C-04 + AC-05 — intel events fire on
+      // package/service/user/network changes. The detail page's
+      // Intelligence feed re-renders; the list view does NOT (intel
+      // events don't affect any list column). Skipping ['hosts']
+      // here avoids a fleet-wide refetch on every intel event.
+      'intelligence.event': (e) => {
+        const env = parseEnvelope(e);
+        if (!env) return;
+        const hostId = (env.payload?.HostID ?? env.payload?.host_id) as
+          | string
+          | undefined;
+        if (hostId) {
+          queryClient.invalidateQueries({
+            queryKey: ['host_intelligence_events', hostId],
+          });
         }
       },
     };

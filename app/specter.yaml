@@ -46,6 +46,7 @@ domains:
             - api-users
             - api-credentials
             - api-events-stream
+            - frontend-live-events
             - api-hosts
             - frontend-host-detail
             - api-openapi-docs
@@ -53,6 +54,15 @@ domains:
             - system-worker-subcommand
 settings:
     specs_dir: specs
+    # Honored by `specter coverage` (not by `specter sync` — CI passes
+    # --tests '**/*' as a workaround). Default discovery walks only
+    # .test.ts / _test.go; .test.tsx is silently invisible, which
+    # broke frontend-live-events coverage in PR 5b. List form documents
+    # the three extensions we use; the CI flag covers the sync gap.
+    tests_glob:
+        - '**/*_test.go'
+        - '**/*.test.ts'
+        - '**/*.test.tsx'
     coverage:
         tier1: 100
         tier2: 80

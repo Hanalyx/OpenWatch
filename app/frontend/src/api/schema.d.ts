@@ -788,6 +788,229 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/intelligence/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List OS Intelligence change events
+         * @description Returns the change events the OS Intelligence collector
+         *     recorded — newly opened ports, package updates, service
+         *     failures, etc. Cursor pagination on detected_at DESC. Filter
+         *     by host_id, event_code, severity, since/until. Spec
+         *     api-os-intelligence.
+         */
+        get: operations["getIntelligenceEvents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/intelligence/state/{host_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Last full Intelligence snapshot for one host
+         * @description Returns the most recent host_intelligence_state row for the
+         *     given host. 404 hosts.not_found if the host is unknown OR if
+         *     no Intelligence cycle has populated the row yet (operators
+         *     cannot probe host existence via this endpoint). Spec
+         *     api-os-intelligence.
+         */
+        get: operations["getIntelligenceState"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/alerts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List persisted alerts (paginated, filterable)
+         * @description Returns alerts in the alerts table — written by the
+         *     system-alert-router persistence amendment (v1.1.0). Cursor
+         *     pagination on occurred_at DESC. RBAC: alert:read. Spec
+         *     api-alerts.
+         */
+        get: operations["getAlerts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/alerts/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Single alert by id
+         * @description Returns the alert row (including terminal states — resolved /
+         *     dismissed are still queryable). RBAC: alert:read. Spec api-alerts.
+         */
+        get: operations["getAlertByID"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/alerts/{id}:acknowledge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Acknowledge an active alert
+         * @description active -> acknowledged. RBAC: alert:write. Spec api-alerts.
+         */
+        post: operations["postAlertAcknowledge"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/alerts/{id}:silence": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Silence an alert until a timestamp (or indefinitely)
+         * @description active|acknowledged -> silenced. Optional body.until specifies
+         *     when the silence elapses; missing means indefinite. Past until
+         *     returns 400. RBAC: alert:write. Spec api-alerts.
+         */
+        post: operations["postAlertSilence"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/alerts/{id}:resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resolve an alert
+         * @description active|acknowledged|silenced -> resolved. RBAC: alert:write. Spec api-alerts.
+         */
+        post: operations["postAlertResolve"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/alerts/{id}:dismiss": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Dismiss an alert (terminal)
+         * @description Any non-dismissed state -> dismissed. RBAC: alert:write. Spec api-alerts.
+         */
+        post: operations["postAlertDismiss"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/activity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Unified Activity feed (UNION over alerts + transactions + intelligence + audit)
+         * @description Returns the per-source RBAC-filtered union of recent events.
+         *     Caller's permissions decide which sources contribute; hidden_count
+         *     reports how many rows the caller's RBAC suppressed so the UI
+         *     can render "N visible / M hidden". Spec api-activity.
+         */
+        get: operations["getActivity"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/hosts/{id}/discovery:run": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Synchronous on-demand OS fingerprint discovery for a single host
+         * @description Opens one SSH session against the host using its resolved
+         *     credential, runs the closed-set probe batch (os-release, uname,
+         *     meminfo, df, hostname, getenforce, aa-status, firewall), parses
+         *     the outputs, upserts host_system_info + denormalized hosts.os_*
+         *     columns in a single transaction, publishes
+         *     eventbus.HostDiscovered, and emits the host.discovery.completed
+         *     audit event. Spec system-host-discovery.
+         */
+        post: operations["postHostDiscoveryRun"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -905,6 +1128,15 @@ export interface components {
             updated_at?: string;
             maintenance_mode?: boolean;
             check_priority?: number;
+            /** @description rhel | debian | suse | alpine | arch | gentoo | other; null pre-Discovery */
+            os_family?: string | null;
+            os_version?: string | null;
+            /** @description e.g. x86_64, aarch64 */
+            architecture?: string | null;
+            /** @description e.g. platform:el9 */
+            platform_identifier?: string | null;
+            /** Format: date-time */
+            os_discovered_at?: string | null;
         };
         HostLiveness: {
             /** @enum {string} */
@@ -997,6 +1229,12 @@ export interface components {
             last_scan_at?: string | null;
             /** @description Null when no liveness probe has ever run against this host. */
             liveness?: components["schemas"]["HostLiveness"] | null;
+            os_family?: string | null;
+            os_version?: string | null;
+            architecture?: string | null;
+            platform_identifier?: string | null;
+            /** Format: date-time */
+            os_discovered_at?: string | null;
         };
         HostListResponse: {
             hosts: components["schemas"]["HostListItem"][];
@@ -1218,6 +1456,144 @@ export interface components {
              * @enum {string}
              */
             new_reachability_status: "reachable" | "unreachable" | "unknown";
+        };
+        IntelligenceEvent: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            host_id: string;
+            /** @description Closed taxonomy: e.g. system.package.updated */
+            event_code: string;
+            /** @enum {string} */
+            severity: "info" | "low" | "medium" | "high" | "critical";
+            detail?: {
+                [key: string]: unknown;
+            };
+            /** Format: date-time */
+            occurred_at: string;
+            /** Format: date-time */
+            detected_at: string;
+            correlation_id?: string;
+        };
+        IntelligenceEventsPage: {
+            items: components["schemas"]["IntelligenceEvent"][];
+            next_cursor?: string | null;
+        };
+        IntelligenceState: {
+            /** Format: uuid */
+            host_id: string;
+            /** @description Free-form host_intelligence_state.snapshot — mirrors collector.Snapshot */
+            snapshot: {
+                [key: string]: unknown;
+            };
+            /** Format: date-time */
+            collected_at: string;
+        };
+        Alert: {
+            /** Format: uuid */
+            id: string;
+            dedup_key: string;
+            alert_type: string;
+            /** @enum {string} */
+            severity: "info" | "low" | "medium" | "high" | "critical";
+            /** Format: uuid */
+            host_id?: string | null;
+            rule_id?: string;
+            title: string;
+            body?: string;
+            tags?: {
+                [key: string]: string;
+            };
+            /** @enum {string} */
+            state: "active" | "acknowledged" | "silenced" | "resolved" | "dismissed";
+            /** Format: date-time */
+            occurred_at: string;
+            /** Format: uuid */
+            acknowledged_by?: string | null;
+            /** Format: date-time */
+            acknowledged_at?: string | null;
+            /** Format: uuid */
+            silenced_by?: string | null;
+            /** Format: date-time */
+            silenced_until?: string | null;
+            /** Format: uuid */
+            resolved_by?: string | null;
+            /** Format: date-time */
+            resolved_at?: string | null;
+            /** Format: uuid */
+            dismissed_by?: string | null;
+            /** Format: date-time */
+            dismissed_at?: string | null;
+            /** Format: date-time */
+            created_at?: string;
+            /** Format: date-time */
+            updated_at?: string;
+        };
+        AlertsPage: {
+            items: components["schemas"]["Alert"][];
+            next_cursor?: string | null;
+        };
+        Activity: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            source: "alert" | "transaction" | "intelligence" | "audit";
+            /** @enum {string} */
+            severity: "info" | "low" | "medium" | "high" | "critical";
+            /** Format: uuid */
+            host_id?: string | null;
+            title: string;
+            summary?: string;
+            /** Format: date-time */
+            occurred_at: string;
+        };
+        ActivityPage: {
+            items: components["schemas"]["Activity"][];
+            hidden_count: number;
+            next_cursor?: string | null;
+        };
+        /** @description Optional body for POST lifecycle endpoints. silence accepts an optional until; all accept a reason for the audit detail. */
+        AlertLifecycleRequest: {
+            reason?: string;
+            /** Format: date-time */
+            until?: string | null;
+        };
+        /**
+         * @description Result of a Discovery run. Mirrors the host_system_info table
+         *     column-for-column. Spec system-host-discovery.
+         */
+        HostSystemInfo: {
+            /** Format: uuid */
+            host_id: string;
+            os_name?: string | null;
+            os_version?: string | null;
+            os_version_full?: string | null;
+            os_id?: string | null;
+            os_id_like?: string | null;
+            os_pretty_name?: string | null;
+            platform_identifier?: string | null;
+            /** @description Rollup family — rhel, debian, suse, alpine, arch, gentoo, other */
+            os_family?: string | null;
+            kernel_name?: string | null;
+            kernel_release?: string | null;
+            kernel_version?: string | null;
+            architecture?: string | null;
+            mem_total_mb?: number | null;
+            mem_available_mb?: number | null;
+            swap_total_mb?: number | null;
+            disk_total_gb?: number | null;
+            disk_used_gb?: number | null;
+            disk_free_gb?: number | null;
+            hostname?: string | null;
+            fqdn?: string | null;
+            /** @description Enforcing | Permissive | Disabled | empty if not present */
+            selinux_status?: string | null;
+            apparmor_enabled?: boolean | null;
+            /** @description firewalld | ufw | nftables | iptables | empty */
+            firewall_service?: string | null;
+            firewall_status?: string | null;
+            /** Format: date-time */
+            collected_at: string;
         };
         FleetRuleFailure: {
             rule_id: string;
@@ -3053,6 +3429,474 @@ export interface operations {
             };
             /** @description A probe for this host is already in flight */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getIntelligenceEvents: {
+        parameters: {
+            query?: {
+                host_id?: string;
+                event_code?: string;
+                severity?: "info" | "low" | "medium" | "high" | "critical";
+                since?: string;
+                until?: string;
+                cursor?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Events page */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntelligenceEventsPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            /** @description Caller lacks host:read permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getIntelligenceState: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                host_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Last snapshot */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntelligenceState"];
+                };
+            };
+            /** @description Caller lacks host:read permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Host unknown OR no snapshot yet */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getAlerts: {
+        parameters: {
+            query?: {
+                state?: "active" | "acknowledged" | "silenced" | "resolved" | "dismissed";
+                host_id?: string;
+                severity?: "info" | "low" | "medium" | "high" | "critical";
+                since?: string;
+                until?: string;
+                cursor?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Alerts page */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlertsPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            /** @description Caller lacks alert:read permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getAlertByID: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Alert */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Alert"];
+                };
+            };
+            /** @description Caller lacks alert:read permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Alert not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    postAlertAcknowledge: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["AlertLifecycleRequest"];
+            };
+        };
+        responses: {
+            /** @description Updated alert */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Alert"];
+                };
+            };
+            /** @description Caller lacks alert:write permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Alert not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Invalid transition for current state */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    postAlertSilence: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["AlertLifecycleRequest"];
+            };
+        };
+        responses: {
+            /** @description Updated alert */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Alert"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            /** @description Caller lacks alert:write permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Alert not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Invalid transition for current state */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    postAlertResolve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["AlertLifecycleRequest"];
+            };
+        };
+        responses: {
+            /** @description Updated alert */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Alert"];
+                };
+            };
+            /** @description Caller lacks alert:write permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Alert not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Invalid transition for current state */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    postAlertDismiss: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["AlertLifecycleRequest"];
+            };
+        };
+        responses: {
+            /** @description Updated alert */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Alert"];
+                };
+            };
+            /** @description Caller lacks alert:write permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Alert not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Invalid transition for current state */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getActivity: {
+        parameters: {
+            query?: {
+                source?: "alert" | "transaction" | "intelligence" | "audit";
+                severity?: "info" | "low" | "medium" | "high" | "critical";
+                host_id?: string;
+                since?: string;
+                until?: string;
+                cursor?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Activity page */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActivityPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            /** @description Anonymous caller */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    postHostDiscoveryRun: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Discovery result — the captured SystemFacts */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HostSystemInfo"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            /** @description Caller lacks host:write permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Host not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Host unreachable — SSH dial or credential resolve failed */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Discovery service not wired on the server */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
