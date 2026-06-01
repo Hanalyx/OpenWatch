@@ -270,7 +270,7 @@ export function HostDetailPage() {
     });
 
   return (
-    <div style={{ padding: '20px 28px', maxWidth: 1400, margin: '0 auto' }}>
+    <div style={{ padding: '20px 28px' }}>
       <title>
         {detailQuery.data?.host?.hostname
           ? `${detailQuery.data.host.hostname} — OpenWatch`
