@@ -97,12 +97,12 @@ func seedAlert(t *testing.T, pool *pgxpool.Pool, atype alertrouter.AlertType, se
 // resolved_at, dismissed_at) — all the lifecycle scalar fields a test
 // might want to assert.
 type alertSnap struct {
-	State           string
-	AcknowledgedBy  *uuid.UUID
-	AcknowledgedAt  *time.Time
-	SilencedUntil   *time.Time
-	ResolvedAt      *time.Time
-	DismissedAt     *time.Time
+	State          string
+	AcknowledgedBy *uuid.UUID
+	AcknowledgedAt *time.Time
+	SilencedUntil  *time.Time
+	ResolvedAt     *time.Time
+	DismissedAt    *time.Time
 }
 
 func readAlertSnap(t *testing.T, pool *pgxpool.Pool, id uuid.UUID) alertSnap {
