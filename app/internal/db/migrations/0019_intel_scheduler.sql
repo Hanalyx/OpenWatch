@@ -9,11 +9,15 @@
 ALTER TABLE host_intelligence_state
     ADD COLUMN next_intelligence_at TIMESTAMPTZ;
 
--- Partial index: only the "due" rows. Scheduler tick reads with
--- WHERE next_intelligence_at IS NULL OR next_intelligence_at <= now().
+-- B-tree index ordered with NULLs first so the scheduler's
+-- "due-hosts" query (WHERE next_intelligence_at IS NULL OR
+-- next_intelligence_at <= $1) walks the leftmost slice and stops as
+-- soon as it crosses the cutoff. A partial WHERE clause was tried but
+-- rejected — Postgres requires predicate functions to be IMMUTABLE
+-- and now() is STABLE, so a now()-based predicate fails with
+-- SQLSTATE 42P17.
 CREATE INDEX idx_intel_state_due
-    ON host_intelligence_state (next_intelligence_at NULLS FIRST)
-    WHERE next_intelligence_at IS NULL OR next_intelligence_at <= now();
+    ON host_intelligence_state (next_intelligence_at NULLS FIRST);
 
 -- +goose Down
 DROP INDEX IF EXISTS idx_intel_state_due;

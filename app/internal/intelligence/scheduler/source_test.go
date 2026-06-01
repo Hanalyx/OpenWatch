@@ -21,7 +21,10 @@ import (
 
 // @ac AC-01
 // AC-01: Migration 0019 adds next_intelligence_at to
-// host_intelligence_state + the partial index for "due" rows.
+// host_intelligence_state + an index on (next_intelligence_at NULLS
+// FIRST). A partial WHERE was tried but Postgres rejects
+// now()-based predicates (SQLSTATE 42P17 — predicate functions must
+// be IMMUTABLE).
 func TestMigration0019_AddsNextIntelligenceAt(t *testing.T) {
 	t.Run("system-intelligence-scheduler/AC-01", func(t *testing.T) {
 		path := findMigration(t, "0019_intel_scheduler.sql")
@@ -36,9 +39,10 @@ func TestMigration0019_AddsNextIntelligenceAt(t *testing.T) {
 		if !strings.Contains(s, "CREATE INDEX idx_intel_state_due") {
 			t.Errorf("migration 0019 missing idx_intel_state_due index")
 		}
-		// Partial index: scheduler reads only due rows.
-		if !strings.Contains(s, "WHERE next_intelligence_at IS NULL OR next_intelligence_at <= now()") {
-			t.Errorf("migration 0019 idx_intel_state_due missing partial-index WHERE clause")
+		// B-tree on (next_intelligence_at NULLS FIRST) — the scheduler
+		// query walks the leftmost slice.
+		if !strings.Contains(s, "next_intelligence_at NULLS FIRST") {
+			t.Errorf("migration 0019 idx_intel_state_due missing 'next_intelligence_at NULLS FIRST' ordering")
 		}
 	})
 }

@@ -110,7 +110,7 @@ spec:
 
   acceptance_criteria:
     - id: AC-01
-      description: 'Migration 0019 adds next_intelligence_at TIMESTAMPTZ NULL column to host_intelligence_state AND an index on (next_intelligence_at ASC NULLS FIRST) WHERE next_intelligence_at IS NULL OR next_intelligence_at <= now()'
+      description: 'Migration 0019 adds next_intelligence_at TIMESTAMPTZ NULL column to host_intelligence_state AND a B-tree index on (next_intelligence_at NULLS FIRST). The scheduler''s due-hosts query walks the leftmost slice of this index. A partial WHERE was rejected: Postgres requires predicate functions to be IMMUTABLE and now() is STABLE (SQLSTATE 42P17)'
       priority: critical
       references_constraints: [C-02]
     - id: AC-02
