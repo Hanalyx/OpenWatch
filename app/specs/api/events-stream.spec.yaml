@@ -112,4 +112,4 @@ spec:
     - id: AC-07
       description: 'When r.Context() is canceled (client disconnect), the handler returns within 500ms. The eventbus subscription is unsubscribed — verified via Bus.Metrics where NoSubscribersCount advances on the next publish.'
       priority: high
-      references_constraints: [C-04]
+      references_constraints: [C-03, C-04]

@@ -1,0 +1,226 @@
+// @spec frontend-host-detail
+//
+// Prototype-shell ACs (v1.0.0 — Path A).
+//
+// AC traceability (this file):
+//
+//   AC-01  test('frontend-host-detail/AC-01 — six structural bands in order')
+//   AC-07  test('frontend-host-detail/AC-07 — maintenance toggle in page-head action row')
+//   AC-15  test('frontend-host-detail/AC-15 — sub-line metadata reserves OS/kernel/uptime slots')
+//   AC-16  test('frontend-host-detail/AC-16 — status badge uses 5-band StatusPill')
+//   AC-17  test('frontend-host-detail/AC-17 — offline banner conditional on band + dwell time')
+//   AC-18  test('frontend-host-detail/AC-18 — tabs row renders 10 tabs in prototype order')
+//   AC-19  test('frontend-host-detail/AC-19 — 4 hero stat cards in prototype order')
+//   AC-20  test('frontend-host-detail/AC-20 — connectivity card SSH endpoint + last seen + actions')
+//   AC-21  test('frontend-host-detail/AC-21 — auto-scan empty state names backend subsystem')
+//   AC-22  test('frontend-host-detail/AC-22 — watchlist empty state names backend subsystem')
+//   AC-23  test('frontend-host-detail/AC-23 — overview body two-column grid with named children')
+//   AC-24  test('frontend-host-detail/AC-24 — top failed / server intel / trend cards have empty states')
+//   AC-25  test('frontend-host-detail/AC-25 — system card has 3 spec-groups with placeholders')
+//   AC-26  test('frontend-host-detail/AC-26 — recent activity card pulls from monitoring history')
+
+import { describe, expect, test } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+
+const PAGE_SRC = readFileSync(
+  resolve(process.cwd(), 'src/pages/HostDetailPage.tsx'),
+  'utf8',
+);
+
+// Source-position of each band's sentinel marker. AC-01 asserts these
+// appear in declaration order — moving any of them out of place fails.
+const BAND_MARKERS = [
+  '/* PAGE_HEAD */',
+  '/* OFFLINE_BANNER */',
+  '/* TABS_ROW */',
+  '/* HERO_STRIP */',
+  '/* OVERVIEW_BODY */',
+] as const;
+
+describe('frontend-host-detail — prototype shell', () => {
+  // @ac AC-01
+  test('frontend-host-detail/AC-01 — six structural bands in declaration order', () => {
+    // Back link comes first as a JSX element pointing to /hosts; we
+    // detect it by the existing aria-label or the chevron icon.
+    const backIdx = PAGE_SRC.indexOf('to="/hosts"');
+    expect(backIdx).toBeGreaterThan(-1);
+    let prevIdx = backIdx;
+    for (const marker of BAND_MARKERS) {
+      const idx = PAGE_SRC.indexOf(marker);
+      expect(idx, `${marker} missing from HostDetailPage`).toBeGreaterThan(-1);
+      expect(idx, `${marker} out of order`).toBeGreaterThan(prevIdx);
+      prevIdx = idx;
+    }
+  });
+
+  // @ac AC-07
+  test('frontend-host-detail/AC-07 — maintenance toggle in page-head action row', () => {
+    // MaintenanceToggle JSX usage must appear inside the PageHead
+    // function body (the page-head action row), not in any other
+    // sibling component.
+    const pageHeadStart = PAGE_SRC.indexOf('function PageHead(');
+    expect(pageHeadStart).toBeGreaterThan(-1);
+    // The body of PageHead ends at the next top-level `function ` decl.
+    const nextFnAfterPageHead = PAGE_SRC.indexOf('\nfunction ', pageHeadStart + 1);
+    expect(nextFnAfterPageHead).toBeGreaterThan(pageHeadStart);
+    const pageHeadBody = PAGE_SRC.slice(pageHeadStart, nextFnAfterPageHead);
+    expect(pageHeadBody).toContain('<MaintenanceToggle');
+  });
+
+  // @ac AC-15
+  test('frontend-host-detail/AC-15 — sub-line reserves OS/kernel/uptime slots', () => {
+    // Each label appears literally so even when data is missing the
+    // visual rhythm stays.
+    expect(PAGE_SRC).toMatch(/OS:/);
+    expect(PAGE_SRC).toMatch(/Kernel:/);
+    expect(PAGE_SRC).toMatch(/Uptime:/);
+    // Placeholder copy when the slot is unfilled (Server Intelligence not yet collected).
+    expect(PAGE_SRC).toContain('unknown');
+  });
+
+  // @ac AC-16
+  test('frontend-host-detail/AC-16 — status badge uses 5-band StatusPill', () => {
+    // The page imports a band-aware StatusPill. The legacy 'online'/'down'
+    // binary literal pair should not appear as a JSX prop.
+    expect(PAGE_SRC).toMatch(/StatusPill[^>]+band=/);
+    // Reject the legacy binary prop: status={isDown ? 'down' : 'online'}.
+    expect(PAGE_SRC).not.toMatch(/status=\{isDown\s*\?\s*['"]down['"]\s*:\s*['"]online['"]\}/);
+  });
+
+  // @ac AC-17
+  test('frontend-host-detail/AC-17 — offline banner is conditional on band + dwell time', () => {
+    // Banner only renders when the band is down or critical AND the
+    // host has been in that band for at least 5 minutes.
+    expect(PAGE_SRC).toContain('OFFLINE_BANNER');
+    // Render gate referencing the band.
+    expect(PAGE_SRC).toMatch(/(band\s*===\s*['"]down['"]|band\s*===\s*['"]critical['"])/);
+    // Dwell threshold (5 minutes in ms).
+    expect(PAGE_SRC).toMatch(/5\s*\*\s*60\s*\*\s*1000|300_000|300000/);
+  });
+
+  // @ac AC-18
+  test('frontend-host-detail/AC-18 — tabs row renders 10 tabs in prototype order', () => {
+    // TABS_ROW marker must exist (band 4 of the layout).
+    expect(PAGE_SRC.indexOf('/* TABS_ROW */')).toBeGreaterThan(-1);
+    // The 10 canonical tab labels must appear in order somewhere in
+    // source (TAB_ORDER literal enforces this).
+    const expected = [
+      'Overview',
+      'Compliance',
+      'Packages',
+      'Services',
+      'Users',
+      'Network',
+      'Audit log',
+      'Activity',
+      'Remediation',
+      'Terminal',
+    ];
+    let prev = -1;
+    for (const label of expected) {
+      const idx = PAGE_SRC.indexOf(`'${label}'`);
+      expect(idx, `tab "${label}" missing`).toBeGreaterThan(-1);
+      expect(idx, `tab "${label}" out of prototype order`).toBeGreaterThan(prev);
+      prev = idx;
+    }
+  });
+
+  // @ac AC-19
+  test('frontend-host-detail/AC-19 — 4 hero stat cards in prototype order', () => {
+    const expected = [
+      'HeroCompliance',
+      'HeroAutoScan',
+      'HeroConnectivity',
+      'HeroWatchlist',
+    ];
+    let prev = PAGE_SRC.indexOf('/* HERO_STRIP */');
+    expect(prev).toBeGreaterThan(-1);
+    for (const name of expected) {
+      const idx = PAGE_SRC.indexOf(`<${name}`);
+      expect(idx, `${name} not rendered`).toBeGreaterThan(-1);
+      expect(idx, `${name} out of prototype order`).toBeGreaterThan(prev);
+      prev = idx;
+    }
+  });
+
+  // @ac AC-20
+  test('frontend-host-detail/AC-20 — connectivity card SSH endpoint + last seen + actions', () => {
+    expect(PAGE_SRC).toContain('HeroConnectivity');
+    // SSH endpoint line — built from username + ip + port.
+    expect(PAGE_SRC).toMatch(/host\.username/);
+    expect(PAGE_SRC).toMatch(/host\.ip_address/);
+    // Actions match the prototype labels.
+    expect(PAGE_SRC).toContain('Reconnect');
+    expect(PAGE_SRC).toContain('Edit credentials');
+    // Empty state when never probed.
+    expect(PAGE_SRC).toContain('Not yet probed');
+  });
+
+  // @ac AC-21
+  test('frontend-host-detail/AC-21 — auto-scan empty state names backend subsystem', () => {
+    expect(PAGE_SRC).toContain('HeroAutoScan');
+    // The card must say the backend is missing and name it.
+    expect(PAGE_SRC).toMatch(/adaptive compliance scheduler/i);
+  });
+
+  // @ac AC-22
+  test('frontend-host-detail/AC-22 — watchlist empty state names backend subsystem', () => {
+    expect(PAGE_SRC).toContain('HeroWatchlist');
+    expect(PAGE_SRC).toMatch(/alerts? (subsystem|backend)/i);
+  });
+
+  // @ac AC-23
+  test('frontend-host-detail/AC-23 — overview body two-column grid with named children', () => {
+    const bodyIdx = PAGE_SRC.indexOf('/* OVERVIEW_BODY */');
+    expect(bodyIdx).toBeGreaterThan(-1);
+    // Two-column grid declaration.
+    expect(PAGE_SRC.slice(bodyIdx)).toMatch(/grid(Template)?Columns/);
+    // Left column children in order.
+    const leftOrder = ['<CardTopFailed', '<CardServerIntel', '<CardComplianceTrend'];
+    let prev = bodyIdx;
+    for (const name of leftOrder) {
+      const idx = PAGE_SRC.indexOf(name);
+      expect(idx, `${name} missing from left column`).toBeGreaterThan(-1);
+      expect(idx).toBeGreaterThan(prev);
+      prev = idx;
+    }
+    // Right column children in order. They appear after the left
+    // column in source order because the JSX renders left-then-right.
+    const rightOrder = ['<CardSystem', '<CardRecentActivity'];
+    for (const name of rightOrder) {
+      const idx = PAGE_SRC.indexOf(name);
+      expect(idx, `${name} missing from right column`).toBeGreaterThan(-1);
+      expect(idx).toBeGreaterThan(prev);
+      prev = idx;
+    }
+  });
+
+  // @ac AC-24
+  test('frontend-host-detail/AC-24 — left-column empty-state cards name their backend', () => {
+    // Each card identifies the subsystem that will populate it.
+    expect(PAGE_SRC).toMatch(/compliance scanner/i);
+    expect(PAGE_SRC).toMatch(/server intelligence/i);
+    expect(PAGE_SRC).toMatch(/posture snapshot/i);
+  });
+
+  // @ac AC-25
+  test('frontend-host-detail/AC-25 — system card has 3 spec-groups with placeholders', () => {
+    expect(PAGE_SRC).toContain('CardSystem');
+    // The three group headings.
+    expect(PAGE_SRC).toMatch(/Operating system/);
+    expect(PAGE_SRC).toMatch(/Hardware/);
+    expect(PAGE_SRC).toMatch(/Network/);
+    // Placeholders for missing values.
+    expect(PAGE_SRC).toMatch(/unknown/);
+  });
+
+  // @ac AC-26
+  test('frontend-host-detail/AC-26 — recent activity card sources from monitoring history', () => {
+    expect(PAGE_SRC).toContain('CardRecentActivity');
+    // The card fetches GET /hosts/{id}/monitoring/history.
+    expect(PAGE_SRC).toContain('/api/v1/hosts/{host_id}/monitoring/history');
+    // Empty-state copy.
+    expect(PAGE_SRC).toMatch(/No activity yet/i);
+  });
+});
