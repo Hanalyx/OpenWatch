@@ -149,22 +149,23 @@ jobs:
           exit $EXIT
 
       # Frontend Vitest run for specter ingest. The app/specs/frontend/
-      # specs reference tests in frontend/tests/pages/*; without these
-      # JUnit results, those specs report 0% coverage and fail the
-      # threshold gate even though the tests pass. Vitest emits JUnit
-      # XML at /tmp/vitest-junit.xml which specter ingest reads alongside
-      # the Go test results.
+      # specs reference tests in app/frontend/tests/pages/* (the Go
+      # rebuild's frontend, distinct from the legacy frontend/ tree at
+      # the repo root). Without these JUnit results, those specs report
+      # 0% coverage and fail the threshold gate even though the tests
+      # pass. Vitest emits JUnit XML at /tmp/vitest-junit.xml which
+      # specter ingest reads alongside the Go test results.
       - name: Set up Node.js
         if: steps.paths.outputs.go == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
-          cache-dependency-path: frontend/package-lock.json
+          cache-dependency-path: app/frontend/package-lock.json
 
-      - name: frontend vitest (junit) for specter ingest
+      - name: app/frontend vitest (junit) for specter ingest
         if: steps.paths.outputs.go == 'true'
-        working-directory: frontend
+        working-directory: app/frontend
         run: |
           npm ci --no-audit --no-fund
           set +e
