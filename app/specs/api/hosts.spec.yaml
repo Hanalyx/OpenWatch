@@ -1,7 +1,7 @@
 spec:
   id: api-hosts
   title: Host inventory CRUD HTTP surface + Slice B enrichments
-  version: "1.3.0"
+  version: "1.4.0"
   status: approved
   tier: 2
 
@@ -34,6 +34,7 @@ spec:
         - "GET /hosts/{id} response carries optional liveness sub-object (host_liveness LEFT JOIN) — v1.1.0"
         - "GET /hosts/{id} response carries compliance_summary sub-object (passing/failing/total derived from host_rule_state) — v1.1.0"
         - "GET /hosts response items carry optional liveness sub-object so the list view can render reachability + freshness without per-row follow-up calls — v1.3.0"
+        - "GET /hosts + GET /hosts/{id} response items carry denormalized OS fields (os_family, os_version, architecture, platform_identifier, os_discovered_at) — populated by system-host-discovery v1.0.0, NULL pre-Discovery — v1.4.0"
       excludes:
         - "Bulk import — deferred to A.5"
         - "Connectivity-check trigger — needs scan executor, deferred"
@@ -75,6 +76,14 @@ spec:
     - id: C-09
       description: GET /hosts response items MUST include a liveness sub-object (when host_liveness has a row for the host) or null (when no probe has run yet). The shape matches the GET /hosts/{id} liveness sub-object exactly — same field names, same enum values. The list endpoint MUST load liveness via a single batched query keyed by host_id (no N+1)
       type: technical
+      enforcement: error
+    - id: C-10
+      description: 'v1.4.0 — GET /hosts and GET /hosts/{id} response items MUST include 5 denormalized OS fields: os_family (string nullable), os_version (string nullable), architecture (string nullable), platform_identifier (string nullable), os_discovered_at (date-time nullable). Values come from hosts.os_* columns (populated by system-host-discovery PR 1.1 via migration 0017). Pre-Discovery hosts MUST receive NULL for all five fields — never empty strings, never errors'
+      type: technical
+      enforcement: error
+    - id: C-11
+      description: 'v1.4.0 — The list endpoint MUST read OS fields in the SAME query that selects the row (no follow-up query, no JOIN). The columns are denormalized onto hosts specifically so a single SELECT covers them; an N+1 fetch here would defeat the denormalization'
+      type: performance
       enforcement: error
 
   acceptance_criteria:
@@ -150,3 +159,15 @@ spec:
       description: GET /hosts returns 200 with each host item carrying a populated liveness sub-object (when a host_liveness row exists) or null (when no probe has run). Field shape matches GET /hosts/{id}.liveness exactly. The handler MUST issue at most one liveness query for the whole list (batched WHERE host_id = ANY($1)) — never one query per host.
       priority: critical
       references_constraints: [C-09]
+    - id: AC-20
+      description: 'v1.4.0 — GET /hosts/{id} on a host whose hosts.os_family column is NULL (no Discovery has run yet) returns 200 with each of os_family, os_version, architecture, platform_identifier, os_discovered_at either null OR omitted entirely from the JSON. Either form is acceptable — both serialize to a Go *string == nil after decode'
+      priority: critical
+      references_constraints: [C-10]
+    - id: AC-21
+      description: 'v1.4.0 — GET /hosts/{id} on a host whose hosts.os_family = "rhel" (Discovery has populated it) returns 200 with the five OS fields populated to the column values. Verified by UPDATEing the hosts row directly and asserting the response carries the values'
+      priority: critical
+      references_constraints: [C-10]
+    - id: AC-22
+      description: 'v1.4.0 — GET /hosts returns each item with the same five OS fields (NULL pre-Discovery, populated post-Discovery). Source inspection: the list-query SELECT clause contains os_family, os_version, architecture, platform_identifier, os_discovered_at columns — no follow-up read, no JOIN to host_system_info'
+      priority: critical
+      references_constraints: [C-10, C-11]

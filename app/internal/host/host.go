@@ -46,6 +46,14 @@ type Host struct {
 	// false / 3 on rows that pre-date migration 0016.
 	MaintenanceMode bool
 	CheckPriority   int
+
+	// v1.4.0 — denormalized OS fields populated by system-host-discovery
+	// via migration 0017. All nil pre-Discovery.
+	OSFamily           *string
+	OSVersion          *string
+	Architecture       *string
+	PlatformIdentifier *string
+	OSDiscoveredAt     *time.Time
 }
 
 // CreateParams is the input to CreateHost. Validation enforces the
@@ -128,7 +136,8 @@ func (s *Service) CreateHost(ctx context.Context, p CreateParams) (Host, error) 
 		          COALESCE(display_name, ''), COALESCE(description, ''),
 		          environment, tags, group_id, COALESCE(username, ''),
 		          created_by, created_at, updated_at,
-		          maintenance_mode, check_priority`
+		          maintenance_mode, check_priority,
+		          os_family, os_version, architecture, platform_identifier, os_discovered_at`
 	var h Host
 	err = s.pool.QueryRow(ctx, stmt,
 		id, p.Hostname, p.IPAddress, p.Port,
@@ -140,6 +149,7 @@ func (s *Service) CreateHost(ctx context.Context, p CreateParams) (Host, error) 
 		&h.Environment, &h.Tags, &h.GroupID, &h.Username,
 		&h.CreatedBy, &h.CreatedAt, &h.UpdatedAt,
 		&h.MaintenanceMode, &h.CheckPriority,
+		&h.OSFamily, &h.OSVersion, &h.Architecture, &h.PlatformIdentifier, &h.OSDiscoveredAt,
 	)
 	if err != nil {
 		if isUniqueViolation(err) {
@@ -163,7 +173,8 @@ func (s *Service) GetByID(ctx context.Context, id uuid.UUID) (Host, error) {
 		       COALESCE(display_name, ''), COALESCE(description, ''),
 		       environment, tags, group_id, COALESCE(username, ''),
 		       created_by, created_at, updated_at,
-		       maintenance_mode, check_priority
+		       maintenance_mode, check_priority,
+		       os_family, os_version, architecture, platform_identifier, os_discovered_at
 		FROM hosts WHERE id = $1 AND deleted_at IS NULL`
 	var h Host
 	err := s.pool.QueryRow(ctx, stmt, id).Scan(
@@ -172,6 +183,7 @@ func (s *Service) GetByID(ctx context.Context, id uuid.UUID) (Host, error) {
 		&h.Environment, &h.Tags, &h.GroupID, &h.Username,
 		&h.CreatedBy, &h.CreatedAt, &h.UpdatedAt,
 		&h.MaintenanceMode, &h.CheckPriority,
+		&h.OSFamily, &h.OSVersion, &h.Architecture, &h.PlatformIdentifier, &h.OSDiscoveredAt,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -242,7 +254,8 @@ func (s *Service) UpdateHost(ctx context.Context, id uuid.UUID, p UpdateParams) 
 		          COALESCE(display_name, ''), COALESCE(description, ''),
 		          environment, tags, group_id, COALESCE(username, ''),
 		          created_by, created_at, updated_at,
-		          maintenance_mode, check_priority`,
+		          maintenance_mode, check_priority,
+		          os_family, os_version, architecture, platform_identifier, os_discovered_at`,
 		strings.Join(sets, ", "), idPlaceholder)
 
 	var h Host
@@ -252,6 +265,7 @@ func (s *Service) UpdateHost(ctx context.Context, id uuid.UUID, p UpdateParams) 
 		&h.Environment, &h.Tags, &h.GroupID, &h.Username,
 		&h.CreatedBy, &h.CreatedAt, &h.UpdatedAt,
 		&h.MaintenanceMode, &h.CheckPriority,
+		&h.OSFamily, &h.OSVersion, &h.Architecture, &h.PlatformIdentifier, &h.OSDiscoveredAt,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -302,7 +316,8 @@ func (s *Service) List(ctx context.Context, p ListParams) ([]Host, error) {
 		       COALESCE(display_name, ''), COALESCE(description, ''),
 		       environment, tags, group_id, COALESCE(username, ''),
 		       created_by, created_at, updated_at,
-		       maintenance_mode, check_priority
+		       maintenance_mode, check_priority,
+		       os_family, os_version, architecture, platform_identifier, os_discovered_at
 		FROM hosts WHERE %s ORDER BY created_at DESC`, strings.Join(clauses, " AND "))
 
 	rows, err := s.pool.Query(ctx, stmt, args...)
@@ -319,6 +334,7 @@ func (s *Service) List(ctx context.Context, p ListParams) ([]Host, error) {
 			&h.Environment, &h.Tags, &h.GroupID, &h.Username,
 			&h.CreatedBy, &h.CreatedAt, &h.UpdatedAt,
 			&h.MaintenanceMode, &h.CheckPriority,
+			&h.OSFamily, &h.OSVersion, &h.Architecture, &h.PlatformIdentifier, &h.OSDiscoveredAt,
 		); err != nil {
 			return nil, fmt.Errorf("host: scan: %w", err)
 		}
