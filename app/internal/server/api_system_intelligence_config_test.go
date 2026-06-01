@@ -20,6 +20,7 @@ import (
 	"io"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -298,7 +299,17 @@ func TestAPI_SystemIntelligenceConfig_PUT_EmitsAuditWithOldAndNewSnapshots(t *te
 			t.Fatalf("expected 200, got %d", resp.StatusCode)
 		}
 
-		endCount := auditCount(t, pool, audit.SystemConfigChanged)
+		// audit.Emit is async (20ms flush interval in the fixture). Poll
+		// briefly for the row to appear instead of racing the flusher.
+		endCount := startCount
+		deadline := time.Now().Add(2 * time.Second)
+		for time.Now().Before(deadline) {
+			endCount = auditCount(t, pool, audit.SystemConfigChanged)
+			if endCount-startCount >= 1 {
+				break
+			}
+			time.Sleep(25 * time.Millisecond)
+		}
 		if endCount-startCount != 1 {
 			t.Fatalf("audit delta: want 1 SystemConfigChanged, got %d", endCount-startCount)
 		}
