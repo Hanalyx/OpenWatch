@@ -112,6 +112,12 @@ func defaultSeverityFor(t AlertType) Severity {
 // Channel implementations receive Alert values; they may format with
 // String() or render their own way from the structured fields.
 type Alert struct {
+	// ID is the persisted alerts.id (UUIDv7). Populated by the Store
+	// before Channel.Send dispatch — channels can use it to correlate
+	// downstream system records (PagerDuty incident key, Slack thread
+	// root) back to the OpenWatch alert row. Spec C-13 v1.1.0.
+	ID uuid.UUID
+
 	Type       AlertType
 	Severity   Severity
 	HostID     uuid.UUID
