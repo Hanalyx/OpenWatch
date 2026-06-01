@@ -48,7 +48,7 @@ func Diff(prior, current Snapshot) []Event {
 		if _, still := current.Packages[name]; !still {
 			events = append(events, Event{
 				Code:     CodeSystemPackageRemoved,
-				Severity: "warning",
+				Severity: "medium",
 				Detail:   map[string]any{"name": name},
 			})
 		}
@@ -94,13 +94,13 @@ func Diff(prior, current Snapshot) []Event {
 		case !had:
 			events = append(events, Event{
 				Code:     CodeAccountUserCreated,
-				Severity: "warning",
+				Severity: "medium",
 				Detail:   map[string]any{"user": name, "uid": u.UID},
 			})
 		case !prev.Locked && u.Locked:
 			events = append(events, Event{
 				Code:     CodeAccountUserLocked,
-				Severity: "warning",
+				Severity: "medium",
 				Detail:   map[string]any{"user": name},
 			})
 		case prev.Locked && !u.Locked:
@@ -115,7 +115,7 @@ func Diff(prior, current Snapshot) []Event {
 		if _, still := current.Users[name]; !still {
 			events = append(events, Event{
 				Code:     CodeAccountUserDeleted,
-				Severity: "warning",
+				Severity: "medium",
 				Detail:   map[string]any{"user": name},
 			})
 		}
@@ -166,7 +166,7 @@ func Diff(prior, current Snapshot) []Event {
 		if _, still := current.Mountpoints[mp]; !still {
 			events = append(events, Event{
 				Code:     CodeSystemFilesystemUnmounted,
-				Severity: "warning",
+				Severity: "medium",
 				Detail:   map[string]any{"mountpoint": mp},
 			})
 		}
@@ -177,7 +177,7 @@ func Diff(prior, current Snapshot) []Event {
 		prior.KernelRelease != current.KernelRelease {
 		events = append(events, Event{
 			Code:     CodeSystemKernelUpdated,
-			Severity: "warning",
+			Severity: "medium",
 			Detail: map[string]any{
 				"prior":   prior.KernelRelease,
 				"current": current.KernelRelease,
@@ -189,7 +189,7 @@ func Diff(prior, current Snapshot) []Event {
 	if !prior.RebootRequired && current.RebootRequired {
 		events = append(events, Event{
 			Code:     CodeSystemRebootRequired,
-			Severity: "warning",
+			Severity: "medium",
 			Detail:   map[string]any{},
 		})
 	}
