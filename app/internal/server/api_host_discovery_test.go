@@ -89,10 +89,12 @@ func TestAPI_HostDiscovery_HostCreate_AutoEnqueuesJob(t *testing.T) {
 	t.Run("system-host-discovery/AC-13", func(t *testing.T) {
 		url, pool := freshAPIServer(t)
 
-		body := []byte(`{"hostname":"disc-auto","ip_address":"192.0.2.42"}`)
+		body := map[string]any{
+			"hostname":   "disc-auto",
+			"ip_address": "192.0.2.42",
+		}
 		req := asRole(t, "POST", url+"/api/v1/hosts", auth.RoleAdmin, body)
 		req.Header.Set("Idempotency-Key", "create-disc-auto")
-		req.Header.Set("Content-Type", "application/json")
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
 			t.Fatalf("POST /hosts: %v", err)
