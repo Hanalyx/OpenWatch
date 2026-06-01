@@ -7,7 +7,6 @@
 // The PrivilegeProbeFunc is wired in cmd/openwatch/main.go where both
 // the credential resolver and the liveness service are already in
 // scope.
-
 package sshprivilege
 
 import (
@@ -60,8 +59,14 @@ func Probe(resolver Resolver) liveness.PrivilegeProbeFunc {
 		}
 
 		cfg := &ssh.ClientConfig{
-			User:            cred.Username,
-			Timeout:         timeout,
+			User:    cred.Username,
+			Timeout: timeout,
+			// #nosec G106 -- this probe answers "would sudo work
+			// today?" and is decoupled from compliance scans. Host-key
+			// pinning belongs on the real scan path (internal/ssh's
+			// KnownHostsManager). Verifying here would require the
+			// liveness loop to learn the host-key registry — exactly
+			// the cross-cutting coupling we kept out of the package.
 			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 		}
 		switch cred.AuthMethod {

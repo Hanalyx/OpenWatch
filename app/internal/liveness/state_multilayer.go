@@ -52,9 +52,9 @@ func DefaultMultiLayerThresholds() MultiLayerThresholds {
 // LayerCounters carries the six consecutive-counter values stored on
 // host_liveness so we don't pass six ints around.
 type LayerCounters struct {
-	PingFail, PingOK            int
-	SSHFail, SSHOK              int
-	PrivilegeFail, PrivilegeOK  int
+	PingFail, PingOK           int
+	SSHFail, SSHOK             int
+	PrivilegeFail, PrivilegeOK int
 }
 
 // AdvanceCounters returns the new counter values after one probe. Each

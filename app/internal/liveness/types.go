@@ -58,24 +58,24 @@ type MultiLayerResult struct {
 	// PingOK is true when ICMP Echo Request received a matching reply
 	// within the timeout. False on timeout, destination unreachable, or
 	// socket error.
-	PingOK   bool
-	PingRTT  time.Duration
-	PingErr  error
+	PingOK  bool
+	PingRTT time.Duration
+	PingErr error
 
 	// SSHOK is true when TCP-22 accepted a connection AND the server's
 	// banner began with "SSH-". A non-SSH banner on port 22 is SSHOk=false.
-	SSHOK       bool
-	SSHRTT      time.Duration
-	SSHBanner   []byte
-	SSHErr      error
+	SSHOK        bool
+	SSHRTT       time.Duration
+	SSHBanner    []byte
+	SSHErr       error
 	SSHAttempted bool // true if ping succeeded so SSH was tried
 
 	// PrivilegeOK is true when an SSH session authenticated successfully
 	// AND `sudo -n true` returned exit 0. Skipped when SSH layer failed
 	// or when no usable credential exists for the host.
-	PrivilegeOK       bool
-	PrivilegeRTT      time.Duration
-	PrivilegeErr      error
+	PrivilegeOK        bool
+	PrivilegeRTT       time.Duration
+	PrivilegeErr       error
 	PrivilegeAttempted bool
 
 	// TotalRTT is the wall-clock cost of the whole multi-layer probe.

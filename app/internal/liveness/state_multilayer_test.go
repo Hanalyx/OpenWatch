@@ -49,8 +49,8 @@ func TestAdvanceCounters_PerLayerIncrement(t *testing.T) {
 			r := MultiLayerResult{
 				PingOK: true, SSHAttempted: true, SSHOK: true,
 				PrivilegeAttempted: true, PrivilegeOK: false,
-				PrivilegeErr:       errors.New("sudo -n true: exit 1"),
-				FirstFailedLayer:   LayerPrivilege,
+				PrivilegeErr:     errors.New("sudo -n true: exit 1"),
+				FirstFailedLayer: LayerPrivilege,
 			}
 			got := AdvanceCounters(prev, r)
 			if got.PrivilegeFail != 1 || got.PrivilegeOK != 0 {

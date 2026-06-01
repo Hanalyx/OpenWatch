@@ -56,19 +56,19 @@ func loadHostLiveness(ctx context.Context, pool *pgxpool.Pool, hostID uuid.UUID)
 	}
 	ms := api.HostLivenessMonitoringState(monState)
 	out := &api.HostLiveness{
-		ReachabilityStatus:             api.HostLivenessReachabilityStatus(status),
-		MonitoringState:                &ms,
-		ConsecutiveFailures:            &consecutiveFails,
-		PingConsecutiveFailures:        &pingFail,
-		PingConsecutiveSuccesses:       &pingOK,
-		SshConsecutiveFailures:         &sshFail,
-		SshConsecutiveSuccesses:        &sshOK,
-		PrivilegeConsecutiveFailures:   &privFail,
-		PrivilegeConsecutiveSuccesses:  &privOK,
-		LastProbeAt:                    lastProbeAt,
-		LastResponseMs:                 lastResponseMS,
-		LastStateChangeAt:              lastStateChangeAt,
-		LastErrorType:                  lastErrorType,
+		ReachabilityStatus:            api.HostLivenessReachabilityStatus(status),
+		MonitoringState:               &ms,
+		ConsecutiveFailures:           &consecutiveFails,
+		PingConsecutiveFailures:       &pingFail,
+		PingConsecutiveSuccesses:      &pingOK,
+		SshConsecutiveFailures:        &sshFail,
+		SshConsecutiveSuccesses:       &sshOK,
+		PrivilegeConsecutiveFailures:  &privFail,
+		PrivilegeConsecutiveSuccesses: &privOK,
+		LastProbeAt:                   lastProbeAt,
+		LastResponseMs:                lastResponseMS,
+		LastStateChangeAt:             lastStateChangeAt,
+		LastErrorType:                 lastErrorType,
 	}
 	return out, nil
 }
@@ -122,19 +122,19 @@ func loadHostLivenessByIDs(ctx context.Context, pool *pgxpool.Pool, ids []uuid.U
 		}
 		ms := api.HostLivenessMonitoringState(monState)
 		out[hostID] = &api.HostLiveness{
-			ReachabilityStatus:             api.HostLivenessReachabilityStatus(status),
-			MonitoringState:                &ms,
-			ConsecutiveFailures:            &consecutiveFails,
-			PingConsecutiveFailures:        &pingFail,
-			PingConsecutiveSuccesses:       &pingOK,
-			SshConsecutiveFailures:         &sshFail,
-			SshConsecutiveSuccesses:        &sshOK,
-			PrivilegeConsecutiveFailures:   &privFail,
-			PrivilegeConsecutiveSuccesses:  &privOK,
-			LastProbeAt:                    lastProbeAt,
-			LastResponseMs:                 lastResponseMS,
-			LastStateChangeAt:              lastStateChangeAt,
-			LastErrorType:                  lastErrorType,
+			ReachabilityStatus:            api.HostLivenessReachabilityStatus(status),
+			MonitoringState:               &ms,
+			ConsecutiveFailures:           &consecutiveFails,
+			PingConsecutiveFailures:       &pingFail,
+			PingConsecutiveSuccesses:      &pingOK,
+			SshConsecutiveFailures:        &sshFail,
+			SshConsecutiveSuccesses:       &sshOK,
+			PrivilegeConsecutiveFailures:  &privFail,
+			PrivilegeConsecutiveSuccesses: &privOK,
+			LastProbeAt:                   lastProbeAt,
+			LastResponseMs:                lastResponseMS,
+			LastStateChangeAt:             lastStateChangeAt,
+			LastErrorType:                 lastErrorType,
 		}
 	}
 	return out, rows.Err()

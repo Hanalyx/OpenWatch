@@ -124,18 +124,18 @@ func (h *handlers) GetHostMonitoringHistory(w http.ResponseWriter, r *http.Reque
 	entries := make([]api.HostMonitoringHistoryEntry, 0, limit)
 	for rows.Next() {
 		var (
-			rowID         int64
-			hID           uuid.UUID
-			checkTime     time.Time
-			monitoring    string
-			previous      *string
-			responseMS    *int
-			pingOK        *bool
-			sshOK         *bool
-			privOK        *bool
-			failedLayer   *string
-			errMsg        *string
-			errType       *string
+			rowID       int64
+			hID         uuid.UUID
+			checkTime   time.Time
+			monitoring  string
+			previous    *string
+			responseMS  *int
+			pingOK      *bool
+			sshOK       *bool
+			privOK      *bool
+			failedLayer *string
+			errMsg      *string
+			errType     *string
 		)
 		if err := rows.Scan(&rowID, &hID, &checkTime, &monitoring, &previous,
 			&responseMS, &pingOK, &sshOK, &privOK,
