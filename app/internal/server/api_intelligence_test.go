@@ -181,7 +181,10 @@ func TestAPI_Intelligence_Events_CursorPagination(t *testing.T) {
 		}
 
 		req := asRole(t, "GET", srv+"/api/v1/intelligence/events?limit=2", auth.RoleViewer, nil)
-		resp, _ := http.DefaultClient.Do(req)
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatalf("GET page1: %v", err)
+		}
 		defer resp.Body.Close()
 		var page1 api.IntelligenceEventsPage
 		_ = json.NewDecoder(resp.Body).Decode(&page1)
@@ -197,7 +200,10 @@ func TestAPI_Intelligence_Events_CursorPagination(t *testing.T) {
 		q.Set("cursor", *page1.NextCursor)
 		req2 := asRole(t, "GET", srv+"/api/v1/intelligence/events?"+q.Encode(),
 			auth.RoleViewer, nil)
-		resp2, _ := http.DefaultClient.Do(req2)
+		resp2, err := http.DefaultClient.Do(req2)
+		if err != nil {
+			t.Fatalf("GET page2: %v", err)
+		}
 		defer resp2.Body.Close()
 		var page2 api.IntelligenceEventsPage
 		_ = json.NewDecoder(resp2.Body).Decode(&page2)
