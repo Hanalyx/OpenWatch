@@ -21,6 +21,12 @@ type Metrics struct {
 	// that returned an error. Per-channel counters are tracked on
 	// channelEntry.failureCount.
 	ChannelFailureCount atomic.Int64
+
+	// PersistFailed is the count of alerts that survived dedup but
+	// failed to persist to the alerts table. Per spec C-10 v1.1.0,
+	// channels never receive an unpersisted alert; the alert is dropped
+	// and this counter increments.
+	PersistFailed atomic.Int64
 }
 
 // NewMetrics returns a fresh Metrics.
@@ -32,6 +38,7 @@ type MetricsSnapshot struct {
 	RoutedCount         int64 `json:"routed_count"`
 	DedupedCount        int64 `json:"deduped_count"`
 	ChannelFailureCount int64 `json:"channel_failure_count"`
+	PersistFailed       int64 `json:"persist_failed"`
 }
 
 // Snapshot returns a point-in-time copy of all counters.
@@ -41,5 +48,6 @@ func (m *Metrics) Snapshot() MetricsSnapshot {
 		RoutedCount:         m.RoutedCount.Load(),
 		DedupedCount:        m.DedupedCount.Load(),
 		ChannelFailureCount: m.ChannelFailureCount.Load(),
+		PersistFailed:       m.PersistFailed.Load(),
 	}
 }

@@ -21,9 +21,15 @@ const stopDrainTimeout = 10 * time.Second
 // Construct with NewRouter, register channels via Register, then call
 // Start to begin reading from the bus. Call Stop to unsubscribe and
 // drain in-flight deliveries.
+//
+// v1.1.0 — persist hook: after the dedup gate accepts an alert the
+// router calls Store.Insert before dispatching to channels. Channels
+// receive the assigned Alert.ID. Persist failures abort dispatch and
+// increment metrics.PersistFailed. Spec C-10 / C-13.
 type Router struct {
 	bus      *eventbus.Bus
 	dedup    *DedupGate
+	store    Store
 	metrics  *Metrics
 	logger   *slog.Logger
 	dedupTTL time.Duration
@@ -88,6 +94,15 @@ func NewRouter(bus *eventbus.Bus, cfg Config) (*Router, error) {
 		logger:   logger,
 		dedupTTL: ttl,
 	}, nil
+}
+
+// WithStore wires the persistence backend (v1.1.0). When unset the
+// router runs in legacy fire-and-forget mode (channels still fire,
+// no row written). Production calls this with a PgxStore at boot;
+// tests inject a stub. Spec C-10.
+func (r *Router) WithStore(s Store) *Router {
+	r.store = s
+	return r
 }
 
 // Register adds a channel + filter to the router. Safe to call before
@@ -169,9 +184,12 @@ func (r *Router) run(ctx context.Context, sub *eventbus.Subscription) {
 	}
 }
 
-// handle is the per-event translation + dispatch pipeline. Exported
-// only via run; tests use translate + dispatch directly when finer
-// granularity is needed.
+// handle is the per-event translation + persist + dispatch pipeline.
+//
+// v1.1.0: a Store is consulted between the dedup gate and the
+// channel.Send fan-out. Channels NEVER receive an unpersisted alert
+// (spec C-10). When no store is configured the router runs in legacy
+// mode — channels still fire, no row written.
 func (r *Router) handle(ctx context.Context, ev eventbus.Event) {
 	alert, ok := translate(ev)
 	if !ok {
@@ -181,6 +199,18 @@ func (r *Router) handle(ctx context.Context, ev eventbus.Event) {
 	if r.dedup.ShouldSkip(alert) {
 		r.metrics.DedupedCount.Add(1)
 		return
+	}
+	if r.store != nil {
+		id, err := r.store.Insert(ctx, alert)
+		if err != nil {
+			r.metrics.PersistFailed.Add(1)
+			r.logger.WarnContext(ctx, "alertrouter: persist failed; dispatch skipped",
+				slog.String("alert_type", string(alert.Type)),
+				slog.String("severity", string(alert.Severity)),
+				slog.Any("error", err))
+			return
+		}
+		alert.ID = id
 	}
 	r.dispatch(ctx, alert)
 }

@@ -1,25 +1,35 @@
 spec:
   id: system-alert-router
   title: Alert router
-  version: "1.0.0"
+  version: "1.1.0"
   status: approved
   tier: 1
 
   context:
     system: openwatch-go
-    feature: Event-bus subscriber that translates events to alerts and routes them to delivery channels
+    feature: Event-bus subscriber that translates events to alerts, persists them, and routes them to delivery channels
     description: >
       The alert router is the bridge between OpenWatch's event bus
       (B.3a) and external notification channels (Slack, email,
       webhook, PagerDuty). It subscribes to bus events at boot,
       translates them into typed Alert structures with severity +
       tags, applies a dedup gate per (alert_type, host, rule_id)
-      tuple, and dispatches matching alerts to registered Channels.
+      tuple, PERSISTS each surviving alert to the alerts table, and
+      dispatches matching alerts to registered Channels.
 
       Channel implementations (Slack, email, webhook) live in
       subpackages so the core router has no external SDK dependencies.
       The Channel interface is small enough to fake in tests without
       standing up real services.
+
+      v1.1.0 amendment (PR 2 — persistence): every alert that passes
+      the dedup gate is INSERTed into the alerts table with state
+      'active' before channel delivery starts. This unblocks the
+      /activity feed (which UNIONs alerts with transactions +
+      intelligence events + audit) and the alerts CRUD endpoints
+      (PR 3) — both need a queryable alert log. Persistence is
+      mandatory: a DB failure aborts delivery with PersistFailed
+      counted; channels never receive an unpersisted alert.
 
   objective:
     summary: >
@@ -80,6 +90,22 @@ spec:
     - id: C-09
       description: The core router package (internal/alertrouter) imports no external notification SDKs (slack-sdk, sendgrid, mailgun, twilio, pagerduty). Channel implementations live in subpackages
       type: security
+      enforcement: error
+    - id: C-10
+      description: 'v1.1.0 — Every alert that survives the dedup gate MUST be INSERTed into the alerts table with state=''active'' BEFORE Channel.Send dispatch starts. Channels MUST NOT receive an unpersisted alert; if persistence fails, the router increments PersistFailed and skips dispatch'
+      type: technical
+      enforcement: error
+    - id: C-11
+      description: 'v1.1.0 — alerts.state is a closed enum (active / silenced / acknowledged / resolved / dismissed). Initial state on INSERT is always ''active''. Transitions are owned by system-alerts (PR 3); the router NEVER updates state'
+      type: technical
+      enforcement: error
+    - id: C-12
+      description: 'v1.1.0 — alerts table has UNIQUE constraint on (dedup_key, occurred_at). Combined with the in-memory dedup gate this provides defense-in-depth: a router restart during the dedup TTL window cannot insert a duplicate row (the in-memory gate is empty but the UNIQUE constraint catches it)'
+      type: technical
+      enforcement: error
+    - id: C-13
+      description: 'v1.1.0 — Alert.ID (uuid.UUID) is populated by the persist step. Channels receive the persisted ID so downstream systems (PagerDuty incident keys, Slack thread roots) can correlate back to the OpenWatch alert row'
+      type: technical
       enforcement: error
 
   acceptance_criteria:
@@ -142,3 +168,23 @@ spec:
       description: ValidateDedupTTL rejects values < 60s or > 24h with a typed error.
       priority: high
       references_constraints: [C-04]
+    - id: AC-16
+      description: 'v1.1.0 — Migration 0020 adds the alerts table with columns (id UUID PK, dedup_key TEXT, alert_type TEXT, severity TEXT, host_id UUID nullable, rule_id TEXT, title TEXT, body TEXT, tags JSONB, state TEXT default ''active'', occurred_at TIMESTAMPTZ, created_at TIMESTAMPTZ, updated_at TIMESTAMPTZ). State CHECK enumerates the 5 values; UNIQUE on (dedup_key, occurred_at)'
+      priority: critical
+      references_constraints: [C-10, C-11, C-12]
+    - id: AC-17
+      description: 'v1.1.0 — Router.Route on a fresh alert (passes dedup) INSERTs one row into alerts BEFORE invoking any Channel.Send. Verified by counting rows after Route returns; rowcount = 1 and state = ''active'''
+      priority: critical
+      references_constraints: [C-10, C-11]
+    - id: AC-18
+      description: 'v1.1.0 — When the alerts INSERT fails (e.g., DB unreachable), Router.Route MUST NOT call Channel.Send. PersistFailed counter increments; ReceivedCount still increments (the alert was received), but RoutedCount does NOT'
+      priority: critical
+      references_constraints: [C-10]
+    - id: AC-19
+      description: 'v1.1.0 — Channels receive Alert values with the persisted ID populated. Verified by capturing the Alert that reaches a stub Channel and asserting Alert.ID != uuid.Nil'
+      priority: critical
+      references_constraints: [C-13]
+    - id: AC-20
+      description: 'v1.1.0 — A second Route call with the same (dedup_key, occurred_at) pair returns success but inserts ZERO new rows (ON CONFLICT DO NOTHING). Both the in-memory dedup gate AND the UNIQUE constraint catch the repeat'
+      priority: critical
+      references_constraints: [C-12]
