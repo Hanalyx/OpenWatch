@@ -1,0 +1,105 @@
+spec:
+  id: frontend-host-detail-intelligence-feed
+  title: Host detail Server-intelligence card — real events feed from /intelligence/events
+  version: "1.0.0"
+  status: approved
+  tier: 2
+
+  context:
+    system: openwatch-go
+    feature: Host detail overview card "Server intelligence" surfaces the recent change events from the api-os-intelligence collector
+    description: >
+      Pre-PR 7 the "Server intelligence" card on the host detail page
+      rendered a static "Not yet collected" empty-state pointing to
+      BACKLOG, even though api-os-intelligence GET
+      /api/v1/intelligence/events has been live and the scheduler is
+      writing host_intelligence_events on every cycle.
+
+      PR 7 wires the card to fetch the 10 most recent events for the
+      current host (?host_id=<id>&limit=10) and renders each as a row
+      with: severity dot, event_code, detail summary, and
+      occurred_at relative time. Empty list (no events yet for this
+      host) collapses to "No intelligence activity yet" — explicit
+      "no signal" state distinct from the loading/error states.
+
+      This is the read-only single-host slice. The full /activity
+      page (cross-host unified feed) is owned by api-activity and is
+      already live; this spec only owns the per-host card on the
+      detail page.
+
+      Auto-refresh is delegated to the useLiveEvents SSE topic
+      "intelligence.event" (frontend-live-events C-04 / AC-05) which
+      invalidates ['host_intelligence_events', host.id] — the same
+      query key this card uses. No polling, no manual refresh button.
+
+    related_specs:
+      - api-os-intelligence
+      - frontend-live-events
+      - frontend-host-detail
+      - frontend-host-detail-system-card
+
+  objective:
+    summary: >
+      Lock the data binding, query key, rendering rules, and three
+      visual states (loading / error / empty) for the Server-
+      intelligence card. Tests cover the source-inspection contract
+      and the empty/error visual states.
+    scope:
+      includes:
+        - "Query key ['host_intelligence_events', host.id] matching frontend-live-events C-04"
+        - "GET /api/v1/intelligence/events with query: host_id=host.id, limit=10"
+        - "Per-event row: severity dot + event_code + occurred_at relative time"
+        - "Three visual states: loading, error (Retry button), empty (no events yet)"
+      excludes:
+        - "Activated Packages / Services / Users / Network tabs — separate PR (reads snapshot fields)"
+        - "Cross-host activity feed — owned by api-activity / frontend-activity"
+        - "Cursor pagination on the card — only the 10 most recent rows; deeper history goes to /activity"
+        - "Click-through to per-event detail — deferred (no detail surface defined yet)"
+
+  constraints:
+    - id: C-01
+      description: 'CardServerIntel MUST issue exactly ONE useQuery against /api/v1/intelligence/events with params { host_id, limit: 10 }. No other endpoint, no client-side filtering of broader fetches. Reason: scoping at the API boundary lets the backend short-circuit the WHERE clause and keeps the card responsive for hosts with deep history'
+      type: technical
+      enforcement: error
+    - id: C-02
+      description: "CardServerIntel MUST use queryKey ['host_intelligence_events', host.id]. This MUST match the invalidation target in useLiveEvents.ts intelligence.event handler (frontend-live-events C-04) verbatim — any divergence breaks the SSE auto-refresh path"
+      type: technical
+      enforcement: error
+    - id: C-03
+      description: "Each event row MUST render: a severity-tinted dot (crit/warn/info colors from the existing severityFor helper), the event_code (mono font), and the occurred_at relative time (Xm/Xh/Xd ago). The detail object is NOT rendered inline — it is opaque per-event metadata; surfacing detail values per event_code is deferred"
+      type: technical
+      enforcement: error
+    - id: C-04
+      description: 'CardServerIntel MUST render three distinct visual states: (1) loading (skeleton or "Loading…" text), (2) error (red text + Retry button), (3) empty (no events yet — soft "No intelligence activity yet" message). Loading and error MUST NOT collapse to the empty state — operators need to distinguish "not loaded" from "no signal"'
+      type: technical
+      enforcement: error
+    - id: C-05
+      description: '403 (host:read denied) MUST render the error state — the page wraps the response and the card cannot present forbidden data. 200 with an empty items array MUST render the empty state. 502 / 504 (transient backend) MUST render the error state with the Retry button so the operator can recover without a page reload'
+      type: technical
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: 'Source inspection: CardServerIntel calls api.GET with the literal path "/api/v1/intelligence/events" and a query object containing host_id AND limit: 10. No other path appears in the function body'
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-02
+      description: "Source inspection: CardServerIntel's useQuery uses queryKey starting with the literal string 'host_intelligence_events' followed by host.id. The query key MUST match the one used by useLiveEvents.ts handlers — verified by reading both files and asserting identical key shape"
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-03
+      description: "Rendering: CardServerIntel mounted with isLoading=true (mocked useQuery state) renders a visible loading affordance (text or skeleton element). The empty-state copy 'No intelligence activity yet' MUST NOT appear in the loading state"
+      priority: critical
+      references_constraints: [C-04]
+    - id: AC-04
+      description: 'Rendering: CardServerIntel mounted with isError=true renders both an error message AND a Retry button (role="button", accessible name matching /retry/i). The button click MUST invoke the refetch path — verified by spying on the mocked refetch'
+      priority: critical
+      references_constraints: [C-04, C-05]
+    - id: AC-05
+      description: "Rendering: CardServerIntel mounted with isSuccess=true and data={items:[]} renders the literal string 'No intelligence activity yet' AND does NOT render any rows. The empty state names the data source (e.g. 'OS Intelligence collector') so operators know which subsystem populates it"
+      priority: critical
+      references_constraints: [C-04]
+    - id: AC-06
+      description: "Rendering: CardServerIntel mounted with isSuccess=true and data={items:[two-events]} renders 2 row elements, each containing the event's event_code text. Severity dot color matches the severity (crit/warn/info palette via severityFor or equivalent)"
+      priority: critical
+      references_constraints: [C-03]

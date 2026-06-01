@@ -51,6 +51,7 @@ domains:
             - frontend-host-detail
             - frontend-host-list-os
             - frontend-host-detail-system-card
+            - frontend-host-detail-intelligence-feed
             - api-openapi-docs
             - release-admin-signoff
             - system-worker-subcommand

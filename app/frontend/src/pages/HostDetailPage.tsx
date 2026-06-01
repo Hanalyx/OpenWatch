@@ -27,6 +27,7 @@ import api from '@/api/client';
 import { EditHostModal } from '@/components/hosts/EditHostModal';
 import { useBreadcrumbStore } from '@/store/useBreadcrumbStore';
 import { CardSystem } from '@/pages/host-detail/CardSystem';
+import { CardServerIntel } from '@/pages/host-detail/CardServerIntel';
 
 // HostDetailPage — prototype-faithful Host Detail surface (v1.0.0).
 //
@@ -390,7 +391,7 @@ export function HostDetailPage() {
               >
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0 }}>
                   <CardTopFailed />
-                  <CardServerIntel />
+                  <CardServerIntel hostId={detailQuery.data.host.id} />
                   <CardComplianceTrend />
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0 }}>
@@ -1184,17 +1185,6 @@ function CardTopFailed() {
       <EmptyState
         primary="No scan results yet"
         secondary="Populated by the compliance scanner (Kensa). Until a scan completes, host_rule_state is empty for this host."
-      />
-    </Card>
-  );
-}
-
-function CardServerIntel() {
-  return (
-    <Card title="Server intelligence">
-      <EmptyState
-        primary="Not yet collected"
-        secondary="Server intelligence collection (packages, services, users, network, firewall, audit events) is deferred — see BACKLOG."
       />
     </Card>
   );
