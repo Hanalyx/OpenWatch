@@ -5,6 +5,7 @@
 //   AC-04  test('frontend-host-list-os/AC-04 — apiHostToDev derives OS from os_family, not hostname')
 //   AC-05  test('frontend-host-list-os/AC-05 — detectOS heuristic is removed from the page')
 //   AC-06  test('frontend-host-list-os/AC-06 — osDisplayLabel is imported and used by apiHostToDev')
+//   AC-07  test('frontend-host-list-os/AC-07 — OSChip falls back to OS_COLOR_FALLBACK for unmapped families')
 
 import { describe, expect, test } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -67,5 +68,17 @@ describe('frontend-host-list-os — structural', () => {
     expect(fnMatch).not.toBeNull();
     expect(fnMatch![1]).toContain('osDisplayLabel');
     expect(fnMatch![1]).toContain('os_family');
+  });
+
+  // @ac AC-07
+  test('frontend-host-list-os/AC-07 — OSChip falls back to OS_COLOR_FALLBACK for unmapped families', () => {
+    // The fallback constant exists
+    expect(PAGE_SRC).toMatch(/const\s+OS_COLOR_FALLBACK\s*=/);
+    // OS_COLOR is typed as an open string-keyed map (widened from the
+    // closed union so unmapped families are well-typed at the lookup
+    // site).
+    expect(PAGE_SRC).toMatch(/OS_COLOR\s*:\s*Record<string,\s*string>/);
+    // OSChip uses the ?? fallback pattern
+    expect(PAGE_SRC).toMatch(/OS_COLOR\[[^\]]+\]\s*\?\?\s*OS_COLOR_FALLBACK/);
   });
 });

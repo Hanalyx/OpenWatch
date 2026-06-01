@@ -46,13 +46,13 @@ spec:
       Unknown fallback + the source-inspection that detectOS is gone.
     scope:
       includes:
-        - osDisplayLabel(family: string | null) helper exported from the page module (or co-located util)
-        - OSChip rendering "Unknown" with a neutral color when family is unmapped or null
-        - apiHostToDev mapping the real os_family (NOT hostname) onto DevHost.os
+        - "osDisplayLabel(family: string | null) helper exported from the page module (or co-located util)"
+        - 'OSChip rendering "Unknown" with a neutral color when family is unmapped or null'
+        - "apiHostToDev mapping the real os_family (NOT hostname) onto DevHost.os"
       excludes:
-        - os_version display — owned by PR 6 (host detail panel)
-        - group-by-OS aggregation semantics — out of scope here; lives in the filterbar spec
-        - Color choices for known families — already locked by the OS_COLOR map; this spec only widens it to fall back to neutral
+        - "os_version display — owned by PR 6 (host detail panel)"
+        - "group-by-OS aggregation semantics — out of scope here; lives in the filterbar spec"
+        - "Color choices for known families — already locked by the OS_COLOR map; this spec only widens it to fall back to neutral"
 
   constraints:
     - id: C-01
@@ -97,3 +97,7 @@ spec:
       description: 'Source inspection: HostsListPage.tsx contains a function named osDisplayLabel (declaration or const arrow). The function is called from apiHostToDev. Verified by reading the file source and asserting both occurrences'
       priority: critical
       references_constraints: [C-02, C-04]
+    - id: AC-07
+      description: 'Source inspection: HostsListPage.tsx declares an OS_COLOR_FALLBACK constant referenced by OSChip via the "?? OS_COLOR_FALLBACK" lookup pattern. Proves the neutral-fallback wiring is in place — OS_COLOR is typed Record<string, string> (open map) and the bracket access is guarded against the unmapped/undefined case'
+      priority: high
+      references_constraints: [C-03]
