@@ -26,6 +26,7 @@ import {
   BackendPendingBanner,
   Callout,
 } from '@/components/settings/primitives';
+import { OSIntelligenceSection } from '@/components/settings/OSIntelligenceSection';
 
 // Settings → Scanning & monitoring.
 //
@@ -679,6 +680,10 @@ export function ScanningPage() {
           />
         </SettingCard>
       </Section>
+
+      {/* ────────── OS Intelligence scheduler (wired) ────────── */}
+      {/* Spec: frontend-settings-intelligence-config v1.0 */}
+      <OSIntelligenceSection />
 
       {/* ────────── Maintenance (global flag wired; groups UI only) ────────── */}
       <Section title="Maintenance">

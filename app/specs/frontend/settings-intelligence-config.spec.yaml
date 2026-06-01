@@ -1,0 +1,138 @@
+spec:
+  id: frontend-settings-intelligence-config
+  title: Settings Scanning page — OS Intelligence scheduler config section
+  version: "1.1.0"
+  status: approved
+  tier: 2
+
+  context:
+    system: openwatch-go
+    feature: Settings > Scanning & monitoring page exposes the three OS Intelligence scheduler knobs landed by api-system-intelligence-config v1.0 (PR 8)
+    description: >
+      The Scanning & monitoring page already exposes a connectivity-
+      monitor config section wired to api-system-connectivity. PR 8
+      landed the parallel backend surface for the OS Intelligence
+      scheduler (GET/PUT /api/v1/system/intelligence/config). PR 8b
+      adds the matching frontend section so operators can see and
+      change the three knobs without hitting the API directly.
+
+      Three knobs, all bounded server-side by
+      system-intelligence-scheduler v1.0:
+
+        interval_sec       — per-host cadence (300..86400, default 3600)
+        rate_limit         — concurrent RunCycles cap (1..200, default 10)
+        maintenance_global — boolean kill-switch
+
+      Section structure mirrors the existing connectivity section's
+      visual pattern (SettingCard + FirstSettingRow + SettingRow +
+      controls), but the save affordance is local to the section
+      (inline Reset + Save buttons) rather than feeding the
+      page-level SaveBar. Two reasons: (a) the page-level SaveBar is
+      already scoped to the connectivity draft state — coupling
+      another draft into it would muddy the dirty/save semantics;
+      (b) section-local controls match the prototype Settings.html
+      layout better (each section is independently editable).
+
+    related_specs:
+      - api-system-intelligence-config
+      - api-system-connectivity
+      - system-intelligence-scheduler
+
+  objective:
+    summary: >
+      Lock the section layout, data binding, edit/save/reset/dirty
+      semantics, and bounds-aware Stepper ranges so the section stays
+      consistent with the backend contract. Tests cover the rendering
+      states (loading / error / dirty=false / dirty=true), the
+      save-success refetch, and the Stepper bounds.
+    scope:
+      includes:
+        - "OSIntelligenceSection component co-located in components/settings/"
+        - "GET /api/v1/system/intelligence/config wiring (TanStack Query)"
+        - "PUT /api/v1/system/intelligence/config wiring with cache invalidation"
+        - "Reset-to-defaults affordance reading from the GET response's defaults sub-object"
+        - "Section mounted in ScanningPage between OS discovery and Maintenance"
+      excludes:
+        - "Status endpoint — IntelligenceConfig has no in-process metrics surface (the scheduler exposes none today)"
+        - "Hot-reload signal — scheduler reads config at the top of each cycle (no client-side signal needed)"
+        - "Per-host overrides — interval_sec is fleet-wide; per-host cadence is managed by next_intelligence_at"
+
+  constraints:
+    - id: C-01
+      description: 'The section MUST issue exactly ONE useQuery against /api/v1/system/intelligence/config with the query key ["system", "intelligence", "config"]. The query key must be stable across renders so cache invalidation (in onSuccess) targets the right cache slot'
+      type: technical
+      enforcement: error
+    - id: C-02
+      description: 'A local draft state buffers in-flight edits. The draft MUST initialize from configQuery.data.config on first load and reset to the same source when the user clicks Cancel/Reset (NOT to defaults). A separate "Reset to defaults" affordance sets draft to configQuery.data.defaults — distinct UX from "Cancel changes"'
+      type: technical
+      enforcement: error
+    - id: C-03
+      description: 'The Stepper for interval_sec MUST clamp 300..86400 (5min..24h). The Stepper for rate_limit MUST clamp 1..200. The Toggle for maintenance_global is unbounded boolean. These bounds match system-intelligence-scheduler C-06/C-07 verbatim — typing them on the frontend prevents 400 round-trips for trivially out-of-range inputs'
+      type: technical
+      enforcement: error
+    - id: C-04
+      description: 'The Save button MUST be disabled when (a) configQuery is loading, (b) the draft equals the live config (dirty=false), or (c) the save mutation is in flight. On successful save the query key ["system", "intelligence", "config"] MUST be invalidated so the next render shows the round-tripped values'
+      type: technical
+      enforcement: error
+    - id: C-05
+      description: 'A failed save MUST render the error message inline next to the buttons (use the envelope.error.message when present, fall back to the Error.message). The draft MUST NOT be reset on error — the operator keeps their input to retry or correct'
+      type: technical
+      enforcement: error
+    - id: C-06
+      description: 'The section MUST be mounted in ScanningPage.tsx BETWEEN the existing "OS discovery" section and the "Maintenance" section. Order matters: OS discovery is the one-shot fingerprint, OS Intelligence is the recurring snapshot collector — operators read top-down and expect them adjacent'
+      type: technical
+      enforcement: error
+    - id: C-07
+      description: 'v1.1.0 — The error alert text MUST surface the HTTP status code (e.g. "HTTP 404") and SHOULD include the ErrorEnvelope.error.message when present. The buggy original "(error as Error)?.message" returned undefined for openapi-fetch errors (which are response-body objects, not Error instances) and degenerated to the duplicated fallback "Failed to load — Failed to load". The fix normalizes error → "HTTP <status>[ — <env.error.message>]" before throwing so the alert text is always operator-actionable'
+      type: technical
+      enforcement: error
+    - id: C-08
+      description: 'v1.1.0 — The error state MUST render a Retry button that calls configQuery.refetch(). Without it the operator has to reload the entire page to recover from a transient 5xx — mirrors the recovery affordance in frontend-host-detail-intelligence-feed C-04'
+      type: technical
+      enforcement: error
+    - id: C-09
+      description: 'v1.1.0 — On the post-save edge (mutation.isSuccess && configQuery.data), the draft MUST be re-synced from configQuery.data.config so a server-side clamp (or any future drift between client and server validation) cannot leave the operator with a stale draft that looks "saved" but does not match server truth. The re-sync MUST be gated on mutation.isSuccess specifically — never clobber an in-flight edit during an unrelated refetch'
+      type: technical
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: 'Source inspection: components/settings/OSIntelligenceSection.tsx imports useQuery + useMutation from @tanstack/react-query. Its useQuery call uses queryKey ["system", "intelligence", "config"] AND fetches "/api/v1/system/intelligence/config"'
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-02
+      description: 'Source inspection: OSIntelligenceSection.tsx contains BOTH a draft-reset path keyed off configQuery.data.config (Cancel) AND a separate draft-reset path keyed off configQuery.data.defaults (Reset to defaults). The two paths MUST be distinct functions/closures'
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-03
+      description: "Source inspection: OSIntelligenceSection.tsx contains Stepper min/max props 300 and 86400 for the interval_sec control, and 1 and 200 for the rate_limit control. Verified by reading the file and matching the literal numbers next to the field names"
+      priority: critical
+      references_constraints: [C-03]
+    - id: AC-04
+      description: 'Source inspection: the save mutation onSuccess calls queryClient.invalidateQueries with queryKey ["system", "intelligence", "config"]. The Save button''s disabled prop combines (configQuery.isLoading), (!dirty), and (mutation.isPending) — all three terms appear in the disabled expression'
+      priority: critical
+      references_constraints: [C-04]
+    - id: AC-05
+      description: 'Rendering: mounted with isError=true (mocked configQuery state) the section renders the error message AND does NOT render the SettingCard rows. Mounted with isLoading=true the section renders a loading affordance. Mounted with isSuccess=true and the three controls visible, the Save button is disabled (dirty=false on initial load)'
+      priority: critical
+      references_constraints: [C-04, C-05]
+    - id: AC-06
+      description: 'Rendering: mounted with isSuccess=true and the operator changes the interval_sec value, the Save button transitions to enabled (dirty=true). Clicking Save invokes the mutation. After mutation.isSuccess fires, the section re-renders with the new value and Save is disabled again'
+      priority: critical
+      references_constraints: [C-04]
+    - id: AC-07
+      description: 'Source inspection: ScanningPage.tsx imports OSIntelligenceSection from @/components/settings/OSIntelligenceSection AND mounts it as JSX. The mount site MUST appear AFTER the "OS discovery" Section literal AND BEFORE the "Maintenance" Section literal'
+      priority: critical
+      references_constraints: [C-06]
+    - id: AC-08
+      description: 'v1.1.0 — Rendering: mounted with isError=true and errorMessage="HTTP 404" the alert text contains "HTTP 404". The alert text MUST NOT match the buggy pattern "— Failed to load$" (the duplicated fallback that the original implementation produced for openapi-fetch errors that are not Error instances)'
+      priority: critical
+      references_constraints: [C-07]
+    - id: AC-09
+      description: 'v1.1.0 — Rendering: mounted with isError=true the alert renders a button matching role="button" name=/retry/i. Clicking the button invokes the onRetry prop exactly once'
+      priority: critical
+      references_constraints: [C-08]
+    - id: AC-10
+      description: 'v1.1.0 — Source inspection: OSIntelligenceSection.tsx contains a useEffect that depends on mutation.isSuccess AND calls setDraft from configQuery.data.config inside the effect body. This is the post-save re-sync (C-09) — without it, server-side clamps would leave the operator with a stale "saved" draft'
+      priority: critical
+      references_constraints: [C-09]

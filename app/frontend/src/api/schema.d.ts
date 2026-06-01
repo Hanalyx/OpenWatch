@@ -748,6 +748,39 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/system/intelligence/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the OS Intelligence scheduler runtime config + baked-in defaults
+         * @description Returns the persisted IntelligenceConfig (or DefaultIntelligence
+         *     when no row exists) PLUS the baked-in defaults sub-object so the
+         *     UI can render a "reset to defaults" affordance without a
+         *     round-trip. Mirrors api-system-connectivity v1.0.
+         *     Spec api-system-intelligence-config.
+         */
+        get: operations["getSystemIntelligenceConfig"];
+        /**
+         * Update OS Intelligence scheduler runtime config
+         * @description Persists the new config (interval_sec 300..86400, rate_limit
+         *     1..200, maintenance_global boolean). Emits
+         *     system.config.changed in the same write transaction. The
+         *     in-process scheduler picks up the new values at the top of
+         *     its next cycle — no hot-reload signal needed.
+         *     Spec api-system-intelligence-config.
+         */
+        put: operations["putSystemIntelligenceConfig"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/system/connectivity/status": {
         parameters: {
             query?: never;
@@ -1425,6 +1458,18 @@ export interface components {
         ConnectivityConfigResponse: {
             config: components["schemas"]["ConnectivityConfig"];
             defaults: components["schemas"]["ConnectivityConfig"];
+        };
+        IntelligenceConfig: {
+            /** @description Per-host cadence the scheduler advances next_intelligence_at by after a successful RunCycle (300..86400). Default 3600 (1h) */
+            interval_sec: number;
+            /** @description Max concurrent RunCycles per scheduler instance (1..200). Default 10 */
+            rate_limit: number;
+            /** @description When true, the scheduler loop ticks but RunCycles no hosts */
+            maintenance_global: boolean;
+        };
+        IntelligenceConfigResponse: {
+            config: components["schemas"]["IntelligenceConfig"];
+            defaults: components["schemas"]["IntelligenceConfig"];
         };
         ConnectivityStatus: {
             /**
@@ -3347,6 +3392,69 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             /** @description Caller lacks system:write permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getSystemIntelligenceConfig: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current config + defaults sub-object */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntelligenceConfigResponse"];
+                };
+            };
+            /** @description Caller lacks system:read permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    putSystemIntelligenceConfig: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IntelligenceConfig"];
+            };
+        };
+        responses: {
+            /** @description Updated config snapshot */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntelligenceConfig"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            /** @description Caller lacks system:config:write permission */
             403: {
                 headers: {
                     [name: string]: unknown;
