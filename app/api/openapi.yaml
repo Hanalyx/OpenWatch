@@ -1101,6 +1101,55 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
 
+  /api/v1/system/intelligence/config:
+    get:
+      operationId: getSystemIntelligenceConfig
+      summary: Read the OS Intelligence scheduler runtime config + baked-in defaults
+      description: |
+        Returns the persisted IntelligenceConfig (or DefaultIntelligence
+        when no row exists) PLUS the baked-in defaults sub-object so the
+        UI can render a "reset to defaults" affordance without a
+        round-trip. Mirrors api-system-connectivity v1.0.
+        Spec api-system-intelligence-config.
+      responses:
+        '200':
+          description: Current config + defaults sub-object
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/IntelligenceConfigResponse'}
+        '403':
+          description: Caller lacks system:read permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+    put:
+      operationId: putSystemIntelligenceConfig
+      summary: Update OS Intelligence scheduler runtime config
+      description: |
+        Persists the new config (interval_sec 300..86400, rate_limit
+        1..200, maintenance_global boolean). Emits
+        system.config.changed in the same write transaction. The
+        in-process scheduler picks up the new values at the top of
+        its next cycle — no hot-reload signal needed.
+        Spec api-system-intelligence-config.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/IntelligenceConfig'}
+      responses:
+        '200':
+          description: Updated config snapshot
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/IntelligenceConfig'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '403':
+          description: Caller lacks system:config:write permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
   /api/v1/system/connectivity/status:
     get:
       operationId: getSystemConnectivityStatus
@@ -2090,6 +2139,31 @@ components:
       properties:
         config:   {$ref: '#/components/schemas/ConnectivityConfig'}
         defaults: {$ref: '#/components/schemas/ConnectivityConfig'}
+
+    IntelligenceConfig:
+      type: object
+      required: [interval_sec, rate_limit, maintenance_global]
+      properties:
+        interval_sec:
+          type: integer
+          minimum: 300
+          maximum: 86400
+          description: Per-host cadence the scheduler advances next_intelligence_at by after a successful RunCycle (300..86400). Default 3600 (1h)
+        rate_limit:
+          type: integer
+          minimum: 1
+          maximum: 200
+          description: Max concurrent RunCycles per scheduler instance (1..200). Default 10
+        maintenance_global:
+          type: boolean
+          description: When true, the scheduler loop ticks but RunCycles no hosts
+
+    IntelligenceConfigResponse:
+      type: object
+      required: [config, defaults]
+      properties:
+        config:   {$ref: '#/components/schemas/IntelligenceConfig'}
+        defaults: {$ref: '#/components/schemas/IntelligenceConfig'}
 
     ConnectivityStatus:
       type: object
