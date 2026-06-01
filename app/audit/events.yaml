@@ -218,6 +218,218 @@ events:
   - code: host.intelligence.refreshed
     severity: info
 
+  # =========================================================================
+  # OS Intelligence taxonomy — recurring snapshot diff events.
+  # Spec: app/specs/system/os-intelligence.spec.yaml.
+  # =========================================================================
+  - code: account.user.locked
+    severity: warning
+    description: User account lock detected via passwd/shadow comparison
+    detail_schema:
+      type: object
+      properties:
+        user: {type: string}
+  - code: account.user.unlocked
+    severity: info
+    description: User account unlock detected via passwd/shadow comparison
+    detail_schema:
+      type: object
+      properties:
+        user: {type: string}
+  - code: account.user.created
+    severity: warning
+    description: New user account appeared in /etc/passwd since prior snapshot
+    detail_schema:
+      type: object
+      properties:
+        user: {type: string}
+        uid: {type: integer}
+  - code: account.user.deleted
+    severity: warning
+    description: User account removed from /etc/passwd since prior snapshot
+    detail_schema:
+      type: object
+      properties:
+        user: {type: string}
+  - code: account.user.privileged_group_added
+    severity: critical
+    description: User added to wheel/sudo/admin group since prior snapshot
+    detail_schema:
+      type: object
+      properties:
+        user:  {type: string}
+        group: {type: string}
+  - code: account.password.expired
+    severity: warning
+    description: Password expiry crossed since prior snapshot
+    detail_schema:
+      type: object
+      properties:
+        user: {type: string}
+  - code: account.password.expiring
+    severity: info
+    description: Password expiry within warning window
+    detail_schema:
+      type: object
+      properties:
+        user: {type: string}
+        days_remaining: {type: integer}
+  - code: account.ssh_key.added
+    severity: warning
+    description: New authorized_keys entry detected for a user
+    detail_schema:
+      type: object
+      properties:
+        user:        {type: string}
+        fingerprint: {type: string}
+  - code: account.ssh_key.removed
+    severity: info
+    description: authorized_keys entry removed for a user
+    detail_schema:
+      type: object
+      properties:
+        user:        {type: string}
+        fingerprint: {type: string}
+  - code: account.sudo.failure_threshold
+    severity: warning
+    description: Sudo failure count crossed the per-cycle threshold
+    detail_schema:
+      type: object
+      properties:
+        user:  {type: string}
+        count: {type: integer}
+
+  - code: security.login.new_source_ip
+    severity: warning
+    description: Known user logged in from previously-unseen source IP
+    detail_schema:
+      type: object
+      properties:
+        user:      {type: string}
+        source_ip: {type: string}
+  - code: security.login.failed_threshold
+    severity: warning
+    description: Failed login count crossed the per-cycle threshold
+    detail_schema:
+      type: object
+      properties:
+        user:  {type: string}
+        count: {type: integer}
+  - code: security.selinux.denied
+    severity: warning
+    description: SELinux denial entry observed in audit log since prior cycle
+    detail_schema:
+      type: object
+      properties:
+        denial: {type: string}
+  - code: security.apparmor.denied
+    severity: warning
+    description: AppArmor denial entry observed in audit log since prior cycle
+    detail_schema:
+      type: object
+      properties:
+        denial: {type: string}
+  - code: security.firewall.rule_changed
+    severity: error
+    description: Firewall ruleset hash changed since prior cycle
+    detail_schema:
+      type: object
+      properties:
+        prior_hash:   {type: string}
+        current_hash: {type: string}
+  - code: security.port.opened
+    severity: error
+    description: New listening port observed
+    detail_schema:
+      type: object
+      properties:
+        port:     {type: integer}
+        protocol: {type: string}
+
+  - code: system.package.installed
+    severity: info
+    description: Newly installed package observed
+    detail_schema:
+      type: object
+      properties:
+        name:    {type: string}
+        version: {type: string}
+  - code: system.package.updated
+    severity: info
+    description: Package upgraded to a new version
+    detail_schema:
+      type: object
+      properties:
+        name:    {type: string}
+        prior:   {type: string}
+        current: {type: string}
+  - code: system.package.removed
+    severity: warning
+    description: Previously-installed package no longer present
+    detail_schema:
+      type: object
+      properties:
+        name: {type: string}
+  - code: system.kernel.updated
+    severity: warning
+    description: New kernel installed; reboot likely pending
+    detail_schema:
+      type: object
+      properties:
+        prior:   {type: string}
+        current: {type: string}
+  - code: system.reboot.required
+    severity: warning
+    description: Host indicates a reboot is required (vendor marker file present)
+  - code: system.reboot.completed
+    severity: info
+    description: Host uptime fell below the prior cycle's value — reboot completed
+  - code: system.config.file_changed
+    severity: error
+    description: Critical host config file content hash changed (e.g. /etc/sudoers)
+    detail_schema:
+      type: object
+      properties:
+        path:         {type: string}
+        prior_hash:   {type: string}
+        current_hash: {type: string}
+  - code: system.service.started
+    severity: info
+    description: Systemd unit transitioned to active
+    detail_schema:
+      type: object
+      properties:
+        unit: {type: string}
+  - code: system.service.stopped
+    severity: info
+    description: Systemd unit transitioned to inactive
+    detail_schema:
+      type: object
+      properties:
+        unit: {type: string}
+  - code: system.service.failed
+    severity: error
+    description: Systemd unit transitioned to failed
+    detail_schema:
+      type: object
+      properties:
+        unit: {type: string}
+  - code: system.filesystem.mounted
+    severity: info
+    description: Mountpoint that did not exist in prior cycle is now mounted
+    detail_schema:
+      type: object
+      properties:
+        mountpoint: {type: string}
+        source:     {type: string}
+  - code: system.filesystem.unmounted
+    severity: warning
+    description: Previously-mounted mountpoint is no longer mounted
+    detail_schema:
+      type: object
+      properties:
+        mountpoint: {type: string}
+
   - code: host.bulk_imported
     severity: info
     detail_schema:

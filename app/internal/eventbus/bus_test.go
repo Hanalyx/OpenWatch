@@ -249,15 +249,17 @@ func TestSubscribe_TinyBuffer_DropsAfterFull(t *testing.T) {
 // frozen at any particular version.
 func TestEventKindEnum_HasExactlyTwoValues(t *testing.T) {
 	t.Run("system-event-bus/AC-07", func(t *testing.T) {
-		// Closed set: v1.0 HeartbeatPulse + DriftDetected; v1.1 added
-		// HostChanged + MonitoringBandChanged for the SSE layer;
-		// HostDiscovered added by system-host-discovery PR 1.1.
+		// Closed set: HeartbeatPulse + DriftDetected (v1.0),
+		// HostChanged + MonitoringBandChanged (v1.1 SSE layer),
+		// HostDiscovered (system-host-discovery PR 1.1),
+		// IntelligenceEvent (system-os-intelligence PR 1.2).
 		expected := map[EventKind]bool{
 			EventKindHeartbeatPulse:        false,
 			EventKindDriftDetected:         false,
 			EventKindHostChanged:           false,
 			EventKindMonitoringBandChanged: false,
 			EventKindHostDiscovered:        false,
+			EventKindIntelligenceEvent:     false,
 		}
 		if len(AllEventKinds) != len(expected) {
 			t.Errorf("AllEventKinds = %d, want %d", len(AllEventKinds), len(expected))

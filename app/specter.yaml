@@ -33,6 +33,7 @@ domains:
             - system-user-management
             - system-credential-store
             - system-host-discovery
+            - system-os-intelligence
             - system-host-inventory
             - system-ssh-connectivity
             - api-auth
