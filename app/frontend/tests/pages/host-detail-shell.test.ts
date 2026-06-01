@@ -1,12 +1,12 @@
 // @spec frontend-host-detail
 //
-// Prototype-shell ACs (v1.0.0 — Path A).
+// Prototype-shell ACs (v1.0.1 — Path A).
 //
 // AC traceability (this file):
 //
 //   AC-01  test('frontend-host-detail/AC-01 — six structural bands in order')
 //   AC-07  test('frontend-host-detail/AC-07 — maintenance toggle in page-head action row')
-//   AC-15  test('frontend-host-detail/AC-15 — sub-line metadata reserves OS/kernel/uptime slots')
+//   AC-15  test('frontend-host-detail/AC-15 — sub-line metadata: prototype-style prefixes')
 //   AC-16  test('frontend-host-detail/AC-16 — status badge uses 5-band StatusPill')
 //   AC-17  test('frontend-host-detail/AC-17 — offline banner conditional on band + dwell time')
 //   AC-18  test('frontend-host-detail/AC-18 — tabs row renders 10 tabs in prototype order')
@@ -18,6 +18,11 @@
 //   AC-24  test('frontend-host-detail/AC-24 — top failed / server intel / trend cards have empty states')
 //   AC-25  test('frontend-host-detail/AC-25 — system card has 3 spec-groups with placeholders')
 //   AC-26  test('frontend-host-detail/AC-26 — recent activity card pulls from monitoring history')
+//   AC-27  test('frontend-host-detail/AC-27 — breadcrumb above back link')
+//   AC-28  test('frontend-host-detail/AC-28 — tabs row has lucide icons next to labels')
+//   AC-29  test('frontend-host-detail/AC-29 — Auto-scan empty state shows structured rows')
+//   AC-30  test('frontend-host-detail/AC-30 — Watchlist empty state shows structured rows')
+//   AC-31  test('frontend-host-detail/AC-31 — Connectivity hero has prominent band status line')
 
 import { describe, expect, test } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -69,14 +74,16 @@ describe('frontend-host-detail — prototype shell', () => {
   });
 
   // @ac AC-15
-  test('frontend-host-detail/AC-15 — sub-line reserves OS/kernel/uptime slots', () => {
-    // Each label appears literally so even when data is missing the
-    // visual rhythm stays.
-    expect(PAGE_SRC).toMatch(/OS:/);
-    expect(PAGE_SRC).toMatch(/Kernel:/);
-    expect(PAGE_SRC).toMatch(/Uptime:/);
-    // Placeholder copy when the slot is unfilled (Server Intelligence not yet collected).
-    expect(PAGE_SRC).toContain('unknown');
+  test('frontend-host-detail/AC-15 — sub-line metadata: prototype-style prefixes', () => {
+    // v1.0.1: Kernel + Uptime carry the bare prefix (no colon). The
+    // ugly "OS: unknown" pattern from v1.0.0 must NOT be present.
+    expect(PAGE_SRC).not.toMatch(/'OS:'/);
+    expect(PAGE_SRC).not.toMatch(/'Kernel:'/);
+    expect(PAGE_SRC).not.toMatch(/'Uptime:'/);
+    expect(PAGE_SRC).toContain("'Kernel '");
+    expect(PAGE_SRC).toContain("'Uptime '");
+    // OS slot rendered conditionally when distribution data exists.
+    expect(PAGE_SRC).toMatch(/osDistribution|os_distribution/);
   });
 
   // @ac AC-16
@@ -222,5 +229,62 @@ describe('frontend-host-detail — prototype shell', () => {
     expect(PAGE_SRC).toContain('/api/v1/hosts/{host_id}/monitoring/history');
     // Empty-state copy.
     expect(PAGE_SRC).toMatch(/No activity yet/i);
+  });
+
+  // @ac AC-27
+  test('frontend-host-detail/AC-27 — breadcrumb above back link', () => {
+    // The Crumbs component renders "Infrastructure / Hosts / hostname"
+    // with Infrastructure + Hosts as Link components.
+    expect(PAGE_SRC).toContain('<Crumbs');
+    expect(PAGE_SRC).toContain("'Infrastructure'");
+    expect(PAGE_SRC).toContain("'Hosts'");
+  });
+
+  // @ac AC-28
+  test('frontend-host-detail/AC-28 — tabs row has lucide icons next to labels', () => {
+    // TAB_ORDER entries carry an `icon` field; the renderer mounts
+    // the icon component beside the label.
+    expect(PAGE_SRC).toMatch(/TAB_ORDER[\s\S]{0,2000}icon:/);
+    // Confirm the specific icon imports we picked.
+    expect(PAGE_SRC).toMatch(/LayoutGrid|Grid3x3/);
+    expect(PAGE_SRC).toMatch(/Shield/);
+    expect(PAGE_SRC).toMatch(/Wrench/);
+  });
+
+  // @ac AC-29
+  test('frontend-host-detail/AC-29 — Auto-scan empty state shows structured rows', () => {
+    // The card body has a status line + Next/Interval rows even when
+    // there is no scheduler — not just a blob of empty-state text.
+    const autoScanFn = PAGE_SRC.indexOf('function HeroAutoScan');
+    expect(autoScanFn).toBeGreaterThan(-1);
+    const next = PAGE_SRC.indexOf('\nfunction ', autoScanFn + 1);
+    const body = PAGE_SRC.slice(autoScanFn, next);
+    expect(body).toMatch(/Disabled/);
+    expect(body).toContain("'Next'");
+    expect(body).toContain("'Interval'");
+    expect(body).toMatch(/adaptive compliance scheduler/i);
+  });
+
+  // @ac AC-30
+  test('frontend-host-detail/AC-30 — Watchlist empty state shows structured rows', () => {
+    const watchFn = PAGE_SRC.indexOf('function HeroWatchlist');
+    expect(watchFn).toBeGreaterThan(-1);
+    const next = PAGE_SRC.indexOf('\nfunction ', watchFn + 1);
+    const body = PAGE_SRC.slice(watchFn, next);
+    expect(body).toContain("'Active alerts'");
+    expect(body).toContain("'Exceptions'");
+    expect(body).toMatch(/No alerts firing/);
+    expect(body).toMatch(/No suppressed rules/);
+    expect(body).toMatch(/alerts? (subsystem|backend)/i);
+  });
+
+  // @ac AC-31
+  test('frontend-host-detail/AC-31 — Connectivity hero has prominent band status line', () => {
+    const connFn = PAGE_SRC.indexOf('function HeroConnectivity');
+    expect(connFn).toBeGreaterThan(-1);
+    const next = PAGE_SRC.indexOf('\nfunction ', connFn + 1);
+    const body = PAGE_SRC.slice(connFn, next);
+    // BAND_LABEL_TEXT or similar derives the human label from the band.
+    expect(body).toMatch(/bandLabel|BAND_HEADLINE/);
   });
 });

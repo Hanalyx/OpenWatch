@@ -1,7 +1,7 @@
 spec:
   id: frontend-host-detail
   title: Host Detail page layout, behavior, and empty-state contracts
-  version: "1.0.0"
+  version: "1.0.1"
   status: approved
   tier: 2
 
@@ -65,7 +65,7 @@ spec:
       type: technical
       enforcement: error
     - id: C-03
-      description: 'Sub-line metadata row MUST reserve slots for OS name + version, kernel, and uptime even when those values are not yet collected — render the prototype''s placeholder pattern ("OS unknown", "Kernel unknown", "Uptime unknown") so the row keeps its visual rhythm. v1.3.0 backlog: server intelligence collection populates these'
+      description: 'Sub-line metadata row matches the prototype''s spacing pattern: IP (mono), environment chip, OS slot (colored dot + distribution name; HIDDEN when distribution is unknown), Kernel slot (prefix "Kernel" + mono value or em-dash placeholder), Uptime slot (prefix "Uptime" + value or em-dash placeholder). NO colon-style "OS:" / "Kernel:" / "Uptime:" prefixes — those are the v1.0.0 misstep that this v1.0.1 spec corrects. Server intelligence collection populates the OS / Kernel / Uptime values (BACKLOG)'
       type: technical
       enforcement: error
     - id: C-04
@@ -134,7 +134,7 @@ spec:
       description: 'No console.log/warn/error call site embeds a PII field name (token, password, secret, evidence). Source-inspection of HostDetailPage.tsx.'
       priority: critical
     - id: AC-15
-      description: 'Page-head sub-line MUST carry IP (mono), environment chip, and three reserved slots labeled "OS:", "Kernel:", "Uptime:" with placeholder text when data missing. The slots stay in DOM even when empty so the row''s visual rhythm matches the prototype.'
+      description: 'Page-head sub-line carries IP (mono), environment chip, and the prototype-style Kernel + Uptime slots — each with the bare prefix (no colon) and the value or em-dash when unknown. The OS slot renders the distribution name with a colored dot prefix when known and is HIDDEN when unknown (the colon-prefixed "OS: unknown" pattern from v1.0.0 was ugly and is removed in v1.0.1).'
       priority: critical
       references_constraints: [C-03]
     - id: AC-16
@@ -181,3 +181,23 @@ spec:
       description: 'Recent activity card sources events from host_monitoring_history (via GET /hosts/{id}/monitoring/history) and shows them with severity tints matching the band (crit for down/critical, warn for degraded, ok for online). When the history is empty, renders the prototype''s "No activity yet" empty-state.'
       priority: critical
       references_constraints: [C-09]
+    - id: AC-27
+      description: 'Page renders a breadcrumb trail above the back link: "Infrastructure / Hosts / <hostname>". The crumbs are separated by a thin slash, "Infrastructure" and "Hosts" are clickable links, "<hostname>" is the current page (not a link). Mirrors the prototype''s topbar crumbs.'
+      priority: high
+      references_constraints: [C-01]
+    - id: AC-28
+      description: 'Tabs row MUST render an icon next to each label, matching the prototype''s tab affordance: grid icon for Overview, shield for Compliance, package for Packages, server for Services, users for Users, wifi for Network, file-text for Audit log, activity for Activity, wrench for Remediation, terminal for Terminal. Icons come from lucide-react.'
+      priority: high
+      references_constraints: [C-04]
+    - id: AC-29
+      description: 'HeroAutoScan empty state MUST render the prototype''s structured rows: a status line ("● Disabled" gray dot until the scheduler ships), Next row ("—"), Interval row ("—"), then a single-line footer naming the adaptive compliance scheduler. No "Not yet available" blob.'
+      priority: high
+      references_constraints: [C-05]
+    - id: AC-30
+      description: 'HeroWatchlist empty state MUST render the prototype''s structured rows: "Active alerts 0" with subtext "No alerts firing", "Exceptions 0" with subtext "No suppressed rules", then a single-line footer naming the alerts subsystem. No "Not yet available" blob.'
+      priority: high
+      references_constraints: [C-05]
+    - id: AC-31
+      description: 'HeroConnectivity MUST render a prominent status line under the header showing "● <band>" with the band color (e.g. "● Down" in red, "● Online" in green) so the operator can read connectivity state at a glance, matching the prototype.'
+      priority: high
+      references_constraints: [C-05]

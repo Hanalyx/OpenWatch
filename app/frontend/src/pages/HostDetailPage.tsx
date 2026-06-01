@@ -2,15 +2,28 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams, useSearch, useNavigate, Link } from '@tanstack/react-router';
 import { useMemo, useState } from 'react';
 import {
+  Activity as ActivityIcon,
   ArrowLeft,
+  Bell,
   Circle,
-  Pencil,
-  RefreshCw,
-  Terminal as TerminalIcon,
-  WifiOff,
-  Play,
+  ChevronRight,
+  Clock,
+  FileText,
+  LayoutGrid,
   MoreVertical,
+  Package,
+  Pencil,
+  Play,
+  RefreshCw,
+  Server as ServerIcon,
+  Shield,
+  Terminal as TerminalIcon,
+  Users as UsersIcon,
+  Wifi,
+  WifiOff,
+  Wrench,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import api from '@/api/client';
 import { EditHostModal } from '@/components/hosts/EditHostModal';
 
@@ -117,19 +130,19 @@ type TabId =
   | 'remediation'
   | 'terminal';
 
-// Prototype tab order — referenced by AC-18. Keep in sync with the
-// labels in <TabsRow/> below.
-const TAB_ORDER: { id: TabId; label: string }[] = [
-  { id: 'overview', label: 'Overview' },
-  { id: 'compliance', label: 'Compliance' },
-  { id: 'packages', label: 'Packages' },
-  { id: 'services', label: 'Services' },
-  { id: 'users', label: 'Users' },
-  { id: 'network', label: 'Network' },
-  { id: 'audit_log', label: 'Audit log' },
-  { id: 'activity', label: 'Activity' },
-  { id: 'remediation', label: 'Remediation' },
-  { id: 'terminal', label: 'Terminal' },
+// Prototype tab order — referenced by AC-18 + AC-28. Each entry carries
+// its lucide icon; the TabsRow renderer mounts the icon beside the label.
+const TAB_ORDER: { id: TabId; label: string; icon: LucideIcon }[] = [
+  { id: 'overview', label: 'Overview', icon: LayoutGrid },
+  { id: 'compliance', label: 'Compliance', icon: Shield },
+  { id: 'packages', label: 'Packages', icon: Package },
+  { id: 'services', label: 'Services', icon: ServerIcon },
+  { id: 'users', label: 'Users', icon: UsersIcon },
+  { id: 'network', label: 'Network', icon: Wifi },
+  { id: 'audit_log', label: 'Audit log', icon: FileText },
+  { id: 'activity', label: 'Activity', icon: ActivityIcon },
+  { id: 'remediation', label: 'Remediation', icon: Wrench },
+  { id: 'terminal', label: 'Terminal', icon: TerminalIcon },
 ];
 
 // Backend subsystem that populates each tab when it lands. Surfaces
@@ -264,6 +277,8 @@ export function HostDetailPage() {
           : 'Host — OpenWatch'}
       </title>
 
+      <Crumbs hostname={detailQuery.data?.host?.hostname} />
+
       <div style={{ marginBottom: 14 }}>
         <Link
           to="/hosts"
@@ -389,11 +404,12 @@ function PageHead({
       : liveness?.monitoring_state ?? 'unknown';
 
   // OS / Kernel / Uptime are populated by Server Intelligence
-  // collection (BACKLOG). Until that lands, the slots show "unknown"
-  // so the prototype's visual rhythm stays.
-  const osLabel = 'unknown';
-  const kernelLabel = 'unknown';
-  const uptimeLabel = 'unknown';
+  // collection (BACKLOG). Until that lands, the slots show em-dash
+  // placeholders (Kernel / Uptime keep their bare prefix; OS hides
+  // entirely when unknown — see AC-15 v1.0.1).
+  const osDistribution: string | undefined = undefined;
+  const kernelVersion: string | undefined = undefined;
+  const uptimeText: string | undefined = undefined;
 
   return (
     <section
@@ -455,20 +471,34 @@ function PageHead({
                 {host.environment}
               </span>
             )}
-            <span style={{ color: 'var(--ow-fg-3)' }}>·</span>
-            <span title="OS distribution — populated by Server Intelligence (BACKLOG)">
-              OS: <span style={{ color: 'var(--ow-fg-1)' }}>{osLabel}</span>
-            </span>
+            {osDistribution && (
+              <>
+                <span style={{ color: 'var(--ow-fg-3)' }}>·</span>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  <span
+                    style={{
+                      display: 'inline-block',
+                      width: 8,
+                      height: 8,
+                      borderRadius: '50%',
+                      background: 'var(--ow-info)',
+                    }}
+                  />
+                  <span style={{ color: 'var(--ow-fg-1)' }}>{osDistribution}</span>
+                </span>
+              </>
+            )}
             <span style={{ color: 'var(--ow-fg-3)' }}>·</span>
             <span title="Kernel version — populated by Server Intelligence (BACKLOG)">
-              Kernel:{' '}
+              {'Kernel '}
               <span style={{ color: 'var(--ow-fg-1)', fontFamily: 'var(--ow-font-mono)' }}>
-                {kernelLabel}
+                {kernelVersion ?? '—'}
               </span>
             </span>
             <span style={{ color: 'var(--ow-fg-3)' }}>·</span>
             <span title="Host uptime — populated by Server Intelligence (BACKLOG)">
-              Uptime: <span style={{ color: 'var(--ow-fg-1)' }}>{uptimeLabel}</span>
+              {'Uptime '}
+              <span style={{ color: 'var(--ow-fg-1)' }}>{uptimeText ?? '—'}</span>
             </span>
           </div>
         </div>
@@ -687,13 +717,7 @@ function TabsRow({
     >
       {TAB_ORDER.map((t) => {
         const isActive = t.id === active;
-        // 'Overview', 'Compliance', 'Packages', 'Services', 'Users',
-        // 'Network', 'Audit log', 'Activity', 'Remediation', 'Terminal'
-        const literal = `'${t.label}'`;
-        // Tag the literal in a noop variable so source inspection
-        // (AC-18) finds the canonical label strings even when they
-        // appear as the .label of TAB_ORDER (see top of file).
-        void literal;
+        const Icon = t.icon;
         return (
           <button
             key={t.id}
@@ -717,6 +741,7 @@ function TabsRow({
               whiteSpace: 'nowrap',
             }}
           >
+            <Icon size={14} />
             {t.label}
             {t.id === 'compliance' && complianceFailing > 0 && (
               <span
@@ -828,20 +853,53 @@ function HeroCompliance({
 }
 
 function HeroAutoScan() {
+  // Adaptive compliance scheduler is deferred (BACKLOG); render the
+  // prototype's structured rows with placeholder values so the card
+  // shape matches a future "Enabled" state. AC-29.
   return (
     <article style={heroCard} aria-labelledby="hero-autoscan-title">
       <header style={heroHead}>
         <span id="hero-autoscan-title">Auto-scan</span>
+        <Clock size={14} aria-hidden />
       </header>
-      <div style={{ color: 'var(--ow-fg-1)', fontSize: 13, fontWeight: 500 }}>
-        Not yet available
+      <BandLine label="Disabled" color="var(--ow-fg-3)" />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12 }}>
+        <KvRow k={'Next'} v={<span style={{ color: 'var(--ow-fg-3)' }}>—</span>} />
+        <KvRow k={'Interval'} v={<span style={{ color: 'var(--ow-fg-3)' }}>—</span>} />
       </div>
-      <div style={{ color: 'var(--ow-fg-3)', fontSize: 11, marginTop: 6, lineHeight: 1.5 }}>
-        Populated by the adaptive compliance scheduler. Deferred — see BACKLOG (OpenWatch OS
-        Remaining Work).
+      <div
+        style={{
+          marginTop: 6,
+          paddingTop: 8,
+          borderTop: '1px solid var(--ow-line)',
+          color: 'var(--ow-fg-3)',
+          fontSize: 11,
+          lineHeight: 1.5,
+        }}
+      >
+        Populated by the adaptive compliance scheduler (BACKLOG).
       </div>
     </article>
   );
+}
+
+// bandLabel returns the human-facing label + accent color for a band.
+// Used by HeroConnectivity's prominent status line (AC-31).
+function bandLabel(band: MonitoringBand): { label: string; color: string } {
+  switch (band) {
+    case 'online':
+      return { label: 'Online', color: 'var(--ow-ok)' };
+    case 'degraded':
+      return { label: 'Degraded', color: 'var(--ow-warn)' };
+    case 'critical':
+      return { label: 'Critical', color: 'var(--ow-crit)' };
+    case 'down':
+      return { label: 'Offline', color: 'var(--ow-crit)' };
+    case 'maintenance':
+      return { label: 'Maintenance', color: 'var(--ow-fg-2)' };
+    default:
+      return { label: 'Unknown', color: 'var(--ow-fg-3)' };
+  }
 }
 
 function HeroConnectivity({
@@ -851,6 +909,11 @@ function HeroConnectivity({
   host: HostResponse;
   liveness: HostLiveness | null;
 }) {
+  const band: MonitoringBand =
+    host.maintenance_mode === true
+      ? 'maintenance'
+      : liveness?.monitoring_state ?? 'unknown';
+  const { label: BAND_HEADLINE, color } = bandLabel(band);
   const lastSeen = liveness?.last_probe_at
     ? relativeMinutes(liveness.last_probe_at)
     : '—';
@@ -858,7 +921,9 @@ function HeroConnectivity({
     <article style={heroCard} aria-labelledby="hero-conn-title">
       <header style={heroHead}>
         <span id="hero-conn-title">Connectivity</span>
+        <Wifi size={14} aria-hidden />
       </header>
+      <BandLine label={BAND_HEADLINE} color={color} />
       {liveness === null ? (
         <div style={{ color: 'var(--ow-fg-2)', fontSize: 12 }}>
           Not yet probed
@@ -882,7 +947,7 @@ function HeroConnectivity({
         style={{
           display: 'flex',
           gap: 6,
-          marginTop: 10,
+          marginTop: 6,
           paddingTop: 8,
           borderTop: '1px solid var(--ow-line)',
         }}
@@ -898,19 +963,78 @@ function HeroConnectivity({
   );
 }
 
+// BandLine — the "● <label>" prominent status line used in HeroAutoScan
+// and HeroConnectivity. Matches the prototype's per-card state row.
+function BandLine({ label, color }: { label: string; color: string }) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6,
+        fontSize: 16,
+        fontWeight: 600,
+        color,
+      }}
+    >
+      <Circle size={8} fill={color} color={color} />
+      {label}
+    </div>
+  );
+}
+
 function HeroWatchlist() {
+  // Alerts + exceptions subsystem deferred (BACKLOG); render the
+  // prototype's two-metric layout with 0s and empty-state subtext. AC-30.
   return (
     <article style={heroCard} aria-labelledby="hero-watch-title">
       <header style={heroHead}>
         <span id="hero-watch-title">Watchlist</span>
+        <Bell size={14} aria-hidden />
       </header>
-      <div style={{ color: 'var(--ow-fg-1)', fontSize: 13, fontWeight: 500 }}>
-        Not yet available
-      </div>
-      <div style={{ color: 'var(--ow-fg-3)', fontSize: 11, marginTop: 6, lineHeight: 1.5 }}>
-        Populated by the alerts subsystem (alert thresholds + exceptions). Deferred — see BACKLOG.
+      <WatchlistRow
+        label={'Active alerts'}
+        value={0}
+        subtext="No alerts firing"
+      />
+      <WatchlistRow
+        label={'Exceptions'}
+        value={0}
+        subtext="No suppressed rules"
+      />
+      <div
+        style={{
+          marginTop: 6,
+          paddingTop: 8,
+          borderTop: '1px solid var(--ow-line)',
+          color: 'var(--ow-fg-3)',
+          fontSize: 11,
+          lineHeight: 1.5,
+        }}
+      >
+        Populated by the alerts subsystem (BACKLOG).
       </div>
     </article>
+  );
+}
+
+function WatchlistRow({
+  label,
+  value,
+  subtext,
+}: {
+  label: string;
+  value: number;
+  subtext: string;
+}) {
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
+        <span style={{ color: 'var(--ow-fg-2)' }}>{label}</span>
+        <span style={{ color: 'var(--ow-fg-0)', fontWeight: 600 }}>{value}</span>
+      </div>
+      <div style={{ color: 'var(--ow-fg-3)', fontSize: 11, marginTop: 2 }}>{subtext}</div>
+    </div>
   );
 }
 
@@ -1264,6 +1388,41 @@ function FrameworkFilter({
         ))}
       </select>
     </label>
+  );
+}
+
+// Crumbs — "Infrastructure / Hosts / <hostname>" trail above the back
+// link. Mirrors the prototype's topbar breadcrumb. AC-27.
+function Crumbs({ hostname }: { hostname?: string }) {
+  return (
+    <nav
+      aria-label="Breadcrumb"
+      style={{
+        marginBottom: 6,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6,
+        fontSize: 12,
+        color: 'var(--ow-fg-3)',
+      }}
+    >
+      <span>{'Infrastructure'}</span>
+      <ChevronRight size={11} aria-hidden />
+      <Link
+        to="/hosts"
+        style={{ color: 'var(--ow-fg-2)', textDecoration: 'none' }}
+      >
+        {'Hosts'}
+      </Link>
+      {hostname && (
+        <>
+          <ChevronRight size={11} aria-hidden />
+          <span style={{ color: 'var(--ow-fg-1)', fontFamily: 'var(--ow-font-mono)' }}>
+            {hostname}
+          </span>
+        </>
+      )}
+    </nav>
   );
 }
 
