@@ -16,7 +16,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { RotateCcw } from 'lucide-react';
+import { RefreshCw, RotateCcw } from 'lucide-react';
 import api from '@/api/client';
 import {
   Section,
@@ -39,6 +39,24 @@ interface IntelligenceConfigResponse {
   defaults: IntelligenceConfig;
 }
 
+// openapi-fetch returns the raw response body as `error` for non-2xx
+// statuses — it's NOT an Error instance, so `(err as Error).message`
+// is undefined. Normalize the value into a single string that always
+// leads with the HTTP status, so the alert never reads "Failed to
+// load — Failed to load" again. Pulls the message from the
+// ErrorEnvelope shape when present, otherwise just surfaces the code.
+function formatApiError(status: number, error: unknown): string {
+  let detail = '';
+  if (error && typeof error === 'object') {
+    const env = error as { error?: { code?: string; message?: string } };
+    if (env.error?.message) detail = env.error.message;
+    else if (env.error?.code) detail = env.error.code;
+  } else if (typeof error === 'string' && error.length > 0) {
+    detail = error;
+  }
+  return `HTTP ${status}${detail ? ` — ${detail}` : ''}`;
+}
+
 // Container — wires the queries + mutation and delegates rendering to
 // the pure view below.
 export function OSIntelligenceSection() {
@@ -51,8 +69,9 @@ export function OSIntelligenceSection() {
         '/api/v1/system/intelligence/config',
         {},
       );
-      if (error) throw error;
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      if (error || !response.ok) {
+        throw new Error(formatApiError(response.status, error));
+      }
       return data as IntelligenceConfigResponse;
     },
     retry: 0,
@@ -71,14 +90,28 @@ export function OSIntelligenceSection() {
         '/api/v1/system/intelligence/config',
         { body },
       );
-      if (error) throw error;
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      if (error || !response.ok) {
+        throw new Error(formatApiError(response.status, error));
+      }
       return data as IntelligenceConfig;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['system', 'intelligence', 'config'] });
     },
   });
+
+  // Re-sync the draft to the server config on the post-save edge.
+  // Without this, a server-side clamp (or any future divergence
+  // between client and server validation) would leave the user with a
+  // stale draft that looks "saved" but doesn't match server truth.
+  // The clobber is gated on mutation.isSuccess so an in-flight edit
+  // is never overwritten by an unrelated refetch.
+  useEffect(() => {
+    if (mutation.isSuccess && configQuery.data) {
+      setDraft({ ...configQuery.data.config });
+      mutation.reset();
+    }
+  }, [mutation, configQuery.data]);
 
   const dirty = useMemo(() => {
     if (!draft || !configQuery.data) return false;
@@ -114,6 +147,7 @@ export function OSIntelligenceSection() {
           ? (configQuery.error as Error)?.message ?? 'Failed to load'
           : null
       }
+      onRetry={() => configQuery.refetch()}
       config={configQuery.data?.config ?? null}
       defaults={configQuery.data?.defaults ?? null}
       draft={draft}
@@ -138,10 +172,11 @@ export function OSIntelligenceSectionView(props: {
   isLoading: boolean;
   isError: boolean;
   errorMessage: string | null;
+  onRetry?: () => void;
   config: IntelligenceConfig | null;
   defaults: IntelligenceConfig | null;
   draft: IntelligenceConfig | null;
-  setDraft: (d: IntelligenceConfig | null | ((prev: IntelligenceConfig | null) => IntelligenceConfig | null)) => void;
+  setDraft: React.Dispatch<React.SetStateAction<IntelligenceConfig | null>>;
   onResetToLive: () => void;
   onResetToDefaults: () => void;
   onSave: () => void;
@@ -153,6 +188,7 @@ export function OSIntelligenceSectionView(props: {
     isLoading,
     isError,
     errorMessage,
+    onRetry,
     draft,
     setDraft,
     onResetToLive,
@@ -172,9 +208,23 @@ export function OSIntelligenceSectionView(props: {
       ) : isError ? (
         <div
           role="alert"
-          style={{ color: 'var(--ow-crit)', fontSize: 12, padding: '8px 0' }}
+          style={{
+            color: 'var(--ow-crit)',
+            fontSize: 12,
+            padding: '8px 0',
+            display: 'flex',
+            gap: 10,
+            alignItems: 'center',
+          }}
         >
-          Failed to load intelligence config{errorMessage ? ` — ${errorMessage}` : ''}
+          <span>
+            Failed to load intelligence config{errorMessage ? ` — ${errorMessage}` : ''}
+          </span>
+          {onRetry && (
+            <Btn size="sm" onClick={onRetry}>
+              <RefreshCw size={11} /> Retry
+            </Btn>
+          )}
         </div>
       ) : draft ? (
         <>
@@ -243,7 +293,7 @@ export function OSIntelligenceSectionView(props: {
               <RotateCcw size={12} /> Reset to defaults
             </Btn>
             <Btn onClick={onResetToLive} disabled={!dirty || isSaving}>
-              Cancel
+              Discard changes
             </Btn>
             <Btn variant="primary" onClick={onSave} disabled={isLoading || !dirty || isSaving}>
               {isSaving ? 'Saving…' : 'Save changes'}

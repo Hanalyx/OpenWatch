@@ -9,6 +9,9 @@
 //   AC-05  test('frontend-settings-intelligence-config/AC-05 — visual states: loading, error, success-clean')
 //   AC-06  test('frontend-settings-intelligence-config/AC-06 — edit -> Save flow toggles dirty/disabled')
 //   AC-07  test('frontend-settings-intelligence-config/AC-07 — ScanningPage mounts OSIntelligenceSection between OS discovery and Maintenance')
+//   AC-08  test('frontend-settings-intelligence-config/AC-08 — error alert surfaces the HTTP status (no "Failed to load — Failed to load")')
+//   AC-09  test('frontend-settings-intelligence-config/AC-09 — error state renders a Retry button that invokes onRetry')
+//   AC-10  test('frontend-settings-intelligence-config/AC-10 — post-save useEffect re-syncs draft from configQuery.data.config')
 
 import { describe, expect, test, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -64,6 +67,17 @@ describe('frontend-settings-intelligence-config — structural', () => {
     expect(SECTION_SRC).toMatch(/isLoading/);
     expect(SECTION_SRC).toMatch(/dirty/);
     expect(SECTION_SRC).toMatch(/isPending/);
+  });
+
+  // @ac AC-10
+  test('frontend-settings-intelligence-config/AC-10 — post-save useEffect re-syncs draft from configQuery.data.config', () => {
+    // The post-save re-sync MUST exist and MUST be gated on
+    // mutation.isSuccess so an in-flight edit is never clobbered by an
+    // unrelated refetch. Look for both the dependency and the setDraft
+    // call referencing configQuery.data.config inside a useEffect.
+    expect(SECTION_SRC).toMatch(
+      /useEffect\(\s*\(\)\s*=>\s*\{[\s\S]*?mutation\.isSuccess[\s\S]*?setDraft\(\s*\{[\s\S]*?configQuery\.data\??\.config[\s\S]*?\}\s*\)[\s\S]*?\}/,
+    );
   });
 
   // @ac AC-07
@@ -144,5 +158,45 @@ describe('frontend-settings-intelligence-config — behavioral (pure view)', () 
     // label change is itself the spinner affordance).
     render(<OSIntelligenceSectionView {...viewProps({ dirty: true, isSaving: true })} />);
     expect(screen.getByRole('button', { name: /saving/i })).toBeDisabled();
+  });
+
+  // @ac AC-08
+  test('frontend-settings-intelligence-config/AC-08 — error alert surfaces the HTTP status (no "Failed to load — Failed to load")', () => {
+    render(
+      <OSIntelligenceSectionView
+        {...viewProps({
+          isError: true,
+          errorMessage: 'HTTP 404',
+          config: null,
+          draft: null,
+        })}
+      />,
+    );
+    const alert = screen.getByRole('alert');
+    // The alert MUST include the HTTP status. The buggy original would
+    // have rendered "Failed to load intelligence config — Failed to load"
+    // — assert the actual status is in there.
+    expect(alert.textContent).toMatch(/HTTP\s+404/);
+    // And it MUST NOT degenerate to the duplicated fallback.
+    expect(alert.textContent).not.toMatch(/—\s*Failed to load$/i);
+  });
+
+  // @ac AC-09
+  test('frontend-settings-intelligence-config/AC-09 — error state renders a Retry button that invokes onRetry', () => {
+    const onRetry = vi.fn();
+    render(
+      <OSIntelligenceSectionView
+        {...viewProps({
+          isError: true,
+          errorMessage: 'HTTP 500',
+          onRetry,
+          config: null,
+          draft: null,
+        })}
+      />,
+    );
+    const retry = screen.getByRole('button', { name: /retry/i });
+    fireEvent.click(retry);
+    expect(onRetry).toHaveBeenCalledTimes(1);
   });
 });

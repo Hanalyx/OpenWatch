@@ -1,7 +1,7 @@
 spec:
   id: frontend-settings-intelligence-config
   title: Settings Scanning page — OS Intelligence scheduler config section
-  version: "1.0.0"
+  version: "1.1.0"
   status: approved
   tier: 2
 
@@ -82,6 +82,18 @@ spec:
       description: 'The section MUST be mounted in ScanningPage.tsx BETWEEN the existing "OS discovery" section and the "Maintenance" section. Order matters: OS discovery is the one-shot fingerprint, OS Intelligence is the recurring snapshot collector — operators read top-down and expect them adjacent'
       type: technical
       enforcement: error
+    - id: C-07
+      description: 'v1.1.0 — The error alert text MUST surface the HTTP status code (e.g. "HTTP 404") and SHOULD include the ErrorEnvelope.error.message when present. The buggy original "(error as Error)?.message" returned undefined for openapi-fetch errors (which are response-body objects, not Error instances) and degenerated to the duplicated fallback "Failed to load — Failed to load". The fix normalizes error → "HTTP <status>[ — <env.error.message>]" before throwing so the alert text is always operator-actionable'
+      type: technical
+      enforcement: error
+    - id: C-08
+      description: 'v1.1.0 — The error state MUST render a Retry button that calls configQuery.refetch(). Without it the operator has to reload the entire page to recover from a transient 5xx — mirrors the recovery affordance in frontend-host-detail-intelligence-feed C-04'
+      type: technical
+      enforcement: error
+    - id: C-09
+      description: 'v1.1.0 — On the post-save edge (mutation.isSuccess && configQuery.data), the draft MUST be re-synced from configQuery.data.config so a server-side clamp (or any future drift between client and server validation) cannot leave the operator with a stale draft that looks "saved" but does not match server truth. The re-sync MUST be gated on mutation.isSuccess specifically — never clobber an in-flight edit during an unrelated refetch'
+      type: technical
+      enforcement: error
 
   acceptance_criteria:
     - id: AC-01
@@ -112,3 +124,15 @@ spec:
       description: 'Source inspection: ScanningPage.tsx imports OSIntelligenceSection from @/components/settings/OSIntelligenceSection AND mounts it as JSX. The mount site MUST appear AFTER the "OS discovery" Section literal AND BEFORE the "Maintenance" Section literal'
       priority: critical
       references_constraints: [C-06]
+    - id: AC-08
+      description: 'v1.1.0 — Rendering: mounted with isError=true and errorMessage="HTTP 404" the alert text contains "HTTP 404". The alert text MUST NOT match the buggy pattern "— Failed to load$" (the duplicated fallback that the original implementation produced for openapi-fetch errors that are not Error instances)'
+      priority: critical
+      references_constraints: [C-07]
+    - id: AC-09
+      description: 'v1.1.0 — Rendering: mounted with isError=true the alert renders a button matching role="button" name=/retry/i. Clicking the button invokes the onRetry prop exactly once'
+      priority: critical
+      references_constraints: [C-08]
+    - id: AC-10
+      description: 'v1.1.0 — Source inspection: OSIntelligenceSection.tsx contains a useEffect that depends on mutation.isSuccess AND calls setDraft from configQuery.data.config inside the effect body. This is the post-save re-sync (C-09) — without it, server-side clamps would leave the operator with a stale "saved" draft'
+      priority: critical
+      references_constraints: [C-09]
