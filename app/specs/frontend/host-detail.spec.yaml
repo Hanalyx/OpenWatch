@@ -182,7 +182,7 @@ spec:
       priority: critical
       references_constraints: [C-09]
     - id: AC-27
-      description: 'Page renders a breadcrumb trail above the back link: "Infrastructure / Hosts / <hostname>". The crumbs are separated by a thin slash, "Infrastructure" and "Hosts" are clickable links, "<hostname>" is the current page (not a link). Mirrors the prototype''s topbar crumbs.'
+      description: 'Page pushes its breadcrumb trail ("Infrastructure / Hosts / <hostname>") into the global useBreadcrumbStore so the sticky TopBar renders it — same pattern as HostsListPage. NO inline crumbs element on the page body. The trail clears on unmount.'
       priority: high
       references_constraints: [C-01]
     - id: AC-28

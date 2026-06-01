@@ -1,12 +1,11 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams, useSearch, useNavigate, Link } from '@tanstack/react-router';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Activity as ActivityIcon,
   ArrowLeft,
   Bell,
   Circle,
-  ChevronRight,
   Clock,
   FileText,
   LayoutGrid,
@@ -26,6 +25,7 @@ import {
 import type { LucideIcon } from 'lucide-react';
 import api from '@/api/client';
 import { EditHostModal } from '@/components/hosts/EditHostModal';
+import { useBreadcrumbStore } from '@/store/useBreadcrumbStore';
 
 // HostDetailPage — prototype-faithful Host Detail surface (v1.0.0).
 //
@@ -189,6 +189,7 @@ export function HostDetailPage() {
   const hostId = params.hostId ?? '';
   const framework = search.framework;
   const activeTab: TabId = search.tab ?? 'overview';
+  const setCrumbs = useBreadcrumbStore((s) => s.setCrumbs);
 
   const detailQuery = useQuery({
     queryKey: ['host', hostId, framework],
@@ -252,6 +253,19 @@ export function HostDetailPage() {
     retry: false,
   });
 
+  // Topbar breadcrumb — pushes "Infrastructure / Hosts / <hostname>"
+  // into the global useBreadcrumbStore so the sticky header renders
+  // it (same pattern as HostsListPage). AC-27.
+  const hostname = detailQuery.data?.host?.hostname;
+  useEffect(() => {
+    setCrumbs([
+      { label: 'Infrastructure' },
+      { label: 'Hosts', href: '/hosts' },
+      ...(hostname ? [{ label: hostname }] : []),
+    ]);
+    return () => setCrumbs([]);
+  }, [setCrumbs, hostname]);
+
   const goToTab = (tab: TabId) =>
     navigate({
       to: '/hosts/$hostId',
@@ -276,8 +290,6 @@ export function HostDetailPage() {
           ? `${detailQuery.data.host.hostname} — OpenWatch`
           : 'Host — OpenWatch'}
       </title>
-
-      <Crumbs hostname={detailQuery.data?.host?.hostname} />
 
       <div style={{ marginBottom: 14 }}>
         <Link
@@ -1388,41 +1400,6 @@ function FrameworkFilter({
         ))}
       </select>
     </label>
-  );
-}
-
-// Crumbs — "Infrastructure / Hosts / <hostname>" trail above the back
-// link. Mirrors the prototype's topbar breadcrumb. AC-27.
-function Crumbs({ hostname }: { hostname?: string }) {
-  return (
-    <nav
-      aria-label="Breadcrumb"
-      style={{
-        marginBottom: 6,
-        display: 'flex',
-        alignItems: 'center',
-        gap: 6,
-        fontSize: 12,
-        color: 'var(--ow-fg-3)',
-      }}
-    >
-      <span>{'Infrastructure'}</span>
-      <ChevronRight size={11} aria-hidden />
-      <Link
-        to="/hosts"
-        style={{ color: 'var(--ow-fg-2)', textDecoration: 'none' }}
-      >
-        {'Hosts'}
-      </Link>
-      {hostname && (
-        <>
-          <ChevronRight size={11} aria-hidden />
-          <span style={{ color: 'var(--ow-fg-1)', fontFamily: 'var(--ow-font-mono)' }}>
-            {hostname}
-          </span>
-        </>
-      )}
-    </nav>
   );
 }
 

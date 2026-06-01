@@ -232,12 +232,17 @@ describe('frontend-host-detail — prototype shell', () => {
   });
 
   // @ac AC-27
-  test('frontend-host-detail/AC-27 — breadcrumb above back link', () => {
-    // The Crumbs component renders "Infrastructure / Hosts / hostname"
-    // with Infrastructure + Hosts as Link components.
-    expect(PAGE_SRC).toContain('<Crumbs');
+  test('frontend-host-detail/AC-27 — breadcrumb rendered by the TopBar via useBreadcrumbStore', () => {
+    // Page pushes "Infrastructure / Hosts / <hostname>" into the
+    // global useBreadcrumbStore (same pattern as HostsListPage). The
+    // TopBar reads them. No inline Crumbs component on the page.
+    expect(PAGE_SRC).toContain('useBreadcrumbStore');
+    expect(PAGE_SRC).toContain('setCrumbs');
     expect(PAGE_SRC).toContain("'Infrastructure'");
     expect(PAGE_SRC).toContain("'Hosts'");
+    expect(PAGE_SRC).toContain("href: '/hosts'");
+    // The hostname crumb is conditionally appended.
+    expect(PAGE_SRC).toMatch(/hostname\s*\?\s*\[/);
   });
 
   // @ac AC-28
