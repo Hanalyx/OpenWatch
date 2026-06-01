@@ -54,11 +54,11 @@ domains:
             - system-worker-subcommand
 settings:
     specs_dir: specs
-    # Default discovery is limited to .test.ts / _test.go. The frontend
-    # mixes .test.ts (source-inspection) with .test.tsx (component tests
-    # that need JSX), so explicitly include both. Without this, .tsx
-    # tests are silently invisible and frontend specs covered only by
-    # .tsx tests report 0% coverage.
+    # Honored by `specter coverage` (not by `specter sync` — CI passes
+    # --tests '**/*' as a workaround). Default discovery walks only
+    # .test.ts / _test.go; .test.tsx is silently invisible, which
+    # broke frontend-live-events coverage in PR 5b. List form documents
+    # the three extensions we use; the CI flag covers the sync gap.
     tests_glob:
         - '**/*_test.go'
         - '**/*.test.ts'

@@ -185,7 +185,13 @@ jobs:
 
       - name: specter sync (AC coverage thresholds)
         if: steps.paths.outputs.go == 'true'
-        run: specter sync
+        # --tests '**/*' broadens default discovery to include .test.tsx
+        # files. Specter's `sync` coverage phase does not honor
+        # settings.tests_glob in specter.yaml (the `coverage` subcommand
+        # does — known specter quirk). The annotation walker still
+        # filters on @spec / @ac, so non-test files in the broad glob
+        # are skipped at parse time.
+        run: specter sync --tests '**/*'
 
       - name: upload specter artifacts
         if: always() && steps.paths.outputs.go == 'true'
