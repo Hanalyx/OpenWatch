@@ -63,10 +63,14 @@ func seedHostForIntel(t *testing.T, pool *pgxpool.Pool) uuid.UUID {
 	t.Helper()
 	creator := firstSeededUserID(t, pool)
 	id, _ := uuid.NewV7()
+	// Use the full id in the hostname — UUIDv7's leading bytes are a
+	// millisecond timestamp, so id.String()[:8] would collide when two
+	// hosts are seeded in the same ms (idx_hosts_hostname_environment_active
+	// UNIQUE breaks).
 	_, err := pool.Exec(context.Background(),
 		`INSERT INTO hosts (id, hostname, ip_address, created_by)
 		 VALUES ($1, $2, $3::inet, $4)`,
-		id, "intel-"+id.String()[:8], "192.0.2.30", creator)
+		id, "intel-"+id.String(), "192.0.2.30", creator)
 	if err != nil {
 		t.Fatalf("seed host: %v", err)
 	}
