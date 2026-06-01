@@ -73,6 +73,8 @@ const (
 	HostConnectivityChecked Code = "host.connectivity.checked"
 	//
 	HostPlatformDetected Code = "host.platform.detected"
+	// Host OS fingerprint Discovery run finished successfully; carries the captured facts as detail
+	HostDiscoveryCompleted Code = "host.discovery.completed"
 	//
 	HostIntelligenceRefreshed Code = "host.intelligence.refreshed"
 	//
@@ -421,6 +423,13 @@ var Metadata = map[Code]EventMeta{
 		Category:    "host",
 		Severity:    SeverityInfo,
 		Description: ``,
+		ActorTypes:  nil,
+	},
+	HostDiscoveryCompleted: {
+		Code:        HostDiscoveryCompleted,
+		Category:    "host",
+		Severity:    SeverityInfo,
+		Description: `Host OS fingerprint Discovery run finished successfully; carries the captured facts as detail`,
 		ActorTypes:  nil,
 	},
 	HostIntelligenceRefreshed: {
@@ -1025,6 +1034,7 @@ var codeOrder = []Code{
 	HostDeleted,
 	HostConnectivityChecked,
 	HostPlatformDetected,
+	HostDiscoveryCompleted,
 	HostIntelligenceRefreshed,
 	HostBulkImported,
 	CredentialCreated,

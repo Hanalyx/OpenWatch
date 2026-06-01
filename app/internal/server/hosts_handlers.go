@@ -6,6 +6,7 @@ package server
 import (
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -13,6 +14,8 @@ import (
 	"github.com/Hanalyx/openwatch/internal/auth"
 	"github.com/Hanalyx/openwatch/internal/eventbus"
 	"github.com/Hanalyx/openwatch/internal/host"
+	"github.com/Hanalyx/openwatch/internal/intelligence/discovery"
+	"github.com/Hanalyx/openwatch/internal/queue"
 	"github.com/Hanalyx/openwatch/internal/server/api"
 	"github.com/google/uuid"
 	openapitypes "github.com/oapi-codegen/runtime/types"
@@ -129,6 +132,20 @@ func (h *handlers) PostHosts(w http.ResponseWriter, r *http.Request) {
 		"environment": created.Environment,
 	})
 	h.publishHostChange(r.Context(), created.ID, eventbus.HostChangeCreated)
+
+	// Spec system-host-discovery AC-13 / C-05: auto-enqueue a
+	// host.discovery job so the worker captures the OS fingerprint
+	// asynchronously. Failure to enqueue is logged but does NOT fail
+	// the host-create response — the operator can still re-run via
+	// POST /hosts/{id}/discovery:run.
+	if _, err := queue.Enqueue(r.Context(), h.pool, discovery.JobKindHostDiscovery,
+		discovery.HostDiscoveryJobPayload{HostID: created.ID}); err != nil {
+		slog.WarnContext(r.Context(), "discovery: enqueue failed after host create",
+			slog.String("host_id", created.ID.String()),
+			slog.String("err", err.Error()),
+		)
+	}
+
 	writeJSON(w, http.StatusCreated, hostResponse(created))
 }
 

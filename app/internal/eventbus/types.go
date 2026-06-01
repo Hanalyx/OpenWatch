@@ -31,6 +31,11 @@ const (
 	// new kind carries the richer band string so the UI can update
 	// the StatusPill without re-fetching the host.
 	EventKindMonitoringBandChanged EventKind = "monitoring.band.changed"
+
+	// EventKindHostDiscovered is emitted by internal/intelligence/discovery
+	// on every successful Discover run (one-shot fingerprint on first
+	// contact + on-demand). Spec system-host-discovery AC-11.
+	EventKindHostDiscovered EventKind = "host.discovered"
 )
 
 // AllEventKinds is the closed set, in registration order. Spec AC-07's
@@ -40,6 +45,7 @@ var AllEventKinds = []EventKind{
 	EventKindDriftDetected,
 	EventKindHostChanged,
 	EventKindMonitoringBandChanged,
+	EventKindHostDiscovered,
 }
 
 // Event is the contract every bus event satisfies. Implementations are
@@ -151,6 +157,23 @@ func (m MonitoringBandChanged) Kind() EventKind { return EventKindMonitoringBand
 
 // Timestamp satisfies Event.
 func (m MonitoringBandChanged) Timestamp() time.Time { return m.OccurredAt }
+
+// HostDiscovered is fired by the discovery service on every successful
+// Discover run. Carries the rollup OS family + version + the time the
+// fingerprint was captured so subscribers (fleet rollups, alert routing)
+// don't have to round-trip to host_system_info.
+type HostDiscovered struct {
+	HostID       uuid.UUID
+	OSFamily     string
+	OSVersion    string
+	DiscoveredAt time.Time
+}
+
+// Kind satisfies Event.
+func (h HostDiscovered) Kind() EventKind { return EventKindHostDiscovered }
+
+// Timestamp satisfies Event.
+func (h HostDiscovered) Timestamp() time.Time { return h.DiscoveredAt }
 
 // DefaultBufferSize is the per-subscriber channel buffer when
 // SubscribeOptions.BufferSize is zero. Spec C-04.

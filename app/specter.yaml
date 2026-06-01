@@ -32,6 +32,7 @@ domains:
             - system-auth-identity
             - system-user-management
             - system-credential-store
+            - system-host-discovery
             - system-host-inventory
             - system-ssh-connectivity
             - api-auth

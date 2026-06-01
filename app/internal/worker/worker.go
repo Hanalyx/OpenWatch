@@ -14,12 +14,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"sync"
 	"time"
 
 	"github.com/Hanalyx/openwatch/internal/audit"
 	"github.com/Hanalyx/openwatch/internal/queue"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -27,12 +29,23 @@ import (
 // queue is empty. Short enough that DoD step 16 sees a result within 2s.
 const PollInterval = 200 * time.Millisecond
 
+// HostDiscoveryRunner is the seam the worker uses to invoke the OS
+// Discovery flow when it drains a host.discovery job. The real
+// implementation is internal/intelligence/discovery.Service.RunDiscovery
+// (the error-only adapter over Discover). Interface lives here so the
+// worker doesn't import intelligence (which would otherwise create a
+// cycle via internal/credential's transitive imports).
+type HostDiscoveryRunner interface {
+	RunDiscovery(ctx context.Context, hostID uuid.UUID) error
+}
+
 // Worker drains pending jobs from job_queue. One Worker per process is
 // enough for Stage 0; multi-worker setups are Stage 2.
 type Worker struct {
-	pool *pgxpool.Pool
-	stop chan struct{}
-	wg   sync.WaitGroup
+	pool      *pgxpool.Pool
+	stop      chan struct{}
+	wg        sync.WaitGroup
+	discovery HostDiscoveryRunner
 }
 
 // New constructs a Worker bound to the given pool. Call Start to begin
@@ -42,6 +55,15 @@ func New(pool *pgxpool.Pool) *Worker {
 		pool: pool,
 		stop: make(chan struct{}),
 	}
+}
+
+// WithDiscovery registers the OS Discovery runner. When set, the
+// worker processes host.discovery jobs by calling Discover; nil keeps
+// the legacy behavior (host.discovery fails as unsupported).
+// Spec system-host-discovery C-05.
+func (w *Worker) WithDiscovery(d HostDiscoveryRunner) *Worker {
+	w.discovery = d
+	return w
 }
 
 // Start kicks off the drain loop on a background goroutine. Returns
@@ -99,14 +121,52 @@ func (w *Worker) drainOnce(parentCtx context.Context) {
 	}
 }
 
-// process handles one job. For Stage 0 only diagnostics.test_job is
-// supported; any other job type is failed with an unsupported error.
+// process handles one job. Stage 0 supports diagnostics.test_job;
+// PR 1.1 added host.discovery routing through the registered runner.
+// Any other job type is failed with an unsupported error.
 func (w *Worker) process(ctx context.Context, j *queue.Job) {
 	switch j.JobType {
 	case "diagnostics.test_job":
 		w.processTestJob(ctx, j)
+	case "host.discovery":
+		w.processHostDiscovery(ctx, j)
 	default:
 		_ = queue.Fail(ctx, w.pool, j.ID, "unsupported job_type for Stage 0 worker: "+j.JobType)
+	}
+}
+
+// processHostDiscovery dispatches a host.discovery job to the
+// registered Discovery runner. The runner emits its own audit /
+// eventbus events on success; the worker just marks the queue row.
+// Spec system-host-discovery C-05.
+func (w *Worker) processHostDiscovery(ctx context.Context, j *queue.Job) {
+	if w.discovery == nil {
+		_ = queue.Fail(ctx, w.pool, j.ID,
+			"host.discovery runner not registered on this worker")
+		return
+	}
+	// Decode payload — same shape the API handler enqueues.
+	var payload struct {
+		HostID uuid.UUID `json:"host_id"`
+	}
+	if err := json.Unmarshal(j.Payload, &payload); err != nil {
+		_ = queue.Fail(ctx, w.pool, j.ID,
+			fmt.Sprintf("host.discovery: payload decode: %v", err))
+		return
+	}
+	if payload.HostID == uuid.Nil {
+		_ = queue.Fail(ctx, w.pool, j.ID, "host.discovery: payload host_id missing")
+		return
+	}
+	if err := w.discovery.RunDiscovery(ctx, payload.HostID); err != nil {
+		_ = queue.Fail(ctx, w.pool, j.ID,
+			fmt.Sprintf("host.discovery: %v", err))
+		return
+	}
+	if err := queue.Complete(ctx, w.pool, j.ID); err != nil {
+		slog.WarnContext(ctx, "worker complete failed",
+			slog.String("job_id", j.ID.String()),
+			slog.String("err", err.Error()))
 	}
 }
 
