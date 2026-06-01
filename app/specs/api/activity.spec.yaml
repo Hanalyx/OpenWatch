@@ -1,0 +1,100 @@
+spec:
+  id: api-activity
+  title: Unified Activity feed REST endpoint
+  version: "1.0.0"
+  status: approved
+  tier: 2
+
+  context:
+    system: openwatch-go
+    feature: GET /api/v1/activity — single endpoint exposing the union feed
+    description: >
+      Sole HTTP surface over system-activity.Service.List. Cursor
+      pagination on occurred_at DESC. Filter by source, severity,
+      host_id, time-range. Response carries hiddenByRBAC so the UI
+      can render the honest "47 items; 200 hidden by your role" line.
+
+      Authentication: any valid session. RBAC: the endpoint itself
+      requires no specific permission to REACH — the per-source
+      gate happens inside the service. A caller with zero relevant
+      permissions gets a successful 200 with items=[], hidden_count
+      reflecting what was filtered out.
+
+    related_specs:
+      - system-activity
+      - api-alerts
+      - api-os-intelligence
+      - api-audit-events-query
+
+  objective:
+    summary: >
+      One handler in internal/server/activity_handler.go that
+      validates params, calls Service.List, and returns the typed
+      ActivityPage envelope.
+    scope:
+      includes:
+        - 'OpenAPI: GET /api/v1/activity with source/severity/host_id/since/until/cursor/limit params'
+        - 'Response schemas: Activity, ActivityPage with items + hidden_count + next_cursor'
+        - 'Validation translating ErrInvalidLimit -> 400 pagination.limit_exceeded; ErrInvalidSource/Severity -> 400 validation.field_range'
+      excludes:
+        - 'Bulk operations on activity rows — there are none (the underlying source endpoints own mutation)'
+
+  constraints:
+    - id: C-01
+      description: 'GET /api/v1/activity MUST require an authenticated session — anonymous callers get 403. No specific permission is required to reach the endpoint; the per-source RBAC happens inside the service'
+      type: security
+      enforcement: error
+    - id: C-02
+      description: 'limit cap 200; default 50. Out-of-range -> 400 pagination.limit_exceeded'
+      type: technical
+      enforcement: error
+    - id: C-03
+      description: 'source enum {alert, transaction, intelligence, audit}; severity enum {info, low, medium, high, critical}. Unknown values yield 400 validation.field_range'
+      type: technical
+      enforcement: error
+    - id: C-04
+      description: 'Response envelope ActivityPage has: items (array), hidden_count (integer, ≥0), next_cursor (string nullable). hidden_count is the count of rows the caller''s RBAC excluded from the (already-filtered) candidate set'
+      type: technical
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: 'GET /api/v1/activity with viewer role returns 200 + ActivityPage. items[] may be empty if the viewer has no permissions for any source — hidden_count carries the suppressed total'
+      priority: critical
+      references_constraints: [C-01, C-04]
+    - id: AC-02
+      description: 'GET /api/v1/activity without an authenticated session returns 403'
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-03
+      description: 'GET /api/v1/activity?limit=300 returns 400 pagination.limit_exceeded'
+      priority: high
+      references_constraints: [C-02]
+    - id: AC-04
+      description: 'GET /api/v1/activity?source=alert returns only alert-sourced rows (verified by inspecting the source field on each item)'
+      priority: high
+      references_constraints: [C-03]
+    - id: AC-05
+      description: 'GET /api/v1/activity?severity=panic returns 400 validation.field_range'
+      priority: high
+      references_constraints: [C-03]
+    - id: AC-06
+      description: 'GET /api/v1/activity?source=zombie returns 400 validation.field_range'
+      priority: high
+      references_constraints: [C-03]
+    - id: AC-07
+      description: 'GET /api/v1/activity?limit=2 against 4 candidate rows returns 2 items + non-null next_cursor; following the cursor returns the remaining 2 + null next_cursor'
+      priority: critical
+      references_constraints: [C-02, C-04]
+    - id: AC-08
+      description: 'Admin caller (host:read + alert:read + audit:read) against a fleet with 1 alert + 1 transaction + 1 intelligence + 1 audit row returns hidden_count = 0 AND items.length = 4'
+      priority: critical
+      references_constraints: [C-04]
+    - id: AC-09
+      description: 'Viewer caller (host:read only; no alert:read or audit:read) against the same fleet returns hidden_count = (alerts + audit count) AND items.length = (transactions + intelligence count). Mixed-RBAC operators see partial fleets honestly'
+      priority: critical
+      references_constraints: [C-04]
+    - id: AC-10
+      description: 'GET /api/v1/activity?since=<T>&until=<T+1h> filters all sources to occurred_at IN [since, until)'
+      priority: high
+      references_constraints: [C-02]

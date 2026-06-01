@@ -1456,6 +1456,50 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
 
+  /api/v1/activity:
+    get:
+      operationId: getActivity
+      summary: Unified Activity feed (UNION over alerts + transactions + intelligence + audit)
+      description: |
+        Returns the per-source RBAC-filtered union of recent events.
+        Caller's permissions decide which sources contribute; hidden_count
+        reports how many rows the caller's RBAC suppressed so the UI
+        can render "N visible / M hidden". Spec api-activity.
+      parameters:
+        - name: source
+          in: query
+          schema: {type: string, enum: [alert, transaction, intelligence, audit]}
+        - name: severity
+          in: query
+          schema: {type: string, enum: [info, low, medium, high, critical]}
+        - name: host_id
+          in: query
+          schema: {type: string, format: uuid}
+        - name: since
+          in: query
+          schema: {type: string, format: date-time}
+        - name: until
+          in: query
+          schema: {type: string, format: date-time}
+        - name: cursor
+          in: query
+          schema: {type: string}
+        - name: limit
+          in: query
+          schema: {type: integer, minimum: 1, maximum: 200, default: 50}
+      responses:
+        '200':
+          description: Activity page
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ActivityPage'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '403':
+          description: Anonymous caller
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
   /api/v1/hosts/{id}/discovery:run:
     post:
       operationId: postHostDiscoveryRun
@@ -2137,6 +2181,30 @@ components:
         items:
           type: array
           items: {$ref: '#/components/schemas/Alert'}
+        next_cursor:
+          type: string
+          nullable: true
+
+    Activity:
+      type: object
+      required: [id, source, severity, title, occurred_at]
+      properties:
+        id:          {type: string, format: uuid}
+        source:      {type: string, enum: [alert, transaction, intelligence, audit]}
+        severity:    {type: string, enum: [info, low, medium, high, critical]}
+        host_id:     {type: string, format: uuid, nullable: true}
+        title:       {type: string}
+        summary:     {type: string}
+        occurred_at: {type: string, format: date-time}
+
+    ActivityPage:
+      type: object
+      required: [items, hidden_count]
+      properties:
+        items:
+          type: array
+          items: {$ref: '#/components/schemas/Activity'}
+        hidden_count: {type: integer, minimum: 0}
         next_cursor:
           type: string
           nullable: true

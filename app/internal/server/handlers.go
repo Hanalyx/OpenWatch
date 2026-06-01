@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Hanalyx/openwatch/internal/activity"
 	"github.com/Hanalyx/openwatch/internal/alerts"
 	"github.com/Hanalyx/openwatch/internal/audit"
 	"github.com/Hanalyx/openwatch/internal/auth"
@@ -63,6 +64,11 @@ type handlers struct {
 	// that don't exercise /alerts.
 	// Spec system-alerts + api-alerts.
 	alertsSvc *alerts.Service
+
+	// Activity feed. Set via (*Server).WithActivity; nil in tests
+	// that don't exercise /activity.
+	// Spec system-activity + api-activity.
+	activitySvc *activity.Service
 }
 
 // newHandlers constructs the ServerInterface implementation. The user

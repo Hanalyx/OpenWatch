@@ -38,6 +38,8 @@ domains:
             - api-os-intelligence
             - system-alerts
             - api-alerts
+            - system-activity
+            - api-activity
             - system-host-inventory
             - system-ssh-connectivity
             - api-auth
