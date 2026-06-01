@@ -41,6 +41,11 @@ type Host struct {
 	CreatedBy   uuid.UUID
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
+
+	// v1.3.0 — multi-layer adaptive health-check fields. Default to
+	// false / 3 on rows that pre-date migration 0016.
+	MaintenanceMode bool
+	CheckPriority   int
 }
 
 // CreateParams is the input to CreateHost. Validation enforces the
@@ -122,7 +127,8 @@ func (s *Service) CreateHost(ctx context.Context, p CreateParams) (Host, error) 
 		RETURNING id, hostname, host(ip_address), port,
 		          COALESCE(display_name, ''), COALESCE(description, ''),
 		          environment, tags, group_id, COALESCE(username, ''),
-		          created_by, created_at, updated_at`
+		          created_by, created_at, updated_at,
+		          maintenance_mode, check_priority`
 	var h Host
 	err = s.pool.QueryRow(ctx, stmt,
 		id, p.Hostname, p.IPAddress, p.Port,
@@ -133,6 +139,7 @@ func (s *Service) CreateHost(ctx context.Context, p CreateParams) (Host, error) 
 		&h.DisplayName, &h.Description,
 		&h.Environment, &h.Tags, &h.GroupID, &h.Username,
 		&h.CreatedBy, &h.CreatedAt, &h.UpdatedAt,
+		&h.MaintenanceMode, &h.CheckPriority,
 	)
 	if err != nil {
 		if isUniqueViolation(err) {
@@ -155,7 +162,8 @@ func (s *Service) GetByID(ctx context.Context, id uuid.UUID) (Host, error) {
 		SELECT id, hostname, host(ip_address), port,
 		       COALESCE(display_name, ''), COALESCE(description, ''),
 		       environment, tags, group_id, COALESCE(username, ''),
-		       created_by, created_at, updated_at
+		       created_by, created_at, updated_at,
+		       maintenance_mode, check_priority
 		FROM hosts WHERE id = $1 AND deleted_at IS NULL`
 	var h Host
 	err := s.pool.QueryRow(ctx, stmt, id).Scan(
@@ -163,6 +171,7 @@ func (s *Service) GetByID(ctx context.Context, id uuid.UUID) (Host, error) {
 		&h.DisplayName, &h.Description,
 		&h.Environment, &h.Tags, &h.GroupID, &h.Username,
 		&h.CreatedBy, &h.CreatedAt, &h.UpdatedAt,
+		&h.MaintenanceMode, &h.CheckPriority,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -232,7 +241,8 @@ func (s *Service) UpdateHost(ctx context.Context, id uuid.UUID, p UpdateParams) 
 		RETURNING id, hostname, host(ip_address), port,
 		          COALESCE(display_name, ''), COALESCE(description, ''),
 		          environment, tags, group_id, COALESCE(username, ''),
-		          created_by, created_at, updated_at`,
+		          created_by, created_at, updated_at,
+		          maintenance_mode, check_priority`,
 		strings.Join(sets, ", "), idPlaceholder)
 
 	var h Host
@@ -241,6 +251,7 @@ func (s *Service) UpdateHost(ctx context.Context, id uuid.UUID, p UpdateParams) 
 		&h.DisplayName, &h.Description,
 		&h.Environment, &h.Tags, &h.GroupID, &h.Username,
 		&h.CreatedBy, &h.CreatedAt, &h.UpdatedAt,
+		&h.MaintenanceMode, &h.CheckPriority,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -290,7 +301,8 @@ func (s *Service) List(ctx context.Context, p ListParams) ([]Host, error) {
 		SELECT id, hostname, host(ip_address), port,
 		       COALESCE(display_name, ''), COALESCE(description, ''),
 		       environment, tags, group_id, COALESCE(username, ''),
-		       created_by, created_at, updated_at
+		       created_by, created_at, updated_at,
+		       maintenance_mode, check_priority
 		FROM hosts WHERE %s ORDER BY created_at DESC`, strings.Join(clauses, " AND "))
 
 	rows, err := s.pool.Query(ctx, stmt, args...)
@@ -306,6 +318,7 @@ func (s *Service) List(ctx context.Context, p ListParams) ([]Host, error) {
 			&h.DisplayName, &h.Description,
 			&h.Environment, &h.Tags, &h.GroupID, &h.Username,
 			&h.CreatedBy, &h.CreatedAt, &h.UpdatedAt,
+			&h.MaintenanceMode, &h.CheckPriority,
 		); err != nil {
 			return nil, fmt.Errorf("host: scan: %w", err)
 		}

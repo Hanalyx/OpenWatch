@@ -26,6 +26,7 @@ import {
   devFleetAlert,
   isDevFixturesEnabled,
   type DevHost,
+  type MonitoringBand,
 } from '@/api/dev-fixtures';
 
 // HostsListPage — Host Management surface, prototype-faithful.
@@ -58,8 +59,11 @@ interface HostsListSearch {
 
 interface ApiHostLiveness {
   reachability_status: 'reachable' | 'unreachable' | 'unknown';
+  monitoring_state?: MonitoringBand;
   last_probe_at?: string | null;
   consecutive_failures?: number;
+  ssh_consecutive_failures?: number;
+  privilege_consecutive_failures?: number;
 }
 
 interface ApiHost {
@@ -73,6 +77,10 @@ interface ApiHost {
   username?: string;
   created_at: string;
   updated_at: string;
+  maintenance_mode?: boolean;
+  check_priority?: number;
+  /** v1.5.0 — MAX(host_rule_state.last_checked_at); null when never scanned. */
+  last_scan_at?: string | null;
   liveness?: ApiHostLiveness | null;
 }
 
@@ -865,7 +873,7 @@ function HostCard({ host }: { host: DevHost }) {
           color: 'var(--ow-fg-2)',
         }}
       >
-        <StatusPill status={isDown ? 'down' : 'online'} />
+        <StatusPill band={host.monitoring} />
         <span style={{ fontSize: 12, color: 'var(--ow-fg-2)' }}>
           {host.lastCheckMinutes === null
             ? 'Never probed'
@@ -1135,7 +1143,7 @@ function HostRow({ host }: { host: DevHost }) {
         </div>
       </td>
       <td style={td}>
-        <StatusPill status={isDown ? 'down' : 'online'} />
+        <StatusPill band={host.monitoring} />
         <div style={{ color: 'var(--ow-fg-3)', fontSize: 11, marginTop: 2 }}>
           {host.lastCheckMinutes === null
             ? 'Never probed'
@@ -1221,11 +1229,38 @@ function HostRow({ host }: { host: DevHost }) {
 // Status pill + OS chip
 // ─────────────────────────────────────────────────────────────────────────
 
-function StatusPill({ status }: { status: 'online' | 'down' }) {
-  const color = status === 'online' ? 'var(--ow-ok)' : 'var(--ow-crit)';
-  const bg = status === 'online' ? 'var(--ow-ok-bg)' : 'var(--ow-crit-bg)';
-  const haloColor = status === 'online' ? 'var(--ow-ok)' : 'var(--ow-crit)';
-  const label = status === 'online' ? 'ONLINE' : 'DOWN';
+// v1.3.0 — band → (label, color, halo bg) lookup. Six bands cover the
+// full multi-layer state surface.
+const BAND_STYLE: Record<
+  MonitoringBand,
+  { label: string; fg: string; bg: string }
+> = {
+  online: { label: 'ONLINE', fg: 'var(--ow-ok)', bg: 'var(--ow-ok-bg)' },
+  degraded: {
+    label: 'DEGRADED',
+    fg: 'var(--ow-warn)',
+    bg: 'var(--ow-warn-bg)',
+  },
+  critical: {
+    label: 'CRITICAL',
+    fg: 'var(--ow-crit)',
+    bg: 'var(--ow-crit-bg)',
+  },
+  down: { label: 'DOWN', fg: 'var(--ow-crit)', bg: 'var(--ow-crit-bg)' },
+  maintenance: {
+    label: 'MAINTENANCE',
+    fg: 'var(--ow-fg-2)',
+    bg: 'var(--ow-bg-2)',
+  },
+  unknown: {
+    label: 'UNKNOWN',
+    fg: 'var(--ow-fg-3)',
+    bg: 'var(--ow-bg-2)',
+  },
+};
+
+function StatusPill({ band }: { band: MonitoringBand }) {
+  const { label, fg, bg } = BAND_STYLE[band];
   return (
     <span
       style={{
@@ -1237,18 +1272,19 @@ function StatusPill({ status }: { status: 'online' | 'down' }) {
         background: bg,
         borderRadius: 'var(--ow-radius-full)',
         fontSize: 11,
-        color,
+        color: fg,
         fontWeight: 600,
         letterSpacing: '0.02em',
       }}
+      title={`Monitoring state: ${band}`}
     >
       <span
         style={{
           width: 6,
           height: 6,
           borderRadius: '50%',
-          background: color,
-          boxShadow: `0 0 0 3px color-mix(in oklab, ${haloColor} 30%, transparent)`,
+          background: fg,
+          boxShadow: `0 0 0 3px color-mix(in oklab, ${fg} 30%, transparent)`,
         }}
       />
       {label}
@@ -1393,14 +1429,29 @@ function formatMinutesAgo(minutes: number): string {
 }
 
 function apiHostToDev(h: ApiHost): DevHost {
-  // Derive "online" from the joined liveness sub-object — null means
-  // never probed (we render that as a muted "down" rather than guessing).
+  // v1.3.0: derive both the legacy 'status' (online/down) for components
+  // that still consume the binary view, AND the new 'monitoring' band so
+  // the StatusPill can render degraded vs critical vs down distinctly.
   const reachable = h.liveness?.reachability_status === 'reachable';
+  const monitoring: MonitoringBand =
+    h.maintenance_mode === true
+      ? 'maintenance'
+      : h.liveness?.monitoring_state ?? 'unknown';
   let lastCheckMinutes: number | null = null;
   if (h.liveness?.last_probe_at) {
     const probedAt = new Date(h.liveness.last_probe_at).getTime();
     if (!Number.isNaN(probedAt)) {
       lastCheckMinutes = Math.max(0, Math.round((Date.now() - probedAt) / 60_000));
+    }
+  }
+  // v1.5.0: lastScan derived from host_rule_state's MAX(last_checked_at).
+  // "—" when no compliance check has ever run.
+  let lastScan = '—';
+  if (h.last_scan_at) {
+    const at = new Date(h.last_scan_at).getTime();
+    if (!Number.isNaN(at)) {
+      const minutesAgo = Math.max(0, Math.round((Date.now() - at) / 60_000));
+      lastScan = formatMinutesAgo(minutesAgo);
     }
   }
   return {
@@ -1409,12 +1460,14 @@ function apiHostToDev(h: ApiHost): DevHost {
     ip_address: h.ip_address,
     os: detectOS(h.hostname),
     status: reachable ? 'online' : 'down',
+    monitoring,
+    maintenance: h.maintenance_mode === true,
     compliance: null,
     passed: null,
     failed: null,
     total: 0,
     lastCheckMinutes,
-    lastScan: '—',
+    lastScan,
   };
 }
 

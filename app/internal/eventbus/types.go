@@ -19,6 +19,18 @@ const (
 	// any non-stable scan outcome (major_worsening / minor_worsening /
 	// improvement).
 	EventKindDriftDetected EventKind = "drift.detected"
+
+	// EventKindHostChanged is emitted by host CRUD handlers (create,
+	// update, soft-delete, maintenance toggle) so the UI can refresh
+	// the list/detail without polling. v1.3.0 (Track B SSE).
+	EventKindHostChanged EventKind = "host.changed"
+
+	// EventKindMonitoringBandChanged fires on multi-layer band
+	// transitions (online → degraded, etc.). v1.3.0 (Track B SSE).
+	// The HeartbeatPulse event predates the multi-layer model — this
+	// new kind carries the richer band string so the UI can update
+	// the StatusPill without re-fetching the host.
+	EventKindMonitoringBandChanged EventKind = "monitoring.band.changed"
 )
 
 // AllEventKinds is the closed set, in registration order. Spec AC-07's
@@ -26,6 +38,8 @@ const (
 var AllEventKinds = []EventKind{
 	EventKindHeartbeatPulse,
 	EventKindDriftDetected,
+	EventKindHostChanged,
+	EventKindMonitoringBandChanged,
 }
 
 // Event is the contract every bus event satisfies. Implementations are
@@ -92,6 +106,51 @@ func (d DriftDetected) Kind() EventKind { return EventKindDriftDetected }
 
 // Timestamp satisfies Event.
 func (d DriftDetected) Timestamp() time.Time { return d.OccurredAt }
+
+// HostChangeKind classifies what happened to a host. Surfaces as the
+// `change` field on the SSE payload so the UI can pick which TanStack
+// Query keys to invalidate.
+type HostChangeKind string
+
+const (
+	HostChangeCreated     HostChangeKind = "created"
+	HostChangeUpdated     HostChangeKind = "updated"
+	HostChangeDeleted     HostChangeKind = "deleted"
+	HostChangeMaintenance HostChangeKind = "maintenance"
+)
+
+// HostChanged is fired on host CRUD events + maintenance toggle. The
+// UI's useLiveEvents hook maps this to query invalidation: ['host', id]
+// + ['hosts'] for create/update/delete; ['host', id] + ['hosts'] for
+// maintenance (so badges flip in place).
+type HostChanged struct {
+	HostID     uuid.UUID
+	Change     HostChangeKind
+	OccurredAt time.Time
+}
+
+// Kind satisfies Event.
+func (h HostChanged) Kind() EventKind { return EventKindHostChanged }
+
+// Timestamp satisfies Event.
+func (h HostChanged) Timestamp() time.Time { return h.OccurredAt }
+
+// MonitoringBandChanged carries the v1.3.0 multi-layer band string
+// (online/degraded/critical/down/maintenance/unknown). HeartbeatPulse
+// stays as the legacy event for code that hasn't migrated; this is
+// the richer per-band stream the SSE layer fans out.
+type MonitoringBandChanged struct {
+	HostID     uuid.UUID
+	PriorBand  string
+	NewBand    string
+	OccurredAt time.Time
+}
+
+// Kind satisfies Event.
+func (m MonitoringBandChanged) Kind() EventKind { return EventKindMonitoringBandChanged }
+
+// Timestamp satisfies Event.
+func (m MonitoringBandChanged) Timestamp() time.Time { return m.OccurredAt }
 
 // DefaultBufferSize is the per-subscriber channel buffer when
 // SubscribeOptions.BufferSize is zero. Spec C-04.

@@ -7,6 +7,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { theme } from '@/theme/theme';
 import { router } from '@/routes/router';
 import { bootstrapAuth } from '@/api/auth-bootstrap';
+import { useLiveEvents } from '@/hooks/useLiveEvents';
 // Importing the color-scheme store at boot ensures its module-level
 // init code (loadStored + applyToDOM + matchMedia listener) runs
 // before React mounts.
@@ -39,11 +40,19 @@ bootstrapAuth();
 const rootElement = document.getElementById('root');
 if (!rootElement) throw new Error('Root element #root not found');
 
+// AppShell — a tiny component so useLiveEvents can mount under
+// QueryClientProvider (hooks must run inside the provider tree).
+// One SSE connection per browser tab, kept open for the whole session.
+function AppShell() {
+  useLiveEvents();
+  return <RouterProvider router={router} />;
+}
+
 createRoot(rootElement).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <CssVarsProvider theme={theme} defaultMode="system">
-        <RouterProvider router={router} />
+        <AppShell />
       </CssVarsProvider>
     </QueryClientProvider>
   </StrictMode>,

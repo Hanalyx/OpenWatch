@@ -57,6 +57,16 @@ type Service struct {
 	// services-connectivity-config C-04.
 	cfgLoader ConfigLoaderFunc
 	cfgPtr    atomic.Pointer[systemconfig.ConnectivityConfig]
+
+	// v1.3.0 multi-layer fields. When pinger is non-nil OR privProbe
+	// is non-nil, tick uses MultiLayerProbe + persistMultiLayer instead
+	// of the legacy single-layer path. The privilege probe lives outside
+	// this package so the AC-14 "no credential imports" invariant holds.
+	// Spec system-liveness-loop C-18.
+	pinger          *Pinger
+	privProbe       PrivilegeProbeFunc
+	multiThresholds MultiLayerThresholds
+	historyEnabled  bool
 }
 
 // NewService wires the live probe runner. timeout defaults to
@@ -269,10 +279,36 @@ func (s *Service) tick(ctx context.Context) {
 			slog.String("err", err.Error()))
 		return
 	}
+	useMultiLayer := s.multiLayerEnabled()
 	for _, h := range hosts {
 		// Per-host probe respects its own ctx — if Run's ctx is
 		// canceled, the probe call sees it and returns quickly.
-		_, _ = s.ProbeHost(ctx, h.HostID, h.Addr)
+		if useMultiLayer {
+			// v1.3.0: multi-layer path writes the new schema columns
+			// and emits transitions on band changes. Spec C-18 / AC-32.
+			band, priorBand, changed, err := s.probeMultiLayerHost(ctx, h.HostID, h.IP, h.Port)
+			if err != nil {
+				slog.WarnContext(ctx, "liveness: multilayer probe failed",
+					slog.String("host_id", h.HostID.String()),
+					slog.String("err", err.Error()))
+			}
+			if changed {
+				s.metrics.StateTransitionCount.Add(1)
+				s.emitBandTransition(ctx, h.HostID, band)
+				// Track B SSE: publish a typed event so the UI can
+				// flip the StatusPill without polling.
+				if s.bus != nil {
+					s.bus.Publish(ctx, eventbus.MonitoringBandChanged{
+						HostID:     h.HostID,
+						PriorBand:  string(priorBand),
+						NewBand:    string(band),
+						OccurredAt: s.clock(),
+					})
+				}
+			}
+		} else {
+			_, _ = s.ProbeHost(ctx, h.HostID, h.Addr)
+		}
 		if ctx.Err() != nil {
 			return
 		}
@@ -282,7 +318,9 @@ func (s *Service) tick(ctx context.Context) {
 // probeTarget is one host the tick will probe.
 type probeTarget struct {
 	HostID uuid.UUID
-	Addr   string // host:port — derived from hosts.ip_address + hosts.port (defaults to 22)
+	IP     string // resolved IPv4, no CIDR suffix (v1.2.1 C-17)
+	Port   int    // SSH port; defaults to 22
+	Addr   string // "ip:port" cached for the legacy single-layer path
 }
 
 // listProbeTargets returns active (non-soft-deleted) hosts whose
@@ -296,16 +334,27 @@ type probeTarget struct {
 // tick scales to large fleets without re-walking every host.
 func (s *Service) listProbeTargets(ctx context.Context) ([]probeTarget, error) {
 	now := s.clock()
+	// host(inet) strips the /N prefix length that PostgreSQL's inet type
+	// renders via ::text — "192.168.1.10/32" → "192.168.1.10". The
+	// `/32` slipping through here would yield "192.168.1.10/32:22"
+	// which net.Dial rejects, marking every host unreachable. v1.2.1 C-17.
+	//
+	// v1.3.0 additions (C-20):
+	//   - WHERE hosts.maintenance_mode = false (per-host pause)
+	//   - ORDER BY hosts.check_priority DESC, hl.next_probe_at ASC NULLS FIRST
+	//     so critical hosts get drained before stable ones.
 	const q = `
-		SELECT h.id, h.ip_address::text, COALESCE(h.port, 22)
+		SELECT h.id, host(h.ip_address), COALESCE(h.port, 22), h.check_priority
 		  FROM hosts h
 		  LEFT JOIN host_backoff_state b
 		    ON b.host_id = h.id AND b.probe_type = 'scan'
 		  LEFT JOIN host_liveness hl
 		    ON hl.host_id = h.id
 		 WHERE h.deleted_at IS NULL
+		   AND h.maintenance_mode = false
 		   AND (b.suppress_until IS NULL OR b.suppress_until <= $1)
-		   AND (hl.next_probe_at IS NULL OR hl.next_probe_at <= $1)`
+		   AND (hl.next_probe_at IS NULL OR hl.next_probe_at <= $1)
+		 ORDER BY h.check_priority DESC, hl.next_probe_at ASC NULLS FIRST`
 	rows, err := s.pool.Query(ctx, q, now)
 	if err != nil {
 		return nil, err
@@ -314,19 +363,36 @@ func (s *Service) listProbeTargets(ctx context.Context) ([]probeTarget, error) {
 	var out []probeTarget
 	for rows.Next() {
 		var (
-			id   uuid.UUID
-			ip   string
-			port int
+			id       uuid.UUID
+			ip       string
+			port     int
+			priority int
 		)
-		if err := rows.Scan(&id, &ip, &port); err != nil {
+		if err := rows.Scan(&id, &ip, &port, &priority); err != nil {
 			return nil, err
 		}
 		out = append(out, probeTarget{
 			HostID: id,
+			IP:     ip,
+			Port:   port,
 			Addr:   fmt.Sprintf("%s:%d", ip, port),
 		})
 	}
 	return out, rows.Err()
+}
+
+// emitBandTransition fires an audit event on a multi-layer band change.
+// Mirrors emitTransition (legacy single-layer path) but uses the
+// 5-band MonitoringState in the detail payload instead of the binary
+// reachable/unreachable enum.
+func (s *Service) emitBandTransition(ctx context.Context, hostID uuid.UUID, band MonitoringState) {
+	s.emit(ctx, audit.HostConnectivityChecked, audit.Event{
+		ActorType: "system",
+		Detail: mustJSON(map[string]any{
+			"host_id":          hostID.String(),
+			"monitoring_state": string(band),
+		}),
+	})
 }
 
 // ProbeHost runs one probe against the given host and persists the result.

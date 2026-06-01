@@ -18,6 +18,7 @@ import (
 
 	"github.com/Hanalyx/openwatch/internal/config"
 	"github.com/Hanalyx/openwatch/internal/correlation"
+	"github.com/Hanalyx/openwatch/internal/eventbus"
 	"github.com/Hanalyx/openwatch/internal/idempotency"
 	"github.com/Hanalyx/openwatch/internal/identity"
 	"github.com/Hanalyx/openwatch/internal/license"
@@ -49,6 +50,20 @@ type Server struct {
 func (s *Server) WithConnectivityConfig(store *systemconfig.Store, live *liveness.Service) *Server {
 	s.handlers.sysCfg = store
 	s.handlers.liveSvc = live
+	return s
+}
+
+// WithEventBus threads the in-process pub/sub bus into the handlers so
+// the SSE endpoint can subscribe and fan events out to operator
+// browsers. Spec api-events-stream (Track B).
+func (s *Server) WithEventBus(bus *eventbus.Bus) *Server {
+	s.handlers.bus = bus
+	// Mount the SSE route directly on the chi router so we keep
+	// long-lived streams off the oapi-codegen path (which assumes
+	// short-lived JSON RPC-style responses). The route is auth-gated
+	// via a query-string token because browsers' EventSource cannot
+	// send custom headers.
+	s.router.Get("/api/v1/events", s.handlers.GetEventsStream)
 	return s
 }
 
