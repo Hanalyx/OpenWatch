@@ -3,7 +3,6 @@ package discovery
 import (
 	"context"
 	"errors"
-	"strconv"
 	"time"
 
 	"github.com/Hanalyx/openwatch/internal/credential"
@@ -34,22 +33,26 @@ type SSHSession interface {
 // a host with one hung command should not block the whole probe batch.
 const DefaultProbeTimeout = 10 * time.Second
 
-// sshTransport is the production SSHTransport. Wraps internal/ssh.Dial
-// to honor the project's host-key + auth policy.
-type sshTransport struct {
+// SSHTransportProd is the production SSHTransport. Wraps internal/ssh.Dial
+// to honor the project's host-key + auth policy. Exported so cmd/openwatch
+// and tests that want a real (not stubbed) transport can construct one
+// without internal package boundaries.
+type SSHTransportProd struct {
 	mode  owssh.Mode
 	store owssh.KnownHostsStore
 }
 
-// newSSHTransport returns a production SSHTransport with the given
-// host-key policy.
-func newSSHTransport(mode owssh.Mode, store owssh.KnownHostsStore) *sshTransport {
-	return &sshTransport{mode: mode, store: store}
+// NewSSHTransport returns a production SSHTransport with the given
+// host-key policy. NewService() calls this with TOFU + an in-memory
+// known-hosts store by default; cmd/openwatch can override with a
+// strict + persistent store later.
+func NewSSHTransport(mode owssh.Mode, store owssh.KnownHostsStore) *SSHTransportProd {
+	return &SSHTransportProd{mode: mode, store: store}
 }
 
 // Dial opens one SSH client connection and returns it as an SSHSession
 // that multiplexes ssh.Session per Run call.
-func (t *sshTransport) Dial(ctx context.Context, host string, port int, cred *credential.Credential) (SSHSession, error) {
+func (t *SSHTransportProd) Dial(ctx context.Context, host string, port int, cred *credential.Credential) (SSHSession, error) {
 	if cred == nil {
 		return nil, errors.New("discovery: dial requires a resolved credential")
 	}
@@ -61,18 +64,18 @@ func (t *sshTransport) Dial(ctx context.Context, host string, port int, cred *cr
 	if err != nil {
 		return nil, err
 	}
-	return &sshClientSession{client: client}, nil
+	return &SSHClientSession{client: client}, nil
 }
 
-// sshClientSession is the per-host live SSH client. Each Run opens a
+// SSHClientSession is the per-host live SSH client. Each Run opens a
 // fresh ssh.Session (one channel per command) atop the single client.
 // crypto/ssh sessions are not reusable across commands, so this is the
 // idiomatic shape.
-type sshClientSession struct {
+type SSHClientSession struct {
 	client *ssh.Client
 }
 
-func (s *sshClientSession) Run(ctx context.Context, cmd string) ([]byte, int, error) {
+func (s *SSHClientSession) Run(ctx context.Context, cmd string) ([]byte, int, error) {
 	sess, err := s.client.NewSession()
 	if err != nil {
 		return nil, -1, err
@@ -106,14 +109,9 @@ func (s *sshClientSession) Run(ctx context.Context, cmd string) ([]byte, int, er
 	return out, exitCode, nil
 }
 
-func (s *sshClientSession) Close() error {
+func (s *SSHClientSession) Close() error {
 	if s.client == nil {
 		return nil
 	}
 	return s.client.Close()
-}
-
-// joinHostPort formats host:port for log messages without importing net.
-func joinHostPort(host string, port int) string {
-	return host + ":" + strconv.Itoa(port)
 }

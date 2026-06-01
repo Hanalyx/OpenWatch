@@ -117,9 +117,9 @@ func TestDiscover_HappyPath_PersistsAndPublishes(t *testing.T) {
 		}
 		// Spec C-08: row UPSERTed into host_system_info.
 		var (
-			osName  string
-			osFam   string
-			collAt  time.Time
+			osName string
+			osFam  string
+			collAt time.Time
 		)
 		err = pool.QueryRow(context.Background(),
 			`SELECT os_name, os_family, collected_at

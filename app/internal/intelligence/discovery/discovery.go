@@ -11,6 +11,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/credential"
 	"github.com/Hanalyx/openwatch/internal/eventbus"
 	"github.com/Hanalyx/openwatch/internal/intelligence/probe"
+	owssh "github.com/Hanalyx/openwatch/internal/ssh"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -149,8 +150,18 @@ type Service struct {
 // NewService constructs a Service. emit + bus may be nil — Discover
 // degrades gracefully (audit + publish skip). credSvc may be nil for
 // tests that only exercise the discoverWithTransport seam.
+//
+// A production SSH transport (TOFU host-key policy, in-memory known-
+// hosts store) is installed by default. Tests override via
+// WithSSHTransport; cmd/openwatch can swap in a strict / persistent
+// store via NewSSHTransport + WithSSHTransport before Run.
 func NewService(pool *pgxpool.Pool, emit AuditEmitFunc, bus Publisher) *Service {
-	return &Service{pool: pool, emit: emit, bus: bus}
+	return &Service{
+		pool:      pool,
+		emit:      emit,
+		bus:       bus,
+		transport: NewSSHTransport(owssh.ModeTOFU, owssh.NewMemoryStore()),
+	}
 }
 
 // WithSSHTransport overrides the SSH transport (tests).
