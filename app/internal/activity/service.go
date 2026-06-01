@@ -49,13 +49,18 @@ func (s *Service) List(ctx context.Context, f Filter, c Caller) ([]Row, int, str
 	suppressIntel := !c.CanReadHosts && (f.Source == "" || f.Source == string(SourceIntelligence))
 	suppressAudit := !c.CanReadAudit && (f.Source == "" || f.Source == string(SourceAudit))
 
+	// Fetch limit+1 internally so we can tell whether this is the
+	// last page. If we got back exactly limit+1 rows, there's at
+	// least one more row beyond; trim it off and emit the cursor.
+	// Spec C-03 / AC-08.
 	rows, err := s.queryUnion(ctx, f, includeAlerts, includeTxn, includeIntel, includeAudit)
 	if err != nil {
 		return nil, 0, "", err
 	}
 	cursor := ""
-	if len(rows) == f.Limit {
-		cursor = rows[len(rows)-1].OccurredAt.Format(time.RFC3339Nano)
+	if len(rows) > f.Limit {
+		cursor = rows[f.Limit-1].OccurredAt.Format(time.RFC3339Nano)
+		rows = rows[:f.Limit]
 	}
 
 	hidden := 0
@@ -106,7 +111,8 @@ func (s *Service) queryUnion(ctx context.Context, f Filter, includeAlerts, inclu
 			cursorPH = addArg(t)
 		}
 	}
-	limitPH := addArg(f.Limit)
+	// Fetch limit+1 so List can detect the terminal page (Spec C-03).
+	limitPH := addArg(f.Limit + 1)
 
 	// commonWhere is the per-leg filter snippet. timeCol is the column
 	// each leg uses as the "when" timestamp (occurred_at uniformly,
