@@ -15,6 +15,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/eventbus"
 	"github.com/Hanalyx/openwatch/internal/fleetrollup"
 	"github.com/Hanalyx/openwatch/internal/host"
+	"github.com/Hanalyx/openwatch/internal/alerts"
 	"github.com/Hanalyx/openwatch/internal/intelligence/discovery"
 	"github.com/Hanalyx/openwatch/internal/license"
 	"github.com/Hanalyx/openwatch/internal/liveness"
@@ -57,6 +58,11 @@ type handlers struct {
 	// that don't exercise /hosts/{id}/discovery:run.
 	// Spec system-host-discovery.
 	discoSvc *discovery.Service
+
+	// Alerts lifecycle. Set via (*Server).WithAlerts; nil in tests
+	// that don't exercise /alerts.
+	// Spec system-alerts + api-alerts.
+	alertsSvc *alerts.Service
 }
 
 // newHandlers constructs the ServerInterface implementation. The user

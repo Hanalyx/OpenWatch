@@ -28,6 +28,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/Hanalyx/openwatch/internal/alerts"
 	"github.com/Hanalyx/openwatch/internal/intelligence/discovery"
 	"github.com/Hanalyx/openwatch/internal/liveness"
 	"github.com/Hanalyx/openwatch/internal/systemconfig"
@@ -77,6 +78,14 @@ func (s *Server) WithDiscovery(d *discovery.Service) *Server {
 	if s.wkr != nil {
 		s.wkr.WithDiscovery(d)
 	}
+	return s
+}
+
+// WithAlerts threads the alert lifecycle service into the API handlers
+// so /api/v1/alerts and the :verb endpoints are routable.
+// Spec system-alerts + api-alerts.
+func (s *Server) WithAlerts(a *alerts.Service) *Server {
+	s.handlers.alertsSvc = a
 	return s
 }
 

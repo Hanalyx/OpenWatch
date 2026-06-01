@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Hanalyx/openwatch/internal/alerts"
 	"github.com/Hanalyx/openwatch/internal/audit"
 	"github.com/Hanalyx/openwatch/internal/auth"
 	"github.com/Hanalyx/openwatch/internal/config"
@@ -201,6 +202,9 @@ func freshAPIServer(t *testing.T) (string, *pgxpool.Pool) {
 		WithHostLookup(discovery.PoolHostLookup{Pool: pool}).
 		WithCredentialService(credential.NewService(pool))
 	s.WithDiscovery(discoSvc)
+
+	// Spec system-alerts + api-alerts: wire the lifecycle service.
+	s.WithAlerts(alerts.NewService(pool, audit.Emit))
 
 	// Start the in-process worker. httptest.NewServer bypasses s.Run(),
 	// so the worker would never start otherwise — tests that exercise

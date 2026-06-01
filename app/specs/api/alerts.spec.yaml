@@ -1,0 +1,136 @@
+spec:
+  id: api-alerts
+  title: Alerts read + lifecycle REST API
+  version: "1.0.0"
+  status: approved
+  tier: 2
+
+  context:
+    system: openwatch-go
+    feature: GET /api/v1/alerts + PATCH lifecycle endpoints
+    description: >
+      Operator-facing surface over the alerts table that
+      system-alert-router populates (PR 2) and system-alerts mutates.
+      Endpoints:
+
+        GET    /api/v1/alerts                  — paginated, filterable list
+        GET    /api/v1/alerts/{id}             — single alert
+        POST   /api/v1/alerts/{id}:acknowledge — active -> acknowledged
+        POST   /api/v1/alerts/{id}:silence     — active -> silenced
+        POST   /api/v1/alerts/{id}:resolve     — active|acknowledged|silenced -> resolved
+        POST   /api/v1/alerts/{id}:dismiss     — active|acknowledged|silenced|resolved -> dismissed
+
+      RBAC: alert:read for reads, alert:write for lifecycle ops. Both
+      permissions are NEW — added by this PR.
+
+    related_specs:
+      - system-alerts
+      - system-alert-router
+      - api-os-intelligence
+      - api-audit-events-query
+
+  objective:
+    summary: >
+      Handlers in internal/server/alerts_handlers.go delegate to
+      internal/alerts.Service. The list endpoint mirrors the audit /
+      intelligence cursor-pagination pattern (detected_at-equivalent
+      occurred_at as the cursor). Lifecycle endpoints accept an
+      optional reason field in the request body for the audit detail.
+    scope:
+      includes:
+        - 'OpenAPI: GET /api/v1/alerts + GET /api/v1/alerts/{id} + 4 lifecycle :verb endpoints'
+        - 'New permissions alert:read + alert:write registered in internal/auth/permissions.gen.go (codegen)'
+        - 'Response schemas: Alert, AlertsPage, AlertLifecycleRequest'
+        - 'RBAC enforcement at handler entry (deny via authz.permission_denied audit on 403)'
+        - 'Filter params: state, host_id, severity, since, until, cursor, limit'
+      excludes:
+        - 'Bulk lifecycle (POST /api/v1/alerts:bulk-acknowledge) — Q2 work'
+        - 'Real-time push (SSE on alerts) — already covered by eventbus EventKindHostDiscovered pattern; future work'
+
+  constraints:
+    - id: C-01
+      description: 'All endpoints MUST enforce permissions: GET requires alert:read; POST :verb requires alert:write. 403 authz.permission_denied for callers without it'
+      type: security
+      enforcement: error
+    - id: C-02
+      description: 'GET /alerts limit cap is 200; default 50. limit < 1 or > 200 yields 400 pagination.limit_exceeded'
+      type: technical
+      enforcement: error
+    - id: C-03
+      description: 'Cursor pagination on occurred_at DESC. cursor is the RFC3339Nano-formatted occurred_at of the boundary row; when limit rows returned, response.next_cursor is set'
+      type: technical
+      enforcement: error
+    - id: C-04
+      description: 'Lifecycle endpoints accept JSON body with optional fields: reason (string, max 256), until (date-time, only for :silence). Validation: until in the past yields 400 validation.field_range. The validation matches system-alerts C-03'
+      type: technical
+      enforcement: error
+    - id: C-05
+      description: 'Lifecycle on a missing alert id MUST return 404 alerts.not_found. Invalid transition (e.g. :acknowledge on a resolved alert) MUST return 409 alerts.invalid_transition with detail naming prior + requested state'
+      type: technical
+      enforcement: error
+    - id: C-06
+      description: 'Severity / state filter accepts the closed sets (severity: info/low/medium/high/critical; state: active/acknowledged/silenced/resolved/dismissed). Unknown values yield 400 validation.field_range'
+      type: technical
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: 'GET /api/v1/alerts with viewer role (alert:read) returns 200 + AlertsPage. items[] is array of Alert; pagination has next_cursor nullable'
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-02
+      description: 'GET /api/v1/alerts without an authenticated session returns 403'
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-03
+      description: 'GET /api/v1/alerts?limit=300 returns 400 pagination.limit_exceeded'
+      priority: high
+      references_constraints: [C-02]
+    - id: AC-04
+      description: 'GET /api/v1/alerts?state=active&host_id=<id>&severity=high returns only matching rows. Verified by seeding 4 alerts spanning states/hosts/severities and asserting the filtered count'
+      priority: high
+      references_constraints: [C-03, C-06]
+    - id: AC-05
+      description: 'GET /api/v1/alerts?limit=2 against 5 rows returns 2 items + non-null next_cursor; following the cursor returns the next 2'
+      priority: critical
+      references_constraints: [C-03]
+    - id: AC-06
+      description: 'POST /api/v1/alerts/{id}:acknowledge with alert:write caller transitions active -> acknowledged, returns 200 with updated Alert, emits audit.AlertAcknowledged'
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-07
+      description: 'POST :acknowledge with viewer (no alert:write) returns 403'
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-08
+      description: 'POST :acknowledge on unknown id returns 404 alerts.not_found'
+      priority: critical
+      references_constraints: [C-05]
+    - id: AC-09
+      description: 'POST :acknowledge on a resolved alert returns 409 alerts.invalid_transition with detail naming prior=resolved + requested=acknowledged'
+      priority: critical
+      references_constraints: [C-05]
+    - id: AC-10
+      description: 'POST :silence with body {"until": "<past>"} returns 400 validation.field_range AND performs no row mutation'
+      priority: high
+      references_constraints: [C-04]
+    - id: AC-11
+      description: 'POST :silence with no body advances state to silenced with silenced_until = NULL (indefinite). 200 + updated Alert'
+      priority: high
+      references_constraints: [C-04]
+    - id: AC-12
+      description: 'POST :resolve transitions active|acknowledged|silenced -> resolved (200 + updated Alert + audit.AlertResolved). Already-resolved -> 409'
+      priority: critical
+      references_constraints: [C-01, C-05]
+    - id: AC-13
+      description: 'POST :dismiss transitions any non-dismissed state -> dismissed (200 + updated Alert + audit.AlertAcknowledged-equivalent dismissed event). Already-dismissed -> 409'
+      priority: critical
+      references_constraints: [C-01, C-05]
+    - id: AC-14
+      description: 'GET /api/v1/alerts?severity=panic returns 400 validation.field_range'
+      priority: high
+      references_constraints: [C-06]
+    - id: AC-15
+      description: 'GET /api/v1/alerts?state=unknown returns 400 validation.field_range'
+      priority: high
+      references_constraints: [C-06]
