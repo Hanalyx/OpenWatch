@@ -10,7 +10,7 @@
 //   AC-06  test('frontend-live-events/AC-06 — missing host_id falls back to list-only')
 //   AC-07  test('frontend-live-events/AC-07 — source-inspect: exactly one new EventSource(...) call')
 
-import { describe, expect, test, beforeEach, vi } from 'vitest';
+import { expect, test, beforeEach, vi } from 'vitest';
 import { renderHook } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { readFileSync } from 'node:fs';
@@ -70,19 +70,17 @@ beforeEach(() => {
     StubEventSource as unknown as typeof EventSource;
   // Auth store: stub an identity so useLiveEvents opens a connection.
   useAuthStore.setState({
-    identity: { id: 'test-user', is_anonymous: false, role: 'admin' },
+    identity: {
+      id: 'test-user',
+      username: 'test',
+      email: 'test@example.com',
+      role: 'admin',
+      permissions: ['host:read'],
+      mfaEnabled: false,
+    },
   });
 });
 
-function wrapper({ children }: { children: ReactNode }) {
-  const qc = new QueryClient({
-    defaultOptions: {
-      queries: { retry: false, staleTime: 0 },
-      mutations: { retry: false },
-    },
-  });
-  return <QueryClientProvider client={qc}>{children}</QueryClientProvider>;
-}
 
 // @ac AC-01
 // AC-01: ALL_TOPICS exported as closed v1.0 set of 4 topics.
