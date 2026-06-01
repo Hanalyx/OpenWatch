@@ -1,0 +1,171 @@
+spec:
+  id: system-intelligence-scheduler
+  title: OS Intelligence recurring scheduler loop
+  version: "1.0.0"
+  status: approved
+  tier: 2
+
+  context:
+    system: openwatch-go
+    feature: Per-host cadence loop driving collector.Service.RunCycle
+    description: >
+      Scheduler is the recurring driver that turns the one-shot
+      Service.RunCycle (system-os-intelligence v1.0.0) into a
+      continuous per-host collection loop. Same shape as the liveness
+      loop (system-liveness-loop v1.1.0): a long-lived goroutine ticks
+      on a short cadence (default 30s), reads hosts whose
+      next_intelligence_at is in the past, takes a per-host advisory
+      lock, calls RunCycle, advances next_intelligence_at by the
+      policy interval.
+
+      Cadence: 1 h per host by default, clamped to [5 min, 24 h].
+      Configurable at runtime via systemconfig.IntelligenceConfig (new
+      KeyIntelligence) — the same UI-edit pattern the connectivity
+      config already follows.
+
+      Per-host backoff: collection failures bump
+      host_backoff_state.consecutive_failures with probe_type='intel'
+      and set suppress_until = now() + backoff(consec). The intel
+      backoff is INDEPENDENT of the scan backoff (probe_type='scan')
+      thanks to the table's compound primary key — one bad host
+      cannot starve its scan cycle if only its intel probe is
+      misbehaving (or vice versa). The 'intel' value is already in
+      the host_backoff_state.probe_type CHECK enum from migration
+      0011, so no schema change needed for the backoff path.
+
+      Storage extension: host_intelligence_state gains a
+      next_intelligence_at TIMESTAMPTZ column (migration 0019). The
+      scheduler reads it; persist (from PR 1.2) advances it after a
+      successful cycle. NULL means "due immediately" (first contact),
+      matching the host_liveness.next_probe_at convention.
+
+      Maintenance: respects the existing hosts.maintenance_mode flag
+      from system-liveness-loop v1.3.0 the same way the liveness loop
+      does — maintenance hosts are excluded from listProbeTargets.
+
+    related_specs:
+      - system-os-intelligence
+      - system-liveness-loop
+      - system-host-discovery
+      - services-connectivity-config
+      - system-event-bus
+
+  objective:
+    summary: >
+      A new sub-package internal/intelligence/scheduler hosts the
+      Service. Start(ctx) kicks off the loop; Stop() cancels and
+      waits for any in-flight cycle to complete. The loop ticks on
+      Service.effectiveInterval (default 30s, configurable). Per tick
+      it walks listIntelTargets and dispatches RunCycle through a
+      bounded worker pool (default 10 concurrent). Cadence + backoff
+      are persisted in host_intelligence_state.next_intelligence_at
+      and host_backoff_state — the same single-source pattern Slice B
+      uses.
+    scope:
+      includes:
+        - 'Migration 0019: ADD COLUMN host_intelligence_state.next_intelligence_at TIMESTAMPTZ + index'
+        - 'systemconfig.IntelligenceConfig — IntervalSec (default 3600, clamped [300, 86400]) + RateLimit + MaintenanceGlobal'
+        - 'scheduler.Service with Run(ctx), Stop(), listIntelTargets, dispatchOnce, computeBackoff helpers'
+        - 'Per-host advisory lock around RunCycle via pg_advisory_xact_lock — prevents two scheduler instances racing on the same host'
+        - 'Bounded worker pool — concurrency cap from IntelligenceConfig.RateLimit'
+        - 'Per-tick metrics emitted via audit.SchedulerTickDispatched-style event (already covered by existing audit code; no new codes here)'
+      excludes:
+        - 'GET /api/v1/intelligence/{events,state} — already in PR 1.3 (api-os-intelligence)'
+        - 'Severity-threshold → alert-router promotion — separate amendment (PR 2)'
+        - 'Per-host policy override — Q2 work, not in v1.0.0'
+
+  constraints:
+    - id: C-01
+      description: 'Service.Run MUST tick on a short cadence (effectiveInterval, default 30s, MUST be in [5s, 5min]). The tick rate is INDEPENDENT of the per-host interval — a 1-hour per-host cadence still allows the loop to discover a host with NULL next_intelligence_at within 30s'
+      type: technical
+      enforcement: error
+    - id: C-02
+      description: 'listIntelTargets MUST WHERE-out (a) deleted_at IS NOT NULL hosts, (b) hosts.maintenance_mode = true, (c) host_backoff_state.suppress_until > now() rows (for probe_type=''intel''), AND (d) hosts whose host_intelligence_state.next_intelligence_at is in the future. NULL next_intelligence_at MUST be treated as due (first-cycle hosts)'
+      type: technical
+      enforcement: error
+    - id: C-03
+      description: 'Per-host advisory lock via pg_advisory_xact_lock with the (hashtext(host_id::text)::int8) key MUST wrap the RunCycle invocation. Two scheduler processes that both try to drain the same host the same tick will serialize via the lock — one runs, the other no-ops. Same pattern as scan-worker C-09'
+      type: technical
+      enforcement: error
+    - id: C-04
+      description: 'On RunCycle success, the scheduler MUST UPDATE host_intelligence_state.next_intelligence_at = now() + IntelligenceConfig.IntervalSec AND clear any host_backoff_state row for (host_id, probe_type=''intel''). Both writes happen in one transaction with the persist() the collector did — the advisory lock keeps that consistent'
+      type: technical
+      enforcement: error
+    - id: C-05
+      description: 'On RunCycle failure, the scheduler MUST UPSERT host_backoff_state (host_id, probe_type=''intel'') with consecutive_failures = prior+1 AND suppress_until = now() + exponential(consec, base=IntervalSec, cap=24h). Subsequent ticks skip the host until suppress_until elapses. The intel backoff MUST NOT affect the scan backoff for the same host'
+      type: technical
+      enforcement: error
+    - id: C-06
+      description: 'IntelligenceConfig.IntervalSec MUST be clamped to [300, 86400] at validation time. Out-of-bounds values reject with ErrInvalidConfig'
+      type: technical
+      enforcement: error
+    - id: C-07
+      description: 'Concurrency cap: at most IntelligenceConfig.RateLimit RunCycles in flight at once per scheduler instance. Default 10. RateLimit clamped to [1, 200]. The bounded pool MUST drain on Stop — graceful shutdown waits for in-flight cycles to complete or the parent context to cancel'
+      type: technical
+      enforcement: error
+    - id: C-08
+      description: 'Service MUST NOT import internal/server or any package that pulls in net/http. The scheduler is a pure DB-and-SSH service; web surface lives in PR 1.3 and stays in internal/server'
+      type: technical
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: 'Migration 0019 adds next_intelligence_at TIMESTAMPTZ NULL column to host_intelligence_state AND an index on (next_intelligence_at ASC NULLS FIRST) WHERE next_intelligence_at IS NULL OR next_intelligence_at <= now()'
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-02
+      description: 'systemconfig.IntelligenceConfig has fields IntervalSec, RateLimit, MaintenanceGlobal. DefaultIntelligence() returns IntervalSec=3600, RateLimit=10, MaintenanceGlobal=false'
+      priority: high
+      references_constraints: [C-06, C-07]
+    - id: AC-03
+      description: 'IntelligenceConfig.Validate() rejects IntervalSec=60 (below floor) and IntervalSec=100000 (above ceiling) with ErrInvalidConfig. Accepts 300, 3600, 86400'
+      priority: critical
+      references_constraints: [C-06]
+    - id: AC-04
+      description: 'IntelligenceConfig.Validate() rejects RateLimit=0 and RateLimit=201 with ErrInvalidConfig. Accepts 1, 10, 200'
+      priority: high
+      references_constraints: [C-07]
+    - id: AC-05
+      description: 'Service.effectiveInterval returns a duration in [5s, 5min] regardless of config — defaults to 30s when unset'
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-06
+      description: 'listIntelTargets seeded with H1 (next_intelligence_at NULL), H2 (next_intelligence_at in the past), H3 (next_intelligence_at in the future), H4 (maintenance_mode=true), H5 (host_backoff_state.suppress_until in the future for probe_type=intel) returns ONLY H1 and H2'
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-07
+      description: 'listIntelTargets MUST issue exactly one SQL query — no per-host follow-up reads. Source inspection: the function body contains exactly one pool.Query call'
+      priority: high
+      references_constraints: [C-01, C-02]
+    - id: AC-08
+      description: 'On successful RunCycle the scheduler advances host_intelligence_state.next_intelligence_at to now() + IntelligenceConfig.IntervalSec. A second tick within the IntervalSec window does NOT re-dispatch the same host'
+      priority: critical
+      references_constraints: [C-04]
+    - id: AC-09
+      description: 'A RunCycle returning a non-nil error causes the scheduler to UPSERT host_backoff_state with (host_id, probe_type=''intel'', consecutive_failures=prior+1, suppress_until=computed). Subsequent listIntelTargets calls skip the host until suppress_until elapses'
+      priority: critical
+      references_constraints: [C-05]
+    - id: AC-10
+      description: 'The exponential backoff formula is computeBackoff(consec, base, cap) = min(base * 2^(consec-1), cap). Verified at consec=1 returns base; consec=4 with base=3600 returns 28800 (8h); consec=10 with base=3600 returns the cap (86400)'
+      priority: high
+      references_constraints: [C-05]
+    - id: AC-11
+      description: 'A failing intel cycle (probe_type=''intel'' backoff bump) MUST NOT touch the (host_id, probe_type=''scan'') row in host_backoff_state. Both rows have independent consecutive_failures + suppress_until — the scan dispatcher continues to dispatch even when intel is in backoff'
+      priority: critical
+      references_constraints: [C-05]
+    - id: AC-12
+      description: 'pg_advisory_xact_lock is acquired BEFORE the RunCycle call. Source inspection: the dispatchHost body contains pool.BeginTx + pg_advisory_xact_lock + RunCycle ordering'
+      priority: critical
+      references_constraints: [C-03]
+    - id: AC-13
+      description: 'Concurrency cap respected: Service started with RateLimit=2 against 5 queued hosts dispatches at most 2 concurrent RunCycles at any moment. Verified with a stub RunCycle that signals an "active" counter on entry and decrements on exit'
+      priority: critical
+      references_constraints: [C-07]
+    - id: AC-14
+      description: 'Stop() blocks until in-flight RunCycles complete OR parent ctx cancels — whichever fires first. The stop closes the stop channel and Wait()s on the worker WaitGroup. Verified by starting a slow stub cycle, calling Stop, and observing the call returns AFTER the stub returns'
+      priority: critical
+      references_constraints: [C-07]
+    - id: AC-15
+      description: 'scheduler package source MUST NOT import internal/server or any http-shaped package. Source inspection walks the import set of every .go file under internal/intelligence/scheduler/'
+      priority: high
+      references_constraints: [C-08]

@@ -9,6 +9,7 @@ import (
 // here so the audit trail's config_key field has a stable enum.
 const (
 	KeyConnectivity = "connectivity"
+	KeyIntelligence = "intelligence"
 )
 
 // ConnectivityConfig is the typed shape stored under KeyConnectivity.
@@ -55,6 +56,46 @@ func DefaultConnectivity() ConnectivityConfig {
 		RateLimit:            50,
 		MaintenanceGlobal:    false,
 	}
+}
+
+// IntelligenceConfig is the typed shape stored under KeyIntelligence.
+//
+// Spec: system-intelligence-scheduler v1.0.0 C-06 + C-07.
+//
+// IntervalSec is the per-host cadence the scheduler advances
+// next_intelligence_at by after a successful RunCycle. RateLimit
+// caps the bounded worker pool the scheduler uses to dispatch
+// per-tick. MaintenanceGlobal pauses the entire loop (mirrors the
+// connectivity flag).
+type IntelligenceConfig struct {
+	IntervalSec       int  `json:"interval_sec"`
+	RateLimit         int  `json:"rate_limit"`
+	MaintenanceGlobal bool `json:"maintenance_global"`
+}
+
+// DefaultIntelligence returns the baked-in defaults.
+//
+//	IntervalSec       — 3600 (1 hour per host)
+//	RateLimit         —   10 (concurrent RunCycles per scheduler)
+//	MaintenanceGlobal — false
+func DefaultIntelligence() IntelligenceConfig {
+	return IntelligenceConfig{
+		IntervalSec:       3600,
+		RateLimit:         10,
+		MaintenanceGlobal: false,
+	}
+}
+
+// Validate enforces the bounds in system-intelligence-scheduler C-06,
+// C-07. Returns a wrapped ErrInvalidConfig naming the offending field.
+func (c IntelligenceConfig) Validate() error {
+	if c.IntervalSec < 300 || c.IntervalSec > 86400 {
+		return fmt.Errorf("%w: interval_sec=%d must be 300..86400", ErrInvalidConfig, c.IntervalSec)
+	}
+	if c.RateLimit < 1 || c.RateLimit > 200 {
+		return fmt.Errorf("%w: rate_limit=%d must be 1..200", ErrInvalidConfig, c.RateLimit)
+	}
+	return nil
 }
 
 // ErrInvalidConfig is returned by validation when a field is out of
