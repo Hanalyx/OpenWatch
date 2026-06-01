@@ -148,9 +148,39 @@ jobs:
           fi
           exit $EXIT
 
+      # Frontend Vitest run for specter ingest. The app/specs/frontend/
+      # specs reference tests in frontend/tests/pages/*; without these
+      # JUnit results, those specs report 0% coverage and fail the
+      # threshold gate even though the tests pass. Vitest emits JUnit
+      # XML at /tmp/vitest-junit.xml which specter ingest reads alongside
+      # the Go test results.
+      - name: Set up Node.js
+        if: steps.paths.outputs.go == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: frontend vitest (junit) for specter ingest
+        if: steps.paths.outputs.go == 'true'
+        working-directory: frontend
+        run: |
+          npm ci --no-audit --no-fund
+          set +e
+          npx vitest run --reporter=junit --outputFile=/tmp/vitest-junit.xml --reporter=default
+          EXIT=$?
+          # Don't block the pipeline on Vitest failure — surface it but
+          # let specter sync report which ACs are uncovered. The Go test
+          # step above already fails the build on test failure; this
+          # mirror keeps the gate's failure source observable.
+          if [ "$EXIT" -ne 0 ]; then
+            echo "::warning::Vitest reported test failures — see specter coverage for affected ACs"
+          fi
+
       - name: specter ingest
         if: steps.paths.outputs.go == 'true'
-        run: specter ingest --go-test /tmp/go-test.json
+        run: specter ingest --go-test /tmp/go-test.json --junit /tmp/vitest-junit.xml
 
       - name: specter sync (AC coverage thresholds)
         if: steps.paths.outputs.go == 'true'
@@ -164,4 +194,5 @@ jobs:
           path: |
             app/.specter-results.json
             /tmp/go-test.json
+            /tmp/vitest-junit.xml
           retention-days: 7
