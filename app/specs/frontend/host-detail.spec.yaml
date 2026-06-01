@@ -1,7 +1,7 @@
 spec:
   id: frontend-host-detail
   title: Host Detail page layout, behavior, and empty-state contracts
-  version: "1.0.4"
+  version: "1.0.5"
   status: approved
   tier: 2
 
@@ -174,7 +174,7 @@ spec:
       priority: high
       references_constraints: [C-06]
     - id: AC-25
-      description: 'System card has three spec-groups in this order: Operating system, Hardware, Network. Each group renders the prototype''s definition-list layout with placeholder values ("unknown") for fields that are not yet collected by Server Intelligence.'
+      description: 'System card has three spec-groups in this order: Operating system, Hardware, Network. The Operating-system group is owned by frontend-host-detail-system-card v1.0.0 (wired to real Discovery + IntelligenceState data); the Hardware group renders the "Hardware metrics not collected" empty state; the Network group renders Primary IP + SSH endpoint + a Firewall placeholder. v1.0.5: "unknown" placeholder strings replaced with em-dash / "Not discovered yet" empty state — see frontend-host-detail-system-card.'
       priority: critical
       references_constraints: [C-06]
     - id: AC-26

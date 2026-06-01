@@ -223,14 +223,20 @@ describe('frontend-host-detail — prototype shell', () => {
   });
 
   // @ac AC-25
-  test('frontend-host-detail/AC-25 — system card has 3 spec-groups with placeholders', () => {
+  test('frontend-host-detail/AC-25 — system card has 3 spec-groups (Operating system / Hardware / Network)', () => {
+    // CardSystem is now extracted to its own file (PR 6 / frontend-host-detail-system-card v1.0.0).
+    // The page imports + mounts it; the three group headings live there.
     expect(PAGE_SRC).toContain('CardSystem');
-    // The three group headings.
-    expect(PAGE_SRC).toMatch(/Operating system/);
-    expect(PAGE_SRC).toMatch(/Hardware/);
-    expect(PAGE_SRC).toMatch(/Network/);
-    // Placeholders for missing values.
-    expect(PAGE_SRC).toMatch(/unknown/);
+    const cardSrc = readFileSync(
+      resolve(process.cwd(), 'src/pages/host-detail/CardSystem.tsx'),
+      'utf8',
+    );
+    expect(cardSrc).toMatch(/Operating system/);
+    expect(cardSrc).toMatch(/Hardware/);
+    expect(cardSrc).toMatch(/Network/);
+    // v1.0.5: the prior "unknown" placeholder string is gone — pre-Discovery
+    // hosts collapse to a "Not discovered yet" empty state instead.
+    expect(cardSrc).toMatch(/Not discovered yet/);
   });
 
   // @ac AC-26
