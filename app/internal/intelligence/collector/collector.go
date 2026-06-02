@@ -213,6 +213,69 @@ func (s *Service) runCycleWithTransport(ctx context.Context, hf hostFacts) (Snap
 		snap.ListeningPorts = ports
 	}
 
+	// Network interfaces: `ip -j addr` gives addresses + state + MAC +
+	// MTU; the sysfs probe fills in driver/speed/duplex/RX/TX. Partial
+	// success — if the sysfs loop fails we still surface the IP info.
+	if out, code, err := sess.Run(ctx, "ip -j addr show 2>/dev/null"); err == nil && code == 0 {
+		if ifaces, perr := ParseIPAddrJSON(out); perr == nil {
+			stats := map[string]sysfsStats{}
+			// One shell pass over /sys/class/net/. printf instead of echo for
+			// portability; |-delimited so a single parser handles all hosts.
+			const sysfsCmd = `for i in /sys/class/net/*; do
+                name=$(basename "$i")
+                speed=$(cat "$i/speed" 2>/dev/null)
+                duplex=$(cat "$i/duplex" 2>/dev/null)
+                drv=$(basename "$(readlink "$i/device/driver" 2>/dev/null)" 2>/dev/null)
+                rx=$(cat "$i/statistics/rx_bytes" 2>/dev/null)
+                tx=$(cat "$i/statistics/tx_bytes" 2>/dev/null)
+                printf "%s|%s|%s|%s|%s|%s\n" "$name" "$speed" "$duplex" "$drv" "$rx" "$tx"
+            done`
+			if sout, scode, serr := sess.Run(ctx, sysfsCmd); serr == nil && scode == 0 {
+				stats = ParseSysfsNetStats(sout)
+			}
+			snap.NetworkInterfaces = MergeNetworkInterfaces(ifaces, stats)
+		}
+	}
+
+	if out, code, err := sess.Run(ctx, "ip -j route show 2>/dev/null"); err == nil && code == 0 {
+		if routes, perr := ParseIPRouteJSON(out); perr == nil {
+			snap.Routes = routes
+		}
+	}
+
+	// Firewall rule count: try engines in priority order. First non-
+	// empty answer wins. -1 left in place when nothing detects (so the
+	// frontend can distinguish "no engine" from "0 rules").
+	snap.FirewallRuleCount = -1
+	// Non-interactive SSH PATH is minimal on Debian/Ubuntu — /usr/sbin
+	// is often missing, which hides ufw + nft + iptables-save. Prepend
+	// the admin paths so command -v finds them.
+	const fwRuleCmd = `
+        export PATH="$PATH:/sbin:/usr/sbin:/usr/local/sbin"
+        if command -v firewall-cmd >/dev/null 2>&1 && firewall-cmd --state 2>/dev/null | grep -q running; then
+            firewall-cmd --get-active-zones 2>/dev/null \
+                | grep -v "^  " \
+                | while read z; do firewall-cmd --zone="$z" --list-rich-rules 2>/dev/null; done \
+                | grep -c "rule "
+        elif command -v ufw >/dev/null 2>&1; then
+            (sudo -n ufw status numbered 2>/dev/null || ufw status numbered 2>/dev/null) \
+                | grep -cE "^\["
+        elif command -v nft >/dev/null 2>&1; then
+            (sudo -n nft list ruleset 2>/dev/null || nft list ruleset 2>/dev/null) \
+                | grep -cE "^[[:space:]]+(tcp|udp|icmp|ip6?|meta).*(drop|accept|reject)"
+        elif command -v iptables-save >/dev/null 2>&1; then
+            (sudo -n iptables-save 2>/dev/null || iptables-save 2>/dev/null) \
+                | grep -c "^-A"
+        else
+            echo ""
+        fi
+    `
+	if out, code, err := sess.Run(ctx, fwRuleCmd); err == nil && code == 0 {
+		if n, ok := parseFirewallRuleCount(out); ok {
+			snap.FirewallRuleCount = n
+		}
+	}
+
 	if out, code, err := sess.Run(ctx, "rpm -qa --queryformat='%{NAME} %{VERSION}-%{RELEASE}\\n' 2>/dev/null || dpkg -l 2>/dev/null"); err == nil && code == 0 {
 		pkgs, _ := ParseInstalledPackages(out)
 		snap.Packages = pkgs

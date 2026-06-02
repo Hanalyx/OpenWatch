@@ -48,12 +48,14 @@ domains:
             - api-events-stream
             - frontend-live-events
             - api-hosts
+            - api-host-system-info
             - api-system-intelligence-config
             - frontend-settings-intelligence-config
             - frontend-host-detail
             - frontend-host-list-os
             - frontend-host-detail-system-card
             - frontend-host-detail-intelligence-feed
+            - frontend-host-detail-inventory-tabs
             - api-openapi-docs
             - release-admin-signoff
             - system-worker-subcommand

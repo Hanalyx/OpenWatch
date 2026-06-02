@@ -27,15 +27,21 @@ import (
 	"github.com/Hanalyx/openwatch/internal/config"
 	"github.com/Hanalyx/openwatch/internal/correlation"
 	"github.com/Hanalyx/openwatch/internal/credential"
+	"github.com/google/uuid"
+
 	"github.com/Hanalyx/openwatch/internal/db"
 	"github.com/Hanalyx/openwatch/internal/db/migrations"
 	"github.com/Hanalyx/openwatch/internal/eventbus"
 	"github.com/Hanalyx/openwatch/internal/identity"
+	"github.com/Hanalyx/openwatch/internal/intelligence/collector"
+	"github.com/Hanalyx/openwatch/internal/intelligence/discovery"
+	"github.com/Hanalyx/openwatch/internal/intelligence/scheduler"
 	"github.com/Hanalyx/openwatch/internal/license"
 	"github.com/Hanalyx/openwatch/internal/liveness"
 	openlog "github.com/Hanalyx/openwatch/internal/log"
 	"github.com/Hanalyx/openwatch/internal/secretkey"
 	"github.com/Hanalyx/openwatch/internal/server"
+	owssh "github.com/Hanalyx/openwatch/internal/ssh"
 	"github.com/Hanalyx/openwatch/internal/sshprivilege"
 	"github.com/Hanalyx/openwatch/internal/systemconfig"
 	"github.com/Hanalyx/openwatch/internal/users"
@@ -277,9 +283,8 @@ func cmdServe(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 	// the worker subcommand calls DetectForScan per-scan-completion
 	// in a follow-up PR.
 	//
-	// The scheduler + cron tick land in a follow-up that adds
-	// policy schedules loading + queue HMAC key derivation - both
-	// require a credential DEK accessor not yet exposed.
+	// OS Intelligence scheduler + on-demand Discovery service land
+	// further down (after credSvc + cfgStore are constructed).
 	// ---------------------------------------------------------------
 
 	bus := eventbus.NewBus()
@@ -330,8 +335,56 @@ func cmdServe(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 		WithMonitoringHistory(true)
 	go liveSvc.Run(ctx)
 
+	// OS Discovery service — fingerprints a host via one SSH session,
+	// upserts host_system_info + denormalized hosts.os_* columns, and
+	// publishes eventbus.HostDiscovered + audit.HostDiscoveryCompleted.
+	// Used by POST /hosts/{id}/discovery:run and by the in-process
+	// worker that drains host.discovery jobs. Spec system-host-discovery.
+	discoSvc := discovery.NewService(pool, audit.Emit, bus).
+		WithHostLookup(discovery.PoolHostLookup{Pool: pool}).
+		WithCredentialService(credSvc)
+
+	// OS Intelligence collector — runs one RunCycle per host: SSH
+	// session, snapshot.Collect (packages/services/users/network/etc.),
+	// diff against the prior snapshot, persist + emit events. Spec
+	// system-os-intelligence.
+	//
+	// Collector ships only an SSHTransport INTERFACE, no production
+	// implementation (the discovery package has the only one in-tree).
+	// Reuse the discovery prod transport via a thin adapter — both
+	// interfaces have identical method sets, the wrapper just bridges
+	// the package-boundary type mismatch on SSHSession.
+	collSvc := collector.NewService(pool, audit.Emit, bus).
+		WithCredentialService(credSvc).
+		WithHostLookup(collector.PoolHostLookup{Pool: pool}).
+		WithSSHTransport(collectorSSHAdapter{
+			inner: discovery.NewSSHTransport(owssh.ModeTOFU, owssh.NewMemoryStore()),
+		})
+
+	// Intelligence scheduler — cron-like loop that picks "due" hosts
+	// from host_intelligence_state.next_intelligence_at and dispatches
+	// RunCycle. Interval + RateLimit + maintenance_global come from
+	// systemconfig (operator-tunable via PUT /system/intelligence/config).
+	// Spec system-intelligence-scheduler.
+	intelSched := scheduler.NewService(pool, intelRunner{collector: collSvc}).
+		WithConfigLoader(cfgStore.LoadIntelligence)
+	go func() { _ = intelSched.Run(ctx) }()
+
+	// Surface MaintenanceGlobal=true at startup. Without this, the
+	// scheduler silently skips every tick and the symptom is
+	// indistinguishable from "scheduler not running" (no rows in
+	// host_intelligence_state, no rows in host_backoff_state, no
+	// error logs). Spec system-daemon-orchestration C-08.
+	if cfg, err := cfgStore.LoadIntelligence(bootCtx); err == nil && cfg.MaintenanceGlobal {
+		slog.WarnContext(bootCtx, "intelligence scheduler paused at startup",
+			slog.String("reason", "system_config.intelligence.maintenance_global=true"),
+			slog.String("fix", "PUT /api/v1/system/intelligence/config with maintenance_global=false"),
+		)
+	}
+
 	srv := server.New(cfg, pool).
 		WithConnectivityConfig(cfgStore, liveSvc).
+		WithDiscovery(discoSvc).
 		WithEventBus(bus)
 	runErr := srv.Run(ctx)
 
@@ -353,6 +406,37 @@ func cmdServe(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 	}
 	slog.InfoContext(ctx, "openwatch shut down cleanly")
 	return 0
+}
+
+// intelRunner adapts collector.Service.RunCycle (which returns
+// []collector.Event) into scheduler.RunCycleRunner (which expects
+// []any — the scheduler discards the events, it just bumps state on
+// success/error). Tiny wrapper rather than changing either side's
+// signature.
+type intelRunner struct {
+	collector *collector.Service
+}
+
+func (r intelRunner) RunCycle(ctx context.Context, hostID uuid.UUID) ([]any, error) {
+	_, err := r.collector.RunCycle(ctx, hostID)
+	return nil, err
+}
+
+// collectorSSHAdapter bridges discovery.SSHTransport -> collector.SSHTransport.
+// The two packages declare structurally-identical SSHTransport + SSHSession
+// interfaces but in their own namespaces, so the same concrete session
+// satisfies both. The adapter does the type-narrowing at the
+// package boundary.
+type collectorSSHAdapter struct {
+	inner discovery.SSHTransport
+}
+
+func (a collectorSSHAdapter) Dial(ctx context.Context, host string, port int, cred *credential.Credential) (collector.SSHSession, error) {
+	sess, err := a.inner.Dial(ctx, host, port, cred)
+	if err != nil {
+		return nil, err
+	}
+	return sess, nil
 }
 
 // parseLogLevel maps the config string to a slog.Level. Unknown values
