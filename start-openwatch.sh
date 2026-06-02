@@ -124,6 +124,74 @@ reset_data_volumes() {
     log_success "Data volumes removed. Next start will initialize a fresh database."
 }
 
+# preflight_port_check refuses to start the compose stack if something
+# else is already bound to the postgres host port (127.0.0.1:5432).
+#
+# Why this exists: two postgres containers on the same host fighting for
+# port 5432 silently confuse the operator. The serve binary connects to
+# whichever container *won* the bind, and the dashboard shows whatever
+# data is on THAT container's volume. Restart the loser later and your
+# hosts + credentials appear to vanish — they didn't, they're in the
+# other container's volume.
+#
+# Common collision: a manually-run `openwatch-pg` container left over
+# from earlier debugging. We detect it specifically and explain how to
+# resolve. Anything else bound to 5432 still fails the check, just with
+# a more generic message.
+preflight_port_check() {
+    if ! command -v docker &> /dev/null; then
+        return 0  # podman path; skip for now
+    fi
+
+    # Anything in the compose stack we'd be starting? If the compose db
+    # is already up under our compose project name, that's fine — `up`
+    # is idempotent. Only foreign binders are a problem.
+    local own_db
+    own_db=$(docker ps --filter "name=openwatch-db" --format "{{.Names}}" 2>/dev/null)
+
+    # Find every container exposing host port 5432. `docker ps --filter
+    # publish=5432` matches both 0.0.0.0 and 127.0.0.1 bindings.
+    local binders
+    binders=$(docker ps --filter "publish=5432" --format "{{.Names}}" 2>/dev/null \
+              | grep -v "^${own_db}$" || true)
+
+    if [ -z "$binders" ]; then
+        return 0
+    fi
+
+    log_error "Port 127.0.0.1:5432 is already bound by another container:"
+    while IFS= read -r c; do
+        [ -z "$c" ] && continue
+        local image
+        image=$(docker inspect --format '{{.Config.Image}}' "$c" 2>/dev/null || echo "?")
+        local volumes
+        volumes=$(docker inspect --format '{{range .Mounts}}{{.Name}} {{end}}' "$c" 2>/dev/null)
+        echo -e "  - ${RED}${c}${NC} (image ${image})"
+        if [ -n "$volumes" ]; then
+            echo -e "    Data lives on volume(s): ${volumes}"
+        fi
+    done <<<"$binders"
+
+    log_error ""
+    log_error "Starting compose now would either fail to bind 5432, or worse,"
+    log_error "start a SECOND database on a different volume so your hosts +"
+    log_error "credentials would appear to vanish until the original container"
+    log_error "is brought back up."
+    log_error ""
+    log_error "Resolve one of these ways before re-running:"
+    log_error "  1. Use the existing container — point the binary at it and"
+    log_error "     skip start-openwatch.sh entirely. Recommended if its volume"
+    log_error "     holds the data you want to keep."
+    log_error "  2. Stop the existing container:"
+    log_error "       docker stop $(echo "$binders" | tr '\n' ' ')"
+    log_error "     Then re-run ./start-openwatch.sh. The compose DB will get"
+    log_error "     5432 and use volume openwatch_postgres_data."
+    log_error "  3. Migrate data into the compose volume:"
+    log_error "       docker exec $(echo "$binders" | head -1) pg_dumpall -U openwatch > /tmp/ow-dump.sql"
+    log_error "     ...then stop, start compose, and restore from /tmp/ow-dump.sql."
+    exit 1
+}
+
 # Check prerequisites
 check_prerequisites() {
     log_info "Checking prerequisites..."
@@ -545,6 +613,11 @@ main() {
     else
         preflight_data_check
     fi
+
+    # Refuse to start if a foreign container is squatting on 5432.
+    # Skipped after --reset-data because the compose down inside the
+    # reset already cleared any same-project containers.
+    preflight_port_check
 
     # Check if images exist (only if not building)
     if [ "$BUILD_IMAGES" != true ]; then
