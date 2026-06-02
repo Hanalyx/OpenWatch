@@ -1,338 +1,295 @@
 #!/bin/bash
 
-# OpenWatch Stop Script
-# Compatible with both Docker and Podman runtimes
-# Development-focused: Performs complete cleanup for fast iteration
+# OpenWatch (Go rebuild) stop script.
+#
+# The Go rebuild runs as a host binary (./dist/openwatch serve +
+# ./dist/openwatch worker) plus one standalone PostgreSQL container
+# (openwatch-pg, volume openwatch-pg-fresh). No docker-compose.
+# This script tears that down safely.
+#
+# What it does:
+#   1. Default: stop the host processes (serve, worker, Vite). The DB
+#      container keeps running so the next start is instant. Data is
+#      always preserved on the named volume.
+#   2. --stop-db: also stop the DB container. Volume still survives.
+#   3. --clean-data: stop + DELETE the named DB volume (hosts,
+#      credentials, scans, audit log). Gated on --yes / interactive.
+#   4. --deep-clean: --clean-data + remove the DB container entirely
+#      and clear frontend node_modules.
+#
+# What it does NOT do (and why):
+#   - No docker-compose. The Python compose stack is gone.
+#   - No image cleanup. The Go build produces a host binary, not an image.
+#   - No Redis / MongoDB / Celery tear-down. None of those run anymore.
 
 set -e
 
-# Colors for output
+# ---------------------------------------------------------------------------
+# Colors
+# ---------------------------------------------------------------------------
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
-# Script configuration
+log_info()    { echo -e "${BLUE}[INFO]${NC} $1"; }
+log_success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
+log_warning() { echo -e "${YELLOW}[WARNING]${NC} $1"; }
+log_error()   { echo -e "${RED}[ERROR]${NC} $1"; }
+
+# ---------------------------------------------------------------------------
+# Config — must stay in sync with start-openwatch.sh
+# ---------------------------------------------------------------------------
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &> /dev/null && pwd)"
-PROJECT_NAME="openwatch"
-RUNTIME=""
-COMPOSE_FILE=""
-CLEAN_MODE=${OPENWATCH_CLEAN_STOP:-false}  # Default to SAFE stop - preserves data
+APP_DIR="${SCRIPT_DIR}/app"
 
-# Container names (matching actual docker-compose service names)
-CONTAINER_NAMES=(
-    "openwatch-frontend"
-    "openwatch-backend"
-    "openwatch-worker"
-    "openwatch-db"
-    "openwatch-redis"
-    "openwatch-mongodb"
-)
+DB_CONTAINER="${OPENWATCH_DB_CONTAINER:-openwatch-pg}"
+DB_VOLUME="${OPENWATCH_DB_VOLUME:-openwatch-pg-fresh}"
+CONTAINER_RUNTIME="${OPENWATCH_CONTAINER_RUNTIME:-}"
 
-# Logging functions
-log_info() {
-    echo -e "${BLUE}[INFO]${NC} $1"
-}
+MODE="safe"        # safe | stop-db | clean-data | deep-clean
+ASSUME_YES=false
 
-log_success() {
-    echo -e "${GREEN}[SUCCESS]${NC} $1"
-}
-
-log_warning() {
-    echo -e "${YELLOW}[WARNING]${NC} $1"
-}
-
-log_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
-}
-
-# Detect runtime and compose file based on what's actually running
-detect_runtime() {
-    local podman_available=false
-    local docker_available=false
-    local docker_running=false
-    local podman_running=false
-
-    # Check for Podman
-    if command -v podman &> /dev/null; then
-        podman_available=true
-        # Check if any openwatch containers are running in podman
-        if podman ps --format "{{.Names}}" 2>/dev/null | grep -q openwatch; then
-            podman_running=true
-        fi
+# ---------------------------------------------------------------------------
+# Runtime detection
+# ---------------------------------------------------------------------------
+detect_container_runtime() {
+    if [ -n "$CONTAINER_RUNTIME" ]; then
+        return 0
     fi
-
-    # Check for Docker
     if command -v docker &> /dev/null; then
-        docker_available=true
-        # Check if any openwatch containers are running in docker
-        if docker ps --format "{{.Names}}" 2>/dev/null | grep -q openwatch; then
-            docker_running=true
-        fi
-    fi
-
-    # Determine runtime based on what's actually running
-    if [ "$docker_running" = true ]; then
-        # Docker containers are running, use docker
-        if command -v docker-compose &> /dev/null; then
-            RUNTIME="docker-compose"
-        else
-            RUNTIME="docker"
-        fi
-        COMPOSE_FILE="docker-compose.yml"
-        log_info "Detected running Docker containers"
-    elif [ "$podman_running" = true ]; then
-        # Podman containers are running, use podman
-        RUNTIME="podman-compose"
-        if [ -f "$SCRIPT_DIR/podman-compose.yml" ]; then
-            COMPOSE_FILE="podman-compose.yml"
-        else
-            COMPOSE_FILE="docker-compose.yml"  # Fallback
-        fi
-        log_info "Detected running Podman containers"
+        CONTAINER_RUNTIME=docker
+    elif command -v podman &> /dev/null; then
+        CONTAINER_RUNTIME=podman
     else
-        # No containers running, detect based on available tools
-        if command -v podman-compose &> /dev/null && [ "$podman_available" = true ]; then
-            RUNTIME="podman-compose"
-            if [ -f "$SCRIPT_DIR/podman-compose.yml" ]; then
-                COMPOSE_FILE="podman-compose.yml"
-            else
-                COMPOSE_FILE="docker-compose.yml"  # Fallback
-            fi
-        elif command -v docker-compose &> /dev/null && [ "$docker_available" = true ]; then
-            RUNTIME="docker-compose"
-            COMPOSE_FILE="docker-compose.yml"
-        elif [ "$docker_available" = true ] && docker compose version &> /dev/null 2>&1; then
-            RUNTIME="docker"
-            COMPOSE_FILE="docker-compose.yml"
-        else
-            log_error "No suitable container runtime found!"
-            log_error "Please install Docker or Podman with compose support."
-            exit 1
-        fi
-        log_info "No containers running, using preferred runtime"
+        # No container runtime — nothing to do for the DB side.
+        CONTAINER_RUNTIME=""
     fi
-
-    log_info "Using runtime: $RUNTIME"
-    log_info "Using compose file: $COMPOSE_FILE"
 }
 
-# Stop containers individually if compose fails
-stop_containers_individually() {
-    log_warning "Attempting to stop containers individually..."
+# ---------------------------------------------------------------------------
+# Destruction confirmation — gates --clean-data and --deep-clean
+# ---------------------------------------------------------------------------
+confirm_destroy() {
+    local action="$1"
+    log_warning "About to perform: ${action}"
+    log_warning "This will DELETE the DB volume (if present):"
+    if [ -n "$CONTAINER_RUNTIME" ] && \
+       "$CONTAINER_RUNTIME" volume ls --format "{{.Name}}" 2>/dev/null | grep -qx "$DB_VOLUME"; then
+        echo -e "  - ${RED}${DB_VOLUME}${NC} (hosts, credentials, scans, audit log)"
+    else
+        echo -e "  - ${DB_VOLUME} (does not exist; nothing to delete)"
+        return 0
+    fi
 
-    for container in "${CONTAINER_NAMES[@]}"; do
-        case "$RUNTIME" in
-            "podman-compose")
-                if podman ps --format "{{.Names}}" | grep -q "^${container}$" 2>/dev/null; then
-                    log_info "Stopping container: $container"
-                    podman stop "$container" 2>/dev/null || true
-                    podman rm "$container" 2>/dev/null || true
-                fi
-                ;;
-            "docker-compose"|"docker")
-                if docker ps --format "{{.Names}}" | grep -q "^${container}$" 2>/dev/null; then
-                    log_info "Stopping container: $container"
-                    docker stop "$container" 2>/dev/null || true
-                    docker rm "$container" 2>/dev/null || true
-                fi
-                ;;
-        esac
+    if [ "$ASSUME_YES" = true ]; then
+        log_warning "--yes supplied; proceeding without prompt."
+        return 0
+    fi
+    if [ "${OPENWATCH_CONFIRM_DESTROY:-}" = "yes" ]; then
+        log_warning "OPENWATCH_CONFIRM_DESTROY=yes set; proceeding without prompt."
+        return 0
+    fi
+    if [ ! -t 0 ]; then
+        log_error "Refusing to delete the DB volume non-interactively without --yes or OPENWATCH_CONFIRM_DESTROY=yes."
+        exit 1
+    fi
+    echo ""
+    read -r -p "Type 'yes' to confirm destruction, anything else aborts: " confirm
+    if [ "$confirm" != "yes" ]; then
+        log_info "Aborted — no data was deleted."
+        exit 0
+    fi
+}
+
+# ---------------------------------------------------------------------------
+# Process lifecycle — host binaries + Vite
+# ---------------------------------------------------------------------------
+stop_one_process() {
+    # $1 = pgrep pattern, $2 = human label
+    local pattern="$1" label="$2"
+    local pids
+    pids=$(pgrep -f "$pattern" || true)
+    if [ -z "$pids" ]; then
+        return 0
+    fi
+    log_info "Stopping ${label} (PIDs: $(echo "$pids" | tr '\n' ' '))..."
+    # SIGTERM first, give it 3s to exit cleanly, then SIGKILL.
+    echo "$pids" | xargs -r kill -TERM 2>/dev/null || true
+    local i
+    for i in 1 2 3; do
+        pids=$(pgrep -f "$pattern" || true)
+        [ -z "$pids" ] && return 0
+        sleep 1
     done
+    pids=$(pgrep -f "$pattern" || true)
+    if [ -n "$pids" ]; then
+        log_warning "${label} did not exit on SIGTERM; sending SIGKILL."
+        echo "$pids" | xargs -r kill -KILL 2>/dev/null || true
+    fi
 }
 
-# Stop services with complete cleanup for development
-stop_services() {
-    log_info "Stopping OpenWatch services..."
+stop_processes() {
+    stop_one_process "dist/openwatch serve\$"   "openwatch serve"
+    stop_one_process "dist/openwatch worker\$"  "openwatch worker"
+    stop_one_process "vite --port 5173"         "Vite dev server"
+}
 
-    cd "$SCRIPT_DIR"
-
-    local compose_down_flags="--remove-orphans"  # Always remove orphans
-    if [ "$CLEAN_MODE" = true ]; then
-        compose_down_flags="--volumes --remove-orphans"
-        log_warning "CLEAN MODE: Will DELETE ALL DATA (volumes will be removed)"
-        log_warning "This includes hosts, credentials, scan results, and SCAP content"
+# ---------------------------------------------------------------------------
+# DB container lifecycle
+# ---------------------------------------------------------------------------
+stop_db_container() {
+    [ -z "$CONTAINER_RUNTIME" ] && return 0
+    if "$CONTAINER_RUNTIME" ps --format "{{.Names}}" 2>/dev/null | grep -qx "$DB_CONTAINER"; then
+        log_info "Stopping DB container ${DB_CONTAINER}..."
+        "$CONTAINER_RUNTIME" stop "$DB_CONTAINER" >/dev/null
     else
-        log_info "Safe mode: Stopping containers but preserving data volumes"
+        log_info "DB container ${DB_CONTAINER} is not running."
     fi
+}
 
-    case "$RUNTIME" in
-        "podman-compose")
-            if [ -f "$COMPOSE_FILE" ]; then
-                log_info "Using podman-compose with file: $COMPOSE_FILE"
-                podman-compose -f "$COMPOSE_FILE" down $compose_down_flags || {
-                    log_warning "Podman-compose down failed, trying individual container stop"
-                    stop_containers_individually
-                }
-            else
-                log_warning "Compose file $COMPOSE_FILE not found"
-                stop_containers_individually
-            fi
-            ;;
-        "docker-compose")
-            if [ -f "$COMPOSE_FILE" ]; then
-                log_info "Using docker-compose with file: $COMPOSE_FILE"
-                docker-compose -f "$COMPOSE_FILE" down $compose_down_flags || {
-                    log_warning "Docker-compose down failed, trying individual container stop"
-                    stop_containers_individually
-                }
-            else
-                log_warning "Compose file $COMPOSE_FILE not found"
-                stop_containers_individually
-            fi
-            ;;
-        "docker")
-            if [ -f "$COMPOSE_FILE" ]; then
-                log_info "Using docker compose with file: $COMPOSE_FILE"
-                docker compose -f "$COMPOSE_FILE" down $compose_down_flags || {
-                    log_warning "Docker compose down failed, trying individual container stop"
-                    stop_containers_individually
-                }
-            else
-                log_warning "Compose file $COMPOSE_FILE not found"
-                stop_containers_individually
-            fi
+remove_db_container() {
+    [ -z "$CONTAINER_RUNTIME" ] && return 0
+    if "$CONTAINER_RUNTIME" ps -a --format "{{.Names}}" 2>/dev/null | grep -qx "$DB_CONTAINER"; then
+        log_info "Removing DB container ${DB_CONTAINER}..."
+        "$CONTAINER_RUNTIME" rm -f "$DB_CONTAINER" >/dev/null
+    fi
+}
+
+delete_db_volume() {
+    [ -z "$CONTAINER_RUNTIME" ] && return 0
+    if "$CONTAINER_RUNTIME" volume ls --format "{{.Name}}" 2>/dev/null | grep -qx "$DB_VOLUME"; then
+        log_info "Removing DB volume ${DB_VOLUME}..."
+        "$CONTAINER_RUNTIME" volume rm -f "$DB_VOLUME" >/dev/null
+    fi
+}
+
+clear_frontend_node_modules() {
+    local nm="${APP_DIR}/frontend/node_modules"
+    if [ -d "$nm" ]; then
+        log_info "Removing ${nm}..."
+        rm -rf "$nm"
+    fi
+}
+
+# ---------------------------------------------------------------------------
+# Final summary — what survived
+# ---------------------------------------------------------------------------
+print_data_status() {
+    if [ -z "$CONTAINER_RUNTIME" ]; then
+        return 0
+    fi
+    if "$CONTAINER_RUNTIME" volume ls --format "{{.Name}}" 2>/dev/null | grep -qx "$DB_VOLUME"; then
+        log_info "Data preserved in volume:"
+        echo -e "  ${GREEN}✓${NC} ${DB_VOLUME}"
+        log_info "Re-run ./start-openwatch.sh to resume against the same data."
+    else
+        log_info "DB volume ${DB_VOLUME} no longer exists. The next start will create a fresh DB."
+    fi
+}
+
+# ---------------------------------------------------------------------------
+# Help
+# ---------------------------------------------------------------------------
+print_help() {
+    cat <<EOF
+OpenWatch (Go) Stop Script
+
+Stops the host binaries (serve, worker, Vite) and optionally the
+PostgreSQL container. SAFE BY DEFAULT — the named DB volume is
+preserved across stop/start cycles.
+
+Usage: ./stop-openwatch.sh [OPTIONS]
+
+Options:
+  (no options)        Stop serve, worker, Vite. Leave the DB container
+                      running. Data preserved.
+  --stop-db           Also stop the DB container (${DB_CONTAINER}).
+                      Volume still preserved.
+  --clean-data        Stop everything and DELETE the DB volume
+                      (${DB_VOLUME}). Requires --yes /
+                      OPENWATCH_CONFIRM_DESTROY=yes / interactive 'yes'.
+  --deep-clean        --clean-data + remove the DB container and clear
+                      app/frontend/node_modules. Same confirmation gate.
+  --yes, -y           Skip the confirmation prompt. Required when running
+                      destructive modes non-interactively (CI, scripts).
+  --help, -h          Print this help.
+
+Environment overrides:
+  OPENWATCH_DB_CONTAINER         postgres container name  (default ${DB_CONTAINER})
+  OPENWATCH_DB_VOLUME            named volume holding data (default ${DB_VOLUME})
+  OPENWATCH_CONTAINER_RUNTIME    docker or podman          (auto-detect)
+  OPENWATCH_CONFIRM_DESTROY=yes  Companion to --yes for destructive modes.
+
+What is preserved on a safe stop:
+  - DB volume ${DB_VOLUME} (hosts, credentials, scans, audit log)
+  - The DB container (kept running for instant restart)
+  - Runtime secrets in OPENWATCH_RUNTIME_DIR (TLS cert, JWT key, DEK)
+  - Frontend node_modules
+
+Examples:
+  ./stop-openwatch.sh                       # Stop binaries; DB stays up
+  ./stop-openwatch.sh --stop-db             # Also stop the DB container
+  ./stop-openwatch.sh --clean-data --yes    # Wipe data; scripted
+  ./stop-openwatch.sh --deep-clean          # Nuclear; prompts first
+EOF
+}
+
+# ---------------------------------------------------------------------------
+# Arg parsing
+# ---------------------------------------------------------------------------
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --stop-db)     MODE="stop-db"; shift ;;
+        --clean-data)  MODE="clean-data"; shift ;;
+        --deep-clean)  MODE="deep-clean"; shift ;;
+        --yes|-y)      ASSUME_YES=true; shift ;;
+        --help|-h)     print_help; exit 0 ;;
+        *)
+            log_error "Unknown option: $1"
+            log_error "Run ./stop-openwatch.sh --help for usage."
+            exit 1
             ;;
     esac
+done
 
-    log_success "OpenWatch services stopped"
-}
-
-# Development cleanup: Remove everything for clean state
-development_cleanup() {
-    log_info "Performing development cleanup..."
-    log_warning "This will remove ALL OpenWatch containers, volumes, networks, and images!"
-
-    # Stop and remove all containers first
-    stop_services
-
-    # Additional cleanup for development - check both docker and podman
-    log_info "Cleaning up any remaining OpenWatch resources..."
-
-    # Clean up Docker resources
-    if command -v docker &> /dev/null; then
-        # Remove any remaining containers with openwatch in the name
-        docker ps -a --format "{{.Names}}" 2>/dev/null | grep openwatch | xargs -r docker rm -f 2>/dev/null || true
-
-        # Remove volumes (including dev volumes)
-        docker volume ls --format "{{.Name}}" 2>/dev/null | grep openwatch | xargs -r docker volume rm -f 2>/dev/null || true
-
-        # Remove networks
-        docker network ls --format "{{.Name}}" 2>/dev/null | grep openwatch | xargs -r docker network rm 2>/dev/null || true
-
-        # Remove images (openwatch and hanalyx prefixes)
-        log_info "Removing OpenWatch Docker images..."
-        docker images --format "{{.Repository}}:{{.Tag}}\t{{.ID}}" 2>/dev/null | \
-            grep -E "openwatch|hanalyx" | \
-            awk '{print $2}' | \
-            xargs -r docker rmi -f 2>/dev/null || true
-
-        log_info "Docker cleanup completed"
-    fi
-
-    # Clean up Podman resources
-    if command -v podman &> /dev/null; then
-        # Remove any remaining containers with openwatch in the name
-        podman ps -a --format "{{.Names}}" 2>/dev/null | grep openwatch | xargs -r podman rm -f 2>/dev/null || true
-
-        # Remove volumes
-        podman volume ls --format "{{.Name}}" 2>/dev/null | grep openwatch | xargs -r podman volume rm -f 2>/dev/null || true
-
-        # Remove networks
-        podman network ls --format "{{.Name}}" 2>/dev/null | grep openwatch | xargs -r podman network rm 2>/dev/null || true
-
-        # Clean up pods if any
-        podman pod ls --format "{{.Name}}" 2>/dev/null | grep openwatch | xargs -r podman pod rm -f 2>/dev/null || true
-
-        # Remove images (openwatch and hanalyx prefixes)
-        log_info "Removing OpenWatch Podman images..."
-        podman images --format "{{.Repository}}:{{.Tag}}\t{{.ID}}" 2>/dev/null | \
-            grep -E "openwatch|hanalyx" | \
-            awk '{print $2}' | \
-            xargs -r podman rmi -f 2>/dev/null || true
-
-        log_info "Podman cleanup completed"
-    fi
-
-    log_success "Development cleanup complete"
-    log_info "Next startup will be completely fresh - perfect for testing changes!"
-}
-
-# Main execution
+# ---------------------------------------------------------------------------
+# main
+# ---------------------------------------------------------------------------
 main() {
-    log_info "OpenWatch Stop Script"
+    log_info "OpenWatch (Go) Stop Script"
     log_info "===================="
 
-    detect_runtime
+    detect_container_runtime
 
-    case "$1" in
-        "--deep-clean"|"--dev-clean")
-            development_cleanup
+    case "$MODE" in
+        "deep-clean")
+            confirm_destroy "deep clean (delete DB container + volume + node_modules)"
+            stop_processes
+            remove_db_container
+            delete_db_volume
+            clear_frontend_node_modules
             ;;
-        "--simple")
-            CLEAN_MODE=false
-            stop_services
+        "clean-data")
+            confirm_destroy "clean-data (delete DB volume)"
+            stop_processes
+            stop_db_container  # must stop before volume can be removed
+            delete_db_volume
             ;;
-        *)
-            # Default behavior: safe stop (preserves data)
-            if [ "$CLEAN_MODE" = true ]; then
-                log_warning "CLEAN MODE: Performing destructive stop (removes volumes)"
-                log_warning "All data will be deleted! Use --simple to preserve data."
-            else
-                log_info "Safe mode: Preserving data volumes"
-                log_info "Use OPENWATCH_CLEAN_STOP=true for clean development environment"
-            fi
-            stop_services
+        "stop-db")
+            stop_processes
+            stop_db_container
+            ;;
+        "safe"|*)
+            log_info "Safe mode: processes stop, DB container keeps running, data preserved."
+            stop_processes
             ;;
     esac
 
-    log_success "Done!"
+    print_data_status
 
-    # Show next steps
-    if [ "$CLEAN_MODE" = true ] || [ "$1" = "--deep-clean" ] || [ "$1" = "--dev-clean" ]; then
-        log_info ""
-        log_info "Next steps:"
-        log_info "  ./start-openwatch.sh    # Start fresh OpenWatch stack"
-        log_info "  docker system df        # Check disk space usage"
-    fi
+    log_success "Done!"
 }
 
-# Handle script arguments
-case "$1" in
-    "--help"|"-h")
-        echo "OpenWatch Stop Script - Development Focused"
-        echo "=========================================="
-        echo ""
-        echo "This script stops OpenWatch services with development-friendly cleanup"
-        echo "to ensure fast iteration and consistent state between runs."
-        echo ""
-        echo "Usage: $0 [OPTIONS]"
-        echo ""
-        echo "Options:"
-        echo "  --help, -h        Show this help message"
-        echo "  --simple          Simple stop without removing volumes (faster)"
-        echo "  --deep-clean      Complete cleanup: containers + volumes + networks + images"
-        echo "  --dev-clean       Alias for --deep-clean"
-        echo ""
-        echo "Default Behavior (no options):"
-        echo "  Stops containers and preserves data volumes (SAFE MODE)"
-        echo ""
-        echo "Environment Variables:"
-        echo "  OPENWATCH_CLEAN_STOP=true    Enable clean mode (DELETES ALL DATA)"
-        echo ""
-        echo "Examples:"
-        echo "  $0                           # Safe stop (preserves data)"
-        echo "  $0 --simple                  # Alias for safe stop"
-        echo "  OPENWATCH_CLEAN_STOP=true $0 # Clean stop (DELETES DATA)"
-        echo "  $0 --deep-clean              # Nuclear option: remove everything"
-        echo ""
-        echo "WARNING: --deep-clean and CLEAN_MODE will DELETE ALL DATA!"
-        echo "    This includes: hosts, credentials, scan results, SCAP content"
-        echo ""
-        exit 0
-        ;;
-    *)
-        main "$@"
-        ;;
-esac
+main
