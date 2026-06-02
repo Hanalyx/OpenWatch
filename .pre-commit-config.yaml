@@ -175,6 +175,20 @@ repos:
         language: script
         stages: [commit-msg]
 
+      # Spec coverage gate (Go rebuild). Source-walks for @ac AC-NN
+      # annotations under app/specs; <1s, no tests required. Catches
+      # the class of failure that put PR #455 through 3 CI re-runs:
+      # a tier-1 spec landed with passing tests but without the @ac
+      # comments specter coverage walks for. Skipped when specter is
+      # not installed (CI is the strict gate).
+      - id: spec-coverage
+        name: Spec coverage (source-walk)
+        entry: scripts/check-go-spec-coverage.sh
+        language: script
+        pass_filenames: false
+        files: ^app/(internal/.*_test\.go|specs/.*\.spec\.yaml|frontend/(src|tests)/.*\.(ts|tsx))$
+        stages: [pre-commit]
+
       # Don't run tests in pre-commit (too slow)
       # Tests run in CI instead
 
