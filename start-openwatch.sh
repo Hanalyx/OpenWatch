@@ -21,6 +21,19 @@ FORCE_RUNTIME=""
 DEV_MODE=false
 BUILD_IMAGES=false
 FORCE_BUILD=false
+RESET_DATA=false
+ASSUME_YES=false
+
+# Data-bearing named volumes — kept in sync with stop-openwatch.sh.
+# Used by preflight_data_check (informational) and reset_data_volumes
+# (destructive, gated). Editing this list in one place must be mirrored
+# in the stop script.
+DATA_VOLUMES=(
+    "openwatch_postgres_data"
+    "openwatch_app_data"
+    "openwatch_app_logs"
+    "openwatch_ssh_known_hosts"
+)
 
 # Logging functions
 log_info() {
@@ -37,6 +50,78 @@ log_warning() {
 
 log_error() {
     echo -e "${RED}[ERROR]${NC} $1"
+}
+
+# preflight_data_check prints a one-line summary of whether existing
+# OpenWatch data volumes will be reused. This makes "am I about to lose
+# my hosts and credentials?" an answerable question BEFORE start, not
+# after the dashboard comes up empty. Read-only — does not touch anything.
+preflight_data_check() {
+    if ! command -v docker &> /dev/null; then
+        return 0  # podman-compose path; named volume name may differ
+    fi
+    local existing="" v
+    for v in "${DATA_VOLUMES[@]}"; do
+        if docker volume ls --format "{{.Name}}" 2>/dev/null | grep -qx "$v"; then
+            existing+="$v "
+        fi
+    done
+    if [ -n "$existing" ]; then
+        log_info "Found existing data volumes — start will RESUME against them:"
+        for v in $existing; do
+            echo -e "  ${GREEN}✓${NC} $v"
+        done
+        log_info "To start from a clean slate instead, run: ./start-openwatch.sh --reset-data"
+    else
+        log_info "No prior OpenWatch data volumes detected — first-time setup."
+    fi
+}
+
+# reset_data_volumes is the single explicit way to wipe data on START.
+# Refuses to run without --yes or OPENWATCH_CONFIRM_DESTROY=yes; lists
+# volumes that will go BEFORE deleting; will not touch any volume that
+# isn't in DATA_VOLUMES (so an unrelated openwatch-pg-fresh standalone
+# volume is safe).
+reset_data_volumes() {
+    log_warning "--reset-data requested. This will DELETE the following volumes (if present):"
+    local found_any=false v
+    for v in "${DATA_VOLUMES[@]}"; do
+        if docker volume ls --format "{{.Name}}" 2>/dev/null | grep -qx "$v"; then
+            echo -e "  - ${RED}${v}${NC}"
+            found_any=true
+        else
+            echo -e "  - ${v} (does not exist; nothing to do)"
+        fi
+    done
+    if [ "$found_any" = false ]; then
+        log_info "Nothing to reset."
+        return 0
+    fi
+
+    if [ "$ASSUME_YES" != true ] && [ "${OPENWATCH_CONFIRM_DESTROY:-}" != "yes" ]; then
+        if [ ! -t 0 ]; then
+            log_error "Refusing to delete volumes non-interactively without --yes / OPENWATCH_CONFIRM_DESTROY=yes."
+            exit 1
+        fi
+        echo ""
+        read -r -p "Type 'yes' to confirm destruction, anything else aborts: " confirm
+        if [ "$confirm" != "yes" ]; then
+            log_info "Aborted — start canceled, no data deleted."
+            exit 0
+        fi
+    fi
+
+    # Make sure no container is holding the volume open before delete.
+    log_info "Bringing the stack down (containers only) so volumes can be removed..."
+    cd "$SCRIPT_DIR"
+    docker compose -f "$COMPOSE_FILE" down --remove-orphans 2>/dev/null \
+      || docker-compose -f "$COMPOSE_FILE" down --remove-orphans 2>/dev/null \
+      || true
+
+    for v in "${DATA_VOLUMES[@]}"; do
+        docker volume rm -f "$v" 2>/dev/null || true
+    done
+    log_success "Data volumes removed. Next start will initialize a fresh database."
 }
 
 # Check prerequisites
@@ -364,43 +449,70 @@ while [[ $# -gt 0 ]]; do
             shift 2
             ;;
         --help|-h)
-            echo "OpenWatch Startup Script"
-            echo ""
-            echo "Usage: $0 [OPTIONS]"
-            echo ""
-            echo "Options:"
-            echo "  --dev, -d              Run in development mode"
-            echo "  --build, -b            Build container images before starting (no cache)"
-            echo "  --force-build          Alias for --build (maintained for compatibility)"
-            echo "  --runtime, -r RUNTIME  Force container runtime (docker|podman)"
-            echo "  --help, -h             Show this help message"
-            echo "  --no-health-check      Skip health check after startup"
-            echo ""
-            echo "Runtime Selection:"
-            echo "  Auto-detect: Script will auto-detect available runtime"
-            echo "  --runtime docker     Force Docker (recommended for Debian/Ubuntu)"
-            echo "  --runtime podman     Force Podman (recommended for RHEL/Fedora)"
-            echo ""
-            echo "Environment variables:"
-            echo "  OPENWATCH_ENV          Set to 'development' for dev mode"
-            echo ""
-            echo "This script will:"
-            echo "  1. Detect or use specified container runtime"
-            echo "  2. Set up environment variables"
-            echo "  3. Build container images (if --build is specified)"
-            echo "  4. Start OpenWatch services"
-            echo "  5. Perform basic health checks"
-            echo ""
-            echo "Examples:"
-            echo "  $0                               # Auto-detect runtime and start"
-            echo "  $0 --runtime docker              # Force Docker runtime"
-            echo "  $0 --runtime podman --build      # Use Podman and build"
-            echo "  $0 --dev --runtime docker        # Development mode with Docker"
-            echo "  $0 --force-build --runtime podman # Force rebuild with Podman"
+            cat <<'EOF'
+OpenWatch Startup Script
+
+Usage: ./start-openwatch.sh [OPTIONS]
+
+Options:
+  --dev, -d              Run in development mode
+  --build, -b            Build container images before starting (no cache)
+  --force-build          Alias for --build
+  --runtime, -r RUNTIME  Force container runtime (docker|podman)
+  --no-health-check      Skip the post-start health check
+  --reset-data           Delete existing OpenWatch data volumes BEFORE
+                         starting (hosts, credentials, scans, logs).
+                         Gated on --yes / OPENWATCH_CONFIRM_DESTROY=yes
+                         / interactive 'yes' on stdin.
+  --yes, -y              Skip confirmation prompts. Required when running
+                         --reset-data non-interactively.
+  --help, -h             Show this help message
+
+Data persistence (this is the durable model):
+  Hosts, credentials, scan results, and SSH known_hosts live in named
+  docker volumes (openwatch_postgres_data, openwatch_app_data,
+  openwatch_app_logs, openwatch_ssh_known_hosts). They survive:
+    - container restarts
+    - stop-openwatch.sh (any mode except --clean-data / --deep-clean)
+    - start-openwatch.sh (any mode except --reset-data)
+    - --build / --force-build (images and volumes are independent)
+  They are wiped only by:
+    - ./start-openwatch.sh --reset-data
+    - ./stop-openwatch.sh --clean-data
+    - ./stop-openwatch.sh --deep-clean
+    - manual `docker volume rm` / `docker compose down -v`
+
+Runtime selection:
+  Auto-detect picks whatever container runtime is installed. Use
+  --runtime docker to pin Docker (Debian/Ubuntu), --runtime podman
+  for Podman (RHEL/Fedora).
+
+Environment variables:
+  OPENWATCH_ENV=development      Equivalent to --dev
+  OPENWATCH_CONFIRM_DESTROY=yes  Companion to --yes for --reset-data in
+                                 non-interactive contexts.
+
+Examples:
+  ./start-openwatch.sh                          # Resume against existing data
+  ./start-openwatch.sh --runtime docker --build # Rebuild images, keep data
+  ./start-openwatch.sh --reset-data             # Prompts before wipe + start
+  ./start-openwatch.sh --reset-data --yes       # Scripted fresh start
+EOF
             exit 0
             ;;
         --no-health-check)
             NO_HEALTH_CHECK=true
+            shift
+            ;;
+        --reset-data)
+            # Explicit opt-in to wipe DB / app data BEFORE starting.
+            # Gated on --yes / OPENWATCH_CONFIRM_DESTROY=yes / interactive
+            # confirm inside reset_data_volumes.
+            RESET_DATA=true
+            shift
+            ;;
+        --yes|-y)
+            ASSUME_YES=true
             shift
             ;;
         *)
@@ -423,6 +535,16 @@ main() {
 
     check_prerequisites
     setup_environment
+
+    # Data-volume preflight runs BEFORE we touch any containers. If
+    # --reset-data was requested, drop volumes here (gated by confirm);
+    # otherwise just report what will be reused so the operator can see
+    # at a glance that hosts/credentials/scans will survive.
+    if [ "$RESET_DATA" = true ]; then
+        reset_data_volumes
+    else
+        preflight_data_check
+    fi
 
     # Check if images exist (only if not building)
     if [ "$BUILD_IMAGES" != true ]; then
