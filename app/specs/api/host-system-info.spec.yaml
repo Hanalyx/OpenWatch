@@ -1,0 +1,93 @@
+spec:
+  id: api-host-system-info
+  title: GET /hosts/{id}/system-info — last Discovery result for one host
+  version: "1.0.0"
+  status: approved
+  tier: 1
+
+  context:
+    system: openwatch-go
+    feature: Read endpoint for the latest host_system_info row, used by the host detail System / Hardware / Network sections
+    description: >
+      The host_system_info table is populated by system-host-discovery
+      whenever Discovery runs (synchronous via POST
+      /hosts/{id}/discovery:run, or async by the scheduler-driven
+      Discovery cycle when that lands). It carries the rich OS +
+      hardware + network facts the host detail page Hardware /
+      Network sections want — CPU model, total memory, disk usage,
+      firewall service, FQDN, kernel release, etc.
+
+      Pre-this spec there was NO read endpoint surfacing the row.
+      The frontend could read os_family / os_version via the
+      denormalized hosts columns (api-hosts v1.4.0) but had no path
+      to the rich facts. This spec adds a single GET surface that
+      returns the most-recent row for one host.
+
+      404 semantics mirror api-os-intelligence: the handler
+      intentionally collapses "host unknown" and "host known but no
+      Discovery row yet" into the same envelope so operators cannot
+      probe host existence via this endpoint. The dedicated host
+      lookup (GET /hosts/{id}) is the canonical probe.
+
+      RBAC: host:read. Same bar as GET /hosts/{id} — anyone who can
+      see the host can see its Discovery facts.
+
+    related_specs:
+      - system-host-discovery
+      - api-hosts
+      - api-os-intelligence
+
+  objective:
+    summary: >
+      Single GET endpoint that returns the latest host_system_info
+      row as a HostSystemInfo object (schema already exists from
+      POST /discovery:run). 200 when a row exists, 404 when missing.
+    scope:
+      includes:
+        - "GET /api/v1/hosts/{id}/system-info"
+        - "Returns the existing HostSystemInfo schema verbatim"
+        - "404 envelope identical to api-os-intelligence GET /intelligence/state/{host_id}"
+      excludes:
+        - "Listing system-info across hosts — caller iterates GET /hosts and per-host fetches when the bulk shape is needed"
+        - "Filtering by collected_at — there is only one row per host (UPSERT on host_id)"
+        - "Write endpoint — Discovery writes are owned by POST /hosts/{id}/discovery:run + the scheduler-driven Discovery cycle"
+
+  constraints:
+    - id: C-01
+      description: 'GET /api/v1/hosts/{id}/system-info MUST require host:read. Mirrors the GET /hosts/{id} bar; an unauthenticated or read-denied caller MUST receive 403 authz.permission_denied — never the row contents'
+      type: security
+      enforcement: error
+    - id: C-02
+      description: 'The handler MUST read at most ONE row from host_system_info via WHERE host_id = $1 (parameterized; no string concat). The row is uniquely identified by host_id (UPSERT-keyed). No ORDER BY needed since there is at most one row'
+      type: technical
+      enforcement: error
+    - id: C-03
+      description: '404 envelope MUST use the same code "hosts.not_found" whether (a) the host is unknown, (b) the host is soft-deleted, or (c) the host exists but no Discovery has run. Operators MUST NOT be able to distinguish these via this endpoint — same envelope, same human_message. Mirrors api-os-intelligence C-04'
+      type: security
+      enforcement: error
+    - id: C-04
+      description: '200 response body MUST be the existing HostSystemInfo schema (declared by api/openapi.yaml, also returned by POST /hosts/{id}/discovery:run). No new schema, no transformation — the column-for-column shape stays consistent across the synchronous Discovery result and this read path'
+      type: technical
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: 'GET /api/v1/hosts/{id}/system-info with host:read and a host whose host_system_info row exists returns 200 with the HostSystemInfo JSON. host_id in the response equals the path id; collected_at is the persisted UTC timestamp'
+      priority: critical
+      references_constraints: [C-01, C-02, C-04]
+    - id: AC-02
+      description: 'GET /api/v1/hosts/{id}/system-info with host:read and a host that has NO host_system_info row returns 404 with error.code="hosts.not_found"'
+      priority: critical
+      references_constraints: [C-03]
+    - id: AC-03
+      description: 'GET /api/v1/hosts/{id}/system-info with host:read and an unknown host id returns 404 with error.code="hosts.not_found" — the SAME envelope as AC-02 (operators cannot distinguish unknown-host from no-discovery-yet)'
+      priority: critical
+      references_constraints: [C-03]
+    - id: AC-04
+      description: 'GET /api/v1/hosts/{id}/system-info as anonymous (no session) returns 403 authz.permission_denied. host:read failure surfaces the same envelope used by GET /hosts/{id}'
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-05
+      description: 'Source inspection: the handler reads host_system_info via a parameterized pgx QueryRow with $1 bound to the host id — never a string-concat or fmt.Sprintf-built SQL. Source MUST contain WHERE host_id = $1'
+      priority: critical
+      references_constraints: [C-02]

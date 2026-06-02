@@ -78,6 +78,7 @@ describe('frontend-host-detail-system-card — behavior', () => {
       <CardSystem
         host={makeHost({ os_family: 'rhel', os_version: '9.2' })}
         intelligenceSnapshot={null}
+        systemInfo={null}
       />,
     );
     // Distribution row populated from os_family + os_version
@@ -96,6 +97,7 @@ describe('frontend-host-detail-system-card — behavior', () => {
       <CardSystem
         host={makeHost({ os_family: null, os_version: null })}
         intelligenceSnapshot={null}
+        systemInfo={null}
       />,
     );
     expect(screen.getByText('Not discovered yet')).toBeInTheDocument();
@@ -111,6 +113,7 @@ describe('frontend-host-detail-system-card — behavior', () => {
       <CardSystem
         host={makeHost({ os_family: null, os_version: null })}
         intelligenceSnapshot={null}
+        systemInfo={null}
       />,
     );
     expect(screen.getByText('Not discovered yet')).toBeInTheDocument();
