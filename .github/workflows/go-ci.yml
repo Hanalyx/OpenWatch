@@ -123,15 +123,20 @@ jobs:
 
       # Spec system-supply-chain C-04 / AC-06: every PR re-runs
       # `go mod tidy` and refuses to merge if go.mod / go.sum have
-       # drifted. Catches stale dependency declarations + accidental
+      # drifted. Catches stale dependency declarations + accidental
       # indirect-to-direct promotions.
+      # GOFLAGS=-mod=readonly (AC-05) is unset for THIS step because
+      # `go mod tidy` mutates go.mod/go.sum by design; readonly would
+      # block it. Drift is detected via the follow-up `git diff` instead.
       - name: go mod tidy + diff
         if: steps.paths.outputs.go == 'true'
         working-directory: app
+        env:
+          GOFLAGS: ""
         run: |
           go mod tidy
           git diff --exit-code -- go.mod go.sum || {
-            echo "::error::go.mod / go.sum drifted from `go mod tidy` output. Run \`go mod tidy\` locally and commit.";
+            echo "::error::go.mod / go.sum drifted from 'go mod tidy' output. Run 'go mod tidy' locally and commit.";
             exit 1;
           }
 
