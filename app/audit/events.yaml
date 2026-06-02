@@ -796,6 +796,23 @@ events:
         new_value: {type: object}
         changed_by: {type: string}
 
+  - code: system.intelligence.sudo_password_used
+    severity: warning
+    actor_types: [system]
+    description: |
+      Emitted exactly once per host per cycle when the SSH dial layer used
+      the credential's stored password as the sudo password (sudo -S fallback)
+      because the host did not honor sudo -n NOPASSWD for one or more probe
+      commands. Gated on system_config.security.allow_credential_sudo_password.
+      Spec: system-ssh-connectivity v1.1.0 C-09..C-12 + AC-16.
+    detail_schema:
+      type: object
+      required: [credential_id, host_id, command_count]
+      properties:
+        credential_id: {type: string, format: uuid}
+        host_id:       {type: string, format: uuid}
+        command_count: {type: integer, minimum: 1}
+
   - code: system.migration.applied
     severity: info
     detail_schema:

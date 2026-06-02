@@ -35,10 +35,17 @@ func testHostFacts() hostFacts {
 // ---- stub SSH transport ---------------------------------------------------
 
 type stubSSHTransport struct {
-	mu        sync.Mutex
-	dialCount atomic.Int64
-	outputs   map[string]stubResult
-	failures  map[string]stubResult
+	mu         sync.Mutex
+	dialCount  atomic.Int64
+	outputs    map[string]stubResult
+	failures   map[string]stubResult
+	stdinCalls []stdinRecord
+}
+
+// stdinRecord captures one RunWithStdin invocation for assertions.
+type stdinRecord struct {
+	cmd   string
+	stdin []byte
 }
 
 type stubResult struct {
@@ -101,6 +108,22 @@ type stubSession struct{ parent *stubSSHTransport }
 func (s *stubSession) Run(_ context.Context, cmd string) ([]byte, int, error) {
 	s.parent.mu.Lock()
 	defer s.parent.mu.Unlock()
+	if r, ok := s.parent.failures[cmd]; ok {
+		return r.out, r.exitCode, r.err
+	}
+	if r, ok := s.parent.outputs[cmd]; ok {
+		return r.out, r.exitCode, r.err
+	}
+	return nil, 127, nil
+}
+
+// RunWithStdin satisfies the SSHSession interface added in
+// system-ssh-connectivity v1.1.0. Same lookup map as Run; the stdin
+// payload is captured for assertions.
+func (s *stubSession) RunWithStdin(_ context.Context, cmd string, stdin []byte) ([]byte, int, error) {
+	s.parent.mu.Lock()
+	defer s.parent.mu.Unlock()
+	s.parent.stdinCalls = append(s.parent.stdinCalls, stdinRecord{cmd: cmd, stdin: append([]byte(nil), stdin...)})
 	if r, ok := s.parent.failures[cmd]; ok {
 		return r.out, r.exitCode, r.err
 	}

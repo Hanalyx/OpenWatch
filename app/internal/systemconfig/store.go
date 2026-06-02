@@ -119,6 +119,27 @@ func (s *Store) SetConnectivity(ctx context.Context, cfg ConnectivityConfig, cha
 	return nil
 }
 
+// LoadSecurity returns the persisted SecurityConfig OR DefaultSecurity
+// when no row exists for KeySecurity. Only returns an error for DB /
+// unmarshal failures.
+//
+// Spec system-ssh-connectivity v1.1.0 C-09.
+func (s *Store) LoadSecurity(ctx context.Context) (SecurityConfig, error) {
+	var raw []byte
+	err := s.pool.QueryRow(ctx, `SELECT value FROM system_config WHERE key = $1`, KeySecurity).Scan(&raw)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return DefaultSecurity(), nil
+	}
+	if err != nil {
+		return SecurityConfig{}, fmt.Errorf("systemconfig: load %s: %w", KeySecurity, err)
+	}
+	cfg := DefaultSecurity()
+	if err := json.Unmarshal(raw, &cfg); err != nil {
+		return SecurityConfig{}, fmt.Errorf("systemconfig: unmarshal %s: %w", KeySecurity, err)
+	}
+	return cfg, nil
+}
+
 // LoadIntelligence returns the persisted IntelligenceConfig OR
 // DefaultIntelligence when no row exists for KeyIntelligence. Only
 // returns an error for DB / unmarshal failures.
