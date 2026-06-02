@@ -21,6 +21,7 @@ import api from '@/api/client';
 import { useAuthStore } from '@/store/useAuthStore';
 import { osDisplayLabel } from '@/utils/osLabel';
 import { formatUptime } from '@/utils/formatUptime';
+import { stripKernelDistroSuffix } from '@/utils/kernelVersion';
 
 // Minimal host shape needed by CardSystem. Mirrors the relevant subset
 // of HostResponse — declared inline so the card stays testable without
@@ -35,15 +36,32 @@ export interface CardSystemHost {
   os_version?: string | null;
 }
 
+// Subset of HostSystemInfo we render. Mirrors the API schema column
+// names; null fields tolerate partial-collection rows (sudo unavailable,
+// older snapshots).
+export interface CardSystemInfo {
+  architecture?: string | null;
+  fqdn?: string | null;
+  os_pretty_name?: string | null;
+  mem_total_mb?: number | null;
+  disk_total_gb?: number | null;
+  disk_used_gb?: number | null;
+  firewall_service?: string | null;
+  firewall_status?: string | null;
+  collected_at?: string;
+}
+
 interface CardSystemProps {
   host: CardSystemHost;
   /** snapshot field of IntelligenceState; null when no IntelligenceState row exists yet. */
   intelligenceSnapshot: Record<string, unknown> | null;
+  /** Latest host_system_info row; null when no Discovery has run for this host. */
+  systemInfo: CardSystemInfo | null;
 }
 
 const UNREACHABLE_MSG = 'Host unreachable — check SSH credentials and connectivity';
 
-export function CardSystem({ host, intelligenceSnapshot }: CardSystemProps) {
+export function CardSystem({ host, intelligenceSnapshot, systemInfo }: CardSystemProps) {
   const canWrite = useAuthStore((s) => s.hasPermission('host:write'));
   const queryClient = useQueryClient();
   const [pending, setPending] = useState(false);
@@ -100,26 +118,49 @@ export function CardSystem({ host, intelligenceSnapshot }: CardSystemProps) {
     }
   }
 
+  // Prefer the richer os_pretty_name from host_system_info when present
+  // (e.g. "Red Hat Enterprise Linux 9.7 (Plow)"); fall back to the
+  // denormalized hosts.os_family + os_version pair so pre-system-info
+  // hosts still render.
+  const distributionDisplay = systemInfo?.os_pretty_name || distribution;
+  const fqdnDisplay = systemInfo?.fqdn || host.hostname;
+
   return (
     <Card title="System">
       <SpecGroup title="Operating system">
         {isDiscovered ? (
           <DefList
             rows={[
-              ['Distribution', <span key="d">{distribution}</span>],
+              [
+                'Distribution',
+                <div key="d">
+                  <div>{distributionDisplay}</div>
+                  {systemInfo?.architecture && (
+                    <div style={subValueStyle}>{systemInfo.architecture}</div>
+                  )}
+                </div>,
+              ],
               [
                 'Kernel',
                 <span key="k" style={{ fontFamily: 'var(--ow-font-mono)' }}>
-                  {kernelRelease ?? '—'}
+                  {kernelRelease ? stripKernelDistroSuffix(kernelRelease) : '—'}
                 </span>,
               ],
               [
                 'FQDN',
                 <span key="f" style={{ fontFamily: 'var(--ow-font-mono)' }}>
-                  {host.hostname}
+                  {fqdnDisplay}
                 </span>,
               ],
-              ['Uptime', <span key="u">{formatUptime(uptimeSeconds)}</span>],
+              [
+                'Uptime',
+                <div key="u">
+                  <div>{formatUptime(uptimeSeconds)}</div>
+                  {uptimeSeconds !== null && (
+                    <div style={subValueStyle}>Since {formatBootDate(uptimeSeconds)}</div>
+                  )}
+                </div>,
+              ],
             ]}
           />
         ) : (
@@ -133,11 +174,15 @@ export function CardSystem({ host, intelligenceSnapshot }: CardSystemProps) {
       </SpecGroup>
 
       <SpecGroup title="Hardware">
-        <EmptyState
-          primary="Hardware metrics not collected"
-          secondary="Populated by Server Intelligence (CPU / disk / memory). Deferred — see BACKLOG."
-          compact
-        />
+        {systemInfo ? (
+          <HardwareSection systemInfo={systemInfo} />
+        ) : (
+          <EmptyState
+            primary="Hardware metrics not collected"
+            secondary="Appears after the first Discovery run."
+            compact
+          />
+        )}
       </SpecGroup>
 
       <SpecGroup title="Network">
@@ -156,13 +201,163 @@ export function CardSystem({ host, intelligenceSnapshot }: CardSystemProps) {
                 {host.ip_address}:{host.port ?? 22}
               </span>,
             ],
-            ['Firewall', <span key="fw">—</span>],
+            [
+              'Firewall',
+              <div key="fw">
+                <FirewallStatus
+                  status={systemInfo?.firewall_status ?? null}
+                  service={systemInfo?.firewall_service ?? null}
+                />
+              </div>,
+            ],
           ]}
         />
       </SpecGroup>
     </Card>
   );
 }
+
+// formatBootDate — uptime_seconds back-projected to a wall clock for
+// the "Since YYYY-MM-DD, HH:MM" subtitle on the Uptime row. Uses the
+// browser's local timezone so an operator's "since" matches what they'd
+// see in their shell.
+function formatBootDate(uptimeSeconds: number): string {
+  const boot = new Date(Date.now() - uptimeSeconds * 1000);
+  const date = boot.toLocaleDateString(undefined, {
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+  });
+  const time = boot.toLocaleTimeString(undefined, {
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+  return `${date}, ${time}`;
+}
+
+// HardwareSection renders CPU / Disk / Memory. CPU model + cores are
+// not yet collected by Discovery (host_system_info has no cpu_*
+// columns), so we surface an honest placeholder there. Disk + Memory
+// come straight from host_system_info.
+function HardwareSection({ systemInfo }: { systemInfo: CardSystemInfo }) {
+  const diskTotal = systemInfo.disk_total_gb ?? null;
+  const diskUsed = systemInfo.disk_used_gb ?? null;
+  const diskPct =
+    diskTotal !== null && diskUsed !== null && diskTotal > 0
+      ? Math.min(100, Math.round((diskUsed / diskTotal) * 100))
+      : null;
+  const diskFree =
+    diskTotal !== null && diskUsed !== null ? Math.max(0, diskTotal - diskUsed) : null;
+  const memGb =
+    systemInfo.mem_total_mb !== null && systemInfo.mem_total_mb !== undefined
+      ? (systemInfo.mem_total_mb / 1024).toFixed(1)
+      : null;
+
+  return (
+    <DefList
+      rows={[
+        [
+          'CPU',
+          <div key="cpu">
+            <div style={{ color: 'var(--ow-fg-2)' }}>—</div>
+            <div style={subValueStyle}>Hardware model not yet collected</div>
+          </div>,
+        ],
+        [
+          'Disk',
+          <div key="disk">
+            {diskTotal !== null && diskUsed !== null ? (
+              <>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                  <DiskBar percent={diskPct ?? 0} />
+                  <span style={{ fontFamily: 'var(--ow-font-mono)', whiteSpace: 'nowrap' }}>
+                    {diskUsed}.0 / {diskTotal}.0 GB
+                  </span>
+                </div>
+                {diskFree !== null && (
+                  <div style={subValueStyle}>
+                    {diskFree}.0 GB free · {diskPct ?? 0}% used
+                  </div>
+                )}
+              </>
+            ) : (
+              <span style={{ color: 'var(--ow-fg-3)' }}>—</span>
+            )}
+          </div>,
+        ],
+        [
+          'Memory',
+          <div key="mem">
+            <div style={{ fontFamily: 'var(--ow-font-mono)' }}>
+              {memGb !== null ? `${memGb} GB` : '—'}
+            </div>
+            <div style={subValueStyle}>Live utilization not collected</div>
+          </div>,
+        ],
+      ]}
+    />
+  );
+}
+
+function DiskBar({ percent }: { percent: number }) {
+  // Color steps: green <60, amber 60-85, red >85. Matches the prototype's
+  // intent of communicating headroom at a glance.
+  const color =
+    percent >= 85 ? 'var(--ow-crit)' : percent >= 60 ? 'var(--ow-warn)' : 'var(--ow-ok)';
+  return (
+    <div
+      role="progressbar"
+      aria-valuenow={percent}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-label={`Disk usage ${percent}%`}
+      style={{
+        flex: 1,
+        height: 6,
+        background: 'var(--ow-bg-3)',
+        borderRadius: 3,
+        overflow: 'hidden',
+        alignSelf: 'center',
+      }}
+    >
+      <div
+        style={{
+          width: `${percent}%`,
+          height: '100%',
+          background: color,
+        }}
+      />
+    </div>
+  );
+}
+
+function FirewallStatus({
+  status,
+  service,
+}: {
+  status: string | null;
+  service: string | null;
+}) {
+  if (!status) {
+    return <span style={{ color: 'var(--ow-fg-3)' }}>—</span>;
+  }
+  const normalized = status.toLowerCase();
+  const isActive = normalized === 'active' || normalized === 'enabled' || normalized === 'running';
+  const label = isActive ? 'Active' : 'Inactive';
+  const color = isActive ? 'var(--ow-ok)' : 'var(--ow-crit)';
+  return (
+    <div>
+      <span style={{ color, fontWeight: 500 }}>{label}</span>
+      {service && <div style={subValueStyle}>{service}</div>}
+    </div>
+  );
+}
+
+const subValueStyle: React.CSSProperties = {
+  fontSize: 11,
+  color: 'var(--ow-fg-3)',
+  marginTop: 2,
+};
 
 function NotDiscoveredState({
   canWrite,
@@ -236,13 +431,15 @@ function NotDiscoveredState({
   );
 }
 
-function pickString(snap: Record<string, unknown> | null, key: string): string | null {
+// Exported so HostDetailPage's PageHead can read the same fields from
+// the same intelligence_state query without duplicating the logic.
+export function pickString(snap: Record<string, unknown> | null, key: string): string | null {
   if (!snap) return null;
   const v = snap[key];
   return typeof v === 'string' && v.length > 0 ? v : null;
 }
 
-function pickNumber(snap: Record<string, unknown> | null, key: string): number | null {
+export function pickNumber(snap: Record<string, unknown> | null, key: string): number | null {
   if (!snap) return null;
   const v = snap[key];
   return typeof v === 'number' && Number.isFinite(v) ? v : null;

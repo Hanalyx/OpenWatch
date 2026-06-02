@@ -46,6 +46,30 @@ type Snapshot struct {
 	// (uptime fell below prior cycle's value).
 	UptimeSeconds int64 `json:"uptime_seconds,omitempty"`
 
+	// NetworkInterfaces: one entry per device from `ip -j addr show` +
+	// /sys/class/net. Powers the host-detail Network tab. Optional fields
+	// (Speed, Duplex, Driver) may be empty for virtual / loopback / not-
+	// permitted interfaces — that's expected, not an error.
+	NetworkInterfaces []NetworkInterface `json:"network_interfaces,omitempty"`
+
+	// Routes: parsed `ip -j route show` for the main routing table.
+	// Used to populate the Network tab's "Default route" stat card and
+	// the routing-table panel.
+	Routes []Route `json:"routes,omitempty"`
+
+	// FirewallRuleCount: count of currently-loaded user-visible rules
+	// in whichever firewall the host runs. Definition is per-engine
+	// (rich rules for firewalld, numbered rules for ufw, rule lines for
+	// nftables, -A lines for iptables) — operators care about "did I
+	// configure anything" more than parser semantics.
+	//   nil    = field not collected (pre-feature snapshot OR probe crashed)
+	//   *n=-1  = no firewall engine detected on this host
+	//   *n=0   = engine present, no rules loaded
+	//   *n=N>0 = engine present, N rules loaded
+	// Pointer is required because we need to distinguish 0 ("engine
+	// present, no rules") from "absent" — int with omitempty drops both.
+	FirewallRuleCount *int `json:"firewall_rule_count,omitempty"`
+
 	// CollectedAt is when the snapshot was captured. Set by the
 	// service, not the parsers.
 	CollectedAt time.Time `json:"collected_at,omitempty"`
@@ -56,6 +80,34 @@ type ListeningPort struct {
 	Protocol string `json:"protocol"` // tcp | udp
 	Address  string `json:"address"`
 	Port     int    `json:"port"`
+}
+
+// NetworkInterface is one network device. Sourced from `ip -j addr`
+// + /sys/class/net. The frontend renders one card per interface; the
+// stat row counts physical vs loopback by Type.
+type NetworkInterface struct {
+	Name      string   `json:"name"`                 // eno1, lo, eth0, ...
+	State     string   `json:"state,omitempty"`      // UP | DOWN | UNKNOWN
+	Type      string   `json:"type,omitempty"`       // physical | loopback | virtual | bridge | tunnel
+	IPv4Addrs []string `json:"ipv4_addrs,omitempty"` // CIDR strings, e.g., "192.168.1.214/24"
+	IPv6Addrs []string `json:"ipv6_addrs,omitempty"` // CIDR strings
+	MAC       string   `json:"mac,omitempty"`        // colon-separated; "" for loopback
+	MTU       int      `json:"mtu,omitempty"`
+	Driver    string   `json:"driver,omitempty"`     // virtio_net, e1000e, ...
+	SpeedMbps int      `json:"speed_mbps,omitempty"` // 0 when unknown / loopback
+	Duplex    string   `json:"duplex,omitempty"`     // full | half | ""
+	RxBytes   uint64   `json:"rx_bytes,omitempty"`
+	TxBytes   uint64   `json:"tx_bytes,omitempty"`
+}
+
+// Route is one entry from `ip -j route show`.
+type Route struct {
+	Destination string `json:"destination"`       // "default" | CIDR
+	Gateway     string `json:"gateway,omitempty"` // "link-local" → empty
+	Interface   string `json:"interface"`         // dev
+	Metric      int    `json:"metric,omitempty"`
+	Protocol    string `json:"protocol,omitempty"` // dhcp, static, kernel, ...
+	Scope       string `json:"scope,omitempty"`    // host, link, global
 }
 
 // UserSnapshot is the per-user fact set from passwd+shadow.

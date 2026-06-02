@@ -1018,6 +1018,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/hosts/{id}/system-info": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the latest Discovery facts for one host
+         * @description Returns the most recent host_system_info row for the given
+         *     host. Populated by system-host-discovery (synchronous via
+         *     POST /hosts/{id}/discovery:run or async by the scheduler).
+         *     404 hosts.not_found if (a) the host is unknown, (b) the
+         *     host is soft-deleted, or (c) the host exists but Discovery
+         *     has not run yet — operators cannot probe host existence
+         *     via this endpoint. Spec api-host-system-info.
+         */
+        get: operations["getHostSystemInfo"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/hosts/{id}/discovery:run": {
         parameters: {
             query?: never;
@@ -3944,6 +3970,46 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             /** @description Anonymous caller */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getHostSystemInfo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Latest HostSystemInfo for the host */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HostSystemInfo"];
+                };
+            };
+            /** @description Caller lacks host:read permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Host unknown OR no Discovery row yet */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
