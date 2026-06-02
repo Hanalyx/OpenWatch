@@ -25,6 +25,10 @@ type SSHTransport interface {
 // underlying transport.
 type SSHSession interface {
 	Run(ctx context.Context, cmd string) (stdout []byte, exitCode int, err error)
+	// RunWithStdin is the sudo-password-fallback hook (system-ssh-
+	// connectivity v1.1.0 C-10). ssh.RunSudo pipes the credential
+	// password through here when the policy allows.
+	RunWithStdin(ctx context.Context, cmd string, stdin []byte) (stdout []byte, exitCode int, err error)
 	Close() error
 }
 
@@ -102,6 +106,50 @@ func (s *SSHClientSession) Run(ctx context.Context, cmd string) ([]byte, int, er
 			exitCode = exitErr.ExitStatus()
 			// Non-zero exit is NOT a Go-level error for our purposes;
 			// the probe inspects exitCode itself (sudo failure path).
+			return out, exitCode, nil
+		}
+		return out, -1, runErr
+	}
+	return out, exitCode, nil
+}
+
+// RunWithStdin runs cmd with the given bytes piped to the remote
+// process's stdin. Used by ssh.RunSudo for the `sudo -S` password
+// fallback path. Same channel-per-command pattern as Run.
+//
+// Spec system-ssh-connectivity v1.1.0 C-10.
+func (s *SSHClientSession) RunWithStdin(ctx context.Context, cmd string, stdin []byte) ([]byte, int, error) {
+	sess, err := s.client.NewSession()
+	if err != nil {
+		return nil, -1, err
+	}
+	defer sess.Close()
+
+	deadline, ok := ctx.Deadline()
+	var timer *time.Timer
+	if ok {
+		dur := time.Until(deadline)
+		if dur > 0 {
+			timer = time.AfterFunc(dur, func() { _ = sess.Signal(ssh.SIGKILL); _ = sess.Close() })
+			defer timer.Stop()
+		}
+	}
+
+	pipe, err := sess.StdinPipe()
+	if err != nil {
+		return nil, -1, err
+	}
+	go func() {
+		_, _ = pipe.Write(stdin)
+		_ = pipe.Close()
+	}()
+
+	out, runErr := sess.CombinedOutput(cmd)
+	exitCode := 0
+	if runErr != nil {
+		var exitErr *ssh.ExitError
+		if errors.As(runErr, &exitErr) {
+			exitCode = exitErr.ExitStatus()
 			return out, exitCode, nil
 		}
 		return out, -1, runErr
