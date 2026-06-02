@@ -1,3 +1,9 @@
+# TODO: system-supply-chain AC-08 syft — add a syft step that scans the
+# built openwatch binary plus the RPM + DEB packages and uploads the
+# CycloneDX 1.5 JSON SBOM as a tagged workflow artifact.
+# TODO: system-supply-chain AC-09 cyclonedx — pin syft's output to
+# --output cyclonedx-json (CycloneDX 1.5) so the SBOM validates against
+# the published schema.
 name: Release
 
 on:

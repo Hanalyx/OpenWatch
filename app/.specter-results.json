@@ -553,6 +553,48 @@
       "passed": true
     },
     {
+      "spec_id": "frontend-shell-account-menu",
+      "ac_id": "AC-01",
+      "status": "passed",
+      "passed": true
+    },
+    {
+      "spec_id": "frontend-shell-account-menu",
+      "ac_id": "AC-02",
+      "status": "passed",
+      "passed": true
+    },
+    {
+      "spec_id": "frontend-shell-account-menu",
+      "ac_id": "AC-03",
+      "status": "passed",
+      "passed": true
+    },
+    {
+      "spec_id": "frontend-shell-account-menu",
+      "ac_id": "AC-04",
+      "status": "passed",
+      "passed": true
+    },
+    {
+      "spec_id": "frontend-shell-account-menu",
+      "ac_id": "AC-05",
+      "status": "passed",
+      "passed": true
+    },
+    {
+      "spec_id": "frontend-shell-account-menu",
+      "ac_id": "AC-06",
+      "status": "passed",
+      "passed": true
+    },
+    {
+      "spec_id": "frontend-shell-account-menu",
+      "ac_id": "AC-07",
+      "status": "passed",
+      "passed": true
+    },
+    {
       "spec_id": "frontend-host-detail-system-card",
       "ac_id": "AC-01",
       "status": "passed",
@@ -1983,6 +2025,30 @@
     {
       "spec_id": "system-os-intelligence",
       "ac_id": "AC-05",
+      "status": "passed",
+      "passed": true
+    },
+    {
+      "spec_id": "system-ssh-connectivity",
+      "ac_id": "AC-14",
+      "status": "passed",
+      "passed": true
+    },
+    {
+      "spec_id": "system-ssh-connectivity",
+      "ac_id": "AC-11",
+      "status": "passed",
+      "passed": true
+    },
+    {
+      "spec_id": "system-ssh-connectivity",
+      "ac_id": "AC-12",
+      "status": "passed",
+      "passed": true
+    },
+    {
+      "spec_id": "system-ssh-connectivity",
+      "ac_id": "AC-16",
       "status": "passed",
       "passed": true
     },
@@ -4347,6 +4413,24 @@
     {
       "spec_id": "system-ssh-connectivity",
       "ac_id": "AC-10",
+      "status": "passed",
+      "passed": true
+    },
+    {
+      "spec_id": "system-ssh-connectivity",
+      "ac_id": "AC-13",
+      "status": "passed",
+      "passed": true
+    },
+    {
+      "spec_id": "system-ssh-connectivity",
+      "ac_id": "AC-17",
+      "status": "passed",
+      "passed": true
+    },
+    {
+      "spec_id": "system-ssh-connectivity",
+      "ac_id": "AC-15",
       "status": "passed",
       "passed": true
     },

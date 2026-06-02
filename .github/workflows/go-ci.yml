@@ -51,6 +51,14 @@ jobs:
 
     env:
       OPENWATCH_TEST_DSN: postgres://openwatch:openwatch_ci@127.0.0.1:5432/openwatch_go_test?sslmode=disable
+      # Spec system-supply-chain C-03 / AC-05: pin every go command in
+      # this workflow to read-only module resolution so a typo in
+      # go.mod or an out-of-band fetch attempt fails the build instead
+      # of silently mutating the lockfile.
+      GOFLAGS: -mod=readonly
+      # Test-DB isolation guard: CI's openwatch_go_test name already
+      # ends in _test so the runtime guard accepts it without bypass.
+      OPENWATCH_TEST_DSN_ALLOW_NONTEST: "no"
 
     steps:
       - uses: actions/checkout@v4
@@ -112,6 +120,20 @@ jobs:
           tar -xzf /tmp/specter.tar.gz -C /tmp specter
           install -m 0755 /tmp/specter /usr/local/bin/specter
           specter --version
+
+      # Spec system-supply-chain C-04 / AC-06: every PR re-runs
+      # `go mod tidy` and refuses to merge if go.mod / go.sum have
+       # drifted. Catches stale dependency declarations + accidental
+      # indirect-to-direct promotions.
+      - name: go mod tidy + diff
+        if: steps.paths.outputs.go == 'true'
+        working-directory: app
+        run: |
+          go mod tidy
+          git diff --exit-code -- go.mod go.sum || {
+            echo "::error::go.mod / go.sum drifted from `go mod tidy` output. Run \`go mod tidy\` locally and commit.";
+            exit 1;
+          }
 
       - name: make vet
         if: steps.paths.outputs.go == 'true'
