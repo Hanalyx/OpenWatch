@@ -213,6 +213,36 @@ func (s *Service) runCycleWithTransport(ctx context.Context, hf hostFacts) (Snap
 		snap.ListeningPorts = ports
 	}
 
+	// Network interfaces: `ip -j addr` gives addresses + state + MAC +
+	// MTU; the sysfs probe fills in driver/speed/duplex/RX/TX. Partial
+	// success — if the sysfs loop fails we still surface the IP info.
+	if out, code, err := sess.Run(ctx, "ip -j addr show 2>/dev/null"); err == nil && code == 0 {
+		if ifaces, perr := ParseIPAddrJSON(out); perr == nil {
+			stats := map[string]sysfsStats{}
+			// One shell pass over /sys/class/net/. printf instead of echo for
+			// portability; |-delimited so a single parser handles all hosts.
+			const sysfsCmd = `for i in /sys/class/net/*; do
+                name=$(basename "$i")
+                speed=$(cat "$i/speed" 2>/dev/null)
+                duplex=$(cat "$i/duplex" 2>/dev/null)
+                drv=$(basename "$(readlink "$i/device/driver" 2>/dev/null)" 2>/dev/null)
+                rx=$(cat "$i/statistics/rx_bytes" 2>/dev/null)
+                tx=$(cat "$i/statistics/tx_bytes" 2>/dev/null)
+                printf "%s|%s|%s|%s|%s|%s\n" "$name" "$speed" "$duplex" "$drv" "$rx" "$tx"
+            done`
+			if sout, scode, serr := sess.Run(ctx, sysfsCmd); serr == nil && scode == 0 {
+				stats = ParseSysfsNetStats(sout)
+			}
+			snap.NetworkInterfaces = MergeNetworkInterfaces(ifaces, stats)
+		}
+	}
+
+	if out, code, err := sess.Run(ctx, "ip -j route show 2>/dev/null"); err == nil && code == 0 {
+		if routes, perr := ParseIPRouteJSON(out); perr == nil {
+			snap.Routes = routes
+		}
+	}
+
 	if out, code, err := sess.Run(ctx, "rpm -qa --queryformat='%{NAME} %{VERSION}-%{RELEASE}\\n' 2>/dev/null || dpkg -l 2>/dev/null"); err == nil && code == 0 {
 		pkgs, _ := ParseInstalledPackages(out)
 		snap.Packages = pkgs

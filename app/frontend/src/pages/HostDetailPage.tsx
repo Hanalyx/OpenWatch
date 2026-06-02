@@ -463,6 +463,16 @@ export function HostDetailPage() {
             <NetworkTab
               isLoading={intelligenceStateQuery.isLoading}
               snapshot={(intelligenceStateQuery.data ?? null) as InventorySnapshot | null}
+              firewall={
+                systemInfoQuery.data
+                  ? {
+                      service: (systemInfoQuery.data as { firewall_service?: string | null })
+                        .firewall_service,
+                      status: (systemInfoQuery.data as { firewall_status?: string | null })
+                        .firewall_status,
+                    }
+                  : null
+              }
             />
           ) : (
             <TabStub
