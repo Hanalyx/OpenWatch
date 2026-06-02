@@ -26,7 +26,7 @@ func TestRunCycle_OneSSHDialPerCall(t *testing.T) {
 		stub.SeedAll()
 
 		svc := NewService(nil, nil, nil).WithSSHTransport(stub)
-		_, err := svc.runCycleWithTransport(testCtx(t), testHostFacts())
+		_, _, err := svc.runCycleWithTransport(testCtx(t), testHostFacts())
 		if err != nil {
 			t.Fatalf("runCycleWithTransport: %v", err)
 		}
@@ -48,7 +48,7 @@ func TestRunCycle_SudoFailureIsPartialSuccess(t *testing.T) {
 		stub.FailCommand("sudo -n sha256sum /etc/shadow", "Permission denied", 1)
 
 		svc := NewService(nil, nil, nil).WithSSHTransport(stub)
-		snap, err := svc.runCycleWithTransport(testCtx(t), testHostFacts())
+		snap, _, err := svc.runCycleWithTransport(testCtx(t), testHostFacts())
 		if err != nil {
 			t.Fatalf("partial-success cycle returned error: %v", err)
 		}

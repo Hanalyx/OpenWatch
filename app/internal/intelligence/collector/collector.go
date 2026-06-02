@@ -14,6 +14,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/correlation"
 	"github.com/Hanalyx/openwatch/internal/credential"
 	"github.com/Hanalyx/openwatch/internal/eventbus"
+	owssh "github.com/Hanalyx/openwatch/internal/ssh"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -29,8 +30,16 @@ type SSHTransport interface {
 }
 
 // SSHSession is one live session against a remote host.
+//
+// RunWithStdin is the sudo-password-fallback hook (system-ssh-connectivity
+// v1.1.0 C-10). When the credential carries a password and the system
+// policy allows it, ssh.RunSudo feeds the password via this method's
+// stdin parameter — never via cmd. Implementations that don't support
+// stdin can return (nil, 0, errors.New("not supported")) but then will
+// not handle hosts that lack NOPASSWD.
 type SSHSession interface {
 	Run(ctx context.Context, cmd string) (stdout []byte, exitCode int, err error)
+	RunWithStdin(ctx context.Context, cmd string, stdin []byte) (stdout []byte, exitCode int, err error)
 	Close() error
 }
 
@@ -55,14 +64,20 @@ type Publisher interface {
 	Publish(ctx context.Context, event eventbus.Event)
 }
 
+// SudoPolicyLoader returns the current sudo policy at cycle start. The
+// production wiring reads system_config.security.allow_credential_sudo_password
+// via systemconfig.Store.LoadSecurity. Tests substitute a constant.
+type SudoPolicyLoader func(ctx context.Context) (owssh.SudoPolicy, error)
+
 // Service is the OS Intelligence collector. Construct via NewService.
 type Service struct {
-	pool      *pgxpool.Pool
-	credSvc   *credential.Service
-	emit      AuditEmitFunc
-	bus       Publisher
-	lookup    HostLookup
-	transport SSHTransport
+	pool       *pgxpool.Pool
+	credSvc    *credential.Service
+	emit       AuditEmitFunc
+	bus        Publisher
+	lookup     HostLookup
+	transport  SSHTransport
+	sudoPolicy SudoPolicyLoader
 }
 
 // NewService constructs a Service. emit + bus may be nil — RunCycle
@@ -86,6 +101,15 @@ func (s *Service) WithCredentialService(c *credential.Service) *Service {
 // WithHostLookup wires the host-row reader.
 func (s *Service) WithHostLookup(h HostLookup) *Service {
 	s.lookup = h
+	return s
+}
+
+// WithSudoPolicyLoader wires the policy loader. When unset, the
+// collector falls back to a permanently-disabled policy — every cycle
+// runs `sudo -n only`, identical to v1.0.0 behavior. Spec: system-
+// ssh-connectivity v1.1.0 C-09.
+func (s *Service) WithSudoPolicyLoader(l SudoPolicyLoader) *Service {
+	s.sudoPolicy = l
 	return s
 }
 
@@ -157,7 +181,7 @@ func (s *Service) RunCycle(ctx context.Context, hostID uuid.UUID) ([]Event, erro
 		Cred:   cred,
 	}
 
-	snapshot, err := s.runCycleWithTransport(ctx, hf)
+	snapshot, sudoFallbackCount, err := s.runCycleWithTransport(ctx, hf)
 	if err != nil {
 		return nil, err
 	}
@@ -176,26 +200,65 @@ func (s *Service) RunCycle(ctx context.Context, hostID uuid.UUID) ([]Event, erro
 		s.publishEvent(ctx, hostID, ev)
 		s.emitAuditFor(ctx, hostID, ev, corrID)
 	}
+	// Spec system-ssh-connectivity v1.1.0 AC-16: exactly one audit
+	// event per host per cycle when the credential-password fallback
+	// engaged for at least one sudo command. detail.credential_id
+	// identifies the secret used; detail.command_count is the number
+	// of distinct sudo calls that hit the fallback.
+	if sudoFallbackCount > 0 && s.emit != nil {
+		detail, _ := json.Marshal(map[string]any{
+			"credential_id": cred.ID.String(),
+			"host_id":       hostID.String(),
+			"command_count": sudoFallbackCount,
+		})
+		s.emit(ctx, audit.SystemIntelligenceSudoPasswordUsed, audit.Event{
+			ActorType: "system",
+			ActorID:   "intelligence-collector",
+			Detail:    detail,
+		})
+	}
 	return events, nil
 }
 
 // runCycleWithTransport opens one SSH session and runs the probe batch.
 // Pure: no DB, no audit, no bus. The transport seam lets tests assert
 // AC-09 (one dial per call) and AC-10 (partial success on sudo failure).
-func (s *Service) runCycleWithTransport(ctx context.Context, hf hostFacts) (Snapshot, error) {
+//
+// Returns the snapshot AND a count of distinct sudo invocations that
+// used the credential-password fallback (system-ssh-connectivity
+// v1.1.0 C-09 / AC-16). The caller (RunCycle) translates a non-zero
+// count into one audit event per host per cycle.
+func (s *Service) runCycleWithTransport(ctx context.Context, hf hostFacts) (Snapshot, int, error) {
 	if s.transport == nil {
-		return Snapshot{}, errors.New("collector: ssh transport not wired")
+		return Snapshot{}, 0, errors.New("collector: ssh transport not wired")
 	}
 	sess, err := s.transport.Dial(ctx, hf.Addr, hf.Port, hf.Cred)
 	if err != nil {
-		return Snapshot{}, fmt.Errorf("collector: dial: %w", err)
+		return Snapshot{}, 0, fmt.Errorf("collector: dial: %w", err)
 	}
 	defer sess.Close()
+
+	// Load the sudo policy once per cycle. Loader failures degrade
+	// to "policy off" rather than crashing the cycle — partial-
+	// success is the prevailing failure mode in this layer.
+	var policy owssh.SudoPolicy
+	if s.sudoPolicy != nil {
+		if p, perr := s.sudoPolicy(ctx); perr == nil {
+			policy = p
+		}
+	}
+	sudoFallbackCount := 0
 
 	snap := Snapshot{CollectedAt: time.Now().UTC()}
 
 	if out, code, err := sess.Run(ctx, "cat /etc/passwd"); err == nil && code == 0 {
-		if shadow, scode, serr := sess.Run(ctx, "sudo -n cat /etc/shadow"); serr == nil && scode == 0 {
+		// Spec v1.1.0 C-09: sudo -n first; sudo -S -k with cred.Password
+		// on fallback if policy + credential allow.
+		shadow, scode, used, serr := owssh.RunSudo(ctx, sess, hf.Cred, policy, "cat /etc/shadow")
+		if used {
+			sudoFallbackCount++
+		}
+		if serr == nil && scode == 0 {
 			af, _ := ParsePasswdShadow(out, shadow)
 			snap.Users = af.Users
 		} else {
@@ -316,13 +379,20 @@ func (s *Service) runCycleWithTransport(ctx context.Context, hf hostFacts) (Snap
 	for _, path := range []string{"/etc/sudoers", "/etc/ssh/sshd_config", "/etc/passwd", "/etc/shadow"} {
 		// sha256sum needs read perms; /etc/shadow needs sudo. Failures
 		// (sudo denied) silently drop the entry — partial success.
-		var cmd string
 		if path == "/etc/shadow" {
-			cmd = "sudo -n sha256sum " + path
-		} else {
-			cmd = "sha256sum " + path
+			// Spec v1.1.0 C-09 — same gating as the shadow read above.
+			out, code, used, err := owssh.RunSudo(ctx, sess, hf.Cred, policy, "sha256sum "+path)
+			if used {
+				sudoFallbackCount++
+			}
+			if err == nil && code == 0 {
+				if h := strings.Fields(string(out)); len(h) >= 1 {
+					snap.ConfigHashes[path] = h[0]
+				}
+			}
+			continue
 		}
-		if out, code, err := sess.Run(ctx, cmd); err == nil && code == 0 {
+		if out, code, err := sess.Run(ctx, "sha256sum "+path); err == nil && code == 0 {
 			h := strings.Fields(string(out))
 			if len(h) >= 1 {
 				snap.ConfigHashes[path] = h[0]
@@ -330,7 +400,15 @@ func (s *Service) runCycleWithTransport(ctx context.Context, hf hostFacts) (Snap
 		}
 	}
 
-	return snap, nil
+	// TODO(v1.2): the firewall-rule probe embeds three `sudo -n` calls
+	// inside one shell heredoc. Wrapping them through ssh.RunSudo
+	// requires splitting the probe into a detect-engine step (no sudo)
+	// followed by a count-rules-for-engine step (one sudo call). Skipped
+	// in v1.1.0 to keep the patch tight; the current behavior already
+	// covers ufw-inactive Ubuntu hosts (count=0 via the non-sudo
+	// fallback inside the heredoc).
+
+	return snap, sudoFallbackCount, nil
 }
 
 // loadPriorSnapshot reads the prior cycle's snapshot from
