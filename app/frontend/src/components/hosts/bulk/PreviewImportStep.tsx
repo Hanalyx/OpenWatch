@@ -10,6 +10,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import api from '@/api/client';
+import { apiErrorMessage } from '@/api/errors';
 import type { FieldMapping, ImportOptions, ImportRowOutcome } from './types';
 import { applyMappings, downloadFailedRowsCSV, type MappedRow } from './applyMappings';
 import {
@@ -182,12 +183,10 @@ export function PreviewImportStep({ csvText, mappings, options, onOptionsChange 
                 },
               );
               if (!cloneRes.response.ok) {
-                const cerr = cloneRes.error as
-                  | { error?: { message?: string } }
-                  | undefined;
-                credentialNote =
-                  cerr?.error?.message ??
-                  `Host created but credential attach failed (HTTP ${cloneRes.response.status}). Attach manually under Settings → Credentials.`;
+                credentialNote = apiErrorMessage(
+                  cloneRes.error,
+                  `Host created but credential attach failed (HTTP ${cloneRes.response.status}). Attach manually under Settings → Credentials.`,
+                );
               }
             } catch (cloneErr) {
               credentialNote =
@@ -230,7 +229,7 @@ export function PreviewImportStep({ csvText, mappings, options, onOptionsChange 
               outcome: {
                 ...s.outcome,
                 status: 'failed',
-                error: err?.error?.message ?? `HTTP ${response.status}`,
+                error: apiErrorMessage(err, `HTTP ${response.status}`),
               },
             };
           }
