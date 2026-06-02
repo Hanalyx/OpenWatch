@@ -59,6 +59,58 @@ $(DIST_DIR):
 test: internal/server/openapi_embed.yaml
 	go test ./...
 
+# test-integration: runs the full suite (including DB-backed integration
+# tests) against a dedicated TEST database. The DSN is constructed here
+# so the operator can never accidentally point it at the dev or prod
+# DB. These tests TRUNCATE tables between cases — pointing at a non-test
+# DB would destroy real data. Run `make test-db-create` first if the
+# database does not exist yet.
+.PHONY: test-integration
+test-integration: internal/server/openapi_embed.yaml
+	@DB="$${OPENWATCH_TEST_DB:-openwatch_go_test}"; \
+	case "$$DB" in *_test) ;; \
+	  *) echo "ERROR: OPENWATCH_TEST_DB ($$DB) must end with _test"; exit 1 ;; esac; \
+	HOST="$${OPENWATCH_TEST_DB_HOST:-127.0.0.1}"; \
+	PORT="$${OPENWATCH_TEST_DB_PORT:-5432}"; \
+	USER="$${OPENWATCH_TEST_DB_USER:-openwatch}"; \
+	PASS="$${OPENWATCH_TEST_DB_PASS:-openwatch_secure_db_2025}"; \
+	DSN="postgres://$$USER:$$PASS@$$HOST:$$PORT/$$DB?sslmode=disable"; \
+	echo "Using test DB: $$DB on $$HOST:$$PORT"; \
+	OPENWATCH_TEST_DSN="$$DSN" go test -race -p 1 ./...
+
+# test-db-create: provisions the test database (idempotent — exits 0
+# if it already exists) and applies all migrations.
+.PHONY: test-db-create
+test-db-create: $(DIST_DIR)/$(BINARY)
+	@DB="$${OPENWATCH_TEST_DB:-openwatch_go_test}"; \
+	case "$$DB" in *_test) ;; \
+	  *) echo "ERROR: OPENWATCH_TEST_DB ($$DB) must end with _test"; exit 1 ;; esac; \
+	HOST="$${OPENWATCH_TEST_DB_HOST:-127.0.0.1}"; \
+	PORT="$${OPENWATCH_TEST_DB_PORT:-5432}"; \
+	USER="$${OPENWATCH_TEST_DB_USER:-openwatch}"; \
+	PASS="$${OPENWATCH_TEST_DB_PASS:-openwatch_secure_db_2025}"; \
+	PGPASSWORD="$$PASS" psql -h $$HOST -p $$PORT -U $$USER -d postgres \
+	  -tc "SELECT 1 FROM pg_database WHERE datname='$$DB'" | grep -q 1 \
+	  || PGPASSWORD="$$PASS" psql -h $$HOST -p $$PORT -U $$USER -d postgres \
+	     -c "CREATE DATABASE $$DB OWNER $$USER;"; \
+	DSN="postgres://$$USER:$$PASS@$$HOST:$$PORT/$$DB?sslmode=disable"; \
+	echo "Migrating test DB to current schema..."; \
+	OPENWATCH_DATABASE_DSN="$$DSN" ./$(DIST_DIR)/$(BINARY) migrate
+
+# test-db-drop: tears down the test database. Refuses any DB name that
+# does not end in _test.
+.PHONY: test-db-drop
+test-db-drop:
+	@DB="$${OPENWATCH_TEST_DB:-openwatch_go_test}"; \
+	case "$$DB" in *_test) ;; \
+	  *) echo "ERROR: $$DB must end with _test"; exit 1 ;; esac; \
+	HOST="$${OPENWATCH_TEST_DB_HOST:-127.0.0.1}"; \
+	PORT="$${OPENWATCH_TEST_DB_PORT:-5432}"; \
+	USER="$${OPENWATCH_TEST_DB_USER:-openwatch}"; \
+	PASS="$${OPENWATCH_TEST_DB_PASS:-openwatch_secure_db_2025}"; \
+	PGPASSWORD="$$PASS" psql -h $$HOST -p $$PORT -U $$USER -d postgres \
+	  -c "DROP DATABASE IF EXISTS $$DB;"
+
 .PHONY: tidy
 tidy:
 	go mod tidy

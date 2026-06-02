@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -59,6 +60,35 @@ func apiTestDSN(t *testing.T) string {
 	dsn := os.Getenv("OPENWATCH_TEST_DSN")
 	if dsn == "" {
 		t.Skip("set OPENWATCH_TEST_DSN to run API integration tests")
+	}
+	// SAFETY GATE: these tests TRUNCATE the schema between cases. Refuse
+	// to run against a dev / production-looking database, even if the
+	// operator pointed OPENWATCH_TEST_DSN there. The DSN MUST name a
+	// database whose name ends with "_test" (e.g. openwatch_go_test).
+	// Override with OPENWATCH_TEST_DSN_ALLOW_NONTEST=yes at your own
+	// risk; this exists for CI environments that use ephemeral DBs.
+	if strings.Contains(dsn, "/openwatch_go_dev") ||
+		(!strings.Contains(dsn, "_test?") && !strings.HasSuffix(dsn, "_test")) {
+		if os.Getenv("OPENWATCH_TEST_DSN_ALLOW_NONTEST") != "yes" {
+			t.Fatalf(
+				"OPENWATCH_TEST_DSN points at a non-test database (%s) — "+
+					"these tests TRUNCATE tables and would destroy real data. "+
+					"Use a database whose name ends with _test, or set "+
+					"OPENWATCH_TEST_DSN_ALLOW_NONTEST=yes if you know what you're doing.",
+				redactDSN(dsn),
+			)
+		}
+	}
+	return dsn
+}
+
+// redactDSN strips the password from a postgres DSN for safe logging.
+func redactDSN(dsn string) string {
+	// Replace any "user:password@" with "user:***@".
+	if i := strings.Index(dsn, "@"); i > 0 {
+		if j := strings.LastIndex(dsn[:i], ":"); j > 0 {
+			return dsn[:j+1] + "***" + dsn[i:]
+		}
 	}
 	return dsn
 }
