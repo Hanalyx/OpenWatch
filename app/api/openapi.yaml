@@ -1549,6 +1549,40 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
 
+  /api/v1/hosts/{id}/system-info:
+    get:
+      operationId: getHostSystemInfo
+      summary: Read the latest Discovery facts for one host
+      description: |
+        Returns the most recent host_system_info row for the given
+        host. Populated by system-host-discovery (synchronous via
+        POST /hosts/{id}/discovery:run or async by the scheduler).
+        404 hosts.not_found if (a) the host is unknown, (b) the
+        host is soft-deleted, or (c) the host exists but Discovery
+        has not run yet — operators cannot probe host existence
+        via this endpoint. Spec api-host-system-info.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: Latest HostSystemInfo for the host
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/HostSystemInfo'}
+        '403':
+          description: Caller lacks host:read permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '404':
+          description: Host unknown OR no Discovery row yet
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
   /api/v1/hosts/{id}/discovery:run:
     post:
       operationId: postHostDiscoveryRun

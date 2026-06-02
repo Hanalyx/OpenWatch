@@ -7,6 +7,9 @@
 //   AC-04  TestCmdServe_RouterStartBeforeLivenessRun
 //   AC-05  TestSliceBPackages_DoNotImportAuditEmit
 //   AC-06  TestCmdServe_RegistersStdoutWildcardChannel
+//   AC-08  TestCmdServe_DiscoveryServiceWired
+//   AC-09  TestCmdServe_IntelligenceSchedulerWired
+//   AC-10  TestCmdServe_MaintenancePauseWarnLog
 //
 // These tests are source-inspection — they read app/cmd/openwatch/main.go
 // and the Slice B package directories and assert structural invariants.
@@ -221,6 +224,74 @@ func TestCmdServe_RegistersStdoutWildcardChannel(t *testing.T) {
 			if !tagsOK {
 				t.Errorf("stdout channel registered with a non-wildcard Tags filter; got %q", m)
 			}
+		}
+	})
+}
+
+// @ac AC-08
+// AC-08: discovery service is constructed with the lookup +
+// credential wiring and threaded into the HTTP server via
+// server.WithDiscovery. Without this, POST /hosts/{id}/discovery:run
+// returns 503 server.unavailable.
+func TestCmdServe_DiscoveryServiceWired(t *testing.T) {
+	t.Run("system-daemon-orchestration/AC-08", func(t *testing.T) {
+		src := mainGoSource(t)
+		patterns := []string{
+			"discovery.NewService(pool, audit.Emit, bus)",
+			"WithHostLookup(discovery.PoolHostLookup{Pool: pool})",
+			"WithCredentialService(credSvc)",
+			"WithDiscovery(discoSvc)",
+		}
+		for _, p := range patterns {
+			if !strings.Contains(src, p) {
+				t.Errorf("main.go missing required pattern for AC-08: %q", p)
+			}
+		}
+	})
+}
+
+// @ac AC-09
+// AC-09: collector + scheduler are wired and the scheduler runs in
+// its own goroutine. WithSSHTransport is required — without it
+// collector.RunCycle returns "ssh transport not wired" silently and
+// the scheduler does nothing.
+func TestCmdServe_IntelligenceSchedulerWired(t *testing.T) {
+	t.Run("system-daemon-orchestration/AC-09", func(t *testing.T) {
+		src := mainGoSource(t)
+		patterns := []string{
+			"collector.NewService(pool, audit.Emit, bus)",
+			"WithSSHTransport(",
+			"scheduler.NewService(pool,",
+			"WithConfigLoader(cfgStore.LoadIntelligence)",
+		}
+		for _, p := range patterns {
+			if !strings.Contains(src, p) {
+				t.Errorf("main.go missing required pattern for AC-09: %q", p)
+			}
+		}
+		runRe := regexp.MustCompile(`go\s+func\(\)\s*\{\s*_\s*=\s*intelSched\.Run\(ctx\)\s*\}\(\)`)
+		if !runRe.MatchString(src) {
+			t.Error("main.go does not start intelSched.Run in a goroutine")
+		}
+	})
+}
+
+// @ac AC-10
+// AC-10: the boot path logs a WARN when MaintenanceGlobal=true at
+// startup. Without this, a paused scheduler is silent and operators
+// chase the symptom for an hour.
+func TestCmdServe_MaintenancePauseWarnLog(t *testing.T) {
+	t.Run("system-daemon-orchestration/AC-10", func(t *testing.T) {
+		src := mainGoSource(t)
+		if !strings.Contains(src, "cfgStore.LoadIntelligence(bootCtx)") {
+			t.Error("main.go does not call cfgStore.LoadIntelligence at boot for the maintenance check")
+		}
+		if !strings.Contains(src, "cfg.MaintenanceGlobal") {
+			t.Error("main.go does not check cfg.MaintenanceGlobal at boot")
+		}
+		warnRe := regexp.MustCompile(`slog\.WarnContext\(bootCtx,\s*"intelligence scheduler paused at startup"`)
+		if !warnRe.MatchString(src) {
+			t.Error(`main.go missing slog.WarnContext(bootCtx, "intelligence scheduler paused at startup", ...)`)
 		}
 	})
 }
