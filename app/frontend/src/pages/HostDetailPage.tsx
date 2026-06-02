@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import api from '@/api/client';
+import { apiErrorMessage } from '@/api/errors';
 import { EditHostModal } from '@/components/hosts/EditHostModal';
 import { useBreadcrumbStore } from '@/store/useBreadcrumbStore';
 import { CardSystem } from '@/pages/host-detail/CardSystem';
@@ -612,8 +613,7 @@ function MaintenanceToggle({ host }: { host: HostResponse }) {
         body: { enabled: !inMaintenance },
       });
       if (!response.ok) {
-        const e = apiErr as { error?: { message?: string } } | undefined;
-        setError(e?.error?.message ?? `HTTP ${response.status}`);
+        setError(apiErrorMessage(apiErr, `HTTP ${response.status}`));
         return;
       }
       queryClient.invalidateQueries({ queryKey: ['host', host.id] });

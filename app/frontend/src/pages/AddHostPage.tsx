@@ -4,6 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useNavigate } from '@tanstack/react-router';
 import api from '@/api/client';
+import { apiErrorMessage } from '@/api/errors';
 import { BulkImportWizard } from '@/components/hosts/bulk/BulkImportWizard';
 
 // AddHostPage — Single OR Bulk host onboarding.
@@ -194,8 +195,9 @@ function SingleForm() {
         return;
       }
       if (!hostResp.ok || !hostData) {
-        const err = hostErr as { error?: { code?: string; message?: string } };
-        setServerError(err?.error?.message ?? `Failed to create host (HTTP ${hostResp.status})`);
+        setServerError(
+          apiErrorMessage(hostErr, `Failed to create host (HTTP ${hostResp.status})`),
+        );
         return;
       }
       const newHost = hostData as { id: string };
@@ -253,9 +255,8 @@ function SingleForm() {
           } catch {
             // Best-effort; if rollback also fails the user sees the orphan in the hosts list.
           }
-          const err = credErr as { error?: { message?: string } };
           setServerError(
-            err?.error?.message ?? 'Failed to attach credential. Host was rolled back.',
+            apiErrorMessage(credErr, 'Failed to attach credential. Host was rolled back.'),
           );
           return;
         }

@@ -18,6 +18,7 @@ import React, { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { RefreshCw } from 'lucide-react';
 import api from '@/api/client';
+import { apiErrorMessage } from '@/api/errors';
 import { useAuthStore } from '@/store/useAuthStore';
 import { osDisplayLabel } from '@/utils/osLabel';
 import { formatUptime } from '@/utils/formatUptime';
@@ -85,8 +86,7 @@ export function CardSystem({ host, intelligenceSnapshot }: CardSystemProps) {
           setError('Permission denied');
           return;
         }
-        const env = apiErr as { error?: { message?: string } } | undefined;
-        setError(env?.error?.message ?? `HTTP ${response.status}`);
+        setError(apiErrorMessage(apiErr, `HTTP ${response.status}`));
         return;
       }
       // Spec C-05: both queries must refresh — denormalized OS fields

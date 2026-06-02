@@ -5,6 +5,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
 import { Loader2 } from 'lucide-react';
 import api from '@/api/client';
+import { apiErrorMessage } from '@/api/errors';
 import { Modal, Btn, FormField, Callout } from '@/components/settings/primitives';
 
 // EditHostModal — surfaces PATCH /api/v1/hosts/{id} so operators can fix
@@ -48,13 +49,6 @@ interface Props {
   open: boolean;
   onClose: () => void;
   host: EditableHost;
-}
-
-interface ApiError {
-  error?: {
-    code?: string;
-    message?: string;
-  };
 }
 
 function splitTags(csv: string | undefined): string[] {
@@ -103,9 +97,8 @@ export function EditHostModal({ open, onClose, host }: Props) {
         body: body as never,
       });
       if (!response.ok) {
-        const e = error as ApiError | undefined;
         throw new Error(
-          e?.error?.message ?? `Failed to update host (HTTP ${response.status})`,
+          apiErrorMessage(error, `Failed to update host (HTTP ${response.status})`),
         );
       }
     },

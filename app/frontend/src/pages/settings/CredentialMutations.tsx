@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, KeyRound, Loader2 } from 'lucide-react';
 import api from '@/api/client';
+import { apiErrorMessage } from '@/api/errors';
 import { Modal, FormField, Btn, Callout } from '@/components/settings/primitives';
 
 // Credential mutation modals — Add, Replace (no PATCH endpoint), Delete.
@@ -66,10 +67,6 @@ const credentialSchema = z
   });
 
 type FormShape = z.infer<typeof credentialSchema>;
-
-interface ApiError {
-  error?: { code?: string; message?: string };
-}
 
 // Detect the openapi-fetch wrapper's network-failure case. fetch
 // rejects with a plain TypeError when the connection refuses, DNS
@@ -140,9 +137,8 @@ export function AddCredentialModal({
         throw fetchErr;
       }
       if (!response.ok) {
-        const e = error as ApiError | undefined;
         throw new Error(
-          e?.error?.message ?? `Failed to create credential (HTTP ${response.status})`,
+          apiErrorMessage(error, `Failed to create credential (HTTP ${response.status})`),
         );
       }
     },
@@ -288,9 +284,11 @@ export function ReplaceCredentialModal({
         throw fetchErr;
       }
       if (!create.response.ok) {
-        const e = create.error as ApiError | undefined;
         throw new Error(
-          e?.error?.message ?? `Failed to create replacement (HTTP ${create.response.status})`,
+          apiErrorMessage(
+            create.error,
+            `Failed to create replacement (HTTP ${create.response.status})`,
+          ),
         );
       }
       const created = create.data as Credential;
@@ -445,9 +443,8 @@ export function DeleteCredentialModal({
         throw fetchErr;
       }
       if (!response.ok && response.status !== 204) {
-        const e = error as ApiError | undefined;
         throw new Error(
-          e?.error?.message ?? `Failed to delete credential (HTTP ${response.status})`,
+          apiErrorMessage(error, `Failed to delete credential (HTTP ${response.status})`),
         );
       }
     },

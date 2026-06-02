@@ -18,6 +18,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { RefreshCw, RotateCcw } from 'lucide-react';
 import api from '@/api/client';
+import { formatApiError } from '@/api/errors';
 import {
   Section,
   SettingCard,
@@ -37,24 +38,6 @@ interface IntelligenceConfig {
 interface IntelligenceConfigResponse {
   config: IntelligenceConfig;
   defaults: IntelligenceConfig;
-}
-
-// openapi-fetch returns the raw response body as `error` for non-2xx
-// statuses — it's NOT an Error instance, so `(err as Error).message`
-// is undefined. Normalize the value into a single string that always
-// leads with the HTTP status, so the alert never reads "Failed to
-// load — Failed to load" again. Pulls the message from the
-// ErrorEnvelope shape when present, otherwise just surfaces the code.
-function formatApiError(status: number, error: unknown): string {
-  let detail = '';
-  if (error && typeof error === 'object') {
-    const env = error as { error?: { code?: string; message?: string } };
-    if (env.error?.message) detail = env.error.message;
-    else if (env.error?.code) detail = env.error.code;
-  } else if (typeof error === 'string' && error.length > 0) {
-    detail = error;
-  }
-  return `HTTP ${status}${detail ? ` — ${detail}` : ''}`;
 }
 
 // Container — wires the queries + mutation and delegates rendering to
