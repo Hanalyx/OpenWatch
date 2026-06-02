@@ -1,106 +1,112 @@
 #!/bin/bash
 
-# OpenWatch Startup Script
-# Compatible with both Docker and Podman runtimes
+# OpenWatch (Go rebuild) startup script.
+#
+# The Go rebuild runs as a host binary (./dist/openwatch) talking to a
+# standalone PostgreSQL container. There is no docker-compose for the
+# Go build today — the systemd units + RPM/DEB packages handle prod;
+# this script handles local/dev.
+#
+# What it does:
+#   1. Make sure the binary exists (build it on --build).
+#   2. Make sure runtime secrets exist (TLS cert, JWT signing key,
+#      credential DEK) — generate demo material if missing.
+#   3. Make sure the PostgreSQL container is running, against the
+#      named volume that holds hosts + credentials + scans.
+#   4. Refuse to start if a foreign container is squatting on 5432
+#      (would silently double-DB and "lose" data).
+#   5. Run goose migrations.
+#   6. Start `openwatch serve` in the background, then `openwatch
+#      worker`. Logs go to "$RUNTIME_DIR/logs/".
+#   7. Optionally start the Vite dev server (frontend).
+#
+# What it does NOT do (and why it's not in this script):
+#   - No docker-compose. The Python compose stack is no longer relevant.
+#   - No `.env` generation for Python (SECRET_KEY/MASTER_KEY/REDIS_*).
+#     Go config is via OPENWATCH_* env vars + the TOML file.
+#   - No SCAP content directories. Kensa rules ship inside the binary's
+#     packaging path.
+#   - No image build / no podman compose. We use one DB container.
 
 set -e
 
-# Colors for output
+# ---------------------------------------------------------------------------
+# Colors
+# ---------------------------------------------------------------------------
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
-# Script configuration
+log_info()    { echo -e "${BLUE}[INFO]${NC} $1"; }
+log_success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
+log_warning() { echo -e "${YELLOW}[WARNING]${NC} $1"; }
+log_error()   { echo -e "${RED}[ERROR]${NC} $1"; }
+
+# ---------------------------------------------------------------------------
+# Config (every value is env-overridable)
+# ---------------------------------------------------------------------------
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &> /dev/null && pwd)"
-PROJECT_NAME="openwatch"
-COMPOSE_FILE=""
-RUNTIME=""
-FORCE_RUNTIME=""
-DEV_MODE=false
-BUILD_IMAGES=false
-FORCE_BUILD=false
+APP_DIR="${SCRIPT_DIR}/app"
+BINARY="${APP_DIR}/dist/openwatch"
+
+DB_CONTAINER="${OPENWATCH_DB_CONTAINER:-openwatch-pg}"
+DB_VOLUME="${OPENWATCH_DB_VOLUME:-openwatch-pg-fresh}"
+DB_IMAGE="${OPENWATCH_DB_IMAGE:-postgres:15.14-alpine}"
+DB_USER="${OPENWATCH_DB_USER:-openwatch}"
+DB_PASSWORD="${OPENWATCH_DB_PASSWORD:-openwatch_secure_db_2025}"
+DB_NAME="${OPENWATCH_DB_NAME:-openwatch_go_dev}"
+DB_PORT="${OPENWATCH_DB_PORT:-5432}"
+
+RUNTIME_DIR="${OPENWATCH_RUNTIME_DIR:-/tmp/ow-run}"
+LISTEN="${OPENWATCH_LISTEN:-127.0.0.1:8443}"
+
+CONTAINER_RUNTIME="${OPENWATCH_CONTAINER_RUNTIME:-}"
+
+DO_BUILD=false
 RESET_DATA=false
+NO_FRONTEND=false
+NO_WORKER=false
 ASSUME_YES=false
 
-# Data-bearing named volumes — kept in sync with stop-openwatch.sh.
-# Used by preflight_data_check (informational) and reset_data_volumes
-# (destructive, gated). Editing this list in one place must be mirrored
-# in the stop script.
-DATA_VOLUMES=(
-    "openwatch_postgres_data"
-    "openwatch_app_data"
-    "openwatch_app_logs"
-    "openwatch_ssh_known_hosts"
-)
+# ---------------------------------------------------------------------------
+# preflight_data_check — informational: report whether the DB volume
+# already exists. Read-only.
+#
+# preflight_port_check — refuse to start if a foreign container is
+# bound to host port DB_PORT. Idempotent against our own DB_CONTAINER.
+#
+# reset_data_volumes — the single explicit way to wipe the DB volume.
+# Gated on --yes / OPENWATCH_CONFIRM_DESTROY=yes / interactive "yes".
+# ---------------------------------------------------------------------------
 
-# Logging functions
-log_info() {
-    echo -e "${BLUE}[INFO]${NC} $1"
-}
-
-log_success() {
-    echo -e "${GREEN}[SUCCESS]${NC} $1"
-}
-
-log_warning() {
-    echo -e "${YELLOW}[WARNING]${NC} $1"
-}
-
-log_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
-}
-
-# preflight_data_check prints a one-line summary of whether existing
-# OpenWatch data volumes will be reused. This makes "am I about to lose
-# my hosts and credentials?" an answerable question BEFORE start, not
-# after the dashboard comes up empty. Read-only — does not touch anything.
 preflight_data_check() {
-    if ! command -v docker &> /dev/null; then
-        return 0  # podman-compose path; named volume name may differ
+    if ! command -v "$CONTAINER_RUNTIME" &> /dev/null; then
+        return 0
     fi
-    local existing="" v
-    for v in "${DATA_VOLUMES[@]}"; do
-        if docker volume ls --format "{{.Name}}" 2>/dev/null | grep -qx "$v"; then
-            existing+="$v "
-        fi
-    done
-    if [ -n "$existing" ]; then
-        log_info "Found existing data volumes — start will RESUME against them:"
-        for v in $existing; do
-            echo -e "  ${GREEN}✓${NC} $v"
-        done
+    if "$CONTAINER_RUNTIME" volume ls --format "{{.Name}}" 2>/dev/null | grep -qx "$DB_VOLUME"; then
+        log_info "Found existing DB volume — start will RESUME against it:"
+        echo -e "  ${GREEN}✓${NC} ${DB_VOLUME}"
         log_info "To start from a clean slate instead, run: ./start-openwatch.sh --reset-data"
     else
-        log_info "No prior OpenWatch data volumes detected — first-time setup."
+        log_info "No prior DB volume detected — first-time setup. Will create ${DB_VOLUME}."
     fi
 }
 
-# reset_data_volumes is the single explicit way to wipe data on START.
-# Refuses to run without --yes or OPENWATCH_CONFIRM_DESTROY=yes; lists
-# volumes that will go BEFORE deleting; will not touch any volume that
-# isn't in DATA_VOLUMES (so an unrelated openwatch-pg-fresh standalone
-# volume is safe).
 reset_data_volumes() {
-    log_warning "--reset-data requested. This will DELETE the following volumes (if present):"
-    local found_any=false v
-    for v in "${DATA_VOLUMES[@]}"; do
-        if docker volume ls --format "{{.Name}}" 2>/dev/null | grep -qx "$v"; then
-            echo -e "  - ${RED}${v}${NC}"
-            found_any=true
-        else
-            echo -e "  - ${v} (does not exist; nothing to do)"
-        fi
-    done
-    if [ "$found_any" = false ]; then
+    log_warning "--reset-data requested. This will DELETE the DB volume:"
+    if "$CONTAINER_RUNTIME" volume ls --format "{{.Name}}" 2>/dev/null | grep -qx "$DB_VOLUME"; then
+        echo -e "  - ${RED}${DB_VOLUME}${NC} (hosts, credentials, scans, audit log)"
+    else
+        echo -e "  - ${DB_VOLUME} (does not exist; nothing to do)"
         log_info "Nothing to reset."
         return 0
     fi
 
     if [ "$ASSUME_YES" != true ] && [ "${OPENWATCH_CONFIRM_DESTROY:-}" != "yes" ]; then
         if [ ! -t 0 ]; then
-            log_error "Refusing to delete volumes non-interactively without --yes / OPENWATCH_CONFIRM_DESTROY=yes."
+            log_error "Refusing to delete the DB volume non-interactively without --yes / OPENWATCH_CONFIRM_DESTROY=yes."
             exit 1
         fi
         echo ""
@@ -111,531 +117,341 @@ reset_data_volumes() {
         fi
     fi
 
-    # Make sure no container is holding the volume open before delete.
-    log_info "Bringing the stack down (containers only) so volumes can be removed..."
-    cd "$SCRIPT_DIR"
-    docker compose -f "$COMPOSE_FILE" down --remove-orphans 2>/dev/null \
-      || docker-compose -f "$COMPOSE_FILE" down --remove-orphans 2>/dev/null \
-      || true
-
-    for v in "${DATA_VOLUMES[@]}"; do
-        docker volume rm -f "$v" 2>/dev/null || true
-    done
-    log_success "Data volumes removed. Next start will initialize a fresh database."
+    if "$CONTAINER_RUNTIME" ps -a --format "{{.Names}}" 2>/dev/null | grep -qx "$DB_CONTAINER"; then
+        log_info "Removing existing ${DB_CONTAINER} container so its volume can be deleted..."
+        "$CONTAINER_RUNTIME" rm -f "$DB_CONTAINER" 2>/dev/null || true
+    fi
+    "$CONTAINER_RUNTIME" volume rm -f "$DB_VOLUME" 2>/dev/null || true
+    log_success "DB volume removed. Next start will initialize a fresh database."
 }
 
-# preflight_port_check refuses to start the compose stack if something
-# else is already bound to the postgres host port (127.0.0.1:5432).
-#
-# Why this exists: two postgres containers on the same host fighting for
-# port 5432 silently confuse the operator. The serve binary connects to
-# whichever container *won* the bind, and the dashboard shows whatever
-# data is on THAT container's volume. Restart the loser later and your
-# hosts + credentials appear to vanish — they didn't, they're in the
-# other container's volume.
-#
-# Common collision: a manually-run `openwatch-pg` container left over
-# from earlier debugging. We detect it specifically and explain how to
-# resolve. Anything else bound to 5432 still fails the check, just with
-# a more generic message.
 preflight_port_check() {
-    if ! command -v docker &> /dev/null; then
-        return 0  # podman path; skip for now
+    if ! command -v "$CONTAINER_RUNTIME" &> /dev/null; then
+        return 0
     fi
-
-    # Anything in the compose stack we'd be starting? If the compose db
-    # is already up under our compose project name, that's fine — `up`
-    # is idempotent. Only foreign binders are a problem.
-    local own_db
-    own_db=$(docker ps --filter "name=openwatch-db" --format "{{.Names}}" 2>/dev/null)
-
-    # Find every container exposing host port 5432. `docker ps --filter
-    # publish=5432` matches both 0.0.0.0 and 127.0.0.1 bindings.
     local binders
-    binders=$(docker ps --filter "publish=5432" --format "{{.Names}}" 2>/dev/null \
-              | grep -v "^${own_db}$" || true)
-
+    binders=$("$CONTAINER_RUNTIME" ps --filter "publish=${DB_PORT}" --format "{{.Names}}" 2>/dev/null \
+              | grep -v "^${DB_CONTAINER}$" || true)
     if [ -z "$binders" ]; then
         return 0
     fi
-
-    log_error "Port 127.0.0.1:5432 is already bound by another container:"
+    log_error "Port 127.0.0.1:${DB_PORT} is already bound by another container:"
     while IFS= read -r c; do
         [ -z "$c" ] && continue
-        local image
-        image=$(docker inspect --format '{{.Config.Image}}' "$c" 2>/dev/null || echo "?")
-        local volumes
-        volumes=$(docker inspect --format '{{range .Mounts}}{{.Name}} {{end}}' "$c" 2>/dev/null)
+        local image volumes
+        image=$("$CONTAINER_RUNTIME" inspect --format '{{.Config.Image}}' "$c" 2>/dev/null || echo "?")
+        volumes=$("$CONTAINER_RUNTIME" inspect --format '{{range .Mounts}}{{.Name}} {{end}}' "$c" 2>/dev/null)
         echo -e "  - ${RED}${c}${NC} (image ${image})"
-        if [ -n "$volumes" ]; then
-            echo -e "    Data lives on volume(s): ${volumes}"
-        fi
+        [ -n "$volumes" ] && echo -e "    Data lives on volume(s): ${volumes}"
     done <<<"$binders"
-
     log_error ""
-    log_error "Starting compose now would either fail to bind 5432, or worse,"
-    log_error "start a SECOND database on a different volume so your hosts +"
-    log_error "credentials would appear to vanish until the original container"
-    log_error "is brought back up."
+    log_error "Starting now would either fail to bind ${DB_PORT}, or worse, point the binary"
+    log_error "at the wrong database — so your hosts + credentials would appear to vanish."
     log_error ""
-    log_error "Resolve one of these ways before re-running:"
-    log_error "  1. Use the existing container — point the binary at it and"
-    log_error "     skip start-openwatch.sh entirely. Recommended if its volume"
-    log_error "     holds the data you want to keep."
-    log_error "  2. Stop the existing container:"
-    log_error "       docker stop $(echo "$binders" | tr '\n' ' ')"
-    log_error "     Then re-run ./start-openwatch.sh. The compose DB will get"
-    log_error "     5432 and use volume openwatch_postgres_data."
-    log_error "  3. Migrate data into the compose volume:"
-    log_error "       docker exec $(echo "$binders" | head -1) pg_dumpall -U openwatch > /tmp/ow-dump.sql"
-    log_error "     ...then stop, start compose, and restore from /tmp/ow-dump.sql."
+    log_error "Resolve before re-running:"
+    log_error "  1. If the existing container holds the data you want, override DB_CONTAINER"
+    log_error "     and DB_VOLUME via OPENWATCH_DB_CONTAINER / OPENWATCH_DB_VOLUME, OR set"
+    log_error "     OPENWATCH_DB_CONTAINER=$(echo "$binders" | head -1) and re-run."
+    log_error "  2. Stop the existing container, then re-run:"
+    log_error "       ${CONTAINER_RUNTIME} stop $(echo "$binders" | tr '\n' ' ')"
     exit 1
 }
 
-# Check prerequisites
-check_prerequisites() {
-    log_info "Checking prerequisites..."
+# ---------------------------------------------------------------------------
+# Prerequisites + binary + runtime secrets
+# ---------------------------------------------------------------------------
 
-    # Check if runtime was forced by user
-    if [ -n "$FORCE_RUNTIME" ]; then
-        case "$FORCE_RUNTIME" in
-            "podman")
-                if command -v podman &> /dev/null && command -v podman-compose &> /dev/null; then
-                    RUNTIME="podman-compose"
-                    if [ "$DEV_MODE" = true ]; then
-                        COMPOSE_FILE="podman-compose.dev.yml"
-                    else
-                        COMPOSE_FILE="podman-compose.yml"
-                    fi
-                    log_info "Using forced Podman runtime"
-                else
-                    log_error "Podman or podman-compose not found!"
-                    log_error "Please install: sudo apt install podman podman-compose"
-                    exit 1
-                fi
-                ;;
-            "docker")
-                if command -v docker &> /dev/null && (command -v docker-compose &> /dev/null || docker compose version &> /dev/null); then
-                    RUNTIME="docker"
-                    if [ "$DEV_MODE" = true ]; then
-                        COMPOSE_FILE="docker-compose.dev.yml"
-                    else
-                        COMPOSE_FILE="docker-compose.yml"
-                    fi
-                    log_info "Using forced Docker runtime"
-                else
-                    log_error "Docker or docker-compose not found!"
-                    log_error "Please install: sudo apt install docker.io docker-compose"
-                    exit 1
-                fi
-                ;;
-            *)
-                log_error "Invalid runtime specified: $FORCE_RUNTIME"
-                log_error "Valid options: docker, podman"
-                exit 1
-                ;;
-        esac
-    else
-        # Auto-detect runtime (existing logic)
-        if command -v podman &> /dev/null; then
-            if command -v podman-compose &> /dev/null; then
-                RUNTIME="podman-compose"
-                if [ "$DEV_MODE" = true ]; then
-                    COMPOSE_FILE="podman-compose.dev.yml"
-                else
-                    COMPOSE_FILE="podman-compose.yml"
-                fi
-                log_info "Auto-detected Podman runtime"
-            else
-                log_warning "Podman found but podman-compose not available"
-            fi
-        fi
-
-        if command -v docker &> /dev/null && [ -z "$RUNTIME" ]; then
-            if command -v docker-compose &> /dev/null || docker compose version &> /dev/null; then
-                RUNTIME="docker"
-                if [ "$DEV_MODE" = true ]; then
-                    COMPOSE_FILE="docker-compose.dev.yml"
-                else
-                    COMPOSE_FILE="docker-compose.yml"
-                fi
-                log_info "Auto-detected Docker runtime"
-            else
-                log_warning "Docker found but Docker Compose not available"
-            fi
-        fi
-
-        if [ -z "$RUNTIME" ]; then
-            log_error "No suitable container runtime found!"
-            log_error "Please install one of the following:"
-            log_error "  - Podman: sudo apt install podman podman-compose"
-            log_error "  - Docker: sudo apt install docker.io docker-compose"
-            log_error "Or specify runtime with: --runtime docker|podman"
+detect_container_runtime() {
+    if [ -n "$CONTAINER_RUNTIME" ]; then
+        if ! command -v "$CONTAINER_RUNTIME" &> /dev/null; then
+            log_error "Requested container runtime '${CONTAINER_RUNTIME}' is not installed."
             exit 1
         fi
+        return 0
     fi
-
-    # Check for required files
-    if [ ! -f "$SCRIPT_DIR/$COMPOSE_FILE" ]; then
-        log_error "Compose file not found: $COMPOSE_FILE"
+    if command -v docker &> /dev/null; then
+        CONTAINER_RUNTIME=docker
+    elif command -v podman &> /dev/null; then
+        CONTAINER_RUNTIME=podman
+    else
+        log_error "Need docker or podman to run the PostgreSQL container."
+        log_error "Install one or set OPENWATCH_CONTAINER_RUNTIME explicitly."
         exit 1
     fi
-
-    if [ "$DEV_MODE" = true ]; then
-        log_info "Running in DEVELOPMENT mode"
-    else
-        log_info "Running in PRODUCTION mode"
-    fi
+    log_info "Container runtime: ${CONTAINER_RUNTIME}"
 }
 
-# Environment setup
-setup_environment() {
-    log_info "Setting up environment..."
-
-    # Check for .env file
-    if [ ! -f "$SCRIPT_DIR/.env" ]; then
-        log_warning ".env file not found"
-        if [ -f "$SCRIPT_DIR/backend/.env.example" ]; then
-            log_info "Creating .env from backend/.env.example..."
-            cp "$SCRIPT_DIR/backend/.env.example" "$SCRIPT_DIR/.env"
-
-            # Generate secure keys if they're still default values
-            if ! grep -q "your-secret-key-here" "$SCRIPT_DIR/.env" 2>/dev/null; then
-                SECRET_KEY=$(openssl rand -hex 32 2>/dev/null || head -c 32 /dev/urandom | base64)
-                MASTER_KEY=$(openssl rand -hex 32 2>/dev/null || head -c 32 /dev/urandom | base64)
-
-                sed -i "s/your-secret-key-here-must-be-at-least-32-characters-long/$SECRET_KEY/" "$SCRIPT_DIR/.env"
-                sed -i "s/your-master-key-here-must-be-at-least-32-characters-long/$MASTER_KEY/" "$SCRIPT_DIR/.env"
-
-                log_success "Generated secure keys in .env file"
-            fi
-        else
-            log_info "Creating basic .env file..."
-            cat > "$SCRIPT_DIR/.env" << EOF
-# OpenWatch Environment Configuration
-SECRET_KEY=$(openssl rand -hex 32 2>/dev/null || head -c 32 /dev/urandom | base64)
-MASTER_KEY=$(openssl rand -hex 32 2>/dev/null || head -c 32 /dev/urandom | base64)
-POSTGRES_PASSWORD=openwatch_dev_password
-REDIS_PASSWORD=redis_dev_password
-DATABASE_URL=postgresql://openwatch:openwatch_dev_password@localhost:5432/openwatch
-EOF
+ensure_binary() {
+    if [ "$DO_BUILD" = true ] || [ ! -x "$BINARY" ]; then
+        if ! command -v go &> /dev/null; then
+            log_error "go toolchain not found; cannot build the binary."
+            log_error "Install Go (>= 1.22) or copy a prebuilt openwatch to ${BINARY}."
+            exit 1
         fi
+        log_info "Building openwatch binary (make build)..."
+        (cd "$APP_DIR" && make build)
+        log_success "Built ${BINARY}"
     fi
-
-    # Source environment variables
-    if [ -f "$SCRIPT_DIR/.env" ]; then
-        export $(grep -v '^#' "$SCRIPT_DIR/.env" | xargs)
-    fi
-
-    # Create required directories
-    mkdir -p "$SCRIPT_DIR/data/scap" "$SCRIPT_DIR/data/results" "$SCRIPT_DIR/logs" 2>/dev/null || true
-    mkdir -p "$SCRIPT_DIR/security/certs" "$SCRIPT_DIR/security/keys" 2>/dev/null || true
-
-    log_success "Environment setup complete"
+    log_info "Binary: ${BINARY}"
 }
 
-# Check if images exist
-check_images() {
-    log_info "Checking for existing container images..."
+ensure_runtime_secrets() {
+    mkdir -p "${RUNTIME_DIR}/tls" "${RUNTIME_DIR}/logs"
 
-    local missing_images=false
+    if [ ! -f "${RUNTIME_DIR}/tls/cert.pem" ] || [ ! -f "${RUNTIME_DIR}/tls/key.pem" ]; then
+        log_info "Generating self-signed TLS cert at ${RUNTIME_DIR}/tls/ (demo only)"
+        bash "${APP_DIR}/packaging/common/gen-demo-cert.sh" "${RUNTIME_DIR}/tls"
+    fi
 
-    case "$RUNTIME" in
-        "podman-compose")
-            # Check if any openwatch images exist
-            if ! podman images | grep -q "openwatch"; then
-                missing_images=true
-            fi
-            ;;
-        "docker")
-            # Check if any openwatch images exist
-            if ! docker images | grep -q "openwatch"; then
-                missing_images=true
-            fi
-            ;;
-    esac
+    if [ ! -f "${RUNTIME_DIR}/jwt_private.pem" ]; then
+        log_info "Generating JWT signing key at ${RUNTIME_DIR}/jwt_private.pem (demo only)"
+        openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 \
+            -out "${RUNTIME_DIR}/jwt_private.pem" 2>/dev/null
+        chmod 0600 "${RUNTIME_DIR}/jwt_private.pem"
+    fi
 
-    if [ "$missing_images" = true ]; then
-        log_warning "No OpenWatch container images found"
-        log_info "You may want to run with --build flag to build images first"
-        log_info "Example: $0 --build"
+    if [ ! -f "${RUNTIME_DIR}/credential.key" ]; then
+        log_info "Generating credential DEK at ${RUNTIME_DIR}/credential.key (demo only)"
+        head -c 32 /dev/urandom > "${RUNTIME_DIR}/credential.key"
+        chmod 0600 "${RUNTIME_DIR}/credential.key"
+    fi
+
+    if [[ "$RUNTIME_DIR" == /tmp/* ]]; then
+        log_warning "Runtime secrets live in ${RUNTIME_DIR} (likely /tmp) — they will not"
+        log_warning "survive a reboot. Set OPENWATCH_RUNTIME_DIR to a persistent path"
+        log_warning "(e.g. ~/.openwatch/runtime) for anything beyond a smoke test."
     fi
 }
 
-# Build images if needed
-build_images() {
-    log_info "Building container images..."
+# ---------------------------------------------------------------------------
+# DB container lifecycle
+# ---------------------------------------------------------------------------
 
-    cd "$SCRIPT_DIR"
-
-    case "$RUNTIME" in
-        "podman-compose")
-            if [ "$FORCE_BUILD" = true ]; then
-                podman-compose -f "$COMPOSE_FILE" build --no-cache
-            else
-                podman-compose -f "$COMPOSE_FILE" build
-            fi
-            ;;
-        "docker")
-            if command -v docker-compose &> /dev/null; then
-                if [ "$FORCE_BUILD" = true ]; then
-                    docker-compose -f "$COMPOSE_FILE" build --no-cache
-                else
-                    docker-compose -f "$COMPOSE_FILE" build
-                fi
-            else
-                if [ "$FORCE_BUILD" = true ]; then
-                    docker compose -f "$COMPOSE_FILE" build --no-cache
-                else
-                    docker compose -f "$COMPOSE_FILE" build
-                fi
-            fi
-            ;;
-    esac
-
-    if [ $? -eq 0 ]; then
-        log_success "Container images built successfully!"
-    else
-        log_error "Failed to build container images"
-        exit 1
+ensure_db_container() {
+    if "$CONTAINER_RUNTIME" ps --format "{{.Names}}" 2>/dev/null | grep -qx "$DB_CONTAINER"; then
+        log_info "DB container ${DB_CONTAINER} is already running."
+        return 0
     fi
+    if "$CONTAINER_RUNTIME" ps -a --format "{{.Names}}" 2>/dev/null | grep -qx "$DB_CONTAINER"; then
+        log_info "Starting existing DB container ${DB_CONTAINER}..."
+        "$CONTAINER_RUNTIME" start "$DB_CONTAINER" >/dev/null
+        return 0
+    fi
+    log_info "Creating DB container ${DB_CONTAINER} (image ${DB_IMAGE}, volume ${DB_VOLUME})..."
+    "$CONTAINER_RUNTIME" run -d \
+        --name "$DB_CONTAINER" \
+        --restart unless-stopped \
+        -e POSTGRES_USER="$DB_USER" \
+        -e POSTGRES_PASSWORD="$DB_PASSWORD" \
+        -e POSTGRES_DB="$DB_NAME" \
+        -v "${DB_VOLUME}:/var/lib/postgresql/data" \
+        -p "127.0.0.1:${DB_PORT}:5432" \
+        "$DB_IMAGE" >/dev/null
+    log_success "Started ${DB_CONTAINER}"
 }
 
-# Start services
-start_services() {
-    log_info "Starting OpenWatch services with $RUNTIME..."
-
-    cd "$SCRIPT_DIR"
-
-    # Determine if we need to build
-    local compose_args="-d"
-    if [ "$BUILD_IMAGES" = true ]; then
-        compose_args="--build -d"
-    fi
-
-    case "$RUNTIME" in
-        "podman-compose")
-            podman-compose -f "$COMPOSE_FILE" up $compose_args
-            ;;
-        "docker")
-            if command -v docker-compose &> /dev/null; then
-                docker-compose -f "$COMPOSE_FILE" up $compose_args
-            else
-                docker compose -f "$COMPOSE_FILE" up $compose_args
-            fi
-            ;;
-    esac
-
-    if [ $? -eq 0 ]; then
-        log_success "OpenWatch services started successfully!"
-        log_info ""
-        log_info "Access points:"
-        if [ "$RUNTIME" = "podman-compose" ] && [ "$DEV_MODE" = false ]; then
-            log_info "  Frontend: http://localhost:8080 (HTTPS: https://localhost:8443)"
-            log_info "  Backend API: http://localhost:8000"
-        else
-            log_info "  Frontend: http://localhost:3000"
-            log_info "  Backend API: http://localhost:8000"
+wait_for_db() {
+    log_info "Waiting for ${DB_CONTAINER} to accept connections..."
+    local i
+    for i in $(seq 1 30); do
+        if "$CONTAINER_RUNTIME" exec "$DB_CONTAINER" pg_isready -U "$DB_USER" -d "$DB_NAME" -q 2>/dev/null; then
+            log_success "PostgreSQL is ready."
+            return 0
         fi
-        log_info "  API Docs: http://localhost:8000/docs"
-        log_info ""
-        log_info "To stop services, run:"
-        case "$RUNTIME" in
-            "podman-compose")
-                log_info "  podman-compose -f $COMPOSE_FILE down"
-                ;;
-            "docker")
-                log_info "  docker-compose -f $COMPOSE_FILE down"
-                ;;
-        esac
-    else
-        log_error "Failed to start services"
+        sleep 1
+    done
+    log_error "PostgreSQL did not become ready within 30s. Inspect:"
+    log_error "  ${CONTAINER_RUNTIME} logs ${DB_CONTAINER}"
+    exit 1
+}
+
+# ---------------------------------------------------------------------------
+# Binary lifecycle (serve + worker)
+# ---------------------------------------------------------------------------
+
+dsn() {
+    echo "postgres://${DB_USER}:${DB_PASSWORD}@127.0.0.1:${DB_PORT}/${DB_NAME}?sslmode=disable"
+}
+
+export_runtime_env() {
+    export OPENWATCH_DATABASE_DSN="$(dsn)"
+    export OPENWATCH_SERVER_TLS_CERT="${RUNTIME_DIR}/tls/cert.pem"
+    export OPENWATCH_SERVER_TLS_KEY="${RUNTIME_DIR}/tls/key.pem"
+    export OPENWATCH_SERVER_LISTEN="$LISTEN"
+    export OPENWATCH_IDENTITY_JWT_PRIVATE_KEY="${RUNTIME_DIR}/jwt_private.pem"
+    export OPENWATCH_IDENTITY_CREDENTIAL_KEY_FILE="${RUNTIME_DIR}/credential.key"
+}
+
+run_migrations() {
+    log_info "Applying migrations..."
+    if ! "$BINARY" migrate; then
+        log_error "migrate failed; refusing to start serve/worker against an out-of-date schema."
         exit 1
     fi
 }
 
-# Health check
-check_health() {
-    log_info "Performing health check..."
-
-    sleep 30  # Give services time to start
-
-    # Check backend
-    if curl -f -s http://localhost:8000/health &> /dev/null; then
-        log_success "Backend is healthy"
-    else
-        log_warning "Backend health check failed - may still be starting"
-    fi
-
-    # Check frontend
-    if curl -f -s http://localhost:3000 &> /dev/null; then
-        log_success "Frontend is healthy"
-    else
-        log_warning "Frontend health check failed - may still be starting"
-    fi
+already_running() {
+    # $1 = subcommand name (serve|worker)
+    pgrep -f "dist/openwatch ${1}$" >/dev/null 2>&1
 }
 
-# Main execution
-main() {
-    log_info "OpenWatch Startup Script"
-    log_info "======================================="
-
-    check_prerequisites
-    setup_environment
-    start_services
-
-    if [ "$1" != "--no-health-check" ]; then
-        check_health
+start_serve() {
+    if already_running serve; then
+        log_info "openwatch serve is already running; skipping."
+        return 0
     fi
-
-    log_success "OpenWatch startup complete!"
+    log_info "Starting openwatch serve in background (logs: ${RUNTIME_DIR}/logs/serve.log)..."
+    nohup "$BINARY" serve > "${RUNTIME_DIR}/logs/serve.log" 2>&1 &
+    disown
 }
 
-# Parse command line arguments
-while [[ $# -gt 0 ]]; do
-    case $1 in
-        --dev|-d)
-            DEV_MODE=true
-            shift
-            ;;
-        --build|-b)
-            BUILD_IMAGES=true
-            FORCE_BUILD=true  # Always use --no-cache with --build for fresh builds
-            shift
-            ;;
-        --force-build)
-            BUILD_IMAGES=true
-            FORCE_BUILD=true
-            shift
-            ;;
-        --runtime|-r)
-            if [[ -z "$2" || "$2" == --* ]]; then
-                echo "Error: --runtime requires an argument (docker|podman)"
-                exit 1
-            fi
-            FORCE_RUNTIME="$2"
-            shift 2
-            ;;
-        --help|-h)
-            cat <<'EOF'
-OpenWatch Startup Script
+start_worker() {
+    if [ "$NO_WORKER" = true ]; then
+        log_info "--no-worker set; skipping worker."
+        return 0
+    fi
+    if already_running worker; then
+        log_info "openwatch worker is already running; skipping."
+        return 0
+    fi
+    log_info "Starting openwatch worker in background (logs: ${RUNTIME_DIR}/logs/worker.log)..."
+    nohup "$BINARY" worker > "${RUNTIME_DIR}/logs/worker.log" 2>&1 &
+    disown
+}
+
+start_frontend() {
+    if [ "$NO_FRONTEND" = true ]; then
+        log_info "--no-frontend set; skipping Vite."
+        return 0
+    fi
+    local fe_dir="${APP_DIR}/frontend"
+    if [ ! -d "$fe_dir" ]; then
+        log_warning "Frontend directory not found at ${fe_dir}; skipping."
+        return 0
+    fi
+    if pgrep -f "vite --port" >/dev/null 2>&1; then
+        log_info "Vite is already running; skipping."
+        return 0
+    fi
+    if [ ! -d "${fe_dir}/node_modules" ]; then
+        log_info "Installing frontend dependencies (npm install)..."
+        (cd "$fe_dir" && npm install) > "${RUNTIME_DIR}/logs/npm-install.log" 2>&1
+    fi
+    log_info "Starting Vite dev server (logs: ${RUNTIME_DIR}/logs/vite.log)..."
+    nohup bash -c "cd ${fe_dir} && ./node_modules/.bin/vite --port 5173" \
+        > "${RUNTIME_DIR}/logs/vite.log" 2>&1 &
+    disown
+}
+
+print_urls() {
+    log_info ""
+    log_info "Access points:"
+    log_info "  Frontend dev:  http://127.0.0.1:5173"
+    log_info "  HTTPS API:     https://${LISTEN}  (self-signed cert)"
+    log_info "  Health:        curl -sk https://${LISTEN}/api/v1/health"
+    log_info ""
+    log_info "Logs: tail -F ${RUNTIME_DIR}/logs/*.log"
+    log_info "Stop: ./stop-openwatch.sh"
+}
+
+# ---------------------------------------------------------------------------
+# Help + arg parsing
+# ---------------------------------------------------------------------------
+
+print_help() {
+    cat <<EOF
+OpenWatch (Go) Startup Script
 
 Usage: ./start-openwatch.sh [OPTIONS]
 
 Options:
-  --dev, -d              Run in development mode
-  --build, -b            Build container images before starting (no cache)
-  --force-build          Alias for --build
-  --runtime, -r RUNTIME  Force container runtime (docker|podman)
-  --no-health-check      Skip the post-start health check
-  --reset-data           Delete existing OpenWatch data volumes BEFORE
-                         starting (hosts, credentials, scans, logs).
-                         Gated on --yes / OPENWATCH_CONFIRM_DESTROY=yes
-                         / interactive 'yes' on stdin.
-  --yes, -y              Skip confirmation prompts. Required when running
-                         --reset-data non-interactively.
-  --help, -h             Show this help message
+  --build, -b          Run 'make build' in app/ before starting.
+  --reset-data         Drop the DB volume (${DB_VOLUME}) BEFORE starting.
+                       Requires --yes / OPENWATCH_CONFIRM_DESTROY=yes /
+                       interactive 'yes' on stdin.
+  --no-frontend        Skip the Vite dev server.
+  --no-worker          Skip the openwatch worker (rare; only the API runs).
+  --yes, -y            Skip confirmation prompts.
+  --help, -h           Show this help.
 
-Data persistence (this is the durable model):
-  Hosts, credentials, scan results, and SSH known_hosts live in named
-  docker volumes (openwatch_postgres_data, openwatch_app_data,
-  openwatch_app_logs, openwatch_ssh_known_hosts). They survive:
-    - container restarts
-    - stop-openwatch.sh (any mode except --clean-data / --deep-clean)
-    - start-openwatch.sh (any mode except --reset-data)
-    - --build / --force-build (images and volumes are independent)
-  They are wiped only by:
+Data persistence:
+  Hosts, credentials, scan results, and audit log live in named docker
+  volume ${DB_VOLUME}. The volume survives:
+    - this script's restart
+    - 'docker stop ${DB_CONTAINER}'
+    - host reboot (the container restarts because we set
+      --restart unless-stopped)
+  The volume is wiped only by:
     - ./start-openwatch.sh --reset-data
     - ./stop-openwatch.sh --clean-data
-    - ./stop-openwatch.sh --deep-clean
-    - manual `docker volume rm` / `docker compose down -v`
+    - manual 'docker volume rm ${DB_VOLUME}'
 
-Runtime selection:
-  Auto-detect picks whatever container runtime is installed. Use
-  --runtime docker to pin Docker (Debian/Ubuntu), --runtime podman
-  for Podman (RHEL/Fedora).
-
-Environment variables:
-  OPENWATCH_ENV=development      Equivalent to --dev
-  OPENWATCH_CONFIRM_DESTROY=yes  Companion to --yes for --reset-data in
-                                 non-interactive contexts.
+Environment overrides (all optional):
+  OPENWATCH_DB_CONTAINER     name of the postgres container (default ${DB_CONTAINER})
+  OPENWATCH_DB_VOLUME        named volume holding the data  (default ${DB_VOLUME})
+  OPENWATCH_DB_IMAGE         postgres image                 (default ${DB_IMAGE})
+  OPENWATCH_DB_USER          postgres user                  (default ${DB_USER})
+  OPENWATCH_DB_PASSWORD      postgres password
+  OPENWATCH_DB_NAME          postgres database              (default ${DB_NAME})
+  OPENWATCH_DB_PORT          host port for postgres         (default ${DB_PORT})
+  OPENWATCH_RUNTIME_DIR      where TLS cert + JWT + DEK live (default ${RUNTIME_DIR})
+  OPENWATCH_LISTEN           HTTPS listen address           (default ${LISTEN})
+  OPENWATCH_CONTAINER_RUNTIME  docker or podman             (auto-detect)
+  OPENWATCH_CONFIRM_DESTROY=yes  Companion to --yes for --reset-data.
 
 Examples:
-  ./start-openwatch.sh                          # Resume against existing data
-  ./start-openwatch.sh --runtime docker --build # Rebuild images, keep data
-  ./start-openwatch.sh --reset-data             # Prompts before wipe + start
-  ./start-openwatch.sh --reset-data --yes       # Scripted fresh start
+  ./start-openwatch.sh                    # Resume against existing data
+  ./start-openwatch.sh --build            # Rebuild the binary then start
+  ./start-openwatch.sh --reset-data --yes # Fresh DB, scripted
+  ./start-openwatch.sh --no-frontend      # API only (no Vite)
 EOF
-            exit 0
-            ;;
-        --no-health-check)
-            NO_HEALTH_CHECK=true
-            shift
-            ;;
-        --reset-data)
-            # Explicit opt-in to wipe DB / app data BEFORE starting.
-            # Gated on --yes / OPENWATCH_CONFIRM_DESTROY=yes / interactive
-            # confirm inside reset_data_volumes.
-            RESET_DATA=true
-            shift
-            ;;
-        --yes|-y)
-            ASSUME_YES=true
-            shift
-            ;;
+}
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --build|-b)    DO_BUILD=true; shift ;;
+        --reset-data)  RESET_DATA=true; shift ;;
+        --no-frontend) NO_FRONTEND=true; shift ;;
+        --no-worker)   NO_WORKER=true; shift ;;
+        --yes|-y)      ASSUME_YES=true; shift ;;
+        --help|-h)     print_help; exit 0 ;;
         *)
-            echo "Unknown option: $1"
-            echo "Use --help for usage information"
+            log_error "Unknown option: $1"
+            log_error "Run ./start-openwatch.sh --help for usage."
             exit 1
             ;;
     esac
 done
 
-# Check environment variable for dev mode
-if [ "$OPENWATCH_ENV" = "development" ]; then
-    DEV_MODE=true
-fi
+# ---------------------------------------------------------------------------
+# main
+# ---------------------------------------------------------------------------
 
-# Main execution
 main() {
-    log_info "OpenWatch Startup Script"
+    log_info "OpenWatch (Go) Startup Script"
     log_info "======================================="
 
-    check_prerequisites
-    setup_environment
+    detect_container_runtime
+    ensure_binary
+    ensure_runtime_secrets
 
-    # Data-volume preflight runs BEFORE we touch any containers. If
-    # --reset-data was requested, drop volumes here (gated by confirm);
-    # otherwise just report what will be reused so the operator can see
-    # at a glance that hosts/credentials/scans will survive.
     if [ "$RESET_DATA" = true ]; then
         reset_data_volumes
     else
         preflight_data_check
     fi
 
-    # Refuse to start if a foreign container is squatting on 5432.
-    # Skipped after --reset-data because the compose down inside the
-    # reset already cleared any same-project containers.
     preflight_port_check
+    ensure_db_container
+    wait_for_db
 
-    # Check if images exist (only if not building)
-    if [ "$BUILD_IMAGES" != true ]; then
-        check_images
-    fi
+    export_runtime_env
+    run_migrations
+    start_serve
+    start_worker
+    start_frontend
 
-    # Build images if requested and not using --build flag with up
-    if [ "$BUILD_IMAGES" = true ] && [ "$FORCE_BUILD" = true ]; then
-        build_images
-        BUILD_IMAGES=false  # Don't use --build with up since we already built
-    fi
-
-    start_services
-
-    if [ "$NO_HEALTH_CHECK" != true ]; then
-        check_health
-    fi
-
+    print_urls
     log_success "OpenWatch startup complete!"
 }
 
