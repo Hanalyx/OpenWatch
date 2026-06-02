@@ -28,8 +28,8 @@ import (
 // hit the wire — Run vs RunWithStdin, the cmd string, and the stdin
 // payload — without needing a real SSH transport.
 type stubSession struct {
-	runCalls       []runCall
-	stdinCalls     []stdinCall
+	runCalls         []runCall
+	stdinCalls       []stdinCall
 	nopasswdSucceeds bool
 	fallbackOK       bool
 	transportErr     error

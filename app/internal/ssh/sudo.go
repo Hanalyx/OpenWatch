@@ -47,7 +47,7 @@ type SudoPolicy struct {
 //     - cred is non-nil,
 //     - cred.AuthMethod is "password" or "both",
 //     - cred.Password is non-empty —
-//     re-execute as `sudo -S -k -p '' <cmd>` with the password fed via
+//     re-execute as `sudo -S -k -p ” <cmd>` with the password fed via
 //     the session's stdin pipe. `-k` invalidates the remote sudo
 //     credential cache before each attempt so a wrong password fails
 //     fast (no PAM retry counter increment, no host-side lockout).

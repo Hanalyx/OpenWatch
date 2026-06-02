@@ -71,13 +71,13 @@ type SudoPolicyLoader func(ctx context.Context) (owssh.SudoPolicy, error)
 
 // Service is the OS Intelligence collector. Construct via NewService.
 type Service struct {
-	pool        *pgxpool.Pool
-	credSvc     *credential.Service
-	emit        AuditEmitFunc
-	bus         Publisher
-	lookup      HostLookup
-	transport   SSHTransport
-	sudoPolicy  SudoPolicyLoader
+	pool       *pgxpool.Pool
+	credSvc    *credential.Service
+	emit       AuditEmitFunc
+	bus        Publisher
+	lookup     HostLookup
+	transport  SSHTransport
+	sudoPolicy SudoPolicyLoader
 }
 
 // NewService constructs a Service. emit + bus may be nil — RunCycle
