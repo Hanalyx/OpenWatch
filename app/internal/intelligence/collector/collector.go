@@ -245,34 +245,42 @@ func (s *Service) runCycleWithTransport(ctx context.Context, hf hostFacts) (Snap
 
 	// Firewall rule count: try engines in priority order. First non-
 	// empty answer wins. -1 left in place when nothing detects (so the
-	// frontend can distinguish "no engine" from "0 rules").
-	snap.FirewallRuleCount = -1
+	// frontend can distinguish "no engine" from "0 rules"). Pointer so
+	// 0 ("engine present, no rules") survives JSON omitempty.
+	negOne := -1
+	snap.FirewallRuleCount = &negOne
 	// Non-interactive SSH PATH is minimal on Debian/Ubuntu — /usr/sbin
 	// is often missing, which hides ufw + nft + iptables-save. Prepend
 	// the admin paths so command -v finds them.
+	// `grep -c` exits 1 when count is 0, which masks legitimate
+	// "engine present, 0 rules" answers. Each branch wraps the grep
+	// in `|| true` so the script's exit code stays 0 regardless of
+	// rule count. Without this, sess.Run's code != 0 gate dropped
+	// every ufw-inactive Ubuntu host to FirewallRuleCount=-1.
 	const fwRuleCmd = `
         export PATH="$PATH:/sbin:/usr/sbin:/usr/local/sbin"
         if command -v firewall-cmd >/dev/null 2>&1 && firewall-cmd --state 2>/dev/null | grep -q running; then
             firewall-cmd --get-active-zones 2>/dev/null \
                 | grep -v "^  " \
                 | while read z; do firewall-cmd --zone="$z" --list-rich-rules 2>/dev/null; done \
-                | grep -c "rule "
+                | { grep -c "rule " || true; }
         elif command -v ufw >/dev/null 2>&1; then
             (sudo -n ufw status numbered 2>/dev/null || ufw status numbered 2>/dev/null) \
-                | grep -cE "^\["
+                | { grep -cE "^\[" || true; }
         elif command -v nft >/dev/null 2>&1; then
             (sudo -n nft list ruleset 2>/dev/null || nft list ruleset 2>/dev/null) \
-                | grep -cE "^[[:space:]]+(tcp|udp|icmp|ip6?|meta).*(drop|accept|reject)"
+                | { grep -cE "^[[:space:]]+(tcp|udp|icmp|ip6?|meta).*(drop|accept|reject)" || true; }
         elif command -v iptables-save >/dev/null 2>&1; then
             (sudo -n iptables-save 2>/dev/null || iptables-save 2>/dev/null) \
-                | grep -c "^-A"
+                | { grep -c "^-A" || true; }
         else
             echo ""
         fi
     `
 	if out, code, err := sess.Run(ctx, fwRuleCmd); err == nil && code == 0 {
 		if n, ok := parseFirewallRuleCount(out); ok {
-			snap.FirewallRuleCount = n
+			nn := n
+			snap.FirewallRuleCount = &nn
 		}
 	}
 
