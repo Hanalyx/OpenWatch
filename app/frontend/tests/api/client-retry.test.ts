@@ -36,7 +36,7 @@ function jsonOK(body: unknown): Response {
   });
 }
 
-describe('api/client — 401 retry middleware (system-auth-identity AC-25)', () => {
+describe('api/client — 401 retry middleware', () => {
   let originalFetch: typeof globalThis.fetch;
   let originalLocation: Location;
   let navigateSpy: ReturnType<typeof vi.fn>;
@@ -91,7 +91,7 @@ describe('api/client — 401 retry middleware (system-auth-identity AC-25)', () 
     vi.restoreAllMocks();
   });
 
-  test('401 → refresh-cookie 200 → original request replayed and succeeds', async () => {
+  test('system-auth-identity/AC-25 — 401 → refresh-cookie 200 → original request replayed and succeeds', async () => {
     const mock = queueResponses(
       // 1. original GET — 401
       envelope('auth.session_invalid', 'session expired'),
@@ -118,7 +118,7 @@ describe('api/client — 401 retry middleware (system-auth-identity AC-25)', () 
     expect(useAuthStore.getState().identity).not.toBeNull();
   });
 
-  test('refresh-cookie 401 → useAuthStore cleared and navigate to /login', async () => {
+  test('system-auth-identity/AC-25 — refresh-cookie 401 → useAuthStore cleared and navigate to /login', async () => {
     const mock = queueResponses(
       // 1. original GET — 401
       envelope('auth.session_invalid', 'session expired'),
@@ -137,7 +137,7 @@ describe('api/client — 401 retry middleware (system-auth-identity AC-25)', () 
     expect(navigateSpy).toHaveBeenCalledWith('/login');
   });
 
-  test('does not loop: a request marked with the retry header is not retried again', async () => {
+  test('system-auth-identity/AC-25 — does not loop: a request marked with the retry header is not retried again', async () => {
     // Two consecutive 401s on the same logical call — the middleware
     // refreshes once, replays, and the replay still 401s. The replay
     // result MUST be returned to the caller; no third fetch is fired.
