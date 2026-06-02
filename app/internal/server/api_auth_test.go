@@ -491,6 +491,222 @@ func pickSessionCookie(resp *http.Response) *http.Cookie {
 	return nil
 }
 
+// pickRefreshCookie returns the openwatch_refresh cookie from a
+// response, or nil if not present.
+func pickRefreshCookie(resp *http.Response) *http.Cookie {
+	for _, c := range resp.Cookies() {
+		if c.Name == identity.RefreshCookieName {
+			return c
+		}
+	}
+	return nil
+}
+
+// @spec system-auth-identity
+// @ac AC-22
+// AC-22: Login Set-Cookies openwatch_refresh (HttpOnly + Secure +
+// SameSite=Lax + Path=/ + MaxAge ≈ 7d) carrying the same refresh
+// presentation token returned in the response body.
+func TestAuthLogin_SetsRefreshCookie(t *testing.T) {
+	t.Run("system-auth-identity/AC-22", func(t *testing.T) {
+		url, pool := freshAPIServer(t)
+		usrSvc := users.NewService(pool, nil)
+		u := seedAuthUser(t, usrSvc, "ac22", false)
+		_ = usrSvc.AssignRole(context.Background(), u.ID, "viewer", nil)
+
+		resp := login(t, url, map[string]string{"username": u.Username, "password": u.Password})
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			b, _ := io.ReadAll(resp.Body)
+			t.Fatalf("login status = %d body=%s", resp.StatusCode, b)
+		}
+		var body struct {
+			RefreshToken string `json:"refresh_token"`
+		}
+		_ = json.NewDecoder(resp.Body).Decode(&body)
+
+		rc := pickRefreshCookie(resp)
+		if rc == nil {
+			t.Fatal("openwatch_refresh cookie not set on login")
+		}
+		if !rc.HttpOnly {
+			t.Error("refresh cookie HttpOnly = false")
+		}
+		if !rc.Secure {
+			t.Error("refresh cookie Secure = false")
+		}
+		if rc.SameSite != http.SameSiteLaxMode {
+			t.Errorf("refresh cookie SameSite = %v, want Lax", rc.SameSite)
+		}
+		if rc.Path != "/" {
+			t.Errorf("refresh cookie Path = %q, want /", rc.Path)
+		}
+		// ~7 days; allow ±5s clock skew. Browsers floor sub-second values so an
+		// exact match isn't required, just being in the right ballpark.
+		want := int(identity.RefreshTokenWindow.Seconds())
+		if rc.MaxAge < want-5 || rc.MaxAge > want+5 {
+			t.Errorf("refresh cookie MaxAge = %d, want ~%d (7d)", rc.MaxAge, want)
+		}
+		if rc.Value != body.RefreshToken {
+			t.Errorf("cookie value != body.refresh_token (cookie=%q body=%q)", rc.Value, body.RefreshToken)
+		}
+	})
+}
+
+// @spec system-auth-identity
+// @ac AC-23
+// AC-23: POST /auth/refresh-cookie consumes the refresh cookie, rotates
+// the refresh token, mints a new session, Set-Cookies both, and returns
+// 200 with the identity body.
+func TestAuthRefreshCookie_Rotates(t *testing.T) {
+	t.Run("system-auth-identity/AC-23", func(t *testing.T) {
+		url, pool := freshAPIServer(t)
+		usrSvc := users.NewService(pool, nil)
+		u := seedAuthUser(t, usrSvc, "ac23", false)
+		_ = usrSvc.AssignRole(context.Background(), u.ID, "viewer", nil)
+
+		// Login.
+		resp := login(t, url, map[string]string{"username": u.Username, "password": u.Password})
+		sessCookie := pickSessionCookie(resp)
+		refrCookie := pickRefreshCookie(resp)
+		resp.Body.Close()
+		if sessCookie == nil || refrCookie == nil {
+			t.Fatal("login did not set both cookies")
+		}
+
+		// Call refresh-cookie with the refresh cookie present.
+		req, _ := http.NewRequest("POST", url+"/api/v1/auth/refresh-cookie", nil)
+		req.AddCookie(refrCookie)
+		// Include the (possibly stale) session cookie too — production
+		// browsers present whatever they hold.
+		req.AddCookie(sessCookie)
+		resp = doReq(t, req)
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			b, _ := io.ReadAll(resp.Body)
+			t.Fatalf("refresh-cookie status = %d body=%s", resp.StatusCode, b)
+		}
+
+		newSess := pickSessionCookie(resp)
+		newRefr := pickRefreshCookie(resp)
+		if newSess == nil {
+			t.Error("refresh-cookie did not Set-Cookie a new openwatch_session")
+		}
+		if newRefr == nil {
+			t.Error("refresh-cookie did not Set-Cookie a new openwatch_refresh")
+		}
+		if newSess != nil && newSess.Value == sessCookie.Value {
+			t.Error("session cookie value unchanged after refresh")
+		}
+		if newRefr != nil && newRefr.Value == refrCookie.Value {
+			t.Error("refresh cookie value unchanged after refresh — rotation broken")
+		}
+
+		// Identity body shape — username present.
+		var me struct {
+			Username string `json:"username"`
+		}
+		_ = json.NewDecoder(resp.Body).Decode(&me)
+		if me.Username != u.Username {
+			t.Errorf("identity body username = %q, want %q", me.Username, u.Username)
+		}
+	})
+}
+
+// @spec system-auth-identity
+// @ac AC-23
+// AC-23 reject path: no refresh cookie → 401 auth.refresh_invalid +
+// both cookies cleared (MaxAge=-1). Browser strips them so a known-bad
+// state doesn't keep re-presenting.
+func TestAuthRefreshCookie_MissingCookie_Clears(t *testing.T) {
+	t.Run("system-auth-identity/AC-23", func(t *testing.T) {
+		url, _ := freshAPIServer(t)
+		req, _ := http.NewRequest("POST", url+"/api/v1/auth/refresh-cookie", nil)
+		resp := doReq(t, req)
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusUnauthorized {
+			t.Errorf("status = %d, want 401", resp.StatusCode)
+		}
+		b, _ := io.ReadAll(resp.Body)
+		if !strings.Contains(string(b), "auth.refresh_invalid") {
+			t.Errorf("body lacks auth.refresh_invalid: %s", b)
+		}
+		// Both cookies cleared (MaxAge < 0).
+		gotSession, gotRefresh := false, false
+		for _, c := range resp.Cookies() {
+			if c.Name == identity.SessionCookieName && c.MaxAge < 0 {
+				gotSession = true
+			}
+			if c.Name == identity.RefreshCookieName && c.MaxAge < 0 {
+				gotRefresh = true
+			}
+		}
+		if !gotSession {
+			t.Error("openwatch_session cookie not cleared on rejection")
+		}
+		if !gotRefresh {
+			t.Error("openwatch_refresh cookie not cleared on rejection")
+		}
+	})
+}
+
+// @spec system-auth-identity
+// @ac AC-24
+// AC-24: Logout clears BOTH cookies (MaxAge=-1) and revokes the
+// refresh token row so the value can't be redeemed afterwards.
+func TestAuthLogout_ClearsBothCookiesAndRevokesRefresh(t *testing.T) {
+	t.Run("system-auth-identity/AC-24", func(t *testing.T) {
+		url, pool := freshAPIServer(t)
+		usrSvc := users.NewService(pool, nil)
+		u := seedAuthUser(t, usrSvc, "ac24", false)
+		_ = usrSvc.AssignRole(context.Background(), u.ID, "viewer", nil)
+
+		resp := login(t, url, map[string]string{"username": u.Username, "password": u.Password})
+		sessCookie := pickSessionCookie(resp)
+		refrCookie := pickRefreshCookie(resp)
+		resp.Body.Close()
+		if sessCookie == nil || refrCookie == nil {
+			t.Fatal("login did not set both cookies")
+		}
+
+		// Logout with both cookies.
+		req, _ := http.NewRequest("POST", url+"/api/v1/auth/logout", nil)
+		req.AddCookie(sessCookie)
+		req.AddCookie(refrCookie)
+		resp = doReq(t, req)
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusNoContent {
+			t.Fatalf("logout status = %d", resp.StatusCode)
+		}
+
+		// Both cookies cleared.
+		gotSession, gotRefresh := false, false
+		for _, c := range resp.Cookies() {
+			if c.Name == identity.SessionCookieName && c.MaxAge < 0 {
+				gotSession = true
+			}
+			if c.Name == identity.RefreshCookieName && c.MaxAge < 0 {
+				gotRefresh = true
+			}
+		}
+		if !gotSession {
+			t.Error("logout did not clear openwatch_session cookie")
+		}
+		if !gotRefresh {
+			t.Error("logout did not clear openwatch_refresh cookie")
+		}
+
+		// Calling refresh-cookie with the now-revoked refresh token → 401.
+		req, _ = http.NewRequest("POST", url+"/api/v1/auth/refresh-cookie", nil)
+		req.AddCookie(refrCookie)
+		resp = doReq(t, req)
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusUnauthorized {
+			t.Errorf("refresh-cookie after logout: status = %d, want 401", resp.StatusCode)
+		}
+	})
+}
+
 // otpSecretFromURI parses an otpauth:// provisioning URI and returns
 // the embedded shared secret. The authenticator app would do this off
 // a QR code; tests do it inline.

@@ -106,6 +106,21 @@ func (h *handlers) PostAuthLogin(w http.ResponseWriter, r *http.Request) {
 		SameSite: http.SameSiteLaxMode,
 	})
 
+	// Set the refresh cookie so the browser can call /auth/refresh-cookie
+	// when the session expires. JS cannot read this cookie; only the
+	// refresh-cookie endpoint consumes it. Same lifetime as the refresh
+	// token itself (7 days, identity.RefreshTokenWindow).
+	// Spec C-13 / AC-22.
+	http.SetCookie(w, &http.Cookie{
+		Name:     identity.RefreshCookieName,
+		Value:    refresh,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   int(identity.RefreshTokenWindow.Seconds()),
+	})
+
 	emitAudit(r, audit.AuthLoginSuccess, u.ID.String(), map[string]any{
 		"username": u.Username,
 	})
@@ -118,8 +133,12 @@ func (h *handlers) PostAuthLogin(w http.ResponseWriter, r *http.Request) {
 }
 
 // PostAuthLogout revokes the calling session by reading the cookie and
-// deleting the session row. Always returns 204 (no oracle on whether
-// the session existed).
+// deleting the session row. Also revokes the refresh token presented
+// via the openwatch_refresh cookie so a stolen refresh cookie can't
+// outlive an explicit logout. Always returns 204 (no oracle on whether
+// the session/refresh existed).
+//
+// Spec api-auth + system-auth-identity AC-24.
 func (h *handlers) PostAuthLogout(w http.ResponseWriter, r *http.Request) {
 	id := auth.FromContext(r.Context())
 	// If anonymous, this is a no-op — still 204 (logout is idempotent).
@@ -132,9 +151,25 @@ func (h *handlers) PostAuthLogout(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	// Clear the cookie.
+	// Revoke the refresh token if the cookie carries one, regardless of
+	// session state — explicit logout invalidates everything the user
+	// was holding. Best-effort: an unparseable / unknown refresh cookie
+	// is silently ignored (no oracle).
+	if rc, err := r.Cookie(identity.RefreshCookieName); err == nil && rc.Value != "" {
+		_ = identity.RevokeRefreshToken(r.Context(), h.pool, rc.Value)
+	}
+	// Clear both cookies in the same response.
 	http.SetCookie(w, &http.Cookie{
 		Name:     identity.SessionCookieName,
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
+	})
+	http.SetCookie(w, &http.Cookie{
+		Name:     identity.RefreshCookieName,
 		Value:    "",
 		Path:     "/",
 		MaxAge:   -1,
@@ -190,6 +225,101 @@ func (h *handlers) PostAuthRefresh(w http.ResponseWriter, r *http.Request) {
 		AccessToken:  access,
 		RefreshToken: pair.RefreshToken,
 		User:         userToMe(u, string(role)),
+	})
+}
+
+// PostAuthRefreshCookie consumes the openwatch_refresh cookie, rotates
+// the refresh token, mints a new session, and Set-Cookies both. The
+// browser uses this on transparent retry from its API client when a
+// regular request returns 401 — it never has to redirect to /login as
+// long as the refresh window (7 days) is still open.
+//
+// Spec system-auth-identity AC-23, C-14.
+func (h *handlers) PostAuthRefreshCookie(w http.ResponseWriter, r *http.Request) {
+	rc, err := r.Cookie(identity.RefreshCookieName)
+	if err != nil || rc.Value == "" {
+		clearAuthCookies(w)
+		writeError(w, http.StatusUnauthorized, "auth.refresh_invalid", "client",
+			"refresh cookie missing", false)
+		return
+	}
+
+	pair, err := identity.ConsumeRefreshToken(r.Context(), h.pool, rc.Value, "")
+	if err != nil {
+		switch {
+		case errors.Is(err, identity.ErrRefreshTokenReused):
+			clearAuthCookies(w)
+			writeError(w, http.StatusUnauthorized, "auth.refresh_reused", "policy",
+				"refresh token reuse detected; all sessions revoked", false)
+		case errors.Is(err, identity.ErrRefreshTokenExpired),
+			errors.Is(err, identity.ErrRefreshTokenRevoked),
+			errors.Is(err, identity.ErrRefreshTokenNotFound):
+			clearAuthCookies(w)
+			writeError(w, http.StatusUnauthorized, "auth.refresh_invalid", "client",
+				"refresh token invalid or expired", false)
+		default:
+			writeError(w, http.StatusInternalServerError, "server.error", "server",
+				"refresh failed", true)
+		}
+		return
+	}
+
+	userID, _ := uuid.Parse(pair.Claims.Subject)
+	role, _ := h.users.PrimaryRoleFor(r.Context(), userID)
+
+	// Mint a fresh session so the user gets a new 15-min inactivity
+	// window. The old session (whose cookie may be expired) is left to
+	// the inactivity-sweep — issuing a new one is enough.
+	sessionToken, _, err := identity.IssueSession(r.Context(), h.pool, userID, r.RemoteAddr, r.UserAgent())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "server.error", "server",
+			"session issue failed", true)
+		return
+	}
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     identity.SessionCookieName,
+		Value:    sessionToken,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
+	})
+	http.SetCookie(w, &http.Cookie{
+		Name:     identity.RefreshCookieName,
+		Value:    pair.RefreshToken,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   int(identity.RefreshTokenWindow.Seconds()),
+	})
+
+	u, _ := h.users.GetUserByID(r.Context(), userID)
+	writeJSON(w, http.StatusOK, userToMe(u, string(role)))
+}
+
+// clearAuthCookies emits Set-Cookie headers that delete both auth
+// cookies. Used by the refresh-cookie endpoint on any rejection so
+// the browser doesn't keep re-presenting a known-bad refresh cookie.
+func clearAuthCookies(w http.ResponseWriter) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     identity.SessionCookieName,
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
+	})
+	http.SetCookie(w, &http.Cookie{
+		Name:     identity.RefreshCookieName,
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
 	})
 }
 

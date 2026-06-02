@@ -1,7 +1,7 @@
 spec:
   id: system-auth-identity
   title: Auth identity primitives (password, session, JWT, MFA)
-  version: "1.0.0"
+  version: "1.1.0"
   status: approved
   tier: 1
 
@@ -88,6 +88,18 @@ spec:
       description: Identity binder MUST emit auth.login.failure with detail.reason populated on every rejected authentication attempt
       type: security
       enforcement: error
+    - id: C-12
+      description: Identity binder MUST distinguish "credential presented but rejected" from "no credential presented"; rejected credentials MUST short-circuit with HTTP 401 (auth.session_invalid envelope) rather than fall through anonymously, so the frontend can trigger a refresh attempt. Truly-unauthenticated requests still flow through anonymously and are denied downstream by RBAC.
+      type: security
+      enforcement: error
+    - id: C-13
+      description: Browser login MUST also Set-Cookie an HttpOnly "openwatch_refresh" presentation token (7-day TTL) alongside the session cookie. The browser refresh path MUST NOT require JS access to refresh material; the cookie is server-trusted only.
+      type: security
+      enforcement: error
+    - id: C-14
+      description: POST /api/v1/auth/refresh-cookie MUST consume the openwatch_refresh cookie via the same ConsumeRefreshToken rotation contract as the body-token flow (C-07), Set-Cookie a new openwatch_session AND a new openwatch_refresh, and return 200 with the refreshed Identity. On missing/expired/revoked/reused refresh cookie it returns 401 and clears both cookies.
+      type: security
+      enforcement: error
 
   acceptance_criteria:
     - id: AC-01
@@ -168,3 +180,23 @@ spec:
       description: IssueJWT + VerifyJWT round-trip p99 < 5ms over 1000 calls (RS256 verify is the dominant cost).
       priority: medium
       references_constraints: [C-08]
+    - id: AC-21
+      description: IdentityBinder, when a cookie OR bearer token is presented but resolveIdentity returns a non-empty reason (any of the C-11 reasons), writes HTTP 401 with envelope error.code "auth.session_invalid" and stops the chain (does not call next.ServeHTTP). Requests with no cookie and no Authorization header still flow through with anonymous Identity.
+      priority: critical
+      references_constraints: [C-12]
+    - id: AC-22
+      description: PostAuthLogin Set-Cookies "openwatch_refresh" (HttpOnly, Secure, SameSite=Lax, Path=/, MaxAge=604800) carrying the presentation form of a freshly minted refresh token. The same refresh token is also returned in the response body for non-browser consumers (existing contract preserved).
+      priority: critical
+      references_constraints: [C-13]
+    - id: AC-23
+      description: PostAuthRefreshCookie reads the openwatch_refresh cookie, calls ConsumeRefreshToken to rotate it (C-07), issues a new session via IssueSession, and Set-Cookies both "openwatch_session" (new presentation token) AND "openwatch_refresh" (new rotated refresh token). Returns 200 with the user identity. On missing cookie or any rotation error (expired/revoked/reused) returns 401 with envelope error.code "auth.refresh_invalid" and Set-Cookie clears both cookies (MaxAge=-1).
+      priority: critical
+      references_constraints: [C-14]
+    - id: AC-24
+      description: PostAuthLogout clears the openwatch_refresh cookie in the same response as the openwatch_session cookie clear (MaxAge=-1 for both). If a valid refresh token exists in the cookie, it is also revoked in the refresh_tokens table.
+      priority: high
+      references_constraints: [C-13, C-14]
+    - id: AC-25
+      description: Browser API client (src/api/client.ts) attaches an onResponse middleware that intercepts HTTP 401. On a 401 the middleware calls POST /api/v1/auth/refresh-cookie once and, if it returns 200, replays the original request exactly once with the rotated cookies. If refresh-cookie itself returns 401 the middleware clears useAuthStore.identity and navigates to /login. The retry MUST NOT loop — a second 401 on the same request after refresh returns the error to the caller.
+      priority: critical
+      references_constraints: [C-14]

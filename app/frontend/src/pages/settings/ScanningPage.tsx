@@ -9,6 +9,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import api from '@/api/client';
+import { apiErrorMessage } from '@/api/errors';
 import { useBreadcrumbStore } from '@/store/useBreadcrumbStore';
 import { SettingsLayout } from '@/components/settings/SettingsLayout';
 import {
@@ -464,7 +465,7 @@ export function ScanningPage() {
       >
         {configQuery.isError && (
           <Callout tier="crit">
-            Failed to load connectivity config: {(configQuery.error as Error)?.message ?? 'unknown error'}
+            Failed to load connectivity config: {apiErrorMessage(configQuery.error, 'unknown error')}
           </Callout>
         )}
 
@@ -772,7 +773,7 @@ export function ScanningPage() {
           saving={saveMutation.isPending}
           error={
             saveMutation.error
-              ? (saveMutation.error as Error)?.message ?? 'Save failed'
+              ? apiErrorMessage(saveMutation.error, 'Save failed')
               : null
           }
         />

@@ -9,6 +9,7 @@ import (
 
 	"github.com/Hanalyx/openwatch/internal/audit"
 	"github.com/Hanalyx/openwatch/internal/auth"
+	"github.com/Hanalyx/openwatch/internal/correlation"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -16,6 +17,21 @@ import (
 // SessionCookieName is the cookie the browser path uses for session
 // presentation tokens. Server-set; client reads it back over HTTPS.
 const SessionCookieName = "openwatch_session"
+
+// authBypassPaths are credential-lifecycle endpoints where the binder
+// MUST NOT 401 on a stale session cookie — they handle their own
+// credential semantics. Login does not need any cookie; logout is
+// idempotent for stale sessions; the refresh-cookie endpoint reads
+// the refresh cookie, not the session cookie, so a stale session
+// presented alongside is not an error there.
+//
+// Spec system-auth-identity C-12 / AC-21 (bypass list).
+var authBypassPaths = map[string]struct{}{
+	"/api/v1/auth/login":          {},
+	"/api/v1/auth/logout":         {},
+	"/api/v1/auth/refresh":        {},
+	"/api/v1/auth/refresh-cookie": {},
+}
 
 // Lookups is the interface the binder uses to translate a user_id into
 // the role it needs to attach to auth.Identity. Decoupled from the
@@ -38,17 +54,54 @@ type Lookups interface {
 // to anonymous. Anonymous identities are denied by RBAC middleware
 // downstream.
 //
-// Spec system-auth-identity AC-17, AC-18, C-11.
+// Spec system-auth-identity AC-17, AC-18, AC-21, C-11, C-12.
 func Binder(pool *pgxpool.Pool, lookups Lookups) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			id, reason := resolveIdentity(r.Context(), pool, lookups, r)
 			if reason != "" {
 				emitLoginFailure(r, reason)
+				// Credential was presented but rejected. Short-circuit with
+				// 401 so the frontend can call /auth/refresh-cookie and
+				// retry. Exception: credential-lifecycle endpoints (login,
+				// logout, both refresh paths) bypass this — they manage
+				// credentials themselves and should run anonymously when
+				// a stale session is presented alongside.
+				// Spec C-12 / AC-21.
+				if _, bypass := authBypassPaths[r.URL.Path]; !bypass {
+					writeSessionInvalid(w, r, reason)
+					return
+				}
 			}
 			next.ServeHTTP(w, r.WithContext(auth.SetIdentity(r.Context(), id)))
 		})
 	}
+}
+
+// writeSessionInvalid emits the 401 envelope used when a credential
+// was presented but rejected. The frontend's API client onResponse
+// middleware reacts to this code by calling /auth/refresh-cookie and
+// retrying once.
+//
+// Spec C-12 / AC-21.
+func writeSessionInvalid(w http.ResponseWriter, r *http.Request, reason string) {
+	body := map[string]any{
+		"code":          "auth.session_invalid",
+		"fault":         "client",
+		"retryable":     true,
+		"human_message": "your session is invalid or expired; please sign in again",
+		"detail": map[string]any{
+			"reason": reason,
+		},
+	}
+	if cid, ok := correlation.From(r.Context()); ok {
+		body["correlation_id"] = cid
+	}
+	envelope := map[string]any{"error": body}
+	payload, _ := json.Marshal(envelope)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusUnauthorized)
+	_, _ = w.Write(payload)
 }
 
 // resolveIdentity inspects the request for a session cookie or bearer

@@ -35,6 +35,12 @@ const (
 	SessionTokenBytes = 32
 )
 
+// RefreshCookieName is the HttpOnly cookie carrying the refresh token's
+// presentation form. Set at login and rotated by the refresh-cookie
+// endpoint. JS cannot read it; only the server consumes it.
+// Spec system-auth-identity C-13.
+const RefreshCookieName = "openwatch_refresh"
+
 // Session is the in-memory shape returned to handlers. The presentation
 // token is only present at issuance — verifications and DB reads return
 // just the metadata.
