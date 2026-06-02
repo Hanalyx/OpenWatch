@@ -72,6 +72,7 @@ linters-settings:
           - github.com/pressly/goose/v3       # DB migrations
           - github.com/swaggest/swgui         # embedded Swagger UI assets (air-gap clean)
           - golang.org/x/crypto               # Argon2id, ssh, etc.
+          - golang.org/x/net                  # ICMP + IPv4 raw sockets for liveness ping
           - gopkg.in/yaml.v3                  # YAML loader (audit events, policies)
 
   forbidigo:
