@@ -1,5 +1,39 @@
 version: 2
 updates:
+  # Go dependencies for the OpenWatch Go rebuild (app/)
+  # See specs/system/supply-chain.spec.yaml — every accepted update must
+  # also update the depguard allowlist in app/.golangci.yml if the
+  # module set changes.
+  - package-ecosystem: "gomod"
+    directory: "/app"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 5
+    rebase-strategy: "auto"
+    reviewers:
+      - "Hanalyx/security-team"
+    labels:
+      - "dependencies"
+      - "go"
+      - "supply-chain"
+    commit-message:
+      prefix: "deps(go)"
+      include: "scope"
+    groups:
+      go-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "patch"
+      go-minor:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+
   # Python dependencies for backend (regular updates)
   - package-ecosystem: "pip"
     directory: "/backend"

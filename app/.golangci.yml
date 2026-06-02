@@ -38,7 +38,43 @@ linters:
     # OpenWatch-specific drift prevention
     - forbidigo
 
+    # Supply-chain: only allow modules on the explicit allowlist
+    # (per spec system-supply-chain)
+    - depguard
+
 linters-settings:
+
+  # depguard: third-party module allowlist. list-mode "strict" fails any
+  # import that isn't on the allow list. Adding a new module here is a
+  # spec-bumping change — see specs/system/supply-chain.spec.yaml.
+  depguard:
+    rules:
+      main:
+        list-mode: strict
+        files:
+          - $all  # apply to every Go file in the module
+        allow:
+          # Standard library (always permitted)
+          - $gostd
+          # Internal module
+          - github.com/Hanalyx/openwatch
+          # Third-party — directly imported (every entry needs a reason
+          # in the spec's allowlist rationale)
+          - github.com/BurntSushi/toml        # config: TOML loader
+          - github.com/getkin/kin-openapi     # OpenAPI 3.1 parser/validator
+          - github.com/gliderlabs/ssh         # in-process SSH server for ssh tests
+          - github.com/Hanalyx/kensa          # Kensa compliance engine API (pinned for version tracking; see internal/kensa/import.go)
+          - github.com/go-chi/chi/v5          # HTTP router
+          - github.com/golang-jwt/jwt/v5      # RS256 JWT
+          - github.com/google/uuid            # UUID v4 / v7
+          - github.com/jackc/pgx/v5           # PostgreSQL driver
+          - github.com/oapi-codegen/runtime   # oapi-codegen generated runtime
+          - github.com/pquerna/otp            # TOTP MFA
+          - github.com/pressly/goose/v3       # DB migrations
+          - github.com/swaggest/swgui         # embedded Swagger UI assets (air-gap clean)
+          - golang.org/x/crypto               # Argon2id, ssh, etc.
+          - golang.org/x/net                  # ICMP + IPv4 raw sockets for liveness ping
+          - gopkg.in/yaml.v3                  # YAML loader (audit events, policies)
 
   forbidigo:
     analyze-types: true
