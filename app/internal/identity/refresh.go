@@ -27,6 +27,25 @@ var (
 	ErrRefreshTokenReused   = errors.New("identity: refresh token reuse detected")
 )
 
+// RevokeRefreshToken marks the row identified by presentation-token as
+// revoked. Idempotent — already-revoked or unknown tokens are silently
+// no-op. Used by logout to invalidate the refresh cookie at the same
+// time as the session cookie.
+//
+// Spec AC-24.
+func RevokeRefreshToken(ctx context.Context, pool *pgxpool.Pool, token string) error {
+	if token == "" {
+		return nil
+	}
+	hash := sha256.Sum256([]byte(token))
+	const stmt = `UPDATE refresh_tokens SET revoked_at = now() WHERE token_hash = $1 AND revoked_at IS NULL`
+	_, err := pool.Exec(ctx, stmt, hash[:])
+	if err != nil {
+		return fmt.Errorf("identity: revoke refresh token: %w", err)
+	}
+	return nil
+}
+
 // IssueRefreshToken persists a new refresh-token row and returns the
 // presentation token. Token is stored as SHA-256 hash; presentation
 // form is never in the DB.

@@ -81,6 +81,29 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
 
+  /api/v1/auth/refresh-cookie:
+    post:
+      operationId: postAuthRefreshCookie
+      summary: Rotate the refresh cookie and mint a new session (browser flow)
+      description: >
+        Reads the HttpOnly `openwatch_refresh` cookie, rotates the underlying
+        refresh token, mints a new session, and Set-Cookies both the rotated
+        refresh cookie and a fresh `openwatch_session`. Used by the browser
+        API client as the transparent on-401 retry hook so users with a live
+        refresh window don't get bounced to /login on every inactivity timeout.
+      security: []
+      responses:
+        '200':
+          description: Cookies rotated; identity returned
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AuthMeResponse'}
+        '401':
+          description: Refresh cookie missing, invalid, expired, or reused. Both auth cookies are cleared.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
   /api/v1/auth/me:
     get:
       operationId: getAuthMe

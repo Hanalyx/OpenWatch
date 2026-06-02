@@ -11,6 +11,7 @@ import {
   Upload,
 } from 'lucide-react';
 import api from '@/api/client';
+import { apiErrorMessage } from '@/api/errors';
 import { useBreadcrumbStore } from '@/store/useBreadcrumbStore';
 import { useAuthStore } from '@/store/useAuthStore';
 import { SettingsLayout } from '@/components/settings/SettingsLayout';
@@ -235,7 +236,7 @@ export function CredentialsPage() {
               }}
             >
               <strong>Failed to load credentials.</strong>{' '}
-              {(credsQuery.error as Error)?.message}{' '}
+              {apiErrorMessage(credsQuery.error, '')}{' '}
               <button
                 type="button"
                 onClick={() => credsQuery.refetch()}

@@ -18,6 +18,7 @@ import {
   Activity as ActivityIcon,
 } from 'lucide-react';
 import api from '@/api/client';
+import { apiErrorMessage } from '@/api/errors';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useBreadcrumbStore } from '@/store/useBreadcrumbStore';
 import { osDisplayLabel } from '@/utils/osLabel';
@@ -363,7 +364,7 @@ export function HostsListPage() {
 
       {hostsQuery.isError && !useFixtures && (
         <ErrorRegion
-          message={(hostsQuery.error as Error)?.message ?? 'Failed to load hosts'}
+          message={apiErrorMessage(hostsQuery.error, 'Failed to load hosts')}
           onRetry={() => hostsQuery.refetch()}
         />
       )}

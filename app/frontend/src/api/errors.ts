@@ -42,3 +42,16 @@ export function formatApiError(status: number, error: unknown): string {
   const detail = apiErrorMessage(error, '');
   return detail ? `HTTP ${status} — ${detail}` : `HTTP ${status}`;
 }
+
+// apiErrorCode pulls the canonical error.code (e.g. "auth.session_invalid",
+// "validation.range_exceeded") off an openapi-fetch error body. Returns
+// undefined when the object isn't shaped like an ErrorEnvelope. Useful
+// for components that branch on code (e.g. show a different inline
+// affordance for 401 vs 400).
+export function apiErrorCode(error: unknown): string | undefined {
+  if (error && typeof error === 'object') {
+    const env = error as EnvelopeShape;
+    if (env.error?.code) return env.error.code;
+  }
+  return undefined;
+}

@@ -18,7 +18,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { RefreshCw, RotateCcw } from 'lucide-react';
 import api from '@/api/client';
-import { formatApiError } from '@/api/errors';
+import { apiErrorMessage, formatApiError } from '@/api/errors';
 import {
   Section,
   SettingCard,
@@ -126,9 +126,7 @@ export function OSIntelligenceSection() {
       isLoading={configQuery.isLoading}
       isError={configQuery.isError}
       errorMessage={
-        configQuery.error
-          ? (configQuery.error as Error)?.message ?? 'Failed to load'
-          : null
+        configQuery.error ? apiErrorMessage(configQuery.error, 'Failed to load') : null
       }
       onRetry={() => configQuery.refetch()}
       config={configQuery.data?.config ?? null}
@@ -140,9 +138,7 @@ export function OSIntelligenceSection() {
       onSave={onSave}
       isSaving={mutation.isPending}
       saveError={
-        mutation.error
-          ? (mutation.error as Error)?.message ?? 'Save failed'
-          : null
+        mutation.error ? apiErrorMessage(mutation.error, 'Save failed') : null
       }
       dirty={dirty}
     />

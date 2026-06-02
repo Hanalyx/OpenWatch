@@ -55,6 +55,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/refresh-cookie": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Rotate the refresh cookie and mint a new session (browser flow)
+         * @description Reads the HttpOnly `openwatch_refresh` cookie, rotates the underlying refresh token, mints a new session, and Set-Cookies both the rotated refresh cookie and a fresh `openwatch_session`. Used by the browser API client as the transparent on-401 retry hook so users with a live refresh window don't get bounced to /login on every inactivity timeout.
+         */
+        post: operations["postAuthRefreshCookie"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/me": {
         parameters: {
             query?: never;
@@ -1871,6 +1891,35 @@ export interface operations {
                 };
             };
             /** @description Refresh token invalid, expired, or reused (cascade revoke triggered) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    postAuthRefreshCookie: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Cookies rotated; identity returned */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthMeResponse"];
+                };
+            };
+            /** @description Refresh cookie missing, invalid, expired, or reused. Both auth cookies are cleared. */
             401: {
                 headers: {
                     [name: string]: unknown;

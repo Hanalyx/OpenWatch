@@ -24,7 +24,7 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import api from '@/api/client';
-import { apiErrorMessage } from '@/api/errors';
+import { apiErrorCode, apiErrorMessage } from '@/api/errors';
 import { EditHostModal } from '@/components/hosts/EditHostModal';
 import { useBreadcrumbStore } from '@/store/useBreadcrumbStore';
 import { CardSystem, pickNumber, pickString } from '@/pages/host-detail/CardSystem';
@@ -363,8 +363,8 @@ export function HostDetailPage() {
 
       {detailQuery.isError && (
         <ErrorState
-          code={(detailQuery.error as Error & { code?: string })?.code}
-          message={(detailQuery.error as Error)?.message ?? 'Failed to load'}
+          code={apiErrorCode(detailQuery.error)}
+          message={apiErrorMessage(detailQuery.error, 'Failed to load')}
           onRetry={() => detailQuery.refetch()}
         />
       )}

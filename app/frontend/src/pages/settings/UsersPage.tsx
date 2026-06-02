@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { UserPlus } from 'lucide-react';
 import api from '@/api/client';
+import { apiErrorMessage } from '@/api/errors';
 import { useBreadcrumbStore } from '@/store/useBreadcrumbStore';
 import { useAuthStore } from '@/store/useAuthStore';
 import { SettingsLayout } from '@/components/settings/SettingsLayout';
@@ -85,7 +86,7 @@ export function UsersPage() {
               }}
             >
               <strong>Failed to load members.</strong>{' '}
-              {(usersQuery.error as Error)?.message}{' '}
+              {apiErrorMessage(usersQuery.error, '')}{' '}
               <button
                 type="button"
                 onClick={() => usersQuery.refetch()}
