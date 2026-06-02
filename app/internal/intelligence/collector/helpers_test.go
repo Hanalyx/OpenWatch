@@ -32,10 +32,11 @@ func testHostFacts() hostFacts {
 // ---- stub SSH transport ---------------------------------------------------
 
 type stubSSHTransport struct {
-	mu        sync.Mutex
-	dialCount atomic.Int64
-	outputs   map[string]stubResult
-	failures  map[string]stubResult
+	mu         sync.Mutex
+	dialCount  atomic.Int64
+	outputs    map[string]stubResult
+	failures   map[string]stubResult
+	stdinCalls []stdinRecord
 }
 
 type stubResult struct {
@@ -106,7 +107,30 @@ func (s *stubSession) Run(_ context.Context, cmd string) ([]byte, int, error) {
 	return nil, 127, nil
 }
 
+// RunWithStdin satisfies the SSHSession interface added in
+// system-ssh-connectivity v1.1.0. Stub treats Run and RunWithStdin
+// keyed on the same cmd map; tests that exercise the password-fallback
+// path key the expected sudo -S -k cmd directly.
+func (s *stubSession) RunWithStdin(_ context.Context, cmd string, stdin []byte) ([]byte, int, error) {
+	s.parent.mu.Lock()
+	defer s.parent.mu.Unlock()
+	s.parent.stdinCalls = append(s.parent.stdinCalls, stdinRecord{cmd: cmd, stdin: append([]byte(nil), stdin...)})
+	if r, ok := s.parent.failures[cmd]; ok {
+		return r.out, r.exitCode, r.err
+	}
+	if r, ok := s.parent.outputs[cmd]; ok {
+		return r.out, r.exitCode, r.err
+	}
+	return nil, 127, nil
+}
+
 func (s *stubSession) Close() error { return nil }
+
+// stdinRecord captures one RunWithStdin invocation for assertions.
+type stdinRecord struct {
+	cmd   string
+	stdin []byte
+}
 
 // ---- stub event bus -------------------------------------------------------
 

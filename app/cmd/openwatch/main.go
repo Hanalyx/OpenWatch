@@ -359,6 +359,14 @@ func cmdServe(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 		WithHostLookup(collector.PoolHostLookup{Pool: pool}).
 		WithSSHTransport(collectorSSHAdapter{
 			inner: discovery.NewSSHTransport(owssh.ModeTOFU, owssh.NewMemoryStore()),
+		}).
+		// Spec system-ssh-connectivity v1.1.0 C-09: load the
+		// allow_credential_sudo_password knob at cycle start. When the
+		// row is missing, LoadSecurity returns DefaultSecurity()
+		// (fallback OFF) so existing deployments keep v1.0.0 behavior.
+		WithSudoPolicyLoader(func(ctx context.Context) (owssh.SudoPolicy, error) {
+			cfg, err := cfgStore.LoadSecurity(ctx)
+			return owssh.SudoPolicy{AllowCredentialPassword: cfg.AllowCredentialSudoPassword}, err
 		})
 
 	// Intelligence scheduler — cron-like loop that picks "due" hosts

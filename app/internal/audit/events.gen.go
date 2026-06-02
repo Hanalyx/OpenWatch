@@ -257,6 +257,8 @@ const (
 	SystemShutdown Code = "system.shutdown"
 	// An operator-tunable runtime config value was updated via the system_config table
 	SystemConfigChanged Code = "system.config.changed"
+	// Emitted exactly once per host per cycle when the SSH dial layer used the credential's stored password as the sudo password (sudo -S fallback) because the host did not honor sudo -n NOPASSWD for one or more probe commands. Gated on system_config.security.allow_credential_sudo_password. Spec: system-ssh-connectivity v1.1.0 C-09..C-12 + AC-16.
+	SystemIntelligenceSudoPasswordUsed Code = "system.intelligence.sudo_password_used"
 	//
 	SystemMigrationApplied Code = "system.migration.applied"
 	//
@@ -1131,6 +1133,13 @@ var Metadata = map[Code]EventMeta{
 		Description: `An operator-tunable runtime config value was updated via the system_config table`,
 		ActorTypes:  []string{"system", "user"},
 	},
+	SystemIntelligenceSudoPasswordUsed: {
+		Code:        SystemIntelligenceSudoPasswordUsed,
+		Category:    "system",
+		Severity:    SeverityWarning,
+		Description: `Emitted exactly once per host per cycle when the SSH dial layer used the credential's stored password as the sudo password (sudo -S fallback) because the host did not honor sudo -n NOPASSWD for one or more probe commands. Gated on system_config.security.allow_credential_sudo_password. Spec: system-ssh-connectivity v1.1.0 C-09..C-12 + AC-16.`,
+		ActorTypes:  []string{"system"},
+	},
 	SystemMigrationApplied: {
 		Code:        SystemMigrationApplied,
 		Category:    "system",
@@ -1405,6 +1414,7 @@ var codeOrder = []Code{
 	SystemStartup,
 	SystemShutdown,
 	SystemConfigChanged,
+	SystemIntelligenceSudoPasswordUsed,
 	SystemMigrationApplied,
 	SystemHealthDegraded,
 	SystemHealthRecovered,
