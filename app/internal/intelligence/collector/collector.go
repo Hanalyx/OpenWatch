@@ -247,7 +247,11 @@ func (s *Service) runCycleWithTransport(ctx context.Context, hf hostFacts) (Snap
 	// empty answer wins. -1 left in place when nothing detects (so the
 	// frontend can distinguish "no engine" from "0 rules").
 	snap.FirewallRuleCount = -1
+	// Non-interactive SSH PATH is minimal on Debian/Ubuntu — /usr/sbin
+	// is often missing, which hides ufw + nft + iptables-save. Prepend
+	// the admin paths so command -v finds them.
 	const fwRuleCmd = `
+        export PATH="$PATH:/sbin:/usr/sbin:/usr/local/sbin"
         if command -v firewall-cmd >/dev/null 2>&1 && firewall-cmd --state 2>/dev/null | grep -q running; then
             firewall-cmd --get-active-zones 2>/dev/null \
                 | grep -v "^  " \
