@@ -61,9 +61,14 @@ type Snapshot struct {
 	// in whichever firewall the host runs. Definition is per-engine
 	// (rich rules for firewalld, numbered rules for ufw, rule lines for
 	// nftables, -A lines for iptables) — operators care about "did I
-	// configure anything" more than parser semantics. -1 means "no
-	// firewall engine detected"; 0 means "engine present, no rules".
-	FirewallRuleCount int `json:"firewall_rule_count,omitempty"`
+	// configure anything" more than parser semantics.
+	//   nil    = field not collected (pre-feature snapshot OR probe crashed)
+	//   *n=-1  = no firewall engine detected on this host
+	//   *n=0   = engine present, no rules loaded
+	//   *n=N>0 = engine present, N rules loaded
+	// Pointer is required because we need to distinguish 0 ("engine
+	// present, no rules") from "absent" — int with omitempty drops both.
+	FirewallRuleCount *int `json:"firewall_rule_count,omitempty"`
 
 	// CollectedAt is when the snapshot was captured. Set by the
 	// service, not the parsers.
