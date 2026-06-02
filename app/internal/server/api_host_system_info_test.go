@@ -42,6 +42,7 @@ func seedSystemInfo(t *testing.T, pool any, hostID uuid.UUID, hostname, kernelRe
 }
 
 // AC-01: GET on a host that has a row returns 200 with the JSON.
+// @ac AC-01
 func TestAPI_HostSystemInfo_GET_ReturnsExistingRow(t *testing.T) {
 	t.Run("api-host-system-info/AC-01", func(t *testing.T) {
 		url, pool := freshAPIServer(t)
@@ -95,6 +96,7 @@ func TestAPI_HostSystemInfo_GET_ReturnsExistingRow(t *testing.T) {
 }
 
 // AC-02: GET on a known host with NO system-info row returns 404.
+// @ac AC-02
 func TestAPI_HostSystemInfo_GET_NoRow_404(t *testing.T) {
 	t.Run("api-host-system-info/AC-02", func(t *testing.T) {
 		url, pool := freshAPIServer(t)
@@ -129,6 +131,7 @@ func TestAPI_HostSystemInfo_GET_NoRow_404(t *testing.T) {
 }
 
 // AC-03: GET on an unknown host id returns 404 with the SAME envelope.
+// @ac AC-03
 func TestAPI_HostSystemInfo_GET_UnknownHost_404(t *testing.T) {
 	t.Run("api-host-system-info/AC-03", func(t *testing.T) {
 		url, _ := freshAPIServer(t)
@@ -155,6 +158,7 @@ func TestAPI_HostSystemInfo_GET_UnknownHost_404(t *testing.T) {
 }
 
 // AC-04: Anonymous caller is rejected before the row read.
+// @ac AC-04
 func TestAPI_HostSystemInfo_GET_Anonymous_Forbidden(t *testing.T) {
 	t.Run("api-host-system-info/AC-04", func(t *testing.T) {
 		url, _ := freshAPIServer(t)
@@ -175,6 +179,7 @@ func TestAPI_HostSystemInfo_GET_Anonymous_Forbidden(t *testing.T) {
 // AC-05: Source inspection — the handler MUST use a parameterized
 // SELECT against host_system_info with $1 bound to host_id. No
 // string-concat / fmt.Sprintf-built SQL.
+// @ac AC-05
 func TestAPI_HostSystemInfo_Handler_UsesParameterizedSQL(t *testing.T) {
 	t.Run("api-host-system-info/AC-05", func(t *testing.T) {
 		_, file, _, _ := runtime.Caller(0)
