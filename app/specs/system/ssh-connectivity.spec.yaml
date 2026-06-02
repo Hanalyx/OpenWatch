@@ -1,7 +1,7 @@
 spec:
   id: system-ssh-connectivity
   title: SSH connectivity check against resolved credentials
-  version: "1.0.0"
+  version: "1.1.0"
   status: approved
   tier: 2
 
@@ -62,6 +62,22 @@ spec:
       description: A failed handshake MUST surface a distinct error sentinel (ErrAuthFailed / ErrHostKeyUnknown / ErrHostKeyMismatch / ErrDialTimeout / ErrConnect) so callers can audit by reason
       type: technical
       enforcement: error
+    - id: C-09
+      description: When the collector or discovery probe issues a sudo command via ssh.RunSudo and the initial `sudo -n` returns non-zero, the dial layer MAY retry that command as `sudo -S -k -p '' <cmd>` ONLY when ALL of these hold — (a) systemconfig.SecurityConfig.AllowCredentialSudoPassword is true, (b) cred.AuthMethod ∈ {password, both}, (c) cred.Password is non-empty. Any one condition false → no retry; the original sudo -n failure propagates with usedFallback=false.
+      type: security
+      enforcement: error
+    - id: C-10
+      description: The credential password MUST be delivered to the remote sudo process via the SSH session's STDIN pipe (RunWithStdin). The password MUST NOT appear in the cmd argv on the remote host. Source-inspection enforces (AC-15).
+      type: security
+      enforcement: error
+    - id: C-11
+      description: Every sudo -S retry MUST include the -k flag so the remote sudo credential cache is invalidated before each attempt. A wrong password therefore fails immediately on the FIRST sudo -S call rather than incrementing pam_tally2 / pam_faillock counters that could lock the host user out.
+      type: security
+      enforcement: error
+    - id: C-12
+      description: When sudo -n succeeds, the password fallback path MUST NOT execute and the credential password MUST NOT be transmitted. Source-inspection enforces (AC-15) — there is exactly one call site that passes a password to sudo and it is unreachable after a sudo -n success on the same command.
+      type: security
+      enforcement: error
 
   acceptance_criteria:
     - id: AC-01
@@ -101,3 +117,31 @@ spec:
     - id: AC-10
       description: Dial against an unparseable private-key credential returns ErrInvalidKey BEFORE any network I/O — invariant verified by mocking the dial network func.
       priority: high
+    - id: AC-11
+      description: Test stub returns exit 1 for `sudo -n cat /etc/shadow` then exit 0 for `sudo -S -k -p '' cat /etc/shadow` with the expected password on stdin. With AllowCredentialPassword=true and cred.AuthMethod=both + populated Password, ssh.RunSudo returns the fallback's (out, code=0, usedFallback=true) and the collector's runCycleWithTransport reports fallback count > 0.
+      priority: critical
+      references_constraints: [C-09]
+    - id: AC-12
+      description: Same stub setup as AC-11 but AllowCredentialPassword=false. The sudo -n exit 1 propagates verbatim; ssh.RunSudo issues NO sudo -S -k call; usedFallback=false; the collector's per-cycle fallback count remains 0.
+      priority: critical
+      references_constraints: [C-09]
+    - id: AC-13
+      description: cred.AuthMethod=ssh_key with empty cred.Password. Policy allows fallback but credential cannot provide one. ssh.RunSudo MUST NOT issue sudo -S -k; usedFallback=false.
+      priority: critical
+      references_constraints: [C-09]
+    - id: AC-14
+      description: Stub returns exit 0 for `sudo -n cat /etc/shadow`. The password fallback path MUST NOT execute even if policy + credential would allow it. Snapshot is populated normally; zero `system.intelligence.sudo_password_used` audit events emitted.
+      priority: critical
+      references_constraints: [C-12]
+    - id: AC-15
+      description: Source-inspection of internal/ssh/sudo.go verifies the password is passed to RunWithStdin via the stdin parameter and never appears in the cmd string. The single call site that builds the `sudo -S -k -p ''` command MUST source the password from cred.Password — no fmt.Sprintf interpolation of secret material into argv.
+      priority: critical
+      references_constraints: [C-10]
+    - id: AC-16
+      description: After one collector.RunCycle against a host where the password fallback engaged for at least one sudo command, exactly one audit event of code `system.intelligence.sudo_password_used` is emitted with detail.credential_id = the credential UUID, detail.host_id = the host UUID, and detail.command_count = the number of distinct sudo commands that used the fallback. Cycles with zero fallback use emit zero such events.
+      priority: critical
+      references_constraints: [C-09]
+    - id: AC-17
+      description: Stub returns exit 1 for sudo -n then exit 1 for sudo -S -k (wrong password). ssh.RunSudo issues exactly ONE sudo -S -k call (no internal retry); usedFallback=true; the returned exit code matches the failing fallback. The -k flag is present in the fallback cmd string so the host-side sudo timestamp cache is invalidated, protecting against pam_tally2 / pam_faillock lockout.
+      priority: critical
+      references_constraints: [C-11]

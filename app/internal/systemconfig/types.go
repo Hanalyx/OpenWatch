@@ -10,6 +10,7 @@ import (
 const (
 	KeyConnectivity = "connectivity"
 	KeyIntelligence = "intelligence"
+	KeySecurity     = "security"
 )
 
 // ConnectivityConfig is the typed shape stored under KeyConnectivity.
@@ -101,6 +102,31 @@ func (c IntelligenceConfig) Validate() error {
 // ErrInvalidConfig is returned by validation when a field is out of
 // bounds. Wrap with %w so callers can errors.Is(err, ErrInvalidConfig).
 var ErrInvalidConfig = errors.New("systemconfig: invalid config")
+
+// SecurityConfig is the typed shape stored under KeySecurity.
+//
+// Spec: system-ssh-connectivity v1.1.0 C-09..C-12.
+//
+// AllowCredentialSudoPassword is the policy knob that gates the sudo -S
+// password fallback in the SSH dial layer. Defaults to false (opt-in).
+// When false, the collector and discovery probes behave exactly as in
+// v1.0.0 — every sudo command goes through `sudo -n` and degrades
+// gracefully on NOPASSWD-not-configured hosts.
+type SecurityConfig struct {
+	AllowCredentialSudoPassword bool `json:"allow_credential_sudo_password"`
+}
+
+// DefaultSecurity returns the baked-in defaults. Fallback is OFF.
+func DefaultSecurity() SecurityConfig {
+	return SecurityConfig{
+		AllowCredentialSudoPassword: false,
+	}
+}
+
+// Validate is a no-op for the current SecurityConfig — the single field
+// is a boolean. Kept symmetric with the other configs so the resolver
+// can call Validate() uniformly.
+func (SecurityConfig) Validate() error { return nil }
 
 // Validate enforces the bounds in services-connectivity-config C-01.
 // Returns a wrapped ErrInvalidConfig naming the offending field.
