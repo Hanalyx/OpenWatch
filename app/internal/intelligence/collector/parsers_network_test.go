@@ -218,6 +218,29 @@ func TestMergeNetworkInterfaces_FoldsSysfsIntoIPAddrOutput(t *testing.T) {
 	}
 }
 
+func TestParseFirewallRuleCount(t *testing.T) {
+	cases := []struct {
+		in     string
+		wantN  int
+		wantOk bool
+		desc   string
+	}{
+		{"0\n", 0, true, "engine present, zero rules"},
+		{"12\n", 12, true, "twelve rules"},
+		{"", 0, false, "empty stdout -> no engine"},
+		{"\n\n", 0, false, "whitespace -> no engine"},
+		{"not-a-number\n", 0, false, "garbled output"},
+		{"3", 3, true, "no trailing newline"},
+	}
+	for _, c := range cases {
+		gotN, gotOk := parseFirewallRuleCount([]byte(c.in))
+		if gotN != c.wantN || gotOk != c.wantOk {
+			t.Errorf("%s: parseFirewallRuleCount(%q) = (%d, %v), want (%d, %v)",
+				c.desc, c.in, gotN, gotOk, c.wantN, c.wantOk)
+		}
+	}
+}
+
 func TestInferLinkType_HeuristicCases(t *testing.T) {
 	cases := []struct {
 		name, linkType, want string

@@ -203,3 +203,21 @@ func atou64OrZero(s string) uint64 {
 	}
 	return n
 }
+
+// parseFirewallRuleCount converts the firewall-detection shell's
+// numeric output into an int. Returns (n, true) when stdout is a
+// plain integer ("0", "12", ...); (0, false) when stdout is empty
+// (engine not detected) or non-numeric (probe garbled). The caller
+// distinguishes "no engine" from "0 rules" by reading the bool — when
+// false, the snapshot's FirewallRuleCount stays at its -1 sentinel.
+func parseFirewallRuleCount(b []byte) (int, bool) {
+	s := strings.TrimSpace(string(b))
+	if s == "" {
+		return 0, false
+	}
+	n, err := strconv.Atoi(s)
+	if err != nil {
+		return 0, false
+	}
+	return n, true
+}

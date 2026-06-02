@@ -243,6 +243,35 @@ func (s *Service) runCycleWithTransport(ctx context.Context, hf hostFacts) (Snap
 		}
 	}
 
+	// Firewall rule count: try engines in priority order. First non-
+	// empty answer wins. -1 left in place when nothing detects (so the
+	// frontend can distinguish "no engine" from "0 rules").
+	snap.FirewallRuleCount = -1
+	const fwRuleCmd = `
+        if command -v firewall-cmd >/dev/null 2>&1 && firewall-cmd --state 2>/dev/null | grep -q running; then
+            firewall-cmd --get-active-zones 2>/dev/null \
+                | grep -v "^  " \
+                | while read z; do firewall-cmd --zone="$z" --list-rich-rules 2>/dev/null; done \
+                | grep -c "rule "
+        elif command -v ufw >/dev/null 2>&1; then
+            (sudo -n ufw status numbered 2>/dev/null || ufw status numbered 2>/dev/null) \
+                | grep -cE "^\["
+        elif command -v nft >/dev/null 2>&1; then
+            (sudo -n nft list ruleset 2>/dev/null || nft list ruleset 2>/dev/null) \
+                | grep -cE "^[[:space:]]+(tcp|udp|icmp|ip6?|meta).*(drop|accept|reject)"
+        elif command -v iptables-save >/dev/null 2>&1; then
+            (sudo -n iptables-save 2>/dev/null || iptables-save 2>/dev/null) \
+                | grep -c "^-A"
+        else
+            echo ""
+        fi
+    `
+	if out, code, err := sess.Run(ctx, fwRuleCmd); err == nil && code == 0 {
+		if n, ok := parseFirewallRuleCount(out); ok {
+			snap.FirewallRuleCount = n
+		}
+	}
+
 	if out, code, err := sess.Run(ctx, "rpm -qa --queryformat='%{NAME} %{VERSION}-%{RELEASE}\\n' 2>/dev/null || dpkg -l 2>/dev/null"); err == nil && code == 0 {
 		pkgs, _ := ParseInstalledPackages(out)
 		snap.Packages = pkgs

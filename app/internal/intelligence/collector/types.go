@@ -57,6 +57,14 @@ type Snapshot struct {
 	// the routing-table panel.
 	Routes []Route `json:"routes,omitempty"`
 
+	// FirewallRuleCount: count of currently-loaded user-visible rules
+	// in whichever firewall the host runs. Definition is per-engine
+	// (rich rules for firewalld, numbered rules for ufw, rule lines for
+	// nftables, -A lines for iptables) — operators care about "did I
+	// configure anything" more than parser semantics. -1 means "no
+	// firewall engine detected"; 0 means "engine present, no rules".
+	FirewallRuleCount int `json:"firewall_rule_count,omitempty"`
+
 	// CollectedAt is when the snapshot was captured. Set by the
 	// service, not the parsers.
 	CollectedAt time.Time `json:"collected_at,omitempty"`

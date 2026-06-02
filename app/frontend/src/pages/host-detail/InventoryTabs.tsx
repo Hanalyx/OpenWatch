@@ -19,6 +19,10 @@ export interface InventorySnapshot {
   // empty states rather than blowing up.
   network_interfaces?: NetworkInterfaceFact[];
   routes?: RouteFact[];
+  // -1  = no firewall engine detected on the host
+  //  0+ = engine present, N user-visible rules loaded
+  // undefined = older snapshot, predating the field
+  firewall_rule_count?: number;
 }
 
 export interface NetworkInterfaceFact {
@@ -223,6 +227,7 @@ export function NetworkTab({ isLoading, snapshot, firewall }: NetworkTabProps) {
   const loopbackCount = interfaces.filter((i) => i.type === 'loopback').length;
   const defaultRoute = routes.find((r) => r.destination === 'default');
   const firewallActive = isFirewallActive(firewall?.status ?? null);
+  const firewallRuleCount = snapshot?.firewall_rule_count;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -231,6 +236,7 @@ export function NetworkTab({ isLoading, snapshot, firewall }: NetworkTabProps) {
         physicalCount={physicalCount}
         loopbackCount={loopbackCount}
         firewall={firewall ?? null}
+        firewallRuleCount={firewallRuleCount}
         portsCount={ports.length}
         defaultRoute={defaultRoute ?? null}
       />
@@ -274,6 +280,30 @@ function isFirewallActive(status: string | null): boolean {
   return s === 'active' || s === 'enabled' || s === 'running';
 }
 
+// composeFirewallSub builds the second line of the FIREWALL stat card.
+// Combines the engine label ("firewalld", "ufw", ...) with a rule
+// count when collected; degrades cleanly when either is missing.
+//
+// Examples:
+//   firewalld + active + 0 rules   -> "firewalld · 0 rules loaded"
+//   firewalld + active + 12 rules  -> "firewalld · 12 rules loaded"
+//   firewalld + inactive + 0       -> "firewalld disabled · 0 rules loaded"
+//   ufw       + inactive + n=undef -> "ufw disabled"  (older snapshot)
+//   service=null                   -> "No firewall service detected"
+//   service=null + n=-1            -> "No firewall service detected"
+//   service set + n=-1             -> "<svc>" (engine reachable but probe failed)
+export function composeFirewallSub(
+  service: string | null,
+  active: boolean,
+  ruleCount: number | undefined,
+): string {
+  if (!service) return 'No firewall service detected';
+  const engine = active ? service : `${service} disabled`;
+  if (ruleCount === undefined || ruleCount < 0) return engine;
+  const noun = ruleCount === 1 ? 'rule' : 'rules';
+  return `${engine} · ${ruleCount} ${noun} loaded`;
+}
+
 // ─── Stat row ─────────────────────────────────────────────────────────────
 
 function NetworkStatRow(props: {
@@ -281,6 +311,7 @@ function NetworkStatRow(props: {
   physicalCount: number;
   loopbackCount: number;
   firewall: NetworkFirewallFact | null;
+  firewallRuleCount?: number;
   portsCount: number;
   defaultRoute: RouteFact | null;
 }) {
@@ -291,9 +322,11 @@ function NetworkStatRow(props: {
       : fwActive
       ? 'Active'
       : 'Inactive';
-  const fwSub = props.firewall?.service
-    ? `${props.firewall.service}${fwActive ? '' : ' disabled'}`
-    : 'No firewall service detected';
+  const fwSub = composeFirewallSub(
+    props.firewall?.service ?? null,
+    fwActive,
+    props.firewallRuleCount,
+  );
 
   return (
     <div

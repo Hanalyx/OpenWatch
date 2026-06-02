@@ -25,6 +25,7 @@ import {
   servicesCount,
   usersCount,
   networkCount,
+  composeFirewallSub,
 } from '@/pages/host-detail/InventoryTabs';
 
 const INV_SRC = readFileSync(
@@ -113,6 +114,20 @@ describe('frontend-host-detail-inventory-tabs — behavioral', () => {
     render(<NetworkTab isLoading={false} snapshot={snap} />);
     expect(screen.getByText('0.0.0.0:22')).toBeInTheDocument();
     expect(screen.getByText('0.0.0.0:80')).toBeInTheDocument();
+  });
+
+  test('composeFirewallSub — combines service + active state + rule count', () => {
+    expect(composeFirewallSub('firewalld', true, 0)).toBe('firewalld · 0 rules loaded');
+    expect(composeFirewallSub('firewalld', true, 12)).toBe('firewalld · 12 rules loaded');
+    expect(composeFirewallSub('ufw', false, 0)).toBe('ufw disabled · 0 rules loaded');
+    expect(composeFirewallSub('ufw', true, 1)).toBe('ufw · 1 rule loaded');
+    // older snapshot — rule count undefined
+    expect(composeFirewallSub('ufw', false, undefined)).toBe('ufw disabled');
+    // engine probe failed (-1) — fall back to just the engine label
+    expect(composeFirewallSub('nftables', true, -1)).toBe('nftables');
+    // no service detected — count irrelevant
+    expect(composeFirewallSub(null, false, 0)).toBe('No firewall service detected');
+    expect(composeFirewallSub(null, false, undefined)).toBe('No firewall service detected');
   });
 
   // @ac AC-06
