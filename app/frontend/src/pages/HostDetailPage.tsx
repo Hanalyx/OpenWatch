@@ -28,6 +28,17 @@ import { EditHostModal } from '@/components/hosts/EditHostModal';
 import { useBreadcrumbStore } from '@/store/useBreadcrumbStore';
 import { CardSystem } from '@/pages/host-detail/CardSystem';
 import { CardServerIntel } from '@/pages/host-detail/CardServerIntel';
+import {
+  PackagesTab,
+  ServicesTab,
+  UsersTab,
+  NetworkTab,
+  packagesCount,
+  servicesCount,
+  usersCount,
+  networkCount,
+  type InventorySnapshot,
+} from '@/pages/host-detail/InventoryTabs';
 
 // HostDetailPage — prototype-faithful Host Detail surface (v1.0.0).
 //
@@ -353,6 +364,7 @@ export function HostDetailPage() {
             active={activeTab}
             onChange={goToTab}
             complianceFailing={detailQuery.data.compliance_summary.failing}
+            inventory={(intelligenceStateQuery.data ?? null) as InventorySnapshot | null}
           />
 
           {activeTab === 'overview' ? (
@@ -408,6 +420,26 @@ export function HostDetailPage() {
                 </div>
               </section>
             </>
+          ) : activeTab === 'packages' ? (
+            <PackagesTab
+              isLoading={intelligenceStateQuery.isLoading}
+              snapshot={(intelligenceStateQuery.data ?? null) as InventorySnapshot | null}
+            />
+          ) : activeTab === 'services' ? (
+            <ServicesTab
+              isLoading={intelligenceStateQuery.isLoading}
+              snapshot={(intelligenceStateQuery.data ?? null) as InventorySnapshot | null}
+            />
+          ) : activeTab === 'users' ? (
+            <UsersTab
+              isLoading={intelligenceStateQuery.isLoading}
+              snapshot={(intelligenceStateQuery.data ?? null) as InventorySnapshot | null}
+            />
+          ) : activeTab === 'network' ? (
+            <NetworkTab
+              isLoading={intelligenceStateQuery.isLoading}
+              snapshot={(intelligenceStateQuery.data ?? null) as InventorySnapshot | null}
+            />
           ) : (
             <TabStub
               tab={activeTab}
@@ -824,11 +856,18 @@ function TabsRow({
   active,
   onChange,
   complianceFailing,
+  inventory,
 }: {
   active: TabId;
   onChange: (tab: TabId) => void;
   complianceFailing: number;
+  inventory: InventorySnapshot | null;
 }) {
+  // Pre-compute counts once per render. Spec C-05.
+  const pkgN = packagesCount(inventory);
+  const svc = servicesCount(inventory);
+  const usrN = usersCount(inventory);
+  const netN = networkCount(inventory);
   return (
     <nav
       role="tablist"
@@ -869,6 +908,12 @@ function TabsRow({
           >
             <Icon size={14} />
             {t.label}
+            {t.id === 'packages' && pkgN > 0 && <TabCountBadge text={String(pkgN)} />}
+            {t.id === 'services' && svc.total > 0 && (
+              <TabCountBadge text={`${svc.active}/${svc.total}`} />
+            )}
+            {t.id === 'users' && usrN > 0 && <TabCountBadge text={String(usrN)} />}
+            {t.id === 'network' && netN > 0 && <TabCountBadge text={String(netN)} />}
             {t.id === 'compliance' && complianceFailing > 0 && (
               <span
                 style={{
@@ -890,6 +935,26 @@ function TabsRow({
         );
       })}
     </nav>
+  );
+}
+
+function TabCountBadge({ text }: { text: string }) {
+  return (
+    <span
+      style={{
+        padding: '0 6px',
+        height: 16,
+        background: 'var(--ow-bg-3)',
+        color: 'var(--ow-fg-2)',
+        borderRadius: 8,
+        fontSize: 10,
+        fontWeight: 600,
+        display: 'inline-flex',
+        alignItems: 'center',
+      }}
+    >
+      {text}
+    </span>
   );
 }
 
