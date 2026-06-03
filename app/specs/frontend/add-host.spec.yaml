@@ -2,7 +2,7 @@ spec:
   id: frontend-add-host
   title: Add host — single + bulk onboarding form
   version: "1.1.0"
-  status: draft
+  status: approved
   tier: 2
 
   context:

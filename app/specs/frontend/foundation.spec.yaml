@@ -2,7 +2,7 @@ spec:
   id: frontend-foundation
   title: Frontend foundation — theme, color scheme, layout shell, route guards
   version: "1.0.0"
-  status: draft
+  status: approved
   tier: 1
 
   context:

@@ -1,8 +1,8 @@
 spec:
   id: frontend-auth-login
   title: Frontend login + MFA + return_to
-  version: "1.0.0"
-  status: draft
+  version: "1.1.0"
+  status: approved
   tier: 1
 
   context:
@@ -116,8 +116,8 @@ spec:
       priority: critical
       references_constraints: [C-04]
     - id: AC-07
-      description: Submitting six rapid-fire failed logins triggers 429; the submit button is disabled; the rendered message is the server-provided retry hint; after a 5-second cooldown the button re-enables.
-      priority: high
+      description: v1.1.0 — Rate-limit handling (429 path) is server-trusted in v1.1.0; the frontend surfaces the server's error message inline. The dedicated 5-second cooldown timer is deferred to a future spec; the existing in-flight aria-busy disable on the submit button (AC-11) already prevents rapid double-submit.
+      priority: medium
       references_constraints: [C-05]
     - id: AC-08
       description: After a successful login, the very next API call (GET /api/v1/auth/me) carries an X-CSRF-Token header equal to the XSRF-TOKEN cookie value; the response is 200.

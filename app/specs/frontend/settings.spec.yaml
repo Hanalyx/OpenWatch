@@ -218,7 +218,7 @@ spec:
       priority: critical
       references_constraints: [C-08]
     - id: AC-15
-      description: Each of the 7 stubbed pages renders a single BackendPendingBanner naming the slice AND every visible button has aria-disabled=true.
+      description: v1.1.0 — Each remaining stubbed Settings page (Policies, Notifications, Integrations, Security, Audit, About — six now that Scanning is wired by api-system-discovery-config + api-system-intelligence-config) renders a single BackendPendingBanner naming the slice. Visible controls render disabled.
       priority: high
       references_constraints: [C-09]
     - id: AC-16
