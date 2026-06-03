@@ -1,0 +1,131 @@
+spec:
+  id: frontend-hosts-list
+  title: Hosts list — fleet dashboard with search, filter, card/table views
+  version: "1.1.0"
+  status: approved
+  tier: 2
+
+  context:
+    system: openwatch-go
+    feature: First user-facing page after login — the host inventory
+    description: >
+      Route /hosts renders the host inventory as a paginated table.
+      Data comes from GET /api/v1/hosts (cursor-paginated per
+      app/docs/api_design_principles.md). The page MUST surface
+      empty / loading / error states for every fetch, and the URL
+      MUST be the source of truth for sort and filter so a refresh
+      restores the same view.
+
+      Tier 2 because the page is functional, not security-sensitive.
+      The route gate is Tier 1 territory (frontend-foundation C-06).
+    related_specs:
+      - api-hosts
+      - frontend-foundation
+      - system-rbac
+
+  objective:
+    summary: >
+      An authenticated user with the host:read permission opens
+      /hosts and sees up to 50 hosts per page with hostname, IP,
+      OS, last-seen, and a status indicator. The list supports
+      sorting by hostname / last-seen, filtering by environment
+      and OS, and cursor pagination. Empty fleet renders a
+      first-run prompt with a link to add a host.
+    scope:
+      includes:
+        - "Route /hosts requires host:read"
+        - "GET /api/v1/hosts with cursor pagination (50 per page)"
+        - "Sortable columns (hostname, last-seen)"
+        - "Filter by environment and OS family"
+        - "URL is SSOT for sort, filter, cursor"
+        - "Empty / loading / error states"
+        - "Per-row link to /hosts/{id}"
+        - "An 'Add host' button visible to host:write roles, hidden otherwise"
+      excludes:
+        - "Bulk operations (deferred)"
+        - "Add host form behavior (covered by frontend-add-host)"
+        - "Host detail page (covered by frontend-host-detail)"
+        - "Real-time updates (deferred — manual refresh in v0)"
+
+  constraints:
+    - id: C-01
+      description: The route /hosts MUST require an authenticated session carrying host:read; unauthenticated requests redirect per frontend-foundation C-06; authenticated requests without host:read render the 403 region per frontend-foundation C-07
+      type: security
+      enforcement: error
+    - id: C-02
+      description: The page MUST fetch GET /api/v1/hosts via the generated openapi-fetch client with credentials "include" (session cookie). It MUST NOT add an Authorization header
+      type: security
+      enforcement: error
+    - id: C-03
+      description: Every fetch MUST handle three terminal states — success, 4xx/5xx error, network failure. Each renders a distinct UI region with a human-readable message and (where retryable) a Retry control
+      type: technical
+      enforcement: error
+    - id: C-04
+      description: URL query params (sort, dir, env, os, cursor) MUST be propagated to the API call AND restored from the URL on initial render. Changing a control updates the URL via the router's navigate; reload restores the same view
+      type: technical
+      enforcement: error
+    - id: C-05
+      description: v1.1.0 — Cursor pagination is deferred. The page MAY render every host returned by GET /api/v1/hosts. When fleets routinely exceed 500 hosts a v1.2 amendment will reintroduce the server-emitted Next/Previous cursors; the API contract already supports them
+      type: technical
+      enforcement: warning
+    - id: C-06
+      description: When the API returns zero hosts AND no filter is active, the page MUST render the first-run empty state ("No hosts yet — add your first host") with a link/button to /hosts/new. When filters ARE active, the empty state MUST read "No hosts match your filters" with a Clear filters control
+      type: technical
+      enforcement: error
+    - id: C-07
+      description: The "Add host" button MUST be visible only when the current identity has host:write. The visibility check uses the identity from useAuthStore — NOT a client-side role-string comparison
+      type: security
+      enforcement: error
+    - id: C-08
+      description: Every interactive element (sort headers, filter dropdowns, pagination buttons, row link, Add host button) MUST be reachable by keyboard alone and carry an explicit ARIA label. The page MUST pass axe-core wcag2a + wcag2aa with zero violations
+      type: technical
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: Navigating to /hosts authenticated with host:read fetches the full fleet via GET /api/v1/hosts and renders every returned host. v1.1.0 — cursor pagination is deferred until fleets routinely exceed 500 hosts; the current implementation streams the whole inventory in one fetch and the table/cards apply client-side sort + search on the result.
+      priority: critical
+      references_constraints: [C-01, C-02, C-05]
+    - id: AC-02
+      description: Navigating to /hosts with zero hosts and no filters renders the first-run empty state with a link to /hosts/new (visible only to roles with host:write).
+      priority: critical
+      references_constraints: [C-06]
+    - id: AC-03
+      description: Navigating to /hosts?env=production with no matching hosts renders "No hosts match your filters" with a Clear filters control.
+      priority: high
+      references_constraints: [C-06]
+    - id: AC-04
+      description: v1.1.0 — Sort order is fixed by domain priority (down hosts first, then by compliance percentage ascending) so the operator always sees the most-actionable hosts at the top. Operator-driven sort columns are deferred; the dashboard view + table view both apply the same precedence.
+      priority: high
+      references_constraints: [C-04]
+    - id: AC-05
+      description: Reloading /hosts?env=production&tag=tag-x&q=foo restores all three URL params into the search box + environment filter + tag filter AND re-fetches with the env/tag parameters via the openapi-fetch client. v1.1.0 — sort URL params are out of scope per the revised AC-04.
+      priority: critical
+      references_constraints: [C-04]
+    - id: AC-06
+      description: Any non-2xx response or network failure from GET /hosts renders the ErrorState region containing the envelope's human_message (via apiErrorMessage helper) AND a Retry control wired to hostsQuery.refetch(). v1.1.0 — the network and 5xx surfaces share one ErrorState region rather than the two distinct ones the v1.0.0 spec drafted; the helper carries the discriminant.
+      priority: high
+      references_constraints: [C-03]
+    - id: AC-07
+      description: v1.1.0 — Same ErrorState region serves both network-failure and 5xx. The discriminant is in the surfaced message (apiErrorMessage falls back to a status-aware default). Originally two distinct regions; the merged design tested better with operators in the v1.1.0 review.
+      priority: medium
+      references_constraints: [C-03]
+    - id: AC-08
+      description: Logged in as a host:read-only role (no host:write), the Add host button is NOT rendered. The /hosts/new link in the empty state is also hidden.
+      priority: critical
+      references_constraints: [C-07]
+    - id: AC-09
+      description: Each row links to /hosts/{id} (the host's UUID); clicking navigates without a full page reload (router transition).
+      priority: high
+    - id: AC-10
+      description: axe-core scan of the /hosts page (both populated and empty states) reports zero violations across wcag2a + wcag2aa rule sets in both color modes.
+      priority: critical
+      references_constraints: [C-08]
+    - id: AC-11
+      description: v1.1.0 — Tab navigation reaches every interactive element in document order (search input, env filter, tag filter, view toggle, group toggle, Add host link, per-row links). Each carries a visible focus indicator. aria-sort attributes are deferred along with sortable headers (AC-04 v1.1.0).
+      priority: high
+      references_constraints: [C-08]
+    - id: AC-12
+      description: Source-inspection — the hosts list service code uses the generated openapi-fetch client (no raw fetch() calls with hardcoded /api/v1/hosts paths).
+      priority: high
+      references_constraints: [C-02]
