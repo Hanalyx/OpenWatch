@@ -63,10 +63,10 @@ func seedUser(t *testing.T, pool *pgxpool.Pool) uuid.UUID {
 
 // hostSeed describes one host row to insert.
 type hostSeed struct {
-	name             string
-	osDiscoveredAt   *time.Time
-	maintenanceMode  bool
-	deletedAt        *time.Time
+	name            string
+	osDiscoveredAt  *time.Time
+	maintenanceMode bool
+	deletedAt       *time.Time
 }
 
 // seedHost inserts a single host row and returns its id.
@@ -94,7 +94,7 @@ func TestListDiscoveryTargets_FiltersHosts(t *testing.T) {
 		userID := seedUser(t, pool)
 
 		now := time.Now().UTC()
-		oldDiscovery := now.Add(-48 * time.Hour) // 48h old
+		oldDiscovery := now.Add(-48 * time.Hour)  // 48h old
 		freshDiscovery := now.Add(-1 * time.Hour) // 1h old
 		deletedAt := now.Add(-1 * time.Minute)
 

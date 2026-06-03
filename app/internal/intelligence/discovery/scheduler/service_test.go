@@ -21,10 +21,10 @@ import (
 // stubEnqueuer records calls and (optionally) blocks the caller until
 // release fires — used by Stop tests.
 type stubEnqueuer struct {
-	mu       sync.Mutex
-	calls    int
-	release  chan struct{} // if non-nil, Enqueue blocks until closed
-	onCall   func()        // optional pre-block hook
+	mu      sync.Mutex
+	calls   int
+	release chan struct{} // if non-nil, Enqueue blocks until closed
+	onCall  func()        // optional pre-block hook
 }
 
 func (s *stubEnqueuer) Enqueue(_ context.Context, _ uuid.UUID) (uuid.UUID, error) {
