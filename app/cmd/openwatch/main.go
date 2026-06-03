@@ -327,7 +327,11 @@ func cmdServe(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 	}
 
 	credSvc := credential.NewService(pool)
-	privProbe := sshprivilege.Probe(credSvc)
+	// Spec system-ssh-connectivity v1.2.0 C-09 / AC-18: thread the
+	// SecurityConfig reader so the privilege probe can retry sudo -n
+	// failures via sudo -S -k with the credential password — same
+	// gating as the collector + discovery firewall probe.
+	privProbe := sshprivilege.Probe(credSvc, sshprivilege.WithPolicyLoader(cfgStore))
 
 	liveSvc := liveness.NewService(pool, audit.Emit, bus).
 		WithConfigLoader(cfgStore.LoadConnectivity).
@@ -343,7 +347,12 @@ func cmdServe(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 	// worker that drains host.discovery jobs. Spec system-host-discovery.
 	discoSvc := discovery.NewService(pool, audit.Emit, bus).
 		WithHostLookup(discovery.PoolHostLookup{Pool: pool}).
-		WithCredentialService(credSvc)
+		WithCredentialService(credSvc).
+		// Spec system-ssh-connectivity v1.2.0 C-09 / AC-20: thread the
+		// SecurityConfig reader so the firewall probe can retry a
+		// sudo -n failure via sudo -S -k with the credential password
+		// — same gating as the collector + the privilege probe.
+		WithPolicyLoader(cfgStore)
 
 	// OS Intelligence collector — runs one RunCycle per host: SSH
 	// session, snapshot.Collect (packages/services/users/network/etc.),

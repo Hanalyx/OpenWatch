@@ -12,6 +12,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/eventbus"
 	"github.com/Hanalyx/openwatch/internal/intelligence/probe"
 	owssh "github.com/Hanalyx/openwatch/internal/ssh"
+	"github.com/Hanalyx/openwatch/internal/systemconfig"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -138,6 +139,15 @@ type Addr struct {
 }
 
 // Service runs Discovery for a host. Construct via NewService.
+// PolicyLoader returns the current SecurityConfig — the sudo-password
+// fallback (system-ssh-connectivity v1.2.0 C-09 / AC-20) consults
+// AllowCredentialSudoPassword via this seam. Production wires
+// systemconfig.Store.LoadSecurity; tests pass a closure or leave it
+// nil (in which case the fallback path is OFF by default).
+type PolicyLoader interface {
+	LoadSecurity(ctx context.Context) (systemconfig.SecurityConfig, error)
+}
+
 type Service struct {
 	pool      *pgxpool.Pool
 	credSvc   *credential.Service
@@ -145,6 +155,7 @@ type Service struct {
 	bus       Publisher
 	lookup    HostLookup
 	transport SSHTransport
+	policy    PolicyLoader
 }
 
 // NewService constructs a Service. emit + bus may be nil — Discover
@@ -180,6 +191,14 @@ func (s *Service) WithCredentialService(c *credential.Service) *Service {
 // WithHostLookup wires the host-row reader. Required for Discover.
 func (s *Service) WithHostLookup(h HostLookup) *Service {
 	s.lookup = h
+	return s
+}
+
+// WithPolicyLoader wires the SecurityConfig reader. When unset, the
+// sudo-password fallback (v1.2.0 AC-20) stays OFF — probeFirewall
+// behaves exactly as in v1.1.0.
+func (s *Service) WithPolicyLoader(p PolicyLoader) *Service {
+	s.policy = p
 	return s
 }
 
@@ -307,8 +326,16 @@ func (s *Service) discoverWithTransport(ctx context.Context, hf hostFacts) (Syst
 
 	// Firewall introspection — needs sudo on most distros. Per spec C-03
 	// + AC-05, sudo failure is partial success: leave fields empty and
-	// continue. Try each known firewall in order; first to answer wins.
-	if svc, status, ok := probeFirewall(ctx, sess); ok {
+	// continue. v1.2.0 — when AllowCredentialSudoPassword is set,
+	// runSudoWithFallback retries a sudo -n failure as sudo -S -k -p ''
+	// with the credential password before the probe falls through.
+	cfg := sudoFallbackConfig{cred: hf.Cred}
+	if s.policy != nil {
+		if sec, lerr := s.policy.LoadSecurity(ctx); lerr == nil {
+			cfg.policy = sec
+		}
+	}
+	if svc, status, ok := probeFirewall(ctx, sess, cfg); ok {
 		facts.FirewallService = svc
 		facts.FirewallStatus = status
 	}
