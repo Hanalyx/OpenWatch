@@ -190,9 +190,14 @@ func canFallback(ctx context.Context, loader PolicyLoader, cred *credential.Cred
 type realDialer struct{}
 
 func (realDialer) Dial(_ context.Context, cred *credential.Credential, addr string, timeout time.Duration) (SessionExecutor, error) {
+	methods, merr := buildAuthMethods(cred)
+	if merr != nil {
+		return nil, merr
+	}
 	cfg := &ssh.ClientConfig{
 		User:    cred.Username,
 		Timeout: timeout,
+		Auth:    methods,
 		// #nosec G106 -- this probe answers "would sudo work
 		// today?" and is decoupled from compliance scans. Host-key
 		// pinning belongs on the real scan path (internal/ssh's
@@ -201,24 +206,51 @@ func (realDialer) Dial(_ context.Context, cred *credential.Credential, addr stri
 		// the cross-cutting coupling we kept out of the package.
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 	}
-	switch cred.AuthMethod {
-	case credential.AuthSSHKey, credential.AuthBoth:
-		signer, perr := parseSigner(cred)
-		if perr != nil {
-			return nil, perr
-		}
-		cfg.Auth = []ssh.AuthMethod{ssh.PublicKeys(signer)}
-	case credential.AuthPassword:
-		cfg.Auth = []ssh.AuthMethod{ssh.Password(cred.Password)}
-	default:
-		return nil, fmt.Errorf("unknown auth method %q", cred.AuthMethod)
-	}
 
 	client, derr := ssh.Dial("tcp", addr, cfg)
 	if derr != nil {
 		return nil, derr
 	}
 	return &realSession{client: client}, nil
+}
+
+// buildAuthMethods translates the resolved credential into the ssh
+// auth-method list crypto/ssh will try in order. For AuthBoth we offer
+// BOTH the public key AND the password so a host that rejects the key
+// (e.g. a sudoer where /home was mounted but ~/.ssh/authorized_keys is
+// stale) still falls back to password auth. Returning a key-only list
+// for AuthBoth was the dialer bug behind the post-v1.2.0 regression
+// where the probe never made it past handshake on password-fallback
+// hosts.
+func buildAuthMethods(cred *credential.Credential) ([]ssh.AuthMethod, error) {
+	switch cred.AuthMethod {
+	case credential.AuthSSHKey:
+		signer, perr := parseSigner(cred)
+		if perr != nil {
+			return nil, perr
+		}
+		return []ssh.AuthMethod{ssh.PublicKeys(signer)}, nil
+	case credential.AuthPassword:
+		return []ssh.AuthMethod{ssh.Password(cred.Password)}, nil
+	case credential.AuthBoth:
+		var methods []ssh.AuthMethod
+		if cred.PrivateKey != "" {
+			signer, perr := parseSigner(cred)
+			if perr != nil {
+				return nil, perr
+			}
+			methods = append(methods, ssh.PublicKeys(signer))
+		}
+		if cred.Password != "" {
+			methods = append(methods, ssh.Password(cred.Password))
+		}
+		if len(methods) == 0 {
+			return nil, fmt.Errorf("auth method 'both' but credential carries neither key nor password")
+		}
+		return methods, nil
+	default:
+		return nil, fmt.Errorf("unknown auth method %q", cred.AuthMethod)
+	}
 }
 
 type realSession struct {
