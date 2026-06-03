@@ -94,7 +94,7 @@ func TestDeriveOSFamily_OtherWhenNothingRecognized(t *testing.T) {
 		like string
 	}{
 		{"both-empty", "", ""},
-		{"id-empty-like-unknown", "", "freedos"},
+		{"id-empty-like-unknown", "", "unknowndistro"},
 		{"id-empty-like-noise", "", "   "},
 	}
 	for _, tc := range cases {
