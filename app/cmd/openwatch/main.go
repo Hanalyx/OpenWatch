@@ -35,6 +35,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/identity"
 	"github.com/Hanalyx/openwatch/internal/intelligence/collector"
 	"github.com/Hanalyx/openwatch/internal/intelligence/discovery"
+	discoveryscheduler "github.com/Hanalyx/openwatch/internal/intelligence/discovery/scheduler"
 	"github.com/Hanalyx/openwatch/internal/intelligence/scheduler"
 	"github.com/Hanalyx/openwatch/internal/license"
 	"github.com/Hanalyx/openwatch/internal/liveness"
@@ -387,6 +388,21 @@ func cmdServe(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 		slog.WarnContext(bootCtx, "intelligence scheduler paused at startup",
 			slog.String("reason", "system_config.intelligence.maintenance_global=true"),
 			slog.String("fix", "PUT /api/v1/system/intelligence/config with maintenance_global=false"),
+		)
+	}
+
+	// Discovery scheduler — sweeps hosts whose hosts.os_discovered_at
+	// is NULL or older than DiscoveryConfig.IntervalSec and enqueues
+	// host.discovery jobs. Operator-tunable via
+	// PUT /system/discovery/config. Spec system-discovery-scheduler.
+	discoSched := discoveryscheduler.NewService(pool).
+		WithConfigLoader(cfgStore.LoadDiscovery)
+	go func() { _ = discoSched.Run(ctx) }()
+
+	if cfg, err := cfgStore.LoadDiscovery(bootCtx); err == nil && cfg.MaintenanceGlobal {
+		slog.WarnContext(bootCtx, "discovery scheduler paused at startup",
+			slog.String("reason", "system_config.discovery.maintenance_global=true"),
+			slog.String("fix", "PUT /api/v1/system/discovery/config with maintenance_global=false"),
 		)
 	}
 

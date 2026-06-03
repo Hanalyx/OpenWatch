@@ -1,0 +1,115 @@
+spec:
+  id: frontend-settings-discovery-config
+  title: Settings Scanning page — OS discovery scheduler config section
+  version: "1.0.0"
+  status: approved
+  tier: 2
+
+  context:
+    system: openwatch-go
+    feature: Settings > Scanning & monitoring page exposes the four OS discovery scheduler knobs landed by api-system-discovery-config v1.0 + the "Run now" sweep button
+    description: >
+      Sibling section to OSIntelligenceSection (frontend-settings-
+      intelligence-config v1.1.0). Replaces the prior "UI only" OS
+      discovery placeholder. Wires the four scheduler knobs to the
+      persisted backend config and adds a "Run now" sweep button that
+      enqueues host.discovery jobs for every host with NULL
+      os_discovered_at.
+
+      Four knobs, bounded server-side by system-discovery-scheduler v1.0:
+
+        interval_sec             — per-host cadence (3600..604800, default 86400)
+        rate_limit               — max enqueues per tick (1..500, default 25)
+        detect_on_first_contact  — gate POST /hosts auto-enqueue (default true)
+        maintenance_global       — boolean kill-switch
+
+      The "Run now" sweep is a one-off action and lives next to the
+      Save/Reset cluster. It surfaces the enqueued count inline so
+      operators see "Queued N discoveries" — not a confirmation
+      modal — matching the prototype's understated feedback pattern.
+
+    related_specs:
+      - api-system-discovery-config
+      - system-discovery-scheduler
+      - frontend-settings-intelligence-config
+
+  objective:
+    summary: >
+      Wire OS discovery config the same way OS Intelligence is wired.
+      The component sits adjacent to OSIntelligenceSection and reuses
+      the same primitives (SettingCard, Stepper, Toggle, Btn).
+    scope:
+      includes:
+        - "OSDiscoverySection component co-located in components/settings/"
+        - "GET /api/v1/system/discovery/config wiring (TanStack Query)"
+        - "PUT /api/v1/system/discovery/config wiring with cache invalidation"
+        - "POST /api/v1/system/discovery/sweep wiring (Run now button + enqueued count)"
+        - "Reset-to-defaults affordance reading from the GET response's defaults sub-object"
+        - "Section mounted in ScanningPage BEFORE OSIntelligenceSection (OS discovery is the upstream sweep; OS Intelligence is downstream)"
+      excludes:
+        - "Per-host overrides — interval_sec is fleet-wide"
+        - "Real-time sweep progress — sweep returns the count synchronously; the worker drains async"
+
+  constraints:
+    - id: C-01
+      description: 'Exactly ONE useQuery against /api/v1/system/discovery/config with the query key ["system", "discovery", "config"]. Stable across renders so cache invalidation in onSuccess hits the right cache slot'
+      type: technical
+      enforcement: error
+    - id: C-02
+      description: 'Local draft state buffers edits. Initialized from configQuery.data.config on first load. Cancel resets to configQuery.data.config; Reset-to-defaults resets to configQuery.data.defaults — distinct paths'
+      type: technical
+      enforcement: error
+    - id: C-03
+      description: 'Stepper interval_sec MUST clamp 3600..604800. Stepper rate_limit MUST clamp 1..500. Toggles detect_on_first_contact and maintenance_global are unbounded boolean. Bounds match system-discovery-scheduler C-04/C-05'
+      type: technical
+      enforcement: error
+    - id: C-04
+      description: 'Save button disabled when configQuery is loading, draft equals live config, or save mutation is in flight. On successful save the query key ["system", "discovery", "config"] is invalidated'
+      type: technical
+      enforcement: error
+    - id: C-05
+      description: 'Run-now button posts to /api/v1/system/discovery/sweep, surfaces the returned enqueued count inline as "Queued N discoveries." Sweep failures render the envelope.error.human_message via apiErrorMessage helper'
+      type: technical
+      enforcement: error
+    - id: C-06
+      description: 'Mounted in ScanningPage.tsx BEFORE OSIntelligenceSection — OS discovery feeds the per-host os_discovered_at column that OS Intelligence reads to schedule the next snapshot; readers expect upstream before downstream'
+      type: technical
+      enforcement: error
+    - id: C-07
+      description: 'Error alert surfaces apiErrorMessage(error) (the canonical ErrorEnvelope.error.human_message). Falls back to "HTTP <status>" via formatApiError if the envelope is malformed. Mirrors frontend-settings-intelligence-config C-07'
+      type: technical
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: 'Source inspection: OSDiscoverySection.tsx imports useQuery + useMutation from @tanstack/react-query. Its useQuery call uses queryKey ["system", "discovery", "config"] AND fetches "/api/v1/system/discovery/config"'
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-02
+      description: 'Source inspection: OSDiscoverySection.tsx contains both a draft-reset path keyed off configQuery.data.config AND a separate draft-reset path keyed off configQuery.data.defaults. The two paths MUST be distinct closures'
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-03
+      description: 'Source inspection: OSDiscoverySection.tsx contains Stepper min/max props 3600 and 604800 for interval_sec, and 1 and 500 for rate_limit. Verified by reading the file and matching the literal numbers next to the field names'
+      priority: critical
+      references_constraints: [C-03]
+    - id: AC-04
+      description: 'Source inspection: the save mutation onSuccess calls queryClient.invalidateQueries with queryKey ["system", "discovery", "config"]. The Save button''s disabled prop combines configQuery.isLoading, !dirty, and saveMutation.isPending'
+      priority: critical
+      references_constraints: [C-04]
+    - id: AC-05
+      description: 'Source inspection: OSDiscoverySection.tsx contains a sweep mutation that POSTs "/api/v1/system/discovery/sweep". The sweep result.enqueued is rendered next to the buttons as "Queued <N> discoveries."'
+      priority: critical
+      references_constraints: [C-05]
+    - id: AC-06
+      description: 'Source inspection: ScanningPage.tsx imports OSDiscoverySection from @/components/settings/OSDiscoverySection AND mounts it as JSX. The mount site MUST appear BEFORE the OSIntelligenceSection mount'
+      priority: critical
+      references_constraints: [C-06]
+    - id: AC-07
+      description: 'Rendering: mounted with isError=true the section renders the error message AND does NOT render the SettingCard rows. Mounted with isLoading=true the section renders a loading affordance. Mounted clean (success + draft equal config) the Save button is disabled'
+      priority: critical
+      references_constraints: [C-04, C-07]
+    - id: AC-08
+      description: 'Rendering: clicking the Run now button invokes onRunNow exactly once. While isSweeping is true the button label reads "Sweeping…". When sweepResult is non-null and sweepError is null the inline "Queued N discoveries" text is visible'
+      priority: critical
+      references_constraints: [C-05]

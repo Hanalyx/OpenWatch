@@ -801,6 +801,65 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/system/discovery/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the OS discovery scheduler runtime config + baked-in defaults
+         * @description Returns the persisted DiscoveryConfig (or DefaultDiscovery when
+         *     no row exists) PLUS the baked-in defaults sub-object so the UI
+         *     can render a "reset to defaults" affordance without a round-trip.
+         *     Mirrors api-system-intelligence-config v1.0.
+         *     Spec api-system-discovery-config.
+         */
+        get: operations["getSystemDiscoveryConfig"];
+        /**
+         * Update OS discovery scheduler runtime config
+         * @description Persists the new config (interval_sec 3600..604800, rate_limit
+         *     1..500, detect_on_first_contact boolean, maintenance_global
+         *     boolean). Emits system.config.changed in the same write
+         *     transaction. The in-process scheduler picks up the new values
+         *     at the top of its next tick — no hot-reload signal needed.
+         *     Spec api-system-discovery-config.
+         */
+        put: operations["putSystemDiscoveryConfig"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/system/discovery/sweep": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Enqueue a host.discovery job for every host with NULL os_discovered_at
+         * @description One-off manual sweep used by the "Run now" affordance on the
+         *     Settings page. Enqueues host.discovery jobs for non-deleted,
+         *     non-maintenance hosts whose hosts.os_discovered_at IS NULL.
+         *     Hosts already discovered are NOT re-enqueued — this is a
+         *     catch-up, not a forced re-fingerprint. Returns the count of
+         *     jobs enqueued so the UI can confirm the action.
+         *     Spec api-system-discovery-config.
+         */
+        post: operations["postSystemDiscoverySweep"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/system/connectivity/status": {
         parameters: {
             query?: never;
@@ -1516,6 +1575,24 @@ export interface components {
         IntelligenceConfigResponse: {
             config: components["schemas"]["IntelligenceConfig"];
             defaults: components["schemas"]["IntelligenceConfig"];
+        };
+        DiscoveryConfig: {
+            /** @description Per-host cadence — a host's discovery becomes due once now() - hosts.os_discovered_at exceeds this many seconds. 3600..604800. Default 86400 (24h) */
+            interval_sec: number;
+            /** @description Max host.discovery jobs enqueued per scheduler tick (1..500). Default 25. Bounds thundering-herd on a fleet that hits NULL os_discovered_at simultaneously */
+            rate_limit: number;
+            /** @description When true, POST /api/v1/hosts auto-enqueues a host.discovery job for the new host before returning 201. When false, new hosts stay at hosts.os_discovered_at NULL until the scheduler picks them up or an operator clicks Re-run discovery */
+            detect_on_first_contact: boolean;
+            /** @description When true, the scheduler loop ticks but enqueues no jobs and the host-create gate behaves as if detect_on_first_contact is false */
+            maintenance_global: boolean;
+        };
+        DiscoveryConfigResponse: {
+            config: components["schemas"]["DiscoveryConfig"];
+            defaults: components["schemas"]["DiscoveryConfig"];
+        };
+        DiscoverySweepResponse: {
+            /** @description Count of host.discovery jobs persisted by this sweep. Zero is a valid steady state (every host already discovered, or fleet empty) */
+            enqueued: number;
         };
         ConnectivityStatus: {
             /**
@@ -3529,6 +3606,98 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            /** @description Caller lacks system:config:write permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getSystemDiscoveryConfig: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current config + defaults sub-object */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiscoveryConfigResponse"];
+                };
+            };
+            /** @description Caller lacks system:read permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    putSystemDiscoveryConfig: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DiscoveryConfig"];
+            };
+        };
+        responses: {
+            /** @description Updated config snapshot */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiscoveryConfig"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            /** @description Caller lacks system:config:write permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    postSystemDiscoverySweep: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Sweep dispatched */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiscoverySweepResponse"];
+                };
+            };
             /** @description Caller lacks system:config:write permission */
             403: {
                 headers: {

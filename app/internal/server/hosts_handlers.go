@@ -133,17 +133,31 @@ func (h *handlers) PostHosts(w http.ResponseWriter, r *http.Request) {
 	})
 	h.publishHostChange(r.Context(), created.ID, eventbus.HostChangeCreated)
 
-	// Spec system-host-discovery AC-13 / C-05: auto-enqueue a
-	// host.discovery job so the worker captures the OS fingerprint
-	// asynchronously. Failure to enqueue is logged but does NOT fail
-	// the host-create response — the operator can still re-run via
-	// POST /hosts/{id}/discovery:run.
-	if _, err := queue.Enqueue(r.Context(), h.pool, discovery.JobKindHostDiscovery,
-		discovery.HostDiscoveryJobPayload{HostID: created.ID}); err != nil {
-		slog.WarnContext(r.Context(), "discovery: enqueue failed after host create",
-			slog.String("host_id", created.ID.String()),
-			slog.String("err", err.Error()),
-		)
+	// Spec system-host-discovery v1.1.0 AC-13: auto-enqueue a
+	// host.discovery job only when DiscoveryConfig.DetectOnFirstContact
+	// is true (the default). When false, the host stays at
+	// hosts.os_discovered_at NULL and the discovery scheduler or an
+	// explicit operator click picks it up later. Failure to load the
+	// config does NOT block host creation — fall back to the v1.0.0
+	// behavior (always enqueue) so a degraded systemconfig path can't
+	// silently disable first-contact discovery.
+	enqueueDiscovery := true
+	if h.sysCfg != nil {
+		if cfg, err := h.sysCfg.LoadDiscovery(r.Context()); err == nil {
+			enqueueDiscovery = cfg.DetectOnFirstContact && !cfg.MaintenanceGlobal
+		} else {
+			slog.WarnContext(r.Context(), "discovery: config load failed; defaulting to enqueue",
+				slog.String("err", err.Error()))
+		}
+	}
+	if enqueueDiscovery {
+		if _, err := queue.Enqueue(r.Context(), h.pool, discovery.JobKindHostDiscovery,
+			discovery.HostDiscoveryJobPayload{HostID: created.ID}); err != nil {
+			slog.WarnContext(r.Context(), "discovery: enqueue failed after host create",
+				slog.String("host_id", created.ID.String()),
+				slog.String("err", err.Error()),
+			)
+		}
 	}
 
 	writeJSON(w, http.StatusCreated, hostResponse(created))
