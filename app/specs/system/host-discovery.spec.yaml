@@ -1,7 +1,7 @@
 spec:
   id: system-host-discovery
   title: Host OS fingerprint discovery via SSH
-  version: "1.2.0"
+  version: "1.3.0"
   status: approved
   tier: 1
 
@@ -130,6 +130,10 @@ spec:
       description: 'Credential isolation: the discovery package MAY import internal/credential and golang.org/x/crypto/ssh (it owns the dial + sudo path). Unlike internal/liveness, Discovery is intentionally credential-aware. This MUST be documented in the package doc comment so future readers do not mistake the discovery package for a credential-free sensor'
       type: security
       enforcement: error
+    - id: C-12
+      description: 'v1.3.0 — The value persisted into hosts.os_family AND host_system_info.os_family MUST be the distro ID (lower-cased) from /etc/os-release''s ID field whenever that field is non-empty. Collapsing the distro ID into a family rollup via ID_LIKE (e.g. Ubuntu → "debian" because ID_LIKE=debian) is forbidden because it strips information the front-end''s osDisplayLabel mapping (frontend-host-list-os AC-01..AC-03) needs to distinguish Ubuntu from Debian, Rocky from RHEL, etc. The rollup fallback applies ONLY when ID is empty — Discovery then walks ID_LIKE for the first recognized family. When neither yields a recognized value the persisted family is the literal "other".'
+      type: technical
+      enforcement: error
 
   acceptance_criteria:
     - id: AC-01
@@ -192,3 +196,7 @@ spec:
       description: 'internal/intelligence/discovery package source MAY import internal/credential and golang.org/x/crypto/ssh — the AC-14-from-liveness invariant does NOT apply here. The package doc comment explicitly states the credential-aware boundary so future readers know the difference vs internal/liveness.'
       priority: high
       references_constraints: [C-11]
+    - id: AC-22
+      description: 'v1.3.0 — deriveOSFamily(osID, osIDLike) MUST return (a) the lower-cased trimmed osID when non-empty (so Ubuntu hosts persist os_family="ubuntu", Rocky→"rocky", AlmaLinux→"almalinux", openSUSE-Leap→"opensuse-leap" — NOT the family rollup); (b) when osID is empty, the first recognized rollup from osIDLike scanning rhel/fedora/centos/rocky/almalinux/ol/amzn → "rhel", ubuntu/debian/raspbian → "debian", opensuse/opensuse-leap/opensuse-tumbleweed/sles/suse → "suse", alpine → "alpine", arch/manjaro → "arch", gentoo → "gentoo"; (c) the literal "other" when neither produces a match. Case folding and leading/trailing whitespace on osID MUST be tolerated.'
+      priority: critical
+      references_constraints: [C-12]

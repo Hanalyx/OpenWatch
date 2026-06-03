@@ -1266,7 +1266,7 @@ export interface components {
             updated_at?: string;
             maintenance_mode?: boolean;
             check_priority?: number;
-            /** @description rhel | debian | suse | alpine | arch | gentoo | other; null pre-Discovery */
+            /** @description Distro ID from /etc/os-release (e.g. rhel, ubuntu, rocky, centos, almalinux, debian, opensuse-leap, sles); rollup family (rhel | debian | suse | alpine | arch | gentoo | other) ONLY when ID was empty; null pre-Discovery. Spec system-host-discovery v1.3.0 AC-22. */
             os_family?: string | null;
             os_version?: string | null;
             /** @description e.g. x86_64, aarch64 */
@@ -1740,7 +1740,7 @@ export interface components {
             os_id_like?: string | null;
             os_pretty_name?: string | null;
             platform_identifier?: string | null;
-            /** @description Rollup family — rhel, debian, suse, alpine, arch, gentoo, other */
+            /** @description Distro ID from /etc/os-release (rhel, ubuntu, rocky, ...); rollup family (rhel/debian/suse/alpine/arch/gentoo/other) only when ID was empty. Spec system-host-discovery v1.3.0 AC-22. */
             os_family?: string | null;
             kernel_name?: string | null;
             kernel_release?: string | null;
