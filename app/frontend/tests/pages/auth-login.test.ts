@@ -73,16 +73,25 @@ describe('frontend-auth-login — structural', () => {
   });
 
   // @ac AC-05
-  // @ac AC-06
-  test('frontend-auth-login/AC-05 + AC-06 — generic invalid_credentials message; no enumeration oracle', () => {
+  test('frontend-auth-login/AC-05 — wrong password renders generic invalid_credentials message', () => {
     // Both wrong-password and unknown-user paths produce the SAME 401
     // auth.invalid_credentials envelope on the server. The client maps
     // that code to one fixed string — no branching on cause.
     expect(LOGIN_SRC).toMatch(/auth\.invalid_credentials/);
     expect(LOGIN_SRC).toMatch(/Invalid username or password|invalid credentials/i);
-    // No "user not found" or "username invalid" string would leak.
+  });
+
+  // @ac AC-06
+  test('frontend-auth-login/AC-06 — unknown user renders IDENTICAL message (no enumeration oracle)', () => {
+    // Negative invariant: no "user not found" or "unknown user" string
+    // anywhere in the login handler that would tell an attacker which
+    // half of the credential pair was wrong.
     expect(LOGIN_SRC).not.toMatch(/user not found/i);
     expect(LOGIN_SRC).not.toMatch(/unknown user/i);
+    expect(LOGIN_SRC).not.toMatch(/no such user/i);
+    // The single error code mapping that AC-05 verifies is the same
+    // one this path takes.
+    expect(LOGIN_SRC).toMatch(/auth\.invalid_credentials/);
   });
 
   // @ac AC-07

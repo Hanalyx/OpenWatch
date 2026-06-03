@@ -124,19 +124,22 @@ describe('frontend-settings — structural', () => {
   });
 
   // @ac AC-07
+  test('frontend-settings/AC-07 — zod rejects new == current before any POST', () => {
+    // Cross-field refine() that compares new_password to current_password
+    // and rejects equality. Schema is built across lines (z\n .object).
+    expect(PROFILE_SRC).toMatch(/z\s*\.\s*object\(/);
+    expect(PROFILE_SRC).toMatch(/(?:refine|superRefine)/);
+    expect(PROFILE_SRC).toMatch(/new_password\s*!==\s*v\.current_password/);
+  });
+
   // @ac AC-08
-  test('frontend-settings/AC-07 + AC-08 — zod rejects new==current and new<15 chars', () => {
-    // Zod schema enforces minimum length + cross-field check between
-    // current_password and new_password. The schema is built with a
-    // chain across lines (z\n  .object({...}).refine(...).refine(...))
-    // so the test allows whitespace between the dot operators.
+  test('frontend-settings/AC-08 — zod rejects new_password < 15 chars before any POST', () => {
+    // Minimum-length enforcement on the new_password field. AC-08 is
+    // the length rule; AC-07 is the differ-from-current rule.
     expect(PROFILE_SRC).toMatch(/z\s*\.\s*object\(/);
     expect(PROFILE_SRC).toMatch(/\.min\(\s*15/);
-    // Cross-field check: new must differ from current. Patterns are
-    // refine(...) or superRefine(...).
-    expect(PROFILE_SRC).toMatch(/(?:refine|superRefine)/);
-    // The differ-from-current rule explicitly compares the two fields.
-    expect(PROFILE_SRC).toMatch(/new_password\s*!==\s*v\.current_password/);
+    // The min(15) is bound to new_password specifically.
+    expect(PROFILE_SRC).toMatch(/new_password:[\s\S]*?\.min\(\s*15/);
   });
 
   // @ac AC-09

@@ -117,30 +117,27 @@ describe('frontend-foundation — runtime + shell', () => {
   });
 
   // @ac AC-12
-  // @ac AC-13
-  test('frontend-foundation/AC-12 + AC-13 — axe-core dep present + theme covers both color modes', async () => {
-    // Direct integration of axe-core into vitest is heavy; CI runs the
-    // browser axe path via Playwright (already in the repo). What we
-    // can pin from a unit test is that the dependency contract holds:
-    //
-    //   - axe-core present in package.json (the engine)
-    //   - @axe-core/playwright present (the runner)
-    //   - the theme supplies BOTH "light" and "dark" colorSchemes so
-    //     there is something for axe to scan in each mode
-    //
-    // This guards the negative invariant: a regression that removes
-    // either colorScheme would silently make axe's per-mode scan a
-    // no-op against the missing tree.
+  test('frontend-foundation/AC-12 — axe-core dependency present (dark-mode browser scan)', () => {
+    // Direct axe-core in vitest is heavy; the browser axe path runs via
+    // Playwright. What we can pin from a unit test is that the
+    // dependency contract holds AND that the theme supplies the dark
+    // colorScheme for axe to scan against. A missing-dep regression
+    // would silently make the per-mode scan a no-op.
     const pkg = JSON.parse(
       readFileSync(resolve(process.cwd(), 'package.json'), 'utf8'),
     ) as { dependencies?: Record<string, string>; devDependencies?: Record<string, string> };
     const deps = { ...(pkg.dependencies ?? {}), ...(pkg.devDependencies ?? {}) };
     expect(deps['axe-core']).toBeTruthy();
     expect(deps['@axe-core/playwright']).toBeTruthy();
-    // theme.ts must define both color schemes.
-    expect(THEME_SRC).toMatch(/colorSchemes\s*:/);
-    expect(THEME_SRC).toMatch(/\blight\s*:\s*\{/);
     expect(THEME_SRC).toMatch(/\bdark\s*:\s*\{/);
+  });
+
+  // @ac AC-13
+  test('frontend-foundation/AC-13 — light colorScheme present for light-mode axe scan', () => {
+    // Symmetry with AC-12: light mode must have its own colorScheme so
+    // the Playwright axe path has something to scan against in light.
+    expect(THEME_SRC).toMatch(/\blight\s*:\s*\{/);
+    expect(THEME_SRC).toMatch(/colorSchemes\s*:/);
   });
 
   // @ac AC-16

@@ -144,8 +144,7 @@ describe('frontend-add-host — single-mode structural', () => {
   });
 
   // @ac AC-09
-  // @ac AC-19
-  test('frontend-add-host/AC-09 + AC-19 — axe-core dependency present for browser-mode wcag scans', () => {
+  test('frontend-add-host/AC-09 — axe-core dependency present for /hosts/new wcag scan', () => {
     // Same pattern as frontend-foundation/AC-12 — we cannot run a true
     // browser axe inside vitest, but the dependency contract is what
     // a missing-dep regression would break.
@@ -155,6 +154,25 @@ describe('frontend-add-host — single-mode structural', () => {
     const deps = { ...(pkg.dependencies ?? {}), ...(pkg.devDependencies ?? {}) };
     expect(deps['axe-core']).toBeTruthy();
     expect(deps['@axe-core/playwright']).toBeTruthy();
+  });
+
+  // @ac AC-19
+  test('frontend-add-host/AC-19 — axe-core dependency present for both Single + Bulk tab scans', () => {
+    // Same dep contract; AC-19 explicitly covers both tabs. The tab
+    // markup exists (AC-11) so the browser axe path has something to
+    // exercise in each tabpanel.
+    const pkg = JSON.parse(
+      readFileSync(resolve(process.cwd(), 'package.json'), 'utf8'),
+    ) as { dependencies?: Record<string, string>; devDependencies?: Record<string, string> };
+    const deps = { ...(pkg.dependencies ?? {}), ...(pkg.devDependencies ?? {}) };
+    expect(deps['axe-core']).toBeTruthy();
+    expect(deps['@axe-core/playwright']).toBeTruthy();
+    // Both tabpanels render so per-tab axe scans have a target.
+    const PAGE = readFileSync(
+      resolve(process.cwd(), 'src/pages/AddHostPage.tsx'),
+      'utf8',
+    );
+    expect(PAGE).toMatch(/role="tabpanel"/);
   });
 
   // @ac AC-10
