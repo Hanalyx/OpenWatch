@@ -81,10 +81,63 @@ func TestAPI_HostDiscovery_Run_UnknownHost_Returns404(t *testing.T) {
 }
 
 // @ac AC-13
-// AC-13: Host creation MUST enqueue a host.discovery job in
-// job_queue before returning the 201 response. The worker (already
-// running per the fixture) drains it asynchronously; we just assert
-// the row exists.
+// AC-13 (v1.1.0 negative half): when DiscoveryConfig.DetectOnFirstContact
+// is FALSE the host-create handler MUST NOT enqueue a host.discovery
+// job. The host stays at hosts.os_discovered_at NULL and the
+// discovery scheduler (or a manual sweep) picks it up later.
+func TestAPI_HostDiscovery_HostCreate_RespectsDetectOnFirstContact(t *testing.T) {
+	t.Run("system-host-discovery/AC-13", func(t *testing.T) {
+		url, pool := freshAPIServer(t)
+		ctx := context.Background()
+
+		// Flip the policy off.
+		body := map[string]any{
+			"interval_sec":            86400,
+			"rate_limit":              25,
+			"detect_on_first_contact": false,
+			"maintenance_global":      false,
+		}
+		reqCfg := asRole(t, "PUT", url+"/api/v1/system/discovery/config", auth.RoleAdmin, body)
+		respCfg, err := http.DefaultClient.Do(reqCfg)
+		if err != nil {
+			t.Fatalf("PUT discovery config: %v", err)
+		}
+		respCfg.Body.Close()
+		if respCfg.StatusCode != http.StatusOK {
+			t.Fatalf("PUT discovery config: status %d", respCfg.StatusCode)
+		}
+
+		// Clear job_queue to isolate this test's enqueue count.
+		_, _ = pool.Exec(ctx, "TRUNCATE TABLE job_queue")
+
+		hostBody := map[string]any{
+			"hostname":   "disc-gated-off",
+			"ip_address": "192.0.2.43",
+		}
+		req := asRole(t, "POST", url+"/api/v1/hosts", auth.RoleAdmin, hostBody)
+		req.Header.Set("Idempotency-Key", "create-disc-gated-off")
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatalf("POST /hosts: %v", err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusCreated {
+			t.Fatalf("expected 201, got %d", resp.StatusCode)
+		}
+
+		var count int
+		_ = pool.QueryRow(ctx,
+			`SELECT COUNT(*) FROM job_queue WHERE job_type = $1`,
+			discovery.JobKindHostDiscovery).Scan(&count)
+		if count != 0 {
+			t.Errorf("host.discovery jobs enqueued under DetectOnFirstContact=false = %d, want 0", count)
+		}
+	})
+}
+
+// @ac AC-13
+// AC-13 (v1.1.0 positive half): the default policy (DetectOnFirstContact=true)
+// preserves the v1.0.0 behavior — host creation enqueues a host.discovery job.
 func TestAPI_HostDiscovery_HostCreate_AutoEnqueuesJob(t *testing.T) {
 	t.Run("system-host-discovery/AC-13", func(t *testing.T) {
 		url, pool := freshAPIServer(t)

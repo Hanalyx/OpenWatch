@@ -109,8 +109,8 @@ describe('api/client — 401 retry middleware', () => {
     expect(result.response.status).toBe(200);
     expect(mock).toHaveBeenCalledTimes(3);
     // Second call MUST be the refresh-cookie endpoint.
-    const secondReq = mock.mock.calls[1][0] as Request | string;
-    const secondUrl = typeof secondReq === 'string' ? secondReq : secondReq.url;
+    const secondReq = mock.mock.calls[1]?.[0] as Request | string | undefined;
+    const secondUrl = typeof secondReq === 'string' ? secondReq : secondReq?.url ?? '';
     expect(secondUrl).toContain('/api/v1/auth/refresh-cookie');
     // No navigation occurred — the user stays where they are.
     expect(navigateSpy).not.toHaveBeenCalled();

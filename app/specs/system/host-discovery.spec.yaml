@@ -1,7 +1,7 @@
 spec:
   id: system-host-discovery
   title: Host OS fingerprint discovery via SSH
-  version: "1.0.0"
+  version: "1.1.0"
   status: approved
   tier: 1
 
@@ -181,7 +181,7 @@ spec:
       priority: critical
       references_constraints: [C-07]
     - id: AC-13
-      description: 'Host creation via POST /api/v1/hosts enqueues a host.discovery job in the job_queue table with the host id as payload, BEFORE returning the 201 response. The worker (already running per system-job-queue spec) drains it asynchronously.'
+      description: 'Host creation via POST /api/v1/hosts enqueues a host.discovery job in the job_queue table with the host id as payload, BEFORE returning the 201 response, ONLY when systemconfig.DiscoveryConfig.DetectOnFirstContact is true (the default). When the policy is false the host is created without an auto-enqueue and stays at hosts.os_discovered_at NULL until the discovery scheduler picks it up or an operator runs POST /hosts/{id}/discovery:run. The worker (already running per system-job-queue spec) drains the enqueued job asynchronously when one is dispatched.'
       priority: high
       references_constraints: [C-05]
     - id: AC-14

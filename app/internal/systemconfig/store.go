@@ -221,3 +221,85 @@ func (s *Store) SetIntelligence(ctx context.Context, cfg IntelligenceConfig, cha
 	}
 	return nil
 }
+
+// LoadDiscovery returns the persisted DiscoveryConfig OR
+// DefaultDiscovery when no row exists for KeyDiscovery. Only returns
+// an error for DB / unmarshal failures.
+//
+// Spec api-system-discovery-config AC-01.
+func (s *Store) LoadDiscovery(ctx context.Context) (DiscoveryConfig, error) {
+	var raw []byte
+	err := s.pool.QueryRow(ctx, `SELECT value FROM system_config WHERE key = $1`, KeyDiscovery).Scan(&raw)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return DefaultDiscovery(), nil
+	}
+	if err != nil {
+		return DiscoveryConfig{}, fmt.Errorf("systemconfig: load %s: %w", KeyDiscovery, err)
+	}
+	cfg := DefaultDiscovery()
+	if err := json.Unmarshal(raw, &cfg); err != nil {
+		return DiscoveryConfig{}, fmt.Errorf("systemconfig: unmarshal %s: %w", KeyDiscovery, err)
+	}
+	return cfg, nil
+}
+
+// SetDiscovery validates the input, UPSERTs the row, and emits
+// audit.SystemConfigChanged with the old + new snapshot captured in
+// the same transaction.
+//
+// Spec api-system-discovery-config AC-03 / AC-05 / AC-07.
+func (s *Store) SetDiscovery(ctx context.Context, cfg DiscoveryConfig, changedBy string) error {
+	if err := cfg.Validate(); err != nil {
+		return err
+	}
+	newBytes, err := json.Marshal(cfg)
+	if err != nil {
+		return fmt.Errorf("systemconfig: marshal: %w", err)
+	}
+
+	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return fmt.Errorf("systemconfig: begin: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	var oldRaw []byte
+	err = tx.QueryRow(ctx, `SELECT value FROM system_config WHERE key = $1 FOR UPDATE`, KeyDiscovery).Scan(&oldRaw)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return fmt.Errorf("systemconfig: read old: %w", err)
+	}
+	oldCfg := DefaultDiscovery()
+	if len(oldRaw) > 0 {
+		_ = json.Unmarshal(oldRaw, &oldCfg)
+	}
+
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO system_config (key, value, updated_at, updated_by)
+		VALUES ($1, $2, now(), $3)
+		ON CONFLICT (key) DO UPDATE
+		   SET value      = EXCLUDED.value,
+		       updated_at = EXCLUDED.updated_at,
+		       updated_by = EXCLUDED.updated_by`,
+		KeyDiscovery, newBytes, changedBy,
+	); err != nil {
+		return fmt.Errorf("systemconfig: upsert: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("systemconfig: commit: %w", err)
+	}
+
+	if s.emit != nil {
+		s.emit(ctx, audit.SystemConfigChanged, audit.Event{
+			ActorType: "user",
+			ActorID:   changedBy,
+			Detail: audit.MakeDetail(map[string]any{
+				"config_key": KeyDiscovery,
+				"old_value":  oldCfg,
+				"new_value":  cfg,
+				"changed_by": changedBy,
+			}),
+		})
+	}
+	return nil
+}

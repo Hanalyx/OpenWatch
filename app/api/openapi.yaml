@@ -1173,6 +1173,79 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
 
+  /api/v1/system/discovery/config:
+    get:
+      operationId: getSystemDiscoveryConfig
+      summary: Read the OS discovery scheduler runtime config + baked-in defaults
+      description: |
+        Returns the persisted DiscoveryConfig (or DefaultDiscovery when
+        no row exists) PLUS the baked-in defaults sub-object so the UI
+        can render a "reset to defaults" affordance without a round-trip.
+        Mirrors api-system-intelligence-config v1.0.
+        Spec api-system-discovery-config.
+      responses:
+        '200':
+          description: Current config + defaults sub-object
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/DiscoveryConfigResponse'}
+        '403':
+          description: Caller lacks system:read permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+    put:
+      operationId: putSystemDiscoveryConfig
+      summary: Update OS discovery scheduler runtime config
+      description: |
+        Persists the new config (interval_sec 3600..604800, rate_limit
+        1..500, detect_on_first_contact boolean, maintenance_global
+        boolean). Emits system.config.changed in the same write
+        transaction. The in-process scheduler picks up the new values
+        at the top of its next tick — no hot-reload signal needed.
+        Spec api-system-discovery-config.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/DiscoveryConfig'}
+      responses:
+        '200':
+          description: Updated config snapshot
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/DiscoveryConfig'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '403':
+          description: Caller lacks system:config:write permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
+  /api/v1/system/discovery/sweep:
+    post:
+      operationId: postSystemDiscoverySweep
+      summary: Enqueue a host.discovery job for every host with NULL os_discovered_at
+      description: |
+        One-off manual sweep used by the "Run now" affordance on the
+        Settings page. Enqueues host.discovery jobs for non-deleted,
+        non-maintenance hosts whose hosts.os_discovered_at IS NULL.
+        Hosts already discovered are NOT re-enqueued — this is a
+        catch-up, not a forced re-fingerprint. Returns the count of
+        jobs enqueued so the UI can confirm the action.
+        Spec api-system-discovery-config.
+      responses:
+        '200':
+          description: Sweep dispatched
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/DiscoverySweepResponse'}
+        '403':
+          description: Caller lacks system:config:write permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
   /api/v1/system/connectivity/status:
     get:
       operationId: getSystemConnectivityStatus
@@ -2221,6 +2294,43 @@ components:
       properties:
         config:   {$ref: '#/components/schemas/IntelligenceConfig'}
         defaults: {$ref: '#/components/schemas/IntelligenceConfig'}
+
+    DiscoveryConfig:
+      type: object
+      required: [interval_sec, rate_limit, detect_on_first_contact, maintenance_global]
+      properties:
+        interval_sec:
+          type: integer
+          minimum: 3600
+          maximum: 604800
+          description: Per-host cadence — a host's discovery becomes due once now() - hosts.os_discovered_at exceeds this many seconds. 3600..604800. Default 86400 (24h)
+        rate_limit:
+          type: integer
+          minimum: 1
+          maximum: 500
+          description: Max host.discovery jobs enqueued per scheduler tick (1..500). Default 25. Bounds thundering-herd on a fleet that hits NULL os_discovered_at simultaneously
+        detect_on_first_contact:
+          type: boolean
+          description: When true, POST /api/v1/hosts auto-enqueues a host.discovery job for the new host before returning 201. When false, new hosts stay at hosts.os_discovered_at NULL until the scheduler picks them up or an operator clicks Re-run discovery
+        maintenance_global:
+          type: boolean
+          description: When true, the scheduler loop ticks but enqueues no jobs and the host-create gate behaves as if detect_on_first_contact is false
+
+    DiscoveryConfigResponse:
+      type: object
+      required: [config, defaults]
+      properties:
+        config:   {$ref: '#/components/schemas/DiscoveryConfig'}
+        defaults: {$ref: '#/components/schemas/DiscoveryConfig'}
+
+    DiscoverySweepResponse:
+      type: object
+      required: [enqueued]
+      properties:
+        enqueued:
+          type: integer
+          minimum: 0
+          description: Count of host.discovery jobs persisted by this sweep. Zero is a valid steady state (every host already discovered, or fleet empty)
 
     ConnectivityStatus:
       type: object

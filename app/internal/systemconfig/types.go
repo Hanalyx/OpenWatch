@@ -11,6 +11,7 @@ const (
 	KeyConnectivity = "connectivity"
 	KeyIntelligence = "intelligence"
 	KeySecurity     = "security"
+	KeyDiscovery    = "discovery"
 )
 
 // ConnectivityConfig is the typed shape stored under KeyConnectivity.
@@ -127,6 +128,52 @@ func DefaultSecurity() SecurityConfig {
 // is a boolean. Kept symmetric with the other configs so the resolver
 // can call Validate() uniformly.
 func (SecurityConfig) Validate() error { return nil }
+
+// DiscoveryConfig is the typed shape stored under KeyDiscovery.
+//
+// Spec: system-discovery-scheduler v1.0.0 C-04 + C-05.
+//
+// IntervalSec is the per-host cadence the scheduler treats as "due
+// again"; a host with os_discovered_at older than now() - IntervalSec
+// re-enters listDiscoveryTargets. RateLimit caps the number of jobs
+// enqueued per tick — bounds the thundering-herd shape when many hosts
+// hit NULL os_discovered_at at once. DetectOnFirstContact gates the
+// host-create auto-enqueue (when false, new hosts stay NULL until the
+// sweeper or an explicit operator click finds them).
+// MaintenanceGlobal pauses the entire scheduler loop.
+type DiscoveryConfig struct {
+	IntervalSec           int  `json:"interval_sec"`
+	RateLimit             int  `json:"rate_limit"`
+	DetectOnFirstContact  bool `json:"detect_on_first_contact"`
+	MaintenanceGlobal     bool `json:"maintenance_global"`
+}
+
+// DefaultDiscovery returns the baked-in defaults.
+//
+//	IntervalSec          — 86400  (24h per host)
+//	RateLimit            —    25  (max jobs enqueued per tick)
+//	DetectOnFirstContact —  true  (host create still auto-fingerprints)
+//	MaintenanceGlobal    — false
+func DefaultDiscovery() DiscoveryConfig {
+	return DiscoveryConfig{
+		IntervalSec:          86400,
+		RateLimit:            25,
+		DetectOnFirstContact: true,
+		MaintenanceGlobal:    false,
+	}
+}
+
+// Validate enforces the bounds in system-discovery-scheduler C-04, C-05.
+// Returns a wrapped ErrInvalidConfig naming the offending field.
+func (c DiscoveryConfig) Validate() error {
+	if c.IntervalSec < 3600 || c.IntervalSec > 604800 {
+		return fmt.Errorf("%w: interval_sec=%d must be 3600..604800", ErrInvalidConfig, c.IntervalSec)
+	}
+	if c.RateLimit < 1 || c.RateLimit > 500 {
+		return fmt.Errorf("%w: rate_limit=%d must be 1..500", ErrInvalidConfig, c.RateLimit)
+	}
+	return nil
+}
 
 // Validate enforces the bounds in services-connectivity-config C-01.
 // Returns a wrapped ErrInvalidConfig naming the offending field.

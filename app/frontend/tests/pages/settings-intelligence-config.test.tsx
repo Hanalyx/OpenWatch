@@ -86,7 +86,11 @@ describe('frontend-settings-intelligence-config — structural', () => {
       /import\s*\{[^}]*OSIntelligenceSection[^}]*\}\s*from\s*['"]@\/components\/settings\/OSIntelligenceSection['"]/,
     );
     expect(SCANNING_SRC).toContain('<OSIntelligenceSection');
-    const osDiscoveryIdx = SCANNING_SRC.indexOf('"OS discovery"');
+    // OS discovery is its own wired component now (<OSDiscoverySection>),
+    // landed alongside system-discovery-scheduler v1.0. The structural
+    // invariant here is the same: OS discovery comes BEFORE OS Intelligence
+    // and Maintenance comes AFTER.
+    const osDiscoveryIdx = SCANNING_SRC.indexOf('<OSDiscoverySection');
     const intelIdx = SCANNING_SRC.indexOf('<OSIntelligenceSection');
     const maintenanceIdx = SCANNING_SRC.indexOf('"Maintenance"');
     expect(osDiscoveryIdx).toBeGreaterThan(-1);

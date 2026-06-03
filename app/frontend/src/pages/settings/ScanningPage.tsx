@@ -1,13 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import {
-  Shield,
-  Activity,
-  RotateCcw,
-  PlayCircle,
-  HelpCircle,
-  Loader2,
-} from 'lucide-react';
+import { Shield, Activity, RotateCcw, HelpCircle, Loader2 } from 'lucide-react';
 import api from '@/api/client';
 import { apiErrorMessage } from '@/api/errors';
 import { useBreadcrumbStore } from '@/store/useBreadcrumbStore';
@@ -28,6 +21,7 @@ import {
   Callout,
 } from '@/components/settings/primitives';
 import { OSIntelligenceSection } from '@/components/settings/OSIntelligenceSection';
+import { OSDiscoverySection } from '@/components/settings/OSDiscoverySection';
 
 // Settings → Scanning & monitoring.
 //
@@ -320,9 +314,6 @@ export function ScanningPage() {
   const [complianceAdvancedOpen, setComplianceAdvancedOpen] = useState(false);
 
   const [connectivityAdvancedOpen, setConnectivityAdvancedOpen] = useState(false);
-
-  const [nightlyRescan, setNightlyRescan] = useState(true);
-  const [detectOnFirstContact, setDetectOnFirstContact] = useState(true);
 
   const [autoResume, setAutoResume] = useState('4h');
   const [groupMaintenance, setGroupMaintenance] = useState(
@@ -649,38 +640,9 @@ export function ScanningPage() {
         </AdvancedDisclosure>
       </Section>
 
-      {/* ────────── OS discovery (UI only) ────────── */}
-      <Section title="OS discovery" badge="UI only" badgeTier="warn">
-        <BackendPendingBanner
-          slice="OS-discovery sweeper (post-Slice-B)"
-          text="Per-host OS family + version detection lands with the OS discovery service. Toggles below are display-only."
-        />
-        <SettingCard>
-          <FirstSettingRow
-            name="Nightly re-scan"
-            description="Sweeps any host with missing platform data — runs at 02:00 UTC when wired."
-            control={
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <Btn size="sm" disabled>
-                  <PlayCircle size={12} /> Run now
-                </Btn>
-                <Toggle value={nightlyRescan} onChange={setNightlyRescan} ariaLabel="Nightly re-scan" />
-              </div>
-            }
-          />
-          <SettingRow
-            name="Detect on first contact"
-            description="Always run platform detection when a host is added with credentials."
-            control={
-              <Toggle
-                value={detectOnFirstContact}
-                onChange={setDetectOnFirstContact}
-                ariaLabel="Detect on first contact"
-              />
-            }
-          />
-        </SettingCard>
-      </Section>
+      {/* ────────── OS discovery (wired) ────────── */}
+      {/* Spec: frontend-settings-discovery-config v1.0 (PR: feat/os-discovery-scheduler) */}
+      <OSDiscoverySection />
 
       {/* ────────── OS Intelligence scheduler (wired) ────────── */}
       {/* Spec: frontend-settings-intelligence-config v1.0 */}
