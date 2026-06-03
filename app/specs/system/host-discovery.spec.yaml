@@ -1,7 +1,7 @@
 spec:
   id: system-host-discovery
   title: Host OS fingerprint discovery via SSH
-  version: "1.1.0"
+  version: "1.2.0"
   status: approved
   tier: 1
 
@@ -149,7 +149,7 @@ spec:
       priority: high
       references_constraints: [C-01]
     - id: AC-05
-      description: 'discovery.Discover with a credential whose user lacks sudo on a host where firewall introspection requires root returns the SystemFacts populated from the world-readable probes (os, kernel, meminfo, df, hostname) with empty FirewallStatus / FirewallService fields and a NIL error. The probe-level missing-sudo case is a partial success, not a hard failure.'
+      description: 'discovery.Discover with a credential whose user lacks sudo on a host where firewall introspection requires root returns the SystemFacts populated from the world-readable probes (os, kernel, meminfo, df, hostname) with empty FirewallStatus / FirewallService fields and a NIL error. v1.2.0 — when systemconfig.SecurityConfig.AllowCredentialSudoPassword is true AND the credential carries a non-empty Password, discovery.probeFirewall MUST first retry the failing sudo -n firewall command via the sudo -S -k -p '''' fallback per system-ssh-connectivity v1.2.0 C-09 / AC-20 before falling through to the next firewall service or returning partial success.'
       priority: critical
       references_constraints: [C-03]
     - id: AC-06

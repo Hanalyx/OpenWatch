@@ -1,7 +1,7 @@
 spec:
   id: system-ssh-connectivity
   title: SSH connectivity check against resolved credentials
-  version: "1.1.0"
+  version: "1.2.0"
   status: approved
   tier: 2
 
@@ -63,7 +63,7 @@ spec:
       type: technical
       enforcement: error
     - id: C-09
-      description: When the collector or discovery probe issues a sudo command via ssh.RunSudo and the initial `sudo -n` returns non-zero, the dial layer MAY retry that command as `sudo -S -k -p '' <cmd>` ONLY when ALL of these hold — (a) systemconfig.SecurityConfig.AllowCredentialSudoPassword is true, (b) cred.AuthMethod ∈ {password, both}, (c) cred.Password is non-empty. Any one condition false → no retry; the original sudo -n failure propagates with usedFallback=false.
+      description: 'v1.2.0 — The credential-password sudo fallback applies to EVERY SSH-using subsystem that issues a sudo command, namely: (1) the compliance collector via ssh.RunSudo, (2) the liveness privilege probe in internal/sshprivilege, (3) OS discovery firewall queries in internal/intelligence/discovery. When the initial `sudo -n <cmd>` returns non-zero, the call site MAY retry as `sudo -S -k -p '' <cmd>` ONLY when ALL of these hold — (a) systemconfig.SecurityConfig.AllowCredentialSudoPassword is true, (b) cred.AuthMethod ∈ {password, both}, (c) cred.Password is non-empty. Any one condition false → no retry; the original sudo -n failure propagates with usedFallback=false. The conditions and the retry shape are IDENTICAL across the three call sites — drift between them is forbidden.'
       type: security
       enforcement: error
     - id: C-10
@@ -145,3 +145,19 @@ spec:
       description: Stub returns exit 1 for sudo -n then exit 1 for sudo -S -k (wrong password). ssh.RunSudo issues exactly ONE sudo -S -k call (no internal retry); usedFallback=true; the returned exit code matches the failing fallback. The -k flag is present in the fallback cmd string so the host-side sudo timestamp cache is invalidated, protecting against pam_tally2 / pam_faillock lockout.
       priority: critical
       references_constraints: [C-11]
+    - id: AC-18
+      description: 'v1.2.0 — Liveness privilege probe parity. A stubbed SSH session returns exit 1 for `sudo -n true` then exit 0 for `sudo -S -k -p '''' true` with the credential password fed via stdin. With AllowCredentialSudoPassword=true and a credential carrying a non-empty Password, internal/sshprivilege.Probe returns ok=true. With the policy off (false) the probe returns ok=false and issues no sudo -S call.'
+      priority: critical
+      references_constraints: [C-09, C-10, C-11]
+    - id: AC-19
+      description: 'v1.2.0 — Liveness privilege probe — credential cannot supply a password. cred.AuthMethod=ssh_key with empty cred.Password and AllowCredentialSudoPassword=true. The probe MUST NOT issue any sudo -S call (no Password to feed); the sudo -n exit 1 propagates as ok=false.'
+      priority: critical
+      references_constraints: [C-09]
+    - id: AC-20
+      description: 'v1.2.0 — OS discovery firewall parity. A stubbed SSH session returns exit 1 for `sudo -n ufw status` then exit 0 for `sudo -S -k -p '''' ufw status` (with active output) when fed the password via stdin. With policy on + password, discovery.probeFirewall returns service="ufw", status="active". With policy off or no password, the helper returns ok=false from this attempt (existing fall-through to the next firewall remains).'
+      priority: critical
+      references_constraints: [C-09, C-10, C-11]
+    - id: AC-21
+      description: 'v1.2.0 — Negative invariant across all three sites: a sudo -n exit 0 MUST NOT trigger the fallback. Source-walk asserts that the three call sites (ssh.RunSudo, sshprivilege.Probe, discovery.probeFirewall) all gate the sudo -S retry behind a non-zero exit code from sudo -n and a runtime policy/credential check.'
+      priority: high
+      references_constraints: [C-09, C-12]
