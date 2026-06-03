@@ -123,8 +123,14 @@ export function useLiveEvents(options: UseLiveEventsOptions = {}) {
           | string
           | undefined;
         if (hostId) {
+          // Event feed (lives on at /activity).
           queryClient.invalidateQueries({
             queryKey: ['host_intelligence_events', hostId],
+          });
+          // Host-detail Server-intelligence snapshot tile grid —
+          // spec frontend-host-detail-intelligence-feed v2.0.0 C-02.
+          queryClient.invalidateQueries({
+            queryKey: ['intelligence_state', hostId],
           });
         }
       },
