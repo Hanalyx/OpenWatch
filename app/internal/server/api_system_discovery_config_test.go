@@ -12,12 +12,15 @@
 //   AC-08  TestAPI_SystemDiscoverySweep_EnqueuesUndiscoveredHosts
 //   AC-09  TestAPI_SystemDiscoverySweep_AsViewer_Forbidden
 //   AC-10  TestAPI_SystemDiscoverySweep_ZeroDueHostsReturns200
+//   AC-11  TestAPI_SystemDiscoveryConfig_PUT_MalformedBody_Returns400
 
 package server
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"testing"
 	"time"
@@ -389,6 +392,29 @@ func TestAPI_SystemDiscoverySweep_ZeroDueHostsReturns200(t *testing.T) {
 		}
 		if body.Enqueued != 0 {
 			t.Errorf("enqueued: want 0, got %d", body.Enqueued)
+		}
+	})
+}
+
+// @ac AC-11
+// AC-11: PUT with a malformed JSON body returns 400.
+func TestAPI_SystemDiscoveryConfig_PUT_MalformedBody_Returns400(t *testing.T) {
+	t.Run("api-system-discovery-config/AC-11", func(t *testing.T) {
+		url, _ := freshAPIServer(t)
+		// asRole with nil body produces an auth-cookied request with no
+		// body; we attach malformed bytes directly so the 403 gate is
+		// satisfied and the handler exercises the decode error.
+		req := asRole(t, "PUT", url+"/api/v1/system/discovery/config", auth.RoleAdmin, nil)
+		req.Header.Set("Content-Type", "application/json")
+		req.Body = io.NopCloser(bytes.NewReader([]byte("not-json")))
+		req.GetBody = nil
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatalf("PUT: %v", err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusBadRequest {
+			t.Fatalf("expected 400, got %d", resp.StatusCode)
 		}
 	})
 }

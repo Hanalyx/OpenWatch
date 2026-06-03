@@ -137,3 +137,7 @@ spec:
       description: 'POST sweep with zero due hosts (every host already has os_discovered_at set, all hosts in maintenance, or the fleet is empty) returns 200 {enqueued:0} — not 204 and not an error. Zero is a valid steady state'
       priority: high
       references_constraints: [C-07]
+    - id: AC-11
+      description: 'PUT with a malformed JSON body returns 400 validation.field_required. PUT with an empty body returns 400 (the missing required fields fail bounds — exact code is range_exceeded or field_required, but the status is 400 either way). The persisted state MUST NOT change'
+      priority: high
+      references_constraints: [C-05]
