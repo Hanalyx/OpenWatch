@@ -1,0 +1,174 @@
+spec:
+  id: frontend-foundation
+  title: Frontend foundation — theme, color scheme, layout shell, route guards
+  version: "1.0.0"
+  status: draft
+  tier: 1
+
+  context:
+    system: openwatch-go
+    feature: The shared shell every page renders inside — token system, color scheme, sidebar, topbar, route guards, error boundary
+    description: >
+      app/frontend/ is the React 19 + MUI v7 SPA embedded into the Go
+      binary via go:embed. The foundation comprises everything every
+      page assumes is in place: the design token system, the three-mode
+      color scheme, the layout shell, the top-level route table with
+      authentication and RBAC guards, and the global error boundary.
+
+      The token system is defined in app/docs/frontend_design_tokens.md.
+      The architecture decisions (stack, build, hosting, auth contract)
+      are locked in app/docs/frontend_architecture_adr.md. This spec
+      enforces both as behavior.
+
+      The foundation is Tier 1 because color-scheme persistence, no-FOUC
+      first paint, route-guard correctness, and the error boundary all
+      affect every downstream page; a regression here is a fleet-wide
+      regression.
+    related_specs:
+      - api-auth
+      - system-rbac
+      - frontend-auth-login
+
+  objective:
+    summary: >
+      Booting the SPA yields a shell whose color scheme matches the
+      stored preference (no FOUC), whose sidebar + topbar render via
+      MUI v7 primitives styled via the --ow-* token contract, whose
+      route guards redirect anonymous users to /login and 403 users
+      without the required permission, and whose error boundary catches
+      uncaught render errors without unmounting the app.
+    scope:
+      includes:
+        - "Three-mode color scheme (light, dark, system) with localStorage persistence"
+        - "No-FOUC first paint via getInitColorSchemeScript in index.html"
+        - "MUI v7 CssVarsProvider with extendTheme({cssVarPrefix: 'ow', colorSchemes: {...}})"
+        - "Token contract: every --ow-* variable from frontend_design_tokens.md present"
+        - "Layout shell: 56px icon sidebar, sticky topbar, content area"
+        - "Top-level route table with authentication + RBAC guards"
+        - "Global error boundary"
+        - "Document title per route via React 19 <title> in JSX"
+        - "axe-core clean on the shell in both color modes"
+      excludes:
+        - "Per-page content (covered by per-page specs)"
+        - "Login form behavior (covered by frontend-auth-login)"
+        - "Dashboard widget grid (deferred until backend slice unblocks)"
+        - "Real-time Activity feed (deferred with OS Intelligence)"
+
+  constraints:
+    - id: C-01
+      description: The color scheme MUST be one of three values stored in localStorage under key "ow-color-scheme" — "light", "dark", or "system". Default when unset is "system". An invalid stored value MUST fall back to "system" without throwing
+      type: technical
+      enforcement: error
+    - id: C-02
+      description: On first paint (BEFORE the React bundle parses), <html> MUST carry data-mui-color-scheme="light" or "dark" matching the resolved mode. This MUST be set by a synchronous script in index.html <head> so there is NO flash of the wrong scheme
+      type: technical
+      enforcement: error
+    - id: C-03
+      description: >-
+        When the stored mode is system, changes to the OS color preference
+        (via matchMedia prefers-color-scheme=dark) MUST update the rendered
+        scheme live without a page reload
+      type: technical
+      enforcement: error
+    - id: C-04
+      description: Every --ow-* CSS variable listed in app/docs/frontend_design_tokens.md MUST be exported from app/frontend/src/theme/tokens.ts AND mapped through the MUI extendTheme call. A token in the doc but not in code is a failed contract
+      type: technical
+      enforcement: error
+    - id: C-05
+      description: The frontend MUST NOT use --mui-* variables in component styles. The cssVarPrefix is "ow" — every reference is via var(--ow-*) or theme.vars.ow.*
+      type: technical
+      enforcement: error
+    - id: C-06
+      description: An unauthenticated request to any guarded route MUST redirect to /login?return_to=<encoded original URL>. The original URL MUST be restored after successful authentication
+      type: security
+      enforcement: error
+    - id: C-07
+      description: An authenticated request to a route requiring a permission the current identity lacks MUST render a 403 region surfacing the API's authz.permission_denied error code. The route MUST NOT silently redirect or render an empty page
+      type: security
+      enforcement: error
+    - id: C-08
+      description: The top-level error boundary MUST catch render errors in any child route, render a recoverable error UI ("Something went wrong. Reload."), and emit the error to console.error (development only). It MUST NOT unmount the shell (sidebar + topbar stay visible)
+      type: technical
+      enforcement: error
+    - id: C-09
+      description: Every interactive element in the shell (sidebar nav buttons, topbar buttons, color-scheme toggle, error-boundary reload button) MUST be reachable via keyboard alone, carry an aria-label or visible text label, and present a visible focus indicator
+      type: technical
+      enforcement: error
+    - id: C-10
+      description: axe-core scan of the rendered shell MUST report zero violations across the wcag2a + wcag2aa rule sets in BOTH dark and light modes
+      type: technical
+      enforcement: error
+    - id: C-11
+      description: No PII or secret value MAY appear in client-side console.log / console.warn / console.error output. Error boundary error messages MUST be scrubbed of any field literally named "evidence", "token", "password", "secret", "private_key" before logging
+      type: security
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: First paint with localStorage unset on a system in dark OS preference renders the dark scheme; <html data-mui-color-scheme="dark"> is set BEFORE React mounts (verified by snapshotting outerHTML in a body-zero-frame test).
+      priority: critical
+      references_constraints: [C-01, C-02]
+    - id: AC-02
+      description: First paint with localStorage="light" on a system in dark OS preference renders the light scheme (user override beats system).
+      priority: critical
+      references_constraints: [C-01, C-02]
+    - id: AC-03
+      description: First paint with localStorage set to an invalid value ("blue", "", "0") falls back to "system" without throwing; matches AC-01 behavior.
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-04
+      description: Toggling the color-scheme control in the topbar to "Light" updates <html data-mui-color-scheme="light"> AND writes "light" to localStorage under key "ow-color-scheme" AND re-renders subscribing components with the light palette.
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-05
+      description: With stored mode "system", flipping the OS preference at runtime (simulated via matchMedia change event) updates <html data-mui-color-scheme> without a page reload.
+      priority: critical
+      references_constraints: [C-03]
+    - id: AC-06
+      description: A unit test against app/frontend/src/theme/tokens.ts asserts that every token listed in app/docs/frontend_design_tokens.md is present with the exact dark and light values from the doc.
+      priority: critical
+      references_constraints: [C-04]
+    - id: AC-07
+      description: A grep of app/frontend/src/ (excluding generated files and node_modules) finds zero references to "var(--mui-" — the codebase uses only "var(--ow-" or theme.vars.ow.* paths.
+      priority: high
+      references_constraints: [C-05]
+    - id: AC-08
+      description: Navigating to /hosts (a guarded route) with no session cookie redirects to /login?return_to=%2Fhosts; submitting valid credentials lands the user back at /hosts.
+      priority: critical
+      references_constraints: [C-06]
+    - id: AC-09
+      description: Navigating to /admin/users (requires admin role) as a viewer-only session renders a 403 region with the API's authz.permission_denied error code, NOT a redirect, NOT a blank page.
+      priority: critical
+      references_constraints: [C-07]
+    - id: AC-10
+      description: An intentionally-thrown render error in a child route renders the error boundary fallback ("Something went wrong. Reload.") AND the sidebar + topbar remain visible AND clicking Reload remounts the route subtree without a full page refresh.
+      priority: critical
+      references_constraints: [C-08]
+    - id: AC-11
+      description: Keyboard tab order through the shell reaches every interactive element in document order; each has a visible focus indicator (outline distinguishable from background). Verified by Playwright keyboard-only navigation snapshot.
+      priority: high
+      references_constraints: [C-09]
+    - id: AC-12
+      description: axe-core scan of the rendered shell (sidebar + topbar + a placeholder content region) reports zero violations across wcag2a + wcag2aa rule sets in dark mode.
+      priority: critical
+      references_constraints: [C-10]
+    - id: AC-13
+      description: axe-core scan of the same shell reports zero violations across wcag2a + wcag2aa rule sets in light mode.
+      priority: critical
+      references_constraints: [C-10]
+    - id: AC-14
+      description: Source-inspection of app/frontend/src/ — no occurrence of console.log, console.warn, or console.error contains the literal string "evidence" or "token" as a field name (a grep against the source AND the production build).
+      priority: critical
+      references_constraints: [C-11]
+    - id: AC-15
+      description: Source-inspection of index.html — the <head> contains a synchronous <script> that reads localStorage["ow-color-scheme"] and sets data-mui-color-scheme on <html> BEFORE the React bundle loads. The script MUST appear before any <script type="module"> for the bundle.
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-16
+      description: Source-inspection — extendTheme is called with cssVarPrefix:"ow" and colorSchemes with both "light" and "dark" keys; defaultColorScheme is "system". CssVarsProvider wraps the route tree.
+      priority: critical
+      references_constraints: [C-01, C-02]
+    - id: AC-17
+      description: The route table includes /login (anonymous) and at least one guarded route; the guard component renders a redirect to /login?return_to=... on missing session, NOT a thrown exception.
+      priority: high
+      references_constraints: [C-06]

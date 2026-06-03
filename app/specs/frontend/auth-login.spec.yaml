@@ -1,0 +1,149 @@
+spec:
+  id: frontend-auth-login
+  title: Frontend login + MFA + return_to
+  version: "1.0.0"
+  status: draft
+  tier: 1
+
+  context:
+    system: openwatch-go
+    feature: Browser sign-in flow — username + password + optional MFA, session cookie + CSRF, return_to restoration
+    description: >
+      The login page is the only browser entry point that talks to the
+      authentication API. Per app/docs/frontend_architecture_adr.md
+      D-08, the browser uses session-cookie authentication with CSRF
+      protection — NOT JWT in localStorage. Login posts credentials to
+      POST /api/v1/auth/login; the server sets the openwatch_session
+      cookie (HttpOnly, Secure, SameSite=Lax). The body's
+      access_token / refresh_token are IGNORED by the browser
+      frontend — those are for API consumers.
+
+      MFA is single-step: when the server returns 401 with
+      error.code = "auth.mfa_required" the form re-renders with an
+      otp field; the next submission resends username + password + otp.
+
+      After successful authentication, the user is redirected to the
+      return_to query parameter (decoded), defaulting to / when absent
+      or invalid.
+
+      Tier 1 because login is the primary auth surface — a regression
+      here is a fleet-wide outage.
+    related_specs:
+      - api-auth
+      - frontend-foundation
+
+  objective:
+    summary: >
+      A user opens /login, enters credentials, optionally enters an
+      otp on MFA prompt, and lands at return_to (or /) with the
+      session cookie set. Wrong credentials surface a clear,
+      non-enumerating error. CSRF protection works on the very first
+      request after login.
+    scope:
+      includes:
+        - "Username + password form via react-hook-form + zod"
+        - "Single-step submission to POST /api/v1/auth/login"
+        - "MFA prompt on error.code = auth.mfa_required"
+        - "Error mapping (invalid_credentials, mfa_invalid, rate_limited)"
+        - "return_to URL preservation and post-login redirect"
+        - "Session cookie + CSRF token consumption on subsequent requests"
+        - "axe-clean keyboard-navigable form"
+      excludes:
+        - "Password reset flow (operator-mediated until email transport ships)"
+        - "OIDC/SAML browser flows (Slice A.5)"
+        - "MFA enrollment (covered by frontend-settings-account)"
+
+  constraints:
+    - id: C-01
+      description: The login form MUST submit username + password via POST /api/v1/auth/login with Content-Type application/json and credentials "include" (so the server can set the session cookie). The body MUST NOT include any other fields on the first submission
+      type: security
+      enforcement: error
+    - id: C-02
+      description: On a successful login response (200), the frontend MUST NOT read or store access_token or refresh_token from the body. The server's Set-Cookie header is the sole authentication credential
+      type: security
+      enforcement: error
+    - id: C-03
+      description: On 401 with error.code = "auth.mfa_required", the form MUST re-render with an otp input. The next submission MUST include all three fields (username + password + otp) — not just otp
+      type: security
+      enforcement: error
+    - id: C-04
+      description: On 401 with error.code = "auth.invalid_credentials" (regardless of whether the cause was wrong password or unknown user), the form MUST render the same generic message — no enumeration oracle in the UI
+      type: security
+      enforcement: error
+    - id: C-05
+      description: On 429 (rate limited), the form MUST render the server-provided retry message and disable the submit button until a 5-second cooldown elapses
+      type: security
+      enforcement: error
+    - id: C-06
+      description: The CSRF token MUST be read from the XSRF-TOKEN cookie (server-set, non-HttpOnly) and echoed on EVERY mutating request via the X-CSRF-Token header — including the first request after login. This is the double-submit-cookie pattern
+      type: security
+      enforcement: error
+    - id: C-07
+      description: After successful login, the frontend MUST redirect to the return_to query parameter (URL-decoded). Invalid or external URLs (any URL not beginning with "/") MUST fall back to "/" — no open-redirect vulnerability
+      type: security
+      enforcement: error
+    - id: C-08
+      description: The login form MUST be reachable by keyboard alone; both fields and the submit button MUST carry explicit labels (not placeholders), the submit button MUST be disabled while the request is in flight, and the form MUST pass axe-core wcag2a+wcag2aa with zero violations
+      type: technical
+      enforcement: error
+    - id: C-09
+      description: Password and otp values MUST NEVER appear in console.log / console.warn / console.error output, even on error paths. The login service code MUST scrub any field literally named "password" or "otp" before any console emission
+      type: security
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: Navigating to /login with no session renders the form with username + password fields and a submit button.
+      priority: critical
+    - id: AC-02
+      description: Submitting valid credentials (no MFA) yields a 200 response; the openwatch_session cookie is observed in document.cookie has-set state; the frontend redirects to / (or return_to if present); the body's access_token is NOT stored in localStorage, sessionStorage, or memory.
+      priority: critical
+      references_constraints: [C-01, C-02]
+    - id: AC-03
+      description: Submitting credentials for an MFA-enrolled user without otp yields 401 auth.mfa_required; the form re-renders with an otp input visible AND focused; the username + password values are preserved (not cleared).
+      priority: critical
+      references_constraints: [C-03]
+    - id: AC-04
+      description: Submitting valid credentials + valid otp yields a 200; redirect succeeds.
+      priority: critical
+      references_constraints: [C-03]
+    - id: AC-05
+      description: Submitting credentials with a wrong password yields 401 auth.invalid_credentials; the form renders the generic "Invalid username or password" message; the username field is preserved but password is cleared.
+      priority: critical
+      references_constraints: [C-04]
+    - id: AC-06
+      description: Submitting credentials with an unknown username yields 401 auth.invalid_credentials; the rendered message is IDENTICAL to AC-05 — no UI difference between "wrong password" and "unknown user".
+      priority: critical
+      references_constraints: [C-04]
+    - id: AC-07
+      description: Submitting six rapid-fire failed logins triggers 429; the submit button is disabled; the rendered message is the server-provided retry hint; after a 5-second cooldown the button re-enables.
+      priority: high
+      references_constraints: [C-05]
+    - id: AC-08
+      description: After a successful login, the very next API call (GET /api/v1/auth/me) carries an X-CSRF-Token header equal to the XSRF-TOKEN cookie value; the response is 200.
+      priority: critical
+      references_constraints: [C-06]
+    - id: AC-09
+      description: Navigating to /login?return_to=%2Fhosts%2F12345, logging in successfully, lands the user at /hosts/12345 (decoded). The URL bar shows /hosts/12345, not /.
+      priority: critical
+      references_constraints: [C-07]
+    - id: AC-10
+      description: Navigating to /login?return_to=https%3A%2F%2Fevil.example.com lands the user at / after successful login (open-redirect prevention).
+      priority: critical
+      references_constraints: [C-07]
+    - id: AC-11
+      description: Keyboard tab order is username → password → submit (and otp → submit when MFA active); each field has an explicit <label>; submit shows aria-busy="true" while the request is in flight.
+      priority: high
+      references_constraints: [C-08]
+    - id: AC-12
+      description: axe-core scan of the /login page reports zero violations across wcag2a + wcag2aa rule sets in both dark and light modes.
+      priority: critical
+      references_constraints: [C-08]
+    - id: AC-13
+      description: Source-inspection — the compiled frontend bundle (production build) does NOT contain the literal strings "password:" or "otp:" inside any console.log / console.warn / console.error call site. A grep against the build output confirms.
+      priority: critical
+      references_constraints: [C-09]
+    - id: AC-14
+      description: Source-inspection — the login form's submit handler does NOT include code paths that write access_token or refresh_token to localStorage, sessionStorage, or any Zustand store.
+      priority: critical
+      references_constraints: [C-02]

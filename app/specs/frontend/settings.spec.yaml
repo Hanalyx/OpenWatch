@@ -1,0 +1,235 @@
+spec:
+  id: frontend-settings
+  title: Settings — two-pane shell with 11 sub-pages
+  version: "1.1.0"
+  status: draft
+  tier: 2
+
+  context:
+    system: openwatch-go
+    feature: Workspace + personal settings surface — 11 categories grouped Workspace / Access / Personal, each its own routed sub-page
+    description: >-
+      Route /settings is a two-pane shell mirroring the v1 prototype
+      (app/docs/prototypes/openwatch-v1/Settings.html). A 260px left
+      nav holds three groups — Workspace, Access, Personal — with
+      11 leaf pages between them. The main pane renders the active
+      page via TanStack Router nested routes.
+
+      v0 wires the four pages whose backends exist in Slice A
+      (Profile, Preferences, SSH & credentials, Users & teams). The
+      remaining seven pages render their structural shells with a
+      "Backend pending" banner identifying the slice that unblocks
+      each one. The shell visually matches the prototype regardless
+      of wiring depth — operators see the same surface they would
+      see when fully wired, just with disabled controls and pending
+      banners.
+
+      Profile combines four backend-wired sub-sections: profile
+      identity (read-only from /auth/me until PATCH lands), password
+      change (POST /auth/password:change), MFA enrollment +
+      verification (POST /auth/mfa:enroll, /auth/mfa:verify), and
+      active sessions (read-only "this device" placeholder until the
+      sessions endpoint ships).
+
+      Tier 2 — feature surface, not the auth boundary. Profile's
+      MFA + password subsections are themselves security-sensitive
+      but follow the auth-login spec contract.
+    related_specs:
+      - api-auth
+      - api-credentials
+      - api-users
+      - frontend-foundation
+      - frontend-auth-login
+
+  objective:
+    summary: >-
+      An authenticated operator navigates /settings/* via the left
+      nav. The Profile page surfaces their identity, lets them change
+      password and enroll MFA against the live backend. Preferences
+      persists theme/density/etc. to localStorage. Credentials and
+      Users list against live endpoints. Other pages render their
+      structural shells with disabled controls.
+    scope:
+      includes:
+        - "Route /settings — redirects to /settings/profile by default"
+        - "Two-pane shell — 260px left nav + main content"
+        - "Left nav with 11 items in 3 groups plus search"
+        - "Active nav item highlighted with warn-pip on Security & auth"
+        - "Profile — identity from /auth/me + password change + MFA enroll + sessions placeholder"
+        - "Preferences — theme/density/accent/landing/host-view/date-format/reduce-motion persisted to localStorage"
+        - "SSH & credentials — list from GET /api/v1/credentials with Add (POST), Replace (POST+DELETE) and Delete (DELETE) modals"
+        - "SSH keys section is a derived view of key-bearing credentials; Add/Replace/Delete a key operates on the parent credential"
+        - "Users & teams — list from GET /api/v1/users (admin-gated)"
+        - "Scanning, Policies, Notifications, Integrations, Security, Audit, About — structural shells with Backend Pending banner"
+        - "All control widgets themed via --ow-* tokens"
+      excludes:
+        - "PATCH /auth/me wiring (backend endpoint deferred)"
+        - "Credential / User CRUD forms (dedicated specs pending)"
+        - "Session listing + revoke (backend /auth/sessions deferred)"
+        - "Sub-page deep-linking inside the seven stubbed pages"
+        - "Full-document settings search"
+
+  constraints:
+    - id: C-01
+      description: The route /settings MUST redirect to /settings/profile by default. Every leaf page MUST live under /settings/<id> with its own routed component
+      type: technical
+      enforcement: error
+    - id: C-02
+      description: >-
+        The left nav MUST render 11 items in 3 groups (Workspace 5,
+        Access 3, Personal 3). The active page MUST be highlighted
+        (ow-bg-3 background, ow-info accent on icon). Inactive items
+        hover to ow-bg-2
+      type: technical
+      enforcement: error
+    - id: C-03
+      description: >-
+        Profile MUST render the identity returned from useAuthStore.
+        The Save-changes button at the bottom of the profile-identity
+        card MUST be disabled with a visible PATCH-pending hint — no
+        broken POST is made
+      type: technical
+      enforcement: error
+    - id: C-04
+      description: >-
+        Password change MUST POST to /api/v1/auth/password:change with
+        current_password + new_password. Zod MUST enforce new_password
+        length >= 15 AND new_password != current_password AND
+        confirm_password == new_password BEFORE any POST. Password
+        values MUST NOT appear in console output
+      type: security
+      enforcement: error
+    - id: C-05
+      description: >-
+        MFA enrollment MUST POST to /api/v1/auth/mfa:enroll then render
+        the returned provisioning_uri AND secret. Verification MUST
+        POST a 6-digit otp to /api/v1/auth/mfa:verify; on success the
+        auth store identity MFA flag is set true AND the section
+        re-renders to the Enabled state
+      type: security
+      enforcement: error
+    - id: C-06
+      description: >-
+        Preferences MUST persist to localStorage under key
+        "ow-preferences" (via Zustand persist middleware). No backend
+        POST is made. Reloading the browser restores the same
+        selections
+      type: technical
+      enforcement: error
+    - id: C-07
+      description: >-
+        SSH & credentials MUST fetch GET /api/v1/credentials and
+        render one row per credential. Add/Edit/Delete buttons render
+        but MUST be disabled
+      type: technical
+      enforcement: error
+    - id: C-08
+      description: >-
+        Users & teams MUST be gated to roles with the admin permission.
+        Non-admin sessions visiting /settings/users render the 403
+        ForbiddenPage. Admin sessions see the list from GET
+        /api/v1/users
+      type: security
+      enforcement: error
+    - id: C-09
+      description: >-
+        The 7 stubbed pages MUST each render a BackendPendingBanner
+        identifying the slice that unblocks them. Every interactive
+        control on these pages MUST be disabled
+      type: technical
+      enforcement: error
+    - id: C-10
+      description: >-
+        Every Settings widget MUST reference --ow-* CSS variables for
+        color and surface. No hardcoded colors outside the token
+        contract
+      type: technical
+      enforcement: error
+    - id: C-11
+      description: >-
+        The left-nav search input MUST filter nav items by
+        case-insensitive label substring. Empty query renders all
+        groups; no-match renders no groups
+      type: technical
+      enforcement: error
+    - id: C-12
+      description: >-
+        Every interactive element across all 11 pages MUST be
+        reachable by keyboard alone. axe-core MUST report zero
+        violations across wcag2a + wcag2aa in both color modes
+      type: technical
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: Navigating to /settings redirects to /settings/profile within one router tick. The left nav and the page-head both reflect Profile as active.
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-02
+      description: The left nav renders exactly 11 leaf items distributed as Workspace (5) + Access (3) + Personal (3). The Security & auth item carries a warn-tier pip in its right slot.
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-03
+      description: Typing "user" in the nav-search filters the visible list to "Users & teams" only; clearing the search restores all groups.
+      priority: high
+      references_constraints: [C-11]
+    - id: AC-04
+      description: Profile page renders the username and email returned by /auth/me. The big-avatar initials match the first 1-2 tokens of the username. The Save-changes button has aria-disabled=true.
+      priority: critical
+      references_constraints: [C-03]
+    - id: AC-05
+      description: Submitting the password-change form with current=valid + new=15+ chars + confirm=match issues exactly one POST /api/v1/auth/password:change with body {current_password, new_password}. On 200 the form clears and a green success banner renders inline.
+      priority: critical
+      references_constraints: [C-04]
+    - id: AC-06
+      description: Submitting current=wrong yields 401 auth.invalid_credentials; the form renders the error inline; the new + confirm fields are preserved.
+      priority: critical
+      references_constraints: [C-04]
+    - id: AC-07
+      description: Submitting new == current MUST fail zod validation client-side BEFORE any POST.
+      priority: critical
+      references_constraints: [C-04]
+    - id: AC-08
+      description: Submitting new < 15 chars fails zod validation client-side BEFORE any POST.
+      priority: critical
+      references_constraints: [C-04]
+    - id: AC-09
+      description: With mfa_enabled=false, clicking Begin enrollment issues POST /api/v1/auth/mfa:enroll AND renders the returned provisioning_uri AND the textual secret AND a 6-digit otp input.
+      priority: critical
+      references_constraints: [C-05]
+    - id: AC-10
+      description: Submitting a valid otp yields 200 from /api/v1/auth/mfa:verify; the section state transitions to Enabled (StatusPill tier=ok); the auth store identity.mfaEnabled becomes true.
+      priority: critical
+      references_constraints: [C-05]
+    - id: AC-11
+      description: Changing the Theme segmented control to Light updates the page's data-mui-color-scheme attribute AND writes "light" to localStorage under "ow-color-scheme". Reloading restores Light.
+      priority: critical
+      references_constraints: [C-06]
+    - id: AC-12
+      description: Changing any Preferences control writes to localStorage under "ow-preferences" within one tick. Reloading the browser restores the selection.
+      priority: critical
+      references_constraints: [C-06]
+    - id: AC-13
+      description: SSH & credentials renders the list returned by GET /api/v1/credentials. Each row shows name + scope + auth_method label. The Add credential and per-row Edit buttons are disabled.
+      priority: high
+      references_constraints: [C-07]
+    - id: AC-14
+      description: A non-admin user navigating to /settings/users sees the 403 ForbiddenPage. An admin user sees the list from GET /api/v1/users.
+      priority: critical
+      references_constraints: [C-08]
+    - id: AC-15
+      description: Each of the 7 stubbed pages renders a single BackendPendingBanner naming the slice AND every visible button has aria-disabled=true.
+      priority: high
+      references_constraints: [C-09]
+    - id: AC-16
+      description: A grep of src/pages/settings/ and src/components/settings/ finds zero occurrences of var(--mui- or hardcoded HEX literals outside the token-map files.
+      priority: high
+      references_constraints: [C-10]
+    - id: AC-17
+      description: Source-inspection — the password-change submit handler does NOT include any console.log/warn/error call that interpolates current_password, new_password, or confirm_password values.
+      priority: critical
+      references_constraints: [C-04]
+    - id: AC-18
+      description: axe-core scan of /settings/profile, /settings/preferences, /settings/credentials, /settings/users, and /settings/notifications reports zero violations across wcag2a + wcag2aa in both color modes.
+      priority: critical
+      references_constraints: [C-12]
