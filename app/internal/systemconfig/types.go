@@ -142,10 +142,10 @@ func (SecurityConfig) Validate() error { return nil }
 // sweeper or an explicit operator click finds them).
 // MaintenanceGlobal pauses the entire scheduler loop.
 type DiscoveryConfig struct {
-	IntervalSec           int  `json:"interval_sec"`
-	RateLimit             int  `json:"rate_limit"`
-	DetectOnFirstContact  bool `json:"detect_on_first_contact"`
-	MaintenanceGlobal     bool `json:"maintenance_global"`
+	IntervalSec          int  `json:"interval_sec"`
+	RateLimit            int  `json:"rate_limit"`
+	DetectOnFirstContact bool `json:"detect_on_first_contact"`
+	MaintenanceGlobal    bool `json:"maintenance_global"`
 }
 
 // DefaultDiscovery returns the baked-in defaults.
