@@ -1903,7 +1903,7 @@ components:
         # v1.4.0 — denormalized OS fields populated by system-host-discovery.
         # NULL pre-Discovery; populated post-Discovery from the captured
         # SystemFacts. Spec api-hosts C-10.
-        os_family:           {type: string, nullable: true, description: 'rhel | debian | suse | alpine | arch | gentoo | other; null pre-Discovery'}
+        os_family:           {type: string, nullable: true, description: 'Distro ID from /etc/os-release (e.g. rhel, ubuntu, rocky, centos, almalinux, debian, opensuse-leap, sles); rollup family (rhel | debian | suse | alpine | arch | gentoo | other) ONLY when ID was empty; null pre-Discovery. Spec system-host-discovery v1.3.0 AC-22.'}
         os_version:          {type: string, nullable: true}
         architecture:        {type: string, nullable: true, description: 'e.g. x86_64, aarch64'}
         platform_identifier: {type: string, nullable: true, description: 'e.g. platform:el9'}
@@ -2488,7 +2488,7 @@ components:
         os_id_like:          {type: string, nullable: true}
         os_pretty_name:      {type: string, nullable: true}
         platform_identifier: {type: string, nullable: true}
-        os_family:           {type: string, nullable: true, description: 'Rollup family — rhel, debian, suse, alpine, arch, gentoo, other'}
+        os_family:           {type: string, nullable: true, description: 'Distro ID from /etc/os-release (rhel, ubuntu, rocky, ...); rollup family (rhel/debian/suse/alpine/arch/gentoo/other) only when ID was empty. Spec system-host-discovery v1.3.0 AC-22.'}
         # uname -srvm
         kernel_name:    {type: string, nullable: true}
         kernel_release: {type: string, nullable: true}

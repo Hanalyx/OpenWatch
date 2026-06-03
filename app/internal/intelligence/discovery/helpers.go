@@ -9,15 +9,31 @@ import (
 	"github.com/Hanalyx/openwatch/internal/systemconfig"
 )
 
-// deriveOSFamily collapses ID + ID_LIKE down to a single rollup label
-// the list-page filter UI exposes (rhel, debian, suse, alpine, arch,
-// gentoo, other). RHEL-family IDs map to "rhel"; Debian-family to
-// "debian"; etc. Unknown distros fall through to "other".
+// deriveOSFamily picks the value persisted into hosts.os_family — the
+// distro ID (rhel, ubuntu, rocky, centos, almalinux, debian, opensuse,
+// sles, …) the front-end's osDisplayLabel mapping consumes. The full
+// distro ID lets the UI render "Ubuntu" vs "Debian" vs "Rocky" instead
+// of collapsing every Debian-derivative under one label (spec
+// frontend-host-list-os AC-01..AC-03).
+//
+// Precedence:
+//
+//  1. /etc/os-release's ID field, lower-cased — the canonical distro
+//     identifier. Always preferred when present.
+//  2. The first recognized rollup family from ID_LIKE — only when ID
+//     is empty. Lets old/minimal distros still classify into "debian"
+//     or "rhel" so policy filtering keeps working.
+//  3. "other" — when neither ID nor ID_LIKE produced a recognized
+//     family.
+//
+// Spec system-host-discovery v1.3.0 AC-22.
 func deriveOSFamily(osID, osIDLike string) string {
-	id := strings.ToLower(osID)
+	id := strings.ToLower(strings.TrimSpace(osID))
+	if id != "" {
+		return id
+	}
 	like := strings.ToLower(osIDLike)
 	parts := strings.Fields(strings.ReplaceAll(like, ",", " "))
-	parts = append(parts, id)
 	for _, p := range parts {
 		switch p {
 		case "rhel", "fedora", "centos", "rocky", "almalinux", "ol", "amzn", "amazon":
@@ -33,9 +49,6 @@ func deriveOSFamily(osID, osIDLike string) string {
 		case "gentoo":
 			return "gentoo"
 		}
-	}
-	if id != "" {
-		return id
 	}
 	return "other"
 }
