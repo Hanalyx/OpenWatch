@@ -89,7 +89,7 @@ spec:
       type: technical
       enforcement: error
     - id: C-09
-      description: 'Recent activity card MUST source events from host_monitoring_history (band transitions) + transactions (compliance state changes). Each event MUST have a severity tint matching its band (crit for down/critical, warn for degraded/skipped, ok for online/pass, neutral for everything else). Renders empty state when both sources are empty'
+      description: 'Recent activity card MUST source events from the unified GET /api/v1/activity feed scoped to the current host (host_id=X). The endpoint UNIONs alert + transaction + intelligence + audit + monitoring per system-activity v1.1.0; each event carries a closed-enum severity which the card tints (crit for critical/high, warn for medium, ok for info, neutral for low). The card MUST render at most 5 rows (the overview slice) and provide a "View all" link to the host''s Activity tab. Empty feed renders the "No activity yet" empty state.'
       type: technical
       enforcement: error
     - id: C-10
@@ -178,7 +178,7 @@ spec:
       priority: critical
       references_constraints: [C-06]
     - id: AC-26
-      description: 'Recent activity card sources events from host_monitoring_history (via GET /hosts/{id}/monitoring/history) and shows them with severity tints matching the band (crit for down/critical, warn for degraded, ok for online). When the history is empty, renders the prototype''s "No activity yet" empty-state.'
+      description: 'Recent activity card sources events from GET /api/v1/activity?host_id=X (the unified five-source feed per system-activity v1.1.0). It MUST slice the response to at most 5 rows (the overview limit) and render a "View all" link in the card header that routes to the host''s Activity tab. Severity tinting MUST follow the closed enum mapping (critical/high → crit color, medium → warn, info → ok, low → neutral). Empty response renders the "No activity yet" empty-state.'
       priority: critical
       references_constraints: [C-09]
     - id: AC-27
