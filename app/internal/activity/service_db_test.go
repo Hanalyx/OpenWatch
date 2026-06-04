@@ -50,11 +50,12 @@ func freshDB(t *testing.T) (*pgxpool.Pool, uuid.UUID) {
 	if err := migrations.Apply(ctx, pool); err != nil {
 		t.Fatalf("migrations.Apply: %v", err)
 	}
-	_, _ = pool.Exec(ctx, "TRUNCATE TABLE alerts")
-	_, _ = pool.Exec(ctx, "TRUNCATE TABLE host_intelligence_events")
-	_, _ = pool.Exec(ctx, "TRUNCATE TABLE transactions")
+	// TRUNCATE…CASCADE delegates child cleanup to the schema. The
+	// hosts row has 11 FK-referencing children (alerts, credentials,
+	// host_intelligence_events, transactions, …); a hand-rolled list
+	// rotted every time a new FK was added.
+	_, _ = pool.Exec(ctx, "TRUNCATE TABLE hosts CASCADE")
 	_, _ = pool.Exec(ctx, "TRUNCATE TABLE audit_events")
-	_, _ = pool.Exec(ctx, "TRUNCATE TABLE hosts")
 	_, _ = pool.Exec(ctx, "TRUNCATE TABLE users CASCADE")
 	creator, _ := uuid.NewV7()
 	hash, _ := identity.HashPassword("seed-pw-12345-aa")

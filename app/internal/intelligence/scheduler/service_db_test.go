@@ -46,10 +46,14 @@ func freshDBScheduler(t *testing.T) *pgxpool.Pool {
 	if err := migrations.Apply(ctx, pool); err != nil {
 		t.Fatalf("migrations.Apply: %v", err)
 	}
-	_, _ = pool.Exec(ctx, "TRUNCATE TABLE host_intelligence_events")
-	_, _ = pool.Exec(ctx, "TRUNCATE TABLE host_intelligence_state")
-	_, _ = pool.Exec(ctx, "TRUNCATE TABLE host_backoff_state")
-	_, _ = pool.Exec(ctx, "TRUNCATE TABLE hosts")
+	// CASCADE: hosts is referenced by 11 child tables (alerts,
+	// credentials, host_backoff_state, host_compliance_schedule,
+	// host_intelligence_*, host_liveness, host_monitoring_history,
+	// host_rule_state, host_system_info, transactions). Maintaining
+	// a hand-rolled child-truncate list per test file broke every
+	// time a new FK was added — TRUNCATE…CASCADE delegates to the
+	// schema instead.
+	_, _ = pool.Exec(ctx, "TRUNCATE TABLE hosts CASCADE")
 	_, _ = pool.Exec(ctx, "TRUNCATE TABLE users CASCADE")
 	createdBy, _ := uuid.NewV7()
 	hash, _ := identity.HashPassword("seed-pw-12345-aa")

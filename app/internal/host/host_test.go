@@ -42,10 +42,12 @@ func freshService(t *testing.T) (*Service, *pgxpool.Pool, uuid.UUID) {
 	if err := migrations.Apply(ctx, pool); err != nil {
 		t.Fatalf("migrations.Apply: %v", err)
 	}
-	// Hosts cascade clears credentials' host-scope rows (FK ON DELETE RESTRICT
-	// prevents that), so we truncate credentials first.
-	_, _ = pool.Exec(ctx, "TRUNCATE TABLE credentials")
-	_, _ = pool.Exec(ctx, "TRUNCATE TABLE hosts")
+	// TRUNCATE…CASCADE delegates child cleanup to the schema — the
+	// hosts row has 11 FK-referencing children (credentials, alerts,
+	// host_*_state, host_intelligence_*, host_rule_state, transactions,
+	// …) and a hand-rolled list rots every time a new FK is added.
+	// CASCADE bypasses per-row ON DELETE RESTRICT.
+	_, _ = pool.Exec(ctx, "TRUNCATE TABLE hosts CASCADE")
 	_, _ = pool.Exec(ctx, "TRUNCATE TABLE users CASCADE")
 
 	createdBy, _ := uuid.NewV7()

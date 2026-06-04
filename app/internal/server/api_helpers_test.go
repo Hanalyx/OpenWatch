@@ -142,13 +142,12 @@ func freshAPIServer(t *testing.T) (string, *pgxpool.Pool) {
 	// is clearer.
 	_, _ = pool.Exec(ctx, "TRUNCATE TABLE transactions")
 	_, _ = pool.Exec(ctx, "TRUNCATE TABLE host_rule_state")
-	_, _ = pool.Exec(ctx, "TRUNCATE TABLE host_liveness")
-	_, _ = pool.Exec(ctx, "TRUNCATE TABLE host_compliance_schedule")
-	_, _ = pool.Exec(ctx, "TRUNCATE TABLE host_backoff_state")
-	// Slice-A tables. Order matters: credentials FK → hosts, so clear
-	// credentials first. users CASCADE clears sessions/refresh/mfa.
-	_, _ = pool.Exec(ctx, "TRUNCATE TABLE credentials")
-	_, _ = pool.Exec(ctx, "TRUNCATE TABLE hosts")
+	// TRUNCATE…CASCADE delegates child cleanup to the schema — the
+	// hosts row has 11 FK-referencing children and a hand-rolled
+	// list rots every time a new FK is added. CASCADE bypasses
+	// per-row ON DELETE RESTRICT. users CASCADE clears sessions /
+	// refresh / mfa.
+	_, _ = pool.Exec(ctx, "TRUNCATE TABLE hosts CASCADE")
 	_, _ = pool.Exec(ctx, "TRUNCATE TABLE users CASCADE")
 	// Clear custom roles only — built-in rows are seeded by migration 0006
 	// and must survive between tests.
