@@ -1,9 +1,11 @@
-# BACKLOG.md - OpenWatch Prioritized Work Queue
+# BACKLOG.md — OpenWatch Go Prioritized Work Queue
 
-> **Purpose**: Single source of truth for all pending work items, prioritized and actionable.
-> Updated at the end of each AI session. Items flow in from PRD epics, bug reports, and session discoveries.
+> **Purpose**: Single source of truth for pending work in the **OpenWatch Go** rebuild (`app/`).
+> Updated at the end of each AI session.
 
-**Last Updated**: 2026-03-27
+**Last Updated**: 2026-06-04
+**Active Tree**: `app/` (Go backend + React/TypeScript frontend)
+**Frozen Tree**: `backend/` (legacy Python/FastAPI — FROZEN as of 2026-06-04, see CLAUDE.md)
 
 ---
 
@@ -11,166 +13,112 @@
 
 | Priority | Meaning |
 |----------|---------|
-| P0 | Blocker - must be done before production |
-| P1 | High - needed for production readiness |
-| P2 | Medium - improves quality, can defer |
-| P3 | Low - nice to have |
+| P0 | Blocker — must ship before next milestone |
+| P1 | High — needed for parity with the Python release |
+| P2 | Medium — improves quality, can defer |
+| P3 | Low — nice to have |
 
 ---
 
-## Active Epics
-
-### E3: Documentation Reorganization (P1, Complete)
-
-| ID | Story | Priority | Status | Notes |
-|----|-------|----------|--------|-------|
-| E3-S1 | Create Documentation Index | P0 | Complete | `docs/README.md` with navigation |
-| E3-S2 | Create Archive Structure | P1 | Complete | Scope reduced - 2 docs relocated to `architecture/` |
-| E3-S3 | Production Deployment Guide | P0 | Complete | `docs/guides/PRODUCTION_DEPLOYMENT.md` |
-| E3-S4 | Environment Variable Reference | P0 | Complete | `docs/guides/ENVIRONMENT_REFERENCE.md` |
-| E3-S5 | Monitoring Setup Guide | P1 | Complete | `docs/guides/MONITORING_SETUP.md` |
-| E3-S6 | Database Migration Guide | P1 | Complete | `docs/guides/DATABASE_MIGRATIONS.md` |
-| E3-S7 | Security Hardening Guide | P1 | Complete | `docs/guides/SECURITY_HARDENING.md` |
-| E3-S8 | Scaling Guide | P2 | Complete | `docs/guides/SCALING_GUIDE.md` |
-| E3-S9 | Architecture Decision Records | P2 | Complete | 3 ADRs: PostgreSQL, Kensa, modular services |
-| E3-S10 | Update Context Files | P1 | Complete | `context/QUICK_REFERENCE.md`, `DEBUGGING_GUIDE.md` |
-| E3-S11 | Categorize and Move Active Docs | P1 | Complete | 2 docs relocated to `docs/architecture/` |
-
----
-
-### E6: Production Hardening (P1, Complete)
-
-**Depends On**: E1 (Complete), E2 (Complete), E3 (Complete), E5 (Complete)
-
-| ID | Story | Priority | Status | Notes |
-|----|-------|----------|--------|-------|
-| E6-S1 | Production Docker Compose | P0 | Complete | `docker-compose.prod.yml` |
-| E6-S2 | Security Hardening Checklist | P0 | Complete | Covered by E3 `SECURITY_HARDENING.md` section 13 |
-| E6-S3 | Monitoring Dashboard Setup | P1 | Complete | `monitoring/config/` (prometheus, alertmanager, 3 Grafana dashboards) |
-| E6-S4 | Backup and Recovery Procedures | P0 | Complete | `docs/guides/BACKUP_RECOVERY.md` |
-| E6-S5 | Incident Response Runbooks | P1 | Complete | `docs/runbooks/` (5 runbooks) |
-| E6-S6 | Log Aggregation Setup | P2 | Complete | JSON logging in `docker-compose.prod.yml` |
-| E6-S7 | Secret Rotation Procedures | P1 | Complete | `docs/guides/SECRET_ROTATION.md` |
-| E6-S8 | Performance Baseline | P2 | Complete | `k6/baseline.js`, `k6/stress.js` |
-| E6-S9 | Upgrade Procedures | P1 | Complete | `docs/guides/UPGRADE_PROCEDURE.md` |
-| E6-S10 | Compliance Documentation | P2 | Complete | `docs/guides/COMPLIANCE_CONTROLS.md` (NIST/CIS/CMMC/FedRAMP) |
-
----
-
-## Recently Completed (2026-03-27)
+## Recently Completed (2026-06-03 / 2026-06-04 session)
 
 | Item | PR | Notes |
 |------|----|-------|
-| Alpha 0.1.0-alpha.1 release prep | - | 80 specs active, 682 ACs, 44% coverage, RBAC enforced |
-| Dead SCAP-era code deletion | - | ~31K lines removed (content/, xccdf/, owscan, kubernetes scanner, legacy services) |
-| RBAC enforcement audit | - | 188 endpoints across 26 route files |
-| datetime.utcnow() migration | - | 381 occurrences across 98 files replaced with timezone-aware calls |
-| CSP hardening | - | Removed unsafe-inline from script-src |
-| Absolute session timeout | - | 12-hour cap enforced in token verification and refresh |
-| mypy error cleanup | - | 584 to 0 locally |
-| Integration tests | - | 21 test files exercising 284 API endpoints |
-| Documentation stale reference cleanup | - | CLAUDE.md, backend/CLAUDE.md, context/ files updated |
-| Project manifest (.openwatch.yml) | - | Machine-readable single source of truth |
-| requirements-dev.txt | - | CI tool versions pinned |
-| Makefile Python targets | - | py-lint, py-format, py-test, py-coverage, py-specs, py-check |
-| Role-based dashboards | #349 | Widget registry, 6 role presets, 15 ACs, 64 tests |
-| Redux full removal (Phase 8B) | #340 | Packages uninstalled, store/index.ts deleted, hooks/redux.ts deleted, Provider removed |
-| Host monitoring state bug fix | #337 | Spec v1.1 AC-11: graceful handling of stale 'offline' DB values; MonitoringState uses 6-value enum by design |
-| Settings page SSH + session timeout fixes | #348 | SSH policy dropdown, session timeout 500 error |
-| SDD Phase 6: CI enforcement, advisory drift check, 100% AC coverage | #335 | `spec-checks` CI job (mandatory schema + coverage), `check-spec-changes.py` (advisory), 306/306 ACs; SPEC_GOVERNANCE.md maintenance process |
-| SDD Phase 5: 10 API contract specs promoted to active | #333 | error-model + 9 API route contracts; 150 unit tests; 32 active specs total |
-| SDD Phase 4: auth/RBAC specs promoted to active | #332 | authentication, authorization, encryption, mfa, security-controls; 145 tests; fixed Permission count 31→33 |
-| SDD Phase 3: 4 compliance specs promoted to active | #331 | temporal-compliance, exception-governance, alert-thresholds, drift-analysis; 117 tests |
-| SDD Phase 2: 5 specs promoted to active | #328, #329, #330 | remediation-lifecycle, remediation-execution, risk-classification, ssh-security, ssh-connection |
-| SDD Phase 1: scan pipeline specs | prior PRs | kensa-scan, scan-orchestration, drift-detection, orsa-v2 |
-| K-9 Field-level drift detection | #308 | Full implementation: snapshot population fix, value drift, group drift, CSV export, backfill task |
-| K-1 Full Evidence storage | #307 | `evidence JSONB` column on `scan_findings`, populated during Kensa scans |
-| Framework mapping file sync | #304 | PCI DSS now shows ~120 rules (was 2), FedRAMP added as new framework |
-| README rewrite | #306 | Value-first messaging, dashboard screenshot, "Deploy in 10 Minutes" |
-| Aegis to Kensa migration | commit 59cba9ee | Full rename across codebase |
-| MongoDB full removal | #295 | 80 files changed, 19,488 deletions |
+| `sudo -S` password fallback wired into liveness privilege probe + discovery firewall queries | #469 | system-ssh-connectivity v1.2.0 C-09. Three call sites (collector, sshprivilege, discovery) share identical retry shape |
+| SSH dialer fix — AuthBoth offers both PublicKeys AND Password | #470 | Latent bug from #469 rollout — handshake failed on AuthBoth before sudo-n ever ran. Affected 4 dev hosts (owas-rhl10/ub22/ub24/ub26) |
+| `hosts.os_family` stores distro ID, not family rollup | #471 | system-host-discovery v1.3.0 AC-22. Migration 0022 backfills existing rows from `host_system_info.os_id`. Fixed "Ubuntu hosts show as Debian" badge bug |
+| Server intelligence card — 2×3 snapshot tile grid | #472 | frontend-host-detail-intelligence-feed v2.0.0. Replaces event-feed v1.0.0 |
+| TRUNCATE…CASCADE test hygiene | #474 | 6 integration test helpers silently discarded `TRUNCATE TABLE hosts` errors caused by Q1 FK additions (transactions, host_rule_state) |
+| `CardServerIntel` cache-shape collision fix | #475 | New card shared a queryKey with the existing `intelligenceStateQuery` but expected a different value shape — silently rendered "Not collected yet" everywhere |
+| Activity service wired into main + `host_id` filter crash fix | #477 | The service had `WithActivity` but no caller — `/api/v1/activity` returned 503. After wiring, host_id-filtered queries crashed with `invalid input syntax for type uuid: ""` (audit leg's `'' = $hostPH` predicate). system-activity AC-13 added |
+| `host_monitoring_history` as 5th source leg + Recent activity card rewrite | #478 | system-activity v1.0.0 → v1.1.0. Card now consumes the unified `/activity?host_id=X` feed |
+| Recent activity card polish — icons, "View all", 5-row slice, long-form date | #479 | Matches mockup. `View all` links to `/hosts/{id}?tab=activity` (tab is a `TabStub` today) |
 
 ---
 
-## Stretch Goals (from completed epics)
+## Active Work — Host Detail Overview Tab (~90% complete)
 
-These items were deferred when their parent epics were marked "Complete" with baselines in place.
+| Item | Priority | Status | Notes |
+|------|----------|--------|-------|
+| Top failed rules card | P1 | Stub | Returns hardcoded `EmptyState` because no scans have run on the dev fleet. Needs: query `host_rule_state` for `status='fail'`, sort by severity DESC + count DESC, slice to 5, link rule IDs to rule reference page |
+| Compliance trend (last 30 days) card | P1 | Stub | Returns "Not enough data yet" empty state. Needs: posture-snapshot subsystem (BACKLOG). When transactions exist, can derive trend from `transactions` table via a daily aggregate query |
+| Open exceptions count on Server intelligence tile #6 | P2 | Placeholder | Renders `—`. Needs: `/api/v1/compliance/exceptions?host_id=X` wire — exceptions service exists, just no card hook yet |
+| Updates-pending count on Server intelligence tile #1 | P2 | Placeholder | Renders "No updates pending" always. Needs: collector to surface `available_updates` field on the snapshot (apt/dnf unattended-upgrades parsing) |
 
-| ID | Item | Priority | Source | Notes |
-|----|------|----------|--------|-------|
-| E5-G1 | Raise backend coverage to 80% | P2 | E5 | Currently 44%, CI threshold 42% |
-| E5-G2 | Raise frontend coverage to 60% | P2 | E5 | Currently 310+ tests |
-| E5-G3 | JWT token tests | P1 | E5-S2 | **Satisfied by SDD**: `test_auth_api.py` covers JWT (AC-5..AC-9 in auth/login spec) |
-| E5-G4 | Credential encryption tests | P1 | E5-S3 | **Satisfied by SDD**: `test_auth_api.py` + auth/encryption specs cover key behaviors |
-| E5-G5 | Scan integration tests | P1 | E5-S4 | **Satisfied by SDD**: `test_scan_api.py` (36 source-inspection tests, 10/10 ACs) |
-| E5-G6 | Auth integration tests | P1 | E5-S2 | **Satisfied by SDD**: `test_auth_api.py` (24 source-inspection tests, 10/10 ACs) |
-| E5-G7 | Regression test README | P2 | E5-S9 | Process documentation for `tests/regression/` |
+---
+
+## Active Work — Host Detail Other Tabs
+
+| Tab | Priority | Status | Notes |
+|-----|----------|--------|-------|
+| Compliance | P1 | Stub | TabStub placeholder. Needs: per-host compliance summary from `host_rule_state` |
+| Packages | P1 | Partial | Reads `intelligenceStateQuery.data.packages` — works when collector has run. UI exists in `pages/host-detail/InventoryTabs.tsx` |
+| Services | P1 | Partial | Same shape as Packages — reads `intelligenceStateQuery.data.services` |
+| Users | P1 | Partial | Same shape — reads `intelligenceStateQuery.data.users` |
+| Network | P1 | Wired | Renders `intelligenceStateQuery.data.network_interfaces` + `listening_ports` + firewall from `host_system_info` |
+| Audit log | P2 | Stub | Needs host-scoped `audit_events` API hook |
+| Activity | P1 | Stub | **Where "View all" lands today.** Needs full-feed renderer with cursor pagination + source/severity filters on the unified `/api/v1/activity?host_id=X` endpoint |
+| Remediation | P2 | Stub | Kensa Phase 4 (K-2/K-3 done, K-4 risk-aware policies + K-5 snapshot retention pending) |
+| Terminal | P3 | Stub | Browser-based SSH terminal. Web terminal lib + SSH-WS bridge needed |
+
+---
+
+## Activity Feed Follow-ups (from #478/#479)
+
+| Item | Priority | Notes |
+|------|----------|-------|
+| Build out the Activity tab at `/hosts/{id}?tab=activity` | P1 | "View all" on the Recent activity card lands on a `TabStub` today. Tab should render the full feed (paginated, source/severity filters, time-range) |
+| SSE auto-refresh of `host_activity` query key | P2 | `useLiveEvents.ts` invalidates `['host_intelligence_events', hostId]` + `['intelligence_state', hostId]` on `intelligence.event`. Should also invalidate `['host_activity', hostId]` on any of: `intelligence.event`, `monitoring.band.changed`, `alert.fired`, `scan.completed` |
+| Filter NULL→online transitions on first-contact | P3 | Dev-fleet backend restarts wipe `previous_state` so every reboot writes a NULL→online row, dominating the feed. Real fleets won't see this pattern — defer until production reports it |
 
 ---
 
 ## OpenWatch OS Remaining Work
 
-Items from the OpenWatch OS transformation initiative that are not yet complete.
-
 | Item | Priority | Status | Notes |
 |------|----------|--------|-------|
-| **RBAC enforcement audit** | P1 | **Complete** | 188 endpoints across 26 route files now have @require_role() decorators. Verified against authorization spec. |
-| Adaptive Compliance Scheduler | P1 | Planned | Auto-scan with state-based intervals (max 48h). Monitoring spec/fix complete — no longer blocked. |
-| Host Detail Page Redesign | P1 | In Progress | Phase 0 done (backend data fix), Phases 1-6 pending |
-| **Email alert notifications** | P1 | Planned | Allow OpenWatch to send email alerts (SMTP/SES). Users configure which alert types they receive (compliance drift, scan failures, exceptions expiring, host state changes). RBAC-gated: users only receive alerts for resources their role can access. Needs: email service, user notification preferences table, alert-to-email dispatcher, unsubscribe support. |
-| **In-app notifications** | P1 | Planned | Real-time in-app notification system. Bell icon with unread count, notification drawer, mark-as-read. Sources: alerts, scan completions, exception approvals, system events. RBAC-gated: notifications filtered by user role permissions. Needs: notification model (DB), WebSocket or polling delivery, frontend notification center component. |
-| Dashboard layout customization (drag/drop) | P2 | Planned | Spec AC-12 defines 3 tiers: full (drag/drop for admins), limited (show/hide for analysts/compliance), none (fixed for auditor/guest). Preset data structure ready (`customization` field), needs DnD library (e.g. `@dnd-kit/core`), show/hide toggles, and layout persistence (localStorage or API). |
-| Remediation + Subscription (Phase 4) | P3 | Mostly Complete | K-2 and K-3 complete. Remaining: K-4 (risk-aware policies), K-5 (snapshot retention). |
-| OTA Updates (Phase 5) | P3 | Not Started | Kensa integration Phase 5 |
+| Adaptive Compliance Scheduler | P1 | Planned | Auto-scan with state-based intervals (max 48h). Depends on monitoring spec (complete) |
+| Email alert notifications | P1 | Planned | SMTP/SES dispatcher. User preferences table (which alert types). RBAC-gated. The Q1 notification-channels work (Slack/email/webhook) is the foundation |
+| In-app notifications | P1 | Planned | Bell icon with unread count, drawer, mark-as-read. Sources: alerts, scan completions, exception approvals, system events. RBAC-filtered. WebSocket or SSE delivery (the existing SSE bus can carry it) |
+| Dashboard layout customization (drag/drop) | P2 | Planned | 3 tiers per spec AC-12: full (admins), limited (analysts), none (auditor). Preset structure ready, needs `@dnd-kit/core` + persistence |
+| Remediation Phase 4 follow-ups | P3 | Mostly Complete | K-4 (risk-aware policies), K-5 (snapshot retention) |
+| Kensa Phase 5 OTA Updates | P3 | Not Started | OTA delivery of rule updates |
 
 ---
 
 ## OpenWatch+ Subscription
 
-Full product/business planning for the OpenWatch+ paid tier.
-
 | Item | Priority | Status | Notes |
 |------|----------|--------|-------|
-| **Subscription matrix** | P1 | Planned | Define free vs. OpenWatch+ feature matrix. Candidates for gating: host count limits, advanced reporting/export, email alerts, priority support, OTA rule updates, multi-tenant, custom frameworks. |
-| **License key system** | P1 | Planned | Design how license keys are generated, distributed, and validated. Options: offline key file (air-gapped), online activation (phone-home), or hybrid. `LicenseService` already exists in `services/licensing/` — extend it. Key format, expiry, renewal, grace period. |
-| **Payment and activation flow** | P1 | Planned | How customers purchase (website, sales team, PO), receive keys (email, portal), and activate (CLI `owadm activate`, UI Settings page, API endpoint). Consider air-gapped environments (manual key upload). |
-| **License enforcement** | P1 | Planned | Backend enforcement: feature-gate decorators, host count checks, graceful degradation on expiry. Frontend: upgrade prompts, feature lock UI, subscription status in Settings. Existing `LicenseService` has `check_feature()` — wire into routes and UI. |
-| **Sales and distribution** | P2 | Planned | Pricing model (per-host, per-seat, flat tier), trial period, volume discounts, renewal automation. Distribution: self-serve portal vs. sales-assisted. |
+| Subscription matrix | P1 | Planned | Free vs OpenWatch+ feature matrix. Candidates: host count limits, advanced reporting/export, email alerts, priority support, OTA rule updates, multi-tenant, custom frameworks |
+| License key system | P1 | Planned | Offline file (air-gapped) vs online activation vs hybrid. `internal/license` exists; extend. Format, expiry, renewal, grace period |
+| Payment + activation flow | P1 | Planned | Purchase channel, delivery (email/portal), activation (`owadm activate` CLI / UI / API). Air-gapped path: manual key upload |
+| License enforcement | P1 | Planned | Backend: feature-gate decorators, host count checks, graceful degradation on expiry. Frontend: upgrade prompts, lock UI, Settings status |
+| Sales + distribution | P2 | Planned | Per-host vs per-seat vs flat tier. Trial. Volume discounts. Self-serve vs sales-assisted |
 
 ---
 
 ## Kensa Integration Gaps
 
-Gaps identified by comparing `docs/KENSA_DEVELOPER_GUIDE_V0.md` against current OpenWatch implementation (2026-02-23).
+Gaps identified comparing `docs/KENSA_OPENWATCH_BOUNDARY.md` against current OpenWatch implementation.
 
 ### Not Implemented
 
 | ID | Item | Priority | Notes |
 |----|------|----------|-------|
-| K-4 | **Risk-aware remediation policies** | P2 | Kensa classifies remediation steps as high/medium/low risk. Not used for approval gates (e.g., auto-approve low-risk, require human approval for high-risk GRUB/PAM/fstab changes). |
-| K-5 | **Snapshot retention/pruning** | P3 | Kensa has 7-day active / 90-day archive lifecycle for pre-state snapshots. No integration. Depends on K-3. |
-| K-6 | **`get_applicable_mappings()`** | P3 | Kensa can filter mappings by platform (RHEL 8 vs 9). OpenWatch loads all mappings without platform filtering. |
-| K-7 | **`build_rule_to_section_map()`** | P3 | Kensa utility for `rule_id → section_id`. Not used — DB queries used instead. |
-| K-8 | **Inventory file support** | P3 | Kensa accepts INI/YAML/text inventory files. OpenWatch creates individual SSH sessions from host DB. Low value — OpenWatch's approach is correct for its architecture. |
+| K-4 | Risk-aware remediation policies | P2 | Kensa classifies remediation as high/medium/low risk. Use for approval gates (auto-approve low-risk, require human for GRUB/PAM/fstab) |
+| K-5 | Snapshot retention / pruning | P3 | Kensa has 7-day active / 90-day archive lifecycle for pre-state snapshots. Depends on K-3 |
+| K-6 | `get_applicable_mappings()` | P3 | Platform filtering on mappings (RHEL 8 vs 9). Currently load all without filtering |
+| K-7 | `build_rule_to_section_map()` | P3 | Kensa utility; we use DB queries instead. Low impact |
+| K-8 | Inventory file support | P3 | Kensa accepts INI/YAML/text. Our SSH-per-host model is correct — skip |
 
 ### Partially Implemented
 
 | ID | Item | Priority | Current State | Missing |
 |----|------|----------|---------------|---------|
-| K-10 | **Platform filtering** | P2 | `detect_platform()` called, info captured | `rule_applies_to_platform()` not used to filter rules before evaluation |
-| K-11 | **Host context in evidence** | P2 | `SystemInfoCollector` gathers packages, services, users, network | Not stored alongside scan findings; host groups and effective variables not in evidence exports |
-| K-12 | **Bulk scan via Kensa ThreadPoolExecutor** | P3 | OpenWatch dispatches one Celery task per host | Kensa has built-in `--workers N` (ThreadPoolExecutor, max 50) that parallelizes across hosts with one SSH connection per thread. Instead of N Celery tasks for a host group, OpenWatch could dispatch a single Kensa invocation with `-w 30` and an inventory file. Requires: inventory file generation from host DB, result fan-out to per-host DB records, progress tracking for multi-host jobs. |
-
----
-
-## Security Assessment Remediation (2026-03-08)
-
-Items from `docs/OW_SECURITY_ASSESSMENT.md` that require careful sequencing due to breakage risk.
-
-| Item | Priority | Status | Notes |
-|------|----------|--------|-------|
-| **M-2: MFA enforcement in login flow** | P1 | Complete | Login now queries `mfa_enabled`/`mfa_secret` from users table. If MFA enabled: returns `mfa_required: true` when no code provided, validates TOTP/backup code when provided. Migration 002 already added columns. Hardcoded `False` removed. |
-| **H-2: Refresh token rotation** | P1 | Complete | Backend `/api/auth/refresh` now returns rotated `refresh_token` alongside `access_token`. Frontend `tokenService.ts` passes new token to `refreshTokenSuccess()`. `useAuthStore.ts` stores rotated refresh token in both state and localStorage. |
+| K-10 | Platform filtering | P2 | `detect_platform()` called | `rule_applies_to_platform()` not used to filter before evaluation |
+| K-11 | Host context in evidence | P2 | `SystemInfoCollector` gathers facts | Not stored alongside findings; groups + effective vars missing |
+| K-12 | Bulk scan via Kensa ThreadPoolExecutor | P3 | One Kensa invocation per host | Kensa has `--workers N` (max 50) parallelizing across hosts on one SSH thread each. Needs inventory file generation + result fan-out |
 
 ---
 
@@ -178,58 +126,30 @@ Items from `docs/OW_SECURITY_ASSESSMENT.md` that require careful sequencing due 
 
 | Item | Priority | Status | Notes |
 |------|----------|--------|-------|
-| **OS Discovery + OS Intelligence + `/activity` unified page** | P1 | Backend complete; Frontend PRs 5a-8 CI-green awaiting merge; PR 8b + tab activation deferred | **Backend status:** seven PRs merged 2026-06-01 (#440-#446). **Frontend wiring shipped 2026-06-01 (six PRs, all CI-green):** PR 5a (#447, merged) `HostResponse`/`HostListItem` OS fields. PR 5b (#448) `frontend-live-events` v1.0 — useLiveEvents extended to host.discovered + intelligence.event topics. PR 5c (#449) `frontend-host-list-os` v1.0 — deleted `detectOS()` heuristic, new `osDisplayLabel(family)` util at `app/frontend/src/utils/osLabel.ts`. PR 6 (#450) `frontend-host-detail-system-card` v1.0 — System card wired to denormalized OS columns + IntelligenceState snapshot; Re-run Discovery button with `crypto.randomUUID()` idempotency key; extracted to `app/frontend/src/pages/host-detail/CardSystem.tsx`. PR 7 (#451) `frontend-host-detail-intelligence-feed` v1.0 — `CardServerIntel` replaces empty-state with real `GET /intelligence/events?host_id=…` feed; query key matches useLiveEvents auto-refresh target. PR 8 (#452) `api-system-intelligence-config` v1.0 — `GET/PUT /api/v1/system/intelligence/config` backend (spec, store methods, handlers, 8 tests). **Stack-aware merge order:** 5b → 5c → 6 → 7. PR 8 is independent. **Deferred follow-ups:** PR 8b frontend Settings section consuming the new config endpoints (prototype: `app/docs/prototypes/openwatch-v1/Settings.html:1392`). PR 9? Activate Packages/Services/Users/Network host-detail tabs from `IntelligenceState.snapshot.{packages,services,users,listening_ports}` (currently empty-state stubs). |
-| **Specter `sync` ignores `settings.tests_glob`** | P3 | Worked around in CI (`go-ci.yml` passes `--tests '**/*'`); upstream bug | `specter coverage` honors `settings.tests_glob` in `app/specter.yaml`; `specter sync` does not — its coverage phase walks the default extension set only (`.test.ts` / `_test.go`), silently skipping `.test.tsx`. PR 5b's `frontend-live-events` failed CI with 0% coverage until the workflow was patched. Workaround: `.github/workflows/go-ci.yml` calls `specter sync --tests '**/*'`. Upstream fix would be to have `sync` honor the same setting as `coverage`. Comment in `app/specter.yaml` documents the current state. |
-| **Flaky `internal/license/TestVerify_P99Latency` under `-race`** | P3 | Hit once on PR 8 (1.13ms vs <1ms); reran green | The license verifier's p99 budget (<1ms over 1000 calls, spec `system-license-validation/AC-13`) is tight enough that CI runner contention + race detector overhead pushes it over occasionally. Either bump the budget to 2ms, skip the test under `-race`, or pre-warm the verifier before measuring. Low priority — single-run reruns clear it. |
-| **`PATCH /api/v1/credentials/{id}` — in-place credential update** | P2 | Deferred (frontend uses replace-on-save workaround) | No PATCH endpoint exists. `<ReplaceCredentialModal>` (app/frontend/src/pages/settings/CredentialMutations.tsx) compensates with a transparent two-step `POST → DELETE` "replace" workflow — phase indicator ("Creating new…" → "Removing old…") and orphan-detection if the old delete fails. Replace with a real PATCH wire: add `PATCH /credentials/{id}` to `app/api/openapi.yaml` (request body = same shape as POST, secret fields optional; partial updates allowed), implement handler in `app/internal/credential/` (decrypt-rotate-encrypt for secret rotation, no-op for metadata-only edits), then the frontend mutation swap is a 10-line change in `CredentialMutations.tsx` (`replaceMutation` → `patchMutation`). Removes the orphan-credential failure mode entirely. |
-| **`POST /api/v1/bulk/hosts/analyze-csv` + `POST /api/v1/bulk/hosts/import-with-mapping`** | P2 | Deferred (frontend runs analysis client-side, imports row-by-row) | Python frontend had server-side CSV analysis (`/api/bulk/hosts/analyze-csv` returned FieldAnalysis per column with confidence scores + template matches against vCenter / Satellite / AWS EC2 / Azure VMs / Generic) and atomic import-with-mapping (`/api/bulk/hosts/import-with-mapping` with dry-run + update-existing). The Go rebuild has neither. The new wizard (`app/frontend/src/components/hosts/bulk/`) compensates by running `analyzeCSV()` in the browser (7 column patterns, 5 templates, no row-count limit beyond 5 MB) and submitting hosts one POST at a time — which means no all-or-nothing semantics, no per-host PATCH for "update existing" (currently surfaces as "skipped"). To close the gap: add the two endpoints to `app/api/openapi.yaml`, implement multipart CSV ingest + richer template registry in `app/internal/bulk/`, and have the wizard prefer the backend endpoints when present (fall back to client-side for offline / dev). Unblocks "update existing", row-level transaction rollback, and server-enforced row caps. |
-| **Standalone SSH-key vault** | P3 | Deferred (frontend derives keys from credentials) | Today every credential owns its own key material — there is no first-class "SSH key" resource, no key-sharing across credentials. The Settings → SSH keys section therefore renders a derived view of key-bearing credentials, and Add/Replace/Delete operate on the parent credential (see `keys` derivation + `<KeyRow>` wiring in `app/frontend/src/pages/settings/CredentialsPage.tsx`). To promote keys to first-class objects: add a `ssh_keys` table (id, name, type, bits, fingerprint, encrypted_material, comment, created_at), add `GET/POST/DELETE /api/v1/ssh-keys` endpoints, replace the credential's embedded `private_key` field with a `ssh_key_id` reference, then refactor `<KeyRow>` to operate on key IDs directly and add an "Adopt key" picker to the credential modal. Worth doing once rotation cadence forces N credentials × 1 key sharing. |
-| **Track B SSE: wire `/scans`, `/activity`, `/groups` page invalidations** | P2 | Deferred (depends on those pages landing) | The `useLiveEvents` hook in `app/frontend/src/hooks/useLiveEvents.ts` currently invalidates `['hosts']` and `['host', id]` on `host.changed` + `monitoring.band.changed`. When `/scans`, `/activity`, `/groups` ship they'll need: (a) new `EventKind`s on the bus — `scan.started`, `scan.completed`, `scan.failed`, `transaction.appended`, `group.changed` — published from their respective handlers; (b) `useLiveEvents` extended to map each new kind to the right TanStack Query key (`['scans']`, `['transactions']`, `['groups']`, `['host', id, 'compliance_summary']`, etc.); (c) the spec `system-event-bus` AC-07 closed-enum count + the SSE spec `api-events-stream` topic list updated. Defer until each page is being built — easier to wire invalidations alongside the page than retrofit. |
-| **Track B SSE: Last-Event-ID resume cursor** | P3 | Deferred (per-tab in-memory backlog is enough today) | The SSE handler (`app/internal/server/sse_handler.go`) does not honor the `Last-Event-ID` request header that EventSource sends on automatic reconnect. Events published while a browser was disconnected are lost — the eventbus has no persistent log, so there's nothing to replay from. Worth doing if operators report missed band transitions across long network blips: persist published events into a bounded ring (`event_log` table or in-memory deque), give each one a monotonic ID, set `id:` on outgoing SSE messages, and on connect look up Last-Event-ID in the ring to backfill. Cardinality cap + retention TTL needed so the ring doesn't grow unbounded. |
-| **Track B SSE: surface bus drop counter on a metrics endpoint** | P3 | Deferred (counters exist but no scrape) | `eventbus.Bus.Metrics()` already exposes `PublishedCount` / `DeliveredCount` / `DroppedCount` / `NoSubscribersCount` as atomic counters (`app/internal/eventbus/bus.go`). A slow SSE subscriber whose channel buffer fills will silently drop events and operators have no signal. Plumb a `GET /api/v1/system/eventbus/metrics` (admin-only) or merge into the existing system metrics endpoint, then add a Grafana panel / alert rule on `DroppedCount` rate. Cheap once the metrics scrape pattern lands for any other subsystem. |
+| `PATCH /api/v1/credentials/{id}` — in-place credential update | P2 | Deferred | Frontend uses replace-on-save (`<ReplaceCredentialModal>` runs `POST → DELETE`). Real PATCH would close the orphan-credential failure mode |
+| `POST /api/v1/bulk/hosts/analyze-csv` + `import-with-mapping` | P2 | Deferred | Today the wizard runs CSV analysis client-side and submits row-by-row — no atomic semantics, no "update existing", no row caps |
+| Standalone SSH-key vault | P3 | Deferred | Today every credential owns its own key material; no first-class "SSH key" resource. Worth doing when rotation cadence forces N-credentials-share-1-key |
+| Track B SSE: invalidate `['scans']` / `['transactions']` / `['groups']` query keys | P2 | Deferred | Depends on those pages landing. Wire alongside the pages, don't retrofit |
+| Track B SSE: `Last-Event-ID` resume cursor | P3 | Deferred | Events published while disconnected are lost. Needs persistent event ring; defer until operators report missed transitions |
+| Track B SSE: bus drop counter on a metrics endpoint | P3 | Deferred | `eventbus.Bus.Metrics()` exposes counters but nothing scrapes them. Plumb `/api/v1/system/eventbus/metrics` or merge into existing metrics endpoint |
+| Specter `sync` ignores `settings.tests_glob` | P3 | Worked around | CI passes `--tests '**/*'`; upstream bug. Documented in `app/specter.yaml` |
 
 ---
 
-## Bugs
-
-| Item | Priority | Status | Notes |
-|------|----------|--------|-------|
-| Fix 9 pre-existing test failures | P1 | Open | Spec-code drift: MFA admin endpoints, X-Forwarded-For handling |
-| "OpenSCAP" text in 4 frontend files | P2 | Open | `PreFlightValidationDialog.tsx:170`, `ScanMetricsCards.tsx:53`, `ReviewStartStep.tsx:126`, `scanUtils.ts:237,240` — should reference Kensa |
-| Settings: placeholder compliance frameworks list | P2 | Open | `Settings.tsx:~1014-1028` — hardcoded framework table, not fetched from backend |
-| Settings: logging policy placeholder | P2 | Open | `Settings.tsx:~998-1028` — audit logging section has placeholder content |
-| Settings: Known Hosts tab not wired to backend | P2 | Open | `get_known_hosts()` exists in `KnownHostsManager` (`ssh/known_hosts.py:118`) but frontend doesn't call it |
-
----
-
-## Technical Debt
+## CI / Flakes
 
 | Item | Priority | Notes |
 |------|----------|-------|
-| Remove XCCDF/lxml dependency from OWCA | P2 | `owca/extraction/xccdf_parser.py` imports lxml at module level via `owca/__init__.py`. Legacy OpenSCAP path — Kensa doesn't use XCCDF. Refactor to make import conditional or remove XCCDF parser from OWCA init. Blocks removing lxml from requirements.txt. |
-| Snake_case to camelCase scattered transformation | P2 | No centralized adapters (Rule Reference has one, others don't) |
-| Liveness ping port detection | P2 | `liveness_tasks.py` defaults to port 22. Hosts on non-standard SSH ports show as unreachable. Read port from host credential config. |
-| Compliance-as-Code API | P3 | External tool integration for compliance checks |
-
-## Q1 Completed (2026-04-11 to 2026-04-13)
-
-| Item | Notes |
-|------|-------|
-| Transaction log (write-on-change model) | `transactions` + `host_rule_state` tables, 99.7% write reduction |
-| Host liveness monitoring | TCP ping every 5 min, HOST_UNREACHABLE/RECOVERED alerts |
-| Notification channels | Slack, email, webhook dispatch + admin CRUD |
-| SSO federation | OIDC (authlib) + SAML (pysaml2), login/callback routes |
-| PostgreSQL job queue | Replaces Celery + Redis (SKIP LOCKED, 40 tasks, scheduler) |
-| Dependency cleanup | 13 packages removed, Chart.js removed from frontend |
-| Redis + Celery removed | Zero Redis/Celery in codebase, 4 containers (down from 6) |
-| Rules-first transactions UI | `/transactions` → `/transactions/rule/:id` → `/transactions/:id` |
+| `internal/license.TestVerify_P99Latency` flake under `-race` | P3 | Tight <1ms p99 budget. Bump to 2ms, skip under `-race`, or pre-warm verifier |
+| `internal/audit.TestEmitSync_Latency` flake | P3 | p99 latency assertion, sensitive to CI runner load. Hit on PR #477 — single rerun cleared |
+| `internal/queue.TestEnqueue_LatencyP99` flake | P3 | Same shape — hit on PR #479, single rerun cleared. Trend: three p99 flakes in one session — consider widening all budgets or moving them to a perf-suite that doesn't gate merges |
 
 ---
 
 ## How to Use This File
 
-1. **Starting a session**: Read this file to understand current priorities
-2. **Picking work**: Start from the top of the highest-priority active epic
-3. **Completing work**: Update status here and in the relevant PRD epic file
-4. **Discovering new work**: Add items to the appropriate section
-5. **Ending a session**: Update statuses and add any new items discovered
+1. **Starting a session**: Read this file alongside `CLAUDE.md` and `SESSION_LOG.md`
+2. **Picking work**: Default to the highest-priority "Active Work" sections, then the OpenWatch OS or OpenWatch+ planned items
+3. **Completing work**: Move the row out of "Active" into "Recently Completed", note the PR
+4. **Discovering new work**: Add to the most appropriate section
+5. **Ending a session**: Update statuses, prepend SESSION_LOG, create a handoff file in `docs/handoff/` if the next session will be a different operator
