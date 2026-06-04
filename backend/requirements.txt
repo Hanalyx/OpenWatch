@@ -6,7 +6,7 @@
 # Core web framework
 fastapi==0.129.0
 uvicorn[standard]==0.40.0
-starlette==0.52.1  # Security: CVE-2025-62727 fixed
+starlette==1.0.1  # Security: CVE-2025-62727 fixed
 python-multipart==0.0.22
 
 # Database (PostgreSQL only)
