@@ -3,8 +3,11 @@ import { useParams, useSearch, useNavigate, Link } from '@tanstack/react-router'
 import { useEffect, useMemo, useState } from 'react';
 import {
   Activity as ActivityIcon,
+  AlertTriangle,
   Bell,
+  CheckCircle2,
   ChevronLeft,
+  ChevronRight,
   Circle,
   Clock,
   FileText,
@@ -210,7 +213,6 @@ const DEFAULT_SUMMARY: ComplianceSummary = {
   total: 0,
 };
 
-const PAGE_SIZE = 50;
 
 // ─────────────────────────────────────────────────────────────────────────
 // Page
@@ -451,6 +453,7 @@ export function HostDetailPage() {
                     systemInfo={systemInfoQuery.data ?? null}
                   />
                   <CardRecentActivity
+                    hostId={detailQuery.data.host.id}
                     isLoading={activityQuery.isLoading}
                     isError={activityQuery.isError}
                     items={activityQuery.data ?? []}
@@ -1323,20 +1326,46 @@ function CardComplianceTrend() {
   );
 }
 
+// RECENT_LIMIT caps the overview card at the most-recent N rows.
+// The mockup shows exactly 5; deeper history is reached via the
+// "View all" link that routes to the activity tab.
+const RECENT_LIMIT = 5;
+
 function CardRecentActivity({
+  hostId,
   isLoading,
   isError,
   items,
   onRetry,
 }: {
+  hostId: string;
   isLoading: boolean;
   isError: boolean;
   items: ActivityItem[];
   onRetry: () => void;
 }) {
-  const visible = useMemo(() => items.slice(0, PAGE_SIZE), [items]);
+  const visible = useMemo(() => items.slice(0, RECENT_LIMIT), [items]);
   return (
-    <Card title="Recent activity">
+    <Card
+      title="Recent activity"
+      headerRight={
+        <Link
+          to="/hosts/$hostId"
+          params={{ hostId }}
+          search={{ tab: 'activity' }}
+          style={{
+            color: 'var(--ow-link)',
+            fontSize: 12,
+            textDecoration: 'none',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 2,
+          }}
+        >
+          View all <ChevronRight size={12} />
+        </Link>
+      }
+    >
       {isLoading ? (
         <div style={{ color: 'var(--ow-fg-2)', fontSize: 12 }}>Loading…</div>
       ) : isError ? (
@@ -1380,7 +1409,7 @@ function CardRecentActivity({
 }
 
 function ActivityRow({ item }: { item: ActivityItem }) {
-  const sev = activitySeverityColors(item.severity);
+  const { Icon, color } = activityIconFor(item);
   return (
     <li
       style={{
@@ -1391,7 +1420,7 @@ function ActivityRow({ item }: { item: ActivityItem }) {
         borderBottom: '1px solid var(--ow-line)',
       }}
     >
-      <Circle size={8} fill={sev.dot} color={sev.dot} style={{ marginTop: 5 }} />
+      <Icon size={14} color={color} style={{ marginTop: 2, flexShrink: 0 }} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ color: 'var(--ow-fg-0)', fontSize: 13 }}>{item.title}</div>
         {item.summary ? (
@@ -1408,16 +1437,14 @@ function ActivityRow({ item }: { item: ActivityItem }) {
         ) : null}
       </div>
       <div style={{ color: 'var(--ow-fg-3)', fontSize: 11, whiteSpace: 'nowrap' }}>
-        {relativeMinutes(item.occurred_at)}
+        {activityRelativeTime(item.occurred_at)}
       </div>
     </li>
   );
 }
 
 // activitySeverityColors maps the closed severity enum onto the
-// existing OW color tokens. The prior MonitoringBand → color table
-// (severityFor below) is still used by the liveness state-machine
-// chips elsewhere on the page — kept untouched.
+// existing OW color tokens.
 function activitySeverityColors(s: ActivitySeverity): { fg: string; dot: string } {
   switch (s) {
     case 'critical':
@@ -1434,12 +1461,73 @@ function activitySeverityColors(s: ActivitySeverity): { fg: string; dot: string 
   }
 }
 
+// activityIconFor picks the lucide glyph per source. Color follows
+// severity — a downed host renders red WifiOff, an online recovery
+// renders green Wifi. Sources without strong glyph semantics (alert,
+// audit, intel) fall back to a representative icon per source.
+function activityIconFor(item: ActivityItem): { Icon: LucideIcon; color: string } {
+  const c = activitySeverityColors(item.severity);
+  switch (item.source) {
+    case 'monitoring':
+      if (item.severity === 'critical' || item.severity === 'high') {
+        return { Icon: WifiOff, color: c.fg };
+      }
+      if (item.severity === 'medium') {
+        return { Icon: AlertTriangle, color: c.fg };
+      }
+      return { Icon: Wifi, color: c.fg };
+    case 'transaction':
+      if (item.severity === 'info' || item.severity === 'low') {
+        return { Icon: CheckCircle2, color: c.fg };
+      }
+      return { Icon: RefreshCw, color: c.fg };
+    case 'audit':
+      return { Icon: FileText, color: c.fg };
+    case 'intelligence':
+      return { Icon: Package, color: c.fg };
+    case 'alert':
+      return { Icon: Bell, color: c.fg };
+    default:
+      return { Icon: ActivityIcon, color: c.fg };
+  }
+}
+
+// activityRelativeTime renders the right-side timestamp. The mockup
+// uses relative wording for fresh events (m / h / d ago) and an
+// absolute date for events older than 30 days — a sensible cutoff
+// that prevents "412d ago" cells while keeping the recent feed
+// chatty.
+function activityRelativeTime(iso: string): string {
+  const t = new Date(iso).getTime();
+  if (Number.isNaN(t)) return '—';
+  const minutes = Math.max(0, Math.round((Date.now() - t) / 60_000));
+  if (minutes < 1) return 'just now';
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.round(hours / 24);
+  if (days <= 30) return `${days}d ago`;
+  return new Date(iso).toLocaleDateString(undefined, {
+    month: 'numeric',
+    day: 'numeric',
+    year: 'numeric',
+  });
+}
+
 
 // ─────────────────────────────────────────────────────────────────────────
 // Reusable bits (cards, kv rows, empty states, etc.)
 // ─────────────────────────────────────────────────────────────────────────
 
-function Card({ title, children }: { title: string; children: React.ReactNode }) {
+function Card({
+  title,
+  headerRight,
+  children,
+}: {
+  title: string;
+  headerRight?: React.ReactNode;
+  children: React.ReactNode;
+}) {
   return (
     <section
       style={{
@@ -1449,8 +1537,17 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
         padding: 18,
       }}
     >
-      <header style={{ marginBottom: 12, display: 'flex', justifyContent: 'space-between' }}>
+      <header
+        style={{
+          marginBottom: 12,
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: 12,
+        }}
+      >
         <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>{title}</h3>
+        {headerRight ? <div>{headerRight}</div> : null}
       </header>
       <div>{children}</div>
     </section>

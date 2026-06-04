@@ -240,11 +240,21 @@ describe('frontend-host-detail — prototype shell', () => {
   });
 
   // @ac AC-26
-  test('frontend-host-detail/AC-26 — recent activity card sources from monitoring history', () => {
+  test('frontend-host-detail/AC-26 — recent activity card sources from unified /activity feed, slices to 5, links to Activity tab', () => {
     expect(PAGE_SRC).toContain('CardRecentActivity');
-    // The card fetches GET /hosts/{id}/monitoring/history.
-    expect(PAGE_SRC).toContain('/api/v1/hosts/{host_id}/monitoring/history');
-    // Empty-state copy.
+    // The card fetches GET /api/v1/activity scoped by host_id —
+    // system-activity v1.1.0 union (alert + transaction +
+    // intelligence + audit + monitoring). The legacy
+    // /monitoring/history binding is gone.
+    expect(PAGE_SRC).toContain("'/api/v1/activity'");
+    expect(PAGE_SRC).toMatch(/host_id:\s*hostId/);
+    expect(PAGE_SRC).not.toContain('/monitoring/history');
+    // Slice cap.
+    expect(PAGE_SRC).toMatch(/RECENT_LIMIT\s*=\s*5/);
+    // "View all" affordance routes to the host's Activity tab.
+    expect(PAGE_SRC).toMatch(/View all/);
+    expect(PAGE_SRC).toMatch(/tab:\s*['"]activity['"]/);
+    // Empty-state copy preserved.
     expect(PAGE_SRC).toMatch(/No activity yet/i);
   });
 
