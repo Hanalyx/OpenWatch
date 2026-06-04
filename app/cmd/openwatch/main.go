@@ -21,6 +21,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/Hanalyx/openwatch/internal/activity"
 	"github.com/Hanalyx/openwatch/internal/alertrouter"
 	stdoutchan "github.com/Hanalyx/openwatch/internal/alertrouter/channels/stdout"
 	"github.com/Hanalyx/openwatch/internal/audit"
@@ -418,7 +419,8 @@ func cmdServe(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 	srv := server.New(cfg, pool).
 		WithConnectivityConfig(cfgStore, liveSvc).
 		WithDiscovery(discoSvc).
-		WithEventBus(bus)
+		WithEventBus(bus).
+		WithActivity(activity.NewService(pool))
 	runErr := srv.Run(ctx)
 
 	// Shutdown order REVERSE of boot (C-02). liveness.Run + alertrouter

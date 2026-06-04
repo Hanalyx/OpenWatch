@@ -117,7 +117,14 @@ func (s *Service) queryUnion(ctx context.Context, f Filter, includeAlerts, inclu
 	// commonWhere is the per-leg filter snippet. timeCol is the column
 	// each leg uses as the "when" timestamp (occurred_at uniformly,
 	// but kept as a parameter in case a future source uses detected_at).
-	commonWhere := func(severityCol, timeCol, hostCol string, hostNullable bool) string {
+	// hasHostCol=false means the leg has no host_id column (e.g.
+	// audit_events) and MUST be excluded when a host_id filter is
+	// applied — emitting a FALSE predicate keeps the column shape of
+	// the UNION while skipping every row. The previous shape passed
+	// hostCol="''" and "''=$hostPH" which crashed Postgres with
+	// `invalid input syntax for type uuid: ""` whenever host_id was
+	// set (the parameter is a uuid.UUID and PG won't cast '' to uuid).
+	commonWhere := func(severityCol, timeCol, hostCol string, hasHostCol bool) string {
 		parts := []string{}
 		if severityPH != "" {
 			parts = append(parts, severityCol+" = "+severityPH)
@@ -129,10 +136,10 @@ func (s *Service) queryUnion(ctx context.Context, f Filter, includeAlerts, inclu
 			parts = append(parts, timeCol+" < "+untilPH)
 		}
 		if hostPH != "" {
-			if hostNullable {
+			if hasHostCol {
 				parts = append(parts, hostCol+" = "+hostPH)
 			} else {
-				parts = append(parts, hostCol+" = "+hostPH)
+				parts = append(parts, "FALSE")
 			}
 		}
 		if cursorPH != "" {
@@ -153,7 +160,7 @@ func (s *Service) queryUnion(ctx context.Context, f Filter, includeAlerts, inclu
 			       occurred_at
 			  FROM alerts
 			 WHERE state != 'dismissed'`+
-			commonWhere("severity", "occurred_at", "host_id", true))
+			commonWhere("severity", "occurred_at", "host_id", true /* hasHostCol */))
 	}
 	if includeTxn {
 		legs = append(legs, `
@@ -165,7 +172,7 @@ func (s *Service) queryUnion(ctx context.Context, f Filter, includeAlerts, inclu
 			       occurred_at
 			  FROM transactions
 			 WHERE 1=1`+
-			commonWhere("COALESCE(severity, 'info')", "occurred_at", "host_id", false))
+			commonWhere("COALESCE(severity, 'info')", "occurred_at", "host_id", true /* hasHostCol */))
 	}
 	if includeIntel {
 		legs = append(legs, `
@@ -176,7 +183,7 @@ func (s *Service) queryUnion(ctx context.Context, f Filter, includeAlerts, inclu
 			       occurred_at
 			  FROM host_intelligence_events
 			 WHERE 1=1`+
-			commonWhere("severity", "occurred_at", "host_id", false))
+			commonWhere("severity", "occurred_at", "host_id", true /* hasHostCol */))
 	}
 	if includeAudit {
 		// audit_events severity is info|warning|error|critical — map
@@ -195,7 +202,7 @@ func (s *Service) queryUnion(ctx context.Context, f Filter, includeAlerts, inclu
 			       occurred_at
 			  FROM audit_events
 			 WHERE 1=1`+
-			commonWhere(auditSev, "occurred_at", "''", true))
+			commonWhere(auditSev, "occurred_at", "", false))
 	}
 
 	if len(legs) == 0 {
@@ -268,7 +275,10 @@ func (s *Service) countHidden(ctx context.Context, f Filter, supAlerts, supTxn, 
 		}
 	}
 
-	commonWhere := func(severityCol, timeCol, hostCol string) string {
+	// Mirrors queryUnion.commonWhere — hasHostCol=false makes the leg
+	// evaluate to FALSE when a host_id filter is applied, avoiding the
+	// `'' = $uuid` type-cast crash on the audit leg.
+	commonWhere := func(severityCol, timeCol, hostCol string, hasHostCol bool) string {
 		parts := []string{}
 		if severityPH != "" {
 			parts = append(parts, severityCol+" = "+severityPH)
@@ -280,7 +290,11 @@ func (s *Service) countHidden(ctx context.Context, f Filter, supAlerts, supTxn, 
 			parts = append(parts, timeCol+" < "+untilPH)
 		}
 		if hostPH != "" {
-			parts = append(parts, hostCol+" = "+hostPH)
+			if hasHostCol {
+				parts = append(parts, hostCol+" = "+hostPH)
+			} else {
+				parts = append(parts, "FALSE")
+			}
 		}
 		if cursorPH != "" {
 			parts = append(parts, timeCol+" < "+cursorPH)
@@ -294,20 +308,20 @@ func (s *Service) countHidden(ctx context.Context, f Filter, supAlerts, supTxn, 
 	parts := []string{}
 	if supAlerts {
 		parts = append(parts, `SELECT count(*) FROM alerts WHERE state != 'dismissed'`+
-			commonWhere("severity", "occurred_at", "host_id"))
+			commonWhere("severity", "occurred_at", "host_id", true))
 	}
 	if supTxn {
 		parts = append(parts, `SELECT count(*) FROM transactions WHERE 1=1`+
-			commonWhere("COALESCE(severity, 'info')", "occurred_at", "host_id"))
+			commonWhere("COALESCE(severity, 'info')", "occurred_at", "host_id", true))
 	}
 	if supIntel {
 		parts = append(parts, `SELECT count(*) FROM host_intelligence_events WHERE 1=1`+
-			commonWhere("severity", "occurred_at", "host_id"))
+			commonWhere("severity", "occurred_at", "host_id", true))
 	}
 	if supAudit {
 		auditSev := `CASE severity WHEN 'warning' THEN 'medium' WHEN 'error' THEN 'high' ELSE COALESCE(severity, 'info') END`
 		parts = append(parts, `SELECT count(*) FROM audit_events WHERE 1=1`+
-			commonWhere(auditSev, "occurred_at", "''"))
+			commonWhere(auditSev, "occurred_at", "", false))
 	}
 	if len(parts) == 0 {
 		return 0, nil

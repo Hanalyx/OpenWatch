@@ -350,6 +350,63 @@ func TestList_CursorPagination(t *testing.T) {
 	})
 }
 
+// @ac AC-13
+// Regression: an earlier version of commonWhere passed hostCol="”"
+// for the audit leg and emitted `” = $hostPH` when host_id was set.
+// pgx encodes the parameter as a uuid, so Postgres tried to cast ”
+// to uuid and the whole UNION crashed with
+// `invalid input syntax for type uuid: ""`. The host-filtered list
+// MUST now succeed and include rows from sources that DO have a
+// host_id column (alert + transaction + intelligence) while excluding
+// audit rows (host-agnostic source).
+func TestList_HostIDFilter_ExcludesAuditWithoutCrashing(t *testing.T) {
+	t.Run("system-activity/AC-13", func(t *testing.T) {
+		pool, creator := freshDB(t)
+		hostA := seedHost(t, pool, creator)
+		base := time.Now().UTC()
+		seedAllSources(t, pool, hostA, base)
+
+		// A second host with its own alert — must NOT appear under
+		// hostA's filter.
+		hostB := seedHost(t, pool, creator)
+		store := alertrouter.NewPgxStore(pool)
+		if _, err := store.Insert(context.Background(), alertrouter.Alert{
+			Type: alertrouter.AlertTypeHostUnreachable, Severity: alertrouter.SeverityLow,
+			HostID: hostB, OccurredAt: base.Add(-90 * time.Second),
+			Title: "hostB alert", Tags: map[string]string{"severity": "low"},
+		}); err != nil {
+			t.Fatalf("seed hostB alert: %v", err)
+		}
+
+		svc := NewService(pool)
+		rows, _, _, err := svc.List(context.Background(),
+			Filter{Limit: 50, HostID: &hostA},
+			Caller{CanReadAlerts: true, CanReadHosts: true, CanReadAudit: true})
+		if err != nil {
+			t.Fatalf("List: %v (regression: '' = $uuid crash)", err)
+		}
+		// Expect 3 rows: alert + transaction + intelligence for hostA.
+		// Audit MUST be excluded (no host_id column). hostB's alert
+		// MUST be excluded (different host).
+		if len(rows) != 3 {
+			t.Fatalf("rows=%d, want 3 (alert+txn+intel for hostA)", len(rows))
+		}
+		seen := map[Source]bool{}
+		for _, r := range rows {
+			seen[r.Source] = true
+			if r.HostID == nil || *r.HostID != hostA {
+				t.Errorf("row source=%s host_id=%v, want hostA=%v", r.Source, r.HostID, hostA)
+			}
+		}
+		if !seen[SourceAlert] || !seen[SourceTransaction] || !seen[SourceIntelligence] {
+			t.Errorf("missing source(s): %v", seen)
+		}
+		if seen[SourceAudit] {
+			t.Errorf("audit rows leaked into host-filtered result")
+		}
+	})
+}
+
 // stringFromInt avoids importing strconv just for a tiny helper.
 func stringFromInt(n int) string {
 	if n == 0 {
