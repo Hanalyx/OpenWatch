@@ -1604,7 +1604,7 @@ paths:
   /api/v1/activity:
     get:
       operationId: getActivity
-      summary: Unified Activity feed (UNION over alerts + transactions + intelligence + audit)
+      summary: Unified Activity feed (UNION over alerts + transactions + intelligence + audit + monitoring)
       description: |
         Returns the per-source RBAC-filtered union of recent events.
         Caller's permissions decide which sources contribute; hidden_count
@@ -1613,7 +1613,7 @@ paths:
       parameters:
         - name: source
           in: query
-          schema: {type: string, enum: [alert, transaction, intelligence, audit]}
+          schema: {type: string, enum: [alert, transaction, intelligence, audit, monitoring]}
         - name: severity
           in: query
           schema: {type: string, enum: [info, low, medium, high, critical]}
@@ -2446,7 +2446,7 @@ components:
       required: [id, source, severity, title, occurred_at]
       properties:
         id:          {type: string, format: uuid}
-        source:      {type: string, enum: [alert, transaction, intelligence, audit]}
+        source:      {type: string, enum: [alert, transaction, intelligence, audit, monitoring]}
         severity:    {type: string, enum: [info, low, medium, high, critical]}
         host_id:     {type: string, format: uuid, nullable: true}
         title:       {type: string}

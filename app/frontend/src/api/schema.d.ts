@@ -1082,7 +1082,7 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Unified Activity feed (UNION over alerts + transactions + intelligence + audit)
+         * Unified Activity feed (UNION over alerts + transactions + intelligence + audit + monitoring)
          * @description Returns the per-source RBAC-filtered union of recent events.
          *     Caller's permissions decide which sources contribute; hidden_count
          *     reports how many rows the caller's RBAC suppressed so the UI
@@ -1705,7 +1705,7 @@ export interface components {
             /** Format: uuid */
             id: string;
             /** @enum {string} */
-            source: "alert" | "transaction" | "intelligence" | "audit";
+            source: "alert" | "transaction" | "intelligence" | "audit" | "monitoring";
             /** @enum {string} */
             severity: "info" | "low" | "medium" | "high" | "critical";
             /** Format: uuid */
@@ -4162,7 +4162,7 @@ export interface operations {
     getActivity: {
         parameters: {
             query?: {
-                source?: "alert" | "transaction" | "intelligence" | "audit";
+                source?: "alert" | "transaction" | "intelligence" | "audit" | "monitoring";
                 severity?: "info" | "low" | "medium" | "high" | "critical";
                 host_id?: string;
                 since?: string;

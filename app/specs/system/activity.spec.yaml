@@ -1,21 +1,22 @@
 spec:
   id: system-activity
   title: Activity unified-feed service
-  version: "1.0.0"
+  version: "1.1.0"
   status: approved
   tier: 2
 
   context:
     system: openwatch-go
-    feature: UNION query over alerts + transactions + intelligence_events + audit_events with row-level RBAC and seek-cursor pagination
+    feature: UNION query over alerts + transactions + intelligence_events + audit_events + host_monitoring_history with row-level RBAC and seek-cursor pagination
     description: >
       Activity is the operator-facing "Eye on the fleet" — a unified
-      feed that merges four time-ordered sources into one stream:
+      feed that merges five time-ordered sources into one stream:
 
         - alerts (system-alert-router persistence; lifecycle via system-alerts)
         - transactions (compliance state changes — Slice B Q1)
         - intelligence_events (OS Intelligence diff log — PR 1.2)
         - audit_events (who-did-what — audit-emission)
+        - host_monitoring_history (liveness band transitions — v1.1.0)
 
       Each source has its own RBAC. system-activity wraps them with a
       single Service.List that:
@@ -84,7 +85,7 @@ spec:
       type: technical
       enforcement: error
     - id: C-05
-      description: 'Source filter accepts the closed enum {alert, transaction, intelligence, audit} or "" (all sources). Unknown values return ErrInvalidSource'
+      description: 'Source filter accepts the closed enum {alert, transaction, intelligence, audit, monitoring} or "" (all sources). Unknown values return ErrInvalidSource'
       type: technical
       enforcement: error
     - id: C-06
@@ -93,6 +94,10 @@ spec:
       enforcement: error
     - id: C-07
       description: 'internal/activity MUST NOT import internal/server or net/http. The package is read-only and HTTP-free; the API surface lives in api-activity'
+      type: technical
+      enforcement: error
+    - id: C-08
+      description: 'v1.1.0 — A fifth leg projects host_monitoring_history into the unified Row shape: source=monitoring, host_id from the column, occurred_at from check_time, gated by CanReadHosts (same as transactions / intelligence — monitoring is host-scoped per-host operational data). The leg MUST filter to transition rows only (previous_state IS NULL OR monitoring_state <> previous_state) — every probe writes a history row, but only state changes are interesting on the operator-facing feed. Severity maps the band onto the closed severity enum: down→critical, critical→high, degraded→medium, online/maintenance→info. Title is operator-readable ("Host became unreachable" for down, "Host degraded" for degraded, "Host recovered" for online when previous_state was non-null, etc.). Summary surfaces error_message when present, falling back to "<failed_layer> fail". Because host_monitoring_history.id is a bigint sequence and Row.ID is a uuid, the leg synthesizes a stable uuid from the bigint via the deterministic prefix "00000000-0000-7000-8000-" + lpad(to_hex(id), 12, "0").'
       type: technical
       enforcement: error
 
@@ -146,6 +151,10 @@ spec:
       priority: high
       references_constraints: [C-07]
     - id: AC-13
-      description: 'Service.List with HostID set MUST NOT crash on the audit leg. Audit has no host_id column; when HostID is set the audit leg MUST evaluate to FALSE (or be skipped) and the response MUST contain only rows from sources that DO carry a host_id column (alert + transaction + intelligence) for the requested host. Regression: a prior implementation emitted `'''' = $hostPH` against a uuid-typed parameter which crashed the union with `invalid input syntax for type uuid: ""`.'
+      description: 'Service.List with HostID set MUST NOT crash on the audit leg. Audit has no host_id column; when HostID is set the audit leg MUST evaluate to FALSE (or be skipped) and the response MUST contain only rows from sources that DO carry a host_id column (alert + transaction + intelligence + monitoring) for the requested host. Regression: a prior implementation emitted `'''' = $hostPH` against a uuid-typed parameter which crashed the union with `invalid input syntax for type uuid: ""`.'
       priority: critical
       references_constraints: [C-01, C-02]
+    - id: AC-14
+      description: 'v1.1.0 — Service.List against host_monitoring_history rows with at least one band transition (e.g. online→degraded with failed_layer="ssh" and error_message="SSH refused") returns a Row with source=monitoring, severity=medium, host_id set, title="Host degraded", summary="SSH refused". A second history row whose monitoring_state equals previous_state (no transition) MUST NOT appear in the result. The leg gates on CanReadHosts — a caller missing host:read sees zero monitoring rows and the count flows into hiddenByRBAC.'
+      priority: critical
+      references_constraints: [C-08]

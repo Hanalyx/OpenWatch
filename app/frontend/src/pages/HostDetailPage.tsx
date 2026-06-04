@@ -127,19 +127,29 @@ interface HostDetail {
   compliance_summary: ComplianceSummary;
 }
 
-interface MonitoringHistoryEntry {
-  id: number;
-  host_id: string;
-  check_time: string;
-  monitoring_state: MonitoringBand;
-  previous_state?: MonitoringBand | null;
-  response_time_ms?: number | null;
-  ping_ok?: boolean | null;
-  ssh_ok?: boolean | null;
-  privilege_ok?: boolean | null;
-  failed_layer?: 'ping' | 'ssh' | 'privilege' | null;
-  error_message?: string | null;
-  error_type?: string | null;
+// ActivityItem mirrors the api.Activity envelope returned by
+// GET /api/v1/activity. Source-aware rendering branches on `source`.
+// Replaces the prior MonitoringHistoryEntry shape — Recent Activity
+// is now the unified union (monitoring band transitions + scan
+// transactions + intelligence events + alerts + audit) per
+// system-activity v1.1.0.
+type ActivitySource =
+  | 'alert'
+  | 'transaction'
+  | 'intelligence'
+  | 'audit'
+  | 'monitoring';
+
+type ActivitySeverity = 'info' | 'low' | 'medium' | 'high' | 'critical';
+
+interface ActivityItem {
+  id: string;
+  source: ActivitySource;
+  severity: ActivitySeverity;
+  host_id?: string | null;
+  title: string;
+  summary?: string;
+  occurred_at: string;
 }
 
 type TabId =
@@ -259,19 +269,23 @@ export function HostDetailPage() {
     enabled: !!hostId,
   });
 
-  const historyQuery = useQuery({
-    queryKey: ['host', hostId, 'monitoring-history'],
+  // Recent Activity now consumes the unified /api/v1/activity feed
+  // scoped to this host. system-activity v1.1.0 unions five sources:
+  // alert, transaction, intelligence, audit, monitoring (band
+  // transitions). The per-host filter excludes audit (it has no
+  // host_id column — the leg evaluates FALSE under host filter).
+  const activityQuery = useQuery({
+    queryKey: ['host_activity', hostId],
     queryFn: async () => {
-      const { data, error, response } = await api.GET(
-        '/api/v1/hosts/{host_id}/monitoring/history',
-        {
-          params: { path: { host_id: hostId }, query: { limit: 25 } },
-        },
-      );
-      if (response.status === 404) return [] as MonitoringHistoryEntry[];
-      if (error) throw error;
-      const raw = data as unknown as { entries?: MonitoringHistoryEntry[] } | null;
-      return raw?.entries ?? [];
+      const { data, error, response } = await api.GET('/api/v1/activity', {
+        params: { query: { host_id: hostId, limit: 25 } },
+      });
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      if (error) throw new Error('activity fetch failed');
+      const raw = data as unknown as { items?: ActivityItem[] } | null;
+      return raw?.items ?? [];
     },
     enabled: !!hostId,
     retry: false,
@@ -437,10 +451,10 @@ export function HostDetailPage() {
                     systemInfo={systemInfoQuery.data ?? null}
                   />
                   <CardRecentActivity
-                    isLoading={historyQuery.isLoading}
-                    isError={historyQuery.isError}
-                    entries={historyQuery.data ?? []}
-                    onRetry={() => historyQuery.refetch()}
+                    isLoading={activityQuery.isLoading}
+                    isError={activityQuery.isError}
+                    items={activityQuery.data ?? []}
+                    onRetry={() => activityQuery.refetch()}
                   />
                 </div>
               </section>
@@ -1312,21 +1326,29 @@ function CardComplianceTrend() {
 function CardRecentActivity({
   isLoading,
   isError,
-  entries,
+  items,
   onRetry,
 }: {
   isLoading: boolean;
   isError: boolean;
-  entries: MonitoringHistoryEntry[];
+  items: ActivityItem[];
   onRetry: () => void;
 }) {
-  const visible = useMemo(() => entries.slice(0, PAGE_SIZE), [entries]);
+  const visible = useMemo(() => items.slice(0, PAGE_SIZE), [items]);
   return (
     <Card title="Recent activity">
       {isLoading ? (
         <div style={{ color: 'var(--ow-fg-2)', fontSize: 12 }}>Loading…</div>
       ) : isError ? (
-        <div style={{ color: 'var(--ow-crit)', fontSize: 12, display: 'flex', gap: 8, alignItems: 'center' }}>
+        <div
+          style={{
+            color: 'var(--ow-crit)',
+            fontSize: 12,
+            display: 'flex',
+            gap: 8,
+            alignItems: 'center',
+          }}
+        >
           Failed to load activity{' '}
           <button type="button" onClick={onRetry} style={smallTextBtn}>
             <RefreshCw size={11} /> Retry
@@ -1335,12 +1357,21 @@ function CardRecentActivity({
       ) : visible.length === 0 ? (
         <EmptyState
           primary="No activity yet"
-          secondary="Sourced from host_monitoring_history (band transitions). The list will populate after the first probe records a state change."
+          secondary="Sourced from the unified activity feed (band transitions, scan changes, intelligence diffs, alerts). The list will populate as the host accrues events."
         />
       ) : (
-        <ol style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {visible.map((e) => (
-            <ActivityRow key={e.id} entry={e} />
+        <ol
+          style={{
+            listStyle: 'none',
+            padding: 0,
+            margin: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 8,
+          }}
+        >
+          {visible.map((it) => (
+            <ActivityRow key={`${it.source}-${it.id}`} item={it} />
           ))}
         </ol>
       )}
@@ -1348,8 +1379,8 @@ function CardRecentActivity({
   );
 }
 
-function ActivityRow({ entry }: { entry: MonitoringHistoryEntry }) {
-  const sev = severityFor(entry.monitoring_state);
+function ActivityRow({ item }: { item: ActivityItem }) {
+  const sev = activitySeverityColors(item.severity);
   return (
     <li
       style={{
@@ -1362,52 +1393,47 @@ function ActivityRow({ entry }: { entry: MonitoringHistoryEntry }) {
     >
       <Circle size={8} fill={sev.dot} color={sev.dot} style={{ marginTop: 5 }} />
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ color: 'var(--ow-fg-0)', fontSize: 13 }}>
-          {entry.previous_state
-            ? `${entry.previous_state} → ${entry.monitoring_state}`
-            : `Now ${entry.monitoring_state}`}
-          {entry.failed_layer ? (
-            <span style={{ color: sev.fg, marginLeft: 8, fontSize: 11 }}>
-              {entry.failed_layer} fail
-            </span>
-          ) : null}
-        </div>
-        {entry.error_message && (
+        <div style={{ color: 'var(--ow-fg-0)', fontSize: 13 }}>{item.title}</div>
+        {item.summary ? (
           <div
             style={{
               color: 'var(--ow-fg-3)',
               fontSize: 11,
               marginTop: 2,
-              fontFamily: 'var(--ow-font-mono)',
               overflowWrap: 'anywhere',
             }}
           >
-            {entry.error_message}
+            {item.summary}
           </div>
-        )}
+        ) : null}
       </div>
       <div style={{ color: 'var(--ow-fg-3)', fontSize: 11, whiteSpace: 'nowrap' }}>
-        {relativeMinutes(entry.check_time)}
+        {relativeMinutes(item.occurred_at)}
       </div>
     </li>
   );
 }
 
-function severityFor(band: MonitoringBand): { fg: string; dot: string } {
-  switch (band) {
-    case 'down':
+// activitySeverityColors maps the closed severity enum onto the
+// existing OW color tokens. The prior MonitoringBand → color table
+// (severityFor below) is still used by the liveness state-machine
+// chips elsewhere on the page — kept untouched.
+function activitySeverityColors(s: ActivitySeverity): { fg: string; dot: string } {
+  switch (s) {
     case 'critical':
       return { fg: 'var(--ow-crit)', dot: 'var(--ow-crit)' };
-    case 'degraded':
+    case 'high':
+      return { fg: 'var(--ow-crit)', dot: 'var(--ow-crit)' };
+    case 'medium':
       return { fg: 'var(--ow-warn)', dot: 'var(--ow-warn)' };
-    case 'online':
-      return { fg: 'var(--ow-ok)', dot: 'var(--ow-ok)' };
-    case 'maintenance':
+    case 'low':
       return { fg: 'var(--ow-fg-2)', dot: 'var(--ow-fg-2)' };
+    case 'info':
     default:
-      return { fg: 'var(--ow-fg-3)', dot: 'var(--ow-fg-3)' };
+      return { fg: 'var(--ow-ok)', dot: 'var(--ow-ok)' };
   }
 }
+
 
 // ─────────────────────────────────────────────────────────────────────────
 // Reusable bits (cards, kv rows, empty states, etc.)

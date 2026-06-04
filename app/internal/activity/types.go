@@ -16,6 +16,9 @@ const (
 	SourceTransaction  Source = "transaction"
 	SourceIntelligence Source = "intelligence"
 	SourceAudit        Source = "audit"
+	// SourceMonitoring projects host_monitoring_history band-transition
+	// rows into the unified feed. Spec system-activity v1.1.0 C-08.
+	SourceMonitoring Source = "monitoring"
 )
 
 // AllSources is the registration-order list.
@@ -24,6 +27,7 @@ var AllSources = []Source{
 	SourceTransaction,
 	SourceIntelligence,
 	SourceAudit,
+	SourceMonitoring,
 }
 
 // IsKnownSource reports whether s is in the closed Source enum.
