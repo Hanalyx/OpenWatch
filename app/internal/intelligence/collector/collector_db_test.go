@@ -49,10 +49,8 @@ func freshDBCollector(t *testing.T) (*pgxpool.Pool, uuid.UUID, *credential.Servi
 	if err := secretkey.SetEphemeral(); err != nil {
 		t.Fatalf("SetEphemeral: %v", err)
 	}
-	_, _ = pool.Exec(ctx, "TRUNCATE TABLE host_intelligence_events")
-	_, _ = pool.Exec(ctx, "TRUNCATE TABLE host_intelligence_state")
-	_, _ = pool.Exec(ctx, "TRUNCATE TABLE credentials")
-	_, _ = pool.Exec(ctx, "TRUNCATE TABLE hosts")
+	// CASCADE — see scheduler/service_db_test.go for the rationale.
+	_, _ = pool.Exec(ctx, "TRUNCATE TABLE hosts CASCADE")
 	_, _ = pool.Exec(ctx, "TRUNCATE TABLE users CASCADE")
 
 	createdBy, _ := uuid.NewV7()
