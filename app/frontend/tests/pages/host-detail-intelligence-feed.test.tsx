@@ -39,6 +39,11 @@ describe('frontend-host-detail-intelligence-feed — structural', () => {
     expect(CARD_SRC).toMatch(/host_id:\s*hostId/);
     // v1.0.0 binding is gone.
     expect(CARD_SRC).not.toContain('/api/v1/intelligence/events');
+    // The queryFn MUST unwrap the snapshot map so the cached value
+    // matches HostDetailPage's intelligenceStateQuery shape — they
+    // share queryKey ['intelligence_state', hostId] and a divergent
+    // shape would leave one consumer reading undefined fields.
+    expect(CARD_SRC).toMatch(/raw\?\.snapshot/);
   });
 
   // @ac AC-02
