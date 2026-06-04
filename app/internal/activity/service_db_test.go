@@ -351,9 +351,9 @@ func TestList_CursorPagination(t *testing.T) {
 }
 
 // @ac AC-13
-// Regression: an earlier version of commonWhere passed hostCol="''"
-// for the audit leg and emitted `'' = $hostPH` when host_id was set.
-// pgx encodes the parameter as a uuid, so Postgres tried to cast ''
+// Regression: an earlier version of commonWhere passed hostCol="”"
+// for the audit leg and emitted `” = $hostPH` when host_id was set.
+// pgx encodes the parameter as a uuid, so Postgres tried to cast ”
 // to uuid and the whole UNION crashed with
 // `invalid input syntax for type uuid: ""`. The host-filtered list
 // MUST now succeed and include rows from sources that DO have a
