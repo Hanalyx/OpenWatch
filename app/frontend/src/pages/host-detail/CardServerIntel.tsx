@@ -23,6 +23,19 @@ import api from '@/api/client';
 // internal/intelligence/collector/types.go). additionalProperties is
 // true on the OpenAPI side; we keep this interface narrow to the
 // fields the card actually consumes so the type stays load-bearing.
+//
+// The snapshot is the BARE intelligence map (no envelope) — that
+// shape matches the existing intelligenceStateQuery in
+// HostDetailPage.tsx:285 which returns raw.snapshot ?? null. The two
+// queries share queryKey ['intelligence_state', hostId] so they MUST
+// agree on the cached value's shape; previously this card unwrapped
+// query.data.snapshot expecting the envelope and rendered "Not
+// collected yet" against every host because the cache returned the
+// already-unwrapped map and .snapshot was undefined.
+//
+// `collected_at` is duplicated inside the snapshot (collector emits
+// it as a snapshot key), so the header timestamp still works without
+// needing the envelope.
 export interface IntelligenceSnapshot {
   packages?: Record<string, string>;
   services?: Record<string, string>; // unit → "active" | "inactive" | "failed"
@@ -31,12 +44,7 @@ export interface IntelligenceSnapshot {
   network_interfaces?: unknown[];
   listening_ports?: unknown[];
   firewall_rule_count?: number | null;
-}
-
-export interface IntelligenceState {
-  host_id: string;
-  snapshot: IntelligenceSnapshot;
-  collected_at: string;
+  collected_at?: string;
 }
 
 interface CardServerIntelProps {
@@ -45,7 +53,9 @@ interface CardServerIntelProps {
 
 export function CardServerIntel({ hostId }: CardServerIntelProps) {
   // Spec C-01 + C-02: single snapshot endpoint, query key matches
-  // useLiveEvents.ts intelligence.event invalidation target.
+  // useLiveEvents.ts intelligence.event invalidation target AND
+  // HostDetailPage's intelligenceStateQuery — sharing the cache
+  // means just one network round-trip per host-detail render.
   const query = useQuery({
     queryKey: ['intelligence_state', hostId],
     queryFn: async () => {
@@ -53,34 +63,25 @@ export function CardServerIntel({ hostId }: CardServerIntelProps) {
         '/api/v1/intelligence/state/{host_id}',
         { params: { path: { host_id: hostId } } },
       );
+      if (response.status === 404) return null;
       if (!response.ok) {
-        // 404 is "no snapshot yet" — surface it distinctly so the
-        // view can render the pre-Discovery empty state instead of
-        // the generic Retry error path (AC-05).
-        const err = new Error(`HTTP ${response.status}`) as Error & { notFound?: boolean };
-        err.notFound = response.status === 404;
-        throw err;
+        throw new Error(`HTTP ${response.status}`);
       }
       if (error) throw new Error('intelligence_state fetch failed');
-      return (data as unknown as IntelligenceState) ?? null;
+      const raw = data as unknown as { snapshot?: IntelligenceSnapshot } | null;
+      return raw?.snapshot ?? null;
     },
-    retry: (failureCount, err) => {
-      // Don't retry on 404 — there is nothing to come back to.
-      if ((err as { notFound?: boolean })?.notFound) return false;
-      return failureCount < 1;
-    },
+    retry: false,
   });
 
-  const notFound =
-    query.isError &&
-    !!(query.error as { notFound?: boolean } | undefined)?.notFound;
-
+  // 404 → query.data === null (resolved success), the view renders the
+  // "Not collected yet" empty state below.
   return (
     <CardServerIntelView
       isLoading={query.isLoading}
-      isError={query.isError && !notFound}
-      notFound={notFound}
-      snapshot={query.data?.snapshot}
+      isError={query.isError}
+      notFound={!query.isLoading && !query.isError && query.data === null}
+      snapshot={query.data ?? undefined}
       collectedAt={query.data?.collected_at}
       onRetry={() => query.refetch()}
     />
