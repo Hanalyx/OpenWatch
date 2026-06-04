@@ -1,36 +1,68 @@
 spec:
   id: frontend-host-detail-intelligence-feed
-  title: Host detail Server-intelligence card — real events feed from /intelligence/events
-  version: "1.0.0"
+  title: Host detail Server-intelligence card — 2×3 stat-tile grid from /intelligence/state
+  version: "2.0.0"
   status: approved
   tier: 2
 
   context:
     system: openwatch-go
-    feature: Host detail overview card "Server intelligence" surfaces the recent change events from the api-os-intelligence collector
+    feature: Host detail overview card "Server intelligence" surfaces snapshot rollups from the api-os-intelligence collector
     description: >
-      Pre-PR 7 the "Server intelligence" card on the host detail page
-      rendered a static "Not yet collected" empty-state pointing to
-      BACKLOG, even though api-os-intelligence GET
-      /api/v1/intelligence/events has been live and the scheduler is
-      writing host_intelligence_events on every cycle.
+      v2.0.0 — The Server-intelligence card pivots from an event feed
+      (v1.0.0, GET /intelligence/events) to a 2×3 stat-tile grid
+      sourced from the snapshot endpoint GET
+      /api/v1/intelligence/state/{host_id}. Operators reading the
+      host-detail overview want "what is currently TRUE about this
+      host" at a glance — counts of packages, running services,
+      users, interfaces, firewall rules, suppressed compliance rules
+      — not a rolling list of last-cycle deltas. The unified cross-
+      host event feed already lives at /activity (api-activity); the
+      per-host event feed is moving to a dedicated "Recent activity"
+      card on the right column (separate spec, separate PR). This
+      card owns the snapshot rollup.
 
-      PR 7 wires the card to fetch the 10 most recent events for the
-      current host (?host_id=<id>&limit=10) and renders each as a row
-      with: severity dot, event_code, detail summary, and
-      occurred_at relative time. Empty list (no events yet for this
-      host) collapses to "No intelligence activity yet" — explicit
-      "no signal" state distinct from the loading/error states.
+      The six tiles, in row-major order:
 
-      This is the read-only single-host slice. The full /activity
-      page (cross-host unified feed) is owned by api-activity and is
-      already live; this spec only owns the per-host card on the
-      detail page.
+        Row 1
+          [1] Packages installed  — len(snapshot.packages)
+                subline: "No updates pending" (placeholder until the
+                collector exposes an updates-available signal —
+                today the snapshot has no field for it; rendering
+                "—" when unknown is acceptable)
+          [2] Running services    — services where snapshot.services[unit]=="active"
+                subline: "N% of registered services" (running/total)
 
-      Auto-refresh is delegated to the useLiveEvents SSE topic
-      "intelligence.event" (frontend-live-events C-04 / AC-05) which
-      invalidates ['host_intelligence_events', host.id] — the same
-      query key this card uses. No polling, no manual refresh button.
+        Row 2
+          [3] User accounts       — len(snapshot.users)
+                subline: "N with sudo privileges" (count of users
+                whose name appears in snapshot.groups[sudo|wheel|admin])
+          [4] Network interfaces  — len(snapshot.network_interfaces)
+                subline: "N listening ports" (len(snapshot.listening_ports))
+
+        Row 3
+          [5] Firewall rules      — snapshot.firewall_rule_count (nullable)
+                subline:
+                  null  → "Not collected"
+                  -1    → "No firewall detected"
+                  0     → "Firewall is inactive" (warn-tinted)
+                  N>0   → "<engine> active" (engine is detected by
+                          the collector elsewhere; if not available,
+                          fall back to "N rules active")
+          [6] Open exceptions     — placeholder "—"
+                subline: "No rules suppressed" — the
+                compliance-exceptions endpoint is the proper source
+                but is out of scope for this card; the tile renders
+                a static zero until a follow-up wires the real count
+
+      Three explicit visual states preserved from v1.0.0 (loading /
+      error+Retry / empty). Empty = the host has never run an
+      Intelligence cycle (404 from the snapshot endpoint).
+
+      SSE auto-refresh: useLiveEvents must invalidate the new query
+      key ['intelligence_state', hostId] alongside the existing
+      ['host_intelligence_events', hostId] (the event-feed elsewhere
+      still consumes the latter).
 
     related_specs:
       - api-os-intelligence
@@ -40,66 +72,82 @@ spec:
 
   objective:
     summary: >
-      Lock the data binding, query key, rendering rules, and three
-      visual states (loading / error / empty) for the Server-
-      intelligence card. Tests cover the source-inspection contract
-      and the empty/error visual states.
+      Lock the data binding, query key, six-tile rendering rules, and
+      the loading/error/empty visual states for the redesigned
+      Server-intelligence card. Tests cover the source-inspection
+      contract on the endpoint + query-key shape AND the rendering
+      branches per snapshot field.
     scope:
       includes:
-        - "Query key ['host_intelligence_events', host.id] matching frontend-live-events C-04"
-        - "GET /api/v1/intelligence/events with query: host_id=host.id, limit=10"
-        - "Per-event row: severity dot + event_code + occurred_at relative time"
-        - "Three visual states: loading, error (Retry button), empty (no events yet)"
+        - "Query key ['intelligence_state', host.id] matched by useLiveEvents intelligence.event invalidation"
+        - "GET /api/v1/intelligence/state/{host_id} — single fetch"
+        - "Six tiles in a 2×3 grid with the values listed in the context"
+        - "Sudo-user count derivation from snapshot.groups (sudo / wheel / admin)"
+        - "Firewall subline rules (null / -1 / 0 / N>0 with warn tint when inactive)"
+        - "Three visual states preserved: loading, error+Retry, empty (404 pre-Discovery)"
       excludes:
-        - "Activated Packages / Services / Users / Network tabs — separate PR (reads snapshot fields)"
+        - "Per-host event feed — moves to a new 'Recent activity' card (separate spec / PR)"
         - "Cross-host activity feed — owned by api-activity / frontend-activity"
-        - "Cursor pagination on the card — only the 10 most recent rows; deeper history goes to /activity"
-        - "Click-through to per-event detail — deferred (no detail surface defined yet)"
+        - "Real Open-exceptions count — placeholder '—' until a follow-up wires /compliance/exceptions"
+        - "Tabbed drill-down into packages / services / users / network — owned by the InventoryTabs spec"
+        - "Updates-pending count on the Packages tile — collector does not surface it yet; tile shows '—'"
 
   constraints:
     - id: C-01
-      description: 'CardServerIntel MUST issue exactly ONE useQuery against /api/v1/intelligence/events with params { host_id, limit: 10 }. No other endpoint, no client-side filtering of broader fetches. Reason: scoping at the API boundary lets the backend short-circuit the WHERE clause and keeps the card responsive for hosts with deep history'
+      description: 'CardServerIntel MUST issue exactly ONE useQuery against GET /api/v1/intelligence/state/{host_id} (path parameter, not query string). No other endpoint is allowed; the old /intelligence/events binding from v1.0.0 MUST be deleted'
       type: technical
       enforcement: error
     - id: C-02
-      description: "CardServerIntel MUST use queryKey ['host_intelligence_events', host.id]. This MUST match the invalidation target in useLiveEvents.ts intelligence.event handler (frontend-live-events C-04) verbatim — any divergence breaks the SSE auto-refresh path"
+      description: "CardServerIntel MUST use queryKey ['intelligence_state', host.id]. useLiveEvents.ts intelligence.event handler MUST invalidate the same key (in addition to the existing ['host_intelligence_events', host.id] key that the event feed consumes elsewhere). The two query keys MUST coexist — neither replaces the other"
       type: technical
       enforcement: error
     - id: C-03
-      description: "Each event row MUST render: a severity-tinted dot (crit/warn/info colors from the existing severityFor helper), the event_code (mono font), and the occurred_at relative time (Xm/Xh/Xd ago). The detail object is NOT rendered inline — it is opaque per-event metadata; surfacing detail values per event_code is deferred"
+      description: 'The successful render MUST be a 2-column × 3-row grid of six stat tiles, in the order documented in context.description. No additional tiles, no reordering. Each tile renders three elements stacked: label (top), value (middle, large), subline (bottom, small). Missing snapshot fields render the tile value as "—" with a neutral subline'
       type: technical
       enforcement: error
     - id: C-04
-      description: 'CardServerIntel MUST render three distinct visual states: (1) loading (skeleton or "Loading…" text), (2) error (red text + Retry button), (3) empty (no events yet — soft "No intelligence activity yet" message). Loading and error MUST NOT collapse to the empty state — operators need to distinguish "not loaded" from "no signal"'
+      description: 'CardServerIntel MUST render three distinct visual states: (1) loading (Loading… text), (2) error (red text + Retry button — except 404 which is the empty state), (3) empty / pre-Discovery (404 from the snapshot endpoint → soft "Not collected yet" message naming the Intelligence collector). Error and empty MUST be visually distinct'
       type: technical
       enforcement: error
     - id: C-05
-      description: '403 (host:read denied) MUST render the error state — the page wraps the response and the card cannot present forbidden data. 200 with an empty items array MUST render the empty state. 502 / 504 (transient backend) MUST render the error state with the Retry button so the operator can recover without a page reload'
+      description: 'Sudo-user count on the User-accounts tile MUST be derived from snapshot.groups[sudo] ∪ snapshot.groups[wheel] ∪ snapshot.groups[admin], deduped against snapshot.users keys. The card MUST NOT consult any other field (e.g. snapshot.users[u].is_sudoer) — only the group-membership rollup, because that is what the collector persists'
+      type: technical
+      enforcement: error
+    - id: C-06
+      description: 'Firewall-rules tile subline MUST follow the closed mapping in context.description (null / -1 / 0 / N>0) verbatim. The 0 case (engine present, no rules) MUST render in a warn tint to surface the inactive state — the card is the first place an operator notices a firewall is unconfigured'
       type: technical
       enforcement: error
 
   acceptance_criteria:
     - id: AC-01
-      description: 'Source inspection: CardServerIntel calls api.GET with the literal path "/api/v1/intelligence/events" and a query object containing host_id AND limit: 10. No other path appears in the function body'
+      description: 'Source inspection: CardServerIntel calls api.GET with the literal path "/api/v1/intelligence/state/{host_id}" and threads host.id into the path param. The file MUST NOT contain the literal string "/api/v1/intelligence/events" — the v1.0.0 binding is gone'
       priority: critical
       references_constraints: [C-01]
     - id: AC-02
-      description: "Source inspection: CardServerIntel's useQuery uses queryKey starting with the literal string 'host_intelligence_events' followed by host.id. The query key MUST match the one used by useLiveEvents.ts handlers — verified by reading both files and asserting identical key shape"
+      description: "Source inspection: CardServerIntel's useQuery uses queryKey starting with the literal string 'intelligence_state' followed by host.id. useLiveEvents.ts is also inspected — its intelligence.event handler MUST contain BOTH invalidation calls: ['host_intelligence_events', hostId] AND ['intelligence_state', hostId]"
       priority: critical
       references_constraints: [C-02]
     - id: AC-03
-      description: "Rendering: CardServerIntel mounted with isLoading=true (mocked useQuery state) renders a visible loading affordance (text or skeleton element). The empty-state copy 'No intelligence activity yet' MUST NOT appear in the loading state"
+      description: "Rendering: CardServerIntel mounted with isLoading=true (mocked) renders a visible loading affordance ('Loading…' text). The empty-state copy MUST NOT appear in the loading state"
       priority: critical
       references_constraints: [C-04]
     - id: AC-04
-      description: 'Rendering: CardServerIntel mounted with isError=true renders both an error message AND a Retry button (role="button", accessible name matching /retry/i). The button click MUST invoke the refetch path — verified by spying on the mocked refetch'
+      description: 'Rendering: CardServerIntel mounted with isError=true (non-404) renders both an error message AND a Retry button (role="button", accessible name matching /retry/i). The button click MUST invoke the refetch path — verified by spying on the mocked refetch'
       priority: critical
-      references_constraints: [C-04, C-05]
+      references_constraints: [C-04]
     - id: AC-05
-      description: "Rendering: CardServerIntel mounted with isSuccess=true and data={items:[]} renders the literal string 'No intelligence activity yet' AND does NOT render any rows. The empty state names the data source (e.g. 'OS Intelligence collector') so operators know which subsystem populates it"
+      description: "Rendering: CardServerIntel mounted with isError=true AND notFound=true (the page maps a 404 ErrorEnvelope to this prop) renders the literal string 'Not collected yet' AND names the Intelligence collector in the secondary copy. Retry button MUST NOT appear in this branch — 404 is not a transient failure operators retry"
       priority: critical
       references_constraints: [C-04]
     - id: AC-06
-      description: "Rendering: CardServerIntel mounted with isSuccess=true and data={items:[two-events]} renders 2 row elements, each containing the event's event_code text. Severity dot color matches the severity (crit/warn/info palette via severityFor or equivalent)"
+      description: "Rendering: CardServerIntel mounted with isSuccess=true and a snapshot carrying packages={a:1, b:2, c:3}, services={s1:'active', s2:'inactive'}, users={alice:{}, bob:{}}, groups={sudo:['alice']}, network_interfaces=[i1,i2], listening_ports=[p1,p2,p3], firewall_rule_count=null renders six tiles with values 3 / 1 / 2 / 2 / — / — and the sublines '1 of 2 services running' (50%) / '1 with sudo privileges' / '3 listening ports' / 'Not collected'"
       priority: critical
-      references_constraints: [C-03]
+      references_constraints: [C-03, C-05, C-06]
+    - id: AC-07
+      description: 'Rendering: firewall_rule_count = -1 renders the Firewall-rules tile value as "—" with subline "No firewall detected" (neutral tint). firewall_rule_count = 0 renders value "0" with subline "Firewall is inactive" in warn tint. firewall_rule_count = 7 renders value "7" with subline matching /active/i (engine name optional)'
+      priority: critical
+      references_constraints: [C-06]
+    - id: AC-08
+      description: 'Sudo-user count: snapshot.groups = {sudo:["alice","bob"], wheel:["bob"], admin:["carol"]} with snapshot.users keys = {alice, bob, carol, dave} produces sudo count = 3 (alice ∪ bob ∪ carol, deduped; dave is not in any sudo group). Source inspection confirms only sudo/wheel/admin groups are consulted'
+      priority: critical
+      references_constraints: [C-05]

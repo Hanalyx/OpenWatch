@@ -1,170 +1,330 @@
-// CardServerIntel — Host detail left-column "Server intelligence" card.
+// CardServerIntel — Host detail "Server intelligence" 2×3 stat grid.
 //
-// Replaces the "Not yet collected (BACKLOG)" empty-state with a real
-// feed sourced from GET /api/v1/intelligence/events?host_id=X&limit=10.
-// The query key matches the invalidation target used by
-// useLiveEvents.ts (intelligence.event handler) so SSE-driven
-// auto-refresh works without any polling.
+// v2.0.0 of frontend-host-detail-intelligence-feed pivots this card
+// away from the per-host event feed it shipped as in v1.0.0. The
+// snapshot rollup answers the question operators actually ask on the
+// overview page — "what is currently TRUE about this host" — not
+// "what changed last cycle". The deltas live on the cross-host
+// /activity page.
 //
-// Three explicit visual states (loading / error+Retry / empty):
-// operators need to distinguish "not loaded" from "no signal".
+// Data source: GET /api/v1/intelligence/state/{host_id}, which
+// returns the latest host_intelligence_state row's snapshot. 404
+// means the host has never run an Intelligence cycle and the empty
+// state names the collector so the operator knows where to look.
 //
-// Spec: frontend-host-detail-intelligence-feed v1.0.0.
+// Spec: frontend-host-detail-intelligence-feed v2.0.0.
 
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { RefreshCw } from 'lucide-react';
 import api from '@/api/client';
 
-type EventSeverity = 'info' | 'low' | 'medium' | 'high' | 'critical';
-
-interface IntelligenceEvent {
-  id: string;
-  host_id: string;
-  event_code: string;
-  severity: EventSeverity;
-  detail?: Record<string, unknown>;
-  occurred_at: string;
-  detected_at: string;
-  correlation_id?: string;
+// Snapshot keys mirror collector.Snapshot (Go struct in
+// internal/intelligence/collector/types.go). additionalProperties is
+// true on the OpenAPI side; we keep this interface narrow to the
+// fields the card actually consumes so the type stays load-bearing.
+export interface IntelligenceSnapshot {
+  packages?: Record<string, string>;
+  services?: Record<string, string>; // unit → "active" | "inactive" | "failed"
+  users?: Record<string, unknown>;
+  groups?: Record<string, string[]>;
+  network_interfaces?: unknown[];
+  listening_ports?: unknown[];
+  firewall_rule_count?: number | null;
 }
 
-interface IntelligenceEventsPage {
-  items: IntelligenceEvent[];
-  next_cursor?: string | null;
+export interface IntelligenceState {
+  host_id: string;
+  snapshot: IntelligenceSnapshot;
+  collected_at: string;
 }
 
 interface CardServerIntelProps {
   hostId: string;
 }
 
-const LIMIT = 10;
-
 export function CardServerIntel({ hostId }: CardServerIntelProps) {
-  // Spec C-01 + C-02: single endpoint, query key matches
-  // useLiveEvents intelligence.event invalidation target.
+  // Spec C-01 + C-02: single snapshot endpoint, query key matches
+  // useLiveEvents.ts intelligence.event invalidation target.
   const query = useQuery({
-    queryKey: ['host_intelligence_events', hostId],
+    queryKey: ['intelligence_state', hostId],
     queryFn: async () => {
       const { data, error, response } = await api.GET(
-        '/api/v1/intelligence/events',
-        { params: { query: { host_id: hostId, limit: LIMIT } } },
+        '/api/v1/intelligence/state/{host_id}',
+        { params: { path: { host_id: hostId } } },
       );
-      if (error) throw error;
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
+        // 404 is "no snapshot yet" — surface it distinctly so the
+        // view can render the pre-Discovery empty state instead of
+        // the generic Retry error path (AC-05).
+        const err = new Error(`HTTP ${response.status}`) as Error & { notFound?: boolean };
+        err.notFound = response.status === 404;
+        throw err;
       }
-      return (data as unknown as IntelligenceEventsPage) ?? { items: [] };
+      if (error) throw new Error('intelligence_state fetch failed');
+      return (data as unknown as IntelligenceState) ?? null;
     },
-    retry: 0,
+    retry: (failureCount, err) => {
+      // Don't retry on 404 — there is nothing to come back to.
+      if ((err as { notFound?: boolean })?.notFound) return false;
+      return failureCount < 1;
+    },
   });
+
+  const notFound =
+    query.isError &&
+    !!(query.error as { notFound?: boolean } | undefined)?.notFound;
 
   return (
     <CardServerIntelView
       isLoading={query.isLoading}
-      isError={query.isError}
-      items={query.data?.items ?? []}
+      isError={query.isError && !notFound}
+      notFound={notFound}
+      snapshot={query.data?.snapshot}
+      collectedAt={query.data?.collected_at}
       onRetry={() => query.refetch()}
     />
   );
 }
 
-// Pure view component — split out so component tests can mount it
-// with explicit state without needing to mock useQuery internals.
-// Spec AC-03..AC-06 exercise this directly.
-interface CardServerIntelViewProps {
+// Pure view component — tests mount it with explicit state without
+// needing to stub useQuery internals. Spec AC-03..AC-08 exercise
+// this directly.
+export interface CardServerIntelViewProps {
   isLoading: boolean;
   isError: boolean;
-  items: IntelligenceEvent[];
+  notFound: boolean;
+  snapshot?: IntelligenceSnapshot;
+  collectedAt?: string;
   onRetry: () => void;
 }
 
 export function CardServerIntelView({
   isLoading,
   isError,
-  items,
+  notFound,
+  snapshot,
+  collectedAt,
   onRetry,
 }: CardServerIntelViewProps) {
+  let body: React.ReactNode;
+  if (isLoading) {
+    body = (
+      <div role="status" style={{ color: 'var(--ow-fg-2)', fontSize: 12 }}>
+        Loading…
+      </div>
+    );
+  } else if (notFound) {
+    body = (
+      <EmptyState
+        primary="Not collected yet"
+        secondary="The OS Intelligence collector populates this snapshot on each cycle (packages, services, users, network, firewall). Once the host runs Discovery and the first Intelligence cycle completes, these tiles will fill in."
+      />
+    );
+  } else if (isError) {
+    body = <ErrorState onRetry={onRetry} />;
+  } else if (snapshot) {
+    body = <TileGrid snapshot={snapshot} />;
+  } else {
+    // Defensive: success with null body — render as empty.
+    body = (
+      <EmptyState
+        primary="Not collected yet"
+        secondary="The OS Intelligence collector has not populated a snapshot for this host."
+      />
+    );
+  }
+
   return (
-    <Card title="Server intelligence">
-      {isLoading ? (
-        <div role="status" style={{ color: 'var(--ow-fg-2)', fontSize: 12 }}>
-          Loading…
-        </div>
-      ) : isError ? (
-        <ErrorState onRetry={onRetry} />
-      ) : items.length === 0 ? (
-        <EmptyState
-          primary="No intelligence activity yet"
-          secondary="The OS Intelligence collector populates this feed (package updates, service state changes, listening-port shifts). Each cycle that detects a change writes an event."
-        />
-      ) : (
-        <ol
-          style={{
-            listStyle: 'none',
-            padding: 0,
-            margin: 0,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 8,
-          }}
-        >
-          {items.map((e) => (
-            <EventRow key={e.id} event={e} />
-          ))}
-        </ol>
-      )}
+    <Card title="Server intelligence" right={collectedAt ? collectedLabel(collectedAt) : undefined}>
+      {body}
     </Card>
   );
 }
 
-function EventRow({ event }: { event: IntelligenceEvent }) {
-  const sev = severityFor(event.severity);
+// ── Tile grid ─────────────────────────────────────────────────────────────
+
+function TileGrid({ snapshot }: { snapshot: IntelligenceSnapshot }) {
+  const packagesCount = Object.keys(snapshot.packages ?? {}).length;
+  const services = snapshot.services ?? {};
+  const servicesTotal = Object.keys(services).length;
+  const servicesRunning = Object.values(services).filter((s) => s === 'active').length;
+  const usersCount = Object.keys(snapshot.users ?? {}).length;
+  const sudoCount = countSudoUsers(snapshot.users, snapshot.groups);
+  const interfacesCount = (snapshot.network_interfaces ?? []).length;
+  const listeningPorts = (snapshot.listening_ports ?? []).length;
+  const fwCount = snapshot.firewall_rule_count;
+  const firewall = firewallSubline(fwCount);
+
   return (
-    <li
+    <div
+      role="list"
       style={{
-        display: 'flex',
-        gap: 10,
-        alignItems: 'flex-start',
-        padding: '8px 0',
-        borderBottom: '1px solid var(--ow-line)',
+        display: 'grid',
+        gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+        gap: 16,
       }}
     >
-      <span
-        aria-hidden
-        style={{
-          width: 8,
-          height: 8,
-          marginTop: 6,
-          borderRadius: '50%',
-          background: sev.dot,
-          flexShrink: 0,
-        }}
+      <Tile
+        label="Packages installed"
+        value={packagesCount}
+        subline="No updates pending"
       />
-      <div style={{ minWidth: 0, flex: 1 }}>
-        <div
-          style={{
-            color: 'var(--ow-fg-1)',
-            fontSize: 12,
-            fontFamily: 'var(--ow-font-mono)',
-            wordBreak: 'break-word',
-          }}
-        >
-          {event.event_code}
-        </div>
-      </div>
+      <Tile
+        label="Running services"
+        value={
+          servicesTotal === 0
+            ? '—'
+            : (
+              <>
+                {servicesRunning}
+                <span style={{ color: 'var(--ow-fg-3)', fontSize: 16, fontWeight: 400 }}>
+                  {' / '}
+                  {servicesTotal}
+                </span>
+              </>
+            )
+        }
+        subline={
+          servicesTotal === 0
+            ? 'No services registered'
+            : `${Math.round((servicesRunning / servicesTotal) * 100)}% of registered services`
+        }
+      />
+      <Tile
+        label="User accounts"
+        value={usersCount}
+        subline={`${sudoCount} with sudo privileges`}
+      />
+      <Tile
+        label="Network interfaces"
+        value={interfacesCount}
+        subline={`${listeningPorts} listening ports`}
+      />
+      <Tile
+        label="Firewall rules"
+        value={firewall.value}
+        subline={firewall.subline}
+        sublineTone={firewall.tone}
+      />
+      <Tile
+        label="Open exceptions"
+        value="—"
+        subline="No rules suppressed"
+      />
+    </div>
+  );
+}
+
+function Tile({
+  label,
+  value,
+  subline,
+  sublineTone = 'neutral',
+}: {
+  label: string;
+  value: React.ReactNode;
+  subline: string;
+  sublineTone?: 'neutral' | 'warn';
+}) {
+  return (
+    <div
+      role="listitem"
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 4,
+        minWidth: 0,
+      }}
+    >
       <div
         style={{
           color: 'var(--ow-fg-3)',
           fontSize: 11,
-          whiteSpace: 'nowrap',
+          textTransform: 'uppercase',
+          letterSpacing: '0.04em',
         }}
       >
-        {relativeTime(event.occurred_at)}
+        {label}
       </div>
-    </li>
+      <div
+        style={{
+          color: 'var(--ow-fg-0)',
+          fontSize: 28,
+          fontWeight: 600,
+          lineHeight: 1.1,
+          fontVariantNumeric: 'tabular-nums',
+        }}
+      >
+        {value}
+      </div>
+      <div
+        style={{
+          color: sublineTone === 'warn' ? 'var(--ow-warn)' : 'var(--ow-fg-3)',
+          fontSize: 12,
+          marginTop: 2,
+        }}
+      >
+        {subline}
+      </div>
+    </div>
   );
 }
+
+// ── Derivations ───────────────────────────────────────────────────────────
+
+// countSudoUsers — set-union of sudo / wheel / admin group members,
+// intersected with snapshot.users keys so we never report a stale
+// group entry for a user that has been removed. Spec C-05.
+export function countSudoUsers(
+  users: Record<string, unknown> | undefined,
+  groups: Record<string, string[]> | undefined,
+): number {
+  if (!users || !groups) return 0;
+  const userSet = new Set(Object.keys(users));
+  const sudoers = new Set<string>();
+  for (const g of ['sudo', 'wheel', 'admin']) {
+    const members = groups[g];
+    if (!members) continue;
+    for (const m of members) {
+      if (userSet.has(m)) sudoers.add(m);
+    }
+  }
+  return sudoers.size;
+}
+
+interface FirewallSubline {
+  value: React.ReactNode;
+  subline: string;
+  tone: 'neutral' | 'warn';
+}
+
+// firewallSubline — closed mapping of firewall_rule_count states.
+// Spec C-06, AC-07.
+export function firewallSubline(fwCount: number | null | undefined): FirewallSubline {
+  if (fwCount == null) {
+    return { value: '—', subline: 'Not collected', tone: 'neutral' };
+  }
+  if (fwCount === -1) {
+    return { value: '—', subline: 'No firewall detected', tone: 'neutral' };
+  }
+  if (fwCount === 0) {
+    return { value: 0, subline: 'Firewall is inactive', tone: 'warn' };
+  }
+  return { value: fwCount, subline: `${fwCount} rules active`, tone: 'neutral' };
+}
+
+// collectedLabel — "Collected 4/19/2026 · 2:36 PM" style timestamp
+// surfaced in the card header. Matches the mockup.
+function collectedLabel(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const date = d.toLocaleDateString(undefined, { month: 'numeric', day: 'numeric', year: 'numeric' });
+  const time = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  return `Collected ${date} · ${time}`;
+}
+
+// ── Visual primitives ─────────────────────────────────────────────────────
 
 function ErrorState({ onRetry }: { onRetry: () => void }) {
   return (
@@ -178,7 +338,7 @@ function ErrorState({ onRetry }: { onRetry: () => void }) {
         alignItems: 'center',
       }}
     >
-      Failed to load intelligence events{' '}
+      Failed to load intelligence snapshot{' '}
       <button
         type="button"
         onClick={onRetry}
@@ -201,39 +361,15 @@ function ErrorState({ onRetry }: { onRetry: () => void }) {
   );
 }
 
-function severityFor(s: EventSeverity): { dot: string } {
-  switch (s) {
-    case 'critical':
-    case 'high':
-      return { dot: 'var(--ow-crit)' };
-    case 'medium':
-      return { dot: 'var(--ow-warn)' };
-    case 'low':
-    case 'info':
-    default:
-      return { dot: 'var(--ow-fg-3)' };
-  }
-}
-
-// relativeTime — "Xm ago" / "Xh ago" / "Xd ago" / "just now".
-// Pure given a fixed Date.now(); jsdom freezes time per-test.
-function relativeTime(iso: string): string {
-  const t = new Date(iso).getTime();
-  if (Number.isNaN(t)) return '—';
-  const minutes = Math.max(0, Math.round((Date.now() - t) / 60_000));
-  if (minutes < 1) return 'just now';
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.round(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  return `${Math.round(hours / 24)}d ago`;
-}
-
-// ── Layout primitives ─────────────────────────────────────────────────────
-// Mirror the CardSystem inline primitives — same comment applies: a
-// deduping pass that moves Card / EmptyState into a shared module is
-// a follow-up (BACKLOG).
-
-function Card({ title, children }: { title: string; children: React.ReactNode }) {
+function Card({
+  title,
+  right,
+  children,
+}: {
+  title: string;
+  right?: string;
+  children: React.ReactNode;
+}) {
   return (
     <section
       style={{
@@ -243,8 +379,19 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
         padding: 18,
       }}
     >
-      <header style={{ marginBottom: 12, display: 'flex', justifyContent: 'space-between' }}>
+      <header
+        style={{
+          marginBottom: 16,
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'baseline',
+          gap: 12,
+        }}
+      >
         <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>{title}</h3>
+        {right ? (
+          <span style={{ color: 'var(--ow-fg-3)', fontSize: 11 }}>{right}</span>
+        ) : null}
       </header>
       <div>{children}</div>
     </section>
