@@ -407,6 +407,87 @@ func TestList_HostIDFilter_ExcludesAuditWithoutCrashing(t *testing.T) {
 	})
 }
 
+// @ac AC-14
+// v1.1.0 monitoring leg — host_monitoring_history band transitions
+// project into the unified feed as source=monitoring. Verifies (a)
+// the transition row appears with the expected title/summary, (b)
+// a non-transition row (state == previous_state) is filtered out,
+// and (c) the leg is gated by CanReadHosts (suppressed when the
+// caller lacks the permission, counted in hiddenByRBAC).
+func TestList_MonitoringLeg_TransitionsOnly(t *testing.T) {
+	t.Run("system-activity/AC-14", func(t *testing.T) {
+		pool, creator := freshDB(t)
+		host := seedHost(t, pool, creator)
+		base := time.Now().UTC()
+
+		// Transition row: online → degraded with an SSH error.
+		_, err := pool.Exec(context.Background(),
+			`INSERT INTO host_monitoring_history
+			   (host_id, check_time, monitoring_state, previous_state, failed_layer, error_message)
+			 VALUES ($1, $2, 'degraded', 'online', 'ssh', 'SSH refused')`,
+			host, base.Add(-2*time.Minute))
+		if err != nil {
+			t.Fatalf("seed transition: %v", err)
+		}
+
+		// Non-transition row: still degraded. MUST NOT appear in the feed.
+		_, err = pool.Exec(context.Background(),
+			`INSERT INTO host_monitoring_history
+			   (host_id, check_time, monitoring_state, previous_state)
+			 VALUES ($1, $2, 'degraded', 'degraded')`,
+			host, base.Add(-1*time.Minute))
+		if err != nil {
+			t.Fatalf("seed steady-state: %v", err)
+		}
+
+		svc := NewService(pool)
+
+		// Caller WITH host:read — sees the transition row.
+		rows, hidden, _, err := svc.List(context.Background(),
+			Filter{Limit: 50, Source: string(SourceMonitoring)},
+			Caller{CanReadHosts: true})
+		if err != nil {
+			t.Fatalf("List with host:read: %v", err)
+		}
+		if len(rows) != 1 {
+			t.Fatalf("rows=%d, want 1 (only the transition)", len(rows))
+		}
+		r := rows[0]
+		if r.Source != SourceMonitoring {
+			t.Errorf("source=%q, want monitoring", r.Source)
+		}
+		if r.Severity != SeverityMedium {
+			t.Errorf("severity=%q, want medium (degraded band)", r.Severity)
+		}
+		if r.HostID == nil || *r.HostID != host {
+			t.Errorf("host_id=%v, want %v", r.HostID, host)
+		}
+		if r.Title != "Host degraded" {
+			t.Errorf("title=%q, want %q", r.Title, "Host degraded")
+		}
+		if r.Summary != "SSH refused" {
+			t.Errorf("summary=%q, want %q", r.Summary, "SSH refused")
+		}
+		if hidden != 0 {
+			t.Errorf("hidden=%d, want 0 (full permission)", hidden)
+		}
+
+		// Caller WITHOUT host:read — monitoring leg suppressed.
+		rows2, hidden2, _, err := svc.List(context.Background(),
+			Filter{Limit: 50, Source: string(SourceMonitoring)},
+			Caller{CanReadHosts: false, CanReadAlerts: true, CanReadAudit: true})
+		if err != nil {
+			t.Fatalf("List without host:read: %v", err)
+		}
+		if len(rows2) != 0 {
+			t.Errorf("rows=%d, want 0 (host:read missing)", len(rows2))
+		}
+		if hidden2 != 1 {
+			t.Errorf("hidden=%d, want 1 (the suppressed transition)", hidden2)
+		}
+	})
+}
+
 // stringFromInt avoids importing strconv just for a tiny helper.
 func stringFromInt(n int) string {
 	if n == 0 {

@@ -41,6 +41,7 @@ func (s *Service) List(ctx context.Context, f Filter, c Caller) ([]Row, int, str
 	includeTxn := c.CanReadHosts && (f.Source == "" || f.Source == string(SourceTransaction))
 	includeIntel := c.CanReadHosts && (f.Source == "" || f.Source == string(SourceIntelligence))
 	includeAudit := c.CanReadAudit && (f.Source == "" || f.Source == string(SourceAudit))
+	includeMonitoring := c.CanReadHosts && (f.Source == "" || f.Source == string(SourceMonitoring))
 
 	// suppressed legs are the ones whose rows would have matched the
 	// filters but are excluded by RBAC.
@@ -48,12 +49,13 @@ func (s *Service) List(ctx context.Context, f Filter, c Caller) ([]Row, int, str
 	suppressTxn := !c.CanReadHosts && (f.Source == "" || f.Source == string(SourceTransaction))
 	suppressIntel := !c.CanReadHosts && (f.Source == "" || f.Source == string(SourceIntelligence))
 	suppressAudit := !c.CanReadAudit && (f.Source == "" || f.Source == string(SourceAudit))
+	suppressMonitoring := !c.CanReadHosts && (f.Source == "" || f.Source == string(SourceMonitoring))
 
 	// Fetch limit+1 internally so we can tell whether this is the
 	// last page. If we got back exactly limit+1 rows, there's at
 	// least one more row beyond; trim it off and emit the cursor.
 	// Spec C-03 / AC-08.
-	rows, err := s.queryUnion(ctx, f, includeAlerts, includeTxn, includeIntel, includeAudit)
+	rows, err := s.queryUnion(ctx, f, includeAlerts, includeTxn, includeIntel, includeAudit, includeMonitoring)
 	if err != nil {
 		return nil, 0, "", err
 	}
@@ -64,8 +66,8 @@ func (s *Service) List(ctx context.Context, f Filter, c Caller) ([]Row, int, str
 	}
 
 	hidden := 0
-	if suppressAlerts || suppressTxn || suppressIntel || suppressAudit {
-		hidden, err = s.countHidden(ctx, f, suppressAlerts, suppressTxn, suppressIntel, suppressAudit)
+	if suppressAlerts || suppressTxn || suppressIntel || suppressAudit || suppressMonitoring {
+		hidden, err = s.countHidden(ctx, f, suppressAlerts, suppressTxn, suppressIntel, suppressAudit, suppressMonitoring)
 		if err != nil {
 			return nil, 0, "", err
 		}
@@ -76,7 +78,7 @@ func (s *Service) List(ctx context.Context, f Filter, c Caller) ([]Row, int, str
 // queryUnion builds and runs the single UNION query. The per-leg
 // include flags swap that leg's SELECT for SELECT WHERE FALSE so the
 // planner skips it without changing the column shape.
-func (s *Service) queryUnion(ctx context.Context, f Filter, includeAlerts, includeTxn, includeIntel, includeAudit bool) ([]Row, error) {
+func (s *Service) queryUnion(ctx context.Context, f Filter, includeAlerts, includeTxn, includeIntel, includeAudit, includeMonitoring bool) ([]Row, error) {
 	// Build per-leg filter expressions (severity, time range, host,
 	// cursor) once and inject them into each leg via a placeholder
 	// counter. We pass the same args in the same order to every leg
@@ -204,6 +206,59 @@ func (s *Service) queryUnion(ctx context.Context, f Filter, includeAlerts, inclu
 			 WHERE 1=1`+
 			commonWhere(auditSev, "occurred_at", "", false))
 	}
+	if includeMonitoring {
+		// host_monitoring_history.id is a bigint sequence. The unified
+		// Row.ID is a uuid, so we synthesize a stable uuid from the
+		// bigint: a constant 'monitoring' prefix in the first 16 hex
+		// chars and the bigint (lpad'd to 12 hex chars) in the last 12.
+		// 12 hex chars = 48 bits = 281T, which we won't hit before the
+		// retention sweep prunes the history.
+		//
+		// monitoringSeverity collapses the multi-layer band onto the
+		// closed severity enum.
+		monSev := `CASE monitoring_state
+		                WHEN 'down' THEN 'critical'
+		                WHEN 'critical' THEN 'high'
+		                WHEN 'degraded' THEN 'medium'
+		                WHEN 'online' THEN 'info'
+		                WHEN 'maintenance' THEN 'info'
+		                ELSE 'info'
+		            END`
+		// monitoringTitle derives the operator-readable headline from
+		// the (previous_state, monitoring_state) pair.
+		monTitle := `CASE monitoring_state
+		                  WHEN 'down' THEN 'Host became unreachable'
+		                  WHEN 'critical' THEN 'Host critical'
+		                  WHEN 'degraded' THEN 'Host degraded'
+		                  WHEN 'online' THEN
+		                      CASE WHEN previous_state IS NOT NULL
+		                           THEN 'Host recovered'
+		                           ELSE 'Host online' END
+		                  WHEN 'maintenance' THEN 'Maintenance mode enabled'
+		                  ELSE 'Monitoring state changed'
+		              END`
+		// monitoringSummary surfaces the failure context. error_message
+		// is preferred (the SSH / probe error text); failed_layer is a
+		// terse fallback like "ssh fail".
+		monSummary := `CASE
+		                    WHEN error_message IS NOT NULL AND error_message <> ''
+		                        THEN error_message
+		                    WHEN failed_layer IS NOT NULL AND failed_layer <> ''
+		                        THEN failed_layer || ' fail'
+		                    ELSE ''
+		                END`
+		legs = append(legs, `
+			SELECT ('00000000-0000-7000-8000-' || lpad(to_hex(id), 12, '0'))::uuid::text AS id,
+			       'monitoring' AS source,
+			       `+monSev+` AS severity,
+			       host_id,
+			       `+monTitle+` AS title,
+			       `+monSummary+` AS summary,
+			       check_time AS occurred_at
+			  FROM host_monitoring_history
+			 WHERE (previous_state IS NULL OR monitoring_state <> previous_state)`+
+			commonWhere(monSev, "check_time", "host_id", true))
+	}
 
 	if len(legs) == 0 {
 		return nil, nil
@@ -243,7 +298,7 @@ func (s *Service) queryUnion(ctx context.Context, f Filter, includeAlerts, inclu
 
 // countHidden tallies the rows the caller WOULD have seen if RBAC had
 // not suppressed them. Returns 0 when no legs are suppressed.
-func (s *Service) countHidden(ctx context.Context, f Filter, supAlerts, supTxn, supIntel, supAudit bool) (int, error) {
+func (s *Service) countHidden(ctx context.Context, f Filter, supAlerts, supTxn, supIntel, supAudit, supMonitoring bool) (int, error) {
 	args := []any{}
 	idx := 1
 	addArg := func(v any) string {
@@ -322,6 +377,11 @@ func (s *Service) countHidden(ctx context.Context, f Filter, supAlerts, supTxn, 
 		auditSev := `CASE severity WHEN 'warning' THEN 'medium' WHEN 'error' THEN 'high' ELSE COALESCE(severity, 'info') END`
 		parts = append(parts, `SELECT count(*) FROM audit_events WHERE 1=1`+
 			commonWhere(auditSev, "occurred_at", "", false))
+	}
+	if supMonitoring {
+		monSev := `CASE monitoring_state WHEN 'down' THEN 'critical' WHEN 'critical' THEN 'high' WHEN 'degraded' THEN 'medium' WHEN 'online' THEN 'info' WHEN 'maintenance' THEN 'info' ELSE 'info' END`
+		parts = append(parts, `SELECT count(*) FROM host_monitoring_history WHERE (previous_state IS NULL OR monitoring_state <> previous_state)`+
+			commonWhere(monSev, "check_time", "host_id", true))
 	}
 	if len(parts) == 0 {
 		return 0, nil
