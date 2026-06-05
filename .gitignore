@@ -941,3 +941,6 @@ coverage.txt
 
 # Transient specter run output (frontend); root .specter-results.json is tracked intentionally
 frontend/.specter-results.json
+
+# Local dev bootstrap state (scripts/openwatch.sh)
+.dev/
