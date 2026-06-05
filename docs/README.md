@@ -63,16 +63,10 @@ Start here: [Introduction](INTRODUCTION.md) | [Quickstart](guides/QUICKSTART.md)
 | [Kensa Integration](architecture/KENSA_INTEGRATION.md) | Kensa compliance engine integration manual |
 | [Native RPM Installation](architecture/NATIVE_RPM_INSTALLATION.md) | RPM-based deployment design |
 
-## Design Documents
-
-| Document | Description |
-|----------|-------------|
-| [Assessment Summary](openwatchos/01-ASSESSMENT-SUMMARY.md) | Vision, components, and status overview |
-| [Adaptive Compliance Scheduler](openwatchos/02-ADAPTIVE-COMPLIANCE-SCHEDULER.md) | Auto-scan with state-based intervals |
-| [Alert Thresholds](openwatchos/03-ALERT-THRESHOLDS.md) | Compliance, operational, and drift alerts |
-| [Server Intelligence](openwatchos/04-SERVER-INTELLIGENCE.md) | Package, service, user, network collection |
-| [MongoDB Deprecation Plan](openwatchos/05-DEPRECATION-PLAN.md) | 5-phase legacy code removal |
-| [Host Detail Page Redesign](openwatchos/06-HOST-DETAIL-PAGE-REDESIGN.md) | Auto-scan centric UI redesign |
+> **Design documents** — the Python-era `openwatchos/` planning sketches and other
+> dated planning/review docs were archived to `~/hanalyx/OWAR/openwatch-python/docs-archive/`.
+> Current design direction lives in `app/docs/openwatch_roadmap.md` and the Go-era
+> vision/plan docs (`OPENWATCH_VISION*.md`, `OPENWATCH_Q*_PLAN.md`) in this directory.
 
 ---
 

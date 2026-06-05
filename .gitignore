@@ -875,7 +875,6 @@ docs/*
 !docs/api/
 !docs/decisions/
 !docs/runbooks/
-!docs/openwatchos/
 !docs/images/
 docs/images/*
 !docs/images/*.png
