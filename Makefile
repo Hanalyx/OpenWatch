@@ -1,247 +1,260 @@
-# OpenWatch Admin (owadm) Build Configuration
-# Unified container management utility
+# OpenWatch (Go rebuild) — Makefile
+#
+# Build, test, lint, generate, package. Most targets gain real
+# implementations as Stage 0 days land:
+#
+#   Day 1 (now): build, test, tidy, lint, clean, version
+#   Day 3:       migrate
+#   Day 5:       generate (oapi-codegen)
+#   Day 11:      rpm, deb
+#   Day 12:      build-fips
+#
+# See app/docs/stage_0_walking_skeleton.md for the day-by-day plan.
 
-# Build variables
-APP_NAME := owadm
-VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
-COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
-BUILD_TIME := $(shell date -u '+%Y-%m-%d_%H:%M:%S')
+# -----------------------------------------------------------------------------
+# Variables
+# -----------------------------------------------------------------------------
 
-# Go build variables
-GOOS := $(shell go env GOOS)
-GOARCH := $(shell go env GOARCH)
-GO_VERSION := $(shell go version | cut -d ' ' -f 3)
+BINARY    := openwatch
+DIST_DIR  := dist
+CMD_DIR   := ./cmd/openwatch
 
-# Build flags
-LDFLAGS := -ldflags "-s -w \
-	-X github.com/hanalyx/openwatch/internal/owadm/cmd.Version=$(VERSION) \
-	-X github.com/hanalyx/openwatch/internal/owadm/cmd.Commit=$(COMMIT) \
-	-X github.com/hanalyx/openwatch/internal/owadm/cmd.BuildTime=$(BUILD_TIME)"
+# Version metadata injected at build time. The Go rebuild has its own
+# version track (packaging/version.env) so its milestones decouple from
+# the legacy Python project at ../VERSION. Fallback order: local
+# version.env → repo-root VERSION → hardcoded dev default.
+VERSION   := $(shell . packaging/version.env 2>/dev/null && echo "$$VERSION" || cat ../VERSION 2>/dev/null || echo "0.1.0-dev")
+COMMIT    := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+BUILDTIME := $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 
-# Directories
-BIN_DIR := bin
-DIST_DIR := dist
-MAIN_FILE := cmd/owadm/main.go
+# ldflags inject build metadata into internal/version.
+LDFLAGS := -ldflags "\
+  -X github.com/Hanalyx/openwatch/internal/version.Version=$(VERSION) \
+  -X github.com/Hanalyx/openwatch/internal/version.Commit=$(COMMIT) \
+  -X github.com/Hanalyx/openwatch/internal/version.BuildTime=$(BUILDTIME)"
 
-# Default target
-.DEFAULT_GOAL := build
+LDFLAGS_FIPS := -ldflags "\
+  -X github.com/Hanalyx/openwatch/internal/version.Version=$(VERSION) \
+  -X github.com/Hanalyx/openwatch/internal/version.Commit=$(COMMIT) \
+  -X github.com/Hanalyx/openwatch/internal/version.BuildTime=$(BUILDTIME) \
+  -X github.com/Hanalyx/openwatch/internal/version.FIPS=true"
 
-# Build for current platform
+# -----------------------------------------------------------------------------
+# Build (Day 1)
+# -----------------------------------------------------------------------------
+
 .PHONY: build
-build: clean
-	@echo "Building $(APP_NAME) for $(GOOS)/$(GOARCH)..."
-	@mkdir -p $(BIN_DIR)
-	CGO_ENABLED=0 go build $(LDFLAGS) -o $(BIN_DIR)/$(APP_NAME) $(MAIN_FILE)
-	@echo "[OK] Built $(BIN_DIR)/$(APP_NAME)"
+build: $(DIST_DIR) internal/server/openapi_embed.yaml
+	go build $(LDFLAGS) -o $(DIST_DIR)/$(BINARY) $(CMD_DIR)
+	@echo "built $(DIST_DIR)/$(BINARY) ($(VERSION) / $(COMMIT))"
 
-# Build for all platforms
-.PHONY: build-all
-build-all: clean
-	@echo "Building $(APP_NAME) for all platforms..."
+$(DIST_DIR):
 	@mkdir -p $(DIST_DIR)
 
-	# Linux AMD64
-	@echo "  Building for linux/amd64..."
-	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build $(LDFLAGS) -o $(DIST_DIR)/$(APP_NAME)-linux-amd64 $(MAIN_FILE)
+# -----------------------------------------------------------------------------
+# Test & lint (Day 1)
+# -----------------------------------------------------------------------------
 
-	# Linux ARM64
-	@echo "  Building for linux/arm64..."
-	GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build $(LDFLAGS) -o $(DIST_DIR)/$(APP_NAME)-linux-arm64 $(MAIN_FILE)
-
-	# macOS AMD64 (Intel)
-	@echo "  Building for darwin/amd64..."
-	GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build $(LDFLAGS) -o $(DIST_DIR)/$(APP_NAME)-darwin-amd64 $(MAIN_FILE)
-
-	# macOS ARM64 (M1/M2)
-	@echo "  Building for darwin/arm64..."
-	GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build $(LDFLAGS) -o $(DIST_DIR)/$(APP_NAME)-darwin-arm64 $(MAIN_FILE)
-
-	# Windows AMD64
-	@echo "  Building for windows/amd64..."
-	GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build $(LDFLAGS) -o $(DIST_DIR)/$(APP_NAME)-windows-amd64.exe $(MAIN_FILE)
-
-	@echo "[OK] Built all platform binaries in $(DIST_DIR)/"
-	@ls -la $(DIST_DIR)/
-
-# Install locally
-.PHONY: install
-install: build
-	@echo "Installing $(APP_NAME) to /usr/local/bin..."
-	sudo cp $(BIN_DIR)/$(APP_NAME) /usr/local/bin/$(APP_NAME)
-	sudo chmod +x /usr/local/bin/$(APP_NAME)
-	@echo "[OK] $(APP_NAME) installed successfully"
-	@echo "Try: owadm --help"
-
-# Install locally without sudo (to ~/bin)
-.PHONY: install-user
-install-user: build
-	@echo "Installing $(APP_NAME) to ~/bin..."
-	@mkdir -p ~/bin
-	cp $(BIN_DIR)/$(APP_NAME) ~/bin/$(APP_NAME)
-	chmod +x ~/bin/$(APP_NAME)
-	@echo "[OK] $(APP_NAME) installed to ~/bin/"
-	@echo "Make sure ~/bin is in your PATH"
-	@echo "Try: owadm --help"
-
-# Development build with race detection
-.PHONY: build-dev
-build-dev: clean
-	@echo "Building $(APP_NAME) for development..."
-	@mkdir -p $(BIN_DIR)
-	go build -race $(LDFLAGS) -o $(BIN_DIR)/$(APP_NAME)-dev $(MAIN_FILE)
-	@echo "[OK] Built $(BIN_DIR)/$(APP_NAME)-dev"
-
-# Run tests
 .PHONY: test
-test:
-	@echo "Running tests..."
-	go test -v ./...
-	@echo "[OK] Tests completed"
+test: internal/server/openapi_embed.yaml
+	go test ./...
 
-# Run tests with coverage
-.PHONY: test-coverage
-test-coverage:
-	@echo "Running tests with coverage..."
-	go test -v -coverprofile=coverage.out ./...
-	go tool cover -html=coverage.out -o coverage.html
-	@echo "[OK] Coverage report generated: coverage.html"
+# test-integration: runs the full suite (including DB-backed integration
+# tests) against a dedicated TEST database. The DSN is constructed here
+# so the operator can never accidentally point it at the dev or prod
+# DB. These tests TRUNCATE tables between cases — pointing at a non-test
+# DB would destroy real data. Run `make test-db-create` first if the
+# database does not exist yet.
+.PHONY: test-integration
+test-integration: internal/server/openapi_embed.yaml
+	@DB="$${OPENWATCH_TEST_DB:-openwatch_go_test}"; \
+	case "$$DB" in *_test) ;; \
+	  *) echo "ERROR: OPENWATCH_TEST_DB ($$DB) must end with _test"; exit 1 ;; esac; \
+	HOST="$${OPENWATCH_TEST_DB_HOST:-127.0.0.1}"; \
+	PORT="$${OPENWATCH_TEST_DB_PORT:-5432}"; \
+	USER="$${OPENWATCH_TEST_DB_USER:-openwatch}"; \
+	PASS="$${OPENWATCH_TEST_DB_PASS:-openwatch_secure_db_2025}"; \
+	DSN="postgres://$$USER:$$PASS@$$HOST:$$PORT/$$DB?sslmode=disable"; \
+	echo "Using test DB: $$DB on $$HOST:$$PORT"; \
+	OPENWATCH_TEST_DSN="$$DSN" go test -race -p 1 ./...
 
-# Format code
-.PHONY: fmt
-fmt:
-	@echo "Formatting code..."
-	gofmt -s -w .
+# test-db-create: provisions the test database (idempotent — exits 0
+# if it already exists) and applies all migrations.
+.PHONY: test-db-create
+test-db-create: $(DIST_DIR)/$(BINARY)
+	@DB="$${OPENWATCH_TEST_DB:-openwatch_go_test}"; \
+	case "$$DB" in *_test) ;; \
+	  *) echo "ERROR: OPENWATCH_TEST_DB ($$DB) must end with _test"; exit 1 ;; esac; \
+	HOST="$${OPENWATCH_TEST_DB_HOST:-127.0.0.1}"; \
+	PORT="$${OPENWATCH_TEST_DB_PORT:-5432}"; \
+	USER="$${OPENWATCH_TEST_DB_USER:-openwatch}"; \
+	PASS="$${OPENWATCH_TEST_DB_PASS:-openwatch_secure_db_2025}"; \
+	PGPASSWORD="$$PASS" psql -h $$HOST -p $$PORT -U $$USER -d postgres \
+	  -tc "SELECT 1 FROM pg_database WHERE datname='$$DB'" | grep -q 1 \
+	  || PGPASSWORD="$$PASS" psql -h $$HOST -p $$PORT -U $$USER -d postgres \
+	     -c "CREATE DATABASE $$DB OWNER $$USER;"; \
+	DSN="postgres://$$USER:$$PASS@$$HOST:$$PORT/$$DB?sslmode=disable"; \
+	echo "Migrating test DB to current schema..."; \
+	OPENWATCH_DATABASE_DSN="$$DSN" ./$(DIST_DIR)/$(BINARY) migrate
+
+# test-db-drop: tears down the test database. Refuses any DB name that
+# does not end in _test.
+.PHONY: test-db-drop
+test-db-drop:
+	@DB="$${OPENWATCH_TEST_DB:-openwatch_go_test}"; \
+	case "$$DB" in *_test) ;; \
+	  *) echo "ERROR: $$DB must end with _test"; exit 1 ;; esac; \
+	HOST="$${OPENWATCH_TEST_DB_HOST:-127.0.0.1}"; \
+	PORT="$${OPENWATCH_TEST_DB_PORT:-5432}"; \
+	USER="$${OPENWATCH_TEST_DB_USER:-openwatch}"; \
+	PASS="$${OPENWATCH_TEST_DB_PASS:-openwatch_secure_db_2025}"; \
+	PGPASSWORD="$$PASS" psql -h $$HOST -p $$PORT -U $$USER -d postgres \
+	  -c "DROP DATABASE IF EXISTS $$DB;"
+
+.PHONY: tidy
+tidy:
 	go mod tidy
-	@echo "[OK] Code formatted"
 
-# Lint code
+# -----------------------------------------------------------------------------
+# Quality + security gates (release-ci-gates.spec.yaml)
+# -----------------------------------------------------------------------------
+
+# vet: built-in suspicious-construct check. Always available.
+# Depends on internal/server/openapi_embed.yaml because go:embed
+# resolves at vet time too — the source tree must contain the embedded
+# file for vet to type-check the embedding declaration.
+.PHONY: vet
+vet: internal/server/openapi_embed.yaml
+	go vet ./...
+
+# lint: golangci-lint runs staticcheck + gosec + govet + others per .golangci.yml.
 .PHONY: lint
-lint:
-	@echo "Linting code..."
+lint: internal/server/openapi_embed.yaml
 	@if command -v golangci-lint >/dev/null 2>&1; then \
-		golangci-lint run; \
+	  golangci-lint run; \
 	else \
-		@echo "[WARNING] golangci-lint not installed, using go vet..."; \
-		go vet ./...; \
+	  echo "golangci-lint not installed; skipping (install: https://golangci-lint.run/usage/install/)"; \
 	fi
-	@echo "[OK] Linting completed"
 
-# Clean build artifacts
+# vuln: known-CVE scan against deps + stdlib (call-graph aware).
+# Auto-installs govulncheck if absent.
+.PHONY: vuln
+vuln: internal/server/openapi_embed.yaml
+	@if ! command -v govulncheck >/dev/null 2>&1; then \
+	  echo "installing govulncheck..."; \
+	  go install golang.org/x/vuln/cmd/govulncheck@latest; \
+	fi
+	govulncheck ./...
+
+# test-race: full suite with the race detector. Slower than `make test`.
+# Integration tests still need OPENWATCH_TEST_DSN; without it they skip.
+# -p 1 serializes packages so they don't trample each other's DB state.
+.PHONY: test-race
+test-race: internal/server/openapi_embed.yaml
+	go test -race -p 1 ./...
+
+# check: the single pre-push gate. Chains vet → lint → vuln → test-race.
+# First failure aborts the chain (make's default target dependency semantics).
+.PHONY: check
+check: vet lint vuln test-race
+	@echo "make check: all gates passed"
+
 .PHONY: clean
 clean:
-	@echo "Cleaning build artifacts..."
-	rm -rf $(BIN_DIR) $(DIST_DIR)
-	rm -f coverage.out coverage.html
-	@echo "[OK] Clean completed"
+	rm -rf $(DIST_DIR)
+	@echo "cleaned $(DIST_DIR)/"
 
-# Show build info
-.PHONY: info
-info:
-	@echo "Build Information:"
-	@echo "  App Name:     $(APP_NAME)"
-	@echo "  Version:      $(VERSION)"
-	@echo "  Commit:       $(COMMIT)"
-	@echo "  Go Version:   $(GO_VERSION)"
-	@echo "  Target OS:    $(GOOS)"
-	@echo "  Target Arch:  $(GOARCH)"
-	@echo "  Build Time:   $(BUILD_TIME)"
+.PHONY: version
+version:
+	@echo "VERSION=$(VERSION)"
+	@echo "COMMIT=$(COMMIT)"
+	@echo "BUILDTIME=$(BUILDTIME)"
 
-# Development workflow
-.PHONY: dev
-dev: fmt lint test build
-	@echo "[OK] Development build completed"
+# -----------------------------------------------------------------------------
+# Codegen (Day 5: oapi-codegen, sqlc; Day 5+: registry codegen)
+# -----------------------------------------------------------------------------
 
-# Release workflow
-.PHONY: release
-release: fmt lint test build-all
-	@echo "[OK] Release build completed"
-	@echo "Binaries available in $(DIST_DIR)/"
+.PHONY: generate
+generate: generate-audit generate-api
+	@echo "generate: audit events + OpenAPI server stubs regenerated (sqlc lands later)"
 
-# Package management
-.PHONY: package-rpm
-package-rpm: build
-	@echo "Building RPM package..."
-	cd packaging/rpm && ./build-rpm.sh
-	@echo "[OK] RPM package build completed"
+.PHONY: generate-audit
+generate-audit:
+	go run scripts/gen-audit-events.go
 
-.PHONY: package-deb
-package-deb: build
-	@echo "Building DEB package..."
-	cd packaging/deb && ./build-deb.sh
-	@echo "[OK] DEB package build completed"
+.PHONY: generate-api
+generate-api:
+	@if [ ! -x "$(HOME)/go/bin/oapi-codegen" ]; then \
+	  echo "installing oapi-codegen..."; \
+	  go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest; \
+	fi
+	$(HOME)/go/bin/oapi-codegen --config api/oapi-codegen.yaml api/openapi.yaml
+	@echo "generated internal/server/api/server.gen.go"
 
-.PHONY: package-all
-package-all: package-rpm package-deb
-	@echo "[OK] All packages built successfully"
+# The OpenAPI spec is also embedded into the binary so the /api/v1/openapi.yaml
+# and /docs routes can serve it air-gap-clean. go:embed cannot follow paths
+# outside the package directory, so we keep a build-time copy under
+# internal/server/. The copy is gitignored; rebuilt by `make build`.
+internal/server/openapi_embed.yaml: api/openapi.yaml
+	cp $< $@
 
-# Quick start for new users
-.PHONY: quick-start
-quick-start: build install
-	@echo ""
-	@echo "owadm is ready!"
-	@echo ""
-	@echo "Quick start commands:"
-	@echo "  owadm start           # Start OpenWatch"
-	@echo "  owadm status         # Check status"
-	@echo "  owadm stop           # Stop services"
-	@echo "  owadm --help         # Show help"
-	@echo ""
+# -----------------------------------------------------------------------------
+# Database migrations (Day 3)
+# -----------------------------------------------------------------------------
 
-# -------------------------------------------------------------------
-# Python / Backend Quality Targets
-# -------------------------------------------------------------------
+.PHONY: migrate
+migrate:
+	@echo "migrate: not yet implemented (lands in Day 3: goose)"
 
-.PHONY: py-lint py-format py-test py-coverage py-specs py-check
+# -----------------------------------------------------------------------------
+# Packaging (Day 11: RPM + DEB)
+# -----------------------------------------------------------------------------
 
-py-lint:
-	cd backend && black --check app/ --line-length 120
-	cd backend && flake8 app/ --max-line-length=120 --extend-ignore=E203,W503 --per-file-ignores='__init__.py:F401,E402'
-	cd backend && mypy app/ --ignore-missing-imports
+.PHONY: rpm
+rpm:
+	@bash packaging/rpm/build-rpm.sh
 
-py-format:
-	cd backend && black app/ --line-length 120
-	cd backend && isort app/ --profile black --line-length 120
+.PHONY: deb
+deb:
+	@bash packaging/deb/build-deb.sh
 
-py-test:
-	cd backend && pytest ../tests/backend/ -x --timeout=30 -q
+# -----------------------------------------------------------------------------
+# FIPS build (Day 12: microsoft/go toolchain)
+# -----------------------------------------------------------------------------
 
-py-coverage:
-	cd backend && pytest ../tests/backend/ --cov=app --cov-report=term --cov-fail-under=42
+.PHONY: build-fips
+build-fips: $(DIST_DIR)
+	GOFIPS140=v1.0.0 go build $(LDFLAGS_FIPS) -o $(DIST_DIR)/$(BINARY)-fips $(CMD_DIR)
+	@echo "built $(DIST_DIR)/$(BINARY)-fips ($(VERSION) / $(COMMIT)) [FIPS 140-3]"
 
-py-specs:
-	python3 scripts/validate-specs.py
-	python3 scripts/check-spec-coverage.py --enforce-active
-
-py-check: py-lint py-test py-specs
-	@echo "All Python checks pass"
-
+# -----------------------------------------------------------------------------
 # Help
+# -----------------------------------------------------------------------------
+
 .PHONY: help
 help:
-	@echo "OpenWatch Admin (owadm) Build System"
+	@echo "OpenWatch (Go rebuild) — Makefile targets"
 	@echo ""
-	@echo "Available targets:"
-	@echo "  build           Build for current platform"
-	@echo "  build-all       Build for all platforms"
-	@echo "  build-dev       Build with race detection"
-	@echo "  install         Install to /usr/local/bin (requires sudo)"
-	@echo "  install-user    Install to ~/bin"
-	@echo "  test            Run tests"
-	@echo "  test-coverage   Run tests with coverage report"
-	@echo "  fmt             Format code"
-	@echo "  lint            Lint code"
-	@echo "  clean           Clean build artifacts"
-	@echo "  dev             Run development workflow"
-	@echo "  release         Run release workflow"
-	@echo "  quick-start     Build and install for new users"
-	@echo "  info            Show build information"
+	@echo "  build       Build the openwatch binary into dist/                     [Day 1]"
+	@echo "  test        Run all Go tests                                          [Day 1]"
+	@echo "  tidy        Run go mod tidy                                           [Day 1]"
+	@echo "  clean       Remove dist/                                              [Day 1]"
+	@echo "  version     Print version metadata that will be injected              [Day 1]"
 	@echo ""
-	@echo "Python / Backend targets:"
-	@echo "  py-lint         Lint Python backend (black, flake8, mypy)"
-	@echo "  py-format       Format Python backend (black, isort)"
-	@echo "  py-test         Run backend tests"
-	@echo "  py-coverage     Run backend tests with coverage"
-	@echo "  py-specs        Validate specs and AC coverage"
-	@echo "  py-check        Run all Python checks"
+	@echo "Pre-merge gates (release-ci-gates spec):"
+	@echo "  vet         go vet ./...                                              [gate]"
+	@echo "  lint        golangci-lint (staticcheck + gosec + ...)                 [gate]"
+	@echo "  vuln        govulncheck ./...    (known CVEs in deps + stdlib)        [gate]"
+	@echo "  test-race   go test -race ./...  (data race detection)                [gate]"
+	@echo "  check       vet + lint + vuln + test-race  (run before pushing)       [gate]"
 	@echo ""
-	@echo "  help            Show this help message"
+	@echo "Codegen + DB:"
+	@echo "  generate    Run codegen (oapi-codegen, sqlc, registries)              [Day 5]"
+	@echo "  migrate     Run goose database migrations                             [Day 3]"
+	@echo ""
+	@echo "Packaging:"
+	@echo "  rpm         Build RPM package                                         [Day 11]"
+	@echo "  deb         Build DEB package                                         [Day 11]"
+	@echo "  build-fips  Build with FIPS 140-3 (GOFIPS140 native)                  [Day 12]"
+
+.DEFAULT_GOAL := help

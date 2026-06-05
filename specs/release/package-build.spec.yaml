@@ -1,193 +1,127 @@
-spec: package-build
-version: "1.0"
-status: active
-owner: engineering
+spec:
+  id: release-package-build
+  title: Native RPM and DEB packaging
+  version: "1.0.0"
+  status: approved
+  tier: 2
 
-summary: >
-  Defines the container-based RPM and DEB package build jobs that run as part
-  of the GitHub Actions release workflow. Packages are built inside disposable
-  containers (CentOS Stream 9 for RPM, Ubuntu 24.04 for DEB) and uploaded as
-  GitHub Release assets.
-
----
-
-# Variants
-
-variants:
-  rpm:
-    container: quay.io/centos/centos:stream9
-    runner: ubuntu-latest
-    build_script: packaging/rpm/build-rpm.sh
-    output_glob: "packaging/rpm/dist/*.rpm"
-    artifact_naming: "openwatch-{VERSION}-{RELEASE}.x86_64.rpm"
-    dependencies:
-      - rpm-build
-      - rpmdevtools
-      - golang
-      - git
-      - make
-      - selinux-policy-devel
-      - "nodejs:20 (dnf module)"
-
-  deb:
-    container: ubuntu:24.04
-    runner: ubuntu-latest
-    build_script: packaging/deb/build-deb.sh
-    output_glob: "packaging/deb/dist/*.deb"
-    artifact_naming: "openwatch_{VERSION}_{ARCH}.deb"
-    dependencies:
-      - build-essential
-      - golang-go
-      - git
-      - fakeroot
-      - lintian
-      - dpkg-dev
-      - ca-certificates
-
----
-
-# Version flow
-
-version:
-  source_of_truth: packaging/version.env
-  format: 'VERSION="X.Y.Z" or VERSION="X.Y.Z-pre"'
-
-  rpm_mapping:
+  context:
+    system: openwatch-go
+    feature: Linux distribution packaging
     description: >
-      build-rpm.sh parses VERSION into rpm_version and rpm_release.
-      "0.0.0-dev" -> rpm_version="0.0.0", rpm_release="dev.1"
-      "1.2.3"     -> rpm_version="1.2.3", rpm_release="1"
-    injected_via: rpmbuild --define "ow_version ..." --define "ow_release ..."
+      The Go binary ships as a native RPM (CentOS Stream 9 / RHEL 9
+      derivatives) and DEB (Ubuntu 24.04+). Air-gapped install:
+      single binary, default config, embedded test cert, systemd unit.
+      Operator runs `dnf install ./openwatch-*.rpm` or `apt install
+      ./openwatch-*.deb` and the service is wired up.
+    related_specs:
+      - system-http-server
+      - system-config
+      - system-license-validation
 
-  deb_mapping:
-    description: >
-      build-deb.sh converts VERSION to Debian-compatible format.
-      "0.0.0-dev" -> DEB_VERSION="0.0.0~dev1"
-      "1.2.3"     -> DEB_VERSION="1.2.3-1"
-    injected_via: sed on DEBIAN/control Version field
+  objective:
+    summary: >
+      Make the operator install path one command. The package is the
+      delivery boundary; everything Stage 0 needs to run (binary,
+      config schema, systemd unit, demo TLS material) ships in it. No
+      docker, no curl pipe-to-bash, no python venv. Reproducible
+      from a tagged source tree.
+    scope:
+      includes:
+        - RPM spec file + build script
+        - DEB control files + build script
+        - systemd unit definition
+        - Default openwatch.toml shipped under /etc/openwatch/
+        - Demo cert under /etc/openwatch/tls/ (operators replace)
+        - Post-install systemd reload
+        - Pre-uninstall stop+disable
+      excludes:
+        - Signed package distribution (separate release infra)
+        - FIPS variant (Day 12 ships a second binary build)
+        - Multi-arch (arm64 deferred)
 
----
+  constraints:
+    - id: C-01
+      description: Both packages MUST install the binary at /usr/bin/openwatch with mode 0755 and root ownership
+      type: technical
+      enforcement: error
+    - id: C-02
+      description: Both packages MUST install the default config at /etc/openwatch/openwatch.toml with mode 0640 and root:openwatch ownership
+      type: security
+      enforcement: error
+    - id: C-03
+      description: Both packages MUST install the systemd unit at /etc/systemd/system/openwatch.service and run daemon-reload post-install
+      type: technical
+      enforcement: error
+    - id: C-04
+      description: Both packages MUST create the openwatch system user and group at install time (if not already present)
+      type: security
+      enforcement: error
+    - id: C-05
+      description: Both packages MUST ship a demo TLS cert under /etc/openwatch/tls/ with key mode 0600 owned by openwatch:openwatch
+      type: security
+      enforcement: error
+    - id: C-06
+      description: Pre-uninstall MUST run systemctl stop and disable so a removal does not leave a running orphan
+      type: technical
+      enforcement: error
+    - id: C-07
+      description: Both packages MUST embed the same VERSION value into the binary via ldflags so `openwatch --version` matches the package version
+      type: technical
+      enforcement: error
+    - id: C-08
+      description: Build scripts MUST be invoked via make rpm and make deb targets — the Makefile is the orchestration surface
+      type: technical
+      enforcement: error
 
-# Tag verification rule
-
-tag_verification:
-  description: >
-    The git tag (stripped of leading "v") must match the VERSION value in
-    packaging/version.env. The build fails immediately if they disagree.
-    This prevents accidental mismatches between the tag and the package
-    version baked into the artifact.
-
-  workflow_dispatch:
-    description: >
-      When triggered manually, the version input replaces the tag.
-      The same verification applies.
-
-  check: |
-    TAG_VERSION="${GITHUB_REF#refs/tags/v}"
-    source packaging/version.env
-    ENV_VERSION="${VERSION}"
-    if [[ "$TAG_VERSION" != "$ENV_VERSION" ]]; then
-      echo "Tag version ($TAG_VERSION) != version.env ($ENV_VERSION)"
-      exit 1
-    fi
-
----
-
-# Build stages
-
-stages:
-  - name: checkout
-    action: actions/checkout@v5
-
-  - name: verify_version
-    action: >
-      Strip "v" prefix from git tag, source packaging/version.env,
-      compare. Fail if mismatch.
-
-  - name: install_deps
-    action: >
-      Install build dependencies inside the container using the
-      platform package manager (dnf for RPM, apt-get for DEB).
-
-  - name: build
-    action: >
-      Run the existing build script (build-rpm.sh or build-deb.sh).
-      The script sources version.env internally.
-
-  - name: upload
-    action: >
-      Upload built packages to the GitHub Release using
-      softprops/action-gh-release@v2 with tag_name from create-release.
-
----
-
-# Job dependency graph
-
-dependencies:
-  build-rpm:
-    needs: create-release
-    parallel_with: [build-artifacts, package-release, build-deb]
-
-  build-deb:
-    needs: create-release
-    parallel_with: [build-artifacts, package-release, build-rpm]
-
----
-
-# Machine checks (enforced by packaging/tests/test_package_build.sh)
-
-tests:
-  - id: build_scripts_exist
-    description: >
-      build-rpm.sh and build-deb.sh must exist and be executable.
-    check: test -x packaging/rpm/build-rpm.sh && test -x packaging/deb/build-deb.sh
-
-  - id: scripts_source_version_env
-    description: >
-      Both build scripts must source version.env to read the version.
-    check: >
-      grep -q 'source.*version\.env' packaging/rpm/build-rpm.sh &&
-      grep -q 'source.*version\.env' packaging/deb/build-deb.sh
-
-  - id: rpm_spec_macros
-    description: >
-      Both RPM .spec files must use %{ow_version} and %{ow_release} macros
-      for Version and Release fields.
-    check: >
-      grep -q '%{ow_version}' packaging/rpm/openwatch.spec &&
-      grep -q '%{ow_release}' packaging/rpm/openwatch.spec &&
-      grep -q '%{ow_version}' packaging/rpm/openwatch-po.spec &&
-      grep -q '%{ow_release}' packaging/rpm/openwatch-po.spec
-
-  - id: deb_control_placeholder
-    description: >
-      DEBIAN/control must have Version: 0.0.0 as a placeholder that
-      build-deb.sh replaces at build time.
-    check: "grep -q '^Version: 0.0.0$' packaging/deb/DEBIAN/control"
-
-  - id: deb_maintainer_scripts
-    description: >
-      postinst, prerm, and postrm must exist and be executable.
-    check: >
-      test -x packaging/deb/DEBIAN/postinst &&
-      test -x packaging/deb/DEBIAN/prerm &&
-      test -x packaging/deb/DEBIAN/postrm
-
-  - id: workflow_jobs
-    description: >
-      release.yml must contain build-rpm: and build-deb: job definitions.
-    check: >
-      grep -q 'build-rpm:' .github/workflows/release.yml &&
-      grep -q 'build-deb:' .github/workflows/release.yml
-
-  - id: version_env_format
-    description: >
-      packaging/version.env must contain quoted VERSION= and CODENAME= lines.
-    check: >
-      grep -qE '^VERSION="' packaging/version.env &&
-      grep -qE '^CODENAME="' packaging/version.env
-
-  - id: bash_syntax
-    description: >
-      Both build scripts must pass bash -n syntax checking.
-    check: bash -n packaging/rpm/build-rpm.sh && bash -n packaging/deb/build-deb.sh
+  acceptance_criteria:
+    - id: AC-01
+      description: scripts/build-rpm.sh produces a single .rpm file under app/dist/ on a system with rpmbuild installed.
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-02
+      description: scripts/build-deb.sh produces a single .deb file under app/dist/ on a system with dpkg-deb installed.
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-03
+      description: The RPM spec file passes `rpm -q --specfile packaging/rpm/openwatch.spec` without errors.
+      priority: critical
+    - id: AC-04
+      description: The RPM payload contains /usr/bin/openwatch, /etc/openwatch/openwatch.toml, /etc/systemd/system/openwatch.service, and /etc/openwatch/tls/cert.pem.
+      priority: critical
+      references_constraints: [C-01, C-02, C-03, C-05]
+    - id: AC-05
+      description: The DEB control file lists package name "openwatch", a valid Depends line, and Maintainer.
+      priority: critical
+    - id: AC-06
+      description: The DEB payload (via dpkg-deb -c) contains /usr/bin/openwatch, /etc/openwatch/openwatch.toml, /etc/systemd/system/openwatch.service, and /etc/openwatch/tls/cert.pem.
+      priority: critical
+      references_constraints: [C-01, C-02, C-03, C-05]
+    - id: AC-07
+      description: The RPM post-install script invokes systemctl daemon-reload (verified via rpm -q --scripts).
+      priority: high
+      references_constraints: [C-03]
+    - id: AC-08
+      description: The DEB postinst script invokes systemctl daemon-reload (verified via dpkg-deb --info).
+      priority: high
+      references_constraints: [C-03]
+    - id: AC-09
+      description: The RPM pre-uninstall script invokes systemctl stop and disable (verified via rpm -q --scripts).
+      priority: high
+      references_constraints: [C-06]
+    - id: AC-10
+      description: The DEB prerm script invokes systemctl stop and disable (verified via dpkg-deb --info).
+      priority: high
+      references_constraints: [C-06]
+    - id: AC-11
+      description: Both packages create the openwatch system user/group via their pre-install scripts.
+      priority: critical
+      references_constraints: [C-04]
+    - id: AC-12
+      description: The binary embedded in each package reports the same VERSION when invoked with --version (matches the package version metadata).
+      priority: high
+      references_constraints: [C-07]
+    - id: AC-13
+      description: make rpm and make deb invoke the corresponding build scripts and exit 0 on success.
+      priority: high
+      references_constraints: [C-08]

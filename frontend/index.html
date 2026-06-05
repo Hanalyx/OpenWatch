@@ -1,25 +1,61 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#000000" />
-    <meta name="description" content="OpenWatch - FIPS-compliant Security Compliance Monitoring" />
-    <!-- CSP enforced via HTTP headers in production (nginx), not meta tag.
-         Material-UI requires 'unsafe-inline' for style-src (emotion CSS-in-JS).
-         Vite dev server requires 'unsafe-inline' for script-src (HMR).
-         Production nginx config sets stricter CSP with style-src 'unsafe-inline'. -->
-    <!-- Local fonts for enterprise environments -->
-    <link rel="preload" href="/fonts/roboto/Roboto-Regular.woff2" as="font" type="font/woff2" crossorigin>
-    <link rel="preload" href="/fonts/roboto/Roboto-Medium.woff2" as="font" type="font/woff2" crossorigin>
-    <link rel="preload" href="/fonts/material-icons/MaterialIcons-Regular.woff2" as="font" type="font/woff2" crossorigin>
-    <link rel="stylesheet" href="/fonts/fonts.css">
-    <title>OpenWatch - Security Compliance Monitoring</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>OpenWatch</title>
+
+    <!--
+      No-FOUC color-scheme bootstrap.
+      frontend-foundation C-02 / AC-01 / AC-15:
+      Synchronous script BEFORE the React bundle parses. Reads the stored
+      preference, falls back to system, and sets data-mui-color-scheme on
+      <html> so the first paint is correct.
+
+      MUI v7's getInitColorSchemeScript() produces a functionally identical
+      script; we inline a small version here so the bundle does not need to
+      execute first.
+    -->
+    <script>
+      (function () {
+        try {
+          var key = 'ow-color-scheme';
+          var stored = window.localStorage.getItem(key);
+          var mode =
+            stored === 'light' || stored === 'dark' || stored === 'system'
+              ? stored
+              : 'system';
+          var resolved =
+            mode === 'system'
+              ? window.matchMedia('(prefers-color-scheme: dark)').matches
+                ? 'dark'
+                : 'light'
+              : mode;
+          document.documentElement.setAttribute(
+            'data-mui-color-scheme',
+            resolved,
+          );
+          document.documentElement.style.colorScheme = resolved;
+        } catch (e) {
+          // localStorage / matchMedia failure -> default to dark
+          document.documentElement.setAttribute(
+            'data-mui-color-scheme',
+            'dark',
+          );
+        }
+      })();
+    </script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
   </head>
   <body>
-    <noscript>You need to enable JavaScript to run this application.</noscript>
     <div id="root"></div>
-    <script type="module" src="/src/index.tsx"></script>
+    <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

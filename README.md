@@ -3,7 +3,7 @@
 **The Compliance Operating System — See Everything, Continuously.**
 
 [![License: AGPLv3 + MSE](https://img.shields.io/badge/License-AGPLv3%20%2B%20MSE-blue.svg)](LICENSE)
-[![Backend CI](https://github.com/Hanalyx/OpenWatch/actions/workflows/ci.yml/badge.svg)](https://github.com/Hanalyx/OpenWatch/actions/workflows/ci.yml)
+[![Go CI](https://github.com/Hanalyx/OpenWatch/actions/workflows/go-ci.yml/badge.svg)](https://github.com/Hanalyx/OpenWatch/actions/workflows/go-ci.yml)
 [![Documentation](https://img.shields.io/badge/docs-latest-brightgreen)](https://hanalyx.github.io/OpenWatch/)
 [![GitHub Discussions](https://img.shields.io/github/discussions/Hanalyx/OpenWatch)](https://github.com/Hanalyx/OpenWatch/discussions)
 
@@ -14,6 +14,16 @@ An auditor asks: *"Were these 200 servers compliant with STIG on January 15th?"*
 With manual processes, that question takes a week to answer. With point-in-time scanning tools, you can only answer if you happened to scan that day. With OpenWatch, it is a query — executed in seconds, backed by machine-verifiable evidence, exportable as CSV, JSON, or PDF.
 
 OpenWatch is the compliance operating system for teams managing Linux infrastructure under STIG, CIS, NIST 800-53, PCI-DSS, and FedRAMP. It connects to your servers over SSH, runs 508 compliance checks via the [Kensa](https://github.com/Hanalyx/kensa) engine, and provides continuous visibility into compliance posture — not just what's passing now, but what was passing last Tuesday, what drifted since your last assessment, and what needs attention before your next one.
+
+> **Project status — Go rebuild in progress.** OpenWatch is being rebuilt on a
+> Go backend (the original Python/FastAPI implementation has been archived). The
+> Go tree now lives at the **repo root**: Go 1.26 backend (`cmd/`, `internal/`),
+> React 19 + TanStack frontend (`frontend/`), PostgreSQL-only. The product
+> capabilities below describe the target system. The container/RPM deployment
+> story is being re-established on the Go stack — until then, run from source
+> (see [Contributing](#contributing)). Sections that reference
+> `docker-compose`/`start-openwatch.sh` describe the archived Python stack and
+> are being reworked.
 
 ![OpenWatch Compliance Dashboard](docs/images/dashboard-preview.png)
 
@@ -79,8 +89,8 @@ OpenWatch is a compliance *platform* — it manages the lifecycle of compliance 
 **Requirements:** Docker (or Podman) and 4 GB RAM.
 
 ```bash
-git clone https://github.com/hanalyx/openwatch.git
-cd openwatch
+git clone https://github.com/Hanalyx/OpenWatch.git
+cd OpenWatch
 ./start-openwatch.sh --runtime docker --build
 ```
 
@@ -104,20 +114,20 @@ Results appear in under a minute. OpenWatch ships with 508 built-in [Kensa](http
 └──────────────────────────┬──────────────────────────────────┘
                            │
 ┌──────────────────────────▼──────────────────────────────────┐
-│  OpenWatch UI (React 19 · Material-UI v7)                   │
+│  OpenWatch UI (React 19 · TanStack Router/Query · MUI)      │
 │  Dashboard · Posture · Alerts · Exceptions · Reports        │
 ├─────────────────────────────────────────────────────────────┤
-│  OpenWatch API (FastAPI · 80+ endpoints)                    │
+│  OpenWatch API (Go 1.26 · REST)                             │
 │  Auth · RBAC · Scheduling · Audit · Exports                 │
 ├────────────────────────┬────────────────────────────────────┤
-│  Kensa Engine          │  Celery Workers                    │
+│  Kensa Engine          │  Worker (Go)                       │
 │  508 YAML rules        │  Async scanning                   │
 │  23 remediation types  │  Adaptive scheduling              │
 │  Evidence capture      │  Drift detection                  │
 ├────────────────────────┴────────────────────────────────────┤
-│  PostgreSQL 15         │  Redis 7.4                         │
-│  All persistent data   │  Task queue + cache               │
-└────────────────────────┴────────────────────────────────────┘
+│  PostgreSQL                                                 │
+│  All persistent data + native job queue (SKIP LOCKED)      │
+└─────────────────────────────────────────────────────────────┘
                            │
                       SSH (port 22)
                            │
@@ -244,18 +254,23 @@ Found a bug? [Open an issue](https://github.com/Hanalyx/OpenWatch/issues/new).
 
 ## Contributing
 
-```bash
-# Backend
-cd backend && pip install -r requirements.txt
-pytest tests/ -v
+The Go tree lives at the repo root:
 
-# Frontend
-cd frontend && npm install
-npm run dev    # http://localhost:3001
-npm test
+```bash
+# Backend (Go 1.26)
+go build ./...
+go test ./internal/... -count=1
+specter check          # spec schema validation
+
+# Frontend (React 19 + TanStack + Vite)
+cd frontend
+npm install
+npm run dev            # http://localhost:5173
+npx vitest run
 ```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) before submitting a PR.
+The legacy Python implementation is archived outside the repo and is no longer
+built or tested here. See [CONTRIBUTING.md](CONTRIBUTING.md) before submitting a PR.
 
 ## License
 

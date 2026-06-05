@@ -20,27 +20,26 @@ We are committed to providing a welcoming and inclusive environment for all cont
 1. **Fork the repository** on GitHub
 2. **Clone your fork**:
    ```bash
-   git clone https://github.com/yourusername/openwatch.git
-   cd openwatch
+   git clone https://github.com/yourusername/OpenWatch.git
+   cd OpenWatch
    ```
 
-3. **Set up development environment**:
+3. **Set up development environment** (the Go tree is at the repo root):
    ```bash
-   # Start dependencies
-   docker compose up -d database redis
-
-   # Backend development
-   cd backend
-   python -m venv venv
-   source venv/bin/activate
-   pip install -r requirements.txt
-   uvicorn app.main:app --reload
+   # Backend development (Go 1.26)
+   go build ./...
+   go build -o dist/openwatch ./cmd/openwatch
+   ./dist/openwatch serve            # dev server on port 8443
 
    # Frontend development (new terminal)
    cd frontend
    npm install
-   npm run dev
+   npm run dev                       # http://localhost:5173
    ```
+
+   > The Python/FastAPI backend was archived to `~/hanalyx/OWAR/openwatch-python/`
+   > and is no longer part of this repo. The legacy `docker compose` /
+   > `uvicorn` / `pip` setup no longer applies.
 
 ## How to Contribute
 
@@ -132,23 +131,20 @@ docs(api): update scanning endpoint documentation
 ### Running Tests
 
 ```bash
-# Backend tests
-cd backend
-python -m pytest tests/ -v
+# Backend tests (Go) — from the repo root
+go test ./internal/... -count=1     # add -p 1 for DB-touching packages
+specter check                        # spec schema validation
+specter coverage                     # spec AC coverage
 
-# Frontend tests (when available)
+# Frontend tests
 cd frontend
-npm test
-
-# Integration tests
-make test-integration
+npx vitest run
 ```
 
 ### Test Requirements
 
-- **Unit tests** for all new functions and classes
-- **Integration tests** for API endpoints
-- **Test coverage** should not decrease below 80%
+- **Unit tests** for all new functions and packages
+- **Behavioral coverage** via `specs/` ACs for specced modules
 - **All tests must pass** before merging
 
 ### Writing Tests
@@ -160,21 +156,21 @@ make test-integration
 
 ## Code Style
 
-### Python (Backend)
+### Go (Backend)
 
-- **Follow PEP 8** with 88-character line limit
-- **Use Black** for formatting: `black .`
-- **Use isort** for imports: `isort .`
-- **Use mypy** for type checking: `mypy app/`
-- **Docstrings** for all public functions and classes
+- **Run `gofmt -s -w`** before committing (CI lint is strict on gofmt)
+- **`go vet ./...`** must pass
+- **Lint** with `golangci-lint run` (see `.golangci.yml`)
+- **One package per concern** under `internal/`; import from the package, not internal files
+- **Doc comments** on all exported identifiers
 
 ### TypeScript/React (Frontend)
 
-- **Follow Prettier** configuration: `npm run format`
 - **Use ESLint** rules: `npm run lint`
-- **TypeScript strict mode** enabled
+- **TypeScript strict mode** enabled (`npx tsc --noEmit`)
 - **React functional components** with hooks
-- **Material-UI components** for consistency
+- **TanStack Router/Query** for routing and data fetching
+- **MUI components** for consistency
 
 ### General Guidelines
 

@@ -1,227 +1,75 @@
-#!/bin/bash
-# OpenWatch RPM Build Script
-# Builds RPM packages for RHEL/Oracle Linux distribution
+#!/usr/bin/env bash
+# Build the OpenWatch RPM.
+#
+# Usage:   bash packaging/rpm/build-rpm.sh
+# Output:  app/dist/openwatch-<version>-<release>.<arch>.rpm
+#
+# Spec: app/specs/release/package-build.spec.yaml AC-01, AC-04, AC-13.
 
 set -euo pipefail
 
-# Build configuration
+# Resolve repo root (app/) regardless of where the script is invoked from.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-BUILD_DIR="$HOME/rpmbuild"
-SPEC_FILE="$SCRIPT_DIR/openwatch.spec"
+APP_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+cd "$APP_DIR"
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
-
-log_info() {
-    echo -e "${BLUE}INFO: $1${NC}"
-}
-
-log_success() {
-    echo -e "${GREEN}SUCCESS: $1${NC}"
-}
-
-log_warning() {
-    echo -e "${YELLOW}WARNING: $1${NC}"
-}
-
-log_error() {
-    echo -e "${RED}ERROR: $1${NC}"
-}
-
-# Check prerequisites
-check_prerequisites() {
-    log_info "Checking build prerequisites..."
-
-    # Check if we're on RHEL/Oracle/Fedora
-    if ! command -v rpm >/dev/null 2>&1; then
-        log_error "RPM tools not found. This script requires RHEL, Oracle Linux, or Fedora."
-        exit 1
-    fi
-
-    # Check for required tools
-    local missing_tools=()
-    for tool in rpmbuild go git; do
-        if ! command -v "$tool" >/dev/null 2>&1; then
-            missing_tools+=("$tool")
-        fi
-    done
-
-    if [ ${#missing_tools[@]} -gt 0 ]; then
-        log_error "Missing required tools: ${missing_tools[*]}"
-        log_info "Install with: dnf install rpm-build rpmdevtools golang git"
-        exit 1
-    fi
-
-    log_success "Prerequisites check passed"
-}
-
-# Setup RPM build environment
-setup_build_env() {
-    log_info "Setting up RPM build environment..."
-
-    # Create RPM build directory structure manually if rpmdev-setuptree not available
-    if command -v rpmdev-setuptree >/dev/null 2>&1; then
-        rpmdev-setuptree
+# Version source: Go-rebuild's own packaging/version.env (preferred),
+# then repo-root VERSION (legacy fallback), then a hardcoded floor.
+if [ -z "${VERSION:-}" ]; then
+    if [ -f "$APP_DIR/packaging/version.env" ]; then
+        # shellcheck source=/dev/null
+        . "$APP_DIR/packaging/version.env"
+    elif [ -f "$APP_DIR/../VERSION" ]; then
+        VERSION="$(cat "$APP_DIR/../VERSION")"
     else
-        log_info "Creating RPM directory structure manually..."
-        mkdir -p "$BUILD_DIR"/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
-        mkdir -p "$BUILD_DIR/RPMS"/{i386,i586,i686,x86_64,noarch}
+        VERSION="0.1.0"
     fi
-
-    # Verify directory structure
-    for dir in BUILD RPMS SOURCES SPECS SRPMS; do
-        if [ ! -d "$BUILD_DIR/$dir" ]; then
-            log_error "Failed to create RPM directory: $BUILD_DIR/$dir"
-            exit 1
-        fi
-    done
-
-    log_success "RPM build environment ready"
-}
-
-# Prepare source tarball
-prepare_sources() {
-    log_info "Preparing source tarball..."
-
-    cd "$PROJECT_ROOT"
-
-    # Source version from single source of truth
-    source "$SCRIPT_DIR/../version.env"
-
-    # Parse semver: "0.0.0-dev" -> rpm_version="0.0.0", rpm_release="dev.1"
-    if [[ "$VERSION" == *"-"* ]]; then
-        rpm_version="${VERSION%-*}"
-        prerelease="${VERSION#*-}"
-        rpm_release="${prerelease}.1"
-    else
-        rpm_version="$VERSION"
-        rpm_release="1"
-    fi
-
-    log_info "Version: $VERSION (RPM: ${rpm_version}-${rpm_release}) Codename: $CODENAME"
-
-    # Build SELinux policy first
-    log_info "Building SELinux policy..."
-    cd "$PROJECT_ROOT/packaging/selinux"
-    make -f /usr/share/selinux/devel/Makefile openwatch.pp 2>/dev/null || {
-        log_warning "SELinux policy compilation failed - policy will be compiled during RPM build"
-    }
-
-    cd "$PROJECT_ROOT"
-
-    # Create source tarball
-    local tarball_name="openwatch-${rpm_version}.tar.gz"
-    local tarball_path="$BUILD_DIR/SOURCES/$tarball_name"
-
-    # Create clean source archive (exclude build artifacts and sensitive files)
-    # Use tar with proper directory structure for RPM
-    tar --exclude-vcs --exclude='*.rpm' --exclude='dist/' --exclude='rpmbuild/' \
-        --exclude='node_modules/' --exclude='venv/' --exclude='*.log' \
-        --exclude='*.tmp' --exclude='*.backup' --exclude='*.swp' \
-        --exclude='security/keys/*.pem' --exclude='*.sock' --exclude='*.pid' \
-        --transform "s,^,openwatch-${rpm_version}/," \
-        -czf "$tarball_path" \
-        .
-
-    log_success "Source tarball created: $tarball_path"
-    echo "Version: $rpm_version"
-}
-
-# Copy spec file
-copy_spec() {
-    log_info "Copying RPM spec file..."
-
-    cp "$SPEC_FILE" "$BUILD_DIR/SPECS/"
-
-    log_success "Spec file copied to $BUILD_DIR/SPECS/"
-}
-
-# Build RPM packages
-build_rpm() {
-    log_info "Building RPM packages..."
-
-    cd "$BUILD_DIR"
-
-    # Build source and binary RPMs (skip dependency check on Ubuntu)
-    # Version macros sourced from packaging/version.env via prepare_sources
-    rpmbuild --nodeps -ba \
-        --define "ow_version ${rpm_version}" \
-        --define "ow_release ${rpm_release}" \
-        --define "ow_codename ${CODENAME}" \
-        SPECS/openwatch.spec
-
-    if [ $? -eq 0 ]; then
-        log_success "RPM build completed successfully!"
-
-        # Show built packages
-        echo ""
-        log_info "Built packages:"
-        find RPMS SRPMS -name "openwatch*.rpm" -exec ls -lh {} \;
-
-        # Copy to project directory for easy access
-        mkdir -p "$PROJECT_ROOT/packaging/rpm/dist"
-        find RPMS SRPMS -name "openwatch*.rpm" -exec cp {} "$PROJECT_ROOT/packaging/rpm/dist/" \;
-
-        echo ""
-        log_success "Packages copied to: $PROJECT_ROOT/packaging/rpm/dist/"
-
-    else
-        log_error "RPM build failed!"
-        exit 1
-    fi
-}
-
-# Test installation (if running as root)
-test_installation() {
-    if [ "$EUID" -eq 0 ]; then
-        log_info "Testing RPM installation..."
-
-        local rpm_file
-        rpm_file=$(find "$PROJECT_ROOT/packaging/rpm/dist" -name "openwatch-*.x86_64.rpm" | head -1)
-
-        if [ -n "$rpm_file" ]; then
-            # Test install (dry run)
-            rpm -qp --requires "$rpm_file"
-            log_success "RPM dependency check passed"
-        else
-            log_warning "No RPM file found for testing"
-        fi
-    else
-        log_warning "Skipping installation test (not running as root)"
-    fi
-}
-
-# Main execution
-main() {
-    echo "OpenWatch RPM Build Script"
-    echo "================================"
-
-    check_prerequisites
-    setup_build_env
-    prepare_sources
-    copy_spec
-    build_rpm
-    test_installation
-
-    echo ""
-    log_success "OpenWatch RPM package build completed!"
-    echo ""
-    echo "Install with:"
-    echo "   sudo dnf install $PROJECT_ROOT/packaging/rpm/dist/openwatch-*.rpm"
-    echo ""
-    echo "After installation:"
-    echo "   1. Review: /etc/openwatch/ow.yml"
-    echo "   2. Start: sudo systemctl start openwatch"
-    echo "   3. Status: owadm status"
-    echo ""
-}
-
-# Allow script to be sourced for testing
-if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
-    main "$@"
 fi
+# Strip any -dev / -alpha / -rc suffixes — RPM version field doesn't allow them.
+RPM_VERSION="${VERSION%%-*}"
+RPM_RELEASE="${RPM_RELEASE:-1}"
+DIST_DIR="${APP_DIR}/dist"
+
+mkdir -p "$DIST_DIR"
+
+# Step 1: build the Go binary (release flags). Done outside rpmbuild's
+# %build so the chroot doesn't need the Go toolchain.
+echo ">> building openwatch binary (version=${RPM_VERSION})"
+make build VERSION="$RPM_VERSION" >/dev/null
+
+# Step 2: stage the rpmbuild tree.
+RPMTOP="$(mktemp -d)"
+trap 'rm -rf "$RPMTOP"' EXIT
+mkdir -p "$RPMTOP"/{BUILD,RPMS,SOURCES,SPECS,SRPMS,BUILDROOT}
+
+# Step 3: assemble the source tarball.
+STAGE_DIR="$(mktemp -d)"
+SRC_DIR="$STAGE_DIR/openwatch-${RPM_VERSION}"
+mkdir -p "$SRC_DIR"
+
+cp "$DIST_DIR/openwatch"                      "$SRC_DIR/openwatch"
+cp "$APP_DIR/packaging/common/openwatch.toml" "$SRC_DIR/openwatch.toml"
+cp "$APP_DIR/packaging/common/openwatch.service" "$SRC_DIR/openwatch.service"
+
+# Demo TLS cert.
+bash "$APP_DIR/packaging/common/gen-demo-cert.sh" "$SRC_DIR" >/dev/null
+
+(cd "$STAGE_DIR" && tar czf "$RPMTOP/SOURCES/openwatch-${RPM_VERSION}.tar.gz" "openwatch-${RPM_VERSION}")
+rm -rf "$STAGE_DIR"
+
+# Step 4: rpmbuild.
+echo ">> running rpmbuild"
+rpmbuild \
+    --define "_topdir $RPMTOP" \
+    --define "ow_version ${RPM_VERSION}" \
+    --define "ow_release ${RPM_RELEASE}" \
+    -bb "$APP_DIR/packaging/rpm/openwatch.spec" >/dev/null
+
+# Step 5: copy the artifact into app/dist/.
+RPM_OUT="$(find "$RPMTOP/RPMS" -name '*.rpm' -type f | head -n1)"
+if [[ -z "$RPM_OUT" ]]; then
+    echo "build-rpm.sh: no .rpm produced" >&2
+    exit 1
+fi
+cp "$RPM_OUT" "$DIST_DIR/"
+echo ">> wrote $(basename "$RPM_OUT") to $DIST_DIR/"

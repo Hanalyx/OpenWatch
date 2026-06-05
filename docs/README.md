@@ -4,6 +4,14 @@ Production documentation for deploying, operating, and maintaining OpenWatch.
 
 Start here: [Introduction](INTRODUCTION.md) | [Quickstart](guides/QUICKSTART.md)
 
+> **⚠️ Migration note (2026-06-05).** OpenWatch is being rebuilt on Go (the Go tree
+> now lives at the repo root); the Python implementation was archived to
+> `~/hanalyx/OWAR/openwatch-python/`. Many operator guides and the design docs below
+> were written for the Python/FastAPI container stack and reference `docker-compose`,
+> `start-openwatch.sh`, Alembic, and Redis — these describe the **archived** stack and
+> are pending a Go-era rewrite. The authoritative engineering docs for the active tree
+> are under **`docs/engineering/`** and the specs under **`specs/`**.
+
 ---
 
 ## Getting Started
@@ -55,22 +63,19 @@ Start here: [Introduction](INTRODUCTION.md) | [Quickstart](guides/QUICKSTART.md)
 | [Kensa Integration](architecture/KENSA_INTEGRATION.md) | Kensa compliance engine integration manual |
 | [Native RPM Installation](architecture/NATIVE_RPM_INSTALLATION.md) | RPM-based deployment design |
 
-## Design Documents
-
-| Document | Description |
-|----------|-------------|
-| [Assessment Summary](openwatchos/01-ASSESSMENT-SUMMARY.md) | Vision, components, and status overview |
-| [Adaptive Compliance Scheduler](openwatchos/02-ADAPTIVE-COMPLIANCE-SCHEDULER.md) | Auto-scan with state-based intervals |
-| [Alert Thresholds](openwatchos/03-ALERT-THRESHOLDS.md) | Compliance, operational, and drift alerts |
-| [Server Intelligence](openwatchos/04-SERVER-INTELLIGENCE.md) | Package, service, user, network collection |
-| [MongoDB Deprecation Plan](openwatchos/05-DEPRECATION-PLAN.md) | 5-phase legacy code removal |
-| [Host Detail Page Redesign](openwatchos/06-HOST-DETAIL-PAGE-REDESIGN.md) | Auto-scan centric UI redesign |
+> **Design documents** — the Python-era `openwatchos/` planning sketches and other
+> dated planning/review docs were archived to `~/hanalyx/OWAR/openwatch-python/docs-archive/`.
+> Current design direction lives in `docs/engineering/openwatch_roadmap.md` and the Go-era
+> vision/plan docs (`OPENWATCH_VISION*.md`, `OPENWATCH_Q*_PLAN.md`) in this directory.
 
 ---
 
 ## Quick Links
 
-- **API Documentation**: `http://localhost:8000/api/docs` (Swagger UI, running instance required)
 - **Health Check**: `GET /health`
-- **Start Services**: `./start-openwatch.sh --runtime docker --build`
-- **Stop Services**: `./stop-openwatch.sh`
+- **Run the Go backend (dev)**: `go build -o dist/openwatch ./cmd/openwatch && ./dist/openwatch serve` (port 8443)
+- **Run the frontend (dev)**: `cd frontend && npm install && npm run dev` (port 5173)
+- **API contract**: `api/openapi.yaml` (source of truth)
+
+> The `start-openwatch.sh` / `docker-compose` container flow was Python-era and is
+> archived; a Go-native container/packaging flow is being re-established under `packaging/`.
