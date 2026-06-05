@@ -157,22 +157,9 @@ release: fmt lint test build-all
 	@echo "[OK] Release build completed"
 	@echo "Binaries available in $(DIST_DIR)/"
 
-# Package management
-.PHONY: package-rpm
-package-rpm: build
-	@echo "Building RPM package..."
-	cd packaging/rpm && ./build-rpm.sh
-	@echo "[OK] RPM package build completed"
-
-.PHONY: package-deb
-package-deb: build
-	@echo "Building DEB package..."
-	cd packaging/deb && ./build-deb.sh
-	@echo "[OK] DEB package build completed"
-
-.PHONY: package-all
-package-all: package-rpm package-deb
-	@echo "[OK] All packages built successfully"
+# Native packaging (RPM/DEB) lives with the active Go tree under app/packaging/.
+# The Python-era root packaging/ was archived to ~/hanalyx/OWAR/openwatch-python.
+# Build packages from there: see app/Makefile (`cd app && make ...`).
 
 # Quick start for new users
 .PHONY: quick-start
@@ -187,33 +174,10 @@ quick-start: build install
 	@echo "  owadm --help         # Show help"
 	@echo ""
 
-# -------------------------------------------------------------------
-# Python / Backend Quality Targets
-# -------------------------------------------------------------------
-
-.PHONY: py-lint py-format py-test py-coverage py-specs py-check
-
-py-lint:
-	cd backend && black --check app/ --line-length 120
-	cd backend && flake8 app/ --max-line-length=120 --extend-ignore=E203,W503 --per-file-ignores='__init__.py:F401,E402'
-	cd backend && mypy app/ --ignore-missing-imports
-
-py-format:
-	cd backend && black app/ --line-length 120
-	cd backend && isort app/ --profile black --line-length 120
-
-py-test:
-	cd backend && pytest ../tests/backend/ -x --timeout=30 -q
-
-py-coverage:
-	cd backend && pytest ../tests/backend/ --cov=app --cov-report=term --cov-fail-under=42
-
-py-specs:
-	python3 scripts/validate-specs.py
-	python3 scripts/check-spec-coverage.py --enforce-active
-
-py-check: py-lint py-test py-specs
-	@echo "All Python checks pass"
+# NOTE: The Python backend was archived to ~/hanalyx/OWAR/openwatch-python
+# (see the chore/archive-python-to-owar branch). The former py-lint / py-test /
+# py-specs targets were removed with it. Quality checks for the active Go tree
+# live in app/Makefile and app/specter.yaml — run them from `cd app`.
 
 # Help
 .PHONY: help
@@ -236,12 +200,7 @@ help:
 	@echo "  quick-start     Build and install for new users"
 	@echo "  info            Show build information"
 	@echo ""
-	@echo "Python / Backend targets:"
-	@echo "  py-lint         Lint Python backend (black, flake8, mypy)"
-	@echo "  py-format       Format Python backend (black, isort)"
-	@echo "  py-test         Run backend tests"
-	@echo "  py-coverage     Run backend tests with coverage"
-	@echo "  py-specs        Validate specs and AC coverage"
-	@echo "  py-check        Run all Python checks"
+	@echo "This Makefile builds the owadm admin CLI only."
+	@echo "The active OpenWatch server/frontend build lives in app/ (see app/Makefile)."
 	@echo ""
 	@echo "  help            Show this help message"
