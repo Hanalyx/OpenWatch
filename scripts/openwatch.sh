@@ -1,22 +1,26 @@
 #!/usr/bin/env bash
 #
-# OpenWatch local-dev bootstrap — durable {start|stop|restart|status}.
+# OpenWatch local-dev bootstrap — durable {start|stop|restart|status} for the
+# full dev stack: the Go backend (HTTPS, :8443) and the Vite frontend (:5173).
 #
-# Replaces the fragile /tmp/ow-env.txt + /tmp/ow-run/ setup with a durable,
-# gitignored .dev/ state directory at the repo root:
+# Durable, gitignored .dev/ state directory at the repo root:
 #
 #   .dev/tls/{cert,key}.pem   self-signed TLS for the dev HTTPS listener
 #   .dev/jwt_private.pem      RSA key used to sign JWTs
 #   .dev/credential.key       32-byte AES key that encrypts stored SSH creds
 #   .dev/env                  OPENWATCH_DATABASE_DSN + OPENWATCH_SERVER_LISTEN
-#   .dev/openwatch.{pid,log}  runtime pid + captured log
+#   .dev/openwatch.{pid,log}  backend runtime pid + captured log
+#   .dev/vite.{pid,log}       frontend (Vite) runtime pid + captured log
 #
-# On first run it migrates any existing secrets from /tmp/ow-run and the DSN
-# from /tmp/ow-env.txt — crucially preserving the credential key so SSH
-# credentials already encrypted in the dev DB still decrypt — otherwise it
-# generates fresh material. After that it no longer depends on /tmp.
+# On first run it migrates existing secrets from /tmp/ow-run and the DSN from
+# /tmp/ow-env.txt — preserving the credential key so SSH credentials already
+# encrypted in the dev DB still decrypt — otherwise it generates fresh material.
+# If frontend/node_modules is missing it runs `npm ci` before starting Vite.
 #
-# Override the DSN / listen address via the environment or by editing .dev/env.
+# start brings up backend then frontend (Vite proxies /api -> the backend, so
+# backend-first is correct); stop tears them down in reverse.
+#
+# Override the DSN / listen / frontend port via the environment or .dev/env.
 #
 # Usage: scripts/openwatch.sh {start|stop|restart|status}
 
@@ -26,13 +30,21 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
 DEV_DIR="${OPENWATCH_DEV_DIR:-$ROOT/.dev}"
+
+# Backend
 TLS_DIR="$DEV_DIR/tls"
 JWT_KEY="$DEV_DIR/jwt_private.pem"
 CRED_KEY="$DEV_DIR/credential.key"
 ENV_FILE="$DEV_DIR/env"
-PID_FILE="$DEV_DIR/openwatch.pid"
-LOG_FILE="$DEV_DIR/openwatch.log"
+BE_PID="$DEV_DIR/openwatch.pid"
+BE_LOG="$DEV_DIR/openwatch.log"
 BIN="$ROOT/dist/openwatch"
+
+# Frontend (Vite)
+FE_DIR="$ROOT/frontend"
+FE_PID="$DEV_DIR/vite.pid"
+FE_LOG="$DEV_DIR/vite.log"
+FE_PORT="${OPENWATCH_FRONTEND_PORT:-5173}"
 
 # Legacy locations migrated from on first run (one-time).
 OLD_RUN="/tmp/ow-run"
@@ -40,6 +52,54 @@ OLD_ENV="/tmp/ow-env.txt"
 
 log() { printf '[openwatch] %s\n' "$*"; }
 die() { printf '[openwatch] ERROR: %s\n' "$*" >&2; exit 1; }
+
+pid_alive() { local f="$1"; [[ -f "$f" ]] && kill -0 "$(cat "$f" 2>/dev/null)" 2>/dev/null; }
+
+# poll_health URL PIDFILE LOG LABEL INSECURE(1|0)
+poll_health() {
+  local url="$1" pf="$2" lg="$3" label="$4" insecure="$5" pid i
+  local -a copts=(-sf)
+  [[ "$insecure" == "1" ]] && copts+=(-k)
+  pid="$(cat "$pf")"
+  for i in $(seq 1 60); do
+    if ! kill -0 "$pid" 2>/dev/null; then
+      log "$label exited during startup; last log lines:"
+      tail -n 8 "$lg" >&2 || true
+      rm -f "$pf"
+      die "$label startup failed — full log at $lg"
+    fi
+    if curl "${copts[@]}" "$url" >/dev/null 2>&1; then
+      log "$label healthy: $url (pid $pid)"
+      return 0
+    fi
+    sleep 0.5
+  done
+  die "$label not healthy within 30s — see $lg"
+}
+
+# stop_proc PIDFILE LABEL
+stop_proc() {
+  local f="$1" label="$2"
+  if ! pid_alive "$f"; then
+    log "$label not running"
+    rm -f "$f"
+    return 0
+  fi
+  local pid i; pid="$(cat "$f")"
+  log "stopping $label (pid $pid) ..."
+  kill "$pid" 2>/dev/null || true
+  for i in $(seq 1 20); do
+    kill -0 "$pid" 2>/dev/null || break
+    sleep 0.25
+  done
+  pkill -P "$pid" 2>/dev/null || true   # reap children (e.g. Vite's esbuild)
+  if kill -0 "$pid" 2>/dev/null; then
+    log "force-killing $label (pid $pid)"
+    kill -9 "$pid" 2>/dev/null || true
+  fi
+  rm -f "$f"
+  log "$label stopped"
+}
 
 ensure_env() {
   [[ -f "$ENV_FILE" ]] && return 0
@@ -104,13 +164,9 @@ ensure_secrets() {
   chmod 600 "$JWT_KEY" "$CRED_KEY" "$TLS_DIR/key.pem"
 }
 
-is_running() {
-  [[ -f "$PID_FILE" ]] && kill -0 "$(cat "$PID_FILE" 2>/dev/null)" 2>/dev/null
-}
-
-start() {
-  if is_running; then
-    log "already running (pid $(cat "$PID_FILE"))"
+backend_start() {
+  if pid_alive "$BE_PID"; then
+    log "backend already running (pid $(cat "$BE_PID"))"
     return 0
   fi
   ensure_env
@@ -122,67 +178,52 @@ start() {
   log "building dist/openwatch ..."
   go build -o "$BIN" ./cmd/openwatch
 
-  log "starting (listen ${OPENWATCH_SERVER_LISTEN}) ..."
+  log "starting backend (listen ${OPENWATCH_SERVER_LISTEN}) ..."
   OPENWATCH_SERVER_TLS_CERT="$TLS_DIR/cert.pem" \
   OPENWATCH_SERVER_TLS_KEY="$TLS_DIR/key.pem" \
   OPENWATCH_IDENTITY_JWT_PRIVATE_KEY="$JWT_KEY" \
   OPENWATCH_IDENTITY_CREDENTIAL_KEY_FILE="$CRED_KEY" \
-    nohup "$BIN" serve >"$LOG_FILE" 2>&1 &
-  echo $! > "$PID_FILE"
-
-  local url="https://${OPENWATCH_SERVER_LISTEN}/api/v1/health" pid
-  pid="$(cat "$PID_FILE")"
-  local i
-  for i in $(seq 1 30); do
-    if ! kill -0 "$pid" 2>/dev/null; then
-      log "server exited during startup; last log lines:"
-      tail -n 8 "$LOG_FILE" >&2 || true
-      rm -f "$PID_FILE"
-      die "startup failed — full log at $LOG_FILE"
-    fi
-    if curl -ksf "$url" >/dev/null 2>&1; then
-      log "healthy: $url (pid $pid)"
-      return 0
-    fi
-    sleep 0.5
-  done
-  die "not healthy within 15s — see $LOG_FILE"
+    nohup "$BIN" serve >"$BE_LOG" 2>&1 &
+  echo $! > "$BE_PID"
+  poll_health "https://${OPENWATCH_SERVER_LISTEN}/api/v1/health" "$BE_PID" "$BE_LOG" "backend" 1
 }
 
-stop() {
-  if ! is_running; then
-    log "not running"
-    rm -f "$PID_FILE"
+frontend_start() {
+  if pid_alive "$FE_PID"; then
+    log "frontend already running (pid $(cat "$FE_PID"))"
     return 0
   fi
-  local pid; pid="$(cat "$PID_FILE")"
-  log "stopping pid $pid ..."
-  kill "$pid" 2>/dev/null || true
-  local i
-  for i in $(seq 1 20); do
-    kill -0 "$pid" 2>/dev/null || break
-    sleep 0.25
-  done
-  if kill -0 "$pid" 2>/dev/null; then
-    log "force-killing pid $pid"
-    kill -9 "$pid" 2>/dev/null || true
+  if [[ ! -d "$FE_DIR/node_modules" ]]; then
+    log "frontend/node_modules missing — running npm ci (one-time) ..."
+    ( cd "$FE_DIR" && npm ci --no-audit --no-fund )
   fi
-  rm -f "$PID_FILE"
-  log "stopped"
+  log "starting frontend (Vite, port ${FE_PORT}) ..."
+  ( cd "$FE_DIR" && exec node_modules/.bin/vite --port "$FE_PORT" >"$FE_LOG" 2>&1 ) &
+  echo $! > "$FE_PID"
+  poll_health "http://127.0.0.1:${FE_PORT}/" "$FE_PID" "$FE_LOG" "frontend" 0
 }
 
-status() {
-  if is_running; then
-    log "running (pid $(cat "$PID_FILE"), log $LOG_FILE)"
+status_one() {
+  local pf="$1" label="$2" where="$3"
+  if pid_alive "$pf"; then
+    log "$label running (pid $(cat "$pf"), $where)"
   else
-    log "not running"
+    log "$label not running"
   fi
+}
+
+start()   { backend_start; frontend_start; }
+stop()    { stop_proc "$FE_PID" "frontend"; stop_proc "$BE_PID" "backend"; }
+restart() { stop; start; }
+status()  {
+  status_one "$BE_PID" "backend"  "https://127.0.0.1:8443 — log $BE_LOG"
+  status_one "$FE_PID" "frontend" "http://localhost:${FE_PORT} — log $FE_LOG"
 }
 
 case "${1:-}" in
   start)   start ;;
   stop)    stop ;;
-  restart) stop; start ;;
+  restart) restart ;;
   status)  status ;;
   *) echo "usage: ${0##*/} {start|stop|restart|status}" >&2; exit 2 ;;
 esac
