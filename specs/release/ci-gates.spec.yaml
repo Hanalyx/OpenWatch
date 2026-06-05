@@ -87,7 +87,7 @@ spec:
       description: make help lists every gate target (vet, lint, vuln, test-race, check) with one-line descriptions so contributors discover them without reading the Makefile.
       priority: high
     - id: AC-07
-      description: .github/workflows/go-ci.yml exists, triggers on every PR/push to main without a paths filter, references app/** in a path-detection step, and gates the heavy gate steps (Go setup, lint, vuln, test-race, specter) on that step so non-Go PRs short-circuit to success while still reporting the required "Quality + security gates" status check.
+      description: .github/workflows/go-ci.yml exists, triggers on every PR/push to main without a paths filter, references the Go source paths (cmd/, internal/, ...) in a path-detection step, and gates the heavy gate steps (Go setup, lint, vuln, test-race, specter) on that step so non-Go PRs short-circuit to success while still reporting the required "Quality + security gates" status check.
       priority: critical
       references_constraints: [C-06]
     - id: AC-08

@@ -30,12 +30,12 @@ import (
 	"testing"
 )
 
-// readRepoFile reads a file relative to the repo root (one level above
-// the app directory). Used for .github/* files which live at repo root.
+// readRepoFile reads a file relative to the repo root. Used for .github/*
+// files. appDir now returns the repo root (the Go tree was promoted out of
+// the former app/ subdir), so it is the repo root directly.
 func readRepoFile(t *testing.T, relpath string) string {
 	t.Helper()
-	dir := appDir(t)
-	repoRoot := filepath.Dir(dir)
+	repoRoot := appDir(t)
 	raw, err := os.ReadFile(filepath.Join(repoRoot, relpath))
 	if err != nil {
 		t.Fatalf("read %s: %v", relpath, err)
@@ -223,8 +223,7 @@ func TestSupplyChain_DependabotHasGomod(t *testing.T) {
 func TestSupplyChain_ReleaseHasSyftSBOMStep(t *testing.T) {
 	t.Run("system-supply-chain/AC-08", func(t *testing.T) {
 		path := ".github/workflows/release.yml"
-		dir := appDir(t)
-		raw, err := os.ReadFile(filepath.Join(filepath.Dir(dir), path))
+		raw, err := os.ReadFile(filepath.Join(appDir(t), path))
 		if err != nil {
 			t.Skipf("release workflow not present yet (%s); AC-08 deferred", path)
 		}
@@ -252,8 +251,7 @@ func TestSupplyChain_ReleaseHasSyftSBOMStep(t *testing.T) {
 func TestSupplyChain_SBOMSchemaURLPresent(t *testing.T) {
 	t.Run("system-supply-chain/AC-09", func(t *testing.T) {
 		path := ".github/workflows/release.yml"
-		dir := appDir(t)
-		raw, err := os.ReadFile(filepath.Join(filepath.Dir(dir), path))
+		raw, err := os.ReadFile(filepath.Join(appDir(t), path))
 		if err != nil {
 			t.Skipf("release workflow not present yet (%s); AC-09 deferred", path)
 		}
