@@ -15,7 +15,8 @@ import (
 	"testing"
 )
 
-// readAppFile returns the contents of a file relative to the app root.
+// readAppFile returns the contents of a file relative to the repo root
+// (appDir; the Go tree lives at the repo root since the app/ promotion).
 func readAppFile(t *testing.T, relpath string) string {
 	t.Helper()
 	dir := appDir(t)
@@ -119,12 +120,13 @@ func TestCIGates_HelpListsGates(t *testing.T) {
 
 // @ac AC-07
 // AC-07: go-ci.yml triggers on every PR/push to main without a paths
-// filter, references app/** in a path-detection step, and gates the
-// heavy gate steps on that step so non-Go PRs short-circuit to success
-// while still producing the "Quality + security gates" required check.
+// filter, references the Go source paths (cmd/, internal/, ...) in a
+// path-detection step, and gates the heavy gate steps on that step so
+// non-Go PRs short-circuit to success while still producing the
+// "Quality + security gates" required check.
 func TestCIGates_WorkflowExistsAndScoped(t *testing.T) {
 	t.Run("release-ci-gates/AC-07", func(t *testing.T) {
-		wf := readAppFile(t, "../.github/workflows/go-ci.yml")
+		wf := readAppFile(t, ".github/workflows/go-ci.yml")
 
 		// Triggers must NOT have a paths filter — that would make the
 		// required check structurally missing on non-Go PRs and block
@@ -134,12 +136,12 @@ func TestCIGates_WorkflowExistsAndScoped(t *testing.T) {
 			t.Error("go-ci.yml has a paths filter on its trigger block — the required check would be missing for non-Go PRs")
 		}
 
-		// The path-detection step still references app/** so the heavy
-		// pipeline runs for Go-relevant changes.
-		if !strings.Contains(wf, "app/**") &&
-			!strings.Contains(wf, "^(app/") &&
-			!strings.Contains(wf, "'^app/") {
-			t.Error("go-ci.yml must reference app/** in its path-detection step")
+		// The path-detection step references the Go source paths so the
+		// heavy pipeline runs for Go-relevant changes (the tree lives at
+		// the repo root since the app/ promotion).
+		if !strings.Contains(wf, "^(cmd/") &&
+			!strings.Contains(wf, "internal/") {
+			t.Error("go-ci.yml must reference the Go source paths (cmd/, internal/, ...) in its path-detection step")
 		}
 
 		// The gates steps must be gated on the path-detection output.
@@ -149,7 +151,7 @@ func TestCIGates_WorkflowExistsAndScoped(t *testing.T) {
 
 		// Path-detect step is present.
 		if !regexp.MustCompile(`(?m)id:\s*paths\b`).MatchString(wf) {
-			t.Error("go-ci.yml must include a step with id: paths that detects app/** changes")
+			t.Error("go-ci.yml must include a step with id: paths that detects Go-relevant changes")
 		}
 	})
 }
@@ -158,7 +160,7 @@ func TestCIGates_WorkflowExistsAndScoped(t *testing.T) {
 // AC-08: workflow defines a Postgres service container the tests can use.
 func TestCIGates_WorkflowHasPostgresService(t *testing.T) {
 	t.Run("release-ci-gates/AC-08", func(t *testing.T) {
-		wf := readAppFile(t, "../.github/workflows/go-ci.yml")
+		wf := readAppFile(t, ".github/workflows/go-ci.yml")
 		// Service block must reference postgres and expose POSTGRES_USER /
 		// POSTGRES_DB env so the test DSN can connect.
 		if !regexp.MustCompile(`(?m)^\s*services:\s*$`).MatchString(wf) {
@@ -178,7 +180,7 @@ func TestCIGates_WorkflowHasPostgresService(t *testing.T) {
 // test-race, specter sync).
 func TestCIGates_WorkflowRunsAllGates(t *testing.T) {
 	t.Run("release-ci-gates/AC-09", func(t *testing.T) {
-		wf := readAppFile(t, "../.github/workflows/go-ci.yml")
+		wf := readAppFile(t, ".github/workflows/go-ci.yml")
 		gates := []string{
 			"make vet",
 			"make lint",
@@ -198,7 +200,7 @@ func TestCIGates_WorkflowRunsAllGates(t *testing.T) {
 // AC-10: workflow runs on push to main + pull_request targeting main.
 func TestCIGates_WorkflowTriggers(t *testing.T) {
 	t.Run("release-ci-gates/AC-10", func(t *testing.T) {
-		wf := readAppFile(t, "../.github/workflows/go-ci.yml")
+		wf := readAppFile(t, ".github/workflows/go-ci.yml")
 		if !regexp.MustCompile(`(?m)^\s*push:\s*$`).MatchString(wf) {
 			t.Error("workflow lacks a push: trigger")
 		}

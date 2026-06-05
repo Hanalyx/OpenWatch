@@ -25,7 +25,7 @@ func appDir(t *testing.T) string {
 	if runtime.GOOS != "linux" {
 		t.Skip("native packaging tests run on linux only")
 	}
-	// runtime.Caller(0) → this file. parent twice = app/.
+	// runtime.Caller(0) → this file (packaging/tests/). parent twice = repo root.
 	_, here, _, _ := runtime.Caller(0)
 	return filepath.Clean(filepath.Join(filepath.Dir(here), "..", ".."))
 }

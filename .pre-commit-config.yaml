@@ -140,17 +140,22 @@ repos:
         language: system
         pass_filenames: false
 
-      # frontend-lint / prettier hooks were written for the archived Python-era
-      # frontend. The active frontend (promoted from app/frontend) has eslint v9
-      # as a devDependency but no flat eslint.config.js yet, and no prettier
-      # config — so these hooks cannot run. Re-enable once the active frontend's
-      # eslint flat config + prettier config land. Frontend lint is available via
-      # `cd frontend && npm run lint` once configured.
-      # - id: frontend-lint
-      #   name: ESLint Frontend
-      #   entry: bash -c 'cd frontend && npx eslint --max-warnings=0 .'
+      - id: frontend-lint
+        name: ESLint Frontend
+        entry: bash -c 'cd frontend && npx eslint --max-warnings=0 .'
+        language: system
+        files: ^frontend/.*\.(ts|tsx|js|jsx)$
+        pass_filenames: false
+
+      # prettier hook stays disabled: prettier is not a frontend dependency and
+      # the codebase has never been prettier-formatted, so enabling it would mean
+      # a separate full-frontend reformat. Re-enable in a dedicated change that
+      # adds prettier + a .prettierrc and runs the one-time format pass.
+      # - id: prettier
+      #   name: Prettier Frontend Formatting
+      #   entry: bash -c 'cd frontend && npx prettier --check .'
       #   language: system
-      #   files: ^frontend/src/.*\.(ts|tsx|js|jsx)$
+      #   files: ^frontend/.*\.(ts|tsx|css|scss|json)$
       #   pass_filenames: false
 
       # Note: TypeScript has 219+ pre-existing type errors requiring gradual migration

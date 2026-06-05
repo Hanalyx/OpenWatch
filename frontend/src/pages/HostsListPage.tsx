@@ -1487,7 +1487,7 @@ function kpisFromHosts(hosts: DevHost[]) {
   const totalRules = hosts.reduce((n, h) => n + h.total, 0);
   const totalPassed = hosts.reduce((n, h) => n + (h.passed ?? 0), 0);
   const avgCompliance = totalRules > 0 ? Math.round((totalPassed / totalRules) * 1000) / 10 : 0;
-  const neutral: 'neutral' = 'neutral';
+  const neutral = 'neutral' as const;
   return {
     hostsOnline: { value: online, total, delta: '', deltaTier: neutral },
     avgCompliance: { value: avgCompliance, target: 80, delta: '', deltaTier: neutral },
