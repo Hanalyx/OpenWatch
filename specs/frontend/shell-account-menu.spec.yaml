@@ -1,0 +1,102 @@
+spec:
+  id: frontend-shell-account-menu
+  title: TopBar account menu — avatar opens a menu with Sign out
+  version: "1.0.0"
+  status: approved
+  tier: 2
+
+  context:
+    system: openwatch-go
+    feature: Shell TopBar avatar exposes account actions (Sign out at minimum) instead of being a decorative initial
+    description: >
+      Pre-this spec, the TopBar avatar in the shell was a non-
+      interactive <div> displaying the user's initial. Operators had
+      no way to sign out from the UI — the session could only be
+      ended by waiting for the inactivity window or by clearing the
+      cookie manually. This spec turns the avatar into a button that
+      opens a small menu containing a Sign out action that:
+
+        1. Calls POST /api/v1/auth/logout to revoke the session in
+           the backend (the cookie's token_hash row is hard-deleted).
+        2. Clears the in-memory identity in useAuthStore so the
+           protectedRoute redirects on the next render.
+        3. Navigates to /login.
+
+      v1.0 scope is intentionally minimal: a single "Sign out"
+      menu item. Profile / preferences entries are deferred to a
+      follow-up — they exist as their own routes (/settings/profile,
+      /settings/preferences) and can be added to the same menu
+      without API surface changes.
+
+    related_specs:
+      - api-auth
+      - frontend-auth-login
+      - system-auth-identity
+
+  objective:
+    summary: >
+      Replace the decorative avatar div with a proper button that
+      opens an accessible menu; lock the Sign out flow (logout API
+      + identity clear + redirect) so future menu items can be
+      added without weakening the contract.
+    scope:
+      includes:
+        - "TopBar avatar rendered as <button> (not <div>) with aria-haspopup=menu + aria-expanded"
+        - "Menu opens on click, closes on Escape AND click-outside"
+        - "Sign out menu item that calls POST /api/v1/auth/logout, clears useAuthStore identity, navigates to /login"
+      excludes:
+        - "Profile / Preferences menu items — deferred to v1.1"
+        - "Account switcher — out of scope (single-account session)"
+        - "MFA flows — owned by api-auth + frontend-auth-mfa"
+
+  constraints:
+    - id: C-01
+      description: 'The avatar MUST render as <button>, never <div>. Buttons are keyboard-focusable, screen-reader-announced, and click-able by every assistive technology; a div with onClick is none of those. Source inspection enforces — the TopBar source MUST contain a <button> element in the account-menu region'
+      type: technical
+      enforcement: error
+    - id: C-02
+      description: 'The avatar button MUST set aria-haspopup="menu" and aria-expanded reflecting the open state. The menu container MUST have role="menu" and each item role="menuitem". Without these attributes screen readers do not announce the menu pattern'
+      type: technical
+      enforcement: error
+    - id: C-03
+      description: "Sign out MUST call POST /api/v1/auth/logout (await the response — but proceed with local clear + redirect even on failure; a logged-out user with a stale backend session is acceptable, a logged-in UI with a revoked backend session is not). After the API call, useAuthStore.clear() MUST run AND the router MUST navigate to /login. Order matters: API first so the network call carries the still-valid cookie"
+      type: technical
+      enforcement: error
+    - id: C-04
+      description: 'Menu MUST close on Escape key AND on click outside the menu container. Standard "popover" UX — without these the menu becomes a trap'
+      type: technical
+      enforcement: error
+    - id: C-05
+      description: 'The avatar button MUST NOT render when identity is null (logged-out state). Without an identity there is no account to act on'
+      type: technical
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: 'Source inspection: TopBar.tsx contains a <button> element with aria-haspopup="menu" in the account-menu region. The legacy non-interactive <div> path MUST NOT exist (verified by absence of the prior pattern)'
+      priority: critical
+      references_constraints: [C-01, C-02]
+    - id: AC-02
+      description: 'Rendering: mounted with a populated identity, the account button is visible. Clicking it makes a role="menu" element appear in the DOM. aria-expanded on the button transitions to "true"'
+      priority: critical
+      references_constraints: [C-01, C-02]
+    - id: AC-03
+      description: 'Rendering: with the menu open, a role="menuitem" with accessible name "Sign out" (case-insensitive) is present'
+      priority: critical
+      references_constraints: [C-02, C-03]
+    - id: AC-04
+      description: "Rendering: clicking the Sign out menu item triggers (1) a POST against /api/v1/auth/logout (verified via stubbed openapi-fetch client OR source-inspect that the click handler calls api.POST('/api/v1/auth/logout'), (2) useAuthStore.clear() (verified by spying on the store), (3) navigation to /login (verified by the test router state)"
+      priority: critical
+      references_constraints: [C-03]
+    - id: AC-05
+      description: 'Rendering: with the menu open, pressing Escape closes it (role="menu" element gone, aria-expanded back to "false")'
+      priority: high
+      references_constraints: [C-04]
+    - id: AC-06
+      description: 'Rendering: with the menu open, clicking outside the menu container closes it. Verified by firing a mousedown on document.body and checking the menu disappears'
+      priority: high
+      references_constraints: [C-04]
+    - id: AC-07
+      description: 'Rendering: with identity=null, the avatar button does NOT render. Source inspection asserts the render is gated on the identity presence check'
+      priority: high
+      references_constraints: [C-05]

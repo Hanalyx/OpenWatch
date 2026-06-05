@@ -1,0 +1,162 @@
+spec:
+  id: system-drift-detector
+  title: Compliance drift detector
+  version: "1.1.0"
+  status: approved
+  tier: 1
+
+  context:
+    system: openwatch-go
+    feature: Per-host compliance drift detection
+    description: >
+      The drift detector runs at the end of every scan. It computes the
+      compliance score delta between the prior state (last successful
+      scan for the host) and the current state (this scan's results),
+      classifies the change against operator-configured thresholds in
+      policy.AlertThresholds, and emits compliance.drift.detected for
+      major/minor worsening or improvement transitions. Stable scans
+      (delta below the minor threshold) do not audit — the no-noise
+      principle.
+
+      Reads from the transaction log (B.1c) only. No scan_baselines
+      table — the Python-era baseline mechanism is explicitly dropped;
+      the prior host_rule_state aggregate IS the baseline.
+
+  objective:
+    summary: >
+      One method — drift.Service.DetectForScan(ctx, hostID, scanID) —
+      returns a DriftReport with kind + score delta. The detector is a
+      pure consumer of write-on-change state: prior score from
+      host_rule_state at the moment of detection, current score from
+      the rule transitions in this scan_id. Emission gates on the
+      classified DriftKind being non-stable.
+    scope:
+      includes:
+        - Pure-function classifier (DriftKind from score delta + thresholds)
+        - DetectForScan reading prior + current state from PostgreSQL
+        - compliance.drift.detected emission on non-stable kinds
+        - Thresholds loaded from policy.AlertThresholds, clamp-guarded
+      excludes:
+        - host_drift_events persistence (B.4 fleet-rollup adds this if
+          query-side performance demands it; for v1 the audit log is the
+          source of truth)
+        - Per-rule alert routing (B.3 alert router consumes the audit
+          events emitted here)
+        - Scan_baselines table (explicitly dropped — write-on-change
+          eliminates the need)
+
+  constraints:
+    - id: C-01
+      description: Classify is a pure function over (prior, current, thresholds) → DriftKind; no I/O, no side effects, deterministic
+      type: technical
+      enforcement: error
+    - id: C-02
+      description: DriftKind enum is closed — stable | minor_worsening | major_worsening | improvement. Maps to compliance.drift.detected detail.drift_type
+      type: technical
+      enforcement: error
+    - id: C-03
+      description: Score-delta thresholds MUST be in percentage points, not percent-of-percent. A drop from 80% to 70% is a 10pp delta, NOT a 12.5pp delta
+      type: technical
+      enforcement: error
+    - id: C-04
+      description: compliance.drift.detected emission MUST gate on Kind != DriftStable. Stable scans do not audit (no-noise principle)
+      type: technical
+      enforcement: error
+    - id: C-05
+      description: Thresholds MUST come from policy.AlertThresholds; defaults are major=10pp / minor=5pp / improvement=5pp; values must be in (0, 100]
+      type: technical
+      enforcement: error
+    - id: C-06
+      description: DetectForScan MUST use a single read transaction to compute prior + current scores so a concurrent writer cannot produce a torn view
+      type: technical
+      enforcement: error
+    - id: C-07
+      description: The detector MUST NOT read or write scan_baselines — that table is explicitly dropped (Python-era artifact). Source-inspection enforces
+      type: technical
+      enforcement: error
+    - id: C-08
+      description: DriftReport MUST include the per-severity transition counts (critical_became_failing, high_became_failing, etc.) — operators need this granularity for alert routing in B.3
+      type: technical
+      enforcement: error
+    - id: C-09
+      description: On every non-stable detection (Kind != Stable), Service MUST publish a typed DriftDetected event to the eventbus carrying the same per-severity transition counts that the audit detail carries. The publish is best-effort — bus errors are logged but do not affect DetectForScan's return. v1.1.0 NEW
+      type: technical
+      enforcement: error
+    - id: C-10
+      description: NewService signature is NewService(pool, emit, thresholds, bus). The bus parameter MAY be nil — in that case the service still emits audit events but skips bus publishes. v1.1.0 NEW
+      type: technical
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: Classify(prior=80, current=70, defaultThresholds) returns DriftMajorWorsening. A 10pp drop hits the major threshold exactly.
+      priority: critical
+      references_constraints: [C-01, C-02, C-03]
+    - id: AC-02
+      description: Classify(prior=80, current=76, defaultThresholds) returns DriftMinorWorsening. A 4pp drop is below minor threshold (5pp) — actually returns DriftStable.
+      priority: critical
+      references_constraints: [C-01, C-02]
+    - id: AC-03
+      description: Classify(prior=80, current=75, defaultThresholds) returns DriftMinorWorsening (5pp drop matches the minor threshold).
+      priority: critical
+      references_constraints: [C-01, C-02]
+    - id: AC-04
+      description: Classify(prior=70, current=78, defaultThresholds) returns DriftImprovement (8pp gain ≥ improvement threshold 5pp).
+      priority: critical
+      references_constraints: [C-01, C-02]
+    - id: AC-05
+      description: Classify(prior=80, current=82, defaultThresholds) returns DriftStable. A 2pp swing is below ALL thresholds — stable.
+      priority: critical
+      references_constraints: [C-01, C-02, C-04]
+    - id: AC-06
+      description: Classify uses the input thresholds, not hardcoded values. Same prior/current with major=20pp / minor=10pp produces different kind than with the defaults.
+      priority: critical
+      references_constraints: [C-05]
+    - id: AC-07
+      description: ValidateThresholds rejects any threshold ≤ 0 or > 100 with a typed error. Major MUST be >= minor.
+      priority: critical
+      references_constraints: [C-05]
+    - id: AC-08
+      description: DetectForScan returns DriftReport with Kind=DriftStable when no host_rule_state rows existed before this scan (first-ever scan against this host) — no prior baseline to drift from.
+      priority: critical
+      references_constraints: [C-01, C-06]
+    - id: AC-09
+      description: DetectForScan against a transaction-log state where 3 rules became failing returns DriftReport with the correct per-severity counts (e.g., critical_became_failing=1, high_became_failing=2).
+      priority: critical
+      references_constraints: [C-08]
+    - id: AC-10
+      description: After DetectForScan returns DriftMajorWorsening, exactly one compliance.drift.detected audit event is emitted with detail.drift_type="major" and detail.score_delta = the computed delta (negative).
+      priority: critical
+      references_constraints: [C-04]
+    - id: AC-11
+      description: After DetectForScan returns DriftStable, ZERO compliance.drift.detected audit events are emitted.
+      priority: critical
+      references_constraints: [C-04]
+    - id: AC-12
+      description: Source-inspection — internal/drift source files contain no scan_baselines / ScanBaseline references. Python-era baseline table explicitly dropped.
+      priority: critical
+      references_constraints: [C-07]
+    - id: AC-13
+      description: The DriftKind enum has exactly 4 values (stable, minor_worsening, major_worsening, improvement) — closed enum verified by reflection.
+      priority: high
+      references_constraints: [C-02]
+    - id: AC-14
+      description: DetectForScan computes score as (passed / total) × 100 where total excludes skipped rules — skipped doesn't count for or against compliance.
+      priority: high
+      references_constraints: [C-03]
+    - id: AC-15
+      description: On a major-worsening detection, DetectForScan publishes a DriftDetected{DriftType="major"} event to the eventbus; verified with an in-memory bus + subscriber.
+      priority: critical
+      references_constraints: [C-09]
+    - id: AC-16
+      description: On a stable detection (no drift), DetectForScan does NOT publish a DriftDetected event — the bus subscriber sees zero events.
+      priority: critical
+      references_constraints: [C-09]
+    - id: AC-17
+      description: The DriftDetected event's per-severity transition counts match the audit detail values; verified by asserting both produced from the same Report.
+      priority: critical
+      references_constraints: [C-09]
+    - id: AC-18
+      description: NewService(pool, emit, thresholds, nil) — when the bus is nil, DetectForScan still emits the audit event; the only difference is no bus publish.
+      priority: high
+      references_constraints: [C-10]

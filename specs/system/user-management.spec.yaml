@@ -1,0 +1,111 @@
+spec:
+  id: system-user-management
+  title: User accounts and role assignment
+  version: "1.0.0"
+  status: approved
+  tier: 1
+
+  context:
+    system: openwatch-go
+    feature: User CRUD + role assignments
+    description: >
+      Persists the user accounts that back every login. Provides the
+      Lookups.RoleForUser implementation the identity binder needs to
+      translate a session into auth.Identity. Role assignments are
+      many-to-many via a user_roles link table; the binder's "one
+      role per identity" contract is satisfied by a highest-precedence
+      rule (admin > security_admin > ops_lead > auditor > viewer).
+    related_specs:
+      - system-auth-identity
+      - system-rbac
+
+  objective:
+    summary: >
+      One source of truth for "who exists, what role do they have."
+      User CRUD never leaks the password hash; role assignment is gated
+      by the auth.Permissions registry (no unknown roles, no custom
+      roles in Slice A — those land in spec api-users).
+    scope:
+      includes:
+        - users CRUD (Create, GetByID, GetByUsername, UpdatePassword, SoftDelete)
+        - roles table seeded with the 5 built-in roles
+        - user_roles many-to-many link
+        - RolesForUser returns active role assignments
+        - PrimaryRoleFor returns the highest-precedence role (binder consumer)
+      excludes:
+        - "Custom role CRUD (lands in api-users spec)"
+        - "Role-level audit beyond the standard user.role_assigned/removed events"
+
+  constraints:
+    - id: C-01
+      description: User reads MUST NEVER return password_hash in the response shape; service-layer struct excludes it
+      type: security
+      enforcement: error
+    - id: C-02
+      description: CreateUser MUST hash the password via identity.HashPassword and validate against the registered policy (admin policy when CreateParams.AdminPolicy=true, default policy otherwise). UpdatePassword derives the policy from the user's primary role (admin role → AdminPolicy).
+      type: security
+      enforcement: error
+    - id: C-03
+      description: UpdatePassword MUST re-run the policy validator and bump last_password_change_at on success
+      type: security
+      enforcement: error
+    - id: C-04
+      description: AssignRole MUST reject role ids not present in the roles table; FK enforcement is mandatory
+      type: technical
+      enforcement: error
+    - id: C-05
+      description: SoftDelete MUST set users.deleted_at; deleted users MUST be invisible to GetByUsername/GetByID and MUST NOT appear in role lookups
+      type: technical
+      enforcement: error
+    - id: C-06
+      description: PrimaryRoleFor MUST return roles in precedence order admin > security_admin > ops_lead > auditor > viewer; when a user has no roles, returns ErrUserHasNoRoles
+      type: technical
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: CreateUser persists a users row with the supplied username/email and an Argon2id-hashed password; the returned User struct has no PasswordHash field exposed.
+      priority: critical
+      references_constraints: [C-01, C-02]
+    - id: AC-02
+      description: CreateUser rejects a password that fails the policy validator with the same sentinel error (ErrPasswordTooShort, ErrPasswordBreached) returned by identity.ValidatePassword.
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-03
+      description: CreateUser with CreateParams.AdminPolicy=true applies the admin policy (15-char minimum) instead of the default (8-char). UpdatePassword for a user holding the admin role applies the same admin policy on password change.
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-04
+      description: GetUserByID returns the user when active; returns ErrUserNotFound for unknown or soft-deleted IDs.
+      priority: critical
+      references_constraints: [C-05]
+    - id: AC-05
+      description: GetUserByUsername returns the user when active; returns ErrUserNotFound for unknown or soft-deleted usernames.
+      priority: critical
+      references_constraints: [C-05]
+    - id: AC-06
+      description: UpdatePassword re-runs the policy validator (ErrPasswordTooShort etc surfaces unchanged) and on success updates password_hash AND bumps last_password_change_at.
+      priority: critical
+      references_constraints: [C-03]
+    - id: AC-07
+      description: SoftDelete sets deleted_at; subsequent GetUserByID returns ErrUserNotFound; users.username/email become reusable per the migration's partial-unique-index design.
+      priority: critical
+      references_constraints: [C-05]
+    - id: AC-08
+      description: AssignRole(userID, "viewer") inserts a user_roles row; AssignRole with an unknown role id returns ErrUnknownRole and writes no row.
+      priority: critical
+      references_constraints: [C-04]
+    - id: AC-09
+      description: RolesForUser returns the list of active role ids for a user; soft-deleted users return an empty slice (not an error).
+      priority: high
+      references_constraints: [C-05]
+    - id: AC-10
+      description: UnassignRole removes the link; idempotent (a second call returns nil; no error for "wasn't assigned anyway").
+      priority: high
+    - id: AC-11
+      description: PrimaryRoleFor returns the highest-precedence role for a user with multiple assignments (e.g., {viewer, ops_lead} → ops_lead).
+      priority: critical
+      references_constraints: [C-06]
+    - id: AC-12
+      description: Migration 0006 seeds the 5 built-in roles (viewer, auditor, ops_lead, security_admin, admin) with is_built_in=true; PrimaryRoleFor + AssignRole both work without any additional setup post-migrate.
+      priority: critical

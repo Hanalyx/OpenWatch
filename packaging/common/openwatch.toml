@@ -1,0 +1,24 @@
+# OpenWatch (Go) — default configuration shipped by the native package.
+#
+# Operators override values here. Environment-variable and CLI-flag
+# layers are still respected (see config layering in
+# internal/config/config.go).
+#
+# File mode: 0640, owner root:openwatch. The systemd unit reads it as
+# the openwatch user.
+
+[server]
+listen   = "0.0.0.0:8443"
+tls_cert = "/etc/openwatch/tls/cert.pem"
+tls_key  = "/etc/openwatch/tls/key.pem"
+
+[database]
+# Replace with a real DSN. The package does not provision Postgres.
+# Use /etc/openwatch/secrets.env to keep the password out of this file:
+#   OPENWATCH_DATABASE_DSN=postgres://openwatch:...@host/openwatch?sslmode=require
+dsn             = "postgres://openwatch@localhost/openwatch?sslmode=disable"
+max_connections = 25
+
+[logging]
+level  = "info"
+format = "json"

@@ -1,0 +1,223 @@
+# OpenWatch — Meta OpenAPI Manifest
+#
+# This is the TOP-LEVEL OpenAPI 3.1 spec that bundles the 14 domain files in
+# this directory into a single API surface for codegen and documentation.
+#
+# Status: skeleton — domain specs are at skeleton fidelity (operations +
+# extensions + descriptions, schemas stubbed). Full schemas land in Stage 2
+# alongside implementation.
+#
+# =============================================================================
+# Bundling
+# =============================================================================
+#
+# OpenAPI 3.1 does not natively support multi-file `paths:` composition without
+# bundler tooling. The OpenWatch build uses `redocly bundle` to flatten this
+# manifest plus the 14 domain files into a single artifact for `oapi-codegen`:
+#
+#   make generate
+#     ├─ redocly bundle app/api/openapi.yaml -o app/api/openapi.bundled.yaml
+#     └─ oapi-codegen -config codegen.yaml app/api/openapi.bundled.yaml
+#         → internal/server/api/server.gen.go
+#         → internal/server/api/types.gen.go
+#
+# The bundled artifact is regenerated on every build; it is NOT committed.
+# Domain files are the source of truth.
+#
+# =============================================================================
+# Registries referenced
+# =============================================================================
+#
+# Five registries provide codegen-typed constants that the API references:
+#   - app/audit/events.yaml      → internal/audit/events.gen.go
+#   - app/license/features.yaml  → internal/license/features.gen.go
+#   - app/api/error_codes.yaml   → internal/errors/codes.gen.go
+#   - app/auth/permissions.yaml  → internal/auth/permissions.gen.go, roles.gen.go
+#   - policies/*.yaml            → loaded at runtime; per-type Go schema validators
+#
+# CI validators enforce that every spec reference (x-required-permission,
+# x-required-feature, x-audit-events, x-policy-evaluated, error.code values)
+# resolves to a registered entry. Drift becomes a build error.
+#
+# =============================================================================
+# Versioning
+# =============================================================================
+#
+# The API uses URL versioning: `/api/v1/...` for the current stable surface.
+# Breaking changes warrant a new `/api/v2/` umbrella with parallel paths
+# during a deprecation window. Within `v1`, additions are non-breaking; field
+# removals or semantic changes require a new version.
+
+openapi: 3.1.0
+
+info:
+  title: OpenWatch
+  description: |
+    OpenWatch is a compliance scanning platform powered by Kensa.
+    See README and `app/docs/` for architecture, design principles, and
+    foundation specifications.
+
+    This API surface is agent-first: structured errors, idempotency keys,
+    cursor pagination, correlation IDs, audit-as-API, and policies-as-data
+    are all first-class concerns. Frontends and agents consume the same
+    contract.
+  version: 0.1.0-skeleton
+  contact:
+    name: OpenWatch / Hanalyx
+    url: https://github.com/Hanalyx/openwatch
+  license:
+    name: TBD (see LICENSE in repo root)
+
+servers:
+  - url: https://{host}:8443
+    variables:
+      host:
+        default: localhost
+        description: OpenWatch deployment host.
+
+# =============================================================================
+# Domain composition
+# =============================================================================
+#
+# The 14 domain files below are bundled into this manifest at build time.
+# Each is a free-standing OpenAPI 3.1 skeleton with its own `paths:` and
+# `components:`. The bundler merges them into the single `paths:` block
+# this manifest needs.
+
+x-domains:
+  # Existing full-fidelity worked examples (Stage 0 design validation):
+  - {file: hosts.yaml,         status: full,     operations: ~22, description: Host management and discovery}
+  - {file: scans.yaml,         status: full,     operations: ~22, description: Scan execution and lifecycle}
+  - {file: license.yaml,       status: full,     operations: ~6,  description: License management}
+  - {file: audit.yaml,         status: full,     operations: ~6,  description: Audit log query and export}
+
+  # Skeleton drafts (Stage 0 foundation validation):
+  - {file: auth.yaml,          status: skeleton, operations: ~14, description: Authentication, MFA, sessions, self-service identity}
+  - {file: compliance.yaml,    status: skeleton, operations: ~16, description: Posture, drift, exceptions, baselines}
+  - {file: alerts.yaml,        status: skeleton, operations: ~8,  description: Alert lifecycle (read, acknowledge, resolve)}
+  - {file: notifications.yaml, status: skeleton, operations: ~8,  description: Notification channels and delivery history}
+  - {file: policies.yaml,      status: skeleton, operations: ~6,  description: Admin policy management (reload, install, history)}
+  - {file: remediation.yaml,   status: skeleton, operations: ~10, description: Remediation request → approve → execute → rollback (license-gated)}
+  - {file: rules.yaml,         status: skeleton, operations: ~6,  description: Kensa rule browser, frameworks, controls}
+  - {file: integration.yaml,   status: skeleton, operations: ~10, description: Plugins (ORSA) and event webhooks}
+  - {file: admin.yaml,         status: skeleton, operations: ~17, description: Users, custom roles, SSO, retention, system settings}
+  - {file: system.yaml,        status: skeleton, operations: ~3,  description: Health, version, capabilities}
+
+# Total surface: ~154 operations across 14 domains.
+# Compare to the Python codebase's ~350 endpoints — properly-grouped REST
+# resources collapse the surface roughly 2.3x without losing functionality.
+
+# =============================================================================
+# Security schemes
+# =============================================================================
+
+components:
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        User JWT (issued by /auth/login) or API key prefixed `owk_`
+        (Authorization: Bearer owk_...). Per api_design_principles.md §11.1.
+
+  parameters:
+    Cursor:
+      name: cursor
+      in: query
+      schema: {type: [string, 'null']}
+      description: Opaque cursor for the next page; omit for the first page.
+
+    Limit:
+      name: limit
+      in: query
+      schema: {type: integer, minimum: 1, maximum: 200, default: 50}
+      description: Page size (per-endpoint max may be lower).
+
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema: {type: string, minLength: 1, maxLength: 255}
+      description: |
+        Required on POST/PUT/PATCH/DELETE. Same key + same body = same response
+        within 24h TTL. Different body with the same key → 409 with
+        `error.code = "idempotency.key_reused"`.
+
+    CorrelationId:
+      name: X-Correlation-Id
+      in: header
+      schema: {type: string, pattern: '^[A-Za-z0-9_-]{1,64}$'}
+      description: |
+        Optional. If omitted, the server generates one and echoes it in the
+        response header. Reserved prefixes (boot-, cron-, test-) are rejected
+        and regenerated. See app/docs/correlation_id_propagation.md.
+
+  headers:
+    XCorrelationId:
+      description: Echo of the request's X-Correlation-Id (or server-generated).
+      schema: {type: string}
+
+  schemas:
+    # The canonical error envelope — referenced by EVERY domain spec's
+    # `components.schemas.ErrorEnvelope`. Each domain redeclares it inline
+    # (skeleton-friendly), but the canonical shape lives here.
+    ErrorEnvelope:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, fault, retryable, human_message]
+          properties:
+            code:
+              type: string
+              description: Stable dotted code from app/api/error_codes.yaml.
+              examples: [auth.token_expired, host.unreachable, policy.denied]
+            fault:
+              type: string
+              enum: [client, server, policy, external]
+              description: Who is at fault. Drives agent retry/abort.
+            retryable:
+              type: boolean
+              description: True if the same call may succeed later without modification.
+            human_message:
+              type: string
+              description: For UI/log display. May be localized later.
+            detail:
+              type: object
+              additionalProperties: true
+              description: Shape constrained by detail_schema in registry when present.
+            correlation_id:
+              type: string
+              description: Same X-Correlation-Id returned in response headers.
+
+    # Generic cursor-paginated response. Concrete responses extend this with
+    # a typed `items` array.
+    CursorPage:
+      type: object
+      required: [items, next_cursor]
+      properties:
+        items: {type: array, items: {}}
+        next_cursor:
+          type: [string, 'null']
+          description: Opaque cursor for next page; null when no more pages.
+
+# =============================================================================
+# Default security: every operation requires bearerAuth unless overridden
+# =============================================================================
+# Per api_design_principles.md §11.2: anonymous endpoints must explicitly
+# declare `security: []` (login, refresh, password reset request, health,
+# version). All others inherit bearerAuth.
+
+security:
+  - bearerAuth: []
+
+# =============================================================================
+# Paths — populated by the bundler at build time
+# =============================================================================
+# Empty here. `redocly bundle` flattens the paths from each x-domains entry's
+# file into a single block.
+
+paths: {}

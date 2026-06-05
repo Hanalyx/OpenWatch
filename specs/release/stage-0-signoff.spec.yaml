@@ -1,0 +1,101 @@
+spec:
+  id: release-stage-0-signoff
+  title: Stage 0 walking-skeleton sign-off
+  version: "1.0.0"
+  status: approved
+  tier: 2
+
+  context:
+    system: openwatch-go
+    feature: Stage 0 Definition of Done
+    description: >
+      Stage 0 done means a reviewer can run the 19-step Definition of
+      Done end-to-end against a fresh install and see every step pass.
+      This spec captures each DoD step as a single AC so the sign-off
+      becomes a runnable test instead of a manual checklist. A few steps
+      cover operator-mediated actions (cert hot-reload, binary restart);
+      those are annotated honestly as covered-by-companion-spec or
+      acceptance-walkthrough rather than as automated Go tests.
+    related_specs:
+      - api-health
+      - api-diagnostics-echo
+      - api-audit-events-query
+      - system-rbac
+      - system-policy
+      - system-job-queue
+
+  objective:
+    summary: >
+      Make Stage-0 sign-off mechanical, not subjective. Either the 19-step
+      checklist runs green end-to-end on a fresh server, or sign-off
+      fails and we know exactly which step blocked it.
+    scope:
+      includes:
+        - HTTP demo endpoints required by the DoD (require-host-write,
+          require-remediation-execute, evaluate-alert, enqueue-test-job,
+          admin/policies:reload)
+        - In-process job worker that drains diagnostics.test_job
+        - End-to-end integration tests asserting each automatable DoD step
+      excludes:
+        - The git tag itself (operator action)
+        - VM-level installation (covered by install_guide.md)
+
+  constraints:
+    - id: C-01
+      description: The four DoD demo endpoints MUST be wired into the OpenAPI spec and have working handler implementations
+      type: technical
+      enforcement: error
+    - id: C-02
+      description: The in-process worker MUST poll job_queue every <=1s and emit diagnostics.test_job_completed for every diagnostics.test_job job, carrying the job's correlation_id
+      type: technical
+      enforcement: error
+    - id: C-03
+      description: Every DoD step MUST either be covered by an enforcing test in this spec OR explicitly cited to its covering spec (no orphan DoD steps)
+      type: technical
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: DoD-7 — GET /api/v1/health returns 200 with status="healthy", db_connected=true, version populated.
+      priority: critical
+      references_constraints: [C-03]
+    - id: AC-02
+      description: DoD-8 — POST /api/v1/diagnostics:echo with valid Idempotency-Key and X-Correlation-Id returns 200 with echoed message; X-Correlation-Id matches the request.
+      priority: critical
+    - id: AC-03
+      description: DoD-9 — GET /api/v1/audit/events returns the diagnostics.test_job_completed audit row from the prior :echo call within 1s.
+      priority: critical
+    - id: AC-04
+      description: DoD-10 — Replay of :echo with the same Idempotency-Key returns the cached response; only one audit_events row exists for the original call.
+      priority: critical
+    - id: AC-05
+      description: DoD-11 — GET /api/v1/auth/me/permissions with X-Stub-Role=viewer returns a list including host:read and excluding host:write.
+      priority: critical
+    - id: AC-06
+      description: DoD-12 — POST /api/v1/diagnostics:require-host-write with X-Stub-Role=viewer returns 403 authz.permission_denied; audit row recorded with detail.required_permission="host:write".
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-07
+      description: DoD-13 — POST /api/v1/diagnostics:require-remediation-execute with X-Stub-Role=security_admin and no license returns 402 license.feature_unavailable; license.feature_check_denied audit row recorded.
+      priority: critical
+    - id: AC-08
+      description: DoD-14 — POST /api/v1/diagnostics:evaluate-alert with {"score":65} returns a Decision with outcome="high" and policy_version="0.0.0" (built-in default).
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-09
+      description: DoD-15 — POST /api/v1/admin/policies:reload against a directory containing a signed alert_thresholds.yaml v1.0.0 returns outcome="loaded"; subsequent :evaluate-alert reflects the new thresholds.
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-10
+      description: DoD-16 — POST /api/v1/diagnostics:enqueue-test-job with X-Correlation-Id=req-end2end-001 enqueues a job; the in-process worker drains it within 2s and emits a diagnostics.test_job_completed audit event whose correlation_id matches. (Note - the original DoD example used the "test-" prefix which collides with the correlation reservation for in-process IDs; "req-" is the correct client-supplied prefix.)
+      priority: critical
+      references_constraints: [C-01, C-02]
+    - id: AC-11
+      description: DoD-17 — `specter sync` exits 0 and reports 100% AC coverage across every Active spec.
+      priority: critical
+    - id: AC-12
+      description: DoD-18 — TLS cert hot-reload (covered by system-http-server AC-08 + AC-09). Operator-mediated VM test out of scope here.
+      priority: high
+    - id: AC-13
+      description: DoD-19 — Audit events survive a service restart (covered by system-db AC-12 pool-reopen test). Full binary-restart VM test is operator-mediated.
+      priority: high

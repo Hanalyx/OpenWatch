@@ -1,0 +1,142 @@
+spec:
+  id: system-event-bus
+  title: In-process event bus
+  version: "1.1.0"
+  status: approved
+  tier: 1
+
+  context:
+    system: openwatch-go
+    feature: Typed pub/sub for OpenWatch-internal events
+    description: >
+      The event bus is OpenWatch's typed pub/sub layer between
+      orchestration code (drift detector, liveness loop, scheduler)
+      and consumers like the alert router (B.3b) and any future
+      ops-visibility surfaces. In-process via Go channels — no
+      external broker. The bus carries Bucket B events per the
+      Kensa/OpenWatch boundary doc § 4 (OpenWatch-emitted events;
+      Kensa events are out of scope for the bus).
+
+      Distinction from internal/audit: the audit log is the
+      persistent forensic record (every drift, every scan); the bus
+      is in-memory dispatch to runtime consumers. Some events
+      produce BOTH — a drift detection emits compliance.drift.detected
+      to the audit log AND publishes DriftDetected to the bus so the
+      alert router can run.
+
+  objective:
+    summary: >
+      One Bus value, constructed once at boot. Publishers call
+      Bus.Publish(ctx, event) without knowing who's subscribed.
+      Subscribers register at boot via Bus.Subscribe with an EventKind
+      filter and receive matching events on a per-subscriber buffered
+      channel. Slow subscribers don't block other subscribers; channel
+      overflow drops events and increments a counter.
+    scope:
+      includes:
+        - Typed Event interface (Kind, Timestamp, structured payload)
+        - Closed EventKind enum (currently HeartbeatPulse, DriftDetected)
+        - Subscribe by EventKind filter
+        - Buffered per-subscriber delivery channels (default 1024)
+        - Non-blocking Publish (drop on subscriber overflow)
+        - Bus.Shutdown drains then closes channels
+        - Metrics counters (published, delivered, dropped, no_subscribers)
+      excludes:
+        - External brokers (kafka, nats, redis pub/sub, rabbitmq) — bus
+          is strictly in-process; AC-12 source-inspects to enforce
+        - Subscribe-to-all (no wildcard)
+        - Cross-process delivery (a future need would add a separate
+          bridge, not extend the bus)
+        - Persistence (audit log is the durable record; the bus is
+          ephemeral)
+
+  constraints:
+    - id: C-01
+      description: The bus MUST be in-process via Go channels. No external broker dependency
+      type: technical
+      enforcement: error
+    - id: C-02
+      description: Events MUST satisfy the Event interface (Kind() EventKind + Timestamp() time.Time). EventKind is a closed enum
+      type: technical
+      enforcement: error
+    - id: C-03
+      description: Bus.Publish MUST be non-blocking. If a subscriber's channel is full, the event is dropped for that subscriber and DroppedCount increments; other subscribers still receive
+      type: performance
+      enforcement: error
+    - id: C-04
+      description: Subscriber channel buffer size MUST be 1024 by default; configurable per-subscriber via SubscribeOptions.BufferSize
+      type: technical
+      enforcement: error
+    - id: C-05
+      description: Bus.Subscribe MUST accept an EventKind filter; the subscriber receives ONLY events of the matching kinds. No wildcard subscription
+      type: technical
+      enforcement: error
+    - id: C-06
+      description: Bus operations (Publish, Subscribe, Unsubscribe, Shutdown) MUST be goroutine-safe under -race
+      type: technical
+      enforcement: error
+    - id: C-07
+      description: Bus.Shutdown MUST drain all subscriber channels and close them. After Shutdown, Publish is a no-op (does not panic)
+      type: technical
+      enforcement: error
+    - id: C-08
+      description: A subscriber blocked reading its channel MUST NOT block any other subscriber's delivery — per-subscriber goroutines handle backpressure independently
+      type: technical
+      enforcement: error
+    - id: C-09
+      description: The bus MUST NOT import any external broker package (github.com/segmentio/kafka-go, github.com/nats-io, github.com/streadway/amqp, etc.). Source-inspection enforces (AC-12)
+      type: security
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: Bus.Publish with one subscriber registered for the event's Kind — the subscriber receives the event on its delivery channel within 100ms.
+      priority: critical
+      references_constraints: [C-03]
+    - id: AC-02
+      description: Bus.Publish with zero subscribers registered for the event's Kind — the event is dropped silently AND Metrics.NoSubscribersCount increments by 1.
+      priority: critical
+      references_constraints: [C-03]
+    - id: AC-03
+      description: Bus.Publish with three subscribers all registered for the event's Kind — all three receive the event.
+      priority: critical
+      references_constraints: [C-03]
+    - id: AC-04
+      description: 1000 concurrent Publish calls + 10 subscribers + -race build → no data races, no panics, deliveries match expectations (each subscriber receives roughly 1000 events, modulo any buffer overflows).
+      priority: critical
+      references_constraints: [C-06]
+    - id: AC-05
+      description: Bus.Shutdown closes all subscriber channels; after Shutdown, calling Publish does NOT panic and increments no counters.
+      priority: critical
+      references_constraints: [C-07]
+    - id: AC-06
+      description: A subscriber with a tiny buffer (BufferSize=1) that doesn't read its channel receives the first event then drops subsequent events; DroppedCount increments per drop.
+      priority: critical
+      references_constraints: [C-03, C-04]
+    - id: AC-07
+      description: EventKind enum is closed — exactly the values exposed in AllEventKinds. v1.0.0 shipped two (HeartbeatPulse + DriftDetected); v1.1.0 adds HostChanged + MonitoringBandChanged so the SSE layer can fan host CRUD + multi-layer band transitions out to operators in real time. Verified by reflection-style count check.
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-08
+      description: A subscriber filtered to EventKindHeartbeatPulse does NOT receive a DriftDetected event published to the bus.
+      priority: critical
+      references_constraints: [C-05]
+    - id: AC-09
+      description: Bus.Metrics().Snapshot() returns typed PublishedCount, DeliveredCount, DroppedCount, NoSubscribersCount; all increment correctly through publish/drop scenarios.
+      priority: high
+    - id: AC-10
+      description: Publish wall-clock under nominal load (10 subscribers, buffers not full) completes in under 100ms; tested by timing 1000 calls.
+      priority: high
+      references_constraints: [C-03]
+    - id: AC-11
+      description: A "slow subscriber" that sleeps before reading does NOT block delivery to other "fast subscriber" siblings — verified by publishing 100 events while one subscriber sleeps and confirming fast subscriber receives all 100 promptly.
+      priority: critical
+      references_constraints: [C-08]
+    - id: AC-12
+      description: Source-inspection — internal/eventbus source files import no external broker packages (segmentio/kafka-go, nats-io, streadway/amqp, redis pub/sub, etc.). Enforces the in-process invariant.
+      priority: critical
+      references_constraints: [C-01, C-09]
+    - id: AC-13
+      description: Bus.Subscribe returns a Subscription value with Unsubscribe() that removes the subscriber. After Unsubscribe, subsequent Publish does NOT deliver to the unsubscribed channel and does NOT block.
+      priority: critical
+      references_constraints: [C-05, C-06]

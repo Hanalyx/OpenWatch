@@ -1,0 +1,93 @@
+spec:
+  id: system-db
+  title: PostgreSQL pool and audit queries
+  version: "1.0.0"
+  status: approved
+  tier: 2
+
+  context:
+    system: openwatch-go
+    feature: Database access layer
+    description: >
+      PostgreSQL connectivity (pgxpool), migration runner (goose), and
+      minimal Stage-0 audit query surface. Day 5 supersedes the hand-
+      written audit queries with sqlc-generated code; signatures stay
+      identical so callers do not change.
+
+  objective:
+    summary: >
+      Provide a small, reliable database surface so later Days can build
+      the audit writer and API handlers without re-litigating connection
+      or migration mechanics.
+    scope:
+      includes:
+        - pgxpool helper with ping-on-connect
+        - Goose migration runner with embedded FS
+        - Audit query CRUD
+      excludes:
+        - sqlc codegen wiring (Day 5+)
+        - Connection pooling tuning beyond conservative defaults
+
+  constraints:
+    - id: C-01
+      description: NewPool MUST validate connectivity with Ping before returning
+      type: technical
+      enforcement: error
+    - id: C-02
+      description: Ping timeout MUST be 5 seconds regardless of caller-supplied ctx deadline
+      type: technical
+      enforcement: error
+    - id: C-03
+      description: audit_events.correlation_id MUST be NOT NULL per the correlation foundation contract
+      type: technical
+      enforcement: error
+    - id: C-04
+      description: Apply() MUST be idempotent (re-running with no pending migrations is no-op)
+      type: technical
+      enforcement: error
+    - id: C-05
+      description: ListAuditEvents MUST order by occurred_at DESC, id DESC (stable tiebreak)
+      type: technical
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: NewPool returns a usable pool against reachable Postgres; Ping succeeds before return.
+      priority: critical
+      references_constraints: [C-01, C-02]
+    - id: AC-02
+      description: NewPool returns an error (does not block) when DSN points to an unreachable host within 5s budget.
+      priority: high
+    - id: AC-03
+      description: Apply() runs every embedded migration in order; goose_db_version reflects highest applied version.
+      priority: critical
+    - id: AC-04
+      description: Apply() against already-migrated DB is a no-op and returns nil.
+      priority: critical
+      references_constraints: [C-04]
+    - id: AC-05
+      description: audit_events schema includes id (UUID PK), correlation_id (NOT NULL), actor_type (NOT NULL), action (NOT NULL), occurred_at.
+      priority: critical
+      references_constraints: [C-03]
+    - id: AC-06
+      description: idempotency_keys schema includes key (TEXT PK), request_hash, response_status, response_body (JSONB), expires_at.
+      priority: critical
+    - id: AC-07
+      description: InsertAuditEvent persists row with supplied parameters and returns same row with occurred_at populated.
+      priority: critical
+    - id: AC-08
+      description: Inserted audit event round-trips via GetAuditEventByID (same UUID, correlation_id, action, JSON-equivalent detail).
+      priority: critical
+    - id: AC-09
+      description: ListAuditEvents returns newest-first (occurred_at DESC, id DESC) and honors Limit.
+      priority: high
+      references_constraints: [C-05]
+    - id: AC-10
+      description: ListAuditEvents with Before set returns only rows strictly older than that timestamp.
+      priority: high
+    - id: AC-11
+      description: CountAuditEvents returns exact row count after N inserts.
+      priority: medium
+    - id: AC-12
+      description: Data persists across binary restart (rebuild + remigrate idempotently; row remains).
+      priority: high

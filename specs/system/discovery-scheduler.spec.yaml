@@ -1,0 +1,152 @@
+spec:
+  id: system-discovery-scheduler
+  title: OS discovery recurring sweep scheduler
+  version: "1.0.0"
+  status: approved
+  tier: 2
+
+  context:
+    system: openwatch-go
+    feature: Periodic OS-fingerprint sweep + first-contact policy gate
+    description: >
+      Scheduler is the recurring driver that turns the one-shot
+      discovery.Service.Discover (system-host-discovery v1.0.0) into a
+      fleet-wide periodic sweep. Same shape as system-intelligence-scheduler:
+      a long-lived goroutine ticks on a short cadence (default 60s), reads
+      hosts whose hosts.os_discovered_at is NULL or older than the policy
+      interval, and ENQUEUES host.discovery jobs through internal/queue.
+      The worker drains them; the scheduler does not run discovery inline.
+
+      Cadence: 24 h per host by default, clamped to [3600, 604800] (1 hour
+      to 7 days). Operator-tunable at runtime via
+      systemconfig.DiscoveryConfig (new KeyDiscovery) — same UI-edit
+      pattern as system-intelligence-scheduler.
+
+      Per-tick enqueue cap: RateLimit (default 25, clamped [1, 500]) bounds
+      how many host.discovery jobs the scheduler enqueues per tick — keeps a
+      large fleet from thundering-herd-ing the worker pool when many hosts
+      first hit NULL os_discovered_at at the same time.
+
+      First-contact policy: DiscoveryConfig.DetectOnFirstContact (default
+      true) gates the host-create auto-enqueue. When false, newly-created
+      hosts do NOT get a discovery job and stay with hosts.os_discovered_at
+      NULL until the sweep loop picks them up (or an operator clicks
+      Re-run discovery on the host detail page). See
+      system-host-discovery v1.1.0 AC-15.
+
+      Maintenance: respects hosts.maintenance_mode = true the same way the
+      liveness + intelligence loops do — maintenance hosts are excluded
+      from listDiscoveryTargets. MaintenanceGlobal pauses the whole loop.
+
+      No per-host backoff state. Discovery failures (SSH dial timeout,
+      sudo prompt, etc.) are non-fatal: hosts.os_discovered_at stays NULL
+      and the next tick re-enqueues. The worker's retry logic for the
+      job kind absorbs transient failures.
+
+    related_specs:
+      - system-host-discovery
+      - system-intelligence-scheduler
+      - system-job-queue
+      - services-connectivity-config
+
+  objective:
+    summary: >
+      A new sub-package internal/intelligence/discovery/scheduler hosts the
+      Service. Service.Run(ctx) kicks off the loop; Service.Stop() cancels
+      it. The loop ticks on Service.effectiveInterval (default 60s,
+      configurable). Per tick it walks listDiscoveryTargets and enqueues
+      host.discovery jobs through internal/queue, capped by
+      DiscoveryConfig.RateLimit. The host-create handler reads
+      DiscoveryConfig.DetectOnFirstContact before its existing
+      auto-enqueue.
+    scope:
+      includes:
+        - 'systemconfig.DiscoveryConfig — IntervalSec (default 86400, clamped [3600, 604800]) + RateLimit + DetectOnFirstContact + MaintenanceGlobal'
+        - 'scheduler.Service with Run(ctx), Stop(), listDiscoveryTargets, enqueueDueHosts helpers'
+        - 'Per-tick enqueue rate-limit — never enqueues more than DiscoveryConfig.RateLimit jobs per tick'
+        - 'Single SQL query for due-hosts read — no per-host follow-up'
+      excludes:
+        - 'Per-host advisory locks — the queue + idempotency on enqueue handles dedup'
+        - 'Per-host backoff state — failures are absorbed by the worker retry; scheduler stays stateless'
+        - 'GET /api/v1/discovery/* — already in system-host-discovery (POST /hosts/{id}/discovery:run)'
+        - 'Per-host policy override — Q2 work, not in v1.0.0'
+
+  constraints:
+    - id: C-01
+      description: 'Service.Run MUST tick on a short cadence (effectiveInterval, default 60s, MUST be in [10s, 5min]). The tick rate is INDEPENDENT of the per-host interval — a 24h per-host cadence still allows the loop to discover a host with NULL os_discovered_at within 60s'
+      type: technical
+      enforcement: error
+    - id: C-02
+      description: 'listDiscoveryTargets MUST WHERE-out (a) deleted_at IS NOT NULL hosts, (b) hosts.maintenance_mode = true, AND (c) hosts whose hosts.os_discovered_at is within DiscoveryConfig.IntervalSec of now(). NULL os_discovered_at MUST be treated as due (never-discovered hosts)'
+      type: technical
+      enforcement: error
+    - id: C-03
+      description: 'The scheduler MUST enqueue host.discovery jobs via internal/queue.Enqueue with discovery.JobKindHostDiscovery + discovery.HostDiscoveryJobPayload. No SSH or DB-mutation work runs inline — the package is enqueue-only'
+      type: technical
+      enforcement: error
+    - id: C-04
+      description: 'Per-tick rate limit: at most DiscoveryConfig.RateLimit enqueues per tick. Default 25. Clamped to [1, 500]. Prevents a stale-fleet sweep from thundering-herding the worker pool'
+      type: technical
+      enforcement: error
+    - id: C-05
+      description: 'DiscoveryConfig.IntervalSec MUST be clamped to [3600, 604800] (1h to 7d) at validation time. Out-of-bounds values reject with ErrInvalidConfig'
+      type: technical
+      enforcement: error
+    - id: C-06
+      description: 'MaintenanceGlobal=true MUST short-circuit tickOnce before listDiscoveryTargets runs — the whole loop pauses without touching the DB'
+      type: technical
+      enforcement: error
+    - id: C-07
+      description: 'Service MUST NOT import internal/server or any package that pulls in net/http. The scheduler is a pure DB-and-queue service; web surface lives in the handler package'
+      type: technical
+      enforcement: error
+    - id: C-08
+      description: 'Stop() MUST block until any in-flight enqueueDueHosts call returns OR the parent context cancels — whichever fires first. The stop closes the stop channel and Wait()s on the in-flight WaitGroup'
+      type: technical
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: 'systemconfig.DiscoveryConfig has fields IntervalSec, RateLimit, DetectOnFirstContact, MaintenanceGlobal. DefaultDiscovery() returns IntervalSec=86400, RateLimit=25, DetectOnFirstContact=true, MaintenanceGlobal=false'
+      priority: high
+      references_constraints: [C-04, C-05]
+    - id: AC-02
+      description: 'DiscoveryConfig.Validate() rejects IntervalSec=600 (below floor) and IntervalSec=700000 (above ceiling) with ErrInvalidConfig. Accepts 3600, 86400, 604800'
+      priority: critical
+      references_constraints: [C-05]
+    - id: AC-03
+      description: 'DiscoveryConfig.Validate() rejects RateLimit=0 and RateLimit=501 with ErrInvalidConfig. Accepts 1, 25, 500'
+      priority: high
+      references_constraints: [C-04]
+    - id: AC-04
+      description: 'Service.effectiveInterval returns a duration in [10s, 5min] regardless of config — defaults to 60s when unset'
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-05
+      description: 'listDiscoveryTargets seeded with H1 (os_discovered_at NULL), H2 (os_discovered_at older than IntervalSec), H3 (os_discovered_at within IntervalSec), H4 (maintenance_mode=true), H5 (deleted_at NOT NULL) returns ONLY H1 and H2 — in NULLS FIRST order so never-discovered hosts go first'
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-06
+      description: 'listDiscoveryTargets MUST issue exactly one SQL query — no per-host follow-up reads. Source inspection: the function body contains exactly one pool.Query call'
+      priority: high
+      references_constraints: [C-01, C-02]
+    - id: AC-07
+      description: 'enqueueDueHosts dispatches via internal/queue.Enqueue using discovery.JobKindHostDiscovery and discovery.HostDiscoveryJobPayload{HostID}. Source inspection of the dispatch path confirms no direct SSH calls or discovery.Discover invocations'
+      priority: critical
+      references_constraints: [C-03]
+    - id: AC-08
+      description: 'When listDiscoveryTargets returns 100 hosts and DiscoveryConfig.RateLimit=10, tickOnce enqueues exactly 10 jobs and leaves the remaining 90 for subsequent ticks. The dropped hosts surface again on the next listDiscoveryTargets read because nothing about their state changed'
+      priority: critical
+      references_constraints: [C-04]
+    - id: AC-09
+      description: 'MaintenanceGlobal=true causes tickOnce to return immediately. Source inspection: the maintenance check happens before listDiscoveryTargets. A DB-side spy (a pool.Query counter) records zero query attempts during a maintenance-paused tick'
+      priority: critical
+      references_constraints: [C-06]
+    - id: AC-10
+      description: 'Stop() blocks until any in-flight enqueueDueHosts call completes OR parent ctx cancels. Verified by starting a tick with a slow internal/queue stub, calling Stop, and observing the call returns AFTER the stub returns'
+      priority: critical
+      references_constraints: [C-08]
+    - id: AC-11
+      description: 'scheduler package source MUST NOT import internal/server or any http-shaped package. Source inspection walks the import set of every .go file under internal/intelligence/discovery/scheduler/'
+      priority: high
+      references_constraints: [C-07]

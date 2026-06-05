@@ -1,0 +1,144 @@
+spec:
+  id: system-daemon-orchestration
+  title: openwatch serve daemon lifecycle and Slice B runtime wiring
+  version: "1.1.0"
+  status: approved
+  tier: 1
+
+  context:
+    system: openwatch-go
+    feature: Process lifecycle for openwatch serve
+    description: >
+      Defines what `openwatch serve` instantiates from the Slice B
+      library packages, the boot/shutdown order, and the failure
+      semantics for the serve subcommand.
+
+      Scope of this version (v1.0.0):
+        - eventbus + alertrouter + stdout channel registration
+        - liveness probe loop (publishes HeartbeatPulse to the bus)
+        - The HTTP server (unchanged from system-http-server)
+
+      Out of scope (each lands in its own follow-up PR with its own
+      spec amendment):
+        - openwatch worker subcommand (system-worker-subcommand)
+        - Live Kensa binding for the executor (system-kensa-executor v2 AC-18)
+        - drift detector wiring (constructed but no long-lived loop
+          today; called per-scan-completion by the worker)
+        - openwatch migrate / check-config subcommands
+
+      v1.1.0 additions:
+        - OS Discovery service (discovery.Service) wired into the
+          HTTP server so POST /hosts/{id}/discovery:run reaches a
+          real handler.
+        - OS Intelligence scheduler (scheduler.Service) started as a
+          long-lived goroutine — the cron-like tick that picks "due"
+          hosts and dispatches collector.RunCycle.
+        - Maintenance-pause warning log at boot: when
+          systemconfig.IntelligenceConfig.MaintenanceGlobal=true on
+          start, log a WARN naming the flag + the fix (PUT the
+          config). Without this the scheduler silently does nothing
+          and looks indistinguishable from "scheduler not running".
+
+      audit.Emit is the only EmitFunc threaded through Slice B
+      packages — none of them imports audit directly for emission.
+    related_specs:
+      - system-liveness-loop
+      - system-event-bus
+      - system-alert-router
+      - system-http-server
+
+  objective:
+    summary: >
+      openwatch serve boots the Slice B subsystems in a fixed order
+      that guarantees the alert router subscribes BEFORE any producer
+      publishes, then starts the HTTP server. Shutdown is reverse
+      order. Slice B packages are instantiated exactly once per
+      process via constructor injection — no global singletons.
+    scope:
+      includes:
+        - "Boot order: eventbus.NewBus -> alertrouter.NewRouter + Register stdout channel + Start -> liveness.NewService + go Run -> server.Run"
+        - "Shutdown order (reverse): router.Stop, liveness via ctx cancel, bus.Shutdown (deferred), audit.Shutdown (deferred)"
+        - "Stdout alert channel registered with wildcard Tags filter"
+        - "Slice B packages take audit.Emit via constructor injection — no direct audit.Emit calls in those packages"
+      excludes:
+        - "Scheduler dispatcher tick wiring (follow-up)"
+        - "Worker subcommand wiring (follow-up)"
+        - "Drift detector loop (no long-lived loop; called by worker)"
+        - "Live Kensa binding (follow-up)"
+        - "Runtime ordering tests via injected wrappers (deferred; source-inspection only in v1.0.0)"
+
+  constraints:
+    - id: C-01
+      description: openwatch serve MUST instantiate the Slice B subsystems in this order — eventbus.NewBus -> alertrouter.NewRouter -> alertrouter.Register (stdout channel) -> alertrouter.Start -> liveness.NewService -> go liveness.Run -> server.Run. Source-inspection enforces (AC-02)
+      type: technical
+      enforcement: error
+    - id: C-02
+      description: openwatch serve MUST shut down subsystems in REVERSE boot order. router.Stop runs before server.Run returns control; bus.Shutdown + audit.Shutdown run via defer in reverse declaration order. Source-inspection enforces (AC-03)
+      type: technical
+      enforcement: error
+    - id: C-03
+      description: The alert router MUST subscribe to the eventbus BEFORE any producer (liveness, future drift detector wiring) starts publishing. Boot order — bus + router.Start happens before liveness goroutine spawns — enforces this
+      type: technical
+      enforcement: error
+    - id: C-04
+      description: Slice B packages MUST receive audit.Emit (or a test fake) as their EmitFunc via constructor injection. No package may call audit.Emit directly via a package-global handle. Source-inspection enforces (AC-05)
+      type: security
+      enforcement: error
+    - id: C-05
+      description: openwatch serve MUST register at least one alert channel at boot — the stdout channel — so alerts are visible to operators via journald. The channel registration uses an empty Tags map (wildcard — receives every alert)
+      type: technical
+      enforcement: error
+    - id: C-06
+      description: 'v1.1.0 — openwatch serve MUST construct discovery.NewService(pool, audit.Emit, bus) with WithHostLookup(discovery.PoolHostLookup) AND WithCredentialService(credSvc), then pass it to server.WithDiscovery. Without this wiring POST /hosts/{id}/discovery:run returns 503 server.unavailable. Source-inspection enforces'
+      type: technical
+      enforcement: error
+    - id: C-07
+      description: 'v1.1.0 — openwatch serve MUST construct collector.NewService(pool, audit.Emit, bus) with WithCredentialService(credSvc) + WithHostLookup(collector.PoolHostLookup) + WithSSHTransport (production SSH transport), then scheduler.NewService(pool, runner).WithConfigLoader(cfgStore.LoadIntelligence) and start the scheduler in its own goroutine. Without the SSH transport WithSSHTransport call, collector.RunCycle returns "ssh transport not wired" silently and the scheduler does nothing'
+      type: technical
+      enforcement: error
+    - id: C-08
+      description: 'v1.1.0 — openwatch serve MUST log a WARN at boot when systemconfig.IntelligenceConfig.MaintenanceGlobal=true. The log MUST name the config key (system_config.intelligence.maintenance_global) and the operator-actionable fix (PUT /api/v1/system/intelligence/config with maintenance_global=false). Without this log, a paused scheduler is silent and looks indistinguishable from "scheduler not running" — a debugging trap'
+      type: technical
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: openwatch serve binary builds cleanly with the Slice B imports — alertrouter, alertrouter/channels/stdout, eventbus, liveness — present in cmd/openwatch/main.go's import block.
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-02
+      description: Source-inspection — cmd/openwatch/main.go's cmdServe function contains the literal call sequence eventbus.NewBus, alertrouter.NewRouter, router.Register, router.Start, liveness.NewService, go liveSvc.Run, server.New, srv.Run in that textual order (so eyeballing the file shows the correct boot sequence).
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-03
+      description: Source-inspection — cmd/openwatch/main.go contains router.Stop AFTER srv.Run returns, and bus.Shutdown is registered via defer BEFORE router is constructed (so deferred shutdown runs after router.Stop).
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-04
+      description: Source-inspection — alertrouter.Start is called BEFORE liveSvc.Run goroutine spawns in cmdServe. Textual ordering check.
+      priority: critical
+      references_constraints: [C-03]
+    - id: AC-05
+      description: Source-inspection — no Slice B package (internal/scheduler, internal/kensa, internal/transactionlog, internal/liveness, internal/alertrouter, internal/eventbus, internal/fleetrollup, internal/drift) calls audit.Emit directly. Each takes its EmitFunc via NewX constructor.
+      priority: critical
+      references_constraints: [C-04]
+    - id: AC-06
+      description: Source-inspection — cmd/openwatch/main.go imports internal/alertrouter/channels/stdout and registers it via router.Register with a ChannelRegistration whose Tags map is nil or empty (wildcard).
+      priority: critical
+      references_constraints: [C-05]
+    - id: AC-07
+      description: The stdout channel is constructed via stdoutchan.New (alias for the channels/stdout package); the returned Channel's Name and Send methods conform to the alertrouter.Channel interface. Verified by the channels/stdout package's own tests.
+      priority: high
+      references_constraints: [C-05]
+    - id: AC-08
+      description: 'v1.1.0 — Source-inspection: cmd/openwatch/main.go contains discovery.NewService(pool, audit.Emit, bus).WithHostLookup(discovery.PoolHostLookup{Pool: pool}).WithCredentialService(credSvc) AND the chain reaches server.New(...).WithDiscovery(discoSvc). Verified by reading the file and asserting both literal patterns appear in cmdServe'
+      priority: critical
+      references_constraints: [C-06]
+    - id: AC-09
+      description: 'v1.1.0 — Source-inspection: cmd/openwatch/main.go contains collector.NewService(pool, audit.Emit, bus) with .WithCredentialService(credSvc) AND .WithSSHTransport(...). Then scheduler.NewService(pool, ...).WithConfigLoader(cfgStore.LoadIntelligence) AND a go-statement spawning the scheduler''s Run method. Verified by reading the file and asserting all four patterns appear in cmdServe'
+      priority: critical
+      references_constraints: [C-07]
+    - id: AC-10
+      description: 'v1.1.0 — Source-inspection: cmd/openwatch/main.go contains a slog.WarnContext call inside cmdServe whose msg contains "intelligence scheduler paused at startup" (or "paused" in the message), AND whose body references cfgStore.LoadIntelligence + MaintenanceGlobal. Verified by reading the file and asserting both patterns appear next to each other'
+      priority: critical
+      references_constraints: [C-08]

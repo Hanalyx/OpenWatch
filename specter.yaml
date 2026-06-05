@@ -1,0 +1,83 @@
+# Specter Project Manifest
+# See: https://github.com/Hanalyx/specter
+
+schema_version: 1
+system:
+    name: openwatch-go
+    tier: 2
+domains:
+    default:
+        tier: 2
+        description: 12 .spec.yaml file(s) were discovered but could not be parsed — add their spec IDs here after fixing them. Run `specter doctor` for a drift analysis.
+        specs:
+            - api-audit-events-query
+            - api-diagnostics-echo
+            - api-health
+            - api-license
+            - system-audit-emission
+            - system-config
+            - system-correlation
+            - system-db
+            - system-http-server
+            - system-idempotency
+            - system-license-features
+            - system-license-validation
+            - system-rbac
+            - system-job-queue
+            - system-policy
+            - release-package-build
+            - release-fips-build
+            - release-stage-0-signoff
+            - release-ci-gates
+            - system-auth-identity
+            - system-user-management
+            - system-credential-store
+            - system-host-discovery
+            - system-os-intelligence
+            - system-intelligence-scheduler
+            - api-os-intelligence
+            - system-alerts
+            - api-alerts
+            - system-activity
+            - api-activity
+            - system-host-inventory
+            - system-ssh-connectivity
+            - api-auth
+            - api-users
+            - api-credentials
+            - api-events-stream
+            - frontend-live-events
+            - api-hosts
+            - api-host-system-info
+            - api-system-intelligence-config
+            - frontend-settings-intelligence-config
+            - frontend-host-detail
+            - frontend-host-list-os
+            - frontend-host-detail-system-card
+            - frontend-host-detail-intelligence-feed
+            - frontend-shell-account-menu
+            - frontend-host-detail-inventory-tabs
+            - api-openapi-docs
+            - release-admin-signoff
+            - system-worker-subcommand
+settings:
+    specs_dir: specs
+    # Honored by `specter coverage` (not by `specter sync` — CI passes
+    # --tests '**/*' as a workaround). Default discovery walks only
+    # .test.ts / _test.go; .test.tsx is silently invisible, which
+    # broke frontend-live-events coverage in PR 5b. List form documents
+    # the three extensions we use; the CI flag covers the sync gap.
+    tests_glob:
+        - '**/*_test.go'
+        - '**/*.test.ts'
+        - '**/*.test.tsx'
+    coverage:
+        tier1: 100
+        tier2: 80
+        tier3: 50
+    exclude:
+        - node_modules
+        - dist
+        - .git
+        - vendor
+    strictness: threshold

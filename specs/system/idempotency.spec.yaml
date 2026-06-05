@@ -1,0 +1,101 @@
+spec:
+  id: system-idempotency
+  title: Idempotency middleware
+  version: "1.0.0"
+  status: approved
+  tier: 2
+
+  context:
+    system: openwatch-go
+    feature: Idempotency replay caching
+    description: >
+      Caches the full response (status + body) for mutating requests
+      arriving with an Idempotency-Key header. Replay within 24h returns
+      the cached response byte-identically without re-running the handler.
+      Same key + different body = 409 idempotency.key_reused.
+
+  objective:
+    summary: >
+      Make POST/PUT/PATCH/DELETE safely retryable. A client that times
+      out and replays must see exactly-one effect plus the same response.
+    scope:
+      includes:
+        - Body-hash + key cache key
+        - 24h TTL persisted in PostgreSQL
+        - 2xx caching only
+      excludes:
+        - Distributed locking
+        - Client-side replay logic
+
+  constraints:
+    - id: C-01
+      description: Middleware MUST run only when request has Idempotency-Key header
+      type: technical
+      enforcement: error
+    - id: C-02
+      description: Middleware MUST be a no-op for GET/HEAD/OPTIONS
+      type: technical
+      enforcement: error
+    - id: C-03
+      description: Key + body-hash MUST be the cache key (replay with same body returns cached; different body returns 409)
+      type: technical
+      enforcement: error
+    - id: C-04
+      description: TTL MUST be 24 hours from first-seen
+      type: technical
+      enforcement: error
+    - id: C-05
+      description: >
+        Cache hit MUST short-circuit the handler entirely — no audit, no
+        DB write, no downstream call. Returned body MUST be
+        semantically-equivalent JSON to the cached value (whitespace
+        normalization by JSONB storage is acceptable).
+      type: technical
+      enforcement: error
+    - id: C-06
+      description: Captured body MUST be persisted only on 2xx responses
+      type: technical
+      enforcement: error
+    - id: C-07
+      description: Body hash MUST be SHA-256
+      type: security
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: POST with Idempotency-Key K and body B writes idempotency_keys row with key=K, request_hash=sha256(B), expires_at=now()+24h.
+      priority: critical
+      references_constraints: [C-01, C-03, C-04, C-07]
+    - id: AC-02
+      description: >
+        Replay with same K and same B returns the cached response_status
+        and a semantically-equivalent response_body (JSON-equal); handler
+        NOT invoked. (Byte-for-byte equality is not asserted because
+        PostgreSQL's JSONB storage normalizes whitespace; the user-
+        observable effect is identical.)
+      priority: critical
+      references_constraints: [C-05]
+    - id: AC-03
+      description: Replay with same K and different B returns 409 with error.code = "idempotency.key_reused".
+      priority: critical
+      references_constraints: [C-03]
+    - id: AC-04
+      description: Request without Idempotency-Key on mutating endpoint that requires it returns 400 idempotency.key_required (handler-enforced).
+      priority: high
+    - id: AC-05
+      description: GET request with Idempotency-Key is processed normally (middleware no-op).
+      priority: high
+      references_constraints: [C-02]
+    - id: AC-06
+      description: 4xx/5xx response is NOT cached; replay re-runs the handler.
+      priority: critical
+      references_constraints: [C-06]
+    - id: AC-07
+      description: Cache lookup latency p99 < 5ms against local DB.
+      priority: medium
+    - id: AC-08
+      description: Expired cache entry (now() > expires_at) is treated as cache miss; handler runs and overwrites.
+      priority: high
+    - id: AC-09
+      description: Two concurrent requests with same Key + body race cleanly; one runs handler+caches, the other reads cached (no duplicate side effects).
+      priority: high

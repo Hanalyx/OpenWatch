@@ -1,0 +1,125 @@
+spec:
+  id: frontend-host-detail-inventory-tabs
+  title: Host detail Packages / Services / Users / Network tabs — wired from IntelligenceState snapshot
+  version: "1.0.0"
+  status: approved
+  tier: 2
+
+  context:
+    system: openwatch-go
+    feature: Activate four snapshot-backed inventory tabs on the host detail page; each reads from the existing GET /intelligence/state/{host_id} response
+    description: >
+      Pre-this spec, the Packages / Services / Users / Network tabs
+      on the host detail page rendered a "Not yet available — Server
+      Intelligence collection ... deferred (BACKLOG)" stub. The
+      data, however, was already in the database — system-os-
+      intelligence's RunCycle populates host_intelligence_state.
+      snapshot with packages (name -> version), services
+      (unit -> active/inactive/failed), users (name -> {uid,
+      locked}), and listening_ports ([{protocol, address, port}]).
+      The frontend just wasn't rendering it.
+
+      This spec activates the four tabs by reading from the existing
+      GET /api/v1/intelligence/state/{host_id} endpoint (already
+      fetched by HostDetailPage for the System card). Each tab is a
+      searchable list with a count badge on the tab label.
+
+      v1.0 scope is intentionally minimal:
+        - One render path per tab, reading from snapshot.<key>
+        - Search input filtering by name (case-insensitive)
+        - Count badge on the tab label (Packages 470, Services
+          14/119 where 14 is active, etc.)
+        - Empty state when snapshot is missing OR the key is empty
+        - Loading state piggy-backs HostDetailPage's existing
+          intelligenceStateQuery.isLoading
+
+      Out of scope (deferred):
+        - Sortable columns
+        - Multi-select + bulk actions (no actions exist yet)
+        - Cross-tab search
+        - Detail pane / drawer on row click
+
+    related_specs:
+      - api-os-intelligence
+      - system-os-intelligence
+      - frontend-host-detail
+
+  objective:
+    summary: >
+      Lock the snapshot key -> tab mapping, the count-badge format,
+      the search semantics, and the loading / empty / populated
+      visual states so the four tabs render consistently from the
+      existing data flow without new backend work.
+    scope:
+      includes:
+        - "PackagesTab reading snapshot.packages (object: name -> version)"
+        - "ServicesTab reading snapshot.services (object: unit -> active|inactive|failed)"
+        - "UsersTab reading snapshot.users (object: name -> {uid, locked})"
+        - "NetworkTab reading snapshot.listening_ports (array of {protocol, address, port})"
+        - "Tab label count badges: Packages N, Services A/T, Users N, Network N"
+        - "Case-insensitive search on the row label"
+      excludes:
+        - "Sort by column — single ordering per tab (alphabetical by name)"
+        - "Detail row click-through"
+        - "Audit log tab activation — long-term plan, separate spec"
+        - "Compliance tab activation — needs Kensa wiring"
+
+  constraints:
+    - id: C-01
+      description: 'Each inventory tab MUST read from the snapshot prop passed down from HostDetailPage. NO tab may issue its own useQuery against /intelligence/state — the parent fetches once; tabs render. Reading from snapshot directly avoids double-fetching on tab switch'
+      type: technical
+      enforcement: error
+    - id: C-02
+      description: 'When intelligenceStateQuery.isLoading is true, the tab body MUST render a loading affordance ("Loading…" text or skeleton element) — NOT the empty state and NOT a partial list. The two paths (loading vs empty) are visually distinct'
+      type: technical
+      enforcement: error
+    - id: C-03
+      description: 'When the snapshot is missing OR the relevant key is empty, the tab body MUST render an empty state naming the source ("OS Intelligence collector populates this — first cycle hasnt completed yet for this host" or similar). Mirrors PR 7 Server intelligence empty state'
+      type: technical
+      enforcement: error
+    - id: C-04
+      description: 'Each tab MUST expose a search input that filters rows by case-insensitive substring match against the row name (package name / service unit / user name / port descriptor). The filter is purely client-side — the list is bounded (~hundreds of rows max)'
+      type: technical
+      enforcement: error
+    - id: C-05
+      description: "Tab label format MUST include a count badge: Packages N (total), Services A/T (A=active count, T=total registered), Users N (total), Network N (listening_ports count). The badge MUST update when snapshot changes (e.g., after a scheduler cycle invalidates the query)"
+      type: technical
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: "Source inspection: InventoryTabs.tsx contains four components named PackagesTab, ServicesTab, UsersTab, NetworkTab. None of them imports useQuery — each takes snapshot as a prop"
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-02
+      description: "Rendering: PackagesTab mounted with snapshot={packages: {bash: '5.1', vim: '8.2'}} renders TWO rows containing the strings bash and vim. The count badge in the tab label shows 2"
+      priority: critical
+      references_constraints: [C-01, C-05]
+    - id: AC-03
+      description: "Rendering: ServicesTab mounted with snapshot={services: {sshd: 'active', ntpd: 'inactive', sssd: 'failed'}} renders three rows. The tab label shows '1/3' (one active out of three)"
+      priority: critical
+      references_constraints: [C-01, C-05]
+    - id: AC-04
+      description: "Rendering: UsersTab mounted with snapshot={users: {root: {uid: 0, locked: false}, alice: {uid: 1000, locked: false}}} renders two rows containing 'root' and 'alice'. Count badge: 2"
+      priority: critical
+      references_constraints: [C-01, C-05]
+    - id: AC-05
+      description: "Rendering: NetworkTab mounted with snapshot={listening_ports: [{protocol: 'tcp', address: '0.0.0.0', port: 22}, {protocol: 'tcp', address: '0.0.0.0', port: 80}]} renders two rows showing '22' and '80'. Count badge: 2"
+      priority: critical
+      references_constraints: [C-01, C-05]
+    - id: AC-06
+      description: 'Rendering: any inventory tab mounted with isLoading=true renders a loading affordance and DOES NOT render the empty state or any rows'
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-07
+      description: 'Rendering: any inventory tab mounted with snapshot=null OR with the relevant key undefined / empty renders an empty state that names the data source. NO partial rendering, NO undefined-key crashes'
+      priority: critical
+      references_constraints: [C-03]
+    - id: AC-08
+      description: "Behavior: typing into the search input filters rows by case-insensitive substring match against the row name. Verified by entering a partial substring and counting visible rows"
+      priority: critical
+      references_constraints: [C-04]
+    - id: AC-09
+      description: "Source inspection: HostDetailPage.tsx imports the four tab components from @/pages/host-detail/InventoryTabs and renders the appropriate one based on the activeTab search param. The legacy 'Not yet available' stubs for these four tabs MUST be gone"
+      priority: critical
+      references_constraints: [C-01]

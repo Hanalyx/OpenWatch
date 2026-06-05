@@ -1,0 +1,173 @@
+spec:
+  id: system-alerts
+  title: Alert lifecycle service
+  version: "1.0.0"
+  status: approved
+  tier: 1
+
+  context:
+    system: openwatch-go
+    feature: Lifecycle service that owns acknowledge / silence / resolve / dismiss transitions on persisted alerts
+    description: >
+      system-alert-router v1.1.0 (PR 2) persists every routed alert
+      into the alerts table with initial state='active'. This spec
+      owns the OTHER end of the lifecycle: state transitions, audit
+      events per transition, optional silence-until window, and the
+      query surface that the /api/v1/alerts endpoints (api-alerts)
+      consume.
+
+      The router writes; this service mutates. The two services share
+      the alerts table as the SSOT — system-alert-router C-11 says
+      "transitions are owned by system-alerts". This spec realizes
+      that ownership.
+
+      State machine:
+
+        active        -> acknowledged (operator saw it)
+        active        -> silenced     (with optional until-timestamp)
+        active        -> resolved     (operator marked done)
+        active        -> dismissed    (operator marked irrelevant)
+        acknowledged  -> resolved | dismissed
+        silenced      -> active       (re-armed via Unsilence or
+                                       auto when silenced_until elapses)
+        silenced      -> resolved | dismissed
+        resolved      -> dismissed    (one-way: archived)
+        dismissed     -> (terminal)
+        resolved      -> (terminal except dismiss)
+
+      Auto-resolve hook: when system-alert-router publishes a
+      host_recovered alert, the lifecycle service auto-resolves
+      matching open host_unreachable alerts for the same host. Same
+      pattern for drift_improvement → drift_major / drift_minor.
+      Spec C-08.
+
+      Every transition emits a typed audit event (alert.acknowledged
+      etc) — these codes already exist in app/audit/events.yaml from
+      the alert taxonomy that landed earlier in the codebase, so this
+      spec adds no new audit codes.
+
+    related_specs:
+      - system-alert-router
+      - system-audit-emission
+      - api-alerts
+
+  objective:
+    summary: >
+      A new package internal/alerts owns the Service. Each transition
+      is a method (Acknowledge, Silence, Resolve, Dismiss) that takes
+      a context + alert id + actor identity, performs the row update
+      under a SELECT FOR UPDATE, emits the matching audit event, and
+      returns the updated row. Invalid transitions return
+      ErrInvalidTransition.
+    scope:
+      includes:
+        - 'Service with Acknowledge / Silence / Unsilence / Resolve / Dismiss / Get / List methods'
+        - 'Closed state-machine validation — terminal states reject further transitions'
+        - 'Optional silence-until window — Silence(id, until=*time.Time) honors the timestamp; lifecycle.SweepExpiredSilences re-arms silenced rows whose silenced_until has elapsed'
+        - 'Audit emission per transition (alert.acknowledged / alert.silenced / alert.resolved / alert.dismissed) — codes already present in events.yaml'
+        - 'Auto-resolve hook — host_recovered closes matching open host_unreachable; drift_improvement closes matching open drift alerts. Triggered by an eventbus subscription'
+        - 'Migration 0021 — add acknowledged_by / silenced_until / resolved_at / actor columns to alerts'
+      excludes:
+        - 'GET /api/v1/alerts + PATCH lifecycle endpoints — separate api-alerts spec'
+        - 'Notification of state transitions to external systems — Slack/PagerDuty etc. already received the alert on first dispatch; lifecycle transitions are operator-only by design'
+        - 'Bulk lifecycle operations — Q2 work'
+
+  constraints:
+    - id: C-01
+      description: 'Every state transition MUST be performed under SELECT ... FOR UPDATE inside a single transaction. Concurrent transitions on the same alert id serialize at the row lock; the second sees the post-transition state and either succeeds (consistent next-state) or fails with ErrInvalidTransition'
+      type: technical
+      enforcement: error
+    - id: C-02
+      description: 'State machine is closed. Allowed transitions: active -> acknowledged|silenced|resolved|dismissed; acknowledged -> resolved|dismissed; silenced -> active|resolved|dismissed; resolved -> dismissed; dismissed -> (none). Any other transition MUST return ErrInvalidTransition with the current + requested state in the error message'
+      type: technical
+      enforcement: error
+    - id: C-03
+      description: 'Silence MUST accept an optional until *time.Time. Nil means "indefinite" (until manual Unsilence). A non-nil until MUST be in the future (now + clock skew); past timestamps return ErrInvalidSilenceWindow'
+      type: technical
+      enforcement: error
+    - id: C-04
+      description: 'SweepExpiredSilences MUST flip silenced rows whose silenced_until <= now() BACK to active, clear silenced_until, and emit one alert.acknowledged-style audit event per row (action=alert.unsilenced.auto). Designed to be called by a periodic loop or worker — out of scope for this spec; the method MUST be idempotent'
+      type: technical
+      enforcement: error
+    - id: C-05
+      description: 'Per transition, the service MUST emit ONE audit event whose action matches the transition (alert.acknowledged / alert.silenced / alert.resolved / alert.dismissed / alert.unsilenced.auto). actor_id is the caller identity. resource_type is "alert", resource_id is the alert id. Detail carries prior_state -> new_state'
+      type: security
+      enforcement: error
+    - id: C-06
+      description: 'Migration 0021 MUST add nullable columns acknowledged_by UUID, acknowledged_at TIMESTAMPTZ, silenced_until TIMESTAMPTZ, silenced_by UUID, resolved_by UUID, resolved_at TIMESTAMPTZ, dismissed_by UUID, dismissed_at TIMESTAMPTZ. Existing v1.1.0 rows (state=active, all metadata NULL) are valid post-migration'
+      type: technical
+      enforcement: error
+    - id: C-07
+      description: 'Get(id) MUST return ErrAlertNotFound for unknown ids (not for state-terminal alerts — those are still queryable). List(filter) MUST support state, host_id, severity, since/until filters with cursor pagination on occurred_at DESC'
+      type: technical
+      enforcement: error
+    - id: C-08
+      description: 'Auto-resolve hook: when an alert with type host_recovered for host H is persisted by the router, the lifecycle service MUST auto-Resolve every open (state IN (active, acknowledged, silenced)) alert with type host_unreachable for the same host H. Same pattern for drift_improvement closing drift_major + drift_minor for the same host. Wiring is a bus subscription registered at Service construction'
+      type: technical
+      enforcement: error
+    - id: C-09
+      description: 'The service package MUST NOT import internal/server or net/http. It is a pure DB + audit service; the HTTP surface lives in api-alerts'
+      type: technical
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: 'Migration 0021 adds the six lifecycle columns to alerts (acknowledged_by/at, silenced_until + silenced_by, resolved_by/at, dismissed_by/at) and existing rows with state=active continue to satisfy all NOT NULL constraints'
+      priority: critical
+      references_constraints: [C-06]
+    - id: AC-02
+      description: 'Service.Acknowledge(active alert) advances state to acknowledged AND populates acknowledged_by + acknowledged_at AND emits one audit.AlertAcknowledged event with resource_id = alert id, actor_id = caller'
+      priority: critical
+      references_constraints: [C-01, C-02, C-05]
+    - id: AC-03
+      description: 'Service.Silence(active alert, until = now+1h) advances state to silenced, populates silenced_until + silenced_by, emits audit.AlertAcknowledged-equivalent (alert.silenced) audit event'
+      priority: critical
+      references_constraints: [C-03, C-05]
+    - id: AC-04
+      description: 'Service.Silence(active alert, until in past) returns ErrInvalidSilenceWindow and performs no row mutation; no audit emitted'
+      priority: high
+      references_constraints: [C-03]
+    - id: AC-05
+      description: 'Service.Silence(active, until=nil) advances to silenced with silenced_until = NULL (indefinite). Subsequent SweepExpiredSilences does NOT re-arm it (NULL never elapses)'
+      priority: high
+      references_constraints: [C-03, C-04]
+    - id: AC-06
+      description: 'Service.Resolve(active alert) advances to resolved, populates resolved_by + resolved_at, emits audit.AlertResolved'
+      priority: critical
+      references_constraints: [C-02, C-05]
+    - id: AC-07
+      description: 'Service.Dismiss(active alert) advances to dismissed, populates dismissed_by + dismissed_at, emits audit.AlertDismissed (or AlertResolved with reason=dismissed if no AlertDismissed code exists)'
+      priority: critical
+      references_constraints: [C-02, C-05]
+    - id: AC-08
+      description: 'Invalid transition (e.g. Service.Acknowledge on a resolved alert) returns ErrInvalidTransition with the prior + requested state in the error message AND performs no row mutation AND emits no audit event'
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-09
+      description: 'Service.Acknowledge called twice concurrently on the same alert id results in EXACTLY ONE successful acknowledgement and ONE audit event. The second caller observes the post-acknowledge state and either no-ops (already-acknowledged convention) or returns ErrInvalidTransition. Verified with two goroutines + a barrier'
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-10
+      description: 'SweepExpiredSilences seeded with one row silenced_until = now()-1m and one row silenced_until = now()+1h: ONLY the first is re-armed to active. Both audit events: alert.unsilenced.auto for the first, none for the second'
+      priority: critical
+      references_constraints: [C-04, C-05]
+    - id: AC-11
+      description: 'Auto-resolve: a host_recovered alert for host H with two open host_unreachable alerts for H (one active, one acknowledged) results in BOTH host_unreachable rows transitioning to resolved automatically; two alert.resolved audit events emitted; the host_recovered row stays in its own state'
+      priority: critical
+      references_constraints: [C-08]
+    - id: AC-12
+      description: 'List filter — state=active + host_id=H1 returns only active alerts for host H1. Severity filter narrows further. Time-range [since, until) inclusive-exclusive same as audit/intelligence'
+      priority: high
+      references_constraints: [C-07]
+    - id: AC-13
+      description: 'List cursor pagination: limit=2 on 5 rows returns 2 + non-nil cursor; following the cursor returns the next 2'
+      priority: critical
+      references_constraints: [C-07]
+    - id: AC-14
+      description: 'Get(unknown_id) returns ErrAlertNotFound with the id in the error message. Get(resolved alert) returns the row (terminal states are still queryable)'
+      priority: high
+      references_constraints: [C-07]
+    - id: AC-15
+      description: 'internal/alerts source MUST NOT import internal/server OR net/http. Verified by walking the import set of every .go file in internal/alerts/'
+      priority: high
+      references_constraints: [C-09]

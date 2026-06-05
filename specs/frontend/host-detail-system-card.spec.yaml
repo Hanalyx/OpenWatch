@@ -1,0 +1,130 @@
+spec:
+  id: frontend-host-detail-system-card
+  title: Host detail System card — Distribution / Kernel / Uptime from real data
+  version: "1.0.0"
+  status: approved
+  tier: 2
+
+  context:
+    system: openwatch-go
+    feature: Host detail /hosts/{id} System card surfaces the real OS discovery + intelligence snapshot data instead of "unknown" placeholders
+    description: >
+      Pre-PR 6 the System card on the host detail page rendered the
+      strings "unknown" for Distribution / Kernel / Uptime — the data
+      sources were not yet wired even though both the api-hosts v1.4.0
+      denormalized columns (PR 5a) and the api-os-intelligence
+      GET /api/v1/intelligence/state/{host_id} endpoint were live.
+
+      PR 6 wires both sources:
+
+        - Distribution: os_family + os_version from HostResponse
+          (denormalized hosts columns, populated by Discovery).
+          osDisplayLabel maps the Kensa family → display label
+          (RHEL / Ubuntu / Debian / SUSE / Unknown).
+        - Kernel: snapshot.kernel_release from IntelligenceState
+          (host_intelligence_state row, populated by the intelligence
+          scheduler).
+        - Uptime: snapshot.uptime_seconds from IntelligenceState,
+          rendered as "Xd Yh" / "Xh Ym" / "<1m" via formatUptime().
+        - FQDN: not yet exposed on any API surface; keep the
+          host.hostname fallback so the row is never empty (the
+          dedicated host_system_info.fqdn read endpoint is deferred).
+
+      Pre-Discovery hosts (os_family = null AND no IntelligenceState
+      row) get a single "Not discovered yet" empty state in the
+      Operating-system SpecGroup, with a Re-run Discovery button
+      inline. This replaces the prior mix of 4 separate "unknown"
+      strings, which was both noisy and misleading (the operator
+      could not tell whether the host had been probed and the values
+      were genuinely missing, or whether Discovery had simply never
+      run).
+
+      The Re-run Discovery button is gated on host:write (matches the
+      backend RBAC enforcement in PostHostDiscoveryRun). On click it
+      sends an idempotency key minted from crypto.randomUUID() and on
+      success invalidates ['host', id] AND ['intelligence_state', id]
+      so both data sources refresh. 502 (host unreachable) is
+      surfaced inline so the operator sees the SSH failure rather
+      than a silent no-op.
+
+    related_specs:
+      - api-hosts
+      - api-os-intelligence
+      - system-host-discovery
+      - frontend-host-list-os
+      - frontend-host-detail
+
+  objective:
+    summary: >
+      Lock the data sources and formatting rules for the System card
+      Operating-system SpecGroup + the Re-run Discovery button. Tests
+      cover the pure formatter, the pre-Discovery empty state, the
+      RBAC gate on the button, and the idempotency-key + invalidation
+      contract.
+    scope:
+      includes:
+        - formatUptime(seconds) helper
+        - "Operating-system SpecGroup data binding: HostResponse + IntelligenceState"
+        - "Pre-Discovery empty state with single Re-run Discovery CTA"
+        - "Re-run Discovery button: host:write gate, crypto.randomUUID idempotency key, post-success query invalidation, 502 inline error"
+      excludes:
+        - PageHead inline OS/Kernel/Uptime band — kept as-is; will be migrated in a follow-up once IntelligenceState data flow stabilizes
+        - Hardware SpecGroup (CPU/disk/memory) — needs a new backend GET endpoint; deferred
+        - Network SpecGroup firewall row — same backend gap; deferred
+        - Re-run flow via the SSE host.discovered topic — happens already (see frontend-live-events C-03); this spec only owns the synchronous POST path
+
+  constraints:
+    - id: C-01
+      description: 'formatUptime(seconds) MUST return "—" for null/undefined/negative input, "<1m" for seconds < 60, "Xm" for seconds < 3600, "Xh Ym" for seconds < 86400, and "Xd Yh" otherwise. Pure function — no Date.now, no locale-sensitive formatting. Reason: the System card MUST render identically across timezones'
+      type: technical
+      enforcement: error
+    - id: C-02
+      description: 'CardSystem Distribution row MUST be derived from osDisplayLabel(host.os_family) + " " + host.os_version. When os_family is null/unknown AND os_version is null, the entire Operating-system SpecGroup renders a single "Not discovered yet" empty state with the Re-run Discovery button — NOT four "unknown" cells'
+      type: technical
+      enforcement: error
+    - id: C-03
+      description: 'Re-run Discovery button MUST be gated on useAuthStore().hasPermission("host:write"). When the caller lacks the permission, the button MUST NOT render. Reason: matches the backend RBAC bar (auth.HostWrite enforced by PostHostDiscoveryRun) — surfacing a 403-bound button is poor UX'
+      type: technical
+      enforcement: error
+    - id: C-04
+      description: 'Re-run Discovery click MUST send a fresh Idempotency-Key minted from crypto.randomUUID() per attempt. The key MUST NOT be reused across attempts (operator can retry; each click is a distinct discovery run). Reason: api-host-discovery requires the header and the idempotency middleware caches per-key results — reuse would silently return the prior result'
+      type: technical
+      enforcement: error
+    - id: C-05
+      description: 'On a successful POST /hosts/{id}/discovery:run, the handler MUST invalidate both ["host", host.id] (the HostResponse query) AND ["intelligence_state", host.id] (the IntelligenceState query) so the new os_family/os_version and any newly-captured kernel_release/uptime_seconds appear without a manual reload'
+      type: technical
+      enforcement: error
+    - id: C-06
+      description: 'A 502 response (host unreachable) MUST surface inline next to the button with the message "Host unreachable — check SSH credentials and connectivity". A 403 MUST NOT happen at runtime because of C-03 but if it does, the message is "Permission denied". All other failures show the generic envelope.error.message'
+      type: technical
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: 'formatUptime: formatUptime(undefined)==="—", formatUptime(null)==="—", formatUptime(0)==="<1m", formatUptime(30)==="<1m", formatUptime(60)==="1m", formatUptime(3599)==="59m", formatUptime(3600)==="1h 0m", formatUptime(86399)==="23h 59m", formatUptime(86400)==="1d 0h", formatUptime(1000000)==="11d 13h"'
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-02
+      description: 'CardSystem rendered with a host carrying os_family="rhel" + os_version="9.2" and no IntelligenceState (snapshot=null) shows "RHEL 9.2" as the Distribution row, "—" for Kernel + Uptime, and DOES NOT render the "Not discovered yet" empty state (Discovery has run, intel just has not)'
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-03
+      description: 'CardSystem rendered with a host where os_family=null AND os_version=null renders ONE "Not discovered yet" empty state in place of the four-row Operating-system DefList, with a Re-run Discovery button when host:write is held'
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-04
+      description: 'CardSystem rendered with the same null/null host BUT with the caller lacking host:write renders the "Not discovered yet" empty state WITHOUT the Re-run Discovery button'
+      priority: critical
+      references_constraints: [C-03]
+    - id: AC-05
+      description: 'Source inspection: the Re-run Discovery click handler calls crypto.randomUUID() (or globalThis.crypto.randomUUID()) for the Idempotency-Key value, and api.POST is called with path={ id: host.id } AND a header value containing the freshly-minted key'
+      priority: critical
+      references_constraints: [C-04]
+    - id: AC-06
+      description: 'Source inspection: the success branch of the Re-run handler invokes queryClient.invalidateQueries with queryKey ["host", host.id] AND queryKey ["intelligence_state", host.id]. Both calls MUST appear in the same handler block — partial invalidation is forbidden'
+      priority: critical
+      references_constraints: [C-05]
+    - id: AC-07
+      description: 'A 502 response surfaces the exact string "Host unreachable — check SSH credentials and connectivity" inline next to the Re-run Discovery button. Verified by source inspection — the constant string appears in the file'
+      priority: high
+      references_constraints: [C-06]

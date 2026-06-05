@@ -1,0 +1,114 @@
+spec:
+  id: api-system-intelligence-config
+  title: OS Intelligence scheduler runtime config HTTP surface
+  version: "1.0.0"
+  status: approved
+  tier: 1
+
+  context:
+    system: openwatch-go
+    feature: Admin endpoints for reading and updating the OS Intelligence scheduler's runtime config
+    description: >
+      The OS Intelligence scheduler reads three fields from
+      system_config under KeyIntelligence ("intelligence"):
+      interval_sec (per-host cadence), rate_limit (concurrent worker
+      pool size), maintenance_global (kill-switch).
+
+      This spec covers the HTTP surface for reading and updating that
+      config — mirrors the api-system-connectivity v1.0 pattern:
+      GET returns the active config WITH the baked-in defaults
+      sub-object (so the UI can render a "reset to defaults"
+      affordance without a round-trip), PUT validates bounds at the
+      handler boundary and persists via systemconfig.SetIntelligence.
+
+      Boundaries (system-intelligence-scheduler C-06, C-07):
+
+        interval_sec  : 300..86400  (5 min .. 24 h)
+        rate_limit    : 1..200
+
+      maintenance_global has no bounds — it is a boolean kill-switch.
+
+      RBAC mirrors connectivity: GET requires system:read,
+      PUT requires system:config:write.
+
+      Out of scope: hot-reload signal to the in-process scheduler.
+      The scheduler reads the config at the top of each cycle and
+      picks up new values on the next tick — no signal needed.
+
+    related_specs:
+      - system-intelligence-scheduler
+      - system-config
+      - api-system-connectivity
+      - system-audit-emission
+
+  objective:
+    summary: >
+      One endpoint group for getting and setting the OS Intelligence
+      scheduler's three runtime knobs. Mirrors the
+      api-system-connectivity pattern verbatim so operators have a
+      consistent admin surface across both schedulers.
+    scope:
+      includes:
+        - "GET /api/v1/system/intelligence/config — returns active + defaults"
+        - "PUT /api/v1/system/intelligence/config — validates + persists"
+        - "Audit emission via systemconfig.SetIntelligence (post-commit)"
+      excludes:
+        - "Hot-reload signaling — scheduler picks up new values on next tick"
+        - "Per-host overrides — interval_sec is fleet-wide; per-host cadence is owned by next_intelligence_at"
+        - "Status endpoint — scheduler exposes no in-process metrics that need read access here"
+
+  constraints:
+    - id: C-01
+      description: 'GET response MUST wrap both the active config AND the baked-in defaults as a single object {config, defaults}. The defaults sub-object lets the UI render a "reset" affordance without a second round-trip — same contract as api-system-connectivity C-01'
+      type: technical
+      enforcement: error
+    - id: C-02
+      description: 'GET MUST require system:read; PUT MUST require system:config:write. Mirrors api-system-connectivity C-02 — same surface, same RBAC'
+      type: security
+      enforcement: error
+    - id: C-03
+      description: 'PUT MUST validate bounds at the handler boundary: interval_sec 300..86400, rate_limit 1..200. Out-of-range MUST return 400 validation.range_exceeded with detail.field naming the offending key. Bounds match system-intelligence-scheduler C-06 + C-07'
+      type: technical
+      enforcement: error
+    - id: C-04
+      description: 'PUT MUST persist via systemconfig.SetIntelligence which emits audit.SystemConfigChanged with both old + new snapshots in the same transaction. The audit emission is post-commit (a failed audit MUST NOT roll back the write — the persisted state is what matters)'
+      type: technical
+      enforcement: error
+    - id: C-05
+      description: 'A malformed JSON body MUST return 400 validation.field_required. An empty body MUST return 400 (the PUT requires the full config — partial updates are NOT supported in v1.0)'
+      type: technical
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: 'GET /api/v1/system/intelligence/config with system:read returns 200 with body {config:{interval_sec,rate_limit,maintenance_global}, defaults:{interval_sec:3600,rate_limit:10,maintenance_global:false}}. When no row exists in system_config the active config equals the defaults'
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-02
+      description: 'GET /api/v1/system/intelligence/config with a caller missing system:read returns 403 authz.permission_denied'
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-03
+      description: 'PUT /api/v1/system/intelligence/config with system:config:write and a valid body {interval_sec:1800,rate_limit:20,maintenance_global:false} returns 200 with the updated config. Subsequent GET reflects the new values'
+      priority: critical
+      references_constraints: [C-02, C-04]
+    - id: AC-04
+      description: 'PUT with a caller missing system:config:write returns 403 authz.permission_denied and the persisted config is unchanged'
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-05
+      description: 'PUT with interval_sec=60 (below the 300 floor) returns 400 validation.range_exceeded with detail.field="interval_sec". PUT with interval_sec=100000 (above the 86400 ceiling) returns the same. Persisted state MUST NOT change in either case'
+      priority: critical
+      references_constraints: [C-03]
+    - id: AC-06
+      description: 'PUT with rate_limit=0 (below the 1 floor) returns 400 validation.range_exceeded with detail.field="rate_limit". PUT with rate_limit=300 (above the 200 ceiling) returns the same'
+      priority: critical
+      references_constraints: [C-03]
+    - id: AC-07
+      description: 'PUT with a malformed JSON body returns 400 validation.field_required. PUT with an empty body returns 400 (one of the required fields will fail bounds — exact code is range_exceeded or field_required, but the status is 400)'
+      priority: high
+      references_constraints: [C-05]
+    - id: AC-08
+      description: 'A successful PUT emits exactly one audit.SystemConfigChanged event whose detail.old_value reflects the prior persisted snapshot and detail.new_value reflects the just-saved snapshot. Verified by capturing the audit emit and asserting both halves of the diff'
+      priority: critical
+      references_constraints: [C-04]

@@ -1,0 +1,174 @@
+# OpenWatch — Rules / Frameworks / Controls reference domain (skeleton)
+#
+# Read-only reference data: the Kensa rule library, the compliance frameworks
+# (CIS, STIG, NIST 800-53, PCI-DSS, FedRAMP) loaded from Kensa mappings, and
+# the controls each framework defines. This domain is the "what could be
+# checked" surface; the "what was checked" surface lives in scans.yaml and
+# compliance.yaml.
+#
+# Note on naming: this single file covers what I originally proposed as three
+# separate domains (rules, frameworks, controls). They share enough surface
+# that splitting them across files creates more cross-references than
+# clarity. The meta openapi.yaml will import this one file.
+#
+# Fidelity: skeleton — operations, extensions, descriptions; schemas stubbed.
+#
+# Registry cross-references:
+#   - Permissions: app/auth/permissions.yaml — compliance:read (rules are reference data)
+#   - Audit events: none (read-only reference data does not audit-emit)
+#   - Error codes: app/api/error_codes.yaml — resource.not_found
+
+openapi: 3.1.0
+info:
+  title: OpenWatch — Rules & Frameworks API
+  version: 0.1.0-skeleton
+
+paths:
+
+  # ===========================================================================
+  # Rules — Kensa native YAML rules
+  # ===========================================================================
+
+  /api/v1/rules:
+    get:
+      operationId: listRules
+      summary: List Kensa rules (paginated, filterable by framework, severity, platform).
+      description: |
+        Returns the active rule library. Filters narrow by framework (rules
+        referenced by a mapping), severity, OS family, and free-text search
+        on rule title/description.
+      x-required-permission: compliance:read
+      parameters:
+        - {name: framework, in: query, schema: {type: string}, description: 'Filter to rules referenced by this framework mapping (e.g., cis-rhel9-v2.0.0).'}
+        - {name: severity, in: query, schema: {type: string, enum: [low, medium, high]}}
+        - {name: os_family, in: query, schema: {type: string, enum: [rhel, ubuntu, debian, sles, generic_linux]}}
+        - {name: q, in: query, schema: {type: string}, description: Free-text search on title and description.}
+        - {name: cursor, in: query, schema: {type: [string, 'null']}}
+        - {name: limit,  in: query, schema: {type: integer, minimum: 1, maximum: 200, default: 50}}
+      responses:
+        '200':
+          description: Page of rules (summary view — id, title, severity, platforms).
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: {type: array, items: {type: object}}
+                  next_cursor: {type: [string, 'null']}
+
+  /api/v1/rules/{rule_id}:
+    parameters:
+      - {name: rule_id, in: path, required: true, schema: {type: string}, description: 'Kensa rule id (e.g., cis_rhel9_5_2_4).'}
+    get:
+      operationId: getRule
+      summary: Full rule detail (rendered YAML, references, frameworks that cite it).
+      description: |
+        Returns the parsed Kensa rule YAML along with cross-references:
+        which frameworks reference this rule (via mappings), which controls
+        it satisfies, and which platforms it applies to.
+      x-required-permission: compliance:read
+      responses:
+        '200': {description: Rule detail.}
+        '404': {$ref: '#/components/responses/NotFound'}
+
+  # ===========================================================================
+  # Frameworks — CIS, STIG, NIST 800-53, PCI-DSS, FedRAMP
+  # ===========================================================================
+
+  /api/v1/frameworks:
+    get:
+      operationId: listFrameworks
+      summary: List available compliance frameworks.
+      description: |
+        Returns frameworks loaded from Kensa mappings (e.g., cis-rhel9-v2.0.0,
+        stig-rhel9-v2r7, nist-800-53-r5, pci-dss-v4.0, fedramp-moderate).
+        Each entry includes control_count and rule_count.
+      x-required-permission: compliance:read
+      responses:
+        '200':
+          description: List of loaded frameworks.
+          content:
+            application/json:
+              schema: {type: object, properties: {items: {type: array, items: {type: object}}}}
+
+  /api/v1/frameworks/{framework_id}:
+    parameters:
+      - {name: framework_id, in: path, required: true, schema: {type: string}}
+    get:
+      operationId: getFramework
+      summary: Framework metadata (version, source, control count, mapping source).
+      x-required-permission: compliance:read
+      responses:
+        '200': {description: Framework detail.}
+        '404': {$ref: '#/components/responses/NotFound'}
+
+  # ===========================================================================
+  # Controls — per-framework control catalogue
+  # ===========================================================================
+
+  /api/v1/frameworks/{framework_id}/controls:
+    parameters:
+      - {name: framework_id, in: path, required: true, schema: {type: string}}
+    get:
+      operationId: listControls
+      summary: List controls defined by a framework.
+      description: |
+        Each control belongs to a framework and is satisfied by one or more
+        Kensa rules (per the mapping file). This endpoint is the catalogue
+        view; per-host coverage of these controls lives in compliance.yaml
+        under /compliance/frameworks/{framework}/posture.
+      x-required-permission: compliance:read
+      parameters:
+        - {name: category, in: query, schema: {type: string}, description: Filter by control category (e.g., access_control, audit_logging).}
+        - {name: cursor, in: query, schema: {type: [string, 'null']}}
+        - {name: limit,  in: query, schema: {type: integer, minimum: 1, maximum: 500, default: 100}}
+      responses:
+        '200':
+          description: Page of controls.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: {type: array, items: {type: object}}
+                  next_cursor: {type: [string, 'null']}
+
+  /api/v1/frameworks/{framework_id}/controls/{control_id}:
+    parameters:
+      - {name: framework_id, in: path, required: true, schema: {type: string}}
+      - {name: control_id,   in: path, required: true, schema: {type: string}}
+    get:
+      operationId: getControl
+      summary: Single control with the list of Kensa rules that satisfy it.
+      x-required-permission: compliance:read
+      responses:
+        '200': {description: Control detail with associated rules.}
+        '404': {$ref: '#/components/responses/NotFound'}
+
+# =============================================================================
+# Shared components
+# =============================================================================
+
+components:
+
+  responses:
+    Unauthorized: {description: Authentication required, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}}
+    Forbidden:    {description: Permission denied,         content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}}
+    NotFound:     {description: Resource not found,         content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}}
+
+  schemas:
+    ErrorEnvelope:
+      # See app/api/error_codes.yaml for the canonical registry of codes.
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, fault, retryable, human_message]
+          properties:
+            code: {type: string, examples: [resource.not_found, validation.field_format]}
+            fault: {type: string, enum: [client, server, policy, external]}
+            retryable: {type: boolean}
+            human_message: {type: string}
+            detail: {type: object, additionalProperties: true}
+            correlation_id: {type: string}

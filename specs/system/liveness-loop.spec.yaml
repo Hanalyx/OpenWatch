@@ -1,0 +1,286 @@
+spec:
+  id: system-liveness-loop
+  title: Host liveness probe loop
+  version: "1.3.0"
+  status: approved
+  tier: 1
+
+  context:
+    system: openwatch-go
+    feature: Periodic SSH-reachability probe
+    description: >
+      The liveness loop is OpenWatch's "is this host reachable right
+      now" sensor. A cron tick (every 5 minutes by default) probes
+      every active host's SSH port 22 by opening a TCP connection
+      and reading the banner. Results land in host_liveness (one
+      row per host). State transitions (reachable → unreachable or
+      back) emit host.connectivity.checked audit events.
+
+      Slice B.1's executor depends on this — the scheduler skips
+      hosts whose host_backoff_state.suppress_until is in the future
+      AND whose host_liveness.reachability_status is "unreachable".
+      Without the liveness loop, the executor would burn credential
+      decryptions on permanently-down hosts.
+
+      Interim implementation: TCP-banner probe via net.DialTimeout
+      + 256-byte banner read. When Kensa exposes Kensa.Reachable()
+      (boundary doc §6.3, planned mid-Slice B), the probeFunc seam
+      makes the swap mechanical.
+
+  objective:
+    summary: >
+      A scheduled goroutine probes every host every 5 minutes
+      (configurable via policy.Liveness.IntervalSec). Each probe
+      completes within 5 seconds, writes its outcome to
+      host_liveness, and on state transition emits
+      host.connectivity.checked. Per-host concurrency guard ensures
+      a host's probes don't overlap. Jitter (±20%) spreads the
+      fleet's tick load over the interval to prevent stampedes.
+    scope:
+      includes:
+        - Per-host TCP-banner probe (port 22) with 5s deadline
+        - 5-minute cron tick with ±20% jitter per host
+        - host_liveness UPSERT (consecutive_failures, reachability_status)
+        - host.connectivity.checked audit emission on state transition
+        - Per-host concurrency guard (sync.Map of in-flight host IDs)
+        - Probe-cadence policy with 60s floor + 60min ceiling
+      excludes:
+        - ICMP ping (often blocked by firewalls; SSH banner is the signal)
+        - Authentication attempts (no credentials needed for liveness)
+        - Kensa.Reachable() integration (swap-in once available)
+        - Alert routing on unreachable transitions (B.3's alert router)
+
+  constraints:
+    - id: C-01
+      description: Probe MUST be TCP-banner-based, not ICMP. TCP port 22 with a 256-byte banner read distinguishes "host has an SSH server" from "host pings but SSH is down"
+      type: technical
+      enforcement: error
+    - id: C-02
+      description: Per-host probe deadline MUST be 5 seconds; longer = treated as unreachable
+      type: performance
+      enforcement: error
+    - id: C-03
+      description: Cron tick interval is the probe cadence; default 5 minutes (300s), policy-tunable via policy.Liveness.IntervalSec, clamped to [60s, 3600s]
+      type: technical
+      enforcement: error
+    - id: C-04
+      description: Each per-host probe MUST get ±20% jitter from the configured cadence to prevent fleet-wide stampedes on synchronized clocks
+      type: performance
+      enforcement: error
+    - id: C-05
+      description: Per-host concurrency guard MUST prevent two probes of the same host running simultaneously; second concurrent attempt returns ErrProbeInFlight
+      type: technical
+      enforcement: error
+    - id: C-06
+      description: host.connectivity.checked audit MUST be emitted on STATE TRANSITIONS only (reachable → unreachable, unreachable → reachable, first-seen). Steady-state same-as-before probes do not emit
+      type: technical
+      enforcement: error
+    - id: C-07
+      description: Probe MUST NOT decrypt any credential or open an authenticated SSH session — liveness is a credential-free sensor
+      type: security
+      enforcement: error
+    - id: C-08
+      description: Reachability status MUST transition from "unknown" to "unreachable" only after N consecutive failures (default 2); a single transient failure does NOT flip the status
+      type: technical
+      enforcement: error
+    - id: C-09
+      description: host_liveness writes use ON CONFLICT (host_id) DO UPDATE so the table has at most one row per host
+      type: technical
+      enforcement: error
+    - id: C-10
+      description: Service MUST expose Run(ctx) — a blocking loop that walks the active host inventory at the policy-configured cadence and calls ProbeHost for each. Run returns when ctx is canceled, draining in-flight probes. v1.1.0 NEW
+      type: technical
+      enforcement: error
+    - id: C-11
+      description: Run MUST skip hosts whose host_backoff_state.suppress_until is in the future at tick time — those hosts are explicitly back-offed by the executor/worker and re-probing immediately would not change the picture. v1.1.0 NEW
+      type: technical
+      enforcement: error
+    - id: C-12
+      description: On every reachability state transition (the same trigger as the host.connectivity.checked audit emission), Service MUST publish a typed HeartbeatPulse event to the eventbus. The publish is best-effort — bus errors are logged but do not affect ProbeHost's return value. v1.1.0 NEW
+      type: technical
+      enforcement: error
+    - id: C-13
+      description: NewService signature is NewService(pool, emit, bus). The bus parameter MAY be nil — in that case the service still emits audit events but skips bus publishes (testable in isolation). v1.1.0 NEW
+      type: technical
+      enforcement: error
+    - id: C-14
+      description: persist() MUST compute next_probe_at = now + bandIntervalFor(newStatus, newConsecutive, cfg) on every probe. The band-to-interval mapping uses the per-state seconds from services-connectivity-config v1.1.0 (Online=OnlineSec, Degraded=DegradedSec, Critical=CriticalSec, Down=DownSec, Maintenance ignored — the maintenance band is UI-only until per-host maintenance ships). v1.2.0 NEW
+      type: technical
+      enforcement: error
+    - id: C-15
+      description: listProbeTargets MUST filter to hosts where host_liveness.next_probe_at IS NULL OR next_probe_at <= now() (in addition to the existing soft-delete + backoff_state filter). A host that's been probed within its band's interval MUST be skipped. v1.2.0 NEW
+      type: technical
+      enforcement: error
+    - id: C-16
+      description: Service.Run tick cadence MUST be a short polling interval (default 30s) — per-host effective cadence comes from the band, not from the tick rate. The 30s tick discovers due hosts; the 60..86400s band intervals decide per-host probe spacing. v1.2.0 NEW
+      type: technical
+      enforcement: error
+    - id: C-17
+      description: listProbeTargets MUST select hosts.ip_address via host(ip_address) (not ::text). PostgreSQL's inet type renders via ::text with a CIDR prefix length appended (192.0.2.10/32) which net.Dial rejects as malformed. v1.2.1 — regression hardening
+      type: technical
+      enforcement: error
+    - id: C-18
+      description: Multi-layer probe (v1.3.0) — when a Pinger AND/OR a PrivilegeProbeFunc are injected, tick uses MultiLayerProbe instead of the legacy single-layer SSH-only path. The chain is short-circuit (ping fail → no SSH; SSH fail → no privilege). FirstFailedLayer drives the 5-band MonitoringState
+      type: technical
+      enforcement: error
+    - id: C-19
+      description: Per-layer hysteresis (v1.3.0) — six consecutive-counters live on host_liveness (ping/ssh/privilege × fail/ok). DeriveMonitoringState advances the failing layer's counter and resets the corresponding success counter; layers not attempted (because a lower layer short-circuited) leave their counters frozen. Recovery to 'online' requires SuccessesToOnline consecutive all-layer passes
+      type: technical
+      enforcement: error
+    - id: C-20
+      description: Tick ordering (v1.3.0) — listProbeTargets MUST ORDER BY hosts.check_priority DESC, hl.next_probe_at ASC NULLS FIRST. Critical hosts get drained before stable ones when a tick can't probe every due host. Per-host maintenance_mode=true MUST exclude the host from the tick entirely (no probe, no audit, no history row)
+      type: technical
+      enforcement: error
+    - id: C-21
+      description: Append-only history (v1.3.0) — when WithMonitoringHistory(true), every probe (transition or not) appends a row to host_monitoring_history. The row carries per-layer ok flags + the failed layer name so the UI's drill-down can answer "WHICH axis failed and when." Cardinality is bounded by an operator-managed retention sweep (separate job, BACKLOG)
+      type: technical
+      enforcement: error
+    - id: C-22
+      description: Credential isolation (v1.3.0 reaffirmed) — the liveness package MUST NOT import internal/credential or golang.org/x/crypto/ssh. The privilege layer is an injected PrivilegeProbeFunc that lives in internal/sshprivilege. AC-14 source-inspection test enforces this
+      type: security
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: liveness.Probe(ctx, addr) returns ProbeResult{Reachable, ResponseTime, BannerSeen, Error} within 5s, with no credential decryption.
+      priority: critical
+      references_constraints: [C-01, C-02, C-07]
+    - id: AC-02
+      description: A probe against a non-listening TCP port returns Reachable=false, Error matches "connection refused" or "i/o timeout", within the 5s deadline.
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-03
+      description: A probe against a listening port that returns an "SSH-2.0-..." banner produces Reachable=true with BannerSeen=true and ResponseTime > 0.
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-04
+      description: A probe against a listening port that returns a non-SSH banner produces Reachable=false with BannerSeen=true (an HTTP server on port 22 is not "SSH-reachable").
+      priority: high
+      references_constraints: [C-01]
+    - id: AC-05
+      description: Per-host concurrency guard — two concurrent Service.ProbeHost calls for the same host_id; the second returns ErrProbeInFlight without invoking the probe function.
+      priority: critical
+      references_constraints: [C-05]
+    - id: AC-06
+      description: 100 parallel ProbeHost calls against 100 distinct host IDs complete race-clean under -race; no in-flight slot leaks.
+      priority: high
+      references_constraints: [C-05]
+    - id: AC-07
+      description: applyJitter(interval, hostID, now) returns a deterministic value in [0.8×interval, 1.2×interval] for a given (hostID, interval). Distinct host IDs at the same now produce distinct jittered values.
+      priority: high
+      references_constraints: [C-04]
+    - id: AC-08
+      description: Probe cadence is loaded from policy.Liveness.IntervalSec; values below 60s clamp to 60s, values above 3600s clamp to 3600s, missing policy defaults to 300s. clampInterval is pure-function-testable.
+      priority: critical
+      references_constraints: [C-03]
+    - id: AC-09
+      description: First successful probe for a previously-unknown host transitions reachability_status="unknown" → "reachable" AND emits host.connectivity.checked with ssh_accessible=true.
+      priority: critical
+      references_constraints: [C-06, C-09]
+    - id: AC-10
+      description: A single failed probe of a previously-reachable host does NOT flip reachability_status; consecutive_failures = 1 but status remains "reachable". No audit emission.
+      priority: critical
+      references_constraints: [C-06, C-08]
+    - id: AC-11
+      description: After N consecutive failed probes (N=DefaultUnreachableThreshold=2), reachability_status flips to "unreachable" AND host.connectivity.checked emitted with ssh_accessible=false.
+      priority: critical
+      references_constraints: [C-06, C-08, C-09]
+    - id: AC-12
+      description: A successful probe after the unreachable transition flips status back to "reachable", resets consecutive_failures to 0, emits host.connectivity.checked with ssh_accessible=true.
+      priority: critical
+      references_constraints: [C-06, C-09]
+    - id: AC-13
+      description: host_liveness table created via migration 0013 with the FK to hosts(id) ON DELETE CASCADE so per-host rows clean up when a host is deleted (no FK violation surprise).
+      priority: critical
+      references_constraints: [C-09]
+    - id: AC-14
+      description: Source-inspection — internal/liveness source files do NOT import internal/credential and do NOT call ssh.ParsePrivateKey (the probe is credential-free per C-07).
+      priority: critical
+      references_constraints: [C-07]
+    - id: AC-15
+      description: Service exposes Metrics with last_probe_at, probe_count, probe_success_count, probe_failure_count, state_transition_count counters; all atomic-safe for concurrent read/write.
+      priority: high
+    - id: AC-16
+      description: Service.Run(ctx) blocks; calling Run on a Service with no hosts in the inventory ticks at the configured cadence without panicking and produces zero ProbeHost invocations per tick.
+      priority: critical
+      references_constraints: [C-10]
+    - id: AC-17
+      description: Service.Run(ctx) walks active hosts and calls ProbeHost for each on every tick; a test with 3 seeded hosts and a controllable clock observes exactly 3 ProbeHost invocations per tick.
+      priority: critical
+      references_constraints: [C-10]
+    - id: AC-18
+      description: Run skips hosts whose host_backoff_state.suppress_until > now; a test seeding 3 hosts where 1 has suppress_until in the future observes exactly 2 probes per tick.
+      priority: critical
+      references_constraints: [C-11]
+    - id: AC-19
+      description: Run returns within 2 seconds of ctx cancellation; any in-flight ProbeHost call is allowed to complete (no abandonment), then Run exits.
+      priority: critical
+      references_constraints: [C-10]
+    - id: AC-20
+      description: On a reachable → unreachable transition, the service publishes a HeartbeatPulse{Reachable=false} to the eventbus; verified with an in-memory bus + subscriber.
+      priority: critical
+      references_constraints: [C-12]
+    - id: AC-21
+      description: On an unreachable → reachable transition, the service publishes a HeartbeatPulse{Reachable=true, PriorReachable=false} to the eventbus.
+      priority: critical
+      references_constraints: [C-12]
+    - id: AC-22
+      description: A steady-state probe (no transition) does NOT publish a HeartbeatPulse — the bus subscriber sees zero events for that probe.
+      priority: critical
+      references_constraints: [C-12]
+    - id: AC-23
+      description: NewService(pool, emit, nil) — when the bus is nil, ProbeHost still works and the audit emission still fires; the only difference is no bus publish.
+      priority: high
+      references_constraints: [C-13]
+    - id: AC-24
+      description: bandIntervalFor maps (status, consecutive_failures, cfg) to the right interval seconds — reachable + consec=0 → OnlineSec, reachable + consec>=1 → DegradedSec, unreachable + consec<threshold → CriticalSec, consec>=threshold → DownSec. Pure-function-testable, no DB.
+      priority: critical
+      references_constraints: [C-14]
+    - id: AC-25
+      description: After persist() writes a reachable + consec=0 row at time T, host_liveness.next_probe_at equals T + OnlineSec (within 1s of clock skew). After a failed probe that flips a host to unreachable + consec=threshold, next_probe_at equals T + DownSec.
+      priority: critical
+      references_constraints: [C-14]
+    - id: AC-26
+      description: listProbeTargets seeded with three hosts — H1 with next_probe_at=NULL, H2 with next_probe_at in the past, H3 with next_probe_at in the future — returns exactly H1 and H2. The short Run-tick (Service.effectiveInterval defaulting to 30s) drives this query — per-host effective cadence comes from the band, not the tick rate.
+      priority: critical
+      references_constraints: [C-15, C-16]
+    - id: AC-27
+      description: listProbeTargets returns probeTarget.Addr of the form "<ip>:<port>" — never "<ip>/<prefix>:<port>". A host seeded as ip_address='192.0.2.10' MUST produce Addr="192.0.2.10:22". Regression hardening for the inet::text bug that marked every host unreachable in v1.2.0.
+      priority: critical
+      references_constraints: [C-17]
+    - id: AC-28
+      description: AdvanceCounters increments the failing layer's failure counter and resets its success counter; layers not attempted (because a lower layer short-circuited) leave their counters frozen.
+      priority: critical
+      references_constraints: [C-19]
+    - id: AC-29
+      description: DeriveMonitoringState maps the failing layer to the right band once the per-layer threshold is crossed — ping fail × N → down, ssh fail × N → critical, privilege fail × N → degraded, all-pass → online.
+      priority: critical
+      references_constraints: [C-18, C-19]
+    - id: AC-30
+      description: A single failure below the threshold MUST NOT flap a stable host all the way to 'down' — hysteresis keeps the operator from drowning in transient blips.
+      priority: critical
+      references_constraints: [C-19]
+    - id: AC-31
+      description: Recovery from a bad band requires SuccessesToOnline consecutive all-layer-pass probes on every attempted layer. A single good probe MUST NOT immediately flip the host back to 'online'.
+      priority: high
+      references_constraints: [C-19]
+    - id: AC-32
+      description: When Pinger or PrivilegeProbeFunc are wired, tick() routes through probeMultiLayerHost (NOT ProbeHost). The legacy single-layer path runs only when both are nil — keeps the v1.2.x AC tests stable.
+      priority: critical
+      references_constraints: [C-18]
+    - id: AC-33
+      description: hosts.maintenance_mode=true causes the row to be excluded from listProbeTargets. No probe runs, no history row appends, no audit fires. Setting maintenance_mode=false on the next tick puts the host back in rotation at its prior monitoring_state.
+      priority: critical
+      references_constraints: [C-20]
+    - id: AC-34
+      description: listProbeTargets ORDER BY hosts.check_priority DESC, hl.next_probe_at ASC NULLS FIRST. Two hosts with the same priority resolve by next_probe_at; two with the same next_probe_at remain in result-set order. Critical hosts (higher priority) precede stable ones.
+      priority: high
+      references_constraints: [C-20]
+    - id: AC-35
+      description: WithMonitoringHistory(true) → every probe appends one host_monitoring_history row. Row carries monitoring_state, previous_state (NULL when no transition), per-layer ok flags, failed_layer name, response_time_ms. WithMonitoringHistory(false) is the default — no rows are written.
+      priority: critical
+      references_constraints: [C-21]
+    - id: AC-36
+      description: internal/liveness/*.go source files MUST NOT import internal/credential or golang.org/x/crypto/ssh. The PrivilegeProbeFunc is injected from outside the package (internal/sshprivilege). Enforced by the existing AC-14 source-inspection test.
+      priority: critical
+      references_constraints: [C-22]

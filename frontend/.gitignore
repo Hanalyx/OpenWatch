@@ -1,0 +1,16 @@
+# Dependencies — installed via `npm install`
+node_modules/
+
+# Build artifacts — Vite output, embedded into Go binary via embed.FS
+dist/
+build/
+
+# TypeScript incremental build cache
+*.tsbuildinfo
+
+# Test coverage
+coverage/
+.vitest-cache/
+
+# Vite cache
+.vite/

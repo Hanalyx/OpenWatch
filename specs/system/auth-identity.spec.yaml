@@ -1,0 +1,202 @@
+spec:
+  id: system-auth-identity
+  title: Auth identity primitives (password, session, JWT, MFA)
+  version: "1.1.0"
+  status: approved
+  tier: 1
+
+  context:
+    system: openwatch-go
+    feature: Real identity surface (replaces Stage-0 X-Stub-Role shim)
+    description: >
+      The package internal/identity owns: password hashing (Argon2id),
+      password-policy validation against NIST SP 800-63B (no forced
+      rotation, no character-class rules, breach-corpus check, length
+      is the signal), session token issue/verify/revoke with
+      server-side persistence, RS256 JWT mint/verify/refresh, and TOTP
+      MFA enrollment + challenge. The same users row backs both the
+      session cookie path (browser sign-in) and the JWT bearer path
+      (API consumers). Every primitive emits its expected audit event.
+    related_specs:
+      - system-rbac
+      - system-audit-emission
+      - system-correlation
+
+  objective:
+    summary: >
+      Make identity binding real, lockable, and revocable. Every
+      authenticated request resolves to a users row by either a session
+      cookie or a JWT bearer; both paths share one password+MFA gate at
+      login and the same revocation surface. Drift between the two
+      paths is impossible because they consume the same Identity struct
+      consumed by RequirePermission.
+    scope:
+      includes:
+        - Argon2id password hashing (64 MiB / 3 iters / 1 lane)
+        - NIST SP 800-63B password policy validator + breach corpus
+        - sessions table + token mint/verify/revoke + 15-min inactivity + 12-hour absolute timeout
+        - JWT (RS256) mint + verify + refresh rotation
+        - TOTP MFA enrollment, challenge, and recovery codes
+        - Identity binder middleware that reads either session cookie OR bearer JWT
+      excludes:
+        - "OIDC / SAML real flows (Slice A ships 402-stubs only; full flows are a follow-up slice)"
+        - "WebAuthn / FIDO2 (fido2_mfa license feature; lands as second MFA method later)"
+        - "API keys (no operator demand yet; deferred to Slice B if asked)"
+
+  constraints:
+    - id: C-01
+      description: Password hashing MUST use Argon2id with parameters memory=64MiB, time=3, lanes=1
+      type: security
+      enforcement: error
+    - id: C-02
+      description: Password validation MUST reject the password if a SHA-1 prefix lookup hits the local breach corpus
+      type: security
+      enforcement: error
+    - id: C-03
+      description: Password validation MUST NOT enforce character-class rules (no mandatory upper/lower/digit/symbol mix) and MUST NOT force rotation; per NIST SP 800-63B
+      type: security
+      enforcement: error
+    - id: C-04
+      description: Password length MUST be 8-128 chars for regular users and 15-128 for users with the admin role
+      type: security
+      enforcement: error
+    - id: C-05
+      description: Session token MUST be cryptographically random (≥32 bytes); the token stored on the cookie/JSON is a presentation form that hashes to the DB row's primary key
+      type: security
+      enforcement: error
+    - id: C-06
+      description: Session inactivity timeout MUST be 15 minutes; absolute timeout MUST be 12 hours
+      type: security
+      enforcement: error
+    - id: C-07
+      description: Refresh tokens MUST rotate on every use; the old refresh token MUST be revoked atomically with issuing the new one
+      type: security
+      enforcement: error
+    - id: C-08
+      description: JWT MUST be RS256-signed with the same key material that signs system tokens (separate keypair from license signing)
+      type: security
+      enforcement: error
+    - id: C-09
+      description: TOTP secrets MUST be 160-bit minimum, stored encrypted at rest using the credential DEK
+      type: security
+      enforcement: error
+    - id: C-10
+      description: TOTP verification MUST accept a ±1 step window (30s on either side) to handle clock drift; replay of the same OTP MUST be rejected within the window
+      type: security
+      enforcement: error
+    - id: C-11
+      description: Identity binder MUST emit auth.login.failure with detail.reason populated on every rejected authentication attempt
+      type: security
+      enforcement: error
+    - id: C-12
+      description: Identity binder MUST distinguish "credential presented but rejected" from "no credential presented"; rejected credentials MUST short-circuit with HTTP 401 (auth.session_invalid envelope) rather than fall through anonymously, so the frontend can trigger a refresh attempt. Truly-unauthenticated requests still flow through anonymously and are denied downstream by RBAC.
+      type: security
+      enforcement: error
+    - id: C-13
+      description: Browser login MUST also Set-Cookie an HttpOnly "openwatch_refresh" presentation token (7-day TTL) alongside the session cookie. The browser refresh path MUST NOT require JS access to refresh material; the cookie is server-trusted only.
+      type: security
+      enforcement: error
+    - id: C-14
+      description: POST /api/v1/auth/refresh-cookie MUST consume the openwatch_refresh cookie via the same ConsumeRefreshToken rotation contract as the body-token flow (C-07), Set-Cookie a new openwatch_session AND a new openwatch_refresh, and return 200 with the refreshed Identity. On missing/expired/revoked/reused refresh cookie it returns 401 and clears both cookies.
+      type: security
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: HashPassword(plain) returns an Argon2id PHC string ($argon2id$v=19$m=65536,t=3,p=1$...); VerifyPassword(plain, hash) returns true for the original and false for any other input.
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-02
+      description: ValidatePassword rejects a password if its SHA-1 prefix appears in the local breach corpus file (testdata fixture provides a small corpus); error returned is ErrPasswordBreached.
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-03
+      description: ValidatePassword accepts an 8-char password for a non-admin user; rejects a 7-char password with ErrPasswordTooShort; rejects a 129-char password with ErrPasswordTooLong.
+      priority: critical
+      references_constraints: [C-04]
+    - id: AC-04
+      description: ValidatePassword with the admin policy rejects a 14-char password with ErrPasswordTooShort; accepts a 15-char password.
+      priority: critical
+      references_constraints: [C-04]
+    - id: AC-05
+      description: ValidatePassword does NOT reject "alllowercase" or "1234567890" on character-class grounds (only on length and breach); per C-03.
+      priority: critical
+      references_constraints: [C-03]
+    - id: AC-06
+      description: IssueSession persists a row in the sessions table with hashed token, user_id, expires_at (now + 15min), absolute_expires_at (now + 12h), and returns the presentation-form token.
+      priority: critical
+      references_constraints: [C-05, C-06]
+    - id: AC-07
+      description: VerifySession against a valid presentation token returns the Identity; touches the sessions.last_seen and extends expires_at by 15 minutes; never extends past absolute_expires_at.
+      priority: critical
+      references_constraints: [C-06]
+    - id: AC-08
+      description: VerifySession against a revoked token returns ErrSessionRevoked and emits auth.session.revoked check failure audit (without leaking the token).
+      priority: critical
+      references_constraints: [C-05]
+    - id: AC-09
+      description: RevokeSession sets revoked_at on the row; subsequent VerifySession returns ErrSessionRevoked.
+      priority: critical
+    - id: AC-10
+      description: VerifySession against a token whose absolute_expires_at has passed returns ErrSessionExpired even if last_seen was recent; emits auth.session.expired audit.
+      priority: critical
+      references_constraints: [C-06]
+    - id: AC-11
+      description: IssueJWT mints an RS256 token with claims {sub=userID, iat, exp=iat+30min, jti, role} signed by the system keypair; VerifyJWT parses the same token and returns the claims.
+      priority: critical
+      references_constraints: [C-08]
+    - id: AC-12
+      description: IssueRefreshToken persists a row in refresh_tokens with hashed token + user_id + expires_at (now + 7 days); ConsumeRefreshToken returns a new (access, refresh) pair AND atomically marks the consumed row as rotated_to_id pointing at the new row.
+      priority: critical
+      references_constraints: [C-07]
+    - id: AC-13
+      description: ConsumeRefreshToken called twice with the same input — second call returns ErrRefreshTokenReused; the user's session chain is invalidated (all active sessions for that user are revoked); emits auth.session.revoked with reason "refresh_token_reused".
+      priority: critical
+      references_constraints: [C-07]
+    - id: AC-14
+      description: EnrollMFA(userID) generates a 160-bit Base32 secret, stores it encrypted with the credential DEK, returns a provisioning URI of the form otpauth://totp/OpenWatch:{username}?secret=...&issuer=OpenWatch&algorithm=SHA1&digits=6&period=30.
+      priority: critical
+      references_constraints: [C-09]
+    - id: AC-15
+      description: VerifyMFA(userID, otp) accepts the OTP for the current 30-second step; accepts the previous and next steps (±1 window for drift); rejects a step outside that window.
+      priority: critical
+      references_constraints: [C-10]
+    - id: AC-16
+      description: VerifyMFA replay protection — the same OTP value used twice within its 90s window returns ErrOTPReplayed on the second use.
+      priority: critical
+      references_constraints: [C-10]
+    - id: AC-17
+      description: IdentityBinder middleware reads either Cookie "openwatch_session" or Authorization "Bearer <jwt>"; populates auth.Identity on the request context; anonymous when neither is present.
+      priority: critical
+    - id: AC-18
+      description: IdentityBinder emits auth.login.failure (action) with detail.reason in {"invalid_session_token","session_expired","session_revoked","invalid_jwt","jwt_expired"} on every rejected authentication attempt.
+      priority: high
+      references_constraints: [C-11]
+    - id: AC-19
+      description: VerifyPassword has p99 latency < 200ms over 50 calls (Argon2id is the dominant cost; spec target ensures the configured parameters aren't accidentally relaxed).
+      priority: medium
+      references_constraints: [C-01]
+    - id: AC-20
+      description: IssueJWT + VerifyJWT round-trip p99 < 5ms over 1000 calls (RS256 verify is the dominant cost).
+      priority: medium
+      references_constraints: [C-08]
+    - id: AC-21
+      description: IdentityBinder, when a cookie OR bearer token is presented but resolveIdentity returns a non-empty reason (any of the C-11 reasons), writes HTTP 401 with envelope error.code "auth.session_invalid" and stops the chain (does not call next.ServeHTTP). Requests with no cookie and no Authorization header still flow through with anonymous Identity.
+      priority: critical
+      references_constraints: [C-12]
+    - id: AC-22
+      description: PostAuthLogin Set-Cookies "openwatch_refresh" (HttpOnly, Secure, SameSite=Lax, Path=/, MaxAge=604800) carrying the presentation form of a freshly minted refresh token. The same refresh token is also returned in the response body for non-browser consumers (existing contract preserved).
+      priority: critical
+      references_constraints: [C-13]
+    - id: AC-23
+      description: PostAuthRefreshCookie reads the openwatch_refresh cookie, calls ConsumeRefreshToken to rotate it (C-07), issues a new session via IssueSession, and Set-Cookies both "openwatch_session" (new presentation token) AND "openwatch_refresh" (new rotated refresh token). Returns 200 with the user identity. On missing cookie or any rotation error (expired/revoked/reused) returns 401 with envelope error.code "auth.refresh_invalid" and Set-Cookie clears both cookies (MaxAge=-1).
+      priority: critical
+      references_constraints: [C-14]
+    - id: AC-24
+      description: PostAuthLogout clears the openwatch_refresh cookie in the same response as the openwatch_session cookie clear (MaxAge=-1 for both). If a valid refresh token exists in the cookie, it is also revoked in the refresh_tokens table.
+      priority: high
+      references_constraints: [C-13, C-14]
+    - id: AC-25
+      description: Browser API client (src/api/client.ts) attaches an onResponse middleware that intercepts HTTP 401. On a 401 the middleware calls POST /api/v1/auth/refresh-cookie once and, if it returns 200, replays the original request exactly once with the rotated cookies. If refresh-cookie itself returns 401 the middleware clears useAuthStore.identity and navigates to /login. The retry MUST NOT loop — a second 401 on the same request after refresh returns the error to the caller.
+      priority: critical
+      references_constraints: [C-14]

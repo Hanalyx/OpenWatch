@@ -1,0 +1,693 @@
+import { useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { AlertTriangle, KeyRound, Loader2 } from 'lucide-react';
+import api from '@/api/client';
+import { apiErrorMessage } from '@/api/errors';
+import { Modal, FormField, Btn, Callout } from '@/components/settings/primitives';
+
+// Credential mutation modals — Add, Replace (no PATCH endpoint), Delete.
+//
+// Wired against:
+//   • POST /api/v1/credentials  (credential:write)
+//   • DELETE /api/v1/credentials/{id}  (credential:delete)
+//
+// Update strategy: the backend has no PATCH endpoint for credentials.
+// The Replace flow creates a new credential with the user's edits, then
+// soft-deletes the old one. The order matters: create first → if it
+// fails, the existing credential is preserved.
+//
+// Spec: frontend-settings v1.1.0 (Credentials mutations).
+
+// ─────────────────────────────────────────────────────────────────────────
+// Shared types + schema
+// ─────────────────────────────────────────────────────────────────────────
+
+export interface Credential {
+  id: string;
+  scope: 'system' | 'host';
+  scope_id?: string | null;
+  name: string;
+  description?: string;
+  username: string;
+  auth_method: 'ssh_key' | 'password' | 'both';
+  is_default: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+const credentialSchema = z
+  .object({
+    name: z.string().min(1, 'Required').max(256, 'Too long'),
+    description: z.string().max(1024, 'Too long').optional(),
+    username: z.string().min(1, 'Required').max(256, 'Too long'),
+    auth_method: z.enum(['ssh_key', 'password', 'both']),
+    password: z.string().optional(),
+    private_key: z.string().optional(),
+    private_key_passphrase: z.string().optional(),
+    is_default: z.boolean(),
+  })
+  .superRefine((v, ctx) => {
+    if (v.auth_method !== 'ssh_key' && (!v.password || v.password.length === 0)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['password'],
+        message: 'Required for password / both methods',
+      });
+    }
+    if (v.auth_method !== 'password' && (!v.private_key || v.private_key.length === 0)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['private_key'],
+        message: 'Required for ssh_key / both methods',
+      });
+    }
+  });
+
+type FormShape = z.infer<typeof credentialSchema>;
+
+// Detect the openapi-fetch wrapper's network-failure case. fetch
+// rejects with a plain TypeError when the connection refuses, DNS
+// fails, or CORS blocks. We surface a clearer message so the operator
+// doesn't see "Failed to fetch".
+function isNetworkError(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  return (
+    err.name === 'TypeError' &&
+    /failed to fetch|network|load failed|ERR_CONNECTION_REFUSED/i.test(err.message)
+  );
+}
+
+function describeNetworkError(): string {
+  return 'Cannot reach the OpenWatch API. Start the backend (./dist/openwatch serve) or check that the Vite proxy target (https://localhost:8443) is responding.';
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Add credential modal
+// ─────────────────────────────────────────────────────────────────────────
+
+export function AddCredentialModal({
+  open,
+  onClose,
+}: {
+  open: boolean;
+  onClose: () => void;
+}) {
+  const queryClient = useQueryClient();
+  const [serverError, setServerError] = useState<string | null>(null);
+  const { register, handleSubmit, watch, formState, reset } = useForm<FormShape>({
+    resolver: zodResolver(credentialSchema),
+    mode: 'onTouched',
+    defaultValues: { auth_method: 'ssh_key', is_default: false },
+  });
+
+  const authMethod = watch('auth_method');
+
+  const createMutation = useMutation({
+    mutationFn: async (values: FormShape) => {
+      const body: Record<string, unknown> = {
+        scope: 'system',
+        name: values.name,
+        username: values.username,
+        auth_method: values.auth_method,
+        is_default: values.is_default,
+      };
+      if (values.description) body.description = values.description;
+      if (values.auth_method !== 'ssh_key' && values.password) {
+        body.password = values.password;
+      }
+      if (values.auth_method !== 'password' && values.private_key) {
+        body.private_key = values.private_key;
+        if (values.private_key_passphrase) {
+          body.private_key_passphrase = values.private_key_passphrase;
+        }
+      }
+      let response: Response;
+      let error: unknown;
+      try {
+        const result = await api.POST('/api/v1/credentials', {
+          body: body as never,
+        });
+        response = result.response;
+        error = result.error;
+      } catch (fetchErr) {
+        if (isNetworkError(fetchErr)) throw new Error(describeNetworkError());
+        throw fetchErr;
+      }
+      if (!response.ok) {
+        throw new Error(
+          apiErrorMessage(error, `Failed to create credential (HTTP ${response.status})`),
+        );
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['credentials'] });
+      reset();
+      setServerError(null);
+      onClose();
+    },
+    onError: (err: Error) => {
+      setServerError(err.message);
+    },
+  });
+
+  const onSubmit = (values: FormShape) => {
+    setServerError(null);
+    createMutation.mutate(values);
+  };
+
+  const submitting = createMutation.isPending;
+
+  const handleClose = () => {
+    if (submitting) return;
+    reset();
+    setServerError(null);
+    onClose();
+  };
+
+  return (
+    <Modal
+      open={open}
+      onClose={handleClose}
+      title="Add credential"
+      width={540}
+      preventClose={submitting}
+      footer={
+        <>
+          <Btn onClick={handleClose} disabled={submitting}>
+            Cancel
+          </Btn>
+          <Btn
+            variant="primary"
+            type="submit"
+            onClick={() => {
+              void handleSubmit(onSubmit)();
+            }}
+            disabled={submitting}
+          >
+            {submitting ? (
+              <>
+                <Loader2 size={14} /> Creating…
+              </>
+            ) : (
+              'Create credential'
+            )}
+          </Btn>
+        </>
+      }
+    >
+      <form onSubmit={handleSubmit(onSubmit)} noValidate>
+        <CredentialFormFields
+          register={register}
+          authMethod={authMethod}
+          errors={formState.errors}
+          disabled={submitting}
+        />
+        {serverError && (
+          <div style={{ marginTop: 12 }}>
+            <Callout tier="crit">{serverError}</Callout>
+          </div>
+        )}
+      </form>
+    </Modal>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Replace (update) credential modal
+// ─────────────────────────────────────────────────────────────────────────
+
+export function ReplaceCredentialModal({
+  open,
+  onClose,
+  credential,
+}: {
+  open: boolean;
+  onClose: () => void;
+  credential: Credential | null;
+}) {
+  const queryClient = useQueryClient();
+  const [serverError, setServerError] = useState<string | null>(null);
+  const [phase, setPhase] = useState<'idle' | 'creating' | 'deleting' | 'orphan'>('idle');
+  const [orphanId, setOrphanId] = useState<string | null>(null);
+
+  const { register, handleSubmit, watch, formState, reset } = useForm<FormShape>({
+    resolver: zodResolver(credentialSchema),
+    mode: 'onTouched',
+    values: credential
+      ? {
+          name: credential.name,
+          description: credential.description ?? '',
+          username: credential.username,
+          auth_method: credential.auth_method,
+          password: '',
+          private_key: '',
+          private_key_passphrase: '',
+          is_default: credential.is_default,
+        }
+      : undefined,
+  });
+
+  const authMethod = watch('auth_method');
+
+  const replaceMutation = useMutation({
+    mutationFn: async (values: FormShape) => {
+      if (!credential) throw new Error('No credential selected');
+
+      // Step 1 — create the replacement.
+      setPhase('creating');
+      const body: Record<string, unknown> = {
+        scope: credential.scope,
+        scope_id: credential.scope_id ?? undefined,
+        name: values.name,
+        username: values.username,
+        auth_method: values.auth_method,
+        is_default: values.is_default,
+      };
+      if (values.description) body.description = values.description;
+      if (values.auth_method !== 'ssh_key' && values.password) {
+        body.password = values.password;
+      }
+      if (values.auth_method !== 'password' && values.private_key) {
+        body.private_key = values.private_key;
+        if (values.private_key_passphrase) {
+          body.private_key_passphrase = values.private_key_passphrase;
+        }
+      }
+      let create: { response: Response; data?: unknown; error?: unknown };
+      try {
+        create = await api.POST('/api/v1/credentials', { body: body as never });
+      } catch (fetchErr) {
+        if (isNetworkError(fetchErr)) throw new Error(describeNetworkError());
+        throw fetchErr;
+      }
+      if (!create.response.ok) {
+        throw new Error(
+          apiErrorMessage(
+            create.error,
+            `Failed to create replacement (HTTP ${create.response.status})`,
+          ),
+        );
+      }
+      const created = create.data as Credential;
+
+      // Step 2 — delete the old.
+      setPhase('deleting');
+      let del: { response: Response; error?: unknown };
+      try {
+        del = await api.DELETE('/api/v1/credentials/{id}', {
+          params: { path: { id: credential.id } },
+        });
+      } catch (fetchErr) {
+        setOrphanId(created.id);
+        setPhase('orphan');
+        if (isNetworkError(fetchErr))
+          throw new Error(
+            `Replacement created (id ${created.id}) but the API became unreachable before the original could be removed. Delete it manually when the backend is back.`,
+          );
+        throw fetchErr;
+      }
+      if (!del.response.ok && del.response.status !== 204) {
+        // Old credential delete failed — leave the new one in place but
+        // surface the orphan so the operator knows two now exist.
+        setOrphanId(created.id);
+        setPhase('orphan');
+        throw new Error(
+          `Replacement created (id ${created.id}) but the original could not be removed. Delete it manually.`,
+        );
+      }
+      setPhase('idle');
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['credentials'] });
+      reset();
+      setServerError(null);
+      setOrphanId(null);
+      onClose();
+    },
+    onError: (err: Error) => {
+      setServerError(err.message);
+    },
+  });
+
+  const onSubmit = (values: FormShape) => {
+    setServerError(null);
+    setOrphanId(null);
+    replaceMutation.mutate(values);
+  };
+
+  const submitting = replaceMutation.isPending;
+  const handleClose = () => {
+    if (submitting) return;
+    reset();
+    setServerError(null);
+    setOrphanId(null);
+    setPhase('idle');
+    onClose();
+  };
+
+  return (
+    <Modal
+      open={open}
+      onClose={handleClose}
+      title="Replace credential"
+      width={540}
+      preventClose={submitting}
+      footer={
+        <>
+          <Btn onClick={handleClose} disabled={submitting}>
+            Cancel
+          </Btn>
+          <Btn
+            variant="primary"
+            onClick={() => {
+              void handleSubmit(onSubmit)();
+            }}
+            disabled={submitting || !credential}
+          >
+            {submitting ? (
+              <>
+                <Loader2 size={14} />{' '}
+                {phase === 'creating' ? 'Creating new…' : phase === 'deleting' ? 'Removing old…' : 'Saving…'}
+              </>
+            ) : (
+              'Replace credential'
+            )}
+          </Btn>
+        </>
+      }
+    >
+      <Callout tier="warn">
+        <strong style={{ color: 'var(--ow-fg-0)' }}>
+          Backend has no PATCH endpoint for credentials.
+        </strong>{' '}
+        Saving creates a replacement with the new values, then removes the original.
+        Secret material must be re-entered.
+      </Callout>
+
+      <form onSubmit={handleSubmit(onSubmit)} noValidate style={{ marginTop: 14 }}>
+        <CredentialFormFields
+          register={register}
+          authMethod={authMethod}
+          errors={formState.errors}
+          disabled={submitting}
+        />
+        {serverError && (
+          <div style={{ marginTop: 12 }}>
+            <Callout tier="crit">
+              <div>{serverError}</div>
+              {orphanId && (
+                <div style={{ marginTop: 6, fontSize: 11, color: 'var(--ow-fg-3)' }}>
+                  Orphan credential id: <code style={{ fontFamily: 'var(--ow-font-mono)' }}>{orphanId}</code>
+                </div>
+              )}
+            </Callout>
+          </div>
+        )}
+      </form>
+    </Modal>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Delete confirmation modal
+// ─────────────────────────────────────────────────────────────────────────
+
+export function DeleteCredentialModal({
+  open,
+  onClose,
+  credential,
+}: {
+  open: boolean;
+  onClose: () => void;
+  credential: Credential | null;
+}) {
+  const queryClient = useQueryClient();
+  const [serverError, setServerError] = useState<string | null>(null);
+
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      if (!credential) throw new Error('No credential selected');
+      let response: Response;
+      let error: unknown;
+      try {
+        const result = await api.DELETE('/api/v1/credentials/{id}', {
+          params: { path: { id: credential.id } },
+        });
+        response = result.response;
+        error = result.error;
+      } catch (fetchErr) {
+        if (isNetworkError(fetchErr)) throw new Error(describeNetworkError());
+        throw fetchErr;
+      }
+      if (!response.ok && response.status !== 204) {
+        throw new Error(
+          apiErrorMessage(error, `Failed to delete credential (HTTP ${response.status})`),
+        );
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['credentials'] });
+      setServerError(null);
+      onClose();
+    },
+    onError: (err: Error) => setServerError(err.message),
+  });
+
+  const submitting = deleteMutation.isPending;
+  const handleClose = () => {
+    if (submitting) return;
+    setServerError(null);
+    onClose();
+  };
+
+  if (!credential) return null;
+
+  return (
+    <Modal
+      open={open}
+      onClose={handleClose}
+      title={`Delete ${credential.name}?`}
+      width={460}
+      preventClose={submitting}
+      footer={
+        <>
+          <Btn onClick={handleClose} disabled={submitting}>
+            Cancel
+          </Btn>
+          <Btn
+            variant="danger"
+            onClick={() => deleteMutation.mutate()}
+            disabled={submitting}
+          >
+            {submitting ? (
+              <>
+                <Loader2 size={14} /> Deleting…
+              </>
+            ) : (
+              <>
+                <AlertTriangle size={14} /> Delete credential
+              </>
+            )}
+          </Btn>
+        </>
+      }
+    >
+      <div style={{ fontSize: 13, color: 'var(--ow-fg-1)', lineHeight: 1.5 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+          <div
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: 6,
+              background: 'var(--ow-bg-3)',
+              color: 'var(--ow-fg-1)',
+              display: 'grid',
+              placeItems: 'center',
+            }}
+          >
+            <KeyRound size={14} />
+          </div>
+          <div>
+            <div style={{ fontWeight: 500 }}>{credential.name}</div>
+            <div
+              style={{
+                fontSize: 11,
+                color: 'var(--ow-fg-3)',
+                fontFamily: 'var(--ow-font-mono)',
+                marginTop: 2,
+              }}
+            >
+              {credential.username}@· {credential.auth_method}
+              {credential.is_default ? ' · default' : ''}
+            </div>
+          </div>
+        </div>
+        <p style={{ margin: '0 0 14px' }}>
+          This soft-deletes the credential (<code style={{ fontFamily: 'var(--ow-font-mono)' }}>is_active=false</code>).
+          Hosts currently using this credential will fall back to whichever default applies — or fail to authenticate if no
+          default exists.
+        </p>
+        {credential.is_default && (
+          <Callout tier="warn">
+            <strong style={{ color: 'var(--ow-fg-0)' }}>This is the system default.</strong>{' '}
+            Every host without a host-scoped credential will lose authentication until a new default is added.
+          </Callout>
+        )}
+        {serverError && (
+          <div style={{ marginTop: 12 }}>
+            <Callout tier="crit">{serverError}</Callout>
+          </div>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Shared form fields
+// ─────────────────────────────────────────────────────────────────────────
+
+function CredentialFormFields({
+  register,
+  authMethod,
+  errors,
+  disabled,
+}: {
+  register: ReturnType<typeof useForm<FormShape>>['register'];
+  authMethod: FormShape['auth_method'];
+  errors: ReturnType<typeof useForm<FormShape>>['formState']['errors'];
+  disabled?: boolean;
+}) {
+  return (
+    <>
+      <FormField label="Name" error={errors.name?.message}>
+        <input
+          type="text"
+          autoFocus
+          disabled={disabled}
+          {...register('name')}
+          style={inputStyle}
+          placeholder="owadmin"
+        />
+      </FormField>
+
+      <FormField label="Description (optional)" error={errors.description?.message}>
+        <input
+          type="text"
+          disabled={disabled}
+          {...register('description')}
+          style={inputStyle}
+          placeholder="Workspace default for fleet automation"
+        />
+      </FormField>
+
+      <FormField label="SSH username" error={errors.username?.message}>
+        <input
+          type="text"
+          disabled={disabled}
+          {...register('username')}
+          style={inputStyle}
+          placeholder="root"
+        />
+      </FormField>
+
+      <FormField label="Auth method">
+        <fieldset
+          style={{ display: 'flex', gap: 14, border: 0, padding: 0, margin: 0 }}
+          disabled={disabled}
+        >
+          {(['ssh_key', 'password', 'both'] as const).map((m) => (
+            <label
+              key={m}
+              style={{
+                display: 'inline-flex',
+                gap: 6,
+                alignItems: 'center',
+                fontSize: 13,
+                color: 'var(--ow-fg-0)',
+              }}
+            >
+              <input type="radio" value={m} {...register('auth_method')} />
+              {m === 'ssh_key' ? 'SSH key' : m === 'password' ? 'Password' : 'Both'}
+            </label>
+          ))}
+        </fieldset>
+      </FormField>
+
+      {authMethod !== 'ssh_key' && (
+        <FormField label="Password" error={errors.password?.message}>
+          <input
+            type="password"
+            autoComplete="off"
+            disabled={disabled}
+            {...register('password')}
+            style={inputStyle}
+          />
+        </FormField>
+      )}
+
+      {authMethod !== 'password' && (
+        <>
+          <FormField label="SSH private key" error={errors.private_key?.message}>
+            <textarea
+              rows={4}
+              disabled={disabled}
+              {...register('private_key')}
+              style={{
+                ...inputStyle,
+                height: 'auto',
+                padding: 8,
+                fontFamily: 'var(--ow-font-mono)',
+                fontSize: 12,
+                resize: 'vertical',
+              }}
+              placeholder={'-----BEGIN OPENSSH ... KEY-----\n…'}
+            />
+          </FormField>
+          <FormField
+            label="Private key passphrase (optional)"
+            error={errors.private_key_passphrase?.message}
+          >
+            <input
+              type="password"
+              autoComplete="off"
+              disabled={disabled}
+              {...register('private_key_passphrase')}
+              style={inputStyle}
+            />
+          </FormField>
+        </>
+      )}
+
+      <FormField label="">
+        <label
+          style={{ display: 'inline-flex', gap: 8, alignItems: 'center', fontSize: 13 }}
+        >
+          <input type="checkbox" disabled={disabled} {...register('is_default')} />
+          <span>
+            Use as workspace default
+            <span style={{ color: 'var(--ow-fg-3)', marginLeft: 6, fontSize: 12 }}>
+              applied to every host without an override
+            </span>
+          </span>
+        </label>
+      </FormField>
+    </>
+  );
+}
+
+const inputStyle: React.CSSProperties = {
+  height: 32,
+  width: '100%',
+  padding: '0 10px',
+  background: 'var(--ow-bg-2)',
+  border: '1px solid var(--ow-line)',
+  borderRadius: 6,
+  color: 'var(--ow-fg-0)',
+  fontFamily: 'inherit',
+  fontSize: 13,
+  outline: 0,
+};

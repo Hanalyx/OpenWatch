@@ -1,0 +1,13 @@
+#!/bin/sh
+# Pre-install: create the openwatch system user and group if absent.
+# Spec release-package-build AC-11.
+
+set -e
+
+getent group openwatch >/dev/null || addgroup --system openwatch
+getent passwd openwatch >/dev/null || \
+    adduser --system --ingroup openwatch \
+            --home /var/lib/openwatch --shell /sbin/nologin \
+            --gecos "OpenWatch service" openwatch
+
+exit 0

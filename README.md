@@ -17,12 +17,13 @@ OpenWatch is the compliance operating system for teams managing Linux infrastruc
 
 > **Project status — Go rebuild in progress.** OpenWatch is being rebuilt on a
 > Go backend (the original Python/FastAPI implementation has been archived). The
-> active codebase lives under [`app/`](app/): Go 1.26 backend, React 19 + TanStack
-> frontend, PostgreSQL-only. The product capabilities below describe the target
-> system. The container/RPM deployment story is being re-established on the Go
-> stack — until then, run from source via `app/` (see [Contributing](#contributing)).
-> Sections that reference `docker-compose`/`start-openwatch.sh` describe the
-> archived Python stack and are being reworked.
+> Go tree now lives at the **repo root**: Go 1.26 backend (`cmd/`, `internal/`),
+> React 19 + TanStack frontend (`frontend/`), PostgreSQL-only. The product
+> capabilities below describe the target system. The container/RPM deployment
+> story is being re-established on the Go stack — until then, run from source
+> (see [Contributing](#contributing)). Sections that reference
+> `docker-compose`/`start-openwatch.sh` describe the archived Python stack and
+> are being reworked.
 
 ![OpenWatch Compliance Dashboard](docs/images/dashboard-preview.png)
 
@@ -253,17 +254,16 @@ Found a bug? [Open an issue](https://github.com/Hanalyx/OpenWatch/issues/new).
 
 ## Contributing
 
-The active codebase is the Go tree under `app/`:
+The Go tree lives at the repo root:
 
 ```bash
 # Backend (Go 1.26)
-cd app
 go build ./...
 go test ./internal/... -count=1
 specter check          # spec schema validation
 
 # Frontend (React 19 + TanStack + Vite)
-cd app/frontend
+cd frontend
 npm install
 npm run dev            # http://localhost:5173
 npx vitest run

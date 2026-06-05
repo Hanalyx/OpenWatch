@@ -24,16 +24,15 @@ We are committed to providing a welcoming and inclusive environment for all cont
    cd OpenWatch
    ```
 
-3. **Set up development environment** (active Go tree under `app/`):
+3. **Set up development environment** (the Go tree is at the repo root):
    ```bash
    # Backend development (Go 1.26)
-   cd app
    go build ./...
    go build -o dist/openwatch ./cmd/openwatch
    ./dist/openwatch serve            # dev server on port 8443
 
    # Frontend development (new terminal)
-   cd app/frontend
+   cd frontend
    npm install
    npm run dev                       # http://localhost:5173
    ```
@@ -132,21 +131,20 @@ docs(api): update scanning endpoint documentation
 ### Running Tests
 
 ```bash
-# Backend tests (Go)
-cd app
+# Backend tests (Go) — from the repo root
 go test ./internal/... -count=1     # add -p 1 for DB-touching packages
 specter check                        # spec schema validation
 specter coverage                     # spec AC coverage
 
 # Frontend tests
-cd app/frontend
+cd frontend
 npx vitest run
 ```
 
 ### Test Requirements
 
 - **Unit tests** for all new functions and packages
-- **Behavioral coverage** via `app/specs/` ACs for specced modules
+- **Behavioral coverage** via `specs/` ACs for specced modules
 - **All tests must pass** before merging
 
 ### Writing Tests
@@ -162,8 +160,8 @@ npx vitest run
 
 - **Run `gofmt -s -w`** before committing (CI lint is strict on gofmt)
 - **`go vet ./...`** must pass
-- **Lint** with `golangci-lint run` (see `app/.golangci.yml`)
-- **One package per concern** under `app/internal/`; import from the package, not internal files
+- **Lint** with `golangci-lint run` (see `.golangci.yml`)
+- **One package per concern** under `internal/`; import from the package, not internal files
 - **Doc comments** on all exported identifiers
 
 ### TypeScript/React (Frontend)

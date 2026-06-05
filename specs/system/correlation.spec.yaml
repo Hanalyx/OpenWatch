@@ -1,0 +1,118 @@
+spec:
+  id: system-correlation
+  title: Correlation ID propagation
+  version: "1.0.0"
+  status: approved
+  tier: 2
+
+  context:
+    system: openwatch-go
+    feature: Correlation ID propagation
+    description: >
+      Every audit event, every log line, and every job carries a
+      correlation ID. IDs enter at four origin points (HTTP request,
+      cron tick, system boot, test harness) and propagate via four
+      mechanisms: HTTP middleware, slog handler, outbound httpclient
+      wrapper, and (Day 9) queue.Enqueue/Dequeue. Format is
+      "<prefix>-<16 hex chars>" with prefix ∈ {req, cron, boot, test}.
+
+  objective:
+    summary: >
+      Make one ID per top-level intent visible across every log line,
+      audit event, and downstream call so that support can grep for one
+      string and read the full forensic story.
+    scope:
+      includes:
+        - ID generation with monotonic counter
+        - Client header sanitization
+        - HTTP middleware, slog handler, outbound httpclient
+      excludes:
+        - Job queue propagation (Day 9)
+        - Cross-process correlation (Stage 2)
+
+  constraints:
+    - id: C-01
+      description: Format MUST be ^(req|cron|boot|test)-[0-9a-f]{16}$
+      type: technical
+      enforcement: error
+    - id: C-02
+      description: Generate MUST be safe to call concurrently
+      type: technical
+      enforcement: error
+    - id: C-03
+      description: Client-provided IDs MUST match ^[A-Za-z0-9_-]{1,64}$ to be accepted
+      type: security
+      enforcement: error
+    - id: C-04
+      description: Reserved prefixes (boot-, cron-, test-) MUST be rejected from clients
+      type: security
+      enforcement: error
+    - id: C-05
+      description: HTTPMiddleware MUST run before any other middleware that emits logs or audit
+      type: technical
+      enforcement: error
+    - id: C-06
+      description: CorrelationHandler MUST omit correlation_id attr when ctx has no id
+      type: technical
+      enforcement: error
+    - id: C-07
+      description: httpclient.Do MUST NOT overwrite an explicit X-Correlation-Id already on the request
+      type: technical
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: Generate(PrefixRequest) returns a string matching ^req-[0-9a-f]{16}$; same for cron, boot, test prefixes.
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-02
+      description: Two sequential Generate calls return distinct IDs (uniqueness across 10000 calls).
+      priority: critical
+    - id: AC-03
+      description: Generate is safe under concurrent invocation (race detector clean; 1000 IDs all distinct).
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-04
+      description: The hex portion decodes as 8 bytes; first 48 bits are unix-millis close to time.Now().
+      priority: high
+    - id: AC-05
+      description: SanitizeOrGenerate("") returns (fresh req-ID, regenerated=false).
+      priority: high
+    - id: AC-06
+      description: SanitizeOrGenerate accepts valid client headers (alphanumeric, dash, underscore, 1-64 chars) unchanged.
+      priority: high
+      references_constraints: [C-03]
+    - id: AC-07
+      description: SanitizeOrGenerate rejects oversize, out-of-charset, and reserved-prefix inputs with regenerated=true.
+      priority: high
+      references_constraints: [C-04]
+    - id: AC-08
+      description: correlation.Set/From round-trip; From(Background()) returns ("", false).
+      priority: high
+    - id: AC-09
+      description: HTTPMiddleware sets X-Correlation-Id response header equal to From(r.Context()) inside next handler.
+      priority: critical
+      references_constraints: [C-05]
+    - id: AC-10
+      description: HTTPMiddleware echoes a valid client X-Correlation-Id unchanged.
+      priority: critical
+    - id: AC-11
+      description: HTTPMiddleware regenerates when client header is invalid; warn-level log records the rejection.
+      priority: high
+    - id: AC-12
+      description: CorrelationHandler emits "correlation_id" attr when ctx has an ID via slog.InfoContext.
+      priority: critical
+    - id: AC-13
+      description: CorrelationHandler does NOT emit correlation_id attr when ctx has no ID.
+      priority: high
+      references_constraints: [C-06]
+    - id: AC-14
+      description: httpclient.Do sets X-Correlation-Id on outbound when ctx carries an ID.
+      priority: critical
+    - id: AC-15
+      description: httpclient.Do leaves an explicitly-set X-Correlation-Id unchanged.
+      priority: high
+      references_constraints: [C-07]
+    - id: AC-16
+      description: httpclient.Do does NOT set X-Correlation-Id when ctx has no ID.
+      priority: high

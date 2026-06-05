@@ -1,0 +1,101 @@
+spec:
+  id: system-license-features
+  title: License features and gating middleware
+  version: "1.0.0"
+  status: approved
+  tier: 1
+
+  context:
+    system: openwatch-go
+    feature: License feature registry and runtime gating
+    description: >
+      License features come from a codegen pipeline: features.yaml is
+      the source of truth; features.gen.go emits typed Feature constants
+      plus a Metadata map. Runtime IsEnabled reads a *atomic.Pointer[State]
+      (lock-free). RequireFeature middleware uses IsEnabled to gate HTTP
+      endpoints; non-enabled returns 402 with audit emission.
+
+  objective:
+    summary: >
+      Feature gating is one function call on the hot path. Drift between
+      OpenAPI x-required-feature, code, and registry is impossible
+      because both sides reference codegen-typed constants.
+    scope:
+      includes:
+        - Codegen-typed Feature constants
+        - IsEnabled lock-free hot path
+        - RequireFeature middleware + audit emit
+      excludes:
+        - Quota enforcement (Day 7+ Stage 2)
+        - License-tier-based feature inheritance
+
+  constraints:
+    - id: C-01
+      description: Each features.yaml entry MUST emit a typed Feature constant
+      type: technical
+      enforcement: error
+    - id: C-02
+      description: IsEnabled MUST be lock-free (atomic.Pointer load) and not allocate
+      type: performance
+      enforcement: error
+    - id: C-03
+      description: Free-tier feature MUST return IsEnabled=true unconditionally
+      type: technical
+      enforcement: error
+    - id: C-04
+      description: Non-free feature MUST return IsEnabled=true only when valid license includes it
+      type: security
+      enforcement: error
+    - id: C-05
+      description: RequireFeature deny MUST emit license.feature_check_denied audit event
+      type: security
+      enforcement: error
+    - id: C-06
+      description: Audit dedup MUST suppress repeats within 60s per (feature, actor_id); suppressed_count in next emit
+      type: security
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: Codegen produces features.gen.go with one typed Feature constant per entry in features.yaml.
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-02
+      description: FeatureRegistry map contains entry for every feature with Tier, Description, Introduced fields.
+      priority: critical
+    - id: AC-03
+      description: Re-running codegen with no changes produces no diff in features.gen.go.
+      priority: high
+    - id: AC-04
+      description: Free-tier feature (e.g., ComplianceCheck) returns IsEnabled=true even with no license loaded.
+      priority: critical
+      references_constraints: [C-03]
+    - id: AC-05
+      description: Non-free feature (e.g., RemediationExecution) returns IsEnabled=false when no license loaded.
+      priority: critical
+      references_constraints: [C-04]
+    - id: AC-06
+      description: Loading license whose features include "remediation_execution" makes IsEnabled(RemediationExecution) return true.
+      priority: critical
+    - id: AC-07
+      description: Reloading license that does NOT include a previously-granted feature makes IsEnabled return false on next call.
+      priority: high
+    - id: AC-08
+      description: IsEnabled p99 latency < 50ns over 100K calls (lock-free read).
+      priority: medium
+      references_constraints: [C-02]
+    - id: AC-09
+      description: IsEnabled does NOT allocate (testing.AllocsPerRun returns 0).
+      priority: medium
+      references_constraints: [C-02]
+    - id: AC-10
+      description: RequireFeature middleware returns 402 with error.code="license.feature_unavailable" when IsEnabled is false.
+      priority: critical
+      references_constraints: [C-05]
+    - id: AC-11
+      description: RequireFeature emits exactly one license.feature_check_denied audit event per (feature, actor_id) per 60s window; subsequent denials increment suppressed_count.
+      priority: high
+      references_constraints: [C-06]
+    - id: AC-12
+      description: Concurrent calls to IsEnabled during state swap do not panic and return self-consistent results (no torn reads).
+      priority: high

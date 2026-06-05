@@ -1,0 +1,17 @@
+# oapi-codegen v2 config.
+#
+# Reads app/api/openapi.yaml (Stage 0 manifest) and emits:
+#   - internal/server/api/types.gen.go    (request/response structs)
+#   - internal/server/api/server.gen.go   (chi-compatible ServerInterface)
+#
+# Run via: make generate-api
+
+package: api
+output: internal/server/api/server.gen.go
+generate:
+  models: true
+  chi-server: true
+  strict-server: false
+  embedded-spec: true
+output-options:
+  skip-prune: true
