@@ -9,7 +9,7 @@
 //
 // Spec: frontend-foundation AC-06 (this file is the test target).
 
-/* eslint-disable sort-keys */
+ 
 
 export interface ModeColorTokens {
   bg0: string;

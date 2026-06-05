@@ -44,7 +44,7 @@ export class ErrorBoundary extends Component<Props, State> {
 
   override componentDidCatch(error: Error, info: { componentStack?: string }) {
     if (import.meta.env.DEV) {
-      // eslint-disable-next-line no-console
+       
       console.error('frontend error boundary:', scrub(error.message), info);
     }
   }

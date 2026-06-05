@@ -141,7 +141,7 @@ export function useLiveEvents(options: UseLiveEventsOptions = {}) {
     }
     es.onerror = (err) => {
       // EventSource reconnects automatically; log without spamming.
-      // eslint-disable-next-line no-console
+       
       console.debug('[useLiveEvents] SSE error (will auto-reconnect)', err);
     };
 
