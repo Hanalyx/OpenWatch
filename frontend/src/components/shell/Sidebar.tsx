@@ -59,8 +59,7 @@ export function Sidebar() {
             width: 32,
             height: 32,
             borderRadius: 8,
-            background:
-              'linear-gradient(135deg, var(--ow-info), var(--ow-brand-2))',
+            background: 'linear-gradient(135deg, var(--ow-info), var(--ow-brand-2))',
             display: 'grid',
             placeItems: 'center',
             fontWeight: 700,
@@ -73,10 +72,7 @@ export function Sidebar() {
       </Link>
 
       {navItems.map((item) => {
-        const isActive =
-          item.to === '/'
-            ? currentPath === '/'
-            : currentPath.startsWith(item.to);
+        const isActive = item.to === '/' ? currentPath === '/' : currentPath.startsWith(item.to);
         return (
           <Tooltip key={item.to} title={item.label} placement="right">
             <Link
@@ -107,21 +103,15 @@ export function Sidebar() {
         <Link
           to="/settings"
           aria-label="Settings"
-          aria-current={
-            currentPath.startsWith('/settings') ? 'page' : undefined
-          }
+          aria-current={currentPath.startsWith('/settings') ? 'page' : undefined}
           style={{
             width: 40,
             height: 40,
             display: 'grid',
             placeItems: 'center',
             borderRadius: 8,
-            color: currentPath.startsWith('/settings')
-              ? 'var(--ow-fg-0)'
-              : 'var(--ow-fg-2)',
-            background: currentPath.startsWith('/settings')
-              ? 'var(--ow-bg-3)'
-              : 'transparent',
+            color: currentPath.startsWith('/settings') ? 'var(--ow-fg-0)' : 'var(--ow-fg-2)',
+            background: currentPath.startsWith('/settings') ? 'var(--ow-bg-3)' : 'transparent',
           }}
         >
           <SettingsIcon size={18} />

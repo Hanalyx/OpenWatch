@@ -187,13 +187,14 @@ function Breadcrumbs({ crumbs }: { crumbs: { label: string; href?: string }[] })
         const color = isLast ? 'var(--ow-fg-0)' : 'var(--ow-fg-2)';
         // Plain anchors here — TanStack Router would require typed
         // `to` props; breadcrumbs come from arbitrary page state.
-        const node = c.href && !isLast ? (
-          <a href={c.href} style={{ color, textDecoration: 'none' }}>
-            {c.label}
-          </a>
-        ) : (
-          <span style={{ color }}>{c.label}</span>
-        );
+        const node =
+          c.href && !isLast ? (
+            <a href={c.href} style={{ color, textDecoration: 'none' }}>
+              {c.label}
+            </a>
+          ) : (
+            <span style={{ color }}>{c.label}</span>
+          );
         return (
           <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
             {i > 0 && <span style={{ color: 'var(--ow-fg-3)' }}>/</span>}
@@ -219,7 +220,13 @@ function ThemeIconToggle() {
     system: 'light',
   };
   const icon =
-    mode === 'light' ? <Sun size={14} /> : mode === 'dark' ? <Moon size={14} /> : <Monitor size={14} />;
+    mode === 'light' ? (
+      <Sun size={14} />
+    ) : mode === 'dark' ? (
+      <Moon size={14} />
+    ) : (
+      <Monitor size={14} />
+    );
   const label = `Theme: ${mode} (click to switch)`;
 
   return (

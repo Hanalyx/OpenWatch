@@ -1,11 +1,6 @@
 import { render } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import {
-  createRootRoute,
-  createRoute,
-  createRouter,
-  RouterProvider,
-} from '@tanstack/react-router';
+import { createRootRoute, createRoute, createRouter, RouterProvider } from '@tanstack/react-router';
 import type { ReactNode } from 'react';
 
 // Shared test helper — renders a component inside a TanStack Router +

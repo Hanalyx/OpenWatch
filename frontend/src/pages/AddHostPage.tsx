@@ -62,8 +62,7 @@ export function AddHostPage() {
       <title>Add host — OpenWatch</title>
       <h1 style={{ margin: 0, fontSize: 22, fontWeight: 600 }}>Add host</h1>
       <p style={{ color: 'var(--ow-fg-2)', marginTop: 4, marginBottom: 16 }}>
-        Onboard a single host with its credential, or import multiple hosts
-        from CSV or JSON.
+        Onboard a single host with its credential, or import multiple hosts from CSV or JSON.
       </p>
 
       <div
@@ -131,9 +130,7 @@ function TabButton({
         fontWeight: 500,
         color: isActive ? 'var(--ow-fg-0)' : 'var(--ow-fg-2)',
         cursor: 'pointer',
-        borderBottom: isActive
-          ? '2px solid var(--ow-info)'
-          : '2px solid transparent',
+        borderBottom: isActive ? '2px solid var(--ow-info)' : '2px solid transparent',
         marginBottom: -1,
       }}
     >
@@ -190,14 +187,12 @@ function SingleForm() {
         setServerError(
           e instanceof TypeError && /fetch|network/i.test(e.message)
             ? 'Cannot reach the OpenWatch API. Start the backend (./dist/openwatch serve) or check the Vite proxy target (https://localhost:8443).'
-            : (e as Error)?.message ?? 'Failed to create host (network error)',
+            : ((e as Error)?.message ?? 'Failed to create host (network error)'),
         );
         return;
       }
       if (!hostResp.ok || !hostData) {
-        setServerError(
-          apiErrorMessage(hostErr, `Failed to create host (HTTP ${hostResp.status})`),
-        );
+        setServerError(apiErrorMessage(hostErr, `Failed to create host (HTTP ${hostResp.status})`));
         return;
       }
       const newHost = hostData as { id: string };
@@ -323,22 +318,13 @@ function SingleForm() {
             marginBottom: 12,
           }}
         >
-          <input
-            type="checkbox"
-            {...register('use_system_default')}
-            disabled={submitting}
-          />
-          <span style={{ fontSize: 13 }}>
-            Use system default credential
-          </span>
+          <input type="checkbox" {...register('use_system_default')} disabled={submitting} />
+          <span style={{ fontSize: 13 }}>Use system default credential</span>
         </label>
 
         {!useSystemDefault && (
           <>
-            <fieldset
-              style={{ border: 0, padding: 0, margin: '0 0 12px' }}
-              disabled={submitting}
-            >
+            <fieldset style={{ border: 0, padding: 0, margin: '0 0 12px' }} disabled={submitting}>
               <legend style={labelText}>Auth method</legend>
               {(['ssh_key', 'password', 'both'] as const).map((method) => (
                 <label
@@ -350,11 +336,7 @@ function SingleForm() {
                     marginRight: 14,
                   }}
                 >
-                  <input
-                    type="radio"
-                    value={method}
-                    {...register('auth_method')}
-                  />
+                  <input type="radio" value={method} {...register('auth_method')} />
                   <span style={{ fontSize: 13 }}>
                     {method === 'ssh_key' ? 'SSH key' : method === 'password' ? 'Password' : 'Both'}
                   </span>
@@ -401,12 +383,7 @@ function SingleForm() {
         </div>
       )}
 
-      <button
-        type="submit"
-        disabled={submitting}
-        aria-busy={submitting}
-        style={primaryBtn}
-      >
+      <button type="submit" disabled={submitting} aria-busy={submitting} style={primaryBtn}>
         {submitting ? 'Adding…' : 'Add host'}
       </button>
     </form>
@@ -424,7 +401,6 @@ function SingleForm() {
 function BulkPanel() {
   return <BulkImportWizard />;
 }
-
 
 // ─────────────────────────────────────────────────────────────────────────
 // Small UI primitives
@@ -486,11 +462,13 @@ function Field({
         style={inputStyle}
       />
       {hint && !error && (
-        <div style={{ fontSize: 11, color: 'var(--ow-fg-3)', marginTop: 2 }}>
-          {hint}
+        <div style={{ fontSize: 11, color: 'var(--ow-fg-3)', marginTop: 2 }}>{hint}</div>
+      )}
+      {error && (
+        <div role="alert" style={errorText}>
+          {error}
         </div>
       )}
-      {error && <div role="alert" style={errorText}>{error}</div>}
     </label>
   );
 }

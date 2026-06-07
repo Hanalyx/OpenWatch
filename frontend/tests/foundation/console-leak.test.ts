@@ -44,10 +44,7 @@ describe('frontend-foundation', () => {
           // or as a typed identifier (.field). Comments referencing the
           // word are tolerated since stripping comments here is over-
           // engineered for the goal (no leak in BUILT bundles).
-          const fieldRe = new RegExp(
-            `(?:["']?)${field}(?:["']?)\\s*[:=]`,
-            'i',
-          );
+          const fieldRe = new RegExp(`(?:["']?)${field}(?:["']?)\\s*[:=]`, 'i');
           if (fieldRe.test(args)) {
             offenders.push({ file: f, match: m[0] ?? '', field });
           }

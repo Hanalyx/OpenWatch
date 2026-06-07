@@ -12,10 +12,7 @@ import { describe, expect, test } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-const PAGE_SRC = readFileSync(
-  resolve(process.cwd(), 'src/pages/HostsListPage.tsx'),
-  'utf8',
-);
+const PAGE_SRC = readFileSync(resolve(process.cwd(), 'src/pages/HostsListPage.tsx'), 'utf8');
 
 describe('frontend-hosts-list — structural', () => {
   // @ac AC-02

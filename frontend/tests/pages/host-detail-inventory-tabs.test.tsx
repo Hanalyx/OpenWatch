@@ -33,10 +33,7 @@ const INV_SRC = readFileSync(
   'utf8',
 );
 
-const PAGE_SRC = readFileSync(
-  resolve(process.cwd(), 'src/pages/HostDetailPage.tsx'),
-  'utf8',
-);
+const PAGE_SRC = readFileSync(resolve(process.cwd(), 'src/pages/HostDetailPage.tsx'), 'utf8');
 
 describe('frontend-host-detail-inventory-tabs — structural', () => {
   // @ac AC-01
@@ -55,12 +52,7 @@ describe('frontend-host-detail-inventory-tabs — structural', () => {
     );
     // Each of the four tabs is mounted via the activeTab switch (no
     // TabStub for these four).
-    for (const tag of [
-      '<PackagesTab',
-      '<ServicesTab',
-      '<UsersTab',
-      '<NetworkTab',
-    ]) {
+    for (const tag of ['<PackagesTab', '<ServicesTab', '<UsersTab', '<NetworkTab']) {
       expect(PAGE_SRC).toContain(tag);
     }
   });
@@ -132,9 +124,7 @@ describe('frontend-host-detail-inventory-tabs — behavioral', () => {
 
   // @ac AC-06
   test('frontend-host-detail-inventory-tabs/AC-06 — loading state hides rows and empty state', () => {
-    render(
-      <PackagesTab isLoading={true} snapshot={{ packages: { bash: '5.1' } }} />,
-    );
+    render(<PackagesTab isLoading={true} snapshot={{ packages: { bash: '5.1' } }} />);
     expect(screen.getByText(/loading/i)).toBeInTheDocument();
     // Rows MUST not appear during loading
     expect(screen.queryByText('bash')).toBeNull();

@@ -146,9 +146,7 @@ describe('frontend-settings-discovery-config — behavioral (pure view)', () => 
   // @ac AC-08
   test('frontend-settings-discovery-config/AC-08 — Run now button: label flips, callback invoked, queued count rendered', () => {
     const onRunNow = vi.fn();
-    const { rerender } = render(
-      <OSDiscoverySectionView {...viewProps({ onRunNow })} />,
-    );
+    const { rerender } = render(<OSDiscoverySectionView {...viewProps({ onRunNow })} />);
     const runBtn = screen.getByRole('button', { name: /run now/i });
     fireEvent.click(runBtn);
     expect(onRunNow).toHaveBeenCalledTimes(1);
@@ -158,11 +156,7 @@ describe('frontend-settings-discovery-config — behavioral (pure view)', () => 
     expect(screen.getByRole('button', { name: /sweeping/i })).toBeDisabled();
 
     // Sweep result shown.
-    rerender(
-      <OSDiscoverySectionView
-        {...viewProps({ sweepResult: { enqueued: 7 } })}
-      />,
-    );
+    rerender(<OSDiscoverySectionView {...viewProps({ sweepResult: { enqueued: 7 } })} />);
     expect(screen.getByText(/queued\s+7\s+discoveries/i)).toBeInTheDocument();
   });
 });

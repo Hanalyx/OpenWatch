@@ -101,9 +101,7 @@ describe('frontend-host-detail-system-card — behavior', () => {
       />,
     );
     expect(screen.getByText('Not discovered yet')).toBeInTheDocument();
-    expect(
-      screen.getByRole('button', { name: /re-run discovery/i }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /re-run discovery/i })).toBeInTheDocument();
   });
 
   // @ac AC-04
@@ -117,9 +115,7 @@ describe('frontend-host-detail-system-card — behavior', () => {
       />,
     );
     expect(screen.getByText('Not discovered yet')).toBeInTheDocument();
-    expect(
-      screen.queryByRole('button', { name: /re-run discovery/i }),
-    ).toBeNull();
+    expect(screen.queryByRole('button', { name: /re-run discovery/i })).toBeNull();
   });
 });
 
@@ -151,8 +147,6 @@ describe('frontend-host-detail-system-card — structural', () => {
 
   // @ac AC-07
   test('frontend-host-detail-system-card/AC-07 — 502 surfaces Host unreachable inline', () => {
-    expect(PAGE_SRC).toContain(
-      'Host unreachable — check SSH credentials and connectivity',
-    );
+    expect(PAGE_SRC).toContain('Host unreachable — check SSH credentials and connectivity');
   });
 });

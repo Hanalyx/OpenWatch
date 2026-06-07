@@ -85,13 +85,29 @@ export function LoginPage() {
         // from the response body. Session cookie is the credential.
         const { data: me } = await api.GET('/api/v1/auth/me');
         if (me) {
-          const meTyped = me as { id: string; username: string; email: string; role: string; mfa_enabled?: boolean };
+          const meTyped = me as {
+            id: string;
+            username: string;
+            email: string;
+            role: string;
+            mfa_enabled?: boolean;
+          };
           const identity: Identity = {
             id: meTyped.id,
             username: meTyped.username,
             email: meTyped.email,
             role: meTyped.role,
-            permissions: meTyped.role === 'admin' ? ['host:read', 'host:write', 'host:delete', 'credential:read', 'credential:write', 'admin'] : ['host:read'],
+            permissions:
+              meTyped.role === 'admin'
+                ? [
+                    'host:read',
+                    'host:write',
+                    'host:delete',
+                    'credential:read',
+                    'credential:write',
+                    'admin',
+                  ]
+                : ['host:read'],
             mfaEnabled: !!meTyped.mfa_enabled,
           };
           setIdentity(identity);
@@ -157,14 +173,10 @@ export function LoginPage() {
           gap: 14,
         }}
       >
-        <h1 style={{ margin: 0, fontSize: 20, fontWeight: 600 }}>
-          Sign in to OpenWatch
-        </h1>
+        <h1 style={{ margin: 0, fontSize: 20, fontWeight: 600 }}>Sign in to OpenWatch</h1>
 
         <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <span style={{ fontSize: 13, color: 'var(--ow-fg-1)' }}>
-            Username
-          </span>
+          <span style={{ fontSize: 13, color: 'var(--ow-fg-1)' }}>Username</span>
           <input
             type="text"
             autoComplete="username"
@@ -181,9 +193,7 @@ export function LoginPage() {
         </label>
 
         <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <span style={{ fontSize: 13, color: 'var(--ow-fg-1)' }}>
-            Password
-          </span>
+          <span style={{ fontSize: 13, color: 'var(--ow-fg-1)' }}>Password</span>
           <input
             type="password"
             autoComplete="current-password"
@@ -200,9 +210,7 @@ export function LoginPage() {
 
         {mfaRequired && (
           <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <span style={{ fontSize: 13, color: 'var(--ow-fg-1)' }}>
-              Authenticator code
-            </span>
+            <span style={{ fontSize: 13, color: 'var(--ow-fg-1)' }}>Authenticator code</span>
             <input
               type="text"
               inputMode="numeric"

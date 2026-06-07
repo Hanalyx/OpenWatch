@@ -68,14 +68,14 @@ export function Section({
     badgeTier === 'crit'
       ? 'var(--ow-crit)'
       : badgeTier === 'warn'
-      ? 'var(--ow-warn)'
-      : 'var(--ow-ok)';
+        ? 'var(--ow-warn)'
+        : 'var(--ow-ok)';
   const badgeBg =
     badgeTier === 'crit'
       ? 'var(--ow-crit-bg)'
       : badgeTier === 'warn'
-      ? 'var(--ow-warn-bg)'
-      : 'var(--ow-ok-bg)';
+        ? 'var(--ow-warn-bg)'
+        : 'var(--ow-ok-bg)';
   return (
     <section style={{ marginBottom: 32 }}>
       {title && (
@@ -397,9 +397,7 @@ export function Field({
           width: width ?? '100%',
         }}
       />
-      {hint && (
-        <div style={{ fontSize: 11, color: 'var(--ow-fg-3)', marginTop: 4 }}>{hint}</div>
-      )}
+      {hint && <div style={{ fontSize: 11, color: 'var(--ow-fg-3)', marginTop: 4 }}>{hint}</div>}
     </>
   );
 }
@@ -436,7 +434,7 @@ export function Select({
         width: width ?? 'auto',
         minWidth: 160,
         backgroundImage:
-          'url("data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'12\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'%238a93a3\' stroke-width=\'2\' stroke-linecap=\'round\' stroke-linejoin=\'round\'><path d=\'m6 9 6 6 6-6\'/></svg>")',
+          "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238a93a3' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='m6 9 6 6 6-6'/></svg>\")",
         backgroundRepeat: 'no-repeat',
         backgroundPosition: 'right 8px center',
       }}
@@ -573,17 +571,13 @@ export function StatusPill({
   children: ReactNode;
 }) {
   const color =
-    tier === 'crit'
-      ? 'var(--ow-crit)'
-      : tier === 'warn'
-      ? 'var(--ow-warn)'
-      : 'var(--ow-ok)';
+    tier === 'crit' ? 'var(--ow-crit)' : tier === 'warn' ? 'var(--ow-warn)' : 'var(--ow-ok)';
   const bg =
     tier === 'crit'
       ? 'var(--ow-crit-bg)'
       : tier === 'warn'
-      ? 'var(--ow-warn-bg)'
-      : 'var(--ow-ok-bg)';
+        ? 'var(--ow-warn-bg)'
+        : 'var(--ow-ok-bg)';
   return (
     <span
       style={{
@@ -726,9 +720,7 @@ export function FormField({
     <label style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 12 }}>
       <span style={{ fontSize: 12, color: 'var(--ow-fg-1)', fontWeight: 500 }}>{label}</span>
       {children}
-      {hint && !error && (
-        <span style={{ fontSize: 11, color: 'var(--ow-fg-3)' }}>{hint}</span>
-      )}
+      {hint && !error && <span style={{ fontSize: 11, color: 'var(--ow-fg-3)' }}>{hint}</span>}
       {error && (
         <span role="alert" style={{ fontSize: 12, color: 'var(--ow-crit)' }}>
           {error}
@@ -755,10 +747,10 @@ export function StatMini({
     tier === 'crit'
       ? 'var(--ow-crit)'
       : tier === 'warn'
-      ? 'var(--ow-warn)'
-      : tier === 'ok'
-      ? 'var(--ow-ok)'
-      : 'var(--ow-fg-0)';
+        ? 'var(--ow-warn)'
+        : tier === 'ok'
+          ? 'var(--ow-ok)'
+          : 'var(--ow-fg-0)';
   return (
     <div
       style={{
@@ -797,9 +789,7 @@ export function StatMini({
           </span>
         )}
       </div>
-      {hint && (
-        <div style={{ color: 'var(--ow-fg-3)', fontSize: 11, marginTop: 4 }}>{hint}</div>
-      )}
+      {hint && <div style={{ color: 'var(--ow-fg-3)', fontSize: 11, marginTop: 4 }}>{hint}</div>}
     </div>
   );
 }
@@ -827,17 +817,13 @@ export function Callout({
   children: ReactNode;
 }) {
   const color =
-    tier === 'crit'
-      ? 'var(--ow-crit)'
-      : tier === 'warn'
-      ? 'var(--ow-warn)'
-      : 'var(--ow-info)';
+    tier === 'crit' ? 'var(--ow-crit)' : tier === 'warn' ? 'var(--ow-warn)' : 'var(--ow-info)';
   const bg =
     tier === 'crit'
       ? 'var(--ow-crit-bg)'
       : tier === 'warn'
-      ? 'var(--ow-warn-bg)'
-      : 'var(--ow-info-bg)';
+        ? 'var(--ow-warn-bg)'
+        : 'var(--ow-info-bg)';
   return (
     <div
       role="note"
@@ -856,7 +842,17 @@ export function Callout({
       }}
     >
       <div style={{ color, flexShrink: 0, marginTop: 1 }}>
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden
+        >
           <circle cx="12" cy="12" r="10" />
           <path d="M12 8v4M12 16h.01" />
         </svg>
@@ -886,17 +882,13 @@ export function SchedSummary({
   onToggleChange: (next: boolean) => void;
 }) {
   const iconColor =
-    iconTier === 'ok'
-      ? 'var(--ow-ok)'
-      : iconTier === 'warn'
-      ? 'var(--ow-warn)'
-      : 'var(--ow-info)';
+    iconTier === 'ok' ? 'var(--ow-ok)' : iconTier === 'warn' ? 'var(--ow-warn)' : 'var(--ow-info)';
   const iconBg =
     iconTier === 'ok'
       ? 'var(--ow-ok-bg)'
       : iconTier === 'warn'
-      ? 'var(--ow-warn-bg)'
-      : 'var(--ow-info-bg)';
+        ? 'var(--ow-warn-bg)'
+        : 'var(--ow-info-bg)';
   return (
     <div
       style={{
@@ -928,9 +920,7 @@ export function SchedSummary({
         </div>
         <div>
           <div style={{ fontWeight: 600, fontSize: 15 }}>{title}</div>
-          <div style={{ color: 'var(--ow-fg-2)', fontSize: 12, marginTop: 2 }}>
-            {subtitle}
-          </div>
+          <div style={{ color: 'var(--ow-fg-2)', fontSize: 12, marginTop: 2 }}>{subtitle}</div>
         </div>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
@@ -999,13 +989,7 @@ export function AdvancedDisclosure({
   );
 }
 
-export function BackendPendingBanner({
-  slice,
-  text,
-}: {
-  slice: string;
-  text?: string;
-}) {
+export function BackendPendingBanner({ slice, text }: { slice: string; text?: string }) {
   return (
     <div
       role="status"

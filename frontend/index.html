@@ -23,26 +23,18 @@
           var key = 'ow-color-scheme';
           var stored = window.localStorage.getItem(key);
           var mode =
-            stored === 'light' || stored === 'dark' || stored === 'system'
-              ? stored
-              : 'system';
+            stored === 'light' || stored === 'dark' || stored === 'system' ? stored : 'system';
           var resolved =
             mode === 'system'
               ? window.matchMedia('(prefers-color-scheme: dark)').matches
                 ? 'dark'
                 : 'light'
               : mode;
-          document.documentElement.setAttribute(
-            'data-mui-color-scheme',
-            resolved,
-          );
+          document.documentElement.setAttribute('data-mui-color-scheme', resolved);
           document.documentElement.style.colorScheme = resolved;
         } catch (e) {
           // localStorage / matchMedia failure -> default to dark
-          document.documentElement.setAttribute(
-            'data-mui-color-scheme',
-            'dark',
-          );
+          document.documentElement.setAttribute('data-mui-color-scheme', 'dark');
         }
       })();
     </script>

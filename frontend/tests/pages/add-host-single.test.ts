@@ -22,10 +22,7 @@ import { describe, expect, test } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-const PAGE_SRC = readFileSync(
-  resolve(process.cwd(), 'src/pages/AddHostPage.tsx'),
-  'utf8',
-);
+const PAGE_SRC = readFileSync(resolve(process.cwd(), 'src/pages/AddHostPage.tsx'), 'utf8');
 const PREVIEW_SRC = readFileSync(
   resolve(process.cwd(), 'src/components/hosts/bulk/PreviewImportStep.tsx'),
   'utf8',
@@ -88,7 +85,8 @@ describe('frontend-add-host — single-mode structural', () => {
     // so screen readers announce it — the Field helper is the single
     // source for inline error markup.
     expect(PAGE_SRC).toMatch(/role=["']alert["']/);
-    expect(PAGE_SRC).toMatch(/error\s*&&\s*<div\s+role=["']alert["']/);
+    // `\(?\s*` tolerates Prettier wrapping `error && <div>` into `error && (\n  <div>`.
+    expect(PAGE_SRC).toMatch(/error\s*&&\s*\(?\s*<div\s+role=["']alert["']/);
   });
 
   // @ac AC-06
@@ -98,17 +96,19 @@ describe('frontend-add-host — single-mode structural', () => {
     expect(PAGE_SRC).toMatch(/api\.DELETE\(\s*['"]\/api\/v1\/hosts\/\{id\}['"]/);
     // Rollback is inside the !credResp.ok branch (best-effort try).
     const credBlock = PAGE_SRC.slice(
-      PAGE_SRC.indexOf("if (!credResp.ok)"),
-      PAGE_SRC.indexOf("setServerError(", PAGE_SRC.indexOf("if (!credResp.ok)") + 1) + 200,
+      PAGE_SRC.indexOf('if (!credResp.ok)'),
+      PAGE_SRC.indexOf('setServerError(', PAGE_SRC.indexOf('if (!credResp.ok)') + 1) + 200,
     );
     expect(credBlock).toContain("api.DELETE('/api/v1/hosts/{id}'");
     expect(credBlock).toMatch(/setServerError\(/);
     // Form values stay around because react-hook-form's draft state
     // is owned outside the handler (no reset() call on this branch).
-    expect(PAGE_SRC.slice(
-      PAGE_SRC.indexOf("if (!credResp.ok)"),
-      PAGE_SRC.indexOf("if (!credResp.ok)") + 800,
-    )).not.toMatch(/\breset\(\)/);
+    expect(
+      PAGE_SRC.slice(
+        PAGE_SRC.indexOf('if (!credResp.ok)'),
+        PAGE_SRC.indexOf('if (!credResp.ok)') + 800,
+      ),
+    ).not.toMatch(/\breset\(\)/);
   });
 
   // @ac AC-07
@@ -148,9 +148,10 @@ describe('frontend-add-host — single-mode structural', () => {
     // Same pattern as frontend-foundation/AC-12 — we cannot run a true
     // browser axe inside vitest, but the dependency contract is what
     // a missing-dep regression would break.
-    const pkg = JSON.parse(
-      readFileSync(resolve(process.cwd(), 'package.json'), 'utf8'),
-    ) as { dependencies?: Record<string, string>; devDependencies?: Record<string, string> };
+    const pkg = JSON.parse(readFileSync(resolve(process.cwd(), 'package.json'), 'utf8')) as {
+      dependencies?: Record<string, string>;
+      devDependencies?: Record<string, string>;
+    };
     const deps = { ...(pkg.dependencies ?? {}), ...(pkg.devDependencies ?? {}) };
     expect(deps['axe-core']).toBeTruthy();
     expect(deps['@axe-core/playwright']).toBeTruthy();
@@ -161,17 +162,15 @@ describe('frontend-add-host — single-mode structural', () => {
     // Same dep contract; AC-19 explicitly covers both tabs. The tab
     // markup exists (AC-11) so the browser axe path has something to
     // exercise in each tabpanel.
-    const pkg = JSON.parse(
-      readFileSync(resolve(process.cwd(), 'package.json'), 'utf8'),
-    ) as { dependencies?: Record<string, string>; devDependencies?: Record<string, string> };
+    const pkg = JSON.parse(readFileSync(resolve(process.cwd(), 'package.json'), 'utf8')) as {
+      dependencies?: Record<string, string>;
+      devDependencies?: Record<string, string>;
+    };
     const deps = { ...(pkg.dependencies ?? {}), ...(pkg.devDependencies ?? {}) };
     expect(deps['axe-core']).toBeTruthy();
     expect(deps['@axe-core/playwright']).toBeTruthy();
     // Both tabpanels render so per-tab axe scans have a target.
-    const PAGE = readFileSync(
-      resolve(process.cwd(), 'src/pages/AddHostPage.tsx'),
-      'utf8',
-    );
+    const PAGE = readFileSync(resolve(process.cwd(), 'src/pages/AddHostPage.tsx'), 'utf8');
     expect(PAGE).toMatch(/role="tabpanel"/);
   });
 
@@ -183,9 +182,7 @@ describe('frontend-add-host — single-mode structural', () => {
       PAGE_SRC.indexOf('function SingleForm'),
       PAGE_SRC.indexOf('// Bulk mode'),
     );
-    const registerOrder = [
-      ...single.matchAll(/register\(['"]([a-z_]+)['"]\)/g),
-    ].map((m) => m[1]);
+    const registerOrder = [...single.matchAll(/register\(['"]([a-z_]+)['"]\)/g)].map((m) => m[1]);
     const idxHostname = registerOrder.indexOf('hostname');
     const idxIp = registerOrder.indexOf('ip_address');
     const idxEnv = registerOrder.indexOf('environment');

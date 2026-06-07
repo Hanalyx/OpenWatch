@@ -97,9 +97,7 @@ export function EditHostModal({ open, onClose, host }: Props) {
         body: body as never,
       });
       if (!response.ok) {
-        throw new Error(
-          apiErrorMessage(error, `Failed to update host (HTTP ${response.status})`),
-        );
+        throw new Error(apiErrorMessage(error, `Failed to update host (HTTP ${response.status})`));
       }
     },
     onSuccess: () => {

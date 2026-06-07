@@ -52,7 +52,14 @@ export async function bootstrapAuth(): Promise<void> {
       username: 'dev-admin',
       email: 'dev@local',
       role: 'admin',
-      permissions: ['host:read', 'host:write', 'host:delete', 'credential:read', 'credential:write', 'admin'],
+      permissions: [
+        'host:read',
+        'host:write',
+        'host:delete',
+        'credential:read',
+        'credential:write',
+        'admin',
+      ],
       mfaEnabled: false,
     });
     return;
@@ -62,7 +69,13 @@ export async function bootstrapAuth(): Promise<void> {
   try {
     const { data, response } = await api.GET('/api/v1/auth/me');
     if (response.ok && data) {
-      const me = data as { id: string; username: string; email: string; role: string; mfa_enabled?: boolean };
+      const me = data as {
+        id: string;
+        username: string;
+        email: string;
+        role: string;
+        mfa_enabled?: boolean;
+      };
       const identity: Identity = {
         id: me.id,
         username: me.username,

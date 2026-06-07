@@ -1,14 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
-import {
-  AlertCircle,
-  CheckCircle2,
-  Download,
-  Loader2,
-  Play,
-  XCircle,
-} from 'lucide-react';
+import { AlertCircle, CheckCircle2, Download, Loader2, Play, XCircle } from 'lucide-react';
 import api from '@/api/client';
 import { apiErrorMessage } from '@/api/errors';
 import type { FieldMapping, ImportOptions, ImportRowOutcome } from './types';
@@ -92,10 +85,7 @@ export function PreviewImportStep({ csvText, mappings, options, onOptionsChange 
     },
   });
 
-  const credentialOptions = useMemo(
-    () => credentialsQuery.data ?? [],
-    [credentialsQuery.data],
-  );
+  const credentialOptions = useMemo(() => credentialsQuery.data ?? [], [credentialsQuery.data]);
 
   useEffect(() => {
     // Re-seed pending outcomes whenever the preview changes (e.g. operator
@@ -166,22 +156,16 @@ export function PreviewImportStep({ csvText, mappings, options, onOptionsChange 
           // cloning the chosen system credential into this host's
           // scope. Server-side ciphertext copy — no secret material
           // crosses the wire.
-          if (
-            options.credentialMode === 'clone_template' &&
-            options.cloneSourceId
-          ) {
+          if (options.credentialMode === 'clone_template' && options.cloneSourceId) {
             try {
-              const cloneRes = await api.POST(
-                '/api/v1/credentials/{id}:clone',
-                {
-                  params: { path: { id: options.cloneSourceId } },
-                  body: {
-                    scope: 'host',
-                    scope_id: hostId,
-                    name: `${row.payload.hostname} credential`,
-                  } as never,
-                },
-              );
+              const cloneRes = await api.POST('/api/v1/credentials/{id}:clone', {
+                params: { path: { id: options.cloneSourceId } },
+                body: {
+                  scope: 'host',
+                  scope_id: hostId,
+                  name: `${row.payload.hostname} credential`,
+                } as never,
+              });
               if (!cloneRes.response.ok) {
                 credentialNote = apiErrorMessage(
                   cloneRes.error,
@@ -290,9 +274,9 @@ export function PreviewImportStep({ csvText, mappings, options, onOptionsChange 
               disabled={submitting}
             />
             <span style={{ fontSize: 13 }}>
-              <strong>Update existing</strong> — overwrite hosts with the same hostname. <em>Not yet wired</em>:
-              the Go API has no per-host update endpoint, so duplicates currently surface as &quot;skipped&quot;
-              regardless.
+              <strong>Update existing</strong> — overwrite hosts with the same hostname.{' '}
+              <em>Not yet wired</em>: the Go API has no per-host update endpoint, so duplicates
+              currently surface as &quot;skipped&quot; regardless.
             </span>
           </label>
 
@@ -338,7 +322,8 @@ export function PreviewImportStep({ csvText, mappings, options, onOptionsChange 
                 style={{ marginTop: 3 }}
               />
               <span style={{ fontSize: 13 }}>
-                <strong>Use system default</strong> — each imported host falls back to the system-default credential at scan time. No per-host credential is created.
+                <strong>Use system default</strong> — each imported host falls back to the
+                system-default credential at scan time. No per-host credential is created.
               </span>
             </label>
             <label
@@ -357,8 +342,7 @@ export function PreviewImportStep({ csvText, mappings, options, onOptionsChange 
                   onOptionsChange({
                     ...options,
                     credentialMode: 'clone_template',
-                    cloneSourceId:
-                      options.cloneSourceId ?? credentialOptions[0]?.id,
+                    cloneSourceId: options.cloneSourceId ?? credentialOptions[0]?.id,
                   })
                 }
                 disabled={credentialOptions.length === 0}
@@ -366,7 +350,10 @@ export function PreviewImportStep({ csvText, mappings, options, onOptionsChange 
               />
               <div style={{ flex: 1 }}>
                 <span style={{ fontSize: 13 }}>
-                  <strong>Clone an existing credential</strong> — every imported host gets a dedicated host-scoped credential cloned from the template you choose. The template&apos;s key / password is copied server-side as ciphertext; no secret material crosses the wire.
+                  <strong>Clone an existing credential</strong> — every imported host gets a
+                  dedicated host-scoped credential cloned from the template you choose. The
+                  template&apos;s key / password is copied server-side as ciphertext; no secret
+                  material crosses the wire.
                 </span>
                 {options.credentialMode === 'clone_template' && (
                   <div style={{ marginTop: 6 }}>
@@ -408,18 +395,18 @@ export function PreviewImportStep({ csvText, mappings, options, onOptionsChange 
                     )}
                   </div>
                 )}
-                {credentialOptions.length === 0 &&
-                  options.credentialMode === 'system_default' && (
-                    <div
-                      style={{
-                        fontSize: 11,
-                        color: 'var(--ow-fg-3)',
-                        marginTop: 4,
-                      }}
-                    >
-                      You have no credentials yet — the clone option will become available once you add one.
-                    </div>
-                  )}
+                {credentialOptions.length === 0 && options.credentialMode === 'system_default' && (
+                  <div
+                    style={{
+                      fontSize: 11,
+                      color: 'var(--ow-fg-3)',
+                      marginTop: 4,
+                    }}
+                  >
+                    You have no credentials yet — the clone option will become available once you
+                    add one.
+                  </div>
+                )}
               </div>
             </label>
           </fieldset>
@@ -434,8 +421,8 @@ export function PreviewImportStep({ csvText, mappings, options, onOptionsChange 
           {invalidRows.length > 0 && (
             <div style={infoPanel}>
               <AlertCircle size={12} style={{ verticalAlign: 'middle', marginRight: 6 }} />
-              {invalidRows.length} row{invalidRows.length === 1 ? '' : 's'} failed validation and will be skipped.
-              Download the failures CSV after import to fix and re-import.
+              {invalidRows.length} row{invalidRows.length === 1 ? '' : 's'} failed validation and
+              will be skipped. Download the failures CSV after import to fix and re-import.
             </div>
           )}
 
@@ -460,16 +447,12 @@ export function PreviewImportStep({ csvText, mappings, options, onOptionsChange 
                 gap: 6,
               }}
             >
-              {submitting ? (
-                <Loader2 size={14} />
-              ) : (
-                <Play size={14} />
-              )}
+              {submitting ? <Loader2 size={14} /> : <Play size={14} />}
               {submitting
                 ? 'Importing…'
                 : options.dryRun
-                ? `Dry-run ${validRows.length} valid row${validRows.length === 1 ? '' : 's'}`
-                : `Import ${validRows.length} valid row${validRows.length === 1 ? '' : 's'}`}
+                  ? `Dry-run ${validRows.length} valid row${validRows.length === 1 ? '' : 's'}`
+                  : `Import ${validRows.length} valid row${validRows.length === 1 ? '' : 's'}`}
             </button>
             {finished && (
               <span style={{ fontSize: 13, color: 'var(--ow-fg-2)' }}>
@@ -494,7 +477,14 @@ export function PreviewImportStep({ csvText, mappings, options, onOptionsChange 
             )}
           </div>
 
-          <div style={{ maxHeight: 360, overflow: 'auto', border: '1px solid var(--ow-line)', borderRadius: 6 }}>
+          <div
+            style={{
+              maxHeight: 360,
+              overflow: 'auto',
+              border: '1px solid var(--ow-line)',
+              borderRadius: 6,
+            }}
+          >
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
               <thead>
                 <tr style={{ background: 'var(--ow-bg-2)', position: 'sticky', top: 0 }}>
@@ -510,13 +500,19 @@ export function PreviewImportStep({ csvText, mappings, options, onOptionsChange 
                 {rowStates.map((s) => (
                   <tr key={s.preview.index} style={{ borderTop: '1px solid var(--ow-line)' }}>
                     <td style={td}>{s.outcome.row}</td>
-                    <td style={{ ...td, fontFamily: 'var(--ow-font-mono)', color: 'var(--ow-fg-0)' }}>
+                    <td
+                      style={{ ...td, fontFamily: 'var(--ow-font-mono)', color: 'var(--ow-fg-0)' }}
+                    >
                       {s.preview.payload?.hostname ?? s.preview.rawRow['hostname'] ?? ''}
                     </td>
-                    <td style={{ ...td, fontFamily: 'var(--ow-font-mono)', color: 'var(--ow-fg-2)' }}>
+                    <td
+                      style={{ ...td, fontFamily: 'var(--ow-font-mono)', color: 'var(--ow-fg-2)' }}
+                    >
                       {s.preview.payload?.ip_address ?? s.preview.rawRow['ip_address'] ?? ''}
                     </td>
-                    <td style={td}>{s.preview.payload?.environment ?? s.preview.rawRow['environment'] ?? '—'}</td>
+                    <td style={td}>
+                      {s.preview.payload?.environment ?? s.preview.rawRow['environment'] ?? '—'}
+                    </td>
                     <td style={td}>
                       <OutcomeBadge status={s.outcome.status} />
                     </td>
@@ -535,7 +531,8 @@ export function PreviewImportStep({ csvText, mappings, options, onOptionsChange 
                       )}
                       {s.outcome.status === 'skipped' && (
                         <span style={{ color: 'var(--ow-fg-2)' }}>
-                          {s.outcome.error ?? (options.dryRun ? 'Dry run — not submitted' : 'Skipped')}
+                          {s.outcome.error ??
+                            (options.dryRun ? 'Dry run — not submitted' : 'Skipped')}
                         </span>
                       )}
                       {s.outcome.status === 'pending' && (
@@ -552,7 +549,13 @@ export function PreviewImportStep({ csvText, mappings, options, onOptionsChange 
             <button
               type="button"
               onClick={() => downloadFailedRowsCSV(failedRows)}
-              style={{ ...secondaryBtn, marginTop: 14, display: 'inline-flex', alignItems: 'center', gap: 6 }}
+              style={{
+                ...secondaryBtn,
+                marginTop: 14,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+              }}
             >
               <Download size={14} />
               Download failed rows as CSV
@@ -568,25 +571,33 @@ function OutcomeBadge({ status }: { status: ImportRowOutcome['status'] }) {
   switch (status) {
     case 'created':
       return (
-        <span style={{ color: 'var(--ow-ok)', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+        <span
+          style={{ color: 'var(--ow-ok)', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+        >
           <CheckCircle2 size={12} /> created
         </span>
       );
     case 'updated':
       return (
-        <span style={{ color: 'var(--ow-info)', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+        <span
+          style={{ color: 'var(--ow-info)', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+        >
           <CheckCircle2 size={12} /> updated
         </span>
       );
     case 'skipped':
       return (
-        <span style={{ color: 'var(--ow-warn)', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+        <span
+          style={{ color: 'var(--ow-warn)', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+        >
           <AlertCircle size={12} /> skipped
         </span>
       );
     case 'failed':
       return (
-        <span style={{ color: 'var(--ow-crit)', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+        <span
+          style={{ color: 'var(--ow-crit)', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+        >
           <XCircle size={12} /> failed
         </span>
       );

@@ -1,10 +1,5 @@
 import { extendTheme } from '@mui/material/styles';
-import {
-  darkTokens,
-  lightTokens,
-  structural,
-  type ModeColorTokens,
-} from './tokens';
+import { darkTokens, lightTokens, structural, type ModeColorTokens } from './tokens';
 
 // MUI v7 theme — CSS-variables mode.
 //

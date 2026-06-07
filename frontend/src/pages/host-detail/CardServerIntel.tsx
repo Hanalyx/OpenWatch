@@ -59,10 +59,9 @@ export function CardServerIntel({ hostId }: CardServerIntelProps) {
   const query = useQuery({
     queryKey: ['intelligence_state', hostId],
     queryFn: async () => {
-      const { data, error, response } = await api.GET(
-        '/api/v1/intelligence/state/{host_id}',
-        { params: { path: { host_id: hostId } } },
-      );
+      const { data, error, response } = await api.GET('/api/v1/intelligence/state/{host_id}', {
+        params: { path: { host_id: hostId } },
+      });
       if (response.status === 404) return null;
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
@@ -166,25 +165,21 @@ function TileGrid({ snapshot }: { snapshot: IntelligenceSnapshot }) {
         gap: 16,
       }}
     >
-      <Tile
-        label="Packages installed"
-        value={packagesCount}
-        subline="No updates pending"
-      />
+      <Tile label="Packages installed" value={packagesCount} subline="No updates pending" />
       <Tile
         label="Running services"
         value={
-          servicesTotal === 0
-            ? '—'
-            : (
-              <>
-                {servicesRunning}
-                <span style={{ color: 'var(--ow-fg-3)', fontSize: 16, fontWeight: 400 }}>
-                  {' / '}
-                  {servicesTotal}
-                </span>
-              </>
-            )
+          servicesTotal === 0 ? (
+            '—'
+          ) : (
+            <>
+              {servicesRunning}
+              <span style={{ color: 'var(--ow-fg-3)', fontSize: 16, fontWeight: 400 }}>
+                {' / '}
+                {servicesTotal}
+              </span>
+            </>
+          )
         }
         subline={
           servicesTotal === 0
@@ -208,11 +203,7 @@ function TileGrid({ snapshot }: { snapshot: IntelligenceSnapshot }) {
         subline={firewall.subline}
         sublineTone={firewall.tone}
       />
-      <Tile
-        label="Open exceptions"
-        value="—"
-        subline="No rules suppressed"
-      />
+      <Tile label="Open exceptions" value="—" subline="No rules suppressed" />
     </div>
   );
 }
@@ -320,7 +311,11 @@ export function firewallSubline(fwCount: number | null | undefined): FirewallSub
 function collectedLabel(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
-  const date = d.toLocaleDateString(undefined, { month: 'numeric', day: 'numeric', year: 'numeric' });
+  const date = d.toLocaleDateString(undefined, {
+    month: 'numeric',
+    day: 'numeric',
+    year: 'numeric',
+  });
   const time = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
   return `Collected ${date} · ${time}`;
 }
@@ -390,22 +385,14 @@ function Card({
         }}
       >
         <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>{title}</h3>
-        {right ? (
-          <span style={{ color: 'var(--ow-fg-3)', fontSize: 11 }}>{right}</span>
-        ) : null}
+        {right ? <span style={{ color: 'var(--ow-fg-3)', fontSize: 11 }}>{right}</span> : null}
       </header>
       <div>{children}</div>
     </section>
   );
 }
 
-function EmptyState({
-  primary,
-  secondary,
-}: {
-  primary: string;
-  secondary: string;
-}) {
+function EmptyState({ primary, secondary }: { primary: string; secondary: string }) {
   return (
     <div
       role="status"

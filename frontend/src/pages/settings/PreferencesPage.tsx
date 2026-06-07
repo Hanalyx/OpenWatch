@@ -89,9 +89,24 @@ function AppearanceSection() {
           description="Used for primary actions and active states."
           control={
             <div style={{ display: 'flex', gap: 8 }}>
-              <AccentSwatch tier="info" color="var(--ow-info)" active={accent === 'info'} onClick={() => setAccent('info')} />
-              <AccentSwatch tier="ok" color="var(--ow-ok)" active={accent === 'ok'} onClick={() => setAccent('ok')} />
-              <AccentSwatch tier="brand2" color="var(--ow-brand-2)" active={accent === 'brand2'} onClick={() => setAccent('brand2')} />
+              <AccentSwatch
+                tier="info"
+                color="var(--ow-info)"
+                active={accent === 'info'}
+                onClick={() => setAccent('info')}
+              />
+              <AccentSwatch
+                tier="ok"
+                color="var(--ow-ok)"
+                active={accent === 'ok'}
+                onClick={() => setAccent('ok')}
+              />
+              <AccentSwatch
+                tier="brand2"
+                color="var(--ow-brand-2)"
+                active={accent === 'brand2'}
+                onClick={() => setAccent('brand2')}
+              />
             </div>
           }
         />
@@ -196,11 +211,7 @@ function DefaultsSection() {
           name="Reduce motion"
           description="Minimize animations like the status-pulse and save bar."
           control={
-            <Toggle
-              value={reduceMotion}
-              onChange={setReduceMotion}
-              ariaLabel="Reduce motion"
-            />
+            <Toggle value={reduceMotion} onChange={setReduceMotion} ariaLabel="Reduce motion" />
           }
         />
       </SettingCard>

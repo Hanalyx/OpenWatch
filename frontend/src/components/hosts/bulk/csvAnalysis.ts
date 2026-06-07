@@ -120,11 +120,28 @@ export function detectType(values: string[]): { type: string; confidence: number
 const COLUMN_PATTERNS: Array<{ target: string; patterns: RegExp[] }> = [
   {
     target: 'hostname',
-    patterns: [/^hostname$/i, /^host$/i, /^name$/i, /^server[\s_-]?name$/i, /^vm[\s_-]?name$/i, /^machine[\s_-]?name$/i, /^fqdn$/i, /^instance[\s_-]?name$/i],
+    patterns: [
+      /^hostname$/i,
+      /^host$/i,
+      /^name$/i,
+      /^server[\s_-]?name$/i,
+      /^vm[\s_-]?name$/i,
+      /^machine[\s_-]?name$/i,
+      /^fqdn$/i,
+      /^instance[\s_-]?name$/i,
+    ],
   },
   {
     target: 'ip_address',
-    patterns: [/^ip[\s_-]?address$/i, /^ip$/i, /^ipv4$/i, /^private[\s_-]?ip[\s_-]?address$/i, /^internal[\s_-]?ip$/i, /^primary[\s_-]?ip$/i, /^management[\s_-]?ip$/i],
+    patterns: [
+      /^ip[\s_-]?address$/i,
+      /^ip$/i,
+      /^ipv4$/i,
+      /^private[\s_-]?ip[\s_-]?address$/i,
+      /^internal[\s_-]?ip$/i,
+      /^primary[\s_-]?ip$/i,
+      /^management[\s_-]?ip$/i,
+    ],
   },
   {
     target: 'display_name',

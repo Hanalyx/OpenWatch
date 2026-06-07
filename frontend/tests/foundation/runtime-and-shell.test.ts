@@ -16,18 +16,9 @@ import { describe, expect, test, vi, beforeEach, afterEach } from 'vitest';
 import { readFileSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-const ROUTER_SRC = readFileSync(
-  resolve(process.cwd(), 'src/routes/router.tsx'),
-  'utf8',
-);
-const THEME_SRC = readFileSync(
-  resolve(process.cwd(), 'src/theme/theme.ts'),
-  'utf8',
-);
-const TOPBAR_SRC = readFileSync(
-  resolve(process.cwd(), 'src/components/shell/TopBar.tsx'),
-  'utf8',
-);
+const ROUTER_SRC = readFileSync(resolve(process.cwd(), 'src/routes/router.tsx'), 'utf8');
+const THEME_SRC = readFileSync(resolve(process.cwd(), 'src/theme/theme.ts'), 'utf8');
+const TOPBAR_SRC = readFileSync(resolve(process.cwd(), 'src/components/shell/TopBar.tsx'), 'utf8');
 const SIDEBAR_SRC = readFileSync(
   resolve(process.cwd(), 'src/components/shell/Sidebar.tsx'),
   'utf8',
@@ -68,7 +59,7 @@ describe('frontend-foundation — runtime + shell', () => {
     expect(ROUTER_SRC).toMatch(/return_to:/);
     // The guard reads identity from useAuthStore — NOT a route-time
     // synchronous network call.
-    expect(ROUTER_SRC).toContain("useAuthStore.getState().identity");
+    expect(ROUTER_SRC).toContain('useAuthStore.getState().identity');
   });
 
   // @ac AC-09
@@ -123,9 +114,10 @@ describe('frontend-foundation — runtime + shell', () => {
     // dependency contract holds AND that the theme supplies the dark
     // colorScheme for axe to scan against. A missing-dep regression
     // would silently make the per-mode scan a no-op.
-    const pkg = JSON.parse(
-      readFileSync(resolve(process.cwd(), 'package.json'), 'utf8'),
-    ) as { dependencies?: Record<string, string>; devDependencies?: Record<string, string> };
+    const pkg = JSON.parse(readFileSync(resolve(process.cwd(), 'package.json'), 'utf8')) as {
+      dependencies?: Record<string, string>;
+      devDependencies?: Record<string, string>;
+    };
     const deps = { ...(pkg.dependencies ?? {}), ...(pkg.devDependencies ?? {}) };
     expect(deps['axe-core']).toBeTruthy();
     expect(deps['@axe-core/playwright']).toBeTruthy();

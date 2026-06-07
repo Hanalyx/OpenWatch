@@ -25,10 +25,7 @@ import { describe, expect, test } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-const ROUTER_SRC = readFileSync(
-  resolve(process.cwd(), 'src/routes/router.tsx'),
-  'utf8',
-);
+const ROUTER_SRC = readFileSync(resolve(process.cwd(), 'src/routes/router.tsx'), 'utf8');
 const LAYOUT_SRC = readFileSync(
   resolve(process.cwd(), 'src/components/settings/SettingsLayout.tsx'),
   'utf8',
@@ -45,10 +42,7 @@ const CREDENTIALS_SRC = readFileSync(
   resolve(process.cwd(), 'src/pages/settings/CredentialsPage.tsx'),
   'utf8',
 );
-const USERS_SRC = readFileSync(
-  resolve(process.cwd(), 'src/pages/settings/UsersPage.tsx'),
-  'utf8',
-);
+const USERS_SRC = readFileSync(resolve(process.cwd(), 'src/pages/settings/UsersPage.tsx'), 'utf8');
 const STUBBED_SRC = readFileSync(
   resolve(process.cwd(), 'src/pages/settings/StubbedPages.tsx'),
   'utf8',
@@ -62,17 +56,19 @@ describe('frontend-settings — structural', () => {
   // @ac AC-01
   test('frontend-settings/AC-01 — /settings redirects to /settings/profile', () => {
     // The settingsIndexRoute component renders a Navigate to profile.
-    expect(ROUTER_SRC).toMatch(
-      /<Navigate\s+to=["']\/settings\/profile["']/,
-    );
+    expect(ROUTER_SRC).toMatch(/<Navigate\s+to=["']\/settings\/profile["']/);
   });
 
   // @ac AC-02
   test('frontend-settings/AC-02 — 11 leaf nav items grouped 5/3/3 with warn pip on Security', () => {
     // Extract item IDs from each group.
-    const workspaceMatch = LAYOUT_SRC.match(/title:\s*['"]Workspace['"]\s*,\s*items:\s*\[([\s\S]+?)\]/);
+    const workspaceMatch = LAYOUT_SRC.match(
+      /title:\s*['"]Workspace['"]\s*,\s*items:\s*\[([\s\S]+?)\]/,
+    );
     const accessMatch = LAYOUT_SRC.match(/title:\s*['"]Access['"]\s*,\s*items:\s*\[([\s\S]+?)\]/);
-    const personalMatch = LAYOUT_SRC.match(/title:\s*['"]Personal['"]\s*,\s*items:\s*\[([\s\S]+?)\]/);
+    const personalMatch = LAYOUT_SRC.match(
+      /title:\s*['"]Personal['"]\s*,\s*items:\s*\[([\s\S]+?)\]/,
+    );
     expect(workspaceMatch).toBeTruthy();
     expect(accessMatch).toBeTruthy();
     expect(personalMatch).toBeTruthy();
@@ -107,9 +103,7 @@ describe('frontend-settings — structural', () => {
 
   // @ac AC-05
   test('frontend-settings/AC-05 — Password change posts /auth/password:change with body fields', () => {
-    expect(PROFILE_SRC).toMatch(
-      /api\.POST\(\s*['"]\/api\/v1\/auth\/password:change['"]/,
-    );
+    expect(PROFILE_SRC).toMatch(/api\.POST\(\s*['"]\/api\/v1\/auth\/password:change['"]/);
     expect(PROFILE_SRC).toMatch(/current_password/);
     expect(PROFILE_SRC).toMatch(/new_password/);
   });
@@ -144,18 +138,14 @@ describe('frontend-settings — structural', () => {
 
   // @ac AC-09
   test('frontend-settings/AC-09 — Begin enrollment posts /auth/mfa:enroll + renders provisioning_uri', () => {
-    expect(PROFILE_SRC).toMatch(
-      /api\.POST\(\s*['"]\/api\/v1\/auth\/mfa:enroll['"]/,
-    );
+    expect(PROFILE_SRC).toMatch(/api\.POST\(\s*['"]\/api\/v1\/auth\/mfa:enroll['"]/);
     // The provisioning URI from the response is rendered in JSX.
     expect(PROFILE_SRC).toMatch(/provisioning_uri/);
   });
 
   // @ac AC-10
   test('frontend-settings/AC-10 — Valid otp posts /auth/mfa:verify + flips identity.mfaEnabled', () => {
-    expect(PROFILE_SRC).toMatch(
-      /api\.POST\(\s*['"]\/api\/v1\/auth\/mfa:verify['"]/,
-    );
+    expect(PROFILE_SRC).toMatch(/api\.POST\(\s*['"]\/api\/v1\/auth\/mfa:verify['"]/);
     // The auth store identity is updated (mfaEnabled true) on success.
     expect(PROFILE_SRC).toMatch(/mfaEnabled\s*:\s*true/);
   });
@@ -184,9 +174,7 @@ describe('frontend-settings — structural', () => {
 
   // @ac AC-13
   test('frontend-settings/AC-13 — Credentials list renders from GET /api/v1/credentials', () => {
-    expect(CREDENTIALS_SRC).toMatch(
-      /api\.GET\(\s*['"]\/api\/v1\/credentials['"]/,
-    );
+    expect(CREDENTIALS_SRC).toMatch(/api\.GET\(\s*['"]\/api\/v1\/credentials['"]/);
   });
 
   // @ac AC-14
@@ -246,16 +234,16 @@ describe('frontend-settings — structural', () => {
       const stripped = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
       // Allow #fff/#000 fallbacks in inline-svg data URIs (rare); also
       // allow #${hex} template interpolation. Otherwise no bare hex.
-      const offending = stripped.match(/#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{3})\b(?!.*data:image\/svg)/g);
+      const offending = stripped.match(
+        /#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{3})\b(?!.*data:image\/svg)/g,
+      );
       expect(offending, `${f} contains hardcoded hex: ${offending?.join(', ')}`).toBeNull();
     }
   });
 
   // @ac AC-17
   test('frontend-settings/AC-17 — no console.* call interpolates password values', () => {
-    const consoleCalls = [
-      ...PROFILE_SRC.matchAll(/console\.(log|warn|error)\([^)]*\)/g),
-    ];
+    const consoleCalls = [...PROFILE_SRC.matchAll(/console\.(log|warn|error)\([^)]*\)/g)];
     for (const c of consoleCalls) {
       const callText = c[0];
       expect(callText).not.toMatch(/current_password/);
@@ -267,9 +255,10 @@ describe('frontend-settings — structural', () => {
 
   // @ac AC-18
   test('frontend-settings/AC-18 — axe-core dependency present', () => {
-    const pkg = JSON.parse(
-      readFileSync(resolve(process.cwd(), 'package.json'), 'utf8'),
-    ) as { dependencies?: Record<string, string>; devDependencies?: Record<string, string> };
+    const pkg = JSON.parse(readFileSync(resolve(process.cwd(), 'package.json'), 'utf8')) as {
+      dependencies?: Record<string, string>;
+      devDependencies?: Record<string, string>;
+    };
     const deps = { ...(pkg.dependencies ?? {}), ...(pkg.devDependencies ?? {}) };
     expect(deps['axe-core']).toBeTruthy();
     expect(deps['@axe-core/playwright']).toBeTruthy();

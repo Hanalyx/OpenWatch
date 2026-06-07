@@ -136,7 +136,10 @@ baseClient.use({
     const retried = new Request(request.url, {
       method: request.method,
       headers: new Headers(request.headers),
-      body: request.method === 'GET' || request.method === 'HEAD' ? undefined : await request.clone().text(),
+      body:
+        request.method === 'GET' || request.method === 'HEAD'
+          ? undefined
+          : await request.clone().text(),
       credentials: 'include',
     });
     retried.headers.set(RETRY_MARK, '1');

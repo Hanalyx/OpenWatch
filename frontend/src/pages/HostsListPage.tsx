@@ -122,10 +122,7 @@ export function HostsListPage() {
   const setCrumbs = useBreadcrumbStore((s) => s.setCrumbs);
 
   useEffect(() => {
-    setCrumbs([
-      { label: 'Infrastructure' },
-      { label: 'Hosts' },
-    ]);
+    setCrumbs([{ label: 'Infrastructure' }, { label: 'Hosts' }]);
     return () => setCrumbs([]);
   }, [setCrumbs]);
 
@@ -151,9 +148,7 @@ export function HostsListPage() {
   // If the backend returns empty AND dev fixtures are enabled, populate
   // with the prototype's HOSTS fixture so the layout is testable.
   const useFixtures = isDevFixturesEnabled() && (hostsQuery.data?.length ?? 0) === 0;
-  const hosts: DevHost[] = useFixtures
-    ? devHosts
-    : (hostsQuery.data ?? []).map(apiHostToDev);
+  const hosts: DevHost[] = useFixtures ? devHosts : (hostsQuery.data ?? []).map(apiHostToDev);
 
   const visible = useMemo(() => {
     if (!query) return hosts;
@@ -171,13 +166,9 @@ export function HostsListPage() {
     });
   }, [visible]);
 
-  const kpis = useFixtures
-    ? devKpis
-    : kpisFromHosts(hosts);
+  const kpis = useFixtures ? devKpis : kpisFromHosts(hosts);
 
-  const fleetAlert = useFixtures
-    ? devFleetAlert
-    : fleetAlertFromHosts(hosts);
+  const fleetAlert = useFixtures ? devFleetAlert : fleetAlertFromHosts(hosts);
 
   const hasFilter = !!(search.env || search.tag || query);
 
@@ -265,13 +256,15 @@ export function HostsListPage() {
             kpis.hostsOnline.total > 0 && kpis.hostsOnline.value / kpis.hostsOnline.total < 0.3
               ? 'crit'
               : kpis.hostsOnline.value / Math.max(1, kpis.hostsOnline.total) < 0.7
-              ? 'warn'
-              : 'ok'
+                ? 'warn'
+                : 'ok'
           }
           metaLeft={`${kpis.hostsOnline.total - kpis.hostsOnline.value} down`}
           metaRight={kpis.hostsOnline.delta}
           metaRightTier={kpis.hostsOnline.deltaTier}
-          barPct={kpis.hostsOnline.total > 0 ? (kpis.hostsOnline.value / kpis.hostsOnline.total) * 100 : 0}
+          barPct={
+            kpis.hostsOnline.total > 0 ? (kpis.hostsOnline.value / kpis.hostsOnline.total) * 100 : 0
+          }
         />
         <KPICard
           icon={<Shield size={14} />}
@@ -293,8 +286,8 @@ export function HostsListPage() {
             kpis.criticalIssues.value === 0
               ? 'ok'
               : kpis.criticalIssues.value <= 3
-              ? 'warn'
-              : 'crit'
+                ? 'warn'
+                : 'crit'
           }
           metaLeft={kpis.criticalIssues.scope}
           metaRight={kpis.criticalIssues.delta}
@@ -307,13 +300,7 @@ export function HostsListPage() {
           label="Scan queue"
           value={kpis.scanQueue.value}
           unit=""
-          tier={
-            kpis.scanQueue.value === 0
-              ? 'ok'
-              : kpis.scanQueue.value < 10
-              ? 'warn'
-              : 'crit'
-          }
+          tier={kpis.scanQueue.value === 0 ? 'ok' : kpis.scanQueue.value < 10 ? 'warn' : 'crit'}
           metaLeft={kpis.scanQueue.scope}
           metaRight={kpis.scanQueue.delta}
           metaRightTier={kpis.scanQueue.deltaTier}
@@ -335,14 +322,8 @@ export function HostsListPage() {
           marginBottom: 14,
         }}
       >
-        <SearchBox
-          value={query}
-          onChange={(v) => updateSearch({ q: v || undefined })}
-        />
-        <GroupSeg
-          value={group}
-          onChange={(v) => updateSearch({ group: v })}
-        />
+        <SearchBox value={query} onChange={(v) => updateSearch({ q: v || undefined })} />
+        <GroupSeg value={group} onChange={(v) => updateSearch({ group: v })} />
         <button type="button" style={btnSecondary} aria-label="Filters">
           <FilterIcon size={14} />
           Filters
@@ -376,11 +357,7 @@ export function HostsListPage() {
         />
       )}
       {sorted.length > 0 &&
-        (view === 'cards' ? (
-          <HostsCards hosts={sorted} />
-        ) : (
-          <HostsTable hosts={sorted} />
-        ))}
+        (view === 'cards' ? <HostsCards hosts={sorted} /> : <HostsTable hosts={sorted} />)}
     </div>
   );
 }
@@ -411,36 +388,29 @@ function KPICard({
   barPct: number;
 }) {
   const tierColor =
-    tier === 'crit'
-      ? 'var(--ow-crit)'
-      : tier === 'warn'
-      ? 'var(--ow-warn)'
-      : 'var(--ow-ok)';
+    tier === 'crit' ? 'var(--ow-crit)' : tier === 'warn' ? 'var(--ow-warn)' : 'var(--ow-ok)';
   const tierBg =
-    tier === 'crit'
-      ? 'var(--ow-crit-bg)'
-      : tier === 'warn'
-      ? 'var(--ow-warn-bg)'
-      : null;
+    tier === 'crit' ? 'var(--ow-crit-bg)' : tier === 'warn' ? 'var(--ow-warn-bg)' : null;
   // Prototype .kpi.crit / .kpi.warn — tinted gradient + saturated border.
   const cardBg = tierBg
     ? `linear-gradient(180deg, ${tierBg}, var(--ow-bg-1) 60%)`
     : 'var(--ow-bg-1)';
-  const cardBorder = tier === 'crit'
-    ? 'color-mix(in oklab, var(--ow-crit) 40%, var(--ow-line))'
-    : tier === 'warn'
-    ? 'color-mix(in oklab, var(--ow-warn) 35%, var(--ow-line))'
-    : tier === 'ok'
-    ? 'color-mix(in oklab, var(--ow-ok) 30%, var(--ow-line))'
-    : 'var(--ow-line)';
+  const cardBorder =
+    tier === 'crit'
+      ? 'color-mix(in oklab, var(--ow-crit) 40%, var(--ow-line))'
+      : tier === 'warn'
+        ? 'color-mix(in oklab, var(--ow-warn) 35%, var(--ow-line))'
+        : tier === 'ok'
+          ? 'color-mix(in oklab, var(--ow-ok) 30%, var(--ow-line))'
+          : 'var(--ow-line)';
   const metaRightColor =
     metaRightTier === 'crit'
       ? 'var(--ow-crit)'
       : metaRightTier === 'warn'
-      ? 'var(--ow-warn)'
-      : metaRightTier === 'ok'
-      ? 'var(--ow-ok)'
-      : 'var(--ow-fg-2)';
+        ? 'var(--ow-warn)'
+        : metaRightTier === 'ok'
+          ? 'var(--ow-ok)'
+          : 'var(--ow-fg-2)';
   return (
     <div
       style={{
@@ -593,13 +563,7 @@ function FleetAlert({ alert }: { alert: FleetAlertContent }) {
 // Filter bar pieces
 // ─────────────────────────────────────────────────────────────────────────
 
-function SearchBox({
-  value,
-  onChange,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-}) {
+function SearchBox({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   return (
     <div
       style={{
@@ -815,11 +779,7 @@ function HostCard({ host }: { host: DevHost }) {
     >
       {/* Card head */}
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-        <input
-          type="checkbox"
-          aria-label={`Select ${displayName}`}
-          style={{ marginTop: 4 }}
-        />
+        <input type="checkbox" aria-label={`Select ${displayName}`} style={{ marginTop: 4 }} />
         <div
           style={{
             position: 'relative',
@@ -973,7 +933,9 @@ function HostCard({ host }: { host: DevHost }) {
               }}
             >
               <span style={{ height: '100%', width: `${passPct}%`, background: 'var(--ow-ok)' }} />
-              <span style={{ height: '100%', width: `${failPct}%`, background: 'var(--ow-crit)' }} />
+              <span
+                style={{ height: '100%', width: `${failPct}%`, background: 'var(--ow-crit)' }}
+              />
             </div>
             <div
               style={{
@@ -1004,7 +966,15 @@ function HostCard({ host }: { host: DevHost }) {
           justifyContent: 'space-between',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--ow-fg-2)' }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            fontSize: 12,
+            color: 'var(--ow-fg-2)',
+          }}
+        >
           <RefreshCw size={12} />
           Last scan {host.lastScan}
         </div>
@@ -1062,12 +1032,9 @@ function HostsTable({ hosts }: { hosts: DevHost[] }) {
         }}
       >
         <div style={{ fontSize: 13, fontWeight: 600 }}>
-          All hosts{' '}
-          <span style={{ color: 'var(--ow-fg-2)', marginLeft: 6 }}>{hosts.length}</span>
+          All hosts <span style={{ color: 'var(--ow-fg-2)', marginLeft: 6 }}>{hosts.length}</span>
         </div>
-        <div style={{ color: 'var(--ow-fg-2)', fontSize: 12 }}>
-          Sorted by status, compliance
-        </div>
+        <div style={{ color: 'var(--ow-fg-2)', fontSize: 12 }}>Sorted by status, compliance</div>
       </div>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
         <thead>
@@ -1249,10 +1216,7 @@ function HostRow({ host }: { host: DevHost }) {
 
 // v1.3.0 — band → (label, color, halo bg) lookup. Six bands cover the
 // full multi-layer state surface.
-const BAND_STYLE: Record<
-  MonitoringBand,
-  { label: string; fg: string; bg: string }
-> = {
+const BAND_STYLE: Record<MonitoringBand, { label: string; fg: string; bg: string }> = {
   online: { label: 'ONLINE', fg: 'var(--ow-ok)', bg: 'var(--ow-ok-bg)' },
   degraded: {
     label: 'DEGRADED',
@@ -1343,13 +1307,7 @@ function OSChip({ os }: { os: DevHost['os'] }) {
 // State regions
 // ─────────────────────────────────────────────────────────────────────────
 
-function ErrorRegion({
-  message,
-  onRetry,
-}: {
-  message: string;
-  onRetry: () => void;
-}) {
+function ErrorRegion({ message, onRetry }: { message: string; onRetry: () => void }) {
   return (
     <div
       role="alert"
@@ -1411,9 +1369,7 @@ function EmptyRegion({
     >
       <ServerOff size={32} color="var(--ow-fg-3)" style={{ marginBottom: 12 }} />
       <h2 style={{ marginTop: 0, fontWeight: 500 }}>No hosts yet</h2>
-      <p style={{ color: 'var(--ow-fg-2)' }}>
-        Add your first host to begin tracking compliance.
-      </p>
+      <p style={{ color: 'var(--ow-fg-2)' }}>Add your first host to begin tracking compliance.</p>
       {canAdd && (
         <Link to="/hosts/new" style={btnPrimary}>
           <Plus size={14} /> Add your first host
@@ -1444,9 +1400,7 @@ export function apiHostToDev(h: ApiHost): DevHost {
   // the StatusPill can render degraded vs critical vs down distinctly.
   const reachable = h.liveness?.reachability_status === 'reachable';
   const monitoring: MonitoringBand =
-    h.maintenance_mode === true
-      ? 'maintenance'
-      : h.liveness?.monitoring_state ?? 'unknown';
+    h.maintenance_mode === true ? 'maintenance' : (h.liveness?.monitoring_state ?? 'unknown');
   let lastCheckMinutes: number | null = null;
   if (h.liveness?.last_probe_at) {
     const probedAt = new Date(h.liveness.last_probe_at).getTime();

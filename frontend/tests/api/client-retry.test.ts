@@ -17,16 +17,24 @@ function queueResponses(...responses: Response[]) {
   let i = 0;
   return vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => {
     const r = responses[i++];
-    if (!r) throw new Error(`fetch called more times than mocked (${i} calls, ${responses.length} queued)`);
+    if (!r)
+      throw new Error(
+        `fetch called more times than mocked (${i} calls, ${responses.length} queued)`,
+      );
     return r;
   });
 }
 
 function envelope(code: string, msg: string): Response {
-  return new Response(JSON.stringify({ error: { code, human_message: msg, retryable: code === 'auth.session_invalid' } }), {
-    status: 401,
-    headers: { 'Content-Type': 'application/json' },
-  });
+  return new Response(
+    JSON.stringify({
+      error: { code, human_message: msg, retryable: code === 'auth.session_invalid' },
+    }),
+    {
+      status: 401,
+      headers: { 'Content-Type': 'application/json' },
+    },
+  );
 }
 
 function jsonOK(body: unknown): Response {
@@ -110,7 +118,7 @@ describe('api/client — 401 retry middleware', () => {
     expect(mock).toHaveBeenCalledTimes(3);
     // Second call MUST be the refresh-cookie endpoint.
     const secondReq = mock.mock.calls[1]?.[0] as Request | string | undefined;
-    const secondUrl = typeof secondReq === 'string' ? secondReq : secondReq?.url ?? '';
+    const secondUrl = typeof secondReq === 'string' ? secondReq : (secondReq?.url ?? '');
     expect(secondUrl).toContain('/api/v1/auth/refresh-cookie');
     // No navigation occurred — the user stays where they are.
     expect(navigateSpy).not.toHaveBeenCalled();

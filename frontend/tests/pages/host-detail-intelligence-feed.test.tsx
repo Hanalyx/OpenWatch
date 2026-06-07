@@ -27,10 +27,7 @@ const CARD_SRC = readFileSync(
   'utf8',
 );
 
-const LIVE_EVENTS_SRC = readFileSync(
-  resolve(process.cwd(), 'src/hooks/useLiveEvents.ts'),
-  'utf8',
-);
+const LIVE_EVENTS_SRC = readFileSync(resolve(process.cwd(), 'src/hooks/useLiveEvents.ts'), 'utf8');
 
 describe('frontend-host-detail-intelligence-feed — structural', () => {
   // @ac AC-01
@@ -49,9 +46,7 @@ describe('frontend-host-detail-intelligence-feed — structural', () => {
   // @ac AC-02
   test('frontend-host-detail-intelligence-feed/AC-02 — query key + useLiveEvents dual invalidation', () => {
     // Card's query key is the new snapshot key.
-    expect(CARD_SRC).toMatch(
-      /queryKey:\s*\[\s*['"]intelligence_state['"]\s*,\s*hostId\s*\]/,
-    );
+    expect(CARD_SRC).toMatch(/queryKey:\s*\[\s*['"]intelligence_state['"]\s*,\s*hostId\s*\]/);
     // useLiveEvents invalidates BOTH keys (event feed + snapshot tile grid).
     expect(LIVE_EVENTS_SRC).toMatch(
       /queryKey:\s*\[\s*['"]host_intelligence_events['"]\s*,\s*hostId\s*\]/,
@@ -81,12 +76,7 @@ describe('frontend-host-detail-intelligence-feed — behavior', () => {
   test('frontend-host-detail-intelligence-feed/AC-04 — generic error renders Retry', () => {
     const onRetry = vi.fn();
     render(
-      <CardServerIntelView
-        isLoading={false}
-        isError={true}
-        notFound={false}
-        onRetry={onRetry}
-      />,
+      <CardServerIntelView isLoading={false} isError={true} notFound={false} onRetry={onRetry} />,
     );
     expect(screen.getByRole('alert')).toBeInTheDocument();
     const btn = screen.getByRole('button', { name: /retry/i });

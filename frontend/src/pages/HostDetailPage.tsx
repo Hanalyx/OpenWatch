@@ -95,13 +95,7 @@ interface HostResponse {
   os_discovered_at?: string | null;
 }
 
-type MonitoringBand =
-  | 'online'
-  | 'degraded'
-  | 'critical'
-  | 'down'
-  | 'maintenance'
-  | 'unknown';
+type MonitoringBand = 'online' | 'degraded' | 'critical' | 'down' | 'maintenance' | 'unknown';
 
 interface HostLiveness {
   reachability_status: 'reachable' | 'unreachable' | 'unknown';
@@ -136,12 +130,7 @@ interface HostDetail {
 // is now the unified union (monitoring band transitions + scan
 // transactions + intelligence events + alerts + audit) per
 // system-activity v1.1.0.
-type ActivitySource =
-  | 'alert'
-  | 'transaction'
-  | 'intelligence'
-  | 'audit'
-  | 'monitoring';
+type ActivitySource = 'alert' | 'transaction' | 'intelligence' | 'audit' | 'monitoring';
 
 type ActivitySeverity = 'info' | 'low' | 'medium' | 'high' | 'critical';
 
@@ -185,24 +174,16 @@ const TAB_ORDER: { id: TabId; label: string; icon: LucideIcon }[] = [
 // Backend subsystem that populates each tab when it lands. Surfaces
 // inside the per-tab empty state so operators know what's deferred.
 const TAB_BACKEND_SUBSYSTEM: Record<Exclude<TabId, 'overview'>, string> = {
-  compliance:
-    'Compliance scanner — runs Kensa-via-SSH per host; not yet wired in the Go rebuild.',
-  packages:
-    'Server Intelligence collection — installed-package inventory deferred (BACKLOG).',
-  services:
-    'Server Intelligence collection — running services inventory deferred (BACKLOG).',
-  users:
-    'Server Intelligence collection — user accounts inventory deferred (BACKLOG).',
-  network:
-    'Server Intelligence collection — interfaces and firewall rules deferred (BACKLOG).',
+  compliance: 'Compliance scanner — runs Kensa-via-SSH per host; not yet wired in the Go rebuild.',
+  packages: 'Server Intelligence collection — installed-package inventory deferred (BACKLOG).',
+  services: 'Server Intelligence collection — running services inventory deferred (BACKLOG).',
+  users: 'Server Intelligence collection — user accounts inventory deferred (BACKLOG).',
+  network: 'Server Intelligence collection — interfaces and firewall rules deferred (BACKLOG).',
   audit_log:
     'Audit query API — host-scoped audit feed deferred to the unified /activity page (BACKLOG).',
-  activity:
-    'Unified Activity feed — combined transactions + audits + alerts deferred (BACKLOG).',
-  remediation:
-    'Remediation engine — Kensa-side remediation pipeline deferred (BACKLOG).',
-  terminal:
-    'Web terminal — SSH-in-browser deferred; use a host-side SSH client in the meantime.',
+  activity: 'Unified Activity feed — combined transactions + audits + alerts deferred (BACKLOG).',
+  remediation: 'Remediation engine — Kensa-side remediation pipeline deferred (BACKLOG).',
+  terminal: 'Web terminal — SSH-in-browser deferred; use a host-side SSH client in the meantime.',
 };
 
 const DEFAULT_SUMMARY: ComplianceSummary = {
@@ -212,7 +193,6 @@ const DEFAULT_SUMMARY: ComplianceSummary = {
   error: 0,
   total: 0,
 };
-
 
 // ─────────────────────────────────────────────────────────────────────────
 // Page
@@ -301,10 +281,9 @@ export function HostDetailPage() {
   const intelligenceStateQuery = useQuery({
     queryKey: ['intelligence_state', hostId],
     queryFn: async () => {
-      const { data, error, response } = await api.GET(
-        '/api/v1/intelligence/state/{host_id}',
-        { params: { path: { host_id: hostId } } },
-      );
+      const { data, error, response } = await api.GET('/api/v1/intelligence/state/{host_id}', {
+        params: { path: { host_id: hostId } },
+      });
       if (response.status === 404) return null;
       if (error) throw error;
       const raw = data as unknown as { snapshot?: Record<string, unknown> } | null;
@@ -321,10 +300,9 @@ export function HostDetailPage() {
   const systemInfoQuery = useQuery({
     queryKey: ['host_system_info', hostId],
     queryFn: async () => {
-      const { data, error, response } = await api.GET(
-        '/api/v1/hosts/{id}/system-info',
-        { params: { path: { id: hostId } } },
-      );
+      const { data, error, response } = await api.GET('/api/v1/hosts/{id}/system-info', {
+        params: { path: { id: hostId } },
+      });
       if (response.status === 404) return null;
       if (error) throw error;
       return data ?? null;
@@ -419,10 +397,7 @@ export function HostDetailPage() {
                 }}
                 aria-label="Host hero stats"
               >
-                <HeroCompliance
-                  summary={detailQuery.data.compliance_summary}
-                  lastScan={null}
-                />
+                <HeroCompliance summary={detailQuery.data.compliance_summary} lastScan={null} />
                 <HeroAutoScan />
                 <HeroConnectivity
                   host={detailQuery.data.host}
@@ -493,10 +468,7 @@ export function HostDetailPage() {
               }
             />
           ) : (
-            <TabStub
-              tab={activeTab}
-              subsystem={TAB_BACKEND_SUBSYSTEM[activeTab]}
-            />
+            <TabStub tab={activeTab} subsystem={TAB_BACKEND_SUBSYSTEM[activeTab]} />
           )}
         </>
       )}
@@ -520,9 +492,7 @@ function PageHead({
 }) {
   const [editOpen, setEditOpen] = useState(false);
   const band: MonitoringBand =
-    host.maintenance_mode === true
-      ? 'maintenance'
-      : liveness?.monitoring_state ?? 'unknown';
+    host.maintenance_mode === true ? 'maintenance' : (liveness?.monitoring_state ?? 'unknown');
 
   // OS / Kernel / Uptime are sourced from the same two queries the
   // System card uses — hosts (os_family, os_version, denormalized by
@@ -592,71 +562,71 @@ function PageHead({
               </h1>
               <StatusPill band={band} />
             </div>
-          <div
-            style={{
-              color: 'var(--ow-fg-2)',
-              fontSize: 13,
-              marginTop: 6,
-              display: 'flex',
-              flexWrap: 'wrap',
-              gap: 10,
-              alignItems: 'center',
-            }}
-          >
-            <span style={{ fontFamily: 'var(--ow-font-mono)' }}>
-              {host.ip_address}
-              {host.port ? `:${host.port}` : ''}
-            </span>
-            {host.environment && (
-              <span
-                style={{
-                  padding: '2px 8px',
-                  background: 'var(--ow-bg-3)',
-                  borderRadius: 'var(--ow-radius-full)',
-                  fontSize: 11,
-                }}
-              >
-                {host.environment}
-              </span>
-            )}
-            <span style={{ color: 'var(--ow-fg-3)' }}>·</span>
-            <span
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
-              title="OS distribution — from hosts.os_family / os_version (Discovery)"
+            <div
+              style={{
+                color: 'var(--ow-fg-2)',
+                fontSize: 13,
+                marginTop: 6,
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: 10,
+                alignItems: 'center',
+              }}
             >
-              {osDistribution ? (
-                <>
-                  <span
-                    style={{
-                      display: 'inline-block',
-                      width: 8,
-                      height: 8,
-                      borderRadius: '50%',
-                      background: 'var(--ow-info)',
-                    }}
-                  />
-                  <span style={{ color: 'var(--ow-fg-1)' }}>{osDistribution}</span>
-                </>
-              ) : (
-                <>
-                  {'OS '}
-                  <span style={{ color: 'var(--ow-fg-1)' }}>—</span>
-                </>
-              )}
-            </span>
-            <span style={{ color: 'var(--ow-fg-3)' }}>·</span>
-            <span title="Kernel — from intelligence_state.snapshot.kernel_release">
-              {'Kernel '}
-              <span style={{ color: 'var(--ow-fg-1)', fontFamily: 'var(--ow-font-mono)' }}>
-                {kernelVersion ?? '—'}
+              <span style={{ fontFamily: 'var(--ow-font-mono)' }}>
+                {host.ip_address}
+                {host.port ? `:${host.port}` : ''}
               </span>
-            </span>
-            <span style={{ color: 'var(--ow-fg-3)' }}>·</span>
-            <span title="Uptime — from intelligence_state.snapshot.uptime_seconds">
-              {'Uptime '}
-              <span style={{ color: 'var(--ow-fg-1)' }}>{uptimeText ?? '—'}</span>
-            </span>
-          </div>
+              {host.environment && (
+                <span
+                  style={{
+                    padding: '2px 8px',
+                    background: 'var(--ow-bg-3)',
+                    borderRadius: 'var(--ow-radius-full)',
+                    fontSize: 11,
+                  }}
+                >
+                  {host.environment}
+                </span>
+              )}
+              <span style={{ color: 'var(--ow-fg-3)' }}>·</span>
+              <span
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                title="OS distribution — from hosts.os_family / os_version (Discovery)"
+              >
+                {osDistribution ? (
+                  <>
+                    <span
+                      style={{
+                        display: 'inline-block',
+                        width: 8,
+                        height: 8,
+                        borderRadius: '50%',
+                        background: 'var(--ow-info)',
+                      }}
+                    />
+                    <span style={{ color: 'var(--ow-fg-1)' }}>{osDistribution}</span>
+                  </>
+                ) : (
+                  <>
+                    {'OS '}
+                    <span style={{ color: 'var(--ow-fg-1)' }}>—</span>
+                  </>
+                )}
+              </span>
+              <span style={{ color: 'var(--ow-fg-3)' }}>·</span>
+              <span title="Kernel — from intelligence_state.snapshot.kernel_release">
+                {'Kernel '}
+                <span style={{ color: 'var(--ow-fg-1)', fontFamily: 'var(--ow-font-mono)' }}>
+                  {kernelVersion ?? '—'}
+                </span>
+              </span>
+              <span style={{ color: 'var(--ow-fg-3)' }}>·</span>
+              <span title="Uptime — from intelligence_state.snapshot.uptime_seconds">
+                {'Uptime '}
+                <span style={{ color: 'var(--ow-fg-1)' }}>{uptimeText ?? '—'}</span>
+              </span>
+            </div>
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
@@ -956,9 +926,7 @@ function TabsRow({
               padding: '10px 14px',
               fontSize: 13,
               color: isActive ? 'var(--ow-fg-0)' : 'var(--ow-fg-2)',
-              borderBottom: isActive
-                ? '2px solid var(--ow-info)'
-                : '2px solid transparent',
+              borderBottom: isActive ? '2px solid var(--ow-info)' : '2px solid transparent',
               cursor: 'pointer',
               display: 'inline-flex',
               alignItems: 'center',
@@ -1170,13 +1138,9 @@ function HeroConnectivity({
   liveness: HostLiveness | null;
 }) {
   const band: MonitoringBand =
-    host.maintenance_mode === true
-      ? 'maintenance'
-      : liveness?.monitoring_state ?? 'unknown';
+    host.maintenance_mode === true ? 'maintenance' : (liveness?.monitoring_state ?? 'unknown');
   const { label: BAND_HEADLINE, color } = bandLabel(band);
-  const lastSeen = liveness?.last_probe_at
-    ? relativeMinutes(liveness.last_probe_at)
-    : '—';
+  const lastSeen = liveness?.last_probe_at ? relativeMinutes(liveness.last_probe_at) : '—';
   return (
     <article style={heroCard} aria-labelledby="hero-conn-title">
       <header style={heroHead}>
@@ -1185,9 +1149,7 @@ function HeroConnectivity({
       </header>
       <BandLine label={BAND_HEADLINE} color={color} />
       {liveness === null ? (
-        <div style={{ color: 'var(--ow-fg-2)', fontSize: 12 }}>
-          Not yet probed
-        </div>
+        <div style={{ color: 'var(--ow-fg-2)', fontSize: 12 }}>Not yet probed</div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12 }}>
           <KvRow
@@ -1252,16 +1214,8 @@ function HeroWatchlist() {
         <span id="hero-watch-title">Watchlist</span>
         <Bell size={14} aria-hidden />
       </header>
-      <WatchlistRow
-        label={'Active alerts'}
-        value={0}
-        subtext="No alerts firing"
-      />
-      <WatchlistRow
-        label={'Exceptions'}
-        value={0}
-        subtext="No suppressed rules"
-      />
+      <WatchlistRow label={'Active alerts'} value={0} subtext="No alerts firing" />
+      <WatchlistRow label={'Exceptions'} value={0} subtext="No suppressed rules" />
       <div
         style={{
           marginTop: 6,
@@ -1514,7 +1468,6 @@ function activityRelativeTime(iso: string): string {
   });
 }
 
-
 // ─────────────────────────────────────────────────────────────────────────
 // Reusable bits (cards, kv rows, empty states, etc.)
 // ─────────────────────────────────────────────────────────────────────────
@@ -1575,7 +1528,15 @@ function EmptyState({
       <div style={{ color: 'var(--ow-fg-1)', fontSize: 13, fontWeight: 500, marginBottom: 4 }}>
         {primary}
       </div>
-      <div style={{ fontSize: 11, color: 'var(--ow-fg-3)', maxWidth: 360, margin: '0 auto', lineHeight: 1.5 }}>
+      <div
+        style={{
+          fontSize: 11,
+          color: 'var(--ow-fg-3)',
+          maxWidth: 360,
+          margin: '0 auto',
+          lineHeight: 1.5,
+        }}
+      >
         {secondary}
       </div>
     </div>
@@ -1586,7 +1547,16 @@ function KvRow({ k, v }: { k: string; v: React.ReactNode }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
       <span style={{ color: 'var(--ow-fg-3)' }}>{k}</span>
-      <span style={{ color: 'var(--ow-fg-1)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{v}</span>
+      <span
+        style={{
+          color: 'var(--ow-fg-1)',
+          minWidth: 0,
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+        }}
+      >
+        {v}
+      </span>
     </div>
   );
 }
