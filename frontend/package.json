@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "description": "OpenWatch React 19 + MUI v7 SPA. Embedded into the Go binary at app/frontend/dist via go:embed. See app/docs/frontend_architecture_adr.md.",
+  "description": "OpenWatch React 19 + MUI v7 SPA. Embedded into the Go binary at frontend/dist via go:embed. See docs/engineering/frontend_architecture_adr.md.",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",

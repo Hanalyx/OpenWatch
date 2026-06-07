@@ -18,6 +18,7 @@
 BINARY    := openwatch
 DIST_DIR  := dist
 CMD_DIR   := ./cmd/openwatch
+SPA_DIR   := internal/server/spa
 
 # Version metadata injected at build time. The Go rebuild has its own
 # version track (packaging/version.env) so its milestones decouple from
@@ -44,7 +45,7 @@ LDFLAGS_FIPS := -ldflags "\
 # -----------------------------------------------------------------------------
 
 .PHONY: build
-build: $(DIST_DIR) internal/server/openapi_embed.yaml
+build: $(DIST_DIR) internal/server/openapi_embed.yaml spa
 	go build $(LDFLAGS) -o $(DIST_DIR)/$(BINARY) $(CMD_DIR)
 	@echo "built $(DIST_DIR)/$(BINARY) ($(VERSION) / $(COMMIT))"
 
@@ -56,7 +57,7 @@ $(DIST_DIR):
 # -----------------------------------------------------------------------------
 
 .PHONY: test
-test: internal/server/openapi_embed.yaml
+test: internal/server/openapi_embed.yaml $(SPA_DIR)/index.html
 	go test ./...
 
 # test-integration: runs the full suite (including DB-backed integration
@@ -66,7 +67,7 @@ test: internal/server/openapi_embed.yaml
 # DB would destroy real data. Run `make test-db-create` first if the
 # database does not exist yet.
 .PHONY: test-integration
-test-integration: internal/server/openapi_embed.yaml
+test-integration: internal/server/openapi_embed.yaml $(SPA_DIR)/index.html
 	@DB="$${OPENWATCH_TEST_DB:-openwatch_go_test}"; \
 	case "$$DB" in *_test) ;; \
 	  *) echo "ERROR: OPENWATCH_TEST_DB ($$DB) must end with _test"; exit 1 ;; esac; \
@@ -124,12 +125,12 @@ tidy:
 # resolves at vet time too — the source tree must contain the embedded
 # file for vet to type-check the embedding declaration.
 .PHONY: vet
-vet: internal/server/openapi_embed.yaml
+vet: internal/server/openapi_embed.yaml $(SPA_DIR)/index.html
 	go vet ./...
 
 # lint: golangci-lint runs staticcheck + gosec + govet + others per .golangci.yml.
 .PHONY: lint
-lint: internal/server/openapi_embed.yaml
+lint: internal/server/openapi_embed.yaml $(SPA_DIR)/index.html
 	@if command -v golangci-lint >/dev/null 2>&1; then \
 	  golangci-lint run; \
 	else \
@@ -139,7 +140,7 @@ lint: internal/server/openapi_embed.yaml
 # vuln: known-CVE scan against deps + stdlib (call-graph aware).
 # Auto-installs govulncheck if absent.
 .PHONY: vuln
-vuln: internal/server/openapi_embed.yaml
+vuln: internal/server/openapi_embed.yaml $(SPA_DIR)/index.html
 	@if ! command -v govulncheck >/dev/null 2>&1; then \
 	  echo "installing govulncheck..."; \
 	  go install golang.org/x/vuln/cmd/govulncheck@latest; \
@@ -150,7 +151,7 @@ vuln: internal/server/openapi_embed.yaml
 # Integration tests still need OPENWATCH_TEST_DSN; without it they skip.
 # -p 1 serializes packages so they don't trample each other's DB state.
 .PHONY: test-race
-test-race: internal/server/openapi_embed.yaml
+test-race: internal/server/openapi_embed.yaml $(SPA_DIR)/index.html
 	go test -race -p 1 ./...
 
 # check: the single pre-push gate. Chains vet → lint → vuln → test-race.
@@ -161,7 +162,7 @@ check: vet lint vuln test-race
 
 .PHONY: clean
 clean:
-	rm -rf $(DIST_DIR)
+	rm -rf $(DIST_DIR) $(SPA_DIR)
 	@echo "cleaned $(DIST_DIR)/"
 
 .PHONY: version
@@ -198,6 +199,29 @@ generate-api:
 internal/server/openapi_embed.yaml: api/openapi.yaml
 	cp $< $@
 
+# Embedded SPA. The Go binary serves the React app via go:embed (see
+# internal/server/spa.go). go:embed cannot follow paths outside the package
+# directory, so the build stages the UI under internal/server/spa/. The
+# directory is gitignored.
+#
+# Two ways to populate it:
+#   - $(SPA_DIR)/index.html  — a lightweight stub so go vet/lint/test compile
+#     the embed without a Node toolchain (created on demand, fast).
+#   - make spa               — the real `vite build` output, for release binaries.
+$(SPA_DIR)/index.html:
+	@mkdir -p $(SPA_DIR)
+	@printf '%s\n' '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>OpenWatch</title></head><body>OpenWatch SPA placeholder. Run `make spa` (or `make build`) to embed the real UI.</body></html>' > $@
+
+# Build the real frontend and stage it into the embed directory. Uses
+# `vite build` directly rather than the frontend `build` script's `tsc -b`,
+# which is gated on the frontend's (deferred) type-error cleanup. npm ci runs
+# only when node_modules is absent.
+.PHONY: spa
+spa:
+	cd frontend && { [ -d node_modules ] || npm ci --no-audit --no-fund; } && npx vite build
+	@rm -rf $(SPA_DIR) && mkdir -p $(SPA_DIR) && cp -r frontend/dist/. $(SPA_DIR)/
+	@echo "embedded SPA: frontend/dist -> $(SPA_DIR)/"
+
 # -----------------------------------------------------------------------------
 # Database migrations (Day 3)
 # -----------------------------------------------------------------------------
@@ -223,7 +247,7 @@ deb:
 # -----------------------------------------------------------------------------
 
 .PHONY: build-fips
-build-fips: $(DIST_DIR)
+build-fips: $(DIST_DIR) internal/server/openapi_embed.yaml spa
 	GOFIPS140=v1.0.0 go build $(LDFLAGS_FIPS) -o $(DIST_DIR)/$(BINARY)-fips $(CMD_DIR)
 	@echo "built $(DIST_DIR)/$(BINARY)-fips ($(VERSION) / $(COMMIT)) [FIPS 140-3]"
 
