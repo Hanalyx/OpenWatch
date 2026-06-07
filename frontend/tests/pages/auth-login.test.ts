@@ -21,14 +21,8 @@ import { describe, expect, test } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-const LOGIN_SRC = readFileSync(
-  resolve(process.cwd(), 'src/pages/LoginPage.tsx'),
-  'utf8',
-);
-const CLIENT_SRC = readFileSync(
-  resolve(process.cwd(), 'src/api/client.ts'),
-  'utf8',
-);
+const LOGIN_SRC = readFileSync(resolve(process.cwd(), 'src/pages/LoginPage.tsx'), 'utf8');
+const CLIENT_SRC = readFileSync(resolve(process.cwd(), 'src/api/client.ts'), 'utf8');
 
 describe('frontend-auth-login — structural', () => {
   // @ac AC-01
@@ -58,8 +52,8 @@ describe('frontend-auth-login — structural', () => {
     // Preservation: the handler does NOT call reset() on the mfa_required
     // branch; values stay in the form state.
     const mfaBranch = LOGIN_SRC.slice(
-      LOGIN_SRC.indexOf("auth.mfa_required"),
-      LOGIN_SRC.indexOf("auth.mfa_required") + 600,
+      LOGIN_SRC.indexOf('auth.mfa_required'),
+      LOGIN_SRC.indexOf('auth.mfa_required') + 600,
     );
     expect(mfaBranch).not.toMatch(/\breset\(\)/);
   });
@@ -151,9 +145,10 @@ describe('frontend-auth-login — structural', () => {
 
   // @ac AC-12
   test('frontend-auth-login/AC-12 — axe-core dependency present', () => {
-    const pkg = JSON.parse(
-      readFileSync(resolve(process.cwd(), 'package.json'), 'utf8'),
-    ) as { dependencies?: Record<string, string>; devDependencies?: Record<string, string> };
+    const pkg = JSON.parse(readFileSync(resolve(process.cwd(), 'package.json'), 'utf8')) as {
+      dependencies?: Record<string, string>;
+      devDependencies?: Record<string, string>;
+    };
     const deps = { ...(pkg.dependencies ?? {}), ...(pkg.devDependencies ?? {}) };
     expect(deps['axe-core']).toBeTruthy();
     expect(deps['@axe-core/playwright']).toBeTruthy();
@@ -161,9 +156,7 @@ describe('frontend-auth-login — structural', () => {
 
   // @ac AC-13
   test('frontend-auth-login/AC-13 — no console.* interpolates password or otp values', () => {
-    const consoleCalls = [
-      ...LOGIN_SRC.matchAll(/console\.(log|warn|error)\([^)]*\)/g),
-    ];
+    const consoleCalls = [...LOGIN_SRC.matchAll(/console\.(log|warn|error)\([^)]*\)/g)];
     for (const c of consoleCalls) {
       const callText = c[0];
       expect(callText).not.toMatch(/values\.password/);
@@ -189,10 +182,7 @@ describe('frontend-auth-login — structural', () => {
     // identity SHAPE returned by /auth/me — NOT a token bag.
     expect(LOGIN_SRC).toMatch(/setIdentity\(\s*identity\s*\)/);
     // Auth store comment pins the never-store contract.
-    const authStoreSrc = readFileSync(
-      resolve(process.cwd(), 'src/store/useAuthStore.ts'),
-      'utf8',
-    );
+    const authStoreSrc = readFileSync(resolve(process.cwd(), 'src/store/useAuthStore.ts'), 'utf8');
     expect(authStoreSrc).toMatch(/MUST NEVER hold access_token or refresh_token/);
   });
 });

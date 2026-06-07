@@ -32,10 +32,7 @@ import { describe, expect, test } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-const PAGE_SRC = readFileSync(
-  resolve(process.cwd(), 'src/pages/HostDetailPage.tsx'),
-  'utf8',
-);
+const PAGE_SRC = readFileSync(resolve(process.cwd(), 'src/pages/HostDetailPage.tsx'), 'utf8');
 
 // Source-position of each band's sentinel marker. AC-01 asserts these
 // appear in declaration order — moving any of them out of place fails.
@@ -146,12 +143,7 @@ describe('frontend-host-detail — prototype shell', () => {
 
   // @ac AC-19
   test('frontend-host-detail/AC-19 — 4 hero stat cards in prototype order', () => {
-    const expected = [
-      'HeroCompliance',
-      'HeroAutoScan',
-      'HeroConnectivity',
-      'HeroWatchlist',
-    ];
+    const expected = ['HeroCompliance', 'HeroAutoScan', 'HeroConnectivity', 'HeroWatchlist'];
     let prev = PAGE_SRC.indexOf('/* HERO_STRIP */');
     expect(prev).toBeGreaterThan(-1);
     for (const name of expected) {

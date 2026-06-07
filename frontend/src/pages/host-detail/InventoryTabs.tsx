@@ -28,7 +28,7 @@ export interface InventorySnapshot {
 export interface NetworkInterfaceFact {
   name: string;
   state?: string; // UP | DOWN | UNKNOWN
-  type?: string;  // physical | loopback | virtual
+  type?: string; // physical | loopback | virtual
   ipv4_addrs?: string[];
   ipv6_addrs?: string[];
   mac?: string;
@@ -53,7 +53,7 @@ export interface RouteFact {
 // and the inline callout when the firewall is not active.
 export interface NetworkFirewallFact {
   service?: string | null; // firewalld | ufw | nftables | iptables | empty
-  status?: string | null;  // active | inactive | ...
+  status?: string | null; // active | inactive | ...
 }
 
 interface CommonProps {
@@ -93,9 +93,7 @@ export function networkCount(snap: InventorySnapshot | null): number {
 
 export function PackagesTab({ isLoading, snapshot }: CommonProps) {
   const entries = useMemo(
-    () =>
-      Object.entries(snapshot?.packages ?? {})
-        .sort(([a], [b]) => a.localeCompare(b)),
+    () => Object.entries(snapshot?.packages ?? {}).sort(([a], [b]) => a.localeCompare(b)),
     [snapshot],
   );
   return (
@@ -106,22 +104,16 @@ export function PackagesTab({ isLoading, snapshot }: CommonProps) {
       emptySecondary="OS Intelligence collector populates packages on the first cycle. If you just registered this host, wait for the scheduler to run (default 1h cadence) or trigger a Discovery."
       searchPlaceholder="Search packages…"
       rows={(filtered) =>
-        filtered.map(([name, version]) => (
-          <Row key={name} label={name} value={String(version)} />
-        ))
+        filtered.map(([name, version]) => <Row key={name} label={name} value={String(version)} />)
       }
-      filterPredicate={(needle, [name]) =>
-        name.toLowerCase().includes(needle)
-      }
+      filterPredicate={(needle, [name]) => name.toLowerCase().includes(needle)}
     />
   );
 }
 
 export function ServicesTab({ isLoading, snapshot }: CommonProps) {
   const entries = useMemo(
-    () =>
-      Object.entries(snapshot?.services ?? {})
-        .sort(([a], [b]) => a.localeCompare(b)),
+    () => Object.entries(snapshot?.services ?? {}).sort(([a], [b]) => a.localeCompare(b)),
     [snapshot],
   );
   return (
@@ -147,18 +139,14 @@ export function ServicesTab({ isLoading, snapshot }: CommonProps) {
           />
         ))
       }
-      filterPredicate={(needle, [unit]) =>
-        unit.toLowerCase().includes(needle)
-      }
+      filterPredicate={(needle, [unit]) => unit.toLowerCase().includes(needle)}
     />
   );
 }
 
 export function UsersTab({ isLoading, snapshot }: CommonProps) {
   const entries = useMemo(
-    () =>
-      Object.entries(snapshot?.users ?? {})
-        .sort(([a], [b]) => a.localeCompare(b)),
+    () => Object.entries(snapshot?.users ?? {}).sort(([a], [b]) => a.localeCompare(b)),
     [snapshot],
   );
   return (
@@ -171,18 +159,13 @@ export function UsersTab({ isLoading, snapshot }: CommonProps) {
       rows={(filtered) =>
         filtered.map(([name, meta]) => {
           const m = meta ?? {};
-          const tail = [
-            m.uid != null ? `uid ${m.uid}` : '',
-            m.locked ? 'locked' : '',
-          ]
+          const tail = [m.uid != null ? `uid ${m.uid}` : '', m.locked ? 'locked' : '']
             .filter(Boolean)
             .join(' · ');
           return <Row key={name} label={name} value={tail || '—'} />;
         })
       }
-      filterPredicate={(needle, [name]) =>
-        name.toLowerCase().includes(needle)
-      }
+      filterPredicate={(needle, [name]) => name.toLowerCase().includes(needle)}
     />
   );
 }
@@ -205,15 +188,9 @@ interface NetworkTabProps extends CommonProps {
 // Pre-cycle hosts get honest empty states per region rather than a
 // single page-level blank.
 export function NetworkTab({ isLoading, snapshot, firewall }: NetworkTabProps) {
-  const interfaces = useMemo(
-    () => snapshot?.network_interfaces ?? [],
-    [snapshot],
-  );
+  const interfaces = useMemo(() => snapshot?.network_interfaces ?? [], [snapshot]);
   const routes = useMemo(() => snapshot?.routes ?? [], [snapshot]);
-  const ports = useMemo(
-    () => (snapshot?.listening_ports ?? []).slice().sort(byPort),
-    [snapshot],
-  );
+  const ports = useMemo(() => (snapshot?.listening_ports ?? []).slice().sort(byPort), [snapshot]);
 
   if (isLoading) {
     return (
@@ -320,8 +297,8 @@ function NetworkStatRow(props: {
     props.firewall?.status === null || props.firewall?.status === undefined
       ? '—'
       : fwActive
-      ? 'Active'
-      : 'Inactive';
+        ? 'Active'
+        : 'Inactive';
   const fwSub = composeFirewallSub(
     props.firewall?.service ?? null,
     fwActive,
@@ -379,8 +356,8 @@ function StatCard({
     valueColor === 'crit'
       ? 'var(--ow-crit)'
       : valueColor === 'ok'
-      ? 'var(--ow-ok)'
-      : 'var(--ow-fg-0)';
+        ? 'var(--ow-ok)'
+        : 'var(--ow-fg-0)';
   return (
     <div
       style={{
@@ -527,15 +504,7 @@ function StateBadge({ up, label }: { up: boolean; label: string }) {
   );
 }
 
-function NetField({
-  label,
-  value,
-  mono,
-}: {
-  label: string;
-  value: string;
-  mono?: boolean;
-}) {
+function NetField({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
     <div>
       <div style={{ fontSize: 11, color: 'var(--ow-fg-3)' }}>{label}</div>
@@ -595,9 +564,7 @@ function ListeningPortsPanel({
               <span style={{ fontFamily: 'var(--ow-font-mono)' }}>
                 {p.address ?? '?'}:{p.port ?? '?'}
               </span>
-              <span style={{ color: 'var(--ow-fg-3)' }}>
-                {(p.protocol ?? 'tcp').toUpperCase()}
-              </span>
+              <span style={{ color: 'var(--ow-fg-3)' }}>{(p.protocol ?? 'tcp').toUpperCase()}</span>
             </li>
           ))}
         </ul>
@@ -714,13 +681,7 @@ function RouteHeader({ children }: { children: React.ReactNode }) {
   );
 }
 
-function RouteCell({
-  children,
-  mono,
-}: {
-  children: React.ReactNode;
-  mono?: boolean;
-}) {
+function RouteCell({ children, mono }: { children: React.ReactNode; mono?: boolean }) {
   return (
     <td
       style={{
@@ -752,13 +713,7 @@ function NetworkCard({ children }: { children: React.ReactNode }) {
   );
 }
 
-function NetEmptyState({
-  primary,
-  secondary,
-}: {
-  primary: string;
-  secondary: string;
-}) {
+function NetEmptyState({ primary, secondary }: { primary: string; secondary: string }) {
   return (
     <div
       style={{
@@ -913,15 +868,7 @@ function Shell<T>({
   );
 }
 
-function Row({
-  label,
-  value,
-  valueTint,
-}: {
-  label: string;
-  value: string;
-  valueTint?: string;
-}) {
+function Row({ label, value, valueTint }: { label: string; value: string; valueTint?: string }) {
   return (
     <div
       style={{
@@ -933,9 +880,7 @@ function Row({
         fontSize: 12,
       }}
     >
-      <span style={{ color: 'var(--ow-fg-1)', fontFamily: 'var(--ow-font-mono)' }}>
-        {label}
-      </span>
+      <span style={{ color: 'var(--ow-fg-1)', fontFamily: 'var(--ow-font-mono)' }}>{label}</span>
       <span style={{ color: valueTint ?? 'var(--ow-fg-3)', fontFamily: 'var(--ow-font-mono)' }}>
         {value}
       </span>

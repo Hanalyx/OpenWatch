@@ -1,15 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import {
-  KeyRound,
-  Plus,
-  Check,
-  Edit3,
-  Copy,
-  Trash2,
-  HelpCircle,
-  Upload,
-} from 'lucide-react';
+import { KeyRound, Plus, Check, Edit3, Copy, Trash2, HelpCircle, Upload } from 'lucide-react';
 import api from '@/api/client';
 import { apiErrorMessage } from '@/api/errors';
 import { useBreadcrumbStore } from '@/store/useBreadcrumbStore';
@@ -92,9 +83,7 @@ interface KeyView {
 function credentialsToKeys(credentials: Credential[]): KeyView[] {
   return credentials
     .filter(
-      (c) =>
-        (c.auth_method === 'ssh_key' || c.auth_method === 'both') &&
-        c.ssh_key_fingerprint,
+      (c) => (c.auth_method === 'ssh_key' || c.auth_method === 'both') && c.ssh_key_fingerprint,
     )
     .map((c) => ({
       credentialId: c.id,
@@ -192,9 +181,7 @@ export function CredentialsPage() {
         <StatMini
           label="Covered hosts"
           value="7"
-          unit={
-            <span style={{ color: 'var(--ow-fg-3)' }}> / 7</span>
-          }
+          unit={<span style={{ color: 'var(--ow-fg-3)' }}> / 7</span>}
           hint="All hosts reachable via credentials"
           tier="ok"
         />
@@ -203,19 +190,14 @@ export function CredentialsPage() {
           value={credentials.length || 0}
           hint={`${defaultCount} default · ${hostScopedCount} host-specific`}
         />
-        <StatMini
-          label="Keys on file"
-          value={keys.length}
-          hint={`${activeKeys} in active use`}
-        />
+        <StatMini label="Keys on file" value={keys.length} hint={`${activeKeys} in active use`} />
       </StatMiniRow>
 
       {/* ────────── Credentials table ────────── */}
       <Section title="Credentials">
         <p style={leadStyle}>
-          A host inherits the <strong>default</strong> credential unless an override is
-          set on the host page. Test a credential to verify it can authenticate before
-          saving.
+          A host inherits the <strong>default</strong> credential unless an override is set on the
+          host page. Test a credential to verify it can authenticate before saving.
         </p>
 
         <SettingCard>
@@ -235,8 +217,7 @@ export function CredentialsPage() {
                 fontSize: 13,
               }}
             >
-              <strong>Failed to load credentials.</strong>{' '}
-              {apiErrorMessage(credsQuery.error, '')}{' '}
+              <strong>Failed to load credentials.</strong> {apiErrorMessage(credsQuery.error, '')}{' '}
               <button
                 type="button"
                 onClick={() => credsQuery.refetch()}
@@ -262,8 +243,7 @@ export function CredentialsPage() {
                 fontSize: 13,
               }}
             >
-              No credentials yet. Use Add credential to onboard your first host
-              login.
+              No credentials yet. Use Add credential to onboard your first host login.
             </div>
           )}
           {credentials.length > 0 && (
@@ -285,8 +265,8 @@ export function CredentialsPage() {
             }}
           >
             <span style={{ color: 'var(--ow-fg-3)', fontSize: 12 }}>
-              A host can override the default in its own settings. Per-host overrides
-              take precedence.
+              A host can override the default in its own settings. Per-host overrides take
+              precedence.
             </span>
             <Btn size="sm" onClick={() => setAddOpen(true)} disabled={!canWrite}>
               <Plus size={12} /> Add credential
@@ -298,19 +278,16 @@ export function CredentialsPage() {
       {/* ────────── SSH keys ────────── */}
       <Section title="SSH keys">
         <p style={leadStyle}>
-          Each row is the SSH key embedded in a credential. Adding a key creates a
-          credential that owns it; replacing a key replaces the parent credential;
-          removing a key removes the credential.
+          Each row is the SSH key embedded in a credential. Adding a key creates a credential that
+          owns it; replacing a key replaces the parent credential; removing a key removes the
+          credential.
         </p>
 
         <div style={{ marginBottom: 14 }}>
           <Callout tier="info">
-            <strong style={{ color: 'var(--ow-fg-0)' }}>
-              Keys are owned by credentials.
-            </strong>{' '}
-            A standalone vault — share one key across many credentials — is a future
-            enhancement and is tracked in BACKLOG.md. For now, manage keys through
-            the parent credential.
+            <strong style={{ color: 'var(--ow-fg-0)' }}>Keys are owned by credentials.</strong> A
+            standalone vault — share one key across many credentials — is a future enhancement and
+            is tracked in BACKLOG.md. For now, manage keys through the parent credential.
           </Callout>
         </div>
 
@@ -367,15 +344,10 @@ export function CredentialsPage() {
             }}
           >
             <span style={{ color: 'var(--ow-fg-3)', fontSize: 12 }}>
-              Private keys never leave the workspace vault. Only fingerprints are
-              displayed.
+              Private keys never leave the workspace vault. Only fingerprints are displayed.
             </span>
             <div style={{ display: 'flex', gap: 8 }}>
-              <Btn
-                size="sm"
-                onClick={() => setAddOpen(true)}
-                disabled={!canWrite}
-              >
+              <Btn size="sm" onClick={() => setAddOpen(true)} disabled={!canWrite}>
                 <Upload size={12} /> Add key (via credential)
               </Btn>
             </div>
@@ -386,8 +358,7 @@ export function CredentialsPage() {
       {/* ────────── Connection defaults ────────── */}
       <Section title="Connection defaults">
         <p style={leadStyle}>
-          Applied to every SSH connection unless a host overrides the value. These map
-          onto standard{' '}
+          Applied to every SSH connection unless a host overrides the value. These map onto standard{' '}
           <code style={{ fontFamily: 'var(--ow-font-mono)', color: 'var(--ow-fg-1)' }}>
             ssh_config
           </code>{' '}
@@ -432,10 +403,7 @@ export function CredentialsPage() {
             name="Keep-alive interval"
             description={
               <>
-                Send{' '}
-                <code style={{ fontFamily: 'var(--ow-font-mono)' }}>
-                  ServerAliveInterval
-                </code>{' '}
+                Send <code style={{ fontFamily: 'var(--ow-font-mono)' }}>ServerAliveInterval</code>{' '}
                 probes during long scans so idle hosts don't drop the session.
               </>
             }
@@ -470,9 +438,8 @@ export function CredentialsPage() {
       {/* ────────── Host key verification ────────── */}
       <Section title="Host key verification">
         <p style={leadStyle}>
-          Controls how OpenWatch handles new or changed SSH host keys. Stricter
-          settings prevent man-in-the-middle attacks; relaxed settings make rotation
-          easier.
+          Controls how OpenWatch handles new or changed SSH host keys. Stricter settings prevent
+          man-in-the-middle attacks; relaxed settings make rotation easier.
         </p>
 
         <SettingCard>
@@ -506,8 +473,8 @@ export function CredentialsPage() {
             description={
               <>
                 Add a host's public key to{' '}
-                <code style={{ fontFamily: 'var(--ow-font-mono)' }}>known_hosts</code>{' '}
-                on first contact. Disable to require manual approval.
+                <code style={{ fontFamily: 'var(--ow-font-mono)' }}>known_hosts</code> on first
+                contact. Disable to require manual approval.
               </>
             }
             control={
@@ -538,11 +505,9 @@ export function CredentialsPage() {
 
         <div style={{ marginTop: 14 }}>
           <Callout tier="info">
-            <strong style={{ color: 'var(--ow-fg-0)' }}>
-              known_hosts is workspace-scoped.
-            </strong>{' '}
-            All connections share one trusted-keys database. To inspect or revoke
-            individual entries, use{' '}
+            <strong style={{ color: 'var(--ow-fg-0)' }}>known_hosts is workspace-scoped.</strong>{' '}
+            All connections share one trusted-keys database. To inspect or revoke individual
+            entries, use{' '}
             <a href="#known-hosts" style={{ color: 'var(--ow-info)', fontWeight: 500 }}>
               Manage known hosts →
             </a>
@@ -629,8 +594,8 @@ function CredentialRow({
     cred.auth_method === 'ssh_key'
       ? 'SSH key'
       : cred.auth_method === 'password'
-      ? 'Password'
-      : 'Key + password fallback';
+        ? 'Password'
+        : 'Key + password fallback';
   const usedByText = cred.is_default ? 'All hosts (default)' : '1 host';
 
   return (
@@ -652,9 +617,7 @@ function CredentialRow({
             <KeyRound size={14} />
           </div>
           <div style={{ minWidth: 0 }}>
-            <div
-              style={{ fontWeight: 500, display: 'flex', alignItems: 'center', gap: 8 }}
-            >
+            <div style={{ fontWeight: 500, display: 'flex', alignItems: 'center', gap: 8 }}>
               {cred.name}
               {cred.is_default && (
                 <span
@@ -701,11 +664,7 @@ function CredentialRow({
           <IconBtn label="Test connection (pending)" disabled>
             <Check size={12} />
           </IconBtn>
-          <IconBtn
-            label="Replace credential"
-            disabled={!canWrite}
-            onClick={() => onReplace(cred)}
-          >
+          <IconBtn label="Replace credential" disabled={!canWrite} onClick={() => onReplace(cred)}>
             <Edit3 size={12} />
           </IconBtn>
           <IconBtn
@@ -817,10 +776,7 @@ function KeyRow({
       </div>
       <div style={{ display: 'flex', gap: 18, color: 'var(--ow-fg-2)', fontSize: 12 }}>
         <KeyMeta k="Type" v={keyView.type} />
-        <KeyMeta
-          k="Belongs to"
-          v={<span style={{ color: 'var(--ow-fg-1)' }}>1 credential</span>}
-        />
+        <KeyMeta k="Belongs to" v={<span style={{ color: 'var(--ow-fg-1)' }}>1 credential</span>} />
         <KeyMeta
           k="Updated"
           v={

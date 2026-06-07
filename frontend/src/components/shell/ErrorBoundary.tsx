@@ -10,13 +10,7 @@ import { Component, type ReactNode } from 'react';
 // names from the deny list are redacted before console.error to avoid
 // leaking secrets in browser DevTools.
 
-const SCRUB_FIELDS = [
-  'evidence',
-  'token',
-  'password',
-  'secret',
-  'private_key',
-];
+const SCRUB_FIELDS = ['evidence', 'token', 'password', 'secret', 'private_key'];
 
 function scrub(message: string): string {
   let out = message;
@@ -44,7 +38,6 @@ export class ErrorBoundary extends Component<Props, State> {
 
   override componentDidCatch(error: Error, info: { componentStack?: string }) {
     if (import.meta.env.DEV) {
-       
       console.error('frontend error boundary:', scrub(error.message), info);
     }
   }

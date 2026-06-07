@@ -93,8 +93,15 @@ export function PoliciesPage() {
       <Section title="Framework lenses">
         <StubCard
           rows={[
-            { name: 'Enabled frameworks', description: 'CIS RHEL 9, STIG RHEL 9 V2R7, NIST 800-53 R5, PCI-DSS v4.0, FedRAMP Moderate.' },
-            { name: 'Default lens', description: 'Which framework Hosts and Reports filter to by default.' },
+            {
+              name: 'Enabled frameworks',
+              description:
+                'CIS RHEL 9, STIG RHEL 9 V2R7, NIST 800-53 R5, PCI-DSS v4.0, FedRAMP Moderate.',
+            },
+            {
+              name: 'Default lens',
+              description: 'Which framework Hosts and Reports filter to by default.',
+            },
           ]}
         />
       </Section>
@@ -102,7 +109,10 @@ export function PoliciesPage() {
         <StubCard
           rows={[
             { name: 'Approval levels', description: 'Who can approve a rule exception.' },
-            { name: 'Expiry policy', description: 'Default duration before exceptions auto-expire.' },
+            {
+              name: 'Expiry policy',
+              description: 'Default duration before exceptions auto-expire.',
+            },
           ]}
         />
       </Section>
@@ -132,7 +142,10 @@ export function NotificationsPage() {
       <Section title="Event routing">
         <StubCard
           rows={[
-            { name: 'Critical alerts', description: 'High-severity drift, scan failure, unreachable hosts.' },
+            {
+              name: 'Critical alerts',
+              description: 'High-severity drift, scan failure, unreachable hosts.',
+            },
             { name: 'Compliance regressions', description: 'Per-framework score drops.' },
           ]}
         />
@@ -180,7 +193,10 @@ export function SecurityPage() {
       <Section title="Single sign-on">
         <StubCard
           rows={[
-            { name: 'OIDC provider', description: 'Configure the identity provider (Okta, Auth0, Google, Azure AD, etc.).' },
+            {
+              name: 'OIDC provider',
+              description: 'Configure the identity provider (Okta, Auth0, Google, Azure AD, etc.).',
+            },
             { name: 'SAML provider', description: 'SP-initiated and IdP-initiated flows.' },
           ]}
         />
@@ -272,8 +288,8 @@ export function AboutPage() {
         <SettingCard>
           <div style={{ padding: 20, color: 'var(--ow-fg-2)', fontSize: 13 }}>
             License view pending —{' '}
-            <code style={{ fontFamily: 'var(--ow-font-mono)' }}>GET /api/v1/license</code>{' '}
-            exists; UI rendering follows in a focused PR.
+            <code style={{ fontFamily: 'var(--ow-font-mono)' }}>GET /api/v1/license</code> exists;
+            UI rendering follows in a focused PR.
           </div>
         </SettingCard>
       </Section>

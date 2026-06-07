@@ -15,8 +15,12 @@ vi.mock('@tanstack/react-router', async () => {
   return {
     ...actual,
     useNavigate: () => navigateMock,
-    Link: ({ to, children, ...rest }: { to?: string; children: React.ReactNode } & Record<string, unknown>) =>
-      ({ type: 'a', props: { href: to, ...rest, children }, key: null, ref: null } as any),
+    Link: ({
+      to,
+      children,
+      ...rest
+    }: { to?: string; children: React.ReactNode } & Record<string, unknown>) =>
+      ({ type: 'a', props: { href: to, ...rest, children }, key: null, ref: null }) as any,
   };
 });
 vi.mock('@/api/client', () => ({

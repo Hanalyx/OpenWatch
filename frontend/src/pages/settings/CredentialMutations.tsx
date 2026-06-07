@@ -88,13 +88,7 @@ function describeNetworkError(): string {
 // Add credential modal
 // ─────────────────────────────────────────────────────────────────────────
 
-export function AddCredentialModal({
-  open,
-  onClose,
-}: {
-  open: boolean;
-  onClose: () => void;
-}) {
+export function AddCredentialModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const queryClient = useQueryClient();
   const [serverError, setServerError] = useState<string | null>(null);
   const { register, handleSubmit, watch, formState, reset } = useForm<FormShape>({
@@ -370,7 +364,11 @@ export function ReplaceCredentialModal({
             {submitting ? (
               <>
                 <Loader2 size={14} />{' '}
-                {phase === 'creating' ? 'Creating new…' : phase === 'deleting' ? 'Removing old…' : 'Saving…'}
+                {phase === 'creating'
+                  ? 'Creating new…'
+                  : phase === 'deleting'
+                    ? 'Removing old…'
+                    : 'Saving…'}
               </>
             ) : (
               'Replace credential'
@@ -383,8 +381,8 @@ export function ReplaceCredentialModal({
         <strong style={{ color: 'var(--ow-fg-0)' }}>
           Backend has no PATCH endpoint for credentials.
         </strong>{' '}
-        Saving creates a replacement with the new values, then removes the original.
-        Secret material must be re-entered.
+        Saving creates a replacement with the new values, then removes the original. Secret material
+        must be re-entered.
       </Callout>
 
       <form onSubmit={handleSubmit(onSubmit)} noValidate style={{ marginTop: 14 }}>
@@ -400,7 +398,8 @@ export function ReplaceCredentialModal({
               <div>{serverError}</div>
               {orphanId && (
                 <div style={{ marginTop: 6, fontSize: 11, color: 'var(--ow-fg-3)' }}>
-                  Orphan credential id: <code style={{ fontFamily: 'var(--ow-font-mono)' }}>{orphanId}</code>
+                  Orphan credential id:{' '}
+                  <code style={{ fontFamily: 'var(--ow-font-mono)' }}>{orphanId}</code>
                 </div>
               )}
             </Callout>
@@ -477,11 +476,7 @@ export function DeleteCredentialModal({
           <Btn onClick={handleClose} disabled={submitting}>
             Cancel
           </Btn>
-          <Btn
-            variant="danger"
-            onClick={() => deleteMutation.mutate()}
-            disabled={submitting}
-          >
+          <Btn variant="danger" onClick={() => deleteMutation.mutate()} disabled={submitting}>
             {submitting ? (
               <>
                 <Loader2 size={14} /> Deleting…
@@ -526,14 +521,16 @@ export function DeleteCredentialModal({
           </div>
         </div>
         <p style={{ margin: '0 0 14px' }}>
-          This soft-deletes the credential (<code style={{ fontFamily: 'var(--ow-font-mono)' }}>is_active=false</code>).
-          Hosts currently using this credential will fall back to whichever default applies — or fail to authenticate if no
-          default exists.
+          This soft-deletes the credential (
+          <code style={{ fontFamily: 'var(--ow-font-mono)' }}>is_active=false</code>). Hosts
+          currently using this credential will fall back to whichever default applies — or fail to
+          authenticate if no default exists.
         </p>
         {credential.is_default && (
           <Callout tier="warn">
-            <strong style={{ color: 'var(--ow-fg-0)' }}>This is the system default.</strong>{' '}
-            Every host without a host-scoped credential will lose authentication until a new default is added.
+            <strong style={{ color: 'var(--ow-fg-0)' }}>This is the system default.</strong> Every
+            host without a host-scoped credential will lose authentication until a new default is
+            added.
           </Callout>
         )}
         {serverError && (
@@ -663,9 +660,7 @@ function CredentialFormFields({
       )}
 
       <FormField label="">
-        <label
-          style={{ display: 'inline-flex', gap: 8, alignItems: 'center', fontSize: 13 }}
-        >
+        <label style={{ display: 'inline-flex', gap: 8, alignItems: 'center', fontSize: 13 }}>
           <input type="checkbox" disabled={disabled} {...register('is_default')} />
           <span>
             Use as workspace default

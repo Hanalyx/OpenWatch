@@ -6,12 +6,7 @@
 //   AC-07  test('frontend-foundation/AC-07 — no --mui-* references in source')
 
 import { describe, expect, test } from 'vitest';
-import {
-  darkTokens,
-  lightTokens,
-  structural,
-  tokenCssVarNames,
-} from '@/theme/tokens';
+import { darkTokens, lightTokens, structural, tokenCssVarNames } from '@/theme/tokens';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 

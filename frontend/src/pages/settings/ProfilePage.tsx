@@ -36,9 +36,7 @@ import {
 const passwordSchema = z
   .object({
     current_password: z.string().min(1, 'Required'),
-    new_password: z
-      .string()
-      .min(15, 'Password must be at least 15 characters'),
+    new_password: z.string().min(15, 'Password must be at least 15 characters'),
     confirm_password: z.string().min(1, 'Required'),
   })
   .refine((v) => v.new_password === v.confirm_password, {
@@ -125,9 +123,7 @@ function ProfileSection() {
             {initials}
           </div>
           <div style={{ flex: 1 }}>
-            <div style={{ fontWeight: 600, fontSize: 16 }}>
-              {identity?.username ?? '—'}
-            </div>
+            <div style={{ fontWeight: 600, fontSize: 16 }}>{identity?.username ?? '—'}</div>
             <div style={{ color: 'var(--ow-fg-2)', fontSize: 13, marginTop: 2 }}>
               {identity?.email ?? ''}
               {identity?.role && (
@@ -221,9 +217,7 @@ function Labeled({
 
 function PasswordSection() {
   const [showForm, setShowForm] = useState(false);
-  const [banner, setBanner] = useState<
-    { kind: 'success' | 'error'; text: string } | null
-  >(null);
+  const [banner, setBanner] = useState<{ kind: 'success' | 'error'; text: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   const { register, handleSubmit, reset, formState } = useForm<PasswordForm>({
@@ -318,7 +312,13 @@ function PasswordSection() {
               <Btn type="submit" variant="primary" disabled={submitting}>
                 {submitting ? 'Updating…' : 'Update password'}
               </Btn>
-              <Btn onClick={() => { reset(); setShowForm(false); }} disabled={submitting}>
+              <Btn
+                onClick={() => {
+                  reset();
+                  setShowForm(false);
+                }}
+                disabled={submitting}
+              >
                 Cancel
               </Btn>
             </div>
@@ -346,9 +346,7 @@ function FormInput({
 }) {
   return (
     <label style={{ display: 'block' }}>
-      <div style={{ fontSize: 12, color: 'var(--ow-fg-2)', marginBottom: 4 }}>
-        {label}
-      </div>
+      <div style={{ fontSize: 12, color: 'var(--ow-fg-2)', marginBottom: 4 }}>{label}</div>
       <input
         type={type}
         disabled={disabled}
@@ -367,9 +365,7 @@ function FormInput({
         }}
       />
       {hint && !error && (
-        <div style={{ fontSize: 11, color: 'var(--ow-fg-3)', marginTop: 4 }}>
-          {hint}
-        </div>
+        <div style={{ fontSize: 11, color: 'var(--ow-fg-3)', marginTop: 4 }}>{hint}</div>
       )}
       {error && (
         <div role="alert" style={{ fontSize: 11, color: 'var(--ow-crit)', marginTop: 4 }}>
@@ -462,8 +458,8 @@ function MFASection() {
             }}
           >
             <p style={{ margin: 0, color: 'var(--ow-fg-1)', fontSize: 13 }}>
-              Scan this URI in your authenticator app, or enter the secret manually,
-              then enter the 6-digit code to confirm enrollment.
+              Scan this URI in your authenticator app, or enter the secret manually, then enter the
+              6-digit code to confirm enrollment.
             </p>
             <code
               style={{
@@ -479,9 +475,7 @@ function MFASection() {
               {enrollment.uri}
             </code>
             <div>
-              <span style={{ color: 'var(--ow-fg-2)', fontSize: 12, marginRight: 8 }}>
-                Secret:
-              </span>
+              <span style={{ color: 'var(--ow-fg-2)', fontSize: 12, marginRight: 8 }}>Secret:</span>
               <code
                 style={{
                   fontFamily: 'var(--ow-font-mono)',
@@ -519,7 +513,13 @@ function MFASection() {
               <Btn variant="primary" onClick={verify} disabled={busy}>
                 {busy ? 'Verifying…' : 'Verify and enable'}
               </Btn>
-              <Btn onClick={() => { setEnrollment(null); setOtp(''); setError(null); }}>
+              <Btn
+                onClick={() => {
+                  setEnrollment(null);
+                  setOtp('');
+                  setError(null);
+                }}
+              >
                 Cancel
               </Btn>
             </div>
@@ -575,13 +575,9 @@ function SessionsSection() {
             </>
           }
           description={
-            <span style={{ fontFamily: 'var(--ow-font-mono)' }}>
-              Active now · session cookie
-            </span>
+            <span style={{ fontFamily: 'var(--ow-font-mono)' }}>Active now · session cookie</span>
           }
-          control={
-            <span style={{ color: 'var(--ow-fg-3)', fontSize: 12 }}>Current session</span>
-          }
+          control={<span style={{ color: 'var(--ow-fg-3)', fontSize: 12 }}>Current session</span>}
         />
         <SettingRow
           name="Sign out everywhere else"

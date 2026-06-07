@@ -6,13 +6,7 @@ import { apiErrorMessage } from '@/api/errors';
 import { useBreadcrumbStore } from '@/store/useBreadcrumbStore';
 import { useAuthStore } from '@/store/useAuthStore';
 import { SettingsLayout } from '@/components/settings/SettingsLayout';
-import {
-  PageHead,
-  Section,
-  SettingCard,
-  Btn,
-  StatusPill,
-} from '@/components/settings/primitives';
+import { PageHead, Section, SettingCard, Btn, StatusPill } from '@/components/settings/primitives';
 import { ForbiddenPage } from '@/pages/ForbiddenPage';
 
 // Settings → Users & teams.
@@ -85,8 +79,7 @@ export function UsersPage() {
                 fontSize: 13,
               }}
             >
-              <strong>Failed to load members.</strong>{' '}
-              {apiErrorMessage(usersQuery.error, '')}{' '}
+              <strong>Failed to load members.</strong> {apiErrorMessage(usersQuery.error, '')}{' '}
               <button
                 type="button"
                 onClick={() => usersQuery.refetch()}

@@ -49,10 +49,7 @@ export function OSDiscoverySection() {
   const configQuery = useQuery<DiscoveryConfigResponse>({
     queryKey: ['system', 'discovery', 'config'],
     queryFn: async () => {
-      const { data, error, response } = await api.GET(
-        '/api/v1/system/discovery/config',
-        {},
-      );
+      const { data, error, response } = await api.GET('/api/v1/system/discovery/config', {});
       if (error || !response.ok) {
         throw new Error(formatApiError(response.status, error));
       }
@@ -70,10 +67,7 @@ export function OSDiscoverySection() {
 
   const saveMutation = useMutation({
     mutationFn: async (body: DiscoveryConfig) => {
-      const { data, error, response } = await api.PUT(
-        '/api/v1/system/discovery/config',
-        { body },
-      );
+      const { data, error, response } = await api.PUT('/api/v1/system/discovery/config', { body });
       if (error || !response.ok) {
         throw new Error(formatApiError(response.status, error));
       }
@@ -86,10 +80,7 @@ export function OSDiscoverySection() {
 
   const sweepMutation = useMutation({
     mutationFn: async () => {
-      const { data, error, response } = await api.POST(
-        '/api/v1/system/discovery/sweep',
-        {},
-      );
+      const { data, error, response } = await api.POST('/api/v1/system/discovery/sweep', {});
       if (error || !response.ok) {
         throw new Error(formatApiError(response.status, error));
       }
@@ -138,9 +129,7 @@ export function OSDiscoverySection() {
     <OSDiscoverySectionView
       isLoading={configQuery.isLoading}
       isError={configQuery.isError}
-      errorMessage={
-        configQuery.error ? apiErrorMessage(configQuery.error, 'Failed to load') : null
-      }
+      errorMessage={configQuery.error ? apiErrorMessage(configQuery.error, 'Failed to load') : null}
       onRetry={() => configQuery.refetch()}
       config={configQuery.data?.config ?? null}
       defaults={configQuery.data?.defaults ?? null}
@@ -150,16 +139,12 @@ export function OSDiscoverySection() {
       onResetToDefaults={onResetToDefaults}
       onSave={onSave}
       isSaving={saveMutation.isPending}
-      saveError={
-        saveMutation.error ? apiErrorMessage(saveMutation.error, 'Save failed') : null
-      }
+      saveError={saveMutation.error ? apiErrorMessage(saveMutation.error, 'Save failed') : null}
       dirty={dirty}
       onRunNow={onRunNow}
       isSweeping={sweepMutation.isPending}
       sweepResult={sweepMutation.data ?? null}
-      sweepError={
-        sweepMutation.error ? apiErrorMessage(sweepMutation.error, 'Sweep failed') : null
-      }
+      sweepError={sweepMutation.error ? apiErrorMessage(sweepMutation.error, 'Sweep failed') : null}
     />
   );
 }
@@ -223,9 +208,7 @@ export function OSDiscoverySectionView(props: {
             alignItems: 'center',
           }}
         >
-          <span>
-            Failed to load discovery config{errorMessage ? ` — ${errorMessage}` : ''}
-          </span>
+          <span>Failed to load discovery config{errorMessage ? ` — ${errorMessage}` : ''}</span>
           {onRetry && (
             <Btn size="sm" onClick={onRetry}>
               <RefreshCw size={11} /> Retry
@@ -245,9 +228,7 @@ export function OSDiscoverySectionView(props: {
                   max={604800}
                   step={3600}
                   unit="sec"
-                  onChange={(v) =>
-                    setDraft((d) => (d ? { ...d, interval_sec: v } : d))
-                  }
+                  onChange={(v) => setDraft((d) => (d ? { ...d, interval_sec: v } : d))}
                 />
               }
             />
@@ -260,9 +241,7 @@ export function OSDiscoverySectionView(props: {
                   min={1}
                   max={500}
                   step={5}
-                  onChange={(v) =>
-                    setDraft((d) => (d ? { ...d, rate_limit: v } : d))
-                  }
+                  onChange={(v) => setDraft((d) => (d ? { ...d, rate_limit: v } : d))}
                 />
               }
             />
@@ -272,9 +251,7 @@ export function OSDiscoverySectionView(props: {
               control={
                 <Toggle
                   value={draft.detect_on_first_contact}
-                  onChange={(v) =>
-                    setDraft((d) => (d ? { ...d, detect_on_first_contact: v } : d))
-                  }
+                  onChange={(v) => setDraft((d) => (d ? { ...d, detect_on_first_contact: v } : d))}
                   ariaLabel="Detect on first contact"
                 />
               }
@@ -285,9 +262,7 @@ export function OSDiscoverySectionView(props: {
               control={
                 <Toggle
                   value={draft.maintenance_global}
-                  onChange={(v) =>
-                    setDraft((d) => (d ? { ...d, maintenance_global: v } : d))
-                  }
+                  onChange={(v) => setDraft((d) => (d ? { ...d, maintenance_global: v } : d))}
                   ariaLabel="Pause scheduler globally"
                 />
               }
@@ -305,17 +280,26 @@ export function OSDiscoverySectionView(props: {
             }}
           >
             {saveError && (
-              <div role="alert" style={{ color: 'var(--ow-crit)', fontSize: 12, marginRight: 'auto' }}>
+              <div
+                role="alert"
+                style={{ color: 'var(--ow-crit)', fontSize: 12, marginRight: 'auto' }}
+              >
                 {saveError}
               </div>
             )}
             {sweepError && !saveError && (
-              <div role="alert" style={{ color: 'var(--ow-crit)', fontSize: 12, marginRight: 'auto' }}>
+              <div
+                role="alert"
+                style={{ color: 'var(--ow-crit)', fontSize: 12, marginRight: 'auto' }}
+              >
                 {sweepError}
               </div>
             )}
             {sweepResult && !sweepError && !saveError && (
-              <div role="status" style={{ color: 'var(--ow-fg-2)', fontSize: 12, marginRight: 'auto' }}>
+              <div
+                role="status"
+                style={{ color: 'var(--ow-fg-2)', fontSize: 12, marginRight: 'auto' }}
+              >
                 Queued {sweepResult.enqueued} discoveries.
               </div>
             )}

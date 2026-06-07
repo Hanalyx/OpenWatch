@@ -9,8 +9,6 @@
 //
 // Spec: frontend-foundation AC-06 (this file is the test target).
 
- 
-
 export interface ModeColorTokens {
   bg0: string;
   bg1: string;

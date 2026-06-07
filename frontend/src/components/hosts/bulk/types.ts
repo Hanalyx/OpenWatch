@@ -84,11 +84,36 @@ export interface TargetField {
 export const TARGET_FIELDS: TargetField[] = [
   { value: 'hostname', label: 'Hostname', required: true, description: 'System hostname or name' },
   { value: 'ip_address', label: 'IP Address', required: true, description: 'IPv4 or IPv6 address' },
-  { value: 'display_name', label: 'Display name', required: false, description: 'Friendly display name' },
-  { value: 'port', label: 'SSH port', required: false, description: 'SSH connection port (default: 22)' },
+  {
+    value: 'display_name',
+    label: 'Display name',
+    required: false,
+    description: 'Friendly display name',
+  },
+  {
+    value: 'port',
+    label: 'SSH port',
+    required: false,
+    description: 'SSH connection port (default: 22)',
+  },
   { value: 'username', label: 'Username', required: false, description: 'SSH username' },
-  { value: 'environment', label: 'Environment', required: false, description: 'Environment (prod, staging, dev)' },
+  {
+    value: 'environment',
+    label: 'Environment',
+    required: false,
+    description: 'Environment (prod, staging, dev)',
+  },
   { value: 'tags', label: 'Tags', required: false, description: 'Comma-separated tags' },
-  { value: 'description', label: 'Description', required: false, description: 'Free-text description' },
-  { value: 'group_id', label: 'Group ID', required: false, description: 'UUID of the target group' },
+  {
+    value: 'description',
+    label: 'Description',
+    required: false,
+    description: 'Free-text description',
+  },
+  {
+    value: 'group_id',
+    label: 'Group ID',
+    required: false,
+    description: 'UUID of the target group',
+  },
 ];

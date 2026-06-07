@@ -86,15 +86,12 @@ export function CardSystem({ host, intelligenceSnapshot, systemInfo }: CardSyste
     setError(null);
     try {
       const idempotencyKey = crypto.randomUUID();
-      const { response, error: apiErr } = await api.POST(
-        '/api/v1/hosts/{id}/discovery:run',
-        {
-          params: {
-            path: { id: host.id },
-            header: { 'Idempotency-Key': idempotencyKey },
-          },
+      const { response, error: apiErr } = await api.POST('/api/v1/hosts/{id}/discovery:run', {
+        params: {
+          path: { id: host.id },
+          header: { 'Idempotency-Key': idempotencyKey },
         },
-      );
+      });
       if (!response.ok) {
         if (response.status === 502) {
           setError(UNREACHABLE_MSG);
@@ -331,13 +328,7 @@ function DiskBar({ percent }: { percent: number }) {
   );
 }
 
-function FirewallStatus({
-  status,
-  service,
-}: {
-  status: string | null;
-  service: string | null;
-}) {
+function FirewallStatus({ status, service }: { status: string | null; service: string | null }) {
   if (!status) {
     return <span style={{ color: 'var(--ow-fg-3)' }}>—</span>;
   }

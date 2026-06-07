@@ -8,8 +8,8 @@ export function HomePlaceholderPage() {
       <title>Dashboard — OpenWatch</title>
       <h1 style={{ marginTop: 0 }}>Welcome to OpenWatch</h1>
       <p>
-        The dashboard is implemented page-by-page as backend slices unblock.
-        Use the sidebar to navigate to Hosts.
+        The dashboard is implemented page-by-page as backend slices unblock. Use the sidebar to
+        navigate to Hosts.
       </p>
     </div>
   );

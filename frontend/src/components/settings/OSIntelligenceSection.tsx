@@ -48,10 +48,7 @@ export function OSIntelligenceSection() {
   const configQuery = useQuery<IntelligenceConfigResponse>({
     queryKey: ['system', 'intelligence', 'config'],
     queryFn: async () => {
-      const { data, error, response } = await api.GET(
-        '/api/v1/system/intelligence/config',
-        {},
-      );
+      const { data, error, response } = await api.GET('/api/v1/system/intelligence/config', {});
       if (error || !response.ok) {
         throw new Error(formatApiError(response.status, error));
       }
@@ -69,10 +66,9 @@ export function OSIntelligenceSection() {
 
   const mutation = useMutation({
     mutationFn: async (body: IntelligenceConfig) => {
-      const { data, error, response } = await api.PUT(
-        '/api/v1/system/intelligence/config',
-        { body },
-      );
+      const { data, error, response } = await api.PUT('/api/v1/system/intelligence/config', {
+        body,
+      });
       if (error || !response.ok) {
         throw new Error(formatApiError(response.status, error));
       }
@@ -125,9 +121,7 @@ export function OSIntelligenceSection() {
     <OSIntelligenceSectionView
       isLoading={configQuery.isLoading}
       isError={configQuery.isError}
-      errorMessage={
-        configQuery.error ? apiErrorMessage(configQuery.error, 'Failed to load') : null
-      }
+      errorMessage={configQuery.error ? apiErrorMessage(configQuery.error, 'Failed to load') : null}
       onRetry={() => configQuery.refetch()}
       config={configQuery.data?.config ?? null}
       defaults={configQuery.data?.defaults ?? null}
@@ -137,9 +131,7 @@ export function OSIntelligenceSection() {
       onResetToDefaults={onResetToDefaults}
       onSave={onSave}
       isSaving={mutation.isPending}
-      saveError={
-        mutation.error ? apiErrorMessage(mutation.error, 'Save failed') : null
-      }
+      saveError={mutation.error ? apiErrorMessage(mutation.error, 'Save failed') : null}
       dirty={dirty}
     />
   );
@@ -196,9 +188,7 @@ export function OSIntelligenceSectionView(props: {
             alignItems: 'center',
           }}
         >
-          <span>
-            Failed to load intelligence config{errorMessage ? ` — ${errorMessage}` : ''}
-          </span>
+          <span>Failed to load intelligence config{errorMessage ? ` — ${errorMessage}` : ''}</span>
           {onRetry && (
             <Btn size="sm" onClick={onRetry}>
               <RefreshCw size={11} /> Retry
@@ -218,9 +208,7 @@ export function OSIntelligenceSectionView(props: {
                   max={86400}
                   step={300}
                   unit="sec"
-                  onChange={(v) =>
-                    setDraft((d) => (d ? { ...d, interval_sec: v } : d))
-                  }
+                  onChange={(v) => setDraft((d) => (d ? { ...d, interval_sec: v } : d))}
                 />
               }
             />
@@ -233,9 +221,7 @@ export function OSIntelligenceSectionView(props: {
                   min={1}
                   max={200}
                   step={1}
-                  onChange={(v) =>
-                    setDraft((d) => (d ? { ...d, rate_limit: v } : d))
-                  }
+                  onChange={(v) => setDraft((d) => (d ? { ...d, rate_limit: v } : d))}
                 />
               }
             />
@@ -245,9 +231,7 @@ export function OSIntelligenceSectionView(props: {
               control={
                 <Toggle
                   value={draft.maintenance_global}
-                  onChange={(v) =>
-                    setDraft((d) => (d ? { ...d, maintenance_global: v } : d))
-                  }
+                  onChange={(v) => setDraft((d) => (d ? { ...d, maintenance_global: v } : d))}
                   ariaLabel="Pause scheduler globally"
                 />
               }
@@ -264,7 +248,10 @@ export function OSIntelligenceSectionView(props: {
             }}
           >
             {saveError && (
-              <div role="alert" style={{ color: 'var(--ow-crit)', fontSize: 12, marginRight: 'auto' }}>
+              <div
+                role="alert"
+                style={{ color: 'var(--ow-crit)', fontSize: 12, marginRight: 'auto' }}
+              >
                 {saveError}
               </div>
             )}

@@ -6,7 +6,8 @@ describe('api/errors — apiErrorMessage', () => {
     const envelope = {
       error: {
         code: 'credentials.invalid_key',
-        human_message: 'ssh: key below NIST SP 800-57 minimum strength: RSA 1024 bits, minimum 2048',
+        human_message:
+          'ssh: key below NIST SP 800-57 minimum strength: RSA 1024 bits, minimum 2048',
       },
     };
     expect(apiErrorMessage(envelope, 'fallback')).toBe(

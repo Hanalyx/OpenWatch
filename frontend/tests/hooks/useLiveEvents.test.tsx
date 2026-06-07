@@ -81,16 +81,10 @@ beforeEach(() => {
   });
 });
 
-
 // @ac AC-01
 // AC-01: ALL_TOPICS exported as closed v1.0 set of 4 topics.
 test('frontend-live-events/AC-01 — ALL_TOPICS is the closed v1.0 set', () => {
-  const want = [
-    'host.changed',
-    'monitoring.band.changed',
-    'host.discovered',
-    'intelligence.event',
-  ];
+  const want = ['host.changed', 'monitoring.band.changed', 'host.discovered', 'intelligence.event'];
   expect([...ALL_TOPICS]).toEqual(want);
   expect(ALL_TOPICS.length).toBe(4);
 });
@@ -162,10 +156,7 @@ test('frontend-live-events/AC-06 — missing host_id falls back to list-only', (
 
 // @ac AC-07
 test('frontend-live-events/AC-07 — source-inspect: exactly one new EventSource(...) call', () => {
-  const src = readFileSync(
-    resolve(process.cwd(), 'src/hooks/useLiveEvents.ts'),
-    'utf8',
-  );
+  const src = readFileSync(resolve(process.cwd(), 'src/hooks/useLiveEvents.ts'), 'utf8');
   const matches = src.match(/new\s+EventSource\s*\(/g) ?? [];
   expect(matches.length).toBe(1);
 });

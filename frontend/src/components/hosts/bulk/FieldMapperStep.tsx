@@ -30,7 +30,7 @@ export function FieldMapperStep({ analysis, mappings, onChange }: Props) {
   const updateMapping = (source: string, target: string) => {
     const next: FieldMapping[] = analysis.headers.map((col) => ({
       source_column: col,
-      target_field: col === source ? target : indexed.get(col) ?? '',
+      target_field: col === source ? target : (indexed.get(col) ?? ''),
     }));
     onChange(next);
   };
@@ -50,8 +50,9 @@ export function FieldMapperStep({ analysis, mappings, onChange }: Props) {
         <header style={cardHeader}>Map fields</header>
         <div style={cardBody}>
           <p style={{ margin: '0 0 12px', fontSize: 12, color: 'var(--ow-fg-2)' }}>
-            Match each source column to a destination field on the host record. Auto-mapped fields are pre-filled;
-            override any row that looks wrong, or pick <em>(skip)</em> to ignore a column.
+            Match each source column to a destination field on the host record. Auto-mapped fields
+            are pre-filled; override any row that looks wrong, or pick <em>(skip)</em> to ignore a
+            column.
           </p>
 
           {missingRequired.length > 0 && (
@@ -65,8 +66,8 @@ export function FieldMapperStep({ analysis, mappings, onChange }: Props) {
             <div role="alert" style={errorPanel}>
               <AlertCircle size={12} style={{ verticalAlign: 'middle', marginRight: 6 }} />
               These target fields are mapped from more than one column:{' '}
-              <code style={{ fontFamily: 'var(--ow-font-mono)' }}>{duplicates.join(', ')}</code>. Pick only one source
-              for each.
+              <code style={{ fontFamily: 'var(--ow-font-mono)' }}>{duplicates.join(', ')}</code>.
+              Pick only one source for each.
             </div>
           )}
           {missingRequired.length === 0 && duplicates.length === 0 && (
@@ -93,10 +94,14 @@ export function FieldMapperStep({ analysis, mappings, onChange }: Props) {
                 const current = indexed.get(f.column_name) ?? SKIP;
                 return (
                   <tr key={f.column_name} style={{ borderTop: '1px solid var(--ow-line)' }}>
-                    <td style={{ ...td, fontFamily: 'var(--ow-font-mono)', color: 'var(--ow-fg-0)' }}>
+                    <td
+                      style={{ ...td, fontFamily: 'var(--ow-font-mono)', color: 'var(--ow-fg-0)' }}
+                    >
                       {f.column_name}
                     </td>
-                    <td style={{ ...td, fontFamily: 'var(--ow-font-mono)', color: 'var(--ow-fg-2)' }}>
+                    <td
+                      style={{ ...td, fontFamily: 'var(--ow-font-mono)', color: 'var(--ow-fg-2)' }}
+                    >
                       {f.sample_values[0] ?? '—'}
                     </td>
                     <td style={td}>
@@ -137,7 +142,9 @@ export function FieldMapperStep({ analysis, mappings, onChange }: Props) {
             <tbody>
               {TARGET_FIELDS.map((t) => (
                 <tr key={t.value} style={{ borderTop: '1px solid var(--ow-line)' }}>
-                  <td style={{ ...td, fontFamily: 'var(--ow-font-mono)', color: 'var(--ow-fg-0)' }}>{t.value}</td>
+                  <td style={{ ...td, fontFamily: 'var(--ow-font-mono)', color: 'var(--ow-fg-0)' }}>
+                    {t.value}
+                  </td>
                   <td style={td}>
                     {t.required ? (
                       <span style={{ color: 'var(--ow-crit)' }}>required</span>

@@ -15,10 +15,7 @@ import { describe, expect, test } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-const PAGE_SRC = readFileSync(
-  resolve(process.cwd(), 'src/pages/HostsListPage.tsx'),
-  'utf8',
-);
+const PAGE_SRC = readFileSync(resolve(process.cwd(), 'src/pages/HostsListPage.tsx'), 'utf8');
 
 describe('frontend-hosts-list — v1.1.0 ACs', () => {
   // @ac AC-01
@@ -86,9 +83,10 @@ describe('frontend-hosts-list — v1.1.0 ACs', () => {
     // Same dependency-contract approach as foundation/AC-12 and
     // add-host/AC-09 — direct vitest axe isn't viable here, but the
     // engine + runner must remain installed for the e2e path to scan.
-    const pkg = JSON.parse(
-      readFileSync(resolve(process.cwd(), 'package.json'), 'utf8'),
-    ) as { dependencies?: Record<string, string>; devDependencies?: Record<string, string> };
+    const pkg = JSON.parse(readFileSync(resolve(process.cwd(), 'package.json'), 'utf8')) as {
+      dependencies?: Record<string, string>;
+      devDependencies?: Record<string, string>;
+    };
     const deps = { ...(pkg.dependencies ?? {}), ...(pkg.devDependencies ?? {}) };
     expect(deps['axe-core']).toBeTruthy();
     expect(deps['@axe-core/playwright']).toBeTruthy();

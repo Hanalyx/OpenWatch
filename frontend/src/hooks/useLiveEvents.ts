@@ -73,9 +73,7 @@ export function useLiveEvents(options: UseLiveEventsOptions = {}) {
       'host.changed': (e) => {
         const env = parseEnvelope(e);
         if (!env) return;
-        const hostId = (env.payload?.HostID ?? env.payload?.host_id) as
-          | string
-          | undefined;
+        const hostId = (env.payload?.HostID ?? env.payload?.host_id) as string | undefined;
         // List page always invalidates; detail page only when we have
         // a target id (CRUD events always carry one, but defensive).
         queryClient.invalidateQueries({ queryKey: ['hosts'] });
@@ -86,9 +84,7 @@ export function useLiveEvents(options: UseLiveEventsOptions = {}) {
       'monitoring.band.changed': (e) => {
         const env = parseEnvelope(e);
         if (!env) return;
-        const hostId = (env.payload?.HostID ?? env.payload?.host_id) as
-          | string
-          | undefined;
+        const hostId = (env.payload?.HostID ?? env.payload?.host_id) as string | undefined;
         // Band changes refresh the list (StatusPill colors) and the
         // specific host's detail (liveness sub-object).
         queryClient.invalidateQueries({ queryKey: ['hosts'] });
@@ -103,9 +99,7 @@ export function useLiveEvents(options: UseLiveEventsOptions = {}) {
       'host.discovered': (e) => {
         const env = parseEnvelope(e);
         if (!env) return;
-        const hostId = (env.payload?.HostID ?? env.payload?.host_id) as
-          | string
-          | undefined;
+        const hostId = (env.payload?.HostID ?? env.payload?.host_id) as string | undefined;
         queryClient.invalidateQueries({ queryKey: ['hosts'] });
         if (hostId) {
           queryClient.invalidateQueries({ queryKey: ['host', hostId] });
@@ -119,9 +113,7 @@ export function useLiveEvents(options: UseLiveEventsOptions = {}) {
       'intelligence.event': (e) => {
         const env = parseEnvelope(e);
         if (!env) return;
-        const hostId = (env.payload?.HostID ?? env.payload?.host_id) as
-          | string
-          | undefined;
+        const hostId = (env.payload?.HostID ?? env.payload?.host_id) as string | undefined;
         if (hostId) {
           // Event feed (lives on at /activity).
           queryClient.invalidateQueries({
@@ -141,7 +133,7 @@ export function useLiveEvents(options: UseLiveEventsOptions = {}) {
     }
     es.onerror = (err) => {
       // EventSource reconnects automatically; log without spamming.
-       
+
       console.debug('[useLiveEvents] SSE error (will auto-reconnect)', err);
     };
 

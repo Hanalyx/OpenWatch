@@ -147,15 +147,12 @@ repos:
         files: ^frontend/.*\.(ts|tsx|js|jsx)$
         pass_filenames: false
 
-      # prettier hook stays disabled: prettier is not a frontend dependency and
-      # the codebase has never been prettier-formatted, so enabling it would mean
-      # a separate full-frontend reformat. Re-enable in a dedicated change that
-      # adds prettier + a .prettierrc and runs the one-time format pass.
-      # - id: prettier
-      #   name: Prettier Frontend Formatting
-      #   entry: bash -c 'cd frontend && npx prettier --check .'
-      #   language: system
-      #   files: ^frontend/.*\.(ts|tsx|css|scss|json)$
+      - id: prettier
+        name: Prettier Frontend Formatting
+        entry: bash -c 'cd frontend && npx prettier --check .'
+        language: system
+        files: ^frontend/.*\.(ts|tsx|css|scss|json)$
+        pass_filenames: false
       #   pass_filenames: false
 
       # Note: TypeScript has 219+ pre-existing type errors requiring gradual migration

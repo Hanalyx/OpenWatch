@@ -38,9 +38,7 @@ export function BulkImportWizard() {
   };
 
   const canNext =
-    (step === 0 && analysis !== null) ||
-    (step === 1 && mappingsAreValid(mappings)) ||
-    step === 2;
+    (step === 0 && analysis !== null) || (step === 1 && mappingsAreValid(mappings)) || step === 2;
 
   return (
     <div>
@@ -129,11 +127,7 @@ function Stepper({ currentStep }: { currentStep: StepIdx }) {
       {STEP_LABELS.map((label, idx) => {
         const isActive = idx === currentStep;
         const isDone = idx < currentStep;
-        const color = isActive
-          ? 'var(--ow-info)'
-          : isDone
-          ? 'var(--ow-ok)'
-          : 'var(--ow-fg-3)';
+        const color = isActive ? 'var(--ow-info)' : isDone ? 'var(--ow-ok)' : 'var(--ow-fg-3)';
         return (
           <li
             key={label}
@@ -161,8 +155,8 @@ function Stepper({ currentStep }: { currentStep: StepIdx }) {
                 background: isActive
                   ? 'var(--ow-info)'
                   : isDone
-                  ? 'var(--ow-ok)'
-                  : 'var(--ow-bg-2)',
+                    ? 'var(--ow-ok)'
+                    : 'var(--ow-bg-2)',
                 color: isActive || isDone ? 'var(--ow-info-on, #fff)' : 'var(--ow-fg-2)',
                 fontSize: 11,
                 fontWeight: 600,

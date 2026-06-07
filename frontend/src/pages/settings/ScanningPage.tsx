@@ -129,19 +129,79 @@ interface ConnectivityRowSeed {
 
 // Visual seed only; hosts/intervalMin/cadenceText come from live data.
 const CONNECTIVITY_ROW_SEEDS: ConnectivityRowSeed[] = [
-  { id: 'never', tier: 'muted', name: 'Never probed', desc: 'New host · no probe yet', rangeText: '—' },
-  { id: 'online', tier: 'ok', name: 'Online', desc: 'Reachable · 0 failures', rangeText: 'Healthy' },
-  { id: 'degraded', tier: 'info', name: 'Degraded', desc: 'Reachable · 1+ recent failures', rangeText: 'Watch' },
-  { id: 'critical', tier: 'warn', name: 'Critical', desc: 'Unreachable · 1–2 failures', rangeText: 'Backoff escalating' },
-  { id: 'down', tier: 'crit', name: 'Down', desc: '3+ consecutive failures', rangeText: 'Use on-demand probe to retest' },
+  {
+    id: 'never',
+    tier: 'muted',
+    name: 'Never probed',
+    desc: 'New host · no probe yet',
+    rangeText: '—',
+  },
+  {
+    id: 'online',
+    tier: 'ok',
+    name: 'Online',
+    desc: 'Reachable · 0 failures',
+    rangeText: 'Healthy',
+  },
+  {
+    id: 'degraded',
+    tier: 'info',
+    name: 'Degraded',
+    desc: 'Reachable · 1+ recent failures',
+    rangeText: 'Watch',
+  },
+  {
+    id: 'critical',
+    tier: 'warn',
+    name: 'Critical',
+    desc: 'Unreachable · 1–2 failures',
+    rangeText: 'Backoff escalating',
+  },
+  {
+    id: 'down',
+    tier: 'crit',
+    name: 'Down',
+    desc: '3+ consecutive failures',
+    rangeText: 'Use on-demand probe to retest',
+  },
 ];
 
 const GROUPS = [
-  { id: 'production', name: 'Production', kind: 'Site', desc: '3 hosts · environment', paused: false },
-  { id: 'development', name: 'Development', kind: 'Site', desc: '4 hosts · environment · currently paused', paused: true },
-  { id: 'dr', name: 'DR · Warm standby', kind: 'Site', desc: '2 hosts · disaster recovery', paused: false },
-  { id: 'rhel', name: 'RHEL', kind: 'OS', desc: '4 hosts · auto · caps.os.family == rhel', paused: false },
-  { id: 'ubuntu', name: 'Ubuntu', kind: 'OS', desc: '3 hosts · auto · caps.os.family == ubuntu', paused: false },
+  {
+    id: 'production',
+    name: 'Production',
+    kind: 'Site',
+    desc: '3 hosts · environment',
+    paused: false,
+  },
+  {
+    id: 'development',
+    name: 'Development',
+    kind: 'Site',
+    desc: '4 hosts · environment · currently paused',
+    paused: true,
+  },
+  {
+    id: 'dr',
+    name: 'DR · Warm standby',
+    kind: 'Site',
+    desc: '2 hosts · disaster recovery',
+    paused: false,
+  },
+  {
+    id: 'rhel',
+    name: 'RHEL',
+    kind: 'OS',
+    desc: '4 hosts · auto · caps.os.family == rhel',
+    paused: false,
+  },
+  {
+    id: 'ubuntu',
+    name: 'Ubuntu',
+    kind: 'OS',
+    desc: '3 hosts · auto · caps.os.family == ubuntu',
+    paused: false,
+  },
 ];
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -234,10 +294,7 @@ export function ScanningPage() {
   const breakdownQuery = useQuery({
     queryKey: ['fleet', 'connectivity', 'breakdown'],
     queryFn: async () => {
-      const { data, error, response } = await api.GET(
-        '/api/v1/fleet/connectivity/breakdown',
-        {},
-      );
+      const { data, error, response } = await api.GET('/api/v1/fleet/connectivity/breakdown', {});
       if (error) throw error;
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       return data!;
@@ -347,16 +404,16 @@ export function ScanningPage() {
         const hosts = !breakdown
           ? 0
           : seed.id === 'online'
-          ? Number(breakdown.online)
-          : seed.id === 'degraded'
-          ? Number(breakdown.degraded)
-          : seed.id === 'critical'
-          ? Number(breakdown.critical)
-          : seed.id === 'down'
-          ? Number(breakdown.down)
-          : seed.id === 'never'
-          ? Number(breakdown.never_probed)
-          : 0;
+            ? Number(breakdown.online)
+            : seed.id === 'degraded'
+              ? Number(breakdown.degraded)
+              : seed.id === 'critical'
+                ? Number(breakdown.critical)
+                : seed.id === 'down'
+                  ? Number(breakdown.down)
+                  : seed.id === 'never'
+                    ? Number(breakdown.never_probed)
+                    : 0;
         return {
           id: seed.id,
           tier: seed.tier,
@@ -418,11 +475,7 @@ export function ScanningPage() {
           onToggleChange={setComplianceEnabled}
         />
 
-        <StateTable
-          rows={complianceRows}
-          readOnly
-          onIntervalChange={() => {}}
-        />
+        <StateTable rows={complianceRows} readOnly onIntervalChange={() => {}} />
 
         <AdvancedDisclosure
           label="Advanced — quiet hours, jitter, retry policy (not yet wired)"
@@ -456,7 +509,8 @@ export function ScanningPage() {
       >
         {configQuery.isError && (
           <Callout tier="crit">
-            Failed to load connectivity config: {apiErrorMessage(configQuery.error, 'unknown error')}
+            Failed to load connectivity config:{' '}
+            {apiErrorMessage(configQuery.error, 'unknown error')}
           </Callout>
         )}
 
@@ -659,16 +713,18 @@ export function ScanningPage() {
             name={
               <>
                 Global maintenance mode{' '}
-                <HelpCircle size={13} color="var(--ow-fg-3)" aria-label="Silences the entire fleet" />
+                <HelpCircle
+                  size={13}
+                  color="var(--ow-fg-3)"
+                  aria-label="Silences the entire fleet"
+                />
               </>
             }
             description="Pause all connectivity probes across every host."
             control={
               <Toggle
                 value={draft?.maintenance_global ?? false}
-                onChange={(v) =>
-                  setDraft((d) => (d ? { ...d, maintenance_global: v } : d))
-                }
+                onChange={(v) => setDraft((d) => (d ? { ...d, maintenance_global: v } : d))}
                 ariaLabel="Global maintenance mode"
               />
             }
@@ -706,9 +762,7 @@ export function ScanningPage() {
               kind={group.kind}
               desc={group.desc}
               paused={groupMaintenance[group.id] ?? false}
-              onPauseChange={(v) =>
-                setGroupMaintenance((s) => ({ ...s, [group.id]: v }))
-              }
+              onPauseChange={(v) => setGroupMaintenance((s) => ({ ...s, [group.id]: v }))}
             />
           ))}
         </SettingCard>
@@ -733,11 +787,7 @@ export function ScanningPage() {
           }}
           onSave={() => saveMutation.mutate(draft)}
           saving={saveMutation.isPending}
-          error={
-            saveMutation.error
-              ? apiErrorMessage(saveMutation.error, 'Save failed')
-              : null
-          }
+          error={saveMutation.error ? apiErrorMessage(saveMutation.error, 'Save failed') : null}
         />
       )}
     </SettingsLayout>
@@ -948,7 +998,9 @@ function GroupRow({
         <div style={{ color: 'var(--ow-fg-2)', fontSize: 12, marginTop: 4 }}>{desc}</div>
       </div>
       <div style={{ display: 'flex', gap: 12, alignItems: 'center', justifyContent: 'flex-end' }}>
-        <Btn size="sm" disabled>Schedule window</Btn>
+        <Btn size="sm" disabled>
+          Schedule window
+        </Btn>
         <Toggle value={paused} onChange={onPauseChange} ariaLabel={`Pause ${name}`} />
       </div>
     </div>
@@ -997,7 +1049,9 @@ function SaveBar({
           <div style={{ marginTop: 4, color: 'var(--ow-crit)', fontSize: 12 }}>{error}</div>
         )}
       </div>
-      <Btn onClick={onReset} disabled={saving}>Discard</Btn>
+      <Btn onClick={onReset} disabled={saving}>
+        Discard
+      </Btn>
       <Btn variant="primary" onClick={onSave} disabled={saving}>
         {saving ? (
           <>

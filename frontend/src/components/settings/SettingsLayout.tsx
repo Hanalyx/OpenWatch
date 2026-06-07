@@ -25,7 +25,18 @@ interface NavItem {
   id: string;
   label: string;
   icon: ReactNode;
-  to: '/settings/profile' | '/settings/preferences' | '/settings/credentials' | '/settings/users' | '/settings/scanning' | '/settings/policies' | '/settings/notifications' | '/settings/integrations' | '/settings/security' | '/settings/audit' | '/settings/about';
+  to:
+    | '/settings/profile'
+    | '/settings/preferences'
+    | '/settings/credentials'
+    | '/settings/users'
+    | '/settings/scanning'
+    | '/settings/policies'
+    | '/settings/notifications'
+    | '/settings/integrations'
+    | '/settings/security'
+    | '/settings/audit'
+    | '/settings/about';
   count?: number;
   pip?: 'warn' | 'crit';
 }
@@ -39,18 +50,49 @@ const NAV_GROUPS: NavGroup[] = [
   {
     title: 'Workspace',
     items: [
-      { id: 'scanning', label: 'Scanning & monitoring', icon: <Clock size={14} />, to: '/settings/scanning' },
-      { id: 'credentials', label: 'SSH & credentials', icon: <Lock size={14} />, to: '/settings/credentials' },
-      { id: 'policies', label: 'Compliance policies', icon: <ShieldCheck size={14} />, to: '/settings/policies' },
-      { id: 'notifications', label: 'Notifications', icon: <Bell size={14} />, to: '/settings/notifications' },
-      { id: 'integrations', label: 'Integrations', icon: <LayoutGrid size={14} />, to: '/settings/integrations' },
+      {
+        id: 'scanning',
+        label: 'Scanning & monitoring',
+        icon: <Clock size={14} />,
+        to: '/settings/scanning',
+      },
+      {
+        id: 'credentials',
+        label: 'SSH & credentials',
+        icon: <Lock size={14} />,
+        to: '/settings/credentials',
+      },
+      {
+        id: 'policies',
+        label: 'Compliance policies',
+        icon: <ShieldCheck size={14} />,
+        to: '/settings/policies',
+      },
+      {
+        id: 'notifications',
+        label: 'Notifications',
+        icon: <Bell size={14} />,
+        to: '/settings/notifications',
+      },
+      {
+        id: 'integrations',
+        label: 'Integrations',
+        icon: <LayoutGrid size={14} />,
+        to: '/settings/integrations',
+      },
     ],
   },
   {
     title: 'Access',
     items: [
       { id: 'users', label: 'Users & teams', icon: <Users size={14} />, to: '/settings/users' },
-      { id: 'security', label: 'Security & auth', icon: <Shield size={14} />, to: '/settings/security', pip: 'warn' },
+      {
+        id: 'security',
+        label: 'Security & auth',
+        icon: <Shield size={14} />,
+        to: '/settings/security',
+        pip: 'warn',
+      },
       { id: 'audit', label: 'Audit log', icon: <ScrollText size={14} />, to: '/settings/audit' },
     ],
   },
@@ -58,7 +100,12 @@ const NAV_GROUPS: NavGroup[] = [
     title: 'Personal',
     items: [
       { id: 'profile', label: 'Profile', icon: <User size={14} />, to: '/settings/profile' },
-      { id: 'preferences', label: 'Preferences', icon: <SlidersHorizontal size={14} />, to: '/settings/preferences' },
+      {
+        id: 'preferences',
+        label: 'Preferences',
+        icon: <SlidersHorizontal size={14} />,
+        to: '/settings/preferences',
+      },
       { id: 'about', label: 'About', icon: <Info size={14} />, to: '/settings/about' },
     ],
   },

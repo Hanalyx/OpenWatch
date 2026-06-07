@@ -28,7 +28,9 @@ export function CSVUploadStep({ initialFileName, onAnalyzed }: Props) {
     async (file: File) => {
       setError(null);
       if (file.size > MAX_BYTES) {
-        setError(`File is larger than 5 MB (${(file.size / 1024 / 1024).toFixed(1)} MB). Split it into smaller files.`);
+        setError(
+          `File is larger than 5 MB (${(file.size / 1024 / 1024).toFixed(1)} MB). Split it into smaller files.`,
+        );
         return;
       }
       setBusy(true);
@@ -91,8 +93,8 @@ export function CSVUploadStep({ initialFileName, onAnalyzed }: Props) {
               {busy
                 ? 'Analyzing…'
                 : isDragActive
-                ? 'Drop the file to upload'
-                : 'Drag and drop a CSV file, or click to choose one'}
+                  ? 'Drop the file to upload'
+                  : 'Drag and drop a CSV file, or click to choose one'}
             </div>
             <div style={{ marginTop: 4, fontSize: 12, color: 'var(--ow-fg-3)' }}>
               Up to 5 MB. The first row must contain column names.
@@ -106,7 +108,8 @@ export function CSVUploadStep({ initialFileName, onAnalyzed }: Props) {
               {analysis && (
                 <span style={{ color: 'var(--ow-fg-2)' }}>
                   {' '}
-                  — {analysis.total_rows} row{analysis.total_rows === 1 ? '' : 's'}, {analysis.total_columns} column
+                  — {analysis.total_rows} row{analysis.total_rows === 1 ? '' : 's'},{' '}
+                  {analysis.total_columns} column
                   {analysis.total_columns === 1 ? '' : 's'}
                 </span>
               )}
@@ -127,7 +130,8 @@ export function CSVUploadStep({ initialFileName, onAnalyzed }: Props) {
           <header style={cardHeader}>Detected templates</header>
           <div style={cardBody}>
             <p style={{ margin: '0 0 10px', fontSize: 12, color: 'var(--ow-fg-2)' }}>
-              These headers look like exports from the following sources. We'll pre-fill mappings on the next step.
+              These headers look like exports from the following sources. We'll pre-fill mappings on
+              the next step.
             </p>
             <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13 }}>
               {analysis.template_matches.map((t) => (
@@ -166,11 +170,17 @@ export function CSVUploadStep({ initialFileName, onAnalyzed }: Props) {
                     f.confidence >= 0.8
                       ? 'var(--ow-ok)'
                       : f.confidence >= 0.5
-                      ? 'var(--ow-warn)'
-                      : 'var(--ow-fg-3)';
+                        ? 'var(--ow-warn)'
+                        : 'var(--ow-fg-3)';
                   return (
                     <tr key={f.column_name} style={{ borderTop: '1px solid var(--ow-line)' }}>
-                      <td style={{ ...td, fontFamily: 'var(--ow-font-mono)', color: 'var(--ow-fg-0)' }}>
+                      <td
+                        style={{
+                          ...td,
+                          fontFamily: 'var(--ow-font-mono)',
+                          color: 'var(--ow-fg-0)',
+                        }}
+                      >
                         {f.column_name}
                       </td>
                       <td style={td}>
@@ -183,14 +193,22 @@ export function CSVUploadStep({ initialFileName, onAnalyzed }: Props) {
                       </td>
                       <td style={td}>
                         {mapped ? (
-                          <code style={{ fontFamily: 'var(--ow-font-mono)', color: 'var(--ow-info)' }}>
+                          <code
+                            style={{ fontFamily: 'var(--ow-font-mono)', color: 'var(--ow-info)' }}
+                          >
                             {mapped}
                           </code>
                         ) : (
                           <span style={{ color: 'var(--ow-fg-3)' }}>—</span>
                         )}
                       </td>
-                      <td style={{ ...td, fontFamily: 'var(--ow-font-mono)', color: 'var(--ow-fg-2)' }}>
+                      <td
+                        style={{
+                          ...td,
+                          fontFamily: 'var(--ow-font-mono)',
+                          color: 'var(--ow-fg-2)',
+                        }}
+                      >
                         {f.sample_values.length > 0 ? f.sample_values.join(', ') : '—'}
                       </td>
                     </tr>

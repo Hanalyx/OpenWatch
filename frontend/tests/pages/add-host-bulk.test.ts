@@ -13,10 +13,7 @@ import { describe, expect, test } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-const PAGE_SRC = readFileSync(
-  resolve(process.cwd(), 'src/pages/AddHostPage.tsx'),
-  'utf8',
-);
+const PAGE_SRC = readFileSync(resolve(process.cwd(), 'src/pages/AddHostPage.tsx'), 'utf8');
 
 const WIZARD_SRC = readFileSync(
   resolve(process.cwd(), 'src/components/hosts/bulk/BulkImportWizard.tsx'),
@@ -134,9 +131,7 @@ describe('frontend-add-host — bulk parse + validate', () => {
       { source_column: 'ip', target_field: '' },
     ];
     const required = ['hostname', 'ip_address'];
-    const ok = required.every((r) =>
-      mappings.some((m) => m.target_field === r),
-    );
+    const ok = required.every((r) => mappings.some((m) => m.target_field === r));
     expect(ok).toBe(false);
   });
 

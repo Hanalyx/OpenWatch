@@ -15,10 +15,7 @@ import { describe, expect, test } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-const PAGE_SRC = readFileSync(
-  resolve(process.cwd(), 'src/pages/HostDetailPage.tsx'),
-  'utf8',
-);
+const PAGE_SRC = readFileSync(resolve(process.cwd(), 'src/pages/HostDetailPage.tsx'), 'utf8');
 
 describe('frontend-host-detail — structural', () => {
   // @ac AC-02
@@ -94,10 +91,7 @@ describe('frontend-host-detail — structural', () => {
   test('frontend-host-detail/AC-14 — no PII field names in console.*', () => {
     const deny = ['evidence', 'token', 'password', 'secret'];
     for (const field of deny) {
-      const re = new RegExp(
-        `console\\.(log|warn|error)\\([^)]*['"]?${field}['"]?\\s*[:=]`,
-        'i',
-      );
+      const re = new RegExp(`console\\.(log|warn|error)\\([^)]*['"]?${field}['"]?\\s*[:=]`, 'i');
       expect(PAGE_SRC).not.toMatch(re);
     }
   });

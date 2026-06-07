@@ -12,10 +12,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { apiHostToDev, type ApiHost } from '@/pages/HostsListPage';
 
-const PAGE_SRC = readFileSync(
-  resolve(process.cwd(), 'src/pages/HostsListPage.tsx'),
-  'utf8',
-);
+const PAGE_SRC = readFileSync(resolve(process.cwd(), 'src/pages/HostsListPage.tsx'), 'utf8');
 
 function makeApiHost(overrides: Partial<ApiHost> = {}): ApiHost {
   return {
@@ -33,15 +30,11 @@ describe('frontend-host-list-os — behavioral', () => {
   test('frontend-host-list-os/AC-04 — apiHostToDev derives OS from os_family, not hostname', () => {
     // Hostname suggests RHEL but os_family is null -> Unknown.
     // This is the proof-positive that the hostname heuristic is gone.
-    const preDiscovery = apiHostToDev(
-      makeApiHost({ hostname: 'owas-rhn01', os_family: null }),
-    );
+    const preDiscovery = apiHostToDev(makeApiHost({ hostname: 'owas-rhn01', os_family: null }));
     expect(preDiscovery.os).toBe('Unknown');
 
     // Real os_family wins.
-    const discovered = apiHostToDev(
-      makeApiHost({ hostname: 'random-name', os_family: 'rhel' }),
-    );
+    const discovered = apiHostToDev(makeApiHost({ hostname: 'random-name', os_family: 'rhel' }));
     expect(discovered.os).toBe('RHEL');
 
     const ubuntuHost = apiHostToDev(
@@ -60,11 +53,11 @@ describe('frontend-host-list-os — structural', () => {
   // @ac AC-06
   test('frontend-host-list-os/AC-06 — osDisplayLabel is imported and used by apiHostToDev', () => {
     // Imported from the shared util
-    expect(PAGE_SRC).toMatch(/import\s*\{[^}]*osDisplayLabel[^}]*\}\s*from\s*['"]@\/utils\/osLabel['"]/);
-    // apiHostToDev body references the helper
-    const fnMatch = PAGE_SRC.match(
-      /function\s+apiHostToDev\s*\([^)]*\)[^{]*\{([\s\S]*?)\n\}/,
+    expect(PAGE_SRC).toMatch(
+      /import\s*\{[^}]*osDisplayLabel[^}]*\}\s*from\s*['"]@\/utils\/osLabel['"]/,
     );
+    // apiHostToDev body references the helper
+    const fnMatch = PAGE_SRC.match(/function\s+apiHostToDev\s*\([^)]*\)[^{]*\{([\s\S]*?)\n\}/);
     expect(fnMatch).not.toBeNull();
     expect(fnMatch![1]).toContain('osDisplayLabel');
     expect(fnMatch![1]).toContain('os_family');
