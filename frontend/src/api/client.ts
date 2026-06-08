@@ -72,8 +72,10 @@ async function refresh(): Promise<boolean> {
 // onAuthFailure clears the cached identity and navigates to login.
 // Kept here (not in the store) so any caller — components or non-React
 // helpers — gets the same behavior. Soft-references window so unit
-// tests in jsdom don't blow up on import.
-function onAuthFailure(): void {
+// tests in jsdom don't blow up on import. Exported so the global
+// QueryCache/MutationCache error handler (main.tsx) routes EVERY auth
+// failure here, not just the ones this client's middleware sees.
+export function onAuthFailure(): void {
   try {
     useAuthStore.getState().clear();
   } catch {
@@ -150,6 +152,9 @@ baseClient.use({
       const token = readCookie(CSRF_COOKIE);
       if (token) retried.headers.set(CSRF_HEADER, token);
     }
+    // A replay that still 401s is handled by the global, code-aware
+    // QueryCache/MutationCache onError handler (main.tsx): it redirects
+    // only for auth.* codes, so an authz (permission) 401 is left alone.
     return fetch(retried);
   },
 });
