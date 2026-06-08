@@ -183,35 +183,45 @@ curl -s http://localhost:8000/api/scans/$SCAN_ID/results \
 
 Integrate compliance scanning into CI/CD pipelines, SIEM platforms, or custom dashboards.
 
-## Administration: owadm
+## Administration
 
-The `owadm` CLI manages your OpenWatch deployment (Docker and Podman):
+OpenWatch is a single binary. Service lifecycle is managed by **systemd**; admin
+operations are subcommands of the `openwatch` binary itself:
 
 ```bash
-owadm start              # Start all services
-owadm stop               # Stop services (data preserved)
-owadm status             # Service health overview
-owadm logs -f backend    # Follow backend logs
-owadm create-admin       # Create admin user
-owadm db-migrate         # Run database migrations
-owadm health             # Health check
+# Service lifecycle (systemd unit installed by the RPM/DEB)
+systemctl start openwatch        # start the service
+systemctl status openwatch       # service status
+journalctl -u openwatch -f       # follow logs
+
+# Admin operations (openwatch subcommands)
+openwatch migrate                # apply pending database migrations
+openwatch create-admin \         # create the first admin user
+  --username admin --email admin@example.com --password '...'
+openwatch check-config           # validate and print the resolved config
+openwatch --version              # build metadata
+
+# Health
+curl -k https://localhost:8443/api/v1/health
 ```
 
 ## Production Deployment
 
-For production environments, use the hardened configuration:
+Install the native package (see [docs/guides/INSTALLATION.md](docs/guides/INSTALLATION.md)):
 
 ```bash
-# Generate secure secrets
-owadm generate-secrets
+sudo dnf install ./openwatch-*.rpm     # RHEL / Rocky / Fedora / Oracle
+sudo apt install ./openwatch_*.deb     # Ubuntu / Debian
 
-# Deploy with production settings
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+sudo openwatch migrate                 # apply migrations
+sudo openwatch create-admin --username admin --email you@example.com --password '...'
+sudo systemctl enable --now openwatch  # start at boot
 ```
 
-Production mode enables: HTTPS (443/80), FIPS cryptography, resource limits (2 CPU / 4 GB backend, 4 CPU / 8 GB worker), JSON logging with rotation, and tightened health checks.
-
-RPM packages and systemd units are available in `packaging/` for bare-metal deployments with SELinux policy modules included.
+The package installs the `openwatch` binary (API + embedded UI), a hardened
+systemd unit, default config under `/etc/openwatch/`, and a system user.
+Replace the demo TLS cert under `/etc/openwatch/tls/` with your own before
+production use. FIPS-mode builds are available via `make build-fips`.
 
 ## Monitoring
 

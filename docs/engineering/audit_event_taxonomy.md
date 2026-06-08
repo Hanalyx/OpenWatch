@@ -70,7 +70,7 @@ Every audit event has this shape. Only `detail` varies per event type.
     "id": "uuid",
     "label": "alice@example.com",
     "ip_address": "10.0.0.42",
-    "user_agent": "owadm/1.0.0",
+    "user_agent": "openwatch/1.0.0",
     "session_id": "uuid"
   },
 

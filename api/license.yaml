@@ -115,7 +115,7 @@ components:
         installed_by:
           type: string
           format: uuid
-          description: User who ran `owadm license install`. Null if installed pre-rebuild or via direct file write.
+          description: User who ran `openwatch license install`. Null if installed pre-rebuild or via direct file write.
         last_validated_at: {type: string, format: date-time}
         support_contact: {type: string}
         warnings:
@@ -297,7 +297,7 @@ paths:
         Performs all the checks of `install` but does not write the file or
         reload the service.
 
-        Mirrors `owadm license verify <file>`.
+        Mirrors `openwatch license verify <file>`.
       x-required-permission: SYSTEM_ADMIN
       x-rate-limit-bucket: admin-write
       parameters:
@@ -324,7 +324,7 @@ paths:
         reloads the in-memory state (no service restart). Emits
         `license.installed` audit event.
 
-        Mirrors `owadm license install <file>` but available via API for
+        Mirrors `openwatch license install <file>` but available via API for
         deployment automation.
       x-required-permission: SYSTEM_ADMIN
       x-rate-limit-bucket: admin-write

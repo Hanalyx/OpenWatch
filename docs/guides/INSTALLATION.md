@@ -204,14 +204,16 @@ CentOS Stream 9.
 
 | Path | Contents |
 |------|----------|
-| `/usr/bin/owadm` | Admin CLI |
-| `/opt/openwatch/backend/` | FastAPI application, requirements.txt |
-| `/opt/openwatch/frontend/` | Pre-built React SPA |
-| `/opt/openwatch/backend/kensa/` | 508 Kensa compliance rules + mappings (bundled) |
-| `/etc/openwatch/` | Configuration (ow.yml, secrets.env, logging.yml) |
-| `/lib/systemd/system/` | Service units (api, worker, beat, target) |
-| `/etc/nginx/conf.d/openwatch.conf` | Reverse proxy configuration |
-| `/usr/share/openwatch/scripts/` | generate-secrets.sh, setup-database.sh |
+| `/usr/bin/openwatch` | The single Go binary — API server, embedded React UI, and admin subcommands (`serve`, `worker`, `migrate`, `create-admin`, `check-config`) |
+| `/etc/openwatch/openwatch.toml` | Configuration |
+| `/etc/openwatch/tls/` | Demo TLS cert + key (replace before production) |
+| `/etc/systemd/system/openwatch.service` | Hardened systemd unit |
+| `/var/lib/openwatch/` | Service state |
+| `/var/log/openwatch/` | Logs (also via journald) |
+
+The binary embeds the frontend SPA and the Kensa rules, so there is no separate
+frontend package, nginx reverse proxy, or rule bundle to install. A dedicated
+`openwatch` system user is created by the package's post-install script.
 
 ### 1. Install External Dependencies
 
@@ -353,18 +355,21 @@ Open `https://<your-host>/` in a browser. Log in with the default credentials
 ### Service Management
 
 ```bash
-# Start / stop all services
-sudo systemctl start openwatch.target
-sudo systemctl stop openwatch.target
+# Start / stop / inspect the service (single systemd unit)
+sudo systemctl start openwatch
+sudo systemctl stop openwatch
+sudo systemctl status openwatch
 
 # View logs
-journalctl -u openwatch-api -f
-journalctl -u openwatch-worker@1 -f
+journalctl -u openwatch -f
 
-# Admin CLI
-owadm health              # Health check all components
-owadm validate-config     # Validate configuration
-owadm backup              # Create database + config backup
+# Admin operations (subcommands of the openwatch binary)
+sudo openwatch migrate          # apply pending database migrations
+sudo openwatch check-config     # validate and print the resolved config
+curl -k https://localhost:8443/api/v1/health   # health check
+
+# Backups: dump the PostgreSQL database and copy /etc/openwatch/
+pg_dump -U openwatch openwatch > openwatch-$(date +%F).sql
 ```
 
 ### Firewall

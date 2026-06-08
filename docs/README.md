@@ -61,7 +61,11 @@ Start here: [Introduction](INTRODUCTION.md) | [Quickstart](guides/QUICKSTART.md)
 | Document | Description |
 |----------|-------------|
 | [Kensa Integration](architecture/KENSA_INTEGRATION.md) | Kensa compliance engine integration manual |
-| [Native RPM Installation](architecture/NATIVE_RPM_INSTALLATION.md) | RPM-based deployment design |
+
+For installing OpenWatch from the native RPM/DEB, see
+[guides/INSTALLATION.md](guides/INSTALLATION.md). (The earlier owadm-based
+"Native RPM Installation Plan" was superseded by the single-`openwatch`-binary
+model and archived.)
 
 > **Design documents** — the Python-era `openwatchos/` planning sketches and other
 > dated planning/review docs were archived to `~/hanalyx/OWAR/openwatch-python/docs-archive/`.

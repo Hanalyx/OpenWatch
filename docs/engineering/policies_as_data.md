@@ -86,7 +86,7 @@ signature:                       # Ed25519 signature over the entire document MI
 
 ### 4.2 Why Ed25519, not just file permissions
 
-File-permission protection assumes an attacker who can write `/opt/openwatch/policies/` cannot execute `owadm policy install` (which checks signatures). Most real attackers who can do the first can do the second. Ed25519 with embedded public keys raises the bar: an attacker must possess the admin private key, which is held offline.
+File-permission protection assumes an attacker who can write `/opt/openwatch/policies/` cannot execute `openwatch policy install` (which checks signatures). Most real attackers who can do the first can do the second. Ed25519 with embedded public keys raises the bar: an attacker must possess the admin private key, which is held offline.
 
 Same primitive as license signing and audit chain signing — one crypto surface, fewer keys to rotate.
 
@@ -103,7 +103,7 @@ Same primitive as license signing and audit chain signing — one crypto surface
                        │ policies/{type}.yaml on disk         │
                        │ + admin public keys (embedded)       │
                        └──────────────┬───────────────────────┘
-                                      │ owadm policy install
+                                      │ openwatch policy install
                                       │     OR startup
                                       │     OR SIGHUP
                                       ▼
@@ -751,7 +751,7 @@ The framework loads, validates, snapshots, and emits audit events on Day 6. Type
 
 1. **Per-tenant policies.** The current design is single-tenant per OpenWatch deployment. Multi-tenant would require namespacing files and snapshot rows by tenant. Defer to multi-tenant epic.
 2. **Policy diff/preview UI.** Operators will want to see "what would change if I install this version?" before installing. Out of Stage 0 scope.
-3. **Policy linting beyond schema.** E.g., "you have a `class: accepted_risk` rule with `max_duration_days: 9999` — is that intentional?" Defer; can be added as a separate `owadm policy lint` subcommand.
+3. **Policy linting beyond schema.** E.g., "you have a `class: accepted_risk` rule with `max_duration_days: 9999` — is that intentional?" Defer; can be added as a separate `openwatch policy lint` subcommand.
 4. **Cross-policy invariants.** E.g., the `approvals` policy declares `host.delete` requires no approval, but the `remediation` policy declares it does. Today each policy is validated independently. Cross-checks deferred until we hit a real conflict.
 5. **Policy expression evaluator scope.** §5.4 uses string conditions like `score < 70`. The schema validator allowlists patterns. If operators ever want richer expressions (e.g., `score < 70 AND host.tag == "production"`), we either grow the allowlist or write a tiny CEL-style evaluator. Expressions in the allowlist stay restricted in v1.
 

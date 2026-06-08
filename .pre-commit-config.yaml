@@ -135,8 +135,8 @@ repos:
       - id: check-no-emojis
         name: Check for Emojis in Code
         # Note: Emojis allowed in CLAUDE.md (policy doc), .github/ (templates), tests/ (unicode tests),
-        # cmd/owadm/README.md, scripts/examples/, scripts/utilities/ (reference implementations)
-        entry: bash -c 'if git diff --cached --name-only | grep -v "CLAUDE.md" | grep -v "^\.github/" | grep -v "^cmd/owadm/README.md" | grep -v "^scripts/examples/" | grep -v "^scripts/utilities/" | grep -v "^backend/tests/" | xargs grep -P "[\x{1F300}-\x{1F9FF}]" 2>/dev/null; then echo "ERROR - Emojis detected in code. See CLAUDE.md emoji policy."; exit 1; fi'
+        # scripts/examples/, scripts/utilities/ (reference implementations)
+        entry: bash -c 'if git diff --cached --name-only | grep -v "CLAUDE.md" | grep -v "^\.github/" | grep -v "^scripts/examples/" | grep -v "^scripts/utilities/" | grep -v "^backend/tests/" | xargs grep -P "[\x{1F300}-\x{1F9FF}]" 2>/dev/null; then echo "ERROR - Emojis detected in code. See CLAUDE.md emoji policy."; exit 1; fi'
         language: system
         pass_filenames: false
 

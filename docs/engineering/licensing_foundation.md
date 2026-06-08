@@ -310,7 +310,7 @@ internal/license/
 Deferred to a later stage (not yet implemented):
 - `loader.go` — file-based license install path (currently env-var only)
 - `reload.go` — SIGHUP-driven re-validation
-- `cli.go` — `owadm license install/verify/info` subcommands
+- `cli.go` — `openwatch license install/verify/info` subcommands
 - Quotas (`Quotas` struct + `RequireQuota` middleware) — Phase 2
 
 ### 5.2 Hot path: `IsEnabled`
@@ -514,16 +514,16 @@ Per the audit-as-API contract, these are queryable via `/api/v1/audit/events?act
 
 ---
 
-## 7. CLI: `owadm license`
+## 7. CLI: `openwatch license`
 
 Three subcommands cover the operator flow:
 
-### 7.1 `owadm license info`
+### 7.1 `openwatch license info`
 
 Show current license state.
 
 ```
-$ owadm license info
+$ openwatch license info
 License ID:        e21f5a8d-...
 Customer:          Acme Corp
 Tier:              openwatch_plus
@@ -541,12 +541,12 @@ Last validated:    2026-04-28 14:32:00 UTC
 Support contact:   support@hanalyx.com
 ```
 
-### 7.2 `owadm license verify <file>`
+### 7.2 `openwatch license verify <file>`
 
 Verify a license file without installing. Useful before sending to a customer.
 
 ```
-$ owadm license verify /tmp/new-license.lic
+$ openwatch license verify /tmp/new-license.lic
 ✓ JWT structure valid
 ✓ Signature verified (key: license-pubkey-current.pem)
 ✓ Issuer matches
@@ -559,12 +559,12 @@ $ owadm license verify /tmp/new-license.lic
 License is valid.
 ```
 
-### 7.3 `owadm license install <file>`
+### 7.3 `openwatch license install <file>`
 
 Verify and install. Sends SIGHUP to running service so reload happens without restart.
 
 ```
-$ sudo owadm license install /tmp/new-license.lic
+$ sudo openwatch license install /tmp/new-license.lic
 Verifying license... ✓
 Backup: /etc/openwatch/license.lic.bak (previous license)
 Installing: /etc/openwatch/license.lic
@@ -672,7 +672,7 @@ Generated license: e21f5a8d-3c7a-4b1f-9e8d-...
 File: /tmp/acme-license.lic (1247 bytes)
 SHA256: 7a8b9c...
 
-Verify with: owadm license verify /tmp/acme-license.lic
+Verify with: openwatch license verify /tmp/acme-license.lic
 ```
 
 `owlicgen` lives at `app/cmd/owlicgen/`. It is not shipped to customers. It uses the **private** signing key, which never leaves Hanalyx infrastructure. Customers never see this tool.
@@ -728,7 +728,7 @@ Stage 0 ships with the licensing foundation when:
 - [ ] `:premium-echo` demo endpoint validates the end-to-end seam
 - [ ] License loads at startup; SIGHUP triggers reload
 - [ ] Audit events emit for install, invalid, denied, quota_exceeded
-- [ ] `owadm license info / verify / install` CLI works
+- [ ] `openwatch license info / verify / install` CLI works
 - [ ] `owlicgen` tool generates valid licenses signed by the test key
 - [ ] Specter spec `system/licensing.spec.yaml` exists with 13 ACs
 - [ ] OpenAPI extension `x-required-feature` is documented in `app/docs/api_design_principles.md`
