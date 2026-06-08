@@ -167,6 +167,9 @@ jobs:
           tag_name: ${{ github.event.inputs.version || github.ref_name }}
           generate_release_notes: true
           fail_on_unmatched_files: false
+          # Any version with a pre-release suffix (e.g. -rc.4, -beta.1) is a
+          # pre-release; a bare vX.Y.Z (no hyphen) is a GA release.
+          prerelease: ${{ contains(github.event.inputs.version || github.ref_name, '-') }}
           files: |
             dist/openwatch-*.rpm
             dist/openwatch_*.deb
