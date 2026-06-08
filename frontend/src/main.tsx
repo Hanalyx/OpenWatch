@@ -2,11 +2,12 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { CssVarsProvider } from '@mui/material/styles';
 import { RouterProvider } from '@tanstack/react-router';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryCache, MutationCache, QueryClientProvider } from '@tanstack/react-query';
 
 import { theme } from '@/theme/theme';
 import { router } from '@/routes/router';
 import { bootstrapAuth } from '@/api/auth-bootstrap';
+import { redirectOnAuthError } from '@/api/auth-error-redirect';
 import { useLiveEvents } from '@/hooks/useLiveEvents';
 // Importing the color-scheme store at boot ensures its module-level
 // init code (loadStored + applyToDOM + matchMedia listener) runs
@@ -29,7 +30,12 @@ import './theme/globals.css';
 //
 // Spec: frontend-foundation AC-16 (CssVarsProvider wraps the tree).
 
+// Global safety net: every failed query and mutation passes through
+// redirectOnAuthError, so an expired/invalid session always lands the
+// user on /login instead of a raw error envelope. See auth-error-redirect.
 const queryClient = new QueryClient({
+  queryCache: new QueryCache({ onError: redirectOnAuthError }),
+  mutationCache: new MutationCache({ onError: redirectOnAuthError }),
   defaultOptions: {
     queries: { staleTime: 30_000, refetchOnWindowFocus: false },
   },
