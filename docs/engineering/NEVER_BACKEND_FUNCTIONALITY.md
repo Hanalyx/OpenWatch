@@ -145,12 +145,15 @@ These are operator conveniences that an admin CLI tool covers better than an HTT
 
 | Component | Replacement |
 |---|---|
-| Terminal service (`/infrastructure/terminal.py`) — interactive SSH via UI | `owadm exec <host>` CLI; SSH directly from operator's workstation |
-| SSH debug endpoints (`/api/ssh/debug/test-authentication`, `/debug/paramiko-log`) | `owadm ssh-test <host>` CLI |
-| Manual scheduler controls (`/scheduler/start`, `/stop`, `/reset-defaults`) | `systemctl restart openwatch.service`; scheduler config via `owadm` |
+| Terminal service (`/infrastructure/terminal.py`) — interactive SSH via UI | SSH directly from the operator's workstation (or a future `openwatch exec <host>` subcommand) |
+| SSH debug endpoints (`/api/ssh/debug/test-authentication`, `/debug/paramiko-log`) | A future `openwatch ssh-test <host>` subcommand |
+| Manual scheduler controls (`/scheduler/start`, `/stop`, `/reset-defaults`) | `systemctl restart openwatch`; scheduler config via the `openwatch` binary |
 | Discovery acknowledge-failures | Owner: investigate failures, not acknowledge them silently |
 
-> **Open question:** is the rebuild shipping a CLI (`owadm`)? If yes, these belong there. If not, this becomes MAYBE pending UX decision.
+> **Resolved:** the rebuild ships a single binary whose CLI is the binary itself —
+> admin operations are `openwatch` subcommands (`serve`, `worker`, `migrate`,
+> `create-admin`, `check-config`), not a separate `owadm` tool. Any commands above
+> that are not yet implemented are deferred subcommands, tracked when built.
 
 ---
 
