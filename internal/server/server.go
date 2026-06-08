@@ -122,11 +122,15 @@ func New(cfg *config.Config, pool *pgxpool.Pool) *Server {
 	r.Use(idempotency.Middleware(pool))
 
 	// chi's default NotFound/MethodNotAllowed handlers short-circuit
-	// AROUND the middleware chain. Register explicit handlers so 404 and
-	// 405 responses also carry X-Correlation-Id.
-	r.NotFound(func(w http.ResponseWriter, _ *http.Request) {
-		http.Error(w, "404 page not found", http.StatusNotFound)
-	})
+	// AROUND the middleware chain. Register explicit handlers so responses
+	// also carry X-Correlation-Id.
+	//
+	// NotFound serves the embedded single-page app: API routes registered
+	// below match first, so only non-API paths (/, /hosts, /assets/*, deep
+	// links) fall through here. The handler returns a JSON-less 404 for
+	// unmatched /api/ paths and the SPA (static asset or index.html
+	// fallback) for everything else.
+	r.NotFound(newSPAHandler().ServeHTTP)
 	r.MethodNotAllowed(func(w http.ResponseWriter, _ *http.Request) {
 		http.Error(w, "405 method not allowed", http.StatusMethodNotAllowed)
 	})

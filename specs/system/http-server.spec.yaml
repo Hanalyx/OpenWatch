@@ -64,6 +64,10 @@ spec:
       description: Cert cache validity period MUST be 5 seconds (cert hot-reload within seconds)
       type: technical
       enforcement: error
+    - id: C-10
+      description: The server MUST serve the embedded single-page app for non-API routes (static assets directly, index.html as the client-side-routing fallback) and MUST NOT serve the SPA for unmatched /api/ paths (those return 404).
+      type: technical
+      enforcement: error
 
   acceptance_criteria:
     - id: AC-01
@@ -104,3 +108,15 @@ spec:
     - id: AC-11
       description: Run returns the first non-nil error from ListenAndServeTLS that is not http.ErrServerClosed.
       priority: medium
+    - id: AC-12
+      description: GET / returns the embedded SPA index.html with a 200 status and a text/html content type.
+      priority: high
+      references_constraints: [C-10]
+    - id: AC-13
+      description: GET a non-API, unmatched path (a client-side route such as /hosts) returns the SPA index.html (200) so deep links and reloads resolve.
+      priority: high
+      references_constraints: [C-10]
+    - id: AC-14
+      description: GET an unmatched /api/ path returns 404 and does NOT serve the SPA index.html.
+      priority: critical
+      references_constraints: [C-10]
