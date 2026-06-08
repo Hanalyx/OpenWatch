@@ -189,6 +189,18 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
 
+  /api/v1/version:
+    get:
+      operationId: getVersion
+      summary: Build/version metadata (anonymous)
+      security: []
+      responses:
+        '200':
+          description: Version metadata for this deployment
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/VersionResponse'}
+
   /api/v1/diagnostics:echo:
     post:
       operationId: postDiagnosticsEcho
@@ -2109,6 +2121,16 @@ components:
         status: {type: string, enum: [healthy, degraded]}
         db_connected: {type: boolean}
         version: {type: string}
+
+    VersionResponse:
+      type: object
+      required: [openwatch, kensa, go, commit, build_time]
+      properties:
+        openwatch: {type: string, description: 'OpenWatch semver (ldflags-injected)'}
+        kensa: {type: string, description: 'Embedded Kensa engine module version (build info)'}
+        go: {type: string, description: 'Go toolchain version the binary was built with'}
+        commit: {type: string, description: 'Abbreviated git commit'}
+        build_time: {type: string, description: 'ISO-8601 build timestamp'}
 
     EchoRequest:
       type: object

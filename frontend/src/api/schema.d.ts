@@ -160,6 +160,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/version": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Build/version metadata (anonymous) */
+        get: operations["getVersion"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/diagnostics:echo": {
         parameters: {
             query?: never;
@@ -1434,6 +1451,18 @@ export interface components {
             db_connected: boolean;
             version: string;
         };
+        VersionResponse: {
+            /** @description OpenWatch semver (ldflags-injected) */
+            openwatch: string;
+            /** @description Embedded Kensa engine module version (build info) */
+            kensa: string;
+            /** @description Go toolchain version the binary was built with */
+            go: string;
+            /** @description Abbreviated git commit */
+            commit: string;
+            /** @description ISO-8601 build timestamp */
+            build_time: string;
+        };
         EchoRequest: {
             message: string;
         };
@@ -2152,6 +2181,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getVersion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Version metadata for this deployment */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VersionResponse"];
                 };
             };
         };
