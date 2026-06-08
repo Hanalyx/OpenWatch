@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # Build the OpenWatch DEB.
 #
-# Usage:   bash packaging/deb/build-deb.sh
-# Output:  app/dist/openwatch_<version>_<arch>.deb
+# Usage:   bash packaging/deb/build-deb.sh            # host arch (amd64)
+#          ARCH=arm64 bash packaging/deb/build-deb.sh # cross-compile arm64
+# Output:  dist/openwatch_<version>_<arch>.deb
 #
-# Spec: app/specs/release/package-build.spec.yaml AC-02, AC-06, AC-13.
+# Spec: specs/release/package-build.spec.yaml AC-02, AC-06, AC-13.
 
 set -euo pipefail
 
@@ -26,14 +27,21 @@ if [ -z "${VERSION:-}" ]; then
 fi
 # DEB allows hyphens; reuse upstream version as-is.
 DEB_VERSION="$VERSION"
+# Target architecture (Debian names, which match GOARCH for our targets).
 ARCH="${ARCH:-amd64}"
+case "$ARCH" in
+    amd64 | arm64) ;;
+    *) echo "build-deb.sh: unsupported ARCH=$ARCH (use amd64 | arm64)" >&2; exit 1 ;;
+esac
 DIST_DIR="${APP_DIR}/dist"
 
 mkdir -p "$DIST_DIR"
 
-# Step 1: build the Go binary.
-echo ">> building openwatch binary (version=${DEB_VERSION})"
-make build VERSION="$DEB_VERSION" >/dev/null
+# Step 1: build the Go binary for the target arch. CGO is disabled so the
+# binary is portable and cross-compiles without a C toolchain (the embedded
+# frontend SPA is arch-independent).
+echo ">> building openwatch binary (version=${DEB_VERSION}, arch=${ARCH})"
+GOOS=linux GOARCH="$ARCH" CGO_ENABLED=0 make build VERSION="$DEB_VERSION" >/dev/null
 
 # Step 2: stage the package tree.
 STAGE="$(mktemp -d)"
@@ -55,8 +63,9 @@ install -m 0644 "$APP_DIR/packaging/common/openwatch.service" "$STAGE/etc/system
 bash "$APP_DIR/packaging/common/gen-demo-cert.sh" "$STAGE/etc/openwatch/tls" >/dev/null
 
 # Step 3: control + maintainer scripts.
-# Render control with the actual version inserted.
-sed "s/^Version: .*/Version: ${DEB_VERSION}/" \
+# Render control with the actual version and target arch inserted.
+sed -e "s/^Version: .*/Version: ${DEB_VERSION}/" \
+    -e "s/^Architecture: .*/Architecture: ${ARCH}/" \
     "$APP_DIR/packaging/deb/control" > "$STAGE/DEBIAN/control"
 
 install -m 0644 "$APP_DIR/packaging/deb/conffiles" "$STAGE/DEBIAN/conffiles"

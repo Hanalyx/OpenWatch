@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"testing"
@@ -369,6 +370,43 @@ func TestMake_RPMAndDEBTargetsExit0(t *testing.T) {
 		haveTool(t, "dpkg-deb")
 		runMake(t, dir, "rpm")
 		runMake(t, dir, "deb")
+	})
+}
+
+// @ac AC-14
+// AC-14: both build scripts cross-compile for arm64. Source-inspection (an
+// actual aarch64 build needs the target rpm/dpkg arch which is not portable in
+// CI) — assert the scripts map ARCH=arm64 to the right GOARCH/package arch and
+// build with CGO disabled.
+func TestBuild_MultiArchSupport(t *testing.T) {
+	t.Run("release-package-build/AC-14", func(t *testing.T) {
+		dir := appDir(t)
+		read := func(p string) string {
+			b, err := os.ReadFile(p)
+			if err != nil {
+				t.Fatalf("read %s: %v", p, err)
+			}
+			return string(b)
+		}
+		rpm := read(filepath.Join(dir, "packaging", "rpm", "build-rpm.sh"))
+		deb := read(filepath.Join(dir, "packaging", "deb", "build-deb.sh"))
+
+		for name, src := range map[string]string{"build-rpm.sh": rpm, "build-deb.sh": deb} {
+			if !strings.Contains(src, "ARCH") || !strings.Contains(src, "arm64") {
+				t.Errorf("%s does not parameterize ARCH for arm64", name)
+			}
+			if !regexp.MustCompile(`GOARCH=.*CGO_ENABLED=0|CGO_ENABLED=0.*GOARCH=`).MatchString(src) {
+				t.Errorf("%s does not cross-compile with GOARCH + CGO_ENABLED=0", name)
+			}
+		}
+		// RPM maps arm64 -> aarch64 and passes it to rpmbuild --target.
+		if !strings.Contains(rpm, "aarch64") || !regexp.MustCompile(`--target`).MatchString(rpm) {
+			t.Error("build-rpm.sh must map arm64 -> aarch64 and pass --target to rpmbuild")
+		}
+		// DEB renders the target arch into the control file.
+		if !regexp.MustCompile(`Architecture:.*ARCH|ARCH.*Architecture`).MatchString(deb) {
+			t.Error("build-deb.sh must render the target arch into the DEB control Architecture field")
+		}
 	})
 }
 

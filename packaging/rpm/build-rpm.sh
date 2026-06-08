@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # Build the OpenWatch RPM.
 #
-# Usage:   bash packaging/rpm/build-rpm.sh
-# Output:  app/dist/openwatch-<version>-<release>.<arch>.rpm
+# Usage:   bash packaging/rpm/build-rpm.sh            # host arch (x86_64)
+#          ARCH=arm64 bash packaging/rpm/build-rpm.sh # cross-compile aarch64
+# Output:  dist/openwatch-<version>-<release>.<arch>.rpm
 #
-# Spec: app/specs/release/package-build.spec.yaml AC-01, AC-04, AC-13.
+# Spec: specs/release/package-build.spec.yaml AC-01, AC-04, AC-13.
 
 set -euo pipefail
 
@@ -30,12 +31,22 @@ RPM_VERSION="${VERSION%%-*}"
 RPM_RELEASE="${RPM_RELEASE:-1}"
 DIST_DIR="${APP_DIR}/dist"
 
+# Target architecture: GOARCH name in, RPM arch name out.
+ARCH="${ARCH:-amd64}"
+case "$ARCH" in
+    amd64) GOARCH=amd64; RPM_ARCH=x86_64 ;;
+    arm64) GOARCH=arm64; RPM_ARCH=aarch64 ;;
+    *) echo "build-rpm.sh: unsupported ARCH=$ARCH (use amd64 | arm64)" >&2; exit 1 ;;
+esac
+
 mkdir -p "$DIST_DIR"
 
-# Step 1: build the Go binary (release flags). Done outside rpmbuild's
-# %build so the chroot doesn't need the Go toolchain.
-echo ">> building openwatch binary (version=${RPM_VERSION})"
-make build VERSION="$RPM_VERSION" >/dev/null
+# Step 1: build the Go binary (release flags) for the target arch. Done
+# outside rpmbuild's %build so the chroot needs no Go toolchain. CGO is
+# disabled for a portable binary that cross-compiles without a C toolchain
+# (the embedded frontend SPA is arch-independent).
+echo ">> building openwatch binary (version=${RPM_VERSION}, arch=${RPM_ARCH})"
+GOOS=linux GOARCH="$GOARCH" CGO_ENABLED=0 make build VERSION="$RPM_VERSION" >/dev/null
 
 # Step 2: stage the rpmbuild tree.
 RPMTOP="$(mktemp -d)"
@@ -63,6 +74,7 @@ rpmbuild \
     --define "_topdir $RPMTOP" \
     --define "ow_version ${RPM_VERSION}" \
     --define "ow_release ${RPM_RELEASE}" \
+    --target "${RPM_ARCH}" \
     -bb "$APP_DIR/packaging/rpm/openwatch.spec" >/dev/null
 
 # Step 5: copy the artifact into app/dist/.

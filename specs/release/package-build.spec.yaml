@@ -35,10 +35,10 @@ spec:
         - Demo cert under /etc/openwatch/tls/ (operators replace)
         - Post-install systemd reload
         - Pre-uninstall stop+disable
+        - Multi-arch builds (amd64 + arm64) via ARCH, cross-compiled with CGO disabled
       excludes:
         - Signed package distribution (separate release infra)
         - FIPS variant (Day 12 ships a second binary build)
-        - Multi-arch (arm64 deferred)
 
   constraints:
     - id: C-01
@@ -71,6 +71,10 @@ spec:
       enforcement: error
     - id: C-08
       description: Build scripts MUST be invoked via make rpm and make deb targets — the Makefile is the orchestration surface
+      type: technical
+      enforcement: error
+    - id: C-09
+      description: Build scripts MUST support a target architecture via ARCH (amd64 | arm64), cross-compiling the binary with the matching GOARCH and CGO disabled, and labeling the artifact with the correct package arch (x86_64/aarch64 for RPM, amd64/arm64 for DEB)
       type: technical
       enforcement: error
 
@@ -125,3 +129,7 @@ spec:
       description: make rpm and make deb invoke the corresponding build scripts and exit 0 on success.
       priority: high
       references_constraints: [C-08]
+    - id: AC-14
+      description: Both build scripts accept ARCH=arm64 and cross-compile the binary via GOARCH with CGO disabled, mapping to the correct package arch (aarch64 RPM / arm64 DEB); source-inspection verifies the arch mapping and the GOARCH/CGO_ENABLED=0 build invocation.
+      priority: high
+      references_constraints: [C-09]

@@ -242,6 +242,20 @@ rpm:
 deb:
 	@bash packaging/deb/build-deb.sh
 
+# Cross-compiled arm64 variants (CGO disabled; no C cross-toolchain needed).
+.PHONY: rpm-arm64
+rpm-arm64:
+	@ARCH=arm64 bash packaging/rpm/build-rpm.sh
+
+.PHONY: deb-arm64
+deb-arm64:
+	@ARCH=arm64 bash packaging/deb/build-deb.sh
+
+# All four release artifacts: RPM + DEB for amd64 and arm64.
+.PHONY: packages
+packages: rpm rpm-arm64 deb deb-arm64
+	@echo "built RPM + DEB (amd64 + arm64) in $(DIST_DIR)/"
+
 # -----------------------------------------------------------------------------
 # FIPS build (Day 12: microsoft/go toolchain)
 # -----------------------------------------------------------------------------

@@ -7,6 +7,12 @@
 # Disable shebang stripping (no shebang in compiled binary, but be safe).
 %global __brp_mangle_shebangs %{nil}
 
+# Don't strip the binary. The Go binary is self-contained and prebuilt outside
+# the chroot, so RPM's brp-strip adds nothing — and for cross-arch builds
+# (e.g. aarch64 RPM on an x86_64 host) the host `strip` cannot process the
+# target binary and aborts %install. A no-op keeps cross-builds working.
+%global __strip /bin/true
+
 # Allow override via rpmbuild --define "ow_version X.Y.Z".
 %{!?ow_version: %global ow_version 0.1.0}
 %{!?ow_release: %global ow_release 1}
