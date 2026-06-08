@@ -3,11 +3,11 @@ spec:
   title: Supply-chain governance — module allowlist, vulnerability, SBOM
   version: "1.0.0"
   status: draft
-  # Draft, tier 2 (80%): AC-08/AC-09 (release-workflow SBOM via syft/CycloneDX,
-  # constraint C-06) are deferred — the release workflow was archived with the
-  # Python CI and a Go-native release workflow is a tracked follow-up. Restore
-  # to tier 1 (100%) when that workflow lands and the SBOM ACs are covered.
-  tier: 2
+  # Back to tier 1: AC-08/AC-09 (release-workflow SBOM via syft/CycloneDX) are
+  # satisfied again now that .github/workflows/release.yml runs syft and emits
+  # CycloneDX 1.5. (They were temporarily deferred to tier 2 while the Go-native
+  # release workflow was being built after the Python CI was archived.)
+  tier: 1
 
   context:
     system: openwatch-go
