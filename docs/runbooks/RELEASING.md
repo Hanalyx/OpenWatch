@@ -21,7 +21,7 @@ and a human signs off.
 
 | Tag | Workflow | Produces |
 |-----|----------|----------|
-| `v*` | [`release.yml`](../../.github/workflows/release.yml) | RPM+DEB (amd64+arm64, GPG-signed per-package), CycloneDX SBOMs, `SHA256SUMS` (GPG `.asc` + cosign `.sig`), `KEYS` → GitHub Release |
+| `v*` | [`release.yml`](../../.github/workflows/release.yml) | RPM+DEB (amd64+arm64; RPMs GPG-signed per-package), CycloneDX SBOMs, `SHA256SUMS` (GPG `.asc` + cosign `.sig`), `KEYS` → GitHub Release |
 | `v*` / packaging PRs | [`package-smoke.yml`](../../.github/workflows/package-smoke.yml) | per-distro install + binary smoke |
 | every PR | [`go-ci.yml`](../../.github/workflows/go-ci.yml) | vet/lint/vuln/test-race + specter 100% AC coverage |
 
@@ -106,15 +106,22 @@ Then bump `packaging/version.env` to the next `-dev`/`-rc` and announce.
 
 ## Signing model
 
-When the signing keys are configured, `release.yml` signs at three layers (and
+When the signing keys are configured, `release.yml` signs at these layers (and
 skips each layer gracefully if its key is absent — releases still publish,
 unsigned):
 
 | Layer | How | Operator verifies |
 |---|---|---|
 | **Each RPM** | `rpmsign --addsign` (GPG, in the RPM header) | `rpm --import KEYS` then `rpm -K openwatch-*.rpm` → "signatures OK"; or dnf `gpgcheck=1` |
-| **Each DEB** | `dpkg-sig --sign builder` (GPG) | `dpkg-sig --verify openwatch_*.deb` (standalone-`.deb` verification is niche; the signed checksums below are the primary DEB authenticity path until a signed apt repo exists) |
+| **Each DEB** | *not* signed per-package — see note | covered by the signed `SHA256SUMS` below |
 | **`SHA256SUMS`** | detached GPG (`.asc`) **and** cosign (`.cosign.sig`) | `gpg --verify SHA256SUMS.asc SHA256SUMS`; `cosign verify-blob --key cosign.pub --signature SHA256SUMS.cosign.sig SHA256SUMS` |
+
+> **Why DEBs aren't signed per-package:** `apt`/`dpkg` never verify a
+> standalone `.deb`'s embedded signature, and the tool that produced them
+> (`dpkg-sig`) was removed from Ubuntu. Each `.deb`'s authenticity instead
+> comes from its SHA256 entry in the GPG- (and cosign-) signed `SHA256SUMS`.
+> A signed apt **repository** is the proper path if per-DEB trust is ever
+> required.
 
 The Hanalyx GPG public key ships in the repo as [`KEYS`](../../KEYS) and is
 attached to every release.

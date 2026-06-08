@@ -76,12 +76,18 @@ jobs:
             echo "cosign=false" >> "$GITHUB_OUTPUT"
           fi
 
-      # Per-package GPG signatures. rpmsign embeds the signature in each RPM
-      # header (operators verify with `rpm --import KEYS` + `rpm -K`, or dnf
-      # gpgcheck); dpkg-sig adds a builder signature to each DEB. Runs BEFORE
-      # SBOM/checksums because it rewrites the package bytes. The default
-      # %__gpg points at gpg2, absent on Ubuntu runners, so set it explicitly.
-      - name: GPG-sign packages
+      # Per-package GPG signatures for the RPMs. rpmsign embeds the signature in
+      # each RPM header (operators verify with `rpm --import KEYS` + `rpm -K`, or
+      # dnf gpgcheck). Runs BEFORE SBOM/checksums because it rewrites the package
+      # bytes. The default %__gpg points at gpg2, absent on Ubuntu runners, so set
+      # it explicitly.
+      #
+      # DEBs are NOT signed per-package: apt/dpkg never verify standalone-.deb
+      # signatures, and the tooling that produced them (dpkg-sig) was removed from
+      # Ubuntu. Each .deb's authenticity instead rides on its SHA256 in the
+      # GPG-signed (and cosign-signed) SHA256SUMS manifest below. A signed apt
+      # repo is the proper next step if per-DEB trust is ever required.
+      - name: GPG-sign RPMs
         if: steps.keys.outputs.gpg == 'true'
         env:
           GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
@@ -91,7 +97,7 @@ jobs:
           echo "$GPG_PRIVATE_KEY" | gpg --batch --import
           key_id="$(gpg --list-secret-keys --with-colons | awk -F: '/^sec/{print $5; exit}')"
           gpg_bin="$(command -v gpg)"
-          # RPM: non-interactive rpmsign with a loopback-passphrase sign command.
+          # Non-interactive rpmsign with a loopback-passphrase sign command.
           cat > "$HOME/.rpmmacros" <<RPMMACROS
           %__gpg ${gpg_bin}
           %_signature gpg
@@ -99,11 +105,6 @@ jobs:
           %__gpg_sign_cmd %{__gpg} --batch --no-armor --pinentry-mode loopback --passphrase ${GPG_PASSPHRASE} --no-secmem-warning --digest-algo sha256 -u "%{_gpg_name}" -sbo %{__signature_filename} %{__plaintext_filename}
           RPMMACROS
           rpmsign --addsign dist/openwatch-*.rpm
-          # DEB: dpkg-sig builder signature (passes the loopback passphrase to gpg).
-          sudo apt-get update -qq
-          sudo apt-get install -y dpkg-sig
-          dpkg-sig -g "--pinentry-mode loopback --passphrase ${GPG_PASSPHRASE}" \
-            -k "${key_id}" --sign builder dist/openwatch_*.deb
 
       # SBOM: syft scans the actual (signed) binary and packages and emits
       # CycloneDX 1.5 JSON — supply-chain AC-08 / AC-09.
