@@ -1,0 +1,112 @@
+name: Release
+
+# Cut a release on a v* tag (or manually via workflow_dispatch). Builds the
+# native RPM + DEB for amd64 and arm64 (each a complete API+UI binary — the SPA
+# is embedded), generates a CycloneDX SBOM per artifact with syft, writes signed
+# checksums, and publishes everything to a GitHub Release.
+#
+# Distribution model: GitHub Releases. Operators download and
+# `sudo dnf install ./openwatch-*.rpm` / `sudo apt install ./openwatch_*.deb`.
+#
+# Spec: specs/system/supply-chain.spec.yaml AC-08 (syft SBOM) / AC-09 (CycloneDX
+#       1.5); specs/release/package-build.spec.yaml.
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version, e.g. v0.2.0 (tag is created on publish)'
+        required: true
+        type: string
+
+permissions:
+  contents: write # create the release + upload assets
+
+jobs:
+  release:
+    name: Build, SBOM, sign, publish
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.4'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install rpmbuild
+        run: sudo apt-get update && sudo apt-get install -y rpm
+
+      # Builds all four artifacts: RPM + DEB for amd64 and arm64. arm64 is a
+      # CGO-disabled cross-compile, so no C cross-toolchain is required.
+      - name: Build packages (amd64 + arm64)
+        run: make packages
+
+      # SBOM: syft scans the actual built binary and packages (not just the Go
+      # module graph) and emits CycloneDX 1.5 JSON — supply-chain AC-08 / AC-09.
+      - name: Install syft
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh \
+            | sh -s -- -b "$HOME/.local/bin"
+
+      - name: Generate CycloneDX SBOMs
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          mkdir -p dist/sbom
+          # CycloneDX 1.5 schema the emitted SBOMs validate against:
+          #   https://cyclonedx.org/schema/bom-1.5.schema.json
+          for art in dist/openwatch dist/openwatch-*.rpm dist/openwatch_*.deb; do
+            [ -e "$art" ] || continue
+            name="$(basename "$art")"
+            syft scan "file:$art" -o "cyclonedx-json=dist/sbom/${name}.cdx.json"
+          done
+          ls -l dist/sbom
+
+      - name: Checksums
+        run: |
+          cd dist
+          sha256sum openwatch-*.rpm openwatch_*.deb sbom/*.cdx.json > SHA256SUMS
+          cat SHA256SUMS
+
+      # Detached GPG signature over the checksum manifest, so operators can
+      # verify authenticity of every artifact with one key. Skipped when no
+      # signing key is configured (set the GPG_PRIVATE_KEY / GPG_PASSPHRASE repo
+      # secrets to enable). Per-package rpm --addsign / debsign can be layered on
+      # once a hosted dnf/apt repo exists.
+      - name: GPG-sign checksums
+        if: ${{ secrets.GPG_PRIVATE_KEY != '' }}
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          echo "$GPG_PRIVATE_KEY" | gpg --batch --import
+          cd dist
+          gpg --batch --yes --pinentry-mode loopback \
+            --passphrase "$GPG_PASSPHRASE" \
+            --armor --detach-sign --output SHA256SUMS.asc SHA256SUMS
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.version || github.ref_name }}
+          generate_release_notes: true
+          fail_on_unmatched_files: false
+          files: |
+            dist/openwatch-*.rpm
+            dist/openwatch_*.deb
+            dist/SHA256SUMS
+            dist/SHA256SUMS.asc
+            dist/sbom/*.cdx.json
