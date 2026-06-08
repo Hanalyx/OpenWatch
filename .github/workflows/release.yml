@@ -81,13 +81,28 @@ jobs:
           sha256sum openwatch-*.rpm openwatch_*.deb sbom/*.cdx.json > SHA256SUMS
           cat SHA256SUMS
 
+      # The `secrets` context is not allowed in `if:`, so detect the signing key
+      # in a step (where secrets ARE allowed, via env) and gate the signing step
+      # on its output.
+      - name: Detect signing key
+        id: signing
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+        run: |
+          if [ -n "$GPG_PRIVATE_KEY" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::No GPG_PRIVATE_KEY secret set — publishing checksums without a signature."
+          fi
+
       # Detached GPG signature over the checksum manifest, so operators can
       # verify authenticity of every artifact with one key. Skipped when no
       # signing key is configured (set the GPG_PRIVATE_KEY / GPG_PASSPHRASE repo
       # secrets to enable). Per-package rpm --addsign / debsign can be layered on
       # once a hosted dnf/apt repo exists.
       - name: GPG-sign checksums
-        if: ${{ secrets.GPG_PRIVATE_KEY != '' }}
+        if: steps.signing.outputs.enabled == 'true'
         env:
           GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
           GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
