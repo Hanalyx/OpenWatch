@@ -1,4 +1,6 @@
 import { useEffect, type ReactNode } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import api from '@/api/client';
 import { useBreadcrumbStore } from '@/store/useBreadcrumbStore';
 import { useAuthStore } from '@/store/useAuthStore';
 import { SettingsLayout } from '@/components/settings/SettingsLayout';
@@ -258,6 +260,20 @@ export function AboutPage() {
     return () => setCrumbs([]);
   }, [setCrumbs]);
 
+  // Versions come from the live binary (GET /api/v1/version) — never hardcoded.
+  // OpenWatch is ldflags-injected; Kensa + Go are read from the binary's build
+  // info / runtime at request time.
+  const versionQuery = useQuery({
+    queryKey: ['version'],
+    queryFn: async () => {
+      const { data, error } = await api.GET('/api/v1/version');
+      if (error) throw error;
+      return data!;
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+  const v = versionQuery.data;
+
   return (
     <SettingsLayout>
       <PageHead
@@ -276,11 +292,15 @@ export function AboutPage() {
             }}
           >
             <span style={{ color: 'var(--ow-fg-2)' }}>OpenWatch</span>
-            <span style={{ fontFamily: 'var(--ow-font-mono)' }}>0.2.0-rc.4</span>
+            <span style={{ fontFamily: 'var(--ow-font-mono)' }}>{v ? v.openwatch : '…'}</span>
+            <span style={{ color: 'var(--ow-fg-2)' }}>Kensa</span>
+            <span style={{ fontFamily: 'var(--ow-font-mono)' }}>{v ? v.kensa : '…'}</span>
+            <span style={{ color: 'var(--ow-fg-2)' }}>Go</span>
+            <span style={{ fontFamily: 'var(--ow-font-mono)' }}>{v ? v.go : '…'}</span>
             <span style={{ color: 'var(--ow-fg-2)' }}>Build</span>
-            <span style={{ fontFamily: 'var(--ow-font-mono)' }}>2026-06-08</span>
-            <span style={{ color: 'var(--ow-fg-2)' }}>Engine</span>
-            <span style={{ fontFamily: 'var(--ow-font-mono)' }}>Kensa (Go) embedded</span>
+            <span style={{ fontFamily: 'var(--ow-font-mono)' }}>
+              {v ? `${v.commit} · ${v.build_time}` : '…'}
+            </span>
           </div>
         </SettingCard>
       </Section>

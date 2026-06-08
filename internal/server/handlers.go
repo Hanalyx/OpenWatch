@@ -106,6 +106,20 @@ func (h *handlers) GetHealth(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// GetVersion implements api.ServerInterface.GetVersion.
+// Spec: specs/api/version.spec.yaml. Anonymous, read-only build metadata — no
+// DB access, no audit emit. Every field is sourced from build-time metadata
+// (ldflags) or the runtime/build info; nothing is hardcoded.
+func (h *handlers) GetVersion(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, api.VersionResponse{
+		Openwatch: version.Version,
+		Kensa:     version.Kensa(),
+		Go:        version.Go(),
+		Commit:    version.Commit,
+		BuildTime: version.BuildTime,
+	})
+}
+
 // PostDiagnosticsEcho implements api.ServerInterface.PostDiagnosticsEcho.
 // Spec: app/specs/api/diagnostics-echo.spec.yaml.
 func (h *handlers) PostDiagnosticsEcho(w http.ResponseWriter, r *http.Request, params api.PostDiagnosticsEchoParams) {
