@@ -55,8 +55,58 @@ jobs:
       - name: Build packages (amd64 + arm64)
         run: make packages
 
-      # SBOM: syft scans the actual built binary and packages (not just the Go
-      # module graph) and emits CycloneDX 1.5 JSON — supply-chain AC-08 / AC-09.
+      # Detect which signing keys are configured. The `secrets` context is not
+      # allowed in `if:`, so resolve presence here (secrets ARE allowed via env)
+      # and gate the signing steps on these outputs.
+      - name: Detect signing keys
+        id: keys
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+        run: |
+          if [ -n "$GPG_PRIVATE_KEY" ]; then
+            echo "gpg=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "gpg=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::No GPG_PRIVATE_KEY secret — packages and checksums will be published unsigned."
+          fi
+          if [ -n "$COSIGN_PRIVATE_KEY" ]; then
+            echo "cosign=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "cosign=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Per-package GPG signatures. rpmsign embeds the signature in each RPM
+      # header (operators verify with `rpm --import KEYS` + `rpm -K`, or dnf
+      # gpgcheck); dpkg-sig adds a builder signature to each DEB. Runs BEFORE
+      # SBOM/checksums because it rewrites the package bytes. The default
+      # %__gpg points at gpg2, absent on Ubuntu runners, so set it explicitly.
+      - name: GPG-sign packages
+        if: steps.keys.outputs.gpg == 'true'
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          echo "$GPG_PRIVATE_KEY" | gpg --batch --import
+          key_id="$(gpg --list-secret-keys --with-colons | awk -F: '/^sec/{print $5; exit}')"
+          gpg_bin="$(command -v gpg)"
+          # RPM: non-interactive rpmsign with a loopback-passphrase sign command.
+          cat > "$HOME/.rpmmacros" <<RPMMACROS
+          %__gpg ${gpg_bin}
+          %_signature gpg
+          %_gpg_name ${key_id}
+          %__gpg_sign_cmd %{__gpg} --batch --no-armor --pinentry-mode loopback --passphrase ${GPG_PASSPHRASE} --no-secmem-warning --digest-algo sha256 -u "%{_gpg_name}" -sbo %{__signature_filename} %{__plaintext_filename}
+          RPMMACROS
+          rpmsign --addsign dist/openwatch-*.rpm
+          # DEB: dpkg-sig builder signature (passes the loopback passphrase to gpg).
+          sudo apt-get update -qq
+          sudo apt-get install -y dpkg-sig
+          dpkg-sig -g "--pinentry-mode loopback --passphrase ${GPG_PASSPHRASE}" \
+            -k "${key_id}" --sign builder dist/openwatch_*.deb
+
+      # SBOM: syft scans the actual (signed) binary and packages and emits
+      # CycloneDX 1.5 JSON — supply-chain AC-08 / AC-09.
       - name: Install syft
         run: |
           curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh \
@@ -81,37 +131,34 @@ jobs:
           sha256sum openwatch-*.rpm openwatch_*.deb sbom/*.cdx.json > SHA256SUMS
           cat SHA256SUMS
 
-      # The `secrets` context is not allowed in `if:`, so detect the signing key
-      # in a step (where secrets ARE allowed, via env) and gate the signing step
-      # on its output.
-      - name: Detect signing key
-        id: signing
-        env:
-          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
-        run: |
-          if [ -n "$GPG_PRIVATE_KEY" ]; then
-            echo "enabled=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "enabled=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::No GPG_PRIVATE_KEY secret set — publishing checksums without a signature."
-          fi
-
-      # Detached GPG signature over the checksum manifest, so operators can
-      # verify authenticity of every artifact with one key. Skipped when no
-      # signing key is configured (set the GPG_PRIVATE_KEY / GPG_PASSPHRASE repo
-      # secrets to enable). Per-package rpm --addsign / debsign can be layered on
-      # once a hosted dnf/apt repo exists.
+      # Detached GPG signature over the checksum manifest — the universal verify
+      # path (`gpg --verify SHA256SUMS.asc SHA256SUMS`), independent of rpm/dpkg.
+      # The key was already imported by the GPG-sign packages step.
       - name: GPG-sign checksums
-        if: steps.signing.outputs.enabled == 'true'
+        if: steps.keys.outputs.gpg == 'true'
         env:
-          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
           GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
         run: |
-          echo "$GPG_PRIVATE_KEY" | gpg --batch --import
           cd dist
           gpg --batch --yes --pinentry-mode loopback \
             --passphrase "$GPG_PASSPHRASE" \
             --armor --detach-sign --output SHA256SUMS.asc SHA256SUMS
+
+      # cosign attestation over the checksum manifest (sigstore). Offline,
+      # key-based, no Rekor transparency-log upload.
+      - name: Install cosign
+        if: steps.keys.outputs.cosign == 'true'
+        uses: sigstore/cosign-installer@v3.7.0
+
+      - name: Cosign-sign checksums
+        if: steps.keys.outputs.cosign == 'true'
+        env:
+          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
+        run: |
+          cosign sign-blob --yes --tlog-upload=false \
+            --key env://COSIGN_PRIVATE_KEY \
+            --output-signature dist/SHA256SUMS.cosign.sig dist/SHA256SUMS
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
@@ -124,4 +171,6 @@ jobs:
             dist/openwatch_*.deb
             dist/SHA256SUMS
             dist/SHA256SUMS.asc
+            dist/SHA256SUMS.cosign.sig
             dist/sbom/*.cdx.json
+            KEYS
