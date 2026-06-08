@@ -1,13 +1,20 @@
 #!/bin/sh
 # Pre-install: create the openwatch system user and group if absent.
+#
+# Uses groupadd/useradd (from the passwd package, present on every Debian/Ubuntu
+# system including minimal container images) rather than addgroup/adduser, which
+# live in the adduser package and are NOT installed on minimal images such as
+# ubuntu:24.04 — installing there fails the preinst with "addgroup: not found".
+# This matches the RPM scriptlet.
+#
 # Spec release-package-build AC-11.
 
 set -e
 
-getent group openwatch >/dev/null || addgroup --system openwatch
+getent group openwatch >/dev/null || groupadd --system openwatch
 getent passwd openwatch >/dev/null || \
-    adduser --system --ingroup openwatch \
-            --home /var/lib/openwatch --shell /sbin/nologin \
-            --gecos "OpenWatch service" openwatch
+    useradd --system --gid openwatch \
+            --home-dir /var/lib/openwatch --shell /usr/sbin/nologin \
+            --comment "OpenWatch service" openwatch
 
 exit 0
