@@ -122,29 +122,61 @@ attached to every release.
 ## Configuring the signing keys
 
 OpenWatch reuses the **Hanalyx release-signing key** (the same one Kensa uses;
-see the offline vault at `~/vault/hanalyx`, generated 2026-05-28). Add these as
-**`Hanalyx/OpenWatch`** repo secrets:
+see the offline vault at `~/vault/hanalyx`, generated 2026-05-28).
 
-| Secret | Source (from the vault) |
-|---|---|
-| `GPG_PRIVATE_KEY` | armored export of `hanalyx-key-backup/MASTER-secret.asc` (full keyset) |
-| `GPG_PASSPHRASE` | the master passphrase |
-| `COSIGN_PRIVATE_KEY` | the cosign private key |
-| `COSIGN_PASSWORD` | the cosign keypair password |
+> **NEVER push `MASTER-secret.asc` to a GitHub secret.** It is the
+> certify-capable **master** private key — your root of trust. Only the
+> **signing subkey** belongs in CI. The vault's `scripts/setup-signing-keys.sh`
+> enforces this: it exports `--export-secret-subkeys` and hard-aborts unless the
+> master private has been replaced with a `gnu-dummy` stub. Follow the same rule
+> here.
+
+| Secret | Source | Required? |
+|---|---|---|
+| `GPG_PRIVATE_KEY` | the **signing subkey only**, exported from the master with the master stubbed (see below) | yes |
+| `GPG_PASSPHRASE` | the subkey passphrase (same as master by default) | yes |
+| `COSIGN_PRIVATE_KEY` | the cosign private key (NOT in this vault — retrieve from wherever Kensa's `COSIGN_PRIVATE_KEY` was generated, e.g. 1Password) | optional |
+| `COSIGN_PASSWORD` | the cosign keypair password | optional |
+
+cosign is **optional**: `release.yml` gates it independently, so with only the
+two GPG secrets set, releases still get per-package GPG signatures **and** a
+GPG-signed `SHA256SUMS` — just no cosign `.sig`. Set the GPG pair first; add
+cosign once you have its private key.
+
+**Export the signing subkey (never the master) and set the GPG secrets:**
 
 ```bash
-gh secret set GPG_PRIVATE_KEY  --repo Hanalyx/OpenWatch < ~/vault/hanalyx/hanalyx-key-backup/MASTER-secret.asc
-gh secret set GPG_PASSPHRASE   --repo Hanalyx/OpenWatch   # paste the master passphrase
+# 1. Import the existing Hanalyx master into your keyring (one-time).
+gpg --import ~/vault/hanalyx/hanalyx-key-backup/MASTER-secret.asc
+
+# 2. Find the SIGNING SUBKEY fingerprint (the 2nd fpr line; the 1st is the master).
+gpg --list-secret-keys --with-colons ops@hanalyx.com \
+  | awk -F: '/^fpr:/{print $10}' | sed -n '2p'
+
+# 3. Export ONLY that subkey (note the trailing '!'). This stubs the master.
+SUBKEY_FPR=<paste from step 2>
+gpg --armor --export-secret-subkeys "${SUBKEY_FPR}!" > /tmp/ow-subkey.asc
+
+# 4. SAFETY GATE — must print a match, else STOP and shred the file.
+gpg --list-packets /tmp/ow-subkey.asc | grep -q gnu-dummy \
+  && echo "OK: master is stubbed" || echo "ABORT: master private present"
+
+# 5. Push the subkey + passphrase (passphrase via silent prompt — never on the CLI).
+gh secret set GPG_PRIVATE_KEY --repo Hanalyx/OpenWatch < /tmp/ow-subkey.asc
+gh secret set GPG_PASSPHRASE  --repo Hanalyx/OpenWatch   # paste at the prompt
+
+# 6. Shred the exported subkey.
+shred -u /tmp/ow-subkey.asc
+
+# 7. (optional) cosign, once you have its private key file:
 gh secret set COSIGN_PRIVATE_KEY --repo Hanalyx/OpenWatch < <cosign.key>
-gh secret set COSIGN_PASSWORD    --repo Hanalyx/OpenWatch # paste the cosign password
+gh secret set COSIGN_PASSWORD    --repo Hanalyx/OpenWatch  # paste at the prompt
 ```
 
 Notes:
 - The repo `KEYS` file is the **corrected** public key (primary UID
-  `Hanalyx LLC (release signing)`). If you sign with the vault's
-  `MASTER-secret.asc` before running its UID-sync procedure, signatures still
-  verify against `KEYS` (the key material is identical; only UID metadata
-  differs) — but run the sync first if you want clean UID metadata.
+  `Hanalyx LLC (release signing)`). Subkey signatures verify against it because
+  `KEYS` carries the same master that certifies the subkey.
 - A hosted, GPG-signed dnf/apt **repository** (so operators can
   `dnf install openwatch` without `./`) is the next distribution milestone; the
   per-package signatures above are what such a repo requires.
