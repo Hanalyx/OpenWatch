@@ -44,6 +44,7 @@ Start here: [Introduction](INTRODUCTION.md) | [Quickstart](guides/QUICKSTART.md)
 | [Backup & Recovery](guides/BACKUP_RECOVERY.md) | PostgreSQL backup, restore, and disaster recovery |
 | [Secret Rotation](guides/SECRET_ROTATION.md) | Rotating database, Redis, JWT, and encryption keys |
 | [Upgrade Procedure](guides/UPGRADE_PROCEDURE.md) | Upgrading OpenWatch with rollback procedures |
+| [Releasing](runbooks/RELEASING.md) | Gated pre-release process: docs freeze → RC → verification gate → GA, plus signing-key setup |
 | [Compliance Controls](guides/COMPLIANCE_CONTROLS.md) | NIST, CIS, CMMC, FedRAMP control mapping |
 
 ## Incident Response Runbooks
