@@ -21,7 +21,7 @@ and a human signs off.
 
 | Tag | Workflow | Produces |
 |-----|----------|----------|
-| `v*` | [`release.yml`](../../.github/workflows/release.yml) | RPM+DEB (amd64+arm64), CycloneDX SBOMs, `SHA256SUMS`(`.asc`) → GitHub Release |
+| `v*` | [`release.yml`](../../.github/workflows/release.yml) | RPM+DEB (amd64+arm64, GPG-signed per-package), CycloneDX SBOMs, `SHA256SUMS` (GPG `.asc` + cosign `.sig`), `KEYS` → GitHub Release |
 | `v*` / packaging PRs | [`package-smoke.yml`](../../.github/workflows/package-smoke.yml) | per-distro install + binary smoke |
 | every PR | [`go-ci.yml`](../../.github/workflows/go-ci.yml) | vet/lint/vuln/test-race + specter 100% AC coverage |
 
@@ -104,30 +104,47 @@ Then bump `packaging/version.env` to the next `-dev`/`-rc` and announce.
 
 ---
 
-## Release signing key (GPG)
+## Signing model
 
-`release.yml` signs `SHA256SUMS` with a detached GPG signature **only when** the
-signing key is configured; without it, releases publish with checksums but no
-signature. To enable:
+When the signing keys are configured, `release.yml` signs at three layers (and
+skips each layer gracefully if its key is absent — releases still publish,
+unsigned):
 
-1. Generate a dedicated release key (offline, RSA 4096, no expiry or a long one):
-   ```bash
-   gpg --batch --gen-key <<EOF
-   %no-protection
-   Key-Type: RSA
-   Key-Length: 4096
-   Name-Real: OpenWatch Release Signing
-   Name-Email: release@hanalyx.com
-   Expire-Date: 2y
-   %commit
-   EOF
-   gpg --armor --export-secret-keys release@hanalyx.com   # → GPG_PRIVATE_KEY
-   gpg --armor --export release@hanalyx.com               # → publish this public key
-   ```
-2. Add repo secrets **`GPG_PRIVATE_KEY`** (the armored private key) and
-   **`GPG_PASSPHRASE`** (empty if `%no-protection`).
-3. Publish the **public** key (in the repo / release notes) so operators can
-   `gpg --verify SHA256SUMS.asc SHA256SUMS`.
+| Layer | How | Operator verifies |
+|---|---|---|
+| **Each RPM** | `rpmsign --addsign` (GPG, in the RPM header) | `rpm --import KEYS` then `rpm -K openwatch-*.rpm` → "signatures OK"; or dnf `gpgcheck=1` |
+| **Each DEB** | `dpkg-sig --sign builder` (GPG) | `dpkg-sig --verify openwatch_*.deb` (standalone-`.deb` verification is niche; the signed checksums below are the primary DEB authenticity path until a signed apt repo exists) |
+| **`SHA256SUMS`** | detached GPG (`.asc`) **and** cosign (`.cosign.sig`) | `gpg --verify SHA256SUMS.asc SHA256SUMS`; `cosign verify-blob --key cosign.pub --signature SHA256SUMS.cosign.sig SHA256SUMS` |
 
-Per-package signing (`rpm --addsign`, `debsign`) and a hosted GPG-signed dnf/apt
-repo are a follow-up for when distribution moves beyond GitHub Releases.
+The Hanalyx GPG public key ships in the repo as [`KEYS`](../../KEYS) and is
+attached to every release.
+
+## Configuring the signing keys
+
+OpenWatch reuses the **Hanalyx release-signing key** (the same one Kensa uses;
+see the offline vault at `~/vault/hanalyx`, generated 2026-05-28). Add these as
+**`Hanalyx/OpenWatch`** repo secrets:
+
+| Secret | Source (from the vault) |
+|---|---|
+| `GPG_PRIVATE_KEY` | armored export of `hanalyx-key-backup/MASTER-secret.asc` (full keyset) |
+| `GPG_PASSPHRASE` | the master passphrase |
+| `COSIGN_PRIVATE_KEY` | the cosign private key |
+| `COSIGN_PASSWORD` | the cosign keypair password |
+
+```bash
+gh secret set GPG_PRIVATE_KEY  --repo Hanalyx/OpenWatch < ~/vault/hanalyx/hanalyx-key-backup/MASTER-secret.asc
+gh secret set GPG_PASSPHRASE   --repo Hanalyx/OpenWatch   # paste the master passphrase
+gh secret set COSIGN_PRIVATE_KEY --repo Hanalyx/OpenWatch < <cosign.key>
+gh secret set COSIGN_PASSWORD    --repo Hanalyx/OpenWatch # paste the cosign password
+```
+
+Notes:
+- The repo `KEYS` file is the **corrected** public key (primary UID
+  `Hanalyx LLC (release signing)`). If you sign with the vault's
+  `MASTER-secret.asc` before running its UID-sync procedure, signatures still
+  verify against `KEYS` (the key material is identical; only UID metadata
+  differs) — but run the sync first if you want clean UID metadata.
+- A hosted, GPG-signed dnf/apt **repository** (so operators can
+  `dnf install openwatch` without `./`) is the next distribution milestone; the
+  per-package signatures above are what such a repo requires.
