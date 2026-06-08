@@ -276,9 +276,9 @@ export function AboutPage() {
             }}
           >
             <span style={{ color: 'var(--ow-fg-2)' }}>OpenWatch</span>
-            <span style={{ fontFamily: 'var(--ow-font-mono)' }}>0.2.0-rc.3</span>
+            <span style={{ fontFamily: 'var(--ow-font-mono)' }}>0.2.0-rc.4</span>
             <span style={{ color: 'var(--ow-fg-2)' }}>Build</span>
-            <span style={{ fontFamily: 'var(--ow-font-mono)' }}>2026-05-30</span>
+            <span style={{ fontFamily: 'var(--ow-font-mono)' }}>2026-06-08</span>
             <span style={{ color: 'var(--ow-fg-2)' }}>Engine</span>
             <span style={{ fontFamily: 'var(--ow-font-mono)' }}>Kensa (Go) embedded</span>
           </div>

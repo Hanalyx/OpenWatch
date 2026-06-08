@@ -1,7 +1,7 @@
 # OpenWatch (Go rebuild) — Changelog
 
-Changelog for the OpenWatch Go rebuild under `app/`. The legacy Python
-project at the repo root has its own `CHANGELOG.md` and `VERSION`.
+Changelog for the OpenWatch Go rebuild, which lives at the repo root. The
+legacy Python project was archived out of the repo on 2026-06-05.
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
@@ -9,6 +9,89 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ---
 
 ## [Unreleased]
+
+---
+
+## [0.2.0-rc.4] Eyrie — 2026-06-08
+
+The release-readiness candidate: OpenWatch Go is now a single, installable
+product. `dnf install ./openwatch-*.rpm` / `apt install ./openwatch_*.deb`
+lays down one binary that serves both the API and the built UI, with a
+tag-driven, signed release pipeline behind it. This RC also folds in the
+host-detail / OS-intelligence / discovery suite that accumulated since the
+early rc.3 cut.
+
+### Added
+
+**Distribution & supply chain**
+
+- Native multi-arch packages — RPM (CentOS Stream 9) and DEB (Ubuntu 24.04),
+  each built for amd64 and arm64 via `CGO_ENABLED=0` cross-compile (#490).
+- The React SPA is embedded into the binary via `go:embed` and served by the
+  Go server (static assets + `index.html` fallback; `/api/` paths still 404),
+  so one artifact is the whole product — air-gap clean, no separate web tier
+  (#486).
+- `release.yml` — on a `v*` tag, builds all four packages, generates a
+  CycloneDX 1.5 SBOM per artifact (syft), writes `SHA256SUMS`, and publishes
+  a GitHub Release (#491).
+- Release signing — each RPM (`rpmsign`) and DEB (`dpkg-sig`) is GPG-signed,
+  and `SHA256SUMS` gets both a detached GPG signature and a cosign sigstore
+  signature; the Hanalyx public key ships as `KEYS`. Every signing layer is
+  gated on its key secret and skipped gracefully when absent (#493, #494).
+- `package-smoke.yml` — installs the built RPM on Rocky/Alma/Fedora/Oracle and
+  the DEB on Ubuntu/Debian, then smoke-tests the binary (#492).
+- `docs/runbooks/RELEASING.md` — the gated release process (docs freeze →
+  RC → verification gate → GA), including signing-key setup (#492).
+- Go module supply-chain spec + depguard allowlist + Dependabot for the
+  module set (#416).
+
+**Product features (since rc.3)**
+
+- OS discovery — scheduler, first-contact policy, and fleet sweep that learns
+  each host's distro over SSH and persists it to `hosts.os_family` (#467, #471).
+- Server intelligence — packages/services/users/network/system collected over
+  SSH and surfaced as a host-detail snapshot grid, with a settings page to
+  tune collection (#455, #472).
+- Host liveness — adaptive, per-state probe intervals and a fleet-health
+  surface (#421, #434, #435).
+- Alerts — router, persistence, and lifecycle (#424, #444, #445, #420).
+- Fleet observability API — read-only fleet endpoints and `hosts/{id}`
+  enrichment (liveness + compliance summary) (#427, #428).
+- React 19 + MUI v7 + TanStack frontend for auth, hosts, host-detail,
+  settings, and an activity feed, with five approved frontend specs at 100%
+  AC coverage (#433, #436, #437, #468).
+- 16 database migrations (`0007`–`0022`): credentials, compliance schedule,
+  transaction log, host liveness, system config, multilayer monitoring,
+  system info, intelligence, alerts. **`openwatch migrate` is required on
+  upgrade.**
+
+### Changed
+
+- The admin CLI is retired: `openwatch` is the single binary and command
+  (`serve`/`worker`/`migrate`/`create-admin`/`check-config`); lifecycle is
+  managed by systemd, not a separate `owadm` (#487).
+- Repository restructure — the Python backend/frontend were archived out of
+  the repo and the Go tree was promoted from `app/` to the repo root (#482).
+- Tooling — Prettier + a flat ESLint config for the frontend, with the lint
+  pre-commit hook re-enabled; `.env` templates rewritten for the Go server
+  (#483, #484, #485).
+- Dependabot retargeted for the post-promotion layout (`gomod` at `/`, dead
+  `backend`/`docker` ecosystems dropped) (#495).
+- SSH connectivity — credential-password sudo fallback extended across
+  liveness probes and discovery queries; auth offers both key and password
+  methods when configured for both (#460, #469, #470).
+- Frontend surfaces the backend's `human_message` instead of a generic HTTP
+  error, and retries 401s transparently against the HttpOnly refresh cookie
+  (#456, #466).
+
+### Fixed
+
+- Discovery persists the distro ID into `hosts.os_family` rather than the
+  family rollup (#471, #022 migration).
+- Firewall-rule probe records `0` (not `-1`) when the engine is present but
+  inactive (#459).
+- Activity feed no longer crashes on a `host_id`-filtered union and wires the
+  service in `main` (#477, #478).
 
 ---
 
