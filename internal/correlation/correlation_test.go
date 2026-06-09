@@ -65,24 +65,34 @@ func TestGenerate_UniquenessSequential(t *testing.T) {
 func TestGenerate_UniquenessConcurrent(t *testing.T) {
 	t.Run("system-correlation/AC-03", func(t *testing.T) {
 
-		const n = 1000
-		ids := make([]string, n)
-		var wg sync.WaitGroup
-		wg.Add(n)
-		for i := 0; i < n; i++ {
-			go func(i int) {
-				defer wg.Done()
-				ids[i] = Generate(PrefixRequest)
-			}(i)
-		}
-		wg.Wait()
-
-		seen := make(map[string]struct{}, n)
-		for _, id := range ids {
-			if _, dup := seen[id]; dup {
-				t.Fatalf("duplicate id under concurrency: %s", id)
+		// The hard case is concurrent generation across millisecond
+		// boundaries: goroutines that read the clock on different sides of
+		// a tick must still never collide. A single burst only crosses a
+		// boundary or two, so run many rounds and assert uniqueness across
+		// ALL of them — this spans enough boundaries to surface a
+		// reseed-twice-per-ms regression rather than passing by luck.
+		const (
+			rounds = 50
+			n      = 2000
+		)
+		seen := make(map[string]struct{}, rounds*n)
+		for r := 0; r < rounds; r++ {
+			ids := make([]string, n)
+			var wg sync.WaitGroup
+			wg.Add(n)
+			for i := 0; i < n; i++ {
+				go func(i int) {
+					defer wg.Done()
+					ids[i] = Generate(PrefixRequest)
+				}(i)
 			}
-			seen[id] = struct{}{}
+			wg.Wait()
+			for _, id := range ids {
+				if _, dup := seen[id]; dup {
+					t.Fatalf("duplicate id under concurrency (round %d): %s", r, id)
+				}
+				seen[id] = struct{}{}
+			}
 		}
 	})
 }
