@@ -12,6 +12,31 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [0.2.0-rc.5] Eyrie — 2026-06-08
+
+Package-refresh candidate: re-cuts the signed RPM/DEB from `main` so the
+published artifacts include the version-endpoint and auth-redirect fixes
+that landed after rc.4. Still a pre-release — not GA.
+
+### Added
+
+- `GET /api/v1/version` (anonymous) reporting the OpenWatch, Kensa, and Go
+  versions plus commit/build-time, all sourced from build metadata rather
+  than constants. Settings → About now renders these live instead of
+  hardcoded strings (#500).
+
+### Fixed
+
+- Frontend: an expired/invalid session now always redirects to `/login`
+  instead of leaving the user on a raw error envelope. A global, code-aware
+  QueryCache/MutationCache handler covers every query and mutation;
+  authorization (permission) errors are excluded so they never log a user
+  out (#501).
+- Release: `v*` tags with a pre-release suffix now publish as GitHub
+  pre-releases (a bare `vX.Y.Z` is GA) (#499).
+
+---
+
 ## [0.2.0-rc.4] Eyrie — 2026-06-08
 
 The release-readiness candidate: OpenWatch Go is now a single, installable
