@@ -22,37 +22,33 @@ Where `<doc-name>` is one of:
 
 When this skill is invoked:
 
-### Step 1: Load the Spec
+### Step 1: Load the source of truth
 
-Read `specs/system/documentation.spec.yaml` to get:
-- The document's outline (sections, content requirements)
-- Constraints (tone, accuracy, scope, format)
-- Acceptance criteria
-- Source files to read
+Read the authoritative engineering docs and behavioral specs to ground the content:
 
-Read `specs/system/architecture.spec.yaml` to get:
-- Verified tech stack versions
-- Service topology (6 Docker services)
-- API route packages and prefixes
-- RBAC roles (6 roles, 33 permissions)
-- Compliance engine details (Kensa v1.1.0, 338 rules, 5 frameworks)
-- Celery task routing and beat schedule
-- Environment differences (dev vs production)
+- `docs/engineering/BACKEND_FUNCTIONALITY.md` — backend behavior and service topology
+- `docs/engineering/rbac_registry.md` and `specs/system/rbac.spec.yaml` — RBAC roles and permissions
+- `specs/system/http-server.spec.yaml` — the single Go binary that serves the REST API and the embedded React UI over HTTPS on port `8443`
+- `specs/system/kensa-executor.spec.yaml` — the Kensa compliance engine (Go, SSH-based, native YAML rules)
+- `specs/system/job-queue.spec.yaml` — the PostgreSQL-native background job queue (`SKIP LOCKED`)
+- `api/openapi.yaml` — the API contract source of truth (routes, request/response schemas)
 
-### Step 2: Read Source Files
+OpenWatch is a single Go module at the repo root. There is no `app/` or `backend/` directory, no Docker Compose, and no Redis, Celery, or MongoDB. Data lives in PostgreSQL only.
+
+### Step 2: Read source files
 
 Based on the document being generated, read the relevant source files to populate content with verified facts:
 
-| Document | Source Files |
+| Document | Source files |
 |----------|-------------|
-| docs-readme | docs/ directory listing (verify all linked files exist) |
-| intro | docker-compose.yml, architecture.spec.yaml |
-| installation | docker-compose.yml, docker-compose.prod.yml, docker/Dockerfile.backend, docker/Dockerfile.frontend, start-openwatch.sh, docs/guides/PRODUCTION_DEPLOYMENT.md, docs/guides/ENVIRONMENT_REFERENCE.md |
-| quickstart | backend/app/main.py (route registrations), backend/app/routes/auth/login.py, backend/app/routes/scans/kensa.py |
-| user-roles | backend/app/rbac.py (UserRole enum, Permission enum, ROLE_PERMISSIONS mapping) |
-| api-guide | backend/app/main.py, backend/app/routes/*/__init__.py, backend/app/schemas/*.py |
-| scanning | backend/app/plugins/kensa/, backend/app/services/compliance/, backend/app/tasks/adaptive_monitoring_dispatcher.py |
-| hosts-remediation | backend/app/routes/hosts/, backend/app/routes/remediation/, backend/app/routes/host_groups/, backend/app/services/remediation/ |
+| docs-readme | `docs/` directory listing (verify all linked files exist) |
+| intro | `docs/engineering/BACKEND_FUNCTIONALITY.md`, `specs/system/http-server.spec.yaml` |
+| installation | `docs/engineering/install_guide.md`, `docs/guides/INSTALLATION.md`, `docs/guides/PRODUCTION_DEPLOYMENT.md`, `docs/guides/ENVIRONMENT_REFERENCE.md`, `packaging/` |
+| quickstart | `cmd/openwatch/main.go` (subcommands and service wiring), `api/openapi.yaml` (auth and Kensa scan routes), `specs/system/http-server.spec.yaml` |
+| user-roles | `internal/users/roles.go`, `internal/auth/roles.gen.go`, `docs/engineering/rbac_registry.md`, `specs/system/rbac.spec.yaml` |
+| api-guide | `api/openapi.yaml` (route and schema source of truth), `internal/server/` (handler wiring) |
+| scanning | `internal/kensa/`, `specs/system/kensa-executor.spec.yaml`, `specs/system/intelligence-scheduler.spec.yaml` |
+| hosts-remediation | `internal/host/`, `api/openapi.yaml` (hosts and remediation routes), `specs/system/host-inventory.spec.yaml`, `specs/system/host-discovery.spec.yaml` |
 
 ### Step 3: Write the Document
 
@@ -64,20 +60,20 @@ Follow these rules from the spec constraints:
 - **Scope**: Daily/weekly/monthly tasks only. No edge cases, no developer internals.
 - **Format**: GitHub-flavored Markdown. No emojis. Tables for structured data. Code blocks for commands.
 - **Cross-references**: Link between docs using relative paths. Every doc should link to at least 2 others.
-- **Role names**: SUPER_ADMIN, SECURITY_ADMIN, SECURITY_ANALYST, COMPLIANCE_OFFICER, AUDITOR, GUEST (from backend/app/rbac.py)
-- **Framework data**: Use IDs and rule counts from architecture.spec.yaml compliance_engine.frameworks
-- **API paths**: All REST endpoints use /api prefix. Verify against main.py router registrations.
-- **Auth**: JWT Bearer token via Authorization header. localStorage key is auth_token.
+- **Role names**: `admin`, `security_admin`, `ops_lead`, `auditor`, `viewer` (built-in roles from `internal/users/roles.go` / `internal/auth/roles.gen.go`; admins may also create custom roles)
+- **Framework data**: Use framework IDs and rule counts verified against `internal/kensa/` and `specs/system/kensa-executor.spec.yaml`
+- **API paths**: All REST endpoints use the `/api/v1` prefix. Verify against `api/openapi.yaml`.
+- **Auth**: Browser sessions use HttpOnly cookies (`openwatch_session` / `openwatch_refresh`). The first admin is created with `openwatch create-admin`. The frontend stores its auth token under the `auth_token` localStorage key.
 
 ### Step 4: Verify
 
 After writing, run these checks:
 
 1. **File paths**: Grep or glob every file path mentioned in the document to confirm it exists
-2. **API endpoints**: Verify each endpoint is registered in backend/app/main.py or its route packages
-3. **Environment variables**: Verify each env var exists in docker-compose.yml or backend/app/config.py
-4. **Role names**: Verify against backend/app/rbac.py UserRole enum
-5. **Framework data**: Verify IDs and counts against specs/system/architecture.spec.yaml
+2. **API endpoints**: Verify each endpoint is defined in `api/openapi.yaml`
+3. **Environment variables**: Verify each env var against `internal/config/` and `docs/guides/ENVIRONMENT_REFERENCE.md`
+4. **Role names**: Verify against `internal/users/roles.go` and `internal/auth/roles.gen.go`
+5. **Framework data**: Verify IDs and counts against `internal/kensa/` and `specs/system/kensa-executor.spec.yaml`
 6. **Cross-references**: Verify all linked docs exist
 
 Report any verification failures and fix them before finishing.
@@ -88,4 +84,4 @@ Report any verification failures and fix them before finishing.
 /write-doc quickstart
 ```
 
-This reads the spec, reads the source files (main.py, auth routes, kensa routes), writes docs/guides/QUICKSTART.md as a UI-first walkthrough with screenshot placeholders and API examples in the appendix, and checks that all endpoints and paths are valid.
+This reads the source of truth, reads the source files (`cmd/openwatch/main.go`, the auth and Kensa scan routes in `api/openapi.yaml`), writes `docs/guides/QUICKSTART.md` as a UI-first walkthrough with screenshot placeholders and API examples in the appendix, and checks that all endpoints and paths are valid.

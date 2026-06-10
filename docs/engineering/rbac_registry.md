@@ -4,7 +4,7 @@
 **Owner:** Backend platform
 **Spec:** `specs/system/rbac.spec.yaml` (to be authored at Specter migration)
 **Source-of-truth files:**
-- `app/auth/permissions.yaml` — registry of permissions and built-in roles
+- `auth/permissions.yaml` — registry of permissions and built-in roles
 - `internal/auth/permissions.gen.go` — codegen-typed Go constants
 - `internal/auth/roles.gen.go` — codegen-typed built-in role definitions
 
@@ -18,7 +18,7 @@ OpenWatch enforces access control at three layers:
 2. **Handler layer** — Go middleware checks `user.HasPermission(perms.HostRead)`.
 3. **Role layer** — A user's role has a list of permissions; the union of their roles' permissions is their effective set.
 
-In a string-literal world (today's Python codebase), all three layers refer to permissions by free-form string. Drift arrives within a release:
+In a string-literal world, all three layers refer to permissions by free-form string. Drift arrives within a release:
 
 - The spec says `host:read`. The handler checks `hosts:read`. The role grants `host.read`. All three are slightly different. Tests pass because fixtures grant superusers everything. Production fails when a real `auditor` role tries to list hosts and gets `403`.
 - A new dangerous permission gets added to a handler but never to the registry. There is no audit hook that says "this permission was added"; reviewers don't know the surface grew.
@@ -43,7 +43,7 @@ The registry has two sections:
 
 ## 3. Permission schema
 
-Every entry in `app/auth/permissions.yaml` `permissions:` section conforms to:
+Every entry in `auth/permissions.yaml` `permissions:` section conforms to:
 
 ```yaml
 - id: host:read
@@ -61,13 +61,13 @@ Every entry in `app/auth/permissions.yaml` `permissions:` section conforms to:
 | `category` | string | yes | Must reference a `categories[].id`. The category is implied by the `id` prefix; this field exists for explicitness in tooling. |
 | `description` | string | yes | One-line human description. Surfaced in admin UI and `/auth/permissions:registry`. |
 | `dangerous` | boolean | no | `true` for destructive ops, license install, or anything that would warrant a "are you sure?" confirmation. UI uses for confirmation dialogs; audit middleware records as a high-priority denial. |
-| `license_gated` | string | no | Feature ID from `app/license/features.yaml`. Permission is inert if the license doesn't include the feature. Combined RBAC+license check happens in one middleware pass. |
+| `license_gated` | string | no | Feature ID from `licensing/features.yaml`. Permission is inert if the license doesn't include the feature. Combined RBAC+license check happens in one middleware pass. |
 
-**Build invariants** (enforced by `scripts/validate-rbac.go`, run in CI):
+**Build invariants** (enforced by `scripts/gen-rbac.go`, run in CI):
 
 - Every `id` matches the regex.
 - Every `id`'s prefix matches a defined `categories[].id`.
-- Every `license_gated` value matches a `feature.id` in `app/license/features.yaml`.
+- Every `license_gated` value matches a `feature.id` in `licensing/features.yaml`.
 - `dangerous` is a boolean.
 - No duplicates between `permissions:` and `deprecated_permissions:`.
 
@@ -172,8 +172,8 @@ var BuiltInRoles = map[RoleID]RoleDefinition{
 
 ### 4.2 Workflow for adding a permission
 
-1. Add the entry to `app/auth/permissions.yaml`.
-2. Run codegen: `go generate ./internal/auth/...`.
+1. Add the entry to `auth/permissions.yaml`.
+2. Run codegen: `go run scripts/gen-rbac.go`.
 3. Add `x-required-permission: <id>` to the relevant OpenAPI operations.
 4. Reference the typed constant from handler code: `requireAuth(perms.HostRead)`.
 5. CI fails the build if an OpenAPI spec uses an unknown permission, or if a handler emits a string literal that doesn't match a constant.
@@ -182,7 +182,7 @@ var BuiltInRoles = map[RoleID]RoleDefinition{
 
 Built-in roles are extensible only via product release:
 
-1. Add the entry to `app/auth/permissions.yaml` `roles:` section.
+1. Add the entry to `auth/permissions.yaml` `roles:` section.
 2. Author a migration that inserts the new row into `roles` with `is_built_in: true`.
 3. Existing custom roles unaffected.
 
@@ -608,9 +608,9 @@ acceptance_criteria:
 
 ### Stage 0 ships (Day 8, after licensing on Day 7):
 
-- `app/auth/permissions.yaml` registry
+- `auth/permissions.yaml` registry
 - `internal/auth/permissions.gen.go` and `roles.gen.go` codegen
-- Permission validator (`scripts/validate-rbac.go`) wired into CI
+- Permission validator (`scripts/gen-rbac.go`) wired into CI
 - `RequirePermission` middleware (with combined license-gate logic)
 - OpenAPI validator extension for `x-required-permission` and cross-checks
 - Migration `0004_roles.sql`: creates `roles` and `user_roles` tables; inserts the 5 built-in roles with `is_built_in=true`
@@ -659,10 +659,10 @@ The middleware is hot-path; it must not allocate. Codegen-expanded built-in role
 
 ## Cross-references
 
-- License features: `app/license/features.yaml` — `license_gated` permissions reference these IDs.
-- Audit events: `app/audit/events.yaml` — `authz.permission_denied`, `authz.role.assigned`, `authz.role.removed`, `admin.role.changed`, `license.feature_check_denied`.
-- Error codes: `app/api/error_codes.yaml` — `authz.permission_denied`, `authz.role_required`, `license.feature_unavailable`, `validation.field_unknown`, `resource.conflict`, `resource.builtin` (to be added).
-- Policies: `app/docs/policies_as_data.md` §5.2 — `approver_roles` cross-validates against active role set.
-- API design: `app/docs/api_design_principles.md` §11 (extensions including `x-required-permission`).
+- License features: `licensing/features.yaml` — `license_gated` permissions reference these IDs.
+- Audit events: `audit/events.yaml` — `authz.permission_denied`, `authz.role.assigned`, `authz.role.removed`, `admin.role.changed`, `license.feature_check_denied`.
+- Error codes: `api/error_codes.yaml` — `authz.permission_denied`, `authz.role_required`, `license.feature_unavailable`, `validation.field_unknown`, `resource.conflict`, `resource.builtin` (to be added).
+- Policies: `docs/engineering/policies_as_data.md` §5.2 — `approver_roles` cross-validates against active role set.
+- API design: `docs/engineering/api_design_principles.md` §11 (extensions including `x-required-permission`).
 - Roadmap: 2026-04-30 entries on this design.
 - Stage 0: Day 8 (after licensing Day 7, before policies Day 9).

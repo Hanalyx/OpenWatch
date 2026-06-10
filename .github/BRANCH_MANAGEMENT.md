@@ -1,18 +1,18 @@
 # Branch Management Policy
 
 This document outlines branch strategy, naming conventions, and automated
-workflows for the OpenWatch repository. The repo is a polyglot monorepo:
+workflows for the OpenWatch repository. The repo is a single Go module at the
+root (`github.com/Hanalyx/openwatch`, go 1.26) with an embedded React frontend:
 
 | Subtree | Stack | CI workflow |
 |---------|-------|-------------|
-| `backend/` | Python 3.12 + FastAPI + Pytest | `ci.yml` (jobs: Backend CI, Frontend CI, E2E Tests) |
-| `frontend/` | React 19 + TypeScript + Vite + Playwright | `ci.yml` (same) |
-| `app/` | Go 1.26 rebuild + pgxpool + goose + specter | `go-ci.yml` (job: Quality + security gates) |
+| `cmd/`, `internal/`, `api/` | Go 1.26 backend + pgxpool + specter | `go-ci.yml` (job: Quality + security gates) |
+| `frontend/` | React 19 + TypeScript + Vite + Vitest | `go-ci.yml` (Vitest results ingested by specter) |
 | `packaging/` | RPM / DEB native packages | `release.yml` |
 
-The two pipelines run on disjoint path filters — `ci.yml` ignores `app/**`,
-`go-ci.yml` only triggers on `app/**`. A PR generally exercises one or the
-other, not both.
+`go-ci.yml` is the single gating pipeline. It builds and tests the Go module,
+runs the frontend Vitest suite for spec coverage, and gates the
+`Quality + security gates` check.
 
 ## Branch naming
 
@@ -36,8 +36,7 @@ prefixes for branches as well as commits. The commitlint config
 
 ### Slice-based naming for the Go rebuild
 
-Spec-driven work in `app/` follows the slice naming convention from
-`internal/sdd/plans/`:
+Spec-driven work follows the slice naming convention:
 
 ```
 feat/slice-<letter>-<sub-id>-<short-name>
@@ -49,7 +48,7 @@ Examples (from Slice B):
 - `feat/slice-b-b4-fleet-rollup`
 
 Each slice PR pairs a spec change with the code that implements it.
-See `app/specs/SPEC_REGISTRY.md` and `app/specs/SPEC_GOVERNANCE.md`.
+See the behavioral specs under `specs/` and `specter.yaml`.
 
 ### Dependabot branches
 
@@ -78,28 +77,16 @@ If you need to add a check (e.g., when a new pipeline lands), update the
 required-status-checks list via the GitHub UI or `gh api`. Do not remove
 checks to work around failing CI — fix the underlying issue.
 
-### Backend/Frontend CI status
-
-The legacy `Backend CI`, `Frontend CI`, and `E2E Tests` checks from `ci.yml`
-are *not* currently required by branch protection. They run for changes
-outside `app/**` and should be respected by reviewers, but they do not gate
-merge. If you want them re-required, add them via branch protection settings;
-note that re-adding them blocks any pure-`app/**` PR from merging unless
-they are removed or made optional for that path.
-
 ## Automated branch management
 
 ### Dependabot configuration
 
-`.github/dependabot.yml` covers four ecosystems today:
+`.github/dependabot.yml` covers three ecosystems today:
 
-- `pip` (`/backend`) — Python deps, weekly Monday
-- `npm` (`/frontend`) — JS/TS deps, weekly Monday
-- `docker` (`/`) — base image updates, weekly
+- `gomod` (`/`) — Go module deps, weekly Monday (patch/minor groups). Every
+  accepted update must keep the depguard allowlist in `.golangci.yml` in sync.
+- `npm` (`/frontend`) — JS/TS deps, weekly Monday, plus a daily security-only lane
 - `github-actions` (`/`) — workflow action versions
-
-**Gap to close**: the Go module under `/app` has no Dependabot entry.
-Adding it requires a `gomod` ecosystem block — track in a follow-up issue.
 
 ### Auto-merge eligibility
 
@@ -116,7 +103,7 @@ pass. Set via `gh pr merge <N> --squash --auto`.
 - Major version updates
 - Minor updates that touch security configuration, auth flow, or
   cryptography
-- Schema migrations (`backend/alembic/versions/`, `app/internal/db/migrations/`)
+- Schema migrations (`internal/db/migrations/`)
 - Anything changing required-status-checks or branch protection
 - Anything touching CODEOWNERS, GitHub Actions permissions, or secrets
 
@@ -214,33 +201,9 @@ These are durable rules; treat them as load-bearing.
 
 ## Quality gates
 
-### Python (`backend/`)
+### Go (backend)
 
-Enforced by `backend/Makefile` and `ci.yml`:
-
-- **Pytest** with markers: `unit`, `integration`, `slow`, `regression`
-- **Coverage** threshold: 42% (target 80%, 100% for auth/encryption/scan paths)
-- **Black** — formatter, line length 120
-- **Flake8** — linting
-- **MyPy** — strict type checking
-- **Bandit** — security scanner
-- **isort** — import order
-- **Pre-commit hooks** — Black, Flake8, regression tests
-
-See `backend/CLAUDE.md` for the deeper Python conventions.
-
-### TypeScript (`frontend/`)
-
-Enforced by `frontend/package.json` scripts and `ci.yml`:
-
-- **TypeScript strict mode** — `tsc --noEmit`
-- **ESLint** with React + Hooks rules
-- **Vitest** for unit tests
-- **Playwright** for E2E
-
-### Go (`app/`)
-
-Enforced by `app/Makefile` and `go-ci.yml`. All of these must pass for the
+Enforced by the root `Makefile` and `go-ci.yml`. All of these must pass for the
 single required check (`Quality + security gates`) to go green:
 
 - `make vet` — `go vet ./...`
@@ -249,21 +212,24 @@ single required check (`Quality + security gates`) to go green:
 - `make vuln` — `govulncheck ./...`
 - `make test-race` — full test suite under `-race`, against a Postgres
   service container (DSN from `OPENWATCH_TEST_DSN`)
-- `specter sync` — spec validation + 100% AC coverage gate for every
-  `status: approved` spec under `app/specs/`
+- frontend Vitest — `go-ci.yml` runs the `frontend/` Vitest suite and feeds the
+  JUnit results into specter so `specs/frontend/` ACs report real coverage
+- `specter sync --tests '**/*'` — spec validation + 100% AC coverage gate for
+  every `status: approved` spec under `specs/`
 
 `forbidigo` enforces the foundation-doc contracts: typed RBAC constants,
 correlation-id propagation, queue-only INSERTs into `job_queue`. See
-`app/.golangci.yml` for the full rule list.
+`.golangci.yml` for the full rule list.
 
-### Spec-driven development gates (Go only)
+### Spec-driven development gates
 
 For specs marked `status: approved`:
 
 - Every `C-NN` constraint must be referenced by at least one `AC-N`
 - Every `AC-N` must have a corresponding test annotated with
-  `// @ac AC-N` and a `// @spec system-<name>` file header
-- 100% coverage on approved specs is gated by `scripts/check-spec-coverage.py --enforce-active`
+  `// @ac AC-N` and a `// @spec <name>` file header (Go tests, plus
+  `frontend/` Vitest tests for `specs/frontend/`)
+- 100% coverage on approved specs is gated by `specter sync` in `go-ci.yml`
 
 If you change scope, update the spec AND the source code AND the tests in
 the same PR. Spec drift is caught at CI, not in review.
@@ -277,12 +243,11 @@ Beyond automated checks:
   at the author's discretion.
 - **Security review**: required for changes touching auth, authorization,
   cryptography, secrets handling, or session management.
-- **Schema review**: required for new Alembic migrations or new
-  `app/internal/db/migrations/*.sql`. Confirm forward-only, idempotent,
-  and reversible where reasonable.
-- **Documentation**: API changes require corresponding doc updates
-  (`backend/app/routes/` route docstrings, `app/specs/api/` spec, or
-  the relevant `docs/` page).
+- **Schema review**: required for new `internal/db/migrations/*.sql`. Confirm
+  forward-only, idempotent, and reversible where reasonable.
+- **Documentation**: API changes start in `api/openapi.yaml` (the contract
+  source of truth; run `make generate-api`) and require corresponding updates
+  to the relevant `specs/api/` spec or `docs/` page.
 
 ## Metrics
 
@@ -321,6 +286,6 @@ protection's `required_status_checks.contexts`.
 - [Conventional Commits](https://www.conventionalcommits.org/)
 - [Semantic Versioning](https://semver.org/)
 - [Dependabot Documentation](https://docs.github.com/en/code-security/dependabot)
-- `app/specs/SPEC_GOVERNANCE.md` — spec-driven development discipline
-- `app/.golangci.yml` — Go linter configuration with drift-prevention rules
+- `specter.yaml` and `specs/` — spec-driven development discipline
+- `.golangci.yml` — Go linter configuration with drift-prevention rules
 - `CLAUDE.md` — repository-wide AI-collaboration rules (also applies to humans)

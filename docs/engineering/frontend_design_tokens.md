@@ -1,7 +1,7 @@
 # OpenWatch Frontend Design Tokens
 
 > **Status:** Locked 2026-05-30
-> **Authority:** This document defines every `--ow-*` CSS variable consumed by `app/frontend/`. If the executable theme at `app/frontend/src/theme/` disagrees with this table, the executable form is wrong.
+> **Authority:** This document defines every `--ow-*` CSS variable consumed by `frontend/`. If the executable theme at `frontend/src/theme/` disagrees with this table, the executable form is wrong.
 > **Audience:** Anyone writing or reviewing frontend components.
 
 ---
@@ -10,7 +10,7 @@
 
 Every visible surface in the OpenWatch frontend ultimately resolves through a CSS variable defined here. MUI v7's CSS-vars mode reads these variables; component styles reference them; the dark and light color schemes differ only in the values assigned to them.
 
-The token names come from the prototype at `app/docs/prototypes/openwatch-v1/`. Prototype values become the **dark** scheme; **light** values are computed in this document.
+The token names come from the prototype at `docs/engineering/prototypes/openwatch-v1/`. Prototype values become the **dark** scheme; **light** values are computed in this document.
 
 Naming rule: every variable is prefixed `--ow-*`. This is set via MUI v7's `cssVarPrefix: 'ow'` so there are no collisions with library-default `--mui-*` variables.
 
@@ -241,7 +241,7 @@ useEffect(() => {
 
 ## Per-token audit checklist (for the foundation spec's AC tests)
 
-The `frontend-foundation` spec asserts the executable theme matches this document. A test reads `app/frontend/src/theme/tokens.ts` and verifies:
+The `frontend-foundation` spec asserts the executable theme matches this document. A test reads `frontend/src/theme/tokens.ts` and verifies:
 
 1. Every token from §Surfaces, §Text, §Severity, §Typography, §Radius, §Shadows, §Motion, §Spacing is present.
 2. Every token in this document maps to an exported constant or theme path.

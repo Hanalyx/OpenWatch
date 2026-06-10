@@ -1,5 +1,11 @@
 # Secret Rotation Procedures
 
+> **⚠️ Legacy (Python era) — do not follow this document.**
+> It describes the archived Python/FastAPI + Docker-Compose stack (PostgreSQL, Redis, Celery,
+> a separate frontend) that was removed from the repo on 2026-06-05. The current OpenWatch is a
+> single Go binary (API + UI) installed from a native RPM/DEB. See docs/engineering/ and specs/
+> (a Go-era rewrite is pending). This content is kept for historical reference.
+
 This guide documents how to rotate each secret used by OpenWatch with minimal or zero downtime.
 
 ## Overview

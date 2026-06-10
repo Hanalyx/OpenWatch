@@ -117,10 +117,10 @@ A license is a JWT with `EdDSA` algorithm (Ed25519), payload as documented below
 
 ### 3.3 Feature ID registry
 
-Feature IDs are stable strings. Registry lives at `app/license/features.yaml` and is checked into source.
+Feature IDs are stable strings. Registry lives at `licensing/features.yaml` and is checked into source.
 
 ```yaml
-# app/license/features.yaml
+# licensing/features.yaml
 version: 1
 features:
   - id: compliance_check
@@ -579,7 +579,10 @@ License installed successfully.
 
 ## 8. Spec coverage (Specter)
 
-A behavioral spec at `specs/system/licensing.spec.yaml`:
+Behavioral specs live at `specs/system/license-validation.spec.yaml`,
+`specs/system/license-features.spec.yaml`, and `specs/api/license.spec.yaml`.
+The acceptance criteria below capture the design intent (the shipped specs
+split these across the files above and may use updated AC ids):
 
 ```yaml
 spec_id: system/licensing
@@ -675,7 +678,7 @@ SHA256: 7a8b9c...
 Verify with: openwatch license verify /tmp/acme-license.lic
 ```
 
-`owlicgen` lives at `app/cmd/owlicgen/`. It is not shipped to customers. It uses the **private** signing key, which never leaves Hanalyx infrastructure. Customers never see this tool.
+`owlicgen` lives at `cmd/owlicgen/`. It is not shipped to customers. It uses the **private** signing key, which never leaves Hanalyx infrastructure. Customers never see this tool.
 
 ---
 
@@ -721,7 +724,7 @@ These are licensing concerns deferred to later stages. Each one has a known answ
 Stage 0 ships with the licensing foundation when:
 
 - [ ] `internal/license/` package exists with all files listed in §5.1
-- [ ] `app/license/features.yaml` exists with the 9 initial feature IDs
+- [ ] `licensing/features.yaml` exists with the 9 initial feature IDs
 - [ ] Public key embedded in binary via `//go:embed`
 - [ ] `IsEnabled(featureID)` is lock-free, O(1), and tested
 - [ ] `RequireFeature(featureID)` middleware works in chi
@@ -730,8 +733,8 @@ Stage 0 ships with the licensing foundation when:
 - [ ] Audit events emit for install, invalid, denied, quota_exceeded
 - [ ] `openwatch license info / verify / install` CLI works
 - [ ] `owlicgen` tool generates valid licenses signed by the test key
-- [ ] Specter spec `system/licensing.spec.yaml` exists with 13 ACs
-- [ ] OpenAPI extension `x-required-feature` is documented in `app/docs/api_design_principles.md`
+- [ ] Specter specs `system/license-validation.spec.yaml`, `system/license-features.spec.yaml`, and `api/license.spec.yaml` exist covering the ACs above
+- [ ] OpenAPI extension `x-required-feature` is documented in `docs/engineering/api_design_principles.md`
 - [ ] Frontend `/capabilities` response includes the active feature set
 - [ ] `licenses` table migration is in place
 

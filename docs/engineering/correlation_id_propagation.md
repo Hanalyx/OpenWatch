@@ -432,7 +432,7 @@ Logs without context (rare — used in `slog.Info` not `slog.InfoContext`) have 
 A single correlation_id is generated at process startup:
 
 ```go
-// app/cmd/openwatch/main.go
+// cmd/openwatch/main.go
 func main() {
     bootID := correlation.Generate(correlation.PrefixBoot)
     bootCtx := correlation.Set(context.Background(), bootID)
@@ -626,8 +626,8 @@ The propagation machinery is hot-path; targets:
 
 ## Cross-references
 
-- HTTP design: `app/docs/api_design_principles.md` §9.4 (correlation_id in error envelope), §11 (`X-Correlation-Id` header).
-- Audit foundation: `app/docs/audit_event_taxonomy.md` §3 (envelope), §6 (writer paths).
-- Policies: `app/docs/policies_as_data.md` §8 (audit integration; `policy.applied` carries correlation_id).
+- HTTP design: `docs/engineering/api_design_principles.md` §9.4 (correlation_id in error envelope), §11 (`X-Correlation-Id` header).
+- Audit foundation: `docs/engineering/audit_event_taxonomy.md` §3 (envelope), §6 (writer paths).
+- Policies: `docs/engineering/policies_as_data.md` §8 (audit integration; `policy.applied` carries correlation_id).
 - Roadmap: 2026-04-27 entry on `X-Correlation-Id` propagation; 2026-04-30 entries on this design.
 - Stage 0: Day 4 (HTTP middleware), Day 5 (audit uses it), Day 8 (queue helpers + lint + e2e test).

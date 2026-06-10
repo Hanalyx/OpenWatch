@@ -1,14 +1,14 @@
 # OpenWatch Frontend Architecture (ADR)
 
 > **Status:** Locked 2026-05-30
-> **Authority:** This document is the rulebook for `app/frontend/`. If code at `app/frontend/` violates a rule here, the code is wrong.
+> **Authority:** This document is the rulebook for `frontend/`. If code at `frontend/` violates a rule here, the code is wrong.
 > **Audience:** Anyone scaffolding, specing, or implementing frontend modules for OpenWatch Go.
 
 ---
 
 ## Why this document exists
 
-The Go rebuild ships a fresh frontend at `app/frontend/`. Without an ADR up front, every spec downstream is built on assumed defaults — router choice leaks into data-fetching choice leaks into auth-flow choice, and the first three specs disagree on which library owns which concern.
+The Go rebuild ships a fresh frontend at `frontend/`. Without an ADR up front, every spec downstream is built on assumed defaults — router choice leaks into data-fetching choice leaks into auth-flow choice, and the first three specs disagree on which library owns which concern.
 
 This document **locks** the stack and the conventions. It is reviewed only when a hard external pressure forces a change (library deprecation, breaking version, security CVE in a transitive dep). Day-to-day work consults this; it does not edit it.
 
@@ -17,9 +17,9 @@ This document **locks** the stack and the conventions. It is reviewed only when 
 ## Context
 
 - **Backend**: Go (chi router, pgx, sqlc, embed.FS, OpenAPI 3.1 SSOT).
-- **Serving**: Single binary. Frontend embedded into the binary via `//go:embed app/frontend/dist`. No nginx, no separate SPA host (per `openwatch_roadmap.md` L21, L87).
+- **Serving**: Single binary. Frontend embedded into the binary via `//go:embed all:spa` in `internal/server/spa.go` (the `vite build` output is copied into `internal/server/spa/` at build time). No nginx, no separate SPA host (per `openwatch_roadmap.md` L21, L87).
 - **Auth contract** (per `stage_2_slice_a.md` L25): both session cookies (browser) and JWT (API consumers). The browser frontend uses **session cookies** with CSRF protection — **not** JWT in `localStorage`.
-- **Prototype** at `app/docs/prototypes/openwatch-v1/` defines the visual language (9 HTML pages, dark-only). The frontend implements the same language in a real component system with both dark and light modes.
+- **Prototype** at `docs/engineering/prototypes/openwatch-v1/` defines the visual language (9 HTML pages, dark-only). The frontend implements the same language in a real component system with both dark and light modes.
 - **Page rollout** is slice-driven, not page-list-driven. Each backend slice unblocks the corresponding frontend pages.
 
 ---
@@ -69,7 +69,7 @@ React 19 is the foundation. Adopt R19 conventions:
 
 ### D-07: API client via `openapi-typescript` + `openapi-fetch`
 
-- `openapi-typescript` generates types from `app/api/openapi.yaml` into `app/frontend/src/api/schema.d.ts`.
+- `openapi-typescript` generates types from `api/openapi.yaml` into `frontend/src/api/schema.d.ts`.
 - `openapi-fetch` is a 4 KB typed fetch wrapper. No heavier `orval` / RTK Query lock-in.
 - **Spec is the contract**: when `openapi.yaml` changes, the TS types regenerate. Type errors at compile time are the contract drift signal.
 - Generation command in `package.json`: `"api:types": "openapi-typescript ../api/openapi.yaml -o src/api/schema.d.ts"`. Run by CI and pre-commit.
@@ -118,7 +118,7 @@ For the dashboard widget reorder (when the dashboard slice unblocks). Used nowhe
 - Every token is a `--ow-*` CSS variable defined per mode.
 - Severity colors include explicit on-color foregrounds: `--ow-info`, `--ow-info-on`, `--ow-info-bg` (and the same for crit/warn/ok).
 - Shadows, line/border, surface elevations all per-mode.
-- Full table lives in `app/docs/frontend_design_tokens.md`. The frontend's `theme/index.ts` is the executable form; the doc is the human-readable form.
+- Full table lives in `docs/engineering/frontend_design_tokens.md`. The frontend's `theme/index.ts` is the executable form; the doc is the human-readable form.
 
 ### D-15: Testing — Vitest + RTL 16 + Playwright
 
@@ -134,9 +134,9 @@ For the dashboard widget reorder (when the dashboard slice unblocks). Used nowhe
 - Every page passes axe-core in CI before merge.
 - The findings-ui spec (template) already encodes this — every page spec inherits AC-12-style axe assertions.
 
-### D-17: Spec home — `app/specs/frontend/`
+### D-17: Spec home — `specs/frontend/`
 
-- New directory parallel to `app/specs/{api,system,release}/`.
+- New directory parallel to `specs/{api,system,release}/`.
 - Same Specter `.spec.yaml` schema as backend specs.
 - Spec IDs prefix with `frontend-`: `frontend-foundation`, `frontend-auth-login`, etc.
 - **Tier 1** for security-sensitive UX (auth, RBAC gating, foundation).
@@ -145,9 +145,9 @@ For the dashboard widget reorder (when the dashboard slice unblocks). Used nowhe
 
 ### D-18: Where the frontend lives + how it ships
 
-- **Tree**: `app/frontend/` — sibling of `app/internal/`, `app/cmd/`, `app/api/`.
-- **Build output**: `app/frontend/dist/` (set in `vite.config.ts`).
-- **Embed**: `//go:embed app/frontend/dist` in a Go embed file under `app/internal/server/` (or wherever the static handler lives). SPA fallback (`/`-routed requests serve `index.html`) implemented in the chi route table.
+- **Tree**: `frontend/` — sibling of `internal/`, `cmd/`, `api/`.
+- **Build output**: `frontend/dist/` (set in `vite.config.ts`).
+- **Embed**: `make build` copies the `frontend/dist/` output into `internal/server/spa/`, which `internal/server/spa.go` embeds via `//go:embed all:spa`. SPA fallback (non-`/api/` requests serve `index.html`) is implemented in `newSPAHandler`.
 - **Single artifact**: frontend updates require a binary rebuild. No separate SPA hotfix path. Acceptable trade-off for security tooling with infrequent UI changes (per `openwatch_roadmap.md` L245).
 
 ### D-19: Dev server proxy
@@ -219,7 +219,7 @@ For the dashboard widget reorder (when the dashboard slice unblocks). Used nowhe
 
 ## Open follow-ups (not blocking v0)
 
-- **Real-time transport for Activity page** (`Live` toggle). SSE vs. WebSocket. Decided when OS Intelligence backend lands. See `app/docs/activity_and_os_intelligence.md`.
+- **Real-time transport for Activity page** (`Live` toggle). SSE vs. WebSocket. Decided when OS Intelligence backend lands. See `docs/engineering/activity_and_os_intelligence.md`.
 - **React Compiler adoption** — reviewed when ecosystem reports stabilize.
 - **Bundle splitting per route** — when initial-paint metrics warrant.
 - **i18n** — when a customer demands non-English UI.

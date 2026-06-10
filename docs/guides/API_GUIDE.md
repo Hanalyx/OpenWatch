@@ -1,5 +1,13 @@
 # API Guide
 
+> **⚠️ Legacy (Python era) — do not follow this document.**
+> It describes the archived Python/FastAPI + Docker-Compose stack (PostgreSQL, Redis, Celery,
+> a separate frontend) that was removed from the repo on 2026-06-05. The current OpenWatch is a
+> single Go binary (API + UI) installed from a native RPM/DEB. See the current API contract in
+> `api/openapi.yaml` (regenerated with `make generate-api`), the engineering docs under
+> `docs/engineering/`, and the behavioral specs under `specs/`; a Go-era rewrite is pending. This
+> content is kept for historical reference.
+
 Most operators use the **web UI** for daily work -- managing hosts, viewing
 dashboards, reading scan results, and running remediations. This guide is for
 **automation**: scripting repetitive tasks, integrating with CI/CD pipelines, or

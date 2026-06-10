@@ -1,5 +1,11 @@
 # Scaling Guide
 
+> **⚠️ Legacy (Python era) — do not follow this document.**
+> It describes the archived Python/FastAPI + Docker-Compose stack (PostgreSQL, Redis, Celery,
+> a separate frontend) that was removed from the repo on 2026-06-05. The current OpenWatch is a
+> single Go binary (API + UI) installed from a native RPM/DEB. See docs/engineering/install_guide.md. This content
+> is kept for historical reference.
+
 This guide covers scaling OpenWatch for larger environments with more hosts, concurrent scans, and higher availability requirements.
 
 ## Scaling Dimensions

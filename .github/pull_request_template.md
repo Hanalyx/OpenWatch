@@ -24,7 +24,7 @@ Related to #
 
 ## 🧪 Testing
 <!-- Describe the tests you ran and how to reproduce them -->
-- [ ] Unit tests pass (`npm test` / `pytest`)
+- [ ] Unit tests pass (`go test ./...` / `npm test`)
 - [ ] Integration tests pass
 - [ ] Manual testing completed
 - [ ] Security testing completed (if applicable)

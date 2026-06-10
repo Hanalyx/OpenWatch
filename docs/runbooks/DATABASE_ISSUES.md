@@ -1,46 +1,47 @@
 # Runbook: PostgreSQL Database Issues
 
 **Severity**: P1 - High
-**Last Updated**: 2026-02-17
+**Last Updated**: 2026-06-10
 **Owner**: Platform Engineering
 **Estimated Resolution Time**: 5-60 minutes depending on root cause
+
+OpenWatch runs as a single Go binary (`/usr/bin/openwatch`) managed by systemd (`openwatch.service`). It connects to a PostgreSQL server (PostgreSQL is the only datastore; there is no MongoDB, Redis, or Celery). The `psql` commands below assume you have a PostgreSQL client on the database host or a host that can reach it; adjust the connection flags (`-h`, `-p`) for your deployment.
 
 ---
 
 ## Symptoms
 
-- Application logs show `Could not connect to PostgreSQL` or `OperationalError`.
+- Application logs show `Could not connect to PostgreSQL` or a connection error.
 - API requests return HTTP 500 or 503 errors.
-- Health endpoint (`GET /health`) reports `"database": "unhealthy"`.
+- Health endpoint (`GET /api/v1/health`) reports `"status": "degraded"` and `"db_connected": false`.
 - Slow API response times (queries taking seconds instead of milliseconds).
-- Connection timeout errors in backend or worker logs.
+- Connection timeout errors in the `openwatch` service logs (`journalctl -u openwatch`).
 - Scans stuck in `pending` or `running` state indefinitely.
 
 ---
 
 ## Diagnosis
 
-### Step 1: Check PostgreSQL container status
+### Step 1: Check PostgreSQL service status
 
 ```bash
-docker ps -a --filter "name=openwatch-db"
+systemctl status postgresql
 ```
 
-The container should show status `Up` with `(healthy)`. If it shows `Exited` or `unhealthy`, see Resolution Path A.
+The service should be `active (running)`. If it is `failed` or `inactive`, see Resolution Path A.
 
 ### Step 2: Test PostgreSQL connectivity
 
 ```bash
-# From the host
-docker exec openwatch-db pg_isready -U openwatch -d openwatch
+pg_isready -U openwatch -d openwatch
 ```
 
-Expected output: `openwatch-db:5432 - accepting connections`. If it reports `no response` or `rejecting connections`, PostgreSQL is down or overloaded.
+Expected output ends with `accepting connections` (for example `localhost:5432 - accepting connections`). If it reports `no response` or `rejecting connections`, PostgreSQL is down or overloaded.
 
 ### Step 3: Check connection count
 
 ```bash
-docker exec openwatch-db psql -U openwatch -d openwatch -c "
+psql -U openwatch -d openwatch -c "
 SELECT count(*) AS total_connections,
        count(*) FILTER (WHERE state = 'active') AS active,
        count(*) FILTER (WHERE state = 'idle') AS idle,
@@ -53,7 +54,7 @@ WHERE datname = 'openwatch';
 Compare against the maximum connections:
 
 ```bash
-docker exec openwatch-db psql -U openwatch -d openwatch -c "SHOW max_connections;"
+psql -U openwatch -d openwatch -c "SHOW max_connections;"
 ```
 
 Default is 100. If `total_connections` is near `max_connections`, connection pool exhaustion is the likely cause.
@@ -61,7 +62,7 @@ Default is 100. If `total_connections` is near `max_connections`, connection poo
 ### Step 4: Check for long-running or blocked queries
 
 ```bash
-docker exec openwatch-db psql -U openwatch -d openwatch -c "
+psql -U openwatch -d openwatch -c "
 SELECT pid,
        now() - pg_stat_activity.query_start AS duration,
        state,
@@ -80,7 +81,7 @@ Any query running longer than 60 seconds should be investigated.
 ### Step 5: Check for lock contention
 
 ```bash
-docker exec openwatch-db psql -U openwatch -d openwatch -c "
+psql -U openwatch -d openwatch -c "
 SELECT blocked.pid AS blocked_pid,
        blocked.query AS blocked_query,
        blocking.pid AS blocking_pid,
@@ -101,16 +102,16 @@ LIMIT 10;
 ### Step 6: Check disk space
 
 ```bash
-# Host disk
-docker exec openwatch-db df -h /var/lib/postgresql/data
+# Host disk for the PostgreSQL data directory
+df -h "$(psql -U openwatch -d openwatch -tAc 'SHOW data_directory;')"
 
 # Database size
-docker exec openwatch-db psql -U openwatch -d openwatch -c "
+psql -U openwatch -d openwatch -c "
 SELECT pg_size_pretty(pg_database_size('openwatch')) AS database_size;
 "
 
 # Largest tables
-docker exec openwatch-db psql -U openwatch -d openwatch -c "
+psql -U openwatch -d openwatch -c "
 SELECT schemaname || '.' || tablename AS table_name,
        pg_size_pretty(pg_total_relation_size(schemaname || '.' || tablename)) AS total_size
 FROM pg_tables
@@ -123,7 +124,7 @@ LIMIT 10;
 ### Step 7: Check PostgreSQL logs
 
 ```bash
-docker logs openwatch-db --tail 200
+journalctl -u postgresql --no-pager -n 200
 ```
 
 Look for:
@@ -136,7 +137,7 @@ Look for:
 ### Step 8: Check table bloat and dead tuples
 
 ```bash
-docker exec openwatch-db psql -U openwatch -d openwatch -c "
+psql -U openwatch -d openwatch -c "
 SELECT schemaname || '.' || relname AS table_name,
        n_dead_tup AS dead_tuples,
        n_live_tup AS live_tuples,
@@ -158,29 +159,27 @@ If `dead_pct` exceeds 20% for any table, a manual vacuum may be needed.
 
 ## Resolution
 
-### Path A: PostgreSQL container is down
+### Path A: PostgreSQL is down
 
 ```bash
 # Check why it stopped
-docker inspect openwatch-db --format='{{.State.ExitCode}} {{.State.Error}}'
+systemctl status postgresql --no-pager
 
 # Check for OOM
 dmesg | grep -i "oom\|killed" | tail -10
 
 # Restart PostgreSQL
-docker restart openwatch-db
+systemctl restart postgresql
 
-# Wait for health check to pass (up to 50 seconds: 10s start_period + 5s interval * 10 retries)
+# Wait for it to accept connections
 sleep 15
-docker exec openwatch-db pg_isready -U openwatch -d openwatch
+pg_isready -U openwatch -d openwatch
 ```
 
-After PostgreSQL is back, restart dependent services:
+After PostgreSQL is back, restart the OpenWatch service so it reopens its connection pool:
 
 ```bash
-docker restart openwatch-backend
-docker restart openwatch-worker
-docker restart openwatch-celery-beat
+systemctl restart openwatch
 ```
 
 ### Path B: Connection pool exhaustion
@@ -189,7 +188,7 @@ If connections are near `max_connections`:
 
 ```bash
 # Terminate idle-in-transaction connections (safe to kill)
-docker exec openwatch-db psql -U openwatch -d openwatch -c "
+psql -U openwatch -d openwatch -c "
 SELECT pg_terminate_backend(pid)
 FROM pg_stat_activity
 WHERE datname = 'openwatch'
@@ -198,11 +197,10 @@ WHERE datname = 'openwatch'
 "
 ```
 
-Then restart the backend to reset its connection pool:
+Then restart the OpenWatch service to reset its connection pool:
 
 ```bash
-docker restart openwatch-backend
-docker restart openwatch-worker
+systemctl restart openwatch
 ```
 
 If this recurs frequently, increase `max_connections` in the PostgreSQL configuration or reduce the application connection pool size.
@@ -213,7 +211,7 @@ Identify the blocking query from Step 5 output and terminate it if safe to do so
 
 ```bash
 # Terminate the blocking PID (replace 12345 with actual blocking_pid)
-docker exec openwatch-db psql -U openwatch -d openwatch -c "
+psql -U openwatch -d openwatch -c "
 SELECT pg_terminate_backend(12345);
 "
 ```
@@ -221,7 +219,7 @@ SELECT pg_terminate_backend(12345);
 Verify locks are cleared:
 
 ```bash
-docker exec openwatch-db psql -U openwatch -d openwatch -c "
+psql -U openwatch -d openwatch -c "
 SELECT count(*) FROM pg_locks WHERE NOT granted;
 "
 ```
@@ -232,12 +230,12 @@ Kill queries that have been running too long:
 
 ```bash
 # Cancel a specific query gracefully (replace PID)
-docker exec openwatch-db psql -U openwatch -d openwatch -c "
+psql -U openwatch -d openwatch -c "
 SELECT pg_cancel_backend(12345);
 "
 
 # If pg_cancel_backend does not work, force terminate
-docker exec openwatch-db psql -U openwatch -d openwatch -c "
+psql -U openwatch -d openwatch -c "
 SELECT pg_terminate_backend(12345);
 "
 ```
@@ -247,18 +245,18 @@ SELECT pg_terminate_backend(12345);
 If PostgreSQL data volume is full:
 
 ```bash
-# Check volume usage
-docker exec openwatch-db du -sh /var/lib/postgresql/data
+# Check data directory usage
+du -sh "$(psql -U openwatch -d openwatch -tAc 'SHOW data_directory;')"
 
 # Run vacuum to reclaim space (does not require exclusive lock)
-docker exec openwatch-db psql -U openwatch -d openwatch -c "VACUUM VERBOSE;"
+psql -U openwatch -d openwatch -c "VACUUM VERBOSE;"
 ```
 
 For more aggressive space reclamation (requires exclusive table lock):
 
 ```bash
 # VACUUM FULL rewrites the entire table - use with caution during off-hours
-docker exec openwatch-db psql -U openwatch -d openwatch -c "VACUUM FULL scan_findings;"
+psql -U openwatch -d openwatch -c "VACUUM FULL scan_findings;"
 ```
 
 Also see the [DISK_FULL.md](DISK_FULL.md) runbook for broader disk cleanup.
@@ -269,10 +267,10 @@ If queries return incorrect results or logs show index-related errors:
 
 ```bash
 # Reindex a specific table
-docker exec openwatch-db psql -U openwatch -d openwatch -c "REINDEX TABLE scan_findings;"
+psql -U openwatch -d openwatch -c "REINDEX TABLE scan_findings;"
 
 # Reindex the entire database (takes longer, but thorough)
-docker exec openwatch-db psql -U openwatch -d openwatch -c "REINDEX DATABASE openwatch;"
+psql -U openwatch -d openwatch -c "REINDEX DATABASE openwatch;"
 ```
 
 ### Path G: Out of memory
@@ -281,7 +279,7 @@ If PostgreSQL is being OOM killed:
 
 ```bash
 # Check current shared_buffers and work_mem
-docker exec openwatch-db psql -U openwatch -d openwatch -c "
+psql -U openwatch -d openwatch -c "
 SHOW shared_buffers;
 SHOW work_mem;
 SHOW effective_cache_size;
@@ -297,7 +295,7 @@ Consider reducing `work_mem` if it is set high, or adding a memory limit to the 
 ### 1. PostgreSQL accepts connections
 
 ```bash
-docker exec openwatch-db pg_isready -U openwatch -d openwatch
+pg_isready -U openwatch -d openwatch
 ```
 
 Expected: `accepting connections`.
@@ -305,15 +303,15 @@ Expected: `accepting connections`.
 ### 2. Health endpoint reports database healthy
 
 ```bash
-curl -s http://localhost:8000/health | python3 -m json.tool
+curl -sk https://localhost:8443/api/v1/health | python3 -m json.tool
 ```
 
-Confirm `"database": "healthy"`.
+Confirm `"status": "healthy"` and `"db_connected": true`.
 
 ### 3. Basic query works
 
 ```bash
-docker exec openwatch-db psql -U openwatch -d openwatch -c "SELECT count(*) FROM hosts;"
+psql -U openwatch -d openwatch -c "SELECT count(*) FROM hosts;"
 ```
 
 Should return a count without errors.
@@ -321,7 +319,7 @@ Should return a count without errors.
 ### 4. No blocked queries
 
 ```bash
-docker exec openwatch-db psql -U openwatch -d openwatch -c "
+psql -U openwatch -d openwatch -c "
 SELECT count(*) FROM pg_locks WHERE NOT granted;
 "
 ```
@@ -331,7 +329,7 @@ Expected: `0`.
 ### 5. Connection count is normal
 
 ```bash
-docker exec openwatch-db psql -U openwatch -d openwatch -c "
+psql -U openwatch -d openwatch -c "
 SELECT count(*) FROM pg_stat_activity WHERE datname = 'openwatch';
 "
 ```
@@ -361,7 +359,7 @@ Escalate if any of the following conditions are met:
 
 ## Prevention
 
-- **Connection pool monitoring**: Track connection counts via the Postgres Exporter (port 9187) and set alerts when approaching `max_connections`.
+- **Connection pool monitoring**: Track connection counts (for example with a PostgreSQL metrics exporter or a periodic `pg_stat_activity` query) and set alerts when approaching `max_connections`.
 - **Query timeouts**: Configure `statement_timeout` in PostgreSQL to prevent runaway queries:
   ```sql
   ALTER DATABASE openwatch SET statement_timeout = '300s';
