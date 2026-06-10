@@ -1,7 +1,7 @@
 spec:
   id: services-connectivity-config
   title: Connectivity-monitor runtime config — per-state intervals + persistence + reload
-  version: "1.1.0"
+  version: "1.2.0"
   status: approved
   tier: 2
 
@@ -76,6 +76,10 @@ spec:
       description: SetConnectivity MUST emit audit.SystemConfigChanged with detail {config_key, old_value, new_value, changed_by}. The old_value is the snapshot BEFORE the write, captured in the same transaction
       type: security
       enforcement: error
+    - id: C-04
+      description: Concurrent SetConnectivity calls for the same key are serialized via a SELECT ... FOR UPDATE row lock, so they complete without deadlock and the final persisted state equals one writer's input (last-writer-wins; no torn write). Deterministic ordering between racing writers is NOT guaranteed.
+      type: technical
+      enforcement: error
 
   acceptance_criteria:
     - id: AC-01
@@ -98,3 +102,7 @@ spec:
       description: A successful SetConnectivity emits exactly one system.config.changed audit event with old_value, new_value, and changed_by populated. The old_value reflects the snapshot prior to the write.
       priority: critical
       references_constraints: [C-03]
+    - id: AC-06
+      description: Two concurrent SetConnectivity calls for the same key both return without error and without deadlock, and the final persisted state equals one of the two writers' inputs (last-writer-wins via the SELECT ... FOR UPDATE row lock; no torn write).
+      priority: high
+      references_constraints: [C-04]

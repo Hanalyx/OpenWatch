@@ -1,0 +1,103 @@
+spec:
+  id: api-system-connectivity
+  title: System connectivity API — runtime config CRUD + live status
+  version: "1.0.0"
+  status: approved
+  tier: 2
+
+  context:
+    system: openwatch-go
+    feature: HTTP surface for the connectivity-monitor runtime config and the live status snapshot
+    description: >
+      The /api/v1/system/connectivity/* endpoints let an operator read and
+      update the host-liveness probe config (per-state intervals, timeout,
+      thresholds — owned at the service layer by services-connectivity-config)
+      and read a live status snapshot. GET config returns the active snapshot
+      plus the baked-in defaults; PUT config validates bounds at the handler
+      boundary, persists, signals the in-process liveness service to Reload,
+      and emits system.config.changed. GET status surfaces the liveness
+      MetricsSnapshot.
+
+      This spec covers the HTTP layer (routing, request/response shapes,
+      validation status codes, RBAC) on top of the service-layer contract in
+      services-connectivity-config. It was authored and approved with PR #434
+      but dropped from the tree in that PR's squash-merge and never restored;
+      it is reconstructed here from the handler tests in
+      internal/server/api_system_connectivity_test.go and the api/openapi.yaml
+      contract. The acceptance-criteria ids follow those surviving tests, so
+      the numbering is non-contiguous (only the test-covered criteria are
+      restored).
+    related_specs:
+      - services-connectivity-config
+      - system-liveness-loop
+      - system-rbac
+      - system-audit-emission
+
+  objective:
+    summary: >
+      GET /api/v1/system/connectivity/config returns the active config and
+      defaults; PUT validates and persists with audit + reload; GET status
+      returns the live snapshot. Every endpoint is RBAC-gated.
+    scope:
+      includes:
+        - GET and PUT /api/v1/system/connectivity/config
+        - GET /api/v1/system/connectivity/status
+        - Handler-boundary bounds validation (out-of-range returns 400)
+        - RBAC — system:read for reads, system:write for the PUT
+      excludes:
+        - Persistence, reload, and service-layer validation (owned by
+          services-connectivity-config)
+        - The 4-state fleet breakdown (api-fleet-connectivity-breakdown)
+        - On-demand per-host probe (api-host-connectivity-check)
+
+  constraints:
+    - id: C-01
+      description: GET /api/v1/system/connectivity/config returns the current config snapshot plus a defaults sub-object; requires system:read.
+      type: technical
+      enforcement: error
+    - id: C-02
+      description: PUT /api/v1/system/connectivity/config validates field bounds at the handler boundary (out-of-range returns 400 with the canonical error envelope), persists the snapshot, signals the liveness service to Reload, and emits system.config.changed; requires system:write.
+      type: technical
+      enforcement: error
+    - id: C-03
+      description: GET /api/v1/system/connectivity/status returns the typed liveness status snapshot; requires system:read.
+      type: technical
+      enforcement: error
+    - id: C-04
+      description: Reads require system:read and the mutating PUT requires system:write; a caller lacking the permission gets 403, and an anonymous caller is rejected.
+      type: security
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: GET /api/v1/system/connectivity/config against a freshly-migrated database returns 200 with the active snapshot equal to the baked-in defaults and a populated defaults sub-object.
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-02
+      description: PUT /api/v1/system/connectivity/config with a valid in-range body returns 200, and a subsequent GET returns the persisted snapshot (round-trip).
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-03
+      description: PUT /api/v1/system/connectivity/config with a field below its minimum returns 400 with the canonical validation error envelope; persisted state is unchanged.
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-04
+      description: PUT /api/v1/system/connectivity/config with a field above its maximum returns 400 with the canonical validation error envelope.
+      priority: high
+      references_constraints: [C-02]
+    - id: AC-06
+      description: PUT /api/v1/system/connectivity/config by a viewer (lacking system:write) returns 403 authz.permission_denied.
+      priority: high
+      references_constraints: [C-04]
+    - id: AC-07
+      description: PUT /api/v1/system/connectivity/config by an anonymous caller is rejected (not authenticated).
+      priority: high
+      references_constraints: [C-04]
+    - id: AC-08
+      description: GET /api/v1/system/connectivity/status returns 200 with the typed connectivity status snapshot.
+      priority: high
+      references_constraints: [C-03]
+    - id: AC-09
+      description: GET /api/v1/system/connectivity/status by an anonymous caller is rejected (not authenticated).
+      priority: high
+      references_constraints: [C-04]

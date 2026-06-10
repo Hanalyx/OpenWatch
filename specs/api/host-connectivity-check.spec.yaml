@@ -1,0 +1,59 @@
+spec:
+  id: api-host-connectivity-check
+  title: On-demand host connectivity check API
+  version: "1.0.0"
+  status: approved
+  tier: 2
+
+  context:
+    system: openwatch-go
+    feature: Operator-triggered, on-demand connectivity probe for a single host
+    description: >
+      POST /api/v1/hosts/{id}/connectivity:check runs an immediate connectivity
+      probe for one host, outside the periodic liveness loop. It is a mutating
+      action (it writes a fresh liveness sample), so it requires an
+      Idempotency-Key header; an unknown host id returns 404.
+
+      This spec covers the HTTP endpoint's not-found and idempotency-key
+      contract. It was authored and approved with PR #434 but dropped from the
+      tree in that PR's squash-merge and never restored; it is reconstructed
+      here from internal/server/api_system_connectivity_test.go and the
+      api/openapi.yaml contract. The acceptance-criteria ids follow those
+      surviving tests, so the numbering is non-contiguous.
+    related_specs:
+      - system-idempotency
+      - system-liveness-loop
+      - system-rbac
+
+  objective:
+    summary: >
+      The endpoint probes one host on demand; an unknown host id returns 404,
+      and a request without the required Idempotency-Key returns 400.
+    scope:
+      includes:
+        - POST /api/v1/hosts/{id}/connectivity:check
+        - 404 for an unknown host id
+        - Idempotency-Key requirement (400 when absent)
+      excludes:
+        - The periodic liveness probe loop (system-liveness-loop)
+        - Idempotent replay semantics in general (system-idempotency)
+
+  constraints:
+    - id: C-01
+      description: POST /api/v1/hosts/{id}/connectivity:check is a mutating action and MUST require an Idempotency-Key header; a request without it returns 400.
+      type: technical
+      enforcement: error
+    - id: C-02
+      description: A request for a host id that does not exist returns 404 with the canonical hosts.not_found error envelope.
+      type: technical
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-03
+      description: POST /api/v1/hosts/{id}/connectivity:check for an unknown host id returns 404 with the canonical hosts.not_found error envelope.
+      priority: high
+      references_constraints: [C-02]
+    - id: AC-05
+      description: POST /api/v1/hosts/{id}/connectivity:check without an Idempotency-Key header returns 400.
+      priority: high
+      references_constraints: [C-01]
