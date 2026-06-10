@@ -1,473 +1,349 @@
-# Backup & Recovery Procedures
+# Backup and recovery
 
-> **⚠️ Legacy (Python era) — do not follow this document.**
-> It describes the archived Python/FastAPI + Docker-Compose stack (PostgreSQL, Redis, Celery,
-> a separate frontend) that was removed from the repo on 2026-06-05. The current OpenWatch is a
-> single Go binary (API + UI) installed from a native RPM/DEB. See docs/engineering/ and specs/
-> (a Go-era rewrite is pending). This content is kept for historical reference.
+This guide covers backup, restore, and disaster recovery for an OpenWatch
+deployment. OpenWatch is a single Go binary (`/usr/bin/openwatch`) that serves
+the REST API and the embedded React UI over HTTPS on port `8443`, backed by
+PostgreSQL and managed by `systemd`. There is no container runtime, no Redis,
+and no separate web tier to back up.
 
-This guide documents backup, restore, and disaster recovery procedures for OpenWatch.
+For install and first-run setup, see
+[`docs/engineering/install_guide.md`](../engineering/install_guide.md). This
+document assumes the layout that guide produces.
 
-## Overview
+## What you need to back up
 
-OpenWatch stores data in:
+Two things must be backed up together. A database dump alone is not a complete
+backup.
 
-| Component | Storage | Data |
-|-----------|---------|------|
-| PostgreSQL | `postgres_data` volume | Hosts, scans, findings, users, credentials, compliance data |
-| Redis | `redis_data` volume | Celery task queue, session cache |
-| Application data | `app_data` volume | Uploaded files, generated reports |
-| Application logs | `app_logs` volume | Service logs |
-| SSH known hosts | `ssh_known_hosts` volume | Trusted host fingerprints |
-| TLS certificates | `security/certs/` bind mount | TLS certificates (read-only) |
-| SSH keys | `security/keys/` bind mount | SSH private keys |
+| Item | Path | Why it matters | Recoverable without backup? |
+|------|------|----------------|-----------------------------|
+| PostgreSQL database | external PostgreSQL server | Hosts, scans, transactions, findings, users, roles, encrypted credentials, audit events, job queue, system config | No |
+| Credential encryption key | `/etc/openwatch/keys/credential.key` | AES-256 key that encrypts stored SSH credentials and MFA secrets in the database | No |
+| JWT signing key | `/etc/openwatch/keys/jwt_private.pem` | Signs auth tokens; losing it invalidates all sessions (recoverable by re-issuing) | Partially |
+| Database secret | `/etc/openwatch/secrets.env` | Holds `OPENWATCH_DATABASE_DSN` | No |
+| Configuration | `/etc/openwatch/openwatch.toml` | Server, database, and logging settings | Re-creatable by hand |
+| TLS certificate and key | `/etc/openwatch/tls/cert.pem`, `/etc/openwatch/tls/key.pem` | Serves HTTPS on `8443` | Re-issuable from your CA |
 
-**Critical data** requiring regular backup: PostgreSQL, SSH keys, TLS certificates, `.env` file.
+> The `credential.key` is the most important non-database item. SSH credentials
+> and MFA secrets in the database are encrypted with it. If you restore a
+> database dump but lose `credential.key`, those secrets are unrecoverable and
+> you must re-enter every host credential. Back up `credential.key` and the
+> database together, and store the key with at least the same protection as the
+> database.
 
-**Recoverable data** (can be regenerated): Redis queue, application logs, SSH known hosts.
+The default key paths above come from the shipped configuration
+(`internal/config/config.go`); confirm yours with
+`sudo -u openwatch openwatch check-config`, which prints the resolved
+`jwt_private_key` and `credential_key_file` paths.
 
-## Backup Strategy
+### What you do not need to back up
 
-### Recommended Schedule
+- **Application logs.** Logs go to the `systemd` journal (`journalctl -u
+  openwatch`); `/var/log/openwatch` exists but the journal is primary. Back up
+  the journal only if your retention policy requires it.
+- **The job queue.** Background jobs use a PostgreSQL-native queue
+  (`SKIP LOCKED`) inside the same database, so the database dump already covers
+  it. There is no separate queue store to back up.
+- **Compliance scan content.** Kensa rules are native YAML bundled with the
+  install; they are not user data.
 
-| Backup Type | Frequency | Retention | Storage |
-|-------------|-----------|-----------|---------|
-| Full PostgreSQL dump | Daily | 30 days | Off-site / S3 |
-| Incremental WAL archive | Continuous (if configured) | 7 days | Off-site / S3 |
-| Configuration files | On change | 10 versions | Version control |
-| Volume snapshots | Weekly | 4 weeks | Off-site |
-| TLS certificates | On renewal | Previous + current | Secure vault |
+## Backup procedure
 
-## PostgreSQL Backup
+OpenWatch connects to an external PostgreSQL instance. Run `pg_dump` against
+that server. The DSN is in `/etc/openwatch/secrets.env` as
+`OPENWATCH_DATABASE_DSN`.
 
-### Full Database Dump
+### Database dump
 
-Create a compressed SQL dump of the entire database:
-
-```bash
-# Create backup directory
-mkdir -p /opt/openwatch/backups/postgres
-
-# Full compressed dump
-docker exec openwatch-db pg_dump \
-  -U openwatch \
-  -d openwatch \
-  -Fc \
-  --verbose \
-  -f /tmp/openwatch_backup.dump
-
-# Copy from container to host
-docker cp openwatch-db:/tmp/openwatch_backup.dump \
-  /opt/openwatch/backups/postgres/openwatch_$(date +%Y%m%d_%H%M%S).dump
-
-# Clean up container temp file
-docker exec openwatch-db rm /tmp/openwatch_backup.dump
-```
-
-### Plain-Text SQL Dump (for inspection)
+Use a compressed custom-format dump. It restores faster and supports selective
+restore.
 
 ```bash
-docker exec openwatch-db pg_dump \
-  -U openwatch \
-  -d openwatch \
-  --clean \
-  --if-exists \
-  > /opt/openwatch/backups/postgres/openwatch_$(date +%Y%m%d).sql
+source /etc/openwatch/secrets.env   # sets OPENWATCH_DATABASE_DSN
+
+pg_dump "$OPENWATCH_DATABASE_DSN" \
+    --format=custom \
+    --file="/var/backups/openwatch/openwatch_$(date -u +%Y%m%dT%H%M%SZ).dump"
 ```
 
-### Schema-Only Dump
+The timestamp uses UTC (ISO 8601). For a plain-text dump you can inspect, drop
+`--format=custom` and redirect to a `.sql` file.
+
+### Configuration and keys
+
+Back up the encryption keys and secrets alongside the database dump. These are
+secrets — store them encrypted and restrict access.
 
 ```bash
-docker exec openwatch-db pg_dump \
-  -U openwatch \
-  -d openwatch \
-  --schema-only \
-  > /opt/openwatch/backups/postgres/schema_$(date +%Y%m%d).sql
+tar czf - \
+    /etc/openwatch/keys/ \
+    /etc/openwatch/secrets.env \
+    /etc/openwatch/openwatch.toml \
+    /etc/openwatch/tls/ \
+  | openssl enc -aes-256-cbc -salt -pbkdf2 \
+      -out "/var/backups/openwatch/config_$(date -u +%Y%m%dT%H%M%SZ).tar.gz.enc"
 ```
 
-### Specific Table Backup
+### Verify a backup
+
+A backup you have not verified is not a backup. List the contents of a dump
+without restoring it:
 
 ```bash
-# Back up hosts and scan results
-docker exec openwatch-db pg_dump \
-  -U openwatch \
-  -d openwatch \
-  -Fc \
-  -t hosts \
-  -t scans \
-  -t scan_findings \
-  -f /tmp/scan_data_backup.dump
-
-docker cp openwatch-db:/tmp/scan_data_backup.dump \
-  /opt/openwatch/backups/postgres/scan_data_$(date +%Y%m%d).dump
+pg_restore --list /var/backups/openwatch/openwatch_<timestamp>.dump >/dev/null \
+  && echo "dump readable"
 ```
 
-### Automated Daily Backup Script
-
-Create `/opt/openwatch/scripts/backup.sh`:
+For a stronger check, restore into a throwaway database and compare row counts:
 
 ```bash
-#!/bin/bash
-set -euo pipefail
-
-BACKUP_DIR="/opt/openwatch/backups"
-POSTGRES_BACKUP_DIR="$BACKUP_DIR/postgres"
-RETENTION_DAYS=30
-TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-LOG_FILE="$BACKUP_DIR/backup.log"
-
-log() {
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "$LOG_FILE"
-}
-
-# Create directories
-mkdir -p "$POSTGRES_BACKUP_DIR"
-
-log "Starting OpenWatch backup..."
-
-# 1. PostgreSQL dump
-log "Backing up PostgreSQL..."
-docker exec openwatch-db pg_dump \
-    -U openwatch -d openwatch -Fc --verbose \
-    -f /tmp/openwatch_backup.dump 2>&1 | tee -a "$LOG_FILE"
-
-docker cp openwatch-db:/tmp/openwatch_backup.dump \
-    "$POSTGRES_BACKUP_DIR/openwatch_${TIMESTAMP}.dump"
-docker exec openwatch-db rm /tmp/openwatch_backup.dump
-
-DUMP_SIZE=$(du -h "$POSTGRES_BACKUP_DIR/openwatch_${TIMESTAMP}.dump" | cut -f1)
-log "PostgreSQL backup complete: $DUMP_SIZE"
-
-# 2. Back up configuration
-log "Backing up configuration..."
-mkdir -p "$BACKUP_DIR/config"
-cp -f "$(dirname "$0")/../.env" "$BACKUP_DIR/config/env_${TIMESTAMP}" 2>/dev/null || true
-
-# 3. Verify backup integrity
-log "Verifying backup integrity..."
-docker exec openwatch-db pg_restore \
-    --list /tmp/openwatch_backup.dump > /dev/null 2>&1 || true
-# Verify from host copy
-pg_restore --list "$POSTGRES_BACKUP_DIR/openwatch_${TIMESTAMP}.dump" > /dev/null 2>&1 && \
-    log "Backup verification: PASSED" || \
-    log "Backup verification: WARNING - pg_restore --list failed (may need pg_restore installed on host)"
-
-# 4. Clean up old backups
-log "Cleaning up backups older than $RETENTION_DAYS days..."
-find "$POSTGRES_BACKUP_DIR" -name "openwatch_*.dump" -mtime +$RETENTION_DAYS -delete
-find "$BACKUP_DIR/config" -name "env_*" -mtime +$RETENTION_DAYS -delete
-
-# 5. Report
-BACKUP_COUNT=$(find "$POSTGRES_BACKUP_DIR" -name "openwatch_*.dump" | wc -l)
-TOTAL_SIZE=$(du -sh "$POSTGRES_BACKUP_DIR" | cut -f1)
-log "Backup complete. $BACKUP_COUNT backups on disk, total size: $TOTAL_SIZE"
+createdb "$RESTORE_DSN_DB"
+pg_restore --dbname="$RESTORE_DSN" --no-owner --no-privileges \
+    /var/backups/openwatch/openwatch_<timestamp>.dump
+psql "$RESTORE_DSN" -c \
+    "SELECT 'hosts' AS t, count(*) FROM hosts
+     UNION ALL SELECT 'scans', count(*) FROM scans
+     UNION ALL SELECT 'users', count(*) FROM users;"
+dropdb "$RESTORE_DSN_DB"
 ```
 
-Add to crontab:
+Confirm table names against your installed schema before relying on them; the
+authoritative list is `internal/db/migrations/`.
 
-```bash
-# Daily at 2:00 AM
-0 2 * * * /opt/openwatch/scripts/backup.sh >> /opt/openwatch/backups/cron.log 2>&1
-```
+### Scheduling
 
-## Redis Backup
+Run the database dump and config backup on a schedule that meets your recovery
+point objective. A `systemd` timer or `cron` entry that calls a wrapper script
+covering both the dump and the encrypted config archive is sufficient. Apply a
+retention policy (for example, `find /var/backups/openwatch -name '*.dump'
+-mtime +30 -delete`) and copy backups off-host.
 
-Redis data (Celery task queue) is transient and generally does not require backup. If you need to preserve it:
+## Restore procedure
 
-```bash
-# Trigger Redis RDB snapshot
-docker exec openwatch-redis redis-cli \
-  -a "$REDIS_PASSWORD" BGSAVE
+### Restore the database
 
-# Wait for save to complete
-docker exec openwatch-redis redis-cli \
-  -a "$REDIS_PASSWORD" LASTSAVE
-
-# Copy the dump file
-docker cp openwatch-redis:/data/dump.rdb \
-  /opt/openwatch/backups/redis/dump_$(date +%Y%m%d).rdb
-```
-
-## Volume Backup
-
-For full disaster recovery, back up Docker volumes directly:
-
-```bash
-# Stop services for consistent backup
-./stop-openwatch.sh --simple
-
-# Back up PostgreSQL volume
-docker run --rm \
-  -v postgres_data:/source:ro \
-  -v /opt/openwatch/backups/volumes:/backup \
-  alpine tar czf /backup/postgres_data_$(date +%Y%m%d).tar.gz -C /source .
-
-# Back up application data volume
-docker run --rm \
-  -v app_data:/source:ro \
-  -v /opt/openwatch/backups/volumes:/backup \
-  alpine tar czf /backup/app_data_$(date +%Y%m%d).tar.gz -C /source .
-
-# Back up SSH known hosts
-docker run --rm \
-  -v ssh_known_hosts:/source:ro \
-  -v /opt/openwatch/backups/volumes:/backup \
-  alpine tar czf /backup/ssh_known_hosts_$(date +%Y%m%d).tar.gz -C /source .
-
-# Restart services
-./start-openwatch.sh --runtime docker
-```
-
-## Configuration Backup
-
-Back up files that are NOT in version control:
-
-```bash
-BACKUP_DIR="/opt/openwatch/backups/config/$(date +%Y%m%d)"
-mkdir -p "$BACKUP_DIR"
-
-# Environment file (contains secrets)
-cp .env "$BACKUP_DIR/env.bak"
-
-# TLS certificates
-cp -r security/certs/ "$BACKUP_DIR/certs/"
-
-# SSH keys
-cp -r security/keys/ "$BACKUP_DIR/keys/"
-
-# Encrypt the backup (contains secrets)
-tar czf - "$BACKUP_DIR" | \
-  openssl enc -aes-256-cbc -salt -pbkdf2 \
-  -out "/opt/openwatch/backups/config_$(date +%Y%m%d).tar.gz.enc"
-
-# Remove unencrypted copy
-rm -rf "$BACKUP_DIR"
-```
-
-## Restore Procedures
-
-### Restore PostgreSQL from Dump
-
-```bash
-# Stop application services (keep database running)
-docker stop openwatch-backend openwatch-worker openwatch-celery-beat
-
-# Drop and recreate the database
-docker exec openwatch-db psql -U openwatch -d postgres \
-  -c "DROP DATABASE IF EXISTS openwatch;"
-docker exec openwatch-db psql -U openwatch -d postgres \
-  -c "CREATE DATABASE openwatch OWNER openwatch;"
-
-# Copy backup into container
-docker cp /opt/openwatch/backups/postgres/openwatch_YYYYMMDD_HHMMSS.dump \
-  openwatch-db:/tmp/restore.dump
-
-# Restore from custom-format dump
-docker exec openwatch-db pg_restore \
-  -U openwatch \
-  -d openwatch \
-  --verbose \
-  --no-owner \
-  --no-privileges \
-  /tmp/restore.dump
-
-# Clean up
-docker exec openwatch-db rm /tmp/restore.dump
-
-# Restart application services
-docker start openwatch-backend openwatch-worker openwatch-celery-beat
-
-# Verify
-curl -f http://localhost:8000/health
-```
-
-### Restore from Plain-Text SQL
-
-```bash
-docker cp /opt/openwatch/backups/postgres/openwatch_YYYYMMDD.sql \
-  openwatch-db:/tmp/restore.sql
-
-docker exec openwatch-db psql -U openwatch -d openwatch \
-  -f /tmp/restore.sql
-
-docker exec openwatch-db rm /tmp/restore.sql
-```
-
-### Restore a Single Table
-
-```bash
-# Restore only the hosts table from a full dump
-docker cp /opt/openwatch/backups/postgres/openwatch_YYYYMMDD_HHMMSS.dump \
-  openwatch-db:/tmp/restore.dump
-
-docker exec openwatch-db pg_restore \
-  -U openwatch \
-  -d openwatch \
-  --verbose \
-  --no-owner \
-  --data-only \
-  -t hosts \
-  /tmp/restore.dump
-```
-
-### Restore Docker Volumes
-
-```bash
-# Stop all services
-./stop-openwatch.sh --simple
-
-# Restore PostgreSQL volume
-docker run --rm \
-  -v postgres_data:/target \
-  -v /opt/openwatch/backups/volumes:/backup:ro \
-  alpine sh -c "rm -rf /target/* && tar xzf /backup/postgres_data_YYYYMMDD.tar.gz -C /target"
-
-# Restore application data
-docker run --rm \
-  -v app_data:/target \
-  -v /opt/openwatch/backups/volumes:/backup:ro \
-  alpine sh -c "rm -rf /target/* && tar xzf /backup/app_data_YYYYMMDD.tar.gz -C /target"
-
-# Restart
-./start-openwatch.sh --runtime docker
-```
-
-### Restore Configuration
-
-```bash
-# Decrypt config backup
-openssl enc -aes-256-cbc -d -salt -pbkdf2 \
-  -in /opt/openwatch/backups/config_YYYYMMDD.tar.gz.enc | \
-  tar xzf -
-
-# Restore .env
-cp backup/env.bak .env
-
-# Restore certificates
-cp -r backup/certs/ security/certs/
-cp -r backup/keys/ security/keys/
-```
-
-## Disaster Recovery
-
-### Full Recovery from Scratch
-
-This procedure rebuilds OpenWatch from backups on a new machine.
-
-**Prerequisites**: Docker/Podman installed, OpenWatch repository cloned, backup files available.
-
-1. **Restore configuration**:
+1. Stop the service so nothing writes while you restore:
 
    ```bash
-   # Restore .env file with all secrets
-   cp /path/to/backup/env.bak .env
-
-   # Restore TLS certificates
-   cp -r /path/to/backup/certs/ security/certs/
-   cp -r /path/to/backup/keys/ security/keys/
+   sudo systemctl stop openwatch
    ```
 
-2. **Start infrastructure only**:
+2. Restore into the OpenWatch database. With a custom-format dump:
 
    ```bash
-   # Start database and Redis first
-   docker compose up -d database redis
-   docker compose exec database pg_isready -U openwatch
+   source /etc/openwatch/secrets.env
+
+   pg_restore "$OPENWATCH_DATABASE_DSN" \
+       --clean --if-exists --no-owner --no-privileges \
+       /var/backups/openwatch/openwatch_<timestamp>.dump
    ```
 
-3. **Restore database**:
+   `--clean --if-exists` drops existing objects first, so the restore replaces
+   current contents. If you restore into a fresh, empty database instead, omit
+   those flags.
+
+3. Apply any migrations newer than the dump (safe no-op if the schema is
+   already current):
 
    ```bash
-   docker cp /path/to/backup/openwatch_latest.dump \
-     openwatch-db:/tmp/restore.dump
-
-   docker exec openwatch-db pg_restore \
-     -U openwatch -d openwatch \
-     --verbose --no-owner --no-privileges \
-     /tmp/restore.dump
+   sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) \
+       openwatch migrate
    ```
 
-4. **Run pending migrations** (if backup is older than current code):
+4. Start the service and confirm health:
 
    ```bash
-   docker compose run --rm backend \
-     alembic -c /app/backend/alembic.ini upgrade head
+   sudo systemctl start openwatch
+   curl -k https://localhost:8443/api/v1/health
+   # {"status":"healthy","db_connected":true,"version":"<installed version>"}
    ```
 
-5. **Start all services**:
+### Restore configuration and keys
 
-   ```bash
-   ./start-openwatch.sh --runtime docker --build
-   ```
-
-6. **Verify recovery**:
-
-   ```bash
-   # Health check
-   curl -f http://localhost:8000/health
-
-   # Check data integrity
-   docker exec openwatch-db psql -U openwatch -d openwatch \
-     -c "SELECT COUNT(*) FROM hosts;"
-   docker exec openwatch-db psql -U openwatch -d openwatch \
-     -c "SELECT COUNT(*) FROM scans;"
-
-   # Verify Celery workers
-   docker logs openwatch-worker --tail 20
-   ```
-
-### Recovery Time Objectives
-
-| Scenario | RTO | RPO | Procedure |
-|----------|-----|-----|-----------|
-| Container restart | < 2 min | 0 | `docker restart <service>` |
-| Database corruption | 15-30 min | Last backup | Restore from pg_dump |
-| Full host failure | 30-60 min | Last backup | Full DR from scratch |
-| Volume loss | 15-30 min | Last volume backup | Restore volume tarball |
-
-## Backup Verification
-
-Periodically verify that backups can be restored:
+Restore `credential.key` from the same backup generation as the database dump.
+A mismatched key cannot decrypt stored credentials.
 
 ```bash
-# Create a test database from backup
-docker exec openwatch-db psql -U openwatch -d postgres \
-  -c "CREATE DATABASE openwatch_test;"
+openssl enc -aes-256-cbc -d -pbkdf2 \
+    -in /var/backups/openwatch/config_<timestamp>.tar.gz.enc \
+  | sudo tar xzf - -C /
 
-docker cp /opt/openwatch/backups/postgres/latest.dump \
-  openwatch-db:/tmp/verify.dump
-
-docker exec openwatch-db pg_restore \
-  -U openwatch -d openwatch_test \
-  --verbose --no-owner /tmp/verify.dump
-
-# Verify row counts
-docker exec openwatch-db psql -U openwatch -d openwatch_test \
-  -c "SELECT 'hosts' as tbl, COUNT(*) FROM hosts
-      UNION ALL
-      SELECT 'scans', COUNT(*) FROM scans
-      UNION ALL
-      SELECT 'users', COUNT(*) FROM users;"
-
-# Clean up
-docker exec openwatch-db psql -U openwatch -d postgres \
-  -c "DROP DATABASE openwatch_test;"
-docker exec openwatch-db rm /tmp/verify.dump
+sudo chown -R root:openwatch /etc/openwatch/keys
+sudo chmod 0640 /etc/openwatch/keys/credential.key
+sudo systemctl restart openwatch
 ```
 
-## Backup Checklist
+## Disaster recovery (rebuild on a new host)
 
-After each backup:
+1. Install the OpenWatch package on the new host (`dnf install` or `apt
+   install`) per [`install_guide.md`](../engineering/install_guide.md). This
+   creates the `openwatch` user, the binary, `/etc/openwatch/`, and the
+   `systemd` unit.
+2. Provision PostgreSQL and create the database. The package does not provision
+   PostgreSQL.
+3. Restore `/etc/openwatch/keys/`, `/etc/openwatch/secrets.env`,
+   `/etc/openwatch/openwatch.toml`, and `/etc/openwatch/tls/` from the encrypted
+   config backup.
+4. Restore the database dump into the new PostgreSQL database (see above).
+5. Run `openwatch migrate` to apply any pending migrations.
+6. Validate config, then start:
 
-- [ ] Backup file exists and has non-zero size
-- [ ] `pg_restore --list` succeeds on the dump file
-- [ ] Backup copied to off-site storage
-- [ ] Old backups cleaned up per retention policy
-- [ ] Backup log reviewed for errors
+   ```bash
+   sudo -u openwatch openwatch check-config
+   sudo systemctl enable --now openwatch
+   curl -k https://localhost:8443/api/v1/health
+   ```
 
-Quarterly:
+### Recovery objectives
 
-- [ ] Full restore test performed on isolated environment
-- [ ] Recovery time measured against RTO targets
-- [ ] Backup scripts and procedures reviewed
-- [ ] Off-site backup accessibility verified
+| Scenario | Procedure | Recovery point |
+|----------|-----------|----------------|
+| Service crash / bad config | `systemctl restart openwatch`; fix config; `openwatch check-config` | None (no data loss) |
+| Database corruption | Restore latest dump; `openwatch migrate` | Last dump |
+| Full host loss | Rebuild on new host (above) | Last dump + last key backup |
+| Lost `credential.key` | No recovery for stored secrets; re-enter host credentials after restore | Credentials lost |
+
+Measure your actual recovery time against these scenarios; the numbers depend
+on database size and your storage.
+
+## Operational runbooks
+
+These cover the common operational alarms for the single binary on `systemd`
+with PostgreSQL.
+
+### SERVICE_DOWN — the API is unreachable
+
+```bash
+sudo systemctl status openwatch
+journalctl -u openwatch -n 100 --no-pager
+```
+
+Common causes and checks:
+
+- **Database unreachable.** The log shows `failed to open db pool`. Verify
+  `OPENWATCH_DATABASE_DSN` in `/etc/openwatch/secrets.env` and that PostgreSQL
+  is up: `psql "$OPENWATCH_DATABASE_DSN" -c 'SELECT 1;'`.
+- **Missing signing or credential key.** The log shows
+  `identity.jwt_private_key is empty` or a key-load failure. Confirm the key
+  files exist at the paths from `openwatch check-config`.
+- **TLS cert or key missing/unreadable.** The log mentions `cert.pem`. Confirm
+  `/etc/openwatch/tls/` files exist and the `openwatch` user can read the key.
+- **Invalid config.** Run `sudo -u openwatch openwatch check-config`; it
+  validates and prints the resolved config with secrets redacted.
+
+After fixing the cause: `sudo systemctl restart openwatch`, then
+`curl -k https://localhost:8443/api/v1/health`.
+
+### DISK_FULL — a filesystem is out of space
+
+```bash
+df -h
+journalctl --disk-usage
+du -sh /var/lib/openwatch /var/log/openwatch /var/backups/openwatch 2>/dev/null
+```
+
+Likely sources and actions:
+
+- **Journal growth.** Vacuum old logs: `sudo journalctl --vacuum-time=7d` (or
+  `--vacuum-size=500M`).
+- **Old backups.** Prune per your retention policy under
+  `/var/backups/openwatch`.
+- **Database growth on the PostgreSQL host.** Inspect with
+  `psql "$OPENWATCH_DATABASE_DSN" -c "SELECT pg_size_pretty(pg_database_size(current_database()));"`.
+  OpenWatch uses a write-on-change transaction model (one row per host×rule plus
+  change records), so steady-state growth is bounded; sudden growth usually
+  means the audit-event or job-queue tables. Investigate before deleting rows —
+  do not hand-edit OpenWatch tables.
+
+If the service stopped because the disk filled, restart it after freeing space:
+`sudo systemctl restart openwatch`.
+
+### HIGH_CPU — the host is CPU-saturated
+
+```bash
+top -b -n1 | head -20
+systemctl status openwatch
+journalctl -u openwatch -n 200 --no-pager | grep -iE 'scheduler|worker|scan'
+```
+
+- Confirm whether the `openwatch` process or PostgreSQL is the consumer. Scan
+  fan-out and the intelligence/discovery schedulers drive most OpenWatch CPU
+  use.
+- On the PostgreSQL host, look for expensive queries:
+  `psql "$OPENWATCH_DATABASE_DSN" -c "SELECT pid, state, query_start, left(query,80) FROM pg_stat_activity WHERE state <> 'idle' ORDER BY query_start;"`.
+- The schedulers honor a maintenance switch. To pause intelligence collection
+  while you investigate, an admin can `PUT /api/v1/system/intelligence/config`
+  with `maintenance_global=true` (and the discovery equivalent at
+  `/api/v1/system/discovery/config`). The startup log notes when either is
+  paused.
+- As a last resort, `sudo systemctl restart openwatch` clears any runaway
+  in-process loop without losing data (queued jobs resume).
+
+### SECURITY_INCIDENT — suspected compromise
+
+1. **Preserve evidence first.** Capture the journal and audit trail before
+   changing anything:
+
+   ```bash
+   journalctl -u openwatch --since "-24h" > /var/backups/openwatch/incident_journal.txt
+   ```
+
+   OpenWatch writes structured audit events (auth, authz, system lifecycle) to
+   the database; export the relevant rows for the incident window before any
+   restore.
+
+2. **Contain.** Stop the service to halt active sessions and scans:
+   `sudo systemctl stop openwatch`. If only network exposure is the concern,
+   firewall port `8443` instead.
+
+3. **Rotate secrets.** If a key may be exposed:
+   - Rotate the database password and update
+     `OPENWATCH_DATABASE_DSN` in `/etc/openwatch/secrets.env`.
+   - Replace the TLS certificate and key in `/etc/openwatch/tls/`.
+   - Rotating the JWT signing key (`/etc/openwatch/keys/jwt_private.pem`)
+     invalidates all existing sessions and forces re-login.
+   - The credential DEK (`/etc/openwatch/keys/credential.key`) cannot be rotated
+     by swapping the file alone — stored credentials are encrypted under it. Do
+     not replace it without a migration path, or stored host credentials become
+     undecryptable.
+
+4. **Review access.** Audit user accounts and role assignments. Roles and
+   permissions are defined in
+   [`docs/engineering/rbac_registry.md`](../engineering/rbac_registry.md).
+
+5. **Recover.** If integrity is in doubt, rebuild on a clean host from a
+   known-good backup using the disaster-recovery procedure above, then rotate
+   all credentials again.
+
+## Not yet implemented
+
+The following are not part of OpenWatch today. Do not script against them.
+
+- **No built-in backup command.** There is no `openwatch backup` or
+  `openwatch restore` subcommand. The subcommands are `serve`, `worker`,
+  `migrate`, `create-admin`, and `check-config` (`openwatch --help`). Use
+  `pg_dump`/`pg_restore` and file copies as shown above.
+- **No continuous WAL archiving or point-in-time recovery shipped by
+  OpenWatch.** If you need PITR, configure it on your PostgreSQL server
+  independently; it is a PostgreSQL feature, not an OpenWatch one.
+- **No automated off-site replication.** Copying backups off-host is your
+  responsibility.
+
+## Reference
+
+| Item | Value |
+|------|-------|
+| Binary | `/usr/bin/openwatch` |
+| Service unit | `openwatch.service` (`User=openwatch`) |
+| Config | `/etc/openwatch/openwatch.toml` |
+| DB secret | `/etc/openwatch/secrets.env` (`OPENWATCH_DATABASE_DSN`) |
+| Encryption keys | `/etc/openwatch/keys/` (`jwt_private.pem`, `credential.key`) |
+| TLS | `/etc/openwatch/tls/{cert,key}.pem` |
+| Data / logs | `/var/lib/openwatch`, `/var/log/openwatch` (journal is primary) |
+| Health probe | `GET https://<host>:8443/api/v1/health` |
+| Migrate | `sudo -u openwatch env $(cat /etc/openwatch/secrets.env \| xargs) openwatch migrate` |
+| Logs | `journalctl -u openwatch -f` |
+
+See also: [`install_guide.md`](../engineering/install_guide.md),
+[`rbac_registry.md`](../engineering/rbac_registry.md), and the API contract in
+[`api/openapi.yaml`](../../api/openapi.yaml).

@@ -1,389 +1,293 @@
-# Runbook: Disk Space Issues
-
-> **⚠️ Legacy (Python era) — do not follow this document.**
-> It describes the archived Python/FastAPI + Docker-Compose stack (PostgreSQL, Redis, Celery,
-> a separate frontend) that was removed from the repo on 2026-06-05. The current OpenWatch is a
-> single Go binary (API + UI) installed from a native RPM/DEB. See docs/engineering/ and specs/
-> (a Go-era rewrite is pending). This content is kept for historical reference.
+# Runbook: disk space issues
 
 **Severity**: P1 - High
-**Last Updated**: 2026-02-17
-**Owner**: Platform Engineering
-**Estimated Resolution Time**: 10-30 minutes
+**Last updated**: 2026-06-10
+**Owner**: Platform engineering
+**Estimated resolution time**: 10-30 minutes
+
+This runbook covers a full or nearly full disk on a host running OpenWatch as a
+native package (single Go binary on systemd) with a PostgreSQL database. There is
+no container runtime, no Redis, and no Celery — OpenWatch is one binary,
+`/usr/bin/openwatch`, that serves the REST API and the embedded UI over HTTPS on
+port `8443`. Background jobs run through a PostgreSQL-native queue, so a full disk
+manifests as PostgreSQL write failures and a failing health probe rather than
+container or volume errors.
+
+For install and configuration layout, see
+[`docs/engineering/install_guide.md`](../engineering/install_guide.md).
+
+---
+
+## Where OpenWatch writes to disk
+
+| Path | Owner | Contents | Growth |
+|------|-------|----------|--------|
+| PostgreSQL data directory | PostgreSQL package | All OpenWatch data (`audit_events`, `transactions`, `host_rule_state`, `job_queue`, host intelligence, etc.) | Primary growth driver |
+| systemd journal | `systemd-journald` | All `openwatch.service` stdout/stderr (JSON logs) | Bounded by journal config |
+| `/var/lib/openwatch` | `openwatch` | Service state (mode `0750`) | Low |
+| `/var/log/openwatch` | `openwatch` | Reserved log directory (mode `0750`) | Low; OpenWatch logs to the journal, not files |
+| `/etc/openwatch` | `root`/`openwatch` | Config, TLS, keys, license | Static |
+
+The OpenWatch binary logs JSON to stdout/stderr, which systemd routes to the
+journal (`StandardOutput=journal`, `StandardError=journal` in
+`packaging/common/openwatch.service`). It does not write its own application log
+files by default, so most disk growth is in PostgreSQL and the journal.
+
+The PostgreSQL data directory location depends on how PostgreSQL was installed
+(for example `/var/lib/pgsql/data` on RPM-based systems or
+`/var/lib/postgresql/<version>/main` on Debian/Ubuntu). The default connection
+string is `postgres://openwatch@localhost/openwatch`; an external database is
+configured through `OPENWATCH_DATABASE_DSN` in `/etc/openwatch/secrets.env`.
 
 ---
 
 ## Symptoms
 
-- Container logs show `OSError: [Errno 28] No space left on device`.
-- PostgreSQL stops accepting writes or crashes.
-- Redis persistence fails (RDB/AOF write errors).
-- Docker cannot create new containers or volumes.
-- Application write operations fail (scan results, audit logs, exports).
-- Celery tasks fail with I/O errors.
+- The health probe returns `503` or `db_connected: false`:
+  `curl -sk https://localhost:8443/api/v1/health`.
+- `journalctl -u openwatch` shows PostgreSQL write errors such as
+  `could not extend file` or `No space left on device`.
+- Scans queued through the job queue never complete; the `worker` process logs
+  database errors.
+- New logins or writes fail while reads still work (PostgreSQL has stopped
+  accepting writes).
 
 ---
 
 ## Diagnosis
 
-### Step 1: Check host disk usage
+### Step 1: Check filesystem usage
 
 ```bash
 df -h
 ```
 
-Identify which filesystem is full. Key mount points to check:
-- `/var/lib/docker` -- Docker data root (images, containers, volumes).
-- `/` -- Root filesystem (if Docker data is not on a separate partition).
+Identify which filesystem is full. Pay attention to the mount that holds the
+PostgreSQL data directory and the mount that holds `/var/log/journal`.
 
-### Step 2: Check Docker disk usage
-
-```bash
-docker system df
-```
-
-This shows a breakdown of disk usage by:
-- **Images** -- Container images (base images, build layers).
-- **Containers** -- Container writable layers and logs.
-- **Volumes** -- Named volumes (persistent data).
-- **Build Cache** -- Cached build layers.
-
-For more detail:
+### Step 2: Find the largest directories
 
 ```bash
-docker system df -v
+sudo du -xh --max-depth=1 /var 2>/dev/null | sort -rh | head -20
 ```
 
-### Step 3: Check individual volume sizes
+This isolates whether the PostgreSQL data directory, the journal, or something
+unrelated is consuming the space.
 
-OpenWatch uses five named Docker volumes:
+### Step 3: Check the systemd journal size
 
 ```bash
-# List volumes with sizes
-for vol in postgres_data redis_data app_data app_logs ssh_known_hosts; do
-  size=$(docker run --rm -v "openwatch_${vol}:/data" alpine du -sh /data 2>/dev/null | cut -f1)
-  echo "${vol}: ${size}"
-done
+journalctl --disk-usage
 ```
 
-| Volume | Contents | Expected Size |
-|--------|----------|---------------|
-| postgres_data | PostgreSQL data files | Varies (100MB - 10GB+) |
-| redis_data | Redis RDB/AOF persistence | Small (< 100MB typically) |
-| app_data | SCAP content, scan results | Varies (100MB - 5GB+) |
-| app_logs | Application and audit logs | Varies (grows over time) |
-| ssh_known_hosts | SSH known hosts database | Small (< 1MB) |
+If the journal is large, it is a fast, safe target to reclaim (see Resolution
+path A).
 
-### Step 4: Check PostgreSQL data size
+### Step 4: Check the OpenWatch service state
 
 ```bash
-docker exec openwatch-db psql -U openwatch -d openwatch -c "
-SELECT pg_size_pretty(pg_database_size('openwatch')) AS database_size;
-"
-
-# Table-level breakdown
-docker exec openwatch-db psql -U openwatch -d openwatch -c "
-SELECT schemaname || '.' || tablename AS table_name,
-       pg_size_pretty(pg_total_relation_size(schemaname || '.' || tablename)) AS total_size,
-       pg_size_pretty(pg_relation_size(schemaname || '.' || tablename)) AS data_size,
-       pg_size_pretty(pg_indexes_size(quote_ident(schemaname) || '.' || quote_ident(tablename))) AS index_size
-FROM pg_tables
-WHERE schemaname = 'public'
-ORDER BY pg_total_relation_size(schemaname || '.' || tablename) DESC
-LIMIT 15;
-"
+systemctl status openwatch
+journalctl -u openwatch -n 100 --no-pager
 ```
 
-### Step 5: Check container log sizes
+Confirm whether the binary is up and whether it is logging PostgreSQL write
+failures.
+
+### Step 5: Check the database size
+
+Connect with `psql` (adjust user, database, and host to match your
+`OPENWATCH_DATABASE_DSN`):
 
 ```bash
-# Find log file locations for each container
-for container in openwatch-backend openwatch-worker openwatch-celery-beat openwatch-frontend openwatch-db openwatch-redis; do
-  log_file=$(docker inspect "$container" --format='{{.LogPath}}')
-  log_size=$(du -sh "$log_file" 2>/dev/null | cut -f1)
-  echo "${container}: ${log_size} (${log_file})"
-done
+psql -U openwatch -d openwatch -c "SELECT pg_size_pretty(pg_database_size('openwatch')) AS database_size;"
 ```
 
-### Step 6: Check Docker build cache
+Table-level breakdown of the largest tables:
 
 ```bash
-docker builder prune --dry-run
+psql -U openwatch -d openwatch -c "
+SELECT schemaname || '.' || relname AS table_name,
+       pg_size_pretty(pg_total_relation_size(relid)) AS total_size
+FROM pg_catalog.pg_statio_user_tables
+ORDER BY pg_total_relation_size(relid) DESC
+LIMIT 15;"
 ```
+
+The tables most likely to be large are `audit_events`, `transactions`,
+`idempotency_keys`, `job_queue`, and the host intelligence tables. These names
+are defined in `internal/db/migrations/`; verify against that directory before
+acting on any specific table.
 
 ---
 
 ## Resolution
 
-### Path A: Clean Docker system (dangling resources)
+Reclaim space starting with the safest, fastest options. The goal is at least
+15-20% free space on every affected filesystem.
 
-Remove unused Docker resources that are safe to clean:
-
-```bash
-# Remove dangling images (untagged, unused)
-docker image prune -f
-
-# Remove stopped containers
-docker container prune -f
-
-# Remove unused networks
-docker network prune -f
-
-# Remove build cache
-docker builder prune -f
-```
-
-For a more aggressive cleanup (removes ALL unused images, not just dangling):
+### Path A: Vacuum the systemd journal (safe, fast)
 
 ```bash
-docker system prune -f
+# Keep only the last 2 days of journal
+sudo journalctl --vacuum-time=2d
+
+# Or cap the journal at a fixed size
+sudo journalctl --vacuum-size=500M
 ```
 
-**Warning**: `docker system prune` will remove all stopped containers and unused images. Do not run `docker system prune -a` unless you are prepared to re-pull all images.
+To make the cap permanent, set `SystemMaxUse=` in
+`/etc/systemd/journald.conf` and restart `systemd-journald`.
 
-### Path B: Clean application logs
+### Path B: Reclaim space inside PostgreSQL
 
-If the `app_logs` volume is large:
+`VACUUM` reclaims space from dead rows for reuse within the database. `VACUUM
+FULL` returns space to the operating system but takes an exclusive lock on the
+table — run it only in a maintenance window.
 
 ```bash
-# Check what is in the logs volume
-docker run --rm -v openwatch_app_logs:/logs alpine ls -lah /logs/
-
-# Check audit log size
-docker run --rm -v openwatch_app_logs:/logs alpine du -sh /logs/audit.log
+# Reuse space within the database (no exclusive lock)
+psql -U openwatch -d openwatch -c "VACUUM (VERBOSE, ANALYZE);"
 ```
 
-Truncate large log files (preserves the file but clears contents):
+If a specific large table needs to return space to the OS (maintenance window
+only — confirm the table exists first):
 
 ```bash
-# Truncate the audit log (data is also in the audit_logs PostgreSQL table)
-docker exec openwatch-backend truncate -s 0 /openwatch/logs/audit.log
+psql -U openwatch -d openwatch -c "VACUUM FULL VERBOSE audit_events;"
 ```
 
-For container logs managed by Docker's logging driver:
+`VACUUM FULL` needs temporary free space roughly equal to the table size. On a
+disk that is already full, free space with path A or C before attempting it.
+
+### Path C: Apply retention to large tables
+
+OpenWatch does not ship an automated retention or pruning job today (see
+"Not yet implemented" below). If a table such as `audit_events` has grown beyond
+your retention requirement, delete old rows manually, then vacuum. Confirm the
+column names against the relevant file in `internal/db/migrations/` before
+running a delete, and take a backup first if the data is subject to a compliance
+retention policy.
 
 ```bash
-# Truncate a specific container's log file
-truncate -s 0 $(docker inspect openwatch-backend --format='{{.LogPath}}')
-truncate -s 0 $(docker inspect openwatch-worker --format='{{.LogPath}}')
+# Example only — verify the table and timestamp column exist before running.
+psql -U openwatch -d openwatch -c "
+DELETE FROM audit_events WHERE occurred_at < now() - interval '365 days';
+VACUUM ANALYZE audit_events;"
 ```
 
-### Path C: Clean old scan results
+Audit records are compliance-relevant (typically retained one year or longer for
+FedRAMP). Do not delete audit data without confirming the retention policy.
 
-If the `app_data` volume is large due to accumulated scan results:
+### Path D: Expand the filesystem
 
-```bash
-# Check scan results directory
-docker run --rm -v openwatch_app_data:/data alpine du -sh /data/results/
-docker run --rm -v openwatch_app_data:/data alpine ls -lt /data/results/ | head -20
-```
-
-Remove old scan result files (keep last 30 days):
-
-```bash
-docker run --rm -v openwatch_app_data:/data alpine find /data/results/ -type f -mtime +30 -delete
-```
-
-### Path D: Clean audit exports
-
-Completed audit exports are stored on disk and have expiration dates. Clean expired exports:
-
-```bash
-# Check exports directory
-docker run --rm -v openwatch_app_data:/data alpine du -sh /data/exports/ 2>/dev/null
-
-# Remove export files older than 7 days
-docker run --rm -v openwatch_app_data:/data alpine find /data/exports/ -type f -mtime +7 -delete
-```
-
-### Path E: PostgreSQL VACUUM
-
-Reclaim space from deleted rows in PostgreSQL:
-
-```bash
-# Standard VACUUM (reclaims space for reuse within the database)
-docker exec openwatch-db psql -U openwatch -d openwatch -c "VACUUM VERBOSE;"
-
-# VACUUM FULL on the largest tables (returns space to OS, requires exclusive lock)
-# Only run during maintenance windows
-docker exec openwatch-db psql -U openwatch -d openwatch -c "VACUUM FULL scan_findings;"
-docker exec openwatch-db psql -U openwatch -d openwatch -c "VACUUM FULL audit_logs;"
-docker exec openwatch-db psql -U openwatch -d openwatch -c "VACUUM FULL posture_snapshots;"
-```
-
-Clean up old data if retention policies allow:
-
-```bash
-# Delete scan findings older than 90 days (adjust retention as needed)
-docker exec openwatch-db psql -U openwatch -d openwatch -c "
-DELETE FROM scan_findings
-WHERE created_at < now() - interval '90 days';
-VACUUM scan_findings;
-"
-
-# Delete old posture snapshots beyond retention period
-docker exec openwatch-db psql -U openwatch -d openwatch -c "
-DELETE FROM posture_snapshots
-WHERE snapshot_date < now() - interval '90 days';
-VACUUM posture_snapshots;
-"
-```
-
-### Path F: Redis memory management
-
-Check Redis memory usage:
-
-```bash
-docker exec openwatch-redis redis-cli -a "${REDIS_PASSWORD}" INFO memory | grep -E "used_memory_human|maxmemory"
-```
-
-If Redis memory is high, flush non-essential caches:
-
-```bash
-# Check key count by pattern
-docker exec openwatch-redis redis-cli -a "${REDIS_PASSWORD}" DBSIZE
-
-# Flush all cached data (Celery results, application caches)
-# WARNING: This will clear all Celery task results and cached data
-docker exec openwatch-redis redis-cli -a "${REDIS_PASSWORD}" FLUSHDB
-```
-
-### Path G: Remove old Docker images
-
-```bash
-# List images sorted by size
-docker images --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}" | sort -k3 -h
-
-# Remove images older than 7 days
-docker image prune -a --filter "until=168h" -f
-```
+If no data can be safely removed, grow the underlying volume (cloud disk resize,
+LVM extend, or add a disk) and expand the filesystem. This is the correct action
+when the database is legitimately large rather than bloated.
 
 ---
 
-## Recovery Verification
+## Recovery verification
 
 ### 1. Disk has adequate free space
 
 ```bash
-df -h | grep -E "/$|docker"
+df -h
 ```
 
-Target: at least 20% free space on all relevant filesystems.
+Target at least 15-20% free on every affected filesystem.
 
-### 2. Docker can operate normally
-
-```bash
-docker system df
-```
-
-### 3. PostgreSQL can write
+### 2. PostgreSQL accepts writes
 
 ```bash
-docker exec openwatch-db psql -U openwatch -d openwatch -c "
-CREATE TEMP TABLE disk_test (val TEXT);
+psql -U openwatch -d openwatch -c "
+CREATE TEMP TABLE disk_test (val text);
 INSERT INTO disk_test VALUES ('write_test');
 DROP TABLE disk_test;
-SELECT 'write_ok' AS status;
-"
+SELECT 'write_ok' AS status;"
 ```
 
-### 4. Application can write logs
+### 3. The service is healthy
 
 ```bash
-docker exec openwatch-backend python3 -c "
-import logging
-logger = logging.getLogger('openwatch.test')
-logger.info('Disk recovery write test')
-print('Write test passed')
-"
+systemctl status openwatch
+curl -sk https://localhost:8443/api/v1/health
 ```
 
-### 5. Health endpoint is healthy
+A healthy response is HTTP `200` with a body of
+`{"status":"healthy","db_connected":true,"version":"..."}`. A `503` or
+`db_connected: false` means PostgreSQL is still not writable.
+
+### 4. Migrations are current (if you restarted after recovery)
 
 ```bash
-curl -s http://localhost:8000/health | python3 -m json.tool
+sudo -u openwatch /usr/bin/openwatch migrate --config /etc/openwatch/openwatch.toml
 ```
+
+This is idempotent: it applies any pending migrations and prints the current
+schema version.
 
 ---
 
 ## Escalation
 
-Escalate if any of the following conditions are met:
+Escalate if any of the following are true:
 
-- Disk is full and no safe cleanup options are available.
-- PostgreSQL data corruption occurred due to disk-full conditions.
+- The disk is full and no safe cleanup option frees meaningful space.
+- PostgreSQL reports data corruption after a disk-full event.
 - The volume is on a filesystem that cannot be expanded.
-- Data loss occurred (files were truncated or deleted unintentionally).
+- Audit data was deleted unintentionally.
 
-**Information to include when escalating**:
-- Output of `df -h`.
-- Output of `docker system df -v`.
-- Volume sizes for all OpenWatch volumes.
-- PostgreSQL database size and largest tables.
-- Container log file sizes.
+Include when escalating:
+
+- Output of `df -h` and `du -xh --max-depth=1 /var | sort -rh | head`.
+- Output of `journalctl --disk-usage`.
+- Database size and the largest tables from the diagnosis queries.
+- The last 100 lines of `journalctl -u openwatch`.
 
 ---
 
 ## Prevention
 
-### Log rotation
+### Bound the journal
 
-Configure the Docker logging driver with size limits. Add to each service in `docker-compose.yml`:
+OpenWatch logs to the systemd journal, so an unbounded journal is the most common
+self-inflicted disk-fill. Set a cap in `/etc/systemd/journald.conf`:
 
-```yaml
-services:
-  backend:
-    logging:
-      driver: json-file
-      options:
-        max-size: "50m"
-        max-file: "5"
+```ini
+[Journal]
+SystemMaxUse=1G
 ```
 
-This limits each container's log to 50 MB with 5 rotated files (250 MB total per container).
+Restart `systemd-journald` after changing it.
 
-### Monitoring alerts
+### Monitor disk usage
 
-Set up disk space alerts in Prometheus. Example alert rule for `monitoring/config/alerts/`:
+Use your existing host monitoring (for example a `node_exporter` filesystem
+alert or a cron check on `df`) to alert before the disk fills. OpenWatch does not
+expose its own filesystem metrics endpoint — see below.
 
-```yaml
-groups:
-  - name: disk-alerts
-    rules:
-      - alert: DiskSpaceLow
-        expr: (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) < 0.15
-        for: 5m
-        labels:
-          severity: warning
-        annotations:
-          summary: "Disk space below 15% on root filesystem"
+### Plan database growth
 
-      - alert: DiskSpaceCritical
-        expr: (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) < 0.05
-        for: 1m
-        labels:
-          severity: critical
-        annotations:
-          summary: "Disk space below 5% on root filesystem"
-```
+Size the PostgreSQL volume for expected growth and review the largest tables
+(diagnosis Step 5) periodically. The `transactions` table uses a write-on-change
+model and the `host_rule_state` table holds one row per host and rule, so both
+stay bounded; `audit_events` grows monotonically and should be the focus of any
+retention planning.
 
-### Data retention policies
+---
 
-Implement automated cleanup:
+## Not yet implemented
 
-- **Scan findings**: Retain 90 days (configurable). Older findings are summarized in posture snapshots.
-- **Audit logs**: Retain per compliance requirements (typically 1 year minimum for FedRAMP).
-- **Posture snapshots**: Retain 90 days for free tier, configurable for OpenWatch+.
-- **Audit exports**: Expire after 7 days (handled by `cleanup_expired_audit_exports` Celery task).
-- **Scan result files**: Delete files older than 30 days from `app_data/results/`.
+OpenWatch is currently `0.2.0-rc.5`, a pre-release. The following do not exist in
+the current code and must not be relied on:
 
-### Volume sizing
-
-Plan volume sizes based on expected data growth:
-
-| Volume | Recommended Minimum | Growth Factor |
-|--------|---------------------|---------------|
-| postgres_data | 10 GB | ~1 GB per 100 hosts per month |
-| app_logs | 5 GB | Depends on log level and scan frequency |
-| app_data | 10 GB | ~500 MB per 100 scans |
-| redis_data | 1 GB | Relatively stable |
+- **Automated retention / pruning jobs** for `audit_events` or other tables.
+  Cleanup is manual (path C). This is roadmap work.
+- **A Prometheus or metrics endpoint** exposing disk or database size. Use host-
+  level monitoring instead. The only built-in HTTP probe is
+  `GET /api/v1/health`, which reports liveness and database connectivity, not
+  capacity.
+- **A backup or restore command in the `openwatch` CLI.** Use standard PostgreSQL
+  tooling (`pg_dump` / `pg_basebackup`) for backups. The CLI subcommands are
+  `serve`, `worker`, `migrate`, `create-admin`, and `check-config`
+  (see `cmd/openwatch/main.go`).
