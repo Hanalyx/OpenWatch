@@ -16,6 +16,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/Hanalyx/openwatch/internal/perftest"
 )
 
 // @ac AC-01
@@ -254,7 +256,7 @@ func TestRequirePermission_HotPathLatency(t *testing.T) {
 		// 5µs envelope. Spec target 1µs (registry lookup only); httptest
 		// recorder + handler invocation overhead adds 2-3µs typically.
 		if p99 > 50*time.Microsecond {
-			t.Errorf("RequirePermission p99 = %v, want < 50µs (spec target 1µs)", p99)
+			perftest.Budgetf(t, "RequirePermission p99 = %v, want < 50µs (spec target 1µs)", p99)
 		}
 		t.Logf("RequirePermission p99 = %v (spec target 1µs)", p99)
 	})

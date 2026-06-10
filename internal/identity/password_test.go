@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/Hanalyx/openwatch/internal/internalrace"
+	"github.com/Hanalyx/openwatch/internal/perftest"
 )
 
 // @ac AC-01
@@ -156,7 +157,7 @@ func TestPassword_VerifyLatency(t *testing.T) {
 		p99 := durs[idx]
 		budget := 200 * time.Millisecond * time.Duration(internalrace.Multiplier())
 		if p99 > budget {
-			t.Errorf("VerifyPassword p99 = %v, want < %v (spec target 200ms)", p99, budget)
+			perftest.Budgetf(t, "VerifyPassword p99 = %v, want < %v (spec target 200ms)", p99, budget)
 		}
 		t.Logf("VerifyPassword p99 = %v over %d calls (budget %v)", p99, n, budget)
 	})

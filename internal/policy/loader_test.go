@@ -24,6 +24,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/db"
 	"github.com/Hanalyx/openwatch/internal/db/migrations"
 	"github.com/Hanalyx/openwatch/internal/internalrace"
+	"github.com/Hanalyx/openwatch/internal/perftest"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"gopkg.in/yaml.v3"
 )
@@ -502,7 +503,7 @@ func TestEvaluate_HotPathLatency(t *testing.T) {
 		// 200µs is the regression ceiling; race detector multiplies it.
 		budget := 200 * time.Microsecond * time.Duration(internalrace.Multiplier())
 		if p99 > budget {
-			t.Errorf("Evaluate p99 = %v, want < %v (spec target 50µs)", p99, budget)
+			perftest.Budgetf(t, "Evaluate p99 = %v, want < %v (spec target 50µs)", p99, budget)
 		}
 		t.Logf("Evaluate p99 = %v over %d calls (budget %v)", p99, n, budget)
 	})

@@ -31,6 +31,7 @@ import (
 
 	"github.com/Hanalyx/openwatch/internal/db"
 	"github.com/Hanalyx/openwatch/internal/db/migrations"
+	"github.com/Hanalyx/openwatch/internal/perftest"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -363,7 +364,7 @@ func TestIdempotency_LookupLatencyP99(t *testing.T) {
 		}
 		p99 := durs[int(float64(n)*0.99)]
 		if p99 > 5*time.Millisecond {
-			t.Errorf("Cache lookup p99 = %v, want < 5ms", p99)
+			perftest.Budgetf(t, "Cache lookup p99 = %v, want < 5ms", p99)
 		}
 		t.Logf("Cache lookup p99 = %v over %d replays", p99, n)
 	})

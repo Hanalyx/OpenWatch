@@ -27,6 +27,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/db"
 	"github.com/Hanalyx/openwatch/internal/db/migrations"
 	"github.com/Hanalyx/openwatch/internal/internalrace"
+	"github.com/Hanalyx/openwatch/internal/perftest"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -127,7 +128,7 @@ func TestEmitSync_Latency(t *testing.T) {
 		// real-DB ceiling; race detector multiplies it.
 		budget := 10 * time.Millisecond * time.Duration(internalrace.Multiplier())
 		if p99 > budget {
-			t.Errorf("EmitSync p99 = %v, want < %v (spec target 500µs)", p99, budget)
+			perftest.Budgetf(t, "EmitSync p99 = %v, want < %v (spec target 500µs)", p99, budget)
 		}
 		t.Logf("EmitSync p99 = %v (spec target 500µs)", p99)
 	})
@@ -322,7 +323,7 @@ func TestEmit_Latency(t *testing.T) {
 		// "noticeable regression" ceiling; race detector multiplies it.
 		budget := 50 * time.Microsecond * time.Duration(internalrace.Multiplier())
 		if p99 > budget {
-			t.Errorf("Emit p99 = %v, want < %v (spec target 10µs)", p99, budget)
+			perftest.Budgetf(t, "Emit p99 = %v, want < %v (spec target 10µs)", p99, budget)
 		}
 		t.Logf("Emit p99 = %v (spec target 10µs)", p99)
 	})

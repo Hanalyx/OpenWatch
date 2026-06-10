@@ -18,6 +18,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/correlation"
 	"github.com/Hanalyx/openwatch/internal/db"
 	"github.com/Hanalyx/openwatch/internal/db/migrations"
+	"github.com/Hanalyx/openwatch/internal/perftest"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -398,7 +399,7 @@ func TestEnqueue_LatencyP99(t *testing.T) {
 		idx := int(float64(nn) * 0.99)
 		p99 := durs[idx]
 		if p99 > 10*time.Millisecond {
-			t.Errorf("Enqueue p99 = %v, want < 10ms (spec target 5ms; local DB load may push to 5-10ms)", p99)
+			perftest.Budgetf(t, "Enqueue p99 = %v, want < 10ms (spec target 5ms; local DB load may push to 5-10ms)", p99)
 		}
 		t.Logf("Enqueue p99 = %v over %d calls", p99, n)
 	})

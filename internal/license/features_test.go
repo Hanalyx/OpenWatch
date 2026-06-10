@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/Hanalyx/openwatch/internal/internalrace"
+	"github.com/Hanalyx/openwatch/internal/perftest"
 )
 
 // resetState clears the package-level state. Each test starts clean.
@@ -274,7 +275,7 @@ func TestIsEnabled_P99Latency(t *testing.T) {
 		// hot-path atomic loads; multiplier compensates.
 		budget := 250 * time.Nanosecond * time.Duration(internalrace.Multiplier())
 		if p99 > budget {
-			t.Errorf("IsEnabled p99 = %v, want < %v (spec target 50ns)", p99, budget)
+			perftest.Budgetf(t, "IsEnabled p99 = %v, want < %v (spec target 50ns)", p99, budget)
 		}
 		t.Logf("IsEnabled p99 = %v over %d calls (budget %v)", p99, n, budget)
 	})

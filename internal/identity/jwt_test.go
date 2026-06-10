@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/Hanalyx/openwatch/internal/internalrace"
+	"github.com/Hanalyx/openwatch/internal/perftest"
 	"github.com/google/uuid"
 )
 
@@ -217,7 +218,7 @@ func TestJWT_RoundTripLatency(t *testing.T) {
 		p99 := durs[idx]
 		budget := 5 * time.Millisecond * time.Duration(internalrace.Multiplier())
 		if p99 > budget {
-			t.Errorf("JWT round-trip p99 = %v, want < %v (spec target 5ms)", p99, budget)
+			perftest.Budgetf(t, "JWT round-trip p99 = %v, want < %v (spec target 5ms)", p99, budget)
 		}
 		t.Logf("JWT round-trip p99 = %v over %d calls (budget %v)", p99, n, budget)
 	})
