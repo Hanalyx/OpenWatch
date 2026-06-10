@@ -176,12 +176,20 @@ version:
 # -----------------------------------------------------------------------------
 
 .PHONY: generate
-generate: generate-audit generate-api
-	@echo "generate: audit events + OpenAPI server stubs regenerated (sqlc lands later)"
+generate: generate-audit generate-rbac generate-license generate-api
+	@echo "generate: audit events + RBAC + license features + OpenAPI server stubs regenerated (sqlc lands later)"
 
 .PHONY: generate-audit
 generate-audit:
 	go run scripts/gen-audit-events.go
+
+.PHONY: generate-rbac
+generate-rbac:
+	go run scripts/gen-rbac.go
+
+.PHONY: generate-license
+generate-license:
+	go run scripts/gen-license-features.go
 
 .PHONY: generate-api
 generate-api:
