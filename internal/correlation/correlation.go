@@ -70,10 +70,7 @@ var (
 // Panics on rand.Read failure — that condition signals the OS RNG is broken,
 // which is not recoverable.
 func Generate(prefix Prefix) string {
-	// UnixMilli() returns a non-negative int64 for any time after the
-	// Unix epoch (1970-01-01). Safe to widen to uint64.
-	nowMs := uint64(time.Now().UnixMilli()) //nolint:gosec // post-epoch wall clock is non-negative
-	c := nextCounter(nowMs)
+	nowMs, c := nextStamp()
 
 	var u [8]byte
 	u[0] = byte(nowMs >> 40)
@@ -87,17 +84,31 @@ func Generate(prefix Prefix) string {
 	return string(prefix) + "-" + hex.EncodeToString(u[:])
 }
 
-// nextCounter returns the next monotonic counter value for the given ms.
-// If ms advanced since the last call, the counter is reseeded with random
-// bits. Otherwise it increments. A wrap (back to 0) in the same ms is
-// theoretically possible at extreme rates and would produce a duplicate
-// ID; in practice this would require ~65M generates per millisecond.
-func nextCounter(nowMs uint64) uint16 {
+// nextStamp returns the (millisecond, counter) pair to embed in an ID. The
+// pair is unique across every call: monoLastMs is monotonic non-decreasing,
+// and within a given millisecond the counter strictly increments from a
+// random seed.
+//
+// The clock MUST be read here, under the same lock that guards the counter.
+// The earlier design read the timestamp in Generate (outside the lock) and
+// passed it in; concurrent callers crossing a millisecond boundary could
+// then present out-of-order ms values at lock-acquisition time, reseeding
+// the per-ms counter more than once for the same ms — two independent random
+// sequences for one ms that could collide. Reading the clock inside the lock,
+// and only ever advancing monoLastMs, closes that window (a backward
+// wall-clock jump folds into the increment branch and never repeats a pair).
+//
+// A counter wrap (back to its seed) within one ms would require ~65536
+// generates in that ms and is treated as out of scope, as before.
+func nextStamp() (uint64, uint16) {
 	monoMu.Lock()
 	defer monoMu.Unlock()
 
-	if nowMs != monoLastMs {
-		// New millisecond: reseed.
+	// UnixMilli() returns a non-negative int64 for any time after the
+	// Unix epoch (1970-01-01). Safe to widen to uint64.
+	nowMs := uint64(time.Now().UnixMilli()) //nolint:gosec // post-epoch wall clock is non-negative
+	if nowMs > monoLastMs {
+		// First ID in a new millisecond: reseed the counter.
 		monoLastMs = nowMs
 		var r [2]byte
 		if _, err := rand.Read(r[:]); err != nil {
@@ -105,9 +116,10 @@ func nextCounter(nowMs uint64) uint16 {
 		}
 		monoCounter = uint16(r[0])<<8 | uint16(r[1])
 	} else {
+		// Same ms, or a backward clock jump: keep monoLastMs and increment.
 		monoCounter++
 	}
-	return monoCounter
+	return monoLastMs, monoCounter
 }
 
 // SanitizeOrGenerate inspects a client-supplied X-Correlation-Id header
