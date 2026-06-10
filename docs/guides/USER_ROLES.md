@@ -1,5 +1,14 @@
 # User Roles and Permissions
 
+> **⚠️ Legacy (Python era) — do not follow this document.**
+> It describes the archived Python/FastAPI + Docker-Compose stack (PostgreSQL, Redis, Celery,
+> a separate frontend) that was removed from the repo on 2026-06-05. The current OpenWatch is a
+> single Go binary (API + UI) installed from a native RPM/DEB. The role taxonomy, permission
+> vocabulary, and counts below do not match the current Go RBAC registry, which ships five
+> built-in roles (`viewer`, `auditor`, `ops_lead`, `security_admin`, `admin`) plus custom roles.
+> See `docs/engineering/rbac_registry.md`, `auth/permissions.yaml`, and `specs/`. This content
+> is kept for historical reference.
+
 This document describes the role-based access control (RBAC) system in OpenWatch. It covers the six built-in roles, their permissions, and common workflows for each role.
 
 Source of truth: `backend/app/rbac.py`

@@ -15,15 +15,12 @@ With manual processes, that question takes a week to answer. With point-in-time 
 
 OpenWatch is the compliance operating system for teams managing Linux infrastructure under STIG, CIS, NIST 800-53, PCI-DSS, and FedRAMP. It connects to your servers over SSH, runs 508 compliance checks via the [Kensa](https://github.com/Hanalyx/kensa) engine, and provides continuous visibility into compliance posture — not just what's passing now, but what was passing last Tuesday, what drifted since your last assessment, and what needs attention before your next one.
 
-> **Project status — Go rebuild in progress.** OpenWatch is being rebuilt on a
-> Go backend (the original Python/FastAPI implementation has been archived). The
-> Go tree now lives at the **repo root**: Go 1.26 backend (`cmd/`, `internal/`),
-> React 19 + TanStack frontend (`frontend/`), PostgreSQL-only. The product
-> capabilities below describe the target system. The container/RPM deployment
-> story is being re-established on the Go stack — until then, run from source
-> (see [Contributing](#contributing)). Sections that reference
-> `docker-compose`/`start-openwatch.sh` describe the archived Python stack and
-> are being reworked.
+> **Project status — Go rebuild, pre-release.** OpenWatch is a single Go binary
+> that serves both the REST API and the embedded React UI (the original
+> Python/FastAPI implementation was archived out of the repo on 2026-06-05). The
+> Go tree lives at the **repo root**: Go 1.26 backend (`cmd/`, `internal/`),
+> React 19 + TanStack frontend (`frontend/`), PostgreSQL-only. The current
+> version is `0.2.0-rc.5`, a pre-release — not a GA build.
 
 ![OpenWatch Compliance Dashboard](docs/images/dashboard-preview.png)
 
@@ -84,21 +81,24 @@ OpenWatch is a compliance *platform* — it manages the lifecycle of compliance 
 
 **Note:** OpenWatch's scanning engine is [Kensa](https://github.com/Hanalyx/kensa), which takes a different architectural approach than SCAP-based tools. Kensa separates rules from implementations, treats frameworks as metadata, and detects host capabilities at runtime. Organizations with SCAP mandate requirements can use SCAP tools for assessment alongside OpenWatch for remediation, governance, and continuous monitoring.
 
-## Deploy in 10 Minutes
+## Deploy in 10 minutes
 
-**Requirements:** Docker (or Podman) and 4 GB RAM.
+**Requirements:** a Linux host (RHEL/Rocky/Fedora/Oracle or Ubuntu/Debian),
+PostgreSQL, and 4 GB RAM. No Docker, Podman, or containers are required.
 
 ```bash
-git clone https://github.com/Hanalyx/OpenWatch.git
-cd OpenWatch
-./start-openwatch.sh --runtime docker --build
+sudo dnf install ./openwatch-*.rpm     # RHEL / Rocky / Fedora / Oracle
+sudo apt install ./openwatch_*.deb     # Ubuntu / Debian
+
+sudo openwatch migrate                 # apply database migrations
+sudo openwatch create-admin \          # create the first admin user
+  --username admin --email you@example.com --password '...'
+sudo systemctl enable --now openwatch  # start at boot
 ```
 
-Wait ~90 seconds, then open **http://localhost:3000**. Default login: `admin` / `admin`.
+Open **https://localhost:8443** and sign in with the admin user you created.
 
-**Change the default password immediately.**
-
-### Run Your First Scan
+### Run your first scan
 
 1. **Add credentials** — Settings > System Credentials > add your SSH user/key
 2. **Add a host** — Hosts > Add Host > enter IP, select credentials
@@ -156,29 +156,25 @@ Report vulnerabilities to security@hanalyx.com.
 
 ## API-First Design
 
-OpenWatch exposes 80+ REST API endpoints. Everything you can do in the UI, you can automate:
+OpenWatch exposes a versioned REST API under `/api/v1/`. The contract lives in
+`api/openapi.yaml` (the source of truth). Everything you can do in the UI, you
+can automate:
 
 ```bash
 # Authenticate
-TOKEN=$(curl -s -X POST http://localhost:8000/api/auth/login \
+TOKEN=$(curl -sk -X POST https://localhost:8443/api/v1/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"username":"admin","password":"admin"}' | jq -r '.access_token')
+  -d '{"username":"admin","password":"..."}' | jq -r '.access_token')
 
 # Add a host
-HOST_ID=$(curl -s -X POST http://localhost:8000/api/hosts/ \
+HOST_ID=$(curl -sk -X POST https://localhost:8443/api/v1/hosts \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"hostname":"web-01","ip_address":"192.168.1.10","ssh_port":22}' | jq -r '.id')
 
-# Run a Kensa compliance scan
-SCAN_ID=$(curl -s -X POST http://localhost:8000/api/scans/kensa \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d "{\"host_id\":\"$HOST_ID\",\"framework\":\"cis-rhel9-v2.0.0\"}" | jq -r '.scan_id')
-
-# Get results
-curl -s http://localhost:8000/api/scans/$SCAN_ID/results \
-  -H "Authorization: Bearer $TOKEN" | jq '.compliance_percentage'
+# List hosts
+curl -sk https://localhost:8443/api/v1/hosts \
+  -H "Authorization: Bearer $TOKEN" | jq '.'
 ```
 
 Integrate compliance scanning into CI/CD pipelines, SIEM platforms, or custom dashboards.
@@ -225,24 +221,28 @@ production use. FIPS-mode builds are available via `make build-fips`.
 
 ## Monitoring
 
-Deploy the built-in monitoring stack:
+OpenWatch exposes Prometheus metrics and a liveness probe for external
+monitoring:
 
 ```bash
-docker compose -f monitoring/docker-compose.monitoring.yml up -d
+curl -k https://localhost:8443/api/v1/health
 ```
 
-Includes Prometheus metric collection, three pre-built Grafana dashboards (System Health, Application Performance, Compliance Trends), and Alertmanager integration.
+See [docs/guides/MONITORING_SETUP.md](docs/guides/MONITORING_SETUP.md) for
+wiring Prometheus, Grafana dashboards, and alerting against the metrics
+endpoint.
 
 ## Documentation
 
 | Topic | Link |
 |---|---|
-| API Reference | [Swagger UI](http://localhost:8000/api/docs) (when running) |
-| Full Documentation | [hanalyx.github.io/OpenWatch](https://hanalyx.github.io/OpenWatch/) |
-| First Run Setup | [docs/FIRST_RUN_SETUP.md](docs/FIRST_RUN_SETUP.md) |
-| Production Deployment | [docs/guides/PRODUCTION_DEPLOYMENT.md](docs/guides/PRODUCTION_DEPLOYMENT.md) |
-| Security Hardening | [docs/guides/SECURITY_HARDENING.md](docs/guides/SECURITY_HARDENING.md) |
-| Development Workflow | [docs/DEVELOPMENT_WORKFLOW.md](docs/DEVELOPMENT_WORKFLOW.md) |
+| API contract | [api/openapi.yaml](api/openapi.yaml) (source of truth) |
+| API guide | [docs/guides/API_GUIDE.md](docs/guides/API_GUIDE.md) |
+| Full documentation | [hanalyx.github.io/OpenWatch](https://hanalyx.github.io/OpenWatch/) |
+| Quickstart | [docs/guides/QUICKSTART.md](docs/guides/QUICKSTART.md) |
+| Production deployment | [docs/guides/PRODUCTION_DEPLOYMENT.md](docs/guides/PRODUCTION_DEPLOYMENT.md) |
+| Security hardening | [docs/guides/SECURITY_HARDENING.md](docs/guides/SECURITY_HARDENING.md) |
+| Engineering docs | [docs/engineering/](docs/engineering/) |
 
 ## Part of the Hanalyx Compliance Platform
 

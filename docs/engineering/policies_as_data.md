@@ -569,7 +569,7 @@ If a policy file is missing from disk, the loader uses a hardcoded conservative 
 
 ## 8. Audit integration
 
-The audit registry already defines (`app/audit/events.yaml`):
+The audit registry already defines (`audit/events.yaml`):
 
 - `policy.loaded` — emitted on successful load (startup or reload).
 - `policy.invalid` — emitted when load fails (signature, schema, version regression).
@@ -759,8 +759,8 @@ The framework loads, validates, snapshots, and emits audit events on Day 6. Type
 
 ## Cross-references
 
-- Error codes: `app/api/error_codes.yaml` — `policy.invalid`, `policy.version_mismatch`, `policy.denied`, `policy.not_found` are already registered.
-- Audit events: `app/audit/events.yaml` — `policy.loaded`, `policy.invalid`, `policy.applied` already registered with detail schemas.
-- API design: `app/docs/api_design_principles.md` §11 (extensions), §15 (idempotency on `/admin/policies:reload`).
-- RBAC registry: `app/docs/rbac_registry.md` — the `approvals` policy's `approver_roles` field cross-validates against the active role set (built-in + custom). Unknown role at policy load → `policy.invalid` audit event with the unknown role in `errors[]`; previous in-memory state retained.
+- Error codes: `api/error_codes.yaml` — `policy.invalid`, `policy.version_mismatch`, `policy.denied`, `policy.not_found` are already registered.
+- Audit events: `audit/events.yaml` — `policy.loaded`, `policy.invalid`, `policy.applied` already registered with detail schemas.
+- API design: `docs/engineering/api_design_principles.md` §11 (extensions), §15 (idempotency on `/admin/policies:reload`).
+- RBAC registry: `docs/engineering/rbac_registry.md` — the `approvals` policy's `approver_roles` field cross-validates against the active role set (built-in + custom). Unknown role at policy load → `policy.invalid` audit event with the unknown role in `errors[]`; previous in-memory state retained.
 - Roadmap: 2026-04-27 entry on policies-as-data; 2026-04-29 entry on this design doc; 2026-04-30 entry on RBAC cross-validation.

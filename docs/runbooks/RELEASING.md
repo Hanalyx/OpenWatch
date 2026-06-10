@@ -13,9 +13,9 @@ and a human signs off.
   [`packaging/version.env`](../../packaging/version.env) (`VERSION`, `CODENAME`).
   The Go binary reads it via the Makefile `ldflags`, and the RPM/DEB build
   scripts source it for the package version.
-- Release candidates use a `-rc.N` suffix (e.g. `0.2.0-rc.4`). The RPM version
+- Release candidates use a `-rc.N` suffix (e.g. `0.2.0-rc.5`). The RPM version
   field strips the suffix; the DEB and the binary keep it.
-- Tags are `v<version>` (e.g. `v0.2.0-rc.4`, `v0.2.0`).
+- Tags are `v<version>` (e.g. `v0.2.0-rc.5`, `v0.2.0`).
 
 ## The pipeline at a glance
 

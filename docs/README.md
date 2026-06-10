@@ -20,7 +20,7 @@ Start here: [Introduction](INTRODUCTION.md) | [Quickstart](guides/QUICKSTART.md)
 |----------|-------------|
 | [Introduction](INTRODUCTION.md) | Platform philosophy, architecture overview, supported frameworks |
 | [Quickstart](guides/QUICKSTART.md) | First 15 minutes: log in, add a host, run a scan, read results |
-| [Installation](guides/INSTALLATION.md) | Deploy with Docker, Podman, RPM, or from source |
+| [Installation](guides/INSTALLATION.md) | Deploy from a native RPM/DEB package or from source |
 
 ## Operator Guides
 
@@ -35,14 +35,14 @@ Start here: [Introduction](INTRODUCTION.md) | [Quickstart](guides/QUICKSTART.md)
 
 | Document | Description |
 |----------|-------------|
-| [Production Deployment](guides/PRODUCTION_DEPLOYMENT.md) | Production Docker/Podman deployment procedures |
+| [Production Deployment](guides/PRODUCTION_DEPLOYMENT.md) | Production deployment procedures for the single `openwatch` binary |
 | [Environment Reference](guides/ENVIRONMENT_REFERENCE.md) | All environment variables and configuration |
-| [Database Migrations](guides/DATABASE_MIGRATIONS.md) | Alembic migration procedures and rollback |
+| [Database Migrations](guides/DATABASE_MIGRATIONS.md) | Migration procedures via `openwatch migrate` (migrations in `internal/db/migrations/`) |
 | [Monitoring Setup](guides/MONITORING_SETUP.md) | Prometheus, Grafana, and health checks |
 | [Security Hardening](guides/SECURITY_HARDENING.md) | TLS, FIPS, rate limiting, audit logging |
 | [Scaling Guide](guides/SCALING_GUIDE.md) | Horizontal scaling and performance tuning |
 | [Backup & Recovery](guides/BACKUP_RECOVERY.md) | PostgreSQL backup, restore, and disaster recovery |
-| [Secret Rotation](guides/SECRET_ROTATION.md) | Rotating database, Redis, JWT, and encryption keys |
+| [Secret Rotation](guides/SECRET_ROTATION.md) | Rotating database, session, and encryption keys |
 | [Upgrade Procedure](guides/UPGRADE_PROCEDURE.md) | Upgrading OpenWatch with rollback procedures |
 | [Releasing](runbooks/RELEASING.md) | Gated pre-release process: docs freeze → RC → verification gate → GA, plus signing-key setup |
 | [Compliance Controls](guides/COMPLIANCE_CONTROLS.md) | NIST, CIS, CMMC, FedRAMP control mapping |

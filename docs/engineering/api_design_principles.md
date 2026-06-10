@@ -1,7 +1,7 @@
 # OpenWatch API Design Principles
 
 > **Status:** Locked 2026-04-27
-> **Authority:** This document is the rulebook for `app/api/openapi.yaml`. If the spec violates a rule here, the spec is wrong.
+> **Authority:** This document is the rulebook for `api/openapi.yaml`. If the spec violates a rule here, the spec is wrong.
 > **Audience:** Anyone designing or reviewing OpenAPI 3.1 endpoints for OpenWatch.
 
 ---
@@ -397,11 +397,11 @@ license.feature_unavailable  quota.max_hosts_exceeded   audit.query_invalid
 rate_limit.exceeded        server.internal            server.timeout
 ```
 
-See `app/api/error_codes.yaml` for the full registry.
+See `api/error_codes.yaml` for the full registry.
 
 ### 8.4 The registry is the source of truth
 
-All error codes live in `app/api/error_codes.yaml`. The registry is the **only** place a code is defined. Codegen produces:
+All error codes live in `api/error_codes.yaml`. The registry is the **only** place a code is defined. Codegen produces:
 
 - `internal/errors/codes.gen.go` — typed Go constants (e.g., `errors.HostUnreachable`) and a `Code -> metadata` map for runtime lookup of `http_status`, `fault`, `retryable`, and `detail_schema`.
 - A reference document rendered into the OpenAPI bundle so consumers can see all codes in one place.
@@ -417,7 +417,7 @@ Build invariants enforced by `scripts/validate-error-codes.go` (run in CI):
 
 **Workflow for adding a new code:**
 
-1. Add the entry to `app/api/error_codes.yaml` (PR review required).
+1. Add the entry to `api/error_codes.yaml` (PR review required).
 2. Run codegen: `go generate ./internal/errors/...`.
 3. Reference the generated constant from handler code: `errors.New(errors.HostUnreachable, "...")`.
 4. CI fails the build if a handler emits a string literal that does not match a registry entry.
@@ -511,7 +511,7 @@ Every endpoint declares its required permission via `x-required-permission`:
       any_of: [host:read, host:write]
 ```
 
-The values are **registry-validated** against `app/auth/permissions.yaml`. The build fails if a spec references an unknown permission. See `app/docs/rbac_registry.md` for the full registry model and the registry-first workflow for adding permissions.
+The values are **registry-validated** against `auth/permissions.yaml`. The build fails if a spec references an unknown permission. See `docs/engineering/rbac_registry.md` for the full registry model and the registry-first workflow for adding permissions.
 
 `oapi-codegen` generates middleware that enforces these from the spec. No hand-written `@require_permission()` decorators in handler code.
 
@@ -528,11 +528,11 @@ Every endpoint that requires an OpenWatch+ license feature declares it via `x-re
     x-required-feature: audit_query
 ```
 
-The feature ID must exist in `app/license/features.yaml`. The build fails if a spec references an unknown feature ID. See `app/docs/licensing_foundation.md` for the full feature gating model.
+The feature ID must exist in `licensing/features.yaml`. The build fails if a spec references an unknown feature ID. See `docs/engineering/licensing_foundation.md` for the full feature gating model.
 
 **Cross-validation with the RBAC registry:** if the permission has `license_gated: X` in `permissions.yaml`, the operation MUST declare `x-required-feature: X` (or omit the permission entirely). Mismatch — declaring a license-gated permission without the matching feature, or vice versa — fails the build. This prevents the failure mode where the permission says "license needed" but the operation forgets to declare it.
 
-When both `x-required-permission` and `x-required-feature` are declared, **both** must pass for the request to reach the handler. The combined middleware (per `app/docs/rbac_registry.md` §6) checks RBAC first (denial → `403`), then license (denial → `402`). One middleware, one denial path, one audit event.
+When both `x-required-permission` and `x-required-feature` are declared, **both** must pass for the request to reach the handler. The combined middleware (per `docs/engineering/rbac_registry.md` §6) checks RBAC first (denial → `403`), then license (denial → `402`). One middleware, one denial path, one audit event.
 
 ### 11.5 Audit events declared in spec
 
@@ -546,12 +546,12 @@ Every mutating endpoint (POST/PUT/PATCH/DELETE) declares the audit events it may
 ```
 
 The build verifies:
-- All declared codes exist in `app/audit/events.yaml`
+- All declared codes exist in `audit/events.yaml`
 - Every mutating endpoint declares at least one audit event
 
 `x-audit-events` is documentation, not codegen — it does not generate the emission. Handlers explicitly call `audit.Emit(ctx, audit.HostCreated, ...)` using typed constants. The spec declaration is the contract that the handler must honor.
 
-See `app/docs/audit_event_taxonomy.md` for the full taxonomy, redaction discipline, and emission patterns.
+See `docs/engineering/audit_event_taxonomy.md` for the full taxonomy, redaction discipline, and emission patterns.
 
 ---
 
@@ -626,7 +626,7 @@ What does NOT force a v2:
 
 ### 14.3 OpenAPI is the version source of truth
 
-`info.version` in `openapi.yaml` is the API version. Changes to it follow semver. Major bumps require a separate spec file (e.g., `app/api/openapi-v2.yaml`).
+`info.version` in `openapi.yaml` is the API version. Changes to it follow semver. Major bumps require a separate spec file (e.g., `api/openapi-v2.yaml`).
 
 ---
 

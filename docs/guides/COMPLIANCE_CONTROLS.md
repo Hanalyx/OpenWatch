@@ -18,69 +18,69 @@ This document maps OpenWatch's security controls to industry frameworks, providi
 
 | Control | Title | OpenWatch Implementation | Evidence |
 |---------|-------|-------------------------|----------|
-| AC-2 | Account Management | User CRUD with RBAC (admin, analyst, viewer) | `backend/app/routes/auth/`, user audit logs |
-| AC-3 | Access Enforcement | Role-based route decorators, JWT validation | `backend/app/middleware/`, RBAC decorators |
-| AC-6 | Least Privilege | Three-tier role model, default viewer role | `backend/app/models/sql_models.py` (UserRole enum) |
-| AC-7 | Unsuccessful Logon Attempts | Rate limiting (100/min per user, 1000/min per IP) | `backend/app/middleware/rate_limiting.py` |
+| AC-2 | Account Management | User CRUD with RBAC (admin, analyst, viewer) | `internal/users/`, user audit events |
+| AC-3 | Access Enforcement | Role-based permission checks on each route | `internal/auth/`, generated permission registry |
+| AC-6 | Least Privilege | Three-tier role model, default viewer role | `internal/auth/permissions.gen.go` |
+| AC-7 | Unsuccessful Logon Attempts | Rate limiting (100/min per user, 1000/min per IP) | `internal/server/` middleware |
 | AC-8 | System Use Notification | Configurable login banner | Frontend login page |
-| AC-11 | Session Lock | Inactivity timeout (default 15 min, configurable 1-480) | `backend/app/routes/system/settings.py` (session-timeout) |
-| AC-12 | Session Termination | JWT expiration (30 min access, 7 day refresh) | `backend/app/config.py` (jwt settings) |
-| AC-17 | Remote Access | SSH with NIST SP 800-57 key validation | `backend/app/services/ssh/` |
+| AC-11 | Session Lock | Inactivity timeout (default 15 min, configurable 1-480) | `internal/systemconfig/` (session-timeout) |
+| AC-12 | Session Termination | Session cookie and JWT expiration (30 min access, 7 day refresh) | `internal/auth/` |
+| AC-17 | Remote Access | SSH with NIST SP 800-57 key validation | `internal/ssh/` |
 
 ### Audit and Accountability (AU)
 
 | Control | Title | OpenWatch Implementation | Evidence |
 |---------|-------|-------------------------|----------|
-| AU-2 | Event Logging | Structured audit logging for auth/scan/admin events | `openwatch.audit` logger |
-| AU-3 | Content of Audit Records | User, timestamp, action, resource, outcome in JSON | `backend/app/services/infrastructure/audit.py` |
-| AU-6 | Audit Record Review | Audit query API with saved queries and exports | `backend/app/routes/compliance/audit.py` |
-| AU-9 | Protection of Audit Information | Logs stored in dedicated volume, append-only | `app_logs` Docker volume |
-| AU-12 | Audit Record Generation | All API routes generate audit events | Middleware + decorators |
+| AU-2 | Event Logging | Structured audit events for auth/scan/admin actions | `internal/audit/` |
+| AU-3 | Content of Audit Records | User, timestamp, action, resource, outcome | `internal/audit/` |
+| AU-6 | Audit Record Review | Audit query API (`/api/v1/audit/events`) | `internal/audit/`, `api/openapi.yaml` |
+| AU-9 | Protection of Audit Information | Audit events stored append-only in PostgreSQL | `audit_events` table (`internal/db/migrations/`) |
+| AU-12 | Audit Record Generation | API routes generate audit events | `internal/server/`, `internal/audit/` |
 
 ### Configuration Management (CM)
 
 | Control | Title | OpenWatch Implementation | Evidence |
 |---------|-------|-------------------------|----------|
-| CM-2 | Baseline Configuration | Kensa YAML rules define expected configurations | Kensa rules (pip-installed, 338 YAML rules) |
-| CM-3 | Configuration Change Control | Alembic migration tracking, git version control | `backend/alembic/versions/` |
-| CM-6 | Configuration Settings | Environment variable validation via Pydantic | `backend/app/config.py` (Settings class) |
-| CM-8 | System Component Inventory | Host management with discovery and metadata | `backend/app/services/system_info/` |
+| CM-2 | Baseline Configuration | Kensa YAML rules define expected configurations | Kensa rules (338 native YAML rules) |
+| CM-3 | Configuration Change Control | SQL migration tracking, git version control | `internal/db/migrations/` (run via `openwatch migrate`) |
+| CM-6 | Configuration Settings | Configuration validation at startup | `internal/config/`, `openwatch check-config` |
+| CM-8 | System Component Inventory | Host management with discovery and metadata | `internal/host/`, `internal/intelligence/` |
 
 ### Identification and Authentication (IA)
 
 | Control | Title | OpenWatch Implementation | Evidence |
 |---------|-------|-------------------------|----------|
-| IA-2 | Identification and Authentication | JWT-based auth with username/password | `backend/app/routes/auth/login.py` |
-| IA-2(1) | MFA for Privileged Accounts | TOTP-based MFA with backup codes | `backend/app/routes/auth/mfa.py` |
-| IA-5 | Authenticator Management | Argon2id hashing (64MB, 3 iterations), 12-char minimum | `backend/app/services/auth/` |
-| IA-5(1) | Password-Based Authentication | Complexity requirements (upper, lower, digit, special) | `backend/app/config.py` (password policy) |
+| IA-2 | Identification and Authentication | Session cookie and JWT auth with username/password | `internal/auth/` |
+| IA-2(1) | MFA for Privileged Accounts | TOTP-based MFA with backup codes | `internal/auth/` |
+| IA-5 | Authenticator Management | Argon2id hashing (64MB, 3 iterations), 12-char minimum | `internal/users/` |
+| IA-5(1) | Password-Based Authentication | Complexity requirements (upper, lower, digit, special) | `internal/auth/` (password policy) |
 
 ### Risk Assessment (RA)
 
 | Control | Title | OpenWatch Implementation | Evidence |
 |---------|-------|-------------------------|----------|
-| RA-5 | Vulnerability Monitoring | Automated compliance scanning via Kensa | `backend/app/plugins/kensa/` |
-| RA-5(2) | Update Vulnerabilities | Kensa rule updates via plugin sync | `backend/app/plugins/kensa/sync_service.py` |
+| RA-5 | Vulnerability Monitoring | Automated compliance scanning via Kensa | `internal/kensa/` |
+| RA-5(2) | Update Vulnerabilities | Kensa rule updates via rule sync | `internal/kensa/` |
 
 ### System and Communications Protection (SC)
 
 | Control | Title | OpenWatch Implementation | Evidence |
 |---------|-------|-------------------------|----------|
-| SC-8 | Transmission Confidentiality | TLS 1.2/1.3 for all connections | `docker/frontend/nginx.conf` |
-| SC-8(1) | Cryptographic Protection | FIPS-approved cipher suites | `backend/app/config.py` (FIPS_TLS_CIPHERS) |
-| SC-10 | Network Disconnect | Configurable session timeout | Session timeout API |
-| SC-12 | Cryptographic Key Establishment | AES-256-GCM with environment-sourced keys | `backend/app/encryption/` |
-| SC-13 | Cryptographic Protection | FIPS 140-2 mode (RHEL 9 validated OpenSSL) | `OPENWATCH_FIPS_MODE` config |
-| SC-23 | Session Authenticity | JWT with RS256 (RSA-2048), HttpOnly cookies | Auth middleware |
-| SC-28 | Protection of Information at Rest | AES-256-GCM encryption for credentials | `backend/app/encryption/encryption_service.py` |
+| SC-8 | Transmission Confidentiality | TLS 1.2/1.3 for all connections | `internal/server/` (HTTPS listener) |
+| SC-8(1) | Cryptographic Protection | FIPS-approved cipher suites | `internal/config/` |
+| SC-10 | Network Disconnect | Configurable session timeout | `internal/systemconfig/` |
+| SC-12 | Cryptographic Key Establishment | AES-256-GCM with environment-sourced keys | `internal/secretkey/`, `internal/credential/` |
+| SC-13 | Cryptographic Protection | FIPS via OpenSSL 3.x FIPS provider | `internal/config/` |
+| SC-23 | Session Authenticity | Session cookie plus JWT, HttpOnly cookies | `internal/auth/` |
+| SC-28 | Protection of Information at Rest | AES-256-GCM encryption for credentials | `internal/credential/`, `internal/secretkey/` |
 
 ### System and Information Integrity (SI)
 
 | Control | Title | OpenWatch Implementation | Evidence |
 |---------|-------|-------------------------|----------|
-| SI-2 | Flaw Remediation | Python 3.12+ (security support through 2028-10) | `docker/Dockerfile.backend` |
-| SI-4 | System Monitoring | Prometheus metrics, Grafana dashboards, health checks | `monitoring/`, health endpoints |
-| SI-10 | Information Input Validation | Pydantic models at API boundary, SQL Builders | Schemas in `backend/app/schemas/` |
+| SI-2 | Flaw Remediation | Single Go binary built from a maintained Go toolchain | `go.mod`, native RPM/DEB packages |
+| SI-4 | System Monitoring | Health checks and fleet monitoring endpoints | `/api/v1/health`, `internal/liveness/` |
+| SI-10 | Information Input Validation | Request validation at the API boundary, parameterized SQL | `internal/server/`, `sqlc`-generated queries |
 
 ## CIS Controls v8 Mapping
 
@@ -101,9 +101,9 @@ This document maps OpenWatch's security controls to industry frameworks, providi
 | 9.1 | Email Security | SMTP TLS for notifications |
 | 10.1 | Anti-Malware | File upload validation, no executable uploads |
 | 13.1 | Network Monitoring | Health check endpoints, Prometheus metrics |
-| 16.1 | Application Security | Pydantic input validation, SQL Builders (no raw SQL) |
+| 16.1 | Application Security | Request validation at the API boundary, parameterized SQL (no raw SQL) |
 | 16.9 | Security Headers | CSP, X-Frame-Options, HSTS, X-Content-Type-Options |
-| 16.11 | Web Application Firewalls | Nginx rate limiting, request size limits |
+| 16.11 | Web Application Firewalls | Built-in rate limiting, request size limits |
 
 ## CMMC Level 2 Practice Mapping
 
@@ -146,20 +146,21 @@ To generate evidence for an audit:
 2. **Audit log evidence**: Use the Audit Query API to export logs for the audit period
 3. **Scan evidence**: Export compliance scan results showing configuration assessment
 4. **Encryption evidence**: Document FIPS mode configuration and cipher suite settings
-5. **Monitoring evidence**: Export Grafana dashboard screenshots and Prometheus alert history
+5. **Monitoring evidence**: Export fleet health and liveness data from the monitoring endpoints
+
+OpenWatch serves the REST API over HTTPS on port 8443. Authenticate with a session
+cookie obtained from `/api/v1/auth/login`, or with a Bearer token.
 
 ```bash
-# Export audit logs for a date range
-curl -X POST http://localhost:8000/api/compliance/audit/exports \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"format": "csv", "date_from": "2026-01-01", "date_to": "2026-02-17"}'
+# Query audit events for a date range
+curl "https://localhost:8443/api/v1/audit/events?date_from=2026-01-01&date_to=2026-02-17" \
+  -H "Authorization: Bearer $TOKEN" > audit_evidence.json
 
-# Export compliance posture
-curl http://localhost:8000/api/compliance/posture \
-  -H "Authorization: Bearer $TOKEN" > posture_evidence.json
-
-# List frameworks and rules
-curl http://localhost:8000/api/scans/kensa/frameworks \
-  -H "Authorization: Bearer $TOKEN" > frameworks_evidence.json
+# Export fleet compliance score
+curl https://localhost:8443/api/v1/fleet/score \
+  -H "Authorization: Bearer $TOKEN" > fleet_score_evidence.json
 ```
+
+> Note: dedicated compliance-posture and Kensa-framework export endpoints are pending
+> a Go-era rewrite. See `api/openapi.yaml` for the current endpoint surface and `specs/`
+> for the behavioral contracts.

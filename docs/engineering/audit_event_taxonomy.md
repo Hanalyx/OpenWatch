@@ -130,10 +130,10 @@ Every audit event has this shape. Only `detail` varies per event type.
 
 ## 4. Taxonomy registry
 
-The registry is the source of truth. Lives at `app/audit/events.yaml`. Format:
+The registry is the source of truth. Lives at `audit/events.yaml`. Format:
 
 ```yaml
-# app/audit/events.yaml
+# audit/events.yaml
 version: 1
 
 categories:
@@ -501,7 +501,7 @@ deprecated_events:
 
 ### 4.2 Adding a new event code
 
-PR adds a row to `app/audit/events.yaml`. The build verifies:
+PR adds a row to `audit/events.yaml`. The build verifies:
 
 - Code matches `^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*){1,2}$`
 - Category exists
@@ -544,7 +544,7 @@ audit.Emit(ctx, audit.AuthLoginSuccess, audit.Event{
 ```
 internal/audit/
 ├── types.go            # Event, Actor, Resource enums + Code type
-├── events.gen.go       # Generated from app/audit/events.yaml (Code constants + Meta)
+├── events.gen.go       # Generated from audit/events.yaml (Code constants + Meta)
 ├── emit.go             # Public Emit() + EmitSync() API
 ├── writer.go           # Async batched writer (channel + goroutine + flush ticker)
 ├── redact.go           # Redaction helpers
@@ -890,10 +890,10 @@ Stage 0 already includes audit events lightly:
 
 **Refined Stage 0 Day 5 deliverables:**
 
-- `app/audit/events.yaml` registered with the initial 70+ codes
+- `audit/events.yaml` registered with the initial 70+ codes
 - `internal/audit/events.gen.go` produced by codegen
 - `internal/audit/{emit,writer,redact}.go` implementations
-- `audit_events` table migration (`0003_audit_events.sql`)
+- `audit_events` table migration (`internal/db/migrations/0002_audit_events_taxonomy.sql`)
 - Async writer goroutine wired into server lifecycle (started on boot, drained on shutdown)
 - The Day 5 demo `:echo` endpoint emits `system.diagnostic_echo` event using the typed pattern
 
@@ -927,7 +927,7 @@ This adds roughly half a day to Day 5 vs the original Stage 0 plan. Net Stage 0 
 
 Stage 0 ships with audit foundation when:
 
-- [ ] `app/audit/events.yaml` exists with ~70 initial codes across 13 categories
+- [ ] `audit/events.yaml` exists with ~70 initial codes across 13 categories
 - [ ] `internal/audit/events.gen.go` produced by codegen
 - [ ] `internal/audit/` package complete per §5.1
 - [ ] `audit_events` table migration applied
@@ -942,7 +942,7 @@ Stage 0 ships with audit foundation when:
 - [ ] `GET /audit/events:taxonomy` returns the registry *(deferred to Phase 1)*
 - [ ] Per-resource sub-resource paths work (`/hosts/{id}/audit-events`) *(deferred to Phase 1)*
 - [ ] Emit benchmark: async <10µs, sync <500µs
-- [ ] Documentation: `app/docs/audit_event_taxonomy.md` referenced from CLAUDE.md / README
+- [ ] Documentation: `docs/engineering/audit_event_taxonomy.md` referenced from CLAUDE.md / README
 
 Once these are checked, every subsequent feature can emit audit events with a typed constant and trust the foundation.
 
