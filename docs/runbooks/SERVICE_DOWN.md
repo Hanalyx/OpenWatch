@@ -1,297 +1,378 @@
-# Runbook: Service Unavailable
-
-> **⚠️ Legacy (Python era) — do not follow this document.**
-> It describes the archived Python/FastAPI + Docker-Compose stack (PostgreSQL, Redis, Celery,
-> a separate frontend) that was removed from the repo on 2026-06-05. The current OpenWatch is a
-> single Go binary (API + UI) installed from a native RPM/DEB. See docs/engineering/ and specs/ (a Go-era rewrite is pending). This content
-> is kept for historical reference.
+# Runbook: service unavailable
 
 **Severity**: P1 - High
-**Last Updated**: 2026-02-17
-**Owner**: Platform Engineering
-**Estimated Resolution Time**: 5-30 minutes (typical)
+**Last updated**: 2026-06-10
+**Owner**: Platform engineering
+**Estimated resolution time**: 5-30 minutes (typical)
+
+This runbook covers OpenWatch being unreachable or returning errors when it runs
+as a native package: a single Go binary, `/usr/bin/openwatch`, managed by systemd
+as the `openwatch.service` unit. That one binary serves the REST API and the
+embedded React UI over HTTPS on port `8443`. There is no container runtime, no
+separate web tier, no Redis, and no Celery. The most common failure modes are the
+service being stopped or crash-looping, a TLS or config error that prevents
+startup, or PostgreSQL being unreachable.
+
+For install and configuration layout, see
+[`docs/engineering/install_guide.md`](../engineering/install_guide.md).
+
+---
+
+## Architecture at a glance
+
+| Component | What it is | How it runs |
+|-----------|------------|-------------|
+| API + UI server | `openwatch serve` — HTTPS on `8443`, REST under `/api/v1`, embedded SPA | systemd unit `openwatch.service` (`ExecStart=/usr/bin/openwatch serve --config /etc/openwatch/openwatch.toml`) |
+| Scan worker | `openwatch worker` — drains the PostgreSQL job queue and runs Kensa scans | Separate process; not shipped as a packaged unit (see "Scan worker" below) |
+| Database | PostgreSQL | Separate service (`postgresql.service`); the unit declares `After=`/`Wants=postgresql.service` |
+
+The `serve` process also runs in-process schedulers (host liveness, OS
+intelligence, discovery) and an alert router. Scan jobs, by contrast, are
+executed by a separate `openwatch worker` process. Both processes read the same
+config and the same database; neither uses a message broker.
+
+Configuration lives under `/etc/openwatch`:
+
+| Path | Contents |
+|------|----------|
+| `/etc/openwatch/openwatch.toml` | Main config (`[server] listen`, `tls_cert`, `tls_key`, `[database] dsn`, `[logging]`) |
+| `/etc/openwatch/secrets.env` | `OPENWATCH_DATABASE_DSN` and other secret env overrides; read by the unit via `EnvironmentFile=` |
+| `/etc/openwatch/tls/` | `cert.pem` / `key.pem` for the HTTPS listener |
 
 ---
 
 ## Symptoms
 
-- Docker health check reports container as `unhealthy` or `exited`.
-- Users report HTTP 502/503 errors or connection timeouts.
-- Monitoring alerts fire (`ServiceDown` or `secureops_service_up == 0`).
-- Prometheus target page (http://localhost:9090/targets) shows `openwatch-backend` as DOWN.
-- The `/health` endpoint returns `503 Service Unavailable` or does not respond.
+- The UI at `https://<host>:8443/` does not load or times out.
+- The health probe fails or returns `503`:
+  `curl -sk https://localhost:8443/api/v1/health`.
+- `systemctl status openwatch` shows `failed`, `activating (auto-restart)`, or
+  `inactive (dead)`.
+- `journalctl -u openwatch` shows a fatal boot error (config invalid, TLS key
+  missing, JWT key missing, or DB pool open failure).
+- Logins fail or writes error while the process is up — usually PostgreSQL is
+  unreachable; the health response reports `db_connected: false`.
+
+The health endpoint is anonymous and returns a small JSON body. A healthy
+response is HTTP `200` with `{"status":"healthy","db_connected":true,"version":"..."}`.
+A degraded response is HTTP `503`. The fields are `status`, `db_connected`, and
+`version` only (defined in `api/openapi.yaml`, `HealthResponse`). There is no
+`redis` field — earlier Python-era runbooks that reference one are obsolete.
 
 ---
 
 ## Diagnosis
 
-### Step 1: Check container status
+### Step 1: Check the service state
 
 ```bash
-docker ps -a --filter "name=openwatch-"
+systemctl status openwatch
 ```
 
-Look for containers with status `Exited`, `Restarting`, or health status `unhealthy`. All six containers should be running:
+Note the active state and the most recent log lines. `Restart=on-failure` with
+`RestartSec=5s` means a crashing binary appears as `activating (auto-restart)`
+and cycles every five seconds.
 
-| Container | Expected Status |
-|-----------|----------------|
-| openwatch-backend | Up (healthy) |
-| openwatch-worker | Up (healthy) |
-| openwatch-celery-beat | Up |
-| openwatch-frontend | Up (healthy) |
-| openwatch-db | Up (healthy) |
-| openwatch-redis | Up (healthy) |
-
-### Step 2: Check health endpoint
+### Step 2: Check the health probe
 
 ```bash
-curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/health
+curl -sk https://localhost:8443/api/v1/health
 ```
 
-Expected: `200`. If the endpoint responds with `503`, the response body indicates which dependency is degraded:
+| Result | Likely cause |
+|--------|--------------|
+| HTTP `200`, `db_connected: true` | Server is up; the problem is upstream (TLS trust, reverse proxy, network, DNS) |
+| HTTP `503`, `db_connected: false` | Server is up but PostgreSQL is unreachable (see path B) |
+| Connection refused / no response | Process is not listening — it failed to start or crashed (see path A) |
+| TLS error | TLS cert/key problem (see path C) |
+
+The `-k` flag skips certificate verification so the probe works with the
+self-signed certificate the package ships by default.
+
+### Step 3: Read the logs
+
+OpenWatch logs structured JSON to stdout/stderr, which systemd routes to the
+journal (`StandardOutput=journal`, `StandardError=journal`).
 
 ```bash
-curl -s http://localhost:8000/health | python3 -m json.tool
+journalctl -u openwatch -n 200 --no-pager
 ```
 
-Example degraded response:
+Look for the fatal startup messages emitted by `cmd/openwatch/main.go` before the
+process exits non-zero:
 
-```json
-{
-  "status": "degraded",
-  "database": "unhealthy",
-  "redis": "healthy"
-}
-```
+| Log message | Meaning | Path |
+|-------------|---------|------|
+| `serve: invalid config` | Config failed validation | C |
+| `failed to open db pool` | Cannot reach or authenticate to PostgreSQL | B |
+| `identity.jwt_private_key is empty` / `load jwt key failed` | JWT signing key missing or unreadable | C |
+| `identity.credential_key_file is empty` / `load credential key failed` | Credential encryption key missing or unreadable | C |
+| TLS listen / certificate errors | Cert/key missing or unreadable | C |
 
-### Step 3: Check container logs
+### Step 4: Validate the resolved config
+
+`check-config` loads the same config layers the service uses (defaults → TOML →
+env → flags), prints the resolved values with secrets redacted, and validates
+them. Exit `0` means valid.
 
 ```bash
-# Backend application logs
-docker logs openwatch-backend --tail 200
-
-# Celery worker logs
-docker logs openwatch-worker --tail 200
-
-# Frontend logs
-docker logs openwatch-frontend --tail 100
+sudo -u openwatch /usr/bin/openwatch check-config --config /etc/openwatch/openwatch.toml
 ```
 
-Look for:
-- `ConnectionRefusedError` -- dependency service is down.
-- `OperationalError` -- database connection problem.
-- `OSError: [Errno 28] No space left on device` -- disk full.
-- `MemoryError` or `Killed` -- OOM kill.
-
-### Step 4: Check resource usage
+### Step 5: Confirm PostgreSQL is reachable
 
 ```bash
-docker stats --no-stream --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.MemPerc}}"
+systemctl status postgresql
+psql -U openwatch -d openwatch -c "SELECT 1;"
 ```
 
-Note any container using more than 90% of its memory limit.
-
-### Step 5: Check for OOM kills
-
-```bash
-dmesg | grep -i "oom\|killed process" | tail -20
-```
-
-Also check Docker's internal OOM tracking:
-
-```bash
-docker inspect openwatch-backend --format='{{.State.OOMKilled}}'
-docker inspect openwatch-worker --format='{{.State.OOMKilled}}'
-```
+Adjust the user, database, and host to match `OPENWATCH_DATABASE_DSN` in
+`/etc/openwatch/secrets.env`.
 
 ---
 
 ## Resolution
 
-### Path A: Container crashed or exited
+### Path A: Process is down or crash-looping
 
-If a container has exited:
-
-```bash
-# Check exit code
-docker inspect openwatch-backend --format='{{.State.ExitCode}}'
-```
-
-| Exit Code | Meaning | Action |
-|-----------|---------|--------|
-| 0 | Clean shutdown | Restart the container |
-| 1 | Application error | Check logs, fix, restart |
-| 137 | SIGKILL (OOM) | Increase memory limit, then restart |
-| 139 | SIGSEGV | Check logs for crash details, rebuild |
-
-Restart the failed container:
+If the process is not listening, first read why it last exited:
 
 ```bash
-docker restart openwatch-backend
+systemctl status openwatch
+journalctl -u openwatch -n 100 --no-pager
 ```
 
-If OOM killed, check memory and consider increasing limits before restarting:
+If it exited cleanly (operator stop, host reboot), start it:
 
 ```bash
-# View current memory limit
-docker inspect openwatch-backend --format='{{.HostConfig.Memory}}'
+sudo systemctl start openwatch
 ```
 
-### Path B: Database connection failure
-
-If the health endpoint reports `database: unhealthy`:
+If it is crash-looping, do not just restart it — it will fail again. Identify the
+fatal log line from Step 3 and follow the matching path (B for database, C for
+config/keys/TLS). After fixing the root cause:
 
 ```bash
-# Check PostgreSQL container
-docker ps -a --filter "name=openwatch-db"
-
-# Test PostgreSQL connectivity
-docker exec openwatch-db pg_isready -U openwatch -d openwatch
-
-# Check PostgreSQL logs
-docker logs openwatch-db --tail 100
+sudo systemctl restart openwatch
 ```
 
-If PostgreSQL is down, restart it:
+### Path B: PostgreSQL unreachable
+
+The binary opens its connection pool at startup and exits non-zero if it cannot
+(`failed to open db pool`). A running process that loses the database serves
+`503` with `db_connected: false`.
 
 ```bash
-docker restart openwatch-db
+# Is PostgreSQL running?
+systemctl status postgresql
+
+# Can you connect with the service's credentials?
+psql -U openwatch -d openwatch -c "SELECT 1;"
 ```
 
-Wait 10 seconds for it to become healthy, then restart the backend:
+If PostgreSQL is down, start it, then restart OpenWatch:
 
 ```bash
-sleep 10
-docker restart openwatch-backend
-docker restart openwatch-worker
+sudo systemctl start postgresql
+sudo systemctl restart openwatch
 ```
 
-### Path C: Redis connection failure
-
-If the health endpoint reports `redis: unhealthy`:
+If PostgreSQL is up but OpenWatch still cannot connect, the DSN is wrong or
+credentials/`pg_hba.conf` reject the service. Check the DSN the service actually
+uses (`OPENWATCH_DATABASE_DSN` overrides the TOML `dsn`):
 
 ```bash
-# Check Redis container
-docker ps -a --filter "name=openwatch-redis"
-
-# Test Redis connectivity (password required)
-docker exec openwatch-redis redis-cli -a "${REDIS_PASSWORD}" ping
+sudo -u openwatch /usr/bin/openwatch check-config --config /etc/openwatch/openwatch.toml
 ```
 
-Expected response: `PONG`. If Redis is unresponsive:
+The summary prints the DSN with the password redacted; confirm host, port,
+database name, user, and `sslmode` match your PostgreSQL setup.
+
+### Path C: Config, key, or TLS startup failure
+
+These all cause `serve` to exit non-zero during boot.
+
+- **Invalid config**: run `check-config` (Step 4) and fix the reported field in
+  `/etc/openwatch/openwatch.toml` or the corresponding `OPENWATCH_<SECTION>_<KEY>`
+  env override.
+- **Missing TLS cert/key**: confirm `tls_cert` and `tls_key`
+  (`/etc/openwatch/tls/cert.pem` and `key.pem` by default) exist and are readable
+  by the `openwatch` user.
+
+  ```bash
+  sudo ls -l /etc/openwatch/tls/
+  ```
+
+- **Missing JWT or credential key**: the log names the missing key and the env
+  var that sets it (`OPENWATCH_IDENTITY_JWT_PRIVATE_KEY` /
+  `OPENWATCH_IDENTITY_CREDENTIAL_KEY_FILE`). Confirm the configured path exists
+  and is readable. See [`docs/engineering/install_guide.md`](../engineering/install_guide.md)
+  for how these keys are provisioned.
+
+After correcting the file:
 
 ```bash
-docker restart openwatch-redis
-sleep 5
-docker restart openwatch-backend
-docker restart openwatch-worker
-docker restart openwatch-celery-beat
+sudo systemctl restart openwatch
 ```
 
-### Path D: Disk full
+### Path D: Schema mismatch after an upgrade
 
-If logs show `No space left on device`:
+If the binary was upgraded but migrations were not applied, the server can start
+but error on queries. Apply pending migrations (idempotent), then restart:
 
 ```bash
-df -h
-docker system df
+sudo -u openwatch /usr/bin/openwatch migrate --config /etc/openwatch/openwatch.toml
+sudo systemctl restart openwatch
 ```
 
-See the [DISK_FULL.md](DISK_FULL.md) runbook for detailed cleanup steps.
+### Path E: Disk full
 
-### Path E: Dependency service (upstream) down
+A full disk surfaces as PostgreSQL write failures and a failing health probe.
+See [`DISK_FULL.md`](DISK_FULL.md).
 
-If the backend cannot reach an external service it depends on (such as a target host for scanning), check network connectivity:
+### Path F: Resource exhaustion (OOM)
+
+If the kernel killed the process, the journal shows a restart with no clean
+shutdown line. Check for an OOM kill:
 
 ```bash
-# Check Docker network
-docker network inspect openwatch-network
-
-# Verify all expected containers are on the network
-docker network inspect openwatch-network --format='{{range .Containers}}{{.Name}} {{end}}'
+journalctl -k | grep -i "out of memory\|killed process" | tail -20
 ```
 
-If a container dropped off the network, reconnect it:
-
-```bash
-docker network connect openwatch_openwatch-network openwatch-backend
-```
+If OpenWatch was the target, investigate memory pressure on the host (other
+processes, PostgreSQL `shared_buffers`/`work_mem` sizing) before relying on the
+systemd auto-restart. See [`HIGH_CPU.md`](HIGH_CPU.md) for load-related triage.
 
 ---
 
-## Recovery Verification
+## Scan worker
 
-After applying a fix, verify recovery with these steps:
+Scans run in a separate `openwatch worker` process that claims jobs from the
+PostgreSQL job queue (`SKIP LOCKED`) and runs Kensa checks. The `serve` process
+does not execute scan jobs, so the API and UI can be perfectly healthy while
+scans pile up because no worker is running.
 
-### 1. Health endpoint returns 200
-
-```bash
-curl -s http://localhost:8000/health | python3 -m json.tool
-```
-
-Confirm `"status": "healthy"`, `"database": "healthy"`, and `"redis": "healthy"`.
-
-### 2. All containers are healthy
+The package does not ship a systemd unit for the worker today (only
+`openwatch.service`, which runs `serve`). If your deployment runs a worker
+(through your own unit, a supervisor, or manually), check and restart it
+independently:
 
 ```bash
-docker ps --filter "name=openwatch-" --format "table {{.Names}}\t{{.Status}}"
+# If you manage the worker with your own systemd unit, e.g. openwatch-worker:
+systemctl status openwatch-worker
+journalctl -u openwatch-worker -n 100 --no-pager
 ```
 
-All containers should show `Up` with `(healthy)` where applicable.
-
-### 3. No error logs in the last 5 minutes
+Symptoms of a stalled worker: queued scans never complete and `job_queue` rows
+accumulate. Inspect the queue directly:
 
 ```bash
-docker logs openwatch-backend --since 5m 2>&1 | grep -i "error\|exception\|traceback"
+psql -U openwatch -d openwatch -c "
+SELECT job_type, status, count(*)
+FROM job_queue
+GROUP BY job_type, status
+ORDER BY job_type, status;"
 ```
 
-This should return no results or only non-critical warnings.
+The worker is HTTP-free and has no health endpoint of its own; rely on its
+journal output and the queue depth above.
 
-### 4. Frontend is accessible
+---
+
+## Recovery verification
+
+### 1. The service is active
 
 ```bash
-curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/
+systemctl status openwatch
 ```
 
-Expected: `200`.
+Expect `active (running)`.
 
-### 5. Celery worker is processing tasks
+### 2. The health probe is green
 
 ```bash
-docker exec openwatch-backend python3 -m celery -A app.celery_app inspect ping
+curl -sk https://localhost:8443/api/v1/health
 ```
 
-Expected: a response from the worker showing `{"ok": "pong"}`.
+Expect HTTP `200` and `{"status":"healthy","db_connected":true,"version":"..."}`.
+
+### 3. The UI loads
+
+```bash
+curl -sk -o /dev/null -w "%{http_code}\n" https://localhost:8443/
+```
+
+Expect `200`. The embedded SPA is served by the same process.
+
+### 4. No fatal errors in the recent log
+
+```bash
+journalctl -u openwatch --since "5 minutes ago" | grep -iE "error|fatal" || echo "clean"
+```
+
+### 5. Migrations are current
+
+```bash
+sudo -u openwatch /usr/bin/openwatch migrate --config /etc/openwatch/openwatch.toml
+```
+
+This prints the current schema version and applies nothing if already up to date.
 
 ---
 
 ## Escalation
 
-Escalate if any of the following conditions are met:
+Escalate if any of the following are true:
 
-- The service remains unavailable after 15 minutes of troubleshooting.
-- The root cause is unclear after checking logs and container status.
-- Data corruption is suspected (e.g., PostgreSQL reports WAL corruption).
-- Multiple containers are crash-looping simultaneously.
-- The issue recurs within 1 hour of initial recovery.
+- The service remains down after 15 minutes of troubleshooting.
+- The root cause is unclear after reading the journal and validating config.
+- PostgreSQL reports data corruption (for example WAL corruption).
+- The process crash-loops with no actionable fatal log line.
+- The issue recurs within an hour of recovery.
 
-**Escalation contacts**: Platform Engineering lead, then Infrastructure team.
+Include when escalating:
 
-**Information to include when escalating**:
-- Which containers are affected and their exit codes.
-- Output of `docker ps -a --filter "name=openwatch-"`.
-- Last 200 lines of logs from affected containers.
-- Output of `docker stats --no-stream`.
-- Output of `dmesg | grep -i oom | tail -20`.
-- Time the issue was first observed.
+- Output of `systemctl status openwatch` and the last 200 journal lines.
+- Output of `curl -sk https://localhost:8443/api/v1/health`.
+- Output of `openwatch check-config` (secrets are redacted).
+- PostgreSQL state (`systemctl status postgresql`, `psql ... "SELECT 1;"`).
+- The time the issue was first observed and any preceding change (upgrade,
+  config edit, host reboot).
 
 ---
 
 ## Prevention
 
-- **Monitoring**: Ensure Prometheus is scraping the `/health` endpoint and `ServiceDown` alert rules are configured in `monitoring/config/alerts/`.
-- **Resource limits**: Set memory limits on all containers in `docker-compose.yml` to prevent a single container from consuming all host memory.
-- **Log rotation**: Configure the Docker json-file logging driver with `max-size` and `max-file` to prevent log files from filling the disk.
-- **Health check tuning**: Review health check intervals and retries in `docker-compose.yml`. The backend health check (`curl -f http://localhost:8000/health`) runs every 30 seconds with 3 retries.
-- **Restart policies**: All containers use `restart: unless-stopped`. Verify this is configured correctly.
-- **Dependency ordering**: The backend depends on `database` and `redis` with `condition: service_healthy`. Verify these dependency conditions remain in place.
+- **Let systemd restart the service**: the unit ships `Restart=on-failure` with
+  `RestartSec=5s`. Keep these in place so transient failures self-heal.
+- **Validate before restart**: run `openwatch check-config` after any edit to
+  `/etc/openwatch/openwatch.toml` or `secrets.env` to catch a bad value before it
+  takes the service down.
+- **Monitor the health probe**: poll `GET /api/v1/health` from your existing host
+  monitoring and alert on a non-`200` status or `db_connected: false`.
+- **Order startup correctly**: the unit declares `After=`/`Wants=postgresql.service`
+  so PostgreSQL starts first on the same host. For an external database, ensure
+  network reachability before OpenWatch starts.
+- **Bound the journal**: OpenWatch logs to the journal; cap it with
+  `SystemMaxUse=` in `/etc/systemd/journald.conf` so logs never fill the disk
+  (see [`DISK_FULL.md`](DISK_FULL.md)).
+
+---
+
+## Not yet implemented
+
+OpenWatch is currently `0.2.0-rc.5`, a pre-release. The following do not exist in
+the current code and must not be relied on in this runbook:
+
+- **A packaged systemd unit for the scan worker.** Only `openwatch.service`
+  (running `serve`) ships today. Running `openwatch worker` under systemd is the
+  operator's responsibility.
+- **A Prometheus or metrics endpoint.** The only built-in HTTP probe is
+  `GET /api/v1/health`, which reports liveness and database connectivity, not
+  metrics. Use host-level monitoring for CPU, memory, and disk.
+- **Separate `/livez` / `/readyz` probes.** Liveness and readiness are combined in
+  the single `GET /api/v1/health` endpoint (`api/openapi.yaml`).
+- **A backup/restore subcommand.** Use standard PostgreSQL tooling
+  (`pg_dump` / `pg_basebackup`). The CLI subcommands are `serve`, `worker`,
+  `migrate`, `create-admin`, and `check-config` (`cmd/openwatch/main.go`).

@@ -1,941 +1,526 @@
-# OpenWatch Security Hardening Guide
+# OpenWatch security hardening guide
 
-> **⚠️ Legacy (Python era) — do not follow this document.**
-> It describes the archived Python/FastAPI + Docker-Compose stack (PostgreSQL, Redis, Celery,
-> a separate frontend) that was removed from the repo on 2026-06-05. The current OpenWatch is a
-> single Go binary (API + UI) installed from a native RPM/DEB. See docs/engineering/ and specs/
-> (a Go-era rewrite is pending). This content is kept for historical reference.
+**Applies to:** OpenWatch 0.2.0-rc.5 (Go single-binary build; pre-release)
+**Audience:** System administrators, security engineers, compliance officers
 
-**Last Updated**: 2026-02-17
-**Applies To**: OpenWatch v1.9.0+
-**Audience**: System Administrators, Security Engineers, Compliance Officers
+This guide covers the security controls you operate when you deploy OpenWatch
+as a native package: one Go binary (`/usr/bin/openwatch`) that serves the REST
+API and the embedded React UI over HTTPS on port 8443, backed by PostgreSQL and
+managed by `systemd`. It documents what the current build enforces, what you
+configure at the host level, and what is not yet implemented.
 
----
+For installation, database provisioning, the admin bootstrap, and TLS-cert
+replacement, follow [`docs/engineering/install_guide.md`](../engineering/install_guide.md).
+This guide does not repeat those steps; it focuses on hardening the result.
 
-## Table of Contents
-
-1. [Overview](#1-overview)
-2. [Network Security](#2-network-security)
-3. [TLS Configuration](#3-tls-configuration)
-4. [Security Headers](#4-security-headers)
-5. [Authentication Hardening](#5-authentication-hardening)
-6. [Role-Based Access Control (RBAC)](#6-role-based-access-control-rbac)
-7. [Rate Limiting](#7-rate-limiting)
-8. [Audit Logging](#8-audit-logging)
-9. [Secret Management](#9-secret-management)
-10. [FIPS 140-2 Compliance](#10-fips-140-2-compliance)
-11. [Container Security](#11-container-security)
-12. [Input Validation](#12-input-validation)
-13. [Production Security Checklist](#13-production-security-checklist)
+Verify any claim here against the source before you rely on it. The grounding
+files are cited in each section.
 
 ---
 
-## 1. Overview
+## 1. Architecture and trust boundaries
 
-OpenWatch is built with a security-first architecture. Every layer of the platform -- from container images to API endpoints -- is designed to meet the security requirements of regulated environments. The platform follows defense-in-depth principles, applying multiple overlapping security controls so that the failure of any single control does not compromise the system.
+OpenWatch is a single process. There is no separate web tier, container runtime,
+cache, or message broker. Background work (scans, discovery, intelligence
+cycles) runs either in-process or under `openwatch worker`, draining a
+PostgreSQL-native job queue with `SELECT ... FOR UPDATE SKIP LOCKED`.
 
-### Design Principles
+| Component | What it is | Exposure |
+|-----------|------------|----------|
+| `openwatch serve` | HTTPS API + embedded UI | TCP/8443 inbound |
+| PostgreSQL | All persistent state | You provision and bind it (loopback by default) |
+| Kensa (in-process, Go) | SSH-based compliance engine | TCP/22 outbound to managed hosts |
 
-- **Defense-in-Depth**: Security controls are layered at the network, transport, application, and data levels. No single control is solely responsible for protecting a resource.
-- **Principle of Least Privilege**: Containers run as non-root users, RBAC restricts API access to the minimum required role, and database credentials are scoped to the OpenWatch application.
-- **Secure by Default**: FIPS mode is enabled in production container images, HTTPS is required, and all secrets must be provided via environment variables.
-- **Zero Trust**: Every API request is authenticated and authorized. Internal service communication occurs over an isolated Docker network.
+Source: `cmd/openwatch/main.go`, `packaging/common/openwatch.service`,
+`internal/server/server.go`.
 
-### Compliance Targets
-
-OpenWatch aligns its security controls with the following frameworks:
-
-| Framework | Scope | Key Controls |
-|-----------|-------|--------------|
-| **FedRAMP Moderate** | Federal cloud authorization | NIST SP 800-53 Moderate baseline, FIPS 140-2 cryptography, continuous monitoring |
-| **CMMC Level 2** | DoD contractor cybersecurity | 110 practices from NIST SP 800-171 |
-| **NIST SP 800-53 Rev 5** | Federal information systems | AC (Access Control), AU (Audit), IA (Authentication), SC (System/Communications), SI (System Integrity) |
-| **ISO 27001:2022** | Information security management | A.8 (Asset Management), A.9 (Access Control), A.10 (Cryptography), A.12 (Operations Security) |
-| **OWASP Top 10 (2021)** | Web application security | All 10 categories addressed in application code |
-| **NIST SP 800-218 (SSDF)** | Secure development lifecycle | Automated security testing, code review, vulnerability management |
-
-### Reference Files
-
-| File | Purpose |
-|------|---------|
-| `backend/app/config.py` | Application settings, FIPS ciphers, security headers |
-| `docker/frontend/nginx.conf` | Nginx TLS and header configuration |
-| `context/SECURITY_BEST_PRACTICES.md` | Cryptography, JWT, rate limiting patterns |
-| `context/SECURITY_STANDARDS_COMPLIANCE.md` | Framework control mappings |
-| `docker-compose.yml` | Network isolation, container configuration |
-| `docker/Dockerfile.backend` | Backend container security |
-| `docker/Dockerfile.frontend` | Frontend container security |
-| `.pre-commit-config.yaml` | Secret scanning, security linting |
+The compliance engine is Kensa, which connects to managed hosts over SSH and
+runs native YAML checks. OpenSCAP, `oscap`, XCCDF, and OVAL are not used and
+never have been in this build. See
+[`docs/KENSA_OPENWATCH_BOUNDARY.md`](../KENSA_OPENWATCH_BOUNDARY.md).
 
 ---
 
-## 2. Network Security
+## 2. Network exposure
 
-OpenWatch uses Docker network isolation to restrict communication between services. All containers are attached to a dedicated bridge network, and only the ports required for external access are exposed to the host.
+The binary listens on `0.0.0.0:8443` by default (`[server].listen`, override
+with `OPENWATCH_SERVER_LISTEN`). It opens no other listening socket.
 
-### Docker Network Isolation
+Source: `internal/config/config.go` (`Defaults()`), `cmd/openwatch/main.go`.
 
-The `docker-compose.yml` defines an isolated bridge network with a dedicated subnet:
+Hardening steps you perform at the host level:
 
-```yaml
-networks:
-  openwatch-network:
-    driver: bridge
-    ipam:
-      config:
-        - subnet: 172.20.0.0/16
-```
+- Restrict inbound TCP/8443 to operator networks with `firewalld`, `nftables`,
+  or `ufw`. OpenWatch does not implement IP allowlisting itself.
+- Bind PostgreSQL to the loopback interface and require `scram-sha-256` from
+  `127.0.0.1`/`::1`, as the install guide's Step 2 sets up. The package does
+  not manage PostgreSQL for you.
+- Allow only the outbound TCP/22 that Kensa needs to reach managed hosts.
+- The `systemd` unit sets `RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX`,
+  so the process cannot open raw or exotic sockets even if compromised.
 
-All OpenWatch services (database, redis, backend, worker, celery-beat, frontend) communicate exclusively over this internal network. Containers resolve each other by service name (e.g., `database`, `redis`), and traffic between them never traverses the host network stack.
-
-### Port Exposure
-
-Only the minimum required ports are exposed to the host:
-
-| Service | Internal Port | Host Binding | Purpose |
-|---------|---------------|--------------|---------|
-| PostgreSQL | 5432 | `127.0.0.1:5432` | Database (localhost only) |
-| Backend API | 8000 | `0.0.0.0:8000` | FastAPI application |
-| Frontend | 80/443 | `0.0.0.0:3000` | Nginx reverse proxy |
-| Redis | 6379 | Not exposed | Internal only |
-| Celery Worker | N/A | Not exposed | Internal only |
-| Celery Beat | N/A | Not exposed | Internal only |
-
-### PostgreSQL Binding
-
-PostgreSQL is bound exclusively to the loopback interface, preventing direct access from external networks:
-
-```yaml
-database:
-  image: postgres:15.14-alpine
-  ports:
-    - "127.0.0.1:5432:5432"
-```
-
-This means only processes on the Docker host itself (or containers on the `openwatch-network`) can reach the database. Remote database access from outside the host is blocked.
-
-### Hardening Recommendations
-
-- In production, remove the PostgreSQL port mapping entirely. The backend connects via the internal Docker network (`database:5432`), so the host binding is only needed for local debugging.
-- If Redis must be accessible outside the container network, bind it to `127.0.0.1` like PostgreSQL.
-- Use firewall rules (iptables/nftables) on the host to restrict access to exposed ports (8000, 3000) to authorized networks only.
+Source: `packaging/common/openwatch.service`,
+`docs/engineering/install_guide.md` (Step 2).
 
 ---
 
-## 3. TLS Configuration
+## 3. Transport security (TLS)
 
-OpenWatch enforces TLS for all external communication. The Nginx frontend proxy handles TLS termination with a configuration that restricts protocol versions and cipher suites to those approved for federal use.
+The HTTPS server is configured with:
 
-### Nginx SSL Settings
+| Setting | Value | Source |
+|---------|-------|--------|
+| Minimum TLS version | TLS 1.2 | `internal/server/server.go` (`tls.Config{MinVersion: tls.VersionTLS12}`) |
+| Cipher suites | Go standard-library defaults (not pinned) | `internal/server/server.go` |
+| Certificate loading | `GetCertificate` callback, read per handshake | `internal/server/server.go`, `internal/server/tls.go` |
+| Cert / key paths | `/etc/openwatch/tls/cert.pem`, `/etc/openwatch/tls/key.pem` | `internal/config/config.go` |
 
-From `docker/frontend/nginx.conf`:
+Because the cert is read on every handshake, you can replace the files and new
+connections pick up the new cert without a restart; restart anyway to drop
+existing keep-alive connections.
 
-```nginx
-# SSL configuration
-ssl_protocols TLSv1.2 TLSv1.3;
-ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384;
-ssl_prefer_server_ciphers on;
-ssl_session_cache shared:SSL:10m;
-ssl_session_timeout 10m;
-ssl_session_tickets off;
-ssl_stapling on;
-ssl_stapling_verify on;
-```
+The package ships a self-signed cert. Replace it with a CA-issued cert before
+any non-loopback use, following the "Replace the demo TLS cert" section of the
+install guide. Set the key file to mode `0600`, owned `openwatch:openwatch`.
 
-Key points:
+> The build does not pin an explicit cipher-suite list, so TLS 1.2 negotiation
+> follows the Go runtime's secure defaults for the toolchain it was built with.
+> If your accreditation requires a documented, pinned cipher list, raise it as a
+> requirement; it is not configurable today.
 
-- **TLSv1.2 and TLSv1.3 only**: TLS 1.0 and 1.1 are disabled. These older protocols have known vulnerabilities and are prohibited by NIST SP 800-52 Rev 2.
-- **Server cipher preference**: The server selects the cipher suite, not the client. This prevents downgrade attacks where a client negotiates a weaker cipher.
-- **Session tickets disabled**: `ssl_session_tickets off` prevents session ticket key compromise from enabling retrospective decryption of past sessions.
-- **OCSP stapling enabled**: The server fetches and caches OCSP responses, reducing client-side latency and preventing OCSP responder tracking of client connections.
-- **Nginx version hidden**: `server_tokens off` suppresses the Nginx version in HTTP response headers and error pages.
-
-### FIPS-Approved Cipher Suites
-
-The backend defines FIPS-approved cipher suites in `backend/app/config.py` for use in application-level TLS (database connections, Redis, outbound API calls):
-
-```python
-FIPS_TLS_CIPHERS = [
-    "TLS_AES_256_GCM_SHA384",
-    "TLS_AES_128_GCM_SHA256",
-    "ECDHE-RSA-AES256-GCM-SHA384",
-    "ECDHE-RSA-AES128-GCM-SHA256",
-    "DHE-RSA-AES256-GCM-SHA384",
-    "DHE-RSA-AES128-GCM-SHA256",
-]
-```
-
-All listed ciphers use AES-GCM authenticated encryption with SHA-256 or SHA-384 for message authentication. These ciphers are approved under NIST SP 800-52 Rev 2 and FIPS 140-2.
-
-### Certificate Setup
-
-TLS certificates and private keys are stored in the `security/` directory and mounted into containers as read-only volumes:
-
-```yaml
-# docker-compose.yml
-backend:
-  volumes:
-    - ./security/certs:/openwatch/security/certs:ro
-    - ./security/keys:/openwatch/security/keys
-
-frontend:
-  volumes:
-    - ./security/certs/frontend.crt:/etc/ssl/certs/frontend.crt:ro
-    - ./security/keys/frontend.key:/etc/ssl/private/frontend.key:ro
-```
-
-| Path | Contents | Permissions |
-|------|----------|-------------|
-| `security/certs/` | TLS certificates (public) | Read-only mount (`:ro`) |
-| `security/keys/` | Private keys | `700` (owner only, set in Dockerfile) |
-| `security/certs/frontend.crt` | Frontend TLS certificate | Read-only mount |
-| `security/keys/frontend.key` | Frontend TLS private key | Read-only mount |
-
-### Database SSL
-
-The backend supports SSL connections to PostgreSQL:
-
-```python
-# backend/app/config.py
-database_ssl_mode: str = "require"
-database_ssl_cert: Optional[str] = None
-database_ssl_key: Optional[str] = None
-database_ssl_ca: Optional[str] = None
-```
-
-In production, set `database_ssl_mode` to `verify-full` and provide the CA certificate to prevent man-in-the-middle attacks on the database connection.
-
-### Redis SSL
-
-Redis SSL is supported but disabled by default for Docker development:
-
-```python
-# backend/app/config.py
-redis_ssl: bool = False
-redis_ssl_cert: Optional[str] = None
-redis_ssl_key: Optional[str] = None
-redis_ssl_ca: Optional[str] = None
-```
-
-Enable Redis SSL in production by setting `OPENWATCH_REDIS_SSL=true` and providing the certificate paths.
+Source: `internal/server/server.go`, `internal/server/tls.go`,
+`docs/engineering/install_guide.md`.
 
 ---
 
-## 4. Security Headers
-
-OpenWatch applies security headers at two layers: the Nginx reverse proxy (frontend) and the FastAPI middleware (backend API). This provides defense-in-depth -- even if one layer is bypassed, the other still enforces header policies.
-
-### Nginx Security Headers
-
-From `docker/frontend/nginx.conf`:
-
-```nginx
-add_header X-Frame-Options "SAMEORIGIN" always;
-add_header X-Content-Type-Options "nosniff" always;
-add_header X-XSS-Protection "1; mode=block" always;
-add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self'; connect-src 'self' https://localhost:8000; frame-ancestors 'none';" always;
-add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
-add_header Permissions-Policy "geolocation=(), microphone=(), camera=()" always;
-```
-
-### Backend Security Headers
-
-From `backend/app/config.py`:
-
-```python
-SECURITY_HEADERS = {
-    "X-Content-Type-Options": "nosniff",
-    "X-Frame-Options": "DENY",
-    "X-XSS-Protection": "1; mode=block",
-    "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
-    "Content-Security-Policy": (
-        "default-src 'self'; "
-        "script-src 'self' 'unsafe-inline'; "
-        "style-src 'self' 'unsafe-inline'; "
-        "img-src 'self' data:; "
-        "connect-src 'self'; "
-        "font-src 'self'; "
-        "frame-src 'none'; "
-        "object-src 'none'"
-    ),
-    "Referrer-Policy": "strict-origin-when-cross-origin",
-    "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
-}
-```
-
-### Header Comparison
-
-| Header | Nginx (Frontend) | Backend (API) | Notes |
-|--------|-------------------|---------------|-------|
-| X-Frame-Options | `SAMEORIGIN` | `DENY` | Backend is stricter -- API responses should never be framed. Nginx allows same-origin framing for the frontend UI. |
-| X-Content-Type-Options | `nosniff` | `nosniff` | Prevents MIME-type sniffing attacks |
-| X-XSS-Protection | `1; mode=block` | `1; mode=block` | Legacy XSS filter (modern CSP is the primary defense) |
-| HSTS | `max-age=31536000; includeSubDomains` | `max-age=31536000; includeSubDomains` | Forces HTTPS for 1 year, includes subdomains |
-| Referrer-Policy | `strict-origin-when-cross-origin` | `strict-origin-when-cross-origin` | Sends origin only for cross-origin requests |
-| Permissions-Policy | `geolocation=(), microphone=(), camera=()` | `geolocation=(), microphone=(), camera=()` | Disables browser APIs not used by OpenWatch |
-
-### Content Security Policy Differences
-
-The frontend CSP is slightly more permissive than the backend CSP because it must support the React single-page application:
-
-| Directive | Nginx (Frontend) | Backend (API) |
-|-----------|-------------------|---------------|
-| `script-src` | `'self' 'unsafe-inline' 'unsafe-eval'` | `'self' 'unsafe-inline'` |
-| `img-src` | `'self' data: https:` | `'self' data:` |
-| `connect-src` | `'self' https://localhost:8000` | `'self'` |
-| `frame-ancestors` | `'none'` | Not set (uses X-Frame-Options) |
-| `frame-src` | Not set | `'none'` |
-| `object-src` | Not set | `'none'` |
-
-The frontend allows `unsafe-eval` for React development tooling and `connect-src https://localhost:8000` for API calls. In production, update `connect-src` to the actual API domain.
-
----
-
-## 5. Authentication Hardening
-
-### Password Hashing (Argon2id)
-
-OpenWatch uses Argon2id for password hashing. Argon2id is a memory-hard, side-channel-resistant algorithm that is resistant to both GPU-based and timing attacks.
-
-Configuration:
-
-| Parameter | Value | Purpose |
-|-----------|-------|---------|
-| Algorithm | Argon2id | Hybrid of Argon2i (side-channel resistant) and Argon2d (GPU resistant) |
-| Memory cost | 64 MB (65536 KB) | Makes GPU/ASIC attacks prohibitively expensive |
-| Time cost | 3 iterations | Increases computation time per hash |
-| Parallelism | 1 | Single-threaded to prevent parallel attack optimization |
-
-```python
-from app.auth import pwd_context
-
-# Hash a password
-hashed = pwd_context.hash("user_password")
-
-# Verify a password
-is_valid = pwd_context.verify("user_password", hashed)
-```
-
-### Password Policy
-
-Default password policy settings (configurable by administrators):
-
-| Setting | Default Value | Configuration |
-|---------|---------------|---------------|
-| Minimum length | 12 characters | `minimum_password_length` in security policy |
-| Complexity required | Yes | `require_complex_passwords` in security policy |
-| Uppercase required | Yes (when complexity enabled) | At least one uppercase letter |
-| Lowercase required | Yes (when complexity enabled) | At least one lowercase letter |
-| Digit required | Yes (when complexity enabled) | At least one digit |
-| Special character required | Yes (when complexity enabled) | At least one special character |
-
-Password validation is enforced in `backend/app/services/auth/validation.py`. If complexity is disabled, the minimum length should be increased to at least 16 characters.
-
-### JWT Configuration
-
-OpenWatch uses RS256 (RSA-2048 + SHA-256) for JWT signing, which is a FIPS-approved algorithm.
-
-```python
-# backend/app/config.py
-algorithm: str = "RS256"
-access_token_expire_minutes: int = 30
-refresh_token_expire_days: int = 7
-```
-
-| Token Type | Default Lifetime | Behavior |
-|------------|------------------|----------|
-| Access token | 30 minutes | Short-lived, used for API authentication |
-| Refresh token | 7 days | Rotated on each use to prevent token replay |
-
-Token creation and verification:
-
-```python
-from app.core.security import create_access_token, verify_token
-from datetime import timedelta
-
-token = create_access_token(
-    data={"sub": str(user.id), "role": user.role},
-    expires_delta=timedelta(minutes=30)
-)
-payload = verify_token(token)
-```
-
-### Session Timeout
-
-OpenWatch enforces inactivity-based session timeouts to comply with NIST SP 800-53 AC-11 and FedRAMP SC-10:
-
-| Setting | Default | Range |
-|---------|---------|-------|
-| Inactivity timeout | 15 minutes | 1 - 480 minutes (configurable by admin) |
-
-The frontend `ActivityTracker` monitors user activity (mouse, keyboard, scroll) and the `SessionManager` component displays a warning before the session expires.
-
----
-
-## 6. Role-Based Access Control (RBAC)
-
-OpenWatch implements permission-based RBAC. Each role maps to a set of granular permissions, and every protected API endpoint requires a specific role or permission via decorators.
-
-### Role Hierarchy
-
-Roles are defined in `backend/app/rbac.py`:
-
-| Role | Purpose | Access Level |
-|------|---------|--------------|
-| `GUEST` | Default minimal access | Read-only on limited resources |
-| `AUDITOR` | External audit support | Read-only on hosts, scans, compliance, and reports |
-| `COMPLIANCE_OFFICER` | Compliance reporting | Read-only plus compliance export |
-| `SECURITY_ANALYST` | Day-to-day operations | View, scan execution, host management |
-| `SECURITY_ADMIN` | Full administrative access | User management, configuration, all operations |
-| `SUPER_ADMIN` | System-level access | All permissions including system configuration |
-
-The `AUDITOR` role is intentionally restricted to read-only access. Auditors can view hosts, scans, compliance results, and reports but cannot modify any data or trigger scans.
-
-### Enforcing RBAC
-
-Every protected endpoint must use the `@require_role()` or `@require_permission()` decorator:
-
-```python
-from app.rbac import require_role, require_permission, UserRole, Permission
-
-# Require specific roles (list of allowed roles)
-@router.get("/api/scans")
-@require_role([UserRole.SECURITY_ANALYST, UserRole.SECURITY_ADMIN, UserRole.SUPER_ADMIN])
-async def list_scans(current_user=Depends(get_current_user)):
-    ...
-
-# Require a specific permission
-@router.delete("/api/users/{user_id}")
-@require_permission(Permission.USER_DELETE)
-async def delete_user(user_id: UUID, current_user=Depends(get_current_user)):
-    ...
-
-# Convenience decorators
-@require_admin()          # SUPER_ADMIN or SECURITY_ADMIN
-@require_super_admin()    # SUPER_ADMIN only
-@require_analyst_or_above()  # SUPER_ADMIN, SECURITY_ADMIN, or SECURITY_ANALYST
-```
-
-### Implementation Notes
-
-- Endpoints without RBAC decorators are a security vulnerability. Code review must verify that every route handler has appropriate authorization.
-- The `current_user` dependency is injected via FastAPI's dependency injection and validated from the JWT token.
-- Role checks happen at the decorator level before the route handler executes, ensuring unauthorized requests are rejected early.
-
----
-
-## 7. Rate Limiting
-
-OpenWatch applies rate limiting to prevent brute-force attacks and API abuse.
-
-| Scope | Limit | Purpose |
-|-------|-------|---------|
-| Per user | 100 requests/minute | Prevents individual account abuse |
-| Per IP | 1000 requests/minute | Prevents distributed attacks from a single source |
-| Auth endpoints | Stricter limits | Mitigates credential brute-force attempts |
-
-Rate limiting on authentication endpoints is critical. Failed login attempts should be tracked and subject to lower thresholds than general API traffic. When a rate limit is exceeded, the server returns HTTP 429 (Too Many Requests) with a `Retry-After` header.
-
-### Configuration Recommendations
-
-- Set auth endpoint limits to 10 requests/minute per IP to make brute-force attacks impractical.
-- Log all rate limit violations to the audit log for security monitoring.
-- Consider implementing progressive delays (exponential backoff) after repeated failed authentication attempts.
-
----
-
-## 8. Audit Logging
-
-OpenWatch logs all security-relevant events via the dedicated `openwatch.audit` logger. Audit logs are stored separately from application logs to support security monitoring and compliance evidence collection.
-
-### Configuration
-
-```python
-# backend/app/config.py
-audit_log_file: str = "/openwatch/logs/audit.log"
-```
-
-The audit log file is stored at `/openwatch/logs/audit.log` inside the container. The `/openwatch/logs` directory is backed by a Docker volume (`app_logs`) for persistence across container restarts.
-
-### Logger Usage
-
-```python
-import logging
-
-audit_logger = logging.getLogger("openwatch.audit")
-
-# Authentication success
-audit_logger.info("SECURITY_AUTH_SUCCESS", extra={
-    "user_id": str(user.id),
-    "ip_address": request.client.host,
-})
-
-# Authentication failure
-audit_logger.warning("SECURITY_AUTH_FAILURE", extra={
-    "username": attempted_username,
-    "ip_address": request.client.host,
-    "reason": "invalid_password",
-})
-```
-
-### Events to Log
-
-The following events must be logged per NIST SP 800-53 AU-2:
-
-| Category | Events |
-|----------|--------|
-| Authentication | Login success, login failure, logout, token refresh, MFA challenge/response |
-| Authorization | Access denied (insufficient role/permission), privilege escalation attempts |
-| Privilege changes | Role assignment, role removal, permission grants, user creation/deletion |
-| Data access | Sensitive data reads (credentials, SSH keys, encryption keys), scan result exports |
-| Configuration changes | Security policy updates, RBAC changes, threshold updates, scheduler configuration |
-| Scan operations | Scan initiated, scan completed, scan failed, exception requested/approved/rejected |
-| System events | Application startup/shutdown, health check failures, rate limit violations |
-
-### Log Format Recommendations
-
-- Include a timestamp (ISO 8601, UTC), event type, user ID, source IP, and a description for every audit entry.
-- Never log sensitive data (passwords, tokens, private keys) in audit records.
-- Forward audit logs to a SIEM (Security Information and Event Management) system for real-time alerting and long-term retention.
-- Set retention policies appropriate to your compliance framework (typically 1 year minimum for FedRAMP).
-
----
-
-## 9. Secret Management
-
-All secrets in OpenWatch are provided via environment variables prefixed with `OPENWATCH_`. No secrets are hardcoded in source code, configuration files, or container images.
-
-### Required Secrets
-
-| Environment Variable | Purpose | Minimum Requirements |
-|----------------------|---------|----------------------|
-| `OPENWATCH_SECRET_KEY` | JWT signing and session security | At least 32 characters (validated at startup) |
-| `OPENWATCH_MASTER_KEY` | AES-256-GCM encryption key for credential storage | At least 32 characters (validated at startup) |
-| `OPENWATCH_ENCRYPTION_KEY` | Additional encryption operations | Provided at deployment |
-| `POSTGRES_PASSWORD` | PostgreSQL database authentication | Strong random password |
-| `REDIS_PASSWORD` | Redis authentication (`--requirepass`) | Strong random password |
-
-### Validation at Startup
-
-The `Settings` class in `backend/app/config.py` validates secret strength on application startup:
-
-```python
-@validator("secret_key")
-def secret_key_must_be_strong(cls, v: str) -> str:
-    if len(v) < 32:
-        raise ValueError("Secret key must be at least 32 characters long")
-    return v
-
-@validator("master_key")
-def master_key_must_be_strong(cls, v: str) -> str:
-    if len(v) < 32:
-        raise ValueError("Master key must be at least 32 characters long")
-    return v
-```
-
-If either key is shorter than 32 characters, the application will refuse to start.
-
-### Data Encryption
-
-Sensitive data at rest (SSH credentials, API keys, private keys) is encrypted using AES-256-GCM via the `EncryptionService`:
-
-```python
-from app.encryption.encryption_service import EncryptionService
-
-enc_service = EncryptionService()
-encrypted = await enc_service.encrypt_data("sensitive_value")
-decrypted = await enc_service.decrypt_data(encrypted)
-```
-
-The master key (`OPENWATCH_MASTER_KEY`) is used to derive the encryption key. Never store plaintext passwords, API keys, SSH private keys, or tokens in the database.
-
-### Secret Detection in Source Code
-
-The `.pre-commit-config.yaml` includes the `detect-secrets` hook from Yelp to prevent accidental secret commits:
-
-```yaml
-- repo: https://github.com/Yelp/detect-secrets
-  rev: v1.5.0
-  hooks:
-    - id: detect-secrets
-      args: ['--baseline', '.secrets.baseline']
-      exclude: ^(package-lock\.json|.*\.lock)$
-```
-
-This hook scans all staged files for patterns that resemble secrets (API keys, passwords, tokens) and blocks the commit if any are detected. The `.secrets.baseline` file tracks known false positives.
-
-Additionally, the `detect-private-key` hook from `pre-commit-hooks` checks for accidentally committed SSH private keys.
-
-### Recommendations
-
-- Use a secrets manager (HashiCorp Vault, AWS Secrets Manager, Azure Key Vault) in production rather than plain environment variables.
-- Rotate `OPENWATCH_SECRET_KEY` and `OPENWATCH_MASTER_KEY` periodically. The application supports key rotation without downtime.
-- Generate secrets with a cryptographically secure random generator: `python3 -c "import secrets; print(secrets.token_urlsafe(48))"`.
-- Never pass secrets via command-line arguments (visible in process listings).
-
----
-
-## 10. FIPS 140-2 Compliance
-
-OpenWatch supports FIPS 140-2 mode for environments that require NIST-validated cryptographic modules. When enabled, all cryptographic operations use FIPS-validated implementations from the underlying operating system.
-
-### Enabling FIPS Mode
-
-Set the environment variable in your deployment:
+## 4. Cryptography and FIPS
+
+| Function | Algorithm | Source |
+|----------|-----------|--------|
+| Password hashing | Argon2id, t=3, m=64 MiB, p=1, 128-bit salt, 256-bit key | `internal/identity/password.go` |
+| Credential / MFA-secret encryption at rest | AES-256-GCM (DEK) | `internal/secretkey/secretkey.go` |
+| JWT signing | RS256 (RSA ≥ 2048) | `internal/identity/jwt.go`, `cmd/openwatch/main.go` |
+| Breach-corpus lookup | SHA-1 prefix (HaveIBeenPwned k-anonymity; not authentication) | `internal/identity/password.go` |
+
+### FIPS builds
+
+A FIPS build target exists and uses the Go-native FIPS 140-3 module, not an
+OpenSSL provider. Build it with:
 
 ```bash
-OPENWATCH_FIPS_MODE=true
+make build-fips
 ```
 
-In the production Dockerfile, FIPS mode is enabled by default:
-
-```dockerfile
-# docker/Dockerfile.backend
-ENV OPENWATCH_FIPS_MODE=true
-
-# Enable FIPS mode in the OS
-RUN fips-mode-setup --enable || echo "FIPS mode setup completed"
-```
-
-Note: The development `docker-compose.yml` sets `OPENWATCH_FIPS_MODE=false` for local development convenience. Production deployments must override this to `true`.
-
-### FIPS Cryptographic Stack
-
-| Component | Implementation | FIPS Status |
-|-----------|----------------|-------------|
-| Base OS | Red Hat UBI9 (ubi:9.7) | FIPS-validated OpenSSL from RHEL 9 |
-| Python | 3.12.1 on UBI9 | Uses system OpenSSL for crypto operations |
-| Password hashing | Argon2id | FIPS-compatible (memory-hard KDF) |
-| Data encryption | AES-256-GCM | FIPS-approved (NIST SP 800-38D) |
-| JWT signing | RS256 (RSA-2048 + SHA-256) | FIPS-approved |
-| TLS cipher suites | See `FIPS_TLS_CIPHERS` list | All FIPS-approved (AES-GCM with ECDHE/DHE) |
-
-### FIPS Cipher Suites
-
-When FIPS mode is enabled, only the following cipher suites are permitted for TLS connections:
-
-```python
-FIPS_TLS_CIPHERS = [
-    "TLS_AES_256_GCM_SHA384",       # TLS 1.3
-    "TLS_AES_128_GCM_SHA256",       # TLS 1.3
-    "ECDHE-RSA-AES256-GCM-SHA384",  # TLS 1.2
-    "ECDHE-RSA-AES128-GCM-SHA256",  # TLS 1.2
-    "DHE-RSA-AES256-GCM-SHA384",    # TLS 1.2
-    "DHE-RSA-AES128-GCM-SHA256",    # TLS 1.2
-]
-```
-
-### Validation
-
-OpenWatch includes a FIPS validation script:
+This sets `GOFIPS140=v1.0.0` and produces `dist/openwatch-fips`. The resulting
+binary reports its FIPS status:
 
 ```bash
-python3 backend/scripts/validate_fips_compliance.py
+openwatch --version
+# ... fips: true ...
 ```
 
-This script verifies that the FIPS cryptographic module is active and that all cryptographic operations use FIPS-approved algorithms.
+Source: `Makefile` (`build-fips`), `internal/version/version.go`.
+
+> The standard package build is not FIPS-validated. If you require FIPS 140-3,
+> deploy the `-fips` artifact and confirm `fips: true` from `openwatch --version`.
+> The legacy "RHEL OpenSSL FIPS provider" / `fips-mode-setup` approach from the
+> archived Python stack does not apply.
 
 ---
 
-## 11. Container Security
+## 5. Cryptographic key material
 
-OpenWatch containers are built with security as a primary requirement. Both the backend and frontend containers follow container security best practices.
+`openwatch serve` refuses to start unless both identity keys are present. There
+is no silent fallback to ephemeral keys.
 
-### Non-Root User
+| Config key | Default path | Contents | Required mode |
+|------------|--------------|----------|---------------|
+| `[identity].jwt_private_key` | `/etc/openwatch/keys/jwt_private.pem` | PEM RSA private key, ≥ 2048-bit | `0600` |
+| `[identity].credential_key_file` | `/etc/openwatch/keys/credential.key` | 32-byte raw AES-256 key | `0600` |
 
-Both containers create and run as a dedicated `openwatch` user with a high UID to avoid collisions with system accounts:
+Source: `internal/config/config.go` (`IdentityConfig`), `cmd/openwatch/main.go`
+(`cmdServe` key-loading).
 
-**Backend** (`docker/Dockerfile.backend`):
+Hardening steps:
 
-```dockerfile
-RUN useradd -m -u 10001 openwatch && \
-    mkdir -p /openwatch /openwatch/data /openwatch/logs /openwatch/security && \
-    chown -R openwatch:openwatch /openwatch
+- Set both key files to mode `0600`, owned by the `openwatch` user.
+- Keep the database password out of the world-readable config: put
+  `OPENWATCH_DATABASE_DSN` in `/etc/openwatch/secrets.env` (mode `0640`, owner
+  `root:openwatch`), which the `systemd` unit loads via `EnvironmentFile=`.
+- `openwatch check-config` prints the resolved config with the DSN password
+  redacted, so it is safe to capture in tickets.
 
-# ... (build steps as root) ...
-
-USER openwatch
-```
-
-**Frontend** (`docker/Dockerfile.frontend`):
-
-```dockerfile
-RUN addgroup -g 10002 openwatch && \
-    adduser -D -u 10002 -G openwatch openwatch
-
-# ... (build steps as root) ...
-
-USER openwatch
-```
-
-The `USER` directive is the last root-level command in each Dockerfile. All subsequent commands (including `CMD`) run as the non-root user.
-
-### File Permissions
-
-The backend Dockerfile sets restrictive permissions on sensitive directories:
-
-```dockerfile
-RUN chown -R openwatch:openwatch /openwatch && \
-    chmod -R 755 /openwatch && \
-    chmod -R 700 /openwatch/security
-```
-
-| Directory | Permissions | Contents |
-|-----------|-------------|----------|
-| `/openwatch/` | 755 (rwxr-xr-x) | Application code, data |
-| `/openwatch/security/` | 700 (rwx------) | TLS certificates, SSH keys, encryption keys |
-| `/openwatch/logs/` | 755 (rwxr-xr-x) | Application and audit logs |
-
-### Read-Only Certificate Mounts
-
-Certificates are mounted as read-only volumes to prevent runtime modification:
-
-```yaml
-volumes:
-  - ./security/certs:/openwatch/security/certs:ro
-```
-
-### Minimal Base Images
-
-| Container | Base Image | Rationale |
-|-----------|-----------|-----------|
-| Backend | `registry.access.redhat.com/ubi9/ubi:9.7` | FIPS-validated OpenSSL, Red Hat security patches |
-| Frontend | `nginx:1.29.5-alpine` | Minimal Alpine-based image for static file serving |
-| PostgreSQL | `postgres:15.14-alpine` | Minimal Alpine-based database image |
-| Redis | `redis:7.4.6-alpine` | Minimal Alpine-based cache image |
-
-### Health Checks
-
-Every container includes a health check for orchestration and monitoring:
-
-```dockerfile
-# Backend
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
-
-# Frontend
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD curl -f https://localhost/health || exit 1
-```
-
-Health checks verify database connectivity, Redis connectivity, FIPS status, and available disk space.
-
-### Container Restart Policy
-
-All containers use `restart: unless-stopped` to automatically recover from crashes while respecting intentional shutdowns.
+Source: `packaging/common/openwatch.service`, `internal/config/config.go`
+(`RedactDSN`, `Summary`), `docs/engineering/install_guide.md` (Step 4).
 
 ---
 
-## 12. Input Validation
+## 6. Authentication
 
-OpenWatch validates all input at multiple layers to prevent injection attacks.
+| Control | Value | Source |
+|---------|-------|--------|
+| Access-token lifetime | 30 minutes | `internal/identity/jwt.go` (`AccessTokenWindow`) |
+| Refresh-token lifetime | 7 days, rotated on use (reuse is detected and revokes the chain) | `internal/identity/refresh.go` (`RefreshTokenWindow`) |
+| Session inactivity timeout | 15 minutes | `internal/identity/sessions.go` (`SessionInactivityWindow`) |
+| Session absolute timeout | 12 hours | `internal/identity/sessions.go` (`SessionAbsoluteWindow`) |
+| Password policy | Length only — 8 chars (regular), 15 chars (admin), max 128; NIST SP 800-63B | `internal/identity/password.go` |
+| Breach check | Optional corpus lookup rejects known-compromised passwords | `internal/identity/password.go` |
+| MFA | TOTP enrollment and verification | `internal/identity/mfa.go` |
 
-### Pydantic at the API Boundary
+The password policy is deliberately length-based with no character-class rules,
+per NIST SP 800-63B. The first admin is created out-of-band with
+`openwatch create-admin`, which enforces the 15-character admin minimum.
 
-Every API endpoint uses Pydantic schemas for request validation. Invalid input is rejected before it reaches business logic:
+Source: `internal/identity/`, `cmd/openwatch/main.go` (`cmdCreateAdmin`).
 
-```python
-from pydantic import BaseModel, Field, validator
-from uuid import UUID
-
-class ScanCreateRequest(BaseModel):
-    host_id: UUID
-    profile_id: str = Field(..., min_length=1, max_length=500)
-    timeout: int = Field(default=3600, ge=60, le=86400)
-
-    @validator("profile_id")
-    def validate_profile_id(cls, v):
-        if not v.startswith("xccdf_"):
-            raise ValueError("Profile ID must start with 'xccdf_'")
-        return v
-```
-
-Pydantic enforces type coercion, length constraints, range validation, and custom validators. UUID fields are automatically validated for format correctness.
-
-### SQL Injection Prevention (QueryBuilder)
-
-All PostgreSQL queries use the `QueryBuilder` pattern, which generates parameterized SQL. Direct string interpolation into SQL is prohibited:
-
-```python
-# CORRECT - Parameterized via QueryBuilder
-from app.utils.query_builder import QueryBuilder
-
-builder = (QueryBuilder("hosts h")
-    .where("h.status = :status", "online", "status")
-    .search("h.hostname", user_input)
-)
-query, params = builder.build()
-result = await session.execute(text(query), params)
-
-# WRONG - SQL injection vulnerability
-query = f"SELECT * FROM hosts WHERE status = '{user_input}'"
-```
-
-QueryBuilder adoption is at 100% across the codebase. The `InsertBuilder`, `UpdateBuilder`, and `DeleteBuilder` classes provide the same parameterization for write operations. `UpdateBuilder` and `DeleteBuilder` require a `WHERE` clause by default; using `build_unsafe()` (no WHERE) requires explicit opt-in.
-
-### Command Injection Prevention
-
-All subprocess calls use argument lists instead of shell string interpolation:
-
-```python
-import subprocess
-
-# CORRECT - Argument list prevents injection
-result = subprocess.run(
-    ["oscap", "xccdf", "eval", "--profile", profile_id, datastream_path],
-    shell=False,
-    capture_output=True,
-    text=True,
-)
-
-# WRONG - shell=True enables command injection
-result = subprocess.run(
-    f"oscap xccdf eval --profile {profile_id} {datastream_path}",
-    shell=True,
-    capture_output=True,
-)
-```
-
-The use of `shell=True` is prohibited unless inputs are rigorously validated and there is no alternative. The `bandit` security scanner (configured in `.pre-commit-config.yaml`) flags `shell=True` usage during pre-commit checks.
-
-### CORS Validation
-
-Allowed CORS origins are validated at startup to ensure HTTPS is used (except for localhost development):
-
-```python
-@validator("allowed_origins")
-def validate_origins(cls, v: List[str]) -> List[str]:
-    for origin in v:
-        if not origin.startswith(("https://", "http://localhost")):
-            raise ValueError("All origins must use HTTPS (except localhost)")
-    return v
-```
-
-### File Upload Restrictions
-
-File uploads are constrained by type and size:
-
-```python
-max_upload_size: int = 100 * 1024 * 1024  # 100MB
-allowed_file_types: List[str] = [".xml", ".zip", ".bz2", ".gz"]
-```
-
-Nginx also enforces a `client_max_body_size 10M` limit at the reverse proxy layer.
+> Not yet implemented: there is no failed-login throttle, account lockout, or
+> per-IP brute-force backoff in the auth handlers. The Argon2id cost (~50–100 ms
+> per verification) is the only built-in slow-down on online guessing. Until
+> rate limiting lands (Section 9), protect `/api/v1/auth/login` with an upstream
+> control (a reverse proxy with rate limiting, or network ACLs) if you expose
+> 8443 beyond a trusted network. Source: `internal/server/auth_handlers.go`.
 
 ---
 
-## 13. Production Security Checklist
+## 7. Authorization (RBAC)
 
-Use this checklist before deploying OpenWatch to a production environment. Each item corresponds to a security control described in the sections above.
+Authorization is a permission registry, not free-form strings. Every protected
+operation declares `x-required-permission` in `api/openapi.yaml`; the handler
+middleware checks the caller's effective permission set; built-in roles grant
+permissions from the same registry. A misspelled permission anywhere is a build
+error.
 
-### Network Security
+Source of truth: `auth/permissions.yaml` →
+`internal/auth/permissions.gen.go` and `internal/auth/roles.gen.go`. Enforcement:
+`internal/auth/middleware.go` (`EnforcePermission`, `RequirePermission`).
+Design doc: [`docs/engineering/rbac_registry.md`](../engineering/rbac_registry.md).
 
-- [ ] Docker network uses a dedicated subnet (`172.20.0.0/16`)
-- [ ] PostgreSQL port (`5432`) is bound to `127.0.0.1` or not exposed to the host at all
-- [ ] Redis port (`6379`) is not exposed to the host
-- [ ] Host firewall restricts access to exposed ports (8000, 3000/443) to authorized networks
-- [ ] No unnecessary ports are exposed in `docker-compose.yml`
+Built-in roles, least to most privileged:
 
-### TLS Configuration
+| Role ID | Purpose |
+|---------|---------|
+| `viewer` | Read-only across the platform |
+| `auditor` | Read-only plus exception authority and audit export |
+| `ops_lead` | Day-to-day operations — hosts, scans, alerts |
+| `security_admin` | Full security operations, including dangerous and license-gated actions |
+| `admin` | Full system administration (user/role/SSO/system-setting management) |
 
-- [ ] TLS certificates are installed in `security/certs/` and `security/keys/`
-- [ ] Nginx is configured with `ssl_protocols TLSv1.2 TLSv1.3` only
-- [ ] `ssl_session_tickets off` is set
-- [ ] `ssl_stapling on` and `ssl_stapling_verify on` are set
-- [ ] `server_tokens off` is set to hide Nginx version
-- [ ] Backend `OPENWATCH_REQUIRE_HTTPS` is set to `true`
-- [ ] Database SSL mode is set to `verify-full` with CA certificate provided
-- [ ] Redis SSL is enabled (`OPENWATCH_REDIS_SSL=true`) with certificates
+Source: `internal/auth/roles.gen.go` (`BuiltInRoles`).
 
-### Security Headers
+Hardening steps:
 
-- [ ] All security headers are present in Nginx configuration
-- [ ] Backend `SECURITY_HEADERS` dictionary is applied via middleware
-- [ ] HSTS `max-age` is at least `31536000` (1 year)
-- [ ] CSP `connect-src` is updated to the production API domain (not `localhost`)
-- [ ] `X-Frame-Options` is set (`SAMEORIGIN` for frontend, `DENY` for API)
-
-### Authentication
-
-- [ ] `OPENWATCH_SECRET_KEY` is at least 32 characters, randomly generated
-- [ ] `OPENWATCH_MASTER_KEY` is at least 32 characters, randomly generated
-- [ ] Access token lifetime is appropriate (default: 30 minutes)
-- [ ] Refresh token lifetime is appropriate (default: 7 days)
-- [ ] Password policy enforces minimum 12 characters with complexity
-- [ ] Session inactivity timeout is configured (default: 15 minutes)
-- [ ] Argon2id is the password hashing algorithm (64MB memory, 3 iterations)
-
-### RBAC
-
-- [ ] Every API endpoint has a `@require_role()` or `@require_permission()` decorator
-- [ ] Default user role is the least privileged role needed
-- [ ] AUDITOR role is confirmed as read-only
-- [ ] SUPER_ADMIN accounts are limited to the minimum necessary
-
-### Rate Limiting
-
-- [ ] Per-user rate limit is configured (default: 100 req/min)
-- [ ] Per-IP rate limit is configured (default: 1000 req/min)
-- [ ] Authentication endpoints have stricter limits
-- [ ] Rate limit violations are logged to the audit log
-
-### Audit Logging
-
-- [ ] Audit log file path is configured (`/openwatch/logs/audit.log`)
-- [ ] `app_logs` Docker volume is configured for persistence
-- [ ] Authentication events (success/failure) are logged
-- [ ] Authorization failures are logged
-- [ ] Privilege changes are logged
-- [ ] Configuration changes are logged
-- [ ] Audit logs are forwarded to a SIEM or centralized logging system
-- [ ] Log retention policy meets compliance requirements (minimum 1 year for FedRAMP)
-
-### Secret Management
-
-- [ ] All secrets are provided via `OPENWATCH_*` environment variables
-- [ ] No secrets are hardcoded in source code or configuration files
-- [ ] `detect-secrets` pre-commit hook is installed and active
-- [ ] `detect-private-key` pre-commit hook is installed and active
-- [ ] `.secrets.baseline` file is maintained and reviewed
-- [ ] Secret rotation procedures are documented and tested
-- [ ] `POSTGRES_PASSWORD` and `REDIS_PASSWORD` are strong random values
-
-### FIPS 140-2
-
-- [ ] `OPENWATCH_FIPS_MODE` is set to `true` in production
-- [ ] Backend container uses Red Hat UBI9 base image with FIPS-validated OpenSSL
-- [ ] FIPS validation script passes: `python3 backend/scripts/validate_fips_compliance.py`
-- [ ] Only FIPS-approved cipher suites are in use (see `FIPS_TLS_CIPHERS`)
-- [ ] JWT signing uses RS256 (RSA-2048 + SHA-256)
-
-### Container Security
-
-- [ ] All containers run as non-root users (`USER openwatch`)
-- [ ] Security directory permissions are `700` (owner only)
-- [ ] Certificate volumes are mounted as read-only (`:ro`)
-- [ ] Container health checks are configured for all services
-- [ ] `OPENWATCH_DEBUG` is set to `false` in production
-- [ ] Base images are pinned to specific versions (not `latest`)
-- [ ] Container images are scanned for vulnerabilities before deployment
-
-### Input Validation
-
-- [ ] All API endpoints use Pydantic schemas for request validation
-- [ ] All PostgreSQL queries use QueryBuilder (no raw SQL string interpolation)
-- [ ] All subprocess calls use argument lists (`shell=False`)
-- [ ] File uploads are restricted by type (`.xml`, `.zip`, `.bz2`, `.gz`) and size (100MB)
-- [ ] CORS origins are validated to require HTTPS
-- [ ] `bandit` security scanner is configured in pre-commit hooks
-
-### Pre-Commit Security Hooks
-
-- [ ] `detect-secrets` (v1.5.0) with baseline file
-- [ ] `detect-private-key` from pre-commit-hooks
-- [ ] `bandit` (v1.7.6) security scanner for Python
-- [ ] `hadolint` for Dockerfile linting
-- [ ] `shellcheck` for shell script safety
+- Assign the least-privileged role that satisfies each user's job. `auditor` is
+  read-only except for exception workflow and audit export.
+- Keep `admin` accounts to the minimum. Only `admin` holds the
+  `admin:user_manage`, `admin:role_manage`, `admin:sso_provider`, and
+  `admin:system_setting` permissions.
+- License-gated permissions (for example `remediation:execute`) are enforced in
+  the same middleware pass as RBAC; you cannot use them without the entitlement.
 
 ---
 
-**End of Security Hardening Guide**
+## 8. Audit logging
+
+Security-relevant events are written to a durable audit store in PostgreSQL with
+a stable taxonomy (`actor`, `resource`, `action`, correlation ID). The taxonomy
+is the single naming source so events do not drift across components.
+
+The writer initializes at startup (`audit.Init`) and `system.startup` is emitted
+synchronously before the server accepts traffic. Operational logs are separate:
+the process logs JSON to `journald`.
+
+Source: `cmd/openwatch/main.go` (`audit.Init`, `audit.EmitSync`),
+`internal/audit/`, `internal/db/migrations/0002_audit_events_taxonomy.sql`,
+[`docs/engineering/audit_event_taxonomy.md`](../engineering/audit_event_taxonomy.md).
+
+Representative event codes (taxonomy):
+
+| Category | Examples |
+|----------|----------|
+| Authentication | `auth.login.success`, `auth.login.failure`, `auth.logout` |
+| System lifecycle | `system.startup`, `system.shutdown` |
+| Hosts / scans / users / roles | `host.*`, `scan.*`, `user.*`, `role.*` |
+| Licensing | license load/result events |
+
+Hardening steps:
+
+- Ship `journald` to a central collector (`systemd-journal-remote`, or a
+  shipper such as Vector or rsyncd) so operational logs survive host loss.
+- The durable audit trail lives in PostgreSQL; back up the database (Section 11)
+  to retain audit evidence for your compliance window.
+- View live operational logs:
+
+  ```bash
+  sudo journalctl -u openwatch -f
+  sudo journalctl -u openwatch -o cat | jq .   # pretty-print the JSON
+  ```
+
+> The audit-event taxonomy is the authoritative list. Treat the table above as a
+> sample, not a complete enumeration — read `internal/audit/` and
+> `docs/engineering/audit_event_taxonomy.md` for the full set.
+
+---
+
+## 9. Process hardening (systemd)
+
+The packaged `systemd` unit runs the service unprivileged and confined:
+
+| Directive | Value | Effect |
+|-----------|-------|--------|
+| `User` / `Group` | `openwatch` | Runs as a dedicated unprivileged account |
+| `NoNewPrivileges` | `true` | Process cannot gain privileges via setuid/setgid |
+| `PrivateTmp` | `true` | Isolated `/tmp` |
+| `ProtectSystem` | `strict` | Filesystem is read-only except declared paths |
+| `ProtectHome` | `true` | No access to `/home`, `/root`, `/run/user` |
+| `ProtectKernelTunables` | `true` | Cannot write `/proc/sys`, `/sys` |
+| `ProtectKernelModules` | `true` | Cannot load kernel modules |
+| `ProtectControlGroups` | `true` | Cgroup hierarchy is read-only |
+| `RestrictAddressFamilies` | `AF_INET AF_INET6 AF_UNIX` | No raw/packet sockets |
+| `LockPersonality` | `true` | Cannot change execution domain |
+| `ReadWritePaths` | `/var/lib/openwatch /var/log/openwatch` | Only these are writable |
+
+Source: `packaging/common/openwatch.service`.
+
+Hardening steps:
+
+- Do not loosen `ProtectSystem=strict` or widen `ReadWritePaths` unless you have
+  a verified need.
+- Confirm the effective sandbox after any unit edit:
+
+  ```bash
+  systemd-analyze security openwatch
+  ```
+
+- Keep the config and key files owned away from the service account where the
+  service only needs read access (cert/JWT/credential keys at `0600`, owned by
+  `openwatch`; `secrets.env` at `0640`, owner `root:openwatch`).
+
+---
+
+## 10. Rate limiting and request controls — current state
+
+The HTTP server sets request-hardening timeouts and size limits:
+
+| Control | Value | Source |
+|---------|-------|--------|
+| `ReadHeaderTimeout` | 10 s | `internal/server/server.go` |
+| `ReadTimeout` | 30 s | `internal/server/server.go` |
+| `WriteTimeout` | 60 s | `internal/server/server.go` |
+| `IdleTimeout` | 120 s | `internal/server/server.go` |
+| `MaxHeaderBytes` | 64 KiB | `internal/server/server.go` |
+
+> Not yet implemented: there is no per-user or per-IP HTTP rate-limiting
+> middleware, and no HTTP security-header middleware (HSTS, CSP, `X-Frame-Options`,
+> `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`). The
+> `RateLimit` constants in the codebase belong to the intelligence and discovery
+> schedulers (how many hosts to enqueue per tick), not to the HTTP surface.
+> Until these land, enforce request rate limiting and inject security response
+> headers at an upstream reverse proxy if you expose 8443 publicly. Source:
+> `internal/server/server.go`, `internal/intelligence/scheduler/service.go`,
+> `internal/intelligence/discovery/scheduler/service.go`.
+
+---
+
+## 11. Database and backups
+
+OpenWatch stores all persistent state — hosts, credentials (AES-256-GCM
+encrypted), scans, transactions, the job queue, and the audit trail — in
+PostgreSQL. The package does not manage PostgreSQL and does not implement an
+in-product backup tool.
+
+Schema is applied with `openwatch migrate`, which runs the migrations in
+`internal/db/migrations/` (goose).
+
+Source: `cmd/openwatch/main.go` (`cmdMigrate`), `internal/db/migrations/`.
+
+Hardening steps:
+
+- Require TLS to PostgreSQL when it is not on the loopback interface: use
+  `sslmode=require` (or `verify-full` with a CA) in `OPENWATCH_DATABASE_DSN`.
+  Source: `docs/engineering/install_guide.md` (Step 4).
+- Back up with the standard PostgreSQL tooling on a schedule that meets your
+  retention requirement, and store backups encrypted off-host:
+
+  ```bash
+  sudo -u postgres pg_dump -Fc openwatch > openwatch-$(date -u +%Y-%m-%dT%H%M%SZ).dump
+  ```
+
+- Restrict the database role to the `openwatch` database only; do not reuse a
+  superuser DSN for the service.
+
+---
+
+## 12. Operational runbooks
+
+These are first-response procedures for the single binary on `systemd` with
+PostgreSQL. They assume you have shell access on the OpenWatch host.
+
+### SERVICE_DOWN — the service is not responding
+
+```bash
+sudo systemctl status openwatch
+sudo journalctl -u openwatch --since '5 min ago' -p err
+curl -k https://localhost:8443/api/v1/health
+# healthy: {"status":"healthy","db_connected":true,"version":"…"}
+```
+
+1. If `status` shows the unit failed, read the error lines from `journalctl`.
+2. Common causes (from the install guide's troubleshooting table): malformed
+   `OPENWATCH_DATABASE_DSN`, wrong DB password or `pg_hba.conf`, PostgreSQL not
+   running, or an unreadable TLS cert. Validate config without starting:
+
+   ```bash
+   sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) openwatch check-config
+   ```
+
+3. If `/api/v1/health` returns 503, the database ping failed — check
+   PostgreSQL: `sudo systemctl status postgresql`.
+4. Restart once the cause is fixed: `sudo systemctl restart openwatch`. The unit
+   uses `Restart=on-failure` with a 5 s delay, so transient crashes self-heal.
+
+Source: `docs/engineering/install_guide.md` (Troubleshooting),
+`internal/server/server.go`, `packaging/common/openwatch.service`.
+
+### DISK_FULL — the host is out of disk
+
+```bash
+df -h
+sudo du -xh /var/log/openwatch /var/lib/openwatch 2>/dev/null | sort -h | tail
+sudo journalctl --disk-usage
+```
+
+1. Identify the consumer. The service writes only to `/var/lib/openwatch` and
+   `/var/log/openwatch` (`ReadWritePaths`); `journald` and PostgreSQL data are
+   the other large consumers.
+2. Vacuum `journald` to a bound:
+
+   ```bash
+   sudo journalctl --vacuum-size=500M
+   ```
+
+3. If PostgreSQL's data directory is the consumer, reclaim space there (vacuum,
+   prune old backups) — do not delete files under PostgreSQL's data directory by
+   hand.
+4. A full disk can wedge the audit writer and database. After reclaiming space,
+   confirm health with the `SERVICE_DOWN` check.
+
+Source: `packaging/common/openwatch.service` (`ReadWritePaths`),
+`internal/db/migrations/`.
+
+### HIGH_CPU — sustained high CPU
+
+```bash
+top -b -n1 | head -20
+sudo journalctl -u openwatch --since '10 min ago' | jq -r 'select(.level=="ERROR")' 2>/dev/null
+```
+
+1. Identify whether the `openwatch` process or `postgres` backends dominate.
+2. If `postgres` dominates, look for slow queries:
+
+   ```bash
+   sudo -u postgres psql -d openwatch \
+     -c "SELECT pid, state, now()-query_start AS runtime, left(query,80) \
+         FROM pg_stat_activity WHERE datname='openwatch' AND state<>'idle' \
+         ORDER BY runtime DESC LIMIT 10;"
+   ```
+
+3. Background scan/intelligence/discovery load is operator-tunable. Reduce the
+   scheduler rate or pause it via the system-config API
+   (`PUT /api/v1/system/intelligence/config`,
+   `PUT /api/v1/system/discovery/config`) — the boot logs name these knobs when a
+   scheduler is paused.
+4. If the API process itself is hot with no DB pressure, capture logs and
+   restart as a containment step: `sudo systemctl restart openwatch`.
+
+Source: `cmd/openwatch/main.go` (scheduler wiring and maintenance knobs),
+`internal/intelligence/scheduler/`, `internal/intelligence/discovery/scheduler/`.
+
+### SECURITY_INCIDENT — suspected compromise or credential exposure
+
+1. **Contain.** Block inbound 8443 at the host firewall, or stop the service if
+   you must take it offline:
+
+   ```bash
+   sudo systemctl stop openwatch
+   ```
+
+2. **Preserve evidence.** Snapshot operational logs and the audit trail before
+   changing anything:
+
+   ```bash
+   sudo journalctl -u openwatch --since '24 hours ago' > /tmp/openwatch-journal.log
+   sudo -u postgres pg_dump -Fc openwatch > /tmp/openwatch-evidence.dump
+   ```
+
+3. **Review authentication and authorization events** in the audit trail —
+   `auth.login.success`, `auth.login.failure`, role and user changes — for the
+   incident window. Query the audit tables directly with `psql` or via the audit
+   API.
+4. **Rotate secrets.** Rotate the database password (update
+   `/etc/openwatch/secrets.env`), and replace the JWT signing key
+   (`/etc/openwatch/keys/jwt_private.pem`) and TLS cert/key as warranted.
+   Replacing the JWT key invalidates all outstanding access tokens.
+5. **Revoke or reset affected accounts.** Reset compromised users' passwords and
+   reassign roles as needed; review `admin`-role membership.
+6. **Restart and re-verify** once contained: `sudo systemctl start openwatch`,
+   then the `SERVICE_DOWN` health check. File the incident per your
+   organization's process.
+
+Source: `cmd/openwatch/main.go` (JWT key loading, audit), `internal/identity/`,
+`docs/engineering/audit_event_taxonomy.md`.
+
+---
+
+## 13. Hardening checklist
+
+Network and transport
+
+- [ ] Inbound TCP/8443 restricted to operator networks at the host firewall.
+- [ ] PostgreSQL bound to loopback (or TLS-required) with `scram-sha-256` auth.
+- [ ] CA-issued TLS cert installed at `/etc/openwatch/tls/`; key mode `0600`.
+- [ ] If 8443 is reachable beyond a trusted network, an upstream reverse proxy
+      provides rate limiting and security response headers.
+
+Cryptography and keys
+
+- [ ] `[identity].jwt_private_key` present, RSA ≥ 2048, mode `0600`.
+- [ ] `[identity].credential_key_file` present, 32 bytes, mode `0600`.
+- [ ] `OPENWATCH_DATABASE_DSN` in `secrets.env` (mode `0640`, `root:openwatch`),
+      not in the world-readable TOML.
+- [ ] For FIPS environments: the `-fips` build is deployed and
+      `openwatch --version` reports `fips: true`.
+
+Identity and access
+
+- [ ] Admin accounts minimized; users hold the least-privileged role.
+- [ ] MFA (TOTP) enrolled for privileged users.
+- [ ] Breach-corpus check enabled for production password validation.
+
+Process and platform
+
+- [ ] `systemd-analyze security openwatch` reviewed; sandbox not loosened.
+- [ ] `ProtectSystem=strict` and `ReadWritePaths` unchanged unless justified.
+
+Audit and durability
+
+- [ ] `journald` forwarded to a central collector.
+- [ ] Scheduled, encrypted, off-host PostgreSQL backups meeting the retention
+      window (audit trail lives in the database).
+
+Source for every checklist item is cited in the section above that introduces it.
+
+---
+
+## Related documentation
+
+- Install, configure, TLS replacement, uninstall:
+  [`docs/engineering/install_guide.md`](../engineering/install_guide.md)
+- RBAC registry and permission model:
+  [`docs/engineering/rbac_registry.md`](../engineering/rbac_registry.md)
+- Audit event taxonomy:
+  [`docs/engineering/audit_event_taxonomy.md`](../engineering/audit_event_taxonomy.md)
+- Kensa ↔ OpenWatch boundary:
+  [`docs/KENSA_OPENWATCH_BOUNDARY.md`](../KENSA_OPENWATCH_BOUNDARY.md)
+- API contract (per-operation required permission, license gate, audit events):
+  [`api/openapi.yaml`](../../api/openapi.yaml)
+- Behavioral specs: [`specs/`](../../specs/)

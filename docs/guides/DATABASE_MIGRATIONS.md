@@ -1,674 +1,267 @@
-# Database Migration Guide
+# Database migration guide
 
-> **⚠️ Legacy (Python era) — do not follow this document.**
-> It describes the archived Python/FastAPI + Docker-Compose stack (PostgreSQL, Redis, Celery,
-> a separate frontend) that was removed from the repo on 2026-06-05. The current OpenWatch is a
-> single Go binary (API + UI) installed from a native RPM/DEB. See `openwatch migrate` (migrations in `internal/db/migrations/`). This content
-> is kept for historical reference.
+This guide covers how OpenWatch's PostgreSQL schema is versioned, how migrations
+are applied in production, and how to add a new migration. OpenWatch is a single
+Go binary (`/usr/bin/openwatch`) that serves the REST API and the embedded React
+UI over HTTPS on port 8443. It uses PostgreSQL only — there is no MongoDB, Redis,
+Celery, Alembic, or container runtime involved in migrations.
 
-This guide covers how to create, apply, and manage database migrations in OpenWatch using Alembic and PostgreSQL.
+For end-to-end install and configuration, see
+[`docs/engineering/install_guide.md`](../engineering/install_guide.md). This
+document focuses specifically on the migration mechanism.
 
----
+## How migrations work
 
-## Table of Contents
+Migrations are plain SQL files embedded into the `openwatch` binary at build
+time. The applier is [`pressly/goose`](https://github.com/pressly/goose) running
+in SQL-flavor mode.
 
-1. [Overview](#overview)
-2. [Prerequisites](#prerequisites)
-3. [Alembic Basics](#alembic-basics)
-4. [Checking Current State](#checking-current-state)
-5. [Creating Migrations](#creating-migrations)
-6. [Migration Best Practices](#migration-best-practices)
-7. [Applying Migrations](#applying-migrations)
-8. [Rollback Procedures](#rollback-procedures)
-9. [Production Migration Checklist](#production-migration-checklist)
-10. [Troubleshooting](#troubleshooting)
-11. [Migration History](#migration-history)
+| Aspect | Value |
+|--------|-------|
+| Database | PostgreSQL (UUID primary keys on most tables) |
+| Migration tool | `goose` v3 (SQL flavor), embedded via `go:embed` |
+| Migration directory | `internal/db/migrations/*.sql` |
+| File naming | `NNNN_description.sql` (zero-padded ascending integer) |
+| Version table | `goose_db_version` (created and managed by goose) |
+| Applier code | `internal/db/migrations/runner.go` (`Apply`, `Status`) |
+| CLI entry point | `openwatch migrate` (`cmd/openwatch/main.go`, `cmdMigrate`) |
 
----
+Because the SQL files are compiled into the binary, the version of the schema a
+binary expects always travels with that binary. There is no separate migration
+package to install or path to configure at runtime.
 
-## Overview
+Each migration file has an up section and a down section, delimited by goose
+annotations:
 
-OpenWatch uses [Alembic](https://alembic.sqlalchemy.org/) for managing PostgreSQL schema migrations. Alembic is a lightweight database migration tool built for use with SQLAlchemy. It tracks schema changes as versioned Python scripts, enabling the team to upgrade, downgrade, and audit the database schema in a controlled and repeatable way.
+```sql
+-- +goose Up
+CREATE TABLE example (...);
 
-**Key facts:**
+-- +goose Down
+DROP TABLE IF EXISTS example;
+```
 
-- **Database**: PostgreSQL 15+ with UUID primary keys on most tables
-- **ORM**: SQLAlchemy 2.0 with `declarative_base()` (defined in `backend/app/database.py`)
-- **Migration directory**: `backend/alembic/versions/`
-- **Configuration file**: `backend/alembic.ini`
-- **Environment runner**: `backend/alembic/env.py`
-- **Current migration count**: ~47 migration files (including 2 merge migrations)
+The applier (`migrations.Apply`) only ever runs the `Up` direction
+(`goose.UpContext`). The `Down` blocks exist for completeness and local
+development; OpenWatch does not expose a rollback subcommand (see
+[Rollback](#rollback)).
 
-Each migration file contains an `upgrade()` function that applies the change and a `downgrade()` function that reverses it. Alembic stores the current migration revision in the `alembic_version` table inside the PostgreSQL database.
+## Applying migrations in production
 
----
+Run the `migrate` subcommand. It connects with the configured database DSN,
+applies every pending `Up` migration, and prints the resulting version and the
+list of embedded migration files.
 
-## Prerequisites
+```bash
+sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) \
+    openwatch migrate
+```
 
-Before running migrations, verify:
+The DSN comes from `OPENWATCH_DATABASE_DSN` in `/etc/openwatch/secrets.env` (or
+`[database].dsn` in `/etc/openwatch/openwatch.toml`). The command times out after
+60 seconds, applies migrations idempotently (goose skips versions already recorded
+in `goose_db_version`), and reports output like:
 
-1. **Docker containers are running** (PostgreSQL must be accessible):
+```
+applying migrations against postgres://openwatch:***@127.0.0.1:5432/openwatch ...
+  current version: 22
+  migration files: 22
+    - 0001_initial.sql
+    - 0002_audit_events_taxonomy.sql
+    ...
+migrations applied
+```
 
-   ```bash
-   docker ps | grep openwatch-db
+Run `openwatch migrate` after every package upgrade and before starting (or
+restarting) the service, so the schema matches the binary. The systemd unit
+(`/usr/lib/systemd/system/openwatch.service`, `ExecStart=/usr/bin/openwatch serve`)
+does not run migrations on boot — `serve` and `migrate` are separate subcommands.
+
+A typical upgrade sequence:
+
+```bash
+sudo systemctl stop openwatch
+sudo dnf upgrade openwatch          # or: sudo apt install --only-upgrade openwatch
+sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) openwatch migrate
+sudo systemctl start openwatch
+```
+
+## Checking the current schema version
+
+The `migrate` subcommand prints the current version after applying. To inspect
+the version table directly with `psql`:
+
+```bash
+psql "$OPENWATCH_DATABASE_DSN" -c \
+  "SELECT version_id, is_applied, tstamp FROM goose_db_version ORDER BY id DESC LIMIT 5;"
+```
+
+The highest `version_id` with `is_applied = true` is the current schema version.
+That number corresponds to the `NNNN` prefix of the last applied migration file.
+
+## Adding a new migration
+
+1. Create a new file in `internal/db/migrations/` named with the next ascending
+   integer, for example `0023_add_scan_findings.sql`. Migration order is driven
+   by the filename prefix, not by dates.
+
+2. Write the `Up` and `Down` blocks using goose annotations:
+
+   ```sql
+   -- +goose Up
+   CREATE TABLE scan_findings (
+       id          UUID         PRIMARY KEY,
+       host_id     UUID         NOT NULL REFERENCES hosts(id) ON DELETE RESTRICT,
+       rule_id     TEXT         NOT NULL,
+       status      TEXT         NOT NULL CHECK (status IN ('pass','fail','skipped','error')),
+       created_at  TIMESTAMPTZ  NOT NULL DEFAULT now()
+   );
+   CREATE INDEX idx_scan_findings_host ON scan_findings (host_id);
+
+   -- +goose Down
+   DROP INDEX IF EXISTS idx_scan_findings_host;
+   DROP TABLE IF EXISTS scan_findings;
    ```
 
-2. **The backend container is running** (migrations execute inside it):
+3. Follow the conventions already in the tree:
+   - Use `UUID` primary keys for new tables.
+   - Add indexes for foreign keys and common query columns.
+   - Make `Down` reverse `Up` exactly, dropping indexes before tables and using
+     `IF EXISTS` guards.
+   - Reference the owning behavioral spec in a comment when one exists (see
+     existing files such as `0012_transaction_log.sql`).
+
+4. Never edit a migration that has already shipped or been applied to a shared
+   database. goose records each applied version; changing an applied file does
+   not re-run it and leaves environments inconsistent. Add a new migration
+   instead.
+
+5. Verify locally:
 
    ```bash
-   docker ps | grep openwatch-backend
+   go build ./...
+   go test ./internal/db/...
+   openwatch migrate          # against a local dev PostgreSQL
    ```
 
-3. **PostgreSQL is healthy**:
+   The `internal/db/` package includes tests that exercise the embedded
+   migration set; run them before committing.
 
-   ```bash
-   docker exec openwatch-db psql -U openwatch -d openwatch -c "SELECT 1;"
-   ```
+## Rollback
 
-4. **The `OPENWATCH_DATABASE_URL` environment variable is set** inside the backend container. This variable overrides the default connection string in `alembic.ini`.
+There is no `openwatch migrate down` subcommand. The applier only runs the `Up`
+direction. The supported recovery path for a bad migration in production is
+restore-from-backup, not an automated downgrade.
 
----
+Plan accordingly:
 
-## Alembic Basics
+- Back up the database before applying migrations on a production system (see
+  [Backup before migrating](#backup-before-migrating)).
+- For schema mistakes, prefer a new forward migration that corrects the prior
+  one over any manual `DROP`.
+- The `Down` blocks in each file are for local development and may be applied by
+  hand with the `goose` CLI against a disposable database; they are not part of
+  the production workflow.
 
-### Configuration: `alembic.ini`
+> Roadmap / not yet implemented: a first-class rollback subcommand
+> (`openwatch migrate down`) and a dry-run SQL preview are not present in the
+> current binary. Do not assume they exist.
 
-The Alembic configuration lives at `backend/alembic.ini`. Key settings:
+## Backup before migrating
 
-```ini
-# Path to migration scripts
-script_location = alembic
-
-# Template used to generate migration file names
-file_template = %%(year)d%%(month).2d%%(day).2d_%%(hour).2d%%(minute).2d_%%(rev)s_%%(slug)s
-
-# Timezone for dates in filenames and migration files
-timezone = UTC
-
-# Max length of the slug portion of the filename
-truncate_slug_length = 40
-
-# Version location
-version_locations = %(here)s/alembic/versions
-
-# Default database URL (overridden at runtime by env.py)
-sqlalchemy.url = postgresql://openwatch:password@localhost:5432/openwatch  # pragma: allowlist secret
-```
-
-The `file_template` setting produces filenames in the format `YYYYMMDD_HHMM_<revision>_<slug>`, for example: `20260209_1000_016_add_scan_findings_table.py`. This makes migrations easy to sort chronologically.
-
-### Environment Runner: `env.py`
-
-The `backend/alembic/env.py` file is the runtime entry point for Alembic. It performs several important tasks:
-
-1. **Loads the database URL from application settings** via `app.config.get_settings()`. The `Settings` class uses the `OPENWATCH_` env prefix (configured in `pydantic_settings`), so the environment variable `OPENWATCH_DATABASE_URL` provides the connection string at runtime. This overrides the default `sqlalchemy.url` in `alembic.ini`.
-
-2. **Imports the SQLAlchemy `Base` metadata** from `app.database`, which is required for autogenerate to detect model changes.
-
-3. **Widens the `alembic_version` table** to `varchar(128)` if needed. Some revision IDs in the project exceed the default Alembic `varchar(32)` limit. The `run_migrations_online()` function creates or alters the `alembic_version` table to handle this before running any migrations.
-
-4. **Supports offline mode** for generating SQL scripts without a live database connection.
-
----
-
-## Checking Current State
-
-### View the current migration revision
-
-**Local** (from `backend/` directory):
+Take a logical backup with `pg_dump` before applying migrations to any
+environment you cannot afford to lose:
 
 ```bash
-cd backend && alembic current
+pg_dump "$OPENWATCH_DATABASE_DSN" \
+  --format=custom \
+  --file="openwatch_$(date -u +%Y%m%dT%H%M%SZ).dump"
 ```
 
-**Docker**:
+Restore with `pg_restore` against a clean database if a migration must be
+reverted:
 
 ```bash
-docker exec openwatch-backend alembic current
+pg_restore --clean --if-exists --dbname "$OPENWATCH_DATABASE_DSN" \
+  openwatch_20260610T120000Z.dump
 ```
 
-This shows which migration revision the database is currently at. If the database is up to date, it will show the latest revision with `(head)` appended.
-
-### View migration history
-
-**Local**:
-
-```bash
-cd backend && alembic history --verbose
-```
-
-**Docker**:
-
-```bash
-docker exec openwatch-backend alembic history --verbose
-```
-
-This lists all migrations in order. To see only the last few:
-
-```bash
-docker exec openwatch-backend alembic history -r -5:current
-```
-
-### Check for multiple heads
-
-```bash
-docker exec openwatch-backend alembic heads
-```
-
-If this returns more than one revision, the migration chain has diverged and a merge migration is needed (see [Troubleshooting](#troubleshooting)).
-
----
-
-## Creating Migrations
-
-### Autogenerate from model changes
-
-After modifying SQLAlchemy models in the codebase, generate a migration that captures the diff:
-
-**Local**:
-
-```bash
-cd backend && alembic revision --autogenerate -m "Add scan_metadata column"
-```
-
-**Docker**:
-
-```bash
-docker exec openwatch-backend alembic revision --autogenerate -m "Add scan_metadata column"
-```
-
-This creates a new file in `backend/alembic/versions/` named according to the `file_template` pattern. For example:
-
-```
-20260217_1430_abc123def456_add_scan_metadata_column.py
-```
-
-### Naming conventions
-
-- Use a short, descriptive message after `-m` that explains the change
-- The message becomes part of the filename (as the slug)
-- Use lowercase with underscores
-- Examples of good messages:
-  - `"Add scan_findings table"`
-  - `"Add severity column to alerts"`
-  - `"Create host_packages_services tables"`
-  - `"Merge alerts branches"`
-
-### Migration file structure
-
-A generated migration file follows this pattern:
-
-```python
-"""Add scan_findings table for per-rule scan results
-
-Revision ID: 20260209_1000_016
-Revises: 20260128_merge_heads
-Create Date: 2026-02-09
-"""
-
-import sqlalchemy as sa
-from sqlalchemy.dialects import postgresql
-
-from alembic import op
-
-# revision identifiers, used by Alembic
-revision = "20260209_1000_016"
-down_revision = "20260128_merge_heads"
-branch_labels = None
-depends_on = None
-
-
-def upgrade() -> None:
-    """Apply migration."""
-    op.create_table(
-        "scan_findings",
-        sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
-        sa.Column("scan_id", postgresql.UUID(as_uuid=True), nullable=False),
-        sa.Column("rule_id", sa.String(255), nullable=False),
-        sa.Column("title", sa.String(500), nullable=False),
-        sa.Column("severity", sa.String(20), nullable=False),
-        sa.Column("status", sa.String(20), nullable=False),
-        sa.Column("detail", sa.Text(), nullable=True),
-        sa.Column("created_at", sa.DateTime(), nullable=False, server_default=sa.func.now()),
-        sa.PrimaryKeyConstraint("id"),
-        sa.ForeignKeyConstraint(["scan_id"], ["scans.id"], ondelete="CASCADE"),
-    )
-    op.create_index("idx_scan_findings_scan_id", "scan_findings", ["scan_id"])
-
-
-def downgrade() -> None:
-    """Rollback migration."""
-    op.drop_index("idx_scan_findings_scan_id", "scan_findings")
-    op.drop_table("scan_findings")
-```
-
-Key elements:
-
-- `revision` -- unique identifier for this migration
-- `down_revision` -- the parent migration (forms the chain)
-- `upgrade()` -- applies the schema change
-- `downgrade()` -- reverses the schema change
-
-### Create an empty migration (manual)
-
-For data migrations or complex operations that autogenerate cannot detect:
-
-```bash
-docker exec openwatch-backend alembic revision -m "Backfill compliance scores"
-```
-
-This creates a migration file with empty `upgrade()` and `downgrade()` functions that you fill in manually.
-
----
-
-## Migration Best Practices
-
-### 1. Always review autogenerated output
-
-Autogenerate is not perfect. It may:
-
-- Miss certain changes (e.g., changes to `server_default`, check constraints, or custom types)
-- Produce unnecessary operations (e.g., dropping and recreating an index that has not changed)
-- Generate incorrect ordering for dependent objects
-
-Always open the generated file and verify that `upgrade()` and `downgrade()` do exactly what you intend.
-
-### 2. Test both upgrade and downgrade
-
-Before committing a migration, verify that both directions work:
-
-```bash
-# Apply the migration
-docker exec openwatch-backend alembic upgrade head
-
-# Verify the change
-docker exec openwatch-db psql -U openwatch -d openwatch -c "\d+ your_table_name"
-
-# Roll it back
-docker exec openwatch-backend alembic downgrade -1
-
-# Verify the rollback
-docker exec openwatch-db psql -U openwatch -d openwatch -c "\d+ your_table_name"
-
-# Re-apply
-docker exec openwatch-backend alembic upgrade head
-```
-
-### 3. Handle data migrations carefully
-
-If a migration needs to move or transform existing data, separate the schema change from the data migration when possible. For data migrations, use `op.execute()` with parameterized SQL:
-
-```python
-def upgrade() -> None:
-    # Step 1: Add the new column (nullable initially)
-    op.add_column("hosts", sa.Column("compliance_state", sa.String(20), nullable=True))
-
-    # Step 2: Backfill data
-    op.execute("UPDATE hosts SET compliance_state = 'unknown' WHERE compliance_state IS NULL")
-
-    # Step 3: Make it non-nullable now that data exists
-    op.alter_column("hosts", "compliance_state", nullable=False)
-```
-
-### 4. Never modify existing migrations that have been applied
-
-Once a migration has been applied to any shared environment (development, staging, production), do not edit it. Instead, create a new migration to make further changes. Modifying an applied migration causes checksum mismatches and breaks the migration chain for anyone who already ran the original version.
-
-### 5. Use idempotent checks for safety
-
-Several migrations in the OpenWatch codebase use existence checks to make them safe to re-run:
-
-```python
-def upgrade() -> None:
-    conn = op.get_bind()
-    result = conn.execute(
-        sa.text(
-            "SELECT EXISTS (SELECT FROM information_schema.tables "
-            "WHERE table_name = 'posture_snapshots')"
-        )
-    )
-    if result.scalar():
-        return  # Table already exists, skip creation
-
-    op.create_table("posture_snapshots", ...)
-```
-
-This pattern is useful when migrating databases that may have had tables created outside of Alembic.
-
-### 6. Use UUID primary keys for new tables
-
-OpenWatch uses UUID primary keys on most tables. Follow this pattern for new tables:
-
-```python
-sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True)
-```
-
-The baseline schema also enables the `uuid-ossp` extension:
-
-```python
-op.execute('CREATE EXTENSION IF NOT EXISTS "uuid-ossp"')
-```
-
-### 7. Include indexes for foreign keys and common query columns
-
-```python
-op.create_index("idx_scan_findings_scan_id", "scan_findings", ["scan_id"])
-op.create_index("idx_scan_findings_severity_status", "scan_findings", ["severity", "status"])
-```
-
-### 8. Drop indexes before dropping tables in downgrade
-
-When writing `downgrade()`, drop indexes explicitly before dropping the table:
-
-```python
-def downgrade() -> None:
-    op.drop_index("idx_scan_findings_severity_status", "scan_findings")
-    op.drop_index("idx_scan_findings_scan_id", "scan_findings")
-    op.drop_table("scan_findings")
-```
-
----
-
-## Applying Migrations
-
-### Upgrade to the latest version
-
-**Local**:
-
-```bash
-cd backend && alembic upgrade head
-```
-
-**Docker**:
-
-```bash
-docker exec openwatch-backend alembic upgrade head
-```
-
-### Upgrade one step at a time
-
-```bash
-docker exec openwatch-backend alembic upgrade +1
-```
-
-### Upgrade to a specific revision
-
-```bash
-docker exec openwatch-backend alembic upgrade 20260209_1000_016
-```
-
-### View the SQL that would be generated (without executing)
-
-```bash
-docker exec openwatch-backend alembic upgrade head --sql
-```
-
-This runs Alembic in offline mode and prints the SQL statements to stdout. Useful for reviewing what will happen before applying.
-
----
-
-## Rollback Procedures
-
-### Downgrade by one revision
-
-```bash
-docker exec openwatch-backend alembic downgrade -1
-```
-
-### Downgrade to a specific revision
-
-```bash
-docker exec openwatch-backend alembic downgrade 20260128_merge_heads
-```
-
-### Downgrade all the way to empty database
-
-```bash
-docker exec openwatch-backend alembic downgrade base
-```
-
-**WARNING**: This drops all tables managed by Alembic. Use with extreme caution. This is destructive and irreversible without a backup.
-
-### When to rollback
-
-- A migration was applied that contains an error
-- A schema change is causing application failures
-- You need to return to a known-good state before debugging
-
-Always verify the current revision after a rollback:
-
-```bash
-docker exec openwatch-backend alembic current
-```
-
----
-
-## Production Migration Checklist
-
-Follow this checklist when applying migrations to production or staging environments.
-
-### Before applying
-
-- [ ] **Back up the database**
-
-  ```bash
-  docker exec openwatch-db pg_dump -U openwatch -d openwatch > backup_$(date +%Y%m%d_%H%M%S).sql
-  ```
-
-- [ ] **Check the current revision**
-
-  ```bash
-  docker exec openwatch-backend alembic current
-  ```
-
-- [ ] **Verify there is a single head** (no divergent branches)
-
-  ```bash
-  docker exec openwatch-backend alembic heads
-  ```
-
-- [ ] **Review the migration chain** from current to head
-
-  ```bash
-  docker exec openwatch-backend alembic history -r current:head
-  ```
-
-- [ ] **Read each pending migration file** and confirm the changes are expected
-
-- [ ] **Dry run** -- generate SQL without executing
-
-  ```bash
-  docker exec openwatch-backend alembic upgrade head --sql
-  ```
-
-### Applying
-
-- [ ] **Apply the migration**
-
-  ```bash
-  docker exec openwatch-backend alembic upgrade head
-  ```
-
-- [ ] **Verify the new revision**
-
-  ```bash
-  docker exec openwatch-backend alembic current
-  ```
-
-### After applying
-
-- [ ] **Verify tables and columns** exist as expected
-
-  ```bash
-  docker exec openwatch-db psql -U openwatch -d openwatch -c "\dt"
-  docker exec openwatch-db psql -U openwatch -d openwatch -c "\d+ <table_name>"
-  ```
-
-- [ ] **Run application health checks**
-
-  ```bash
-  curl http://localhost:8000/health
-  ```
-
-- [ ] **Verify the application can read and write data** by testing a few API endpoints
-
-- [ ] **Document the migration** -- record what was applied, when, and by whom
-
----
+Run `pg_dump`/`pg_restore` from the host (or a PostgreSQL client package) — there
+is no container to `exec` into.
 
 ## Troubleshooting
 
-### Multiple heads (branched migration chain)
+### `migrate` fails to connect
 
-**Symptom**: `alembic upgrade head` fails with an error about multiple heads.
+Symptom: `openwatch migrate: connect postgres://…: …`.
 
-**Diagnosis**:
+- Confirm PostgreSQL is reachable and the DSN is correct:
 
-```bash
-docker exec openwatch-backend alembic heads
-```
+  ```bash
+  psql "$OPENWATCH_DATABASE_DSN" -c "SELECT 1;"
+  ```
 
-If multiple revisions are listed, the chain has branched.
+- Confirm `OPENWATCH_DATABASE_DSN` is set in `/etc/openwatch/secrets.env` and
+  uses the form `postgres://user:pass@host:port/db?sslmode=…`.
+- Validate the resolved config without touching the database:
 
-**Resolution**: Create a merge migration:
+  ```bash
+  sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) \
+      openwatch check-config
+  ```
 
-```bash
-docker exec openwatch-backend alembic merge heads -m "Merge branches"
-```
+### A migration fails partway
 
-This creates a migration with `down_revision` set to a tuple of the two (or more) head revisions. The merge migration typically has empty `upgrade()` and `downgrade()` functions:
+Symptom: `openwatch migrate: up: …` referencing a specific SQL error.
 
-```python
-revision = "035_merge_alerts"
-down_revision = ("034_remove_scap_fields", "033b_alerts_full")
+goose runs each migration in order and records a version only after it succeeds,
+so a failure leaves the database at the last fully-applied version. To recover:
 
-def upgrade() -> None:
-    pass
-
-def downgrade() -> None:
-    pass
-```
-
-OpenWatch has needed merge migrations twice: once at `20260128_merge_heads` (merging 3 branches) and again at `035_merge_alerts` (merging 2 branches). This is common in projects with parallel feature branches.
-
-### Failed migration leaves database in partial state
-
-**Symptom**: A migration fails partway through and the database is in an inconsistent state.
-
-**Diagnosis**: Check what revision Alembic thinks it is at:
-
-```bash
-docker exec openwatch-backend alembic current
-```
-
-Check the actual database state:
-
-```bash
-docker exec openwatch-db psql -U openwatch -d openwatch -c "\dt"
-```
-
-**Resolution**:
-
-1. If the migration partially applied, you may need to manually fix the database to match either the pre-migration or post-migration state.
-2. If you need to force Alembic to a specific revision (after manually fixing the schema):
+1. Read the error and inspect the current version:
 
    ```bash
-   docker exec openwatch-db psql -U openwatch -d openwatch \
-     -c "UPDATE alembic_version SET version_num = '<target_revision>';"
+   psql "$OPENWATCH_DATABASE_DSN" -c \
+     "SELECT version_id, is_applied FROM goose_db_version ORDER BY id DESC LIMIT 5;"
    ```
 
-   Use this only as a last resort and only after confirming the database schema matches the target revision.
+2. Fix the offending migration file (only if it has never shipped) or write a
+   corrective forward migration.
 
-### "Target database is not up to date" error
+3. Re-run `openwatch migrate`. Already-applied versions are skipped.
 
-**Symptom**: `alembic revision --autogenerate` fails because the database is behind.
+If the schema was left in an inconsistent state by a partially-executed
+statement, restore from the pre-migration backup.
 
-**Resolution**: Apply pending migrations first:
+### Service starts but behaves as if the schema is old
 
-```bash
-docker exec openwatch-backend alembic upgrade head
-```
-
-Then retry the autogenerate.
-
-### "Can't locate revision" error
-
-**Symptom**: Alembic cannot find a revision referenced in the migration chain.
-
-**Possible causes**:
-
-- A migration file was deleted or renamed
-- The `down_revision` in a migration file points to a revision that does not exist
-
-**Resolution**: Check the migration chain for gaps:
+Confirm the binary version and the applied schema version line up:
 
 ```bash
-docker exec openwatch-backend alembic history --verbose
+openwatch --version
+psql "$OPENWATCH_DATABASE_DSN" -c \
+  "SELECT max(version_id) FROM goose_db_version WHERE is_applied;"
 ```
 
-Look for missing revisions. If a file was accidentally deleted, restore it from version control.
+If the version is behind the binary, run `openwatch migrate` and restart:
 
-### `version_num` column too narrow
-
-**Symptom**: Alembic fails with a database error about the `version_num` column being too short.
-
-**Resolution**: The OpenWatch `env.py` automatically handles this by widening the `alembic_version.version_num` column to `varchar(128)` on each run. If you encounter this error, verify that `env.py` has the `CREATE TABLE IF NOT EXISTS` and `ALTER COLUMN` logic in `run_migrations_online()`.
-
-### Migration file not detected
-
-**Symptom**: A new migration file exists in `alembic/versions/` but Alembic does not see it.
-
-**Check**:
-
-- The file is a valid Python file (`.py` extension, no syntax errors)
-- The `revision` identifier in the file is unique
-- The `down_revision` correctly points to an existing revision
-- The `sourceless = false` setting in `alembic.ini` means `.pyc` files alone are not detected -- source `.py` files must be present
-
----
-
-## Migration History
-
-The OpenWatch project has accumulated approximately 47 migration files in `backend/alembic/versions/`. The migration history spans from August 2025 (baseline schema) through February 2026 (current).
-
-### Notable milestones
-
-| Revision | Date | Description |
-|----------|------|-------------|
-| `001` | 2025-08-17 | Baseline schema (users, hosts, scans, host groups, credentials) |
-| `002` - `015` | 2025-08 to 2025-11 | MFA support, compliance mappings, scan sessions, monitoring, risk scores, drift tables, system settings |
-| `20260128_merge_heads` | 2026-01-28 | First merge migration -- consolidated 3 parallel branches into a single chain |
-| `016` - `026` | 2026-02-09 | Aegis integration tables: scan findings, rules, framework mappings, posture snapshots, exceptions, scheduler, audit queries |
-| `027` - `032` | 2026-02-10 | Server intelligence tables: system info, packages, services, users, network, audit events, metrics |
-| `033` - `034` | 2026-02-10 to 2026-02-11 | Alerts tables, SCAP field removal |
-| `035_merge_alerts` | 2026-02-16 | Second merge migration -- merged the main branch and alerts feature branch |
-
-### Migration chain shape
-
-The chain is currently linear with a single head at `035_merge_alerts`. Two merge points exist in the history where parallel branches were consolidated:
-
+```bash
+sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) openwatch migrate
+sudo systemctl restart openwatch
+journalctl -u openwatch -n 50 --no-pager
 ```
-001 (baseline)
- |
- v
-002 ... 015 (incremental additions)
- |          \         \
- v           v         v
-drift    platform    scheduler
- |          |         |
- +----------+---------+
- |
- v
-20260128_merge_heads
- |
- v
-016 ... 031 (Aegis + Server Intelligence)
- |               \
- v                v
-033 ... 034     033b (alerts)
- |                |
- +----------------+
- |
- v
-035_merge_alerts (current head)
-```
+
+## Reference
+
+| Item | Location |
+|------|----------|
+| Migration files | `internal/db/migrations/*.sql` |
+| Applier (`Apply`, `Status`, `List`) | `internal/db/migrations/runner.go`, `embed.go` |
+| `migrate` subcommand | `cmd/openwatch/main.go` (`cmdMigrate`) |
+| Config layering and DSN | `internal/config/`, `docs/engineering/install_guide.md` |
+| systemd unit | `packaging/common/openwatch.service` |
+| Install and upgrade flow | `docs/engineering/install_guide.md` |
+| Compliance engine boundary | `docs/KENSA_OPENWATCH_BOUNDARY.md` |
+
+OpenWatch's compliance engine, Kensa, runs SSH-based checks against native YAML
+rules; OpenSCAP, `oscap`, XCCDF, and OVAL are not used and have no schema in this
+database.
