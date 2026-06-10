@@ -1,5 +1,13 @@
 # Installation Guide
 
+> **⚠️ Legacy (Python era) — do not follow this guide.**
+> This document describes the archived Python/FastAPI stack (Docker Compose with
+> PostgreSQL, Redis, Celery, and a separate frontend). The current OpenWatch is a
+> single Go binary that serves the API and UI together, with no Redis, Celery, or
+> container runtime required. **Install OpenWatch with the native RPM/DEB guide:**
+> [`docs/engineering/install_guide.md`](../engineering/install_guide.md). The
+> content below is kept for historical reference only.
+
 This guide covers installing and running OpenWatch on a single host.
 Choose the deployment method that matches your environment: Docker (recommended),
 Podman, RPM packages, or from source.

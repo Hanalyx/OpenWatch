@@ -1,54 +1,67 @@
-# OpenWatch Install Guide (Native Packages)
+# OpenWatch install guide (native packages)
 
-This guide walks you through installing OpenWatch from the native RPM or DEB
-package, getting the service running, and verifying the install.
+This guide takes an administrator from a fresh Linux host to a running,
+logged-in OpenWatch: install the package, point it at PostgreSQL, create the
+first admin user, start the service, and sign in to the web UI.
 
-> **Heads-up — what this Stage-0 install actually gives you.**
-> The Stage-0 build is the **walking-skeleton service**: it boots, listens
-> on HTTPS, persists to PostgreSQL, threads correlation IDs through audit
-> events, and exposes a small set of demo endpoints (`/health`, `:echo`,
-> `/license`, `/audit/events`, plus RBAC and license-gate demos). It does
-> **not** run compliance scans, has **no** real authentication (identity
-> is bound from an `X-Stub-Role` HTTP header), and has **no** UI. Real
-> features land in Stage 2. Install it to validate the platform contract,
-> not to scan production hosts.
+## What you get
+
+Installing the package gives you a single `systemd`-managed service that serves
+both the REST API and the web UI over HTTPS on port 8443. One binary contains
+everything — the API, the embedded React UI, and the Kensa compliance engine; no
+separate web tier, no container runtime, no external cache.
+
+After the steps below you have:
+
+- The OpenWatch UI and API at `https://<host>:8443/`, behind session login.
+- An `admin` account you create during install.
+- A PostgreSQL database holding hosts, scans, transactions, and audit events.
+- Kensa ready to run SSH-based compliance checks against the hosts you add.
 
 ---
 
 ## At a glance
 
-| Step | Time | Command |
+| Step | What | Command |
 |------|------|---------|
-| 1. Install PostgreSQL | 2 min | `dnf install postgresql-server` / `apt install postgresql` |
-| 2. Provision the database | 1 min | `sudo -u postgres createdb openwatch` |
-| 3. Install the package | 30 sec | `dnf install ./openwatch-*.rpm` / `apt install ./openwatch_*.deb` |
-| 4. Configure secrets | 1 min | Edit `/etc/openwatch/secrets.env` |
-| 5. Run migrations | 5 sec | `sudo -u openwatch openwatch migrate` |
-| 6. Start the service | 5 sec | `systemctl enable --now openwatch` |
-| 7. Verify | 10 sec | `curl -k https://localhost:8443/api/v1/health` |
+| 1 | Install PostgreSQL | `dnf install postgresql-server` / `apt install postgresql` |
+| 2 | Provision the database | `createdb` + role (see below) |
+| 3 | Install the package | `dnf install ./openwatch-*.rpm` / `apt install ./openwatch_*.deb` |
+| 4 | Configure the database secret | edit `/etc/openwatch/secrets.env` |
+| 5 | Run migrations | `openwatch migrate` |
+| 6 | Create the first admin | `openwatch create-admin --username admin --email …` |
+| 7 | Start the service | `systemctl enable --now openwatch` |
+| 8 | Sign in | open `https://<host>:8443/` |
 
-**Total time: ~5 minutes** on a host with PostgreSQL already installed.
+On a host that already runs PostgreSQL, this takes about five minutes.
 
 ---
 
 ## Requirements
 
 - **OS:**
-  - RPM: CentOS Stream 9, RHEL 9, Rocky Linux 9, AlmaLinux 9
-  - DEB: Ubuntu 24.04 LTS (or compatible Debian-derivative with `systemd`)
-- **CPU/RAM:** 1 vCPU / 512 MB RAM minimum for the service itself.
-- **Disk:** 500 MB for binary + data dir growth; size audit retention as
-  appropriate for your environment.
-- **Ports:** TCP/8443 inbound for the HTTPS API.
-- **PostgreSQL:** 14+ recommended. The package declares `postgresql-server`
-  (RPM) / `postgresql-client` (DEB) as a dependency but **does not
-  provision** a database — you do that in Step 2.
-- **Privileges:** `sudo` / root for the install steps. Day-to-day service
-  operation runs as the `openwatch` system user (created by the package).
+  - RPM: CentOS Stream 9, RHEL 9, Rocky Linux 9, AlmaLinux 9, Oracle Linux 9
+  - DEB: Ubuntu 24.04 LTS, Debian 12 (or a compatible `systemd` derivative)
+- **Architecture:** `x86_64`/`amd64` or `aarch64`/`arm64` (packages ship for both).
+- **CPU/RAM:** 1 vCPU / 512 MB for the service itself; size up for large fleets.
+- **Disk:** 500 MB for the binary plus database growth sized to your retention.
+- **PostgreSQL:** 14 or newer. The package depends on the PostgreSQL client/server
+  but does **not** create a database — you do that in Step 2.
+- **Network:**
+  - TCP/8443 inbound for the API and UI.
+  - TCP/22 outbound from this host to every managed host (Kensa scans over SSH).
+- **A browser** to reach the UI, and `sudo`/root for the install steps. The
+  service itself runs as the unprivileged `openwatch` user the package creates.
+
+> Download the `.rpm`/`.deb`, the `SHA256SUMS`, `SHA256SUMS.asc`, and `KEYS`
+> from the GitHub release. To verify authenticity before installing:
+> `gpg --import KEYS && gpg --verify SHA256SUMS.asc SHA256SUMS`, then
+> `sha256sum -c SHA256SUMS`. RPMs are also signed in-header — import `KEYS`
+> with `rpm --import KEYS` and check with `rpm -K openwatch-*.rpm`.
 
 ---
 
-## RPM — CentOS Stream 9, RHEL 9, Rocky, AlmaLinux
+## Install on RHEL family (RPM)
 
 ### Step 1 — Install PostgreSQL
 
@@ -64,115 +77,129 @@ Create the role and database:
 
 ```bash
 sudo -u postgres psql <<'SQL'
-CREATE ROLE openwatch WITH LOGIN PASSWORD 'replace-me-strong-password';
+CREATE ROLE openwatch WITH LOGIN PASSWORD 'replace-with-a-strong-password';
 CREATE DATABASE openwatch OWNER openwatch;
 SQL
 ```
 
-Allow password auth from localhost. Edit `/var/lib/pgsql/data/pg_hba.conf`
-and ensure these two lines exist near the top of the host rules:
+Allow password auth from localhost. Edit `/var/lib/pgsql/data/pg_hba.conf` and
+ensure these lines exist near the top of the host rules, then reload:
 
 ```
 host    openwatch    openwatch    127.0.0.1/32    scram-sha-256
 host    openwatch    openwatch    ::1/128         scram-sha-256
 ```
 
-Reload PostgreSQL:
-
 ```bash
 sudo systemctl reload postgresql
-```
-
-Verify the credential works:
-
-```bash
-PGPASSWORD='replace-me-strong-password' \
+PGPASSWORD='replace-with-a-strong-password' \
   psql -h 127.0.0.1 -U openwatch -d openwatch -c '\conninfo'
 ```
 
-### Step 3 — Install the OpenWatch package
+### Step 3 — Install the package
 
 ```bash
-sudo dnf install -y ./openwatch-0.1.0-1.x86_64.rpm
+sudo dnf install -y ./openwatch-0.2.0-1.x86_64.rpm
 ```
 
-What the package does at install time:
+Use the filename you downloaded (`aarch64` for arm64). Installing the package:
 
-1. **Creates the `openwatch` system user + group** (idempotent — no-op if
-   already present).
-2. **Installs files:**
-   - `/usr/bin/openwatch` (binary, mode 0755)
-   - `/etc/openwatch/openwatch.toml` (config, mode 0640, owner `root:openwatch`)
-   - `/etc/openwatch/tls/cert.pem` + `key.pem` (self-signed demo cert)
-   - `/etc/systemd/system/openwatch.service` (systemd unit)
-   - `/var/lib/openwatch/` and `/var/log/openwatch/` (writable by openwatch)
-3. **Runs `systemctl daemon-reload`** so the unit is registered.
-4. **Does NOT enable or start the service** — you do that in Step 6 after
-   configuration.
+1. Creates the `openwatch` system user and group (idempotent).
+2. Installs the binary at `/usr/bin/openwatch`, config under `/etc/openwatch/`
+   (`openwatch.toml` plus a self-signed TLS cert/key), the `systemd` unit, and
+   the `/var/lib/openwatch` and `/var/log/openwatch` data directories.
+3. Reloads `systemd`. It does **not** start the service — you do that in Step 7,
+   after the database and admin user exist.
 
-Verify the install:
+Confirm the install:
 
 ```bash
 rpm -q openwatch
 openwatch --version
 ```
 
-### Step 4 — Configure secrets
+### Step 4 — Configure the database secret
 
-The default config in `/etc/openwatch/openwatch.toml` points at a local DSN
-that assumes peer/trust auth. Override the DSN with a real password via
-the systemd environment file (so the secret does not live in the TOML).
-
-Create `/etc/openwatch/secrets.env`:
+The service reads its database connection string from
+`/etc/openwatch/secrets.env` so the password stays out of the world-readable
+config. The `systemd` unit loads this file automatically.
 
 ```bash
 sudo tee /etc/openwatch/secrets.env >/dev/null <<'EOF'
-OPENWATCH_DATABASE_DSN=postgres://openwatch:replace-me-strong-password@127.0.0.1:5432/openwatch?sslmode=disable
+OPENWATCH_DATABASE_DSN=postgres://openwatch:replace-with-a-strong-password@127.0.0.1:5432/openwatch?sslmode=disable
 EOF
 sudo chown root:openwatch /etc/openwatch/secrets.env
 sudo chmod 0640 /etc/openwatch/secrets.env
 ```
 
-> Use `sslmode=require` (or stronger) for any non-loopback PostgreSQL.
+> Use `sslmode=require` (or stronger) for any PostgreSQL that is not on the
+> loopback interface.
 
 ### Step 5 — Run database migrations
 
-Apply the schema. This creates `audit_events`, `idempotency_keys`,
-`job_queue`, `policy_history`, and the `goose_db_version` tracking table:
+This creates the schema (hosts, scans, transactions, audit events, the job
+queue, and more). Run it as the `openwatch` user with the same DSN the service
+uses:
 
 ```bash
 sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) \
     openwatch migrate
 ```
 
-Expected output ends with `goose: no migrations to run. current version: 4`
-(or whichever migration is highest at install time).
+The command applies every pending migration and reports the version it reached.
+Re-running it when the schema is current is a safe no-op.
 
-### Step 6 — Start the service
+### Step 6 — Create the first admin user
+
+This is the account you sign in with. The admin password policy requires **at
+least 15 characters**; pick a single line with no spaces.
+
+```bash
+sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) \
+    openwatch create-admin --username admin --email admin@example.com
+# Type the admin password at the prompt and press Enter.
+```
+
+`create-admin` reads the password from stdin when `--password` is omitted, which
+keeps it out of your shell history. For automation, pipe it instead:
+
+```bash
+printf '%s' "$ADMIN_PASSWORD" | sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) \
+    openwatch create-admin --username admin --email admin@example.com
+```
+
+On success it prints `created admin user admin (admin@example.com) with id=…` and
+assigns the built-in `admin` role.
+
+### Step 7 — Start the service
 
 ```bash
 sudo systemctl enable --now openwatch
 sudo systemctl status openwatch
 ```
 
-### Step 7 — Verify
+### Step 8 — Sign in
+
+Confirm the API is healthy, then open the UI:
 
 ```bash
 curl -k https://localhost:8443/api/v1/health
+# {"status":"healthy","db_connected":true,"version":"<your installed version>"}
 ```
 
-Expected response:
-```json
-{"status":"healthy","db_connected":true,"version":"0.1.0"}
-```
+In a browser, go to **`https://<host>:8443/`**. The browser warns about the
+self-signed cert — accept it (or install a CA cert first; see
+[Replace the demo TLS cert](#replace-the-demo-tls-cert)) — then sign in with the
+admin username and password from Step 6.
 
-The `-k` flag accepts the self-signed demo cert. Replace the cert under
-`/etc/openwatch/tls/` with one from your CA before any non-loopback use
-(see [Replacing the demo TLS cert](#replacing-the-demo-tls-cert)).
+The `-k` flag and the browser warning both come from the bundled self-signed
+cert. Replace it before any non-loopback use.
 
 ---
 
-## DEB — Ubuntu 24.04 LTS
+## Install on Ubuntu and Debian (DEB)
+
+The flow is identical to the RPM path; only Steps 1–3 differ.
 
 ### Step 1 — Install PostgreSQL
 
@@ -184,166 +211,61 @@ sudo systemctl enable --now postgresql
 
 ### Step 2 — Provision the database
 
-Same SQL as the RPM path:
-
 ```bash
 sudo -u postgres psql <<'SQL'
-CREATE ROLE openwatch WITH LOGIN PASSWORD 'replace-me-strong-password';
+CREATE ROLE openwatch WITH LOGIN PASSWORD 'replace-with-a-strong-password';
 CREATE DATABASE openwatch OWNER openwatch;
 SQL
 ```
 
-Ubuntu's default `pg_hba.conf` (`/etc/postgresql/16/main/pg_hba.conf`)
-already allows `scram-sha-256` for `host all all 127.0.0.1/32` — no edit
-needed unless you've customized it.
-
+Ubuntu's default `pg_hba.conf` already allows `scram-sha-256` for
+`host all all 127.0.0.1/32`, so no edit is needed unless you customized it.
 Verify:
 
 ```bash
-PGPASSWORD='replace-me-strong-password' \
+PGPASSWORD='replace-with-a-strong-password' \
   psql -h 127.0.0.1 -U openwatch -d openwatch -c '\conninfo'
 ```
 
-### Step 3 — Install the OpenWatch package
+### Step 3 — Install the package
 
 ```bash
-sudo apt install -y ./openwatch_0.1.0-alpha.1_amd64.deb
+sudo apt install -y ./openwatch_0.2.0-rc.5_amd64.deb
 ```
 
-If `apt` complains about missing dependencies, install them first or use:
-
-```bash
-sudo apt install -y -f ./openwatch_0.1.0-alpha.1_amd64.deb
-```
-
-What the package does at install time is the same as the RPM (user
-creation, file install, `daemon-reload`). The service is **not**
-auto-started.
-
-Verify:
+Use the filename you downloaded (`arm64` for aarch64). If `apt` reports missing
+dependencies, add `-f`. The package creates the `openwatch` user, installs the
+same files as the RPM, and reloads `systemd` without starting the service.
 
 ```bash
 dpkg -l openwatch
 openwatch --version
 ```
 
-### Step 4 — Configure secrets
+### Steps 4–8
 
-Identical to the RPM path:
-
-```bash
-sudo tee /etc/openwatch/secrets.env >/dev/null <<'EOF'
-OPENWATCH_DATABASE_DSN=postgres://openwatch:replace-me-strong-password@127.0.0.1:5432/openwatch?sslmode=disable
-EOF
-sudo chown root:openwatch /etc/openwatch/secrets.env
-sudo chmod 0640 /etc/openwatch/secrets.env
-```
-
-### Step 5 — Run migrations
-
-```bash
-sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) \
-    openwatch migrate
-```
-
-### Step 6 — Start the service
-
-```bash
-sudo systemctl enable --now openwatch
-sudo systemctl status openwatch
-```
-
-### Step 7 — Verify
-
-```bash
-curl -k https://localhost:8443/api/v1/health
-```
+Follow Steps 4 through 8 from the RPM section above — configure
+`/etc/openwatch/secrets.env`, run `openwatch migrate`, run
+`openwatch create-admin`, `systemctl enable --now openwatch`, and sign in at
+`https://<host>:8443/`. The commands are the same.
 
 ---
 
-## What you can do with the running service
+## First steps as an administrator
 
-These endpoints are wired and tested. All exercise the foundation
-contracts (correlation propagation, idempotency, audit, license, RBAC).
+Once you are signed in:
 
-### Public endpoints (no auth required)
+1. **Add a host.** Provide the hostname/IP and an SSH credential (key or
+   password). OpenWatch checks reachability and discovers the OS.
+2. **Confirm the credential.** The host's liveness and intelligence panels
+   populate once the credential works.
+3. **Run a Kensa scan** and read the compliance posture, then drift and
+   exceptions over time.
+4. **Add more administrators or scoped roles** from Settings as needed.
 
-```bash
-# Health check.
-curl -k https://localhost:8443/api/v1/health
-
-# Current license state (free tier by default — no license file installed).
-curl -k https://localhost:8443/api/v1/license
-
-# Audit query — see system.startup event from the recent service boot.
-curl -k 'https://localhost:8443/api/v1/audit/events?action=system.startup'
-```
-
-### Idempotency + audit demo
-
-```bash
-# Echo. Requires Idempotency-Key. Records one audit event per unique key.
-curl -k -X POST \
-  -H 'Content-Type: application/json' \
-  -H 'Idempotency-Key: demo-key-001' \
-  -H 'X-Correlation-Id: demo-001' \
-  -d '{"message":"hello"}' \
-  https://localhost:8443/api/v1/diagnostics:echo
-
-# Replay with the same key + same body — returns the cached response,
-# no second audit event written.
-curl -k -X POST \
-  -H 'Content-Type: application/json' \
-  -H 'Idempotency-Key: demo-key-001' \
-  -H 'X-Correlation-Id: demo-001' \
-  -d '{"message":"hello"}' \
-  https://localhost:8443/api/v1/diagnostics:echo
-
-# Confirm one audit event written (not two).
-curl -k 'https://localhost:8443/api/v1/audit/events?correlation_id=demo-001'
-```
-
-### License-gate demo
-
-```bash
-# Premium-tier endpoint without a license — returns 402 with the
-# canonical error envelope and emits a license.feature_check_denied
-# audit event.
-curl -k -X POST \
-  -H 'Content-Type: application/json' \
-  -H 'Idempotency-Key: premium-001' \
-  -d '{"message":"premium"}' \
-  https://localhost:8443/api/v1/diagnostics:premium-echo
-```
-
-### RBAC demo
-
-Stage-0 identity is bound from the `X-Stub-Role` header. Valid values:
-`viewer | auditor | ops_lead | security_admin | admin`.
-
-```bash
-# No role → 403 authz.permission_denied + audit event.
-curl -k -X POST \
-  -H 'Content-Type: application/json' \
-  -H 'Idempotency-Key: rbac-001' \
-  -d '{"message":"hi"}' \
-  https://localhost:8443/api/v1/diagnostics:require-host-read
-
-# Viewer role grants host:read → 200.
-curl -k -X POST \
-  -H 'Content-Type: application/json' \
-  -H 'Idempotency-Key: rbac-002' \
-  -H 'X-Stub-Role: viewer' \
-  -d '{"message":"hi"}' \
-  https://localhost:8443/api/v1/diagnostics:require-host-read
-
-# Effective permissions for the calling identity.
-curl -k -H 'X-Stub-Role: ops_lead' \
-  https://localhost:8443/api/v1/auth/me/permissions
-
-# Full RBAC registry (categories, permissions, built-in roles).
-curl -k https://localhost:8443/api/v1/auth/permissions:registry
-```
+For the day-to-day workflows, see the operator guides under
+[`docs/guides/`](../guides/) (hosts and remediation, scanning and compliance,
+user roles). For the API, see [`api/openapi.yaml`](../../api/openapi.yaml).
 
 ---
 
@@ -360,9 +282,9 @@ sudo systemctl enable openwatch       # start at boot
 sudo systemctl disable openwatch      # don't start at boot
 ```
 
-### Log access
+### Logs
 
-The service logs in JSON format to journald (no separate log file by default):
+The service logs JSON to journald:
 
 ```bash
 sudo journalctl -u openwatch -f                  # tail live
@@ -370,18 +292,17 @@ sudo journalctl -u openwatch --since '5 min ago' # recent
 sudo journalctl -u openwatch -o cat | jq .       # pretty-print JSON
 ```
 
-### Configuration
+### Inspect the resolved config
 
 ```bash
-# Print the resolved config (TOML + env + CLI flag merge).
 sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) \
     openwatch check-config
 ```
 
-### Replacing the demo TLS cert
+### Replace the demo TLS cert
 
-The package ships a self-signed cert valid for one year, CN `openwatch-demo`.
-For any non-loopback use, replace it with a cert from your CA:
+The package ships a self-signed cert. Replace it with one from your CA for any
+non-loopback use:
 
 ```bash
 sudo cp /path/to/your-cert.pem /etc/openwatch/tls/cert.pem
@@ -393,24 +314,24 @@ sudo chmod 0600                 /etc/openwatch/tls/key.pem
 sudo systemctl restart openwatch
 ```
 
-The server reloads certs on every TLS handshake via `GetCertificate`, so
-no restart is required if you swap the files — but a restart guarantees
-the new cert is in use for any keep-alive connections.
+The server reads the cert on every TLS handshake, so swapping the files takes
+effect for new connections without a restart; restart anyway to cover existing
+keep-alive connections.
 
 ### Configuration layering
 
 Config values resolve in this order, highest precedence first:
 
-1. **CLI flags** (`--listen`, `--log-level`)
-2. **Environment variables** (`OPENWATCH_<SECTION>_<KEY>`)
-3. **TOML file** (`/etc/openwatch/openwatch.toml`)
-4. **Built-in defaults**
+1. CLI flags (`--listen`, `--log-level`)
+2. Environment variables (`OPENWATCH_<SECTION>_<KEY>`)
+3. The TOML file (`/etc/openwatch/openwatch.toml`)
+4. Built-in defaults
 
 Recognized environment variables:
 
 | Variable | Effect |
 |----------|--------|
-| `OPENWATCH_SERVER_LISTEN` | Override `[server].listen` |
+| `OPENWATCH_SERVER_LISTEN` | Override `[server].listen` (default `:8443`) |
 | `OPENWATCH_SERVER_TLS_CERT` | Override `[server].tls_cert` |
 | `OPENWATCH_SERVER_TLS_KEY` | Override `[server].tls_key` |
 | `OPENWATCH_DATABASE_DSN` | Override `[database].dsn` |
@@ -429,49 +350,35 @@ sudo systemctl status openwatch
 sudo journalctl -u openwatch --since '1 min ago' -p err
 ```
 
-Common causes:
-
 | Symptom | Cause | Fix |
 |---------|-------|-----|
-| `config: env override: OPENWATCH_DATABASE_DSN: ...` | Bad DSN format in `secrets.env` | Verify `postgres://user:pass@host:port/db?sslmode=...` shape |
-| `db: ping: ... password authentication failed` | DSN password wrong, or `pg_hba.conf` doesn't allow scram | Check Step 2; reload PostgreSQL after edits |
-| `db: ping: ... connection refused` | PostgreSQL not running | `sudo systemctl status postgresql` |
-| `server: listen: bind: permission denied` | Port < 1024 without capability | Default port is 8443 — only an issue if you changed `[server].listen` |
-| `server: ... no such file or directory: cert.pem` | TLS cert path wrong or perms wrong | Check `/etc/openwatch/tls/cert.pem` is readable by the `openwatch` user |
+| `config: env override: OPENWATCH_DATABASE_DSN: …` | Malformed DSN in `secrets.env` | Use `postgres://user:pass@host:port/db?sslmode=…` |
+| `db: ping: … password authentication failed` | Wrong DSN password, or `pg_hba.conf` rejects scram | Recheck Step 2; reload PostgreSQL after edits |
+| `db: ping: … connection refused` | PostgreSQL not running | `sudo systemctl status postgresql` |
+| `server: … no such file: cert.pem` | TLS cert path or perms wrong | Ensure `/etc/openwatch/tls/cert.pem` is readable by `openwatch` |
 
 ### `migrate` fails
 
-```bash
-sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) \
-    openwatch migrate
-```
+`connection refused` means PostgreSQL isn't running; `password authentication
+failed` means the DSN or `pg_hba.conf` is wrong (recheck Step 2).
 
-If you see `dial tcp 127.0.0.1:5432: connect: connection refused`,
-PostgreSQL isn't running. If you see `password authentication failed`,
-re-check Step 2 in your distro's section.
+### Can't sign in
+
+- Confirm you created the admin: re-run `openwatch create-admin` (it reports if
+  the username already exists).
+- The password must be at least 15 characters and was read as a single line —
+  re-create the admin if you're unsure what was stored.
+- Make sure you're using `https://` (not `http://`) and accepted the cert.
 
 ### Health endpoint returns 503
 
 ```bash
 curl -k https://localhost:8443/api/v1/health
-# {"error":{"code":"server.unavailable",...}}
+# {"error":{"code":"server.unavailable",…}}
 ```
 
-The DB ping inside `/health` failed. Check `journalctl -u openwatch` for
+The database ping inside `/health` failed. Check `journalctl -u openwatch` for
 the underlying error.
-
-### Stub-role header is being ignored
-
-The `X-Stub-Role` header only binds an identity to one of the five
-built-in roles: `viewer`, `auditor`, `ops_lead`, `security_admin`,
-`admin`. Any other value (including typos) falls through to anonymous
-and you'll see 403 from RBAC-gated endpoints.
-
-### Audit events are missing for a request
-
-The async audit writer batches up to 100 events / 100 ms. If you query
-`/audit/events` immediately after a mutating call, the row may not yet be
-visible. Wait 200 ms (or query the same correlation_id twice).
 
 ---
 
@@ -484,10 +391,8 @@ sudo systemctl stop openwatch
 sudo dnf remove -y openwatch
 ```
 
-The package's pre-uninstall script runs `systemctl stop` and `disable`
-automatically; the manual `stop` above is belt-and-braces. Configuration
-files under `/etc/openwatch/` are preserved (marked `%config(noreplace)`).
-Remove them manually if you don't plan to reinstall:
+Config under `/etc/openwatch/` is preserved (`%config(noreplace)`). Remove it
+manually if you won't reinstall:
 
 ```bash
 sudo rm -rf /etc/openwatch /var/lib/openwatch /var/log/openwatch
@@ -499,24 +404,15 @@ sudo userdel openwatch && sudo groupdel openwatch
 ```bash
 sudo systemctl stop openwatch
 sudo apt remove openwatch          # leaves /etc/openwatch in place
-# OR
-sudo apt purge openwatch           # also removes /etc/openwatch
+sudo apt purge openwatch           # also removes the packaged config
 ```
 
-The package's `prerm` script runs `systemctl stop` and `disable`. `apt
-purge` removes the conffile (`/etc/openwatch/openwatch.toml`) but leaves
-`secrets.env` and the demo TLS material — remove those manually if
-needed:
+`apt purge` removes the packaged `openwatch.toml` but leaves `secrets.env` and
+the TLS material; remove those manually if needed.
 
-```bash
-sudo rm -rf /etc/openwatch /var/lib/openwatch /var/log/openwatch
-sudo userdel openwatch && sudo groupdel openwatch
-```
+### The database
 
-### The PostgreSQL database
-
-Removing the OpenWatch package does **not** touch the database. To
-reclaim that space:
+Removing the package does **not** touch PostgreSQL. To reclaim that space:
 
 ```bash
 sudo -u postgres psql <<'SQL'
@@ -529,32 +425,28 @@ SQL
 
 ## Where to go next
 
-- **Spec status:** `app/specs/SPEC_REGISTRY.md` (16 specs, 100% strict
-  coverage at the time of writing).
-- **Stage 0 walkthrough:** `app/docs/stage_0_walking_skeleton.md` — day-
-  by-day what's in this build.
-- **API contract:** `app/api/openapi.yaml` — every endpoint declared with
-  its required permission, license gate, audit events.
-- **Audit taxonomy:** `app/docs/audit_event_taxonomy.md` — every event
-  the service can emit.
-- **Stage 2 plans:** real auth, real hosts, real scans — not in this
-  install. Track progress via the roadmap.
+- **Operator guides:** [`docs/guides/`](../guides/) — hosts and remediation,
+  scanning and compliance, user roles.
+- **API contract:** [`api/openapi.yaml`](../../api/openapi.yaml) — every endpoint
+  with its required permission, license gate, and audit events.
+- **Behavioral specs:** [`specs/`](../../specs/).
+- **Release process:** [`docs/runbooks/RELEASING.md`](../runbooks/RELEASING.md).
 
 ---
 
 ## Quick reference card
 
 ```
-URLs           https://localhost:8443/api/v1/{health,license,audit/events,...}
-TLS cert       /etc/openwatch/tls/{cert,key}.pem  (self-signed demo)
+UI + API       https://<host>:8443/        (API under /api/v1/…)
+TLS cert       /etc/openwatch/tls/{cert,key}.pem   (self-signed by default)
 Config         /etc/openwatch/openwatch.toml
-Secrets        /etc/openwatch/secrets.env
+DB secret      /etc/openwatch/secrets.env          (OPENWATCH_DATABASE_DSN)
 Service unit   /etc/systemd/system/openwatch.service
 Binary         /usr/bin/openwatch
-Data dir       /var/lib/openwatch
-Log dir        /var/log/openwatch         (journald is the primary sink)
+Data / logs    /var/lib/openwatch  /var/log/openwatch  (journald is primary)
 User/group     openwatch:openwatch
+Migrate        sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) openwatch migrate
+Create admin   sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) openwatch create-admin --username admin --email you@example.com
 Logs           journalctl -u openwatch -f
 Restart        sudo systemctl restart openwatch
-Migrate        sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) openwatch migrate
 ```
