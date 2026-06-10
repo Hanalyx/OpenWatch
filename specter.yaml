@@ -8,7 +8,7 @@ system:
 domains:
     default:
         tier: 2
-        description: 12 .spec.yaml file(s) were discovered but could not be parsed — add their spec IDs here after fixing them. Run `specter doctor` for a drift analysis.
+        description: Default domain for the OpenWatch Go rebuild. Specs are the .spec.yaml files under specs/ (indexed below); coverage is gated in CI via specter ingest + sync (strictness threshold).
         specs:
             - api-audit-events-query
             - api-diagnostics-echo
