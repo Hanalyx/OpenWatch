@@ -10,7 +10,7 @@
 //   AC-07  (covered by AC-02 + AC-05 — persisted maintenance_global is
 //          read back; the live-service maintenance check is exercised
 //          in liveness/service_test.go)
-//   AC-09  TestConcurrentSet_LastWriterWins_NoDeadlock
+//   AC-06  TestConcurrentSet_LastWriterWins_NoDeadlock
 
 package systemconfig
 
