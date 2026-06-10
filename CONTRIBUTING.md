@@ -42,6 +42,15 @@ We are committed to providing a welcoming and inclusive environment for all cont
    > and is no longer part of this repo. The legacy `docker compose` /
    > `uvicorn` / `pip` setup no longer applies.
 
+4. **Install the spec-driven-development hooks**:
+   ```bash
+   pre-commit install                   # commit-time: format, lint, spec coverage (source-walk)
+   specter init --install-hook          # pre-push: block impl changes with no @spec/@ac annotation
+   ```
+   The pre-push hook delegates to `specter pre-push-check` and skips cleanly if
+   `specter` is not on your PATH. Bypass a single push with `git push --no-verify`.
+   Spec coverage is enforced strictly in CI regardless (see [Testing](#testing)).
+
 ## How to Contribute
 
 ### Reporting Bugs
