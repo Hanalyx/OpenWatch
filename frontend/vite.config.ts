@@ -5,7 +5,7 @@ import { fileURLToPath, URL } from 'node:url';
 // Vite config for OpenWatch frontend.
 //
 // build.outDir = "dist" — the directory the Go binary embeds via
-// //go:embed app/frontend/dist (see app/docs/frontend_architecture_adr.md
+// //go:embed frontend/dist (see docs/frontend_architecture_adr.md
 // D-18).
 //
 // server.proxy — dev workflow runs Vite on :5173 and Go on
