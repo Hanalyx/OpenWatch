@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Hanalyx/openwatch/internal/perftest"
 	"github.com/golang-jwt/jwt/v5"
 )
 
@@ -307,7 +308,7 @@ func TestVerify_P99Latency(t *testing.T) {
 		}
 		p99 := durs[int(float64(n)*0.99)]
 		if p99 > 1*time.Millisecond {
-			t.Errorf("Verify p99 = %v, want < 1ms", p99)
+			perftest.Budgetf(t, "Verify p99 = %v, want < 1ms", p99)
 		}
 		t.Logf("Verify p99 = %v over %d calls", p99, n)
 	})

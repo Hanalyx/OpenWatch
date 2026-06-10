@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/Hanalyx/openwatch/internal/perftest"
 )
 
 // @ac AC-01
@@ -119,7 +121,7 @@ func TestAPI_Health_LatencyP99(t *testing.T) {
 		}
 		p99 := durs[int(float64(n)*0.99)]
 		if p99 > 100*time.Millisecond {
-			t.Errorf("/health p99 = %v, want < 100ms", p99)
+			perftest.Budgetf(t, "/health p99 = %v, want < 100ms", p99)
 		}
 		t.Logf("/health p99 = %v over %d calls", p99, n)
 	})
