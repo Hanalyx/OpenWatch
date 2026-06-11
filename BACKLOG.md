@@ -3,7 +3,7 @@
 > **Purpose**: Single source of truth for pending work in the **OpenWatch Go** rebuild (`app/`).
 > Updated at the end of each AI session.
 
-**Last Updated**: 2026-06-04
+**Last Updated**: 2026-06-10
 **Active Tree**: `app/` (Go backend + React/TypeScript frontend)
 **Frozen Tree**: `backend/` (legacy Python/FastAPI — FROZEN as of 2026-06-04, see CLAUDE.md)
 
