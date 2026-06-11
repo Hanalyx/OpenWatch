@@ -1,3 +1,0 @@
-"""
-OpenWatch API Routes Package
-"""

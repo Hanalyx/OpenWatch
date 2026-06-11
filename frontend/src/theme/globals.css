@@ -1,0 +1,160 @@
+/* Global CSS — declares EVERY --ow-* token consumed by components.
+ *
+ * MUI v7's extendTheme handles its own palette variables
+ * (--ow-palette-*), but the design-token contract documented in
+ * app/docs/frontend_design_tokens.md uses short names like --ow-bg-0,
+ * --ow-info, --ow-crit. This file is the canonical SSOT for those.
+ *
+ * Spec: frontend-foundation C-04 (every documented token is present),
+ *       C-05 (components reference --ow-* only).
+ */
+
+/* Mode-invariant globals */
+:root {
+  /* radii */
+  --ow-radius: 8px;
+  --ow-radius-sm: 6px;
+  --ow-radius-full: 999px;
+
+  /* motion */
+  --ow-motion-fast: 120ms;
+  --ow-motion-base: 150ms;
+  --ow-motion-slow: 200ms;
+
+  /* spacing scale */
+  --ow-space-1: 4px;
+  --ow-space-2: 8px;
+  --ow-space-3: 12px;
+  --ow-space-4: 16px;
+  --ow-space-5: 20px;
+  --ow-space-6: 24px;
+  --ow-space-7: 28px;
+
+  /* OS brand identity — mode-invariant */
+  --ow-os-ubuntu: #e95420;
+  --ow-os-rhel: #ee0000;
+  --ow-os-debian: #a80030;
+  --ow-os-suse: #30ba78;
+
+  /* type */
+  --ow-font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --ow-font-mono: 'JetBrains Mono', ui-monospace, monospace;
+}
+
+/* ── Dark scheme ── */
+:root[data-mui-color-scheme='dark'] {
+  /* surfaces */
+  --ow-bg-0: #0b0c0f;
+  --ow-bg-1: #111317;
+  --ow-bg-2: #161a20;
+  --ow-bg-3: #1c2129;
+
+  /* lines */
+  --ow-line: #232831;
+  --ow-line-2: #2c323d;
+
+  /* text */
+  --ow-fg-0: #f3f5f8;
+  --ow-fg-1: #cfd4dd;
+  --ow-fg-2: #8a93a3;
+  --ow-fg-3: #5b6473;
+
+  /* severity */
+  --ow-crit: oklch(64% 0.2 25);
+  --ow-crit-on: #0a1424;
+  --ow-crit-bg: oklch(35% 0.12 25 / 0.18);
+
+  --ow-warn: oklch(78% 0.15 75);
+  --ow-warn-on: #0a1424;
+  --ow-warn-bg: oklch(50% 0.12 75 / 0.16);
+
+  --ow-ok: oklch(72% 0.16 155);
+  --ow-ok-on: #0a1424;
+  --ow-ok-bg: oklch(45% 0.1 155 / 0.18);
+
+  --ow-info: oklch(70% 0.13 245);
+  --ow-info-on: #0a1424;
+  --ow-info-bg: oklch(45% 0.12 245 / 0.18);
+
+  /* brand secondary (logo gradient tail) */
+  --ow-brand-2: oklch(60% 0.2 290);
+
+  /* shadows */
+  --ow-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --ow-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --ow-shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.45);
+}
+
+/* ── Light scheme ── */
+:root[data-mui-color-scheme='light'] {
+  --ow-bg-0: #ffffff;
+  --ow-bg-1: #f6f7f9;
+  --ow-bg-2: #eef0f3;
+  --ow-bg-3: #e3e6eb;
+
+  --ow-line: #d8dce2;
+  --ow-line-2: #c4ccd6;
+
+  --ow-fg-0: #0b0c0f;
+  --ow-fg-1: #1c2129;
+  --ow-fg-2: #5b6473;
+  --ow-fg-3: #8a93a3;
+
+  --ow-crit: oklch(52% 0.22 25);
+  --ow-crit-on: #ffffff;
+  --ow-crit-bg: oklch(95% 0.04 25);
+
+  --ow-warn: oklch(58% 0.15 75);
+  --ow-warn-on: #ffffff;
+  --ow-warn-bg: oklch(96% 0.06 75);
+
+  --ow-ok: oklch(48% 0.16 155);
+  --ow-ok-on: #ffffff;
+  --ow-ok-bg: oklch(95% 0.05 155);
+
+  --ow-info: oklch(52% 0.15 245);
+  --ow-info-on: #ffffff;
+  --ow-info-bg: oklch(95% 0.04 245);
+
+  --ow-brand-2: oklch(52% 0.2 290);
+
+  --ow-shadow-sm: 0 1px 2px rgba(11, 12, 15, 0.08);
+  --ow-shadow-md: 0 4px 12px rgba(11, 12, 15, 0.1);
+  --ow-shadow-lg: 0 16px 40px rgba(11, 12, 15, 0.15);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--ow-bg-0);
+  color: var(--ow-fg-0);
+  font-family: var(--ow-font-sans);
+  font-size: 14px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+  transition: background var(--ow-motion-base) ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --ow-motion-fast: 0ms;
+    --ow-motion-base: 0ms;
+    --ow-motion-slow: 0ms;
+  }
+}
+
+/* Visible focus indicator (frontend-foundation AC-11). */
+:focus-visible {
+  outline: 2px solid var(--ow-info);
+  outline-offset: 2px;
+}

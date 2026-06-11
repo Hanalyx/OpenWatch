@@ -1,382 +1,258 @@
-# Upgrade Procedures
+# Upgrade procedure
 
-This guide documents how to upgrade OpenWatch to a new version with minimal downtime.
+This guide covers upgrading an OpenWatch deployment to a newer version. OpenWatch
+ships as a single Go binary (`/usr/bin/openwatch`) that serves both the REST API
+and the embedded web UI over HTTPS on port 8443, managed by the `openwatch.service`
+systemd unit and backed by PostgreSQL. There is no container runtime, no separate
+web tier, and no Redis/Celery to coordinate, so an upgrade is: install the new
+package, apply migrations, restart the service.
 
-## Before You Upgrade
+For first-time install and configuration, see
+[`docs/engineering/install_guide.md`](../engineering/install_guide.md). For the
+database backup and restore commands referenced below, see
+[`BACKUP_RECOVERY.md`](BACKUP_RECOVERY.md). For migration mechanics, see
+[`DATABASE_MIGRATIONS.md`](DATABASE_MIGRATIONS.md).
 
-### Pre-Upgrade Checklist
+> Version note: the current release line is a pre-release (`0.2.0-rc.5`). Treat
+> upgrades between pre-release builds as potentially breaking and always back up
+> first.
 
-- [ ] Read the release notes for the target version
-- [ ] Verify current system is healthy (`curl http://localhost:8000/health`)
-- [ ] Create a full database backup (see [Backup & Recovery](BACKUP_RECOVERY.md))
-- [ ] Back up `.env` and certificate files
-- [ ] Note the current version (`cat VERSION`)
-- [ ] Note the current Alembic migration head:
-  ```bash
-  docker exec openwatch-backend alembic -c /app/backend/alembic.ini current
-  ```
-- [ ] Verify sufficient disk space for new images (2-3 GB)
-- [ ] Schedule a maintenance window
-- [ ] Notify users of planned downtime
+## Before you upgrade
 
-### Version Compatibility
+Run through this checklist on the running host:
 
-OpenWatch follows semantic versioning:
+- [ ] Read the release notes for the target version.
+- [ ] Confirm the service is healthy:
+      `curl -k https://localhost:8443/api/v1/health`
+      (expect `{"status":"healthy","db_connected":true,"version":"<version>"}`).
+- [ ] Record the current version: `openwatch --version`.
+- [ ] Record the current migration version (printed at the end of
+      `openwatch migrate`, or query `goose_db_version` — see
+      [Record the migration version](#record-the-migration-version)).
+- [ ] Take a full PostgreSQL backup (see [`BACKUP_RECOVERY.md`](BACKUP_RECOVERY.md)).
+- [ ] Back up `/etc/openwatch/` (config, `secrets.env`, and `tls/`).
+- [ ] Confirm free disk space with `df -h /var/lib/openwatch /var`.
+- [ ] Schedule a maintenance window and notify users.
 
-| Change Type | Version Bump | Migration Required | Downtime Expected |
-|-------------|-------------|-------------------|-------------------|
-| Patch (0.1.0 -> 0.1.1) | Patch | Possible | < 1 minute |
-| Minor (0.1.x -> 0.2.0) | Minor | Likely | 2-5 minutes |
-| Major (0.x -> 1.0) | Major | Yes | 5-15 minutes |
+### Record the migration version
 
-## Standard Upgrade Procedure
-
-### Step 1: Pull the Latest Code
-
-```bash
-cd /opt/openwatch
-
-# Save current version for rollback reference
-cat VERSION > /tmp/openwatch_prev_version
-
-# Pull the new version
-git fetch origin
-git checkout v<NEW_VERSION>
-# Or for latest main:
-git pull origin main
-```
-
-### Step 2: Review Changes
+Migrations are tracked in the `goose_db_version` table. Capture the current
+version so you know what the database looked like before the upgrade:
 
 ```bash
-# Check for new environment variables
-diff .env .env.example
-
-# Check for new migrations
-ls backend/alembic/versions/ | tail -10
-
-# Check for breaking changes in config
-git diff v<OLD_VERSION>..v<NEW_VERSION> -- backend/app/config.py
+sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) \
+  psql "$OPENWATCH_DATABASE_DSN" \
+  -c "SELECT max(version_id) FROM goose_db_version;"
 ```
 
-### Step 3: Update Configuration
+## How migrations work
+
+`openwatch migrate` applies every pending up-migration in
+`internal/db/migrations/` using goose, then prints the resulting version and the
+list of migration files. The command is idempotent: it applies only migrations
+not yet recorded in `goose_db_version`, so it is safe to re-run.
+
+There is no down-migration or `downgrade` subcommand. Migrations are forward-only.
+To revert a schema change you restore the pre-upgrade database backup (see
+[Rollback](#rollback)). Plan upgrades accordingly: the database backup is your
+rollback path, not a reverse migration.
+
+## Standard upgrade
+
+These steps assume the OpenWatch user is `openwatch` and the database DSN is in
+`/etc/openwatch/secrets.env` as `OPENWATCH_DATABASE_DSN`, matching the install
+guide.
+
+### Step 1 — Back up the database
+
+Take a fresh dump immediately before the upgrade (commands in
+[`BACKUP_RECOVERY.md`](BACKUP_RECOVERY.md)). Do not skip this: it is the only
+rollback path for schema changes.
+
+### Step 2 — Stop the service
 
 ```bash
-# Add any new required environment variables to .env
-# Compare with .env.example for new variables and defaults
+sudo systemctl stop openwatch
 ```
 
-### Step 4: Create Backup
+Stopping the service quiesces the API, the embedded worker loops, and the
+PostgreSQL-native job queue before the schema changes.
+
+### Step 3 — Install the new package
+
+On RHEL-family hosts (RPM):
 
 ```bash
-# Full database backup
-docker exec openwatch-db pg_dump \
-  -U openwatch -d openwatch -Fc \
-  -f /tmp/pre_upgrade_backup.dump
-
-docker cp openwatch-db:/tmp/pre_upgrade_backup.dump \
-  /opt/openwatch/backups/postgres/pre_upgrade_$(date +%Y%m%d_%H%M%S).dump
+sudo dnf upgrade ./openwatch-<new-version>.<arch>.rpm
 ```
 
-### Step 5: Stop Application Services
+On Debian/Ubuntu hosts (DEB):
 
 ```bash
-# Stop application containers (keep database and Redis running)
-docker stop openwatch-frontend openwatch-backend openwatch-worker openwatch-celery-beat
+sudo apt install ./openwatch_<new-version>_<arch>.deb
 ```
 
-### Step 6: Run Database Migrations
+Both packages replace `/usr/bin/openwatch`, refresh the systemd unit, and run
+`systemctl daemon-reload` in their post-install scripts. The config files under
+`/etc/openwatch/` are marked as config files and are not overwritten on upgrade;
+review the new package's default `openwatch.toml` against yours for new keys.
+
+Confirm the binary version:
 
 ```bash
-# Run migrations against the running database
-docker compose run --rm backend \
-  alembic -c /app/backend/alembic.ini upgrade head
-
-# Verify migration
-docker compose run --rm backend \
-  alembic -c /app/backend/alembic.ini current
+openwatch --version
 ```
 
-If migrations fail, see [Rollback Procedures](#rollback-procedures).
+### Step 4 — Validate the resolved config
 
-### Step 7: Rebuild and Start Services
+Catch missing or renamed config keys before starting the server:
 
 ```bash
-# Rebuild images with new code
-./start-openwatch.sh --runtime docker --build
+sudo -u openwatch openwatch check-config --config /etc/openwatch/openwatch.toml
 ```
 
-For production with the overlay:
+This prints the resolved configuration with secrets redacted and exits non-zero
+if validation fails. Config layering, highest precedence first: CLI flags > env
+vars (`OPENWATCH_<SECTION>_<KEY>`) > the TOML file > built-in defaults.
+
+### Step 5 — Apply migrations
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) \
+  openwatch migrate --config /etc/openwatch/openwatch.toml
 ```
 
-### Step 8: Verify the Upgrade
+The command prints the current version, the count of migration files, and each
+filename, then `migrations applied`. If it fails, the service is still stopped —
+fix the cause or restore the backup (see [Rollback](#rollback)) before starting.
+
+### Step 6 — Start the service
 
 ```bash
-# Health check
-curl -f http://localhost:8000/health
-
-# Check version
-cat VERSION
-
-# Verify all services are running
-docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep openwatch
-
-# Check for errors in logs
-docker logs openwatch-backend --tail 50 --since 5m
-docker logs openwatch-worker --tail 50 --since 5m
-
-# Verify database connectivity
-docker exec openwatch-db psql -U openwatch -d openwatch -c "SELECT 1;"
-
-# Verify Celery workers are processing
-docker logs openwatch-worker --tail 20 | grep -i "ready\|connected"
-
-# Run a quick scan to verify end-to-end functionality
-curl -f http://localhost:8000/api/scans/aegis/health
+sudo systemctl start openwatch
+sudo systemctl status openwatch
 ```
 
-## Production Upgrade (with Overlay)
-
-For production deployments using `docker-compose.prod.yml`:
+### Step 7 — Verify the upgrade
 
 ```bash
-# 1. Backup
-docker exec openwatch-db pg_dump -U openwatch -d openwatch -Fc \
-  -f /tmp/pre_upgrade.dump
-docker cp openwatch-db:/tmp/pre_upgrade.dump /opt/openwatch/backups/postgres/
+# Health and reported version.
+curl -k https://localhost:8443/api/v1/health
+curl -k https://localhost:8443/api/v1/version
 
-# 2. Pull new code
-git fetch origin && git checkout v<NEW_VERSION>
+# Watch the structured logs for the startup line and any errors.
+sudo journalctl -u openwatch -n 100 --no-pager
 
-# 3. Stop services (keep DB + Redis)
-docker stop openwatch-frontend openwatch-backend openwatch-worker openwatch-celery-beat
-
-# 4. Migrate
-docker compose -f docker-compose.yml -f docker-compose.prod.yml \
-  run --rm backend alembic -c /app/backend/alembic.ini upgrade head
-
-# 5. Rebuild and start
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
-
-# 6. Verify
-curl -f http://localhost:8000/health
-docker ps --format "table {{.Names}}\t{{.Status}}" | grep openwatch
+# Confirm the database is reachable from the host.
+sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) \
+  psql "$OPENWATCH_DATABASE_DSN" -c "SELECT 1;"
 ```
 
-## Rollback Procedures
+The `version` field in both `/api/v1/health` and `/api/v1/version` should report
+the new version. Sign in at `https://<host>:8443/` and confirm the UI loads.
 
-### Quick Rollback (Code Only)
+## Rollback
 
-If the upgrade fails but migrations have NOT run:
+Because migrations are forward-only, rolling back a release that changed the
+schema means restoring the pre-upgrade database backup and reinstalling the
+previous package.
+
+### Code-only rollback (no migration ran)
+
+If the upgrade failed before Step 5, or the target version applied no new
+migrations, reinstall the previous package and restart:
 
 ```bash
-# Revert to previous version
-git checkout v<OLD_VERSION>
-
-# Rebuild with old code
-./start-openwatch.sh --runtime docker --build
-
-# Verify
-curl -f http://localhost:8000/health
+sudo systemctl stop openwatch
+# RHEL family:
+sudo dnf install ./openwatch-<old-version>.<arch>.rpm
+# Debian/Ubuntu:
+sudo apt install ./openwatch_<old-version>_<arch>.deb
+sudo systemctl start openwatch
+curl -k https://localhost:8443/api/v1/health
 ```
 
-### Full Rollback (Code + Database)
+### Full rollback (migrations ran)
 
-If migrations ran and need to be reverted:
+If Step 5 applied new migrations, restore the pre-upgrade database backup, then
+reinstall the previous binary:
 
 ```bash
-# 1. Stop application services
-docker stop openwatch-frontend openwatch-backend openwatch-worker openwatch-celery-beat
+# 1. Stop the service.
+sudo systemctl stop openwatch
 
-# 2. Downgrade migrations
-# Find the migration revision of the old version
-docker compose run --rm backend \
-  alembic -c /app/backend/alembic.ini history | head -20
+# 2. Restore the pre-upgrade database dump
+#    (exact pg_restore/psql commands: BACKUP_RECOVERY.md).
 
-# Downgrade to specific revision
-docker compose run --rm backend \
-  alembic -c /app/backend/alembic.ini downgrade <OLD_REVISION>
+# 3. Reinstall the previous package (see Code-only rollback above).
 
-# 3. Revert code
-git checkout v<OLD_VERSION>
-
-# 4. Rebuild and start
-./start-openwatch.sh --runtime docker --build
+# 4. Start and verify.
+sudo systemctl start openwatch
+curl -k https://localhost:8443/api/v1/health
 ```
 
-### Emergency Rollback (Database Restore)
+Keep the pre-upgrade dump until you have validated the upgrade in production
+(at least several days).
 
-If migration downgrade fails or data is corrupted:
+## Updating Kensa compliance rules
+
+Kensa is the SSH-based compliance engine, integrated as a Go dependency
+(`internal/kensa/`); its native YAML rules are compiled into the `openwatch`
+binary. (OpenSCAP/`oscap`/XCCDF/OVAL are not used.) Rules therefore travel with
+the binary — installing a new OpenWatch package is what updates the bundled
+rule set. There is no separate rule-pull or out-of-band rule-sync step. For the
+Kensa/OpenWatch responsibility boundary, see
+[`docs/KENSA_OPENWATCH_BOUNDARY.md`](../KENSA_OPENWATCH_BOUNDARY.md).
+
+## Upgrading PostgreSQL
+
+PostgreSQL is provisioned and operated independently of the OpenWatch package
+(see [`docs/engineering/install_guide.md`](../engineering/install_guide.md)).
+Follow your distribution's PostgreSQL major-version upgrade procedure
+(`pg_upgrade` or dump-and-restore). Stop `openwatch.service` first so no
+connections are open during the upgrade, then start it again afterward and run
+the [verification](#step-7--verify-the-upgrade) checks.
+
+## Troubleshooting
+
+### Service fails to start after upgrade
 
 ```bash
-# 1. Stop all services
-./stop-openwatch.sh --simple
-
-# 2. Restore database from pre-upgrade backup
-docker start openwatch-db
-sleep 5
-
-docker exec openwatch-db psql -U openwatch -d postgres \
-  -c "DROP DATABASE IF EXISTS openwatch;"
-docker exec openwatch-db psql -U openwatch -d postgres \
-  -c "CREATE DATABASE openwatch OWNER openwatch;"
-
-docker cp /opt/openwatch/backups/postgres/pre_upgrade_YYYYMMDD.dump \
-  openwatch-db:/tmp/restore.dump
-
-docker exec openwatch-db pg_restore \
-  -U openwatch -d openwatch \
-  --no-owner --no-privileges \
-  /tmp/restore.dump
-
-docker exec openwatch-db rm /tmp/restore.dump
-
-# 3. Revert code
-git checkout v<OLD_VERSION>
-
-# 4. Rebuild and start
-./start-openwatch.sh --runtime docker --build
-
-# 5. Verify
-curl -f http://localhost:8000/health
+sudo systemctl status openwatch
+sudo journalctl -u openwatch -n 200 --no-pager
 ```
 
-## Upgrading Individual Components
+Common causes:
 
-### Backend Only
+- Invalid or incomplete config — run
+  `sudo -u openwatch openwatch check-config --config /etc/openwatch/openwatch.toml`.
+- Missing database secret — confirm `/etc/openwatch/secrets.env` defines
+  `OPENWATCH_DATABASE_DSN`.
+- Missing signing/encryption key material — the server refuses to start without
+  `[identity].jwt_private_key` and `[identity].credential_key_file`; the log line
+  names the missing key.
+- Schema not migrated — run Step 5.
 
-```bash
-docker stop openwatch-backend openwatch-worker openwatch-celery-beat
+### `migrate` fails
 
-# Run migrations if needed
-docker compose run --rm backend \
-  alembic -c /app/backend/alembic.ini upgrade head
+Re-run the command and read the error. The most common cause is the database
+being unreachable or the DSN being wrong; verify with
+`psql "$OPENWATCH_DATABASE_DSN" -c "SELECT 1;"`. Because migrations are
+idempotent, a partial run can be retried after the underlying issue is fixed. If
+the schema is in an unexpected state, restore the pre-upgrade backup.
 
-# Rebuild and restart
-docker compose up -d --build backend worker celery-beat
-```
+### Health endpoint returns 503
 
-### Frontend Only
+A 503 from `/api/v1/health` means the service started but a dependency is
+unhealthy — typically the database. Check `db_connected` in the response body
+and confirm PostgreSQL is running and reachable.
 
-```bash
-docker compose up -d --build frontend
-```
+## Post-upgrade checklist
 
-### Database (PostgreSQL)
-
-Upgrading PostgreSQL major versions requires a dump-and-restore cycle:
-
-```bash
-# 1. Backup with current version
-docker exec openwatch-db pg_dumpall -U openwatch > /tmp/full_dump.sql
-
-# 2. Stop all services
-./stop-openwatch.sh --simple
-
-# 3. Update PostgreSQL image version in docker-compose.yml
-
-# 4. Remove old data volume
-docker volume rm openwatch_postgres_data
-
-# 5. Start new PostgreSQL
-docker compose up -d database
-sleep 10
-
-# 6. Restore data
-docker cp /tmp/full_dump.sql openwatch-db:/tmp/full_dump.sql
-docker exec openwatch-db psql -U openwatch -d postgres -f /tmp/full_dump.sql
-
-# 7. Start all services
-./start-openwatch.sh --runtime docker
-```
-
-### Redis
-
-Redis upgrades are generally backward-compatible:
-
-```bash
-# Update image version in docker-compose.yml
-# Restart Redis
-docker compose up -d redis
-```
-
-### Aegis Rules
-
-Aegis rules are bundled in `backend/aegis/`. To update rules:
-
-```bash
-# Pull latest Aegis rules
-cd backend/aegis
-git pull origin main
-
-# Rebuild backend
-docker compose up -d --build backend worker
-
-# Verify rules loaded
-curl -f http://localhost:8000/api/scans/aegis/health
-curl http://localhost:8000/api/rules/reference/ | python3 -m json.tool | head -20
-```
-
-## Upgrade Troubleshooting
-
-### Migration Fails
-
-```bash
-# Check migration error details
-docker compose run --rm backend \
-  alembic -c /app/backend/alembic.ini current
-
-# If "multiple heads" error:
-docker compose run --rm backend \
-  alembic -c /app/backend/alembic.ini heads
-
-# Create a merge migration if needed:
-docker compose run --rm backend \
-  alembic -c /app/backend/alembic.ini merge heads -m "merge migration"
-```
-
-### Service Fails to Start After Upgrade
-
-```bash
-# Check logs for the failing service
-docker logs openwatch-backend --tail 100
-
-# Common issues:
-# - Missing environment variable -> add to .env
-# - Database schema mismatch -> run migrations
-# - Port conflict -> check for other processes on 8000/3000
-```
-
-### Health Check Fails After Upgrade
-
-```bash
-# Check each service individually
-docker exec openwatch-db pg_isready -U openwatch
-docker exec openwatch-redis redis-cli -a "$REDIS_PASSWORD" ping
-curl -v http://localhost:8000/health
-
-# Check if backend can reach database
-docker exec openwatch-backend python3 -c "
-from app.config import settings
-print(f'DB URL: {settings.database_url[:30]}...')
-"
-```
-
-## Post-Upgrade Checklist
-
-After a successful upgrade:
-
-- [ ] Health endpoint returns healthy
-- [ ] All containers running and healthy (`docker ps`)
-- [ ] No errors in backend logs
-- [ ] No errors in worker logs
-- [ ] Celery workers connected and processing
-- [ ] At least one scan can execute successfully
-- [ ] Frontend loads and users can log in
-- [ ] API documentation accessible at `/api/docs`
-- [ ] Monitoring dashboards show data (if configured)
-- [ ] Document the upgrade in your change log
-- [ ] Remove pre-upgrade backup after validation period (7 days recommended)
+- [ ] `/api/v1/health` returns `healthy` with `db_connected:true`.
+- [ ] `/api/v1/version` reports the new version.
+- [ ] `journalctl -u openwatch` shows a clean startup and no recurring errors.
+- [ ] An administrator can sign in at `https://<host>:8443/`.
+- [ ] A compliance scan completes end to end.
+- [ ] The upgrade is recorded in your change log.
+- [ ] The pre-upgrade backup is retained through the validation period.

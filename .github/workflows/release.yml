@@ -1,10 +1,15 @@
-# TODO: system-supply-chain AC-08 syft — add a syft step that scans the
-# built openwatch binary plus the RPM + DEB packages and uploads the
-# CycloneDX 1.5 JSON SBOM as a tagged workflow artifact.
-# TODO: system-supply-chain AC-09 cyclonedx — pin syft's output to
-# --output cyclonedx-json (CycloneDX 1.5) so the SBOM validates against
-# the published schema.
 name: Release
+
+# Cut a release on a v* tag (or manually via workflow_dispatch). Builds the
+# native RPM + DEB for amd64 and arm64 (each a complete API+UI binary — the SPA
+# is embedded), generates a CycloneDX SBOM per artifact with syft, writes signed
+# checksums, and publishes everything to a GitHub Release.
+#
+# Distribution model: GitHub Releases. Operators download and
+# `sudo dnf install ./openwatch-*.rpm` / `sudo apt install ./openwatch_*.deb`.
+#
+# Spec: specs/system/supply-chain.spec.yaml AC-08 (syft SBOM) / AC-09 (CycloneDX
+#       1.5); specs/release/package-build.spec.yaml.
 
 on:
   push:
@@ -13,342 +18,163 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version to release (e.g., v1.2.3)'
+        description: 'Release version, e.g. v0.2.0 (tag is created on publish)'
         required: true
         type: string
 
 permissions:
-  contents: write
-  packages: write
-  issues: write
-  pull-requests: write
+  contents: write # create the release + upload assets
 
 jobs:
-  create-release:
-    name: Create Release
+  release:
+    name: Build, SBOM, sign, publish
     runs-on: ubuntu-latest
-    outputs:
-      version: ${{ steps.version.outputs.version }}
-      upload_url: ${{ steps.create_release.outputs.upload_url }}
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v5
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Get version
-        id: version
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.4'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install rpmbuild
+        run: sudo apt-get update && sudo apt-get install -y rpm
+
+      # Builds all four artifacts: RPM + DEB for amd64 and arm64. arm64 is a
+      # CGO-disabled cross-compile, so no C cross-toolchain is required.
+      - name: Build packages (amd64 + arm64)
+        run: make packages
+
+      # Detect which signing keys are configured. The `secrets` context is not
+      # allowed in `if:`, so resolve presence here (secrets ARE allowed via env)
+      # and gate the signing steps on these outputs.
+      - name: Detect signing keys
+        id: keys
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
         run: |
-          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-            VERSION="${{ github.event.inputs.version }}"
+          if [ -n "$GPG_PRIVATE_KEY" ]; then
+            echo "gpg=true" >> "$GITHUB_OUTPUT"
           else
-            VERSION=${GITHUB_REF#refs/tags/}
+            echo "gpg=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::No GPG_PRIVATE_KEY secret — packages and checksums will be published unsigned."
           fi
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "Version: $VERSION"
+          if [ -n "$COSIGN_PRIVATE_KEY" ]; then
+            echo "cosign=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "cosign=false" >> "$GITHUB_OUTPUT"
+          fi
 
-      - name: Generate changelog
-        id: changelog
-        uses: mikepenz/release-changelog-builder-action@v4
-        with:
-          configuration: ".github/changelog-config.json"
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Create Release
-        id: create_release
-        uses: softprops/action-gh-release@v2
+      # Per-package GPG signatures for the RPMs. rpmsign embeds the signature in
+      # each RPM header (operators verify with `rpm --import KEYS` + `rpm -K`, or
+      # dnf gpgcheck). Runs BEFORE SBOM/checksums because it rewrites the package
+      # bytes. The default %__gpg points at gpg2, absent on Ubuntu runners, so set
+      # it explicitly.
+      #
+      # DEBs are NOT signed per-package: apt/dpkg never verify standalone-.deb
+      # signatures, and the tooling that produced them (dpkg-sig) was removed from
+      # Ubuntu. Each .deb's authenticity instead rides on its SHA256 in the
+      # GPG-signed (and cosign-signed) SHA256SUMS manifest below. A signed apt
+      # repo is the proper next step if per-DEB trust is ever required.
+      - name: GPG-sign RPMs
+        if: steps.keys.outputs.gpg == 'true'
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ steps.version.outputs.version }}
-          name: OpenWatch ${{ steps.version.outputs.version }}
-          body: |
-            ## What's Changed
-            ${{ steps.changelog.outputs.changelog }}
-
-            ## Docker Images
-            - Backend: `ghcr.io/hanalyx/openwatch-backend:${{ steps.version.outputs.version }}`
-            - Frontend: `ghcr.io/hanalyx/openwatch-frontend:${{ steps.version.outputs.version }}`
-
-            ## Installation
-            See the [installation guide](https://github.com/Hanalyx/OpenWatch/blob/main/README.md#installation) for detailed instructions.
-          draft: false
-          prerelease: false
-
-  build-artifacts:
-    name: Build Release Artifacts
-    runs-on: ubuntu-latest
-    needs: create-release
-    strategy:
-      matrix:
-        include:
-          - os: linux
-            arch: amd64
-          - os: linux
-            arch: arm64
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v5
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-        if: matrix.arch == 'arm64'
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build and push backend image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./docker/Dockerfile.backend
-          platforms: ${{ matrix.os }}/${{ matrix.arch }}
-          push: true
-          tags: |
-            ghcr.io/hanalyx/openwatch-backend:${{ needs.create-release.outputs.version }}-${{ matrix.arch }}
-            ghcr.io/hanalyx/openwatch-backend:latest-${{ matrix.arch }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Build and push frontend image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./docker/Dockerfile.frontend
-          platforms: ${{ matrix.os }}/${{ matrix.arch }}
-          push: true
-          tags: |
-            ghcr.io/hanalyx/openwatch-frontend:${{ needs.create-release.outputs.version }}-${{ matrix.arch }}
-            ghcr.io/hanalyx/openwatch-frontend:latest-${{ matrix.arch }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-  create-manifests:
-    name: Create Multi-arch Manifests
-    runs-on: ubuntu-latest
-    needs: [create-release, build-artifacts]
-
-    steps:
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Create and push backend manifest
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
         run: |
-          docker manifest create \
-            ghcr.io/hanalyx/openwatch-backend:${{ needs.create-release.outputs.version }} \
-            ghcr.io/hanalyx/openwatch-backend:${{ needs.create-release.outputs.version }}-amd64 \
-            ghcr.io/hanalyx/openwatch-backend:${{ needs.create-release.outputs.version }}-arm64
+          set -euo pipefail
+          echo "$GPG_PRIVATE_KEY" | gpg --batch --import
+          key_id="$(gpg --list-secret-keys --with-colons | awk -F: '/^sec/{print $5; exit}')"
+          gpg_bin="$(command -v gpg)"
+          # Non-interactive rpmsign with a loopback-passphrase sign command.
+          cat > "$HOME/.rpmmacros" <<RPMMACROS
+          %__gpg ${gpg_bin}
+          %_signature gpg
+          %_gpg_name ${key_id}
+          %__gpg_sign_cmd %{__gpg} --batch --no-armor --pinentry-mode loopback --passphrase ${GPG_PASSPHRASE} --no-secmem-warning --digest-algo sha256 -u "%{_gpg_name}" -sbo %{__signature_filename} %{__plaintext_filename}
+          RPMMACROS
+          rpmsign --addsign dist/openwatch-*.rpm
 
-          docker manifest push ghcr.io/hanalyx/openwatch-backend:${{ needs.create-release.outputs.version }}
-
-          docker manifest create \
-            ghcr.io/hanalyx/openwatch-backend:latest \
-            ghcr.io/hanalyx/openwatch-backend:latest-amd64 \
-            ghcr.io/hanalyx/openwatch-backend:latest-arm64
-
-          docker manifest push ghcr.io/hanalyx/openwatch-backend:latest
-
-      - name: Create and push frontend manifest
+      # SBOM: syft scans the actual (signed) binary and packages and emits
+      # CycloneDX 1.5 JSON — supply-chain AC-08 / AC-09.
+      - name: Install syft
         run: |
-          docker manifest create \
-            ghcr.io/hanalyx/openwatch-frontend:${{ needs.create-release.outputs.version }} \
-            ghcr.io/hanalyx/openwatch-frontend:${{ needs.create-release.outputs.version }}-amd64 \
-            ghcr.io/hanalyx/openwatch-frontend:${{ needs.create-release.outputs.version }}-arm64
+          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh \
+            | sh -s -- -b "$HOME/.local/bin"
 
-          docker manifest push ghcr.io/hanalyx/openwatch-frontend:${{ needs.create-release.outputs.version }}
-
-          docker manifest create \
-            ghcr.io/hanalyx/openwatch-frontend:latest \
-            ghcr.io/hanalyx/openwatch-frontend:latest-amd64 \
-            ghcr.io/hanalyx/openwatch-frontend:latest-arm64
-
-          docker manifest push ghcr.io/hanalyx/openwatch-frontend:latest
-
-  package-release:
-    name: Package Release Files
-    runs-on: ubuntu-latest
-    needs: create-release
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v5
-
-      - name: Create release archive
+      - name: Generate CycloneDX SBOMs
         run: |
-          # Create release directory
-          mkdir -p openwatch-${{ needs.create-release.outputs.version }}
+          export PATH="$HOME/.local/bin:$PATH"
+          mkdir -p dist/sbom
+          # CycloneDX 1.5 schema the emitted SBOMs validate against:
+          #   https://cyclonedx.org/schema/bom-1.5.schema.json
+          for art in dist/openwatch dist/openwatch-*.rpm dist/openwatch_*.deb; do
+            [ -e "$art" ] || continue
+            name="$(basename "$art")"
+            syft scan "file:$art" -o "cyclonedx-json=dist/sbom/${name}.cdx.json"
+          done
+          ls -l dist/sbom
 
-          # Copy necessary files
-          cp -r docker openwatch-${{ needs.create-release.outputs.version }}/
-          cp -r scripts openwatch-${{ needs.create-release.outputs.version }}/
-          cp docker-compose.yml openwatch-${{ needs.create-release.outputs.version }}/
-          cp podman-compose.yml openwatch-${{ needs.create-release.outputs.version }}/
-          cp README.md openwatch-${{ needs.create-release.outputs.version }}/
-          cp LICENSE openwatch-${{ needs.create-release.outputs.version }}/
+      - name: Checksums
+        run: |
+          cd dist
+          sha256sum openwatch-*.rpm openwatch_*.deb sbom/*.cdx.json > SHA256SUMS
+          cat SHA256SUMS
 
-          # Create environment template
-          cat > openwatch-${{ needs.create-release.outputs.version }}/.env.template << EOF
-          # OpenWatch Configuration Template
-          # Copy this file to .env and update with your values
-
-          # Database
-          DATABASE_URL=postgresql://openwatch:changeme@db:5432/openwatch
-
-          # Redis
-          REDIS_URL=redis://redis:6379
-
-          # Security
-          JWT_SECRET_KEY=changeme-generate-secure-key
-          ENCRYPTION_KEY=changeme-32-byte-key
-
-          # Application
-          ENVIRONMENT=production
-          LOG_LEVEL=INFO
-          EOF
-
-          # Create archives
-          tar -czf openwatch-${{ needs.create-release.outputs.version }}.tar.gz openwatch-${{ needs.create-release.outputs.version }}
-          zip -r openwatch-${{ needs.create-release.outputs.version }}.zip openwatch-${{ needs.create-release.outputs.version }}
-
-      - name: Upload Release Assets
-        uses: softprops/action-gh-release@v2
+      # Detached GPG signature over the checksum manifest — the universal verify
+      # path (`gpg --verify SHA256SUMS.asc SHA256SUMS`), independent of rpm/dpkg.
+      # The key was already imported by the GPG-sign packages step.
+      - name: GPG-sign checksums
+        if: steps.keys.outputs.gpg == 'true'
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          cd dist
+          gpg --batch --yes --pinentry-mode loopback \
+            --passphrase "$GPG_PASSPHRASE" \
+            --armor --detach-sign --output SHA256SUMS.asc SHA256SUMS
+
+      # cosign attestation over the checksum manifest (sigstore). Offline,
+      # key-based, no Rekor transparency-log upload.
+      - name: Install cosign
+        if: steps.keys.outputs.cosign == 'true'
+        uses: sigstore/cosign-installer@v3.7.0
+
+      - name: Cosign-sign checksums
+        if: steps.keys.outputs.cosign == 'true'
+        env:
+          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
+        run: |
+          cosign sign-blob --yes --tlog-upload=false \
+            --key env://COSIGN_PRIVATE_KEY \
+            --output-signature dist/SHA256SUMS.cosign.sig dist/SHA256SUMS
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ needs.create-release.outputs.version }}
+          tag_name: ${{ github.event.inputs.version || github.ref_name }}
+          generate_release_notes: true
+          fail_on_unmatched_files: false
+          # Any version with a pre-release suffix (e.g. -rc.4, -beta.1) is a
+          # pre-release; a bare vX.Y.Z (no hyphen) is a GA release.
+          prerelease: ${{ contains(github.event.inputs.version || github.ref_name, '-') }}
           files: |
-            ./openwatch-${{ needs.create-release.outputs.version }}.tar.gz
-            ./openwatch-${{ needs.create-release.outputs.version }}.zip
-
-  build-rpm:
-    name: Build RPM Package
-    runs-on: ubuntu-latest
-    needs: create-release
-    container:
-      image: quay.io/centos/centos:stream9
-
-    steps:
-      - name: Install git
-        run: dnf install -y git
-
-      - name: Checkout code
-        uses: actions/checkout@v5
-
-      - name: Verify version matches tag
-        run: |
-          TAG_VERSION="${{ needs.create-release.outputs.version }}"
-          TAG_VERSION="${TAG_VERSION#v}"
-          source packaging/version.env
-          if [[ "$TAG_VERSION" != "$VERSION" ]]; then
-            echo "::error::Tag version ($TAG_VERSION) does not match version.env ($VERSION)"
-            exit 1
-          fi
-          echo "Version verified: $VERSION"
-
-      - name: Install build dependencies
-        run: |
-          dnf install -y rpm-build rpmdevtools golang make \
-            selinux-policy-devel gcc
-          dnf module install -y nodejs:20/common
-
-      - name: Build RPM
-        run: bash packaging/rpm/build-rpm.sh
-
-      - name: Upload RPM to release
-        uses: softprops/action-gh-release@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ needs.create-release.outputs.version }}
-          files: packaging/rpm/dist/*.rpm
-
-  build-deb:
-    name: Build DEB Package
-    runs-on: ubuntu-latest
-    needs: create-release
-    container:
-      image: ubuntu:24.04
-
-    steps:
-      - name: Install git
-        run: |
-          apt-get update
-          apt-get install -y git
-
-      - name: Checkout code
-        uses: actions/checkout@v5
-
-      - name: Verify version matches tag
-        run: |
-          TAG_VERSION="${{ needs.create-release.outputs.version }}"
-          TAG_VERSION="${TAG_VERSION#v}"
-          source packaging/version.env
-          if [[ "$TAG_VERSION" != "$VERSION" ]]; then
-            echo "::error::Tag version ($TAG_VERSION) does not match version.env ($VERSION)"
-            exit 1
-          fi
-          echo "Version verified: $VERSION"
-
-      - name: Install build dependencies
-        run: |
-          apt-get update
-          apt-get install -y build-essential golang-go git fakeroot \
-            lintian dpkg-dev ca-certificates
-
-      - name: Build DEB
-        run: bash packaging/deb/build-deb.sh
-
-      - name: Upload DEB to release
-        uses: softprops/action-gh-release@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ needs.create-release.outputs.version }}
-          files: packaging/deb/dist/*.deb
-
-  update-documentation:
-    name: Update Documentation
-    runs-on: ubuntu-latest
-    needs: [create-release, create-manifests]
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v5
-        with:
-          ref: main
-
-      - name: Update version references
-        run: |
-          # Update README with new version
-          sed -i "s/openwatch:[0-9]\+\.[0-9]\+\.[0-9]\+/openwatch:${{ needs.create-release.outputs.version }}/g" README.md
-
-          # Update docker-compose.yml
-          sed -i "s/openwatch-backend:[0-9]\+\.[0-9]\+\.[0-9]\+/openwatch-backend:${{ needs.create-release.outputs.version }}/g" docker-compose.yml
-          sed -i "s/openwatch-frontend:[0-9]\+\.[0-9]\+\.[0-9]\+/openwatch-frontend:${{ needs.create-release.outputs.version }}/g" docker-compose.yml
-
-      - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v8
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          commit-message: "chore: update version to ${{ needs.create-release.outputs.version }}"
-          title: "chore: update documentation for ${{ needs.create-release.outputs.version }} release"
-          body: |
-            This PR updates the documentation to reflect the new release version ${{ needs.create-release.outputs.version }}.
-
-            - Updates version references in README
-            - Updates docker-compose.yml with new image tags
-          branch: update-version-${{ needs.create-release.outputs.version }}
-          delete-branch: true
+            dist/openwatch-*.rpm
+            dist/openwatch_*.deb
+            dist/SHA256SUMS
+            dist/SHA256SUMS.asc
+            dist/SHA256SUMS.cosign.sig
+            dist/sbom/*.cdx.json
+            KEYS

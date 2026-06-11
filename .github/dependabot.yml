@@ -1,11 +1,11 @@
 version: 2
 updates:
-  # Go dependencies for the OpenWatch Go rebuild (app/)
-  # See specs/system/supply-chain.spec.yaml — every accepted update must
-  # also update the depguard allowlist in app/.golangci.yml if the
-  # module set changes.
+  # Go module for the OpenWatch Go rebuild. The module lives at the repo root
+  # (promoted from app/ on 2026-06-05), so the directory is "/".
+  # See specs/system/supply-chain.spec.yaml — every accepted update must also
+  # update the depguard allowlist in .golangci.yml if the module set changes.
   - package-ecosystem: "gomod"
-    directory: "/app"
+    directory: "/"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -34,47 +34,7 @@ updates:
         update-types:
           - "minor"
 
-  # Python dependencies for backend (regular updates)
-  - package-ecosystem: "pip"
-    directory: "/backend"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "09:00"
-      timezone: "UTC"
-    open-pull-requests-limit: 3
-    rebase-strategy: "disabled"
-    reviewers:
-      - "Hanalyx/security-team"
-    assignees:
-      - "daniel-kim"  # Backend lead
-    labels:
-      - "dependencies"
-      - "backend"
-      - "python"
-    commit-message:
-      prefix: "backend"
-      include: "scope"
-    groups:
-      python-minor:
-        patterns:
-          - "*"
-        update-types:
-          - "minor"
-          - "patch"
-    # Auto-merge configuration for patch updates
-    allow:
-      - dependency-type: "all"
-        update-type: "version-update:semver-patch"
-    ignore:
-      - dependency-name: "fastapi"
-        update-types: ["version-update:semver-major"]
-      - dependency-name: "sqlalchemy"
-        update-types: ["version-update:semver-major"]
-      - dependency-name: "*"
-        versions: ["*alpha*", "*beta*", "*rc*", "*pre*", "*dev*"]
-
-  # JavaScript dependencies for frontend (regular updates)
+  # JavaScript dependencies for the active frontend (React 19 + Vite).
   - package-ecosystem: "npm"
     directory: "/frontend"
     schedule:
@@ -86,8 +46,6 @@ updates:
     rebase-strategy: "disabled"
     reviewers:
       - "Hanalyx/frontend-team"
-    assignees:
-      - "sofia-alvarez"  # Frontend lead
     labels:
       - "dependencies"
       - "frontend"
@@ -146,7 +104,6 @@ updates:
         update-types:
           - "minor"
           - "patch"
-    # Auto-merge configuration
     allow:
       - dependency-type: "development"
         update-type: "version-update:semver-patch"
@@ -160,36 +117,7 @@ updates:
       - dependency-name: "*"
         versions: ["*alpha*", "*beta*", "*rc*", "*pre*", "*dev*"]
 
-  # Docker base images
-  - package-ecosystem: "docker"
-    directory: "/"
-    schedule:
-      interval: "weekly"
-      day: "tuesday"
-      time: "09:00"
-      timezone: "UTC"
-    open-pull-requests-limit: 3
-    rebase-strategy: "disabled"
-    reviewers:
-      - "Hanalyx/devops-team"
-    assignees:
-      - "marcus-rodriguez"  # DevOps lead
-    labels:
-      - "dependencies"
-      - "docker"
-      - "infrastructure"
-    commit-message:
-      prefix: "docker"
-      include: "scope"
-    ignore:
-      - dependency-name: "node"
-        update-types: ["version-update:semver-major"]
-      - dependency-name: "python"
-        update-types: ["version-update:semver-major"]
-      - dependency-name: "postgres"
-        update-types: ["version-update:semver-major"]
-
-  # GitHub Actions
+  # GitHub Actions used by the CI/release/packaging workflows.
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
@@ -200,9 +128,7 @@ updates:
     open-pull-requests-limit: 3
     rebase-strategy: "disabled"
     reviewers:
-      - "Hanalyx/devops-team"
-    assignees:
-      - "marcus-rodriguez"  # DevOps lead
+      - "Hanalyx/security-team"
     labels:
       - "dependencies"
       - "ci-cd"
@@ -210,12 +136,11 @@ updates:
     commit-message:
       prefix: "ci"
       include: "scope"
-    # Auto-merge patch updates for actions
     allow:
       - dependency-type: "all"
         update-type: "version-update:semver-patch"
 
-  # Security-focused updates for frontend (daily)
+  # Security-only updates for the frontend on a daily cadence.
   - package-ecosystem: "npm"
     directory: "/frontend"
     schedule:
@@ -231,38 +156,9 @@ updates:
       - "frontend"
     reviewers:
       - "Hanalyx/security-team"
-    assignees:
-      - "emily-chen"  # Security lead
     commit-message:
       prefix: "security(frontend)"
       include: "scope"
-    # Only security updates on daily schedule
-    allow:
-      - dependency-type: "all"
-        update-type: "security-update"
-
-  # Security-focused updates for backend (daily)
-  - package-ecosystem: "pip"
-    directory: "/backend"
-    schedule:
-      interval: "daily"
-      time: "06:00"
-      timezone: "UTC"
-    target-branch: "main"
-    rebase-strategy: "disabled"
-    labels:
-      - "dependencies"
-      - "security"
-      - "critical"
-      - "backend"
-    reviewers:
-      - "Hanalyx/security-team"
-    assignees:
-      - "emily-chen"  # Security lead
-    commit-message:
-      prefix: "security(backend)"
-      include: "scope"
-    # Only security updates on daily schedule
     allow:
       - dependency-type: "all"
         update-type: "security-update"

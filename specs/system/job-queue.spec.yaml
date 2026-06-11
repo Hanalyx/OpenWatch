@@ -1,159 +1,107 @@
-spec: job-queue
-version: "1.0"
-status: active
-owner: engineering
-summary: >
-  PostgreSQL-native job queue replacing Celery + Redis. Uses SKIP LOCKED
-  for concurrent task dispatch, a recurring_jobs table for periodic
-  scheduling (replacing Celery Beat), and in-process caching for rule data
-  (replacing Redis). Reduces infrastructure from 6 containers to 3 and
-  eliminates 2 external dependencies from the air-gapped packaging path.
+spec:
+  id: system-job-queue
+  title: PostgreSQL job queue with correlation propagation
+  version: "1.0.0"
+  status: approved
+  tier: 1
 
----
-
-objective: >
-  Remove Redis and Celery from the OpenWatch dependency tree while
-  preserving all task execution semantics: async dispatch, retry with
-  backoff, periodic scheduling, priority queues, timeout enforcement,
-  and concurrent workers. The PostgreSQL SKIP LOCKED pattern handles
-  5,000+ dequeues/second, far exceeding OpenWatch's peak of ~25/second
-  at 7,000 hosts.
-
----
-
-context:
-  replaces:
-    - celery_app.py (Celery configuration, Beat schedule, task routing)
-    - Redis broker (message queue)
-    - Redis result backend (task status)
-    - token_blacklist.py (Redis-backed JWT revocation)
-    - rules/cache.py (Redis-backed rule cache)
-  consumed_by:
-    - All Celery task files (28 tasks across 20 files)
-    - routes that call .delay() to dispatch async work
-    - docker-compose.yml (container topology)
-    - packaging/rpm/ and packaging/deb/ (dependency lists)
-
----
-
-constraints:
-  job_queue_table:
-    - "job_queue MUST have columns: id (UUID PK), task_name, args (JSONB), status, priority, queue, scheduled_at, started_at, completed_at, result (JSONB), error, retry_count, max_retries, timeout_seconds, created_at"
-    - "status MUST be one of: pending, running, completed, failed, cancelled"
-    - "Composite index on (status, scheduled_at, queue, priority DESC) MUST exist for SKIP LOCKED performance"
-
-  dequeue_semantics:
-    - "Dequeue MUST use SELECT ... FOR UPDATE SKIP LOCKED to prevent double-dispatch"
-    - "Dequeue MUST filter: status = 'pending' AND scheduled_at <= NOW() AND queue = :q"
-    - "Dequeue MUST order by priority DESC, created_at ASC"
-    - "Dequeue MUST atomically UPDATE status = 'running' and SET started_at"
-
-  retry:
-    - "Failed tasks with retry_count < max_retries MUST be re-enqueued with exponential backoff"
-    - "Backoff formula: scheduled_at = NOW() + (2^retry_count * 60) seconds"
-    - "retry_count MUST increment on each retry"
-
-  timeout:
-    - "Worker MUST enforce timeout_seconds via signal.alarm() on Unix"
-    - "Tasks exceeding timeout MUST be marked failed with error 'Task timed out'"
-
-  scheduling:
-    - "recurring_jobs table MUST store: name, task_name, args (JSONB), queue, cron_expression, enabled, last_run_at, next_run_at"
-    - "Scheduler loop MUST run every 10 seconds and INSERT due jobs into job_queue"
-    - "Scheduler MUST update next_run_at after each insertion"
-    - "Scheduler MUST support standard cron syntax (minute, hour, day, month, weekday)"
-
-  worker:
-    - "Worker MUST support configurable concurrency (default: CPU count)"
-    - "Worker MUST handle SIGTERM for graceful shutdown (finish current task, stop polling)"
-    - "Worker MUST log task start, completion, failure, and retry events"
-
-  migration:
-    - "Feature flag OPENWATCH_USE_PG_QUEUE MUST allow side-by-side operation with Celery"
-    - "All 28 existing Celery tasks MUST be migrable without changing their function signatures"
-    - "enqueue() API MUST accept the same arguments as Celery .delay()"
-
----
-
-acceptance_criteria:
-  - id: AC-1
+  context:
+    system: openwatch-go
+    feature: Async job queue
     description: >
-      job_queue table exists with the specified columns and composite index
-      for SKIP LOCKED polling performance.
+      A PostgreSQL-native job queue using the SELECT ... FOR UPDATE SKIP
+      LOCKED pattern. Correlation propagation is built into the Enqueue
+      and Dequeue helpers so Stage-2 callers cannot bypass the contract.
+      Enqueue extracts correlation_id from the caller's context; Dequeue
+      restores it onto a fresh worker context. Lint forbids raw INSERT
+      INTO job_queue outside internal/queue/.
+    related_specs:
+      - system-correlation
+      - system-audit-emission
+      - system-db
 
-  - id: AC-2
-    description: >
-      JobQueueService.dequeue(queue) uses SELECT FOR UPDATE SKIP LOCKED
-      and atomically transitions the job from pending to running.
+  objective:
+    summary: >
+      Make async work obey the same correlation contract as synchronous
+      work. A job picked up by a worker must carry the originating
+      request's correlation_id; cron-triggered jobs carry a fresh
+      cron- ID. Drift becomes impossible because the queue helpers are
+      the only public API to insert or claim rows.
+    scope:
+      includes:
+        - Enqueue/Dequeue helpers with correlation built in
+        - SKIP LOCKED dequeue (multi-worker safe)
+        - At-least-once delivery (with attempt count)
+        - Cron tick that generates per-tick correlation IDs
+      excludes:
+        - Job retry/backoff strategies (deferred)
+        - Distributed scheduler election (single-node Stage 0)
 
-  - id: AC-3
-    description: >
-      JobQueueService.enqueue(task_name, args, ...) inserts a pending job
-      and returns the job ID.
+  constraints:
+    - id: C-01
+      description: Enqueue MUST extract correlation_id from ctx and return an error if none is set (programming-error guard)
+      type: security
+      enforcement: error
+    - id: C-02
+      description: Dequeue MUST return a fresh context with the row's correlation_id set; caller's ctx (which may carry the worker-loop's own ID) MUST NOT leak into per-job execution
+      type: security
+      enforcement: error
+    - id: C-03
+      description: The job_queue row MUST persist correlation_id alongside status, payload, attempts
+      type: technical
+      enforcement: error
+    - id: C-04
+      description: Dequeue MUST use SELECT ... FOR UPDATE SKIP LOCKED so concurrent workers do not double-claim
+      type: technical
+      enforcement: error
+    - id: C-05
+      description: Cron tick MUST generate a fresh cron- correlation_id per tick; jobs enqueued in one tick share that ID
+      type: technical
+      enforcement: error
+    - id: C-06
+      description: Forbidigo lint MUST reject raw "INSERT INTO job_queue" outside internal/queue/ and "http.DefaultClient" outside internal/httpclient/
+      type: technical
+      enforcement: error
 
-  - id: AC-4
-    description: >
-      Failed tasks with retry_count < max_retries are re-enqueued with
-      exponential backoff (scheduled_at = NOW() + 2^retry * 60s).
-
-  - id: AC-5
-    description: >
-      Worker enforces timeout_seconds via signal.alarm(). Tasks exceeding
-      the timeout are marked failed.
-
-  - id: AC-6
-    description: >
-      Scheduler reads recurring_jobs and inserts due jobs into job_queue
-      based on cron_expression. next_run_at is updated after each insertion.
-
-  - id: AC-7
-    description: >
-      Worker handles SIGTERM by finishing the current task and stopping
-      the poll loop (graceful shutdown).
-
-  - id: AC-8
-    description: >
-      All 28 Celery tasks execute successfully via the job_queue worker
-      with no Celery or Redis processes running.
-
-  - id: AC-9
-    description: >
-      All 8 periodic schedules (host pings, compliance dispatch, stale
-      detection, posture snapshots, etc.) run at their configured intervals
-      via the scheduler, not Celery Beat.
-
-  - id: AC-10
-    description: >
-      Token blacklist operates via PostgreSQL table (not Redis). JWT
-      revocation on logout works correctly.
-
-  - id: AC-11
-    description: >
-      Rule cache uses in-process TTLCache (not Redis). Rule data loads
-      correctly on worker startup.
-
-  - id: AC-12
-    description: >
-      docker-compose.yml defines 3 containers (backend, worker, db).
-      No Redis or Celery Beat containers exist.
-
-  - id: AC-13
-    description: >
-      RPM and DEB packages build without Redis as a dependency.
-      Worker systemd service runs the job_queue worker process.
-
-  - id: AC-14
-    description: >
-      End-to-end test: trigger scan → job dispatched → scan executes →
-      transactions written → alert generated → notification dispatched.
-      All via job_queue, no Celery/Redis.
-
----
-
-changelog:
-  - version: "1.0"
-    date: "2026-04-13"
-    changes:
-      - "Initial spec for PostgreSQL-native job queue"
-      - "14 ACs covering queue, worker, scheduler, migration, packaging"
-      - "Replaces Celery (28 tasks) + Redis (broker, cache, blacklist)"
+  acceptance_criteria:
+    - id: AC-01
+      description: Enqueue(ctx, jobType, payload) persists a job_queue row with status=pending, correlation_id from ctx, attempts=0, payload as JSONB.
+      priority: critical
+      references_constraints: [C-01, C-03]
+    - id: AC-02
+      description: Enqueue called with context.Background() (no correlation_id) returns ErrMissingCorrelation; no row written.
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-03
+      description: Dequeue claims one pending job atomically (SKIP LOCKED) and updates status to processing.
+      priority: critical
+      references_constraints: [C-04]
+    - id: AC-04
+      description: Dequeue returns a fresh context with the job's correlation_id; the caller's ctx is not used for derivation.
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-05
+      description: Two concurrent Dequeue calls against one pending row return one job and one "no row" — no double-claim.
+      priority: critical
+      references_constraints: [C-04]
+    - id: AC-06
+      description: Complete(ctx, jobID) marks a job as completed; subsequent Dequeue calls skip it.
+      priority: high
+    - id: AC-07
+      description: Fail(ctx, jobID, err) marks a job as failed with the error message; subsequent Dequeue calls skip it.
+      priority: high
+    - id: AC-08
+      description: job_queue schema includes id (UUID PK), job_type, payload (JSONB), correlation_id (NOT NULL), status, attempts, created_at, locked_at, completed_at, error.
+      priority: critical
+      references_constraints: [C-03]
+    - id: AC-09
+      description: Per-tick correlation_id from the cron scheduler has prefix "cron-" and is distinct across ticks.
+      priority: high
+      references_constraints: [C-05]
+    - id: AC-10
+      description: Enqueue p99 latency < 5ms against local DB (single INSERT).
+      priority: medium
+    - id: AC-11
+      description: Lint forbids raw "INSERT INTO job_queue" outside internal/queue/ and "http.DefaultClient" outside internal/httpclient/.
+      priority: high
+      references_constraints: [C-06]

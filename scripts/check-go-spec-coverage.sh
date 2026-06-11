@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Pre-commit hook: source-walk spec coverage for the Go rebuild.
 #
-# Runs `specter coverage --strictness annotation --failing` from app/.
+# Runs `specter coverage --strictness annotation --failing` from the repo root.
 # This mode walks source files for // @ac AC-NN annotations — no test
 # results required, no .specter-results.json — so it catches the exact
 # class of failure that put PR #455 through three CI re-runs: a tier-1
@@ -17,8 +17,8 @@
 
 set -u
 
-cd "$(git rev-parse --show-toplevel)/app" 2>/dev/null || {
-    echo "[spec-coverage] not run: app/ not found" >&2
+cd "$(git rev-parse --show-toplevel)" 2>/dev/null || {
+    echo "[spec-coverage] not run: repo root not found" >&2
     exit 0
 }
 

@@ -27,25 +27,20 @@ repos:
             docs/.*|
             scripts/test-data/.*|
             security/certs/mongodb/backup-.*|
-            backend/app/services/auth/credential_handler\.py|
-            backend/app/services/ssh/.*\.py|
-            backend/app/routes/remediation_api\.py|
-            backend/app/routes/scan_config_api\.py|
-            backend/tests/test_host_ssh_validation\.py|
             frontend/src/utils/hostValidation\.ts|
             frontend/src/pages/hosts/AddHost\.tsx|
             frontend/src/pages/hosts/Hosts\.tsx|
             frontend/src/pages/settings/Settings\.tsx|
-            app/internal/identity/jwt\.go|
-            app/internal/ssh/dial\.go|
-            app/internal/license/testdata/.*|
-            app/internal/policy/testdata/.*|
-            app/internal/credential/credential_test\.go|
-            app/internal/ssh/ssh_test\.go|
-            app/internal/server/tls_test\.go|
-            app/internal/server/server_test\.go|
-            app/internal/server/api_credentials_test\.go|
-            app/packaging/tests/runtime_boot_test\.go
+            internal/identity/jwt\.go|
+            internal/ssh/dial\.go|
+            internal/license/testdata/.*|
+            internal/policy/testdata/.*|
+            internal/credential/credential_test\.go|
+            internal/ssh/ssh_test\.go|
+            internal/server/tls_test\.go|
+            internal/server/server_test\.go|
+            internal/server/api_credentials_test\.go|
+            packaging/tests/runtime_boot_test\.go
           )$
       - id: mixed-line-ending
         args: ['--fix=lf']
@@ -140,24 +135,25 @@ repos:
       - id: check-no-emojis
         name: Check for Emojis in Code
         # Note: Emojis allowed in CLAUDE.md (policy doc), .github/ (templates), tests/ (unicode tests),
-        # cmd/owadm/README.md, scripts/examples/, scripts/utilities/ (reference implementations)
-        entry: bash -c 'if git diff --cached --name-only | grep -v "CLAUDE.md" | grep -v "^\.github/" | grep -v "^cmd/owadm/README.md" | grep -v "^scripts/examples/" | grep -v "^scripts/utilities/" | grep -v "^backend/tests/" | xargs grep -P "[\x{1F300}-\x{1F9FF}]" 2>/dev/null; then echo "ERROR - Emojis detected in code. See CLAUDE.md emoji policy."; exit 1; fi'
+        # scripts/examples/, scripts/utilities/ (reference implementations)
+        entry: bash -c 'if git diff --cached --name-only | grep -v "CLAUDE.md" | grep -v "^\.github/" | grep -v "^scripts/examples/" | grep -v "^scripts/utilities/" | grep -v "^backend/tests/" | xargs grep -P "[\x{1F300}-\x{1F9FF}]" 2>/dev/null; then echo "ERROR - Emojis detected in code. See CLAUDE.md emoji policy."; exit 1; fi'
         language: system
         pass_filenames: false
 
       - id: frontend-lint
         name: ESLint Frontend
-        entry: bash -c 'cd frontend && npx eslint --max-warnings=0 $(echo "$@" | sed "s|frontend/||g")' --
+        entry: bash -c 'cd frontend && npx eslint --max-warnings=0 .'
         language: system
-        files: ^frontend/src/.*\.(ts|tsx|js|jsx)$
-        pass_filenames: true
+        files: ^frontend/.*\.(ts|tsx|js|jsx)$
+        pass_filenames: false
 
       - id: prettier
         name: Prettier Frontend Formatting
-        entry: bash -c 'cd frontend && npx prettier --check $(echo "$@" | sed "s|frontend/||g")' --
+        entry: bash -c 'cd frontend && npx prettier --check .'
         language: system
-        files: ^frontend/src/.*\.(ts|tsx|js|jsx|css|scss|json)$
-        pass_filenames: true
+        files: ^frontend/.*\.(ts|tsx|css|scss|json)$
+        pass_filenames: false
+      #   pass_filenames: false
 
       # Note: TypeScript has 219+ pre-existing type errors requiring gradual migration
       # Type check disabled until errors are addressed (tracked in CLAUDE.md)
@@ -176,7 +172,7 @@ repos:
         stages: [commit-msg]
 
       # Spec coverage gate (Go rebuild). Source-walks for @ac AC-NN
-      # annotations under app/specs; <1s, no tests required. Catches
+      # annotations under specs/; <1s, no tests required. Catches
       # the class of failure that put PR #455 through 3 CI re-runs:
       # a tier-1 spec landed with passing tests but without the @ac
       # comments specter coverage walks for. Skipped when specter is
@@ -186,7 +182,7 @@ repos:
         entry: scripts/check-go-spec-coverage.sh
         language: script
         pass_filenames: false
-        files: ^app/(internal/.*_test\.go|specs/.*\.spec\.yaml|frontend/(src|tests)/.*\.(ts|tsx))$
+        files: ^(internal/.*_test\.go|specs/.*\.spec\.yaml|frontend/(src|tests)/.*\.(ts|tsx))$
         stages: [pre-commit]
 
       # Don't run tests in pre-commit (too slow)

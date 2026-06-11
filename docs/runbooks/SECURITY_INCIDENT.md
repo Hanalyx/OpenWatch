@@ -1,308 +1,310 @@
 # Runbook: Security Incident Response
 
 **Severity**: P0 - Critical
-**Last Updated**: 2026-02-17
+**Last Updated**: 2026-06-10
 **Owner**: Security Engineering
 **Estimated Resolution Time**: Hours to days depending on scope
+
+OpenWatch runs as a single Go binary (`/usr/bin/openwatch`) managed by `systemd` (`openwatch.service`). It serves the REST API and the embedded UI over HTTPS on port `8443` and stores all data in PostgreSQL (there is no MongoDB, Redis, Celery, or container runtime). Audit events are written to the `audit_events` table; the service logs to the journal (`journalctl -u openwatch`). Adjust `psql` connection flags (`-h`, `-p`) for your deployment.
+
+This runbook covers containment, investigation, and recovery for a suspected compromise. For install, config, and role definitions see [docs/engineering/install_guide.md](../engineering/install_guide.md) and [docs/engineering/rbac_registry.md](../engineering/rbac_registry.md).
 
 ---
 
 ## Symptoms
 
-- Unauthorized access attempts detected in audit logs (`/openwatch/logs/audit.log`).
-- Unusual API request patterns (high volume from a single source, access to admin endpoints).
-- Monitoring alerts for elevated `secureops_security_events_total` metric.
-- Failed authentication spike (multiple `SECURITY_AUTH_FAILURE` events).
-- Privilege escalation events logged (`SECURITY_PRIVILEGE_ESCALATION`).
-- Unexpected user accounts or role changes.
+- Spike in failed-login audit events (`auth.login.failure`).
+- Successful logins for accounts that should be inactive (`auth.login.success`).
+- Permission-denied events on privileged endpoints (`authz.permission.denied`).
+- Unexpected role grants (`authz.role.assigned`) or account changes (`account.user.created`, `account.user.deleted`).
+- Threshold detections raised by the intelligence collector: `security.login.failed_threshold`, `security.login.new_source_ip`, `account.sudo.failure_threshold`.
+- Credential changes (`credential.created`, `credential.deleted`) you did not authorize.
+- Config-file tampering reported on a monitored host (`system.config.file_changed`).
 - Compromised credentials reported by a user or external source.
-- Data exfiltration indicators (large data exports, bulk API queries).
-- Unexpected configuration changes to security settings.
+
+The `security.*` and `account.*` threshold events above are produced by the OS intelligence collector for monitored hosts, not by the OpenWatch control plane itself. Verify the actor and host before acting on them.
 
 ---
 
-## Immediate Actions (First 15 Minutes)
+## Immediate actions (first 15 minutes)
 
-**Priority: Contain the threat and preserve evidence. Do NOT restart services yet.**
+Contain the threat and preserve evidence. Do not restart the service yet; an in-progress restart can rotate the journal and end the current session you are inspecting.
 
 ### Step 1: Confirm the incident
 
-Determine whether this is a true security incident or a false positive.
+Determine whether this is a true incident or a false positive. Review recent security-relevant audit events:
 
 ```bash
-# Check recent audit log entries
-docker exec openwatch-backend tail -200 /openwatch/logs/audit.log
+psql -U openwatch -d openwatch -c "
+SELECT occurred_at, action, outcome, actor_label, actor_ip, resource_type, resource_id
+FROM audit_events
+WHERE action IN (
+  'auth.login.failure','auth.login.success','authz.permission.denied',
+  'authz.role.assigned','authz.role.removed',
+  'account.user.created','account.user.deleted',
+  'credential.created','credential.deleted'
+)
+  AND occurred_at > now() - interval '24 hours'
+ORDER BY occurred_at DESC
+LIMIT 100;
+"
 ```
 
-Look for:
-- Multiple `SECURITY_AUTH_FAILURE` events from the same IP.
-- `SECURITY_AUTH_SUCCESS` for accounts that should not be active.
-- `SECURITY_PRIVILEGE_ESCALATION` events.
-- Access to sensitive endpoints (user management, credential management, system config).
+Look for repeated `auth.login.failure` from one `actor_ip`, `auth.login.success` for accounts that should not be active, and `authz.role.assigned` granting elevated roles.
 
 ### Step 2: Record the timeline
 
-Document the following immediately:
-- When the anomaly was first detected.
-- Who detected it (monitoring alert, user report, manual observation).
-- What specific events triggered the investigation.
+Note immediately: when the anomaly was first detected, who or what detected it (an audit query, a user report, a `security.*` collector event), and which specific events triggered the investigation. Capture wall-clock times in ISO 8601 (UTC).
 
 ### Step 3: Preserve evidence
 
-**Do NOT restart containers** -- this destroys in-memory state and may overwrite log files.
-
-Capture current state:
+Do not restart the service. Capture state to a working directory first:
 
 ```bash
-# Capture container logs (all containers)
-mkdir -p /tmp/incident-$(date +%Y%m%d-%H%M%S)
-INCIDENT_DIR=/tmp/incident-$(date +%Y%m%d-%H%M%S)
+INCIDENT_DIR="/var/tmp/incident-$(date -u +%Y%m%dT%H%M%SZ)"
+mkdir -p "$INCIDENT_DIR"
 
-docker logs openwatch-backend > "${INCIDENT_DIR}/backend.log" 2>&1
-docker logs openwatch-worker > "${INCIDENT_DIR}/worker.log" 2>&1
-docker logs openwatch-celery-beat > "${INCIDENT_DIR}/celery-beat.log" 2>&1
-docker logs openwatch-frontend > "${INCIDENT_DIR}/frontend.log" 2>&1
-docker logs openwatch-db > "${INCIDENT_DIR}/database.log" 2>&1
-docker logs openwatch-redis > "${INCIDENT_DIR}/redis.log" 2>&1
+# Service journal (full history this boot)
+journalctl -u openwatch --no-pager > "$INCIDENT_DIR/openwatch.journal.log"
 
-# Capture audit log from volume
-docker cp openwatch-backend:/openwatch/logs/audit.log "${INCIDENT_DIR}/audit.log"
+# Service state and recent restarts
+systemctl status openwatch --no-pager > "$INCIDENT_DIR/service-status.txt"
 
-# Capture current container state
-docker ps -a > "${INCIDENT_DIR}/containers.txt"
-docker stats --no-stream > "${INCIDENT_DIR}/stats.txt"
+# Durable audit trail (last 7 days), as CSV
+psql -U openwatch -d openwatch -c "\copy (
+  SELECT occurred_at, action, outcome, severity,
+         actor_type, actor_id, actor_label, actor_ip,
+         actor_session_id, resource_type, resource_id, correlation_id, detail
+  FROM audit_events
+  WHERE occurred_at > now() - interval '7 days'
+  ORDER BY occurred_at
+) TO STDOUT WITH CSV HEADER" > "$INCIDENT_DIR/audit_events.csv"
 
-# Capture network connections
-docker exec openwatch-backend ss -tunapl > "${INCIDENT_DIR}/backend-connections.txt" 2>/dev/null
+# Current listening sockets on the application host
+ss -tunapl > "$INCIDENT_DIR/sockets.txt" 2>/dev/null
 ```
 
-### Step 4: Isolate affected systems
+The `correlation_id` ties together every event from a single request chain. Once you find one malicious event, pivot on its `correlation_id` to reconstruct the full request.
 
-If active compromise is confirmed:
+### Step 4: Isolate (only if active compromise is confirmed)
+
+If data exfiltration or active intrusion is in progress, block the source at the host firewall rather than stopping the service (stopping it destroys evidence and denies you the audit trail):
 
 ```bash
-# Option A: Block external access (if behind a firewall/load balancer)
-# Update firewall rules to block the attacker's IP
-
-# Option B: Disconnect the application from external network (severe)
-# WARNING: This will make the application inaccessible to all users
-# Only do this if active data exfiltration is occurring
-docker network disconnect bridge openwatch-frontend
+# Block a confirmed attacker IP (replace ATTACKER_IP)
+sudo iptables -I INPUT -s ATTACKER_IP -j DROP
 ```
 
-Do NOT disconnect internal Docker networks between containers unless lateral movement is confirmed.
+Stop the service only as a last resort, after evidence is captured:
+
+```bash
+sudo systemctl stop openwatch
+```
 
 ---
 
 ## Investigation
 
-### Check audit logs (PostgreSQL)
+All durable evidence lives in PostgreSQL. The queries below assume the `openwatch` database.
 
-The `audit_logs` table contains durable audit records:
+### Authentication activity
 
 ```bash
-# Recent authentication failures
-docker exec openwatch-db psql -U openwatch -d openwatch -c "
-SELECT created_at, event_type, username, ip_address, details
-FROM audit_logs
-WHERE event_type LIKE '%AUTH_FAILURE%'
-  AND created_at > now() - interval '24 hours'
-ORDER BY created_at DESC
-LIMIT 50;
+# Failed logins by source IP in the last 24 hours
+psql -U openwatch -d openwatch -c "
+SELECT actor_ip, count(*) AS failures, max(occurred_at) AS last_seen
+FROM audit_events
+WHERE action = 'auth.login.failure'
+  AND occurred_at > now() - interval '24 hours'
+GROUP BY actor_ip
+ORDER BY failures DESC
+LIMIT 20;
 "
 
-# Recent authentication successes (look for unexpected accounts)
-docker exec openwatch-db psql -U openwatch -d openwatch -c "
-SELECT created_at, event_type, username, ip_address
-FROM audit_logs
-WHERE event_type LIKE '%AUTH_SUCCESS%'
-  AND created_at > now() - interval '24 hours'
-ORDER BY created_at DESC
-LIMIT 50;
-"
-
-# Privilege escalation or role changes
-docker exec openwatch-db psql -U openwatch -d openwatch -c "
-SELECT created_at, event_type, username, ip_address, details
-FROM audit_logs
-WHERE event_type IN ('SECURITY_PRIVILEGE_ESCALATION', 'USER_ROLE_CHANGE', 'USER_CREATED', 'USER_DELETED')
-  AND created_at > now() - interval '7 days'
-ORDER BY created_at DESC
+# Successful logins (look for unexpected accounts or IPs)
+psql -U openwatch -d openwatch -c "
+SELECT occurred_at, actor_label, actor_ip, actor_session_id
+FROM audit_events
+WHERE action = 'auth.login.success'
+  AND occurred_at > now() - interval '24 hours'
+ORDER BY occurred_at DESC
 LIMIT 50;
 "
 ```
 
-### Check for unauthorized accounts
+### Authorization and account changes
 
 ```bash
-docker exec openwatch-db psql -U openwatch -d openwatch -c "
-SELECT id, username, email, role, is_active, created_at, last_login
+psql -U openwatch -d openwatch -c "
+SELECT occurred_at, action, outcome, actor_label, actor_ip, resource_id, detail
+FROM audit_events
+WHERE action IN (
+  'authz.permission.denied','authz.role.assigned','authz.role.removed',
+  'account.user.created','account.user.deleted'
+)
+  AND occurred_at > now() - interval '7 days'
+ORDER BY occurred_at DESC
+LIMIT 50;
+"
+```
+
+### Current user accounts and role grants
+
+The `users` table has no `is_active` flag; disabled accounts are soft-deleted (`deleted_at` set). Roles live in `user_roles`, not on the user row.
+
+```bash
+# Recently created or modified accounts
+psql -U openwatch -d openwatch -c "
+SELECT id, username, email, created_at, updated_at, deleted_at
 FROM users
 ORDER BY created_at DESC
 LIMIT 20;
 "
+
+# Who holds elevated roles right now
+psql -U openwatch -d openwatch -c "
+SELECT u.username, ur.role_id, ur.granted_at, ur.granted_by
+FROM user_roles ur
+JOIN users u ON u.id = ur.user_id
+WHERE ur.role_id IN ('admin','security_admin','ops_lead')
+  AND u.deleted_at IS NULL
+ORDER BY ur.granted_at DESC;
+"
 ```
 
-Look for:
-- Accounts created recently that are not recognized.
-- Accounts with elevated roles (ADMIN, SUPERADMIN) that should not have them.
-- Accounts that have logged in recently but should be inactive.
+The five built-in roles, in increasing privilege, are `viewer`, `auditor`, `ops_lead`, `security_admin`, and `admin`. See [docs/engineering/rbac_registry.md](../engineering/rbac_registry.md) for the full permission sets.
 
-### Check API access patterns
+### Active sessions and refresh tokens
 
 ```bash
-# Check backend logs for unusual request patterns
-docker logs openwatch-backend --since 24h 2>&1 | grep -E "POST /api/users|POST /api/auth|DELETE" | tail -50
-
-# Check for high-volume requests from single IPs
-docker logs openwatch-backend --since 24h 2>&1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' | sort | uniq -c | sort -rn | head -20
-```
-
-### Check for data exfiltration
-
-```bash
-# Check for bulk data exports
-docker exec openwatch-db psql -U openwatch -d openwatch -c "
-SELECT id, format, status, file_size_bytes, requested_by, created_at
-FROM audit_exports
-WHERE created_at > now() - interval '7 days'
-ORDER BY created_at DESC;
+# Live (unrevoked, unexpired) sessions
+psql -U openwatch -d openwatch -c "
+SELECT s.id, u.username, s.remote_addr, s.user_agent, s.created_at, s.expires_at
+FROM sessions s
+JOIN users u ON u.id = s.user_id
+WHERE s.revoked_at IS NULL
+  AND s.expires_at > now()
+ORDER BY s.created_at DESC
+LIMIT 50;
 "
 
-# Check for large API responses (if access logs include response sizes)
-docker logs openwatch-backend --since 24h 2>&1 | grep -E "GET /api/(hosts|scans|compliance)" | tail -50
+# Refresh-token reuse detection (a hallmark of token theft)
+psql -U openwatch -d openwatch -c "
+SELECT rt.id, u.username, rt.created_at, rt.reuse_detected_at
+FROM refresh_tokens rt
+JOIN users u ON u.id = rt.user_id
+WHERE rt.reuse_detected_at IS NOT NULL
+ORDER BY rt.reuse_detected_at DESC
+LIMIT 20;
+"
 ```
 
-### Check SSH credential access
+A non-null `reuse_detected_at` means a refresh token was presented after it had already been rotated — treat the owning account as compromised.
 
-If SSH credentials may have been compromised:
+### Credential access
 
 ```bash
-# Check recent credential access in audit logs
-docker exec openwatch-db psql -U openwatch -d openwatch -c "
-SELECT created_at, event_type, username, details
-FROM audit_logs
-WHERE event_type LIKE '%CREDENTIAL%'
-  AND created_at > now() - interval '7 days'
-ORDER BY created_at DESC
+psql -U openwatch -d openwatch -c "
+SELECT occurred_at, action, actor_label, actor_ip, resource_id, detail
+FROM audit_events
+WHERE action IN ('credential.created','credential.deleted')
+  AND occurred_at > now() - interval '7 days'
+ORDER BY occurred_at DESC
 LIMIT 30;
 "
 ```
 
-### Check for configuration changes
-
-```bash
-docker exec openwatch-db psql -U openwatch -d openwatch -c "
-SELECT created_at, event_type, username, details
-FROM audit_logs
-WHERE event_type LIKE '%CONFIG%'
-  AND created_at > now() - interval '7 days'
-ORDER BY created_at DESC;
-"
-```
+Stored SSH credentials are encrypted at rest with the credential DEK (`[identity].credential_key_file`). The API never returns secret material, so audit events record only metadata.
 
 ---
 
 ## Containment
 
-### Revoke active sessions
+### Revoke sessions for a compromised account
 
-Force all users to re-authenticate by rotating the JWT signing key:
-
-```bash
-# Generate a new secret key
-NEW_SECRET=$(openssl rand -hex 32)
-
-# Update the environment variable
-# In .env file: OPENWATCH_SECRET_KEY=<new value>
-# Then restart backend and worker to pick up the new key
-docker restart openwatch-backend
-docker restart openwatch-worker
-docker restart openwatch-celery-beat
-```
-
-This invalidates all existing JWT access and refresh tokens immediately.
-
-### Disable compromised accounts
+Revoke at the database level so the change takes effect immediately, regardless of which node served the session:
 
 ```bash
-# Disable a specific user account (replace USERNAME)
-docker exec openwatch-db psql -U openwatch -d openwatch -c "
-UPDATE users SET is_active = false WHERE username = 'COMPROMISED_USERNAME';
+# Revoke all live sessions for one user (replace USERNAME)
+psql -U openwatch -d openwatch -c "
+UPDATE sessions
+SET revoked_at = now()
+WHERE revoked_at IS NULL
+  AND user_id = (SELECT id FROM users WHERE username = 'USERNAME' AND deleted_at IS NULL);
+"
+
+# Revoke that user's refresh tokens as well
+psql -U openwatch -d openwatch -c "
+UPDATE refresh_tokens
+SET revoked_at = now()
+WHERE revoked_at IS NULL
+  AND user_id = (SELECT id FROM users WHERE username = 'USERNAME' AND deleted_at IS NULL);
 "
 ```
 
-### Rotate application secrets
+### Disable a compromised account
 
-Rotate all secrets referenced in the environment. See `docs/guides/SECRET_ROTATION.md` if available, otherwise rotate the following:
-
-1. **JWT secret key** (`OPENWATCH_SECRET_KEY`):
-   ```bash
-   openssl rand -hex 32
-   ```
-
-2. **Encryption key** (`OPENWATCH_ENCRYPTION_KEY`):
-   ```bash
-   # WARNING: Changing this key will make existing encrypted data
-   # (SSH credentials, API keys) unreadable. Plan a re-encryption
-   # migration before changing this key in production.
-   openssl rand -hex 32
-   ```
-
-3. **Master key** (`MASTER_KEY`):
-   ```bash
-   openssl rand -hex 32
-   ```
-
-4. **PostgreSQL password** (`POSTGRES_PASSWORD`):
-   ```bash
-   # Generate new password
-   openssl rand -base64 24
-
-   # Update in PostgreSQL
-   docker exec openwatch-db psql -U openwatch -d openwatch -c "
-   ALTER ROLE openwatch WITH PASSWORD 'NEW_PASSWORD_HERE';  -- pragma: allowlist secret
-   "
-
-   # Update in .env and restart all services that connect to PostgreSQL
-   ```
-
-5. **Redis password** (`REDIS_PASSWORD`):
-   ```bash
-   # Generate new password
-   openssl rand -base64 24
-
-   # Update Redis password at runtime
-   docker exec openwatch-redis redis-cli -a "${REDIS_PASSWORD}" CONFIG SET requirepass "NEW_PASSWORD_HERE"
-
-   # Update in .env and restart all services that connect to Redis
-   ```
-
-After updating all secrets in the `.env` file:
+There is no `is_active` flag; disabling an account means soft-deleting it. Prefer the API so the action is itself audited (`account.user.deleted`):
 
 ```bash
-docker compose down
-docker compose up -d
+# Authenticated as an admin; replace TOKEN and USER_ID
+curl -sk -X DELETE \
+  -H "Authorization: Bearer TOKEN" \
+  https://localhost:8443/api/v1/users/USER_ID
 ```
+
+If the API is unavailable, soft-delete directly. This also removes the account from the active-uniqueness indexes:
+
+```bash
+psql -U openwatch -d openwatch -c "
+UPDATE users SET deleted_at = now()
+WHERE username = 'USERNAME' AND deleted_at IS NULL;
+"
+```
+
+### Revoke every session (full re-authentication)
+
+To force all users to re-authenticate, rotate the JWT signing key. The signing key is a file referenced by `[identity].jwt_private_key` (or `OPENWATCH_IDENTITY_JWT_PRIVATE_KEY`). Replacing it invalidates every issued access token because existing tokens no longer verify:
+
+```bash
+# Back up the current key, generate a replacement (RSA, matching the existing key type)
+sudo cp /etc/openwatch/identity/jwt_private_key.pem /etc/openwatch/identity/jwt_private_key.pem.bak
+sudo openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 \
+  -out /etc/openwatch/identity/jwt_private_key.pem
+sudo chown root:openwatch /etc/openwatch/identity/jwt_private_key.pem
+sudo chmod 0640 /etc/openwatch/identity/jwt_private_key.pem
+
+# The key is loaded at startup; restart to pick up the new key
+sudo systemctl restart openwatch
+```
+
+Confirm the configured path before generating a new key — `openwatch check-config` prints the resolved configuration with secrets redacted:
+
+```bash
+sudo -u openwatch /usr/bin/openwatch check-config --config /etc/openwatch/openwatch.toml
+```
+
+> Do not rotate the credential DEK (`[identity].credential_key_file`) during an incident unless you have a re-encryption plan. Changing that key makes every stored SSH credential and MFA secret unreadable.
+
+### Rotate the database credential
+
+If the database password may be exposed:
+
+```bash
+# Set a new password in PostgreSQL
+psql -U openwatch -d openwatch -c "ALTER ROLE openwatch WITH PASSWORD 'NEW_PASSWORD_HERE';"  # pragma: allowlist secret
+
+# Update the DSN in the secrets file, then restart
+sudo sed -i 's#OPENWATCH_DATABASE_DSN=.*#OPENWATCH_DATABASE_DSN=postgres://openwatch:NEW_PASSWORD_HERE@127.0.0.1:5432/openwatch?sslmode=require#' /etc/openwatch/secrets.env
+sudo systemctl restart openwatch
+```
+
+`secrets.env` should be owned `root:openwatch` and mode `0640`. See [docs/engineering/install_guide.md](../engineering/install_guide.md) for the canonical secret-handling procedure.
 
 ### Block attacker IP addresses
 
-If the attacker's IP is identified, block it at the network level:
-
 ```bash
-# Using iptables (Linux)
-iptables -I INPUT -s ATTACKER_IP -j DROP
-
-# Or update the Docker network firewall
-```
-
-### Force password reset for affected users
-
-```bash
-# Mark all user passwords as requiring reset (application-level)
-docker exec openwatch-db psql -U openwatch -d openwatch -c "
-UPDATE users SET password_change_required = true WHERE is_active = true;
-"
+sudo iptables -I INPUT -s ATTACKER_IP -j DROP
 ```
 
 ---
@@ -311,178 +313,126 @@ UPDATE users SET password_change_required = true WHERE is_active = true;
 
 ### Restore from backup (if data was modified)
 
-If the attacker modified data (scan results, compliance findings, user records):
-
-1. Identify the last known good backup timestamp.
-2. Restore the PostgreSQL database from backup.
-3. Verify data integrity after restore.
+If the attacker modified data, restore PostgreSQL from a known-good backup. The procedure depends on how your database is backed up (`pg_dump`/`pg_restore` or physical/PITR); follow your backup tooling's restore steps, then re-run migrations to confirm the schema is current:
 
 ```bash
-# List available backups (adjust path to your backup location)
-ls -la /path/to/backups/
-
-# Restore PostgreSQL from a backup file
-docker exec -i openwatch-db psql -U openwatch -d openwatch < /path/to/backups/openwatch_backup.sql
+sudo -u openwatch /usr/bin/openwatch migrate --config /etc/openwatch/openwatch.toml
 ```
 
-### Re-verify security configuration
+> A backup/restore tool is not part of the OpenWatch binary today; database backup is an operator responsibility. This is tracked as roadmap, not an implemented feature.
 
-After containment and secret rotation, verify:
+### Re-verify configuration
 
 ```bash
-# Check that HTTPS is enforced
-docker exec openwatch-backend printenv | grep REQUIRE_HTTPS
+# Validate the resolved config (secrets redacted, listen address, TLS paths)
+sudo -u openwatch /usr/bin/openwatch check-config --config /etc/openwatch/openwatch.toml
 
-# Check that FIPS mode setting is correct
-docker exec openwatch-backend printenv | grep FIPS_MODE
-
-# Check that debug mode is disabled in production
-docker exec openwatch-backend printenv | grep DEBUG
-
-# Verify health endpoint works with new credentials
-curl -s http://localhost:8000/health | python3 -m json.tool
+# Confirm TLS material is in place and correctly owned
+ls -l /etc/openwatch/tls/cert.pem /etc/openwatch/tls/key.pem
 ```
-
-### Verify security headers
-
-```bash
-curl -sI http://localhost:8000/health | grep -E "X-Content-Type|X-Frame|Strict-Transport|Content-Security"
-```
-
-Expected headers:
-- `X-Content-Type-Options: nosniff`
-- `X-Frame-Options: DENY`
-- `Strict-Transport-Security: max-age=31536000; includeSubDomains`
 
 ---
 
-## Recovery Verification
+## Recovery verification
 
-### 1. All services are running and healthy
+### 1. Service is active
 
 ```bash
-docker ps --filter "name=openwatch-" --format "table {{.Names}}\t{{.Status}}"
+systemctl status openwatch --no-pager
 ```
 
-### 2. Health endpoint confirms all dependencies healthy
+Expect `active (running)`.
+
+### 2. Health endpoint reports healthy
 
 ```bash
-curl -s http://localhost:8000/health | python3 -m json.tool
+curl -sk https://localhost:8443/api/v1/health | python3 -m json.tool
 ```
 
-### 3. No active unauthorized sessions
+Expect `"status": "healthy"`.
+
+### 3. No live sessions for disabled accounts
 
 ```bash
-# Verify no unexpected active sessions after secret rotation
-docker logs openwatch-backend --since 10m 2>&1 | grep "AUTH_SUCCESS"
-```
-
-Only expected administrative sessions should appear.
-
-### 4. Audit logging is functional
-
-```bash
-# Verify audit log is being written
-docker exec openwatch-backend tail -5 /openwatch/logs/audit.log
-```
-
-### 5. Compromised accounts are disabled
-
-```bash
-docker exec openwatch-db psql -U openwatch -d openwatch -c "
-SELECT username, is_active FROM users WHERE username = 'COMPROMISED_USERNAME';
+psql -U openwatch -d openwatch -c "
+SELECT count(*) AS live_sessions_for_deleted_users
+FROM sessions s
+JOIN users u ON u.id = s.user_id
+WHERE s.revoked_at IS NULL AND s.expires_at > now()
+  AND u.deleted_at IS NOT NULL;
 "
 ```
+
+Expect `0`.
+
+### 4. Audit logging is still functional
+
+Generate a benign event (for example, a login from an authorized operator) and confirm it lands:
+
+```bash
+psql -U openwatch -d openwatch -c "
+SELECT occurred_at, action, actor_label
+FROM audit_events
+ORDER BY occurred_at DESC
+LIMIT 5;
+"
+```
+
+### 5. Elevated role grants match expectations
+
+Re-run the role-grant query from the Investigation section and confirm only authorized accounts hold `admin`, `security_admin`, or `ops_lead`.
 
 ---
 
 ## Escalation
 
-**Immediate escalation is required for**:
-- Confirmed data breach (PII, credentials, compliance data exposed).
+Escalate immediately for any of:
+
+- Confirmed data breach (PII, credentials, or compliance data exposed).
 - Active data exfiltration in progress.
-- Compromise of the master encryption key or SSH credentials.
-- Lateral movement to target hosts detected.
+- Suspected exposure of the credential DEK or JWT signing key.
+- Refresh-token reuse detected across multiple accounts.
+- Lateral movement toward monitored hosts (SSH credential misuse).
 - Inability to contain the attacker within 30 minutes.
 
-**Escalation path**:
-1. Security Engineering lead.
-2. Infrastructure team lead.
-3. Executive leadership (if data breach confirmed).
-4. Legal/Compliance team (if regulatory notification is required).
+**Escalation path**: Security Engineering lead, then Infrastructure lead, then executive leadership (if a breach is confirmed), then Legal/Compliance (if regulatory notification is required).
 
-**Regulatory notification requirements**:
-- FedRAMP: US-CERT notification within 1 hour of confirmed incident.
-- CMMC: Report within 72 hours to DIBNet.
-- NIST SP 800-61: Follow the incident response lifecycle.
+**Regulatory notification (verify against your authorization boundary)**:
+
+| Framework | Requirement |
+|-----------|-------------|
+| FedRAMP | US-CERT/agency notification within 1 hour of a confirmed incident |
+| CMMC / DFARS | Report to DIBNet within 72 hours |
+| NIST SP 800-61 | Follow the incident response lifecycle |
 
 ---
 
-## Post-Incident Actions
+## Post-incident actions
 
-### 1. Document the timeline
-
-Create a timeline document covering:
-- When the incident was first detected.
-- What actions were taken and when.
-- What was the attack vector.
-- What data was accessed or modified.
-- When containment was achieved.
-- When recovery was complete.
-
-### 2. Root cause analysis
-
-Determine:
-- How did the attacker gain access (stolen credentials, vulnerability, misconfiguration)?
-- What controls failed to prevent or detect the attack?
-- How long was the attacker active before detection?
-
-### 3. Update security controls
-
-Based on the root cause:
-- Patch any exploited vulnerabilities.
-- Strengthen authentication (enforce MFA if not already required).
-- Tighten RBAC policies.
-- Add additional audit logging for the attack vector used.
-- Update rate limiting rules if brute-force was involved.
-- Review and update network segmentation.
-
-### 4. Update monitoring and alerting
-
-Add detection rules for the specific attack pattern:
-
-```yaml
-# Example: Alert on authentication brute force
-groups:
-  - name: security-alerts
-    rules:
-      - alert: AuthBruteForce
-        expr: rate(secureops_security_events_total{type="auth_failure"}[5m]) > 1
-        for: 2m
-        labels:
-          severity: critical
-        annotations:
-          summary: "Possible brute force attack detected"
-```
-
-### 5. Conduct lessons learned review
-
-Schedule a blameless post-incident review within 5 business days covering:
-- What went well in the response.
-- What could be improved.
-- Action items with owners and deadlines.
-- Updates to this runbook if needed.
+1. **Timeline**: Document detection time, actions taken, attack vector, data accessed or modified, containment time, and recovery time (ISO 8601, UTC).
+2. **Root cause**: Determine how access was gained (stolen credentials, vulnerability, misconfiguration), which controls failed, and how long the attacker was active before detection.
+3. **Control updates**: Patch the exploited weakness; enforce MFA on administrative accounts; tighten role assignments; add audit coverage for the vector used.
+4. **Lessons learned**: Hold a blameless review within five business days; record action items with owners and deadlines; update this runbook.
 
 ---
 
 ## Prevention
 
-- **Audit log monitoring**: Configure alerts on `secureops_security_events_total` for auth failures, forbidden access, and rate limit violations.
-- **Rate limiting**: OpenWatch enforces 100 requests per minute per user and 1000 per minute per IP. Review these limits periodically.
-- **Session timeout**: Inactivity timeout is configurable (default 15 minutes). Ensure it is set appropriately for the environment.
-- **Password policy**: Enforce minimum 12-character passwords with complexity requirements (configured in application settings).
-- **MFA**: Enable multi-factor authentication for all administrative accounts.
-- **Secret rotation schedule**: Rotate application secrets (JWT key, encryption key, database passwords) on a regular schedule (quarterly recommended).
-- **Access reviews**: Conduct quarterly user access reviews. Remove accounts that are no longer needed and verify role assignments are appropriate.
-- **Network segmentation**: The Docker network (172.20.0.0/16) isolates OpenWatch containers. Ensure no unnecessary ports are exposed to the host or external networks.
-- **Backup verification**: Regularly test backup restoration to ensure recovery is possible in case of data corruption or destruction.
+- **Audit review**: Periodically query `audit_events` for `auth.login.failure` spikes, `authz.permission.denied` clusters, and unexpected `authz.role.assigned` events. The `idx_audit_occurred_at` and `idx_audit_severity` indexes keep these queries fast.
+- **MFA**: Enrol all administrative accounts in TOTP MFA (`POST /api/v1/auth/mfa:enroll`).
+- **Least privilege**: Grant the narrowest built-in role that fits each user; reserve `admin` for break-glass. Review role grants quarterly using the `user_roles` query above.
+- **Session limits**: Sessions enforce a 15-minute inactivity timeout and a 12-hour absolute cap by default; refresh-token rotation flags reuse automatically.
+- **Secret hygiene**: Keep `/etc/openwatch/secrets.env`, the JWT key, the credential DEK, and `/etc/openwatch/tls/key.pem` owned by `root`/`openwatch` with restrictive modes. Rotate the JWT and database credentials on a schedule.
+- **TLS**: Replace the packaged self-signed certificate with a trusted one; the server reads the cert on every handshake, so swapping files needs no restart. See [docs/engineering/install_guide.md](../engineering/install_guide.md).
+- **Backups**: Maintain and test PostgreSQL backups out-of-band; restoration is the only recovery path for data tampering.
+
+---
+
+## Not yet implemented
+
+The following do not exist in the current Go build; do not rely on them during an incident:
+
+- **Prometheus / metrics endpoint**: There is no `secureops_*` metric or `/metrics` scrape target. Use audit-event queries instead.
+- **Account-lockout columns**: `users` has no failed-login counter or lockout timestamp. Brute-force containment is manual (block the IP, revoke sessions, soft-delete the account). The `security.login.failed_threshold` event is a host-intelligence signal, not a control-plane lockout.
+- **Admin session-management API**: There is no endpoint to list or revoke another user's sessions; `POST /api/v1/auth/logout` revokes only the caller's session. Use the database `UPDATE` statements above for administrative revocation.
+- **Built-in backup/restore tooling**: Database backup and restore are operator responsibilities; the binary provides only `migrate`.

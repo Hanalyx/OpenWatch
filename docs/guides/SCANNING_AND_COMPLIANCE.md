@@ -16,7 +16,7 @@ result with machine-verifiable evidence.
 Operator clicks "Run Scan" (or adaptive scheduler triggers)
         |
         v
-Celery task queued (compliance_scanning queue)
+Scan job enqueued on the PostgreSQL job queue (SKIP LOCKED)
         |
         v
 Kensa retrieves SSH credentials from OpenWatch's encrypted store
@@ -343,7 +343,7 @@ pipelines, here are the key API endpoints.
 ### Start a Scan
 
 ```bash
-curl -X POST http://localhost:8000/api/scans/kensa/ \
+curl -k -X POST https://localhost:8443/api/v1/scans/kensa/ \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"host_id": "HOST_UUID", "framework": "cis-rhel9-v2.0.0"}'
@@ -352,35 +352,35 @@ curl -X POST http://localhost:8000/api/scans/kensa/ \
 ### Query Posture
 
 ```bash
-curl "http://localhost:8000/api/compliance/posture?host_id=HOST_UUID" \
+curl -k "https://localhost:8443/api/v1/compliance/posture?host_id=HOST_UUID" \
   -H "Authorization: Bearer $TOKEN"
 ```
 
 ### Query Historical Posture
 
 ```bash
-curl "http://localhost:8000/api/compliance/posture?host_id=HOST_UUID&as_of=2026-02-15" \
+curl -k "https://localhost:8443/api/v1/compliance/posture?host_id=HOST_UUID&as_of=2026-02-15" \
   -H "Authorization: Bearer $TOKEN"
 ```
 
 ### Query Drift
 
 ```bash
-curl "http://localhost:8000/api/compliance/posture/drift?host_id=HOST_UUID&start_date=2026-02-01&end_date=2026-02-28" \
+curl -k "https://localhost:8443/api/v1/compliance/posture/drift?host_id=HOST_UUID&start_date=2026-02-01&end_date=2026-02-28" \
   -H "Authorization: Bearer $TOKEN"
 ```
 
 ### List Alerts
 
 ```bash
-curl "http://localhost:8000/api/compliance/alerts?status=active" \
+curl -k "https://localhost:8443/api/v1/compliance/alerts?status=active" \
   -H "Authorization: Bearer $TOKEN"
 ```
 
 ### Acknowledge an Alert
 
 ```bash
-curl -X POST "http://localhost:8000/api/compliance/alerts/ALERT_ID/acknowledge" \
+curl -k -X POST "https://localhost:8443/api/v1/compliance/alerts/ALERT_ID/acknowledge" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" -d '{}'
 ```
@@ -388,7 +388,7 @@ curl -X POST "http://localhost:8000/api/compliance/alerts/ALERT_ID/acknowledge" 
 ### Create an Export
 
 ```bash
-curl -X POST http://localhost:8000/api/compliance/audit/exports \
+curl -k -X POST https://localhost:8443/api/v1/compliance/audit/exports \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"query_definition": {"severities": ["critical"], "statuses": ["fail"]}, "format": "csv"}'

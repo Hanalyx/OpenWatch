@@ -10,9 +10,10 @@ We are committed to providing a welcoming and inclusive environment for all cont
 
 ### Prerequisites
 
-- **Container Runtime**: Docker or Podman
+- **Go**: 1.26 (backend, single binary that serves both the API and the embedded UI)
+- **Node.js**: for the `frontend/` React app (Vite dev server)
+- **PostgreSQL**: the only datastore (no MongoDB, Redis, or Celery)
 - **Development Environment**: Linux (RHEL/Ubuntu recommended)
-- **Resources**: 4GB RAM, 2CPU cores minimum
 - **Git**: For version control
 
 ### Development Setup
@@ -20,27 +21,35 @@ We are committed to providing a welcoming and inclusive environment for all cont
 1. **Fork the repository** on GitHub
 2. **Clone your fork**:
    ```bash
-   git clone https://github.com/yourusername/openwatch.git
-   cd openwatch
+   git clone https://github.com/yourusername/OpenWatch.git
+   cd OpenWatch
    ```
 
-3. **Set up development environment**:
+3. **Set up development environment** (the Go tree is at the repo root):
    ```bash
-   # Start dependencies
-   docker compose up -d database redis
-
-   # Backend development
-   cd backend
-   python -m venv venv
-   source venv/bin/activate
-   pip install -r requirements.txt
-   uvicorn app.main:app --reload
+   # Backend development (Go 1.26)
+   go build ./...
+   go build -o dist/openwatch ./cmd/openwatch
+   ./dist/openwatch serve            # dev server on port 8443
 
    # Frontend development (new terminal)
    cd frontend
    npm install
-   npm run dev
+   npm run dev                       # http://localhost:5173
    ```
+
+   > The Python/FastAPI backend was archived to `~/hanalyx/OWAR/openwatch-python/`
+   > and is no longer part of this repo. The legacy `docker compose` /
+   > `uvicorn` / `pip` setup no longer applies.
+
+4. **Install the spec-driven-development hooks**:
+   ```bash
+   pre-commit install                   # commit-time: format, lint, spec coverage (source-walk)
+   specter init --install-hook          # pre-push: block impl changes with no @spec/@ac annotation
+   ```
+   The pre-push hook delegates to `specter pre-push-check` and skips cleanly if
+   `specter` is not on your PATH. Bypass a single push with `git push --no-verify`.
+   Spec coverage is enforced strictly in CI regardless (see [Testing](#testing)).
 
 ## How to Contribute
 
@@ -50,14 +59,14 @@ We are committed to providing a welcoming and inclusive environment for all cont
 2. **Use the bug report template** when creating new issues
 3. **Include detailed information**:
    - Operating system and version
-   - Container runtime (Docker/Podman)
+   - OpenWatch version (`openwatch --version`)
    - Steps to reproduce
    - Expected vs actual behavior
    - Log files and error messages
 
 ### Suggesting Features
 
-1. **Check the roadmap** in our [README](README.md#roadmap)
+1. **Check the roadmap** in [docs/engineering/openwatch_roadmap.md](docs/engineering/openwatch_roadmap.md)
 2. **Open a discussion** for major features before implementing
 3. **Use the feature request template** for new issues
 4. **Provide detailed use cases** and benefits
@@ -68,7 +77,7 @@ We are committed to providing a welcoming and inclusive environment for all cont
 
 - **main**: Stable, production-ready code
 - **develop**: Integration branch for features
-- **feature/**: New features (`feature/scap-profiles`)
+- **feature/**: New features (`feature/host-liveness`)
 - **fix/**: Bug fixes (`fix/auth-token-validation`)
 - **docs/**: Documentation updates (`docs/api-reference`)
 
@@ -83,11 +92,11 @@ We are committed to providing a welcoming and inclusive environment for all cont
 3. **Test your changes** thoroughly
 4. **Commit with meaningful messages**:
    ```bash
-   git commit -m "feat: add SCAP profile validation
+   git commit -m "feat: add compliance framework filtering
 
-   - Implement OpenSCAP datastream validation
-   - Add profile enumeration for uploaded content
-   - Include error handling for malformed XML
+   - Add framework filter to the rule reference endpoint
+   - Map Kensa rule references to framework controls
+   - Include error handling for unknown framework IDs
 
    Closes #123"
    ```
@@ -122,8 +131,8 @@ We follow [Conventional Commits](https://www.conventionalcommits.org/):
 
 **Examples**:
 ```
-feat(scap): add profile validation endpoint
-fix(auth): resolve JWT token expiration handling
+feat(rules): add framework filter to reference endpoint
+fix(auth): resolve session expiration handling
 docs(api): update scanning endpoint documentation
 ```
 
@@ -132,100 +141,68 @@ docs(api): update scanning endpoint documentation
 ### Running Tests
 
 ```bash
-# Backend tests
-cd backend
-python -m pytest tests/ -v
+# Backend tests (Go) — from the repo root
+go test ./internal/... -count=1     # add -p 1 for DB-touching packages
+specter check                        # spec schema validation
+specter coverage                     # spec AC coverage
 
-# Frontend tests (when available)
+# Frontend tests
 cd frontend
-npm test
-
-# Integration tests
-make test-integration
+npx vitest run
 ```
 
 ### Test Requirements
 
-- **Unit tests** for all new functions and classes
-- **Integration tests** for API endpoints
-- **Test coverage** should not decrease below 80%
+- **Unit tests** for all new functions and packages
+- **Behavioral coverage** via `specs/` ACs for specced modules
 - **All tests must pass** before merging
 
 ### Writing Tests
 
 - **Follow existing patterns** in the test directories
-- **Use descriptive test names**: `test_scap_profile_validation_with_invalid_xml`
+- **Use descriptive test names**: `TestRuleReference_FilterByUnknownFramework`
 - **Include edge cases** and error conditions
 - **Mock external dependencies** appropriately
 
 ## Code Style
 
-### Python (Backend)
+### Go (Backend)
 
-- **Follow PEP 8** with 88-character line limit
-- **Use Black** for formatting: `black .`
-- **Use isort** for imports: `isort .`
-- **Use mypy** for type checking: `mypy app/`
-- **Docstrings** for all public functions and classes
+- **Run `gofmt -s -w`** before committing (CI lint is strict on gofmt)
+- **`go vet ./...`** must pass
+- **Lint** with `golangci-lint run` (see `.golangci.yml`)
+- **One package per concern** under `internal/`; import from the package, not internal files
+- **Doc comments** on all exported identifiers
 
 ### TypeScript/React (Frontend)
 
-- **Follow Prettier** configuration: `npm run format`
 - **Use ESLint** rules: `npm run lint`
-- **TypeScript strict mode** enabled
+- **TypeScript strict mode** enabled (`npx tsc --noEmit`)
 - **React functional components** with hooks
-- **Material-UI components** for consistency
+- **TanStack Router/Query** for routing and data fetching
+- **MUI components** for consistency
 
 ### General Guidelines
 
-- **Meaningful variable names**: `scap_profile` not `sp`
+- **Meaningful variable names**: `frameworkID` not `fid`
 - **Small, focused functions**: Single responsibility principle
 - **Error handling**: Comprehensive exception handling
 - **Security-first**: Validate all inputs, sanitize outputs
 - **Performance**: Consider efficiency in scanning operations
 
-## Plugin Development
+## Adding services
 
-OpenWatch supports a plugin architecture for extensibility.
+OpenWatch is organized as one Go package per concern under `internal/<concern>/`, wired
+together in `cmd/openwatch/main.go`. New behavior is added as a focused service package, not
+as a runtime plugin. Before adding a service, review the authoritative engineering docs in
+[docs/engineering/](docs/engineering/) and the behavioral specs in [specs/](specs/), then:
 
-### Plugin Structure
-
-```
-plugins/
-├── my_plugin/
-│   ├── __init__.py
-│   ├── plugin.py          # Main plugin class
-│   ├── routes.py          # API endpoints (optional)
-│   ├── models.py          # Data models (optional)
-│   └── requirements.txt   # Plugin dependencies
-```
-
-### Plugin Interface
-
-```python
-from openwatch.core.plugin import PluginBase
-
-class MyPlugin(PluginBase):
-    name = "my_plugin"
-    version = "1.0.0"
-    description = "My custom plugin"
-
-    def load(self):
-        """Called when plugin is loaded"""
-        pass
-
-    def scan_post_process(self, scan_result):
-        """Called after scan completion"""
-        return scan_result
-```
-
-### Plugin Guidelines
-
-- **Follow the plugin interface** specifications
-- **Document plugin capabilities** thoroughly
-- **Include example configuration** and usage
-- **Test plugin compatibility** with core system
-- **Consider security implications** of plugin functionality
+- **Keep one responsibility per package** and import from the package, not its internal files
+- **Wire the service** into the `.With` chain in `cmd/openwatch/main.go`
+- **Define the contract first** in `api/openapi.yaml` for new HTTP surface, then run
+  `make generate-api` to regenerate `internal/server/api/server.gen.go` and
+  `frontend/src/api/schema.d.ts`
+- **Add a behavioral spec** under `specs/` for specced modules and back it with tests
 
 ## Security
 
@@ -252,7 +229,7 @@ class MyPlugin(PluginBase):
 - **API documentation** for new endpoints
 - **User guides** for new features
 - **Architecture documentation** for design changes
-- **Plugin documentation** for extensibility features
+- **Behavioral specs** under `specs/` for specced modules
 
 ### Documentation Style
 
@@ -266,16 +243,16 @@ class MyPlugin(PluginBase):
 
 ### Core Principles
 
-- **Modularity**: Clear separation between components
-- **Extensibility**: Plugin-first architecture
+- **Modularity**: Clear separation between components (one package per concern under `internal/`)
+- **Single binary**: One Go binary serves both the REST API and the embedded React UI
 - **Security**: FIPS compliance and best practices
 - **Performance**: Efficient scanning for 100+ hosts
-- **Container-first**: Docker/Podman deployment ready
+- **OpenAPI-first**: `api/openapi.yaml` is the contract; generate server and client types from it
 
 ### Adding New Features
 
-1. **Review existing architecture** in [DIRECTORY_ARCHITECTURE.md](DIRECTORY_ARCHITECTURE.md)
-2. **Consider plugin interfaces** before adding to core
+1. **Review existing architecture** in [docs/engineering/BACKEND_FUNCTIONALITY.md](docs/engineering/BACKEND_FUNCTIONALITY.md)
+2. **Add a focused service package** under `internal/` rather than overloading an existing one
 3. **Maintain API compatibility** when possible
 4. **Follow established patterns** in the codebase
 5. **Document architectural decisions** and rationale
@@ -348,16 +325,15 @@ To enable all GitHub Actions workflows, configure these secrets in repository se
 
 #### Configuration Files
 
-The following files are already configured for SonarCloud:
-- `sonar-project.properties` - Project configuration
-- `.github/workflows/code-quality.yml` - Quality pipeline
+SonarCloud configuration lives in `sonar-project.properties`. SonarCloud is not currently
+wired into a GitHub Actions workflow; configure `SONAR_TOKEN` only if you re-enable it.
 
 #### Workflow Overview
 
-- **CI Pipeline** (`ci.yml`) - Tests, linting, builds
-- **Code Quality** (`code-quality.yml`) - SonarCloud analysis, security scans
-- **Documentation** (`docs.yml`) - API docs generation
-- **Deploy** (`deploy.yml`) - Container publishing (main branch only)
+- **Go CI** (`go-ci.yml`) - Tests, linting, and builds for the Go module and frontend
+- **CodeQL** (`codeql.yml`) - Static security analysis
+- **Package smoke test** (`package-smoke.yml`) - Installs the built RPM/DEB and verifies it runs
+- **Release** (`release.yml`) - Tag-driven multi-arch RPM/DEB build, signing, and publishing to GitHub Releases
 
 ## Getting Help
 
@@ -385,6 +361,6 @@ Your contributions will be subject to the same AGPLv3 + MSE terms as the rest of
 
 ---
 
-**Thank you for contributing to OpenWatch!** Your contributions help make SCAP compliance more accessible and effective for everyone.
+**Thank you for contributing to OpenWatch!** Your contributions help make compliance scanning more accessible and effective for everyone.
 
 *For more information, visit our [project documentation](README.md) or join our [community discussions](https://github.com/hanalyx/openwatch/discussions).*

@@ -1,0 +1,97 @@
+name: Package smoke test
+
+# Install the freshly-built RPM/DEB on each target distribution and smoke-test:
+# the package installs cleanly (deps resolve), the system user + files land, and
+# the binary runs. This is the automatable half of the pre-release verification
+# gate (see docs/runbooks/RELEASING.md) — service start and functional E2E
+# against a real fleet remain a manual RC step.
+#
+# Runs on packaging changes, on release tags, and on demand. amd64 only (the
+# GitHub runners are amd64); the arm64 packages are covered by cross-build
+# correctness in package-build (AC-14) until arm64 runners/QEMU are wired in.
+
+on:
+  push:
+    tags:
+      - 'v*'
+  pull_request:
+    paths:
+      - 'packaging/**'
+      - '.github/workflows/package-smoke.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build packages
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.4'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install rpmbuild
+        run: sudo apt-get update && sudo apt-get install -y rpm
+      - name: Build packages
+        run: make packages
+      - uses: actions/upload-artifact@v4
+        with:
+          name: packages
+          path: |
+            dist/openwatch-*.rpm
+            dist/openwatch_*.deb
+          retention-days: 3
+
+  smoke:
+    name: ${{ matrix.distro }}
+    needs: build
+    runs-on: ubuntu-latest
+    container: ${{ matrix.distro }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { distro: 'rockylinux:9', kind: rpm }
+          - { distro: 'almalinux:9', kind: rpm }
+          - { distro: 'fedora:41', kind: rpm }
+          - { distro: 'oraclelinux:9', kind: rpm }
+          - { distro: 'ubuntu:24.04', kind: deb }
+          - { distro: 'debian:12', kind: deb }
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: packages
+          path: dist
+
+      - name: Install ${{ matrix.kind }}
+        run: |
+          set -eux
+          if [ "${{ matrix.kind }}" = "rpm" ]; then
+            # dnf resolves the postgresql-server dependency from the distro repos.
+            dnf install -y ./dist/openwatch-*.x86_64.rpm
+          else
+            apt-get update
+            # apt install of a local .deb pulls declared deps.
+            apt-get install -y ./dist/openwatch_*_amd64.deb
+          fi
+
+      - name: Smoke-test the install
+        run: |
+          set -eux
+          # Files in the expected places.
+          test -x /usr/bin/openwatch
+          test -f /etc/openwatch/openwatch.toml
+          test -f /etc/systemd/system/openwatch.service
+          test -f /etc/openwatch/tls/cert.pem
+          # System user created by the post-install scriptlet.
+          id openwatch
+          # Binary runs (no DB needed for these).
+          /usr/bin/openwatch --version
+          /usr/bin/openwatch check-config

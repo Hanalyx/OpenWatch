@@ -1,8 +1,14 @@
 # OpenWatch Scripts
 
+> **⚠️ Legacy (Python era) — do not follow this document.**
+> It describes the archived Python/FastAPI + Docker-Compose stack (PostgreSQL, Redis, Celery,
+> a separate frontend) that was removed from the repo on 2026-06-05. The current OpenWatch is a
+> single Go binary (API + UI) installed from a native RPM/DEB. See docs/engineering/ and specs/
+> (a Go-era rewrite is pending). This content is kept for historical reference.
+
 Utility scripts for OpenWatch setup, development, deployment, and maintenance.
 
-## 📁 Directory Structure
+## Directory Structure
 
 ```
 scripts/
@@ -37,7 +43,7 @@ scripts/
 
 ---
 
-## 🚀 Production Scripts
+## Production Scripts
 
 ### generate-certs.sh
 Generate self-signed SSL certificates for **development and testing only**.
@@ -124,7 +130,7 @@ sudo ./scripts/install-systemd-services.sh
 
 ---
 
-## 💻 Development Scripts
+## Development Scripts
 
 ### quality-check.sh
 Pre-commit code quality validation.
@@ -223,7 +229,7 @@ Full environment setup and end-to-end test execution.
 
 ---
 
-## 🔒 Security Scripts
+## Security Scripts
 
 ### risk_assessment.py
 Calculate risk scores for GitHub security alerts using configurable weights.
@@ -258,7 +264,7 @@ Apply automated security fixes for known vulnerabilities.
 
 ---
 
-## 🛠️ Utility Scripts
+## Utility Scripts
 
 ### utilities/clear_rate_limits.py
 Clear rate limit blocks from in-memory store.
@@ -310,7 +316,7 @@ python3 scripts/examples/group_scan_api_usage.py
 
 ---
 
-## 🎯 Common Workflows
+## Common Workflows
 
 ### Docker-First Development (RECOMMENDED)
 
@@ -380,7 +386,7 @@ systemctl status openwatch-*
 
 ---
 
-## 🔐 Security Best Practices
+## Security Best Practices
 
 ### Credential Handling
 
@@ -408,7 +414,7 @@ systemctl status openwatch-*
 
 ---
 
-## 📝 Environment Variables
+## Environment Variables
 
 Scripts expect these variables (see `.env.example`):
 
@@ -430,7 +436,7 @@ REACT_APP_API_URL=http://localhost:8000
 
 ---
 
-## 🚨 Removed/Deprecated Scripts
+## Removed/Deprecated Scripts
 
 The following scripts have been **removed or deprecated**:
 
@@ -445,7 +451,7 @@ The following scripts have been **removed or deprecated**:
 
 ---
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 ### Permission Issues
 
@@ -483,7 +489,7 @@ docker restart openwatch-backend
 
 ---
 
-## 📚 Additional Documentation
+## Additional Documentation
 
 - **Development Guide**: `docs/DEVELOPER_SETUP.md`
 - **Security Audit**: `docs/SCRIPTS_SECURITY_AUDIT.md`

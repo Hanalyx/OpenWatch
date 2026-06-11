@@ -72,37 +72,33 @@ When scan results change, the platform generates alerts based on configurable th
 
 ## Architecture at a Glance
 
-OpenWatch runs as six Docker containers.
+OpenWatch ships as a single Go binary backed by PostgreSQL.
 
 ```
-+---------------------------------------------------+
-|  openwatch-frontend  (React 19, Nginx)      :3000 |
-+---------------------------------------------------+
-|  openwatch-backend   (FastAPI, Python 3.12) :8000 |
-+------------------------+--------------------------+
-|  openwatch-worker      |  openwatch-celery-beat   |
-|  (Celery task workers) |  (Periodic scheduler)    |
-+------------------------+--------------------------+
-|  openwatch-db          |  openwatch-redis         |
-|  (PostgreSQL 15)       |  (Redis 7.4)             |
-+------------------------+--------------------------+
++-----------------------------------------------------------+
+|  openwatch  (single Go binary)                      :8443 |
+|    - REST API (net/http)                                  |
+|    - embedded React 19 UI (go:embed)                      |
+|    - background worker (PostgreSQL SKIP LOCKED queue)     |
+|    - Kensa compliance engine (Go, SSH-based)              |
++-----------------------------------------------------------+
+                          |
++-----------------------------------------------------------+
+|  PostgreSQL                                               |
++-----------------------------------------------------------+
 ```
 
-**Frontend** serves the React application through Nginx. All API requests are proxied to the backend.
+**Binary** serves both the REST API and the embedded React single-page application over HTTPS on port 8443. The SPA is compiled into the binary with `go:embed`, so there is no separate web tier or reverse proxy to run. The binary handles authentication, authorization, scan management, compliance queries, and framework mappings.
 
-**Backend** exposes the REST API via FastAPI. It handles authentication, authorization, scan management, compliance queries, and framework mappings.
+**Worker** runs as `openwatch worker` and processes asynchronous tasks including scan execution, result parsing, alert evaluation, and remediation jobs. It connects to target hosts over SSH using credentials encrypted in the database.
 
-**Worker** processes asynchronous tasks including scan execution, result parsing, alert evaluation, and remediation jobs. Workers connect to target hosts over SSH using credentials encrypted in the database.
+**Job queue** is PostgreSQL-native, using the `SKIP LOCKED` pattern to dispatch and lock jobs. There is no Redis and no Celery. Scheduled scans are enqueued from adaptive compliance policies.
 
-**Celery Beat** triggers scheduled scans based on adaptive compliance policies. It enqueues scan tasks for the worker pool.
+**PostgreSQL** stores all persistent data: hosts, scans, findings, users, exceptions, alerts, framework mappings, and audit logs. All primary keys are UUIDs. Schema changes ship as migrations in `internal/db/migrations/` and apply via `openwatch migrate`.
 
-**PostgreSQL** stores all persistent data: hosts, scans, findings, users, exceptions, alerts, framework mappings, and audit logs. All primary keys are UUIDs.
+**Kensa** is the compliance engine, integrated as a Go dependency. Kensa connects to target hosts over SSH, executes rule checks, and returns structured results with evidence. It does not store results, manage exceptions, or provide a UI -- those responsibilities belong to OpenWatch.
 
-**Redis** serves as the Celery message broker and result backend. It also provides caching for frequently accessed compliance data.
-
-**Kensa** is the compliance engine installed on the backend container. It is maintained as a separate project and installed via pip. Kensa connects to target hosts over SSH, executes rule checks, and returns structured results with evidence. It does not store results, manage exceptions, or provide a UI -- those responsibilities belong to OpenWatch.
-
-All inter-service communication stays within the Docker network. The only externally exposed ports are 3000 (frontend) and 8000 (API). Target hosts are reached over SSH from the worker containers.
+The only externally exposed port is 8443 (API and UI over HTTPS). Target hosts are reached over SSH from the binary. Lifecycle is managed by systemd (`openwatch.service`); no Docker or Podman runtime is required to run OpenWatch.
 
 ---
 

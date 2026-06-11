@@ -1,131 +1,145 @@
-# GitHub Actions Workflows
+# GitHub Actions workflows
 
-This directory contains all the CI/CD workflows for OpenWatch. Below is an overview of each workflow and its purpose.
+This directory holds the CI/CD workflows for OpenWatch. OpenWatch is a single Go
+module at the repo root (`github.com/Hanalyx/openwatch`, Go 1.26) that builds one
+binary (`/usr/bin/openwatch`) serving the REST API and the embedded React UI over
+HTTPS on port `8443`. There is no separate web tier, no container runtime in
+production, and no Python/Docker-Compose stack — that was archived out of the repo
+on 2026-06-05.
 
-## 🔄 Core CI/CD Workflows
+The workflows below reflect that. Each section describes one file that actually
+exists in this directory; verify details against the workflow file itself before
+relying on them.
 
-### `ci.yml` - Continuous Integration
-**Triggers:** Push to main/develop, Pull Requests
-- **Backend Testing:** Python linting, security checks, unit tests with coverage
-- **Frontend Testing:** ESLint, TypeScript checking, build verification
-- **Integration Tests:** Full stack testing with Docker Compose
-- **Docker Builds:** Multi-stage builds with caching for both backend and frontend
-- **Artifacts:** Pushes images to GitHub Container Registry on main branch
+## Workflow index
 
-### `deploy.yml` - Automated Deployment
-**Triggers:** Push to main, Manual dispatch
-- **Staging Deployment:** Automatic deployment to staging environment
-- **Production Deployment:** Manual approval required, blue-green deployment
-- **Health Checks:** Automated smoke tests and rollback on failure
-- **Notifications:** Slack integration for deployment status
-- **Backup:** Database snapshots before production deployments
+| File | Trigger | Purpose |
+|------|---------|---------|
+| `go-ci.yml` | push/PR to `main` | Quality and security gates: vet, lint, govulncheck, race tests against PostgreSQL, spec coverage |
+| `codeql.yml` | push/PR to `main`/`develop`, weekly | CodeQL static analysis (JavaScript/TypeScript) |
+| `release.yml` | `v*` tags, manual | Build RPM/DEB (amd64 + arm64), SBOMs, signing, publish a GitHub Release |
+| `package-smoke.yml` | `v*` tags, packaging PRs, manual | Install built packages on RPM/DEB distros and smoke-test |
+| `branch-naming.yml` | PR to `main` | Enforce the branch-prefix policy |
+| `issue-management.yml` | issues, PRs, comments | Auto-assign, auto-label, size-label, stale handling, welcome messages |
+| `automated-triage.yml` | daily, manual | Triage Dependabot/CodeQL alerts |
+| `claude-code-alerts.yml` | PRs, weekly, manual | Assist with security alert triage |
 
-### `release.yml` - Release Automation
-**Triggers:** Git tags (v*), Manual dispatch
-- **Multi-arch Builds:** ARM64 and AMD64 Docker images
-- **Release Assets:** Packaged distributions with configuration templates
-- **Changelog:** Automated generation based on commits and PRs
-- **Documentation:** Version updates and documentation deployment
-- **Container Registry:** Tagged releases pushed to GHCR
+Dependency updates are configured in `.github/dependabot.yml` (a config file, not a
+workflow). The branch-prefix policy is documented in `.github/BRANCH_MANAGEMENT.md`.
 
-## 🔒 Security Workflows
+## Core CI: `go-ci.yml`
 
-### `codeql.yml` - Static Analysis
-**Triggers:** Push, Pull Requests, Weekly schedule
-- **Multi-language:** Python and JavaScript/TypeScript analysis
-- **Security Queries:** Comprehensive security and quality rule sets
-- **Integration:** Results integrated with GitHub Security tab
+The pre-merge gate. The job is named **Quality + security gates** and runs on every
+push and PR to `main`. A path-detection step short-circuits to success for
+doc/meta-only changes so the required status check is always present.
 
-### `container-security.yml` - Container Scanning
-**Triggers:** Push, Pull Requests, Daily schedule
-- **Vulnerability Scanning:** Trivy and Grype scanners for container images
-- **SARIF Reports:** Security findings uploaded to GitHub Security
-- **Multi-component:** Separate scans for backend and frontend containers
-- **Fail-fast:** Builds fail on critical/high severity vulnerabilities
+When Go-relevant paths change, the job runs against a `postgres:16-alpine` service
+container and executes:
 
-## 📊 Code Quality Workflows
+- `go mod tidy` followed by a `git diff` check (fails if `go.mod`/`go.sum` drifted)
+- `make vet`
+- `make lint` (golangci-lint, built from source to match the runner toolchain)
+- `make vuln` (govulncheck)
+- `make test-race` (race detector plus the integration suite against PostgreSQL)
+- `go test -json` and frontend `vitest`, ingested by `specter` for spec AC coverage
+- `specter sync` to enforce coverage thresholds
 
-### `code-quality.yml` - Quality Assurance
-**Triggers:** Push, Pull Requests
-- **Python Quality:** Black, Flake8, Pylint, MyPy, Bandit analysis
-- **JavaScript Quality:** ESLint, Prettier, TypeScript compilation
-- **Coverage Reports:** Unit test coverage with Codecov integration
-- **SonarCloud:** Comprehensive code quality and technical debt analysis
-- **Artifacts:** Quality reports uploaded for review
+The DSN is supplied via `OPENWATCH_TEST_DSN`; module resolution is pinned read-only
+with `GOFLAGS=-mod=readonly`. See `specs/release/ci-gates.spec.yaml`.
 
-## 📚 Documentation Workflows
+## Security analysis: `codeql.yml`
 
-### `docs.yml` - Documentation Generation
-**Triggers:** Push to main, Documentation changes
-- **API Documentation:** Auto-generated from code annotations
-- **User Documentation:** MkDocs-powered documentation site
-- **TypeScript Docs:** TypeDoc generation for frontend APIs
-- **GitHub Pages:** Automatic deployment to docs.openwatch.hanalyx.com
-- **OpenAPI Spec:** Generated and published API specifications
+Runs CodeQL on push and pull requests to `main`/`develop` and weekly (Mondays). The
+language matrix is `javascript` only — the Python tree was archived, so TypeScript
+and JavaScript cover the `frontend/` SPA. Results land in the GitHub Security tab.
 
-## 🤖 Repository Management
+Go static analysis is handled by `make lint` and `make vuln` inside `go-ci.yml`
+(staticcheck, gosec, govulncheck), not by CodeQL.
 
-### `issue-management.yml` - Issue Automation
-**Triggers:** Issues, Pull Requests, Comments
-- **Auto-assignment:** Based on labels and file paths changed
-- **Auto-labeling:** PR labeling based on changed files
-- **Size Labeling:** Automatic PR size categorization
-- **Stale Management:** Mark and close inactive issues/PRs
-- **Welcome Messages:** First-time contributor guidance
+## Release: `release.yml`
 
-## 📦 Dependency Management
+Triggers on a `v*` tag or manual dispatch. It builds the four native packages — RPM
+and DEB for amd64 and arm64 — via `make packages`. Each package contains the
+complete API+UI binary (the SPA is embedded with `go:embed`); there is no container
+image to publish.
 
-### `dependabot.yml` - Automated Updates
-**Schedule:** Weekly on Mondays
-- **Python Dependencies:** Backend package updates with security focus
-- **NPM Dependencies:** Frontend dependency management with grouping
-- **Docker Images:** Base image updates for security patches
-- **GitHub Actions:** Workflow dependency updates
-- **Auto-merge:** Low-risk updates with comprehensive testing
+The workflow then:
 
-## 🎯 Workflow Status
+- GPG-signs the RPMs (when `GPG_PRIVATE_KEY` is configured)
+- generates a CycloneDX 1.5 SBOM per artifact with `syft`
+- writes `SHA256SUMS`, a detached GPG signature (`SHA256SUMS.asc`), and a `cosign`
+  signature (`SHA256SUMS.cosign.sig`) when the respective keys are present
+- publishes a GitHub Release with the packages, checksums, SBOMs, and `KEYS`
 
-| Workflow | Status | Purpose | Priority |
-|----------|--------|---------|----------|
-| CI Pipeline | ✅ Active | Core testing and building | Critical |
-| Security Scanning | ✅ Active | Vulnerability detection | Critical |
-| Code Quality | ✅ Active | Code standards enforcement | High |
-| Deployment | ✅ Active | Production releases | Critical |
-| Release Automation | ✅ Active | Version management | High |
-| Documentation | ✅ Active | Doc generation and hosting | Medium |
-| Issue Management | ✅ Active | Repository maintenance | Medium |
-| Dependabot | ✅ Active | Security updates | High |
+Distribution is via GitHub Releases. Operators install with
+`sudo dnf install ./openwatch-*.rpm` or `sudo apt install ./openwatch_*.deb`. A tag
+with a pre-release suffix (for example `-rc.5`) is marked as a pre-release; a bare
+`vX.Y.Z` is GA. The current version (`0.2.0-rc.5`) is a pre-release. See
+`specs/system/supply-chain.spec.yaml`, `specs/release/package-build.spec.yaml`, and
+`docs/runbooks/RELEASING.md`.
 
-## 🔧 Configuration Requirements
+## Package smoke test: `package-smoke.yml`
 
-### Required Secrets
-- `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` - AWS deployment credentials
-- `SONAR_TOKEN` - SonarCloud integration
-- `SLACK_WEBHOOK` - Deployment notifications
-- `CODECOV_TOKEN` - Coverage reporting
+Runs on `v*` tags, on PRs that touch `packaging/`, and on demand. It builds the
+packages, then installs them in containers for each target distro (`rockylinux:9`,
+`almalinux:9`, `fedora:41`, `oraclelinux:9`, `ubuntu:24.04`, `debian:12`) and
+verifies that:
 
-### Repository Settings
-- Branch protection rules for main/develop branches
-- Required status checks for all CI workflows
-- GitHub Container Registry permissions
-- GitHub Pages enabled for documentation
-- Security alerts and Dependabot enabled
+- dependencies resolve and the package installs cleanly
+- `/usr/bin/openwatch`, `/etc/openwatch/openwatch.toml`,
+  `/etc/systemd/system/openwatch.service`, and `/etc/openwatch/tls/cert.pem` land
+- the `openwatch` system user is created
+- `openwatch --version` and `openwatch check-config` run
 
-## 🚀 Getting Started
+This is amd64 only (GitHub runners are amd64); arm64 correctness is covered by the
+cross-build in `release.yml`. Service start and functional E2E against a real fleet
+remain a manual RC step (see `docs/runbooks/RELEASING.md`).
 
-1. **Fork the Repository:** All workflows will run automatically on your fork
-2. **Configure Secrets:** Add required secrets for full functionality
-3. **Enable GitHub Pages:** For documentation deployment
-4. **Set up Branch Protection:** Configure branch rules for your workflow
-5. **Review Dependabot:** Adjust update schedules as needed
+## Repository automation
 
-## 📈 Metrics and Monitoring
+- **`branch-naming.yml`** — fails a PR whose head branch does not start with an
+  allowed prefix (`feat/`, `fix/`, `chore/`, `docs/`, `refactor/`, `perf/`, `test/`,
+  `build/`, `ci/`, `revert/`, `release/`, `dependabot/`). See
+  `.github/BRANCH_MANAGEMENT.md`.
+- **`issue-management.yml`** — auto-assigns issues by label, auto-labels PRs by
+  changed paths, applies size labels, marks stale issues/PRs, and welcomes
+  first-time contributors.
+- **`automated-triage.yml`** — daily (and on-demand) triage of Dependabot and CodeQL
+  alerts.
+- **`claude-code-alerts.yml`** — assists with security alert triage on PRs and on a
+  weekly schedule.
 
-All workflows include comprehensive logging and artifact collection:
-- **Test Results:** Unit and integration test reports
-- **Coverage Reports:** Code coverage tracking over time
-- **Security Scans:** Vulnerability trends and resolution tracking
-- **Build Times:** Performance monitoring of CI/CD pipelines
-- **Deployment Success:** Release success rates and rollback frequency
+## Required secrets
 
-For more information about specific workflows, see the individual workflow files or check the GitHub Actions tab in the repository.
+| Secret | Used by | Purpose |
+|--------|---------|---------|
+| `GITHUB_TOKEN` | issue/PR automation | Provided automatically by GitHub Actions |
+| `GPG_PRIVATE_KEY`, `GPG_PASSPHRASE` | `release.yml` | Sign RPMs and the checksum manifest |
+| `COSIGN_PRIVATE_KEY`, `COSIGN_PASSWORD` | `release.yml` | Cosign signature over the checksum manifest |
+
+Signing steps in `release.yml` are gated on key presence; without them, packages and
+checksums publish unsigned.
+
+## Reproducing CI locally
+
+The gates in `go-ci.yml` map to Makefile targets you can run from the repo root:
+
+```bash
+make vet           # go vet
+make lint          # golangci-lint (staticcheck, gosec, ...)
+make vuln          # govulncheck
+make test-race     # race detector + integration suite (needs PostgreSQL)
+make packages      # build RPM + DEB for amd64 and arm64
+```
+
+`make test-race` and the spec-coverage steps need a PostgreSQL instance reachable via
+`OPENWATCH_TEST_DSN` (the database name must end in `_test`).
+
+## Related documentation
+
+- Install and configuration: `docs/engineering/install_guide.md`
+- Branch policy: `.github/BRANCH_MANAGEMENT.md`
+- Release procedure: `docs/runbooks/RELEASING.md`
+- CI gate spec: `specs/release/ci-gates.spec.yaml`
+- Supply-chain spec: `specs/system/supply-chain.spec.yaml`
+- Kensa boundary: `docs/KENSA_OPENWATCH_BOUNDARY.md`

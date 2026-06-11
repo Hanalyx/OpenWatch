@@ -1,19 +1,19 @@
-# Pre-merge gates for the Go rebuild in app/.
+# Pre-merge gates for the OpenWatch Go tree (repo root).
 #
 # Runs: make vet, make lint (staticcheck + gosec + ...), make vuln
 # (govulncheck), make test-race (data races + full integration suite
 # against a Postgres service container), and `specter sync` (spec
 # validation + strict AC coverage).
 #
-# Spec: app/specs/release/ci-gates.spec.yaml.
+# Spec: specs/release/ci-gates.spec.yaml.
 
 name: Go CI
 
 # Triggers on every push/PR to main. The gates job detects whether the
-# change touches app/** internally; if not, the job short-circuits to
+# change touches Go-relevant paths; if not, the job short-circuits to
 # success so the required-status-check ("Quality + security gates") is
-# present even for doc-only, packaging-only, or backend/frontend-only
-# PRs. This avoids the "missing required check" bootstrap problem
+# present even for doc-only / meta-only PRs. This avoids the "missing
+# required check" bootstrap problem
 # described in .github/BRANCH_MANAGEMENT.md under Troubleshooting.
 on:
   push:
@@ -46,7 +46,6 @@ jobs:
 
     defaults:
       run:
-        working-directory: app
         shell: bash
 
     env:
@@ -65,12 +64,12 @@ jobs:
         with:
           fetch-depth: 0
 
-      # Detect whether this push/PR touches app/** (or the workflow
-      # file itself). For non-Go changes the job short-circuits to
-      # success below — this keeps "Quality + security gates" present
-      # as a green check for doc/packaging/backend/frontend PRs.
+      # Detect whether this push/PR touches Go-relevant paths (or the
+      # workflow file itself). For doc/meta-only changes the job
+      # short-circuits to success below — this keeps "Quality + security
+      # gates" present as a green check on every PR.
       - id: paths
-        name: Detect app/** changes
+        name: Detect Go-relevant changes
         working-directory: ${{ github.workspace }}
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
@@ -82,12 +81,12 @@ jobs:
             head="${{ github.sha }}"
             changed=$(git diff --name-only "$base" "$head" 2>/dev/null || git ls-files)
           fi
-          if echo "$changed" | grep -qE '^(app/|\.github/workflows/go-ci\.yml$)'; then
+          if echo "$changed" | grep -qE '^(cmd/|internal/|api/|frontend/|specs/|configs/|audit/|auth/|license/|packaging/|scripts/|go\.mod|go\.sum|Makefile|specter\.yaml|sqlc\.yaml|\.golangci\.yml|\.github/workflows/go-ci\.yml$)'; then
             echo "go=true" >> "$GITHUB_OUTPUT"
             echo "Go-relevant changes detected — running full pipeline."
           else
             echo "go=false" >> "$GITHUB_OUTPUT"
-            echo "No app/** changes — gate trivially passes."
+            echo "Doc/meta-only change — gate trivially passes."
           fi
 
       - name: Set up Go
@@ -96,7 +95,7 @@ jobs:
         with:
           go-version: '1.26.4'
           cache: true
-          cache-dependency-path: app/go.sum
+          cache-dependency-path: go.sum
 
       - name: Set up golangci-lint
         if: steps.paths.outputs.go == 'true'
@@ -130,7 +129,6 @@ jobs:
       # block it. Drift is detected via the follow-up `git diff` instead.
       - name: go mod tidy + diff
         if: steps.paths.outputs.go == 'true'
-        working-directory: app
         env:
           GOFLAGS: ""
         run: |
@@ -156,6 +154,25 @@ jobs:
         if: steps.paths.outputs.go == 'true'
         run: make test-race
 
+      # Annotation hygiene: cross-reference every test's @spec / @ac
+      # annotation against the spec registry and fail on a dangling spec
+      # ref, unknown AC id, malformed AC id, or unreachable annotation
+      # error. This catches the class of drift where a spec is renamed or
+      # dropped but its test annotations linger (exactly what happened when
+      # the connectivity specs were lost in a squash-merge). Gate on the
+      # printed error count, not the exit code: `specter check --test`
+      # returns 0 on some builds even with errors present.
+      - name: specter check --test (annotation hygiene)
+        if: steps.paths.outputs.go == 'true'
+        run: |
+          out=$(specter check --test 2>&1) || true
+          echo "$out"
+          n=$(echo "$out" | grep -cE 'error \[' || true)
+          if [ "$n" -gt 0 ]; then
+            echo "::error::specter check --test found $n test-annotation error(s) — fix the dangling @spec / @ac refs listed above."
+            exit 1
+          fi
+
       # Spec coverage gate. Split into discrete steps so a failure
       # attributes to the actual command (go test vs. ingest vs. sync)
       # instead of getting hidden behind a single bundled step.
@@ -175,24 +192,23 @@ jobs:
           fi
           exit $EXIT
 
-      # Frontend Vitest run for specter ingest. The app/specs/frontend/
-      # specs reference tests in app/frontend/tests/pages/* (the Go
-      # rebuild's frontend, distinct from the legacy frontend/ tree at
-      # the repo root). Without these JUnit results, those specs report
-      # 0% coverage and fail the threshold gate even though the tests
-      # pass. Vitest emits JUnit XML at /tmp/vitest-junit.xml which
-      # specter ingest reads alongside the Go test results.
+      # Frontend Vitest run for specter ingest. The specs/frontend/ specs
+      # reference tests in frontend/tests/pages/*. Without these JUnit
+      # results, those specs report 0% coverage and fail the threshold
+      # gate even though the tests pass. Vitest emits JUnit XML at
+      # /tmp/vitest-junit.xml which specter ingest reads alongside the Go
+      # test results.
       - name: Set up Node.js
         if: steps.paths.outputs.go == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
-          cache-dependency-path: app/frontend/package-lock.json
+          cache-dependency-path: frontend/package-lock.json
 
-      - name: app/frontend vitest (junit) for specter ingest
+      - name: frontend vitest (junit) for specter ingest
         if: steps.paths.outputs.go == 'true'
-        working-directory: app/frontend
+        working-directory: frontend
         run: |
           npm ci --no-audit --no-fund
           set +e
@@ -226,7 +242,7 @@ jobs:
         with:
           name: specter-results
           path: |
-            app/.specter-results.json
+            .specter-results.json
             /tmp/go-test.json
             /tmp/vitest-junit.xml
           retention-days: 7

@@ -1,0 +1,78 @@
+spec:
+  id: api-fleet-connectivity-breakdown
+  title: Fleet connectivity breakdown API — 4-state hysteresis counts
+  version: "1.0.0"
+  status: approved
+  tier: 2
+
+  context:
+    system: openwatch-go
+    feature: Derived per-state connectivity counts for the fleet, classified by consecutive-failure hysteresis
+    description: >
+      GET /api/v1/fleet/connectivity/breakdown returns derived per-state host
+      counts for the Settings → Scanning & monitoring page. Bands come from
+      each host's reachability plus its consecutive_failures hysteresis:
+      online = reachable and consec=0, degraded = reachable and consec>=1,
+      critical = unreachable and consec<3, down = consec>=3, never_probed = no
+      liveness row. The counts sum to the active host count.
+
+      This spec covers the HTTP read endpoint and its classification contract.
+      It was authored and approved with PR #434 but dropped from the tree in
+      that PR's squash-merge and never restored; it is reconstructed here from
+      internal/server/api_system_connectivity_test.go and the api/openapi.yaml
+      contract. The acceptance-criteria ids follow those surviving tests, so
+      the numbering is non-contiguous.
+    related_specs:
+      - services-connectivity-config
+      - api-fleet-observability
+      - system-liveness-loop
+      - system-rbac
+
+  objective:
+    summary: >
+      The endpoint returns five integer counts (online, degraded, critical,
+      down, never_probed) derived from per-host reachability and
+      consecutive-failure hysteresis, summing to the active host count, and is
+      RBAC-gated on system:read.
+    scope:
+      includes:
+        - GET /api/v1/fleet/connectivity/breakdown
+        - Hysteresis band classification from reachability + consecutive_failures
+        - Empty-fleet handling (zeros, not an error)
+        - RBAC — system:read
+      excludes:
+        - The per-state probe cadences themselves (services-connectivity-config)
+        - The single-config CRUD surface (api-system-connectivity)
+        - Other fleet rollups (api-fleet-observability)
+
+  constraints:
+    - id: C-01
+      description: GET /api/v1/fleet/connectivity/breakdown classifies each active host into exactly one of online / degraded / critical / down / never_probed using reachability and consecutive_failures; the five counts sum to the active host count.
+      type: technical
+      enforcement: error
+    - id: C-02
+      description: A consecutive_failures value at or above the down threshold (>=3) places the host in the down band regardless of the last single reachability sample.
+      type: technical
+      enforcement: error
+    - id: C-03
+      description: The endpoint requires system:read; an anonymous caller is rejected.
+      type: security
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-02
+      description: With hosts spanning the bands, GET /api/v1/fleet/connectivity/breakdown returns counts that classify each host into the correct band per the hysteresis rules and sum to the active host count.
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-05
+      description: A host with consecutive_failures at or above the down threshold is counted in the down band even if other signals would suggest a milder band (high-consec dominates).
+      priority: high
+      references_constraints: [C-02]
+    - id: AC-06
+      description: For an empty fleet (no active hosts) the endpoint returns 200 with all counts zero, not an error.
+      priority: high
+      references_constraints: [C-01]
+    - id: AC-07
+      description: GET /api/v1/fleet/connectivity/breakdown by an anonymous caller is rejected (not authenticated).
+      priority: high
+      references_constraints: [C-03]

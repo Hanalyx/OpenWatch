@@ -1,0 +1,103 @@
+spec:
+  id: release-ci-gates
+  title: CI quality + security gates
+  version: "1.1.0"
+  status: approved
+  tier: 1
+
+  context:
+    system: openwatch-go
+    feature: Mandatory pre-merge gates
+    description: >
+      Every PR against the Go rebuild must pass a fixed set of gates
+      before merge: format/vet, lint (staticcheck + gosec + others via
+      golangci-lint), known-CVE scan (govulncheck), race-detector test
+      suite, and full Specter strict coverage. The gates live in the
+      Makefile so they're runnable locally and in CI so they block
+      merges. A single `make check` target chains them so contributors
+      have one command to run before pushing.
+    related_specs:
+      - release-stage-0-signoff
+      - system-correlation
+
+  objective:
+    summary: >
+      Make quality and security gates the same shape locally and in CI,
+      so "passes on my machine" implies "passes on main." Tool drift
+      between developer machines and CI is the failure mode that this
+      spec exists to prevent.
+    scope:
+      includes:
+        - "Makefile targets: vet, lint, vuln, test-race, check"
+        - GitHub Actions workflow scoped to app/** with the same gates
+        - A spec-and-test contract on each gate
+      excludes:
+        - Test coverage minimums (handled by Specter strict mode)
+        - Mutation testing
+        - Container image scanning (Stage 2 when we ship containers)
+
+  constraints:
+    - id: C-01
+      description: make vet MUST invoke `go vet ./...` and exit non-zero on any suspicious-construct finding
+      type: technical
+      enforcement: error
+    - id: C-02
+      description: make lint MUST invoke golangci-lint with staticcheck + gosec + govet + ineffassign + unused + errcheck + revive + forbidigo enabled
+      type: technical
+      enforcement: error
+    - id: C-03
+      description: make vuln MUST invoke govulncheck ./... and exit non-zero on any known CVE in dependencies or the standard library that is reachable from openwatch's call graph
+      type: security
+      enforcement: error
+    - id: C-04
+      description: make test-race MUST invoke `go test -race ./...` and exit non-zero on any detected data race
+      type: security
+      enforcement: error
+    - id: C-05
+      description: make check MUST chain vet → lint → vuln → test-race in that order; first failure aborts the chain
+      type: technical
+      enforcement: error
+    - id: C-06
+      description: GitHub Actions workflow .github/workflows/go-ci.yml MUST run on every PR/push to main (no paths filter) and produce the "Quality + security gates" status check. For changes touching app/** it MUST execute make check + specter sync against a Postgres service container; for changes that do not touch app/** the job MUST short-circuit to success so the required status check is always present
+      type: technical
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: make vet target exists and runs `go vet ./...` against the full module.
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-02
+      description: make lint target exists and runs golangci-lint; the lint config enables staticcheck, gosec, govet, errcheck, unused, ineffassign, revive, and forbidigo.
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-03
+      description: make vuln target exists and runs govulncheck ./...; auto-installs govulncheck via `go install` if absent.
+      priority: critical
+      references_constraints: [C-03]
+    - id: AC-04
+      description: make test-race target exists and runs `go test -race ./...`.
+      priority: critical
+      references_constraints: [C-04]
+    - id: AC-05
+      description: make check target chains vet, lint, vuln, test-race in that exact order; depends on each as prerequisites so any failure aborts the chain.
+      priority: critical
+      references_constraints: [C-05]
+    - id: AC-06
+      description: make help lists every gate target (vet, lint, vuln, test-race, check) with one-line descriptions so contributors discover them without reading the Makefile.
+      priority: high
+    - id: AC-07
+      description: .github/workflows/go-ci.yml exists, triggers on every PR/push to main without a paths filter, references the Go source paths (cmd/, internal/, ...) in a path-detection step, and gates the heavy gate steps (Go setup, lint, vuln, test-race, specter) on that step so non-Go PRs short-circuit to success while still reporting the required "Quality + security gates" status check.
+      priority: critical
+      references_constraints: [C-06]
+    - id: AC-08
+      description: The workflow defines a Postgres service container with the same credentials and DB name the test suite expects.
+      priority: critical
+      references_constraints: [C-06]
+    - id: AC-09
+      description: The workflow executes (in order) make vet, make lint, make vuln, make test-race, and specter sync — each as its own step so a failure pinpoints which gate broke.
+      priority: critical
+      references_constraints: [C-06]
+    - id: AC-10
+      description: The workflow runs on both push to main and pull_request targeting main; uses `set -e` semantics so any step's non-zero exit fails the job.
+      priority: high

@@ -1,820 +1,376 @@
-# OpenWatch Monitoring Setup Guide
+# OpenWatch monitoring and operations guide
 
-**Last Updated**: 2026-02-17
+**Last updated**: 2026-06-10
 
----
+This guide describes how you monitor a running OpenWatch deployment and how you
+respond to common operational incidents. OpenWatch ships as a single Go binary
+(`/usr/bin/openwatch`) that serves the REST API and the embedded React UI over
+HTTPS on port `8443`, backed by PostgreSQL and managed by systemd. There is no
+container runtime, no separate web tier, and no message broker.
 
-## Table of Contents
+For installation, configuration layering, and first-run setup, see
+`docs/engineering/install_guide.md`. This guide does not repeat those steps; it
+focuses on observing the service and running it day to day.
 
-1. [Overview](#1-overview)
-2. [Health Check Endpoints](#2-health-check-endpoints)
-3. [Monitoring Stack Setup](#3-monitoring-stack-setup)
-4. [Starting the Monitoring Stack](#4-starting-the-monitoring-stack)
-5. [Prometheus Configuration](#5-prometheus-configuration)
-6. [Grafana Dashboards](#6-grafana-dashboards)
-7. [Alert Configuration](#7-alert-configuration)
-8. [Log Monitoring](#8-log-monitoring)
-9. [Troubleshooting](#9-troubleshooting)
+## Contents
 
----
+1. [What you can observe today](#1-what-you-can-observe-today)
+2. [Health and version endpoints](#2-health-and-version-endpoints)
+3. [Logs via journald](#3-logs-via-journald)
+4. [Audit events](#4-audit-events)
+5. [Fleet and connectivity signals](#5-fleet-and-connectivity-signals)
+6. [Service lifecycle](#6-service-lifecycle)
+7. [Operational runbooks](#7-operational-runbooks)
+8. [Not yet implemented](#8-not-yet-implemented)
 
-## 1. Overview
+## 1. What you can observe today
 
-OpenWatch uses a dedicated monitoring stack that runs in a **separate** Docker Compose deployment from the main application. The monitoring infrastructure provides four pillars of observability:
+OpenWatch exposes operational signals through four channels:
 
-- **Prometheus** -- Metrics collection and storage with a 30-day retention window.
-- **Grafana** -- Dashboard visualization with pre-provisioned dashboards.
-- **Jaeger** -- Distributed tracing for request flow analysis.
-- **Alertmanager** -- Alert routing and notification delivery.
+| Channel | Source | Authentication |
+|---------|--------|----------------|
+| Health probe | `GET /api/v1/health` | None |
+| Version metadata | `GET /api/v1/version` | None |
+| Structured logs | systemd journal (`journalctl -u openwatch`) | Host access |
+| Audit and fleet APIs | `GET /api/v1/audit/events`, `/api/v1/fleet/*`, `/api/v1/system/connectivity/status` | Bearer token |
 
-In addition, the stack deploys several exporters that gather metrics from the underlying infrastructure:
+OpenWatch does not currently expose a Prometheus `/metrics` endpoint and does
+not ship a Prometheus, Grafana, Jaeger, or exporter stack. See
+[Not yet implemented](#8-not-yet-implemented).
 
-- **Node Exporter** -- Host-level CPU, memory, disk, and network metrics.
-- **Redis Exporter** -- Redis connection pool, command latency, and memory usage.
-- **Postgres Exporter** -- PostgreSQL query performance, connection counts, and replication status.
-- **cAdvisor** -- Container-level resource usage (CPU, memory, network per container).
+## 2. Health and version endpoints
 
-### Architecture Diagram
+### Health probe
 
-```
-                          Monitoring Network (172.22.0.0/16)
-                    +-----------------------------------------+
-                    |                                         |
-                    |   +-----------+     +---------------+   |
-                    |   | Prometheus|---->| Alertmanager  |   |
-                    |   | :9090     |     | :9093         |   |
-                    |   +-----+-----+     +---------------+   |
-                    |         |                               |
-                    |         v                               |
-                    |   +-----------+     +---------------+   |
-                    |   | Grafana   |     | Jaeger        |   |
-                    |   | :3001     |     | :16686        |   |
-                    |   +-----------+     +---------------+   |
-                    |                                         |
-                    |   +-----------+  +-----------+          |
-                    |   | Node Exp. |  | cAdvisor  |          |
-                    |   | :9100     |  | :8080     |          |
-                    |   +-----------+  +-----------+          |
-                    |                                         |
-                    +------+-------------+--------------------+
-                           |             |
-               +-----------+---+   +-----+----------+
-               | openwatch-    |   | aegis-         |
-               | network       |   | network        |
-               | (external)    |   | (external)     |
-               +---+-----------+   +--------+-------+
-                   |                         |
-           +-------+--------+        +------+-------+
-           | OpenWatch App  |        | Aegis Engine |
-           | Backend :8000  |        |              |
-           | Redis   :6379  |        +--------------+
-           | Postgres :5432 |
-           +----------------+
+The health endpoint is anonymous and is the right target for an external uptime
+check or a load-balancer probe. It is implemented in
+`internal/server/handlers.go` (`GetHealth`) and pings PostgreSQL with a
+two-second timeout.
+
+```bash
+curl -k https://localhost:8443/api/v1/health
 ```
 
-The monitoring network (172.22.0.0/16) connects to the OpenWatch application network (`openwatch_openwatch-network`) and the Aegis engine network (`aegis_aegis-network`) as external Docker networks. This allows Prometheus and Jaeger to scrape metrics and collect traces from the running application containers without being co-located in the same Compose file.
+A healthy response returns `200 OK`:
 
-### Application Metrics Endpoint
+```json
+{"status": "healthy", "db_connected": true, "version": "0.2.0-rc.5"}
+```
 
-The OpenWatch backend exposes a Prometheus-compatible metrics endpoint at `GET /metrics`. This endpoint is served by the `PrometheusMiddleware` registered in `backend/app/main.py` and returns metrics in the Prometheus text exposition format (content type `text/plain; version=0.0.4`).
+When the database ping fails, the endpoint returns `503 Service Unavailable`
+with an error envelope. Treat a non-`200` status, or a connection failure, as
+service-down.
 
-Metrics are collected automatically by the middleware for every HTTP request and include:
+The response schema (`status`, `db_connected`, `version`) is defined in
+`api/openapi.yaml` under `HealthResponse`. The current contract reports only a
+binary `healthy`/`degraded` status driven by database reachability.
 
-| Metric Name | Type | Description |
-|-------------|------|-------------|
-| `secureops_http_requests_total` | Counter | Total HTTP requests by method, endpoint, status, service |
-| `secureops_http_request_duration_seconds` | Histogram | Request latency by method, endpoint, service |
-| `secureops_service_up` | Gauge | Service availability flag per service name |
-| `secureops_scans_total` | Counter | Total scans by status, profile, framework |
-| `secureops_scans_active` | Gauge | Currently running scans |
-| `secureops_scan_duration_seconds` | Histogram | Scan duration by profile and framework |
-| `secureops_scan_rules_processed_total` | Counter | Rules processed by status and severity |
-| `secureops_compliance_score` | Gauge | Compliance score per host and framework |
-| `secureops_compliance_rules_failed` | Gauge | Failed compliance rules per host |
+### Version metadata
 
-The middleware also tracks security events (authentication failures, forbidden access, rate limit exceeded, server errors) and integration call metrics.
+The version endpoint is also anonymous and reports build metadata sourced from
+ldflags and Go build info (`internal/server/handlers.go`, `GetVersion`):
 
-A `BackgroundMetricsUpdater` class in `backend/app/middleware/metrics.py` periodically (every 30 seconds) collects system-level metrics using `psutil` and queries the database for host status counts and active scan counts.
-
----
-
-## 2. Health Check Endpoints
-
-OpenWatch exposes multiple health check endpoints at different levels of detail and authentication requirements.
-
-### Basic Health Check (Unauthenticated)
-
-| Endpoint | Method | Authentication | Purpose |
-|----------|--------|---------------|---------|
-| `GET /health` | GET | None | Container orchestration health check |
-
-This endpoint is defined directly in `backend/app/main.py` and is used by Docker health checks. It verifies:
-
-- PostgreSQL connectivity (executes `SELECT 1`)
-- Redis connectivity (executes `PING`)
-- MongoDB is reported as `deprecated`
-
-Response codes:
-- `200 OK` -- All services healthy
-- `503 Service Unavailable` -- One or more services degraded or unreachable
-
-Example response:
+```bash
+curl -k https://localhost:8443/api/v1/version
+```
 
 ```json
 {
-  "status": "healthy",
-  "timestamp": 1739830000.123,
-  "version": "1.2.0",
-  "fips_mode": true,
-  "database": "healthy",
-  "redis": "healthy",
-  "mongodb": "deprecated"
+  "openwatch": "0.2.0-rc.5",
+  "kensa": "<embedded engine version>",
+  "go": "<go toolchain>",
+  "commit": "<abbrev commit>",
+  "build_time": "<ISO-8601 build timestamp>"
 }
 ```
 
-### Prometheus Metrics (Unauthenticated)
+Use this to confirm which build is running after an upgrade. The same metadata
+prints from the CLI with `openwatch --version`.
 
-| Endpoint | Method | Authentication | Purpose |
-|----------|--------|---------------|---------|
-| `GET /metrics` | GET | None | Prometheus scrape target |
+## 3. Logs via journald
 
-Returns all collected metrics in Prometheus text exposition format. Rate limiting is explicitly bypassed for this endpoint.
-
-### Detailed Health Endpoints (Authenticated)
-
-These endpoints are registered under the `/api/health-monitoring` prefix via the system router and require a valid JWT bearer token.
-
-| Endpoint | Method | Authentication | Purpose |
-|----------|--------|---------------|---------|
-| `GET /api/health-monitoring/health/service` | GET | Required | Detailed service health metrics |
-| `GET /api/health-monitoring/health/content` | GET | Required | Content and rule health metrics |
-| `GET /api/health-monitoring/health/summary` | GET | Required | Combined health overview |
-| `POST /api/health-monitoring/health/refresh` | POST | Required | Force refresh all health data |
-| `GET /api/health-monitoring/health/history/service` | GET | Required | Service health history |
-| `GET /api/health-monitoring/health/history/content` | GET | Required | Content health history |
-
-**Service Health** (`/health/service`) returns:
-- Core service statuses
-- Database connection health
-- Resource usage (CPU, memory, storage)
-- Recent operation statistics
-- Active alerts
-
-Data is cached for 5 minutes. Requests within the cache window return the cached result; requests after 5 minutes trigger a fresh collection.
-
-**Content Health** (`/health/content`) returns:
-- Framework coverage statistics
-- Benchmark implementation status
-- Rule distribution and statistics
-- Content integrity validation
-- Performance metrics
-- Content-related alerts
-
-Data is cached for 1 hour.
-
-**Health Summary** (`/health/summary`) returns:
-- Overall system status
-- Key metrics
-- Active issue count
-- Critical alerts
-
-This endpoint always generates a fresh summary on each request.
-
-**Force Refresh** (`POST /health/refresh`) triggers immediate collection of all health data (service, content, and summary) regardless of cache age.
-
-**History Endpoints** accept an `hours` query parameter (default 24, minimum 1, maximum 168) and return historical data points for trending and analysis:
-
-```
-GET /api/health-monitoring/health/history/service?hours=48
-GET /api/health-monitoring/health/history/content?hours=24
-```
-
-### Compliance Engine Health (Authenticated)
-
-| Endpoint | Method | Authentication | Purpose |
-|----------|--------|---------------|---------|
-| `GET /api/scans/aegis/health` | GET | Required | Aegis compliance engine health |
-| `GET /api/integrations/orsa/health` | GET | Required | ORSA plugin registry health |
-
-**Aegis Health** returns the Aegis engine version, rules path, number of available YAML rules, and the list of supported frameworks. If the Aegis package is not installed, the status will be `unavailable`.
-
-Example response:
-
-```json
-{
-  "status": "healthy",
-  "aegis_version": "0.1.0",
-  "rules_path": "/app/backend/aegis/rules",
-  "rules_available": 338,
-  "frameworks_supported": [
-    "cis-rhel9-v2.0.0",
-    "stig-rhel9-v2r7",
-    "nist-800-53"
-  ]
-}
-```
-
-**ORSA Health** checks the plugin registry and all registered plugins. Returns per-plugin health status, the total plugin count, and whether all plugins are healthy.
-
----
-
-## 3. Monitoring Stack Setup
-
-The monitoring stack is defined in `monitoring/docker-compose.monitoring.yml`. All images are pulled from public registries and pinned to specific versions.
-
-### Services
-
-| Service | Image | Port | Purpose | Runs As |
-|---------|-------|------|---------|---------|
-| Prometheus | `prom/prometheus:v2.56.0` | 9090 | Metrics collection and storage | UID 1000 |
-| Alertmanager | `prom/alertmanager:v0.28.0` | 9093 | Alert routing and notifications | UID 1000 |
-| Grafana | `grafana/grafana:11.4.0` | 3001 (maps to internal 3000) | Dashboard visualization | UID 472 |
-| Jaeger | `jaegertracing/all-in-one:1.65.0` | 16686 (UI), 14268 (HTTP), 14250 (gRPC), 6831/udp, 6832/udp | Distributed tracing | UID 10001 |
-| Node Exporter | `prom/node-exporter:v1.8.2` | 9100 | Host system metrics | UID 65534 |
-| Redis Exporter | `oliver006/redis_exporter:v1.69.0` | 9121 | Redis metrics | UID 59000 |
-| Postgres Exporter | `prometheuscommunity/postgres-exporter:v0.18.0` | 9187 | PostgreSQL metrics | UID 70000 |
-| cAdvisor | `gcr.io/cadvisor/cadvisor:v0.51.0` | 8080 | Container metrics | Privileged |
-
-### Security Configuration
-
-All containers except cAdvisor run with the `no-new-privileges:true` security option, which prevents processes from gaining additional privileges via setuid/setgid binaries. cAdvisor requires `privileged: true` and has `no-new-privileges:false` because it needs direct access to `/proc`, `/sys`, and Docker internals to collect container metrics.
-
-Node Exporter and Redis Exporter additionally run with `read_only: true` filesystem access.
-
-### Storage
-
-Three named Docker volumes provide persistent storage:
-
-| Volume | Mount Point | Purpose |
-|--------|-------------|---------|
-| `prometheus_data` | `/prometheus` | Metrics time-series data |
-| `grafana_data` | `/var/lib/grafana` | Grafana configuration, dashboards, users |
-| `alertmanager_data` | `/alertmanager` | Alert state and silences |
-
-Prometheus is configured with a 30-day retention period and a 50 GB storage cap via command-line flags:
-
-```
---storage.tsdb.retention.time=30d
---storage.tsdb.retention.size=50GB
-```
-
-### Networking
-
-The monitoring stack creates its own bridge network and connects to two external networks:
-
-| Network | Type | Subnet | Purpose |
-|---------|------|--------|---------|
-| `monitoring-network` | Bridge | 172.22.0.0/16 | Internal monitoring communication |
-| `openwatch_openwatch-network` | External | -- | Access to OpenWatch backend, Redis, PostgreSQL |
-| `aegis_aegis-network` | External | -- | Access to Aegis engine containers |
-
-Prometheus and Jaeger are attached to all three networks so they can scrape metrics from and collect traces from the application containers. The exporters (Redis, Postgres) are attached to `monitoring-network` and `openwatch-network` to reach the databases they monitor.
-
-### Health Checks
-
-Each monitoring service has a Docker health check configured:
-
-| Service | Health Check | Interval | Timeout | Retries | Start Period |
-|---------|-------------|----------|---------|---------|--------------|
-| Prometheus | `wget http://localhost:9090/-/healthy` | 30s | 10s | 3 | 30s |
-| Alertmanager | `wget http://localhost:9093/-/healthy` | 30s | 10s | 3 | -- |
-| Grafana | `curl -f http://localhost:3000/api/health` | 30s | 10s | 3 | -- |
-| Jaeger | `wget http://localhost:14269/` | 30s | 10s | 3 | -- |
-
-### Environment Variables
-
-The stack reads from a `.env` file in the `monitoring/` directory. Required variables:
-
-| Variable | Purpose | Default |
-|----------|---------|---------|
-| `GRAFANA_ADMIN_PASSWORD` | Grafana admin login password | Auto-generated on first run |
-| `POSTGRES_PASSWORD` | PostgreSQL password for the Postgres Exporter | Auto-generated on first run |
-| `REDIS_PASSWORD` | Redis password for the Redis Exporter | Auto-generated on first run |
-| `SMTP_PASSWORD` | SMTP password for email alerts (Alertmanager) | Empty |
-| `SLACK_WEBHOOK_URL` | Slack webhook for alert notifications | Empty |
-
-The `.env` file is automatically created by `start-monitoring.sh` on first run with randomly generated passwords.
-
----
-
-## 4. Starting the Monitoring Stack
-
-### Prerequisites
-
-1. **Docker or Podman** must be installed with compose support (`docker-compose` or `podman-compose`).
-2. **External networks must exist** before starting the monitoring stack. These are created by the main OpenWatch and Aegis Compose files:
-   - `openwatch_openwatch-network`
-   - `aegis_aegis-network`
-
-   Start the main application first:
-   ```bash
-   ./start-openwatch.sh --runtime docker --build
-   ```
-
-3. **Configuration files** must be present (see [Section 5](#5-prometheus-configuration)):
-   - `monitoring/config/prometheus.yml`
-   - `monitoring/config/alertmanager.yml`
-
-### Starting
-
-The `start-monitoring.sh` script handles all setup:
+The systemd unit (`packaging/common/openwatch.service`) sends both stdout and
+stderr to the journal. With `format = "json"` in `[logging]` (the packaged
+default in `packaging/common/openwatch.toml`), every line is a structured JSON
+record that carries a correlation ID.
 
 ```bash
-cd monitoring/
-./start-monitoring.sh start
+sudo journalctl -u openwatch -f                    # tail live
+sudo journalctl -u openwatch --since '15 min ago'  # recent window
+sudo journalctl -u openwatch -o cat | jq .         # pretty-print JSON
+sudo journalctl -u openwatch -p err --since today  # errors only
 ```
 
-The script performs these steps in order:
-
-1. Detects the container runtime (Podman or Docker).
-2. Creates the `.env` file with generated secrets if it does not exist.
-3. Creates required data and configuration directories.
-4. Validates configuration files (uses `promtool` if available).
-5. Pulls the latest container images.
-6. Starts all services with `docker-compose up -d`.
-7. Waits 30 seconds for services to initialize.
-8. Runs health checks against Prometheus (9090), Grafana (3001), Jaeger (16686), and Alertmanager (9093).
-9. Prints service URLs and Grafana credentials.
-
-### Other Commands
+To trace one request or one boot across log lines, filter on its correlation
+ID:
 
 ```bash
-# Stop the monitoring stack
-./start-monitoring.sh stop
-
-# Restart (stop + 5s delay + start)
-./start-monitoring.sh restart
-
-# Show container status
-./start-monitoring.sh status
-
-# Follow logs for all services
-./start-monitoring.sh logs
-
-# Follow logs for a specific service
-./start-monitoring.sh logs prometheus
-
-# Back up Prometheus data, Grafana data, and configuration
-./start-monitoring.sh backup
-
-# Print service URLs and Grafana credentials
-./start-monitoring.sh urls
+sudo journalctl -u openwatch -o cat | jq 'select(.correlation_id == "<id>")'
 ```
 
-### Service URLs
+Set `level = "debug"` in `[logging]` (or pass `--log-level debug`, or set
+`OPENWATCH_LOGGING_LEVEL=debug`) to raise verbosity, then restart the service.
+Log level precedence follows the standard config layering documented in
+`docs/engineering/install_guide.md`.
 
-After starting, the following URLs are available:
+## 4. Audit events
 
-| Service | URL |
-|---------|-----|
-| Grafana Dashboard | http://localhost:3001 |
-| Prometheus | http://localhost:9090 |
-| Jaeger Tracing UI | http://localhost:16686 |
-| Alertmanager | http://localhost:9093 |
+Every server action that mutates state, authenticates, or authorizes emits a
+row to the `audit_events` PostgreSQL table (migrations `0001_initial.sql` and
+`0002_audit_events_taxonomy.sql`). This is the durable record for security
+review; the journal is the operational record.
 
----
-
-## 5. Prometheus Configuration
-
-### Configuration File Location
-
-Prometheus reads its main configuration from:
-
-```
-monitoring/config/prometheus.yml
-```
-
-This file is mounted read-only into the Prometheus container at `/etc/prometheus/prometheus.yml`.
-
-### Alert Rules Location
-
-Alert rule files are stored in:
-
-```
-monitoring/config/alerts/
-```
-
-This directory is mounted read-only at `/etc/prometheus/alerts/` inside the container. Prometheus loads all `*.yml` rule files from this directory.
-
-### Scrape Targets
-
-Configure scrape targets in `prometheus.yml`. A typical configuration for OpenWatch includes these jobs:
-
-```yaml
-scrape_configs:
-  # OpenWatch backend application metrics
-  - job_name: 'openwatch-backend'
-    scrape_interval: 15s
-    static_configs:
-      - targets: ['openwatch-backend:8000']
-    metrics_path: /metrics
-
-  # Node Exporter - host metrics
-  - job_name: 'node-exporter'
-    scrape_interval: 15s
-    static_configs:
-      - targets: ['secureops-node-exporter:9100']
-
-  # Redis Exporter
-  - job_name: 'redis-exporter'
-    scrape_interval: 15s
-    static_configs:
-      - targets: ['secureops-redis-exporter:9121']
-
-  # Postgres Exporter
-  - job_name: 'postgres-exporter'
-    scrape_interval: 15s
-    static_configs:
-      - targets: ['secureops-postgres-exporter:9187']
-
-  # cAdvisor - container metrics
-  - job_name: 'cadvisor'
-    scrape_interval: 15s
-    static_configs:
-      - targets: ['secureops-cadvisor:8080']
-```
-
-Note: Scrape targets use Docker service names because Prometheus is attached to the same Docker networks as the target services.
-
-### Lifecycle API
-
-The Prometheus container is started with `--web.enable-lifecycle`, which enables runtime configuration reloading:
+Query audit events through the API (requires a bearer token with the
+appropriate permission):
 
 ```bash
-# Reload Prometheus configuration without restart
-curl -X POST http://localhost:9090/-/reload
+curl -k -H "Authorization: Bearer $TOKEN" \
+  'https://localhost:8443/api/v1/audit/events'
 ```
 
-The admin API is also enabled (`--web.enable-admin-api`) for operations such as snapshot creation and TSDB cleanup.
-
-### Validating Configuration
-
-If you have `promtool` installed locally, validate the configuration before applying:
+The endpoint (`getAuditEvents` in `api/openapi.yaml`) is cursor-paginated. For
+direct inspection during an incident you can also read the table with `psql`:
 
 ```bash
-promtool check config monitoring/config/prometheus.yml
+psql "$OPENWATCH_DATABASE_DSN" -c \
+  "SELECT recorded_at, action, severity, actor_type, actor_id, outcome
+   FROM audit_events
+   ORDER BY recorded_at DESC
+   LIMIT 50;"
 ```
 
-The `start-monitoring.sh` script runs this validation automatically if `promtool` is available.
+Indexed columns include `recorded_at`, `action`, `severity`, and
+`(actor_type, actor_id)`, so filtered queries on those fields stay fast. For the
+event taxonomy (action names and severities), see
+`docs/engineering/audit_event_taxonomy.md`.
 
----
+## 5. Fleet and connectivity signals
 
-## 6. Grafana Dashboards
+OpenWatch continuously probes managed hosts (the liveness loop wired in
+`cmd/openwatch/main.go`). These endpoints expose the resulting fleet state and
+require a bearer token:
 
-### Accessing Grafana
-
-Grafana is available at **http://localhost:3001** (mapped from the internal port 3000).
-
-Default credentials:
-- **Username**: `admin`
-- **Password**: Value of `GRAFANA_ADMIN_PASSWORD` from `monitoring/.env`
-
-To retrieve the password:
+| Endpoint | Reports |
+|----------|---------|
+| `GET /api/v1/fleet/liveness` | Counts: `reachable`, `unreachable`, `unknown`, `never_probed` |
+| `GET /api/v1/fleet/connectivity/breakdown` | 4-state breakdown: `online`, `degraded`, `critical`, `down`, `never_probed` |
+| `GET /api/v1/system/connectivity/status` | In-process connectivity-monitor metrics and the maintenance flag |
 
 ```bash
-grep GRAFANA_ADMIN_PASSWORD monitoring/.env
+curl -k -H "Authorization: Bearer $TOKEN" \
+  https://localhost:8443/api/v1/fleet/liveness
 ```
 
-Sign-up is disabled (`GF_USERS_ALLOW_SIGN_UP=false`), and anonymous access is disabled (`GF_AUTH_ANONYMOUS_ENABLED=false`).
+A rising `unreachable`/`down` count is a useful early signal that either the
+monitored fleet or the OpenWatch host's network path is degrading. The schemas
+(`FleetLiveness`, `ConnectivityBreakdown`) are defined in `api/openapi.yaml`.
 
-### Provisioned Dashboards
+## 6. Service lifecycle
 
-Grafana is configured to auto-provision dashboards from local JSON files. The provisioning configuration and dashboard files are mounted from:
-
-```
-monitoring/config/grafana/provisioning/   -> /etc/grafana/provisioning/
-monitoring/config/grafana/dashboards/     -> /var/lib/grafana/dashboards/
-```
-
-The `start-monitoring.sh` script creates three dashboard subdirectories:
-
-| Directory | Purpose |
-|-----------|---------|
-| `dashboards/secureops/` | OpenWatch application dashboards (scans, compliance, hosts) |
-| `dashboards/infrastructure/` | Infrastructure dashboards (containers, databases, Redis) |
-| `dashboards/business/` | Business metrics dashboards (compliance trends, SLA) |
-
-Place Grafana dashboard JSON files in these directories. They will be automatically loaded when Grafana starts.
-
-### Installed Plugins
-
-The Grafana container installs two additional plugins on startup:
-
-- `grafana-piechart-panel` -- Pie chart visualizations for compliance distribution
-- `grafana-worldmap-panel` -- Geographic map visualization for distributed hosts
-
-### Alerting
-
-Grafana unified alerting is enabled:
-
-- `GF_ALERTING_ENABLED=true`
-- `GF_UNIFIED_ALERTING_ENABLED=true`
-- `GF_FEATURE_TOGGLES_ENABLE=ngalert`
-
-This allows creating Grafana-native alert rules directly within dashboards.
-
-### Embedding
-
-Grafana embedding is enabled (`GF_SECURITY_ALLOW_EMBEDDING=true`), which allows embedding Grafana panels in the OpenWatch frontend using iframes.
-
----
-
-## 7. Alert Configuration
-
-### Alertmanager
-
-Alertmanager handles alert routing and notification delivery. Its configuration file is located at:
-
-```
-monitoring/config/alertmanager.yml
-```
-
-This file is mounted read-only into the container at `/etc/alertmanager/alertmanager.yml`.
-
-### Notification Channels
-
-Configure notification channels in `alertmanager.yml`. The `.env` file provides placeholder variables for two common channels:
-
-- **Email** -- Set `SMTP_PASSWORD` in `monitoring/.env` and configure SMTP settings in `alertmanager.yml`.
-- **Slack** -- Set `SLACK_WEBHOOK_URL` in `monitoring/.env` and configure the Slack receiver in `alertmanager.yml`.
-
-Example `alertmanager.yml` structure:
-
-```yaml
-global:
-  resolve_timeout: 5m
-
-route:
-  group_by: ['alertname', 'severity']
-  group_wait: 10s
-  group_interval: 10s
-  repeat_interval: 1h
-  receiver: 'default'
-
-  routes:
-    - match:
-        severity: critical
-      receiver: 'critical-alerts'
-
-receivers:
-  - name: 'default'
-    # Configure default notification channel
-
-  - name: 'critical-alerts'
-    # Configure high-priority notification channel
-```
-
-### Prometheus Alert Rules
-
-Alert rules are defined in YAML files under `monitoring/config/alerts/`. These rules are evaluated by Prometheus and firing alerts are forwarded to Alertmanager.
-
-Example alert rule:
-
-```yaml
-groups:
-  - name: openwatch-alerts
-    rules:
-      - alert: HighErrorRate
-        expr: rate(secureops_http_requests_total{status=~"5.."}[5m]) > 0.1
-        for: 5m
-        labels:
-          severity: critical
-        annotations:
-          summary: "High HTTP error rate detected"
-          description: "Error rate exceeds 10% over the last 5 minutes."
-
-      - alert: ServiceDown
-        expr: secureops_service_up == 0
-        for: 1m
-        labels:
-          severity: critical
-        annotations:
-          summary: "OpenWatch service is down"
-```
-
-### Alertmanager Web UI
-
-The Alertmanager web interface is available at **http://localhost:9093**. Use it to:
-
-- View active and silenced alerts
-- Create silences to temporarily suppress alerts
-- Inspect alert grouping and routing
-
----
-
-## 8. Log Monitoring
-
-### Structured Logging
-
-OpenWatch uses Python's built-in `logging` module with structured log output. Key loggers:
-
-| Logger | Purpose |
-|--------|---------|
-| `openwatch.audit` | Security audit events (authentication, authorization, data access) |
-| `app.*` | Application-level logs (services, routes, tasks) |
-| `celery.*` | Background task execution logs |
-
-### Audit Log
-
-The audit logger (`openwatch.audit`) records security-critical events including:
-
-- Authentication attempts (success and failure)
-- Authorization failures and forbidden access
-- Privilege escalation events
-- Sensitive data access
-- Configuration changes
-
-Audit events are also persisted to the `audit_logs` PostgreSQL table for durable storage and querying.
-
-### Viewing Logs
-
-Application and worker logs are accessible through Docker:
+OpenWatch runs as the `openwatch.service` systemd unit, which executes
+`openwatch serve --config /etc/openwatch/openwatch.toml`.
 
 ```bash
-# Backend application logs
-docker logs openwatch-backend --tail 100 --follow
-
-# Celery worker logs (scan execution, background tasks)
-docker logs openwatch-worker --tail 100 --follow
-
-# Monitoring service logs
-cd monitoring/
-./start-monitoring.sh logs
-
-# Specific monitoring service logs
-./start-monitoring.sh logs prometheus
-./start-monitoring.sh logs grafana
+sudo systemctl status openwatch     # current state
+sudo systemctl restart openwatch    # restart
+sudo systemctl stop openwatch       # stop
+sudo systemctl enable --now openwatch  # start now and at boot
 ```
 
-### Log-Based Alerting
-
-While the current monitoring stack does not include a dedicated log aggregation system (such as Loki or the ELK stack), you can monitor for issues by:
-
-1. Checking container logs for error patterns.
-2. Using Prometheus metrics that track error rates (`secureops_http_requests_total` with status 5xx).
-3. Reviewing the `audit_logs` table in PostgreSQL for security events.
-4. Monitoring the security event counter (`secureops_security_events_total`) exposed via the `/metrics` endpoint.
-
----
-
-## 9. Troubleshooting
-
-### External Network Not Found
-
-**Symptom**: Docker Compose fails with an error about missing external networks.
-
-```
-ERROR: Network openwatch_openwatch-network declared as external, but could not be found.
-```
-
-**Cause**: The main OpenWatch application (or Aegis) has not been started, so the external Docker networks do not exist yet.
-
-**Solution**: Start the main application first, then start the monitoring stack.
+Before restarting after a config change, validate the resolved configuration:
 
 ```bash
-# Start the main application (creates the networks)
-./start-openwatch.sh --runtime docker --build
-
-# Verify the networks exist
-docker network ls | grep -E "openwatch-network|aegis-network"
-
-# Then start monitoring
-cd monitoring/
-./start-monitoring.sh start
+sudo -u openwatch openwatch check-config --config /etc/openwatch/openwatch.toml
 ```
 
-If you need to create the networks manually for testing:
+Other CLI subcommands (`cmd/openwatch/main.go`): `migrate` applies pending
+database migrations, `create-admin` bootstraps the first admin user, and
+`worker` runs the background scan-job loop. The packaged systemd unit runs only
+`serve`; the in-process schedulers and liveness loop run inside the `serve`
+process.
 
-```bash
-docker network create openwatch_openwatch-network
-docker network create aegis_aegis-network
-```
+## 7. Operational runbooks
 
-### Exporter Connection Failures
+These runbooks assume the single binary on systemd with a PostgreSQL backend.
+Run the commands from the OpenWatch host unless noted.
 
-**Symptom**: Redis Exporter or Postgres Exporter shows connection errors in logs.
+### SERVICE_DOWN
 
-**Cause**: The exporter cannot reach the database service, or the password is incorrect.
+The service is unreachable or `GET /api/v1/health` does not return `200`.
 
-**Solution**:
-
-1. Verify the database containers are running:
-
-   ```bash
-   docker ps | grep -E "openwatch-redis|openwatch-db"
-   ```
-
-2. Check that the passwords in `monitoring/.env` match the passwords used by the main application:
+1. Check the unit state and recent errors:
 
    ```bash
-   # Compare Redis password
-   grep REDIS_PASSWORD monitoring/.env
-   grep REDIS_PASSWORD .env  # or the main app env file
-
-   # Compare Postgres password
-   grep POSTGRES_PASSWORD monitoring/.env
-   grep POSTGRES_PASSWORD .env
+   sudo systemctl status openwatch
+   sudo journalctl -u openwatch --since '10 min ago' -p err
    ```
 
-3. Test connectivity from the monitoring network:
+2. Confirm the local probe:
 
    ```bash
-   # Test Redis connectivity
-   docker exec secureops-redis-exporter wget -q -O- http://localhost:9121/metrics | head -5
-
-   # Test Postgres connectivity
-   docker exec secureops-postgres-exporter wget -q -O- http://localhost:9187/metrics | head -5
+   curl -k https://localhost:8443/api/v1/health
    ```
 
-### Prometheus Not Scraping Targets
-
-**Symptom**: Prometheus targets page (`http://localhost:9090/targets`) shows targets as DOWN.
-
-**Cause**: Network connectivity issue or incorrect target address.
-
-**Solution**:
-
-1. Check the Prometheus targets page at http://localhost:9090/targets for specific error messages.
-
-2. Verify that Prometheus can reach the target container:
+3. If the journal shows a database ping failure (for example
+   `db: ping: ... connection refused`), check PostgreSQL:
 
    ```bash
-   docker exec secureops-prometheus wget -q -O- http://openwatch-backend:8000/metrics | head -5
+   sudo systemctl status postgresql
+   psql "$OPENWATCH_DATABASE_DSN" -c 'SELECT 1;'
    ```
 
-3. Verify the container name matches the target in `prometheus.yml`. Docker Compose service names and container names may differ.
-
-4. Ensure Prometheus is attached to the correct networks:
+4. If the config is suspect, validate it before restarting:
 
    ```bash
-   docker inspect secureops-prometheus --format='{{range $k, $v := .NetworkSettings.Networks}}{{$k}} {{end}}'
+   sudo -u openwatch openwatch check-config --config /etc/openwatch/openwatch.toml
    ```
 
-### Grafana Cannot Connect to Prometheus
-
-**Symptom**: Grafana dashboards show "No data" or the Prometheus data source test fails.
-
-**Cause**: Grafana is using an incorrect Prometheus URL.
-
-**Solution**: In Grafana data source configuration, the Prometheus URL should use the Docker service name, not `localhost`:
-
-```
-http://secureops-prometheus:9090
-```
-
-Both containers must be on the `monitoring-network` for this to work.
-
-### cAdvisor Permission Errors
-
-**Symptom**: cAdvisor container fails to start or shows permission denied errors.
-
-**Cause**: cAdvisor requires privileged access to read container metrics from `/proc`, `/sys`, and `/var/lib/docker`.
-
-**Solution**: Verify that the container is running in privileged mode. This is configured in `docker-compose.monitoring.yml`:
-
-```yaml
-cadvisor:
-  privileged: true
-  devices:
-    - /dev/kmsg
-```
-
-On SELinux-enabled systems, you may also need to set appropriate context labels on the mounted volumes.
-
-### Prometheus Storage Full
-
-**Symptom**: Prometheus stops ingesting metrics or shows storage errors.
-
-**Cause**: The 50 GB storage limit has been reached.
-
-**Solution**:
-
-1. Check current storage usage:
+5. Restart and confirm recovery:
 
    ```bash
-   docker exec secureops-prometheus du -sh /prometheus
+   sudo systemctl restart openwatch
+   curl -k https://localhost:8443/api/v1/health
    ```
 
-2. If near the limit, Prometheus will automatically prune the oldest data to stay within bounds (the `--storage.tsdb.retention.size=50GB` flag). However, you can also manually trigger compaction:
+The unit is configured with `Restart=on-failure` and `RestartSec=5s`, so a
+crashing process restarts automatically; persistent restart loops show up in
+`systemctl status` as repeated restarts and warrant the steps above.
+
+### DISK_FULL
+
+Disk pressure on the OpenWatch or PostgreSQL data volume.
+
+1. Find what is full:
 
    ```bash
-   curl -X POST http://localhost:9090/api/v1/admin/tsdb/clean_tombstones
+   df -h
+   sudo du -xh /var/log/openwatch /var/lib/openwatch | sort -h | tail
    ```
 
-3. To increase storage, modify the `--storage.tsdb.retention.size` flag in `docker-compose.monitoring.yml` and restart:
+2. The journal is a common consumer. Inspect and cap it:
 
    ```bash
-   cd monitoring/
-   ./start-monitoring.sh restart
+   journalctl --disk-usage
+   sudo journalctl --vacuum-time=7d      # drop entries older than 7 days
+   sudo journalctl --vacuum-size=500M    # or cap total size
    ```
 
-### Monitoring Data Backup
+3. Check the PostgreSQL data directory and database size:
 
-To back up monitoring data (Prometheus TSDB, Grafana databases, and configuration):
+   ```bash
+   psql "$OPENWATCH_DATABASE_DSN" -c \
+     "SELECT pg_size_pretty(pg_database_size(current_database()));"
+   ```
 
-```bash
-cd monitoring/
-./start-monitoring.sh backup
-```
+   The `audit_events` table grows over time. Confirm its size before pruning,
+   and follow your retention policy:
 
-This creates a timestamped backup directory at `monitoring/backups/YYYYMMDD_HHMMSS/` containing compressed archives of Prometheus data, Grafana data, and configuration files.
+   ```bash
+   psql "$OPENWATCH_DATABASE_DSN" -c \
+     "SELECT pg_size_pretty(pg_total_relation_size('audit_events'));"
+   ```
+
+4. After freeing space, confirm the service is healthy
+   (`curl -k https://localhost:8443/api/v1/health`).
+
+OpenWatch does not currently rotate or prune `audit_events` automatically; apply
+your own retention if the table dominates database size.
+
+### HIGH_CPU
+
+The OpenWatch process is consuming excessive CPU.
+
+1. Confirm which process and how much:
+
+   ```bash
+   top -b -n1 | head -20
+   sudo systemctl status openwatch     # shows the main PID
+   ```
+
+2. Correlate with request and scan activity in the journal:
+
+   ```bash
+   sudo journalctl -u openwatch --since '15 min ago' -o cat | jq -r '.msg' | sort | uniq -c | sort -rn | head
+   ```
+
+3. Check whether background work is driving load. The liveness loop and the
+   intelligence and discovery schedulers run inside `serve`. If a scheduler is
+   misconfigured, pause it via its config endpoint, for example:
+
+   ```bash
+   curl -k -H "Authorization: Bearer $TOKEN" \
+     https://localhost:8443/api/v1/system/intelligence/config
+   ```
+
+4. Check PostgreSQL for long-running or stuck queries:
+
+   ```bash
+   psql "$OPENWATCH_DATABASE_DSN" -c \
+     "SELECT pid, now()-query_start AS runtime, state, left(query,80)
+      FROM pg_stat_activity
+      WHERE state <> 'idle'
+      ORDER BY runtime DESC NULLS LAST LIMIT 10;"
+   ```
+
+5. If the process is wedged rather than merely busy, capture the journal context
+   first, then `sudo systemctl restart openwatch`.
+
+### SECURITY_INCIDENT
+
+Suspected unauthorized access, credential misuse, or anomalous authorization
+failures.
+
+1. Pull recent authentication and authorization events from the audit log. These
+   are the durable security record:
+
+   ```bash
+   psql "$OPENWATCH_DATABASE_DSN" -c \
+     "SELECT recorded_at, action, severity, actor_type, actor_id, outcome
+      FROM audit_events
+      WHERE severity IN ('warning','critical')
+         OR action LIKE 'auth.%'
+      ORDER BY recorded_at DESC
+      LIMIT 100;"
+   ```
+
+2. Cross-reference with the journal for the same window, filtering by correlation
+   ID where you have one:
+
+   ```bash
+   sudo journalctl -u openwatch --since '1 hour ago' -o cat | jq 'select(.level=="WARN" or .level=="ERROR")'
+   ```
+
+3. If you must contain immediately, stop the service to halt all access while you
+   investigate:
+
+   ```bash
+   sudo systemctl stop openwatch
+   ```
+
+4. Rotate any potentially exposed secrets in `/etc/openwatch/secrets.env` (for
+   example `OPENWATCH_DATABASE_DSN`) and the keys under `/etc/openwatch/`, then
+   restart. Preserve the journal and a copy of relevant `audit_events` rows
+   before you prune anything.
+
+For role and permission definitions referenced by audit `action`/`actor` fields,
+see `docs/engineering/rbac_registry.md`.
+
+## 8. Not yet implemented
+
+The following observability capabilities described in earlier (Python-era)
+documentation do not exist in the current Go build. They are recorded here so
+operators do not look for them:
+
+- **Prometheus `/metrics` endpoint** — not exposed. The only health signal is
+  `GET /api/v1/health`.
+- **Bundled monitoring stack** (Prometheus, Grafana, Jaeger, Alertmanager,
+  node/redis/postgres exporters, cAdvisor) — not shipped. There is no
+  `monitoring/` Compose stack and no container runtime in this architecture.
+- **Distributed tracing** — not implemented. Correlation IDs in the JSON logs
+  are the current mechanism for following a request across log lines.
+- **Detailed authenticated health endpoints** (per-service, content, history) —
+  not implemented. The current health contract is a single binary
+  `healthy`/`degraded` status.
+
+If and when metrics or tracing land, this section and the contract in
+`api/openapi.yaml` will be updated together.

@@ -1,181 +1,172 @@
-# Runbook: High CPU Usage
+# Runbook: high CPU usage
 
-**Severity**: P2 - Medium
-**Last Updated**: 2026-02-17
+**Severity**: P2 - medium
+**Last updated**: 2026-06-10
 **Owner**: Platform Engineering
-**Estimated Resolution Time**: 10-45 minutes
+**Estimated resolution time**: 10-45 minutes
+
+OpenWatch runs as a single Go binary (`/usr/bin/openwatch`) that serves the REST
+API and the embedded React UI over HTTPS on port `8443`. Background scan jobs are
+drained by a separate `openwatch worker` process that reads from a PostgreSQL-native
+job queue. Both processes share one PostgreSQL database. There is no container
+runtime, no Redis, and no Celery. Compliance checks run through Kensa (SSH-based,
+native YAML rules); OpenSCAP/`oscap` are not used.
+
+This runbook covers the three processes that can saturate CPU on an OpenWatch host:
+
+| Process | Typical CPU cause |
+|---------|-------------------|
+| `openwatch serve` | High API/UI request volume, expensive handler queries, in-process schedulers (liveness, intelligence, discovery) |
+| `openwatch worker` | Kensa SSH compliance checks running against hosts |
+| `postgres` | Expensive queries, missing indexes, autovacuum on large tables |
+
+For install and configuration details, see
+[`docs/engineering/install_guide.md`](../engineering/install_guide.md). For the
+Kensa boundary, see [`docs/KENSA_OPENWATCH_BOUNDARY.md`](../KENSA_OPENWATCH_BOUNDARY.md).
 
 ---
 
 ## Symptoms
 
-- Slow API response times reported by users or monitoring.
-- Container CPU usage at or near limits (visible in `docker stats` or cAdvisor).
-- Prometheus alerts for high CPU utilization.
-- Scan execution times significantly longer than normal.
-- Backend health check timeouts (the 10-second timeout in `docker-compose.yml` is exceeded).
-- `secureops_http_request_duration_seconds` histogram shows elevated p95/p99 latency.
+- Slow API or UI response times reported by users.
+- `top`/`htop` shows `openwatch` or `postgres` near a full core (or saturated host).
+- Scan completion times noticeably longer than normal.
+- The `/api/v1/health` endpoint is slow to respond or times out.
+
+> Note: OpenWatch does not currently expose a Prometheus `/metrics` endpoint.
+> The only in-process metrics surfaced over the API are connectivity-monitor
+> counters under `/api/v1/system/connectivity` (see `api/openapi.yaml`). CPU
+> diagnosis relies on host tools (`top`, `mpstat`) and `journalctl`, not a
+> metrics scrape. A metrics/observability endpoint is not yet implemented.
 
 ---
 
 ## Diagnosis
 
-### Step 1: Identify which container is consuming CPU
+### Step 1: Identify which process is consuming CPU
 
 ```bash
-docker stats --no-stream --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.PIDs}}"
+top -bn1 -o %CPU | head -20
 ```
 
-Note which container has the highest CPU percentage. The most common offenders are:
-
-| Container | Common CPU Cause |
-|-----------|-----------------|
-| openwatch-worker | Concurrent compliance scans (Aegis SSH checks) |
-| openwatch-backend | High API request volume, expensive queries |
-| openwatch-db | Complex queries, missing indexes, VACUUM operations |
-| openwatch-redis | Large key scans, persistence operations |
-
-### Step 2: Drill into the high-CPU container
-
-#### If openwatch-backend is high:
-
-Check for high request volume:
+Look for `openwatch` (serve and/or worker) and `postgres` processes. To narrow to
+OpenWatch processes:
 
 ```bash
-docker logs openwatch-backend --since 5m 2>&1 | grep -c "HTTP"
+ps -eo pid,ppid,pcpu,pmem,etime,args --sort=-pcpu | grep -E 'openwatch|postgres' | grep -v grep
 ```
 
-Check the Prometheus metrics for request rate:
+Confirm which OpenWatch units are running:
 
 ```bash
-curl -s http://localhost:8000/metrics | grep "secureops_http_requests_total"
+systemctl status openwatch
 ```
 
-Look for endpoints receiving disproportionate traffic.
+The packaged systemd unit (`openwatch.service`) runs `openwatch serve`. If you run
+the worker, it is a separate `openwatch worker` invocation; check how it is started
+on your host (its own unit, a wrapper, or a manual process).
 
-#### If openwatch-worker is high:
-
-Check active Celery tasks:
+### Step 2: Check per-core saturation
 
 ```bash
-docker exec openwatch-backend python3 -m celery -A app.celery_app inspect active
+mpstat -P ALL 1 3
 ```
 
-Check how many scans are running concurrently:
+If every core is busy, the host itself is saturated and the cause may be systemic
+(co-tenant load, a runaway query, or genuinely high scan demand) rather than a
+single OpenWatch process.
+
+### Step 3: Drill into the high-CPU process
+
+#### If `openwatch serve` is high
+
+Check recent request volume and look for error or retry storms:
 
 ```bash
-docker exec openwatch-backend python3 -m celery -A app.celery_app inspect active 2>/dev/null | grep -c "execute_scan\|aegis"
+journalctl -u openwatch --since "5 min ago" -o cat | wc -l
+journalctl -u openwatch --since "5 min ago" -o cat | grep -iE 'error|warn' | tail -50
 ```
 
-Check the scan queue depth:
+Logs are structured JSON with a correlation ID per request. Look for an endpoint or
+correlation ID that appears disproportionately. The `serve` process also runs the
+liveness, intelligence, and discovery schedulers in-process; a misconfigured
+interval can drive steady CPU (see Resolution path C).
+
+#### If `openwatch worker` is high
+
+The worker runs Kensa SSH checks. Confirm how many scan jobs are queued or running:
 
 ```bash
-docker exec openwatch-redis redis-cli -a "${REDIS_PASSWORD}" llen default
-docker exec openwatch-redis redis-cli -a "${REDIS_PASSWORD}" llen scans
-docker exec openwatch-redis redis-cli -a "${REDIS_PASSWORD}" llen results
-docker exec openwatch-redis redis-cli -a "${REDIS_PASSWORD}" llen maintenance
-docker exec openwatch-redis redis-cli -a "${REDIS_PASSWORD}" llen monitoring
-docker exec openwatch-redis redis-cli -a "${REDIS_PASSWORD}" llen host_monitoring
-docker exec openwatch-redis redis-cli -a "${REDIS_PASSWORD}" llen health_monitoring
-docker exec openwatch-redis redis-cli -a "${REDIS_PASSWORD}" llen compliance_scanning
+psql "$OPENWATCH_DATABASE_DSN" -c "
+SELECT status, count(*)
+FROM job_queue
+GROUP BY status
+ORDER BY status;
+"
 ```
 
-#### If openwatch-db is high:
+The `job_queue` table holds all background jobs (`status` is one of `pending`,
+`processing`, `completed`, `failed`; `job_type` distinguishes scan jobs from other
+work). A growing `processing` count with stale `locked_at` timestamps indicates work
+that is not draining. The schema is defined in
+`internal/db/migrations/0003_job_queue.sql`.
 
-Check for expensive active queries:
+The worker serializes work per host via a PostgreSQL advisory lock
+(`pg_advisory_xact_lock`), so two scans against the same host cannot run at once.
+CPU pressure from the worker therefore scales with the number of distinct hosts
+being scanned concurrently and the cost of each Kensa run.
+
+#### If `postgres` is high
+
+Find expensive active queries:
 
 ```bash
-docker exec openwatch-db psql -U openwatch -d openwatch -c "
+psql "$OPENWATCH_DATABASE_DSN" -c "
 SELECT pid,
        now() - query_start AS duration,
        state,
        left(query, 120) AS query_preview
 FROM pg_stat_activity
-WHERE datname = 'openwatch'
-  AND state = 'active'
+WHERE state = 'active'
   AND query NOT ILIKE '%pg_stat_activity%'
 ORDER BY duration DESC
 LIMIT 10;
 "
 ```
 
-Check if VACUUM or ANALYZE is running:
+Check whether autovacuum is running:
 
 ```bash
-docker exec openwatch-db psql -U openwatch -d openwatch -c "
-SELECT pid, query
+psql "$OPENWATCH_DATABASE_DSN" -c "
+SELECT pid, left(query, 80) AS query
 FROM pg_stat_activity
 WHERE query ILIKE '%vacuum%' OR query ILIKE '%analyze%';
 "
 ```
 
-### Step 3: Check host-level CPU
-
-```bash
-# Overall host CPU
-top -bn1 | head -5
-
-# Per-core utilization
-mpstat -P ALL 1 3
-```
-
-If host CPU is saturated across all cores, the issue may be systemic rather than limited to a single container.
+> `OPENWATCH_DATABASE_DSN` is set in `/etc/openwatch/secrets.env`. If `psql` is run
+> as the `openwatch` user without that variable exported, source the file first or
+> connect with explicit `-h`/`-U`/`-d` flags.
 
 ---
 
 ## Resolution
 
-### Path A: Too many concurrent scans (worker)
+### Path A: long-running database queries
 
-The `OPENWATCH_MAX_CONCURRENT_SCANS` setting (default: 5) controls how many scans can run in parallel. Reduce it to lower CPU pressure:
+Cancel a specific expensive query (use the `pid` from the diagnosis step):
 
 ```bash
-# Check current value
-docker exec openwatch-backend printenv | grep MAX_CONCURRENT
+psql "$OPENWATCH_DATABASE_DSN" -c "SELECT pg_cancel_backend(12345);"
 ```
 
-To apply a new value, update the environment in `docker-compose.yml` or `.env` and restart:
+Identify tables doing heavy sequential scans, which often indicates a missing index:
 
 ```bash
-# Temporary: restart worker with reduced concurrency
-docker stop openwatch-worker
-docker run -d --name openwatch-worker \
-  --network openwatch_openwatch-network \
-  -e OPENWATCH_MAX_CONCURRENT_SCANS=2 \
-  ... # (use same env as docker-compose.yml)
-```
-
-Or update `docker-compose.yml` and recreate:
-
-```bash
-# In docker-compose.yml, add to worker environment:
-# OPENWATCH_MAX_CONCURRENT_SCANS: "2"
-
-docker compose up -d openwatch-worker
-```
-
-### Path B: Long-running database queries
-
-Identify and cancel expensive queries:
-
-```bash
-# Cancel a specific query (replace PID)
-docker exec openwatch-db psql -U openwatch -d openwatch -c "
-SELECT pg_cancel_backend(12345);
-"
-```
-
-Check for missing indexes on frequently queried columns:
-
-```bash
-docker exec openwatch-db psql -U openwatch -d openwatch -c "
+psql "$OPENWATCH_DATABASE_DSN" -c "
 SELECT schemaname || '.' || relname AS table,
        seq_scan,
-       idx_scan,
-       CASE WHEN seq_scan + idx_scan > 0
-            THEN round(seq_scan::numeric / (seq_scan + idx_scan) * 100, 1)
-            ELSE 0
-       END AS seq_scan_pct
+       idx_scan
 FROM pg_stat_user_tables
 WHERE seq_scan > 100
 ORDER BY seq_scan DESC
@@ -183,136 +174,161 @@ LIMIT 10;
 "
 ```
 
-Tables with a high `seq_scan_pct` (above 50%) on large tables may benefit from additional indexes.
+A table with a high `seq_scan` count and a large row count is a candidate for an
+added index. Do not add indexes ad hoc in production; raise the finding so the
+schema change lands as a migration in `internal/db/migrations/`.
 
-### Path C: Scale Celery workers
+### Path B: tune the database connection pool
 
-If scan demand is legitimately high and the host has available CPU capacity, scale the number of worker processes:
-
-```bash
-# Check current worker concurrency
-docker exec openwatch-worker python3 -m celery -A app.celery_app inspect stats 2>/dev/null | grep "concurrency"
-```
-
-To increase concurrency, update the worker command in `docker-compose.yml`:
-
-```yaml
-command: ["python3", "-m", "celery", "-A", "app.celery_app", "worker", "--loglevel=info", "--concurrency=4", "-Q", "default,scans,results,maintenance,monitoring,host_monitoring,health_monitoring,compliance_scanning"]
-```
-
-Then recreate the worker:
+The `serve` and `worker` processes each open a pool capped by
+`[database].max_connections` (default `25`) in `/etc/openwatch/openwatch.toml`. An
+oversized pool against an undersized PostgreSQL can amplify CPU contention. Inspect
+the resolved value:
 
 ```bash
-docker compose up -d openwatch-worker
+openwatch check-config --config /etc/openwatch/openwatch.toml
 ```
 
-### Path D: Add container resource limits
-
-If a container is consuming unbounded CPU, add resource limits in `docker-compose.yml`:
-
-```yaml
-services:
-  backend:
-    deploy:
-      resources:
-        limits:
-          cpus: '2.0'
-          memory: 2G
-        reservations:
-          cpus: '0.5'
-          memory: 512M
-```
-
-Apply:
+Adjust `[database].max_connections` (or the `OPENWATCH_DATABASE_MAX_CONNECTIONS`
+env override) and restart the process:
 
 ```bash
-docker compose up -d
+sudo systemctl restart openwatch
 ```
 
-### Path E: VACUUM consuming CPU
+### Path C: a scheduler is doing too much work
 
-If PostgreSQL is running autovacuum on a large table, this is generally expected behavior. You can check progress:
+The `serve` process runs the liveness, intelligence, and discovery schedulers
+in-process. If one of them is sweeping too aggressively, lower its frequency or
+pause it through the operator-tunable system config (changes hot-load; no restart
+needed):
 
 ```bash
-docker exec openwatch-db psql -U openwatch -d openwatch -c "
-SELECT relname, phase, heap_blks_total, heap_blks_scanned, heap_blks_vacuumed
+# Pause intelligence collection
+curl -sk -X PUT https://localhost:8443/api/v1/system/intelligence/config \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"maintenance_global": true}'
+
+# Pause discovery sweeps
+curl -sk -X PUT https://localhost:8443/api/v1/system/discovery/config \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"maintenance_global": true}'
+```
+
+> These endpoints require an authenticated token with the appropriate role. Confirm
+> the exact request body and required permission against `api/openapi.yaml` and
+> [`docs/engineering/rbac_registry.md`](../engineering/rbac_registry.md) before use.
+> The schedulers log a warning at startup when paused.
+
+### Path D: slow the worker poll loop
+
+The worker accepts a `--poll-interval` flag (default 1s, 5s max) that controls how
+often it polls an empty queue. There is no `MAX_CONCURRENT_SCANS` knob; concurrency
+is bounded by the per-host advisory lock and the number of worker processes you run.
+If the worker is busy-looping against an empty queue, raise the interval:
+
+```bash
+openwatch worker --config /etc/openwatch/openwatch.toml --poll-interval 5s
+```
+
+If scan demand is genuinely high and the host has CPU headroom, the queue drains as
+the worker processes jobs. If it does not have headroom, reduce how many hosts you
+scan concurrently rather than adding load.
+
+### Path E: autovacuum consuming CPU
+
+Autovacuum on a large table is expected and prevents table bloat. Check progress:
+
+```bash
+psql "$OPENWATCH_DATABASE_DSN" -c "
+SELECT relid::regclass AS table, phase,
+       heap_blks_total, heap_blks_scanned, heap_blks_vacuumed
 FROM pg_stat_progress_vacuum;
 "
 ```
 
-If vacuum is causing problems during peak hours, consider tuning autovacuum to run during off-hours by adjusting `autovacuum_vacuum_cost_delay`.
-
-Do not kill autovacuum unless absolutely necessary -- it prevents table bloat.
+Do not kill autovacuum unless it is clearly causing an outage. If it consistently
+hurts peak hours, tune PostgreSQL's autovacuum cost settings
+(`autovacuum_vacuum_cost_delay`) at the database level rather than disabling it.
 
 ---
 
-## Recovery Verification
+## Recovery verification
 
-### 1. CPU usage returns to normal
+### 1. CPU returns to normal
 
 ```bash
-docker stats --no-stream --format "table {{.Name}}\t{{.CPUPerc}}"
+top -bn1 -o %CPU | head -10
 ```
 
-All containers should be below 80% CPU under normal load.
+The `openwatch` and `postgres` processes should drop well below a full core under
+normal load.
 
-### 2. API response times are acceptable
+### 2. The health endpoint responds quickly
 
 ```bash
-# Quick latency check
-time curl -s -o /dev/null http://localhost:8000/health
+time curl -sk -o /dev/null https://localhost:8443/api/v1/health
 ```
 
-Should complete in under 1 second.
+Should complete in well under one second.
 
-### 3. Scan queue is not growing
-
-```bash
-docker exec openwatch-redis redis-cli -a "${REDIS_PASSWORD}" llen scans
-```
-
-The queue length should be stable or decreasing.
-
-### 4. No long-running queries
+### 3. No long-running queries remain
 
 ```bash
-docker exec openwatch-db psql -U openwatch -d openwatch -c "
+psql "$OPENWATCH_DATABASE_DSN" -c "
 SELECT count(*)
 FROM pg_stat_activity
-WHERE datname = 'openwatch'
-  AND state = 'active'
+WHERE state = 'active'
   AND now() - query_start > interval '60 seconds';
 "
 ```
 
 Expected: `0`.
 
+### 4. The scan queue is stable or draining
+
+```bash
+psql "$OPENWATCH_DATABASE_DSN" -c "
+SELECT status, count(*) FROM job_queue GROUP BY status ORDER BY status;
+"
+```
+
+Re-run after a few minutes; the `pending` count should be flat or falling.
+
 ---
 
 ## Escalation
 
-Escalate if any of the following conditions are met:
+Escalate if any of the following hold:
 
-- CPU remains saturated after reducing concurrent scans and killing long-running queries.
-- The host itself is CPU-saturated (not just containers).
-- The issue is caused by a suspected denial-of-service or unusual traffic pattern.
-- Worker processes are deadlocked (tasks show as active but make no progress).
+- CPU stays saturated after cancelling long-running queries and pausing schedulers.
+- The host itself is CPU-saturated across all cores (not a single process).
+- The load matches a suspected denial-of-service or anomalous traffic pattern.
+- The worker makes no progress while showing high CPU (possible stuck job).
 
-**Information to include when escalating**:
-- Output of `docker stats --no-stream`.
-- Number of active Celery tasks and queue depths.
-- List of long-running PostgreSQL queries.
-- Host-level CPU utilization (`top` or `mpstat` output).
-- Timeline of when the issue started.
+Information to include when escalating:
+
+- Output of `top -bn1 -o %CPU | head -20` and `mpstat -P ALL 1 3`.
+- `systemctl status openwatch` and recent `journalctl -u openwatch` excerpts.
+- The list of long-running PostgreSQL queries from the diagnosis step.
+- Job queue counts (`job_queue` grouped by status).
+- A timeline of when the issue started and any recent config or release change.
 
 ---
 
 ## Prevention
 
-- **Concurrency limits**: Set `OPENWATCH_MAX_CONCURRENT_SCANS` appropriately for the host's CPU capacity. A reasonable starting point is 1 scan per 2 CPU cores.
-- **Query performance monitoring**: Use the Postgres Exporter to track query durations. Set alerts for queries exceeding 30 seconds.
-- **Index maintenance**: Regularly review slow queries and add indexes as needed. Run `EXPLAIN ANALYZE` on frequently executed queries.
-- **Resource limits**: Define CPU and memory limits for all containers in `docker-compose.yml` to prevent runaway processes from affecting other services.
-- **Celery queue monitoring**: Monitor queue lengths via Redis Exporter. Set alerts when the `scans` queue exceeds 20 items (configurable via alert thresholds).
-- **Horizontal scaling**: For sustained high load, consider running multiple worker containers or deploying workers on separate hosts.
-- **Background metrics**: The `BackgroundMetricsUpdater` in the backend runs every 30 seconds. If it causes CPU spikes, review the queries it executes in `backend/app/middleware/metrics.py`.
+- **Database sizing**: Match `[database].max_connections` to what PostgreSQL is
+  provisioned for; an oversized pool amplifies contention under load.
+- **Scheduler tuning**: Keep liveness, intelligence, and discovery intervals
+  reasonable for your fleet size via the `/api/v1/system/*/config` endpoints.
+- **Index review**: When a query is slow, profile it with `EXPLAIN ANALYZE` and land
+  any new index as a migration in `internal/db/migrations/` rather than hand-editing
+  production.
+- **Worker placement**: For sustained high scan demand, run the `openwatch worker`
+  process on a host with adequate CPU; the per-host advisory lock prevents duplicate
+  work, so the lever is total scan concurrency, not a single tunable.
+- **Log retention**: Structured JSON logs go to the journal; ensure journald
+  retention is sized so you can review request and scan history during an incident.

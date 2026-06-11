@@ -1,0 +1,82 @@
+spec:
+  id: api-version
+  title: HTTP version endpoint
+  version: "1.0.0"
+  status: approved
+  tier: 3
+
+  context:
+    system: openwatch-go
+    feature: HTTP version endpoint
+    description: >
+      GET /api/v1/version returns build/version metadata for the running
+      deployment: the OpenWatch semver, the embedded Kensa engine version,
+      the Go toolchain version, and the build commit + timestamp. Anonymous
+      and read-only. Backs the Settings -> About card so the UI never
+      hardcodes a version string.
+    related_specs:
+      - api-health
+      - system-http-server
+
+  objective:
+    summary: >
+      Give the UI (and operators) a single call that reports exactly which
+      OpenWatch, Kensa, and Go versions a binary is running, sourced from
+      build metadata rather than any hand-maintained constant.
+    scope:
+      includes:
+        - GET endpoint shape
+        - openwatch / kensa / go / commit / build_time fields
+        - Versions sourced from ldflags + runtime/build-info, never hardcoded
+      excludes:
+        - Authentication (anonymous by design, like health)
+        - License / entitlement detail (separate endpoint)
+
+  constraints:
+    - id: C-01
+      description: Endpoint MUST accept GET only
+      type: technical
+      enforcement: error
+    - id: C-02
+      description: Endpoint MUST be anonymous (no auth required)
+      type: technical
+      enforcement: error
+    - id: C-03
+      description: Response MUST carry X-Correlation-Id (foundation contract)
+      type: technical
+      enforcement: error
+    - id: C-04
+      description: >
+        Version values MUST be sourced from build-time metadata (ldflags) or
+        the runtime/build info; none may be a hand-edited literal in the
+        handler.
+      type: technical
+      enforcement: warning
+
+  acceptance_criteria:
+    - id: AC-01
+      description: >
+        GET /api/v1/version with no auth headers returns 200 OK with
+        Content-Type application/json.
+      priority: critical
+      references_constraints: [C-01, C-02]
+
+    - id: AC-02
+      description: >
+        Response body includes non-empty openwatch, kensa, and go version
+        strings. The go value is the live runtime toolchain (e.g. "go1.26.4"),
+        evidencing the values are build/runtime-sourced rather than literals.
+      priority: critical
+      references_constraints: [C-04]
+
+    - id: AC-03
+      description: >
+        Response body includes commit and build_time fields.
+      priority: high
+
+    - id: AC-04
+      description: >
+        Response carries an X-Correlation-Id header (req- prefix when no
+        client header was supplied).
+      priority: high
+      references_constraints: [C-03]
