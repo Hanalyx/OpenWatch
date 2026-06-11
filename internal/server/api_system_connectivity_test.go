@@ -1,4 +1,4 @@
-// @spec api-system-connectivity, api-fleet-connectivity-breakdown, api-host-connectivity-check
+// @spec api-system-connectivity
 //
 // AC traceability (this file):
 //
@@ -251,6 +251,7 @@ func TestAPI_SystemConnectivity_Status_Anonymous_Forbidden(t *testing.T) {
 
 // AC-01..AC-03: classifies online vs degraded vs critical vs down vs
 // never_probed based on consecutive_failures + reachability_status.
+// @spec api-fleet-connectivity-breakdown
 // @ac AC-02
 func TestAPI_FleetConnectivity_Breakdown_ClassifiesByHysteresisBand(t *testing.T) {
 	t.Run("api-fleet-connectivity-breakdown/AC-02", func(t *testing.T) {
@@ -396,6 +397,7 @@ func TestAPI_FleetConnectivity_Breakdown_Anonymous_Forbidden(t *testing.T) {
 // Host on-demand connectivity check
 // ---------------------------------------------------------------------
 
+// @spec api-host-connectivity-check
 // AC-03: POST against {id} that doesn't exist returns 404.
 // @ac AC-03
 func TestAPI_HostConnectivity_Check_NotFound_Returns404(t *testing.T) {

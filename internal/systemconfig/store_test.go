@@ -232,38 +232,40 @@ func TestSetConnectivity_EmitsConfigChangedWithOldAndNew(t *testing.T) {
 	})
 }
 
-// AC-09: two concurrent Set calls complete cleanly; final state is one
+// AC-06: two concurrent Set calls complete cleanly; final state is one
 // of the two writers' inputs.
-// @ac AC-09
+// @ac AC-06
 func TestConcurrentSet_LastWriterWins_NoDeadlock(t *testing.T) {
-	pool := freshPool(t)
-	s := NewStore(pool, nil)
+	t.Run("services-connectivity-config/AC-06", func(t *testing.T) {
+		pool := freshPool(t)
+		s := NewStore(pool, nil)
 
-	a := DefaultConnectivity()
-	a.OnlineSec = 600
-	b := DefaultConnectivity()
-	b.OnlineSec = 1200
+		a := DefaultConnectivity()
+		a.OnlineSec = 600
+		b := DefaultConnectivity()
+		b.OnlineSec = 1200
 
-	done := make(chan error, 2)
-	go func() { done <- s.SetConnectivity(context.Background(), a, "alice") }()
-	go func() { done <- s.SetConnectivity(context.Background(), b, "bob") }()
+		done := make(chan error, 2)
+		go func() { done <- s.SetConnectivity(context.Background(), a, "alice") }()
+		go func() { done <- s.SetConnectivity(context.Background(), b, "bob") }()
 
-	for i := 0; i < 2; i++ {
-		select {
-		case err := <-done:
-			if err != nil {
-				t.Errorf("concurrent Set returned error: %v", err)
+		for i := 0; i < 2; i++ {
+			select {
+			case err := <-done:
+				if err != nil {
+					t.Errorf("concurrent Set returned error: %v", err)
+				}
+			case <-time.After(10 * time.Second):
+				t.Fatalf("timeout waiting for concurrent Set — possible deadlock")
 			}
-		case <-time.After(10 * time.Second):
-			t.Fatalf("timeout waiting for concurrent Set — possible deadlock")
 		}
-	}
 
-	got, err := s.LoadConnectivity(context.Background())
-	if err != nil {
-		t.Fatalf("LoadConnectivity: %v", err)
-	}
-	if got != a && got != b {
-		t.Errorf("final state %+v matched neither writer", got)
-	}
+		got, err := s.LoadConnectivity(context.Background())
+		if err != nil {
+			t.Fatalf("LoadConnectivity: %v", err)
+		}
+		if got != a && got != b {
+			t.Errorf("final state %+v matched neither writer", got)
+		}
+	})
 }

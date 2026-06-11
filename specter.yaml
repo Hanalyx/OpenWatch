@@ -36,6 +36,9 @@ domains:
             - system-os-intelligence
             - system-intelligence-scheduler
             - api-os-intelligence
+            - api-system-connectivity
+            - api-fleet-connectivity-breakdown
+            - api-host-connectivity-check
             - system-alerts
             - api-alerts
             - system-activity
