@@ -3,10 +3,10 @@
 // AC traceability:
 // @ac AC-02  (TestServer_TimeoutsLocked)
 // @ac AC-03  (TestServer_TLSMinVersion)
-// @ac AC-08  (TestServer_CorrelationMiddlewareMounted (verified via AC-9 fixture))
+// @ac AC-08  (TestServer_CorrelationMiddlewareMounted)
 // @ac AC-09  (TestServer_CorrelationHeaderEchoed)
 //
-// @ac AC-01  ((real bind) and AC-10/AC-11 (graceful shutdown, error propagation))
+// @ac AC-01  (real bind; graceful shutdown, error propagation)
 // require live TLS listener tests and are exercised in main.go integration
 // via the Day-4 acceptance scenarios.
 
@@ -144,7 +144,7 @@ func TestServer_TLSMinVersion(t *testing.T) {
 	})
 }
 
-// @ac AC-08  (AC-9: chi router has correlation middleware mounted first;)
+// @ac AC-08  (chi router has correlation middleware mounted first;)
 // every response carries X-Correlation-Id.
 func TestServer_CorrelationHeaderEchoed(t *testing.T) {
 	t.Run("system-http-server/AC-08", func(t *testing.T) {

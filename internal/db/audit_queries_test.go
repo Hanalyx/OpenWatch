@@ -1,9 +1,9 @@
 // @spec system-db
 //
 // AC traceability (DB integration tests; skipped without OPENWATCH_TEST_DSN):
-// @ac AC-01  (AC-3, AC-4  TestInsertAndGetAuditEvent (pool + migrate idempotent))
-// @ac AC-07  (AC-8        TestInsertAndGetAuditEvent (insert returns row; round-trip))
-// @ac AC-09  (AC-10       TestListAuditEvents (newest-first ordering; cursor))
+// @ac AC-01  (TestInsertAndGetAuditEvent: pool + migrate idempotent)
+// @ac AC-07  (TestInsertAndGetAuditEvent: insert returns row, round-trip)
+// @ac AC-09  (TestListAuditEvents: newest-first ordering, cursor)
 // @ac AC-11  (TestCountAuditEvents)
 //   (AC-2 unreachable-host: not yet implemented as a test — Day 4 follow-up)
 //   (AC-5, AC-6 schema: verified by migrate-and-read in TestInsertAndGetAuditEvent
@@ -34,7 +34,7 @@ func testDSN(t *testing.T) string {
 	return dsn
 }
 
-// @ac AC-01  (AC-3, AC-4, AC-7, AC-8: pool ping, migrate apply + idempotent re-run)
+// @ac AC-01  (pool ping; migrate apply + idempotent re-run)
 // insert returns row, round-trip via GetAuditEventByID.
 func TestInsertAndGetAuditEvent(t *testing.T) {
 	t.Run("system-db/AC-01", func(t *testing.T) {
@@ -148,7 +148,7 @@ func TestInsertAndGetAuditEvent(t *testing.T) {
 	})
 }
 
-// @ac AC-09  (AC-10: newest-first ordering; cursor returns only older rows.)
+// @ac AC-09  (newest-first ordering; cursor returns only older rows)
 func TestListAuditEvents(t *testing.T) {
 	t.Run("system-db/AC-09", func(t *testing.T) {
 

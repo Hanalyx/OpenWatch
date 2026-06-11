@@ -300,7 +300,7 @@ func TestEvent_UUIDv7Monotonic(t *testing.T) {
 	})
 }
 
-// @ac AC-04  (Emit p99 latency < 10µs per spec AC-04. Measured via per-call)
+// @ac AC-04  (Emit p99 latency budget; measured via per-call)
 // wall-clock timing over 1000 calls; channel send is the dominant cost.
 func TestEmit_Latency(t *testing.T) {
 	t.Run("system-audit-emission/AC-04", func(t *testing.T) {

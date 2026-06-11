@@ -154,6 +154,25 @@ jobs:
         if: steps.paths.outputs.go == 'true'
         run: make test-race
 
+      # Annotation hygiene: cross-reference every test's @spec / @ac
+      # annotation against the spec registry and fail on a dangling spec
+      # ref, unknown AC id, malformed AC id, or unreachable annotation
+      # error. This catches the class of drift where a spec is renamed or
+      # dropped but its test annotations linger (exactly what happened when
+      # the connectivity specs were lost in a squash-merge). Gate on the
+      # printed error count, not the exit code: `specter check --test`
+      # returns 0 on some builds even with errors present.
+      - name: specter check --test (annotation hygiene)
+        if: steps.paths.outputs.go == 'true'
+        run: |
+          out=$(specter check --test 2>&1) || true
+          echo "$out"
+          n=$(echo "$out" | grep -cE 'error \[' || true)
+          if [ "$n" -gt 0 ]; then
+            echo "::error::specter check --test found $n test-annotation error(s) — fix the dangling @spec / @ac refs listed above."
+            exit 1
+          fi
+
       # Spec coverage gate. Split into discrete steps so a failure
       # attributes to the actual command (go test vs. ingest vs. sync)
       # instead of getting hidden behind a single bundled step.
