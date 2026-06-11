@@ -137,8 +137,10 @@ describe('frontend-add-host — bulk parse + validate', () => {
 
   // @ac AC-14
   test('frontend-add-host/AC-14 — applyMappings produces valid + invalid rows; valid count formatting matches Preview step button label', () => {
-    const validCount: number = 4;
-    const buttonLabel = `Import ${validCount} valid row${validCount === 1 ? '' : 's'}`;
-    expect(buttonLabel).toBe('Import 4 valid rows');
+    const buttonLabel = (validCount: number) =>
+      `Import ${validCount} valid row${validCount === 1 ? '' : 's'}`;
+    // Exercise both the plural and singular branches of the pluralization.
+    expect(buttonLabel(4)).toBe('Import 4 valid rows');
+    expect(buttonLabel(1)).toBe('Import 1 valid row');
   });
 });

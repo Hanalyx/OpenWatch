@@ -255,13 +255,13 @@ export function OSIntelligenceSectionView(props: {
                 {saveError}
               </div>
             )}
-            <Btn onClick={onResetToDefaults} disabled={isLoading || isSaving}>
+            <Btn onClick={onResetToDefaults} disabled={isSaving}>
               <RotateCcw size={12} /> Reset to defaults
             </Btn>
             <Btn onClick={onResetToLive} disabled={!dirty || isSaving}>
               Discard changes
             </Btn>
-            <Btn variant="primary" onClick={onSave} disabled={isLoading || !dirty || isSaving}>
+            <Btn variant="primary" onClick={onSave} disabled={!dirty || isSaving}>
               {isSaving ? 'Saving…' : 'Save changes'}
             </Btn>
           </div>
