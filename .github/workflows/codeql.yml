@@ -31,6 +31,12 @@ jobs:
         with:
           languages: ${{ matrix.language }}
           queries: security-and-quality
+          # Prototype mockups are not shipped code; their inline JS produces
+          # noise alerts (unused vars, demo origin checks). Exclude them so
+          # CodeQL only scans the real frontend/ + scripts.
+          config: |
+            paths-ignore:
+              - docs/engineering/prototypes
 
       - name: Autobuild
         uses: github/codeql-action/autobuild@v4
