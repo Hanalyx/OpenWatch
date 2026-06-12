@@ -2233,6 +2233,10 @@ components:
         policy_version:
           type: string
           description: Policy version of the latest completed run; empty when never scanned.
+        duration_seconds:
+          type: integer
+          nullable: true
+          description: Wall-clock duration of the latest completed run (finished_at - started_at); null when never scanned or timestamps absent.
 
     HostComplianceLensSummary:
       type: object
@@ -2261,12 +2265,15 @@ components:
 
     HostComplianceRule:
       type: object
-      required: [rule_id, title, category, severity, status, control_ids, last_checked_at]
+      required: [rule_id, title, description, category, severity, status, control_ids, last_checked_at]
       properties:
         rule_id: {type: string}
         title:
           type: string
           description: Catalog title; falls back to rule_id when the catalog lacks the rule.
+        description:
+          type: string
+          description: First sentence of the catalog description; empty when the catalog lacks the rule. Catalog text only, never stored check output.
         category:
           type: string
           description: Catalog category; uncategorized when unknown.
@@ -2297,18 +2304,31 @@ components:
 
     HostComplianceFramework:
       type: object
-      required: [framework_id, rule_count]
+      required: [framework_id, rule_count, passing, failing, score_pct]
       properties:
         framework_id: {type: string}
         rule_count:
           type: integer
           format: int64
           description: Number of host_rule_state rows mapped to this framework.
+        passing:
+          type: integer
+          description: Rows mapped to this framework with current_status pass.
+        failing:
+          type: integer
+          description: Rows mapped to this framework with current_status fail.
+        score_pct:
+          type: number
+          format: float
+          description: passing/rule_count as a percentage rounded to one decimal; 0 when rule_count is 0. Powers the per-lens score on the View-as chips.
 
     HostComplianceFrameworksResponse:
       type: object
-      required: [frameworks]
+      required: [frameworks, overall]
       properties:
+        overall:
+          $ref: '#/components/schemas/HostComplianceFramework'
+          description: The all-rules aggregate (framework_id "all"). Powers the All-rules chip score.
         frameworks:
           type: array
           items: {$ref: '#/components/schemas/HostComplianceFramework'}

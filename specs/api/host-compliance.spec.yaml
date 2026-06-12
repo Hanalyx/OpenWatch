@@ -1,7 +1,7 @@
 spec:
   id: api-host-compliance
   title: Per-host compliance lens + failed-rules API + fleet scan-queue KPI
-  version: "1.1.0"
+  version: "1.2.0"
   status: approved
   tier: 2
 
@@ -43,6 +43,19 @@ spec:
       lists the distinct framework_refs keys across the host's rows with
       per-framework mapped-rule counts, ordered by framework id - empty
       when the host has never been scanned.
+
+      v1.2.0 extends both lens responses for the prototype-fidelity UI:
+      each frameworks[] item adds passing/failing/score_pct computed
+      over the host's rows carrying that framework key, and the
+      response adds an overall aggregate (framework_id "all") over ALL
+      host rows so the All-rules lens chip can show its score without a
+      second request. scan_context adds duration_seconds (finished_at
+      minus started_at of the latest completed run, rounded to whole
+      seconds; null when started_at is missing). Each lens rules[] item
+      adds description: the RuleCatalog prose trimmed to its first
+      sentence (or 160 chars) - catalog metadata only, empty when no
+      catalog is wired. The stored check output still never flows into
+      any response field (C-02).
     related_specs:
       - system-transaction-log-writer
       - system-scan-runs
@@ -146,3 +159,11 @@ spec:
       description: v1.1.0 - source inspection extended to the lens handler file - it never references the host_rule_state stored check-output column, so the sensitive payload cannot reach either lens response.
       priority: critical
       references_constraints: [C-02]
+    - id: AC-14
+      description: 'v1.2.0 - GET /hosts/{id}/compliance/frameworks: each frameworks[] item carries passing/failing counted over the host rows containing that framework key and score_pct = round(passing/rule_count*1000)/10; the response carries overall with framework_id="all" aggregating ALL host rows (rule_count = row count, passing/failing per-status counts, same score formula, 0 when the host has no rows).'
+      priority: critical
+      references_constraints: [C-04, C-05]
+    - id: AC-15
+      description: 'v1.2.0 - scan_context.duration_seconds equals finished_at minus started_at of the latest completed run rounded to whole seconds, and is null when started_at is missing; each lens rules[] item carries description resolved from the RuleCatalog trimmed by firstSentence (first ". "-terminated sentence under 160 chars, else a 160-char cut) - empty when no catalog is wired, so the field can only ever carry catalog prose, never stored check output.'
+      priority: critical
+      references_constraints: [C-02, C-05]

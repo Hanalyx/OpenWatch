@@ -20,9 +20,10 @@ import (
 
 // RuleMeta is the catalog projection of one kensa rule.
 type RuleMeta struct {
-	Title    string
-	Category string
-	Severity string
+	Title       string
+	Category    string
+	Severity    string
+	Description string
 }
 
 // RuleCatalog maps kensa rule ids to their display metadata.
@@ -42,9 +43,10 @@ func NewRuleCatalogFromRules(rules []*kensaapi.Rule) *RuleCatalog {
 			continue
 		}
 		m[r.ID] = RuleMeta{
-			Title:    r.Title,
-			Category: r.Category,
-			Severity: r.Severity,
+			Title:       r.Title,
+			Category:    r.Category,
+			Severity:    r.Severity,
+			Description: r.Description,
 		}
 	}
 	return &RuleCatalog{rules: m}

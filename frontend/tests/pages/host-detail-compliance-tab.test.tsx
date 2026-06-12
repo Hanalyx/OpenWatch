@@ -9,6 +9,7 @@
 //   AC-05  test('frontend-host-compliance-tab/AC-05 — both query keys carry the [host, hostId] prefix')
 //   AC-06  test('frontend-host-compliance-tab/AC-06 — never-scanned empty state names Run scan; errors render inline with Retry; isPending guard')
 //   AC-07  test('frontend-host-compliance-tab/AC-07 — no stored check-output reference anywhere in the tab code')
+//   AC-08  test('frontend-host-compliance-tab/AC-08 — Re-scan posts once with an Idempotency-Key; 409 renders Scan already running')
 
 import { describe, expect, test, beforeEach, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -16,8 +17,8 @@ import { resolve } from 'node:path';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
-const { getMock } = vi.hoisted(() => ({ getMock: vi.fn() }));
-vi.mock('@/api/client', () => ({ default: { GET: getMock } }));
+const { getMock, postMock } = vi.hoisted(() => ({ getMock: vi.fn(), postMock: vi.fn() }));
+vi.mock('@/api/client', () => ({ default: { GET: getMock, POST: postMock } }));
 
 import { ComplianceTab } from '@/pages/host-detail/ComplianceTab';
 
@@ -92,9 +93,10 @@ const NEVER_SCANNED = {
 };
 
 const FRAMEWORKS = {
+  overall: { framework_id: 'all', rule_count: 4, passing: 2, failing: 1, score_pct: 50 },
   frameworks: [
-    { framework_id: 'cis-rhel9-v2.0.0', rule_count: 271 },
-    { framework_id: 'stig-rhel9-v2r7', rule_count: 338 },
+    { framework_id: 'cis_rhel9', rule_count: 271, passing: 100, failing: 171, score_pct: 36.9 },
+    { framework_id: 'stig_rhel9', rule_count: 338, passing: 115, failing: 223, score_pct: 34 },
   ],
 };
 
@@ -137,6 +139,7 @@ function renderTab(props: Partial<Parameters<typeof ComplianceTab>[0]> = {}) {
 
 beforeEach(() => {
   getMock.mockReset();
+  postMock.mockReset();
 });
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -199,15 +202,15 @@ describe('frontend-host-compliance-tab — behavioral', () => {
     // Chips: All rules + one per frameworks[] entry, labeled with
     // framework_id and rule_count.
     const allChip = await screen.findByRole('button', { name: /All rules/ });
-    const cisChip = await screen.findByRole('button', { name: /cis-rhel9-v2\.0\.0\s*271/ });
-    await screen.findByRole('button', { name: /stig-rhel9-v2r7\s*338/ });
+    const cisChip = await screen.findByRole('button', { name: /CIS RHEL 9\s*271 rules\s*36\.9%/ });
+    await screen.findByRole('button', { name: /STIG RHEL 9\s*338 rules\s*34%/ });
 
     // With framework=undefined, "All rules" is the active chip.
     expect(allChip).toHaveAttribute('aria-pressed', 'true');
     expect(cisChip).toHaveAttribute('aria-pressed', 'false');
 
     fireEvent.click(cisChip);
-    expect(onChange).toHaveBeenCalledWith('cis-rhel9-v2.0.0');
+    expect(onChange).toHaveBeenCalledWith('cis_rhel9');
 
     fireEvent.click(allChip);
     expect(onChange).toHaveBeenCalledWith(undefined);
@@ -215,8 +218,8 @@ describe('frontend-host-compliance-tab — behavioral', () => {
 
   test('frontend-host-compliance-tab/AC-02 — active chip reflects the framework prop', async () => {
     primeApi();
-    renderTab({ framework: 'stig-rhel9-v2r7' });
-    const stigChip = await screen.findByRole('button', { name: /stig-rhel9-v2r7\s*338/ });
+    renderTab({ framework: 'stig_rhel9' });
+    const stigChip = await screen.findByRole('button', { name: /STIG RHEL 9\s*338 rules\s*34%/ });
     expect(stigChip).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByRole('button', { name: /All rules/ })).toHaveAttribute(
       'aria-pressed',
@@ -233,7 +236,9 @@ describe('frontend-host-compliance-tab — behavioral', () => {
     // fills in once the lens response lands.
     await screen.findByText('One scan, viewed through any framework');
     await screen.findByText(/Last scan/);
-    expect(screen.getByText('v3')).toBeInTheDocument();
+    // Policy version renders in BOTH the scan-context strip and the
+    // Scan panel since the prototype-fidelity pass.
+    expect(screen.getAllByText('v3').length).toBeGreaterThanOrEqual(1);
 
     // Summary tiles — values reconcile with the rules array (2 pass,
     // 1 fail, 1 skipped, 0 error, score 50%).
@@ -249,18 +254,22 @@ describe('frontend-host-compliance-tab — behavioral', () => {
       skipped: LENS.summary.skipped,
       error: LENS.summary.error,
     });
-    const summaryRegion = screen.getByLabelText('Compliance summary');
+    const summaryRegion = screen.getByLabelText('Result mix');
     expect(summaryRegion).toHaveTextContent('50%');
-    expect(summaryRegion).toHaveTextContent('Passing');
-    expect(summaryRegion).toHaveTextContent('Failing');
-    expect(summaryRegion).toHaveTextContent('Skipped');
+    expect(summaryRegion).toHaveTextContent('Compliant');
+    expect(summaryRegion).toHaveTextContent('Non-compliant');
+    expect(summaryRegion).toHaveTextContent('Not applicable');
     expect(summaryRegion).toHaveTextContent('Error');
+    // Scan panel (prototype right column) renders alongside.
+    const scanRegion = screen.getByLabelText('Scan details');
+    expect(scanRegion).toHaveTextContent('Ran');
+    expect(scanRegion).toHaveTextContent('Coverage');
 
-    // Category rows with passing/failing/total.
+    // Category rows: numbered, "passing / total" plus pass percentage.
     const catRegion = screen.getByLabelText('Category breakdown');
     expect(catRegion).toHaveTextContent('ssh');
-    expect(catRegion).toHaveTextContent('1 passing');
-    expect(catRegion).toHaveTextContent('1 failing');
+    expect(catRegion).toHaveTextContent('1 / 2');
+    expect(catRegion).toHaveTextContent('50%');
     expect(catRegion).toHaveTextContent('auth');
 
     // Rules table — one row per rules[] entry: title, mono control_ids
@@ -272,9 +281,9 @@ describe('frontend-host-compliance-tab — behavioral', () => {
     // Status chips — scope to the table so the filter chips above it
     // (which carry the same words) do not collide.
     const table = screen.getByRole('table');
-    expect(within(table).getByText('Fail')).toBeInTheDocument();
-    expect(within(table).getAllByText('Pass').length).toBe(2);
-    expect(within(table).getByText('Skipped')).toBeInTheDocument();
+    expect(within(table).getByText('Non-compliant')).toBeInTheDocument();
+    expect(within(table).getAllByText('Compliant').length).toBe(2);
+    expect(within(table).getByText('N/A')).toBeInTheDocument();
 
     // ONE lens request + ONE frameworks request — everything rendered
     // from a single lens response.
@@ -291,7 +300,7 @@ describe('frontend-host-compliance-tab — behavioral', () => {
     const callsBefore = getMock.mock.calls.length;
 
     // Narrow to Fail — only the failing rule remains.
-    fireEvent.click(screen.getByRole('button', { name: /^Fail\s*1$/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Non-compliant\s*1/ }));
     expect(screen.getByText('Disable root SSH login')).toBeInTheDocument();
     expect(screen.queryByText('Enforce SSH protocol 2')).toBeNull();
     expect(screen.queryByText('AppArmor profile enforced')).toBeNull();
@@ -300,20 +309,37 @@ describe('frontend-host-compliance-tab — behavioral', () => {
     fireEvent.click(screen.getByRole('button', { name: /^All\s*4$/ }));
     expect(screen.getByText('Enforce SSH protocol 2')).toBeInTheDocument();
 
-    // No network traffic from filtering.
+    // Search narrows by title substring, also without refetching.
+    fireEvent.change(screen.getByLabelText('Search rules or framework IDs'), {
+      target: { value: 'AppArmor' },
+    });
+    expect(screen.getByText('AppArmor profile enforced')).toBeInTheDocument();
+    expect(screen.queryByText('Disable root SSH login')).toBeNull();
+    fireEvent.change(screen.getByLabelText('Search rules or framework IDs'), {
+      target: { value: '' },
+    });
+    expect(screen.getByText('Disable root SSH login')).toBeInTheDocument();
+
+    // No network traffic from filtering or searching.
     expect(getMock.mock.calls.length).toBe(callsBefore);
   });
 
   // @ac AC-06
   test('frontend-host-compliance-tab/AC-06 — never-scanned renders empty state naming Run scan, no tiles or table', async () => {
-    primeApi({ lens: NEVER_SCANNED, frameworks: { frameworks: [] } });
+    primeApi({
+      lens: NEVER_SCANNED,
+      frameworks: {
+        overall: { framework_id: 'all', rule_count: 0, passing: 0, failing: 0, score_pct: 0 },
+        frameworks: [],
+      },
+    });
     renderTab();
 
     await screen.findByText('No scan results yet');
     expect(screen.getByText(/Run scan button/)).toBeInTheDocument();
     expect(screen.getByText('No scan yet')).toBeInTheDocument();
     // No summary tiles and no rules table in the never-scanned state.
-    expect(screen.queryByLabelText('Compliance summary')).toBeNull();
+    expect(screen.queryByLabelText('Result mix')).toBeNull();
     expect(screen.queryByRole('table')).toBeNull();
   });
 
@@ -325,5 +351,50 @@ describe('frontend-host-compliance-tab — behavioral', () => {
     const alert = await screen.findByRole('alert');
     expect(alert).toHaveTextContent(/Failed to load|boom/);
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// Re-scan button (AC-08) — same enqueue semantics as the page-head Run
+// scan: one idempotency-keyed POST, 409 as an informational note.
+// ─────────────────────────────────────────────────────────────────────────
+
+describe('frontend-host-compliance-tab — re-scan', () => {
+  // @ac AC-08
+  test('frontend-host-compliance-tab/AC-08 — Re-scan posts once with an Idempotency-Key; 409 renders Scan already running', async () => {
+    primeApi();
+    postMock.mockResolvedValue({
+      data: undefined,
+      error: undefined,
+      response: { ok: true, status: 202 },
+    });
+    renderTab();
+    await screen.findByText('Disable root SSH login');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Re-scan this host' }));
+    expect(await screen.findByText('Scan queued')).toBeInTheDocument();
+
+    // Exactly one POST to the scan-enqueue endpoint, idempotency-keyed.
+    expect(postMock.mock.calls.length).toBe(1);
+    const [path, opts] = postMock.mock.calls[0]!;
+    expect(path).toBe('/api/v1/hosts/{id}/scans');
+    expect(opts.params.header['Idempotency-Key']).toMatch(/[0-9a-f-]{36}/);
+
+    // 409 (scan already active) renders an informational note, not an
+    // error surface — no alert role, no Retry.
+    postMock.mockResolvedValue({
+      data: undefined,
+      error: { error: { code: 'scans.already_running' } },
+      response: { ok: false, status: 409 },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Re-scan this host' }));
+    expect(await screen.findByText('Scan already running')).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull();
+
+    // Source inspection: no Export control anywhere in the tab (C-04)
+    // — comments may explain the deferral, but no rendered label.
+    expect(TAB_SRC).not.toMatch(/>\s*Export\s*</);
+    expect(TAB_SRC).not.toMatch(/aria-label=["']Export/);
   });
 });

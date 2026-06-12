@@ -22,6 +22,7 @@ import (
 	"math"
 	"net/http"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -73,6 +74,11 @@ func (h *handlers) GetHostCompliance(
 		scanCtx.ScanId = &scanID
 		scanCtx.LastScanAt = run.FinishedAt
 		scanCtx.PolicyVersion = run.PolicyVersion
+		// Duration powers the prototype's SCAN panel ("Duration 47s").
+		if run.StartedAt != nil && run.FinishedAt != nil {
+			d := int(run.FinishedAt.Sub(*run.StartedAt).Round(time.Second).Seconds())
+			scanCtx.DurationSeconds = &d
+		}
 	case errors.Is(err, scanruns.ErrNotFound):
 		// never scanned — nulls/empty stand
 	default:
@@ -153,6 +159,9 @@ func (h *handlers) GetHostCompliance(
 			if meta.Category != "" {
 				item.Category = meta.Category
 			}
+			// One-line description under the title (prototype rule rows).
+			// Catalog text, never stored check output (C-02 stands).
+			item.Description = firstSentence(meta.Description)
 		}
 		resp.Rules = append(resp.Rules, item)
 	}
@@ -252,10 +261,15 @@ func (h *handlers) GetHostComplianceFrameworks(
 		return
 	}
 
-	// Distinct framework keys with mapped-rule counts; never-scanned
-	// hosts get the empty list (spec AC-11).
+	// Distinct framework keys with mapped-rule counts AND per-lens
+	// pass/fail tallies so the lens bar can show each framework's score
+	// without N follow-up queries (prototype: "CIS ... 36%").
+	// Never-scanned hosts get the empty list (spec AC-11).
 	const q = `
-		SELECT key, COUNT(*)::bigint
+		SELECT key,
+		       COUNT(*)::bigint,
+		       COUNT(*) FILTER (WHERE current_status = 'pass')::bigint,
+		       COUNT(*) FILTER (WHERE current_status = 'fail')::bigint
 		  FROM host_rule_state,
 		       LATERAL jsonb_object_keys(framework_refs) AS key
 		 WHERE host_id = $1
@@ -272,10 +286,16 @@ func (h *handlers) GetHostComplianceFrameworks(
 	resp := api.HostComplianceFrameworksResponse{Frameworks: []api.HostComplianceFramework{}}
 	for rows.Next() {
 		var item api.HostComplianceFramework
-		if err := rows.Scan(&item.FrameworkId, &item.RuleCount); err != nil {
+		var passing, failing int64
+		if err := rows.Scan(&item.FrameworkId, &item.RuleCount, &passing, &failing); err != nil {
 			writeError(w, http.StatusInternalServerError, "server.error", "server",
 				"frameworks scan failed", true)
 			return
+		}
+		item.Passing = int(passing)
+		item.Failing = int(failing)
+		if item.RuleCount > 0 {
+			item.ScorePct = float32(math.Round(float64(passing)/float64(item.RuleCount)*1000) / 10)
 		}
 		resp.Frameworks = append(resp.Frameworks, item)
 	}
@@ -285,5 +305,38 @@ func (h *handlers) GetHostComplianceFrameworks(
 		return
 	}
 
+	// All-rules aggregate for the All chip's score (framework_id "all").
+	resp.Overall = api.HostComplianceFramework{FrameworkId: "all"}
+	var oPassing, oFailing int64
+	if err := h.pool.QueryRow(ctx, `
+		SELECT COUNT(*)::bigint,
+		       COUNT(*) FILTER (WHERE current_status = 'pass')::bigint,
+		       COUNT(*) FILTER (WHERE current_status = 'fail')::bigint
+		  FROM host_rule_state WHERE host_id = $1`, hostID).
+		Scan(&resp.Overall.RuleCount, &oPassing, &oFailing); err != nil {
+		writeError(w, http.StatusInternalServerError, "server.error", "server",
+			"overall aggregate failed", true)
+		return
+	}
+	resp.Overall.Passing = int(oPassing)
+	resp.Overall.Failing = int(oFailing)
+	if resp.Overall.RuleCount > 0 {
+		resp.Overall.ScorePct = float32(math.Round(float64(oPassing)/float64(resp.Overall.RuleCount)*1000) / 10)
+	}
+
 	writeJSON(w, http.StatusOK, resp)
+}
+
+// firstSentence trims a catalog description to its first sentence (or
+// 160 chars, whichever is shorter) for the rule-row sub-line. Catalog
+// prose only — stored check output never flows here (C-02).
+func firstSentence(s string) string {
+	s = strings.TrimSpace(strings.ReplaceAll(s, "\n", " "))
+	if i := strings.Index(s, ". "); i > 0 && i < 160 {
+		return s[:i+1]
+	}
+	if len(s) > 160 {
+		return s[:159] + "."
+	}
+	return s
 }

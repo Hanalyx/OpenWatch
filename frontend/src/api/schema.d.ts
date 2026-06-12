@@ -1520,6 +1520,8 @@ export interface components {
             scan_id: string | null;
             /** @description Policy version of the latest completed run; empty when never scanned. */
             policy_version: string;
+            /** @description Wall-clock duration of the latest completed run (finished_at - started_at); null when never scanned or timestamps absent. */
+            duration_seconds?: number | null;
         };
         HostComplianceLensSummary: {
             /** Format: int64 */
@@ -1552,6 +1554,8 @@ export interface components {
             rule_id: string;
             /** @description Catalog title; falls back to rule_id when the catalog lacks the rule. */
             title: string;
+            /** @description First sentence of the catalog description; empty when the catalog lacks the rule. Catalog text only, never stored check output. */
+            description: string;
             /** @description Catalog category; uncategorized when unknown. */
             category: string;
             /** @description Stored severity; empty when the scan recorded none. */
@@ -1576,8 +1580,19 @@ export interface components {
              * @description Number of host_rule_state rows mapped to this framework.
              */
             rule_count: number;
+            /** @description Rows mapped to this framework with current_status pass. */
+            passing: number;
+            /** @description Rows mapped to this framework with current_status fail. */
+            failing: number;
+            /**
+             * Format: float
+             * @description passing/rule_count as a percentage rounded to one decimal; 0 when rule_count is 0. Powers the per-lens score on the View-as chips.
+             */
+            score_pct: number;
         };
         HostComplianceFrameworksResponse: {
+            /** @description The all-rules aggregate (framework_id "all"). Powers the All-rules chip score. */
+            overall: components["schemas"]["HostComplianceFramework"];
             frameworks: components["schemas"]["HostComplianceFramework"][];
         };
         HostListComplianceSummary: {

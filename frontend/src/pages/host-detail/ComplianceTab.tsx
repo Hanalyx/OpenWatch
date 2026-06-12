@@ -4,29 +4,39 @@
 // Layout mirrors the prototype's compliance panel
 // (docs/engineering/prototypes/openwatch-v1/Host Detail.html):
 //
-//   1. scan-context strip: headline + last-scan sub-line (+ policy
-//      version when present). No Export button (deferred, no dead
-//      controls) and no duplicate Re-scan: the page-head Run scan
-//      button owns scan enqueueing.
+//   1. scan-context strip: headline + last-scan sub-line + the lens
+//      explainer, plus a live Re-scan button (same enqueue endpoint as
+//      the page-head Run scan). No Export button: that surface has no
+//      backend yet and dead controls are banned.
 //   2. lens bar: "View as" + an All rules chip plus one chip per
-//      framework option. Selection is owned by the PARENT page
-//      (?framework= search param); this tab only calls
-//      onFrameworkChange and re-renders when the prop changes.
-//   3. summary tiles: score, passing, failing, skipped, error.
-//   4. category rows with a small failing-tinted bar.
-//   5. rules table with CLIENT-SIDE status filter chips. The lens
-//      response is one bounded payload (~539 rules max), so filtering
-//      never refetches.
+//      framework option, each carrying the per-lens score from the
+//      frameworks endpoint (prototype: "CIS ... 36%"). Selection is
+//      owned by the PARENT page (?framework= search param); this tab
+//      only calls onFrameworkChange and re-renders when the prop
+//      changes.
+//   3. result-mix + scan panels (two columns): score, status legend
+//      with stacked bars and an N/A note; scan metadata (framework,
+//      ran at, duration, coverage).
+//   4. numbered category rows with pass counts and percentages.
+//   5. rules table: search box, client-side status filter chips with
+//      counts, an "N of M rules" readout, and rows carrying title,
+//      catalog description, control-id chips, category, status and
+//      last-checked. The lens response is one bounded payload (~539
+//      rules max), so search and filtering never refetch.
+//
+// Status wording follows the prototype: Compliant / Non-compliant /
+// N/A (skipped) / Error.
 //
 // Data flow: ONE GET /hosts/{id}/compliance response renders sections
-// 1 and 3-5; GET /hosts/{id}/compliance/frameworks feeds the lens bar.
-// Both query keys carry the ['host', hostId] prefix so the
-// scan.completed SSE invalidation refreshes the tab with no extra
-// wiring. The stored per-rule check output never reaches this surface:
-// the API omits it by contract (api-host-compliance C-02) and this
-// file renders only catalog metadata + statuses.
+// 1 and 3-5; GET /hosts/{id}/compliance/frameworks feeds the lens bar
+// (per-framework and overall scores). Both query keys carry the
+// ['host', hostId] prefix so the scan.completed SSE invalidation
+// refreshes the tab with no extra wiring. The stored per-rule check
+// output never reaches this surface: the API omits it by contract
+// (api-host-compliance C-02) and this file renders only catalog
+// metadata + statuses.
 //
-// Spec: frontend-host-compliance-tab v1.0.0.
+// Spec: frontend-host-compliance-tab v1.1.0.
 
 import { useMemo, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
@@ -39,15 +49,16 @@ import { SeverityPill } from '@/pages/host-detail/SeverityPill';
 type LensResponse = components['schemas']['HostComplianceLensResponse'];
 type LensRule = components['schemas']['HostComplianceRule'];
 type LensCategory = components['schemas']['HostComplianceCategory'];
-type FrameworkOption = components['schemas']['HostComplianceFramework'];
+type FrameworksResponse = components['schemas']['HostComplianceFrameworksResponse'];
 
-type StatusFilter = 'all' | 'pass' | 'fail' | 'skipped' | 'error';
+type StatusFilter = 'all' | 'fail' | 'pass' | 'skipped' | 'error';
 
+// Prototype status wording. skipped renders as N/A ("not applicable").
 const FILTER_ORDER: { id: StatusFilter; label: string }[] = [
   { id: 'all', label: 'All' },
-  { id: 'fail', label: 'Fail' },
-  { id: 'pass', label: 'Pass' },
-  { id: 'skipped', label: 'Skipped' },
+  { id: 'fail', label: 'Non-compliant' },
+  { id: 'pass', label: 'Compliant' },
+  { id: 'skipped', label: 'N/A' },
   { id: 'error', label: 'Error' },
 ];
 
@@ -80,24 +91,26 @@ export function ComplianceTab({
     enabled: !!hostId,
   });
 
-  // Lens options — framework ids + mapped-rule counts for the picker.
+  // Lens options — framework ids, mapped-rule counts and per-lens
+  // scores for the picker, plus the all-rules aggregate.
   const frameworksQuery = useQuery({
     queryKey: ['host', hostId, 'compliance_frameworks'],
-    queryFn: async (): Promise<FrameworkOption[]> => {
+    queryFn: async (): Promise<FrameworksResponse> => {
       const { data, error, response } = await api.GET('/api/v1/hosts/{id}/compliance/frameworks', {
         params: { path: { id: hostId } },
       });
       if (error || !response.ok) {
         throw new Error(apiErrorMessage(error, `Failed to load (${response.status})`));
       }
-      return data?.frameworks ?? [];
+      return data as FrameworksResponse;
     },
     enabled: !!hostId,
   });
 
-  // CLIENT-SIDE status filter — clicking a chip never refetches.
-  // Spec C-03 / AC-04.
+  // CLIENT-SIDE status filter + search — clicking or typing never
+  // refetches. Spec C-03 / AC-04.
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [search, setSearch] = useState('');
 
   let body: ReactNode;
   // isPending (not isLoading): isLoading goes false between retry
@@ -153,9 +166,30 @@ export function ComplianceTab({
     const lens = lensQuery.data;
     body = (
       <>
-        <SummaryTiles summary={lens.summary} />
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'minmax(0, 7fr) minmax(0, 5fr)',
+            gap: 16,
+            alignItems: 'start',
+          }}
+        >
+          <ResultMixPanel summary={lens.summary} framework={framework} />
+          <ScanPanel
+            scanContext={lens.scan_context}
+            framework={framework}
+            lensTotal={lens.summary.total}
+          />
+        </div>
         <CategoryRows categories={lens.categories} />
-        <RulesTable rules={lens.rules} filter={statusFilter} onFilterChange={setStatusFilter} />
+        <RulesTable
+          rules={lens.rules}
+          filter={statusFilter}
+          onFilterChange={setStatusFilter}
+          search={search}
+          onSearchChange={setSearch}
+          frameworkActive={!!framework}
+        />
       </>
     );
   }
@@ -167,13 +201,14 @@ export function ComplianceTab({
       style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 16 }}
     >
       <ScanContextStrip
+        hostId={hostId}
         isPending={lensQuery.isPending}
         lastScanAt={lensQuery.data?.scan_context.last_scan_at ?? null}
         policyVersion={lensQuery.data?.scan_context.policy_version ?? ''}
       />
       <LensBar
         framework={framework}
-        options={frameworksQuery.data ?? []}
+        options={frameworksQuery.data}
         onFrameworkChange={onFrameworkChange}
       />
       {body}
@@ -182,14 +217,16 @@ export function ComplianceTab({
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// 1. Scan-context strip
+// 1. Scan-context strip — headline, explainer, live Re-scan.
 // ─────────────────────────────────────────────────────────────────────────
 
 function ScanContextStrip({
+  hostId,
   isPending,
   lastScanAt,
   policyVersion,
 }: {
+  hostId: string;
   isPending: boolean;
   lastScanAt: string | null;
   policyVersion: string;
@@ -212,6 +249,8 @@ function ScanContextStrip({
             </span>
           </>
         ) : null}
+        {' · the scores below are views of the same per-rule results, regrouped by each'}
+        {" rule's framework refs."}
       </>
     );
   } else {
@@ -224,21 +263,109 @@ function ScanContextStrip({
         border: '1px solid var(--ow-line)',
         borderRadius: 'var(--ow-radius)',
         padding: '14px 18px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 14,
       }}
     >
-      <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--ow-fg-0)' }}>
-        One scan, viewed through any framework
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--ow-fg-0)' }}>
+          One scan, viewed through any framework
+        </div>
+        <div style={{ color: 'var(--ow-fg-2)', fontSize: 12, marginTop: 2, lineHeight: 1.5 }}>
+          {sub}
+        </div>
       </div>
-      <div style={{ color: 'var(--ow-fg-2)', fontSize: 12, marginTop: 2 }}>{sub}</div>
+      <RescanButton hostId={hostId} />
     </div>
   );
 }
 
+// RescanButton — same enqueue endpoint and semantics as the page-head
+// Run scan button (POST /hosts/{id}/scans, idempotency-keyed, 409 as a
+// transient note). The result refresh arrives via scan.completed SSE.
+function RescanButton({ hostId }: { hostId: string }) {
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+
+  const rescan = async () => {
+    if (busy) return;
+    setBusy(true);
+    setNote(null);
+    try {
+      const { response } = await api.POST('/api/v1/hosts/{id}/scans', {
+        params: {
+          path: { id: hostId },
+          header: { 'Idempotency-Key': crypto.randomUUID() },
+        },
+      });
+      if (response.status === 409) {
+        setNote('Scan already running');
+      } else if (!response.ok) {
+        setNote(`Scan failed (${response.status})`);
+      } else {
+        setNote('Scan queued');
+      }
+    } catch {
+      setNote('Scan failed');
+    } finally {
+      setBusy(false);
+      window.setTimeout(() => setNote(null), 4000);
+    }
+  };
+
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+      {note && (
+        <span role="status" style={{ fontSize: 11, color: 'var(--ow-fg-2)' }}>
+          {note}
+        </span>
+      )}
+      <button
+        type="button"
+        onClick={rescan}
+        disabled={busy}
+        aria-label="Re-scan this host"
+        style={{
+          height: 30,
+          padding: '0 14px',
+          background: 'var(--ow-info)',
+          color: 'var(--ow-info-on)',
+          border: 0,
+          borderRadius: 7,
+          fontSize: 12,
+          fontWeight: 600,
+          cursor: busy ? 'default' : 'pointer',
+          opacity: busy ? 0.6 : 1,
+        }}
+      >
+        {busy ? 'Queueing' : 'Re-scan'}
+      </button>
+    </span>
+  );
+}
+
 // ─────────────────────────────────────────────────────────────────────────
-// 2. Lens bar — "View as" chips. Selection routes through the parent's
-//    onFrameworkChange so the URL (?framework=) stays the single source
-//    of truth (api-hosts AC-08).
+// 2. Lens bar — "View as" chips with per-lens scores. Selection routes
+//    through the parent's onFrameworkChange so the URL (?framework=)
+//    stays the single source of truth (api-hosts AC-08).
 // ─────────────────────────────────────────────────────────────────────────
+
+// frameworkLabel renders a friendly chip label from a framework id:
+// cis_rhel8 -> "CIS RHEL 8", nist_800_53 -> "NIST 800-53",
+// stig_rhel9 -> "STIG RHEL 9", pci_dss_4 -> "PCI DSS 4".
+export function frameworkLabel(id: string): string {
+  return id
+    .split('_')
+    .map((part) => {
+      const m = /^([a-z]+)(\d+)$/.exec(part);
+      if (m) return `${m[1]!.toUpperCase()} ${m[2]!}`;
+      if (/^\d+$/.test(part)) return part;
+      return part.toUpperCase();
+    })
+    .join(' ')
+    .replace(/^NIST 800 53$/, 'NIST 800-53');
+}
 
 function LensBar({
   framework,
@@ -246,7 +373,7 @@ function LensBar({
   onFrameworkChange,
 }: {
   framework?: string;
-  options: FrameworkOption[];
+  options?: FrameworksResponse;
   onFrameworkChange: (next: string | undefined) => void;
 }) {
   return (
@@ -268,33 +395,39 @@ function LensBar({
         View as
       </span>
       <LensChip active={!framework} onClick={() => onFrameworkChange(undefined)}>
-        All rules
+        <span>All rules</span>
+        <span style={lensChipMeta}>every mapped control</span>
+        {options ? <span style={lensChipScore}>{options.overall.score_pct}%</span> : null}
       </LensChip>
-      {options.map((opt) => (
+      {(options?.frameworks ?? []).map((opt) => (
         <LensChip
           key={opt.framework_id}
           active={framework === opt.framework_id}
           onClick={() => onFrameworkChange(opt.framework_id)}
         >
-          {opt.framework_id}
-          <span
-            style={{
-              fontVariantNumeric: 'tabular-nums',
-              fontWeight: 700,
-              padding: '1px 7px',
-              borderRadius: 999,
-              fontSize: 11,
-              background: 'var(--ow-bg-3)',
-              color: 'var(--ow-fg-2)',
-            }}
-          >
-            {opt.rule_count}
-          </span>
+          <span>{frameworkLabel(opt.framework_id)}</span>
+          <span style={lensChipMeta}>{opt.rule_count} rules</span>
+          <span style={lensChipScore}>{opt.score_pct}%</span>
         </LensChip>
       ))}
     </div>
   );
 }
+
+const lensChipMeta: CSSProperties = {
+  color: 'var(--ow-fg-3)',
+  fontSize: 11,
+};
+
+const lensChipScore: CSSProperties = {
+  fontVariantNumeric: 'tabular-nums',
+  fontWeight: 700,
+  padding: '1px 7px',
+  borderRadius: 999,
+  fontSize: 11,
+  background: 'var(--ow-bg-3)',
+  color: 'var(--ow-fg-1)',
+};
 
 function LensChip({
   active,
@@ -332,46 +465,38 @@ function LensChip({
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// 3. Summary tiles
+// 3. Result mix + Scan panels (prototype two-column block)
 // ─────────────────────────────────────────────────────────────────────────
 
-function SummaryTiles({ summary }: { summary: LensResponse['summary'] }) {
-  const tiles: { label: string; value: string; color: string }[] = [
-    { label: 'Score', value: `${summary.score_pct}%`, color: 'var(--ow-fg-0)' },
-    { label: 'Passing', value: String(summary.passing), color: 'var(--ow-ok)' },
-    { label: 'Failing', value: String(summary.failing), color: 'var(--ow-crit)' },
-    { label: 'Skipped', value: String(summary.skipped), color: 'var(--ow-warn)' },
-    { label: 'Error', value: String(summary.error), color: 'var(--ow-fg-2)' },
+function ResultMixPanel({
+  summary,
+  framework,
+}: {
+  summary: LensResponse['summary'];
+  framework?: string;
+}) {
+  const legend: { label: string; value: number; color: string }[] = [
+    { label: 'Compliant', value: summary.passing, color: 'var(--ow-ok)' },
+    { label: 'Non-compliant', value: summary.failing, color: 'var(--ow-crit)' },
+    { label: 'Not applicable', value: summary.skipped, color: 'var(--ow-fg-3)' },
+    { label: 'Error', value: summary.error, color: 'var(--ow-warn)' },
   ];
+  const max = Math.max(1, ...legend.map((l) => l.value));
   return (
-    <div
-      aria-label="Compliance summary"
-      style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
-        gap: 14,
-      }}
-    >
-      {tiles.map((t) => (
-        <div
-          key={t.label}
-          style={{
-            background: 'var(--ow-bg-1)',
-            border: '1px solid var(--ow-line)',
-            borderRadius: 'var(--ow-radius)',
-            padding: 16,
-          }}
-        >
+    <section aria-label="Result mix" style={panel}>
+      <h3 style={panelHead}>Result mix{framework ? ` · ${frameworkLabel(framework)}` : ''}</h3>
+      <div style={{ display: 'flex', gap: 18, alignItems: 'flex-start' }}>
+        <div style={{ flexShrink: 0, textAlign: 'center' }}>
           <div
             style={{
-              fontSize: 24,
+              fontSize: 34,
               fontWeight: 700,
               lineHeight: 1,
-              color: t.color,
+              color: scoreColor(summary.score_pct),
               fontVariantNumeric: 'tabular-nums',
             }}
           >
-            {t.value}
+            {summary.score_pct}%
           </div>
           <div
             style={{
@@ -379,88 +504,274 @@ function SummaryTiles({ summary }: { summary: LensResponse['summary'] }) {
               fontSize: 10,
               textTransform: 'uppercase',
               letterSpacing: '0.06em',
-              marginTop: 6,
+              marginTop: 4,
             }}
           >
-            {t.label}
+            Compliant
           </div>
         </div>
-      ))}
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────
-// 4. Category rows — name + passing/failing/total + failing-tinted bar
-// ─────────────────────────────────────────────────────────────────────────
-
-function CategoryRows({ categories }: { categories: LensCategory[] }) {
-  if (categories.length === 0) return null;
-  return (
-    <section
-      aria-label="Compliance categories"
-      style={{
-        background: 'var(--ow-bg-1)',
-        border: '1px solid var(--ow-line)',
-        borderRadius: 'var(--ow-radius)',
-        padding: 18,
-      }}
-    >
-      <h3 style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 600 }}>Categories</h3>
-      <div role="list" aria-label="Category breakdown">
-        {categories.map((c) => {
-          const failPct = c.total > 0 ? (c.failing / c.total) * 100 : 0;
-          return (
+        <div style={{ flex: 1, minWidth: 0 }} role="list" aria-label="Status totals">
+          {legend.map((l) => (
             <div
-              key={c.category}
+              key={l.label}
               role="listitem"
-              style={{ padding: '8px 0', borderTop: '1px solid var(--ow-line)' }}
+              style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '3px 0' }}
             >
-              <div
+              <span style={{ width: 110, color: 'var(--ow-fg-2)', fontSize: 12, flexShrink: 0 }}>
+                {l.label}
+              </span>
+              <span
                 style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'baseline',
-                  gap: 10,
-                  fontSize: 13,
+                  width: 44,
+                  textAlign: 'right',
+                  color: 'var(--ow-fg-0)',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  fontVariantNumeric: 'tabular-nums',
+                  flexShrink: 0,
                 }}
               >
-                <span style={{ color: 'var(--ow-fg-0)', fontWeight: 500 }}>{c.category}</span>
-                <span
-                  style={{
-                    color: 'var(--ow-fg-2)',
-                    fontSize: 12,
-                    fontVariantNumeric: 'tabular-nums',
-                  }}
-                >
-                  <span style={{ color: 'var(--ow-ok)' }}>{c.passing} passing</span>
-                  {' · '}
-                  <span style={{ color: c.failing > 0 ? 'var(--ow-crit)' : 'var(--ow-fg-3)' }}>
-                    {c.failing} failing
-                  </span>
-                  {' · '}
-                  {c.total} total
-                </span>
-              </div>
-              <div
+                {l.value}
+              </span>
+              <span
                 aria-hidden
                 style={{
-                  marginTop: 6,
-                  height: 4,
+                  flex: 1,
+                  height: 5,
                   borderRadius: 999,
                   background: 'var(--ow-bg-3)',
                   overflow: 'hidden',
                 }}
               >
-                <div
+                <span
                   style={{
-                    width: `${failPct}%`,
+                    display: 'block',
+                    width: `${(l.value / max) * 100}%`,
                     height: '100%',
-                    background: 'var(--ow-crit)',
+                    background: l.color,
                     borderRadius: 999,
                   }}
                 />
-              </div>
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+      {summary.skipped > 0 ? (
+        <div
+          style={{
+            marginTop: 12,
+            padding: '8px 10px',
+            borderRadius: 7,
+            background: 'var(--ow-bg-2)',
+            color: 'var(--ow-fg-2)',
+            fontSize: 11,
+            lineHeight: 1.5,
+          }}
+        >
+          {summary.skipped} rules not applicable: dropped by capability gates or missing a matching
+          implementation on this host.
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function ScanPanel({
+  scanContext,
+  framework,
+  lensTotal,
+}: {
+  scanContext: LensResponse['scan_context'];
+  framework?: string;
+  lensTotal: number;
+}) {
+  const ran = scanContext.last_scan_at ? new Date(scanContext.last_scan_at).toLocaleString() : '';
+  const coverage = framework
+    ? `${lensTotal} of this host's rules carry a ${frameworkLabel(framework)} ref`
+    : `${lensTotal} rules evaluated on this host`;
+  return (
+    <section aria-label="Scan details" style={panel}>
+      <h3 style={panelHead}>Scan</h3>
+      <dl style={{ margin: 0 }}>
+        <ScanRow label="Framework">
+          {framework ? frameworkLabel(framework) : 'All rules (no lens)'}
+        </ScanRow>
+        <ScanRow label="Ran">
+          <span style={{ fontFamily: 'var(--ow-font-mono)' }}>{ran}</span>
+          {scanContext.duration_seconds != null ? (
+            <span style={{ color: 'var(--ow-fg-3)' }}>
+              {' · Duration '}
+              {scanContext.duration_seconds}s
+            </span>
+          ) : null}
+        </ScanRow>
+        {scanContext.policy_version ? (
+          <ScanRow label="Policy">
+            <span style={{ fontFamily: 'var(--ow-font-mono)' }}>{scanContext.policy_version}</span>
+          </ScanRow>
+        ) : null}
+        <ScanRow label="Coverage">{coverage}</ScanRow>
+      </dl>
+    </section>
+  );
+}
+
+function ScanRow({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        gap: 12,
+        padding: '6px 0',
+        borderTop: '1px solid var(--ow-line)',
+        fontSize: 12,
+      }}
+    >
+      <dt
+        style={{
+          width: 90,
+          flexShrink: 0,
+          color: 'var(--ow-fg-3)',
+          textTransform: 'uppercase',
+          fontSize: 10,
+          letterSpacing: '0.06em',
+          paddingTop: 2,
+        }}
+      >
+        {label}
+      </dt>
+      <dd style={{ margin: 0, color: 'var(--ow-fg-1)', minWidth: 0 }}>{children}</dd>
+    </div>
+  );
+}
+
+function scoreColor(pct: number): string {
+  if (pct >= 80) return 'var(--ow-ok)';
+  if (pct >= 50) return 'var(--ow-warn)';
+  return 'var(--ow-crit)';
+}
+
+const panel: CSSProperties = {
+  background: 'var(--ow-bg-1)',
+  border: '1px solid var(--ow-line)',
+  borderRadius: 'var(--ow-radius)',
+  padding: 18,
+};
+
+const panelHead: CSSProperties = {
+  margin: '0 0 12px',
+  fontSize: 11,
+  fontWeight: 600,
+  color: 'var(--ow-fg-3)',
+  textTransform: 'uppercase',
+  letterSpacing: '0.06em',
+};
+
+// ─────────────────────────────────────────────────────────────────────────
+// 4. Category rows — numbered, pass counts + percentage (prototype
+//    "By section" block). Grouping is the Kensa catalog category;
+//    grouping by framework section needs section names the corpus
+//    does not carry yet (follow-up noted in the spec).
+// ─────────────────────────────────────────────────────────────────────────
+
+function CategoryRows({ categories }: { categories: LensCategory[] }) {
+  if (categories.length === 0) return null;
+  return (
+    <section aria-label="Compliance categories" style={panel}>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'baseline',
+          marginBottom: 12,
+        }}
+      >
+        <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>By category</h3>
+        <span style={{ color: 'var(--ow-fg-3)', fontSize: 11 }}>
+          Grouping follows the Kensa rule category
+        </span>
+      </div>
+      <div role="list" aria-label="Category breakdown">
+        {categories.map((c, i) => {
+          const passPct = c.total > 0 ? Math.round((c.passing / c.total) * 100) : 0;
+          const failPct = c.total > 0 ? (c.failing / c.total) * 100 : 0;
+          return (
+            <div
+              key={c.category}
+              role="listitem"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 14,
+                padding: '9px 0',
+                borderTop: '1px solid var(--ow-line)',
+              }}
+            >
+              <span
+                style={{
+                  width: 18,
+                  flexShrink: 0,
+                  color: 'var(--ow-fg-3)',
+                  fontSize: 11,
+                  fontVariantNumeric: 'tabular-nums',
+                }}
+              >
+                {i + 1}
+              </span>
+              <span
+                style={{
+                  flex: '0 0 220px',
+                  color: 'var(--ow-fg-0)',
+                  fontWeight: 500,
+                  fontSize: 13,
+                }}
+              >
+                {c.category}
+              </span>
+              <span
+                aria-hidden
+                style={{
+                  flex: 1,
+                  height: 5,
+                  borderRadius: 999,
+                  background: 'var(--ow-bg-3)',
+                  overflow: 'hidden',
+                  display: 'flex',
+                }}
+              >
+                <span
+                  style={{ width: `${100 - failPct}%`, background: 'var(--ow-ok)', height: '100%' }}
+                />
+                <span
+                  style={{ width: `${failPct}%`, background: 'var(--ow-crit)', height: '100%' }}
+                />
+              </span>
+              <span
+                style={{
+                  width: 90,
+                  textAlign: 'right',
+                  fontSize: 12,
+                  fontVariantNumeric: 'tabular-nums',
+                  flexShrink: 0,
+                }}
+              >
+                <span style={{ color: 'var(--ow-ok)', fontWeight: 600 }}>{c.passing}</span>
+                <span style={{ color: 'var(--ow-fg-3)' }}> / {c.total}</span>
+              </span>
+              <span
+                style={{
+                  width: 44,
+                  textAlign: 'right',
+                  color: 'var(--ow-fg-1)',
+                  fontWeight: 600,
+                  fontSize: 12,
+                  fontVariantNumeric: 'tabular-nums',
+                  flexShrink: 0,
+                }}
+              >
+                {passPct}%
+              </span>
             </div>
           );
         })}
@@ -470,17 +781,23 @@ function CategoryRows({ categories }: { categories: LensCategory[] }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// 5. Rules table + client-side status filter chips
+// 5. Rules table — search + counted status chips + "N of M" readout
 // ─────────────────────────────────────────────────────────────────────────
 
 function RulesTable({
   rules,
   filter,
   onFilterChange,
+  search,
+  onSearchChange,
+  frameworkActive,
 }: {
   rules: LensRule[];
   filter: StatusFilter;
   onFilterChange: (next: StatusFilter) => void;
+  search: string;
+  onSearchChange: (next: string) => void;
+  frameworkActive: boolean;
 }) {
   const counts = useMemo(() => {
     const c: Record<StatusFilter, number> = {
@@ -503,91 +820,132 @@ function RulesTable({
     return c;
   }, [rules]);
 
-  const visible = useMemo(
-    () => (filter === 'all' ? rules : rules.filter((r) => r.status === filter)),
-    [rules, filter],
-  );
+  const visible = useMemo(() => {
+    let out = filter === 'all' ? rules : rules.filter((r) => r.status === filter);
+    const q = search.trim().toLowerCase();
+    if (q) {
+      out = out.filter(
+        (r) =>
+          r.title.toLowerCase().includes(q) ||
+          r.rule_id.toLowerCase().includes(q) ||
+          r.control_ids.some((cid) => cid.toLowerCase().includes(q)),
+      );
+    }
+    return out;
+  }, [rules, filter, search]);
 
   return (
-    <section
-      aria-label="Compliance rules"
-      style={{
-        background: 'var(--ow-bg-1)',
-        border: '1px solid var(--ow-line)',
-        borderRadius: 'var(--ow-radius)',
-        padding: 18,
-      }}
-    >
+    <section aria-label="Compliance rules" style={panel}>
       <div
-        role="group"
-        aria-label="Filter rules by status"
-        style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          flexWrap: 'wrap',
+          marginBottom: 12,
+        }}
       >
-        {FILTER_ORDER.map((f) => (
-          <button
-            key={f.id}
-            type="button"
-            aria-pressed={filter === f.id}
-            onClick={() => onFilterChange(f.id)}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '4px 10px',
-              borderRadius: 999,
-              border: '1px solid var(--ow-line)',
-              background: filter === f.id ? 'var(--ow-bg-3)' : 'var(--ow-bg-2)',
-              color: filter === f.id ? 'var(--ow-fg-0)' : 'var(--ow-fg-2)',
-              fontSize: 12,
-              cursor: 'pointer',
-            }}
-          >
-            {f.label}
-            <span style={{ fontVariantNumeric: 'tabular-nums', color: 'var(--ow-fg-3)' }}>
-              {counts[f.id]}
-            </span>
-          </button>
-        ))}
+        <input
+          type="search"
+          value={search}
+          onChange={(e) => onSearchChange(e.target.value)}
+          placeholder="Search rules or framework IDs"
+          aria-label="Search rules or framework IDs"
+          style={{
+            flex: '1 1 240px',
+            maxWidth: 340,
+            height: 32,
+            padding: '0 12px',
+            borderRadius: 7,
+            border: '1px solid var(--ow-line)',
+            background: 'var(--ow-bg-0)',
+            color: 'var(--ow-fg-0)',
+            fontSize: 12,
+          }}
+        />
+        <div role="group" aria-label="Filter rules by status" style={{ display: 'flex', gap: 6 }}>
+          {FILTER_ORDER.map((f) => (
+            <button
+              key={f.id}
+              type="button"
+              aria-pressed={filter === f.id}
+              onClick={() => onFilterChange(f.id)}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '4px 10px',
+                borderRadius: 999,
+                border: '1px solid var(--ow-line)',
+                background: filter === f.id ? 'var(--ow-bg-3)' : 'var(--ow-bg-2)',
+                color: filter === f.id ? 'var(--ow-fg-0)' : 'var(--ow-fg-2)',
+                fontSize: 12,
+                cursor: 'pointer',
+              }}
+            >
+              {f.id !== 'all' ? (
+                <span
+                  aria-hidden
+                  style={{
+                    width: 6,
+                    height: 6,
+                    borderRadius: '50%',
+                    background: STATUS_STYLE[f.id]?.fg ?? 'var(--ow-fg-3)',
+                  }}
+                />
+              ) : null}
+              {f.label}
+              <span style={{ fontVariantNumeric: 'tabular-nums', color: 'var(--ow-fg-3)' }}>
+                {counts[f.id]}
+              </span>
+            </button>
+          ))}
+        </div>
+        <span style={{ marginLeft: 'auto', color: 'var(--ow-fg-3)', fontSize: 11 }}>
+          {visible.length} of {rules.length} {frameworkActive ? 'lens' : ''} rules
+        </span>
       </div>
 
       {visible.length === 0 ? (
         <div role="status" style={{ color: 'var(--ow-fg-3)', fontSize: 12, padding: '12px 0' }}>
-          No rules with this status.
+          No rules match the current filter.
         </div>
       ) : (
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead>
             <tr>
+              <Th width={110}>Status</Th>
               <Th width={70}>Severity</Th>
-              <Th>Rule</Th>
+              <Th>Rule and framework refs</Th>
               <Th width={160}>Category</Th>
-              <Th width={90}>Status</Th>
-              <Th width={120}>Last checked</Th>
+              <Th width={110}>Last checked</Th>
             </tr>
           </thead>
           <tbody>
             {visible.map((r) => (
               <tr key={r.rule_id} style={{ borderTop: '1px solid var(--ow-line)' }}>
                 <td style={td}>
+                  <StatusChip status={r.status} />
+                </td>
+                <td style={td}>
                   <SeverityPill severity={r.severity} />
                 </td>
                 <td style={td}>
                   <div style={{ color: 'var(--ow-fg-0)', fontWeight: 500 }}>{r.title}</div>
-                  <div
-                    style={{
-                      color: 'var(--ow-fg-3)',
-                      fontSize: 11,
-                      fontFamily: 'var(--ow-font-mono)',
-                      marginTop: 2,
-                    }}
-                  >
-                    {r.control_ids.length > 0 ? r.control_ids.join(', ') : r.rule_id}
+                  {r.description ? (
+                    <div style={{ color: 'var(--ow-fg-3)', fontSize: 11, marginTop: 2 }}>
+                      {r.description}
+                    </div>
+                  ) : null}
+                  <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 5 }}>
+                    {(r.control_ids.length > 0 ? r.control_ids : [r.rule_id]).map((cid) => (
+                      <span key={cid} style={refChip}>
+                        {cid}
+                      </span>
+                    ))}
                   </div>
                 </td>
                 <td style={{ ...td, color: 'var(--ow-fg-2)' }}>{r.category}</td>
-                <td style={td}>
-                  <StatusChip status={r.status} />
-                </td>
                 <td style={{ ...td, color: 'var(--ow-fg-3)', whiteSpace: 'nowrap', fontSize: 12 }}>
                   {relativeTime(r.last_checked_at)}
                 </td>
@@ -599,6 +957,16 @@ function RulesTable({
     </section>
   );
 }
+
+const refChip: CSSProperties = {
+  fontFamily: 'var(--ow-font-mono)',
+  fontSize: 10,
+  padding: '1px 6px',
+  borderRadius: 5,
+  border: '1px solid var(--ow-line)',
+  background: 'var(--ow-bg-2)',
+  color: 'var(--ow-fg-2)',
+};
 
 function Th({ children, width }: { children: ReactNode; width?: number }) {
   return (
@@ -619,12 +987,12 @@ function Th({ children, width }: { children: ReactNode; width?: number }) {
   );
 }
 
-// StatusChip — pass ok-tint, fail crit-tint, skipped muted, error
-// warn-tint (prototype status pips).
+// StatusChip — prototype wording: Compliant (ok), Non-compliant
+// (crit), N/A (muted), Error (warn).
 const STATUS_STYLE: Record<string, { fg: string; bg: string; label: string }> = {
-  pass: { fg: 'var(--ow-ok)', bg: 'var(--ow-ok-bg)', label: 'Pass' },
-  fail: { fg: 'var(--ow-crit)', bg: 'var(--ow-crit-bg)', label: 'Fail' },
-  skipped: { fg: 'var(--ow-fg-3)', bg: 'var(--ow-bg-2)', label: 'Skipped' },
+  pass: { fg: 'var(--ow-ok)', bg: 'var(--ow-ok-bg)', label: 'Compliant' },
+  fail: { fg: 'var(--ow-crit)', bg: 'var(--ow-crit-bg)', label: 'Non-compliant' },
+  skipped: { fg: 'var(--ow-fg-3)', bg: 'var(--ow-bg-2)', label: 'N/A' },
   error: { fg: 'var(--ow-warn)', bg: 'var(--ow-warn-bg)', label: 'Error' },
 };
 
@@ -646,6 +1014,7 @@ function StatusChip({ status }: { status: string }) {
         color: s.fg,
         fontSize: 11,
         fontWeight: 600,
+        whiteSpace: 'nowrap',
       }}
     >
       <span aria-hidden style={{ width: 6, height: 6, borderRadius: '50%', background: s.fg }} />
@@ -674,7 +1043,7 @@ function relativeTime(iso: string): string {
 }
 
 const td: CSSProperties = {
-  padding: '8px 10px 8px 0',
+  padding: '9px 10px 9px 0',
   verticalAlign: 'top',
 };
 

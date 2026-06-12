@@ -17,6 +17,9 @@
 //	AC-11  TestHostComplianceFrameworks_ListingAndEmptyWhenUnscanned
 //	AC-12  TestHostComplianceLens_UnknownHost404AndAnonymousRejected
 //	AC-13  TestHostComplianceLensHandler_NeverReferencesSensitiveColumn
+//	AC-14  TestHostComplianceFrameworks_ScoresAndOverallAggregate
+//	AC-15  TestHostComplianceLens_DurationAndDescription
+//	       TestFirstSentence_TrimsCatalogProse (non-DSN)
 package server
 
 import (
@@ -27,6 +30,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -353,9 +357,10 @@ func TestFleetScanQueue_CountsQueuedAndRunningOnly(t *testing.T) {
 
 type lensResp struct {
 	ScanContext struct {
-		LastScanAt    *time.Time `json:"last_scan_at"`
-		ScanID        *string    `json:"scan_id"`
-		PolicyVersion string     `json:"policy_version"`
+		LastScanAt      *time.Time `json:"last_scan_at"`
+		ScanID          *string    `json:"scan_id"`
+		PolicyVersion   string     `json:"policy_version"`
+		DurationSeconds *int       `json:"duration_seconds"`
 	} `json:"scan_context"`
 	Summary struct {
 		Passing  int64   `json:"passing"`
@@ -377,6 +382,7 @@ type lensResp struct {
 		Category      string    `json:"category"`
 		Severity      string    `json:"severity"`
 		Status        string    `json:"status"`
+		Description   string    `json:"description"`
 		ControlIDs    []string  `json:"control_ids"`
 		LastCheckedAt time.Time `json:"last_checked_at"`
 	} `json:"rules"`
@@ -759,6 +765,154 @@ func TestHostComplianceLensHandler_NeverReferencesSensitiveColumn(t *testing.T) 
 		forbidden := regexp.MustCompile(`(?i)\bevidence\b`)
 		if forbidden.MatchString(string(b)) {
 			t.Errorf("host_compliance_lens_handler.go references the sensitive host_rule_state column — it must never be selected or named (C-02)")
+		}
+	})
+}
+
+// @ac AC-14
+// AC-14 (v1.2.0): each frameworks[] item carries passing/failing and
+// score_pct over the rows holding that key; overall (framework_id
+// "all") aggregates ALL host rows so the All-rules chip needs no
+// second request.
+func TestHostComplianceFrameworks_ScoresAndOverallAggregate(t *testing.T) {
+	t.Run("api-host-compliance/AC-14", func(t *testing.T) {
+		url, pool := freshAPIServer(t)
+		hostID := seedHostForIntel(t, pool)
+		empty := seedHostForIntel(t, pool)
+		base := time.Now().UTC().Truncate(time.Second)
+
+		// cis: 2 rows (1 pass, 1 fail) -> 50%. stig: 1 row (fail) -> 0%.
+		// unmapped: 1 pass row counted ONLY by overall.
+		seedRuleState(t, pool, hostID, "fwk-a", "fail", "high", base, 1,
+			`{"cis-rhel9-v2.0.0": ["1.1"], "stig-rhel9-v2r7": ["V-1"]}`)
+		seedRuleState(t, pool, hostID, "fwk-b", "pass", "low", base, 1,
+			`{"cis-rhel9-v2.0.0": ["1.2"]}`)
+		seedRuleState(t, pool, hostID, "fwk-c", "pass", "low", base, 1, "{}")
+		seedRuleState(t, pool, hostID, "fwk-d", "skipped", "low", base, 1, "{}")
+
+		type fwItem struct {
+			FrameworkID string  `json:"framework_id"`
+			RuleCount   int64   `json:"rule_count"`
+			Passing     int64   `json:"passing"`
+			Failing     int64   `json:"failing"`
+			ScorePct    float64 `json:"score_pct"`
+		}
+		type fwResp struct {
+			Frameworks []fwItem `json:"frameworks"`
+			Overall    fwItem   `json:"overall"`
+		}
+		fetch := func(id string) fwResp {
+			t.Helper()
+			req := asRole(t, "GET", url+"/api/v1/hosts/"+id+"/compliance/frameworks",
+				auth.RoleViewer, nil)
+			resp := doReq(t, req)
+			defer resp.Body.Close()
+			if resp.StatusCode != http.StatusOK {
+				t.Fatalf("status = %d, want 200", resp.StatusCode)
+			}
+			var body fwResp
+			if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+				t.Fatalf("decode frameworks: %v", err)
+			}
+			return body
+		}
+
+		body := fetch(hostID.String())
+		if len(body.Frameworks) != 2 {
+			t.Fatalf("frameworks len = %d, want 2", len(body.Frameworks))
+		}
+		cis, stig := body.Frameworks[0], body.Frameworks[1]
+		if cis.FrameworkID != "cis-rhel9-v2.0.0" || cis.RuleCount != 2 ||
+			cis.Passing != 1 || cis.Failing != 1 || cis.ScorePct != 50 {
+			t.Errorf("cis item = %+v, want 2 rules / 1 pass / 1 fail / 50%%", cis)
+		}
+		if stig.FrameworkID != "stig-rhel9-v2r7" || stig.RuleCount != 1 ||
+			stig.Passing != 0 || stig.Failing != 1 || stig.ScorePct != 0 {
+			t.Errorf("stig item = %+v, want 1 rule / 0 pass / 1 fail / 0%%", stig)
+		}
+		// Overall: 4 rows total, 2 pass, 1 fail -> 50.0%.
+		if body.Overall.FrameworkID != "all" || body.Overall.RuleCount != 4 ||
+			body.Overall.Passing != 2 || body.Overall.Failing != 1 ||
+			body.Overall.ScorePct != 50 {
+			t.Errorf("overall = %+v, want all / 4 rules / 2 pass / 1 fail / 50%%", body.Overall)
+		}
+
+		// Zero-row host: overall zeros, never an error (no divide-by-zero).
+		emptyBody := fetch(empty.String())
+		if emptyBody.Overall.RuleCount != 0 || emptyBody.Overall.ScorePct != 0 {
+			t.Errorf("empty-host overall = %+v, want zero counts and score", emptyBody.Overall)
+		}
+	})
+}
+
+// @ac AC-15
+// AC-15 (v1.2.0, endpoint half): duration_seconds = finished_at -
+// started_at of the latest completed run, null when started_at is
+// missing. The harness wires no RuleCatalog, so description is empty —
+// the field can only carry catalog prose.
+func TestHostComplianceLens_DurationAndDescription(t *testing.T) {
+	t.Run("api-host-compliance/AC-15", func(t *testing.T) {
+		url, pool := freshAPIServer(t)
+		hostID := seedHostForIntel(t, pool)
+		base := time.Now().UTC().Truncate(time.Second)
+		seedRuleState(t, pool, hostID, "fwk-a", "pass", "low", base, 1, "{}")
+
+		seedRun := func(started any, finished time.Time, policy string) {
+			t.Helper()
+			_, err := pool.Exec(context.Background(), `
+				INSERT INTO scan_runs (id, host_id, trigger_source, status,
+				                       started_at, finished_at, policy_version)
+				VALUES ($1, $2, 'scheduled', 'completed', $3, $4, $5)`,
+				uuid.Must(uuid.NewV7()), hostID, started, finished, policy)
+			if err != nil {
+				t.Fatalf("seed scan_run: %v", err)
+			}
+		}
+
+		// Latest completed run has both timestamps: 85s apart.
+		seedRun(base.Add(-85*time.Second), base, "v2")
+		status, body := getLens(t, url, auth.RoleViewer, hostID.String(), "")
+		if status != http.StatusOK {
+			t.Fatalf("status = %d, want 200", status)
+		}
+		if body.ScanContext.DurationSeconds == nil || *body.ScanContext.DurationSeconds != 85 {
+			t.Errorf("duration_seconds = %v, want 85", body.ScanContext.DurationSeconds)
+		}
+
+		// A newer completed run without started_at: duration goes null.
+		seedRun(nil, base.Add(time.Minute), "v3")
+		_, body = getLens(t, url, auth.RoleViewer, hostID.String(), "")
+		if body.ScanContext.DurationSeconds != nil {
+			t.Errorf("duration_seconds = %v, want null without started_at",
+				*body.ScanContext.DurationSeconds)
+		}
+
+		// No catalog wired: description is empty for every rule.
+		for _, r := range body.Rules {
+			if r.Description != "" {
+				t.Errorf("rule %s description = %q, want empty without a catalog", r.RuleID, r.Description)
+			}
+		}
+	})
+}
+
+// @ac AC-15
+// AC-15 (trimming half, no DSN): firstSentence keeps the first
+// ". "-terminated sentence under 160 chars, else cuts at 160.
+func TestFirstSentence_TrimsCatalogProse(t *testing.T) {
+	t.Run("api-host-compliance/AC-15", func(t *testing.T) {
+		long := strings.Repeat("x", 200)
+		cases := []struct{ in, want string }{
+			{"Short prose.", "Short prose."},
+			{"First sentence. Second sentence.", "First sentence."},
+			{"Line one\ncontinues. Tail.", "Line one continues."},
+			{long, long[:159] + "."},
+			{"", ""},
+		}
+		for _, c := range cases {
+			if got := firstSentence(c.in); got != c.want {
+				t.Errorf("firstSentence(%.30q) = %q, want %q", c.in, got, c.want)
+			}
 		}
 	})
 }
