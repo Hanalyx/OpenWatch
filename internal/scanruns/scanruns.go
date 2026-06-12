@@ -199,6 +199,21 @@ func ActiveCount(ctx context.Context, pool *pgxpool.Pool) (int, error) {
 	return n, nil
 }
 
+// ActiveBreakdown returns the queued and running run counts separately
+// (the /fleet/scan-queue KPI). Terminal rows never count.
+// Spec api-host-compliance AC-07.
+func ActiveBreakdown(ctx context.Context, pool *pgxpool.Pool) (queued, running int, err error) {
+	err = pool.QueryRow(ctx, `
+		SELECT COUNT(*) FILTER (WHERE status = 'queued'),
+		       COUNT(*) FILTER (WHERE status = 'running')
+		FROM scan_runs
+		WHERE status IN ('queued', 'running')`).Scan(&queued, &running)
+	if err != nil {
+		return 0, 0, fmt.Errorf("scanruns: active breakdown: %w", err)
+	}
+	return queued, running, nil
+}
+
 func scanRun(row pgx.Row) (*Run, error) {
 	var (
 		r       Run

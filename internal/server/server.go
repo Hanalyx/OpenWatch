@@ -21,6 +21,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/eventbus"
 	"github.com/Hanalyx/openwatch/internal/idempotency"
 	"github.com/Hanalyx/openwatch/internal/identity"
+	"github.com/Hanalyx/openwatch/internal/kensa"
 	"github.com/Hanalyx/openwatch/internal/license"
 	"github.com/Hanalyx/openwatch/internal/server/api"
 	"github.com/Hanalyx/openwatch/internal/users"
@@ -102,6 +103,15 @@ func (s *Server) WithActivity(a *activity.Service) *Server {
 // Spec api-host-scan.
 func (s *Server) WithScanQueue(queueKey []byte) *Server {
 	s.handlers.scanQueueKey = queueKey
+	return s
+}
+
+// WithRuleCatalog threads the in-memory kensa rule catalog into the
+// API handlers so /hosts/{id}/compliance/failed-rules can resolve rule
+// titles and categories. Nil-safe: without a catalog the endpoint
+// falls back to rule ids. Spec api-host-compliance.
+func (s *Server) WithRuleCatalog(c *kensa.RuleCatalog) *Server {
+	s.handlers.ruleCatalog = c
 	return s
 }
 

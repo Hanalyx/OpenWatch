@@ -943,6 +943,56 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/hosts/{id}/compliance/failed-rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List a host's currently-failing compliance rules
+         * @description Returns host_rule_state rows with current_status=fail for the
+         *     host, ordered by severity (critical > high > medium > low >
+         *     unset) then last_checked_at DESC. Titles and categories come
+         *     from the in-memory kensa rule catalog; when the catalog is
+         *     unavailable, title falls back to the rule id. The optional
+         *     framework filter restricts rows to those whose framework_refs
+         *     contains the key and projects that framework's control ids
+         *     into control_ids. total_failing is the post-filter, pre-limit
+         *     count. Requires host:read. Spec api-host-compliance.
+         */
+        get: operations["getHostFailedRules"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/fleet/scan-queue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Scan-queue depth split by lifecycle state
+         * @description Counts of scan_runs rows in the queued and running states.
+         *     Terminal (completed/failed) runs are excluded. Requires
+         *     host:read. Spec api-host-compliance.
+         */
+        get: operations["getFleetScanQueue"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/intelligence/events": {
         parameters: {
             query?: never;
@@ -1378,6 +1428,34 @@ export interface components {
             error: number;
             /** Format: int64 */
             total: number;
+        };
+        HostFailedRule: {
+            rule_id: string;
+            /** @description Catalog title; falls back to rule_id when the catalog lacks the rule. */
+            title: string;
+            /** @description Catalog category; empty when unknown. */
+            category: string;
+            /** @description Stored severity; empty when the scan recorded none. */
+            severity: string;
+            /** @description Control ids for the requested framework; empty unless ?framework= is given. */
+            control_ids: string[];
+            /** Format: date-time */
+            last_checked_at: string;
+            check_count: number;
+        };
+        HostFailedRulesResponse: {
+            /**
+             * Format: int64
+             * @description Count of ALL failing rows for the host (post-framework-filter, pre-limit).
+             */
+            total_failing: number;
+            rules: components["schemas"]["HostFailedRule"][];
+        };
+        FleetScanQueue: {
+            /** Format: int64 */
+            queued: number;
+            /** Format: int64 */
+            running: number;
         };
         HostDetailResponse: {
             host: components["schemas"]["HostResponse"];
@@ -3919,6 +3997,80 @@ export interface operations {
             };
             /** @description A scan for this host is already queued or running */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getHostFailedRules: {
+        parameters: {
+            query?: {
+                /** @description Max rules returned. Clamped to [1, 100]; default 10. */
+                limit?: number;
+                /** @description Filter to rows whose framework_refs contains this key and project its control ids. */
+                framework?: string;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Failing rules, severity-ordered */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HostFailedRulesResponse"];
+                };
+            };
+            /** @description Caller lacks host:read permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Host not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getFleetScanQueue: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Queued and running scan counts */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FleetScanQueue"];
+                };
+            };
+            /** @description Caller lacks host:read permission */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

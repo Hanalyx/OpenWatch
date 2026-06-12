@@ -1,0 +1,100 @@
+spec:
+  id: api-host-compliance
+  title: Per-host failed-rules API + fleet scan-queue KPI
+  version: "1.0.0"
+  status: approved
+  tier: 2
+
+  context:
+    system: openwatch-go
+    feature: Host-scoped failing-rule listing (severity-ordered, framework-projectable) and the fleet scan-queue depth breakdown
+    description: >
+      GET /api/v1/hosts/{id}/compliance/failed-rules returns the host's
+      currently-failing rules from host_rule_state (current_status='fail'),
+      ordered by severity (critical > high > medium > low > unset) with
+      last_checked_at DESC as the tiebreaker. Each item carries rule_id,
+      title, category, severity, control_ids, last_checked_at, and
+      check_count. Title and category are resolved from the in-memory
+      kensa RuleCatalog (built once at boot from the kensa-rules corpus);
+      when no catalog is wired or the rule id is unknown, title falls back
+      to the rule id and category to the empty string so the endpoint
+      keeps working without the corpus. The optional ?framework= filter
+      restricts rows to those whose framework_refs JSONB contains that
+      framework key and projects that framework's control ids into
+      control_ids (empty otherwise). total_failing is the post-filter,
+      pre-limit count of all failing rows for the host.
+
+      GET /api/v1/fleet/scan-queue returns {queued, running} counts from
+      scan_runs - the scan-queue depth KPI split by lifecycle state.
+    related_specs:
+      - system-transaction-log-writer
+      - system-scan-runs
+      - api-fleet-observability
+      - api-host-scan
+      - system-rbac
+
+  objective:
+    summary: >
+      Two read endpoints. failed-rules lists a host's failing rules with
+      catalog-resolved titles, severity-first ordering, a clamped limit,
+      an optional framework filter with control-id projection, and never
+      exposes the stored per-rule check output. scan-queue returns the
+      queued/running breakdown of scan_runs.
+    scope:
+      includes:
+        - GET /api/v1/hosts/{id}/compliance/failed-rules
+        - GET /api/v1/fleet/scan-queue
+        - kensa RuleCatalog (internal/kensa) id -> {title, category, severity} lookup
+        - scanruns.ActiveBreakdown (queued/running counts)
+      excludes:
+        - Scan execution and host_rule_state writes (system-transaction-log-writer)
+        - Fleet-wide failing-rule rollups (api-fleet-observability)
+        - The on-demand scan enqueue endpoint (api-host-scan)
+
+  constraints:
+    - id: C-01
+      description: failed-rules rows are ordered by severity rank critical > high > medium > low > unset (CASE expression), then last_checked_at DESC; only host_rule_state rows with current_status='fail' for the path host are eligible; limit defaults to 10 and is clamped to [1, 100].
+      type: technical
+      enforcement: error
+    - id: C-02
+      description: The failed-rules response MUST NOT include the per-rule stored check output column of host_rule_state (it may contain sensitive host configuration); the handler source never references that column.
+      type: security
+      enforcement: error
+    - id: C-03
+      description: Both endpoints require host:read; anonymous callers are rejected. The failed-rules endpoint returns 404 hosts.not_found for unknown or deleted hosts using the same lookup as POST /hosts/{id}/scans.
+      type: security
+      enforcement: error
+    - id: C-04
+      description: framework_refs is a multi-valued framework_id -> [control ids] JSONB map. With ?framework= given, rows are filtered with the JSONB key-exists operator and control_ids carries that framework's full control-id array; without it, control_ids is empty.
+      type: technical
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: For a host with failing rows across severities (including an unset severity) plus passing rows, GET failed-rules returns only the failing rows ordered critical, high (newer last_checked_at first), medium, low, unset; total_failing equals the count of all failing rows; with ?limit=N fewer items are returned but total_failing is unchanged; an out-of-range limit (e.g. 200) is clamped, not rejected.
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-02
+      description: With ?framework=<id>, only failing rows whose framework_refs contains that key are returned, total_failing reflects the filtered count, and each item's control_ids carries the framework's control-id array from framework_refs; without ?framework=, control_ids is empty.
+      priority: critical
+      references_constraints: [C-04]
+    - id: AC-03
+      description: When no RuleCatalog is wired (or the catalog lacks the rule id), each item's title equals its rule_id and category is the empty string - the endpoint works without the kensa-rules corpus. RuleCatalog.Get returns (meta, true) for known ids and (zero, false) for unknown ids and on a nil catalog.
+      priority: high
+      references_constraints: [C-01]
+    - id: AC-04
+      description: GET failed-rules for an unknown host id returns 404 hosts.not_found.
+      priority: high
+      references_constraints: [C-03]
+    - id: AC-05
+      description: GET failed-rules by an anonymous caller is rejected (401/403); a viewer (host:read) succeeds.
+      priority: high
+      references_constraints: [C-03]
+    - id: AC-06
+      description: Source inspection - the failed-rules handler file never references the host_rule_state stored check-output column, so the sensitive payload cannot reach the response.
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-07
+      description: GET /api/v1/fleet/scan-queue returns {queued, running} counting only scan_runs rows in those states (terminal completed/failed rows excluded); anonymous callers are rejected.
+      priority: high
+      references_constraints: [C-03]

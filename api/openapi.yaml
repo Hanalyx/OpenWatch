@@ -1359,6 +1359,70 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
 
+  /api/v1/hosts/{id}/compliance/failed-rules:
+    get:
+      operationId: getHostFailedRules
+      summary: List a host's currently-failing compliance rules
+      description: |
+        Returns host_rule_state rows with current_status=fail for the
+        host, ordered by severity (critical > high > medium > low >
+        unset) then last_checked_at DESC. Titles and categories come
+        from the in-memory kensa rule catalog; when the catalog is
+        unavailable, title falls back to the rule id. The optional
+        framework filter restricts rows to those whose framework_refs
+        contains the key and projects that framework's control ids
+        into control_ids. total_failing is the post-filter, pre-limit
+        count. Requires host:read. Spec api-host-compliance.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+        - name: limit
+          in: query
+          description: Max rules returned. Clamped to [1, 100]; default 10.
+          schema: {type: integer, default: 10}
+        - name: framework
+          in: query
+          description: Filter to rows whose framework_refs contains this key and project its control ids.
+          schema: {type: string}
+      responses:
+        '200':
+          description: Failing rules, severity-ordered
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/HostFailedRulesResponse'}
+        '403':
+          description: Caller lacks host:read permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '404':
+          description: Host not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
+  /api/v1/fleet/scan-queue:
+    get:
+      operationId: getFleetScanQueue
+      summary: Scan-queue depth split by lifecycle state
+      description: |
+        Counts of scan_runs rows in the queued and running states.
+        Terminal (completed/failed) runs are excluded. Requires
+        host:read. Spec api-host-compliance.
+      responses:
+        '200':
+          description: Queued and running scan counts
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/FleetScanQueue'}
+        '403':
+          description: Caller lacks host:read permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
   /api/v1/intelligence/events:
     get:
       operationId: getIntelligenceEvents
@@ -2037,6 +2101,50 @@ components:
         skipped: {type: integer, format: int64}
         error:   {type: integer, format: int64}
         total:   {type: integer, format: int64}
+
+    # Per-host failing-rule listing (spec api-host-compliance).
+    # Severity-ordered; titles resolved from the kensa rule catalog.
+    # The host_rule_state stored check output is never exposed here.
+    HostFailedRule:
+      type: object
+      required: [rule_id, title, category, severity, control_ids, last_checked_at, check_count]
+      properties:
+        rule_id:  {type: string}
+        title:
+          type: string
+          description: Catalog title; falls back to rule_id when the catalog lacks the rule.
+        category:
+          type: string
+          description: Catalog category; empty when unknown.
+        severity:
+          type: string
+          description: Stored severity; empty when the scan recorded none.
+        control_ids:
+          type: array
+          items: {type: string}
+          description: Control ids for the requested framework; empty unless ?framework= is given.
+        last_checked_at: {type: string, format: date-time}
+        check_count:     {type: integer}
+
+    HostFailedRulesResponse:
+      type: object
+      required: [total_failing, rules]
+      properties:
+        total_failing:
+          type: integer
+          format: int64
+          description: Count of ALL failing rows for the host (post-framework-filter, pre-limit).
+        rules:
+          type: array
+          items: {$ref: '#/components/schemas/HostFailedRule'}
+
+    # Scan-queue depth KPI (spec api-host-compliance).
+    FleetScanQueue:
+      type: object
+      required: [queued, running]
+      properties:
+        queued:  {type: integer, format: int64}
+        running: {type: integer, format: int64}
 
     # Detail-view response: HostResponse plus enrichments. Used by
     # GET /hosts/{id} only; the list endpoint keeps HostResponse to

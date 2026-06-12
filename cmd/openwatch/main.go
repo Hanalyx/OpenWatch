@@ -452,6 +452,17 @@ func cmdServe(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 		slog.WarnContext(bootCtx, "OPENWATCH_KENSA_RULES_DIR override in use — DEVELOPMENT ONLY; production (especially air-gapped) installs the signed kensa-rules package and must not set this",
 			slog.String("rules_dir", scanRulesDir))
 	}
+	// Rule catalog for the failed-rules read path — same corpus
+	// resolution as the scan wiring below, constructed once. Non-fatal:
+	// without the corpus the endpoint falls back to rule-id titles.
+	// Spec api-host-compliance.
+	ruleCatalog, catalogErr := kensa.NewRuleCatalog(scanRulesDir)
+	if catalogErr != nil {
+		slog.WarnContext(bootCtx, "kensa rule catalog unavailable; failed-rules titles fall back to rule ids",
+			slog.String("error", catalogErr.Error()))
+		ruleCatalog = nil
+	}
+
 	scanExecutor := kensa.NewExecutor(worker.NewCredentialBridge(credSvc), audit.Emit)
 	if scanFn, scanErr := kensa.NewProductionScanFunc(kensa.ScanFuncDeps{
 		Pool:        pool,
@@ -480,7 +491,8 @@ func cmdServe(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 		WithEventBus(bus).
 		WithActivity(activity.NewService(pool)).
 		WithScanQueue(scanQueueKey).
-		WithScanWorker(scanWorker)
+		WithScanWorker(scanWorker).
+		WithRuleCatalog(ruleCatalog)
 	runErr := srv.Run(ctx)
 
 	// Shutdown order REVERSE of boot (C-02). liveness.Run + alertrouter
