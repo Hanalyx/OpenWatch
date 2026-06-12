@@ -3,12 +3,14 @@
 // Production ScanFunc mapping + factory-connect tests:
 //
 //	AC-01  TestRefsToMap_PreservesEveryControl / TestMapOutcomes_FieldCopy
+//	AC-18  TestProductionBinding_SourceInspection
 //	AC-22  TestConnect_ValidationPaths / TestEffectiveCredAndSudo
 package kensa
 
 import (
 	"context"
 	"errors"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -148,6 +150,36 @@ func TestEffectiveCredAndSudo(t *testing.T) {
 		_, sudo = effectiveCredAndSudo(rootCred, kensaapi.HostConfig{Sudo: true})
 		if sudo {
 			t.Error("root credential must downgrade sudo to false")
+		}
+	})
+}
+
+// @ac AC-18
+// The production chain is fully bound (v2.3.0 C-13): scanfunc.go
+// composes the scan-only Kensa via api.New + pkg/kensa.NewScanner over
+// this package's TransportFactory, and the worker subcommand binds it
+// through WithScanFunc(NewProductionScanFunc).
+func TestProductionBinding_SourceInspection(t *testing.T) {
+	t.Run("system-kensa-executor/AC-18", func(t *testing.T) {
+		scanfunc := mustReadFile(t, filepath.Join(pkgDir(t), "scanfunc.go"))
+		for _, needle := range []string{
+			"pkgkensa.NewScanner()",
+			"kensaapi.New(kensaapi.Config{",
+			"TransportFactory: factory",
+		} {
+			if !strings.Contains(scanfunc, needle) {
+				t.Errorf("scanfunc.go missing %q — production composition per C-13", needle)
+			}
+		}
+
+		workerSrc := mustReadFile(t, filepath.Join(pkgDir(t), "..", "..", "cmd", "openwatch", "worker.go"))
+		for _, needle := range []string{
+			"kensa.NewProductionScanFunc(",
+			".WithScanFunc(scanFn)",
+		} {
+			if !strings.Contains(workerSrc, needle) {
+				t.Errorf("cmd/openwatch/worker.go missing %q — the worker must bind the production ScanFunc", needle)
+			}
 		}
 	})
 }

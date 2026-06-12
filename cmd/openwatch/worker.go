@@ -30,6 +30,7 @@ import (
 	openlog "github.com/Hanalyx/openwatch/internal/log"
 	"github.com/Hanalyx/openwatch/internal/scheduler"
 	"github.com/Hanalyx/openwatch/internal/secretkey"
+	owssh "github.com/Hanalyx/openwatch/internal/ssh"
 	"github.com/Hanalyx/openwatch/internal/transactionlog"
 	"github.com/Hanalyx/openwatch/internal/version"
 	"github.com/Hanalyx/openwatch/internal/worker"
@@ -149,10 +150,27 @@ func cmdWorker(cfg *config.Config, args []string, stdout, stderr *os.File) int {
 		}
 	}
 
-	// Wire the scan-job execution chain.
+	// Wire the scan-job execution chain. The production ScanFunc loads
+	// the kensa-rules corpus once (default path /usr/share/kensa/rules;
+	// OPENWATCH_KENSA_RULES_DIR overrides for dev checkouts) and
+	// composes the scan-only Kensa over the in-memory transport.
+	// Host-key policy matches the discovery transport: TOFU + memory
+	// store. Spec system-kensa-executor C-13 / AC-18.
 	credSvc := credential.NewService(pool)
 	bridge := worker.NewCredentialBridge(credSvc)
-	executor := kensa.NewExecutor(bridge, audit.Emit)
+	scanFn, err := kensa.NewProductionScanFunc(kensa.ScanFuncDeps{
+		Pool:        pool,
+		Credentials: credSvc,
+		RulesDir:    os.Getenv("OPENWATCH_KENSA_RULES_DIR"),
+		HostKeyMode: owssh.ModeTOFU,
+		KnownHosts:  owssh.NewMemoryStore(),
+	})
+	if err != nil {
+		slog.ErrorContext(bootCtx, "kensa scan wiring failed — is the kensa-rules package installed (or OPENWATCH_KENSA_RULES_DIR set)?",
+			slog.String("error", err.Error()))
+		return 1
+	}
+	executor := kensa.NewExecutor(bridge, audit.Emit).WithScanFunc(scanFn)
 	writer := transactionlog.NewWriter(pool, audit.Emit)
 
 	scanWorker := worker.NewScanWorker(worker.Config{

@@ -1,7 +1,16 @@
 # Kensa ask: public construction path for scan with a caller-supplied TransportFactory
 
+> **RESOLVED — kensa v0.3.2 (2026-06-12) shipped BOTH shapes:**
+> `pkg/kensa.NewScanner()` (stateless, concurrency-safe shared; Remediate
+> errors by design) and `DefaultWithTransportFactory(ctx, storePath, tf,
+> engineOpts...)` (nil factory rejected; for Phase 7 remediation).
+> OpenWatch binds the scan-only composition:
+> `api.New(Config{Scanner: kensa.NewScanner(), TransportFactory: ours})` —
+> see `internal/kensa/scanfunc.go` (newScanService). Retained for the
+> record of the gap analysis.
+
 **From:** OpenWatch scan-foundation sprint · 2026-06-12
-**Blocks:** the production ScanFunc binding (the last step of OpenWatch Phase 0)
+**Blocks (was):** the production ScanFunc binding (the last step of OpenWatch Phase 0)
 
 ## The gap
 

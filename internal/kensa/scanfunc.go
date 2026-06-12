@@ -12,17 +12,15 @@
 // passphrase, no password fallback). The ScanFunc therefore ignores
 // the bridge's plain bytes.
 //
-// Construction seam: newScanService builds the Kensa instance. Kensa
-// v0.3.1 has no public constructor accepting a caller-supplied
-// TransportFactory (pkg/kensa.Default pins its on-disk ssh.Factory;
-// the scanner backend lives in internal/scan) — the export request is
-// docs/engineering/kensa_transport_injection_request.md. Until it
-// ships, newScanService returns ErrKensaConstructorPending and the
-// worker keeps the test-only fallback binding; everything around the
-// seam (rule loading, host lookup, outcome mapping, failure
-// classification) is final and tested.
+// Construction: kensa v0.3.2's scan-only composition —
+// api.New(Config{Scanner: pkg/kensa.NewScanner(), TransportFactory:
+// ours}). No engine, store, or signer is constructed; NewScanner is
+// stateless and safe for concurrent Scan calls sharing one instance
+// (per its doc), so one service serves the whole worker. Remediate on
+// this construction errors by design — Phase 7 switches to
+// DefaultWithTransportFactory when remediation lands.
 //
-// Spec: system-kensa-executor v2.2.0 (C-12, C-13, C-14).
+// Spec: system-kensa-executor v2.3.0 (C-12, C-13, C-14).
 package kensa
 
 import (
@@ -42,22 +40,20 @@ import (
 	owssh "github.com/Hanalyx/openwatch/internal/ssh"
 )
 
-// ErrKensaConstructorPending marks the one unbuilt link in the
-// production chain: kensa exporting a scan construction path that
-// accepts our TransportFactory.
-var ErrKensaConstructorPending = errors.New(
-	"kensa: no public constructor accepts a caller TransportFactory yet (see docs/engineering/kensa_transport_injection_request.md)")
-
 // scanService is the slice of kensa's surface the ScanFunc consumes.
-// pkg/kensa.Service satisfies it via its embedded *api.Kensa.
+// *api.Kensa satisfies it; tests inject fakes.
 type scanService interface {
 	Scan(ctx context.Context, host kensaapi.HostConfig, rules []*kensaapi.Rule, opts ...kensaapi.RunOption) (*kensaapi.ScanResult, error)
 }
 
-// newScanService constructs the Kensa instance bound to factory.
-// PENDING the kensa export; see the package comment.
-func newScanService(_ kensaapi.TransportFactory) (scanService, error) {
-	return nil, ErrKensaConstructorPending
+// newScanService composes the scan-only Kensa: the standard scanner
+// backend over our in-memory TransportFactory. kensa v0.3.2
+// pkg/kensa.NewScanner is stateless and concurrency-safe shared.
+func newScanService(factory kensaapi.TransportFactory) (scanService, error) {
+	return kensaapi.New(kensaapi.Config{
+		Scanner:          pkgkensa.NewScanner(),
+		TransportFactory: factory,
+	})
 }
 
 // ScanFuncDeps are the inputs to NewProductionScanFunc.

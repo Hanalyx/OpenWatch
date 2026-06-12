@@ -1,7 +1,7 @@
 spec:
   id: system-kensa-executor
   title: Kensa executor wrapper
-  version: "2.2.0"
+  version: "2.3.0"
   status: approved
   tier: 1
 
@@ -10,7 +10,7 @@ spec:
     feature: Kensa scan execution bridge
     description: >
       The executor invokes Kensa (Go module github.com/Hanalyx/kensa
-      pinned to v0.3.1) to run a scan against a single host using the
+      pinned to v0.3.2) to run a scan against a single host using the
       FULL rule corpus applicable to the host's detected OS
       capabilities. The Kensa API (`Kensa.Scan(ctx, host, rules,
       opts...)` per kensa-go/api/kensa.go:228) takes a `[]*api.Rule`
@@ -131,7 +131,7 @@ spec:
       type: technical
       enforcement: error
     - id: C-13
-      description: The production scanFunc binding MUST invoke github.com/Hanalyx/kensa/pkg/kensa.Default to construct a real Kensa with TransportFactory + Scanner wired; unwiredScanFunc placeholder MUST NOT remain in the source tree. Tests may inject fakes via WithScanFunc, but the default executor returned by NewExecutor MUST be production-ready
+      description: The production scanFunc MUST compose the scan-only Kensa via api.New with pkg/kensa.NewScanner (kensa v0.3.2 — stateless, concurrency-safe shared) and this package's TransportFactory; no engine, store, or signer is constructed for the scan path. The worker subcommand binds it via WithScanFunc(NewProductionScanFunc(...)). unwiredScanFunc may remain ONLY as the test fallback NewExecutor defaults to before binding, annotated as such
       type: technical
       enforcement: error
     - id: C-14
@@ -211,7 +211,7 @@ spec:
       priority: critical
       references_constraints: [C-12]
     - id: AC-18
-      description: Source-inspection of internal/kensa/ — the unwiredScanFunc symbol is absent OR is marked //nolint:unused with a comment explaining it is a test-only fallback. NewExecutor binds scanFunc to a real implementation that imports github.com/Hanalyx/kensa/pkg/kensa.
+      description: Source-inspection — internal/kensa/scanfunc.go composes api.New with pkg/kensa.NewScanner and the package TransportFactory; cmd/openwatch/worker.go binds the executor via WithScanFunc with NewProductionScanFunc; the ScanFunc signature carries no framework parameter; unwiredScanFunc, where present, exists only as the pre-binding test fallback.
       priority: critical
       references_constraints: [C-13]
     - id: AC-19
