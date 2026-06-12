@@ -207,7 +207,7 @@ func (h *handlers) GetSystemScanVariables(w http.ResponseWriter, r *http.Request
 		Default      string   `json:"default"`
 		Name         string   `json:"name"`
 		Overridden   bool     `json:"overridden"`
-		RuleIds      []string `json:"rule_ids"`
+		RuleIds      []string `json:"rule_ids"` //nolint:revive // must match the oapi-codegen anonymous struct field
 		Value        string   `json:"value"`
 	}{}}
 	for _, v := range h.varCatalog.List() {
@@ -221,7 +221,7 @@ func (h *handlers) GetSystemScanVariables(w http.ResponseWriter, r *http.Request
 			Default      string   `json:"default"`
 			Name         string   `json:"name"`
 			Overridden   bool     `json:"overridden"`
-			RuleIds      []string `json:"rule_ids"`
+			RuleIds      []string `json:"rule_ids"` //nolint:revive // must match the oapi-codegen anonymous struct field
 			Value        string   `json:"value"`
 		}{
 			AffectsRules: len(v.Rules),

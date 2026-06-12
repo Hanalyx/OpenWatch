@@ -456,7 +456,7 @@ func TestAPI_ScanVariables_GET_ListsCatalogWithFlags(t *testing.T) {
 				Value        string   `json:"value"`
 				Overridden   bool     `json:"overridden"`
 				AffectsRules int      `json:"affects_rules"`
-				RuleIds      []string `json:"rule_ids"`
+				RuleIds      []string `json:"rule_ids"` //nolint:revive // must match the oapi-codegen anonymous struct field
 				ConfigureMe  bool     `json:"configure_me"`
 			} `json:"variables"`
 		}
