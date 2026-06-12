@@ -20,13 +20,13 @@ import { CredentialsPage } from '@/pages/settings/CredentialsPage';
 import { UsersPage } from '@/pages/settings/UsersPage';
 import { ScanningPage } from '@/pages/settings/ScanningPage';
 import {
-  PoliciesPage,
   NotificationsPage,
   IntegrationsPage,
   SecurityPage,
   AuditPage,
   AboutPage,
 } from '@/pages/settings/StubbedPages';
+import { PoliciesPage } from '@/pages/settings/PoliciesPage';
 
 // Top-level route table.
 //

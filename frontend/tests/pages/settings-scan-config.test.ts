@@ -113,32 +113,34 @@ describe('frontend-settings-scan-config — source inspection', () => {
   });
 });
 
-describe('frontend-settings-scan-config v1.1.0 — scan variables card', () => {
+describe('frontend-settings-scan-config v1.1.0 — scan variables card (Compliance policies page)', () => {
   // @ac AC-06
-  test('frontend-settings-scan-config/AC-06 — variables card: query key, default-skipping PUT, configure-me chip, labeled inputs', () => {
-    const card = SRC.slice(
-      SRC.indexOf('function ScanVariablesCard'),
-      SRC.indexOf('function ScheduleStrip'),
+  test('frontend-settings-scan-config/AC-06 — variables card: query key, default-skipping PUT, configure-me chip, labeled inputs; mounted on PoliciesPage only', () => {
+    const card = readFileSync(
+      resolve(process.cwd(), 'src/components/settings/ScanVariablesCard.tsx'),
+      'utf8',
     );
-    expect(card.length).toBeGreaterThan(0);
     expect(card).toContain("queryKey: ['system', 'scan', 'variables']");
     expect(card).toContain("api.GET('/api/v1/system/scan/variables'");
     expect(card).toContain("api.PUT('/api/v1/system/scan/variables'");
     expect(card).toContain(
       "queryClient.invalidateQueries({ queryKey: ['system', 'scan', 'variables'] })",
     );
-    // PUT body skips default-equal values.
+    // PUT body skips default-equal values; edits-only state clears on save.
     expect(card).toContain('if (value !== v.default) overrides[v.name] = value;');
+    expect(card).toContain('setEdits({});');
     // Chip only for unconfigured placeholders.
     expect(card).toContain('v.configure_me && !v.overridden');
     expect(card).toContain('Configure me');
     // Inputs are labeled per variable.
     expect(card).toContain('aria-label={`Value for ${v.name}`}');
-    // Mounted inside the compliance section.
-    const section = SRC.slice(
-      SRC.indexOf('Compliance scanner (LIVE)'),
-      SRC.indexOf('Host connectivity monitor'),
+    // Home: the Compliance policies page mounts it; Scanning does not
+    // (variable values are policy content, not cadence).
+    const policies = readFileSync(
+      resolve(process.cwd(), 'src/pages/settings/PoliciesPage.tsx'),
+      'utf8',
     );
-    expect(section).toContain('<ScanVariablesCard />');
+    expect(policies).toContain('<ScanVariablesCard />');
+    expect(SRC).not.toContain('ScanVariablesCard');
   });
 });

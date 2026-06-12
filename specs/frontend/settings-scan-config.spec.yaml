@@ -52,7 +52,7 @@ spec:
         - "Six-state editable StateTable zipped with fleet-state counts"
         - "ScheduleStrip 24-bucket projection"
         - "Advanced: rate_limit stepper + maintenance_global toggle"
-        - "ScanVariablesCard: corpus-used variable list with override inputs (v1.1.0)"
+        - "ScanVariablesCard on the Compliance policies page: corpus-used variable list with override inputs (v1.1.0)"
       excludes:
         - "Quiet hours / jitter / retry policy - no backend"
         - "Per-group scan pausing - no group entity"
@@ -77,7 +77,7 @@ spec:
       enforcement: error
 
     - id: C-05
-      description: 'v1.1.0 - the scan-variables card queries ["system", "scan", "variables"], renders one row per corpus-used variable (mono name, affects-N-rules subline, value input), shows a "Configure me" chip on configure_me variables that are NOT yet overridden, and saves section-locally: the PUT body carries only values differing from the default, onSuccess re-anchors by invalidating the variables query. UI copy carries no em-dashes'
+      description: 'v1.1.0 - the scan-variables card lives on Settings > Compliance policies (NOT the Scanning page: variable values are policy content, what compliant means, while Scanning owns cadence). It queries ["system", "scan", "variables"], renders one row per corpus-used variable (mono name, affects-N-rules subline, value input), shows a "Configure me" chip on configure_me variables that are NOT yet overridden, and saves section-locally: the PUT body carries only values differing from the default; edits-only local state (no draft re-anchor) so a refetch racing a save cannot resurrect stale values. UI copy carries no em-dashes'
       type: technical
       enforcement: error
 
@@ -103,6 +103,6 @@ spec:
       priority: high
       references_constraints: [C-02, C-04]
     - id: AC-06
-      description: 'Source inspection: ScanVariablesCard queries "/api/v1/system/scan/variables" with queryKey ["system", "scan", "variables"]; the save mutation PUTs the same path with an overrides body built by skipping default-equal values; onSuccess invalidates the variables key; the "Configure me" chip renders only when v.configure_me && !v.overridden; each input carries an aria-label naming the variable'
+      description: 'Source inspection: components/settings/ScanVariablesCard.tsx queries "/api/v1/system/scan/variables" with queryKey ["system", "scan", "variables"]; the save mutation PUTs the same path with an overrides body built by skipping default-equal values; onSuccess clears the edits map and invalidates the variables key; the "Configure me" chip renders only when v.configure_me && !v.overridden; each input carries an aria-label naming the variable. PoliciesPage.tsx mounts <ScanVariablesCard /> and ScanningPage.tsx does NOT'
       priority: critical
       references_constraints: [C-05]
