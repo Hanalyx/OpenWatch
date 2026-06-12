@@ -259,6 +259,13 @@ func freshAPIServer(t *testing.T) (string, *pgxpool.Pool) {
 		t.Fatalf("DeriveQueueKey: %v", err)
 	}
 	s.WithScanQueue(scanKey)
+	// Variable catalog fixture: two corpus-style variables (one a
+	// configure-me placeholder) so the scan-variables endpoints are
+	// testable without the on-disk kensa corpus.
+	s.WithVariableCatalog(kensa.NewVariableCatalogFromInfos([]kensa.VariableInfo{
+		{Name: "banner_text", Default: "Authorized use only", Rules: []string{"r-banner"}, ConfigureMe: true},
+		{Name: "ssh_max_auth_tries", Default: "4", Rules: []string{"r-ssh-auth", "r-ssh-tries"}},
+	}))
 
 	// Register a ScanWorker on the in-process worker so claimed scan
 	// jobs are processed (HMAC verify + scan_runs lifecycle) instead of

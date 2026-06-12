@@ -960,6 +960,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/system/scan/variables": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the corpus-used kensa rule-template variables with defaults and overrides
+         * @description One entry per variable the installed rule corpus actually
+         *     references (kensa ships more built-in defaults than the corpus
+         *     uses; unused ones are not listed). Each entry carries the
+         *     built-in default, the operator override when set, the count
+         *     and ids of affected rules, and the configure_me flag marking
+         *     organization-specific placeholder defaults
+         *     (rsyslog_remote_server, chrony_ntp_pool, banner_text) that
+         *     operators should always review. Spec api-system-scan-config.
+         */
+        get: operations["getSystemScanVariables"];
+        /**
+         * Replace the operator variable overrides
+         * @description PUT replaces the FULL override map (absent names revert to the
+         *     built-in defaults). Unknown variable names (not used by the
+         *     installed corpus) are rejected with 400 naming the offending
+         *     key; overrides equal to the built-in default are dropped at
+         *     write time. Emits system.config.changed. The scan path reloads
+         *     the rule corpus with the merged variables on the next scan.
+         *     Spec api-system-scan-config.
+         */
+        put: operations["putSystemScanVariables"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/system/connectivity/status": {
         parameters: {
             query?: never;
@@ -2015,6 +2052,29 @@ export interface components {
                 hour_offset: number;
                 due_count: number;
             }[];
+        };
+        ScanVariablesResponse: {
+            /** @description Corpus-used variables sorted by name */
+            variables: {
+                name: string;
+                /** @description kensa built-in default in effect without an override */
+                default: string;
+                /** @description Effective value (override when set, else the default) */
+                value: string;
+                overridden: boolean;
+                /** @description Count of corpus rules referencing the variable */
+                affects_rules: number;
+                /** @description The referencing rule ids, sorted */
+                rule_ids: string[];
+                /** @description Organization-specific placeholder default the operator should always review */
+                configure_me: boolean;
+            }[];
+        };
+        ScanVariableOverrides: {
+            /** @description Variable name to override value. PUT replaces the full map */
+            overrides: {
+                [key: string]: string;
+            };
         };
         FleetComplianceStates: {
             /** @description One entry per ComplianceState in ladder order; zero-count states included */
@@ -4281,6 +4341,69 @@ export interface operations {
                 };
             };
             /** @description Caller lacks host:read permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getSystemScanVariables: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Corpus-used variables sorted by name */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScanVariablesResponse"];
+                };
+            };
+            /** @description Caller lacks system:read permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    putSystemScanVariables: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScanVariableOverrides"];
+            };
+        };
+        responses: {
+            /** @description The normalized override map that was persisted */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScanVariableOverrides"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            /** @description Caller lacks system:config:write permission */
             403: {
                 headers: {
                     [name: string]: unknown;

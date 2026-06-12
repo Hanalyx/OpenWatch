@@ -1,7 +1,7 @@
 spec:
   id: frontend-settings-scan-config
   title: Settings Scanning page - Compliance scanner section wired to the adaptive scheduler config
-  version: "1.0.0"
+  version: "1.1.0"
   status: approved
   tier: 2
 
@@ -52,10 +52,11 @@ spec:
         - "Six-state editable StateTable zipped with fleet-state counts"
         - "ScheduleStrip 24-bucket projection"
         - "Advanced: rate_limit stepper + maintenance_global toggle"
+        - "ScanVariablesCard: corpus-used variable list with override inputs (v1.1.0)"
       excludes:
-        - "Scan variables sub-section (kensa.RuleVariables) - separate slice"
         - "Quiet hours / jitter / retry policy - no backend"
         - "Per-group scan pausing - no group entity"
+        - "Per-host/per-group variable tiers - fleet-wide only"
 
   constraints:
     - id: C-01
@@ -72,6 +73,11 @@ spec:
       enforcement: error
     - id: C-04
       description: 'No dead controls: the BackendPendingBanner, the "UI only" badge, and the unwired quiet-hours select are gone from the compliance section; the section badge derives Running/Paused from enabled + maintenance_global. UI copy carries no em-dashes'
+      type: technical
+      enforcement: error
+
+    - id: C-05
+      description: 'v1.1.0 - the scan-variables card queries ["system", "scan", "variables"], renders one row per corpus-used variable (mono name, affects-N-rules subline, value input), shows a "Configure me" chip on configure_me variables that are NOT yet overridden, and saves section-locally: the PUT body carries only values differing from the default, onSuccess re-anchors by invalidating the variables query. UI copy carries no em-dashes'
       type: technical
       enforcement: error
 
@@ -96,3 +102,7 @@ spec:
       description: 'Source inspection: the Advanced disclosure wires rate_limit through a Stepper bounded 1..100 and maintenance_global through a Toggle, both editing the scan draft'
       priority: high
       references_constraints: [C-02, C-04]
+    - id: AC-06
+      description: 'Source inspection: ScanVariablesCard queries "/api/v1/system/scan/variables" with queryKey ["system", "scan", "variables"]; the save mutation PUTs the same path with an overrides body built by skipping default-equal values; onSuccess invalidates the variables key; the "Configure me" chip renders only when v.configure_me && !v.overridden; each input carries an aria-label naming the variable'
+      priority: critical
+      references_constraints: [C-05]

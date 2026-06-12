@@ -112,3 +112,33 @@ describe('frontend-settings-scan-config — source inspection', () => {
     expect(advanced).toContain('setScanDraft((d) => (d ? { ...d, maintenance_global: v } : d))');
   });
 });
+
+describe('frontend-settings-scan-config v1.1.0 — scan variables card', () => {
+  // @ac AC-06
+  test('frontend-settings-scan-config/AC-06 — variables card: query key, default-skipping PUT, configure-me chip, labeled inputs', () => {
+    const card = SRC.slice(
+      SRC.indexOf('function ScanVariablesCard'),
+      SRC.indexOf('function ScheduleStrip'),
+    );
+    expect(card.length).toBeGreaterThan(0);
+    expect(card).toContain("queryKey: ['system', 'scan', 'variables']");
+    expect(card).toContain("api.GET('/api/v1/system/scan/variables'");
+    expect(card).toContain("api.PUT('/api/v1/system/scan/variables'");
+    expect(card).toContain(
+      "queryClient.invalidateQueries({ queryKey: ['system', 'scan', 'variables'] })",
+    );
+    // PUT body skips default-equal values.
+    expect(card).toContain('if (value !== v.default) overrides[v.name] = value;');
+    // Chip only for unconfigured placeholders.
+    expect(card).toContain('v.configure_me && !v.overridden');
+    expect(card).toContain('Configure me');
+    // Inputs are labeled per variable.
+    expect(card).toContain('aria-label={`Value for ${v.name}`}');
+    // Mounted inside the compliance section.
+    const section = SRC.slice(
+      SRC.indexOf('Compliance scanner (LIVE)'),
+      SRC.indexOf('Host connectivity monitor'),
+    );
+    expect(section).toContain('<ScanVariablesCard />');
+  });
+});

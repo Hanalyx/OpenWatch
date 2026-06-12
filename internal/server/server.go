@@ -115,6 +115,14 @@ func (s *Server) WithRuleCatalog(c *kensa.RuleCatalog) *Server {
 	return s
 }
 
+// WithVariableCatalog threads the kensa variable catalog into the API
+// handlers so /system/scan/variables can list corpus-used variables
+// and validate override names. Nil-safe. Spec api-system-scan-config.
+func (s *Server) WithVariableCatalog(c *kensa.VariableCatalog) *Server {
+	s.handlers.varCatalog = c
+	return s
+}
+
 // WithScanWorker registers the scan processor on the in-process job
 // worker, so "scan" jobs claimed by the serve process execute instead
 // of dead-ending (queue.Dequeue is not type-filtered). Spec

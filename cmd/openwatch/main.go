@@ -462,6 +462,15 @@ func cmdServe(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 			slog.String("error", catalogErr.Error()))
 		ruleCatalog = nil
 	}
+	// Variable catalog for the Settings scan-variables surface — same
+	// corpus resolution, same non-fatal posture (without it the
+	// endpoint lists nothing and rejects overrides).
+	varCatalog, varCatErr := kensa.NewVariableCatalog(scanRulesDir)
+	if varCatErr != nil {
+		slog.WarnContext(bootCtx, "kensa variable catalog unavailable; scan-variables surface disabled",
+			slog.String("error", varCatErr.Error()))
+		varCatalog = nil
+	}
 
 	scanExecutor := kensa.NewExecutor(worker.NewCredentialBridge(credSvc), audit.Emit)
 	if scanFn, scanErr := kensa.NewProductionScanFunc(kensa.ScanFuncDeps{
@@ -470,6 +479,10 @@ func cmdServe(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 		RulesDir:    scanRulesDir,
 		HostKeyMode: owssh.ModeTOFU,
 		KnownHosts:  owssh.NewMemoryStore(),
+		Variables: func(ctx context.Context) (map[string]string, error) {
+			vars, err := cfgStore.LoadScanVars(ctx)
+			return vars, err
+		},
 	}); scanErr != nil {
 		slog.WarnContext(bootCtx, "kensa scan wiring unavailable — on-demand scans will fail until the kensa-rules package is installed (or OPENWATCH_KENSA_RULES_DIR set)",
 			slog.String("error", scanErr.Error()))
@@ -516,7 +529,8 @@ func cmdServe(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 		WithActivity(activity.NewService(pool)).
 		WithScanQueue(scanQueueKey).
 		WithScanWorker(scanWorker).
-		WithRuleCatalog(ruleCatalog)
+		WithRuleCatalog(ruleCatalog).
+		WithVariableCatalog(varCatalog)
 	runErr := srv.Run(ctx)
 
 	// Shutdown order REVERSE of boot (C-02). liveness.Run + alertrouter

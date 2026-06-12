@@ -28,6 +28,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
+	"sort"
+	"strings"
+	"sync"
 	"time"
 
 	kensaapi "github.com/Hanalyx/kensa/api"
@@ -66,16 +70,27 @@ type ScanFuncDeps struct {
 	// HostKeyMode + KnownHosts set the dial-time host-key policy.
 	HostKeyMode owssh.Mode
 	KnownHosts  owssh.KnownHostsStore
+	// Variables, when non-nil, returns the operator's variable
+	// overrides (systemconfig scan_variables). The corpus is
+	// re-loaded with the merged vars whenever the override set
+	// changes, so a Settings edit applies to the NEXT scan without a
+	// restart. Nil keeps the boot-loaded corpus (built-in defaults).
+	Variables func(ctx context.Context) (map[string]string, error)
 }
 
-// NewProductionScanFunc loads the rule corpus once (Phase 0 passes nil
-// vars: every templated rule carries a safe embedded default) and
-// returns the ScanFunc the worker binds via WithScanFunc.
+// NewProductionScanFunc loads the rule corpus once at construction
+// (built-in defaults; LoadRules merges caller vars over BuiltInVars)
+// and returns the ScanFunc the worker binds via WithScanFunc. When
+// deps.Variables is wired, each scan checks the operator override set
+// and re-loads the corpus only when it changed (a fingerprint
+// comparison; reload failures keep the last-good corpus so a disk
+// blip never bricks scanning).
 func NewProductionScanFunc(deps ScanFuncDeps) (ScanFunc, error) {
 	rules, err := pkgkensa.LoadRules(deps.RulesDir, nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("kensa: load rule corpus: %w", err)
 	}
+	corpus := &corpusCache{rules: rules, dir: deps.RulesDir}
 	factory := &TransportFactory{
 		Resolve: deps.Credentials.Resolve,
 		Mode:    deps.HostKeyMode,
@@ -91,8 +106,9 @@ func NewProductionScanFunc(deps ScanFuncDeps) (ScanFunc, error) {
 		if err != nil {
 			return nil, ReasonKensaError, err
 		}
+		scanRules := corpus.current(ctx, deps.Variables)
 		started := time.Now().UTC()
-		scanRes, err := svc.Scan(ctx, target.hostConfig(hostID), rules)
+		scanRes, err := svc.Scan(ctx, target.hostConfig(hostID), scanRules)
 		if err != nil {
 			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 				return nil, "", err
@@ -243,4 +259,69 @@ func classifyScanError(err error) FailureReason {
 		// class; the error text rides the audit detail.
 		return ReasonKensaError
 	}
+}
+
+// corpusCache holds the loaded rule corpus keyed by the operator
+// override fingerprint. One mutex-guarded slot: scans are serialized
+// per worker and override edits are rare, so anything fancier buys
+// nothing.
+type corpusCache struct {
+	mu          sync.Mutex
+	rules       []*kensaapi.Rule
+	fingerprint string // "" = built-in defaults (boot load)
+	dir         string
+}
+
+// current returns the corpus matching the operator's current override
+// set, re-loading when the set changed since the last scan. Any
+// failure (override load OR corpus reload) keeps the last-good corpus
+// — scanning never stops on a config-read blip; the warning names the
+// cause.
+func (c *corpusCache) current(ctx context.Context, vars func(ctx context.Context) (map[string]string, error)) []*kensaapi.Rule {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if vars == nil {
+		return c.rules
+	}
+	overrides, err := vars(ctx)
+	if err != nil {
+		slog.WarnContext(ctx, "kensa: scan variables load failed; keeping current corpus",
+			slog.String("error", err.Error()))
+		return c.rules
+	}
+	fp := varsFingerprint(overrides)
+	if fp == c.fingerprint {
+		return c.rules
+	}
+	reloaded, err := pkgkensa.LoadRules(c.dir, nil, overrides)
+	if err != nil {
+		slog.WarnContext(ctx, "kensa: corpus reload with overrides failed; keeping current corpus",
+			slog.String("error", err.Error()))
+		return c.rules
+	}
+	c.rules = reloaded
+	c.fingerprint = fp
+	slog.InfoContext(ctx, "kensa: corpus reloaded with operator variable overrides",
+		slog.Int("override_count", len(overrides)), slog.Int("rules", len(reloaded)))
+	return c.rules
+}
+
+// varsFingerprint is a stable identity for an override map.
+func varsFingerprint(m map[string]string) string {
+	if len(m) == 0 {
+		return ""
+	}
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	var b strings.Builder
+	for _, k := range keys {
+		b.WriteString(k)
+		b.WriteByte('=')
+		b.WriteString(m[k])
+		b.WriteByte(';')
+	}
+	return b.String()
 }

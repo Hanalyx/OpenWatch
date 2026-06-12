@@ -1,7 +1,7 @@
 spec:
   id: api-system-scan-config
   title: Adaptive compliance scan scheduler config + fleet-state + schedule-preview HTTP surface
-  version: "1.0.0"
+  version: "1.1.0"
   status: approved
   tier: 2
 
@@ -23,6 +23,8 @@ spec:
         PUT /api/v1/system/scan/config            - clamp + persist + audit
         GET /api/v1/fleet/compliance/states       - hosts per compliance state
         GET /api/v1/system/scan/schedule-preview  - 24h forward projection
+        GET /api/v1/system/scan/variables         - corpus-used template variables (v1.1.0)
+        PUT /api/v1/system/scan/variables         - replace operator overrides (v1.1.0)
 
       PUT semantics DIVERGE from the sibling configs deliberately:
       ladder minutes are CLAMPED into [5, 2880] and rate_limit into
@@ -57,9 +59,8 @@ spec:
         - "GET /api/v1/system/scan/schedule-preview - next_scan_at, due_now, queue depth, 24 hourly buckets"
         - "Audit emission via systemconfig.SetScan (SystemConfigChanged with old + new)"
       excludes:
-        - "Hot-reload signaling - RunManaged refreshes the config at the top of each 60s tick"
-        - "Per-host or per-group interval overrides - the ladder is fleet-wide"
-        - "Scan-variables sub-config - separate slice (systemconfig key scan_variables)"
+        - "Hot-reload signaling - RunManaged refreshes the config at the top of each 60s tick; the scan path reloads the corpus on the next scan after a variables change"
+        - "Per-host or per-group interval overrides and per-host/per-group variable tiers - fleet-wide only (ratified Kensa boundary)"
 
   constraints:
     - id: C-01
@@ -84,6 +85,11 @@ spec:
       enforcement: error
     - id: C-06
       description: 'The schedule preview MUST be a read-only projection: no enqueue, no host_compliance_schedule write. Maintenance-mode rows and soft-deleted hosts are excluded from every figure'
+      type: technical
+      enforcement: error
+
+    - id: C-07
+      description: 'v1.1.0 - the variables surface lists ONLY corpus-used variables (kensa.RuleVariables intersected with BuiltInVars via the internal/kensa VariableCatalog; unused built-ins are not rendered). The three organization-specific placeholder defaults (rsyslog_remote_server, chrony_ntp_pool, banner_text) carry configure_me: true. PUT replaces the FULL override map, rejects unknown names with 400 naming the key, and drops overrides equal to the built-in default. The scan path reloads the rule corpus with the merged variables when the override set changes (fingerprint compare; reload failure keeps the last-good corpus)'
       type: technical
       enforcement: error
 
@@ -116,3 +122,11 @@ spec:
       description: 'GET /api/v1/system/scan/schedule-preview returns next_scan_at = the soonest FUTURE next_scheduled_scan (null when none), due_now = count of rows already past due, queued_jobs/running_jobs from scan_runs, and exactly 24 hourly buckets where a row due in N hours lands in bucket hour_offset=N; maintenance-mode rows are excluded from all figures; the call performs no writes'
       priority: critical
       references_constraints: [C-06]
+    - id: AC-08
+      description: 'v1.1.0 - GET /system/scan/variables returns one entry per corpus-used variable sorted by name, each with the built-in default, the effective value (override when set), overridden flag, affects_rules count + sorted rule_ids, and configure_me true for exactly the three placeholder names; anonymous callers are rejected'
+      priority: critical
+      references_constraints: [C-02, C-07]
+    - id: AC-09
+      description: 'v1.1.0 - PUT /system/scan/variables with a valid override persists it (subsequent GET shows overridden: true and the new effective value); an override equal to the built-in default is dropped (GET shows overridden: false); an unknown variable name returns 400 validation.field_invalid naming the key and persists nothing; a viewer PUT returns 403; a successful PUT emits SystemConfigChanged with config_key scan_variables'
+      priority: critical
+      references_constraints: [C-02, C-04, C-07]

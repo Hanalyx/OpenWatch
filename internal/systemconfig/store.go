@@ -387,3 +387,87 @@ func (s *Store) SetScan(ctx context.Context, cfg ScanConfig, changedBy string) (
 	}
 	return cfg, nil
 }
+
+// LoadScanVars returns the persisted operator variable overrides, or
+// an empty map when none exist. Only returns an error for DB /
+// unmarshal failures.
+//
+// Spec api-system-scan-config v1.1.0.
+func (s *Store) LoadScanVars(ctx context.Context) (ScanVariables, error) {
+	var raw []byte
+	err := s.pool.QueryRow(ctx, `SELECT value FROM system_config WHERE key = $1`, KeyScanVars).Scan(&raw)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ScanVariables{}, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("systemconfig: load %s: %w", KeyScanVars, err)
+	}
+	vars := ScanVariables{}
+	if err := json.Unmarshal(raw, &vars); err != nil {
+		return nil, fmt.Errorf("systemconfig: unmarshal %s: %w", KeyScanVars, err)
+	}
+	return vars, nil
+}
+
+// SetScanVars validates and persists the FULL override map (PUT
+// replaces, not merges) and emits audit.SystemConfigChanged with the
+// old + new snapshots.
+//
+// Spec api-system-scan-config v1.1.0.
+func (s *Store) SetScanVars(ctx context.Context, vars ScanVariables, changedBy string) error {
+	if vars == nil {
+		vars = ScanVariables{}
+	}
+	if err := vars.Validate(); err != nil {
+		return err
+	}
+	newBytes, err := json.Marshal(vars)
+	if err != nil {
+		return fmt.Errorf("systemconfig: marshal: %w", err)
+	}
+
+	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return fmt.Errorf("systemconfig: begin: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	var oldRaw []byte
+	err = tx.QueryRow(ctx, `SELECT value FROM system_config WHERE key = $1 FOR UPDATE`, KeyScanVars).Scan(&oldRaw)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return fmt.Errorf("systemconfig: read old: %w", err)
+	}
+	oldVars := ScanVariables{}
+	if len(oldRaw) > 0 {
+		_ = json.Unmarshal(oldRaw, &oldVars)
+	}
+
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO system_config (key, value, updated_at, updated_by)
+		VALUES ($1, $2, now(), $3)
+		ON CONFLICT (key) DO UPDATE
+		   SET value      = EXCLUDED.value,
+		       updated_at = EXCLUDED.updated_at,
+		       updated_by = EXCLUDED.updated_by`,
+		KeyScanVars, newBytes, changedBy,
+	); err != nil {
+		return fmt.Errorf("systemconfig: upsert: %w", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("systemconfig: commit: %w", err)
+	}
+
+	if s.emit != nil {
+		s.emit(ctx, audit.SystemConfigChanged, audit.Event{
+			ActorType: "user",
+			ActorID:   changedBy,
+			Detail: audit.MakeDetail(map[string]any{
+				"config_key": KeyScanVars,
+				"old_value":  oldVars,
+				"new_value":  vars,
+				"changed_by": changedBy,
+			}),
+		})
+	}
+	return nil
+}

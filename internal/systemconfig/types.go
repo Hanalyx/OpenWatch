@@ -13,6 +13,7 @@ const (
 	KeySecurity     = "security"
 	KeyDiscovery    = "discovery"
 	KeyScan         = "scan"
+	KeyScanVars     = "scan_variables"
 )
 
 // ConnectivityConfig is the typed shape stored under KeyConnectivity.
@@ -322,6 +323,45 @@ func (c ScanConfig) Validate() error {
 	}
 	if c.RateLimit < 1 || c.RateLimit > 100 {
 		return fmt.Errorf("%w: rate_limit=%d must be 1..100", ErrInvalidConfig, c.RateLimit)
+	}
+	return nil
+}
+
+// ScanVariables is the typed shape stored under KeyScanVars: operator
+// overrides for the kensa rule-template variables, name -> value.
+// Only OVERRIDES are stored — names absent here resolve to kensa's
+// built-in defaults at rule-load time (LoadRules merges caller vars
+// over BuiltInVars). The global tier only; per-group/per-host tiers
+// are a later phase per the ratified Kensa boundary.
+//
+// Spec: api-system-scan-config v1.1.0 (scan variables endpoints).
+type ScanVariables map[string]string
+
+// Bounds for ScanVariables.Validate. The corpus uses ~20 variables;
+// 200 names is far above any legitimate use. Values are shell-safe
+// template substitutions (paths, hostnames, banner text) — 4 KiB
+// covers a long login banner with margin.
+const (
+	ScanVarsMaxCount    = 200
+	ScanVarsMaxValueLen = 4096
+	ScanVarsMaxNameLen  = 128
+)
+
+// Validate bounds the override map. Name VALIDITY (is this a variable
+// the corpus actually uses?) is the HTTP handler's job — it holds the
+// kensa variable catalog; this store-side check only blocks abuse
+// shapes (oversized maps, empty or huge names, huge values).
+func (v ScanVariables) Validate() error {
+	if len(v) > ScanVarsMaxCount {
+		return fmt.Errorf("%w: %d overrides exceeds the %d cap", ErrInvalidConfig, len(v), ScanVarsMaxCount)
+	}
+	for name, val := range v {
+		if name == "" || len(name) > ScanVarsMaxNameLen {
+			return fmt.Errorf("%w: variable name %q must be 1..%d chars", ErrInvalidConfig, name, ScanVarsMaxNameLen)
+		}
+		if len(val) > ScanVarsMaxValueLen {
+			return fmt.Errorf("%w: value for %q exceeds %d bytes", ErrInvalidConfig, name, ScanVarsMaxValueLen)
+		}
 	}
 	return nil
 }
