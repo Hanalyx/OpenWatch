@@ -29,9 +29,11 @@ import { OSDiscoverySection } from '@/components/settings/OSDiscoverySection';
 //
 // Wiring honesty:
 //
-//   • Compliance scanner    — local state only. The Go backend has no
-//                              compliance scheduler yet; tracked as
-//                              post-Slice-B (Slice C).
+//   • Compliance scanner    — local state only. On-demand scans are
+//                              live (POST /hosts/{id}/scans, Run scan
+//                              on Host Detail); the ADAPTIVE SCHEDULER
+//                              (per-state cadence, max 48h) is what's
+//                              pending — scan plan Phase 4 (BACKLOG).
 //   • Connectivity monitor  — fully wired against
 //                              GET /api/v1/system/connectivity/config,
 //                              PUT /api/v1/system/connectivity/config,
@@ -456,12 +458,13 @@ export function ScanningPage() {
       {/* ────────── Compliance scanner ────────── */}
       <Section title="Compliance scanner" badge="UI only" badgeTier="warn">
         <BackendPendingBanner
-          slice="Compliance scheduler (post-Slice-B / Slice C)"
-          text="The Go backend has no compliance scheduler yet — this section is a UI preview. Save is disabled."
+          slice="Adaptive compliance scheduler (scan plan Phase 4)"
+          text="On-demand scans are live (Run scan on a host's detail page). The adaptive scheduler that re-scans automatically on a per-state cadence is not built yet, so these knobs are a UI preview. Save is disabled."
         />
         <p style={leadStyle}>
-          Re-runs the active CIS / STIG profile against each host. Cadence is set per compliance
-          state — failing hosts get re-checked more often.
+          Scans run the full Kensa rule corpus against each host. Frameworks (CIS, STIG, NIST, and
+          others) are reporting lenses over the same results, not scan inputs. Cadence is set per
+          compliance state: failing hosts get re-checked more often.
         </p>
 
         <SchedSummary
