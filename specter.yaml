@@ -63,6 +63,7 @@ domains:
             - api-openapi-docs
             - release-admin-signoff
             - system-worker-subcommand
+            - system-scan-runs
 settings:
     specs_dir: specs
     # Honored by `specter coverage` (not by `specter sync` — CI passes

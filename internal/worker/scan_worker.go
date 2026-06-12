@@ -40,6 +40,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/audit"
 	"github.com/Hanalyx/openwatch/internal/kensa"
 	"github.com/Hanalyx/openwatch/internal/queue"
+	"github.com/Hanalyx/openwatch/internal/scanruns"
 	"github.com/Hanalyx/openwatch/internal/scheduler"
 	"github.com/Hanalyx/openwatch/internal/transactionlog"
 )
@@ -208,6 +209,7 @@ func (w *ScanWorker) processJob(ctx context.Context, j *queue.Job) {
 				slog.String("job_id", j.ID.String()),
 				slog.Any("panic", r))
 			_ = queue.Fail(ctx, w.pool, j.ID, fmt.Sprintf("worker panic: %v", r))
+			w.markRunFailed(ctx, j.ID, "worker_panic")
 		}
 	}()
 
@@ -223,12 +225,24 @@ func (w *ScanWorker) processJob(ctx context.Context, j *queue.Job) {
 	if err != nil {
 		w.emitHMACRejected(ctx, j.ID, payload.HostID, err)
 		_ = queue.Fail(ctx, w.pool, j.ID, fmt.Sprintf("hmac_rejected: %v", err))
+		w.markRunFailed(ctx, j.ID, "hmac_rejected")
 		return
 	}
 	if !scheduler.Verify(w.queueKey, payload, tag) {
 		w.emitHMACRejected(ctx, j.ID, payload.HostID, errors.New("hmac mismatch"))
 		_ = queue.Fail(ctx, w.pool, j.ID, "hmac_rejected: signature does not match payload")
+		w.markRunFailed(ctx, j.ID, "hmac_rejected")
 		return
+	}
+
+	// Scan-run logbook: the run is now in a worker's hands. UPSERT so a
+	// job enqueued without an Insert (hand-enqueued) still gets a row.
+	// Spec system-scan-runs AC-02.
+	if err := scanruns.MarkRunning(ctx, w.pool, j.ID, payload.HostID, payload.PolicyVersion); err != nil {
+		slog.WarnContext(ctx, "worker scan_runs mark running failed",
+			slog.String("scan_id", j.ID.String()),
+			slog.String("error", err.Error()))
+		// Non-fatal: the logbook is observability, not the scan itself.
 	}
 
 	// Per-host concurrency guard via pg_advisory_xact_lock (C-09).
@@ -274,6 +288,14 @@ func (w *ScanWorker) processJob(ctx context.Context, j *queue.Job) {
 		return
 	}
 
+	// Scan-run logbook: completed, with per-outcome counts.
+	// Spec system-scan-runs AC-03.
+	if err := scanruns.MarkCompleted(ctx, w.pool, j.ID, outcomeCounts(result.Outcomes)); err != nil {
+		slog.WarnContext(ctx, "worker scan_runs mark completed failed",
+			slog.String("scan_id", j.ID.String()),
+			slog.String("error", err.Error()))
+	}
+
 	// Reset backoff streak on success.
 	if err := w.executor.RecordSuccess(ctx, w.pool, payload.HostID); err != nil {
 		slog.WarnContext(ctx, "worker backoff reset failed",
@@ -303,12 +325,16 @@ func (w *ScanWorker) classifyAndHandle(ctx context.Context, jobID uuid.UUID, hos
 	// scan.failed with the typed reason.
 	case errors.Is(scanErr, kensa.ErrCredentialDecryption):
 		_ = queue.Fail(ctx, w.pool, jobID, "credential_decryption_failed")
+		w.markRunFailed(ctx, jobID, "credential_decryption_failed")
 	case errors.Is(scanErr, kensa.ErrEvidenceOversize):
 		_ = queue.Fail(ctx, w.pool, jobID, "evidence_oversize")
+		w.markRunFailed(ctx, jobID, "evidence_oversize")
 	case errors.Is(scanErr, kensa.ErrHostKeyUnknown):
 		_ = queue.Fail(ctx, w.pool, jobID, "host_key_unknown")
+		w.markRunFailed(ctx, jobID, "host_key_unknown")
 	case errors.Is(scanErr, kensa.ErrNoCredential):
 		_ = queue.Fail(ctx, w.pool, jobID, "no_credential")
+		w.markRunFailed(ctx, jobID, "no_credential")
 
 	// Transient: host_busy, kensa internal (planner error, timeout),
 	// context cancellation. Apply the backoff ladder.
@@ -360,6 +386,7 @@ func (w *ScanWorker) recordTransientFailure(ctx context.Context, jobID uuid.UUID
 		// Still queue.Fail the job — backoff is housekeeping; the job
 		// outcome is the primary persistence concern.
 		_ = queue.Fail(ctx, w.pool, jobID, string(reason))
+		w.markRunFailed(ctx, jobID, string(reason))
 		return
 	}
 
@@ -380,6 +407,37 @@ func (w *ScanWorker) recordTransientFailure(ctx context.Context, jobID uuid.UUID
 			slog.String("job_id", jobID.String()),
 			slog.String("error", err.Error()))
 	}
+	w.markRunFailed(ctx, jobID, string(reason))
+}
+
+// markRunFailed records the failure in the scan_runs logbook with its
+// typed reason. Best-effort: logbook writes never affect the job
+// outcome. Spec system-scan-runs AC-04.
+func (w *ScanWorker) markRunFailed(ctx context.Context, jobID uuid.UUID, reason string) {
+	if err := scanruns.MarkFailed(ctx, w.pool, jobID, reason); err != nil {
+		slog.WarnContext(ctx, "worker scan_runs mark failed errored",
+			slog.String("scan_id", jobID.String()),
+			slog.String("error", err.Error()))
+	}
+}
+
+// outcomeCounts tallies a completed scan's outcomes per status for the
+// scan_runs row. Spec system-scan-runs AC-03.
+func outcomeCounts(outcomes []kensa.RuleOutcome) scanruns.Counts {
+	var c scanruns.Counts
+	for _, o := range outcomes {
+		switch o.Status {
+		case kensa.StatusPass:
+			c.Pass++
+		case kensa.StatusFail:
+			c.Fail++
+		case kensa.StatusSkipped:
+			c.Skipped++
+		case kensa.StatusError:
+			c.Error++
+		}
+	}
+	return c
 }
 
 // emitHMACRejected fires scheduler.job.hmac_rejected. The event was
