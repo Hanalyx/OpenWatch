@@ -82,46 +82,6 @@ function StubCard({ rows }: { rows: { name: string; description: string }[] }) {
   );
 }
 
-// ── Compliance policies ─────────────────────────────────────────────────
-export function PoliciesPage() {
-  return (
-    <StubShell
-      title="Compliance policies"
-      description="Framework lenses, rule scope, and exception workflow that determine the compliance posture surfaced everywhere else."
-      slice="Slice B (compliance API)"
-      pendingText="Framework registry + exception-workflow endpoints pending."
-      crumb="Compliance policies"
-    >
-      <Section title="Framework lenses">
-        <StubCard
-          rows={[
-            {
-              name: 'Enabled frameworks',
-              description:
-                'CIS RHEL 9, STIG RHEL 9 V2R7, NIST 800-53 R5, PCI-DSS v4.0, FedRAMP Moderate.',
-            },
-            {
-              name: 'Default lens',
-              description: 'Which framework Hosts and Reports filter to by default.',
-            },
-          ]}
-        />
-      </Section>
-      <Section title="Exception workflow">
-        <StubCard
-          rows={[
-            { name: 'Approval levels', description: 'Who can approve a rule exception.' },
-            {
-              name: 'Expiry policy',
-              description: 'Default duration before exceptions auto-expire.',
-            },
-          ]}
-        />
-      </Section>
-    </StubShell>
-  );
-}
-
 // ── Notifications ───────────────────────────────────────────────────────
 export function NotificationsPage() {
   return (

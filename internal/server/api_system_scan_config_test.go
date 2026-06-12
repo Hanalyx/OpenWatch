@@ -9,6 +9,8 @@
 //	AC-05  TestAPI_SystemScanConfig_PUT_EmitsAudit
 //	AC-06  TestAPI_FleetComplianceStates_LadderOrderAndCounts
 //	AC-07  TestAPI_ScanSchedulePreview_ProjectionFigures
+//	AC-08  TestAPI_ScanVariables_GET_ListsCatalogWithFlags
+//	AC-09  TestAPI_ScanVariables_PUT_OverridesValidationAndAudit
 package server
 
 import (
@@ -417,6 +419,179 @@ func TestAPI_ScanSchedulePreview_ProjectionFigures(t *testing.T) {
 			if b.DueCount != want {
 				t.Errorf("bucket[%d] = %d, want %d", b.HourOffset, b.DueCount, want)
 			}
+		}
+	})
+}
+
+// @ac AC-08
+// AC-08 (v1.1.0): GET /system/scan/variables lists the fixture
+// catalog's corpus-used variables sorted by name with defaults,
+// effective values, rule attribution, and the configure_me flag;
+// anonymous callers are rejected.
+func TestAPI_ScanVariables_GET_ListsCatalogWithFlags(t *testing.T) {
+	t.Run("api-system-scan-config/AC-08", func(t *testing.T) {
+		url, _ := freshAPIServer(t)
+
+		// Anonymous: rejected.
+		anon, _ := http.NewRequest("GET", url+"/api/v1/system/scan/variables", nil)
+		anonResp, err := http.DefaultClient.Do(anon)
+		if err != nil {
+			t.Fatalf("anon GET: %v", err)
+		}
+		anonResp.Body.Close()
+		if anonResp.StatusCode != http.StatusUnauthorized && anonResp.StatusCode != http.StatusForbidden {
+			t.Errorf("anonymous status = %d, want 401/403", anonResp.StatusCode)
+		}
+
+		req := asRole(t, "GET", url+"/api/v1/system/scan/variables", auth.RoleViewer, nil)
+		resp := doReq(t, req)
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("status = %d, want 200", resp.StatusCode)
+		}
+		var body struct {
+			Variables []struct {
+				Name         string   `json:"name"`
+				Default      string   `json:"default"`
+				Value        string   `json:"value"`
+				Overridden   bool     `json:"overridden"`
+				AffectsRules int      `json:"affects_rules"`
+				RuleIds      []string `json:"rule_ids"` //nolint:revive // must match the oapi-codegen anonymous struct field
+				ConfigureMe  bool     `json:"configure_me"`
+			} `json:"variables"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		if len(body.Variables) != 2 {
+			t.Fatalf("variables len = %d, want 2 (fixture catalog)", len(body.Variables))
+		}
+		// Sorted by name: banner_text < ssh_max_auth_tries.
+		banner, ssh := body.Variables[0], body.Variables[1]
+		if banner.Name != "banner_text" || !banner.ConfigureMe ||
+			banner.Default != "Authorized use only" || banner.Value != banner.Default ||
+			banner.Overridden || banner.AffectsRules != 1 {
+			t.Errorf("banner_text entry = %+v, want placeholder defaults", banner)
+		}
+		if ssh.Name != "ssh_max_auth_tries" || ssh.ConfigureMe ||
+			ssh.AffectsRules != 2 || len(ssh.RuleIds) != 2 {
+			t.Errorf("ssh_max_auth_tries entry = %+v", ssh)
+		}
+	})
+}
+
+// @ac AC-09
+// AC-09 (v1.1.0): PUT round-trips an override; default-equal values
+// are dropped; unknown names 400 with the key named; viewer PUT 403;
+// audit carries config_key scan_variables.
+func TestAPI_ScanVariables_PUT_OverridesValidationAndAudit(t *testing.T) {
+	t.Run("api-system-scan-config/AC-09", func(t *testing.T) {
+		url, pool := freshAPIServer(t)
+
+		fetchVars := func() map[string]struct {
+			Value      string
+			Overridden bool
+		} {
+			t.Helper()
+			req := asRole(t, "GET", url+"/api/v1/system/scan/variables", auth.RoleViewer, nil)
+			resp := doReq(t, req)
+			defer resp.Body.Close()
+			var body struct {
+				Variables []struct {
+					Name       string `json:"name"`
+					Value      string `json:"value"`
+					Overridden bool   `json:"overridden"`
+				} `json:"variables"`
+			}
+			if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+				t.Fatalf("decode vars: %v", err)
+			}
+			out := map[string]struct {
+				Value      string
+				Overridden bool
+			}{}
+			for _, v := range body.Variables {
+				out[v.Name] = struct {
+					Value      string
+					Overridden bool
+				}{v.Value, v.Overridden}
+			}
+			return out
+		}
+
+		// Valid override + a default-equal value (dropped at write).
+		put := asRole(t, "PUT", url+"/api/v1/system/scan/variables", auth.RoleAdmin,
+			map[string]any{"overrides": map[string]string{
+				"banner_text":        "Property of ACME Corp",
+				"ssh_max_auth_tries": "4", // equals the default -> dropped
+			}})
+		resp := doReq(t, put)
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("PUT status = %d, want 200", resp.StatusCode)
+		}
+		var echoed struct {
+			Overrides map[string]string `json:"overrides"`
+		}
+		_ = json.NewDecoder(resp.Body).Decode(&echoed)
+		if len(echoed.Overrides) != 1 || echoed.Overrides["banner_text"] != "Property of ACME Corp" {
+			t.Errorf("echoed overrides = %v, want only the banner override", echoed.Overrides)
+		}
+
+		vars := fetchVars()
+		if v := vars["banner_text"]; !v.Overridden || v.Value != "Property of ACME Corp" {
+			t.Errorf("banner_text after PUT = %+v, want overridden", v)
+		}
+		if v := vars["ssh_max_auth_tries"]; v.Overridden {
+			t.Errorf("default-equal override was not dropped: %+v", v)
+		}
+
+		// Unknown name: 400 naming the key; nothing persisted.
+		bad := asRole(t, "PUT", url+"/api/v1/system/scan/variables", auth.RoleAdmin,
+			map[string]any{"overrides": map[string]string{"no_such_var": "x"}})
+		badResp := doReq(t, bad)
+		defer badResp.Body.Close()
+		if badResp.StatusCode != http.StatusBadRequest {
+			t.Fatalf("unknown-name PUT status = %d, want 400", badResp.StatusCode)
+		}
+		var env struct {
+			Error struct {
+				Code   string         `json:"code"`
+				Detail map[string]any `json:"detail"`
+			} `json:"error"`
+		}
+		_ = json.NewDecoder(badResp.Body).Decode(&env)
+		if env.Error.Code != "validation.field_invalid" || env.Error.Detail["field"] != "no_such_var" {
+			t.Errorf("unknown-name envelope = %+v, want validation.field_invalid naming no_such_var", env.Error)
+		}
+		if v := fetchVars()["banner_text"]; !v.Overridden {
+			t.Errorf("failed PUT clobbered the prior override")
+		}
+
+		// Viewer: 403.
+		viewer := asRole(t, "PUT", url+"/api/v1/system/scan/variables", auth.RoleViewer,
+			map[string]any{"overrides": map[string]string{}})
+		vResp := doReq(t, viewer)
+		vResp.Body.Close()
+		if vResp.StatusCode != http.StatusForbidden {
+			t.Errorf("viewer PUT status = %d, want 403", vResp.StatusCode)
+		}
+
+		// Audit: SystemConfigChanged with config_key scan_variables.
+		deadline := time.Now().Add(3 * time.Second)
+		for {
+			var n int
+			_ = pool.QueryRow(context.Background(), `
+				SELECT COUNT(*) FROM audit_events
+				 WHERE action = $1 AND detail->>'config_key' = 'scan_variables'`,
+				string(audit.SystemConfigChanged)).Scan(&n)
+			if n > 0 {
+				return
+			}
+			if time.Now().After(deadline) {
+				t.Fatalf("no SystemConfigChanged audit row for scan_variables")
+			}
+			time.Sleep(50 * time.Millisecond)
 		}
 	})
 }

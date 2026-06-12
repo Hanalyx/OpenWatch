@@ -1,7 +1,7 @@
 spec:
   id: frontend-settings
   title: Settings — two-pane shell with 11 sub-pages
-  version: "1.1.0"
+  version: "1.2.0"
   status: draft
   tier: 2
 
@@ -218,7 +218,7 @@ spec:
       priority: critical
       references_constraints: [C-08]
     - id: AC-15
-      description: v1.1.0 — Each remaining stubbed Settings page (Policies, Notifications, Integrations, Security, Audit, About — six now that Scanning is wired by api-system-discovery-config + api-system-intelligence-config) renders a single BackendPendingBanner naming the slice. Visible controls render disabled.
+      description: v1.2.0 — Each remaining stubbed Settings page (Notifications, Integrations, Security, Audit, About — five now that Compliance policies hosts the live scan-variables section per frontend-settings-scan-config) renders a single BackendPendingBanner naming the slice. Visible controls render disabled. PoliciesPage lives in its own file with per-section banners on its remaining stub sections.
       priority: high
       references_constraints: [C-09]
     - id: AC-16

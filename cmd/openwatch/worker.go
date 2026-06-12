@@ -171,12 +171,17 @@ func cmdWorker(cfg *config.Config, args []string, stdout, stderr *os.File) int {
 		slog.WarnContext(bootCtx, "OPENWATCH_KENSA_RULES_DIR override in use — DEVELOPMENT ONLY; production (especially air-gapped) installs the signed kensa-rules package and must not set this",
 			slog.String("rules_dir", rulesDir))
 	}
+	varStore := systemconfig.NewStore(pool, audit.Emit)
 	scanFn, err := kensa.NewProductionScanFunc(kensa.ScanFuncDeps{
 		Pool:        pool,
 		Credentials: credSvc,
 		RulesDir:    rulesDir,
 		HostKeyMode: owssh.ModeTOFU,
 		KnownHosts:  owssh.NewMemoryStore(),
+		Variables: func(ctx context.Context) (map[string]string, error) {
+			vars, err := varStore.LoadScanVars(ctx)
+			return vars, err
+		},
 	})
 	if err != nil {
 		slog.ErrorContext(bootCtx, "kensa scan wiring failed — is the kensa-rules package installed (or OPENWATCH_KENSA_RULES_DIR set)?",
@@ -192,7 +197,7 @@ func cmdWorker(cfg *config.Config, args []string, stdout, stderr *os.File) int {
 	// the scan. Ladder snapshot is boot-time config; the serve
 	// process's RunManaged tick owns dispatch + live reload.
 	// Spec system-scheduler v3.0.0 AC-08.
-	scanCfg, scanCfgErr := systemconfig.NewStore(pool, audit.Emit).LoadScan(bootCtx)
+	scanCfg, scanCfgErr := varStore.LoadScan(bootCtx)
 	if scanCfgErr != nil {
 		slog.WarnContext(bootCtx, "worker: scan config load failed; schedule updates use defaults",
 			slog.String("error", scanCfgErr.Error()))

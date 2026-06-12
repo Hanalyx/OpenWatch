@@ -1353,6 +1353,59 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
 
+  /api/v1/system/scan/variables:
+    get:
+      operationId: getSystemScanVariables
+      summary: List the corpus-used kensa rule-template variables with defaults and overrides
+      description: |
+        One entry per variable the installed rule corpus actually
+        references (kensa ships more built-in defaults than the corpus
+        uses; unused ones are not listed). Each entry carries the
+        built-in default, the operator override when set, the count
+        and ids of affected rules, and the configure_me flag marking
+        organization-specific placeholder defaults
+        (rsyslog_remote_server, chrony_ntp_pool, banner_text) that
+        operators should always review. Spec api-system-scan-config.
+      responses:
+        '200':
+          description: Corpus-used variables sorted by name
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ScanVariablesResponse'}
+        '403':
+          description: Caller lacks system:read permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+    put:
+      operationId: putSystemScanVariables
+      summary: Replace the operator variable overrides
+      description: |
+        PUT replaces the FULL override map (absent names revert to the
+        built-in defaults). Unknown variable names (not used by the
+        installed corpus) are rejected with 400 naming the offending
+        key; overrides equal to the built-in default are dropped at
+        write time. Emits system.config.changed. The scan path reloads
+        the rule corpus with the merged variables on the next scan.
+        Spec api-system-scan-config.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ScanVariableOverrides'}
+      responses:
+        '200':
+          description: The normalized override map that was persisted
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ScanVariableOverrides'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '403':
+          description: Caller lacks system:config:write permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
   /api/v1/system/connectivity/status:
     get:
       operationId: getSystemConnectivityStatus
@@ -2891,6 +2944,47 @@ components:
                 description: Hours from now (0 = the coming hour)
               due_count:
                 type: integer
+
+    ScanVariablesResponse:
+      type: object
+      required: [variables]
+      properties:
+        variables:
+          type: array
+          description: Corpus-used variables sorted by name
+          items:
+            type: object
+            required: [name, default, value, overridden, affects_rules, rule_ids, configure_me]
+            properties:
+              name:
+                type: string
+              default:
+                type: string
+                description: kensa built-in default in effect without an override
+              value:
+                type: string
+                description: Effective value (override when set, else the default)
+              overridden:
+                type: boolean
+              affects_rules:
+                type: integer
+                description: Count of corpus rules referencing the variable
+              rule_ids:
+                type: array
+                items: {type: string}
+                description: The referencing rule ids, sorted
+              configure_me:
+                type: boolean
+                description: Organization-specific placeholder default the operator should always review
+
+    ScanVariableOverrides:
+      type: object
+      required: [overrides]
+      properties:
+        overrides:
+          type: object
+          additionalProperties: {type: string}
+          description: Variable name to override value. PUT replaces the full map
 
     FleetComplianceStates:
       type: object

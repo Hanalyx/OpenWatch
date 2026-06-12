@@ -14,6 +14,7 @@ package server
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"time"
 
@@ -181,4 +182,114 @@ func toAPIScanConfig(c systemconfig.ScanConfig) api.ScanConfig {
 		RateLimit:           c.RateLimit,
 		MaintenanceGlobal:   c.MaintenanceGlobal,
 	}
+}
+
+// GetSystemScanVariables implements api.ServerInterface.
+// Spec api-system-scan-config v1.1.0 AC-08.
+func (h *handlers) GetSystemScanVariables(w http.ResponseWriter, r *http.Request) {
+	if denied := auth.EnforcePermission(w, r, auth.SystemRead); denied {
+		return
+	}
+	overrides := systemconfig.ScanVariables{}
+	if h.sysCfg != nil {
+		loaded, err := h.sysCfg.LoadScanVars(r.Context())
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "server.error", "server",
+				"failed to load scan variables", true)
+			return
+		}
+		overrides = loaded
+	}
+
+	resp := api.ScanVariablesResponse{Variables: []struct {
+		AffectsRules int      `json:"affects_rules"`
+		ConfigureMe  bool     `json:"configure_me"`
+		Default      string   `json:"default"`
+		Name         string   `json:"name"`
+		Overridden   bool     `json:"overridden"`
+		RuleIds      []string `json:"rule_ids"` //nolint:revive // must match the oapi-codegen anonymous struct field
+		Value        string   `json:"value"`
+	}{}}
+	for _, v := range h.varCatalog.List() {
+		value, overridden := overrides[v.Name]
+		if !overridden {
+			value = v.Default
+		}
+		resp.Variables = append(resp.Variables, struct {
+			AffectsRules int      `json:"affects_rules"`
+			ConfigureMe  bool     `json:"configure_me"`
+			Default      string   `json:"default"`
+			Name         string   `json:"name"`
+			Overridden   bool     `json:"overridden"`
+			RuleIds      []string `json:"rule_ids"` //nolint:revive // must match the oapi-codegen anonymous struct field
+			Value        string   `json:"value"`
+		}{
+			AffectsRules: len(v.Rules),
+			ConfigureMe:  v.ConfigureMe,
+			Default:      v.Default,
+			Name:         v.Name,
+			Overridden:   overridden,
+			RuleIds:      v.Rules,
+			Value:        value,
+		})
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+// PutSystemScanVariables implements api.ServerInterface.
+// Spec api-system-scan-config v1.1.0 AC-09.
+func (h *handlers) PutSystemScanVariables(w http.ResponseWriter, r *http.Request) {
+	if denied := auth.EnforcePermission(w, r, auth.SystemConfigWrite); denied {
+		return
+	}
+	var req api.ScanVariableOverrides
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "validation.field_required", "client",
+			"malformed request body", false)
+		return
+	}
+
+	// Validate names against the corpus-used catalog and drop
+	// overrides equal to the built-in default (storing them would
+	// just mask future default changes for no operator intent).
+	vars := systemconfig.ScanVariables{}
+	for _, v := range h.varCatalog.List() {
+		val, ok := req.Overrides[v.Name]
+		if !ok {
+			continue
+		}
+		if val != v.Default {
+			vars[v.Name] = val
+		}
+	}
+	for name := range req.Overrides {
+		if !h.varCatalog.Has(name) {
+			writeErrorDetail(w, http.StatusBadRequest, "validation.field_invalid", "client",
+				"unknown scan variable: "+name, false, map[string]any{"field": name})
+			return
+		}
+	}
+
+	changedBy := auth.FromContext(r.Context()).ID
+	if changedBy == "" {
+		changedBy = "anonymous"
+	}
+	if h.sysCfg == nil {
+		writeError(w, http.StatusServiceUnavailable, "server.unavailable", "server",
+			"systemconfig store not wired", true)
+		return
+	}
+	if err := h.sysCfg.SetScanVars(r.Context(), vars, changedBy); err != nil {
+		if errors.Is(err, systemconfig.ErrInvalidConfig) {
+			writeError(w, http.StatusBadRequest, "validation.range_exceeded", "client",
+				err.Error(), false)
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "server.error", "server",
+			"failed to save scan variables", true)
+		return
+	}
+
+	out := map[string]string(vars)
+	writeJSON(w, http.StatusOK, api.ScanVariableOverrides{Overrides: out})
 }

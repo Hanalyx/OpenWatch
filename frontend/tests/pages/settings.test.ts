@@ -188,11 +188,10 @@ describe('frontend-settings — structural', () => {
   });
 
   // @ac AC-15
-  test('frontend-settings/AC-15 — six stubbed pages each render BackendPendingBanner', () => {
+  test('frontend-settings/AC-15 — five stubbed pages each render BackendPendingBanner; PoliciesPage graduated', () => {
     expect(STUBBED_SRC).toContain('BackendPendingBanner');
-    // The six exports must be present.
+    // The five remaining stub exports must be present.
     const expected = [
-      'PoliciesPage',
       'NotificationsPage',
       'IntegrationsPage',
       'SecurityPage',
@@ -204,6 +203,16 @@ describe('frontend-settings — structural', () => {
     }
     // Each renders the slice through a StubShell which mounts the banner.
     expect(STUBBED_SRC).toMatch(/<StubShell/);
+    // PoliciesPage left the stub file: it lives in its own page with the
+    // live scan-variables section and per-section banners on the
+    // remaining stubs (frontend-settings-scan-config AC-06).
+    expect(STUBBED_SRC).not.toContain('PoliciesPage');
+    const policies = readFileSync(
+      resolve(process.cwd(), 'src/pages/settings/PoliciesPage.tsx'),
+      'utf8',
+    );
+    expect(policies).toContain('BackendPendingBanner');
+    expect(ROUTER_SRC).toContain("from '@/pages/settings/PoliciesPage'");
   });
 
   // @ac AC-16
