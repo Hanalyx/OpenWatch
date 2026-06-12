@@ -89,10 +89,14 @@ type Result struct {
 
 // RuleOutcome is one rule's outcome inside a Result.
 type RuleOutcome struct {
-	RuleID        string
-	Status        ResultStatus
-	Severity      string
-	Evidence      []byte            // raw evidence bytes; capped at MaxEvidenceBytes
-	FrameworkRefs map[string]string // e.g. "cis_rhel9_v2": "5.1.12"
-	SkipReason    string            // populated when Status == StatusSkipped
+	RuleID   string
+	Status   ResultStatus
+	Severity string
+	Evidence []byte // raw evidence bytes; capped at MaxEvidenceBytes
+	// FrameworkRefs maps framework_id -> control ids. Multi-valued
+	// because one rule can satisfy several controls within the SAME
+	// framework (e.g. ssh-disable-root-login -> three NIST 800-53
+	// controls). Spec system-kensa-executor v2.1.0 C-14.
+	FrameworkRefs map[string][]string // e.g. "nist_800_53_r5": ["AC-6(2)", "AC-17(2)"]
+	SkipReason    string              // populated when Status == StatusSkipped
 }

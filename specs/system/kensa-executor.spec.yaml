@@ -1,7 +1,7 @@
 spec:
   id: system-kensa-executor
   title: Kensa executor wrapper
-  version: "2.0.0"
+  version: "2.1.0"
   status: approved
   tier: 1
 
@@ -43,6 +43,18 @@ spec:
         - RuleOutcome.FrameworkRefs continues to carry per-rule
           framework metadata, used by transactionlog.Writer.Apply
           and queried later by fleet rollup + hosts enrichment.
+
+      Version 2.1.0 (shape correction, pre-first-scan):
+        - RuleOutcome.FrameworkRefs is multi-valued —
+          map[string][]string (framework_id -> list of control ids)
+          — because one rule can satisfy several controls within the
+          SAME framework (e.g. ssh-disable-root-login maps to three
+          NIST 800-53 controls: AC-6(2), AC-17(2), IA-2(5)). The
+          prior single-valued map silently dropped all but one
+          control per framework and would under-count framework lens
+          coverage. Changed before any scan data exists; the
+          host_rule_state/transactions framework_refs columns are
+          JSONB, so no migration is required.
 
   objective:
     summary: >
@@ -123,13 +135,13 @@ spec:
       type: technical
       enforcement: error
     - id: C-14
-      description: Result.Outcomes MUST contain one entry per rule that Kensa.Scan returned a result for. RuleOutcome.FrameworkRefs MUST be populated from the rule's References block normalised via mappings.RefsFromReferences. Empty FrameworkRefs (rule belongs to no framework) is valid; the rule is still recorded
+      description: Result.Outcomes MUST contain one entry per rule that Kensa.Scan returned a result for. RuleOutcome.FrameworkRefs MUST be map[string][]string (framework_id -> control ids) populated from Kensa's normalised per-outcome framework references (kensa v0.3+ api.RuleOutcome.FrameworkRefs []FrameworkRef), preserving EVERY control id when a rule maps to multiple controls within one framework. Empty FrameworkRefs (rule belongs to no framework) is valid; the rule is still recorded
       type: technical
       enforcement: error
 
   acceptance_criteria:
     - id: AC-01
-      description: executor.Run(ctx, hostID, policyVersion) returns a non-nil *Result on success with one entry per rule that Kensa scanned (rules whose `when:` capability gate didn't match the host are absent — by Kensa's design). Each entry carries rule_id, status, severity, evidence, and framework_refs flattened from the rule's References block.
+      description: executor.Run(ctx, hostID, policyVersion) returns a non-nil *Result on success with one entry per rule that Kensa scanned (rules whose `when:` capability gate didn't match the host are absent — by Kensa's design). Each entry carries rule_id, status, severity, evidence, and framework_refs as framework_id -> list of control ids (all controls preserved when one framework maps the rule more than once).
       priority: critical
       references_constraints: [C-12, C-14]
     - id: AC-02
