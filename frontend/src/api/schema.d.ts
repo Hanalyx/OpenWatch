@@ -943,6 +943,62 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/hosts/{id}/compliance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Per-host compliance lens (one scan, many framework views)
+         * @description Projects the host's full host_rule_state corpus through an
+         *     optional framework lens. scan_context carries the latest
+         *     completed scan_runs row for the host (nulls when never
+         *     scanned). summary counts every status plus a score_pct
+         *     (passing/total as a percentage, one decimal, 0 when total is
+         *     0). categories groups the same rows by kensa catalog category
+         *     (uncategorized when unknown), sorted failing DESC then
+         *     category ASC. rules lists EVERY row (pass/fail/skipped/error),
+         *     severity-ordered then rule_id ASC, with control_ids projected
+         *     for the requested framework (empty otherwise). The stored
+         *     per-rule check output is never exposed. The per-host corpus is
+         *     bounded (~539 rules), so this is one unpaginated query.
+         *     Requires host:read. Spec api-host-compliance v1.1.0.
+         */
+        get: operations["getHostCompliance"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/hosts/{id}/compliance/frameworks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the frameworks the host's rule state maps to
+         * @description Distinct framework_refs keys across the host's host_rule_state
+         *     rows with the number of rules mapped to each, ordered by
+         *     framework id. Empty when the host has never been scanned.
+         *     Backs the lens picker on the host compliance view. Requires
+         *     host:read. Spec api-host-compliance v1.1.0.
+         */
+        get: operations["getHostComplianceFrameworks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/hosts/{id}/compliance/failed-rules": {
         parameters: {
             query?: never;
@@ -1451,6 +1507,96 @@ export interface components {
             total_failing: number;
             rules: components["schemas"]["HostFailedRule"][];
         };
+        HostScanContext: {
+            /**
+             * Format: date-time
+             * @description finished_at of the latest completed scan run; null when never scanned.
+             */
+            last_scan_at: string | null;
+            /**
+             * Format: uuid
+             * @description id of the latest completed scan run; null when never scanned.
+             */
+            scan_id: string | null;
+            /** @description Policy version of the latest completed run; empty when never scanned. */
+            policy_version: string;
+        };
+        HostComplianceLensSummary: {
+            /** Format: int64 */
+            passing: number;
+            /** Format: int64 */
+            failing: number;
+            /** Format: int64 */
+            skipped: number;
+            /** Format: int64 */
+            error: number;
+            /** Format: int64 */
+            total: number;
+            /**
+             * Format: double
+             * @description passing/total as a percentage rounded to one decimal; 0 when total is 0.
+             */
+            score_pct: number;
+        };
+        HostComplianceCategory: {
+            /** @description Kensa catalog category; uncategorized when the catalog lacks the rule. */
+            category: string;
+            /** Format: int64 */
+            passing: number;
+            /** Format: int64 */
+            failing: number;
+            /** Format: int64 */
+            total: number;
+        };
+        HostComplianceRule: {
+            rule_id: string;
+            /** @description Catalog title; falls back to rule_id when the catalog lacks the rule. */
+            title: string;
+            /** @description Catalog category; uncategorized when unknown. */
+            category: string;
+            /** @description Stored severity; empty when the scan recorded none. */
+            severity: string;
+            /** @description current_status of the rule on this host (pass, fail, skipped, error). */
+            status: string;
+            /** @description Control ids for the requested framework; empty unless ?framework= is given. */
+            control_ids: string[];
+            /** Format: date-time */
+            last_checked_at: string;
+        };
+        HostComplianceLensResponse: {
+            scan_context: components["schemas"]["HostScanContext"];
+            summary: components["schemas"]["HostComplianceLensSummary"];
+            categories: components["schemas"]["HostComplianceCategory"][];
+            rules: components["schemas"]["HostComplianceRule"][];
+        };
+        HostComplianceFramework: {
+            framework_id: string;
+            /**
+             * Format: int64
+             * @description Number of host_rule_state rows mapped to this framework.
+             */
+            rule_count: number;
+        };
+        HostComplianceFrameworksResponse: {
+            frameworks: components["schemas"]["HostComplianceFramework"][];
+        };
+        HostListComplianceSummary: {
+            /** Format: int64 */
+            passing: number;
+            /** Format: int64 */
+            failing: number;
+            /** Format: int64 */
+            skipped: number;
+            /** Format: int64 */
+            error: number;
+            /** Format: int64 */
+            total: number;
+            /**
+             * Format: int64
+             * @description Rows with current_status=fail and critical severity (case-insensitive).
+             */
+            critical_failing: number;
+        };
         FleetScanQueue: {
             /** Format: int64 */
             queued: number;
@@ -1488,6 +1634,8 @@ export interface components {
             last_scan_at?: string | null;
             /** @description Null when no liveness probe has ever run against this host. */
             liveness?: components["schemas"]["HostLiveness"] | null;
+            /** @description Null when the host has no host_rule_state rows (never scanned). */
+            compliance_summary?: components["schemas"]["HostListComplianceSummary"] | null;
             os_family?: string | null;
             os_version?: string | null;
             architecture?: string | null;
@@ -3997,6 +4145,89 @@ export interface operations {
             };
             /** @description A scan for this host is already queued or running */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getHostCompliance: {
+        parameters: {
+            query?: {
+                /** @description Filter to rows whose framework_refs contains this key and project its control ids; summary and categories are recomputed under the filter. */
+                framework?: string;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Compliance lens (scan context + summary + categories + rules) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HostComplianceLensResponse"];
+                };
+            };
+            /** @description Caller lacks host:read permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Host not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getHostComplianceFrameworks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Frameworks with per-framework mapped-rule counts */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HostComplianceFrameworksResponse"];
+                };
+            };
+            /** @description Caller lacks host:read permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Host not found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

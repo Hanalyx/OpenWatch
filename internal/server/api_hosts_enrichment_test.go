@@ -8,6 +8,7 @@
 //   AC-17  TestHosts_GetByID_Enrichment_FrameworkFilterCounts
 //   AC-18  TestHosts_GetByID_Enrichment_FrameworkFilterEmpty
 //   AC-19  TestHosts_GetHosts_ListLivenessJoined
+//   AC-23  TestHosts_GetHosts_ListComplianceSummaryJoined
 
 package server
 
@@ -335,6 +336,86 @@ func TestHosts_GetByID_Enrichment_FrameworkFilterEmpty(t *testing.T) {
 		s := got.ComplianceSummary
 		if s.Passing != 0 || s.Failing != 0 || s.Total != 0 {
 			t.Errorf("STIG-filtered summary on CIS-only host = %+v, want all zeros", s)
+		}
+	})
+}
+
+// @ac AC-23
+// AC-23 (v1.5.0): GET /hosts items carry a nullable compliance_summary
+// loaded by one grouped host_rule_state query. A scanned host gets the
+// correct counts (critical_failing = fail AND critical severity only);
+// a never-scanned host gets null — never zeros, never an error.
+func TestHosts_GetHosts_ListComplianceSummaryJoined(t *testing.T) {
+	t.Run("api-hosts/AC-23", func(t *testing.T) {
+		url, pool := freshAPIServer(t)
+		scanned := createHostAPI(t, url, "compliance-host", "production")
+		scannedID, _ := uuid.Parse(scanned["id"].(string))
+		unscanned := createHostAPI(t, url, "unscanned-host", "production")
+		unscannedID := unscanned["id"].(string)
+
+		base := time.Now().UTC().Truncate(time.Second)
+		// Mixed statuses; one critical failure, one critical pass (must
+		// NOT count toward critical_failing), one high failure.
+		seedRuleState(t, pool, scannedID, "ls-crit-fail", "fail", "critical", base, 1, "")
+		seedRuleState(t, pool, scannedID, "ls-crit-pass", "pass", "critical", base, 1, "")
+		seedRuleState(t, pool, scannedID, "ls-high-fail", "fail", "high", base, 1, "")
+		seedRuleState(t, pool, scannedID, "ls-pass", "pass", "medium", base, 1, "")
+		seedRuleState(t, pool, scannedID, "ls-skip", "skipped", nil, base, 1, "")
+		seedRuleState(t, pool, scannedID, "ls-err", "error", "low", base, 1, "")
+
+		req := asRole(t, "GET", url+"/api/v1/hosts", auth.RoleAdmin, nil)
+		resp := doReq(t, req)
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("status = %d, want 200", resp.StatusCode)
+		}
+		var body struct {
+			Hosts []struct {
+				ID                string `json:"id"`
+				ComplianceSummary *struct {
+					Passing         int64 `json:"passing"`
+					Failing         int64 `json:"failing"`
+					Skipped         int64 `json:"skipped"`
+					Error           int64 `json:"error"`
+					Total           int64 `json:"total"`
+					CriticalFailing int64 `json:"critical_failing"`
+				} `json:"compliance_summary"`
+			} `json:"hosts"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+
+		var sawScanned, sawUnscanned bool
+		for _, h := range body.Hosts {
+			switch h.ID {
+			case scannedID.String():
+				sawScanned = true
+				cs := h.ComplianceSummary
+				if cs == nil {
+					t.Fatal("scanned host compliance_summary is null; want populated")
+				}
+				if cs.Passing != 2 || cs.Failing != 2 || cs.Skipped != 1 ||
+					cs.Error != 1 || cs.Total != 6 {
+					t.Errorf("compliance_summary = %+v, want 2/2/1/1 of 6", cs)
+				}
+				if cs.CriticalFailing != 1 {
+					t.Errorf("critical_failing = %d, want 1 (fail AND critical only)",
+						cs.CriticalFailing)
+				}
+			case unscannedID:
+				sawUnscanned = true
+				if h.ComplianceSummary != nil {
+					t.Errorf("unscanned host compliance_summary = %+v, want null",
+						h.ComplianceSummary)
+				}
+			}
+		}
+		if !sawScanned {
+			t.Error("scanned host not present in /hosts response")
+		}
+		if !sawUnscanned {
+			t.Error("unscanned host not present in /hosts response")
 		}
 	})
 }

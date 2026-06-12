@@ -41,9 +41,10 @@ func (h *handlers) GetHosts(w http.ResponseWriter, r *http.Request, params api.G
 		return
 	}
 
-	// Batch-load liveness + last-scan-time for every host in the page
-	// — two queries for the whole set, no per-row N+1. Spec api-hosts
-	// v1.3.0 (liveness) + v1.5.0 (last_scan_at).
+	// Batch-load liveness + last-scan-time + compliance roll-up for
+	// every host in the page — three grouped queries for the whole
+	// set, no per-row N+1. Spec api-hosts v1.3.0 (liveness) + v1.5.0
+	// (last_scan_at, compliance_summary C-12).
 	ids := make([]uuid.UUID, len(list))
 	for i, h := range list {
 		ids[i] = h.ID
@@ -60,10 +61,17 @@ func (h *handlers) GetHosts(w http.ResponseWriter, r *http.Request, params api.G
 			"last_scan_at join failed", true)
 		return
 	}
+	complianceByID, err := loadHostListComplianceByIDs(r.Context(), h.pool, ids)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "server.error", "server",
+			"compliance summary join failed", true)
+		return
+	}
 
 	out := make([]api.HostListItem, len(list))
 	for i, item := range list {
-		out[i] = hostListItem(item, liveByID[item.ID], lastScanByID[item.ID])
+		out[i] = hostListItem(item, liveByID[item.ID], lastScanByID[item.ID],
+			complianceByID[item.ID])
 	}
 	writeJSON(w, http.StatusOK, api.HostListResponse{Hosts: out})
 }
@@ -323,10 +331,12 @@ func hostResponse(h host.Host) api.HostResponse {
 }
 
 // hostListItem builds the list-page item: every HostResponse field
-// plus an optional liveness sub-object joined from host_liveness and
-// an optional last_scan_at timestamp from MAX(host_rule_state.last_checked_at).
-// Both may be nil — never probed and never scanned, respectively.
-func hostListItem(h host.Host, liveness *api.HostLiveness, lastScan time.Time) api.HostListItem {
+// plus an optional liveness sub-object joined from host_liveness, an
+// optional last_scan_at timestamp from MAX(host_rule_state.last_checked_at),
+// and an optional compliance roll-up (api-hosts v1.5.0 C-12). All
+// three may be nil — never probed and never scanned, respectively.
+func hostListItem(h host.Host, liveness *api.HostLiveness, lastScan time.Time,
+	compliance *api.HostListComplianceSummary) api.HostListItem {
 	desc := h.Description
 	displayName := h.DisplayName
 	env := h.Environment
@@ -357,6 +367,9 @@ func hostListItem(h host.Host, liveness *api.HostLiveness, lastScan time.Time) a
 		MaintenanceMode: &maint,
 		CheckPriority:   &prio,
 		Liveness:        liveness,
+		// v1.5.0 — nil (null on the wire) when the host has zero
+		// host_rule_state rows. Spec api-hosts C-12.
+		ComplianceSummary: compliance,
 		// v1.4.0 — denormalized OS fields from migration 0017.
 		OsFamily:           h.OSFamily,
 		OsVersion:          h.OSVersion,

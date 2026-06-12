@@ -172,6 +172,24 @@ func LatestForHost(ctx context.Context, pool *pgxpool.Pool, hostID uuid.UUID) (*
 	return scanRun(row)
 }
 
+// LatestCompletedForHost returns the host's most recent completed run
+// (by finished_at), or ErrNotFound when the host has no completed
+// runs. Backs the compliance lens scan_context: queued, running, and
+// failed runs never qualify, even when newer.
+// Spec api-host-compliance AC-10.
+func LatestCompletedForHost(ctx context.Context, pool *pgxpool.Pool, hostID uuid.UUID) (*Run, error) {
+	row := pool.QueryRow(ctx, `
+		SELECT id, host_id, trigger_source, requested_by, status,
+		       queued_at, started_at, finished_at,
+		       COALESCE(policy_version, ''),
+		       rules_pass, rules_fail, rules_skipped, rules_error,
+		       COALESCE(failure_reason, ''), COALESCE(correlation_id, '')
+		FROM scan_runs
+		WHERE host_id = $1 AND status = 'completed'
+		ORDER BY finished_at DESC NULLS LAST LIMIT 1`, hostID)
+	return scanRun(row)
+}
+
 // ActiveForHost returns the host's queued-or-running run, or
 // ErrNotFound when none is active. Backs the on-demand endpoint's 409.
 func ActiveForHost(ctx context.Context, pool *pgxpool.Pool, hostID uuid.UUID) (*Run, error) {
