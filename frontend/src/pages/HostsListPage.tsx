@@ -199,6 +199,22 @@ export function HostsListPage() {
     enabled: !useFixtures,
   });
 
+  // Fleet trend: yesterday-vs-today average for the avg-compliance
+  // delta (api-compliance-trend; daily posture snapshots).
+  const fleetTrendQuery = useQuery({
+    queryKey: ['fleet', 'compliance', 'trend'],
+    queryFn: async () => {
+      const { data, error, response } = await api.GET('/api/v1/fleet/compliance/trend', {
+        params: { query: { days: 2 } },
+      });
+      if (error) throw error;
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return data;
+    },
+    refetchInterval: 60_000,
+    enabled: !useFixtures,
+  });
+
   const kpis = useFixtures ? devKpis : kpisFromHosts(hosts);
   if (!useFixtures && scanQueueQuery.data) {
     const q = scanQueueQuery.data.queued;
@@ -209,6 +225,18 @@ export function HostsListPage() {
       delta: q > 0 ? `${q} queued` : '—',
       deltaTier: 'neutral',
     };
+  }
+
+  if (!useFixtures && fleetTrendQuery.data) {
+    const days = fleetTrendQuery.data.days;
+    if (days.length >= 2) {
+      const today = days[days.length - 1]!;
+      const prev = days[days.length - 2]!;
+      const diff = Math.round((today.avg_score_pct - prev.avg_score_pct) * 10) / 10;
+      kpis.avgCompliance.delta =
+        diff === 0 ? 'No change vs yesterday' : `${diff > 0 ? '+' : ''}${diff}% vs yesterday`;
+      kpis.avgCompliance.deltaTier = diff > 0 ? 'ok' : diff < 0 ? 'crit' : 'neutral';
+    }
   }
 
   const fleetAlert = useFixtures ? devFleetAlert : fleetAlertFromHosts(hosts);

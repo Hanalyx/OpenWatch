@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams, useSearch, useNavigate, Link } from '@tanstack/react-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   Activity as ActivityIcon,
   AlertTriangle,
@@ -423,7 +423,7 @@ export function HostDetailPage() {
                     onViewAll={() => goToTab('compliance')}
                   />
                   <CardServerIntel hostId={detailQuery.data.host.id} />
-                  <CardComplianceTrend />
+                  <CardComplianceTrend hostId={hostId} />
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0 }}>
                   <CardSystem
@@ -1491,14 +1491,135 @@ function CardTopFailed({
 // SeverityPill now lives in @/pages/host-detail/SeverityPill so the
 // Compliance tab can share it (frontend-host-compliance-tab).
 
-function CardComplianceTrend() {
-  return (
-    <Card title="Compliance trend · last 30 days">
+// CardComplianceTrend renders the 30-day score line from the daily
+// posture snapshot rollup (api-compliance-trend). The query key carries
+// the ['host', hostId] prefix so scan.completed SSE invalidation
+// refreshes it with the rest of the page.
+function CardComplianceTrend({ hostId }: { hostId: string }) {
+  const trendQuery = useQuery({
+    queryKey: ['host', hostId, 'compliance_trend'],
+    queryFn: async () => {
+      const { data, error, response } = await api.GET('/api/v1/hosts/{id}/compliance/trend', {
+        params: { path: { id: hostId }, query: { days: 30 } },
+      });
+      if (error || !response.ok) {
+        throw new Error(apiErrorMessage(error, `Failed to load (${response.status})`));
+      }
+      return data!;
+    },
+    enabled: !!hostId,
+  });
+
+  const days = trendQuery.data?.days ?? [];
+  let body: ReactNode;
+  if (trendQuery.isPending) {
+    body = <div style={{ color: 'var(--ow-fg-2)', fontSize: 12 }}>Loading…</div>;
+  } else if (trendQuery.isError) {
+    body = (
+      <div style={{ color: 'var(--ow-crit)', fontSize: 12, display: 'flex', gap: 8 }}>
+        Failed to load trend{' '}
+        <button type="button" onClick={() => trendQuery.refetch()} style={smallTextBtn}>
+          <RefreshCw size={11} /> Retry
+        </button>
+      </div>
+    );
+  } else if (days.length === 0) {
+    body = (
       <EmptyState
-        primary="Not enough data yet"
-        secondary="Trend chart is populated by posture snapshots (point-in-time aggregates). The posture snapshot subsystem is deferred — see BACKLOG."
+        primary="No snapshots yet"
+        secondary="Daily posture snapshots build this trend. The first point appears after the next hourly rollup of scan results."
       />
-    </Card>
+    );
+  } else {
+    const latest = days[days.length - 1]!;
+    const first = days[0]!;
+    const diff = Math.round((latest.score_pct - first.score_pct) * 10) / 10;
+    body = (
+      <>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+          <span
+            style={{
+              fontSize: 22,
+              fontWeight: 700,
+              fontVariantNumeric: 'tabular-nums',
+              color: 'var(--ow-fg-0)',
+            }}
+          >
+            {latest.score_pct}%
+          </span>
+          {days.length > 1 && (
+            <span
+              style={{
+                fontSize: 11,
+                fontWeight: 600,
+                color: diff > 0 ? 'var(--ow-ok)' : diff < 0 ? 'var(--ow-crit)' : 'var(--ow-fg-3)',
+              }}
+            >
+              {diff > 0 ? '+' : ''}
+              {diff}% over {days.length} days
+            </span>
+          )}
+        </div>
+        <TrendSparkline days={days} />
+      </>
+    );
+  }
+
+  return <Card title="Compliance trend · last 30 days">{body}</Card>;
+}
+
+// TrendSparkline draws the score line (0..100 domain) over the
+// snapshot points. Pure SVG, no chart dependency: the card needs one
+// readable line, not an axis system.
+function TrendSparkline({ days }: { days: { date: string; score_pct: number }[] }) {
+  const W = 280;
+  const H = 64;
+  const PAD = 4;
+  const n = days.length;
+  const x = (i: number) => (n === 1 ? W / 2 : PAD + (i * (W - 2 * PAD)) / (n - 1));
+  const y = (score: number) => PAD + (1 - score / 100) * (H - 2 * PAD);
+  const points = days.map((d, i) => `${x(i)},${y(d.score_pct)}`).join(' ');
+  return (
+    <div style={{ marginTop: 10 }}>
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        style={{ width: '100%', height: 64, display: 'block' }}
+        role="img"
+        aria-label="Compliance score trend"
+      >
+        {/* Target line at 80%. */}
+        <line
+          x1={PAD}
+          x2={W - PAD}
+          y1={y(80)}
+          y2={y(80)}
+          stroke="var(--ow-line)"
+          strokeDasharray="3 3"
+        />
+        {n > 1 && <polyline points={points} fill="none" stroke="var(--ow-info)" strokeWidth={2} />}
+        {days.map((d, i) => (
+          <circle
+            key={d.date}
+            cx={x(i)}
+            cy={y(d.score_pct)}
+            r={n === 1 ? 3 : 2}
+            fill="var(--ow-info)"
+          />
+        ))}
+      </svg>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          fontSize: 10,
+          color: 'var(--ow-fg-3)',
+          marginTop: 2,
+        }}
+      >
+        <span>{days[0]!.date}</span>
+        <span>{days[days.length - 1]!.date}</span>
+      </div>
+    </div>
   );
 }
 

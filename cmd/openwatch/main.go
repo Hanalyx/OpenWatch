@@ -42,6 +42,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/license"
 	"github.com/Hanalyx/openwatch/internal/liveness"
 	openlog "github.com/Hanalyx/openwatch/internal/log"
+	"github.com/Hanalyx/openwatch/internal/posture"
 	compsched "github.com/Hanalyx/openwatch/internal/scheduler"
 	"github.com/Hanalyx/openwatch/internal/secretkey"
 	"github.com/Hanalyx/openwatch/internal/server"
@@ -511,6 +512,11 @@ func cmdServe(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 			slog.Bool("enabled", scanCfg.Enabled),
 			slog.Bool("maintenance_global", scanCfg.MaintenanceGlobal))
 	}
+
+	// Posture snapshots — hourly per-host rollup powering the 30-day
+	// trend card + fleet delta. One pass fires immediately at start so
+	// a fresh boot has today's row. Spec system-posture-snapshots.
+	posture.Run(ctx, pool, 0)
 
 	scanWorker := worker.NewScanWorker(worker.Config{
 		Pool:     pool,

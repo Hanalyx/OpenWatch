@@ -1,0 +1,76 @@
+spec:
+  id: system-posture-snapshots
+  title: Daily compliance posture snapshots (trend substrate)
+  version: "1.0.0"
+  status: approved
+  tier: 2
+
+  context:
+    system: openwatch-go
+    feature: Per-host daily posture rollup powering the 30-day trend card and the fleet delta
+    description: >
+      posture_snapshots holds one row per (host, day): the
+      host_rule_state aggregate as of the last rollup that day
+      (passing/failing/skipped/error/total, score_pct, and a
+      has_critical_findings flag). An hourly cron tick - plus one
+      immediate pass at boot - UPSERTs today's row per scanned host;
+      intra-day re-scans refresh today's numbers and the row freezes
+      naturally when the date rolls over.
+
+      History accumulates going forward only. Retroactive
+      reconstruction from the transactions log (replaying per-day
+      counts) was considered and rejected: the complexity is not
+      justified for a trend chart, and the write-on-change model means
+      a faithful replay needs full-corpus context per day.
+
+      score_pct uses the SAME formula as the compliance lens
+      (passing / total over ALL statuses, one decimal) so the trend
+      line and the Compliance tab headline never disagree.
+
+      Never-scanned hosts (no host_rule_state rows) produce no
+      snapshot rows - absence of data is not a zero score.
+
+    related_specs:
+      - system-transaction-log
+      - api-compliance-trend
+      - system-scheduler
+
+  objective:
+    summary: >
+      A bounded daily rollup whose rows freeze at midnight, giving the
+      trend endpoints stable per-day points without touching the hot
+      scan path.
+    scope:
+      includes:
+        - posture_snapshots table (migration 0025, PK (host_id, snapshot_date))
+        - posture.Rollup - single aggregate UPSERT over host_rule_state
+        - posture.Run - hourly cron + immediate boot pass
+        - posture.HostTrend / posture.FleetTrend read queries
+      excludes:
+        - Retroactive backfill from transactions
+        - Retention pruning (the table grows ~hosts rows/day; revisit at scale)
+        - Per-framework trend slices (lens-projected trends are a later need)
+
+  constraints:
+    - id: C-01
+      description: 'The rollup MUST be a single aggregate UPSERT keyed (host_id, snapshot_date): re-running within the same day updates rather than duplicates, and a day rollover starts a fresh row leaving prior days untouched. Soft-deleted hosts are excluded; hosts without host_rule_state rows produce no row'
+      type: technical
+      enforcement: error
+    - id: C-02
+      description: 'score_pct MUST equal round(passing / total * 1000) / 10 over ALL statuses - identical to the compliance lens formula - and has_critical_findings MUST be true exactly when any failing row carries severity critical'
+      type: technical
+      enforcement: error
+    - id: C-03
+      description: 'Trend reads (HostTrend, FleetTrend) return points oldest-first over the trailing N-day window with absent days simply missing; FleetTrend excludes soft-deleted hosts even when their snapshot rows linger'
+      type: technical
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: 'Rollup over a host with mixed host_rule_state rows writes one row with the per-status counts, the lens-formula score_pct, and has_critical_findings reflecting a critical failing row; a second Rollup the same day UPDATEs the same row (no duplicate); a never-scanned host gets no row; a soft-deleted host gets no row'
+      priority: critical
+      references_constraints: [C-01, C-02]
+    - id: AC-02
+      description: 'HostTrend returns only the requested trailing window oldest-first; FleetTrend aggregates per day (avg score to one decimal, host count, summed failing, critical-host count) and drops soft-deleted hosts'
+      priority: critical
+      references_constraints: [C-03]

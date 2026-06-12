@@ -1095,6 +1095,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/hosts/{id}/compliance/trend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Daily compliance posture trend for one host
+         * @description Per-day posture snapshots over the trailing window (default 30
+         *     days, clamped 1..90): score_pct, passing, failing, total. Days
+         *     without a snapshot are absent from the array; history
+         *     accumulates from the daily rollup going forward. Spec
+         *     api-compliance-trend.
+         */
+        get: operations["getHostComplianceTrend"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/fleet/compliance/trend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Daily fleet compliance trend
+         * @description Per-day fleet aggregates over the trailing window (default 30
+         *     days, clamped 1..90): average score across snapshotted hosts,
+         *     host count, total failing rules, and hosts carrying critical
+         *     findings. Powers the hosts-page average-compliance delta.
+         *     Spec api-compliance-trend.
+         */
+        get: operations["getFleetComplianceTrend"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/hosts/{id}/compliance/frameworks": {
         parameters: {
             query?: never;
@@ -2075,6 +2123,28 @@ export interface components {
             overrides: {
                 [key: string]: string;
             };
+        };
+        HostComplianceTrend: {
+            /** @description One entry per day with a snapshot, oldest first */
+            days: {
+                /** Format: date */
+                date: string;
+                score_pct: number;
+                passing: number;
+                failing: number;
+                total: number;
+            }[];
+        };
+        FleetComplianceTrend: {
+            /** @description One entry per day with snapshots, oldest first */
+            days: {
+                /** Format: date */
+                date: string;
+                avg_score_pct: number;
+                hosts: number;
+                failing: number;
+                critical_hosts: number;
+            }[];
         };
         FleetComplianceStates: {
             /** @description One entry per ComplianceState in ladder order; zero-count states included */
@@ -4581,6 +4651,81 @@ export interface operations {
             };
             /** @description Host not found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getHostComplianceTrend: {
+        parameters: {
+            query?: {
+                /** @description Trailing window in days; clamped into [1, 90] */
+                days?: number;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Daily points, oldest first */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HostComplianceTrend"];
+                };
+            };
+            /** @description Caller lacks host:read permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unknown or deleted host */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getFleetComplianceTrend: {
+        parameters: {
+            query?: {
+                /** @description Trailing window in days; clamped into [1, 90] */
+                days?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Daily fleet points, oldest first */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FleetComplianceTrend"];
+                };
+            };
+            /** @description Caller lacks host:read permission */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

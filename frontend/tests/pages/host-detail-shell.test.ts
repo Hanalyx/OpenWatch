@@ -368,3 +368,27 @@ describe('frontend-host-detail — prototype shell', () => {
     expect(body).toMatch(/['"]privilege escalation['"]/);
   });
 });
+
+describe('frontend-host-detail v1.4.0 — live compliance trend card', () => {
+  // @ac AC-38
+  test('frontend-host-detail/AC-38 — trend card queries the snapshot endpoint with the host-prefixed key; honest states', () => {
+    const card = PAGE_SRC.slice(
+      PAGE_SRC.indexOf('function CardComplianceTrend'),
+      PAGE_SRC.indexOf('function TrendSparkline'),
+    );
+    expect(card.length).toBeGreaterThan(0);
+    expect(card).toContain("queryKey: ['host', hostId, 'compliance_trend']");
+    expect(card).toContain("api.GET('/api/v1/hosts/{id}/compliance/trend'");
+    // isPending guard (isLoading goes false between retries).
+    expect(card).toContain('trendQuery.isPending');
+    expect(card).not.toContain('trendQuery.isLoading');
+    // Honest empty state names the rollup, no fabricated zero line.
+    expect(card).toContain('No snapshots yet');
+    expect(card).toMatch(/hourly rollup/);
+    // Chart renders latest score + over-window delta when data exists.
+    expect(card).toContain('<TrendSparkline days={days} />');
+    expect(card).toMatch(/over \{days\.length\} days/);
+    // The page passes the host id into the card.
+    expect(PAGE_SRC).toContain('<CardComplianceTrend hostId={hostId} />');
+  });
+});

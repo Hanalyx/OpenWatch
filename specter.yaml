@@ -67,6 +67,8 @@ domains:
             - system-scan-runs
             - api-host-compliance
             - api-system-scan-config
+            - api-compliance-trend
+            - system-posture-snapshots
             - frontend-host-compliance-tab
 settings:
     specs_dir: specs
