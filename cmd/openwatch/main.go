@@ -38,6 +38,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/intelligence/discovery"
 	discoveryscheduler "github.com/Hanalyx/openwatch/internal/intelligence/discovery/scheduler"
 	"github.com/Hanalyx/openwatch/internal/intelligence/scheduler"
+	"github.com/Hanalyx/openwatch/internal/kensa"
 	"github.com/Hanalyx/openwatch/internal/license"
 	"github.com/Hanalyx/openwatch/internal/liveness"
 	openlog "github.com/Hanalyx/openwatch/internal/log"
@@ -47,8 +48,10 @@ import (
 	owssh "github.com/Hanalyx/openwatch/internal/ssh"
 	"github.com/Hanalyx/openwatch/internal/sshprivilege"
 	"github.com/Hanalyx/openwatch/internal/systemconfig"
+	"github.com/Hanalyx/openwatch/internal/transactionlog"
 	"github.com/Hanalyx/openwatch/internal/users"
 	"github.com/Hanalyx/openwatch/internal/version"
+	"github.com/Hanalyx/openwatch/internal/worker"
 )
 
 func main() {
@@ -433,12 +436,41 @@ func cmdServe(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 		return 1
 	}
 
+	// In-process scan execution: the serve binary processes scan jobs
+	// itself (single-binary deployment); a dedicated `openwatch worker`
+	// can run alongside for scale-out. When the kensa-rules corpus is
+	// missing the executor keeps its fallback binding — scans then
+	// terminate failed (kensa_error) instead of rotting queued — and we
+	// warn loudly. Spec system-kensa-executor C-13, system-scan-runs.
+	scanExecutor := kensa.NewExecutor(worker.NewCredentialBridge(credSvc), audit.Emit)
+	if scanFn, scanErr := kensa.NewProductionScanFunc(kensa.ScanFuncDeps{
+		Pool:        pool,
+		Credentials: credSvc,
+		RulesDir:    os.Getenv("OPENWATCH_KENSA_RULES_DIR"),
+		HostKeyMode: owssh.ModeTOFU,
+		KnownHosts:  owssh.NewMemoryStore(),
+	}); scanErr != nil {
+		slog.WarnContext(bootCtx, "kensa scan wiring unavailable — on-demand scans will fail until the kensa-rules package is installed (or OPENWATCH_KENSA_RULES_DIR set)",
+			slog.String("error", scanErr.Error()))
+	} else {
+		scanExecutor = scanExecutor.WithScanFunc(scanFn)
+	}
+	scanWorker := worker.NewScanWorker(worker.Config{
+		Pool:     pool,
+		Executor: scanExecutor,
+		Writer:   transactionlog.NewWriter(pool, audit.Emit),
+		QueueKey: scanQueueKey,
+		Emit:     audit.Emit,
+		Bus:      bus,
+	})
+
 	srv := server.New(cfg, pool).
 		WithConnectivityConfig(cfgStore, liveSvc).
 		WithDiscovery(discoSvc).
 		WithEventBus(bus).
 		WithActivity(activity.NewService(pool)).
-		WithScanQueue(scanQueueKey)
+		WithScanQueue(scanQueueKey).
+		WithScanWorker(scanWorker)
 	runErr := srv.Run(ctx)
 
 	// Shutdown order REVERSE of boot (C-02). liveness.Run + alertrouter

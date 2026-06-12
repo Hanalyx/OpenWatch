@@ -105,6 +105,17 @@ func (s *Server) WithScanQueue(queueKey []byte) *Server {
 	return s
 }
 
+// WithScanWorker registers the scan processor on the in-process job
+// worker, so "scan" jobs claimed by the serve process execute instead
+// of dead-ending (queue.Dequeue is not type-filtered). Spec
+// api-host-scan / system-scan-runs.
+func (s *Server) WithScanWorker(sw *worker.ScanWorker) *Server {
+	if s.wkr != nil {
+		s.wkr.WithScanProcessor(sw)
+	}
+	return s
+}
+
 // New constructs a Server from validated config and DB pool. The returned
 // Server has the foundation middleware chain mounted (correlation first,
 // then idempotency) and the Stage-0 API routes generated from

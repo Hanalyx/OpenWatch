@@ -42,6 +42,13 @@ const (
 	// RunCycle. Carries the taxonomy code, severity, and detail. Spec
 	// system-os-intelligence AC-11.
 	EventKindIntelligenceEvent EventKind = "intelligence.event"
+
+	// EventKindScanCompleted is emitted by the scan worker after a
+	// compliance scan's outcomes are persisted (transactionlog applied
+	// + scan_runs marked completed). SSE subscribers refresh host
+	// compliance surfaces without polling. Spec api-host-scan /
+	// system-scan-runs.
+	EventKindScanCompleted EventKind = "scan.completed"
 )
 
 // AllEventKinds is the closed set, in registration order. Spec AC-07's
@@ -53,6 +60,7 @@ var AllEventKinds = []EventKind{
 	EventKindMonitoringBandChanged,
 	EventKindHostDiscovered,
 	EventKindIntelligenceEvent,
+	EventKindScanCompleted,
 }
 
 // Event is the contract every bus event satisfies. Implementations are
@@ -198,6 +206,25 @@ func (i IntelligenceEvent) Kind() EventKind { return EventKindIntelligenceEvent 
 
 // Timestamp satisfies Event.
 func (i IntelligenceEvent) Timestamp() time.Time { return i.OccurredAt }
+
+// ScanCompleted is fired by the scan worker once a compliance scan's
+// outcomes are persisted. Counts mirror the scan_runs row so SSE
+// consumers can update summaries without a round-trip.
+type ScanCompleted struct {
+	ScanID      uuid.UUID
+	HostID      uuid.UUID
+	Pass        int
+	Fail        int
+	Skipped     int
+	Errored     int
+	CompletedAt time.Time
+}
+
+// Kind satisfies Event.
+func (s ScanCompleted) Kind() EventKind { return EventKindScanCompleted }
+
+// Timestamp satisfies Event.
+func (s ScanCompleted) Timestamp() time.Time { return s.CompletedAt }
 
 // DefaultBufferSize is the per-subscriber channel buffer when
 // SubscribeOptions.BufferSize is zero. Spec C-04.

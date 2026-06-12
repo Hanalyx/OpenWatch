@@ -1,7 +1,7 @@
 spec:
   id: frontend-host-detail
   title: Host Detail page layout, behavior, and empty-state contracts
-  version: "1.0.5"
+  version: "1.1.0"
   status: approved
   tier: 2
 
@@ -217,3 +217,7 @@ spec:
       description: 'HeroCompliance subhead in the card header MUST be "LAST SCAN <date>" (e.g. "LAST SCAN 4/19/2026" or "LAST SCAN —" when no scan has run), NOT a Framework selector. The Framework filter belongs on the Compliance tab when that tab ships; including it in the Overview hero clutters the affordance and was an explicit prototype miss.'
       priority: high
       references_constraints: [C-10]
+    - id: AC-36
+      description: 'v1.1.0 — the page-head Run scan button is LIVE (no longer a disabled placeholder): it POSTs /api/v1/hosts/{id}/scans with a crypto.randomUUID() Idempotency-Key header, disables itself while the request is pending, surfaces a 409 as a transient "Scan already running" note (not an error), and does NOT poll — the result refresh arrives via the scan.completed SSE topic (frontend-live-events C-07).'
+      priority: critical
+      references_constraints: [C-07]

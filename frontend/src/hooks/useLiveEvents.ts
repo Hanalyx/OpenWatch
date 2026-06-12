@@ -22,14 +22,15 @@ import { useAuthStore } from '@/store/useAuthStore';
 // 3-5s backoff. If we ever need explicit backoff control we'll switch
 // to a manual fetch + ReadableStream loop.
 
-// Closed v1.0 set of topics this hook subscribes to. Each MUST exist
-// in backend eventbus.AllEventKinds (Go-side closed enum). Spec
-// frontend-live-events C-01 + AC-01 enforce.
+// Closed set of topics this hook subscribes to (v1.1.0: + scan.completed).
+// Each MUST exist in backend eventbus.AllEventKinds (Go-side closed
+// enum). Spec frontend-live-events C-01 + AC-01 enforce.
 export const ALL_TOPICS = [
   'host.changed',
   'monitoring.band.changed',
   'host.discovered',
   'intelligence.event',
+  'scan.completed',
 ] as const;
 
 type Topic = (typeof ALL_TOPICS)[number];
@@ -124,6 +125,20 @@ export function useLiveEvents(options: UseLiveEventsOptions = {}) {
           queryClient.invalidateQueries({
             queryKey: ['intelligence_state', hostId],
           });
+        }
+      },
+      // Spec frontend-live-events v1.1.0 C-07 + AC-08 — a completed
+      // compliance scan changes compliance_summary on BOTH the list
+      // and the detail hero card. This is the no-polling refresh path
+      // for the Run scan flow: button -> 202 -> worker scans ->
+      // scan.completed -> hero card updates.
+      'scan.completed': (e) => {
+        const env = parseEnvelope(e);
+        if (!env) return;
+        const hostId = (env.payload?.HostID ?? env.payload?.host_id) as string | undefined;
+        queryClient.invalidateQueries({ queryKey: ['hosts'] });
+        if (hostId) {
+          queryClient.invalidateQueries({ queryKey: ['host', hostId] });
         }
       },
     };

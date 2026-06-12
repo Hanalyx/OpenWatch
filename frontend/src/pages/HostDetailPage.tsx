@@ -634,9 +634,7 @@ function PageHead({
           <button type="button" style={ghostBtn} title="Open terminal (deferred)" disabled>
             <TerminalIcon size={14} /> Terminal
           </button>
-          <button type="button" style={primaryBtn} title="Run scan (deferred)" disabled>
-            <Play size={14} /> Run scan
-          </button>
+          <RunScanButton host={host} />
           <button
             type="button"
             onClick={() => setEditOpen(true)}
@@ -652,6 +650,69 @@ function PageHead({
       </div>
       <EditHostModal open={editOpen} onClose={() => setEditOpen(false)} host={host} />
     </section>
+  );
+}
+
+// RunScanButton — enqueues an on-demand compliance scan via
+// POST /hosts/{id}/scans (idempotency-keyed). The scan itself is
+// asynchronous: results refresh through the scan.completed SSE topic
+// (useLiveEvents invalidates ['host', id] + ['hosts']), so there is no
+// polling here. 409 means a scan is already queued/running for this
+// host — surfaced as a transient inline note, not an error.
+//
+// Spec: frontend-host-detail (Run scan action) + api-host-scan.
+function RunScanButton({ host }: { host: HostResponse }) {
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+
+  const runScan = async () => {
+    if (busy) return;
+    setBusy(true);
+    setNote(null);
+    try {
+      const { response } = await api.POST('/api/v1/hosts/{id}/scans', {
+        params: {
+          path: { id: host.id },
+          header: { 'Idempotency-Key': crypto.randomUUID() },
+        },
+      });
+      if (response.status === 409) {
+        setNote('Scan already running');
+        return;
+      }
+      if (!response.ok) {
+        setNote(`Scan request failed (${response.status})`);
+        return;
+      }
+      setNote('Scan queued');
+    } catch {
+      setNote('Scan request failed');
+    } finally {
+      setBusy(false);
+      // The note is transient feedback; the durable signal is the
+      // scan.completed SSE refresh of the hero card.
+      window.setTimeout(() => setNote(null), 5000);
+    }
+  };
+
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+      {note && (
+        <span role="status" style={{ color: 'var(--ow-fg-2)', fontSize: 12 }}>
+          {note}
+        </span>
+      )}
+      <button
+        type="button"
+        style={primaryBtn}
+        onClick={runScan}
+        disabled={busy}
+        aria-label={`Run compliance scan on ${host.hostname}`}
+        title="Run an on-demand compliance scan"
+      >
+        <Play size={14} /> {busy ? 'Queueing…' : 'Run scan'}
+      </button>
+    </span>
   );
 }
 

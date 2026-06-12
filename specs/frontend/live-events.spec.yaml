@@ -1,7 +1,7 @@
 spec:
   id: frontend-live-events
   title: useLiveEvents SSE hook — topic ↔ query-key invalidation contract
-  version: "1.0.0"
+  version: "1.1.0"
   status: approved
   tier: 2
 
@@ -28,6 +28,10 @@ spec:
                                         invalidation; list page is NOT
                                         invalidated (intel events don't
                                         affect the list view)
+        - scan.completed              — list + detail invalidation
+                                        (v1.1.0: compliance_summary on
+                                        both views changes when a scan's
+                                        outcomes persist)
 
       Spec system-event-bus AC-07 enumerates the backend closed enum;
       this spec mirrors the frontend's subset. The two MUST stay in
@@ -61,7 +65,7 @@ spec:
 
   constraints:
     - id: C-01
-      description: 'ALL_TOPICS MUST be a closed const-tuple containing exactly the four kinds: host.changed, monitoring.band.changed, host.discovered, intelligence.event. Adding a fifth requires bumping this spec''s version and updating the test'
+      description: 'ALL_TOPICS MUST be a closed const-tuple containing exactly the five kinds: host.changed, monitoring.band.changed, host.discovered, intelligence.event, scan.completed (v1.1.0). Adding a sixth requires bumping this spec''s version and updating the test'
       type: technical
       enforcement: error
     - id: C-02
@@ -84,10 +88,14 @@ spec:
       description: 'Each topic handler MUST tolerate a missing host_id in the envelope (defensive — the eventbus contract carries one, but a malformed event must not throw). Missing host_id falls back to the list-only invalidation path'
       type: technical
       enforcement: error
+    - id: C-07
+      description: 'scan.completed handler MUST invalidate [hosts] AND when the envelope carries a host id also [host, id] — a completed scan changes compliance_summary on both the list and the detail hero card. This is the no-polling refresh path for the Run scan flow'
+      type: technical
+      enforcement: error
 
   acceptance_criteria:
     - id: AC-01
-      description: 'ALL_TOPICS as exported from useLiveEvents.ts equals exactly the closed set ["host.changed", "monitoring.band.changed", "host.discovered", "intelligence.event"]. Verified by importing the const and asserting the array contents + length'
+      description: 'ALL_TOPICS as exported from useLiveEvents.ts equals exactly the closed set ["host.changed", "monitoring.band.changed", "host.discovered", "intelligence.event", "scan.completed"]. Verified by importing the const and asserting the array contents + length'
       priority: critical
       references_constraints: [C-01]
     - id: AC-02
@@ -114,3 +122,7 @@ spec:
       description: 'Source inspection: useLiveEvents.ts opens exactly ONE `new EventSource(...)` call. Multiple sockets per mount cycle are forbidden'
       priority: critical
       references_constraints: [C-05]
+    - id: AC-08
+      description: 'Firing scan.completed with host_id=H invalidates ["hosts"] AND ["host", H] — the hero compliance card refreshes without a reload after a scan finishes'
+      priority: critical
+      references_constraints: [C-07]

@@ -38,6 +38,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/Hanalyx/openwatch/internal/audit"
+	"github.com/Hanalyx/openwatch/internal/eventbus"
 	"github.com/Hanalyx/openwatch/internal/kensa"
 	"github.com/Hanalyx/openwatch/internal/queue"
 	"github.com/Hanalyx/openwatch/internal/scanruns"
@@ -75,6 +76,7 @@ type ScanWorker struct {
 	executor *kensa.Executor
 	writer   *transactionlog.Writer
 	queueKey []byte
+	bus      *eventbus.Bus // nil = no scan.completed publication (dedicated worker process)
 
 	pollInterval time.Duration
 
@@ -104,6 +106,12 @@ type Config struct {
 	PollInterval time.Duration
 	Emit         EmitFunc
 
+	// Bus, when non-nil, receives scan.completed events after outcomes
+	// persist. The serve process passes its SSE bus; the dedicated
+	// worker subcommand passes nil (its in-memory bus would have no
+	// subscribers — cross-process delivery is a known non-goal).
+	Bus *eventbus.Bus
+
 	// clock allows tests to inject a controllable time source.
 	// Production passes time.Now.
 	Clock func() time.Time
@@ -129,6 +137,7 @@ func NewScanWorker(cfg Config) *ScanWorker {
 		executor:     cfg.Executor,
 		writer:       cfg.Writer,
 		queueKey:     cfg.QueueKey,
+		bus:          cfg.Bus,
 		pollInterval: cfg.PollInterval,
 		clock:        cfg.Clock,
 		emit:         cfg.Emit,
@@ -193,16 +202,16 @@ func (w *ScanWorker) Run(ctx context.Context) error {
 		// processJob uses jobCtx (fresh, decoupled from parent ctx)
 		// so SIGTERM does NOT abort the in-flight scan. The executor's
 		// per-scan timeout is the bound on how long this takes.
-		w.processJob(jobCtx, job)
+		w.ProcessJob(jobCtx, job)
 		w.inFlightCount.Add(-1)
 		w.completedCount.Add(1)
 	}
 }
 
-// processJob runs the full per-job pipeline. Recovers from panics so a
+// ProcessJob runs the full per-job pipeline. Recovers from panics so a
 // rogue scan does not take down the worker; emits a typed audit on the
 // panic path.
-func (w *ScanWorker) processJob(ctx context.Context, j *queue.Job) {
+func (w *ScanWorker) ProcessJob(ctx context.Context, j *queue.Job) {
 	defer func() {
 		if r := recover(); r != nil {
 			slog.ErrorContext(ctx, "worker panic during scan",
@@ -290,10 +299,25 @@ func (w *ScanWorker) processJob(ctx context.Context, j *queue.Job) {
 
 	// Scan-run logbook: completed, with per-outcome counts.
 	// Spec system-scan-runs AC-03.
-	if err := scanruns.MarkCompleted(ctx, w.pool, j.ID, outcomeCounts(result.Outcomes)); err != nil {
+	counts := outcomeCounts(result.Outcomes)
+	if err := scanruns.MarkCompleted(ctx, w.pool, j.ID, counts); err != nil {
 		slog.WarnContext(ctx, "worker scan_runs mark completed failed",
 			slog.String("scan_id", j.ID.String()),
 			slog.String("error", err.Error()))
+	}
+
+	// Announce on the event bus so SSE clients refresh compliance
+	// surfaces without polling. Spec api-host-scan / frontend-live-events.
+	if w.bus != nil {
+		w.bus.Publish(ctx, eventbus.ScanCompleted{
+			ScanID:      j.ID,
+			HostID:      payload.HostID,
+			Pass:        counts.Pass,
+			Fail:        counts.Fail,
+			Skipped:     counts.Skipped,
+			Errored:     counts.Error,
+			CompletedAt: w.clock().UTC(),
+		})
 	}
 
 	// Reset backoff streak on success.

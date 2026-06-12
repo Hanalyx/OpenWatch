@@ -252,7 +252,8 @@ func TestEventKindEnum_HasExactlyTwoValues(t *testing.T) {
 		// Closed set: HeartbeatPulse + DriftDetected (v1.0),
 		// HostChanged + MonitoringBandChanged (v1.1 SSE layer),
 		// HostDiscovered (system-host-discovery PR 1.1),
-		// IntelligenceEvent (system-os-intelligence PR 1.2).
+		// IntelligenceEvent (system-os-intelligence PR 1.2),
+		// ScanCompleted (api-host-scan / scan foundation).
 		expected := map[EventKind]bool{
 			EventKindHeartbeatPulse:        false,
 			EventKindDriftDetected:         false,
@@ -260,6 +261,7 @@ func TestEventKindEnum_HasExactlyTwoValues(t *testing.T) {
 			EventKindMonitoringBandChanged: false,
 			EventKindHostDiscovered:        false,
 			EventKindIntelligenceEvent:     false,
+			EventKindScanCompleted:         false,
 		}
 		if len(AllEventKinds) != len(expected) {
 			t.Errorf("AllEventKinds = %d, want %d", len(AllEventKinds), len(expected))

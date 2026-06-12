@@ -87,6 +87,20 @@ describe('frontend-host-detail — structural', () => {
     expect(MODAL_SRC).toContain('Hostname is immutable');
   });
 
+  // @ac AC-36
+  test('frontend-host-detail/AC-36 — Run scan button is live: POST + idempotency key + 409 note + no polling', () => {
+    // Live wiring, not the disabled placeholder.
+    expect(PAGE_SRC).not.toContain('Run scan (deferred)');
+    expect(PAGE_SRC).toContain("api.POST('/api/v1/hosts/{id}/scans'");
+    expect(PAGE_SRC).toContain("'Idempotency-Key': crypto.randomUUID()");
+    // 409 is a transient note, not an error path.
+    expect(PAGE_SRC).toContain('Scan already running');
+    // No polling: the refresh comes from the scan.completed SSE topic
+    // (frontend-live-events C-07); the page must not setInterval-poll
+    // the host query after queueing a scan.
+    expect(PAGE_SRC).not.toMatch(/setInterval\([^)]*host/);
+  });
+
   // @ac AC-14
   test('frontend-host-detail/AC-14 — no PII field names in console.*', () => {
     const deny = ['evidence', 'token', 'password', 'secret'];

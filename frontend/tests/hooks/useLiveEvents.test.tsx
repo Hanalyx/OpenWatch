@@ -9,6 +9,7 @@
 //   AC-05  test('frontend-live-events/AC-05 — intelligence.event invalidates [host_intelligence_events, id] only, NOT [hosts]')
 //   AC-06  test('frontend-live-events/AC-06 — missing host_id falls back to list-only')
 //   AC-07  test('frontend-live-events/AC-07 — source-inspect: exactly one new EventSource(...) call')
+//   AC-08  test('frontend-live-events/AC-08 — scan.completed invalidates [hosts] + [host, id]')
 
 import { expect, test, beforeEach, vi } from 'vitest';
 import { renderHook } from '@testing-library/react';
@@ -82,11 +83,18 @@ beforeEach(() => {
 });
 
 // @ac AC-01
-// AC-01: ALL_TOPICS exported as closed v1.0 set of 4 topics.
+// AC-01: ALL_TOPICS exported as the closed set of 5 topics (v1.1.0
+// adds scan.completed).
 test('frontend-live-events/AC-01 — ALL_TOPICS is the closed v1.0 set', () => {
-  const want = ['host.changed', 'monitoring.band.changed', 'host.discovered', 'intelligence.event'];
+  const want = [
+    'host.changed',
+    'monitoring.band.changed',
+    'host.discovered',
+    'intelligence.event',
+    'scan.completed',
+  ];
   expect([...ALL_TOPICS]).toEqual(want);
-  expect(ALL_TOPICS.length).toBe(4);
+  expect(ALL_TOPICS.length).toBe(5);
 });
 
 // Helper to mount the hook and return the stub + spies.
@@ -132,6 +140,15 @@ test('frontend-live-events/AC-04 — host.discovered invalidates [hosts] + [host
   const calls = spy.mock.calls.map((c) => c[0]?.queryKey);
   expect(calls).toContainEqual(['hosts']);
   expect(calls).toContainEqual(['host', 'h-ccc']);
+});
+
+// @ac AC-08
+test('frontend-live-events/AC-08 — scan.completed invalidates [hosts] + [host, id]', () => {
+  const { es, spy } = mountHook();
+  es.fire('scan.completed', { host_id: 'h-scan' });
+  const calls = spy.mock.calls.map((c) => c[0]?.queryKey);
+  expect(calls).toContainEqual(['hosts']);
+  expect(calls).toContainEqual(['host', 'h-scan']);
 });
 
 // @ac AC-05
