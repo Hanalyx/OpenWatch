@@ -42,6 +42,12 @@ export interface DevHost {
   passed: number | null;
   failed: number | null;
   total: number;
+  /**
+   * v1.3.0 (frontend-hosts-list AC-18) — failing rules with critical
+   * severity, from the list endpoint's compliance_summary.critical_failing.
+   * 0 (or absent, for the canned fixtures) when never scanned.
+   */
+  criticalFailing?: number;
   // null when no host_liveness row exists ("never probed"). The list
   // cell renders "—" in that case rather than the misleading "0m ago".
   lastCheckMinutes: number | null;

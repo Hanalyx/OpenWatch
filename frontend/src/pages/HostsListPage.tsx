@@ -97,6 +97,22 @@ export interface ApiHost {
   architecture?: string | null;
   platform_identifier?: string | null;
   os_discovered_at?: string | null;
+  /**
+   * v1.3.0 (frontend-hosts-list AC-16) — per-host compliance rollup
+   * from host_rule_state (HostListComplianceSummary in the OpenAPI
+   * contract). null when the host has never been scanned.
+   */
+  compliance_summary?: ApiHostComplianceSummary | null;
+}
+
+export interface ApiHostComplianceSummary {
+  passing: number;
+  failing: number;
+  skipped: number;
+  error: number;
+  total: number;
+  /** Rows with current_status=fail and critical severity. */
+  critical_failing: number;
 }
 
 // Per-vendor accent for the OS chip. Widened to a string-keyed map so
@@ -212,7 +228,7 @@ export function HostsListPage() {
     if (total === 0) return 'No hosts yet.';
     const downCount = hosts.filter((h) => h.status === 'down').length;
     if (downCount > 0) {
-      return `${downCount} of ${total} hosts down. ${kpis.criticalIssues.value} critical issues ${kpis.criticalIssues.scope}.`;
+      return `${downCount} of ${total} hosts down. ${kpis.criticalIssues.value} critical issues (${kpis.criticalIssues.scope}).`;
     }
     return `${total} host${total === 1 ? '' : 's'} tracked.`;
   }, [hosts, hostsQuery.isLoading, useFixtures, kpis.criticalIssues]);
@@ -1513,6 +1529,13 @@ export function apiHostToDev(h: ApiHost): DevHost {
       lastScan = formatMinutesAgo(minutesAgo);
     }
   }
+  // v1.3.0 (AC-16): real per-host compliance from the list endpoint's
+  // nullable compliance_summary. A null summary (or a zero-rule summary)
+  // means the host has never been scanned: compliance/passed/failed stay
+  // null so the card keeps the honest "No scan data" rendering with the
+  // "Scan needed" hint instead of a fake 0%.
+  const cs = h.compliance_summary ?? null;
+  const hasScanData = cs !== null && cs.total > 0;
   return {
     id: h.id,
     hostname: h.hostname,
@@ -1521,26 +1544,43 @@ export function apiHostToDev(h: ApiHost): DevHost {
     status: reachable ? 'online' : 'down',
     monitoring,
     maintenance: h.maintenance_mode === true,
-    compliance: null,
-    passed: null,
-    failed: null,
-    total: 0,
+    compliance: hasScanData ? Math.round((cs.passing / cs.total) * 1000) / 10 : null,
+    passed: hasScanData ? cs.passing : null,
+    failed: hasScanData ? cs.failing : null,
+    total: hasScanData ? cs.total : 0,
+    criticalFailing: cs?.critical_failing ?? 0,
     lastCheckMinutes,
     lastScan,
   };
 }
 
-function kpisFromHosts(hosts: DevHost[]) {
+export function kpisFromHosts(hosts: DevHost[]) {
   const total = hosts.length;
   const online = hosts.filter((h) => h.status === 'online').length;
-  const totalRules = hosts.reduce((n, h) => n + h.total, 0);
-  const totalPassed = hosts.reduce((n, h) => n + (h.passed ?? 0), 0);
+  // v1.3.0 (AC-17): the fleet average is rule-weighted over hosts WITH
+  // scan data only. Never-scanned hosts (compliance null, total 0) are
+  // excluded entirely rather than dragging the average down as zeros.
+  const scanned = hosts.filter((h) => h.compliance != null && h.total > 0);
+  const totalRules = scanned.reduce((n, h) => n + h.total, 0);
+  const totalPassed = scanned.reduce((n, h) => n + (h.passed ?? 0), 0);
   const avgCompliance = totalRules > 0 ? Math.round((totalPassed / totalRules) * 1000) / 10 : 0;
+  // v1.3.0 (AC-18): critical issues = sum of critical_failing across the
+  // fleet; the scope counts how many hosts contribute at least one.
+  const criticalIssues = hosts.reduce((n, h) => n + (h.criticalFailing ?? 0), 0);
+  const affectedHosts = hosts.filter((h) => (h.criticalFailing ?? 0) > 0).length;
   const neutral = 'neutral' as const;
   return {
     hostsOnline: { value: online, total, delta: '', deltaTier: neutral },
     avgCompliance: { value: avgCompliance, target: 80, delta: '', deltaTier: neutral },
-    criticalIssues: { value: 0, scope: 'No data', delta: '', deltaTier: neutral },
+    criticalIssues: {
+      value: criticalIssues,
+      scope:
+        criticalIssues > 0
+          ? `${affectedHosts} host${affectedHosts === 1 ? '' : 's'} affected`
+          : 'No data',
+      delta: '',
+      deltaTier: neutral,
+    },
     scanQueue: { value: 0, scope: 'Idle', delta: '—', deltaTier: neutral },
   } satisfies import('@/api/dev-fixtures').DevKpis;
 }

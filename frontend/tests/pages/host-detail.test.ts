@@ -118,9 +118,11 @@ describe('frontend-host-detail — structural', () => {
     // Evidence never displayed by the card (api-host-compliance C-02);
     // the response shape has no evidence field and the card must not
     // reference one.
+    // Slice ends at CardComplianceTrend — SeverityPill moved to
+    // host-detail/SeverityPill.tsx (frontend-host-compliance-tab v1.0.0).
     const cardSlice = PAGE_SRC.slice(
       PAGE_SRC.indexOf('function CardTopFailed'),
-      PAGE_SRC.indexOf('function SeverityPill'),
+      PAGE_SRC.indexOf('function CardComplianceTrend'),
     );
     expect(cardSlice).not.toMatch(/evidence/i);
     // No dead Remediate action before Phase 7.

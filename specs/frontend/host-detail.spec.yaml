@@ -1,7 +1,7 @@
 spec:
   id: frontend-host-detail
   title: Host Detail page layout, behavior, and empty-state contracts
-  version: "1.2.0"
+  version: "1.3.0"
   status: approved
   tier: 2
 
@@ -29,6 +29,7 @@ spec:
       - system-liveness-loop
       - api-events-stream
       - system-event-bus
+      - frontend-host-compliance-tab
 
   objective:
     summary: >
@@ -48,7 +49,7 @@ spec:
         - 'Two-column Overview body: left (Top failed rules, Server intelligence, Compliance trend); right (System, Recent activity)'
         - 'Empty-state cards that name the deferred backend subsystem'
       excludes:
-        - 'Functional Compliance / Packages / Services / Users / Network / Audit log / Activity / Remediation / Terminal tabs — backend subsystems missing'
+        - 'Functional Audit log / Activity / Remediation / Terminal tabs — backend subsystems missing (v1.3.0: Compliance is live via frontend-host-compliance-tab; Packages / Services / Users / Network are live via frontend-host-detail-inventory-tabs)'
         - 'Hardware metric collection (CPU/Disk/Memory)'
         - 'Server intelligence collection (packages/services/users/network)'
         - 'Adaptive compliance scheduler'
@@ -69,7 +70,7 @@ spec:
       type: technical
       enforcement: error
     - id: C-04
-      description: 'Tabs row MUST render all 10 prototype tabs in order: Overview, Compliance, Packages, Services, Users, Network, Audit log, Activity, Remediation, Terminal. Only Overview is functional in v1.0.0; selecting any other tab renders an empty-state stub that NAMES the deferred backend subsystem'
+      description: 'Tabs row MUST render all 10 prototype tabs in order: Overview, Compliance, Packages, Services, Users, Network, Audit log, Activity, Remediation, Terminal. Tabs whose backend subsystem is still deferred render an empty-state stub that NAMES the subsystem. v1.3.0: Compliance is live (frontend-host-compliance-tab) and the TAB_BACKEND_SUBSYSTEM stub registry no longer carries a compliance entry; Packages / Services / Users / Network are live per frontend-host-detail-inventory-tabs'
       type: technical
       enforcement: error
     - id: C-05
@@ -146,7 +147,7 @@ spec:
       priority: critical
       references_constraints: [C-08]
     - id: AC-18
-      description: 'Tabs row renders 10 tabs in this exact order: Overview, Compliance, Packages, Services, Users, Network, Audit log, Activity, Remediation, Terminal. Each non-Overview tab, when selected, renders an empty-state stub naming the deferred backend subsystem (e.g. "Server Intelligence collection — BACKLOG").'
+      description: 'Tabs row renders 10 tabs in this exact order: Overview, Compliance, Packages, Services, Users, Network, Audit log, Activity, Remediation, Terminal. Tabs whose backend subsystem is still deferred render an empty-state stub naming the subsystem (e.g. "Audit query API — BACKLOG"). v1.3.0: Compliance mounts ComplianceTab (frontend-host-compliance-tab) instead of a stub.'
       priority: critical
       references_constraints: [C-04]
     - id: AC-19

@@ -35,6 +35,8 @@ import { osDisplayLabel } from '@/utils/osLabel';
 import { formatUptime } from '@/utils/formatUptime';
 import { stripKernelDistroSuffix } from '@/utils/kernelVersion';
 import { CardServerIntel } from '@/pages/host-detail/CardServerIntel';
+import { ComplianceTab } from '@/pages/host-detail/ComplianceTab';
+import { SeverityPill } from '@/pages/host-detail/SeverityPill';
 import {
   PackagesTab,
   ServicesTab,
@@ -173,8 +175,7 @@ const TAB_ORDER: { id: TabId; label: string; icon: LucideIcon }[] = [
 
 // Backend subsystem that populates each tab when it lands. Surfaces
 // inside the per-tab empty state so operators know what's deferred.
-const TAB_BACKEND_SUBSYSTEM: Record<Exclude<TabId, 'overview'>, string> = {
-  compliance: 'Compliance scanner — runs Kensa-via-SSH per host; not yet wired in the Go rebuild.',
+const TAB_BACKEND_SUBSYSTEM: Record<Exclude<TabId, 'overview' | 'compliance'>, string> = {
   packages: 'Server Intelligence collection — installed-package inventory deferred (BACKLOG).',
   services: 'Server Intelligence collection — running services inventory deferred (BACKLOG).',
   users: 'Server Intelligence collection — user accounts inventory deferred (BACKLOG).',
@@ -331,9 +332,10 @@ export function HostDetailPage() {
       search: tab === 'overview' && !framework ? {} : { ...(framework ? { framework } : {}), tab },
     });
 
-  // Preserved for the future Compliance tab — the framework selector
-  // is mounted there (not on Overview, AC-35). AC-08 (api-hosts) still
-  // requires the URL-update + queryKey re-fetch wiring exists.
+  // Lens selection for the Compliance tab (frontend-host-compliance-tab
+  // C-01) — updates the ?framework= search param. The host detail
+  // queryKey embeds framework (api-hosts AC-08) and the ComplianceTab
+  // lens queryKey does too, so both refetch on change.
   const onFrameworkChange = (next: string | undefined) =>
     navigate({
       to: '/hosts/$hostId',
@@ -343,9 +345,6 @@ export function HostDetailPage() {
         ...(activeTab !== 'overview' ? { tab: activeTab } : {}),
       },
     });
-  // Keep alive across renders so noUnusedLocals doesn't drop it before
-  // the Compliance tab lands.
-  void onFrameworkChange;
 
   return (
     <div style={{ padding: '20px 28px' }}>
@@ -442,6 +441,12 @@ export function HostDetailPage() {
                 </div>
               </section>
             </>
+          ) : activeTab === 'compliance' ? (
+            <ComplianceTab
+              hostId={detailQuery.data.host.id}
+              framework={framework}
+              onFrameworkChange={onFrameworkChange}
+            />
           ) : activeTab === 'packages' ? (
             <PackagesTab
               isLoading={intelligenceStateQuery.isLoading}
@@ -1483,34 +1488,8 @@ function CardTopFailed({
   return <Card title="Top failed rules">{body}</Card>;
 }
 
-// SeverityPill maps a rule severity onto the prototype's sev badge
-// tiers (critical and high share the crit tint, matching the mockup).
-function SeverityPill({ severity }: { severity: string }) {
-  const s = severity.toLowerCase();
-  const tier =
-    s === 'critical' || s === 'high'
-      ? { fg: 'var(--ow-crit)', label: s === 'critical' ? 'Crit' : 'High' }
-      : s === 'medium'
-        ? { fg: 'var(--ow-warn)', label: 'Med' }
-        : { fg: 'var(--ow-info)', label: s === 'low' ? 'Low' : 'Info' };
-  return (
-    <span
-      style={{
-        flexShrink: 0,
-        fontSize: 10,
-        fontWeight: 600,
-        textTransform: 'uppercase',
-        letterSpacing: '0.04em',
-        color: tier.fg,
-        border: `1px solid color-mix(in oklab, ${tier.fg} 40%, transparent)`,
-        borderRadius: 999,
-        padding: '2px 8px',
-      }}
-    >
-      {tier.label}
-    </span>
-  );
-}
+// SeverityPill now lives in @/pages/host-detail/SeverityPill so the
+// Compliance tab can share it (frontend-host-compliance-tab).
 
 function CardComplianceTrend() {
   return (

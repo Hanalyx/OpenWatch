@@ -66,6 +66,7 @@ domains:
             - system-worker-subcommand
             - system-scan-runs
             - api-host-compliance
+            - frontend-host-compliance-tab
 settings:
     specs_dir: specs
     # Honored by `specter coverage` (not by `specter sync` — CI passes
