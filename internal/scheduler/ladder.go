@@ -20,7 +20,7 @@ import (
 // Audit emission is the caller's responsibility (cmd/openwatch/main.go at
 // boot, scheduler.Reload at runtime).
 func LoadIntervals(tiers PolicyTiers) LoadResult {
-	ladder := make(TierLadder, 5)
+	ladder := make(TierLadder, 6)
 	var clamps []ClampRecord
 
 	allStates := []ComplianceState{
@@ -28,6 +28,7 @@ func LoadIntervals(tiers PolicyTiers) LoadResult {
 		StateCritical,
 		StateNonCompliant,
 		StatePartial,
+		StateMostlyCompliant,
 		StateCompliant,
 	}
 
@@ -111,7 +112,7 @@ func NextScanFor(state ComplianceState, lastFinishedAt time.Time, ladder TierLad
 
 // shortestInterval returns the smallest interval in the ladder, defaulting
 // to MinIntervalFloor when the ladder is empty (which itself should not
-// happen because LoadIntervals always populates all 5 states).
+// happen because LoadIntervals always populates all six states).
 func shortestInterval(ladder TierLadder) time.Duration {
 	min := MaxIntervalCap
 	for _, d := range ladder {

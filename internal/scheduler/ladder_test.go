@@ -24,11 +24,12 @@ func validTiers() PolicyTiers {
 	return PolicyTiers{
 		Version: "1.0.0",
 		IntervalMins: map[ComplianceState]int{
-			StateCritical:     60,   // 1h
-			StateNonCompliant: 360,  // 6h
-			StatePartial:      720,  // 12h
-			StateCompliant:    1440, // 24h
-			StateUnknown:      60,   // 1h — treat as critical until known
+			StateCritical:        60,   // 1h
+			StateNonCompliant:    360,  // 6h
+			StatePartial:         720,  // 12h
+			StateMostlyCompliant: 1080, // 18h
+			StateCompliant:       1440, // 24h
+			StateUnknown:         60,   // 1h — treat as critical until known
 		},
 	}
 }
@@ -154,11 +155,12 @@ func TestLoadIntervals_NoClampForInBudgetValues(t *testing.T) {
 
 		// Verify the ladder content matches the input verbatim.
 		want := TierLadder{
-			StateCritical:     60 * time.Minute,
-			StateNonCompliant: 6 * time.Hour,
-			StatePartial:      12 * time.Hour,
-			StateCompliant:    24 * time.Hour,
-			StateUnknown:      60 * time.Minute,
+			StateCritical:        60 * time.Minute,
+			StateNonCompliant:    6 * time.Hour,
+			StatePartial:         12 * time.Hour,
+			StateMostlyCompliant: 18 * time.Hour,
+			StateCompliant:       24 * time.Hour,
+			StateUnknown:         60 * time.Minute,
 		}
 		if !reflect.DeepEqual(result.Ladder, want) {
 			t.Errorf("ladder mismatch:\n  got:  %v\n  want: %v", result.Ladder, want)

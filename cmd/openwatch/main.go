@@ -476,6 +476,29 @@ func cmdServe(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 	} else {
 		scanExecutor = scanExecutor.WithScanFunc(scanFn)
 	}
+	// Adaptive compliance scheduler — v3.0.0 ladder from systemconfig
+	// (scan plan decision #4). Booted like its siblings (intelSched,
+	// discoSched): RunManaged refreshes the config before every 60s
+	// tick, so Settings edits apply within a tick and Enabled=false /
+	// MaintenanceGlobal=true pause dispatch. Hosts are seeded into
+	// host_compliance_schedule by migration 0024 + host create.
+	// Spec system-scheduler v3.0.0.
+	scanCfg, scanCfgErr := cfgStore.LoadScan(bootCtx)
+	if scanCfgErr != nil {
+		slog.WarnContext(bootCtx, "scan config load failed at boot; scheduler starts from defaults",
+			slog.String("error", scanCfgErr.Error()))
+		scanCfg = systemconfig.DefaultScan()
+	}
+	complianceSched := compsched.NewService(pool, compsched.LoadFromConfig(scanCfg), scanQueueKey, audit.Emit)
+	complianceSched.Reload(compsched.LoadFromConfig(scanCfg), scanCfg.RateLimit,
+		!scanCfg.Enabled || scanCfg.MaintenanceGlobal)
+	complianceSched.RunManaged(ctx, 0, cfgStore)
+	if !scanCfg.Enabled || scanCfg.MaintenanceGlobal {
+		slog.WarnContext(bootCtx, "compliance scheduler paused at startup",
+			slog.Bool("enabled", scanCfg.Enabled),
+			slog.Bool("maintenance_global", scanCfg.MaintenanceGlobal))
+	}
+
 	scanWorker := worker.NewScanWorker(worker.Config{
 		Pool:     pool,
 		Executor: scanExecutor,
@@ -483,6 +506,7 @@ func cmdServe(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 		QueueKey: scanQueueKey,
 		Emit:     audit.Emit,
 		Bus:      bus,
+		Sched:    complianceSched,
 	})
 
 	srv := server.New(cfg, pool).

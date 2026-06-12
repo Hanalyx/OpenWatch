@@ -1,7 +1,7 @@
 spec:
   id: system-scheduler
   title: Adaptive compliance scheduler
-  version: "2.0.0"
+  version: "3.0.0"
   status: approved
   tier: 1
 
@@ -15,32 +15,58 @@ spec:
       are produced at query time by joining transactions /
       host_rule_state to the per-rule framework_refs JSONB.
 
-      A cron tick (60s via robfig/cron) sweeps host_compliance_schedule
-      for rows where next_scheduled_scan <= now() and enqueues one
-      job per due host to the PostgreSQL SKIP LOCKED queue. Tier
-      intervals are read from the Ed25519-signed `schedules` policy
-      YAML; after each scan, the row is updated based on the
-      resulting compliance state.
+      A cron tick (60s) sweeps host_compliance_schedule for rows where
+      next_scheduled_scan <= now() and enqueues one job per due host
+      to the PostgreSQL SKIP LOCKED queue, capped by the config rate
+      limit. After each COMPLETED scan (scheduler-dispatched or
+      on-demand), the worker calls Service.PersistAfterScan: the
+      result is classified into a compliance state and the row's
+      next_scheduled_scan is re-anchored to the completion time.
 
-      Version 2.0.0 breaking change (from 1.0.0): JobPayload no
-      longer carries framework_id. HMAC inputs change accordingly.
-      The DefaultFramework constructor parameter is dropped. See
-      docs/CANONICAL_RULE_SCHEMA_V1.md §3.3 (framework_refs as
-      per-rule metadata) and api/kensa.go (Kensa.Scan takes []*Rule,
-      not a framework identifier) for the upstream rationale.
+      Version 3.0.0 breaking changes (from 2.0.0), per scan plan
+      decisions #4 and #5 (resolved 2026-06-12):
+
+      (1) The tier ladder is OPERATOR-EDITABLE SYSTEMCONFIG (key
+      "scan", systemconfig.ScanConfig), loaded via LoadFromConfig and
+      refreshed before every tick by RunManaged. The v2 Ed25519-signed
+      schedules-policy file, its revocation list, and the
+      startup-refusal path are REMOVED (startup.go / revocation.go
+      deleted): signing the cadence config had no threat-model value
+      when the same operator can PUT maintenance toggles that stop
+      scanning entirely. The job-payload HMAC (hmac.go) is unrelated
+      to policy signing and STAYS. The payload's policy_version
+      becomes a config-derived snapshot ("cfg-" + the six ladder
+      minutes) that changes exactly when the effective cadence does.
+
+      (2) ComplianceState grows a fifth score band, mostly_compliant,
+      matching the prototype: critical <20, non_compliant 20-49,
+      partial 50-69, mostly_compliant 70-89, compliant >=90, plus
+      unknown for never-scanned (migration 0024 widens the CHECK and
+      backfills a schedule row per live host; host create seeds new
+      rows due immediately).
+
+      (3) Manual-scan posture revision: POST /scans still bypasses
+      dispatch (no schedule-row lock, no dispatch-time advancement),
+      but its COMPLETION updates the row via PersistAfterScan like any
+      scan — a manual scan postpones the next auto scan rather than
+      stacking onto it.
+
+      Version 2.0.0 (from 1.0.0) removed framework_id from JobPayload
+      and the HMAC inputs; that architecture is unchanged here.
 
   objective:
     summary: >
-      A scan happens on every host on its policy-defined cadence with no
-      manual intervention. Fast for non-compliant hosts (1h), slow for
-      compliant (24h, max 48h). Maintenance windows block dispatch.
-      Manual scans via POST /scans always bypass the schedule.
+      A scan happens on every host on its config-defined cadence with no
+      manual intervention. Fast for risky states, slow for compliant
+      (max 48h). Maintenance (config-global or per-host) blocks
+      dispatch; the config Enabled flag pauses the loop. Manual scans
+      bypass dispatch but refresh the schedule on completion.
     scope:
       includes:
         - Per-host schedule record with state-derived next-scan time
         - Cron tick that polls for due hosts
-        - Tier ladder driven by policy.Schedules
-        - System-wide and per-host maintenance flags (policy-driven)
+        - Tier ladder driven by systemconfig (key "scan"), refreshed per tick
+        - Config Enabled flag + global maintenance pause; per-host maintenance flag
         - Schedule update after each scan completion
       excludes:
         - Per-rule scheduling (whole-framework cadence only in Slice B)
@@ -49,7 +75,7 @@ spec:
 
   constraints:
     - id: C-01
-      description: Tier intervals MUST be loaded from policy.Schedules, not hardcoded
+      description: 'v3.0.0 - tier intervals MUST be loaded from the systemconfig scan config (LoadFromConfig over systemconfig.ScanConfig), never hardcoded and never from a policy file; RunManaged refreshes the config before every tick so operator edits apply within one tick without a restart'
       type: technical
       enforcement: error
     - id: C-02
@@ -69,15 +95,15 @@ spec:
       type: technical
       enforcement: error
     - id: C-06
-      description: Each scan job payload MUST snapshot policy.Schedules.Version at enqueue time; reloads do not affect in-flight scans
+      description: 'Each scan job payload MUST snapshot the config-derived version string at enqueue time ("cfg-" + the six ladder minutes); config reloads do not affect in-flight payloads'
       type: technical
       enforcement: error
     - id: C-07
-      description: Manual scans via POST /scans MUST bypass the schedule (no row update, no policy-version side effect on the row)
+      description: 'v3.0.0 revision - manual scans via POST /scans MUST bypass DISPATCH (no schedule-row lock, no dispatch-time next_scheduled_scan advancement), but their COMPLETION updates the row via PersistAfterScan exactly like a scheduled scan'
       type: technical
       enforcement: error
     - id: C-08
-      description: Tier intervals MUST be clamped to a minimum of 5 minutes regardless of policy values; protects against scan-storm DoS via misconfigured (malicious or accidental) policy
+      description: Tier intervals MUST be clamped to a minimum of 5 minutes regardless of config values; protects against scan-storm DoS via misconfigured (malicious or accidental) settings. The clamp applies BOTH at config write (ScanConfig.Normalize) and at ladder load (LoadIntervals)
       type: business
       enforcement: error
     - id: C-09
@@ -85,8 +111,8 @@ spec:
       type: security
       enforcement: error
     - id: C-10
-      description: Policy signatures MUST be checked against the current active signing key AND a revocation list; policies signed by a revoked key MUST be rejected even if the signature is otherwise valid (defense against signing-key-leak replay)
-      type: security
+      description: 'v3.0.0 - the five score bands MUST classify as: hasCritical OR score<20 -> critical; 20-49 -> non_compliant; 50-69 -> partial; 70-89 -> mostly_compliant; >=90 -> compliant. These band names are the systemconfig keys, the host_compliance_schedule CHECK values (migration 0024), and the Settings UI labels'
+      type: technical
       enforcement: error
     - id: C-11
       description: Each scan job payload MUST include an HMAC-SHA256 over (host_id, policy_version, enqueued_at) using a server-side key; dequeue MUST verify the HMAC before executing, rejecting tampered payloads. NOTE v2.0.0 breaking change — framework_id removed from the HMAC inputs; old payloads (with framework_id) MUST fail verification under the new HMAC scheme and are dead-lettered
@@ -99,7 +125,7 @@ spec:
 
   acceptance_criteria:
     - id: AC-01
-      description: scheduler.LoadIntervals() reads policy.Schedules and returns a TierLadder; missing tier defaults to MaxInterval (48h).
+      description: 'v3.0.0 - scheduler.LoadFromConfig(systemconfig.ScanConfig) maps all six state minutes into a clamped TierLadder via LoadIntervals (missing tier still defaults to MaxInterval 48h) and derives the version snapshot from the ladder values; two configs with the same ladder produce the same version, an edit that changes any interval changes it.'
       priority: critical
       references_constraints: [C-01, C-04]
     - id: AC-02
@@ -127,20 +153,22 @@ spec:
       priority: high
       references_constraints: [C-07]
     - id: AC-08
-      description: After a scan completes, scheduler.UpdateAfterScan(hostID, score, hasCritical) recomputes compliance_state and writes the new next_scheduled_scan.
+      description: 'After a scan completes, Service.PersistAfterScan(hostID, score, hasCritical, completedAt) classifies via StateFromScore + UpdateAfterScan and UPSERTs host_compliance_schedule (state, score, has_critical_findings, interval minutes, next_scheduled_scan anchored at completedAt, last_scan_completed_at), emitting scheduler.schedule.updated. The worker calls it after EVERY completed scan, scheduler-dispatched or on-demand; host create seeds the schedule row due-immediately and migration 0024 backfills existing hosts.'
       priority: critical
+      references_constraints: [C-07, C-09, C-10]
     - id: AC-09
-      description: Policy reload while a scan is in-flight does NOT change that scan's policy_version snapshot; verified by reloading mid-test.
+      description: Config reload while a scan is in-flight does NOT change that scan's payload version snapshot; verified by reloading mid-test.
       priority: critical
       references_constraints: [C-06]
     - id: AC-10
-      description: Schedules policy is Ed25519-verified at boot AND at every runtime reload. A reload with an invalid signature is rejected; the previous valid policy stays active and scheduler.policy.reload.rejected is emitted with the failure reason.
+      description: 'v3.0.0 - Service.Reload swaps ladder/version/rate-limit/pause atomically; a paused scheduler (config Enabled=false or MaintenanceGlobal=true) dispatches ZERO hosts even with due rows, and un-pausing resumes dispatch on the next tick. RunManaged keeps the last-known-good ladder when a config load fails (logged, never crashes the loop).'
       priority: critical
+      references_constraints: [C-01]
     - id: AC-11
       description: scheduler metrics expose last_tick_at, due_count, dispatched_count, skipped_maintenance_count, refuse_count, policy_clamped_count, hmac_reject_count counters.
       priority: medium
     - id: AC-12
-      description: A policy tier interval below 5 minutes is clamped to 5 minutes at load time; scheduler.policy.clamped audit event is emitted with the offending tier and original value.
+      description: A config tier interval below 5 minutes is clamped to 5 minutes at load time (ClampRecord produced); ScanConfig.Normalize applies the same floor plus the 48h ceiling and the 1..100 rate-limit bound at write time.
       priority: critical
       references_constraints: [C-08]
     - id: AC-13
@@ -148,7 +176,7 @@ spec:
       priority: critical
       references_constraints: [C-09]
     - id: AC-14
-      description: A schedules policy signed by a previously-rotated (revoked) signing key is rejected at load time even though its Ed25519 signature is mathematically valid; scheduler.policy.revoked_key.rejected audit event emitted.
+      description: 'v3.0.0 - StateFromScore implements the five bands with hasCritical override: boundaries at 20/50/70/90 (half-open, lower bound inclusive); hasCritical=true forces critical at any score. AllStates() lists exactly the six states in ladder order, and migration 0024 admits mostly_compliant in the host_compliance_schedule CHECK.'
       priority: critical
       references_constraints: [C-10]
     - id: AC-15

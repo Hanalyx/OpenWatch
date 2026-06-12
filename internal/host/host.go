@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"strings"
 	"time"
@@ -159,6 +160,21 @@ func (s *Service) CreateHost(ctx context.Context, p CreateParams) (Host, error) 
 			return Host{}, ErrInvalidCreator
 		}
 		return Host{}, fmt.Errorf("host: insert: %w", err)
+	}
+
+	// Seed the adaptive-scan schedule row: state unknown, due
+	// immediately (column default next_scheduled_scan = now()), so a
+	// fresh host gets its first compliance scan on the next scheduler
+	// tick without anyone clicking. Best-effort: a failure here never
+	// fails host creation — the migration backfill (0024) and
+	// ON CONFLICT keep this idempotent and self-healing.
+	// Spec system-scheduler v3.0.0 (seeding half of AC-08).
+	if _, seedErr := s.pool.Exec(ctx, `
+		INSERT INTO host_compliance_schedule (host_id)
+		VALUES ($1) ON CONFLICT (host_id) DO NOTHING`, h.ID); seedErr != nil {
+		slog.WarnContext(ctx, "host: seed compliance schedule failed",
+			slog.String("host_id", h.ID.String()),
+			slog.String("error", seedErr.Error()))
 	}
 	return h, nil
 }

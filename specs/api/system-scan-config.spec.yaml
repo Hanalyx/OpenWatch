@@ -1,0 +1,118 @@
+spec:
+  id: api-system-scan-config
+  title: Adaptive compliance scan scheduler config + fleet-state + schedule-preview HTTP surface
+  version: "1.0.0"
+  status: approved
+  tier: 2
+
+  context:
+    system: openwatch-go
+    feature: Settings -> Scanning "Compliance scanner" backend - read/update the scheduler config, per-state host counts, and the 24h schedule strip
+    description: >
+      The adaptive compliance scheduler (system-scheduler v3.0.0) reads
+      its tier ladder from system_config under KeyScan ("scan"):
+      enabled, six per-state interval minutes (the five score bands
+      plus unknown), rate_limit (per-tick dispatch cap), and
+      maintenance_global (fleet-wide pause). Scan plan decision #4
+      (resolved 2026-06-12) made this operator-editable systemconfig,
+      replacing the v2 signed schedules-policy file.
+
+      This spec covers four endpoints:
+
+        GET /api/v1/system/scan/config            - active + defaults envelope
+        PUT /api/v1/system/scan/config            - clamp + persist + audit
+        GET /api/v1/fleet/compliance/states       - hosts per compliance state
+        GET /api/v1/system/scan/schedule-preview  - 24h forward projection
+
+      PUT semantics DIVERGE from the sibling configs deliberately:
+      ladder minutes are CLAMPED into [5, 2880] and rate_limit into
+      [1, 100] (ScanConfig.Normalize) rather than rejected, per the
+      scan plan ratification ("server clamps to the scheduler's
+      bounds"); the response echoes the clamped values so the UI
+      re-renders the effective config. Malformed JSON still 400s.
+
+      The preview is a READ-ONLY projection of host_compliance_schedule
+      (soonest upcoming scan, already-due backlog, live queue depth
+      from scan_runs, and 24 one-hour due-count buckets) - never a
+      dry-run dispatch.
+
+    related_specs:
+      - system-scheduler
+      - api-system-discovery-config
+      - system-scan-runs
+      - system-rbac
+
+  objective:
+    summary: >
+      One consistent admin surface for the compliance scheduler:
+      the {config, defaults} envelope and RBAC bar mirror the
+      intelligence/discovery configs; the fleet-states and
+      schedule-preview reads power the Settings section's live data
+      without new write paths.
+    scope:
+      includes:
+        - "GET /api/v1/system/scan/config - returns active + defaults"
+        - "PUT /api/v1/system/scan/config - clamps, persists, echoes clamped values"
+        - "GET /api/v1/fleet/compliance/states - six states in ladder order with live-host counts"
+        - "GET /api/v1/system/scan/schedule-preview - next_scan_at, due_now, queue depth, 24 hourly buckets"
+        - "Audit emission via systemconfig.SetScan (SystemConfigChanged with old + new)"
+      excludes:
+        - "Hot-reload signaling - RunManaged refreshes the config at the top of each 60s tick"
+        - "Per-host or per-group interval overrides - the ladder is fleet-wide"
+        - "Scan-variables sub-config - separate slice (systemconfig key scan_variables)"
+
+  constraints:
+    - id: C-01
+      description: 'GET config response MUST wrap both the active config AND the baked-in defaults as a single object {config, defaults}. Same contract as api-system-discovery-config C-01'
+      type: technical
+      enforcement: error
+    - id: C-02
+      description: 'Config GET and schedule-preview GET MUST require system:read; config PUT MUST require system:config:write; fleet states GET MUST require host:read. Anonymous callers are rejected on all four'
+      type: security
+      enforcement: error
+    - id: C-03
+      description: 'PUT MUST clamp rather than reject out-of-bounds values: ladder minutes into [5, 2880], rate_limit into [1, 100] (ScanConfig.Normalize before persist). The 200 response body MUST echo the clamped values. A malformed JSON body still returns 400 validation.field_required'
+      type: technical
+      enforcement: error
+    - id: C-04
+      description: 'PUT MUST persist via systemconfig.SetScan which emits audit.SystemConfigChanged with both old + new snapshots'
+      type: technical
+      enforcement: error
+    - id: C-05
+      description: 'Fleet states MUST list exactly the six ComplianceStates in ladder order (critical, non_compliant, partial, mostly_compliant, compliant, unknown) with zero-count states included; soft-deleted hosts never count; a live host without a schedule row counts as unknown'
+      type: technical
+      enforcement: error
+    - id: C-06
+      description: 'The schedule preview MUST be a read-only projection: no enqueue, no host_compliance_schedule write. Maintenance-mode rows and soft-deleted hosts are excluded from every figure'
+      type: technical
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: 'GET /api/v1/system/scan/config with system:read returns 200 {config, defaults} where defaults carry the baked-in values (enabled:true, unknown:360, critical:240, non_compliant:480, partial:720, mostly_compliant:1440, compliant:2880, rate_limit:25, maintenance_global:false). With no persisted row the active config equals the defaults'
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-02
+      description: 'RBAC: config GET by an anonymous caller is rejected (401/403); config PUT by a viewer (no system:config:write) returns 403 and the persisted config is unchanged; fleet states and schedule preview reject anonymous callers'
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-03
+      description: 'PUT with a valid in-bounds body returns 200 echoing it verbatim and a subsequent GET reflects the new values as config while defaults stay baked-in'
+      priority: critical
+      references_constraints: [C-03, C-04]
+    - id: AC-04
+      description: 'PUT with out-of-bounds values (critical_mins:1, compliant_mins:99999, rate_limit:0) returns 200 - NOT 400 - with the clamped values (5, 2880, 1) in the body, and the clamped values are what persists. PUT with a malformed JSON body returns 400 validation.field_required'
+      priority: critical
+      references_constraints: [C-03]
+    - id: AC-05
+      description: 'A successful PUT emits audit.SystemConfigChanged whose detail carries config_key "scan" plus old_value and new_value snapshots'
+      priority: high
+      references_constraints: [C-04]
+    - id: AC-06
+      description: 'GET /api/v1/fleet/compliance/states returns exactly six entries in ladder order with zero-count states included; a live host without a schedule row counts as unknown; a soft-deleted host with a schedule row counts nowhere; counts reflect host_compliance_schedule.compliance_state for seeded hosts'
+      priority: critical
+      references_constraints: [C-05]
+    - id: AC-07
+      description: 'GET /api/v1/system/scan/schedule-preview returns next_scan_at = the soonest FUTURE next_scheduled_scan (null when none), due_now = count of rows already past due, queued_jobs/running_jobs from scan_runs, and exactly 24 hourly buckets where a row due in N hours lands in bucket hour_offset=N; maintenance-mode rows are excluded from all figures; the call performs no writes'
+      priority: critical
+      references_constraints: [C-06]

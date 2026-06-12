@@ -66,6 +66,7 @@ domains:
             - system-worker-subcommand
             - system-scan-runs
             - api-host-compliance
+            - api-system-scan-config
             - frontend-host-compliance-tab
 settings:
     specs_dir: specs

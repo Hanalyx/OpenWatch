@@ -877,6 +877,89 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/system/scan/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the adaptive compliance scan scheduler config + baked-in defaults
+         * @description Returns the persisted ScanConfig (or DefaultScan when no row
+         *     exists) PLUS the baked-in defaults sub-object so the UI can
+         *     render a "reset to defaults" affordance without a round-trip.
+         *     The six per-state intervals are the adaptive scheduler's tier
+         *     ladder (scan plan decision #4: systemconfig, not a policy file).
+         *     Spec api-system-scan-config.
+         */
+        get: operations["getSystemScanConfig"];
+        /**
+         * Update the adaptive compliance scan scheduler config
+         * @description Persists the new config. Ladder minutes are CLAMPED into
+         *     [5, 2880] and rate_limit into [1, 100] rather than rejected
+         *     (the response echoes the clamped values); emits
+         *     system.config.changed in the same write transaction. The
+         *     in-process scheduler refreshes the config at the top of its
+         *     next 60s tick. Spec api-system-scan-config.
+         */
+        put: operations["putSystemScanConfig"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/system/scan/schedule-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 24h forward projection of the compliance scan schedule
+         * @description Read-only projection of host_compliance_schedule over the next
+         *     24 hours (NOT a dry-run dispatch): per-hour due counts for the
+         *     Settings schedule strip, the soonest next_scheduled_scan, the
+         *     count of hosts already due, and the live scan queue depth.
+         *     Spec api-system-scan-config.
+         */
+        get: operations["getSystemScanSchedulePreview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/fleet/compliance/states": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Fleet host counts per compliance state
+         * @description One row per ComplianceState in ladder order (critical,
+         *     non_compliant, partial, mostly_compliant, compliant, unknown)
+         *     with the count of live hosts whose host_compliance_schedule
+         *     row is in that state. States with zero hosts are still listed
+         *     so the Settings steppers can render a stable six-row layout.
+         *     Spec api-system-scan-config.
+         */
+        get: operations["getFleetComplianceStates"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/system/connectivity/status": {
         parameters: {
             query?: never;
@@ -1889,6 +1972,57 @@ export interface components {
         DiscoverySweepResponse: {
             /** @description Count of host.discovery jobs persisted by this sweep. Zero is a valid steady state (every host already discovered, or fleet empty) */
             enqueued: number;
+        };
+        ScanConfig: {
+            /** @description Master switch for the adaptive scheduler. When false the loop ticks but dispatches nothing. On-demand scans are unaffected */
+            enabled: boolean;
+            /** @description Re-scan interval (minutes) for never-classified hosts. Clamped into [5, 2880] */
+            unknown_mins: number;
+            /** @description Re-scan interval (minutes) for hosts in the critical band (score under 20 or any critical finding). Clamped into [5, 2880] */
+            critical_mins: number;
+            /** @description Re-scan interval (minutes) for the non_compliant band (score 20 to 49). Clamped into [5, 2880] */
+            non_compliant_mins: number;
+            /** @description Re-scan interval (minutes) for the partial band (score 50 to 69). Clamped into [5, 2880] */
+            partial_mins: number;
+            /** @description Re-scan interval (minutes) for the mostly_compliant band (score 70 to 89). Clamped into [5, 2880] */
+            mostly_compliant_mins: number;
+            /** @description Re-scan interval (minutes) for the compliant band (score 90 and above). Clamped into [5, 2880] */
+            compliant_mins: number;
+            /** @description Max hosts dispatched per 60s scheduler tick. Clamped into [1, 100] */
+            rate_limit: number;
+            /** @description When true the scheduler loop ticks but dispatches nothing (fleet-wide pause) */
+            maintenance_global: boolean;
+        };
+        ScanConfigResponse: {
+            config: components["schemas"]["ScanConfig"];
+            defaults: components["schemas"]["ScanConfig"];
+        };
+        ScanSchedulePreview: {
+            /**
+             * Format: date-time
+             * @description Soonest next_scheduled_scan across non-maintenance hosts; null when no schedule rows exist
+             */
+            next_scan_at?: string | null;
+            /** @description Hosts whose next_scheduled_scan has already passed (dispatch backlog) */
+            due_now: number;
+            /** @description scan_runs rows currently queued */
+            queued_jobs: number;
+            /** @description scan_runs rows currently running */
+            running_jobs: number;
+            /** @description 24 entries, one per hour from now; due count of hosts whose next_scheduled_scan falls inside that hour */
+            buckets: {
+                /** @description Hours from now (0 = the coming hour) */
+                hour_offset: number;
+                due_count: number;
+            }[];
+        };
+        FleetComplianceStates: {
+            /** @description One entry per ComplianceState in ladder order; zero-count states included */
+            states: {
+                /** @enum {string} */
+                state: "critical" | "non_compliant" | "partial" | "mostly_compliant" | "compliant" | "unknown";
+                host_count: number;
+            }[];
         };
         ConnectivityStatus: {
             /**
@@ -4026,6 +4160,127 @@ export interface operations {
                 };
             };
             /** @description Caller lacks system:config:write permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getSystemScanConfig: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current config + defaults sub-object */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScanConfigResponse"];
+                };
+            };
+            /** @description Caller lacks system:read permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    putSystemScanConfig: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScanConfig"];
+            };
+        };
+        responses: {
+            /** @description Updated (clamped) config snapshot */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScanConfig"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            /** @description Caller lacks system:config:write permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getSystemScanSchedulePreview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Schedule projection */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScanSchedulePreview"];
+                };
+            };
+            /** @description Caller lacks system:read permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getFleetComplianceStates: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Per-state host counts */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FleetComplianceStates"];
+                };
+            };
+            /** @description Caller lacks host:read permission */
             403: {
                 headers: {
                     [name: string]: unknown;

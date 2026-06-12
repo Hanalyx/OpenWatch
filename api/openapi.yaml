@@ -1258,6 +1258,101 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
 
+  /api/v1/system/scan/config:
+    get:
+      operationId: getSystemScanConfig
+      summary: Read the adaptive compliance scan scheduler config + baked-in defaults
+      description: |
+        Returns the persisted ScanConfig (or DefaultScan when no row
+        exists) PLUS the baked-in defaults sub-object so the UI can
+        render a "reset to defaults" affordance without a round-trip.
+        The six per-state intervals are the adaptive scheduler's tier
+        ladder (scan plan decision #4: systemconfig, not a policy file).
+        Spec api-system-scan-config.
+      responses:
+        '200':
+          description: Current config + defaults sub-object
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ScanConfigResponse'}
+        '403':
+          description: Caller lacks system:read permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+    put:
+      operationId: putSystemScanConfig
+      summary: Update the adaptive compliance scan scheduler config
+      description: |
+        Persists the new config. Ladder minutes are CLAMPED into
+        [5, 2880] and rate_limit into [1, 100] rather than rejected
+        (the response echoes the clamped values); emits
+        system.config.changed in the same write transaction. The
+        in-process scheduler refreshes the config at the top of its
+        next 60s tick. Spec api-system-scan-config.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ScanConfig'}
+      responses:
+        '200':
+          description: Updated (clamped) config snapshot
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ScanConfig'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '403':
+          description: Caller lacks system:config:write permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
+  /api/v1/system/scan/schedule-preview:
+    get:
+      operationId: getSystemScanSchedulePreview
+      summary: 24h forward projection of the compliance scan schedule
+      description: |
+        Read-only projection of host_compliance_schedule over the next
+        24 hours (NOT a dry-run dispatch): per-hour due counts for the
+        Settings schedule strip, the soonest next_scheduled_scan, the
+        count of hosts already due, and the live scan queue depth.
+        Spec api-system-scan-config.
+      responses:
+        '200':
+          description: Schedule projection
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ScanSchedulePreview'}
+        '403':
+          description: Caller lacks system:read permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
+  /api/v1/fleet/compliance/states:
+    get:
+      operationId: getFleetComplianceStates
+      summary: Fleet host counts per compliance state
+      description: |
+        One row per ComplianceState in ladder order (critical,
+        non_compliant, partial, mostly_compliant, compliant, unknown)
+        with the count of live hosts whose host_compliance_schedule
+        row is in that state. States with zero hosts are still listed
+        so the Settings steppers can render a stable six-row layout.
+        Spec api-system-scan-config.
+      responses:
+        '200':
+          description: Per-state host counts
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/FleetComplianceStates'}
+        '403':
+          description: Caller lacks host:read permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
   /api/v1/system/connectivity/status:
     get:
       operationId: getSystemConnectivityStatus
@@ -2724,6 +2819,95 @@ components:
           type: integer
           minimum: 0
           description: Count of host.discovery jobs persisted by this sweep. Zero is a valid steady state (every host already discovered, or fleet empty)
+
+    ScanConfig:
+      type: object
+      required: [enabled, unknown_mins, critical_mins, non_compliant_mins,
+                 partial_mins, mostly_compliant_mins, compliant_mins,
+                 rate_limit, maintenance_global]
+      properties:
+        enabled:
+          type: boolean
+          description: Master switch for the adaptive scheduler. When false the loop ticks but dispatches nothing. On-demand scans are unaffected
+        unknown_mins:
+          type: integer
+          description: Re-scan interval (minutes) for never-classified hosts. Clamped into [5, 2880]
+        critical_mins:
+          type: integer
+          description: Re-scan interval (minutes) for hosts in the critical band (score under 20 or any critical finding). Clamped into [5, 2880]
+        non_compliant_mins:
+          type: integer
+          description: Re-scan interval (minutes) for the non_compliant band (score 20 to 49). Clamped into [5, 2880]
+        partial_mins:
+          type: integer
+          description: Re-scan interval (minutes) for the partial band (score 50 to 69). Clamped into [5, 2880]
+        mostly_compliant_mins:
+          type: integer
+          description: Re-scan interval (minutes) for the mostly_compliant band (score 70 to 89). Clamped into [5, 2880]
+        compliant_mins:
+          type: integer
+          description: Re-scan interval (minutes) for the compliant band (score 90 and above). Clamped into [5, 2880]
+        rate_limit:
+          type: integer
+          description: Max hosts dispatched per 60s scheduler tick. Clamped into [1, 100]
+        maintenance_global:
+          type: boolean
+          description: When true the scheduler loop ticks but dispatches nothing (fleet-wide pause)
+
+    ScanConfigResponse:
+      type: object
+      required: [config, defaults]
+      properties:
+        config:   {$ref: '#/components/schemas/ScanConfig'}
+        defaults: {$ref: '#/components/schemas/ScanConfig'}
+
+    ScanSchedulePreview:
+      type: object
+      required: [due_now, queued_jobs, running_jobs, buckets]
+      properties:
+        next_scan_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Soonest next_scheduled_scan across non-maintenance hosts; null when no schedule rows exist
+        due_now:
+          type: integer
+          description: Hosts whose next_scheduled_scan has already passed (dispatch backlog)
+        queued_jobs:
+          type: integer
+          description: scan_runs rows currently queued
+        running_jobs:
+          type: integer
+          description: scan_runs rows currently running
+        buckets:
+          type: array
+          description: 24 entries, one per hour from now; due count of hosts whose next_scheduled_scan falls inside that hour
+          items:
+            type: object
+            required: [hour_offset, due_count]
+            properties:
+              hour_offset:
+                type: integer
+                description: Hours from now (0 = the coming hour)
+              due_count:
+                type: integer
+
+    FleetComplianceStates:
+      type: object
+      required: [states]
+      properties:
+        states:
+          type: array
+          description: One entry per ComplianceState in ladder order; zero-count states included
+          items:
+            type: object
+            required: [state, host_count]
+            properties:
+              state:
+                type: string
+                enum: [critical, non_compliant, partial, mostly_compliant, compliant, unknown]
+              host_count:
+                type: integer
 
     ConnectivityStatus:
       type: object

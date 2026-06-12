@@ -76,7 +76,8 @@ type ScanWorker struct {
 	executor *kensa.Executor
 	writer   *transactionlog.Writer
 	queueKey []byte
-	bus      *eventbus.Bus // nil = no scan.completed publication (dedicated worker process)
+	bus      *eventbus.Bus      // nil = no scan.completed publication (dedicated worker process)
+	sched    *scheduler.Service // nil = no post-scan schedule update (legacy tests)
 
 	pollInterval time.Duration
 
@@ -112,6 +113,13 @@ type Config struct {
 	// subscribers — cross-process delivery is a known non-goal).
 	Bus *eventbus.Bus
 
+	// Sched, when non-nil, receives PersistAfterScan after every
+	// completed scan so host_compliance_schedule tracks the fresh
+	// compliance state and next_scheduled_scan. Spec system-scheduler
+	// v3.0.0: both scheduler-dispatched and on-demand scans update the
+	// schedule on completion.
+	Sched *scheduler.Service
+
 	// clock allows tests to inject a controllable time source.
 	// Production passes time.Now.
 	Clock func() time.Time
@@ -138,6 +146,7 @@ func NewScanWorker(cfg Config) *ScanWorker {
 		writer:       cfg.Writer,
 		queueKey:     cfg.QueueKey,
 		bus:          cfg.Bus,
+		sched:        cfg.Sched,
 		pollInterval: cfg.PollInterval,
 		clock:        cfg.Clock,
 		emit:         cfg.Emit,
@@ -304,6 +313,31 @@ func (w *ScanWorker) ProcessJob(ctx context.Context, j *queue.Job) {
 		slog.WarnContext(ctx, "worker scan_runs mark completed failed",
 			slog.String("scan_id", j.ID.String()),
 			slog.String("error", err.Error()))
+	}
+
+	// Adaptive schedule update: classify the fresh result into a
+	// compliance state and re-anchor next_scheduled_scan. Runs for
+	// BOTH scheduler-dispatched and on-demand scans — a manual scan
+	// postpones the next auto scan rather than stacking onto it.
+	// Spec system-scheduler v3.0.0 AC-08.
+	if w.sched != nil {
+		score := 0.0
+		if total := len(result.Outcomes); total > 0 {
+			score = float64(counts.Pass) / float64(total) * 100
+		}
+		hasCritical := false
+		for _, o := range result.Outcomes {
+			if o.Status == kensa.StatusFail && o.Severity == "critical" {
+				hasCritical = true
+				break
+			}
+		}
+		if _, err := w.sched.PersistAfterScan(ctx, payload.HostID, score, hasCritical, w.clock().UTC()); err != nil {
+			slog.WarnContext(ctx, "worker schedule update failed",
+				slog.String("host_id", payload.HostID.String()),
+				slog.String("error", err.Error()))
+			// Non-fatal: the scan itself succeeded and persisted.
+		}
 	}
 
 	// Announce on the event bus so SSE clients refresh compliance

@@ -29,11 +29,13 @@ import { OSDiscoverySection } from '@/components/settings/OSDiscoverySection';
 //
 // Wiring honesty:
 //
-//   • Compliance scanner    — local state only. On-demand scans are
-//                              live (POST /hosts/{id}/scans, Run scan
-//                              on Host Detail); the ADAPTIVE SCHEDULER
-//                              (per-state cadence, max 48h) is what's
-//                              pending — scan plan Phase 4 (BACKLOG).
+//   • Compliance scanner    — fully wired against
+//                              GET/PUT /api/v1/system/scan/config,
+//                              GET /api/v1/fleet/compliance/states,
+//                              GET /api/v1/system/scan/schedule-preview.
+//                              The adaptive scheduler reloads the saved
+//                              config at the top of its next 60s tick.
+//                              Spec frontend-settings-scan-config.
 //   • Connectivity monitor  — fully wired against
 //                              GET /api/v1/system/connectivity/config,
 //                              PUT /api/v1/system/connectivity/config,
@@ -46,9 +48,9 @@ import { OSDiscoverySection } from '@/components/settings/OSDiscoverySection';
 //   • Group maintenance     — local state only. No group entity yet.
 
 // ─────────────────────────────────────────────────────────────────────────
-// Compliance scanner — 5 state buckets with per-state intervals
-//
-// Backend pending. Defaults stay as visual UI; no save endpoint.
+// Compliance scanner — six backend states (the five score bands plus
+// unknown) with per-state intervals from GET /system/scan/config.
+// State ids match the ComplianceState enum / ScanConfig keys exactly.
 // ─────────────────────────────────────────────────────────────────────────
 
 type Tier = 'crit' | 'warn' | 'info' | 'mostlyOk' | 'ok' | 'muted';
@@ -64,58 +66,51 @@ interface StateRowConfig {
   cadenceText: (intervalMin: number, hosts: number) => string;
 }
 
-const COMPLIANCE_DEFAULTS: StateRowConfig[] = [
+type ScanStateId =
+  | 'critical'
+  | 'non_compliant'
+  | 'partial'
+  | 'mostly_compliant'
+  | 'compliant'
+  | 'unknown';
+
+interface ComplianceRowSeed {
+  id: ScanStateId;
+  tier: Tier;
+  name: string;
+  desc: string;
+}
+
+// Ladder order (riskiest first, unknown last) mirrors the backend's
+// scheduler.AllStates() so the fleet-states response zips in by index.
+const COMPLIANCE_ROW_SEEDS: ComplianceRowSeed[] = [
   {
     id: 'critical',
     tier: 'crit',
     name: 'Critical',
-    desc: 'Compliance < 20%',
-    hosts: 0,
-    intervalMin: 60,
-    rangeText: '15 min – 6h',
-    cadenceText: (m, h) => (h === 0 ? '—' : `${Math.round((60 / m) * 24 * h)} scans/day`),
+    desc: 'Compliance under 20%, or any critical finding',
   },
+  { id: 'non_compliant', tier: 'warn', name: 'Non-compliant', desc: 'Compliance 20 to 49%' },
+  { id: 'partial', tier: 'info', name: 'Partial', desc: 'Compliance 50 to 69%' },
   {
-    id: 'low',
-    tier: 'warn',
-    name: 'Low',
-    desc: 'Compliance 20–49%',
-    hosts: 0,
-    intervalMin: 120,
-    rangeText: '30 min – 12h',
-    cadenceText: (m, h) => (h === 0 ? '—' : `${Math.round((60 / m) * 24 * h)} scans/day`),
-  },
-  {
-    id: 'partial',
-    tier: 'info',
-    name: 'Partial',
-    desc: 'Compliance 50–69%',
-    hosts: 0,
-    intervalMin: 360,
-    rangeText: '1h – 24h',
-    cadenceText: (_m, _h) => '—',
-  },
-  {
-    id: 'mostly',
+    id: 'mostly_compliant',
     tier: 'mostlyOk',
     name: 'Mostly compliant',
-    desc: 'Compliance 70–89%',
-    hosts: 0,
-    intervalMin: 720,
-    rangeText: '6h – 48h',
-    cadenceText: (_m, _h) => '—',
+    desc: 'Compliance 70 to 89%',
   },
-  {
-    id: 'compliant',
-    tier: 'ok',
-    name: 'Compliant',
-    desc: 'Compliance ≥ 90%',
-    hosts: 0,
-    intervalMin: 1440,
-    rangeText: '12h – 48h',
-    cadenceText: (_m, _h) => '—',
-  },
+  { id: 'compliant', tier: 'ok', name: 'Compliant', desc: 'Compliance 90% and above' },
+  { id: 'unknown', tier: 'muted', name: 'Unknown', desc: 'Never scanned' },
 ];
+
+// ScanConfig key for a state id.
+const SCAN_MINS_KEY: Record<ScanStateId, keyof ScanConfigDraft> = {
+  critical: 'critical_mins',
+  non_compliant: 'non_compliant_mins',
+  partial: 'partial_mins',
+  mostly_compliant: 'mostly_compliant_mins',
+  compliant: 'compliant_mins',
+  unknown: 'unknown_mins',
+};
 
 // ─────────────────────────────────────────────────────────────────────────
 // Connectivity monitor — 4-state breakdown derived from host_liveness
@@ -236,6 +231,17 @@ function formatCadence(intervalMin: number): string {
   return `Every ${intervalMin} min`;
 }
 
+function formatTimeUntil(iso: string | null | undefined): string {
+  if (!iso) return 'unscheduled';
+  const t = new Date(iso).getTime();
+  if (Number.isNaN(t)) return 'unscheduled';
+  const seconds = Math.round((t - Date.now()) / 1000);
+  if (seconds <= 0) return 'now';
+  if (seconds < 60) return `in ${seconds} sec`;
+  if (seconds < 3600) return `in ${Math.round(seconds / 60)} min`;
+  return `in ${Math.round(seconds / 3600)}h`;
+}
+
 function formatTimeAgo(iso: string | null | undefined): string {
   if (!iso) return 'No tick yet';
   const t = new Date(iso).getTime();
@@ -258,6 +264,18 @@ interface ConnectivityConfigDraft {
   maintenance_sec: number;
   timeout_sec: number;
   unreachable_threshold: number;
+  rate_limit: number;
+  maintenance_global: boolean;
+}
+
+interface ScanConfigDraft {
+  enabled: boolean;
+  unknown_mins: number;
+  critical_mins: number;
+  non_compliant_mins: number;
+  partial_mins: number;
+  mostly_compliant_mins: number;
+  compliant_mins: number;
   rate_limit: number;
   maintenance_global: boolean;
 }
@@ -367,10 +385,73 @@ export function ScanningPage() {
     });
   };
 
-  // ─── Local-only sections (compliance scanner + OS discovery + groups) ──
-  const [complianceRows] = useState(COMPLIANCE_DEFAULTS);
-  const [complianceEnabled, setComplianceEnabled] = useState(true);
+  // ─── Wired: compliance scan config + fleet states + preview ─────────
+  const scanConfigQuery = useQuery({
+    queryKey: ['system', 'scan', 'config'],
+    queryFn: async () => {
+      const { data, error, response } = await api.GET('/api/v1/system/scan/config', {});
+      if (error) throw error;
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return data!;
+    },
+  });
+
+  const fleetStatesQuery = useQuery({
+    queryKey: ['fleet', 'compliance', 'states'],
+    queryFn: async () => {
+      const { data, error, response } = await api.GET('/api/v1/fleet/compliance/states', {});
+      if (error) throw error;
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return data!;
+    },
+    refetchInterval: 30_000,
+  });
+
+  const previewQuery = useQuery({
+    queryKey: ['system', 'scan', 'schedule_preview'],
+    queryFn: async () => {
+      const { data, error, response } = await api.GET('/api/v1/system/scan/schedule-preview', {});
+      if (error) throw error;
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return data!;
+    },
+    refetchInterval: 30_000,
+  });
+
+  const [scanDraft, setScanDraft] = useState<ScanConfigDraft | null>(null);
+  useEffect(() => {
+    if (scanConfigQuery.data && !scanDraft) {
+      setScanDraft({ ...scanConfigQuery.data.config });
+    }
+  }, [scanConfigQuery.data, scanDraft]);
+
+  const saveScanMutation = useMutation({
+    mutationFn: async (body: ScanConfigDraft) => {
+      const { data, error, response } = await api.PUT('/api/v1/system/scan/config', { body });
+      if (error) throw error;
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return data!;
+    },
+    onSuccess: (saved) => {
+      // The server may have clamped values; re-anchor the draft on the
+      // echoed (effective) config instead of what was typed.
+      setScanDraft({ ...saved });
+      queryClient.invalidateQueries({ queryKey: ['system', 'scan', 'config'] });
+      queryClient.invalidateQueries({ queryKey: ['system', 'scan', 'schedule_preview'] });
+    },
+  });
+
+  const scanDirty = useMemo(() => {
+    if (!scanDraft || !scanConfigQuery.data) return false;
+    const live = scanConfigQuery.data.config;
+    return (Object.keys(scanDraft) as (keyof ScanConfigDraft)[]).some(
+      (k) => scanDraft[k] !== live[k],
+    );
+  }, [scanDraft, scanConfigQuery.data]);
+
   const [complianceAdvancedOpen, setComplianceAdvancedOpen] = useState(false);
+
+  // ─── Local-only sections (OS discovery + groups) ─────────────────────
 
   const [connectivityAdvancedOpen, setConnectivityAdvancedOpen] = useState(false);
 
@@ -431,6 +512,39 @@ export function ScanningPage() {
     [breakdown, draft],
   );
 
+  // Compliance rows: seeds + draft intervals + live per-state counts.
+  const fleetStates = fleetStatesQuery.data?.states;
+  const complianceRows = useMemo<StateRowConfig[]>(
+    () =>
+      COMPLIANCE_ROW_SEEDS.map((seed) => {
+        const hosts = Number(fleetStates?.find((st) => st.state === seed.id)?.host_count ?? 0);
+        const intervalMin = scanDraft ? Number(scanDraft[SCAN_MINS_KEY[seed.id]]) : 0;
+        return {
+          id: seed.id,
+          tier: seed.tier,
+          name: seed.name,
+          desc: seed.desc,
+          hosts,
+          intervalMin,
+          rangeText: '5 min to 48h',
+          cadenceText: (m: number, h: number) =>
+            h === 0 || m <= 0 ? '' : `${Math.max(1, Math.round((1440 / m) * h))} scans/day`,
+        };
+      }),
+    [fleetStates, scanDraft],
+  );
+
+  const preview = previewQuery.data;
+  const scanSubtitle = !preview
+    ? 'Loading schedule…'
+    : preview.due_now > 0
+      ? `${preview.due_now} due now · ${preview.queued_jobs} queued · ${preview.running_jobs} running`
+      : preview.next_scan_at
+        ? `Next scan ${formatTimeUntil(preview.next_scan_at)} · ${preview.queued_jobs} queued · ${preview.running_jobs} running`
+        : 'No scans scheduled yet';
+
+  const scanPaused = !(scanDraft?.enabled ?? true) || (scanDraft?.maintenance_global ?? false);
+
   const breakdownTotal = breakdown
     ? Number(breakdown.online) +
       Number(breakdown.degraded) +
@@ -455,48 +569,74 @@ export function ScanningPage() {
         }
       />
 
-      {/* ────────── Compliance scanner ────────── */}
-      <Section title="Compliance scanner" badge="UI only" badgeTier="warn">
-        <BackendPendingBanner
-          slice="Adaptive compliance scheduler (scan plan Phase 4)"
-          text="On-demand scans are live (Run scan on a host's detail page). The adaptive scheduler that re-scans automatically on a per-state cadence is not built yet, so these knobs are a UI preview. Save is disabled."
-        />
+      {/* ────────── Compliance scanner (LIVE) ────────── */}
+      <Section
+        title="Compliance scanner"
+        badge={scanPaused ? 'Paused' : 'Running'}
+        badgeTier={scanPaused ? 'warn' : 'ok'}
+      >
+        {scanConfigQuery.isError && (
+          <Callout tier="crit">
+            Failed to load scan config: {apiErrorMessage(scanConfigQuery.error, 'unknown error')}
+          </Callout>
+        )}
+
         <p style={leadStyle}>
           Scans run the full Kensa rule corpus against each host. Frameworks (CIS, STIG, NIST, and
           others) are reporting lenses over the same results, not scan inputs. Cadence is set per
-          compliance state: failing hosts get re-checked more often.
+          compliance state: failing hosts get re-checked more often. Intervals are clamped to the 5
+          minute floor and the 48 hour ceiling on save; the scheduler picks up changes within a
+          minute.
         </p>
 
         <SchedSummary
           icon={<Shield size={18} />}
-          iconTier="info"
+          iconTier={scanPaused ? 'warn' : 'ok'}
           title="Automatic compliance scanning"
-          subtitle="Adaptive scheduler not yet implemented in the Go backend"
-          rightLabel="Status"
-          rightValue="UI only"
-          toggleValue={complianceEnabled}
-          onToggleChange={setComplianceEnabled}
+          subtitle={scanSubtitle}
+          rightLabel="Due now"
+          rightValue={preview ? String(preview.due_now) : '…'}
+          toggleValue={scanDraft?.enabled ?? true}
+          onToggleChange={(v) => setScanDraft((d) => (d ? { ...d, enabled: v } : d))}
         />
 
-        <StateTable rows={complianceRows} readOnly onIntervalChange={() => {}} />
+        <StateTable
+          rows={complianceRows}
+          onIntervalChange={(idx, v) => {
+            const seed = COMPLIANCE_ROW_SEEDS[idx];
+            if (!seed) return;
+            setScanDraft((d) => (d ? { ...d, [SCAN_MINS_KEY[seed.id]]: v } : d));
+          }}
+        />
+
+        <ScheduleStrip buckets={preview?.buckets} />
 
         <AdvancedDisclosure
-          label="Advanced — quiet hours, jitter, retry policy (not yet wired)"
+          label="Advanced: dispatch rate limit and global pause"
           open={complianceAdvancedOpen}
           onToggle={() => setComplianceAdvancedOpen((v) => !v)}
         >
           <SettingCard>
             <FirstSettingRow
-              name="Quiet hours"
-              description="Suppress all compliance scans during this window."
+              name="Dispatch rate limit"
+              description="Max hosts the scheduler dispatches per 60 second tick (1..100). Bounds the scan burst when many hosts come due together."
               control={
-                <Select
-                  value="00-06"
-                  onChange={() => {}}
-                  options={[
-                    { value: 'off', label: 'Off' },
-                    { value: '00-06', label: '00:00 – 06:00' },
-                  ]}
+                <Stepper
+                  value={scanDraft?.rate_limit ?? 25}
+                  min={1}
+                  max={100}
+                  step={1}
+                  onChange={(v) => setScanDraft((d) => (d ? { ...d, rate_limit: v } : d))}
+                />
+              }
+            />
+            <SettingRow
+              name="Global maintenance"
+              description="Pause all scheduled compliance scans fleet-wide. On-demand scans stay available."
+              control={
+                <Toggle
+                  value={scanDraft?.maintenance_global ?? false}
+                  onChange={(v) => setScanDraft((d) => (d ? { ...d, maintenance_global: v } : d))}
                 />
               }
             />
@@ -771,29 +911,111 @@ export function ScanningPage() {
         </SettingCard>
       </Section>
 
-      {dirty && draft && (
+      {(dirty || scanDirty) && (
         <SaveBar
           onReset={() => {
-            if (!configQuery.data) return;
-            setDraft({
-              online_sec: configQuery.data.config.online_sec,
-              degraded_sec: configQuery.data.config.degraded_sec,
-              critical_sec: configQuery.data.config.critical_sec,
-              down_sec: configQuery.data.config.down_sec,
-              maintenance_sec: configQuery.data.config.maintenance_sec,
-              timeout_sec: configQuery.data.config.timeout_sec,
-              unreachable_threshold: configQuery.data.config.unreachable_threshold,
-              rate_limit: configQuery.data.config.rate_limit,
-              maintenance_global: configQuery.data.config.maintenance_global,
-            });
-            saveMutation.reset();
+            if (dirty && configQuery.data) {
+              setDraft({
+                online_sec: configQuery.data.config.online_sec,
+                degraded_sec: configQuery.data.config.degraded_sec,
+                critical_sec: configQuery.data.config.critical_sec,
+                down_sec: configQuery.data.config.down_sec,
+                maintenance_sec: configQuery.data.config.maintenance_sec,
+                timeout_sec: configQuery.data.config.timeout_sec,
+                unreachable_threshold: configQuery.data.config.unreachable_threshold,
+                rate_limit: configQuery.data.config.rate_limit,
+                maintenance_global: configQuery.data.config.maintenance_global,
+              });
+              saveMutation.reset();
+            }
+            if (scanDirty && scanConfigQuery.data) {
+              setScanDraft({ ...scanConfigQuery.data.config });
+              saveScanMutation.reset();
+            }
           }}
-          onSave={() => saveMutation.mutate(draft)}
-          saving={saveMutation.isPending}
-          error={saveMutation.error ? apiErrorMessage(saveMutation.error, 'Save failed') : null}
+          onSave={() => {
+            if (dirty && draft) saveMutation.mutate(draft);
+            if (scanDirty && scanDraft) saveScanMutation.mutate(scanDraft);
+          }}
+          saving={saveMutation.isPending || saveScanMutation.isPending}
+          error={
+            saveMutation.error
+              ? apiErrorMessage(saveMutation.error, 'Save failed')
+              : saveScanMutation.error
+                ? apiErrorMessage(saveScanMutation.error, 'Save failed')
+                : null
+          }
         />
       )}
     </SettingsLayout>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Schedule strip — 24 one-hour buckets from GET /system/scan/
+// schedule-preview. Read-only projection; bars scale to the busiest
+// hour so a quiet fleet still shows shape.
+// ─────────────────────────────────────────────────────────────────────────
+
+function ScheduleStrip({ buckets }: { buckets?: { hour_offset: number; due_count: number }[] }) {
+  if (!buckets || buckets.length === 0) return null;
+  const max = Math.max(1, ...buckets.map((b) => b.due_count));
+  const total = buckets.reduce((acc, b) => acc + b.due_count, 0);
+  return (
+    <div
+      aria-label="Next 24 hours schedule"
+      style={{
+        marginTop: 14,
+        background: 'var(--ow-bg-1)',
+        border: '1px solid var(--ow-line)',
+        borderRadius: 'var(--ow-radius)',
+        padding: '14px 20px',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'baseline',
+          marginBottom: 10,
+        }}
+      >
+        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--ow-fg-1)' }}>
+          Next 24 hours
+        </span>
+        <span style={{ fontSize: 11, color: 'var(--ow-fg-3)' }}>
+          {total} {total === 1 ? 'scan' : 'scans'} scheduled
+        </span>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 36 }}>
+        {buckets.map((b) => (
+          <span
+            key={b.hour_offset}
+            title={`+${b.hour_offset}h: ${b.due_count} due`}
+            style={{
+              flex: 1,
+              height: `${Math.max(8, (b.due_count / max) * 100)}%`,
+              borderRadius: 2,
+              background: b.due_count > 0 ? 'var(--ow-info)' : 'var(--ow-bg-3)',
+              opacity: b.due_count > 0 ? 0.9 : 1,
+            }}
+          />
+        ))}
+      </div>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          marginTop: 6,
+          fontSize: 10,
+          color: 'var(--ow-fg-3)',
+        }}
+      >
+        <span>now</span>
+        <span>+12h</span>
+        <span>+24h</span>
+      </div>
+    </div>
   );
 }
 

@@ -31,6 +31,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/scheduler"
 	"github.com/Hanalyx/openwatch/internal/secretkey"
 	owssh "github.com/Hanalyx/openwatch/internal/ssh"
+	"github.com/Hanalyx/openwatch/internal/systemconfig"
 	"github.com/Hanalyx/openwatch/internal/transactionlog"
 	"github.com/Hanalyx/openwatch/internal/version"
 	"github.com/Hanalyx/openwatch/internal/worker"
@@ -185,6 +186,22 @@ func cmdWorker(cfg *config.Config, args []string, stdout, stderr *os.File) int {
 	executor := kensa.NewExecutor(bridge, audit.Emit).WithScanFunc(scanFn)
 	writer := transactionlog.NewWriter(pool, audit.Emit)
 
+	// Post-scan schedule updates run here too: the dedicated worker
+	// classifies each completed scan into a compliance state so
+	// host_compliance_schedule stays fresh whichever process executed
+	// the scan. Ladder snapshot is boot-time config; the serve
+	// process's RunManaged tick owns dispatch + live reload.
+	// Spec system-scheduler v3.0.0 AC-08.
+	scanCfg, scanCfgErr := systemconfig.NewStore(pool, audit.Emit).LoadScan(bootCtx)
+	if scanCfgErr != nil {
+		slog.WarnContext(bootCtx, "worker: scan config load failed; schedule updates use defaults",
+			slog.String("error", scanCfgErr.Error()))
+		scanCfg = systemconfig.DefaultScan()
+	}
+	sched := scheduler.NewService(pool, scheduler.LoadFromConfig(scanCfg), queueKey, audit.Emit)
+	sched.Reload(scheduler.LoadFromConfig(scanCfg), scanCfg.RateLimit,
+		!scanCfg.Enabled || scanCfg.MaintenanceGlobal)
+
 	scanWorker := worker.NewScanWorker(worker.Config{
 		Pool:         pool,
 		Executor:     executor,
@@ -192,6 +209,7 @@ func cmdWorker(cfg *config.Config, args []string, stdout, stderr *os.File) int {
 		QueueKey:     queueKey,
 		PollInterval: *pollInterval,
 		Emit:         audit.Emit,
+		Sched:        sched,
 	})
 
 	ctx, stop := signal.NotifyContext(bootCtx, syscall.SIGINT, syscall.SIGTERM)
