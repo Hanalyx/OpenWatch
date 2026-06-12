@@ -254,23 +254,34 @@ describe('frontend-host-compliance-tab — behavioral', () => {
       skipped: LENS.summary.skipped,
       error: LENS.summary.error,
     });
+    // Donut panel: score + legend. Executed = passing + failing; the
+    // Error row is omitted when error is 0 (prototype behavior).
+    const scoreRegion = screen.getByLabelText('Compliance score');
+    expect(scoreRegion).toHaveTextContent('50%');
+    const legend = within(scoreRegion).getByLabelText('Status totals');
+    expect(legend).toHaveTextContent(/Compliant\s*2/);
+    expect(legend).toHaveTextContent(/Non-compliant\s*1/);
+    expect(legend).toHaveTextContent(/Not applicable\s*1/);
+    expect(legend).toHaveTextContent(/Executed\s*3/);
+    expect(within(legend).queryByText('Error')).toBeNull();
+    // Result mix panel: Compliant / Non-compliant bars with counts.
     const summaryRegion = screen.getByLabelText('Result mix');
-    expect(summaryRegion).toHaveTextContent('50%');
     expect(summaryRegion).toHaveTextContent('Compliant');
     expect(summaryRegion).toHaveTextContent('Non-compliant');
-    expect(summaryRegion).toHaveTextContent('Not applicable');
-    expect(summaryRegion).toHaveTextContent('Error');
+    expect(summaryRegion).toHaveTextContent('1 rules not applicable');
     // Scan panel (prototype right column) renders alongside.
     const scanRegion = screen.getByLabelText('Scan details');
     expect(scanRegion).toHaveTextContent('Ran');
     expect(scanRegion).toHaveTextContent('Coverage');
 
-    // Category rows: numbered, "passing / total" plus pass percentage.
+    // Category rows: numbered, "passing / failing" over EXECUTED rules
+    // plus the banded pass percentage (N/A rows excluded).
     const catRegion = screen.getByLabelText('Category breakdown');
     expect(catRegion).toHaveTextContent('ssh');
-    expect(catRegion).toHaveTextContent('1 / 2');
+    expect(catRegion).toHaveTextContent(/1\s*\/\s*1/); // ssh: 1 pass / 1 fail
     expect(catRegion).toHaveTextContent('50%');
     expect(catRegion).toHaveTextContent('auth');
+    expect(catRegion).toHaveTextContent('100%'); // auth: 1 pass / 0 fail (skip excluded)
 
     // Rules table — one row per rules[] entry: title, mono control_ids
     // (joined) or rule_id, category, status chip.
@@ -340,6 +351,7 @@ describe('frontend-host-compliance-tab — behavioral', () => {
     expect(screen.getByText('No scan yet')).toBeInTheDocument();
     // No summary tiles and no rules table in the never-scanned state.
     expect(screen.queryByLabelText('Result mix')).toBeNull();
+    expect(screen.queryByLabelText('Compliance score')).toBeNull();
     expect(screen.queryByRole('table')).toBeNull();
   });
 

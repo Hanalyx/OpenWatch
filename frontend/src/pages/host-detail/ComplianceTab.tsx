@@ -14,10 +14,12 @@
 //      owned by the PARENT page (?framework= search param); this tab
 //      only calls onFrameworkChange and re-renders when the prop
 //      changes.
-//   3. result-mix + scan panels (two columns): score, status legend
-//      with stacked bars and an N/A note; scan metadata (framework,
-//      ran at, duration, coverage).
-//   4. numbered category rows with pass counts and percentages.
+//   3. score + result-mix + scan panels (three columns): donut score
+//      with the status legend (Executed = pass + fail; Error only when
+//      present); Compliant / Non-compliant bars with an N/A note; scan
+//      metadata (framework, ran at, duration, coverage).
+//   4. numbered category rows: passing / failing over EXECUTED rules
+//      with a banded pass percentage.
 //   5. rules table: search box, client-side status filter chips with
 //      counts, an "N of M rules" readout, and rows carrying title,
 //      catalog description, control-id chips, category, status and
@@ -169,11 +171,12 @@ export function ComplianceTab({
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: 'minmax(0, 7fr) minmax(0, 5fr)',
+            gridTemplateColumns: 'minmax(240px, 17fr) minmax(0, 38fr) minmax(0, 39fr)',
             gap: 16,
-            alignItems: 'start',
+            alignItems: 'stretch',
           }}
         >
+          <ScorePanel summary={lens.summary} />
           <ResultMixPanel summary={lens.summary} framework={framework} />
           <ScanPanel
             scanContext={lens.scan_context}
@@ -465,8 +468,118 @@ function LensChip({
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// 3. Result mix + Scan panels (prototype two-column block)
+// 3. Score donut + Result mix + Scan panels (prototype three-column
+//    block). The donut panel carries the status legend; the result-mix
+//    panel renders just the Compliant / Non-compliant bars + N/A note.
 // ─────────────────────────────────────────────────────────────────────────
+
+function ScorePanel({ summary }: { summary: LensResponse['summary'] }) {
+  const executed = summary.passing + summary.failing;
+  const legend: { label: string; value: number; color: string }[] = [
+    { label: 'Compliant', value: summary.passing, color: 'var(--ow-ok)' },
+    { label: 'Non-compliant', value: summary.failing, color: 'var(--ow-crit)' },
+    { label: 'Not applicable', value: summary.skipped, color: 'var(--ow-fg-1)' },
+    // Error is the exception path — surfaced only when present, like
+    // the prototype (its zero-error host shows no Error row).
+    ...(summary.error > 0
+      ? [{ label: 'Error', value: summary.error, color: 'var(--ow-warn)' }]
+      : []),
+    { label: 'Executed', value: executed, color: 'var(--ow-fg-0)' },
+  ];
+  // Donut: green arc = compliant share of the lens, red remainder.
+  const r = 34;
+  const c = 2 * Math.PI * r;
+  const frac = Math.max(0, Math.min(100, summary.score_pct)) / 100;
+  return (
+    <section
+      aria-label="Compliance score"
+      style={{ ...panel, display: 'flex', alignItems: 'center', gap: 18 }}
+    >
+      <div style={{ position: 'relative', width: 92, height: 92, flexShrink: 0 }}>
+        <svg width={92} height={92} viewBox="0 0 92 92" aria-hidden>
+          <circle
+            cx={46}
+            cy={46}
+            r={r}
+            fill="none"
+            stroke={executed > 0 ? 'var(--ow-crit)' : 'var(--ow-bg-3)'}
+            strokeWidth={7}
+          />
+          <circle
+            cx={46}
+            cy={46}
+            r={r}
+            fill="none"
+            stroke="var(--ow-ok)"
+            strokeWidth={7}
+            strokeDasharray={`${frac * c} ${c}`}
+            transform="rotate(-90 46 46)"
+          />
+        </svg>
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <span
+            style={{
+              fontSize: 19,
+              fontWeight: 700,
+              lineHeight: 1,
+              color: 'var(--ow-fg-0)',
+              fontVariantNumeric: 'tabular-nums',
+            }}
+          >
+            {summary.score_pct}%
+          </span>
+          <span
+            style={{
+              color: 'var(--ow-fg-3)',
+              fontSize: 8,
+              textTransform: 'uppercase',
+              letterSpacing: '0.06em',
+              marginTop: 3,
+            }}
+          >
+            Compliant
+          </span>
+        </div>
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }} role="list" aria-label="Status totals">
+        {legend.map((l) => (
+          <div
+            key={l.label}
+            role="listitem"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 10,
+              padding: '4px 0',
+            }}
+          >
+            <span style={{ color: 'var(--ow-fg-2)', fontSize: 12 }}>{l.label}</span>
+            <span
+              style={{
+                color: l.color,
+                fontSize: 12,
+                fontWeight: 600,
+                fontVariantNumeric: 'tabular-nums',
+              }}
+            >
+              {l.value}
+            </span>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
 
 function ResultMixPanel({
   summary,
@@ -475,102 +588,84 @@ function ResultMixPanel({
   summary: LensResponse['summary'];
   framework?: string;
 }) {
-  const legend: { label: string; value: number; color: string }[] = [
+  const max = Math.max(1, summary.passing, summary.failing);
+  const rows: { label: string; value: number; color: string }[] = [
     { label: 'Compliant', value: summary.passing, color: 'var(--ow-ok)' },
     { label: 'Non-compliant', value: summary.failing, color: 'var(--ow-crit)' },
-    { label: 'Not applicable', value: summary.skipped, color: 'var(--ow-fg-3)' },
-    { label: 'Error', value: summary.error, color: 'var(--ow-warn)' },
   ];
-  const max = Math.max(1, ...legend.map((l) => l.value));
   return (
     <section aria-label="Result mix" style={panel}>
       <h3 style={panelHead}>Result mix{framework ? ` · ${frameworkLabel(framework)}` : ''}</h3>
-      <div style={{ display: 'flex', gap: 18, alignItems: 'flex-start' }}>
-        <div style={{ flexShrink: 0, textAlign: 'center' }}>
-          <div
+      {rows.map((row) => (
+        <div
+          key={row.label}
+          style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '6px 0' }}
+        >
+          <span
             style={{
-              fontSize: 34,
-              fontWeight: 700,
-              lineHeight: 1,
-              color: scoreColor(summary.score_pct),
-              fontVariantNumeric: 'tabular-nums',
-            }}
-          >
-            {summary.score_pct}%
-          </div>
-          <div
-            style={{
-              color: 'var(--ow-fg-3)',
+              width: 104,
+              flexShrink: 0,
+              color: row.color,
               fontSize: 10,
+              fontWeight: 700,
               textTransform: 'uppercase',
-              letterSpacing: '0.06em',
-              marginTop: 4,
+              letterSpacing: '0.05em',
             }}
           >
-            Compliant
-          </div>
+            {row.label}
+          </span>
+          <span
+            aria-hidden
+            style={{
+              flex: 1,
+              height: 6,
+              borderRadius: 999,
+              background: 'var(--ow-bg-3)',
+              overflow: 'hidden',
+            }}
+          >
+            <span
+              style={{
+                display: 'block',
+                width: `${(row.value / max) * 100}%`,
+                height: '100%',
+                background: row.color,
+                borderRadius: 999,
+              }}
+            />
+          </span>
+          <span
+            style={{
+              width: 44,
+              textAlign: 'right',
+              color: row.color,
+              fontSize: 13,
+              fontWeight: 700,
+              fontVariantNumeric: 'tabular-nums',
+              flexShrink: 0,
+            }}
+          >
+            {row.value}
+          </span>
         </div>
-        <div style={{ flex: 1, minWidth: 0 }} role="list" aria-label="Status totals">
-          {legend.map((l) => (
-            <div
-              key={l.label}
-              role="listitem"
-              style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '3px 0' }}
-            >
-              <span style={{ width: 110, color: 'var(--ow-fg-2)', fontSize: 12, flexShrink: 0 }}>
-                {l.label}
-              </span>
-              <span
-                style={{
-                  width: 44,
-                  textAlign: 'right',
-                  color: 'var(--ow-fg-0)',
-                  fontSize: 12,
-                  fontWeight: 600,
-                  fontVariantNumeric: 'tabular-nums',
-                  flexShrink: 0,
-                }}
-              >
-                {l.value}
-              </span>
-              <span
-                aria-hidden
-                style={{
-                  flex: 1,
-                  height: 5,
-                  borderRadius: 999,
-                  background: 'var(--ow-bg-3)',
-                  overflow: 'hidden',
-                }}
-              >
-                <span
-                  style={{
-                    display: 'block',
-                    width: `${(l.value / max) * 100}%`,
-                    height: '100%',
-                    background: l.color,
-                    borderRadius: 999,
-                  }}
-                />
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
+      ))}
       {summary.skipped > 0 ? (
         <div
           style={{
             marginTop: 12,
-            padding: '8px 10px',
+            padding: '9px 11px',
             borderRadius: 7,
+            border: '1px dashed var(--ow-line)',
             background: 'var(--ow-bg-2)',
             color: 'var(--ow-fg-2)',
             fontSize: 11,
             lineHeight: 1.5,
           }}
         >
-          {summary.skipped} rules not applicable: dropped by capability gates or missing a matching
-          implementation on this host.
+          <strong style={{ color: 'var(--ow-fg-1)' }}>
+            {summary.skipped} rules not applicable
+          </strong>
+          : dropped by capability gates or missing a matching implementation on this host.
         </div>
       ) : null}
     </section>
@@ -600,10 +695,9 @@ function ScanPanel({
         <ScanRow label="Ran">
           <span style={{ fontFamily: 'var(--ow-font-mono)' }}>{ran}</span>
           {scanContext.duration_seconds != null ? (
-            <span style={{ color: 'var(--ow-fg-3)' }}>
-              {' · Duration '}
-              {scanContext.duration_seconds}s
-            </span>
+            <div style={{ color: 'var(--ow-fg-3)', marginTop: 2 }}>
+              Duration {scanContext.duration_seconds}s
+            </div>
           ) : null}
         </ScanRow>
         {scanContext.policy_version ? (
@@ -694,8 +788,11 @@ function CategoryRows({ categories }: { categories: LensCategory[] }) {
       </div>
       <div role="list" aria-label="Category breakdown">
         {categories.map((c, i) => {
-          const passPct = c.total > 0 ? Math.round((c.passing / c.total) * 100) : 0;
-          const failPct = c.total > 0 ? (c.failing / c.total) * 100 : 0;
+          // Prototype semantics: counts and percentage cover EXECUTED
+          // rules only (pass + fail); not-applicable rows neither help
+          // nor hurt a category's score.
+          const executed = c.passing + c.failing;
+          const passPct = executed > 0 ? Math.round((c.passing / executed) * 100) : 0;
           return (
             <div
               key={c.category}
@@ -704,7 +801,7 @@ function CategoryRows({ categories }: { categories: LensCategory[] }) {
                 display: 'flex',
                 alignItems: 'center',
                 gap: 14,
-                padding: '9px 0',
+                padding: '10px 0',
                 borderTop: '1px solid var(--ow-line)',
               }}
             >
@@ -721,7 +818,8 @@ function CategoryRows({ categories }: { categories: LensCategory[] }) {
               </span>
               <span
                 style={{
-                  flex: '0 0 220px',
+                  flex: 1,
+                  minWidth: 0,
                   color: 'var(--ow-fg-0)',
                   fontWeight: 500,
                   fontSize: 13,
@@ -732,39 +830,41 @@ function CategoryRows({ categories }: { categories: LensCategory[] }) {
               <span
                 aria-hidden
                 style={{
-                  flex: 1,
-                  height: 5,
+                  flex: '0 0 290px',
+                  height: 6,
                   borderRadius: 999,
                   background: 'var(--ow-bg-3)',
                   overflow: 'hidden',
                   display: 'flex',
                 }}
               >
-                <span
-                  style={{ width: `${100 - failPct}%`, background: 'var(--ow-ok)', height: '100%' }}
-                />
-                <span
-                  style={{ width: `${failPct}%`, background: 'var(--ow-crit)', height: '100%' }}
-                />
+                {executed > 0 ? (
+                  <>
+                    <span style={{ width: `${passPct}%`, background: 'var(--ow-ok)' }} />
+                    <span style={{ width: `${100 - passPct}%`, background: 'var(--ow-crit)' }} />
+                  </>
+                ) : null}
               </span>
               <span
                 style={{
-                  width: 90,
+                  width: 76,
                   textAlign: 'right',
                   fontSize: 12,
+                  fontWeight: 600,
                   fontVariantNumeric: 'tabular-nums',
                   flexShrink: 0,
                 }}
               >
-                <span style={{ color: 'var(--ow-ok)', fontWeight: 600 }}>{c.passing}</span>
-                <span style={{ color: 'var(--ow-fg-3)' }}> / {c.total}</span>
+                <span style={{ color: 'var(--ow-ok)' }}>{c.passing}</span>
+                <span style={{ color: 'var(--ow-fg-3)' }}> / </span>
+                <span style={{ color: 'var(--ow-crit)' }}>{c.failing}</span>
               </span>
               <span
                 style={{
                   width: 44,
                   textAlign: 'right',
-                  color: 'var(--ow-fg-1)',
-                  fontWeight: 600,
+                  color: scoreColor(passPct),
+                  fontWeight: 700,
                   fontSize: 12,
                   fontVariantNumeric: 'tabular-nums',
                   flexShrink: 0,
