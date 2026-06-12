@@ -151,17 +151,29 @@ func cmdWorker(cfg *config.Config, args []string, stdout, stderr *os.File) int {
 	}
 
 	// Wire the scan-job execution chain. The production ScanFunc loads
-	// the kensa-rules corpus once (default path /usr/share/kensa/rules;
-	// OPENWATCH_KENSA_RULES_DIR overrides for dev checkouts) and
-	// composes the scan-only Kensa over the in-memory transport.
-	// Host-key policy matches the discovery transport: TOFU + memory
-	// store. Spec system-kensa-executor C-13 / AC-18.
+	// the kensa-rules corpus once and composes the scan-only Kensa over
+	// the in-memory transport. Host-key policy matches the discovery
+	// transport: TOFU + memory store. Spec system-kensa-executor C-13 /
+	// AC-18.
+	//
+	// Corpus resolution (C-16): production — including air-gapped
+	// installs, the primary deployment target — relies on the signed
+	// kensa-rules package at the loader's default path
+	// (/usr/share/kensa/rules), declared as a dependency of the
+	// OpenWatch RPM/DEB. OPENWATCH_KENSA_RULES_DIR is a DEVELOPMENT
+	// override only; using it is warned loudly so it cannot creep into
+	// a production runbook unnoticed.
 	credSvc := credential.NewService(pool)
 	bridge := worker.NewCredentialBridge(credSvc)
+	rulesDir := os.Getenv("OPENWATCH_KENSA_RULES_DIR")
+	if rulesDir != "" {
+		slog.WarnContext(bootCtx, "OPENWATCH_KENSA_RULES_DIR override in use — DEVELOPMENT ONLY; production (especially air-gapped) installs the signed kensa-rules package and must not set this",
+			slog.String("rules_dir", rulesDir))
+	}
 	scanFn, err := kensa.NewProductionScanFunc(kensa.ScanFuncDeps{
 		Pool:        pool,
 		Credentials: credSvc,
-		RulesDir:    os.Getenv("OPENWATCH_KENSA_RULES_DIR"),
+		RulesDir:    rulesDir,
 		HostKeyMode: owssh.ModeTOFU,
 		KnownHosts:  owssh.NewMemoryStore(),
 	})

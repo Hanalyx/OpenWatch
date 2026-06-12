@@ -184,6 +184,33 @@ func TestProductionBinding_SourceInspection(t *testing.T) {
 	})
 }
 
+// @ac AC-23
+// Air-gap corpus policy (C-16): production resolves rules from the
+// signed kensa-rules package at the loader's default path; the env
+// override is development-only and both boot paths must warn when it
+// is set, so the shortcut cannot creep into a production runbook.
+func TestRulesDirOverride_WarnedDevOnly_SourceInspection(t *testing.T) {
+	t.Run("system-kensa-executor/AC-23", func(t *testing.T) {
+		for _, f := range []string{"main.go", "worker.go"} {
+			src := mustReadFile(t, filepath.Join(pkgDir(t), "..", "..", "cmd", "openwatch", f))
+			if !strings.Contains(src, "OPENWATCH_KENSA_RULES_DIR") {
+				continue // file doesn't wire scans (defensive)
+			}
+			if !strings.Contains(src, "DEVELOPMENT ONLY") {
+				t.Errorf("cmd/openwatch/%s reads OPENWATCH_KENSA_RULES_DIR without the DEVELOPMENT ONLY warning (C-16)", f)
+			}
+			if !strings.Contains(src, "kensa-rules package") {
+				t.Errorf("cmd/openwatch/%s warning must point operators at the signed kensa-rules package (C-16)", f)
+			}
+		}
+		// ScanFuncDeps documents the packaged default path for empty RulesDir.
+		scanfunc := mustReadFile(t, filepath.Join(pkgDir(t), "scanfunc.go"))
+		if !strings.Contains(scanfunc, "kensa-rules") {
+			t.Error("ScanFuncDeps.RulesDir doc must reference the kensa-rules package default (C-16)")
+		}
+	})
+}
+
 // classifyScanError: closed-enum mapping for dial-path failures.
 func TestClassifyScanError(t *testing.T) {
 	cases := []struct {

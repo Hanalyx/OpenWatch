@@ -1,7 +1,7 @@
 spec:
   id: system-kensa-executor
   title: Kensa executor wrapper
-  version: "2.3.0"
+  version: "2.4.0"
   status: approved
   tier: 1
 
@@ -142,6 +142,10 @@ spec:
       description: The package MUST provide an in-memory SSH transport implementing kensa api.Transport over internal/ssh.Dial (x/crypto, matching every other OpenWatch host-communication path). The TransportFactory resolves the target host's credential per Connect via an injected CredentialResolver, keyed by the host id carried in HostConfig.FleetID; HostConfig.User, when set, overrides the credential username (hosts.username); sudo is downgraded when the effective user is root. HostConfig.KeyPath MUST be ignored — authentication uses the in-memory *credential.Credential only; no key material touches disk. Run MUST wrap the command in `sudo -n sh -c '<cmd>'` (single-quote-escaped) when sudo is enabled; a non-zero remote exit code is a valid CommandResult, NOT a transport error. Put and Get MUST return explicit not-implemented errors until remediation needs them (the scan path never calls them); ControlChannelSensitive MUST report false for the scan-only transport
       type: technical
       enforcement: error
+    - id: C-16
+      description: 'Production corpus resolution — air-gapped installs are the PRIMARY deployment target — MUST rely on the signed kensa-rules package at the loader''s default path (/usr/share/kensa/rules), declared as a dependency of (or bundled with) the OpenWatch RPM/DEB so an offline install is complete. OPENWATCH_KENSA_RULES_DIR is a DEVELOPMENT override only: both serve and worker boot paths MUST emit a warning naming it development-only whenever it is set, and no production runbook, packaged unit file, or default config may set it. Pointing production at a Go module cache or any unpackaged rules source is prohibited (forks the corpus out of the GPG/cosign trust chain).'
+      type: security
+      enforcement: error
 
   acceptance_criteria:
     - id: AC-01
@@ -230,3 +234,7 @@ spec:
       description: TransportFactory.Connect requires a CredentialResolver and a host id in HostConfig.FleetID (nil resolver and malformed FleetID each error before any resolve/dial); HostConfig.User, when set and different, overrides the credential username via a copy — the resolver's cached credential object is never mutated; Sudo is downgraded to false when the effective user is root, and preserved otherwise.
       priority: high
       references_constraints: [C-15]
+    - id: AC-23
+      description: 'Source-inspection — both cmd/openwatch/main.go (serve) and cmd/openwatch/worker.go gate the OPENWATCH_KENSA_RULES_DIR read behind a warning that names it DEVELOPMENT ONLY and references the signed kensa-rules package for production/air-gapped installs; ScanFuncDeps.RulesDir documents that empty selects the kensa-rules package default path.'
+      priority: critical
+      references_constraints: [C-16]

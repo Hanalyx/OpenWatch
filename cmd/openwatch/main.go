@@ -442,11 +442,21 @@ func cmdServe(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 	// missing the executor keeps its fallback binding — scans then
 	// terminate failed (kensa_error) instead of rotting queued — and we
 	// warn loudly. Spec system-kensa-executor C-13, system-scan-runs.
+	//
+	// Corpus resolution (C-16): production — including air-gapped
+	// installs, the primary deployment target — relies on the signed
+	// kensa-rules package at the loader's default path; the env var is
+	// a DEVELOPMENT override only, warned loudly when set.
+	scanRulesDir := os.Getenv("OPENWATCH_KENSA_RULES_DIR")
+	if scanRulesDir != "" {
+		slog.WarnContext(bootCtx, "OPENWATCH_KENSA_RULES_DIR override in use — DEVELOPMENT ONLY; production (especially air-gapped) installs the signed kensa-rules package and must not set this",
+			slog.String("rules_dir", scanRulesDir))
+	}
 	scanExecutor := kensa.NewExecutor(worker.NewCredentialBridge(credSvc), audit.Emit)
 	if scanFn, scanErr := kensa.NewProductionScanFunc(kensa.ScanFuncDeps{
 		Pool:        pool,
 		Credentials: credSvc,
-		RulesDir:    os.Getenv("OPENWATCH_KENSA_RULES_DIR"),
+		RulesDir:    scanRulesDir,
 		HostKeyMode: owssh.ModeTOFU,
 		KnownHosts:  owssh.NewMemoryStore(),
 	}); scanErr != nil {

@@ -205,7 +205,7 @@ validate). "Spec" = a new/updated `.spec.yaml` with enforcing tests.
 - **Idempotency:** every mutating scan/remediate endpoint requires `Idempotency-Key` (reuse the connectivity:check pattern).
 - **SSE / live refresh:** publish `scan.completed` on the event bus; extend `useLiveEvents` to invalidate `['host', id]`, the compliance keys, and `['hosts']` (fleet). (Tracks the existing Track-B SSE backlog.)
 - **OpenAPI-first:** every endpoint lands in `api/openapi.yaml` → `make generate-api` → Go stubs + `frontend/src/api/schema.d.ts`.
-- **Packaging:** the corpus ships as the **signed `kensa-rules` OS package** at the loader's default path — OpenWatch's RPM/DEB declare a dependency on it (or bundle it in the air-gapped artifact set); OpenWatch never embeds or forks the rule files. Dev mode uses the rules-dir override. Fold into `packaging/` + `RELEASING` runbook.
+- **Packaging (RATIFIED 2026-06-12 — air-gapped installs are the primary deployment target):** the corpus ships as the **signed `kensa-rules` OS package** at the loader's default path. OpenWatch's RPM/DEB MUST declare a dependency on it **and the air-gapped artifact set MUST bundle it** so an offline install is complete with no network fetch. OpenWatch never embeds or forks the rule files. `OPENWATCH_KENSA_RULES_DIR` is a development-only override — both boot paths warn loudly when it is set (spec system-kensa-executor C-16/AC-23), and no production runbook, unit file, or default config may use it; pointing production at a Go module cache or any unpackaged source is prohibited. Fold the dependency + bundling into `packaging/` + the `RELEASING` runbook before the first scan-capable release.
 
 ---
 
