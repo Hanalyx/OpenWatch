@@ -21,6 +21,7 @@ import (
 
 	"github.com/Hanalyx/openwatch/internal/audit"
 	"github.com/Hanalyx/openwatch/internal/queue"
+	"github.com/Hanalyx/openwatch/internal/scanruns"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -147,6 +148,14 @@ func (w *Worker) process(ctx context.Context, j *queue.Job) {
 	case ScanJobType:
 		if w.scanProc == nil {
 			_ = queue.Fail(ctx, w.pool, j.ID, "scan processor not registered on this worker")
+			// Logbook integrity: a misconfigured worker must not strand
+			// the scan_runs row in queued/running. Spec system-scan-runs
+			// AC-04 (every scan-job failure pairs with MarkFailed).
+			if err := scanruns.MarkFailed(ctx, w.pool, j.ID, "scan_processor_not_registered"); err != nil {
+				slog.WarnContext(ctx, "scan_runs mark failed errored",
+					slog.String("scan_id", j.ID.String()),
+					slog.String("error", err.Error()))
+			}
 			return
 		}
 		w.scanProc.ProcessJob(ctx, j)

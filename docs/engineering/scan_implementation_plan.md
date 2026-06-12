@@ -1,6 +1,21 @@
 # Compliance Scan — Implementation Plan
 
-**Status:** Draft for review · **Date:** 2026-06-11 · **Owner:** TBD
+**Status:** Phases 0-2 SHIPPED (branch feat/scan-foundation, 15 commits, live-verified) · **Updated:** 2026-06-12 · **Owner:** TBD
+
+## Status snapshot (2026-06-12)
+
+| Phase | Status | Evidence |
+|-------|--------|----------|
+| 0 — Foundation | **DONE** | kensa v0.3.2 bound (NewScanner + in-memory transport); R6 multi-valued refs fixed pre-data; scan_runs logbook + audit lifecycle; serve processes scan jobs in-process. Live: 539 rules vs owas-hrm01 in 83s, 0 errors |
+| 1 — On-demand scan | **DONE** | POST /hosts/{id}/scans (idempotency, RBAC, 409 single-flight) + Run scan button + scan.completed SSE refresh. Found+fixed a latent platform bug: http.Server WriteTimeout killed ALL SSE streams at 60s |
+| 2 — Top failed rules | **DONE** | GET /hosts/{id}/compliance/failed-rules (no-evidence C-02, multi-valued control_ids) + RuleCatalog titles + live card. Verified: hrm01's real 147 failures render with catalog titles |
+| 3 — Compliance tab lens | not started | Tab badge shows live count; panel is a TabStub |
+| 4 — Adaptive scheduler + settings | **pending decisions #4 + #5** | Scheduler core built/unbooted; settings section UI-only |
+| 5 — Fleet surfaces | **partial (quick wins early)** | Per-host Scan buttons live, scan-queue KPI live, dead bulk button removed. Remaining: hosts-list compliance_summary enrichment (cards show "Last scan Xm ago" but "No scan data"), fleet avg/distribution endpoint, bulk scan, health banner |
+| 6 — Trend / posture snapshots | not started | |
+| 7 — Remediation + exceptions | not started | DefaultWithTransportFactory available since kensa v0.3.2; transport Put/Get stubs waiting |
+
+All risks R1-R6 resolved. Scanned fleet so far: owas-hrm01 (367/147/25/0), owas-rhl10 (247/288). Operational follow-up noted: deadline-free SSE streams outlive graceful shutdown's 30s grace (cancel streams on shutdown ctx).
 
 Covers end-to-end compliance scanning for the OpenWatch Go rebuild: wiring the
 Kensa engine, triggering scans (on-demand + adaptive auto-scan), persisting and

@@ -26,11 +26,14 @@ import (
 	"github.com/Hanalyx/openwatch/internal/db/migrations"
 	"github.com/Hanalyx/openwatch/internal/identity"
 	"github.com/Hanalyx/openwatch/internal/intelligence/discovery"
+	"github.com/Hanalyx/openwatch/internal/kensa"
 	"github.com/Hanalyx/openwatch/internal/license"
 	"github.com/Hanalyx/openwatch/internal/liveness"
 	"github.com/Hanalyx/openwatch/internal/scheduler"
 	"github.com/Hanalyx/openwatch/internal/secretkey"
 	"github.com/Hanalyx/openwatch/internal/systemconfig"
+	"github.com/Hanalyx/openwatch/internal/transactionlog"
+	"github.com/Hanalyx/openwatch/internal/worker"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -143,6 +146,11 @@ func freshAPIServer(t *testing.T) (string, *pgxpool.Pool) {
 	// is clearer.
 	_, _ = pool.Exec(ctx, "TRUNCATE TABLE transactions")
 	_, _ = pool.Exec(ctx, "TRUNCATE TABLE host_rule_state")
+	// job_queue has no FK to hosts, so the hosts CASCADE below never
+	// clears it — leftover scan jobs from earlier fixtures broke the
+	// api-host-scan job-count assertions (caught by the DSN-gated CI
+	// run; scan_runs IS cascaded via its hosts FK).
+	_, _ = pool.Exec(ctx, "TRUNCATE TABLE job_queue")
 	// TRUNCATE…CASCADE delegates child cleanup to the schema — the
 	// hosts row has 11 FK-referencing children and a hand-rolled
 	// list rots every time a new FK is added. CASCADE bypasses
@@ -251,6 +259,19 @@ func freshAPIServer(t *testing.T) (string, *pgxpool.Pool) {
 		t.Fatalf("DeriveQueueKey: %v", err)
 	}
 	s.WithScanQueue(scanKey)
+
+	// Register a ScanWorker on the in-process worker so claimed scan
+	// jobs are processed (HMAC verify + scan_runs lifecycle) instead of
+	// dead-ending on the nil-processor branch. No live Kensa binding:
+	// the executor keeps its test fallback, so runs terminate FAILED —
+	// exactly what api-host-scan AC-02 asserts.
+	s.WithScanWorker(worker.NewScanWorker(worker.Config{
+		Pool:     pool,
+		Executor: kensa.NewExecutor(worker.NewCredentialBridge(credential.NewService(pool)), audit.Emit),
+		Writer:   transactionlog.NewWriter(pool, audit.Emit),
+		QueueKey: scanKey,
+		Emit:     audit.Emit,
+	}))
 
 	// Start the in-process worker. httptest.NewServer bypasses s.Run(),
 	// so the worker would never start otherwise — tests that exercise
