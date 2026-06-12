@@ -27,6 +27,7 @@ import (
 	"time"
 
 	kensaapi "github.com/Hanalyx/kensa/api"
+	"github.com/google/uuid"
 	cryptossh "golang.org/x/crypto/ssh"
 
 	"github.com/Hanalyx/openwatch/internal/credential"
@@ -43,32 +44,50 @@ var (
 	_ kensaapi.Transport        = (*sshTransport)(nil)
 )
 
-// TransportFactory implements kensa api.TransportFactory for one scan.
-// It is constructed per scan with the host's already-resolved,
-// in-memory credential; the caller owns the credential's lifecycle
-// (wipe-after-scan), mirroring the CredentialBridge contract.
+// CredentialResolver resolves a host's credential into in-memory
+// plaintext fields (username, key material, password, passphrase).
+// Production wires credential.Service.Resolve; tests inject fakes.
+type CredentialResolver func(ctx context.Context, hostID uuid.UUID) (*credential.Credential, error)
+
+// TransportFactory implements kensa api.TransportFactory for the
+// long-lived Kensa instance. One factory serves every scan: Connect
+// resolves the target host's credential per call, keyed by the host id
+// the ScanFunc smuggles through HostConfig.FleetID (kensa treats
+// FleetID as opaque context, which is exactly what a per-host UUID is).
 type TransportFactory struct {
-	// Cred is the resolved credential used for authentication.
+	// Resolve maps host id -> in-memory credential per connection.
 	// HostConfig.KeyPath is ignored — key material never touches disk.
-	Cred *credential.Credential
+	Resolve CredentialResolver
 	// Mode is the host-key verification policy (internal/ssh.Mode).
 	Mode owssh.Mode
 	// Store is the known-hosts store backing Mode.
 	Store owssh.KnownHostsStore
 }
 
-// Connect dials host.Hostname:host.Port with the factory's in-memory
-// credential and returns a live Transport. host.Sudo selects sudo
-// command wrapping per the api.Transport contract.
+// Connect resolves the host's credential and dials
+// host.Hostname:host.Port. host.User, when non-empty, overrides the
+// credential's username (the hosts.username per-host override).
+// host.Sudo requests sudo wrapping; it is downgraded when the
+// effective user is already root (sudo would be a no-op that some
+// hardened hosts reject for root anyway).
 func (f *TransportFactory) Connect(ctx context.Context, host kensaapi.HostConfig) (kensaapi.Transport, error) {
-	if f.Cred == nil {
-		return nil, errors.New("kensa transport: factory requires a resolved credential")
+	if f.Resolve == nil {
+		return nil, errors.New("kensa transport: factory requires a credential resolver")
 	}
+	hostID, err := uuid.Parse(host.FleetID)
+	if err != nil {
+		return nil, fmt.Errorf("kensa transport: HostConfig.FleetID must carry the host id: %w", err)
+	}
+	cred, err := f.Resolve(ctx, hostID)
+	if err != nil {
+		return nil, fmt.Errorf("kensa transport: resolve credential: %w", err)
+	}
+	cred, sudo := effectiveCredAndSudo(cred, host)
 	port := host.Port
 	if port == 0 {
 		port = 22
 	}
-	client, err := owssh.Dial(ctx, host.Hostname, port, f.Cred, owssh.DialOptions{
+	client, err := owssh.Dial(ctx, host.Hostname, port, cred, owssh.DialOptions{
 		Mode:    f.Mode,
 		Store:   f.Store,
 		Timeout: owssh.DefaultDialTimeout,
@@ -76,7 +95,20 @@ func (f *TransportFactory) Connect(ctx context.Context, host kensaapi.HostConfig
 	if err != nil {
 		return nil, fmt.Errorf("kensa transport: dial %s: %w", host.Hostname, err)
 	}
-	return &sshTransport{client: client, sudo: host.Sudo}, nil
+	return &sshTransport{client: client, sudo: sudo}, nil
+}
+
+// effectiveCredAndSudo applies the per-host username override
+// (HostConfig.User, from hosts.username) via a shallow copy — the
+// cached credential object is never mutated — and downgrades sudo when
+// the effective user is already root. Spec AC-22.
+func effectiveCredAndSudo(cred *credential.Credential, host kensaapi.HostConfig) (*credential.Credential, bool) {
+	if host.User != "" && host.User != cred.Username {
+		c := *cred
+		c.Username = host.User
+		cred = &c
+	}
+	return cred, host.Sudo && cred.Username != "root"
 }
 
 // sshTransport is one live SSH connection; each Run opens a fresh

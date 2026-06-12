@@ -1,0 +1,250 @@
+// Production ScanFunc — the live Kensa.Scan binding.
+//
+// The chain: kensa.LoadRules (once, at construction) -> per-scan host
+// lookup -> Kensa.Scan over the in-memory TransportFactory -> field
+// copy of kensa's []RuleOutcome into the executor's Result.
+//
+// The credential is resolved TWICE by design: the executor's
+// CredentialBridge resolve is the gate (no-credential / decrypt-fail
+// short-circuit + wipe contract, specs AC-07/AC-09/AC-15), while the
+// TransportFactory re-resolves the full credential inside Connect —
+// the bridge's bytes alone cannot authenticate (no username, no
+// passphrase, no password fallback). The ScanFunc therefore ignores
+// the bridge's plain bytes.
+//
+// Construction seam: newScanService builds the Kensa instance. Kensa
+// v0.3.1 has no public constructor accepting a caller-supplied
+// TransportFactory (pkg/kensa.Default pins its on-disk ssh.Factory;
+// the scanner backend lives in internal/scan) — the export request is
+// docs/engineering/kensa_transport_injection_request.md. Until it
+// ships, newScanService returns ErrKensaConstructorPending and the
+// worker keeps the test-only fallback binding; everything around the
+// seam (rule loading, host lookup, outcome mapping, failure
+// classification) is final and tested.
+//
+// Spec: system-kensa-executor v2.2.0 (C-12, C-13, C-14).
+package kensa
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"time"
+
+	kensaapi "github.com/Hanalyx/kensa/api"
+	pkgkensa "github.com/Hanalyx/kensa/pkg/kensa"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/Hanalyx/openwatch/internal/credential"
+	owssh "github.com/Hanalyx/openwatch/internal/ssh"
+)
+
+// ErrKensaConstructorPending marks the one unbuilt link in the
+// production chain: kensa exporting a scan construction path that
+// accepts our TransportFactory.
+var ErrKensaConstructorPending = errors.New(
+	"kensa: no public constructor accepts a caller TransportFactory yet (see docs/engineering/kensa_transport_injection_request.md)")
+
+// scanService is the slice of kensa's surface the ScanFunc consumes.
+// pkg/kensa.Service satisfies it via its embedded *api.Kensa.
+type scanService interface {
+	Scan(ctx context.Context, host kensaapi.HostConfig, rules []*kensaapi.Rule, opts ...kensaapi.RunOption) (*kensaapi.ScanResult, error)
+}
+
+// newScanService constructs the Kensa instance bound to factory.
+// PENDING the kensa export; see the package comment.
+func newScanService(_ kensaapi.TransportFactory) (scanService, error) {
+	return nil, ErrKensaConstructorPending
+}
+
+// ScanFuncDeps are the inputs to NewProductionScanFunc.
+type ScanFuncDeps struct {
+	Pool        *pgxpool.Pool
+	Credentials *credential.Service
+	// RulesDir is the kensa-rules corpus location. Empty selects the
+	// kensa-rules package default path (/usr/share/kensa/rules).
+	RulesDir string
+	// HostKeyMode + KnownHosts set the dial-time host-key policy.
+	HostKeyMode owssh.Mode
+	KnownHosts  owssh.KnownHostsStore
+}
+
+// NewProductionScanFunc loads the rule corpus once (Phase 0 passes nil
+// vars: every templated rule carries a safe embedded default) and
+// returns the ScanFunc the worker binds via WithScanFunc.
+func NewProductionScanFunc(deps ScanFuncDeps) (ScanFunc, error) {
+	rules, err := pkgkensa.LoadRules(deps.RulesDir, nil, nil)
+	if err != nil {
+		return nil, fmt.Errorf("kensa: load rule corpus: %w", err)
+	}
+	factory := &TransportFactory{
+		Resolve: deps.Credentials.Resolve,
+		Mode:    deps.HostKeyMode,
+		Store:   deps.KnownHosts,
+	}
+	svc, err := newScanService(factory)
+	if err != nil {
+		return nil, err
+	}
+
+	return func(ctx context.Context, hostID uuid.UUID, policyVersion string, _ []byte) (*Result, FailureReason, error) {
+		target, err := loadScanHost(ctx, deps.Pool, hostID)
+		if err != nil {
+			return nil, ReasonKensaError, err
+		}
+		started := time.Now().UTC()
+		scanRes, err := svc.Scan(ctx, target.hostConfig(hostID), rules)
+		if err != nil {
+			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+				return nil, "", err
+			}
+			return nil, classifyScanError(err), err
+		}
+		return &Result{
+			HostID:        hostID,
+			PolicyVersion: policyVersion,
+			StartedAt:     started,
+			CompletedAt:   time.Now().UTC(),
+			Outcomes:      mapOutcomes(scanRes.Outcomes),
+		}, "", nil
+	}, nil
+}
+
+// scanHost is the host-row slice a scan needs.
+type scanHost struct {
+	address  string // ip_address text form — no DNS dependency
+	port     int
+	username string // hosts.username override; "" = credential's
+}
+
+func (h scanHost) hostConfig(hostID uuid.UUID) kensaapi.HostConfig {
+	return kensaapi.HostConfig{
+		Hostname: h.address,
+		Port:     h.port,
+		User:     h.username,
+		// Kensa rules check root-owned state; the factory downgrades
+		// sudo when the effective user is already root.
+		Sudo: true,
+		// FleetID carries the host id to the TransportFactory (and
+		// into kensa's own event context). Spec C-15.
+		FleetID: hostID.String(),
+	}
+}
+
+// loadScanHost reads the connection coordinates for an active host.
+func loadScanHost(ctx context.Context, pool *pgxpool.Pool, hostID uuid.UUID) (scanHost, error) {
+	var h scanHost
+	var username *string
+	err := pool.QueryRow(ctx, `
+		SELECT host(ip_address), port, username
+		FROM hosts
+		WHERE id = $1 AND deleted_at IS NULL`, hostID).
+		Scan(&h.address, &h.port, &username)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return h, fmt.Errorf("kensa: host %s not found or deleted", hostID)
+	}
+	if err != nil {
+		return h, fmt.Errorf("kensa: load host %s: %w", hostID, err)
+	}
+	if username != nil {
+		h.username = *username
+	}
+	return h, nil
+}
+
+// mapOutcomes is the kensa -> OpenWatch field copy. No compliance
+// logic lives here: kensa's verdict is authoritative (C-14).
+func mapOutcomes(in []kensaapi.RuleOutcome) []RuleOutcome {
+	out := make([]RuleOutcome, 0, len(in))
+	for _, o := range in {
+		m := RuleOutcome{
+			RuleID:        o.RuleID,
+			Status:        mapStatus(o.Status),
+			Severity:      o.Severity,
+			Evidence:      evidenceJSON(o),
+			FrameworkRefs: refsToMap(o.FrameworkRefs),
+		}
+		if m.Status == StatusSkipped {
+			m.SkipReason = o.Detail
+		}
+		out = append(out, m)
+	}
+	return out
+}
+
+// mapStatus converts kensa's ComplianceStatus (closed enum
+// pass|fail|skipped|error) to the executor's ResultStatus. An
+// out-of-enum value — impossible today, defensive against a future
+// kensa addition — degrades to StatusError rather than fabricating a
+// verdict.
+func mapStatus(s kensaapi.ComplianceStatus) ResultStatus {
+	switch s {
+	case kensaapi.CompliancePass:
+		return StatusPass
+	case kensaapi.ComplianceFail:
+		return StatusFail
+	case kensaapi.ComplianceSkipped:
+		return StatusSkipped
+	case kensaapi.ComplianceError:
+		return StatusError
+	default:
+		return StatusError
+	}
+}
+
+// refsToMap converts kensa's []FrameworkRef into the multi-valued
+// framework_id -> control ids map, preserving every control when one
+// framework maps a rule more than once (C-14, v2.1.0).
+func refsToMap(refs []kensaapi.FrameworkRef) map[string][]string {
+	if len(refs) == 0 {
+		return nil
+	}
+	m := make(map[string][]string, len(refs))
+	for _, r := range refs {
+		m[r.FrameworkID] = append(m[r.FrameworkID], r.ControlID)
+	}
+	return m
+}
+
+// maxEvidenceDetail bounds the human-readable detail captured into
+// evidence JSON. Far below MaxEvidenceBytes (10 MiB) — detail is a
+// verdict explanation, not a payload dump.
+const maxEvidenceDetail = 64 * 1024
+
+// evidenceJSON wraps kensa's verdict detail (and error, when present)
+// as the JSON document the transactions/host_rule_state evidence
+// columns require.
+func evidenceJSON(o kensaapi.RuleOutcome) []byte {
+	detail := o.Detail
+	if len(detail) > maxEvidenceDetail {
+		detail = detail[:maxEvidenceDetail] + "…(truncated)"
+	}
+	doc := map[string]string{"detail": detail}
+	if o.Err != nil {
+		doc["error"] = o.Err.Error()
+	}
+	b, err := json.Marshal(doc)
+	if err != nil {
+		// Marshal of map[string]string cannot fail; belt-and-braces.
+		return []byte(`{"detail":"evidence marshal failed"}`)
+	}
+	return b
+}
+
+// classifyScanError maps a scan-path failure onto the executor's
+// closed FailureReason enum (AC-06).
+func classifyScanError(err error) FailureReason {
+	switch {
+	case errors.Is(err, owssh.ErrHostKeyUnknown), errors.Is(err, owssh.ErrHostKeyMismatch):
+		return ReasonHostKeyUnknown
+	case errors.Is(err, owssh.ErrDialTimeout):
+		return ReasonTimeout
+	default:
+		// Connect/auth/kensa-internal failures: the generic engine
+		// class; the error text rides the audit detail.
+		return ReasonKensaError
+	}
+}
