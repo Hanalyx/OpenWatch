@@ -97,6 +97,14 @@ func (s *Server) WithActivity(a *activity.Service) *Server {
 	return s
 }
 
+// WithScanQueue threads the scan-job HMAC key into the API handlers so
+// POST /hosts/{id}/scans can sign and enqueue jobs the worker accepts.
+// Spec api-host-scan.
+func (s *Server) WithScanQueue(queueKey []byte) *Server {
+	s.handlers.scanQueueKey = queueKey
+	return s
+}
+
 // New constructs a Server from validated config and DB pool. The returned
 // Server has the foundation middleware chain mounted (correlation first,
 // then idempotency) and the Stage-0 API routes generated from

@@ -39,6 +39,7 @@ domains:
             - api-system-connectivity
             - api-fleet-connectivity-breakdown
             - api-host-connectivity-check
+            - api-host-scan
             - system-alerts
             - api-alerts
             - system-activity

@@ -917,6 +917,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/hosts/{id}/scans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Enqueue an on-demand compliance scan for a single host
+         * @description Creates a scan run (the scan_runs logbook row) and enqueues the
+         *     HMAC-signed scan job the worker executes via Kensa. Returns 202
+         *     with the scan id — the scan itself is asynchronous; completion
+         *     lands in host_rule_state/transactions and is announced on the
+         *     event bus. 409 when a run for this host is already queued or
+         *     running. Idempotency-Key required. Requires host:write.
+         *     Spec api-host-scan.
+         */
+        post: operations["postHostScan"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/intelligence/events": {
         parameters: {
             query?: never;
@@ -1653,6 +1679,17 @@ export interface components {
              * @enum {string}
              */
             new_reachability_status: "reachable" | "unreachable" | "unknown";
+        };
+        ScanRunQueued: {
+            /**
+             * Format: uuid
+             * @description scan_runs.id == queue job id == transactions.scan_id
+             */
+            scan_id: string;
+            /** @enum {string} */
+            status: "queued";
+            /** Format: date-time */
+            queued_at: string;
         };
         IntelligenceEvent: {
             /** Format: uuid */
@@ -3829,6 +3866,58 @@ export interface operations {
                 };
             };
             /** @description A probe for this host is already in flight */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    postHostScan: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Scan run created and job enqueued */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScanRunQueued"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            /** @description Caller lacks host:write permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Host not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description A scan for this host is already queued or running */
             409: {
                 headers: {
                     [name: string]: unknown;

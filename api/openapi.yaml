@@ -1315,6 +1315,50 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
 
+  /api/v1/hosts/{id}/scans:
+    post:
+      operationId: postHostScan
+      summary: Enqueue an on-demand compliance scan for a single host
+      description: |
+        Creates a scan run (the scan_runs logbook row) and enqueues the
+        HMAC-signed scan job the worker executes via Kensa. Returns 202
+        with the scan id — the scan itself is asynchronous; completion
+        lands in host_rule_state/transactions and is announced on the
+        event bus. 409 when a run for this host is already queued or
+        running. Idempotency-Key required. Requires host:write.
+        Spec api-host-scan.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema: {type: string, minLength: 1, maxLength: 128}
+      responses:
+        '202':
+          description: Scan run created and job enqueued
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ScanRunQueued'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '403':
+          description: Caller lacks host:write permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '404':
+          description: Host not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '409':
+          description: A scan for this host is already queued or running
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
   /api/v1/intelligence/events:
     get:
       operationId: getIntelligenceEvents
@@ -2386,6 +2430,14 @@ components:
           type: string
           enum: [reachable, unreachable, unknown]
           description: Post-hysteresis status (same value the periodic loop would write)
+
+    ScanRunQueued:
+      type: object
+      required: [scan_id, status, queued_at]
+      properties:
+        scan_id:   {type: string, format: uuid, description: scan_runs.id == queue job id == transactions.scan_id}
+        status:    {type: string, enum: [queued]}
+        queued_at: {type: string, format: date-time}
 
     IntelligenceEvent:
       type: object

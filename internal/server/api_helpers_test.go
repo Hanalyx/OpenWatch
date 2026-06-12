@@ -28,6 +28,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/intelligence/discovery"
 	"github.com/Hanalyx/openwatch/internal/license"
 	"github.com/Hanalyx/openwatch/internal/liveness"
+	"github.com/Hanalyx/openwatch/internal/scheduler"
 	"github.com/Hanalyx/openwatch/internal/secretkey"
 	"github.com/Hanalyx/openwatch/internal/systemconfig"
 	"github.com/google/uuid"
@@ -238,6 +239,18 @@ func freshAPIServer(t *testing.T) (string, *pgxpool.Pool) {
 
 	// Spec system-activity + api-activity: wire the unified feed.
 	s.WithActivity(activity.NewService(pool))
+
+	// Spec api-host-scan: scan-job HMAC key from the ephemeral DEK —
+	// the same derivation production uses, so enqueued payloads verify.
+	dekKey, err := secretkey.Active()
+	if err != nil {
+		t.Fatalf("secretkey.Active: %v", err)
+	}
+	scanKey, err := scheduler.DeriveQueueKey(dekKey.Material())
+	if err != nil {
+		t.Fatalf("DeriveQueueKey: %v", err)
+	}
+	s.WithScanQueue(scanKey)
 
 	// Start the in-process worker. httptest.NewServer bypasses s.Run(),
 	// so the worker would never start otherwise — tests that exercise

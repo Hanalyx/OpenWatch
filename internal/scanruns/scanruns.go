@@ -172,6 +172,21 @@ func LatestForHost(ctx context.Context, pool *pgxpool.Pool, hostID uuid.UUID) (*
 	return scanRun(row)
 }
 
+// ActiveForHost returns the host's queued-or-running run, or
+// ErrNotFound when none is active. Backs the on-demand endpoint's 409.
+func ActiveForHost(ctx context.Context, pool *pgxpool.Pool, hostID uuid.UUID) (*Run, error) {
+	row := pool.QueryRow(ctx, `
+		SELECT id, host_id, trigger_source, requested_by, status,
+		       queued_at, started_at, finished_at,
+		       COALESCE(policy_version, ''),
+		       rules_pass, rules_fail, rules_skipped, rules_error,
+		       COALESCE(failure_reason, ''), COALESCE(correlation_id, '')
+		FROM scan_runs
+		WHERE host_id = $1 AND status IN ('queued', 'running')
+		ORDER BY queued_at DESC LIMIT 1`, hostID)
+	return scanRun(row)
+}
+
 // ActiveCount returns the number of queued + running runs (the "scan
 // queue" depth on the fleet page and settings readout).
 func ActiveCount(ctx context.Context, pool *pgxpool.Pool) (int, error) {

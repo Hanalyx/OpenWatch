@@ -69,6 +69,12 @@ type handlers struct {
 	// that don't exercise /activity.
 	// Spec system-activity + api-activity.
 	activitySvc *activity.Service
+
+	// On-demand scan enqueue. Set via (*Server).WithScanQueue; nil
+	// disables POST /hosts/{id}/scans (503), e.g. in tests that don't
+	// exercise it. The key is scheduler.DeriveQueueKey output — the
+	// same HMAC key the worker verifies. Spec api-host-scan.
+	scanQueueKey []byte
 }
 
 // newHandlers constructs the ServerInterface implementation. The user

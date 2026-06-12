@@ -41,6 +41,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/license"
 	"github.com/Hanalyx/openwatch/internal/liveness"
 	openlog "github.com/Hanalyx/openwatch/internal/log"
+	compsched "github.com/Hanalyx/openwatch/internal/scheduler"
 	"github.com/Hanalyx/openwatch/internal/secretkey"
 	"github.com/Hanalyx/openwatch/internal/server"
 	owssh "github.com/Hanalyx/openwatch/internal/ssh"
@@ -416,11 +417,28 @@ func cmdServe(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 		)
 	}
 
+	// Scan-job HMAC key — the same DeriveQueueKey(DEK) the worker
+	// verifies with, so POST /hosts/{id}/scans enqueues jobs the worker
+	// accepts. Spec api-host-scan / system-scan-runs.
+	dekKey, err := secretkey.Active()
+	if err != nil {
+		slog.ErrorContext(bootCtx, "credential DEK not loaded",
+			slog.String("error", err.Error()))
+		return 1
+	}
+	scanQueueKey, err := compsched.DeriveQueueKey(dekKey.Material())
+	if err != nil {
+		slog.ErrorContext(bootCtx, "derive scan queue key failed",
+			slog.String("error", err.Error()))
+		return 1
+	}
+
 	srv := server.New(cfg, pool).
 		WithConnectivityConfig(cfgStore, liveSvc).
 		WithDiscovery(discoSvc).
 		WithEventBus(bus).
-		WithActivity(activity.NewService(pool))
+		WithActivity(activity.NewService(pool)).
+		WithScanQueue(scanQueueKey)
 	runErr := srv.Run(ctx)
 
 	// Shutdown order REVERSE of boot (C-02). liveness.Run + alertrouter
