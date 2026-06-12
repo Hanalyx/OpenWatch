@@ -16,13 +16,15 @@ type ScanResult struct {
 // score-based classification because a single critical finding warrants
 // the fastest re-check tier regardless of overall score.
 //
-// Score buckets:
+// Score bands (v3.0.0 — the prototype's five bands, scan plan decision
+// #5 resolved 2026-06-12):
 //
 //	hasCritical = true   → StateCritical
-//	score >= 100         → StateCompliant
-//	80 <= score < 100    → StatePartial
-//	50 <= score < 80     → StateNonCompliant
-//	score < 50           → StateCritical (severe non-compliance)
+//	score >= 90          → StateCompliant
+//	70 <= score < 90     → StateMostlyCompliant
+//	50 <= score < 70     → StatePartial
+//	20 <= score < 50     → StateNonCompliant
+//	score < 20           → StateCritical
 //
 // Pure function: no I/O, no side effects.
 func StateFromScore(score float64, hasCritical bool) ComplianceState {
@@ -30,11 +32,13 @@ func StateFromScore(score float64, hasCritical bool) ComplianceState {
 		return StateCritical
 	}
 	switch {
-	case score >= 100:
+	case score >= 90:
 		return StateCompliant
-	case score >= 80:
-		return StatePartial
+	case score >= 70:
+		return StateMostlyCompliant
 	case score >= 50:
+		return StatePartial
+	case score >= 20:
 		return StateNonCompliant
 	default:
 		return StateCritical

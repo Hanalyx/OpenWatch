@@ -21,6 +21,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/eventbus"
 	"github.com/Hanalyx/openwatch/internal/idempotency"
 	"github.com/Hanalyx/openwatch/internal/identity"
+	"github.com/Hanalyx/openwatch/internal/kensa"
 	"github.com/Hanalyx/openwatch/internal/license"
 	"github.com/Hanalyx/openwatch/internal/server/api"
 	"github.com/Hanalyx/openwatch/internal/users"
@@ -94,6 +95,34 @@ func (s *Server) WithAlerts(a *alerts.Service) *Server {
 // handlers so /api/v1/activity is routable. Spec api-activity.
 func (s *Server) WithActivity(a *activity.Service) *Server {
 	s.handlers.activitySvc = a
+	return s
+}
+
+// WithScanQueue threads the scan-job HMAC key into the API handlers so
+// POST /hosts/{id}/scans can sign and enqueue jobs the worker accepts.
+// Spec api-host-scan.
+func (s *Server) WithScanQueue(queueKey []byte) *Server {
+	s.handlers.scanQueueKey = queueKey
+	return s
+}
+
+// WithRuleCatalog threads the in-memory kensa rule catalog into the
+// API handlers so /hosts/{id}/compliance/failed-rules can resolve rule
+// titles and categories. Nil-safe: without a catalog the endpoint
+// falls back to rule ids. Spec api-host-compliance.
+func (s *Server) WithRuleCatalog(c *kensa.RuleCatalog) *Server {
+	s.handlers.ruleCatalog = c
+	return s
+}
+
+// WithScanWorker registers the scan processor on the in-process job
+// worker, so "scan" jobs claimed by the serve process execute instead
+// of dead-ending (queue.Dequeue is not type-filtered). Spec
+// api-host-scan / system-scan-runs.
+func (s *Server) WithScanWorker(sw *worker.ScanWorker) *Server {
+	if s.wkr != nil {
+		s.wkr.WithScanProcessor(sw)
+	}
 	return s
 }
 

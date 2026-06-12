@@ -39,6 +39,7 @@ domains:
             - api-system-connectivity
             - api-fleet-connectivity-breakdown
             - api-host-connectivity-check
+            - api-host-scan
             - system-alerts
             - api-alerts
             - system-activity
@@ -63,6 +64,10 @@ domains:
             - api-openapi-docs
             - release-admin-signoff
             - system-worker-subcommand
+            - system-scan-runs
+            - api-host-compliance
+            - api-system-scan-config
+            - frontend-host-compliance-tab
 settings:
     specs_dir: specs
     # Honored by `specter coverage` (not by `specter sync` — CI passes

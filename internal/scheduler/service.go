@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/Hanalyx/openwatch/internal/audit"
 	"github.com/Hanalyx/openwatch/internal/queue"
+	"github.com/Hanalyx/openwatch/internal/scanruns"
 )
 
 // Service is the live scheduler. Constructed once at boot via NewService,
@@ -23,6 +25,13 @@ type Service struct {
 	hmacKey       []byte
 	emit          EmitFunc
 	metrics       *Metrics
+
+	// rateLimit caps hosts dispatched per tick; paused suspends
+	// dispatch entirely (config disabled or global maintenance).
+	// Both are rewritten by Reload under ladderMu; zero rateLimit
+	// means "never reloaded" and falls back to dispatchBatchSize.
+	rateLimit int
+	paused    bool
 
 	// Now is the wall-clock function used by Dispatch. Defaults to
 	// time.Now; tests override with a deterministic clock.
@@ -95,6 +104,14 @@ func (s *Service) Dispatch(ctx context.Context) (int, error) {
 	now := s.Now()
 	s.metrics.SetLastTick(now)
 
+	// Reload-guarded snapshot: ladder + policy version for payloads,
+	// per-tick rate limit, and the paused flag (config disabled or
+	// global maintenance — v3.0.0).
+	ladder, policyVersion, limit, paused := s.snapshot()
+	if paused {
+		return 0, nil
+	}
+
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("scheduler: begin: %w", err)
@@ -110,7 +127,7 @@ func (s *Service) Dispatch(ctx context.Context) (int, error) {
 		 FOR UPDATE SKIP LOCKED
 		 LIMIT $2`
 
-	rows, err := tx.Query(ctx, selectStmt, now, dispatchBatchSize)
+	rows, err := tx.Query(ctx, selectStmt, now, limit)
 	if err != nil {
 		return 0, fmt.Errorf("scheduler: select due: %w", err)
 	}
@@ -134,7 +151,7 @@ func (s *Service) Dispatch(ctx context.Context) (int, error) {
 	for _, r := range due {
 		payload := JobPayload{
 			HostID:        r.HostID,
-			PolicyVersion: s.policyVersion,
+			PolicyVersion: policyVersion,
 			EnqueuedAt:    now,
 		}
 		tag := Sign(s.hmacKey, payload)
@@ -148,14 +165,30 @@ func (s *Service) Dispatch(ctx context.Context) (int, error) {
 			"enqueued_at":    payload.EnqueuedAt.UTC().Format(time.RFC3339Nano),
 			"hmac":           fmt.Sprintf("%x", tag[:]),
 		}
-		if _, err := queue.Enqueue(ctx, s.pool, "scan", body); err != nil {
+		jobID, err := queue.Enqueue(ctx, s.pool, "scan", body)
+		if err != nil {
 			return dispatched, fmt.Errorf("scheduler: enqueue %s: %w", r.HostID, err)
+		}
+
+		// Logbook: one scan_runs row per attempt, id == queue job id —
+		// scheduler-dispatched runs appear as 'queued' exactly like
+		// on-demand ones (system-scan-runs; the schedule-preview's
+		// queued_jobs figure reads this). Best-effort: the worker's
+		// MarkRunning UPSERT self-heals a missing row.
+		if err := scanruns.Insert(ctx, s.pool, scanruns.Run{
+			ID:            jobID,
+			HostID:        r.HostID,
+			TriggerSource: scanruns.TriggerScheduled,
+			PolicyVersion: policyVersion,
+		}); err != nil {
+			slog.WarnContext(ctx, "scheduler: scan_runs insert failed",
+				"host_id", r.HostID.String(), "err", err)
 		}
 
 		// Move next_scheduled_scan forward so a subsequent tick before
 		// the scan completes does not re-dispatch. Real recompute (from
 		// the scan result) happens later in UpdateAfterScan.
-		newNext := now.Add(s.ladder[r.State])
+		newNext := now.Add(ladderInterval(ladder, r.State))
 		if _, err := tx.Exec(ctx, `
 			UPDATE host_compliance_schedule
 			   SET next_scheduled_scan = $1, updated_at = now()

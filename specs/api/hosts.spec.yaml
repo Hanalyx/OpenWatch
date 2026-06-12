@@ -1,7 +1,7 @@
 spec:
   id: api-hosts
   title: Host inventory CRUD HTTP surface + Slice B enrichments
-  version: "1.4.0"
+  version: "1.5.0"
   status: approved
   tier: 2
 
@@ -35,6 +35,7 @@ spec:
         - "GET /hosts/{id} response carries compliance_summary sub-object (passing/failing/total derived from host_rule_state) — v1.1.0"
         - "GET /hosts response items carry optional liveness sub-object so the list view can render reachability + freshness without per-row follow-up calls — v1.3.0"
         - "GET /hosts + GET /hosts/{id} response items carry denormalized OS fields (os_family, os_version, architecture, platform_identifier, os_discovered_at) — populated by system-host-discovery v1.0.0, NULL pre-Discovery — v1.4.0"
+        - "GET /hosts response items carry a nullable compliance_summary sub-object (passing/failing/skipped/error/total/critical_failing from host_rule_state; null when the host has no rule_state rows) loaded with one grouped query for the whole page — v1.5.0"
       excludes:
         - "Bulk import — deferred to A.5"
         - "Connectivity-check trigger — needs scan executor, deferred"
@@ -84,6 +85,10 @@ spec:
     - id: C-11
       description: 'v1.4.0 — The list endpoint MUST read OS fields in the SAME query that selects the row (no follow-up query, no JOIN). The columns are denormalized onto hosts specifically so a single SELECT covers them; an N+1 fetch here would defeat the denormalization'
       type: performance
+      enforcement: error
+    - id: C-12
+      description: 'v1.5.0 — GET /hosts response items MUST include a nullable compliance_summary sub-object {passing, failing, skipped, error, total, critical_failing} derived from host_rule_state. critical_failing counts rows with current_status=fail AND critical severity (case-insensitive). A host with zero host_rule_state rows MUST receive null (never zeros, never an error). Constraint note: the counts MUST be loaded with ONE grouped query against host_rule_state keyed by host_id for the whole page — no per-host N+1. Existing list semantics (filters, soft-delete exclusion) are untouched'
+      type: technical
       enforcement: error
 
   acceptance_criteria:
@@ -171,3 +176,7 @@ spec:
       description: 'v1.4.0 — GET /hosts returns each item with the same five OS fields (NULL pre-Discovery, populated post-Discovery). Source inspection: the list-query SELECT clause contains os_family, os_version, architecture, platform_identifier, os_discovered_at columns — no follow-up read, no JOIN to host_system_info'
       priority: critical
       references_constraints: [C-10, C-11]
+    - id: AC-23
+      description: 'v1.5.0 — GET /hosts where one host has mixed host_rule_state rows (including a critical-severity failure) and another has none returns the first item with compliance_summary populated (correct passing/failing/skipped/error/total and critical_failing counting only fail+critical rows) and the second with compliance_summary null — never zeros, never an error. The counts come from a single grouped host_rule_state query for the whole page (no N+1)'
+      priority: critical
+      references_constraints: [C-12]

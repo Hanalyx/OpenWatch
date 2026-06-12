@@ -111,8 +111,9 @@ jobs:
         if: steps.paths.outputs.go == 'true'
         env:
           # Pinned so CI is reproducible. Bump in lockstep with any
-          # spec-schema change required by app/specs/.
-          SPECTER_VERSION: "0.13.2"
+          # spec-schema change required by specs/. 0.14.0 matches the
+          # local toolchain; all 75 specs validated against it.
+          SPECTER_VERSION: "0.14.0"
         run: |
           curl -fsSL "https://github.com/Hanalyx/specter/releases/download/v${SPECTER_VERSION}/specter_${SPECTER_VERSION}_linux_amd64.tar.gz" \
               -o /tmp/specter.tar.gz

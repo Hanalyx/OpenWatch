@@ -35,6 +35,8 @@ import { osDisplayLabel } from '@/utils/osLabel';
 import { formatUptime } from '@/utils/formatUptime';
 import { stripKernelDistroSuffix } from '@/utils/kernelVersion';
 import { CardServerIntel } from '@/pages/host-detail/CardServerIntel';
+import { ComplianceTab } from '@/pages/host-detail/ComplianceTab';
+import { SeverityPill } from '@/pages/host-detail/SeverityPill';
 import {
   PackagesTab,
   ServicesTab,
@@ -173,8 +175,7 @@ const TAB_ORDER: { id: TabId; label: string; icon: LucideIcon }[] = [
 
 // Backend subsystem that populates each tab when it lands. Surfaces
 // inside the per-tab empty state so operators know what's deferred.
-const TAB_BACKEND_SUBSYSTEM: Record<Exclude<TabId, 'overview'>, string> = {
-  compliance: 'Compliance scanner — runs Kensa-via-SSH per host; not yet wired in the Go rebuild.',
+const TAB_BACKEND_SUBSYSTEM: Record<Exclude<TabId, 'overview' | 'compliance'>, string> = {
   packages: 'Server Intelligence collection — installed-package inventory deferred (BACKLOG).',
   services: 'Server Intelligence collection — running services inventory deferred (BACKLOG).',
   users: 'Server Intelligence collection — user accounts inventory deferred (BACKLOG).',
@@ -331,9 +332,10 @@ export function HostDetailPage() {
       search: tab === 'overview' && !framework ? {} : { ...(framework ? { framework } : {}), tab },
     });
 
-  // Preserved for the future Compliance tab — the framework selector
-  // is mounted there (not on Overview, AC-35). AC-08 (api-hosts) still
-  // requires the URL-update + queryKey re-fetch wiring exists.
+  // Lens selection for the Compliance tab (frontend-host-compliance-tab
+  // C-01) — updates the ?framework= search param. The host detail
+  // queryKey embeds framework (api-hosts AC-08) and the ComplianceTab
+  // lens queryKey does too, so both refetch on change.
   const onFrameworkChange = (next: string | undefined) =>
     navigate({
       to: '/hosts/$hostId',
@@ -343,9 +345,6 @@ export function HostDetailPage() {
         ...(activeTab !== 'overview' ? { tab: activeTab } : {}),
       },
     });
-  // Keep alive across renders so noUnusedLocals doesn't drop it before
-  // the Compliance tab lands.
-  void onFrameworkChange;
 
   return (
     <div style={{ padding: '20px 28px' }}>
@@ -417,7 +416,12 @@ export function HostDetailPage() {
                 aria-label="Overview body"
               >
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0 }}>
-                  <CardTopFailed />
+                  <CardTopFailed
+                    hostId={detailQuery.data.host.id}
+                    framework={framework}
+                    hasScanData={detailQuery.data.compliance_summary.total > 0}
+                    onViewAll={() => goToTab('compliance')}
+                  />
                   <CardServerIntel hostId={detailQuery.data.host.id} />
                   <CardComplianceTrend />
                 </div>
@@ -437,6 +441,12 @@ export function HostDetailPage() {
                 </div>
               </section>
             </>
+          ) : activeTab === 'compliance' ? (
+            <ComplianceTab
+              hostId={detailQuery.data.host.id}
+              framework={framework}
+              onFrameworkChange={onFrameworkChange}
+            />
           ) : activeTab === 'packages' ? (
             <PackagesTab
               isLoading={intelligenceStateQuery.isLoading}
@@ -634,9 +644,7 @@ function PageHead({
           <button type="button" style={ghostBtn} title="Open terminal (deferred)" disabled>
             <TerminalIcon size={14} /> Terminal
           </button>
-          <button type="button" style={primaryBtn} title="Run scan (deferred)" disabled>
-            <Play size={14} /> Run scan
-          </button>
+          <RunScanButton host={host} />
           <button
             type="button"
             onClick={() => setEditOpen(true)}
@@ -652,6 +660,69 @@ function PageHead({
       </div>
       <EditHostModal open={editOpen} onClose={() => setEditOpen(false)} host={host} />
     </section>
+  );
+}
+
+// RunScanButton — enqueues an on-demand compliance scan via
+// POST /hosts/{id}/scans (idempotency-keyed). The scan itself is
+// asynchronous: results refresh through the scan.completed SSE topic
+// (useLiveEvents invalidates ['host', id] + ['hosts']), so there is no
+// polling here. 409 means a scan is already queued/running for this
+// host — surfaced as a transient inline note, not an error.
+//
+// Spec: frontend-host-detail (Run scan action) + api-host-scan.
+function RunScanButton({ host }: { host: HostResponse }) {
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+
+  const runScan = async () => {
+    if (busy) return;
+    setBusy(true);
+    setNote(null);
+    try {
+      const { response } = await api.POST('/api/v1/hosts/{id}/scans', {
+        params: {
+          path: { id: host.id },
+          header: { 'Idempotency-Key': crypto.randomUUID() },
+        },
+      });
+      if (response.status === 409) {
+        setNote('Scan already running');
+        return;
+      }
+      if (!response.ok) {
+        setNote(`Scan request failed (${response.status})`);
+        return;
+      }
+      setNote('Scan queued');
+    } catch {
+      setNote('Scan request failed');
+    } finally {
+      setBusy(false);
+      // The note is transient feedback; the durable signal is the
+      // scan.completed SSE refresh of the hero card.
+      window.setTimeout(() => setNote(null), 5000);
+    }
+  };
+
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+      {note && (
+        <span role="status" style={{ color: 'var(--ow-fg-2)', fontSize: 12 }}>
+          {note}
+        </span>
+      )}
+      <button
+        type="button"
+        style={primaryBtn}
+        onClick={runScan}
+        disabled={busy}
+        aria-label={`Run compliance scan on ${host.hostname}`}
+        title="Run an on-demand compliance scan"
+      >
+        <Play size={14} /> {busy ? 'Queueing…' : 'Run scan'}
+      </button>
+    </span>
   );
 }
 
@@ -1258,16 +1329,167 @@ function WatchlistRow({
 // Right column: CardSystem, CardRecentActivity
 // ─────────────────────────────────────────────────────────────────────────
 
-function CardTopFailed() {
-  return (
-    <Card title="Top failed rules">
+// CardTopFailed renders the five worst failing rules from
+// GET /hosts/{id}/compliance/failed-rules (severity-ordered server
+// side). The query key is prefixed ['host', hostId] ON PURPOSE: the
+// scan.completed SSE handler invalidates that prefix, so this card
+// refreshes after every scan with no extra wiring. Evidence is never
+// requested or displayed (api-host-compliance C-02).
+//
+// Spec: frontend-host-detail v1.2.0 AC-37.
+function CardTopFailed({
+  hostId,
+  framework,
+  hasScanData,
+  onViewAll,
+}: {
+  hostId: string;
+  framework?: string;
+  hasScanData: boolean;
+  onViewAll: () => void;
+}) {
+  const failedQuery = useQuery({
+    queryKey: ['host', hostId, 'failed_rules', framework ?? null],
+    queryFn: async () => {
+      const { data, error, response } = await api.GET(
+        '/api/v1/hosts/{id}/compliance/failed-rules',
+        {
+          params: {
+            path: { id: hostId },
+            query: { limit: 5, ...(framework ? { framework } : {}) },
+          },
+        },
+      );
+      if (error || !response.ok) {
+        throw new Error(apiErrorMessage(error, `Failed to load (${response.status})`));
+      }
+      return data;
+    },
+  });
+
+  let body: React.ReactNode;
+  // isPending (not isLoading): isLoading goes false between retry
+  // attempts, which would fall through to the zero-failing branch with
+  // no data and render a false "No failing rules".
+  if (failedQuery.isPending) {
+    body = (
+      <div role="status" style={{ color: 'var(--ow-fg-3)', fontSize: 12, padding: '12px 0' }}>
+        Loading failed rules
+      </div>
+    );
+  } else if (failedQuery.isError) {
+    body = (
+      <div
+        role="alert"
+        style={{
+          color: 'var(--ow-crit)',
+          fontSize: 12,
+          padding: '12px 0',
+          display: 'flex',
+          gap: 10,
+          alignItems: 'center',
+        }}
+      >
+        <span>{apiErrorMessage(failedQuery.error, 'Failed to load failed rules')}</span>
+        <button
+          type="button"
+          onClick={() => failedQuery.refetch()}
+          style={{
+            background: 'none',
+            border: '1px solid var(--ow-line)',
+            borderRadius: 6,
+            color: 'var(--ow-fg-1)',
+            fontSize: 11,
+            padding: '2px 8px',
+            cursor: 'pointer',
+          }}
+        >
+          Retry
+        </button>
+      </div>
+    );
+  } else if (!hasScanData) {
+    body = (
       <EmptyState
         primary="No scan results yet"
         secondary="Populated by the compliance scanner (Kensa). Until a scan completes, host_rule_state is empty for this host."
       />
-    </Card>
-  );
+    );
+  } else if ((failedQuery.data?.total_failing ?? 0) === 0) {
+    body = (
+      <EmptyState
+        primary="No failing rules"
+        secondary="The last scan passed every rule that applies to this host."
+      />
+    );
+  } else {
+    const rules = failedQuery.data?.rules ?? [];
+    const total = failedQuery.data?.total_failing ?? rules.length;
+    body = (
+      <>
+        <div role="list" aria-label="Top failed rules">
+          {rules.map((rule) => (
+            <div
+              key={rule.rule_id}
+              role="listitem"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                padding: '8px 0',
+                borderTop: '1px solid var(--ow-line)',
+              }}
+            >
+              <SeverityPill severity={rule.severity} />
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div
+                  style={{
+                    color: 'var(--ow-fg-0)',
+                    fontSize: 13,
+                    fontWeight: 500,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {rule.title}
+                </div>
+                <div style={{ color: 'var(--ow-fg-3)', fontSize: 11 }}>
+                  <span style={{ fontFamily: 'var(--ow-font-mono)' }}>
+                    {rule.control_ids.length > 0 ? rule.control_ids.join(', ') : rule.rule_id}
+                  </span>
+                  {rule.category ? <span> · {rule.category}</span> : null}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+        <button
+          type="button"
+          onClick={onViewAll}
+          style={{
+            marginTop: 10,
+            width: '100%',
+            background: 'none',
+            border: 'none',
+            color: 'var(--ow-info)',
+            fontSize: 12,
+            cursor: 'pointer',
+            textAlign: 'left',
+            padding: 0,
+          }}
+        >
+          View all {total} failed rules
+        </button>
+      </>
+    );
+  }
+
+  return <Card title="Top failed rules">{body}</Card>;
 }
+
+// SeverityPill now lives in @/pages/host-detail/SeverityPill so the
+// Compliance tab can share it (frontend-host-compliance-tab).
 
 function CardComplianceTrend() {
   return (

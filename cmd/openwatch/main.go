@@ -38,16 +38,20 @@ import (
 	"github.com/Hanalyx/openwatch/internal/intelligence/discovery"
 	discoveryscheduler "github.com/Hanalyx/openwatch/internal/intelligence/discovery/scheduler"
 	"github.com/Hanalyx/openwatch/internal/intelligence/scheduler"
+	"github.com/Hanalyx/openwatch/internal/kensa"
 	"github.com/Hanalyx/openwatch/internal/license"
 	"github.com/Hanalyx/openwatch/internal/liveness"
 	openlog "github.com/Hanalyx/openwatch/internal/log"
+	compsched "github.com/Hanalyx/openwatch/internal/scheduler"
 	"github.com/Hanalyx/openwatch/internal/secretkey"
 	"github.com/Hanalyx/openwatch/internal/server"
 	owssh "github.com/Hanalyx/openwatch/internal/ssh"
 	"github.com/Hanalyx/openwatch/internal/sshprivilege"
 	"github.com/Hanalyx/openwatch/internal/systemconfig"
+	"github.com/Hanalyx/openwatch/internal/transactionlog"
 	"github.com/Hanalyx/openwatch/internal/users"
 	"github.com/Hanalyx/openwatch/internal/version"
+	"github.com/Hanalyx/openwatch/internal/worker"
 )
 
 func main() {
@@ -416,11 +420,103 @@ func cmdServe(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 		)
 	}
 
+	// Scan-job HMAC key — the same DeriveQueueKey(DEK) the worker
+	// verifies with, so POST /hosts/{id}/scans enqueues jobs the worker
+	// accepts. Spec api-host-scan / system-scan-runs.
+	dekKey, err := secretkey.Active()
+	if err != nil {
+		slog.ErrorContext(bootCtx, "credential DEK not loaded",
+			slog.String("error", err.Error()))
+		return 1
+	}
+	scanQueueKey, err := compsched.DeriveQueueKey(dekKey.Material())
+	if err != nil {
+		slog.ErrorContext(bootCtx, "derive scan queue key failed",
+			slog.String("error", err.Error()))
+		return 1
+	}
+
+	// In-process scan execution: the serve binary processes scan jobs
+	// itself (single-binary deployment); a dedicated `openwatch worker`
+	// can run alongside for scale-out. When the kensa-rules corpus is
+	// missing the executor keeps its fallback binding — scans then
+	// terminate failed (kensa_error) instead of rotting queued — and we
+	// warn loudly. Spec system-kensa-executor C-13, system-scan-runs.
+	//
+	// Corpus resolution (C-16): production — including air-gapped
+	// installs, the primary deployment target — relies on the signed
+	// kensa-rules package at the loader's default path; the env var is
+	// a DEVELOPMENT override only, warned loudly when set.
+	scanRulesDir := os.Getenv("OPENWATCH_KENSA_RULES_DIR")
+	if scanRulesDir != "" {
+		slog.WarnContext(bootCtx, "OPENWATCH_KENSA_RULES_DIR override in use — DEVELOPMENT ONLY; production (especially air-gapped) installs the signed kensa-rules package and must not set this",
+			slog.String("rules_dir", scanRulesDir))
+	}
+	// Rule catalog for the failed-rules read path — same corpus
+	// resolution as the scan wiring below, constructed once. Non-fatal:
+	// without the corpus the endpoint falls back to rule-id titles.
+	// Spec api-host-compliance.
+	ruleCatalog, catalogErr := kensa.NewRuleCatalog(scanRulesDir)
+	if catalogErr != nil {
+		slog.WarnContext(bootCtx, "kensa rule catalog unavailable; failed-rules titles fall back to rule ids",
+			slog.String("error", catalogErr.Error()))
+		ruleCatalog = nil
+	}
+
+	scanExecutor := kensa.NewExecutor(worker.NewCredentialBridge(credSvc), audit.Emit)
+	if scanFn, scanErr := kensa.NewProductionScanFunc(kensa.ScanFuncDeps{
+		Pool:        pool,
+		Credentials: credSvc,
+		RulesDir:    scanRulesDir,
+		HostKeyMode: owssh.ModeTOFU,
+		KnownHosts:  owssh.NewMemoryStore(),
+	}); scanErr != nil {
+		slog.WarnContext(bootCtx, "kensa scan wiring unavailable — on-demand scans will fail until the kensa-rules package is installed (or OPENWATCH_KENSA_RULES_DIR set)",
+			slog.String("error", scanErr.Error()))
+	} else {
+		scanExecutor = scanExecutor.WithScanFunc(scanFn)
+	}
+	// Adaptive compliance scheduler — v3.0.0 ladder from systemconfig
+	// (scan plan decision #4). Booted like its siblings (intelSched,
+	// discoSched): RunManaged refreshes the config before every 60s
+	// tick, so Settings edits apply within a tick and Enabled=false /
+	// MaintenanceGlobal=true pause dispatch. Hosts are seeded into
+	// host_compliance_schedule by migration 0024 + host create.
+	// Spec system-scheduler v3.0.0.
+	scanCfg, scanCfgErr := cfgStore.LoadScan(bootCtx)
+	if scanCfgErr != nil {
+		slog.WarnContext(bootCtx, "scan config load failed at boot; scheduler starts from defaults",
+			slog.String("error", scanCfgErr.Error()))
+		scanCfg = systemconfig.DefaultScan()
+	}
+	complianceSched := compsched.NewService(pool, compsched.LoadFromConfig(scanCfg), scanQueueKey, audit.Emit)
+	complianceSched.Reload(compsched.LoadFromConfig(scanCfg), scanCfg.RateLimit,
+		!scanCfg.Enabled || scanCfg.MaintenanceGlobal)
+	complianceSched.RunManaged(ctx, 0, cfgStore)
+	if !scanCfg.Enabled || scanCfg.MaintenanceGlobal {
+		slog.WarnContext(bootCtx, "compliance scheduler paused at startup",
+			slog.Bool("enabled", scanCfg.Enabled),
+			slog.Bool("maintenance_global", scanCfg.MaintenanceGlobal))
+	}
+
+	scanWorker := worker.NewScanWorker(worker.Config{
+		Pool:     pool,
+		Executor: scanExecutor,
+		Writer:   transactionlog.NewWriter(pool, audit.Emit),
+		QueueKey: scanQueueKey,
+		Emit:     audit.Emit,
+		Bus:      bus,
+		Sched:    complianceSched,
+	})
+
 	srv := server.New(cfg, pool).
 		WithConnectivityConfig(cfgStore, liveSvc).
 		WithDiscovery(discoSvc).
 		WithEventBus(bus).
-		WithActivity(activity.NewService(pool))
+		WithActivity(activity.NewService(pool)).
+		WithScanQueue(scanQueueKey).
+		WithScanWorker(scanWorker).
+		WithRuleCatalog(ruleCatalog)
 	runErr := srv.Run(ctx)
 
 	// Shutdown order REVERSE of boot (C-02). liveness.Run + alertrouter

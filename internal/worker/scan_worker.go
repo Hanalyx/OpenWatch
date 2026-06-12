@@ -38,8 +38,10 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/Hanalyx/openwatch/internal/audit"
+	"github.com/Hanalyx/openwatch/internal/eventbus"
 	"github.com/Hanalyx/openwatch/internal/kensa"
 	"github.com/Hanalyx/openwatch/internal/queue"
+	"github.com/Hanalyx/openwatch/internal/scanruns"
 	"github.com/Hanalyx/openwatch/internal/scheduler"
 	"github.com/Hanalyx/openwatch/internal/transactionlog"
 )
@@ -74,6 +76,8 @@ type ScanWorker struct {
 	executor *kensa.Executor
 	writer   *transactionlog.Writer
 	queueKey []byte
+	bus      *eventbus.Bus      // nil = no scan.completed publication (dedicated worker process)
+	sched    *scheduler.Service // nil = no post-scan schedule update (legacy tests)
 
 	pollInterval time.Duration
 
@@ -103,6 +107,19 @@ type Config struct {
 	PollInterval time.Duration
 	Emit         EmitFunc
 
+	// Bus, when non-nil, receives scan.completed events after outcomes
+	// persist. The serve process passes its SSE bus; the dedicated
+	// worker subcommand passes nil (its in-memory bus would have no
+	// subscribers — cross-process delivery is a known non-goal).
+	Bus *eventbus.Bus
+
+	// Sched, when non-nil, receives PersistAfterScan after every
+	// completed scan so host_compliance_schedule tracks the fresh
+	// compliance state and next_scheduled_scan. Spec system-scheduler
+	// v3.0.0: both scheduler-dispatched and on-demand scans update the
+	// schedule on completion.
+	Sched *scheduler.Service
+
 	// clock allows tests to inject a controllable time source.
 	// Production passes time.Now.
 	Clock func() time.Time
@@ -128,6 +145,8 @@ func NewScanWorker(cfg Config) *ScanWorker {
 		executor:     cfg.Executor,
 		writer:       cfg.Writer,
 		queueKey:     cfg.QueueKey,
+		bus:          cfg.Bus,
+		sched:        cfg.Sched,
 		pollInterval: cfg.PollInterval,
 		clock:        cfg.Clock,
 		emit:         cfg.Emit,
@@ -192,22 +211,23 @@ func (w *ScanWorker) Run(ctx context.Context) error {
 		// processJob uses jobCtx (fresh, decoupled from parent ctx)
 		// so SIGTERM does NOT abort the in-flight scan. The executor's
 		// per-scan timeout is the bound on how long this takes.
-		w.processJob(jobCtx, job)
+		w.ProcessJob(jobCtx, job)
 		w.inFlightCount.Add(-1)
 		w.completedCount.Add(1)
 	}
 }
 
-// processJob runs the full per-job pipeline. Recovers from panics so a
+// ProcessJob runs the full per-job pipeline. Recovers from panics so a
 // rogue scan does not take down the worker; emits a typed audit on the
 // panic path.
-func (w *ScanWorker) processJob(ctx context.Context, j *queue.Job) {
+func (w *ScanWorker) ProcessJob(ctx context.Context, j *queue.Job) {
 	defer func() {
 		if r := recover(); r != nil {
 			slog.ErrorContext(ctx, "worker panic during scan",
 				slog.String("job_id", j.ID.String()),
 				slog.Any("panic", r))
 			_ = queue.Fail(ctx, w.pool, j.ID, fmt.Sprintf("worker panic: %v", r))
+			w.markRunFailed(ctx, j.ID, "worker_panic")
 		}
 	}()
 
@@ -223,12 +243,24 @@ func (w *ScanWorker) processJob(ctx context.Context, j *queue.Job) {
 	if err != nil {
 		w.emitHMACRejected(ctx, j.ID, payload.HostID, err)
 		_ = queue.Fail(ctx, w.pool, j.ID, fmt.Sprintf("hmac_rejected: %v", err))
+		w.markRunFailed(ctx, j.ID, "hmac_rejected")
 		return
 	}
 	if !scheduler.Verify(w.queueKey, payload, tag) {
 		w.emitHMACRejected(ctx, j.ID, payload.HostID, errors.New("hmac mismatch"))
 		_ = queue.Fail(ctx, w.pool, j.ID, "hmac_rejected: signature does not match payload")
+		w.markRunFailed(ctx, j.ID, "hmac_rejected")
 		return
+	}
+
+	// Scan-run logbook: the run is now in a worker's hands. UPSERT so a
+	// job enqueued without an Insert (hand-enqueued) still gets a row.
+	// Spec system-scan-runs AC-02.
+	if err := scanruns.MarkRunning(ctx, w.pool, j.ID, payload.HostID, payload.PolicyVersion); err != nil {
+		slog.WarnContext(ctx, "worker scan_runs mark running failed",
+			slog.String("scan_id", j.ID.String()),
+			slog.String("error", err.Error()))
+		// Non-fatal: the logbook is observability, not the scan itself.
 	}
 
 	// Per-host concurrency guard via pg_advisory_xact_lock (C-09).
@@ -274,6 +306,68 @@ func (w *ScanWorker) processJob(ctx context.Context, j *queue.Job) {
 		return
 	}
 
+	// Scan-run logbook: completed, with per-outcome counts.
+	// Spec system-scan-runs AC-03.
+	counts := outcomeCounts(result.Outcomes)
+	if err := scanruns.MarkCompleted(ctx, w.pool, j.ID, counts); err != nil {
+		slog.WarnContext(ctx, "worker scan_runs mark completed failed",
+			slog.String("scan_id", j.ID.String()),
+			slog.String("error", err.Error()))
+	}
+
+	// Adaptive schedule update: classify the fresh result into a
+	// compliance state and re-anchor next_scheduled_scan. Runs for
+	// BOTH scheduler-dispatched and on-demand scans — a manual scan
+	// postpones the next auto scan rather than stacking onto it.
+	// Spec system-scheduler v3.0.0 AC-08.
+	if w.sched != nil {
+		score := 0.0
+		if total := len(result.Outcomes); total > 0 {
+			score = float64(counts.Pass) / float64(total) * 100
+		}
+		hasCritical := false
+		for _, o := range result.Outcomes {
+			if o.Status == kensa.StatusFail && o.Severity == "critical" {
+				hasCritical = true
+				break
+			}
+		}
+		if _, err := w.sched.PersistAfterScan(ctx, payload.HostID, score, hasCritical, w.clock().UTC()); err != nil {
+			slog.WarnContext(ctx, "worker schedule update failed",
+				slog.String("host_id", payload.HostID.String()),
+				slog.String("error", err.Error()))
+			// Non-fatal: the scan itself succeeded and persisted.
+		}
+	}
+
+	// Announce on the event bus so SSE clients refresh compliance
+	// surfaces without polling. Spec api-host-scan / frontend-live-events.
+	// The post-publish metrics snapshot makes silent drops (no
+	// subscriber registered / buffer full) visible in the log.
+	if w.bus != nil {
+		w.bus.Publish(ctx, eventbus.ScanCompleted{
+			ScanID:      j.ID,
+			HostID:      payload.HostID,
+			Pass:        counts.Pass,
+			Fail:        counts.Fail,
+			Skipped:     counts.Skipped,
+			Errored:     counts.Error,
+			CompletedAt: w.clock().UTC(),
+		})
+		m := w.bus.Metrics().Snapshot()
+		slog.InfoContext(ctx, "scan completed; scan.completed published",
+			slog.String("scan_id", j.ID.String()),
+			slog.String("host_id", payload.HostID.String()),
+			slog.Int("pass", counts.Pass), slog.Int("fail", counts.Fail),
+			slog.Int64("bus_published", m.PublishedCount),
+			slog.Int64("bus_delivered", m.DeliveredCount),
+			slog.Int64("bus_no_subscribers", m.NoSubscribersCount),
+			slog.Int64("bus_dropped", m.DroppedCount))
+	} else {
+		slog.InfoContext(ctx, "scan completed; no event bus wired (dedicated worker)",
+			slog.String("scan_id", j.ID.String()))
+	}
+
 	// Reset backoff streak on success.
 	if err := w.executor.RecordSuccess(ctx, w.pool, payload.HostID); err != nil {
 		slog.WarnContext(ctx, "worker backoff reset failed",
@@ -303,12 +397,16 @@ func (w *ScanWorker) classifyAndHandle(ctx context.Context, jobID uuid.UUID, hos
 	// scan.failed with the typed reason.
 	case errors.Is(scanErr, kensa.ErrCredentialDecryption):
 		_ = queue.Fail(ctx, w.pool, jobID, "credential_decryption_failed")
+		w.markRunFailed(ctx, jobID, "credential_decryption_failed")
 	case errors.Is(scanErr, kensa.ErrEvidenceOversize):
 		_ = queue.Fail(ctx, w.pool, jobID, "evidence_oversize")
+		w.markRunFailed(ctx, jobID, "evidence_oversize")
 	case errors.Is(scanErr, kensa.ErrHostKeyUnknown):
 		_ = queue.Fail(ctx, w.pool, jobID, "host_key_unknown")
+		w.markRunFailed(ctx, jobID, "host_key_unknown")
 	case errors.Is(scanErr, kensa.ErrNoCredential):
 		_ = queue.Fail(ctx, w.pool, jobID, "no_credential")
+		w.markRunFailed(ctx, jobID, "no_credential")
 
 	// Transient: host_busy, kensa internal (planner error, timeout),
 	// context cancellation. Apply the backoff ladder.
@@ -360,6 +458,7 @@ func (w *ScanWorker) recordTransientFailure(ctx context.Context, jobID uuid.UUID
 		// Still queue.Fail the job — backoff is housekeeping; the job
 		// outcome is the primary persistence concern.
 		_ = queue.Fail(ctx, w.pool, jobID, string(reason))
+		w.markRunFailed(ctx, jobID, string(reason))
 		return
 	}
 
@@ -380,6 +479,37 @@ func (w *ScanWorker) recordTransientFailure(ctx context.Context, jobID uuid.UUID
 			slog.String("job_id", jobID.String()),
 			slog.String("error", err.Error()))
 	}
+	w.markRunFailed(ctx, jobID, string(reason))
+}
+
+// markRunFailed records the failure in the scan_runs logbook with its
+// typed reason. Best-effort: logbook writes never affect the job
+// outcome. Spec system-scan-runs AC-04.
+func (w *ScanWorker) markRunFailed(ctx context.Context, jobID uuid.UUID, reason string) {
+	if err := scanruns.MarkFailed(ctx, w.pool, jobID, reason); err != nil {
+		slog.WarnContext(ctx, "worker scan_runs mark failed errored",
+			slog.String("scan_id", jobID.String()),
+			slog.String("error", err.Error()))
+	}
+}
+
+// outcomeCounts tallies a completed scan's outcomes per status for the
+// scan_runs row. Spec system-scan-runs AC-03.
+func outcomeCounts(outcomes []kensa.RuleOutcome) scanruns.Counts {
+	var c scanruns.Counts
+	for _, o := range outcomes {
+		switch o.Status {
+		case kensa.StatusPass:
+			c.Pass++
+		case kensa.StatusFail:
+			c.Fail++
+		case kensa.StatusSkipped:
+			c.Skipped++
+		case kensa.StatusError:
+			c.Error++
+		}
+	}
+	return c
 }
 
 // emitHMACRejected fires scheduler.job.hmac_rejected. The event was

@@ -57,12 +57,15 @@ const (
 // Result is one rule's outcome from a Kensa scan, ready to be persisted
 // by writer.Apply.
 type Result struct {
-	RuleID        string
-	Status        Status
-	Severity      string            // "critical" | "high" | "medium" | "low" | ""
-	Evidence      []byte            // raw evidence JSON; size-capped at MaxEvidenceBytes
-	FrameworkRefs map[string]string // e.g. {"cis_rhel9_v2": "5.1.12"}
-	SkipReason    string            // populated when Status == StatusSkipped
+	RuleID   string
+	Status   Status
+	Severity string // "critical" | "high" | "medium" | "low" | ""
+	Evidence []byte // raw evidence JSON; size-capped at MaxEvidenceBytes
+	// FrameworkRefs maps framework_id -> control ids (multi-valued:
+	// one rule can satisfy several controls in the same framework).
+	// Marshaled as-is into the framework_refs JSONB columns.
+	FrameworkRefs map[string][]string // e.g. {"nist_800_53_r5": ["AC-6(2)", "AC-17(2)"]}
+	SkipReason    string              // populated when Status == StatusSkipped
 }
 
 // ApplyBatch is the bundle of (scan_id, host_id, results) that

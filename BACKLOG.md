@@ -40,7 +40,7 @@
 
 | Item | Priority | Status | Notes |
 |------|----------|--------|-------|
-| Top failed rules card | P1 | Stub | Returns hardcoded `EmptyState` because no scans have run on the dev fleet. Needs: query `host_rule_state` for `status='fail'`, sort by severity DESC + count DESC, slice to 5, link rule IDs to rule reference page |
+| Top failed rules card | P1 | **Done** (PR #515) | Live against GET /hosts/{id}/compliance/failed-rules with catalog titles |
 | Compliance trend (last 30 days) card | P1 | Stub | Returns "Not enough data yet" empty state. Needs: posture-snapshot subsystem (BACKLOG). When transactions exist, can derive trend from `transactions` table via a daily aggregate query |
 | Open exceptions count on Server intelligence tile #6 | P2 | Placeholder | Renders `—`. Needs: `/api/v1/compliance/exceptions?host_id=X` wire — exceptions service exists, just no card hook yet |
 | Updates-pending count on Server intelligence tile #1 | P2 | Placeholder | Renders "No updates pending" always. Needs: collector to surface `available_updates` field on the snapshot (apt/dnf unattended-upgrades parsing) |
@@ -77,7 +77,7 @@
 
 | Item | Priority | Status | Notes |
 |------|----------|--------|-------|
-| Adaptive Compliance Scheduler | P1 | Planned | Auto-scan with state-based intervals (max 48h). Depends on monitoring spec (complete) |
+| Adaptive Compliance Scheduler | P1 | **Done** (PR #515) | system-scheduler v3.0.0: five-band ladder from systemconfig, RunManaged 60s tick, PersistAfterScan, Settings section wired. Remaining slice: scan-variables sub-section (needs kensa.RuleVariables endpoint) |
 | Email alert notifications | P1 | Planned | SMTP/SES dispatcher. User preferences table (which alert types). RBAC-gated. The Q1 notification-channels work (Slack/email/webhook) is the foundation |
 | In-app notifications | P1 | Planned | Bell icon with unread count, drawer, mark-as-read. Sources: alerts, scan completions, exception approvals, system events. RBAC-filtered. WebSocket or SSE delivery (the existing SSE bus can carry it) |
 | Dashboard layout customization (drag/drop) | P2 | Planned | 3 tiers per spec AC-12: full (admins), limited (analysts), none (auditor). Preset structure ready, needs `@dnd-kit/core` + persistence |

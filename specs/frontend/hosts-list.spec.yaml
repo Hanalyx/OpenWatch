@@ -1,7 +1,7 @@
 spec:
   id: frontend-hosts-list
   title: Hosts list — fleet dashboard with search, filter, card/table views
-  version: "1.1.0"
+  version: "1.3.0"
   status: approved
   tier: 2
 
@@ -127,5 +127,29 @@ spec:
       references_constraints: [C-08]
     - id: AC-12
       description: Source-inspection — the hosts list service code uses the generated openapi-fetch client (no raw fetch() calls with hardcoded /api/v1/hosts paths).
+      priority: high
+      references_constraints: [C-02]
+    - id: AC-13
+      description: 'v1.2.0 — per-host Scan buttons (card footer and table row) are live: they POST /api/v1/hosts/{id}/scans with a crypto.randomUUID() Idempotency-Key header, disable while pending, surface a 409 as a transient "Scan already running" note (not an error), do not poll (the scan.completed SSE topic owns the refresh), and are hidden entirely for callers without host:write.'
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-14
+      description: 'v1.2.0 — the Scan queue KPI is live: a query keyed ["fleet", "scan_queue"] calls GET /api/v1/fleet/scan-queue and the tile shows queued+running as the value ("Idle" scope when zero). The dev-fixtures path keeps its canned KPI.'
+      priority: high
+      references_constraints: [C-02]
+    - id: AC-15
+      description: 'v1.2.0 — the page header carries NO fleet-wide "Run scan" control (the prototype button is deferred until bulk scan ships, scan plan Phase 5); per-host Scan buttons remain.'
+      priority: medium
+      references_constraints: [C-02]
+    - id: AC-16
+      description: 'v1.3.0 — per-host compliance is real: apiHostToDev maps the list endpoint nullable compliance_summary into the host shape. compliance = round(passing/total*1000)/10 when total > 0, otherwise null; passed/failed/total come from the summary (passing/failing/total); critical_failing is carried as criticalFailing. A null summary (or a zero-rule summary) keeps compliance/passed/failed null so the card renders the honest "No scan data" state with the "Scan needed" hint (never-scanned hosts only) and the table cell renders a dash. No placeholder zeros. Card and table cells render the real percentage, the passing/failing counts, and the tier color via the existing complianceTier().'
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-17
+      description: 'v1.3.0 — the Avg. compliance KPI is a rule-weighted average over hosts WITH scan data only: kpisFromHosts filters to hosts whose compliance is non-null and total > 0 before summing passed/total. Never-scanned hosts are excluded from the average entirely, not counted as 0.'
+      priority: high
+      references_constraints: [C-02]
+    - id: AC-18
+      description: 'v1.3.0 — the Critical issues KPI value is the sum of criticalFailing (compliance_summary.critical_failing) across all hosts. When the sum is nonzero the KPI scope reads "N hosts affected" where N is the count of hosts with criticalFailing > 0; the "No data" scope remains only when the sum is zero. The dev-fixtures KPI path keeps its canned numbers.'
       priority: high
       references_constraints: [C-02]

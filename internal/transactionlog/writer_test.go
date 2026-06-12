@@ -130,11 +130,17 @@ func makeResults(n int, rulePrefix string) []Result {
 	out := make([]Result, n)
 	for i := 0; i < n; i++ {
 		out[i] = Result{
-			RuleID:        rulePrefix + "-" + uuid.NewString()[:8],
-			Status:        StatusPass,
-			Severity:      "medium",
-			Evidence:      []byte(`{}`),
-			FrameworkRefs: map[string]string{"cis_rhel9_v2": "5.1.1"},
+			RuleID:   rulePrefix + "-" + uuid.NewString()[:8],
+			Status:   StatusPass,
+			Severity: "medium",
+			Evidence: []byte(`{}`),
+			// Multi-valued on purpose: one rule satisfying several
+			// controls in the same framework must round-trip intact
+			// (spec system-kensa-executor v2.1.0 C-14).
+			FrameworkRefs: map[string][]string{
+				"cis_rhel9_v2":   {"5.1.1"},
+				"nist_800_53_r5": {"AC-6(2)", "AC-17(2)"},
+			},
 		}
 	}
 	return out

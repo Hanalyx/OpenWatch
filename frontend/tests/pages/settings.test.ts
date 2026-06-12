@@ -74,9 +74,9 @@ describe('frontend-settings — structural', () => {
     expect(personalMatch).toBeTruthy();
 
     const countIds = (s: string) => (s.match(/id:\s*['"]/g) ?? []).length;
-    expect(countIds(workspaceMatch![1])).toBe(5);
-    expect(countIds(accessMatch![1])).toBe(3);
-    expect(countIds(personalMatch![1])).toBe(3);
+    expect(countIds(workspaceMatch![1]!)).toBe(5);
+    expect(countIds(accessMatch![1]!)).toBe(3);
+    expect(countIds(personalMatch![1]!)).toBe(3);
 
     // Security item carries pip: 'warn'. The id...pip span includes a
     // JSX `<Shield size={14} />` whose `}` would defeat a [^}] charset,

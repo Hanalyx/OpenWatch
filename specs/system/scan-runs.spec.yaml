@@ -1,0 +1,104 @@
+spec:
+  id: system-scan-runs
+  title: Scan-run logbook — operational record of compliance-scan attempts
+  version: "1.0.0"
+  status: approved
+  tier: 2
+
+  context:
+    system: openwatch-go
+    feature: scan_runs table + lifecycle writes (the scan "logbook")
+    description: >
+      OpenWatch records every compliance-scan attempt as one scan_runs
+      row, keyed by the queue job id — the same value the worker passes
+      to transactionlog as ScanID, so a run correlates 1:1 with
+      transactions.scan_id and with the scan.* audit events. The
+      logbook powers "last scan" freshness, the "scan queue" depth
+      readout, and per-host scan history; the audit events
+      (scan.queued / scan.started / scan.completed / scan.failed)
+      carry the who/when evidence trail alongside it.
+
+      Lifecycle: the enqueuer (on-demand endpoint or the adaptive
+      scheduler) Inserts the row as 'queued' with trigger_source and
+      requested_by; the worker flips it to 'running' after HMAC
+      verification (UPSERT, so hand-enqueued jobs still get a row,
+      attributed to 'scheduled'); on success the worker marks
+      'completed' with per-outcome rule counts; on any failure path it
+      marks 'failed' with the typed reason that queue.Fail received.
+      Logbook writes are best-effort observability — they never change
+      a job's outcome.
+    related_specs:
+      - system-kensa-executor
+      - system-worker-subcommand
+      - system-transaction-log-writer
+      - system-job-queue
+
+  objective:
+    summary: >
+      One row per scan attempt with a faithful lifecycle (queued ->
+      running -> completed|failed), outcome counts on completion, and
+      a typed failure reason on every failure path; terminal states
+      are never overwritten.
+    scope:
+      includes:
+        - migration 0023 scan_runs table (id PK == job id, host_id FK
+          RESTRICT, trigger_source, requested_by, status enum,
+          timestamps, per-outcome counts, failure_reason,
+          correlation_id)
+        - internal/scanruns lifecycle writes (Insert, MarkRunning,
+          MarkCompleted, MarkFailed) and reads (Get, LatestForHost,
+          ActiveCount)
+        - worker integration at every queue.Fail / Complete path
+      excludes:
+        - The on-demand enqueue endpoint (api-host-scan)
+        - Scheduler Dispatch wiring (lands with the adaptive
+          scheduler boot)
+        - History/list API surfaces (Phase 4/5)
+
+  constraints:
+    - id: C-01
+      description: scan_runs.id MUST equal the queue job id, which the worker also passes to transactionlog as ScanID — one identifier correlates the queue job, the run row, the transactions rows, and the scan.* audit events.
+      type: technical
+      enforcement: error
+    - id: C-02
+      description: status MUST be one of queued|running|completed|failed (DB CHECK). MarkCompleted and MarkFailed MUST NOT overwrite a terminal status (completed or failed) — a late duplicate write cannot flip a finished run.
+      type: technical
+      enforcement: error
+    - id: C-03
+      description: Logbook writes are best-effort — a scanruns error is logged and swallowed; it MUST NOT change the job outcome (queue.Complete / queue.Fail still proceed).
+      type: technical
+      enforcement: error
+    - id: C-04
+      description: host_id REFERENCES hosts(id) ON DELETE RESTRICT — scan history is compliance evidence; host deletion with extant runs fails until records are explicitly cleared (matching the transactions convention).
+      type: security
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: Insert writes a 'queued' row with the given id, host_id, trigger_source, requested_by, policy_version, and correlation_id; queued_at defaults to now(). Insert with an empty trigger_source returns an error.
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-02
+      description: MarkRunning on an Inserted row flips status to 'running' and sets started_at; MarkRunning for an id with NO existing row creates one attributed to trigger_source='scheduled' (hand-enqueued / legacy jobs still get a logbook entry).
+      priority: critical
+      references_constraints: [C-01, C-02]
+    - id: AC-03
+      description: MarkCompleted sets status='completed', finished_at, and the four per-outcome counts; the worker computes those counts from the executor Result's outcomes (pass/fail/skipped/error tallies match the Result exactly).
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-04
+      description: MarkFailed sets status='failed', finished_at, and failure_reason. The worker calls it on every failure path with the same typed reason string passed to queue.Fail (hmac_rejected, credential_decryption_failed, evidence_oversize, host_key_unknown, no_credential, host_busy, kensa_error, timeout, worker_panic) — source-inspection verifies each queue.Fail site in processJob/classifyAndHandle/recordTransientFailure pairs with a markRunFailed/MarkFailed call.
+      priority: critical
+      references_constraints: [C-02, C-03]
+    - id: AC-05
+      description: MarkCompleted then MarkFailed (and vice versa) leaves the first terminal state intact — the second write is a no-op on status, finished_at, counts, and failure_reason.
+      priority: high
+      references_constraints: [C-02]
+    - id: AC-06
+      description: LatestForHost returns the newest run by queued_at for the host and ErrNotFound for a never-scanned host; ActiveCount counts exactly the queued+running rows.
+      priority: high
+      references_constraints: [C-01]
+    - id: AC-07
+      description: Deleting a host with extant scan_runs rows fails with an FK violation (ON DELETE RESTRICT).
+      priority: high
+      references_constraints: [C-04]

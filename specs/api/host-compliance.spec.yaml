@@ -1,0 +1,169 @@
+spec:
+  id: api-host-compliance
+  title: Per-host compliance lens + failed-rules API + fleet scan-queue KPI
+  version: "1.2.0"
+  status: approved
+  tier: 2
+
+  context:
+    system: openwatch-go
+    feature: Host-scoped compliance lens (one scan, many framework views), failing-rule listing (severity-ordered, framework-projectable), and the fleet scan-queue depth breakdown
+    description: >
+      GET /api/v1/hosts/{id}/compliance/failed-rules returns the host's
+      currently-failing rules from host_rule_state (current_status='fail'),
+      ordered by severity (critical > high > medium > low > unset) with
+      last_checked_at DESC as the tiebreaker. Each item carries rule_id,
+      title, category, severity, control_ids, last_checked_at, and
+      check_count. Title and category are resolved from the in-memory
+      kensa RuleCatalog (built once at boot from the kensa-rules corpus);
+      when no catalog is wired or the rule id is unknown, title falls back
+      to the rule id and category to the empty string so the endpoint
+      keeps working without the corpus. The optional ?framework= filter
+      restricts rows to those whose framework_refs JSONB contains that
+      framework key and projects that framework's control ids into
+      control_ids (empty otherwise). total_failing is the post-filter,
+      pre-limit count of all failing rows for the host.
+
+      GET /api/v1/fleet/scan-queue returns {queued, running} counts from
+      scan_runs - the scan-queue depth KPI split by lifecycle state.
+
+      v1.1.0 adds the compliance lens. GET /api/v1/hosts/{id}/compliance
+      projects the host's full host_rule_state corpus through an optional
+      ?framework= lens and returns four sections: scan_context (latest
+      COMPLETED scan_runs row - last_scan_at, scan_id, policy_version;
+      nulls/empty when never scanned), summary (passing/failing/skipped/
+      error/total over the filtered rows plus score_pct = passing/total
+      as a percentage rounded to one decimal, 0 when total is 0),
+      categories (the same rows grouped by RuleCatalog category,
+      "uncategorized" when the catalog lacks the rule, sorted failing
+      DESC then category ASC), and rules (EVERY row regardless of
+      status, severity-ordered like failed-rules with rule_id ASC as
+      the tiebreaker, control_ids projected for the requested framework
+      and empty otherwise). GET /api/v1/hosts/{id}/compliance/frameworks
+      lists the distinct framework_refs keys across the host's rows with
+      per-framework mapped-rule counts, ordered by framework id - empty
+      when the host has never been scanned.
+
+      v1.2.0 extends both lens responses for the prototype-fidelity UI:
+      each frameworks[] item adds passing/failing/score_pct computed
+      over the host's rows carrying that framework key, and the
+      response adds an overall aggregate (framework_id "all") over ALL
+      host rows so the All-rules lens chip can show its score without a
+      second request. scan_context adds duration_seconds (finished_at
+      minus started_at of the latest completed run, rounded to whole
+      seconds; null when started_at is missing). Each lens rules[] item
+      adds description: the RuleCatalog prose trimmed to its first
+      sentence (or 160 chars) - catalog metadata only, empty when no
+      catalog is wired. The stored check output still never flows into
+      any response field (C-02).
+    related_specs:
+      - system-transaction-log-writer
+      - system-scan-runs
+      - api-fleet-observability
+      - api-host-scan
+      - system-rbac
+
+  objective:
+    summary: >
+      Two read endpoints. failed-rules lists a host's failing rules with
+      catalog-resolved titles, severity-first ordering, a clamped limit,
+      an optional framework filter with control-id projection, and never
+      exposes the stored per-rule check output. scan-queue returns the
+      queued/running breakdown of scan_runs.
+    scope:
+      includes:
+        - GET /api/v1/hosts/{id}/compliance (lens - scan_context + summary + categories + rules) - v1.1.0
+        - GET /api/v1/hosts/{id}/compliance/frameworks (lens options) - v1.1.0
+        - GET /api/v1/hosts/{id}/compliance/failed-rules
+        - GET /api/v1/fleet/scan-queue
+        - kensa RuleCatalog (internal/kensa) id -> {title, category, severity} lookup
+        - scanruns.ActiveBreakdown (queued/running counts)
+        - scanruns.LatestCompletedForHost (lens scan_context source) - v1.1.0
+      excludes:
+        - Scan execution and host_rule_state writes (system-transaction-log-writer)
+        - Fleet-wide failing-rule rollups (api-fleet-observability)
+        - The on-demand scan enqueue endpoint (api-host-scan)
+
+  constraints:
+    - id: C-01
+      description: failed-rules rows are ordered by severity rank critical > high > medium > low > unset (CASE expression), then last_checked_at DESC; only host_rule_state rows with current_status='fail' for the path host are eligible; limit defaults to 10 and is clamped to [1, 100].
+      type: technical
+      enforcement: error
+    - id: C-02
+      description: The failed-rules and lens responses MUST NOT include the per-rule stored check output column of host_rule_state (it may contain sensitive host configuration); neither handler source file ever references that column.
+      type: security
+      enforcement: error
+    - id: C-03
+      description: Both endpoints require host:read; anonymous callers are rejected. The failed-rules endpoint returns 404 hosts.not_found for unknown or deleted hosts using the same lookup as POST /hosts/{id}/scans.
+      type: security
+      enforcement: error
+    - id: C-04
+      description: framework_refs is a multi-valued framework_id -> [control ids] JSONB map. With ?framework= given, rows are filtered with the JSONB key-exists operator and control_ids carries that framework's full control-id array; without it, control_ids is empty.
+      type: technical
+      enforcement: error
+    - id: C-05
+      description: 'v1.1.0 - lens reconciliation: the lens summary counts MUST equal the aggregation of the returned rules array statuses for the same filter (passing = count of status=pass rows, failing = fail, skipped = skipped, error = error, total = len(rules)); categories aggregate the same rows. Constraint note: the full per-host corpus is bounded (~539 rules), so the lens is served by ONE unpaginated query - no pagination in this version.'
+      type: technical
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: For a host with failing rows across severities (including an unset severity) plus passing rows, GET failed-rules returns only the failing rows ordered critical, high (newer last_checked_at first), medium, low, unset; total_failing equals the count of all failing rows; with ?limit=N fewer items are returned but total_failing is unchanged; an out-of-range limit (e.g. 200) is clamped, not rejected.
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-02
+      description: With ?framework=<id>, only failing rows whose framework_refs contains that key are returned, total_failing reflects the filtered count, and each item's control_ids carries the framework's control-id array from framework_refs; without ?framework=, control_ids is empty.
+      priority: critical
+      references_constraints: [C-04]
+    - id: AC-03
+      description: When no RuleCatalog is wired (or the catalog lacks the rule id), each item's title equals its rule_id and category is the empty string - the endpoint works without the kensa-rules corpus. RuleCatalog.Get returns (meta, true) for known ids and (zero, false) for unknown ids and on a nil catalog.
+      priority: high
+      references_constraints: [C-01]
+    - id: AC-04
+      description: GET failed-rules for an unknown host id returns 404 hosts.not_found.
+      priority: high
+      references_constraints: [C-03]
+    - id: AC-05
+      description: GET failed-rules by an anonymous caller is rejected (401/403); a viewer (host:read) succeeds.
+      priority: high
+      references_constraints: [C-03]
+    - id: AC-06
+      description: Source inspection - the failed-rules handler file never references the host_rule_state stored check-output column, so the sensitive payload cannot reach the response.
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-07
+      description: GET /api/v1/fleet/scan-queue returns {queued, running} counting only scan_runs rows in those states (terminal completed/failed rows excluded); anonymous callers are rejected.
+      priority: high
+      references_constraints: [C-03]
+    - id: AC-08
+      description: 'v1.1.0 - GET /hosts/{id}/compliance for a host with mixed-status rows returns summary, categories, and rules that reconcile: summary.passing/failing/skipped/error equal the per-status counts over the rules array, total = len(rules), score_pct = round(passing/total*1000)/10 (0 when total=0); rules carry EVERY status and are ordered by severity rank (critical > high > medium > low > unset) then rule_id ASC; categories use "uncategorized" for catalog-unknown rules and are sorted failing DESC then category ASC.'
+      priority: critical
+      references_constraints: [C-01, C-05]
+    - id: AC-09
+      description: v1.1.0 - GET /hosts/{id}/compliance?framework=<id> restricts every section to rows whose framework_refs contains the key; summary and categories are recounted under the lens; each rule's control_ids carries the framework's FULL control-id array (a rule mapped to multiple controls in one framework returns them all, in stored order); without ?framework=, control_ids is empty.
+      priority: critical
+      references_constraints: [C-04, C-05]
+    - id: AC-10
+      description: v1.1.0 - scan_context carries the latest COMPLETED scan_runs row for the host (scan_id = its id, last_scan_at = its finished_at, policy_version = its policy_version); queued/running/failed runs never appear even when newer; a never-scanned host gets last_scan_at=null, scan_id=null, policy_version="" - never an error.
+      priority: critical
+      references_constraints: [C-05]
+    - id: AC-11
+      description: v1.1.0 - GET /hosts/{id}/compliance/frameworks returns the distinct framework_refs keys across the host's host_rule_state rows with the count of rules mapped to each, ordered by framework id; a host with zero rule_state rows returns an empty frameworks array - never an error.
+      priority: high
+      references_constraints: [C-04]
+    - id: AC-12
+      description: v1.1.0 - both lens endpoints (GET /hosts/{id}/compliance and /compliance/frameworks) return 404 hosts.not_found for an unknown host id BEFORE any rule-state read, reject anonymous callers (401/403), and succeed for a viewer (host:read).
+      priority: critical
+      references_constraints: [C-03]
+    - id: AC-13
+      description: v1.1.0 - source inspection extended to the lens handler file - it never references the host_rule_state stored check-output column, so the sensitive payload cannot reach either lens response.
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-14
+      description: 'v1.2.0 - GET /hosts/{id}/compliance/frameworks: each frameworks[] item carries passing/failing counted over the host rows containing that framework key and score_pct = round(passing/rule_count*1000)/10; the response carries overall with framework_id="all" aggregating ALL host rows (rule_count = row count, passing/failing per-status counts, same score formula, 0 when the host has no rows).'
+      priority: critical
+      references_constraints: [C-04, C-05]
+    - id: AC-15
+      description: 'v1.2.0 - scan_context.duration_seconds equals finished_at minus started_at of the latest completed run rounded to whole seconds, and is null when started_at is missing; each lens rules[] item carries description resolved from the RuleCatalog trimmed by firstSentence (first ". "-terminated sentence under 160 chars, else a 160-char cut) - empty when no catalog is wired, so the field can only ever carry catalog prose, never stored check output.'
+      priority: critical
+      references_constraints: [C-02, C-05]

@@ -6,6 +6,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/auth"
 	openapitypes "github.com/oapi-codegen/runtime/types"
 
+	"github.com/Hanalyx/openwatch/internal/scanruns"
 	"github.com/Hanalyx/openwatch/internal/server/api"
 )
 
@@ -55,6 +56,26 @@ func (h *handlers) GetFleetConnectivityBreakdown(w http.ResponseWriter, r *http.
 		Critical:    bd.Critical,
 		Down:        bd.Down,
 		NeverProbed: bd.NeverProbed,
+	})
+}
+
+// GetFleetScanQueue implements api.ServerInterface.GetFleetScanQueue.
+// Queued/running scan_runs counts — the scan-queue depth KPI. Delegates
+// to scanruns.ActiveBreakdown (no SQL here, AC-13 of fleet-observability
+// style). Spec api-host-compliance AC-07.
+func (h *handlers) GetFleetScanQueue(w http.ResponseWriter, r *http.Request) {
+	if denied := auth.EnforcePermission(w, r, auth.HostRead); denied {
+		return
+	}
+	queued, running, err := scanruns.ActiveBreakdown(r.Context(), h.pool)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "server.error", "server",
+			"failed to count active scan runs", true)
+		return
+	}
+	writeJSON(w, http.StatusOK, api.FleetScanQueue{
+		Queued:  int64(queued),
+		Running: int64(running),
 	})
 }
 

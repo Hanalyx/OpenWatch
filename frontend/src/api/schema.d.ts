@@ -877,6 +877,89 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/system/scan/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the adaptive compliance scan scheduler config + baked-in defaults
+         * @description Returns the persisted ScanConfig (or DefaultScan when no row
+         *     exists) PLUS the baked-in defaults sub-object so the UI can
+         *     render a "reset to defaults" affordance without a round-trip.
+         *     The six per-state intervals are the adaptive scheduler's tier
+         *     ladder (scan plan decision #4: systemconfig, not a policy file).
+         *     Spec api-system-scan-config.
+         */
+        get: operations["getSystemScanConfig"];
+        /**
+         * Update the adaptive compliance scan scheduler config
+         * @description Persists the new config. Ladder minutes are CLAMPED into
+         *     [5, 2880] and rate_limit into [1, 100] rather than rejected
+         *     (the response echoes the clamped values); emits
+         *     system.config.changed in the same write transaction. The
+         *     in-process scheduler refreshes the config at the top of its
+         *     next 60s tick. Spec api-system-scan-config.
+         */
+        put: operations["putSystemScanConfig"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/system/scan/schedule-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 24h forward projection of the compliance scan schedule
+         * @description Read-only projection of host_compliance_schedule over the next
+         *     24 hours (NOT a dry-run dispatch): per-hour due counts for the
+         *     Settings schedule strip, the soonest next_scheduled_scan, the
+         *     count of hosts already due, and the live scan queue depth.
+         *     Spec api-system-scan-config.
+         */
+        get: operations["getSystemScanSchedulePreview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/fleet/compliance/states": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Fleet host counts per compliance state
+         * @description One row per ComplianceState in ladder order (critical,
+         *     non_compliant, partial, mostly_compliant, compliant, unknown)
+         *     with the count of live hosts whose host_compliance_schedule
+         *     row is in that state. States with zero hosts are still listed
+         *     so the Settings steppers can render a stable six-row layout.
+         *     Spec api-system-scan-config.
+         */
+        get: operations["getFleetComplianceStates"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/system/connectivity/status": {
         parameters: {
             query?: never;
@@ -911,6 +994,138 @@ export interface paths {
          *     required. Spec api-host-connectivity-check.
          */
         post: operations["postHostConnectivityCheck"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/hosts/{id}/scans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Enqueue an on-demand compliance scan for a single host
+         * @description Creates a scan run (the scan_runs logbook row) and enqueues the
+         *     HMAC-signed scan job the worker executes via Kensa. Returns 202
+         *     with the scan id — the scan itself is asynchronous; completion
+         *     lands in host_rule_state/transactions and is announced on the
+         *     event bus. 409 when a run for this host is already queued or
+         *     running. Idempotency-Key required. Requires host:write.
+         *     Spec api-host-scan.
+         */
+        post: operations["postHostScan"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/hosts/{id}/compliance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Per-host compliance lens (one scan, many framework views)
+         * @description Projects the host's full host_rule_state corpus through an
+         *     optional framework lens. scan_context carries the latest
+         *     completed scan_runs row for the host (nulls when never
+         *     scanned). summary counts every status plus a score_pct
+         *     (passing/total as a percentage, one decimal, 0 when total is
+         *     0). categories groups the same rows by kensa catalog category
+         *     (uncategorized when unknown), sorted failing DESC then
+         *     category ASC. rules lists EVERY row (pass/fail/skipped/error),
+         *     severity-ordered then rule_id ASC, with control_ids projected
+         *     for the requested framework (empty otherwise). The stored
+         *     per-rule check output is never exposed. The per-host corpus is
+         *     bounded (~539 rules), so this is one unpaginated query.
+         *     Requires host:read. Spec api-host-compliance v1.1.0.
+         */
+        get: operations["getHostCompliance"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/hosts/{id}/compliance/frameworks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the frameworks the host's rule state maps to
+         * @description Distinct framework_refs keys across the host's host_rule_state
+         *     rows with the number of rules mapped to each, ordered by
+         *     framework id. Empty when the host has never been scanned.
+         *     Backs the lens picker on the host compliance view. Requires
+         *     host:read. Spec api-host-compliance v1.1.0.
+         */
+        get: operations["getHostComplianceFrameworks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/hosts/{id}/compliance/failed-rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List a host's currently-failing compliance rules
+         * @description Returns host_rule_state rows with current_status=fail for the
+         *     host, ordered by severity (critical > high > medium > low >
+         *     unset) then last_checked_at DESC. Titles and categories come
+         *     from the in-memory kensa rule catalog; when the catalog is
+         *     unavailable, title falls back to the rule id. The optional
+         *     framework filter restricts rows to those whose framework_refs
+         *     contains the key and projects that framework's control ids
+         *     into control_ids. total_failing is the post-filter, pre-limit
+         *     count. Requires host:read. Spec api-host-compliance.
+         */
+        get: operations["getHostFailedRules"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/fleet/scan-queue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Scan-queue depth split by lifecycle state
+         * @description Counts of scan_runs rows in the queued and running states.
+         *     Terminal (completed/failed) runs are excluded. Requires
+         *     host:read. Spec api-host-compliance.
+         */
+        get: operations["getFleetScanQueue"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1353,6 +1568,139 @@ export interface components {
             /** Format: int64 */
             total: number;
         };
+        HostFailedRule: {
+            rule_id: string;
+            /** @description Catalog title; falls back to rule_id when the catalog lacks the rule. */
+            title: string;
+            /** @description Catalog category; empty when unknown. */
+            category: string;
+            /** @description Stored severity; empty when the scan recorded none. */
+            severity: string;
+            /** @description Control ids for the requested framework; empty unless ?framework= is given. */
+            control_ids: string[];
+            /** Format: date-time */
+            last_checked_at: string;
+            check_count: number;
+        };
+        HostFailedRulesResponse: {
+            /**
+             * Format: int64
+             * @description Count of ALL failing rows for the host (post-framework-filter, pre-limit).
+             */
+            total_failing: number;
+            rules: components["schemas"]["HostFailedRule"][];
+        };
+        HostScanContext: {
+            /**
+             * Format: date-time
+             * @description finished_at of the latest completed scan run; null when never scanned.
+             */
+            last_scan_at: string | null;
+            /**
+             * Format: uuid
+             * @description id of the latest completed scan run; null when never scanned.
+             */
+            scan_id: string | null;
+            /** @description Policy version of the latest completed run; empty when never scanned. */
+            policy_version: string;
+            /** @description Wall-clock duration of the latest completed run (finished_at - started_at); null when never scanned or timestamps absent. */
+            duration_seconds?: number | null;
+        };
+        HostComplianceLensSummary: {
+            /** Format: int64 */
+            passing: number;
+            /** Format: int64 */
+            failing: number;
+            /** Format: int64 */
+            skipped: number;
+            /** Format: int64 */
+            error: number;
+            /** Format: int64 */
+            total: number;
+            /**
+             * Format: double
+             * @description passing/total as a percentage rounded to one decimal; 0 when total is 0.
+             */
+            score_pct: number;
+        };
+        HostComplianceCategory: {
+            /** @description Kensa catalog category; uncategorized when the catalog lacks the rule. */
+            category: string;
+            /** Format: int64 */
+            passing: number;
+            /** Format: int64 */
+            failing: number;
+            /** Format: int64 */
+            total: number;
+        };
+        HostComplianceRule: {
+            rule_id: string;
+            /** @description Catalog title; falls back to rule_id when the catalog lacks the rule. */
+            title: string;
+            /** @description First sentence of the catalog description; empty when the catalog lacks the rule. Catalog text only, never stored check output. */
+            description: string;
+            /** @description Catalog category; uncategorized when unknown. */
+            category: string;
+            /** @description Stored severity; empty when the scan recorded none. */
+            severity: string;
+            /** @description current_status of the rule on this host (pass, fail, skipped, error). */
+            status: string;
+            /** @description Control ids for the requested framework; empty unless ?framework= is given. */
+            control_ids: string[];
+            /** Format: date-time */
+            last_checked_at: string;
+        };
+        HostComplianceLensResponse: {
+            scan_context: components["schemas"]["HostScanContext"];
+            summary: components["schemas"]["HostComplianceLensSummary"];
+            categories: components["schemas"]["HostComplianceCategory"][];
+            rules: components["schemas"]["HostComplianceRule"][];
+        };
+        HostComplianceFramework: {
+            framework_id: string;
+            /**
+             * Format: int64
+             * @description Number of host_rule_state rows mapped to this framework.
+             */
+            rule_count: number;
+            /** @description Rows mapped to this framework with current_status pass. */
+            passing: number;
+            /** @description Rows mapped to this framework with current_status fail. */
+            failing: number;
+            /**
+             * Format: float
+             * @description passing/rule_count as a percentage rounded to one decimal; 0 when rule_count is 0. Powers the per-lens score on the View-as chips.
+             */
+            score_pct: number;
+        };
+        HostComplianceFrameworksResponse: {
+            /** @description The all-rules aggregate (framework_id "all"). Powers the All-rules chip score. */
+            overall: components["schemas"]["HostComplianceFramework"];
+            frameworks: components["schemas"]["HostComplianceFramework"][];
+        };
+        HostListComplianceSummary: {
+            /** Format: int64 */
+            passing: number;
+            /** Format: int64 */
+            failing: number;
+            /** Format: int64 */
+            skipped: number;
+            /** Format: int64 */
+            error: number;
+            /** Format: int64 */
+            total: number;
+            /**
+             * Format: int64
+             * @description Rows with current_status=fail and critical severity (case-insensitive).
+             */
+            critical_failing: number;
+        };
+        FleetScanQueue: {
+            /** Format: int64 */
+            queued: number;
+            /** Format: int64 */
+            running: number;
+        };
         HostDetailResponse: {
             host: components["schemas"]["HostResponse"];
             /** @description Null when no liveness probe has ever run against this host. */
@@ -1384,6 +1732,8 @@ export interface components {
             last_scan_at?: string | null;
             /** @description Null when no liveness probe has ever run against this host. */
             liveness?: components["schemas"]["HostLiveness"] | null;
+            /** @description Null when the host has no host_rule_state rows (never scanned). */
+            compliance_summary?: components["schemas"]["HostListComplianceSummary"] | null;
             os_family?: string | null;
             os_version?: string | null;
             architecture?: string | null;
@@ -1623,6 +1973,57 @@ export interface components {
             /** @description Count of host.discovery jobs persisted by this sweep. Zero is a valid steady state (every host already discovered, or fleet empty) */
             enqueued: number;
         };
+        ScanConfig: {
+            /** @description Master switch for the adaptive scheduler. When false the loop ticks but dispatches nothing. On-demand scans are unaffected */
+            enabled: boolean;
+            /** @description Re-scan interval (minutes) for never-classified hosts. Clamped into [5, 2880] */
+            unknown_mins: number;
+            /** @description Re-scan interval (minutes) for hosts in the critical band (score under 20 or any critical finding). Clamped into [5, 2880] */
+            critical_mins: number;
+            /** @description Re-scan interval (minutes) for the non_compliant band (score 20 to 49). Clamped into [5, 2880] */
+            non_compliant_mins: number;
+            /** @description Re-scan interval (minutes) for the partial band (score 50 to 69). Clamped into [5, 2880] */
+            partial_mins: number;
+            /** @description Re-scan interval (minutes) for the mostly_compliant band (score 70 to 89). Clamped into [5, 2880] */
+            mostly_compliant_mins: number;
+            /** @description Re-scan interval (minutes) for the compliant band (score 90 and above). Clamped into [5, 2880] */
+            compliant_mins: number;
+            /** @description Max hosts dispatched per 60s scheduler tick. Clamped into [1, 100] */
+            rate_limit: number;
+            /** @description When true the scheduler loop ticks but dispatches nothing (fleet-wide pause) */
+            maintenance_global: boolean;
+        };
+        ScanConfigResponse: {
+            config: components["schemas"]["ScanConfig"];
+            defaults: components["schemas"]["ScanConfig"];
+        };
+        ScanSchedulePreview: {
+            /**
+             * Format: date-time
+             * @description Soonest next_scheduled_scan across non-maintenance hosts; null when no schedule rows exist
+             */
+            next_scan_at?: string | null;
+            /** @description Hosts whose next_scheduled_scan has already passed (dispatch backlog) */
+            due_now: number;
+            /** @description scan_runs rows currently queued */
+            queued_jobs: number;
+            /** @description scan_runs rows currently running */
+            running_jobs: number;
+            /** @description 24 entries, one per hour from now; due count of hosts whose next_scheduled_scan falls inside that hour */
+            buckets: {
+                /** @description Hours from now (0 = the coming hour) */
+                hour_offset: number;
+                due_count: number;
+            }[];
+        };
+        FleetComplianceStates: {
+            /** @description One entry per ComplianceState in ladder order; zero-count states included */
+            states: {
+                /** @enum {string} */
+                state: "critical" | "non_compliant" | "partial" | "mostly_compliant" | "compliant" | "unknown";
+                host_count: number;
+            }[];
+        };
         ConnectivityStatus: {
             /**
              * Format: date-time
@@ -1653,6 +2054,17 @@ export interface components {
              * @enum {string}
              */
             new_reachability_status: "reachable" | "unreachable" | "unknown";
+        };
+        ScanRunQueued: {
+            /**
+             * Format: uuid
+             * @description scan_runs.id == queue job id == transactions.scan_id
+             */
+            scan_id: string;
+            /** @enum {string} */
+            status: "queued";
+            /** Format: date-time */
+            queued_at: string;
         };
         IntelligenceEvent: {
             /** Format: uuid */
@@ -3758,6 +4170,127 @@ export interface operations {
             };
         };
     };
+    getSystemScanConfig: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current config + defaults sub-object */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScanConfigResponse"];
+                };
+            };
+            /** @description Caller lacks system:read permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    putSystemScanConfig: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScanConfig"];
+            };
+        };
+        responses: {
+            /** @description Updated (clamped) config snapshot */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScanConfig"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            /** @description Caller lacks system:config:write permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getSystemScanSchedulePreview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Schedule projection */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScanSchedulePreview"];
+                };
+            };
+            /** @description Caller lacks system:read permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getFleetComplianceStates: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Per-state host counts */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FleetComplianceStates"];
+                };
+            };
+            /** @description Caller lacks host:read permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     getSystemConnectivityStatus: {
         parameters: {
             query?: never;
@@ -3830,6 +4363,215 @@ export interface operations {
             };
             /** @description A probe for this host is already in flight */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    postHostScan: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Scan run created and job enqueued */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScanRunQueued"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            /** @description Caller lacks host:write permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Host not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description A scan for this host is already queued or running */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getHostCompliance: {
+        parameters: {
+            query?: {
+                /** @description Filter to rows whose framework_refs contains this key and project its control ids; summary and categories are recomputed under the filter. */
+                framework?: string;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Compliance lens (scan context + summary + categories + rules) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HostComplianceLensResponse"];
+                };
+            };
+            /** @description Caller lacks host:read permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Host not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getHostComplianceFrameworks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Frameworks with per-framework mapped-rule counts */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HostComplianceFrameworksResponse"];
+                };
+            };
+            /** @description Caller lacks host:read permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Host not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getHostFailedRules: {
+        parameters: {
+            query?: {
+                /** @description Max rules returned. Clamped to [1, 100]; default 10. */
+                limit?: number;
+                /** @description Filter to rows whose framework_refs contains this key and project its control ids. */
+                framework?: string;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Failing rules, severity-ordered */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HostFailedRulesResponse"];
+                };
+            };
+            /** @description Caller lacks host:read permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Host not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getFleetScanQueue: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Queued and running scan counts */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FleetScanQueue"];
+                };
+            };
+            /** @description Caller lacks host:read permission */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

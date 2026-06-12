@@ -1,0 +1,150 @@
+spec:
+  id: frontend-host-compliance-tab
+  title: Host detail Compliance tab — lens UI over the per-host compliance endpoints
+  version: "1.1.0"
+  status: approved
+  tier: 2
+
+  context:
+    system: openwatch-go
+    feature: Activate the Compliance tab on the host detail page; render the lens model (one scan, viewed through any framework) from GET /hosts/{id}/compliance + /compliance/frameworks
+    description: >
+      Pre-this spec, the Compliance tab on the host detail page rendered
+      a "Not yet available" stub from the TAB_BACKEND_SUBSYSTEM registry.
+      The backing endpoints now exist (api-host-compliance v1.1.0):
+      GET /api/v1/hosts/{id}/compliance returns scan_context + summary +
+      categories + rules in ONE unpaginated response (the per-host corpus
+      is bounded at ~539 rules), and GET /api/v1/hosts/{id}/compliance/
+      frameworks lists the lens options with per-framework rule counts.
+
+      This spec activates the tab as src/pages/host-detail/
+      ComplianceTab.tsx following the house pattern (parent page owns
+      routing and the ?framework= search param; the tab receives hostId,
+      framework, and onFrameworkChange as props). Layout mirrors the
+      prototype's compliance panel (docs/engineering/prototypes/
+      openwatch-v1/Host Detail.html):
+
+        1. scan-context strip: "One scan, viewed through any framework"
+           headline; sub-line with the last-scan datetime (or "No scan
+           yet"), the policy version when present, and the lens
+           explainer (scores below are views of the same per-rule
+           results); a live Re-scan button using the SAME enqueue
+           endpoint and semantics as the page-head Run scan (POST
+           /hosts/{id}/scans, idempotency-keyed, 409 rendered as "Scan
+           already running"). NO Export button (deferred; no dead
+           controls).
+        2. lens bar: "View as" label + an "All rules" chip plus one chip
+           per frameworks[] entry. Chips carry a friendly label derived
+           from framework_id (cis_rhel9 -> "CIS RHEL 9"), the mapped
+           rule count, and the per-lens score_pct pill; the All rules
+           chip carries the overall aggregate score. The active chip
+           reflects the current ?framework=; clicks drive
+           onFrameworkChange.
+        3. score + result-mix + scan panels (three columns): a donut
+           score panel with the status legend (Compliant /
+           Non-compliant / Not applicable / Executed, where Executed =
+           passing + failing and an Error row appears only when error >
+           0); a result-mix panel with Compliant / Non-compliant bars,
+           counts, and the N/A note; scan metadata (framework, ran at +
+           duration, policy, coverage).
+        4. numbered category rows: name + "passing / failing" counted
+           over EXECUTED rules only (not-applicable rows excluded) with
+           a green/red stacked bar and a banded pass percentage
+           (passing / executed).
+        5. rules table: search box plus client-side status filter chips
+           (All / Non-compliant / Compliant / N/A / Error) with counts
+           and an "N of M rules" readout; rows carry severity pill,
+           title, catalog description, control-id chips (or rule_id),
+           category, status chip, relative last_checked_at.
+
+      Status wording follows the prototype: pass renders as Compliant,
+      fail as Non-compliant, skipped as N/A (not applicable).
+
+      Out of scope (deferred):
+        - Export / report download
+        - Per-rule drill-down drawer
+        - Remediate actions (Phase 7)
+        - Pagination (the lens response is one bounded payload)
+
+    related_specs:
+      - api-host-compliance
+      - api-hosts
+      - frontend-host-detail
+      - frontend-live-events
+
+  objective:
+    summary: >
+      Lock the tab wiring (stub registry entry removed, props-driven
+      framework selection), the host-prefixed query keys, the
+      one-response render with reconciling counts, the client-side
+      status filter, the honest loading / error / never-scanned states,
+      and the no-stored-check-output security posture.
+    scope:
+      includes:
+        - "ComplianceTab mounted from HostDetailPage's activeTab switch with hostId/framework/onFrameworkChange props"
+        - "GET /api/v1/hosts/{id}/compliance keyed ['host', hostId, 'compliance', framework ?? null]"
+        - "GET /api/v1/hosts/{id}/compliance/frameworks keyed ['host', hostId, 'compliance_frameworks']"
+        - "Lens bar chips driving onFrameworkChange (parent updates ?framework=)"
+        - "Result-mix and scan panels, category rows, and rules table from one lens response"
+        - "Client-side status filter chips and search box over the rules table"
+        - "In-strip Re-scan button reusing the page-head Run scan enqueue semantics"
+      excludes:
+        - "Export button — deferred, no dead controls"
+        - "Per-rule detail drawer and remediation actions"
+        - "Server-side pagination or filtering beyond ?framework="
+
+  constraints:
+    - id: C-01
+      description: 'The Compliance tab MUST live at src/pages/host-detail/ComplianceTab.tsx and be mounted from HostDetailPage''s activeTab switch with props hostId, framework, onFrameworkChange. The TAB_BACKEND_SUBSYSTEM stub registry MUST NOT carry a compliance entry. The tab never calls navigate itself — framework selection goes through onFrameworkChange so the parent owns the ?framework= search param (api-hosts AC-08)'
+      type: technical
+      enforcement: error
+    - id: C-02
+      description: 'Both tab queries MUST be keyed under the [''host'', hostId] prefix — [''host'', hostId, ''compliance'', framework ?? null] for the lens and [''host'', hostId, ''compliance_frameworks''] for the picker — so the scan.completed SSE invalidation of the [''host'', hostId] prefix (frontend-live-events) refreshes the tab with no extra wiring. The lens key MUST embed the framework value so changing the lens changes the cache key'
+      type: technical
+      enforcement: error
+    - id: C-03
+      description: 'The scan-context strip, summary tiles, category rows, and rules table all render from ONE GET /hosts/{id}/compliance response; the rendered summary numbers reconcile with the per-status aggregation of the rules array (api-host-compliance C-05). The status filter above the rules table is client-side only: clicking a filter chip MUST NOT issue any network request'
+      type: technical
+      enforcement: error
+    - id: C-04
+      description: 'Honest states: the loading guard is isPending (NOT isLoading, which goes false between retries); query errors render inline with a Retry control that refetches; a never-scanned host (scan_context.last_scan_at null) renders an empty state that names the page-head Run scan button. No Export button (no dead controls). The strip Re-scan button MUST reuse the page-head Run scan semantics exactly: POST /api/v1/hosts/{id}/scans with an Idempotency-Key header, 409 rendered as an informational "Scan already running" note, never an error throw. UI copy carries no em-dashes'
+      type: technical
+      enforcement: error
+    - id: C-05
+      description: 'The tab MUST never reference the host_rule_state stored per-rule check output (sensitive host configuration, api-host-compliance C-02): the string "evidence" (case-insensitive) MUST NOT appear anywhere in ComplianceTab.tsx'
+      type: security
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: "Source inspection: HostDetailPage.tsx imports ComplianceTab from @/pages/host-detail/ComplianceTab and mounts <ComplianceTab from the activeTab === 'compliance' branch; the TAB_BACKEND_SUBSYSTEM registry contains no compliance entry — the legacy stub is gone"
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-02
+      description: "Behavior: the lens bar renders an 'All rules' chip plus one chip per frameworks[] entry; each framework chip carries the friendly label derived from framework_id (frameworkLabel: cis_rhel9 -> 'CIS RHEL 9'), the mapped rule count, and the per-lens score_pct; the All rules chip carries the overall aggregate score from the frameworks response. The chip matching the framework prop carries the active state (aria-pressed); clicking a framework chip calls onFrameworkChange(framework_id) and clicking 'All rules' calls onFrameworkChange(undefined). Source inspection: the lens queryKey embeds framework ?? null so the cache key changes with the lens"
+      priority: critical
+      references_constraints: [C-01, C-02]
+    - id: AC-03
+      description: "Behavior: with a mixed-status lens fixture, the Compliance score panel renders score_pct with a legend of Compliant / Non-compliant / Not applicable / Executed (executed = passing + failing; an Error row only when error > 0), the Result mix panel renders the Compliant and Non-compliant bars plus the N/A note, the Scan details panel renders the scan metadata (ran at, coverage), the category rows render each category with 'passing / failing' over executed rules and the executed-only pass percentage, and the rules table renders one row per rules[] entry (severity pill, title, description, control_ids-or-rule_id, category, prototype-worded status chip, relative last_checked_at) — all from the single lens response, with legend numbers equal to the per-status aggregation of the rules array"
+      priority: critical
+      references_constraints: [C-03]
+    - id: AC-04
+      description: "Behavior: clicking the Non-compliant filter chip narrows the table to status=fail rows (and All restores the full set), and typing in the search box narrows rows by title/id substring — both with NO additional network request: the api client mock call count is unchanged across filter clicks and search input"
+      priority: critical
+      references_constraints: [C-03]
+    - id: AC-05
+      description: "Source inspection: both queryKeys start with ['host', hostId] — ['host', hostId, 'compliance', framework ?? null] and ['host', hostId, 'compliance_frameworks'] — so the scan.completed SSE prefix invalidation refreshes the tab"
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-06
+      description: "Behavior: a lens response with scan_context.last_scan_at=null renders the never-scanned empty state naming the Run scan button and renders no summary tiles or rules table; a failing lens fetch renders an inline error with a Retry control. Source inspection: the loading guard is isPending, not isLoading"
+      priority: critical
+      references_constraints: [C-04]
+    - id: AC-07
+      description: "Source inspection: ComplianceTab.tsx never contains the string 'evidence' (case-insensitive), so the stored per-rule check output cannot be referenced or rendered"
+      priority: critical
+      references_constraints: [C-05]
+    - id: AC-08
+      description: "Behavior: clicking the strip's Re-scan button issues exactly one POST /api/v1/hosts/{id}/scans with an Idempotency-Key header; a 202 renders the 'Scan queued' note and a 409 renders 'Scan already running' as an informational note (no thrown error, no retry UI). Source inspection: the tab contains no Export control"
+      priority: critical
+      references_constraints: [C-04]

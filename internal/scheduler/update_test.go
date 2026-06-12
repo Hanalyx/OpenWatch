@@ -38,8 +38,9 @@ func TestStateFromScore_HasCriticalAlwaysCritical(t *testing.T) {
 
 // @ac AC-08
 // AC-08 (score bucketing): the threshold boundaries are tested at and
-// just-below each cut-point. Half-open intervals are: [100, ∞)=Compliant,
-// [80, 100)=Partial, [50, 80)=NonCompliant, (-∞, 50)=Critical.
+// just-below each cut-point. v3.0.0 five-band intervals (scan plan
+// decision #5): [90, ∞)=Compliant, [70, 90)=MostlyCompliant,
+// [50, 70)=Partial, [20, 50)=NonCompliant, (-∞, 20)=Critical.
 func TestStateFromScore_ScoreBuckets(t *testing.T) {
 	t.Run("system-scheduler/AC-08", func(t *testing.T) {
 		cases := []struct {
@@ -48,11 +49,14 @@ func TestStateFromScore_ScoreBuckets(t *testing.T) {
 			want  ComplianceState
 		}{
 			{"exactly 100 → Compliant", 100, StateCompliant},
-			{"just below 100 → Partial", 99.999, StatePartial},
-			{"exactly 80 → Partial", 80, StatePartial},
-			{"just below 80 → NonCompliant", 79.999, StateNonCompliant},
-			{"exactly 50 → NonCompliant", 50, StateNonCompliant},
-			{"just below 50 → Critical", 49.999, StateCritical},
+			{"exactly 90 → Compliant", 90, StateCompliant},
+			{"just below 90 → MostlyCompliant", 89.999, StateMostlyCompliant},
+			{"exactly 70 → MostlyCompliant", 70, StateMostlyCompliant},
+			{"just below 70 → Partial", 69.999, StatePartial},
+			{"exactly 50 → Partial", 50, StatePartial},
+			{"just below 50 → NonCompliant", 49.999, StateNonCompliant},
+			{"exactly 20 → NonCompliant", 20, StateNonCompliant},
+			{"just below 20 → Critical", 19.999, StateCritical},
 			{"0 → Critical", 0, StateCritical},
 			{"negative (sanity) → Critical", -10, StateCritical},
 		}

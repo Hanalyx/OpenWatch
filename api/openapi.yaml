@@ -1258,6 +1258,101 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
 
+  /api/v1/system/scan/config:
+    get:
+      operationId: getSystemScanConfig
+      summary: Read the adaptive compliance scan scheduler config + baked-in defaults
+      description: |
+        Returns the persisted ScanConfig (or DefaultScan when no row
+        exists) PLUS the baked-in defaults sub-object so the UI can
+        render a "reset to defaults" affordance without a round-trip.
+        The six per-state intervals are the adaptive scheduler's tier
+        ladder (scan plan decision #4: systemconfig, not a policy file).
+        Spec api-system-scan-config.
+      responses:
+        '200':
+          description: Current config + defaults sub-object
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ScanConfigResponse'}
+        '403':
+          description: Caller lacks system:read permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+    put:
+      operationId: putSystemScanConfig
+      summary: Update the adaptive compliance scan scheduler config
+      description: |
+        Persists the new config. Ladder minutes are CLAMPED into
+        [5, 2880] and rate_limit into [1, 100] rather than rejected
+        (the response echoes the clamped values); emits
+        system.config.changed in the same write transaction. The
+        in-process scheduler refreshes the config at the top of its
+        next 60s tick. Spec api-system-scan-config.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ScanConfig'}
+      responses:
+        '200':
+          description: Updated (clamped) config snapshot
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ScanConfig'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '403':
+          description: Caller lacks system:config:write permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
+  /api/v1/system/scan/schedule-preview:
+    get:
+      operationId: getSystemScanSchedulePreview
+      summary: 24h forward projection of the compliance scan schedule
+      description: |
+        Read-only projection of host_compliance_schedule over the next
+        24 hours (NOT a dry-run dispatch): per-hour due counts for the
+        Settings schedule strip, the soonest next_scheduled_scan, the
+        count of hosts already due, and the live scan queue depth.
+        Spec api-system-scan-config.
+      responses:
+        '200':
+          description: Schedule projection
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ScanSchedulePreview'}
+        '403':
+          description: Caller lacks system:read permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
+  /api/v1/fleet/compliance/states:
+    get:
+      operationId: getFleetComplianceStates
+      summary: Fleet host counts per compliance state
+      description: |
+        One row per ComplianceState in ladder order (critical,
+        non_compliant, partial, mostly_compliant, compliant, unknown)
+        with the count of live hosts whose host_compliance_schedule
+        row is in that state. States with zero hosts are still listed
+        so the Settings steppers can render a stable six-row layout.
+        Spec api-system-scan-config.
+      responses:
+        '200':
+          description: Per-state host counts
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/FleetComplianceStates'}
+        '403':
+          description: Caller lacks host:read permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
   /api/v1/system/connectivity/status:
     get:
       operationId: getSystemConnectivityStatus
@@ -1311,6 +1406,190 @@ paths:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
         '409':
           description: A probe for this host is already in flight
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
+  /api/v1/hosts/{id}/scans:
+    post:
+      operationId: postHostScan
+      summary: Enqueue an on-demand compliance scan for a single host
+      description: |
+        Creates a scan run (the scan_runs logbook row) and enqueues the
+        HMAC-signed scan job the worker executes via Kensa. Returns 202
+        with the scan id — the scan itself is asynchronous; completion
+        lands in host_rule_state/transactions and is announced on the
+        event bus. 409 when a run for this host is already queued or
+        running. Idempotency-Key required. Requires host:write.
+        Spec api-host-scan.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema: {type: string, minLength: 1, maxLength: 128}
+      responses:
+        '202':
+          description: Scan run created and job enqueued
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ScanRunQueued'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '403':
+          description: Caller lacks host:write permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '404':
+          description: Host not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '409':
+          description: A scan for this host is already queued or running
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
+  /api/v1/hosts/{id}/compliance:
+    get:
+      operationId: getHostCompliance
+      summary: Per-host compliance lens (one scan, many framework views)
+      description: |
+        Projects the host's full host_rule_state corpus through an
+        optional framework lens. scan_context carries the latest
+        completed scan_runs row for the host (nulls when never
+        scanned). summary counts every status plus a score_pct
+        (passing/total as a percentage, one decimal, 0 when total is
+        0). categories groups the same rows by kensa catalog category
+        (uncategorized when unknown), sorted failing DESC then
+        category ASC. rules lists EVERY row (pass/fail/skipped/error),
+        severity-ordered then rule_id ASC, with control_ids projected
+        for the requested framework (empty otherwise). The stored
+        per-rule check output is never exposed. The per-host corpus is
+        bounded (~539 rules), so this is one unpaginated query.
+        Requires host:read. Spec api-host-compliance v1.1.0.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+        - name: framework
+          in: query
+          description: Filter to rows whose framework_refs contains this key and project its control ids; summary and categories are recomputed under the filter.
+          schema: {type: string}
+      responses:
+        '200':
+          description: Compliance lens (scan context + summary + categories + rules)
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/HostComplianceLensResponse'}
+        '403':
+          description: Caller lacks host:read permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '404':
+          description: Host not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
+  /api/v1/hosts/{id}/compliance/frameworks:
+    get:
+      operationId: getHostComplianceFrameworks
+      summary: List the frameworks the host's rule state maps to
+      description: |
+        Distinct framework_refs keys across the host's host_rule_state
+        rows with the number of rules mapped to each, ordered by
+        framework id. Empty when the host has never been scanned.
+        Backs the lens picker on the host compliance view. Requires
+        host:read. Spec api-host-compliance v1.1.0.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: Frameworks with per-framework mapped-rule counts
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/HostComplianceFrameworksResponse'}
+        '403':
+          description: Caller lacks host:read permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '404':
+          description: Host not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
+  /api/v1/hosts/{id}/compliance/failed-rules:
+    get:
+      operationId: getHostFailedRules
+      summary: List a host's currently-failing compliance rules
+      description: |
+        Returns host_rule_state rows with current_status=fail for the
+        host, ordered by severity (critical > high > medium > low >
+        unset) then last_checked_at DESC. Titles and categories come
+        from the in-memory kensa rule catalog; when the catalog is
+        unavailable, title falls back to the rule id. The optional
+        framework filter restricts rows to those whose framework_refs
+        contains the key and projects that framework's control ids
+        into control_ids. total_failing is the post-filter, pre-limit
+        count. Requires host:read. Spec api-host-compliance.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+        - name: limit
+          in: query
+          description: Max rules returned. Clamped to [1, 100]; default 10.
+          schema: {type: integer, default: 10}
+        - name: framework
+          in: query
+          description: Filter to rows whose framework_refs contains this key and project its control ids.
+          schema: {type: string}
+      responses:
+        '200':
+          description: Failing rules, severity-ordered
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/HostFailedRulesResponse'}
+        '403':
+          description: Caller lacks host:read permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '404':
+          description: Host not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
+  /api/v1/fleet/scan-queue:
+    get:
+      operationId: getFleetScanQueue
+      summary: Scan-queue depth split by lifecycle state
+      description: |
+        Counts of scan_runs rows in the queued and running states.
+        Terminal (completed/failed) runs are excluded. Requires
+        host:read. Spec api-host-compliance.
+      responses:
+        '200':
+          description: Queued and running scan counts
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/FleetScanQueue'}
+        '403':
+          description: Caller lacks host:read permission
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
@@ -1994,6 +2273,186 @@ components:
         error:   {type: integer, format: int64}
         total:   {type: integer, format: int64}
 
+    # Per-host failing-rule listing (spec api-host-compliance).
+    # Severity-ordered; titles resolved from the kensa rule catalog.
+    # The host_rule_state stored check output is never exposed here.
+    HostFailedRule:
+      type: object
+      required: [rule_id, title, category, severity, control_ids, last_checked_at, check_count]
+      properties:
+        rule_id:  {type: string}
+        title:
+          type: string
+          description: Catalog title; falls back to rule_id when the catalog lacks the rule.
+        category:
+          type: string
+          description: Catalog category; empty when unknown.
+        severity:
+          type: string
+          description: Stored severity; empty when the scan recorded none.
+        control_ids:
+          type: array
+          items: {type: string}
+          description: Control ids for the requested framework; empty unless ?framework= is given.
+        last_checked_at: {type: string, format: date-time}
+        check_count:     {type: integer}
+
+    HostFailedRulesResponse:
+      type: object
+      required: [total_failing, rules]
+      properties:
+        total_failing:
+          type: integer
+          format: int64
+          description: Count of ALL failing rows for the host (post-framework-filter, pre-limit).
+        rules:
+          type: array
+          items: {$ref: '#/components/schemas/HostFailedRule'}
+
+    # Per-host compliance lens (spec api-host-compliance v1.1.0).
+    # The stored per-rule check output is never exposed here.
+    HostScanContext:
+      type: object
+      required: [last_scan_at, scan_id, policy_version]
+      properties:
+        last_scan_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: finished_at of the latest completed scan run; null when never scanned.
+        scan_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: id of the latest completed scan run; null when never scanned.
+        policy_version:
+          type: string
+          description: Policy version of the latest completed run; empty when never scanned.
+        duration_seconds:
+          type: integer
+          nullable: true
+          description: Wall-clock duration of the latest completed run (finished_at - started_at); null when never scanned or timestamps absent.
+
+    HostComplianceLensSummary:
+      type: object
+      required: [passing, failing, skipped, error, total, score_pct]
+      properties:
+        passing: {type: integer, format: int64}
+        failing: {type: integer, format: int64}
+        skipped: {type: integer, format: int64}
+        error:   {type: integer, format: int64}
+        total:   {type: integer, format: int64}
+        score_pct:
+          type: number
+          format: double
+          description: passing/total as a percentage rounded to one decimal; 0 when total is 0.
+
+    HostComplianceCategory:
+      type: object
+      required: [category, passing, failing, total]
+      properties:
+        category:
+          type: string
+          description: Kensa catalog category; uncategorized when the catalog lacks the rule.
+        passing: {type: integer, format: int64}
+        failing: {type: integer, format: int64}
+        total:   {type: integer, format: int64}
+
+    HostComplianceRule:
+      type: object
+      required: [rule_id, title, description, category, severity, status, control_ids, last_checked_at]
+      properties:
+        rule_id: {type: string}
+        title:
+          type: string
+          description: Catalog title; falls back to rule_id when the catalog lacks the rule.
+        description:
+          type: string
+          description: First sentence of the catalog description; empty when the catalog lacks the rule. Catalog text only, never stored check output.
+        category:
+          type: string
+          description: Catalog category; uncategorized when unknown.
+        severity:
+          type: string
+          description: Stored severity; empty when the scan recorded none.
+        status:
+          type: string
+          description: current_status of the rule on this host (pass, fail, skipped, error).
+        control_ids:
+          type: array
+          items: {type: string}
+          description: Control ids for the requested framework; empty unless ?framework= is given.
+        last_checked_at: {type: string, format: date-time}
+
+    HostComplianceLensResponse:
+      type: object
+      required: [scan_context, summary, categories, rules]
+      properties:
+        scan_context: {$ref: '#/components/schemas/HostScanContext'}
+        summary: {$ref: '#/components/schemas/HostComplianceLensSummary'}
+        categories:
+          type: array
+          items: {$ref: '#/components/schemas/HostComplianceCategory'}
+        rules:
+          type: array
+          items: {$ref: '#/components/schemas/HostComplianceRule'}
+
+    HostComplianceFramework:
+      type: object
+      required: [framework_id, rule_count, passing, failing, score_pct]
+      properties:
+        framework_id: {type: string}
+        rule_count:
+          type: integer
+          format: int64
+          description: Number of host_rule_state rows mapped to this framework.
+        passing:
+          type: integer
+          description: Rows mapped to this framework with current_status pass.
+        failing:
+          type: integer
+          description: Rows mapped to this framework with current_status fail.
+        score_pct:
+          type: number
+          format: float
+          description: passing/rule_count as a percentage rounded to one decimal; 0 when rule_count is 0. Powers the per-lens score on the View-as chips.
+
+    HostComplianceFrameworksResponse:
+      type: object
+      required: [frameworks, overall]
+      properties:
+        overall:
+          $ref: '#/components/schemas/HostComplianceFramework'
+          description: The all-rules aggregate (framework_id "all"). Powers the All-rules chip score.
+        frameworks:
+          type: array
+          items: {$ref: '#/components/schemas/HostComplianceFramework'}
+
+    # List-view compliance roll-up (spec api-hosts v1.5.0 C-12). Same
+    # counts as HostComplianceSummary plus critical_failing; nullable
+    # on the list item (null = host has no rule_state rows).
+    HostListComplianceSummary:
+      type: object
+      required: [passing, failing, skipped, error, total, critical_failing]
+      properties:
+        passing: {type: integer, format: int64}
+        failing: {type: integer, format: int64}
+        skipped: {type: integer, format: int64}
+        error:   {type: integer, format: int64}
+        total:   {type: integer, format: int64}
+        critical_failing:
+          type: integer
+          format: int64
+          description: Rows with current_status=fail and critical severity (case-insensitive).
+
+    # Scan-queue depth KPI (spec api-host-compliance).
+    FleetScanQueue:
+      type: object
+      required: [queued, running]
+      properties:
+        queued:  {type: integer, format: int64}
+        running: {type: integer, format: int64}
+
     # Detail-view response: HostResponse plus enrichments. Used by
     # GET /hosts/{id} only; the list endpoint keeps HostResponse to
     # avoid per-host join overhead on bulk reads.
@@ -2041,6 +2500,13 @@ components:
           allOf: [{$ref: '#/components/schemas/HostLiveness'}]
           nullable: true
           description: Null when no liveness probe has ever run against this host.
+        # v1.5.0 — per-host compliance roll-up for the list view, loaded
+        # with one grouped query over host_rule_state for the whole page
+        # (no N+1). Spec api-hosts C-12.
+        compliance_summary:
+          allOf: [{$ref: '#/components/schemas/HostListComplianceSummary'}]
+          nullable: true
+          description: Null when the host has no host_rule_state rows (never scanned).
         # v1.4.0 — denormalized OS fields. Same semantics as HostResponse.
         # Spec api-hosts C-10.
         os_family:           {type: string, nullable: true}
@@ -2354,6 +2820,95 @@ components:
           minimum: 0
           description: Count of host.discovery jobs persisted by this sweep. Zero is a valid steady state (every host already discovered, or fleet empty)
 
+    ScanConfig:
+      type: object
+      required: [enabled, unknown_mins, critical_mins, non_compliant_mins,
+                 partial_mins, mostly_compliant_mins, compliant_mins,
+                 rate_limit, maintenance_global]
+      properties:
+        enabled:
+          type: boolean
+          description: Master switch for the adaptive scheduler. When false the loop ticks but dispatches nothing. On-demand scans are unaffected
+        unknown_mins:
+          type: integer
+          description: Re-scan interval (minutes) for never-classified hosts. Clamped into [5, 2880]
+        critical_mins:
+          type: integer
+          description: Re-scan interval (minutes) for hosts in the critical band (score under 20 or any critical finding). Clamped into [5, 2880]
+        non_compliant_mins:
+          type: integer
+          description: Re-scan interval (minutes) for the non_compliant band (score 20 to 49). Clamped into [5, 2880]
+        partial_mins:
+          type: integer
+          description: Re-scan interval (minutes) for the partial band (score 50 to 69). Clamped into [5, 2880]
+        mostly_compliant_mins:
+          type: integer
+          description: Re-scan interval (minutes) for the mostly_compliant band (score 70 to 89). Clamped into [5, 2880]
+        compliant_mins:
+          type: integer
+          description: Re-scan interval (minutes) for the compliant band (score 90 and above). Clamped into [5, 2880]
+        rate_limit:
+          type: integer
+          description: Max hosts dispatched per 60s scheduler tick. Clamped into [1, 100]
+        maintenance_global:
+          type: boolean
+          description: When true the scheduler loop ticks but dispatches nothing (fleet-wide pause)
+
+    ScanConfigResponse:
+      type: object
+      required: [config, defaults]
+      properties:
+        config:   {$ref: '#/components/schemas/ScanConfig'}
+        defaults: {$ref: '#/components/schemas/ScanConfig'}
+
+    ScanSchedulePreview:
+      type: object
+      required: [due_now, queued_jobs, running_jobs, buckets]
+      properties:
+        next_scan_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Soonest next_scheduled_scan across non-maintenance hosts; null when no schedule rows exist
+        due_now:
+          type: integer
+          description: Hosts whose next_scheduled_scan has already passed (dispatch backlog)
+        queued_jobs:
+          type: integer
+          description: scan_runs rows currently queued
+        running_jobs:
+          type: integer
+          description: scan_runs rows currently running
+        buckets:
+          type: array
+          description: 24 entries, one per hour from now; due count of hosts whose next_scheduled_scan falls inside that hour
+          items:
+            type: object
+            required: [hour_offset, due_count]
+            properties:
+              hour_offset:
+                type: integer
+                description: Hours from now (0 = the coming hour)
+              due_count:
+                type: integer
+
+    FleetComplianceStates:
+      type: object
+      required: [states]
+      properties:
+        states:
+          type: array
+          description: One entry per ComplianceState in ladder order; zero-count states included
+          items:
+            type: object
+            required: [state, host_count]
+            properties:
+              state:
+                type: string
+                enum: [critical, non_compliant, partial, mostly_compliant, compliant, unknown]
+              host_count:
+                type: integer
+
     ConnectivityStatus:
       type: object
       required: [probe_count, probe_success_count, probe_failure_count, state_transition_count, maintenance_active]
@@ -2386,6 +2941,14 @@ components:
           type: string
           enum: [reachable, unreachable, unknown]
           description: Post-hysteresis status (same value the periodic loop would write)
+
+    ScanRunQueued:
+      type: object
+      required: [scan_id, status, queued_at]
+      properties:
+        scan_id:   {type: string, format: uuid, description: scan_runs.id == queue job id == transactions.scan_id}
+        status:    {type: string, enum: [queued]}
+        queued_at: {type: string, format: date-time}
 
     IntelligenceEvent:
       type: object

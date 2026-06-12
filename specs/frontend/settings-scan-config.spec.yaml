@@ -1,0 +1,98 @@
+spec:
+  id: frontend-settings-scan-config
+  title: Settings Scanning page - Compliance scanner section wired to the adaptive scheduler config
+  version: "1.0.0"
+  status: approved
+  tier: 2
+
+  context:
+    system: openwatch-go
+    feature: Settings > Scanning & monitoring "Compliance scanner" section edits the live scheduler config and shows fleet states + the 24h schedule projection
+    description: >
+      Replaces the prior "UI only" Compliance scanner placeholder
+      (BackendPendingBanner, local-only steppers) with a fully wired
+      section against api-system-scan-config v1.0.0:
+
+        GET  /api/v1/system/scan/config            - {config, defaults}
+        PUT  /api/v1/system/scan/config            - clamp + persist
+        GET  /api/v1/fleet/compliance/states       - per-state host counts
+        GET  /api/v1/system/scan/schedule-preview  - next/due/queue + 24 buckets
+
+      The state table renders the SIX backend states in ladder order
+      (critical, non_compliant, partial, mostly_compliant, compliant,
+      unknown - system-scheduler v3.0.0 C-10) with live host counts
+      and editable per-state interval steppers backed by a local
+      draft. The summary row's subtitle reads from the preview (due
+      now / queued / running / next scan); its toggle edits
+      draft.enabled. A 24-bucket schedule strip renders the
+      projection. The Advanced disclosure exposes rate_limit and
+      maintenance_global - no dead controls remain (the unwired
+      quiet-hours select is gone).
+
+      PUT semantics: the server clamps rather than rejects, so the
+      save mutation re-anchors the draft on the ECHOED response body
+      - what the operator sees after save is the effective config.
+
+    related_specs:
+      - api-system-scan-config
+      - system-scheduler
+      - frontend-settings-discovery-config
+      - frontend-settings
+
+  objective:
+    summary: >
+      The Compliance scanner section is honest: badge and toggle
+      reflect the persisted enabled/maintenance flags, counts and
+      projections are live, edits round-trip through the clamping PUT,
+      and the scheduler applies them within one tick.
+    scope:
+      includes:
+        - "Three useQuery wirings (config, fleet states, schedule preview) in ScanningPage.tsx"
+        - "ScanConfigDraft local buffer + scanDirty + combined SaveBar save/reset"
+        - "Six-state editable StateTable zipped with fleet-state counts"
+        - "ScheduleStrip 24-bucket projection"
+        - "Advanced: rate_limit stepper + maintenance_global toggle"
+      excludes:
+        - "Scan variables sub-section (kensa.RuleVariables) - separate slice"
+        - "Quiet hours / jitter / retry policy - no backend"
+        - "Per-group scan pausing - no group entity"
+
+  constraints:
+    - id: C-01
+      description: 'The section queries exactly the three endpoints with stable query keys: ["system", "scan", "config"], ["fleet", "compliance", "states"], ["system", "scan", "schedule_preview"]. The PUT mutation invalidates the config and preview keys on success'
+      type: technical
+      enforcement: error
+    - id: C-02
+      description: 'The state table renders the six ComplianceState ids in ladder order matching the backend enum exactly (critical, non_compliant, partial, mostly_compliant, compliant, unknown), each mapped to its ScanConfig *_mins key; the steppers edit the local draft, never fire per-keystroke PUTs'
+      type: technical
+      enforcement: error
+    - id: C-03
+      description: 'The save path re-anchors the draft on the PUT response body (the server may clamp); reset re-anchors on the live config. The SaveBar appears only when the draft differs from the live config'
+      type: technical
+      enforcement: error
+    - id: C-04
+      description: 'No dead controls: the BackendPendingBanner, the "UI only" badge, and the unwired quiet-hours select are gone from the compliance section; the section badge derives Running/Paused from enabled + maintenance_global. UI copy carries no em-dashes'
+      type: technical
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: 'Source inspection: ScanningPage.tsx queries "/api/v1/system/scan/config" with queryKey ["system", "scan", "config"], "/api/v1/fleet/compliance/states" with ["fleet", "compliance", "states"], and "/api/v1/system/scan/schedule-preview" with ["system", "scan", "schedule_preview"]; the scan save mutation PUTs "/api/v1/system/scan/config" and invalidates the config + preview keys'
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-02
+      description: 'Source inspection: COMPLIANCE_ROW_SEEDS lists exactly critical, non_compliant, partial, mostly_compliant, compliant, unknown in that order, and SCAN_MINS_KEY maps each id to its matching *_mins ScanConfig key'
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-03
+      description: 'Source inspection: the scan save mutation onSuccess re-anchors the draft from the echoed response (setScanDraft over the mutation result), while the SaveBar reset path re-anchors from scanConfigQuery.data.config - two distinct paths; the SaveBar render condition includes scanDirty'
+      priority: critical
+      references_constraints: [C-03]
+    - id: AC-04
+      description: 'Source inspection: the compliance section carries no BackendPendingBanner and no "UI only" badge; its badge ternary derives from the enabled/maintenance pause state; the quiet-hours select is gone; a ScheduleStrip component renders the preview buckets'
+      priority: critical
+      references_constraints: [C-04]
+    - id: AC-05
+      description: 'Source inspection: the Advanced disclosure wires rate_limit through a Stepper bounded 1..100 and maintenance_global through a Toggle, both editing the scan draft'
+      priority: high
+      references_constraints: [C-02, C-04]

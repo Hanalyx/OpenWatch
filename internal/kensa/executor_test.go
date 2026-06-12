@@ -18,6 +18,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -684,24 +685,29 @@ func TestRun_PopulatedResult_AllFieldsFlowThrough(t *testing.T) {
 			CompletedAt:   time.Date(2026, 5, 28, 10, 0, 5, 0, time.UTC),
 			Outcomes: []RuleOutcome{
 				{
-					RuleID:        "sshd-disable-root",
-					Status:        StatusPass,
-					Severity:      "high",
-					Evidence:      []byte(`{"command":"sshd -T","stdout":"permitrootlogin no"}`),
-					FrameworkRefs: map[string]string{"cis_rhel9_v2": "5.2.7"},
+					RuleID:   "sshd-disable-root",
+					Status:   StatusPass,
+					Severity: "high",
+					Evidence: []byte(`{"command":"sshd -T","stdout":"permitrootlogin no"}`),
+					// Multi-valued refs (v2.1.0 C-14): one rule, three
+					// controls within the SAME framework — all preserved.
+					FrameworkRefs: map[string][]string{
+						"cis_rhel9_v2":   {"5.2.7"},
+						"nist_800_53_r5": {"AC-6(2)", "AC-17(2)", "IA-2(5)"},
+					},
 				},
 				{
 					RuleID:        "sshd-strong-ciphers",
 					Status:        StatusFail,
 					Severity:      "medium",
 					Evidence:      []byte(`{"command":"sshd -T","stdout":"ciphers aes128-cbc"}`),
-					FrameworkRefs: map[string]string{"cis_rhel9_v2": "5.2.13"},
+					FrameworkRefs: map[string][]string{"cis_rhel9_v2": {"5.2.13"}},
 				},
 				{
 					RuleID:        "selinux-enforcing",
 					Status:        StatusSkipped,
 					SkipReason:    "host_capability_missing:selinux",
-					FrameworkRefs: map[string]string{"cis_rhel9_v2": "1.6.1.2"},
+					FrameworkRefs: map[string][]string{"cis_rhel9_v2": {"1.6.1.2"}},
 				},
 			},
 		}
@@ -744,8 +750,8 @@ func TestRun_PopulatedResult_AllFieldsFlowThrough(t *testing.T) {
 					i, len(g.FrameworkRefs), len(w.FrameworkRefs))
 			}
 			for k, wv := range w.FrameworkRefs {
-				if g.FrameworkRefs[k] != wv {
-					t.Errorf("Outcomes[%d].FrameworkRefs[%q] = %q, want %q",
+				if !slices.Equal(g.FrameworkRefs[k], wv) {
+					t.Errorf("Outcomes[%d].FrameworkRefs[%q] = %v, want %v (every control id must survive — v2.1.0 C-14)",
 						i, k, g.FrameworkRefs[k], wv)
 				}
 			}

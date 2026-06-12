@@ -9,6 +9,7 @@
 //   AC-06  test('frontend-host-detail/AC-06 — liveness=null renders "Not yet probed"')
 //   AC-08  test('frontend-host-detail/AC-08 — framework filter updates URL + re-fetches')
 //   AC-09  test('frontend-host-detail/AC-09 — Edit button opens modal wired to PATCH /hosts/{id}')
+//   AC-37  test('frontend-host-detail/AC-37 — Top failed rules card is live')
 //   AC-14  test('frontend-host-detail/AC-14 — no PII field names in console.*')
 
 import { describe, expect, test } from 'vitest';
@@ -85,6 +86,47 @@ describe('frontend-host-detail — structural', () => {
     expect(MODAL_SRC).toContain("queryKey: ['hosts']");
     // Hostname is immutable per api-hosts C-04 — modal must say so.
     expect(MODAL_SRC).toContain('Hostname is immutable');
+  });
+
+  // @ac AC-36
+  test('frontend-host-detail/AC-36 — Run scan button is live: POST + idempotency key + 409 note + no polling', () => {
+    // Live wiring, not the disabled placeholder.
+    expect(PAGE_SRC).not.toContain('Run scan (deferred)');
+    expect(PAGE_SRC).toContain("api.POST('/api/v1/hosts/{id}/scans'");
+    expect(PAGE_SRC).toContain("'Idempotency-Key': crypto.randomUUID()");
+    // 409 is a transient note, not an error path.
+    expect(PAGE_SRC).toContain('Scan already running');
+    // No polling: the refresh comes from the scan.completed SSE topic
+    // (frontend-live-events C-07); the page must not setInterval-poll
+    // the host query after queueing a scan.
+    expect(PAGE_SRC).not.toMatch(/setInterval\([^)]*host/);
+  });
+
+  // @ac AC-37
+  test('frontend-host-detail/AC-37 — Top failed rules card is live: endpoint, key prefix, states, no evidence', () => {
+    // Wired query under the ['host', hostId] prefix so scan.completed
+    // SSE invalidation refreshes it for free.
+    expect(PAGE_SRC).toContain("queryKey: ['host', hostId, 'failed_rules', framework ?? null]");
+    expect(PAGE_SRC).toContain("'/api/v1/hosts/{id}/compliance/failed-rules'");
+    expect(PAGE_SRC).toContain('limit: 5');
+    // Footer count + Compliance tab routing.
+    expect(PAGE_SRC).toContain('View all {total} failed rules');
+    expect(PAGE_SRC).toMatch(/total_failing/);
+    // Honest states: zero-failing copy exists alongside never-scanned copy.
+    expect(PAGE_SRC).toContain('No failing rules');
+    expect(PAGE_SRC).toContain('No scan results yet');
+    // Evidence never displayed by the card (api-host-compliance C-02);
+    // the response shape has no evidence field and the card must not
+    // reference one.
+    // Slice ends at CardComplianceTrend — SeverityPill moved to
+    // host-detail/SeverityPill.tsx (frontend-host-compliance-tab v1.0.0).
+    const cardSlice = PAGE_SRC.slice(
+      PAGE_SRC.indexOf('function CardTopFailed'),
+      PAGE_SRC.indexOf('function CardComplianceTrend'),
+    );
+    expect(cardSlice).not.toMatch(/evidence/i);
+    // No dead Remediate action before Phase 7.
+    expect(cardSlice).not.toContain('Remediate');
   });
 
   // @ac AC-14

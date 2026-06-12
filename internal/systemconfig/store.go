@@ -303,3 +303,87 @@ func (s *Store) SetDiscovery(ctx context.Context, cfg DiscoveryConfig, changedBy
 	}
 	return nil
 }
+
+// LoadScan returns the persisted ScanConfig OR DefaultScan when no row
+// exists for KeyScan. Only returns an error for DB / unmarshal
+// failures — "no row" is not an error.
+//
+// Spec api-system-scan-config AC-01.
+func (s *Store) LoadScan(ctx context.Context) (ScanConfig, error) {
+	var raw []byte
+	err := s.pool.QueryRow(ctx, `SELECT value FROM system_config WHERE key = $1`, KeyScan).Scan(&raw)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return DefaultScan(), nil
+	}
+	if err != nil {
+		return ScanConfig{}, fmt.Errorf("systemconfig: load %s: %w", KeyScan, err)
+	}
+	cfg := DefaultScan()
+	if err := json.Unmarshal(raw, &cfg); err != nil {
+		return ScanConfig{}, fmt.Errorf("systemconfig: unmarshal %s: %w", KeyScan, err)
+	}
+	return cfg, nil
+}
+
+// SetScan normalizes (clamps) the input, validates, UPSERTs the row,
+// and emits audit.SystemConfigChanged with the old + new snapshot.
+// Returns the normalized config that was actually persisted so the
+// handler can echo back the clamped values.
+//
+// Spec api-system-scan-config AC-03 (clamp-not-reject) / AC-05.
+func (s *Store) SetScan(ctx context.Context, cfg ScanConfig, changedBy string) (ScanConfig, error) {
+	cfg = cfg.Normalize()
+	if err := cfg.Validate(); err != nil {
+		return ScanConfig{}, err
+	}
+	newBytes, err := json.Marshal(cfg)
+	if err != nil {
+		return ScanConfig{}, fmt.Errorf("systemconfig: marshal: %w", err)
+	}
+
+	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return ScanConfig{}, fmt.Errorf("systemconfig: begin: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	var oldRaw []byte
+	err = tx.QueryRow(ctx, `SELECT value FROM system_config WHERE key = $1 FOR UPDATE`, KeyScan).Scan(&oldRaw)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return ScanConfig{}, fmt.Errorf("systemconfig: read old: %w", err)
+	}
+	oldCfg := DefaultScan()
+	if len(oldRaw) > 0 {
+		_ = json.Unmarshal(oldRaw, &oldCfg)
+	}
+
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO system_config (key, value, updated_at, updated_by)
+		VALUES ($1, $2, now(), $3)
+		ON CONFLICT (key) DO UPDATE
+		   SET value      = EXCLUDED.value,
+		       updated_at = EXCLUDED.updated_at,
+		       updated_by = EXCLUDED.updated_by`,
+		KeyScan, newBytes, changedBy,
+	); err != nil {
+		return ScanConfig{}, fmt.Errorf("systemconfig: upsert: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return ScanConfig{}, fmt.Errorf("systemconfig: commit: %w", err)
+	}
+
+	if s.emit != nil {
+		s.emit(ctx, audit.SystemConfigChanged, audit.Event{
+			ActorType: "user",
+			ActorID:   changedBy,
+			Detail: audit.MakeDetail(map[string]any{
+				"config_key": KeyScan,
+				"old_value":  oldCfg,
+				"new_value":  cfg,
+				"changed_by": changedBy,
+			}),
+		})
+	}
+	return cfg, nil
+}

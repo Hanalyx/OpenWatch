@@ -1,7 +1,7 @@
 spec:
   id: system-kensa-executor
   title: Kensa executor wrapper
-  version: "2.0.0"
+  version: "2.4.0"
   status: approved
   tier: 1
 
@@ -10,7 +10,7 @@ spec:
     feature: Kensa scan execution bridge
     description: >
       The executor invokes Kensa (Go module github.com/Hanalyx/kensa
-      pinned to v0.2.1) to run a scan against a single host using the
+      pinned to v0.3.2) to run a scan against a single host using the
       FULL rule corpus applicable to the host's detected OS
       capabilities. The Kensa API (`Kensa.Scan(ctx, host, rules,
       opts...)` per kensa-go/api/kensa.go:228) takes a `[]*api.Rule`
@@ -43,6 +43,18 @@ spec:
         - RuleOutcome.FrameworkRefs continues to carry per-rule
           framework metadata, used by transactionlog.Writer.Apply
           and queried later by fleet rollup + hosts enrichment.
+
+      Version 2.1.0 (shape correction, pre-first-scan):
+        - RuleOutcome.FrameworkRefs is multi-valued —
+          map[string][]string (framework_id -> list of control ids)
+          — because one rule can satisfy several controls within the
+          SAME framework (e.g. ssh-disable-root-login maps to three
+          NIST 800-53 controls: AC-6(2), AC-17(2), IA-2(5)). The
+          prior single-valued map silently dropped all but one
+          control per framework and would under-count framework lens
+          coverage. Changed before any scan data exists; the
+          host_rule_state/transactions framework_refs columns are
+          JSONB, so no migration is required.
 
   objective:
     summary: >
@@ -119,17 +131,25 @@ spec:
       type: technical
       enforcement: error
     - id: C-13
-      description: The production scanFunc binding MUST invoke github.com/Hanalyx/kensa/pkg/kensa.Default to construct a real Kensa with TransportFactory + Scanner wired; unwiredScanFunc placeholder MUST NOT remain in the source tree. Tests may inject fakes via WithScanFunc, but the default executor returned by NewExecutor MUST be production-ready
+      description: The production scanFunc MUST compose the scan-only Kensa via api.New with pkg/kensa.NewScanner (kensa v0.3.2 — stateless, concurrency-safe shared) and this package's TransportFactory; no engine, store, or signer is constructed for the scan path. The worker subcommand binds it via WithScanFunc(NewProductionScanFunc(...)). unwiredScanFunc may remain ONLY as the test fallback NewExecutor defaults to before binding, annotated as such
       type: technical
       enforcement: error
     - id: C-14
-      description: Result.Outcomes MUST contain one entry per rule that Kensa.Scan returned a result for. RuleOutcome.FrameworkRefs MUST be populated from the rule's References block normalised via mappings.RefsFromReferences. Empty FrameworkRefs (rule belongs to no framework) is valid; the rule is still recorded
+      description: Result.Outcomes MUST contain one entry per rule that Kensa.Scan returned a result for. RuleOutcome.FrameworkRefs MUST be map[string][]string (framework_id -> control ids) populated from Kensa's normalised per-outcome framework references (kensa v0.3+ api.RuleOutcome.FrameworkRefs []FrameworkRef), preserving EVERY control id when a rule maps to multiple controls within one framework. Empty FrameworkRefs (rule belongs to no framework) is valid; the rule is still recorded
       type: technical
+      enforcement: error
+    - id: C-15
+      description: The package MUST provide an in-memory SSH transport implementing kensa api.Transport over internal/ssh.Dial (x/crypto, matching every other OpenWatch host-communication path). The TransportFactory resolves the target host's credential per Connect via an injected CredentialResolver, keyed by the host id carried in HostConfig.FleetID; HostConfig.User, when set, overrides the credential username (hosts.username); sudo is downgraded when the effective user is root. HostConfig.KeyPath MUST be ignored — authentication uses the in-memory *credential.Credential only; no key material touches disk. Run MUST wrap the command in `sudo -n sh -c '<cmd>'` (single-quote-escaped) when sudo is enabled; a non-zero remote exit code is a valid CommandResult, NOT a transport error. Put and Get MUST return explicit not-implemented errors until remediation needs them (the scan path never calls them); ControlChannelSensitive MUST report false for the scan-only transport
+      type: technical
+      enforcement: error
+    - id: C-16
+      description: 'Production corpus resolution — air-gapped installs are the PRIMARY deployment target — MUST rely on the signed kensa-rules package at the loader''s default path (/usr/share/kensa/rules), declared as a dependency of (or bundled with) the OpenWatch RPM/DEB so an offline install is complete. OPENWATCH_KENSA_RULES_DIR is a DEVELOPMENT override only: both serve and worker boot paths MUST emit a warning naming it development-only whenever it is set, and no production runbook, packaged unit file, or default config may set it. Pointing production at a Go module cache or any unpackaged rules source is prohibited (forks the corpus out of the GPG/cosign trust chain).'
+      type: security
       enforcement: error
 
   acceptance_criteria:
     - id: AC-01
-      description: executor.Run(ctx, hostID, policyVersion) returns a non-nil *Result on success with one entry per rule that Kensa scanned (rules whose `when:` capability gate didn't match the host are absent — by Kensa's design). Each entry carries rule_id, status, severity, evidence, and framework_refs flattened from the rule's References block.
+      description: executor.Run(ctx, hostID, policyVersion) returns a non-nil *Result on success with one entry per rule that Kensa scanned (rules whose `when:` capability gate didn't match the host are absent — by Kensa's design). Each entry carries rule_id, status, severity, evidence, and framework_refs as framework_id -> list of control ids (all controls preserved when one framework maps the rule more than once).
       priority: critical
       references_constraints: [C-12, C-14]
     - id: AC-02
@@ -195,6 +215,26 @@ spec:
       priority: critical
       references_constraints: [C-12]
     - id: AC-18
-      description: Source-inspection of internal/kensa/ — the unwiredScanFunc symbol is absent OR is marked //nolint:unused with a comment explaining it is a test-only fallback. NewExecutor binds scanFunc to a real implementation that imports github.com/Hanalyx/kensa/pkg/kensa.
+      description: Source-inspection — internal/kensa/scanfunc.go composes api.New with pkg/kensa.NewScanner and the package TransportFactory; cmd/openwatch/worker.go binds the executor via WithScanFunc with NewProductionScanFunc; the ScanFunc signature carries no framework parameter; unwiredScanFunc, where present, exists only as the pre-binding test fallback.
       priority: critical
       references_constraints: [C-13]
+    - id: AC-19
+      description: With sudo enabled, the transport rewrites a command C as `sudo -n sh -c '<C>'` with embedded single quotes escaped via the '\'' idiom (a command containing `it's` survives quoting intact); with sudo disabled the command passes through unmodified.
+      priority: critical
+      references_constraints: [C-15]
+    - id: AC-20
+      description: A remote command exiting non-zero yields (CommandResult{ExitCode:N, Stdout, Stderr}, nil) — not a Go error; transport-level failures (session open, ctx cancellation) yield a non-nil error. Exactly one trailing newline is trimmed from captured stdout and stderr.
+      priority: critical
+      references_constraints: [C-15]
+    - id: AC-21
+      description: Put and Get return errors wrapping ErrTransportOpNotSupported naming the operation; ControlChannelSensitive() returns false; Connect never reads HostConfig.KeyPath (source-inspection — the string "KeyPath" appears in internal/kensa only in comments explaining why it is ignored).
+      priority: high
+      references_constraints: [C-15]
+    - id: AC-22
+      description: TransportFactory.Connect requires a CredentialResolver and a host id in HostConfig.FleetID (nil resolver and malformed FleetID each error before any resolve/dial); HostConfig.User, when set and different, overrides the credential username via a copy — the resolver's cached credential object is never mutated; Sudo is downgraded to false when the effective user is root, and preserved otherwise.
+      priority: high
+      references_constraints: [C-15]
+    - id: AC-23
+      description: 'Source-inspection — both cmd/openwatch/main.go (serve) and cmd/openwatch/worker.go gate the OPENWATCH_KENSA_RULES_DIR read behind a warning that names it DEVELOPMENT ONLY and references the signed kensa-rules package for production/air-gapped installs; ScanFuncDeps.RulesDir documents that empty selects the kensa-rules package default path.'
+      priority: critical
+      references_constraints: [C-16]

@@ -173,6 +173,47 @@ func loadHostLastScanByIDs(ctx context.Context, pool *pgxpool.Pool, ids []uuid.U
 	return out, rows.Err()
 }
 
+// loadHostListComplianceByIDs returns per-host compliance roll-ups
+// keyed by host id — ONE grouped query against host_rule_state for the
+// whole page, no per-host N+1. Hosts with zero rule_state rows don't
+// appear in the map; the list handler renders that as
+// compliance_summary: null ("never scanned"). critical_failing counts
+// rows with current_status='fail' AND critical severity
+// (case-insensitive). Spec api-hosts v1.5.0 C-12 / AC-23.
+func loadHostListComplianceByIDs(ctx context.Context, pool *pgxpool.Pool, ids []uuid.UUID) (map[uuid.UUID]*api.HostListComplianceSummary, error) {
+	out := map[uuid.UUID]*api.HostListComplianceSummary{}
+	if len(ids) == 0 {
+		return out, nil
+	}
+	const q = `
+		SELECT host_id,
+		       COUNT(*) FILTER (WHERE current_status = 'pass')::BIGINT    AS passing,
+		       COUNT(*) FILTER (WHERE current_status = 'fail')::BIGINT    AS failing,
+		       COUNT(*) FILTER (WHERE current_status = 'skipped')::BIGINT AS skipped,
+		       COUNT(*) FILTER (WHERE current_status = 'error')::BIGINT   AS errors,
+		       COUNT(*)::BIGINT                                           AS total,
+		       COUNT(*) FILTER (WHERE current_status = 'fail'
+		                          AND lower(COALESCE(severity, '')) = 'critical')::BIGINT AS critical_failing
+		  FROM host_rule_state
+		 WHERE host_id = ANY($1)
+		 GROUP BY host_id`
+	rows, err := pool.Query(ctx, q, ids)
+	if err != nil {
+		return nil, fmt.Errorf("loadHostListComplianceByIDs: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var hid uuid.UUID
+		var s api.HostListComplianceSummary
+		if err := rows.Scan(&hid, &s.Passing, &s.Failing, &s.Skipped,
+			&s.Error, &s.Total, &s.CriticalFailing); err != nil {
+			return nil, fmt.Errorf("loadHostListComplianceByIDs scan: %w", err)
+		}
+		out[hid] = &s
+	}
+	return out, rows.Err()
+}
+
 // loadHostComplianceSummary reads the per-status counts from
 // host_rule_state for the given host. A host with no rule_state rows
 // returns all zeros — never an error. Spec api-hosts C-06 / AC-16.

@@ -21,6 +21,7 @@ import (
 
 	"github.com/Hanalyx/openwatch/internal/audit"
 	"github.com/Hanalyx/openwatch/internal/queue"
+	"github.com/Hanalyx/openwatch/internal/scanruns"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -46,6 +47,7 @@ type Worker struct {
 	stop      chan struct{}
 	wg        sync.WaitGroup
 	discovery HostDiscoveryRunner
+	scanProc  *ScanWorker
 }
 
 // New constructs a Worker bound to the given pool. Call Start to begin
@@ -63,6 +65,19 @@ func New(pool *pgxpool.Pool) *Worker {
 // Spec system-host-discovery C-05.
 func (w *Worker) WithDiscovery(d HostDiscoveryRunner) *Worker {
 	w.discovery = d
+	return w
+}
+
+// WithScanProcessor registers a ScanWorker whose ProcessJob handles
+// "scan" jobs claimed by THIS worker's loop. queue.Dequeue is not
+// type-filtered, so the in-process worker must route scan jobs rather
+// than fail them as unsupported — otherwise a serve-process claim of
+// an on-demand scan would dead-end the job. The single-binary
+// deployment processes scans in-process; a dedicated `openwatch
+// worker` process can run alongside (both are capable; first claim
+// wins). Spec api-host-scan / system-scan-runs.
+func (w *Worker) WithScanProcessor(sw *ScanWorker) *Worker {
+	w.scanProc = sw
 	return w
 }
 
@@ -130,6 +145,20 @@ func (w *Worker) process(ctx context.Context, j *queue.Job) {
 		w.processTestJob(ctx, j)
 	case "host.discovery":
 		w.processHostDiscovery(ctx, j)
+	case ScanJobType:
+		if w.scanProc == nil {
+			_ = queue.Fail(ctx, w.pool, j.ID, "scan processor not registered on this worker")
+			// Logbook integrity: a misconfigured worker must not strand
+			// the scan_runs row in queued/running. Spec system-scan-runs
+			// AC-04 (every scan-job failure pairs with MarkFailed).
+			if err := scanruns.MarkFailed(ctx, w.pool, j.ID, "scan_processor_not_registered"); err != nil {
+				slog.WarnContext(ctx, "scan_runs mark failed errored",
+					slog.String("scan_id", j.ID.String()),
+					slog.String("error", err.Error()))
+			}
+			return
+		}
+		w.scanProc.ProcessJob(ctx, j)
 	default:
 		_ = queue.Fail(ctx, w.pool, j.ID, "unsupported job_type for Stage 0 worker: "+j.JobType)
 	}

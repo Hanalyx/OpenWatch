@@ -12,6 +12,7 @@ const (
 	KeyIntelligence = "intelligence"
 	KeySecurity     = "security"
 	KeyDiscovery    = "discovery"
+	KeyScan         = "scan"
 )
 
 // ConnectivityConfig is the typed shape stored under KeyConnectivity.
@@ -200,6 +201,127 @@ func (c ConnectivityConfig) Validate() error {
 	}
 	if c.RateLimit < 1 || c.RateLimit > 200 {
 		return fmt.Errorf("%w: rate_limit=%d must be 1..200", ErrInvalidConfig, c.RateLimit)
+	}
+	return nil
+}
+
+// ScanConfig is the typed shape stored under KeyScan — the adaptive
+// compliance scan scheduler's operator-editable knobs.
+//
+// Spec: system-scheduler v3.0.0 C-01 (tier ladder from systemconfig,
+// replacing the v2 signed schedules-policy file per scan plan decision
+// #4) + api-system-scan-config.
+//
+// The six *Mins fields are the tier ladder: how long after a scan a
+// host in that compliance state waits before its next scheduled scan.
+// Riskier states re-scan sooner. Values are minutes; the scheduler
+// clamps them into [5m, 48h] at load time (C-08), and Normalize
+// applies the same clamp at PUT time so what the operator reads back
+// is what the scheduler runs.
+type ScanConfig struct {
+	Enabled bool `json:"enabled"`
+
+	// Per-state scan intervals in minutes — the tier ladder.
+	UnknownMins         int `json:"unknown_mins"`
+	CriticalMins        int `json:"critical_mins"`
+	NonCompliantMins    int `json:"non_compliant_mins"`
+	PartialMins         int `json:"partial_mins"`
+	MostlyCompliantMins int `json:"mostly_compliant_mins"`
+	CompliantMins       int `json:"compliant_mins"`
+
+	// RateLimit caps hosts dispatched per scheduler tick (1..100).
+	RateLimit int `json:"rate_limit"`
+	// MaintenanceGlobal pauses the entire dispatch loop (mirrors the
+	// connectivity / intelligence / discovery flags).
+	MaintenanceGlobal bool `json:"maintenance_global"`
+}
+
+// DefaultScan returns the baked-in defaults. Auto-scan is ON by
+// default (the OpenWatch OS model is auto-scan centric); the ladder
+// re-scans riskier states sooner.
+//
+//	unknown            —  360m (6h: classified on first scan anyway)
+//	critical           —  240m (4h)
+//	non_compliant      —  480m (8h)
+//	partial            —  720m (12h)
+//	mostly_compliant   — 1440m (24h)
+//	compliant          — 2880m (48h ceiling)
+//	rate_limit         —    25 hosts per tick
+func DefaultScan() ScanConfig {
+	return ScanConfig{
+		Enabled:             true,
+		UnknownMins:         360,
+		CriticalMins:        240,
+		NonCompliantMins:    480,
+		PartialMins:         720,
+		MostlyCompliantMins: 1440,
+		CompliantMins:       2880,
+		RateLimit:           25,
+		MaintenanceGlobal:   false,
+	}
+}
+
+// ScanIntervalMinFloor / ScanIntervalMaxCap bound the ladder values in
+// minutes. They mirror scheduler.MinIntervalFloor / MaxIntervalCap;
+// duplicated as ints here so systemconfig does not import the
+// scheduler package.
+const (
+	ScanIntervalMinFloor = 5
+	ScanIntervalMaxCap   = 2880
+)
+
+// Normalize returns a copy with every ladder value clamped into
+// [ScanIntervalMinFloor, ScanIntervalMaxCap] and the rate limit into
+// [1, 100]. PUT /system/scan/config clamps rather than rejects (scan
+// plan Phase 4: "server clamps to the scheduler's bounds") so operator
+// typos degrade safely instead of bouncing the whole save.
+func (c ScanConfig) Normalize() ScanConfig {
+	clamp := func(v int) int {
+		if v < ScanIntervalMinFloor {
+			return ScanIntervalMinFloor
+		}
+		if v > ScanIntervalMaxCap {
+			return ScanIntervalMaxCap
+		}
+		return v
+	}
+	c.UnknownMins = clamp(c.UnknownMins)
+	c.CriticalMins = clamp(c.CriticalMins)
+	c.NonCompliantMins = clamp(c.NonCompliantMins)
+	c.PartialMins = clamp(c.PartialMins)
+	c.MostlyCompliantMins = clamp(c.MostlyCompliantMins)
+	c.CompliantMins = clamp(c.CompliantMins)
+	if c.RateLimit < 1 {
+		c.RateLimit = 1
+	}
+	if c.RateLimit > 100 {
+		c.RateLimit = 100
+	}
+	return c
+}
+
+// Validate is satisfied by construction after Normalize — kept so the
+// store's Set path stays uniform with the sibling configs. It rejects
+// values Normalize would have fixed, catching callers that skip it.
+func (c ScanConfig) Validate() error {
+	for _, f := range []struct {
+		name string
+		val  int
+	}{
+		{"unknown_mins", c.UnknownMins},
+		{"critical_mins", c.CriticalMins},
+		{"non_compliant_mins", c.NonCompliantMins},
+		{"partial_mins", c.PartialMins},
+		{"mostly_compliant_mins", c.MostlyCompliantMins},
+		{"compliant_mins", c.CompliantMins},
+	} {
+		if f.val < ScanIntervalMinFloor || f.val > ScanIntervalMaxCap {
+			return fmt.Errorf("%w: %s=%d must be %d..%d", ErrInvalidConfig,
+				f.name, f.val, ScanIntervalMinFloor, ScanIntervalMaxCap)
+		}
+	}
+	if c.RateLimit < 1 || c.RateLimit > 100 {
+		return fmt.Errorf("%w: rate_limit=%d must be 1..100", ErrInvalidConfig, c.RateLimit)
 	}
 	return nil
 }

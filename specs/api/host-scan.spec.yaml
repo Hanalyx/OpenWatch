@@ -1,0 +1,91 @@
+spec:
+  id: api-host-scan
+  title: On-demand compliance scan API — POST /hosts/{id}/scans
+  version: "1.0.0"
+  status: approved
+  tier: 2
+
+  context:
+    system: openwatch-go
+    feature: Operator-triggered compliance scan enqueue for a single host
+    description: >
+      POST /api/v1/hosts/{id}/scans creates a scan run (the scan_runs
+      logbook row, trigger_source=on_demand with the caller recorded)
+      and enqueues the HMAC-signed scan job the worker executes via
+      Kensa. The response is 202 + the scan id — the scan itself is
+      asynchronous; results land in host_rule_state/transactions under
+      the same id. The payload is signed with the identical
+      DeriveQueueKey(DEK) derivation the worker verifies, so an
+      endpoint-enqueued job is indistinguishable from a
+      scheduler-enqueued one at the queue boundary.
+    related_specs:
+      - system-scan-runs
+      - system-kensa-executor
+      - system-worker-subcommand
+      - system-idempotency
+      - system-rbac
+
+  objective:
+    summary: >
+      One mutating endpoint: validates the host, enforces single-flight
+      per host, signs + enqueues, records the run + audit trail, and
+      returns 202 {scan_id, status: queued, queued_at}.
+    scope:
+      includes:
+        - POST /api/v1/hosts/{id}/scans
+        - scan_runs Insert (on_demand + requested_by + correlation id)
+        - scan.queued audit emission
+        - 400 / 403 / 404 / 409 envelope behavior
+      excludes:
+        - The worker execution chain (system-kensa-executor,
+          system-scan-runs)
+        - Scheduled enqueue (adaptive scheduler)
+        - Scan history listing (Phase 4/5)
+
+  constraints:
+    - id: C-01
+      description: The enqueued payload MUST be signed with scheduler.DeriveQueueKey(DEK) — the same key and encoding the worker verifies; scan_runs.id MUST equal the queue job id.
+      type: security
+      enforcement: error
+    - id: C-02
+      description: Single-flight per host — when a queued or running scan_runs row exists for the host, the endpoint returns 409 conflict.scan_active naming the existing scan id and MUST NOT enqueue a second job.
+      type: technical
+      enforcement: error
+    - id: C-03
+      description: The endpoint requires host:write; viewers and anonymous callers are rejected before any side effect.
+      type: security
+      enforcement: error
+    - id: C-04
+      description: Idempotency-Key header is required (400 when absent). The 404 host check precedes enqueue and run insertion — no side effects for unknown hosts.
+      type: technical
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: POST /hosts/{id}/scans for an active host as an operator returns 202 with {scan_id, status "queued", queued_at}; a scan_runs row exists with id == scan_id, trigger_source on_demand, requested_by == the caller's user id, status queued; a job_queue row with job_type scan and the same id exists.
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-02
+      description: The enqueued payload verifies against the worker's HMAC check — the in-process worker claims the job and processes it to a terminal scan_runs status (the test harness binds no live Kensa, so terminal means failed with a kensa reason — proving claim, verification, and the logbook pairing end-to-end).
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-03
+      description: POST /hosts/{id}/scans for an unknown host id returns 404 hosts.not_found, and neither a scan_runs row nor a queue job is created.
+      priority: high
+      references_constraints: [C-04]
+    - id: AC-04
+      description: POST without an Idempotency-Key header returns 400.
+      priority: high
+      references_constraints: [C-04]
+    - id: AC-05
+      description: POST as a viewer returns 403 and POST anonymously is rejected (401/403); no scan_runs row is created in either case.
+      priority: high
+      references_constraints: [C-03]
+    - id: AC-06
+      description: With a queued-or-running scan_runs row present for the host, POST returns 409 conflict.scan_active and the job_queue count for the host is unchanged.
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-07
+      description: A successful POST emits exactly one scan.queued audit event whose detail carries scan_id, host_id, and trigger on_demand, attributed to the calling user.
+      priority: high
+      references_constraints: [C-01]

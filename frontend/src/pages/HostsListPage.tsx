@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link, useSearch, useNavigate } from '@tanstack/react-router';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Plus,
   RefreshCw,
@@ -37,7 +37,9 @@ import {
 // pixel-for-pixel:
 //
 //   • Breadcrumb "Infrastructure / Hosts" (set into TopBar via Zustand)
-//   • Page header — title + dynamic subtitle + Run scan / Add host
+//   • Page header — title + dynamic subtitle + Add host (the prototype's
+//     fleet-wide "Run scan" button is intentionally absent until bulk
+//     scan ships — scan plan Phase 5; per-host Scan buttons are live)
 //   • 4 KPI cards (icon, label, value with unit, tier-colored bar, delta meta)
 //   • Fleet alert banner (red) when fleet is in critical state
 //   • Filter bar — search (⌘K hint), Group seg, Filters btn w/ count,
@@ -95,6 +97,22 @@ export interface ApiHost {
   architecture?: string | null;
   platform_identifier?: string | null;
   os_discovered_at?: string | null;
+  /**
+   * v1.3.0 (frontend-hosts-list AC-16) — per-host compliance rollup
+   * from host_rule_state (HostListComplianceSummary in the OpenAPI
+   * contract). null when the host has never been scanned.
+   */
+  compliance_summary?: ApiHostComplianceSummary | null;
+}
+
+export interface ApiHostComplianceSummary {
+  passing: number;
+  failing: number;
+  skipped: number;
+  error: number;
+  total: number;
+  /** Rows with current_status=fail and critical severity. */
+  critical_failing: number;
 }
 
 // Per-vendor accent for the OS chip. Widened to a string-keyed map so
@@ -166,7 +184,32 @@ export function HostsListPage() {
     });
   }, [visible]);
 
+  // Scan-queue KPI: live queued+running counts from scan_runs.
+  // Spec api-host-compliance AC-07 (endpoint) + frontend-hosts-list.
+  const scanQueueQuery = useQuery({
+    queryKey: ['fleet', 'scan_queue'],
+    queryFn: async () => {
+      const { data, error, response } = await api.GET('/api/v1/fleet/scan-queue', {});
+      if (error || !response.ok) {
+        throw new Error(apiErrorMessage(error, `Failed (${response.status})`));
+      }
+      return data;
+    },
+    refetchInterval: 30_000,
+    enabled: !useFixtures,
+  });
+
   const kpis = useFixtures ? devKpis : kpisFromHosts(hosts);
+  if (!useFixtures && scanQueueQuery.data) {
+    const q = scanQueueQuery.data.queued;
+    const r = scanQueueQuery.data.running;
+    kpis.scanQueue = {
+      value: q + r,
+      scope: q + r === 0 ? 'Idle' : `${r} running`,
+      delta: q > 0 ? `${q} queued` : '—',
+      deltaTier: 'neutral',
+    };
+  }
 
   const fleetAlert = useFixtures ? devFleetAlert : fleetAlertFromHosts(hosts);
 
@@ -185,7 +228,7 @@ export function HostsListPage() {
     if (total === 0) return 'No hosts yet.';
     const downCount = hosts.filter((h) => h.status === 'down').length;
     if (downCount > 0) {
-      return `${downCount} of ${total} hosts down. ${kpis.criticalIssues.value} critical issues ${kpis.criticalIssues.scope}.`;
+      return `${downCount} of ${total} hosts down. ${kpis.criticalIssues.value} critical issues (${kpis.criticalIssues.scope}).`;
     }
     return `${total} host${total === 1 ? '' : 's'} tracked.`;
   }, [hosts, hostsQuery.isLoading, useFixtures, kpis.criticalIssues]);
@@ -226,9 +269,9 @@ export function HostsListPage() {
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button type="button" style={btnSecondary} aria-label="Run scan">
-            <RefreshCw size={14} /> Run scan
-          </button>
+          {/* Fleet-wide Run scan ships with bulk scan (plan Phase 5);
+              no dead control until then. Per-host Scan buttons below
+              are live against POST /hosts/{id}/scans. */}
           {canWrite && (
             <Link to="/hosts/new" style={btnPrimary} aria-label="Add host">
               <Plus size={14} /> Add host
@@ -749,6 +792,95 @@ function HostsCards({ hosts }: { hosts: DevHost[] }) {
   );
 }
 
+// ScanHostButton enqueues an on-demand compliance scan via
+// POST /hosts/{id}/scans (idempotency-keyed; spec api-host-scan).
+// 409 means a scan is already queued or running: surfaced as a
+// transient note, not an error. No polling — the scan.completed SSE
+// topic invalidates ['hosts'] when results land. Hidden for callers
+// without host:write.
+function ScanHostButton({ hostId, variant }: { hostId: string; variant: 'card' | 'row' }) {
+  const canWrite = useAuthStore((s) => s.hasPermission('host:write'));
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+
+  if (!canWrite) return null;
+
+  const runScan = async () => {
+    if (busy) return;
+    setBusy(true);
+    setNote(null);
+    try {
+      const { response } = await api.POST('/api/v1/hosts/{id}/scans', {
+        params: {
+          path: { id: hostId },
+          header: { 'Idempotency-Key': crypto.randomUUID() },
+        },
+      });
+      if (response.status === 409) {
+        setNote('Scan already running');
+      } else if (!response.ok) {
+        setNote(`Scan failed (${response.status})`);
+      } else {
+        setNote('Queued');
+      }
+    } catch {
+      setNote('Scan failed');
+    } finally {
+      setBusy(false);
+      window.setTimeout(() => setNote(null), 4000);
+    }
+  };
+
+  if (variant === 'row') {
+    return (
+      <button
+        type="button"
+        style={iconBtnSm}
+        aria-label="Run scan"
+        title={note ?? 'Run an on-demand compliance scan'}
+        disabled={busy}
+        onClick={runScan}
+      >
+        <PlayCircle size={14} />
+      </button>
+    );
+  }
+
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+      {note && (
+        <span role="status" style={{ fontSize: 11, color: 'var(--ow-fg-2)' }}>
+          {note}
+        </span>
+      )}
+      <button
+        type="button"
+        onClick={runScan}
+        disabled={busy}
+        aria-label="Run scan"
+        style={{
+          height: 28,
+          padding: '0 12px',
+          background: 'var(--ow-info)',
+          color: 'var(--ow-info-on)',
+          border: 0,
+          borderRadius: 6,
+          fontSize: 12,
+          fontWeight: 600,
+          cursor: busy ? 'default' : 'pointer',
+          opacity: busy ? 0.6 : 1,
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 5,
+        }}
+      >
+        <PlayCircle size={12} />
+        {busy ? 'Queueing' : 'Scan'}
+      </button>
+    </span>
+  );
+}
+
 function HostCard({ host }: { host: DevHost }) {
   const tier = complianceTier(host.compliance);
   const isDown = host.status === 'down';
@@ -978,30 +1110,11 @@ function HostCard({ host }: { host: DevHost }) {
           <RefreshCw size={12} />
           Last scan {host.lastScan}
         </div>
-        <div style={{ display: 'flex', gap: 4 }}>
+        <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
           <button type="button" style={iconBtnSm} aria-label="View report">
             <BarChart3 size={14} />
           </button>
-          <button
-            type="button"
-            style={{
-              height: 28,
-              padding: '0 12px',
-              background: 'var(--ow-info)',
-              color: 'var(--ow-info-on)',
-              border: 0,
-              borderRadius: 6,
-              fontSize: 12,
-              fontWeight: 600,
-              cursor: 'pointer',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 5,
-            }}
-          >
-            <PlayCircle size={12} />
-            Scan
-          </button>
+          <ScanHostButton hostId={host.id} variant="card" />
         </div>
       </div>
     </article>
@@ -1195,9 +1308,7 @@ function HostRow({ host }: { host: DevHost }) {
       </td>
       <td style={{ ...td, textAlign: 'right' }}>
         <div style={{ display: 'inline-flex', gap: 4, justifyContent: 'flex-end' }}>
-          <button type="button" style={iconBtnSm} aria-label="Run scan">
-            <PlayCircle size={14} />
-          </button>
+          <ScanHostButton hostId={host.id} variant="row" />
           <button type="button" style={iconBtnSm} aria-label="View report">
             <BarChart3 size={14} />
           </button>
@@ -1418,6 +1529,13 @@ export function apiHostToDev(h: ApiHost): DevHost {
       lastScan = formatMinutesAgo(minutesAgo);
     }
   }
+  // v1.3.0 (AC-16): real per-host compliance from the list endpoint's
+  // nullable compliance_summary. A null summary (or a zero-rule summary)
+  // means the host has never been scanned: compliance/passed/failed stay
+  // null so the card keeps the honest "No scan data" rendering with the
+  // "Scan needed" hint instead of a fake 0%.
+  const cs = h.compliance_summary ?? null;
+  const hasScanData = cs !== null && cs.total > 0;
   return {
     id: h.id,
     hostname: h.hostname,
@@ -1426,26 +1544,43 @@ export function apiHostToDev(h: ApiHost): DevHost {
     status: reachable ? 'online' : 'down',
     monitoring,
     maintenance: h.maintenance_mode === true,
-    compliance: null,
-    passed: null,
-    failed: null,
-    total: 0,
+    compliance: hasScanData ? Math.round((cs.passing / cs.total) * 1000) / 10 : null,
+    passed: hasScanData ? cs.passing : null,
+    failed: hasScanData ? cs.failing : null,
+    total: hasScanData ? cs.total : 0,
+    criticalFailing: cs?.critical_failing ?? 0,
     lastCheckMinutes,
     lastScan,
   };
 }
 
-function kpisFromHosts(hosts: DevHost[]) {
+export function kpisFromHosts(hosts: DevHost[]) {
   const total = hosts.length;
   const online = hosts.filter((h) => h.status === 'online').length;
-  const totalRules = hosts.reduce((n, h) => n + h.total, 0);
-  const totalPassed = hosts.reduce((n, h) => n + (h.passed ?? 0), 0);
+  // v1.3.0 (AC-17): the fleet average is rule-weighted over hosts WITH
+  // scan data only. Never-scanned hosts (compliance null, total 0) are
+  // excluded entirely rather than dragging the average down as zeros.
+  const scanned = hosts.filter((h) => h.compliance != null && h.total > 0);
+  const totalRules = scanned.reduce((n, h) => n + h.total, 0);
+  const totalPassed = scanned.reduce((n, h) => n + (h.passed ?? 0), 0);
   const avgCompliance = totalRules > 0 ? Math.round((totalPassed / totalRules) * 1000) / 10 : 0;
+  // v1.3.0 (AC-18): critical issues = sum of critical_failing across the
+  // fleet; the scope counts how many hosts contribute at least one.
+  const criticalIssues = hosts.reduce((n, h) => n + (h.criticalFailing ?? 0), 0);
+  const affectedHosts = hosts.filter((h) => (h.criticalFailing ?? 0) > 0).length;
   const neutral = 'neutral' as const;
   return {
     hostsOnline: { value: online, total, delta: '', deltaTier: neutral },
     avgCompliance: { value: avgCompliance, target: 80, delta: '', deltaTier: neutral },
-    criticalIssues: { value: 0, scope: 'No data', delta: '', deltaTier: neutral },
+    criticalIssues: {
+      value: criticalIssues,
+      scope:
+        criticalIssues > 0
+          ? `${affectedHosts} host${affectedHosts === 1 ? '' : 's'} affected`
+          : 'No data',
+      delta: '',
+      deltaTier: neutral,
+    },
     scanQueue: { value: 0, scope: 'Idle', delta: '—', deltaTier: neutral },
   } satisfies import('@/api/dev-fixtures').DevKpis;
 }

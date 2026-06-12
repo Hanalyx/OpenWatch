@@ -1,7 +1,7 @@
 spec:
   id: api-events-stream
   title: SSE live-events stream for the operator UI
-  version: "1.0.0"
+  version: "1.1.0"
   status: approved
   tier: 2
 
@@ -83,6 +83,10 @@ spec:
       description: 'SSE message frames MUST use LF line endings (not CRLF). The spec mandates the format event-line, data-line, blank-terminator with single newlines'
       type: technical
       enforcement: error
+    - id: C-08
+      description: 'v1.1.0 — the handler MUST clear the per-connection write deadline (http.NewResponseController(w).SetWriteDeadline(time.Time{})) before entering the stream loop. The http.Server''s global WriteTimeout (60s) otherwise hard-kills every stream at the deadline: the first write after it fails, the handler returns, and the subscription silently dies while proxied clients (Vite dev proxy, some LBs) never observe the close and never reconnect — every subsequent publish lands on a bus with no subscribers. Observed live before the fix: subscribe -> unsubscribe at exactly +60s. The 15s keepalives plus client-disconnect ctx cancellation bound the connection lifetime instead; the subscription lifecycle MUST be logged (sse subscribed / sse unsubscribed) so a recurrence is visible in operations'
+      type: technical
+      enforcement: error
 
   acceptance_criteria:
     - id: AC-01
@@ -113,3 +117,7 @@ spec:
       description: 'When r.Context() is canceled (client disconnect), the handler returns within 500ms. The eventbus subscription is unsubscribed — verified via Bus.Metrics where NoSubscribersCount advances on the next publish.'
       priority: high
       references_constraints: [C-03, C-04]
+    - id: AC-08
+      description: 'Source-inspection of sse_handler.go — SetWriteDeadline(time.Time{}) via http.NewResponseController is called before the stream loop, and both "sse subscribed" and "sse unsubscribed" lifecycle logs are present. A stream subscription survives past the http.Server WriteTimeout (60s).'
+      priority: critical
+      references_constraints: [C-08]

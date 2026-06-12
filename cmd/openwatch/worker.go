@@ -30,6 +30,8 @@ import (
 	openlog "github.com/Hanalyx/openwatch/internal/log"
 	"github.com/Hanalyx/openwatch/internal/scheduler"
 	"github.com/Hanalyx/openwatch/internal/secretkey"
+	owssh "github.com/Hanalyx/openwatch/internal/ssh"
+	"github.com/Hanalyx/openwatch/internal/systemconfig"
 	"github.com/Hanalyx/openwatch/internal/transactionlog"
 	"github.com/Hanalyx/openwatch/internal/version"
 	"github.com/Hanalyx/openwatch/internal/worker"
@@ -149,11 +151,56 @@ func cmdWorker(cfg *config.Config, args []string, stdout, stderr *os.File) int {
 		}
 	}
 
-	// Wire the scan-job execution chain.
+	// Wire the scan-job execution chain. The production ScanFunc loads
+	// the kensa-rules corpus once and composes the scan-only Kensa over
+	// the in-memory transport. Host-key policy matches the discovery
+	// transport: TOFU + memory store. Spec system-kensa-executor C-13 /
+	// AC-18.
+	//
+	// Corpus resolution (C-16): production — including air-gapped
+	// installs, the primary deployment target — relies on the signed
+	// kensa-rules package at the loader's default path
+	// (/usr/share/kensa/rules), declared as a dependency of the
+	// OpenWatch RPM/DEB. OPENWATCH_KENSA_RULES_DIR is a DEVELOPMENT
+	// override only; using it is warned loudly so it cannot creep into
+	// a production runbook unnoticed.
 	credSvc := credential.NewService(pool)
 	bridge := worker.NewCredentialBridge(credSvc)
-	executor := kensa.NewExecutor(bridge, audit.Emit)
+	rulesDir := os.Getenv("OPENWATCH_KENSA_RULES_DIR")
+	if rulesDir != "" {
+		slog.WarnContext(bootCtx, "OPENWATCH_KENSA_RULES_DIR override in use — DEVELOPMENT ONLY; production (especially air-gapped) installs the signed kensa-rules package and must not set this",
+			slog.String("rules_dir", rulesDir))
+	}
+	scanFn, err := kensa.NewProductionScanFunc(kensa.ScanFuncDeps{
+		Pool:        pool,
+		Credentials: credSvc,
+		RulesDir:    rulesDir,
+		HostKeyMode: owssh.ModeTOFU,
+		KnownHosts:  owssh.NewMemoryStore(),
+	})
+	if err != nil {
+		slog.ErrorContext(bootCtx, "kensa scan wiring failed — is the kensa-rules package installed (or OPENWATCH_KENSA_RULES_DIR set)?",
+			slog.String("error", err.Error()))
+		return 1
+	}
+	executor := kensa.NewExecutor(bridge, audit.Emit).WithScanFunc(scanFn)
 	writer := transactionlog.NewWriter(pool, audit.Emit)
+
+	// Post-scan schedule updates run here too: the dedicated worker
+	// classifies each completed scan into a compliance state so
+	// host_compliance_schedule stays fresh whichever process executed
+	// the scan. Ladder snapshot is boot-time config; the serve
+	// process's RunManaged tick owns dispatch + live reload.
+	// Spec system-scheduler v3.0.0 AC-08.
+	scanCfg, scanCfgErr := systemconfig.NewStore(pool, audit.Emit).LoadScan(bootCtx)
+	if scanCfgErr != nil {
+		slog.WarnContext(bootCtx, "worker: scan config load failed; schedule updates use defaults",
+			slog.String("error", scanCfgErr.Error()))
+		scanCfg = systemconfig.DefaultScan()
+	}
+	sched := scheduler.NewService(pool, scheduler.LoadFromConfig(scanCfg), queueKey, audit.Emit)
+	sched.Reload(scheduler.LoadFromConfig(scanCfg), scanCfg.RateLimit,
+		!scanCfg.Enabled || scanCfg.MaintenanceGlobal)
 
 	scanWorker := worker.NewScanWorker(worker.Config{
 		Pool:         pool,
@@ -162,6 +209,7 @@ func cmdWorker(cfg *config.Config, args []string, stdout, stderr *os.File) int {
 		QueueKey:     queueKey,
 		PollInterval: *pollInterval,
 		Emit:         audit.Emit,
+		Sched:        sched,
 	})
 
 	ctx, stop := signal.NotifyContext(bootCtx, syscall.SIGINT, syscall.SIGTERM)

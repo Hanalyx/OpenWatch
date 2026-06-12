@@ -18,6 +18,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/fleetrollup"
 	"github.com/Hanalyx/openwatch/internal/host"
 	"github.com/Hanalyx/openwatch/internal/intelligence/discovery"
+	"github.com/Hanalyx/openwatch/internal/kensa"
 	"github.com/Hanalyx/openwatch/internal/license"
 	"github.com/Hanalyx/openwatch/internal/liveness"
 	"github.com/Hanalyx/openwatch/internal/policy"
@@ -69,6 +70,17 @@ type handlers struct {
 	// that don't exercise /activity.
 	// Spec system-activity + api-activity.
 	activitySvc *activity.Service
+
+	// On-demand scan enqueue. Set via (*Server).WithScanQueue; nil
+	// disables POST /hosts/{id}/scans (503), e.g. in tests that don't
+	// exercise it. The key is scheduler.DeriveQueueKey output — the
+	// same HMAC key the worker verifies. Spec api-host-scan.
+	scanQueueKey []byte
+
+	// Kensa rule catalog. Set via (*Server).WithRuleCatalog; nil is
+	// fine — the failed-rules endpoint falls back to rule ids for
+	// titles. Spec api-host-compliance.
+	ruleCatalog *kensa.RuleCatalog
 }
 
 // newHandlers constructs the ServerInterface implementation. The user
