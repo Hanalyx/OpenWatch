@@ -417,7 +417,12 @@ export function HostDetailPage() {
                 aria-label="Overview body"
               >
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0 }}>
-                  <CardTopFailed />
+                  <CardTopFailed
+                    hostId={detailQuery.data.host.id}
+                    framework={framework}
+                    hasScanData={detailQuery.data.compliance_summary.total > 0}
+                    onViewAll={() => goToTab('compliance')}
+                  />
                   <CardServerIntel hostId={detailQuery.data.host.id} />
                   <CardComplianceTrend />
                 </div>
@@ -1319,14 +1324,191 @@ function WatchlistRow({
 // Right column: CardSystem, CardRecentActivity
 // ─────────────────────────────────────────────────────────────────────────
 
-function CardTopFailed() {
-  return (
-    <Card title="Top failed rules">
+// CardTopFailed renders the five worst failing rules from
+// GET /hosts/{id}/compliance/failed-rules (severity-ordered server
+// side). The query key is prefixed ['host', hostId] ON PURPOSE: the
+// scan.completed SSE handler invalidates that prefix, so this card
+// refreshes after every scan with no extra wiring. Evidence is never
+// requested or displayed (api-host-compliance C-02).
+//
+// Spec: frontend-host-detail v1.2.0 AC-37.
+function CardTopFailed({
+  hostId,
+  framework,
+  hasScanData,
+  onViewAll,
+}: {
+  hostId: string;
+  framework?: string;
+  hasScanData: boolean;
+  onViewAll: () => void;
+}) {
+  const failedQuery = useQuery({
+    queryKey: ['host', hostId, 'failed_rules', framework ?? null],
+    queryFn: async () => {
+      const { data, error, response } = await api.GET(
+        '/api/v1/hosts/{id}/compliance/failed-rules',
+        {
+          params: {
+            path: { id: hostId },
+            query: { limit: 5, ...(framework ? { framework } : {}) },
+          },
+        },
+      );
+      if (error || !response.ok) {
+        throw new Error(apiErrorMessage(error, `Failed to load (${response.status})`));
+      }
+      return data;
+    },
+  });
+
+  let body: React.ReactNode;
+  // isPending (not isLoading): isLoading goes false between retry
+  // attempts, which would fall through to the zero-failing branch with
+  // no data and render a false "No failing rules".
+  if (failedQuery.isPending) {
+    body = (
+      <div role="status" style={{ color: 'var(--ow-fg-3)', fontSize: 12, padding: '12px 0' }}>
+        Loading failed rules
+      </div>
+    );
+  } else if (failedQuery.isError) {
+    body = (
+      <div
+        role="alert"
+        style={{
+          color: 'var(--ow-crit)',
+          fontSize: 12,
+          padding: '12px 0',
+          display: 'flex',
+          gap: 10,
+          alignItems: 'center',
+        }}
+      >
+        <span>{apiErrorMessage(failedQuery.error, 'Failed to load failed rules')}</span>
+        <button
+          type="button"
+          onClick={() => failedQuery.refetch()}
+          style={{
+            background: 'none',
+            border: '1px solid var(--ow-line)',
+            borderRadius: 6,
+            color: 'var(--ow-fg-1)',
+            fontSize: 11,
+            padding: '2px 8px',
+            cursor: 'pointer',
+          }}
+        >
+          Retry
+        </button>
+      </div>
+    );
+  } else if (!hasScanData) {
+    body = (
       <EmptyState
         primary="No scan results yet"
         secondary="Populated by the compliance scanner (Kensa). Until a scan completes, host_rule_state is empty for this host."
       />
-    </Card>
+    );
+  } else if ((failedQuery.data?.total_failing ?? 0) === 0) {
+    body = (
+      <EmptyState
+        primary="No failing rules"
+        secondary="The last scan passed every rule that applies to this host."
+      />
+    );
+  } else {
+    const rules = failedQuery.data?.rules ?? [];
+    const total = failedQuery.data?.total_failing ?? rules.length;
+    body = (
+      <>
+        <div role="list" aria-label="Top failed rules">
+          {rules.map((rule) => (
+            <div
+              key={rule.rule_id}
+              role="listitem"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                padding: '8px 0',
+                borderTop: '1px solid var(--ow-line)',
+              }}
+            >
+              <SeverityPill severity={rule.severity} />
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div
+                  style={{
+                    color: 'var(--ow-fg-0)',
+                    fontSize: 13,
+                    fontWeight: 500,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {rule.title}
+                </div>
+                <div style={{ color: 'var(--ow-fg-3)', fontSize: 11 }}>
+                  <span style={{ fontFamily: 'var(--ow-font-mono)' }}>
+                    {rule.control_ids.length > 0 ? rule.control_ids.join(', ') : rule.rule_id}
+                  </span>
+                  {rule.category ? <span> · {rule.category}</span> : null}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+        <button
+          type="button"
+          onClick={onViewAll}
+          style={{
+            marginTop: 10,
+            width: '100%',
+            background: 'none',
+            border: 'none',
+            color: 'var(--ow-info)',
+            fontSize: 12,
+            cursor: 'pointer',
+            textAlign: 'left',
+            padding: 0,
+          }}
+        >
+          View all {total} failed rules
+        </button>
+      </>
+    );
+  }
+
+  return <Card title="Top failed rules">{body}</Card>;
+}
+
+// SeverityPill maps a rule severity onto the prototype's sev badge
+// tiers (critical and high share the crit tint, matching the mockup).
+function SeverityPill({ severity }: { severity: string }) {
+  const s = severity.toLowerCase();
+  const tier =
+    s === 'critical' || s === 'high'
+      ? { fg: 'var(--ow-crit)', label: s === 'critical' ? 'Crit' : 'High' }
+      : s === 'medium'
+        ? { fg: 'var(--ow-warn)', label: 'Med' }
+        : { fg: 'var(--ow-info)', label: s === 'low' ? 'Low' : 'Info' };
+  return (
+    <span
+      style={{
+        flexShrink: 0,
+        fontSize: 10,
+        fontWeight: 600,
+        textTransform: 'uppercase',
+        letterSpacing: '0.04em',
+        color: tier.fg,
+        border: `1px solid color-mix(in oklab, ${tier.fg} 40%, transparent)`,
+        borderRadius: 999,
+        padding: '2px 8px',
+      }}
+    >
+      {tier.label}
+    </span>
   );
 }
 

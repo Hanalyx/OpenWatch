@@ -1,7 +1,7 @@
 spec:
   id: frontend-host-detail
   title: Host Detail page layout, behavior, and empty-state contracts
-  version: "1.1.0"
+  version: "1.2.0"
   status: approved
   tier: 2
 
@@ -221,3 +221,7 @@ spec:
       description: 'v1.1.0 — the page-head Run scan button is LIVE (no longer a disabled placeholder): it POSTs /api/v1/hosts/{id}/scans with a crypto.randomUUID() Idempotency-Key header, disables itself while the request is pending, surfaces a 409 as a transient "Scan already running" note (not an error), and does NOT poll — the result refresh arrives via the scan.completed SSE topic (frontend-live-events C-07).'
       priority: critical
       references_constraints: [C-07]
+    - id: AC-37
+      description: 'v1.2.0 — the Top failed rules card is LIVE: it queries GET /api/v1/hosts/{id}/compliance/failed-rules with limit 5 (plus the ?framework= search param when present) under query key ["host", hostId, "failed_rules", ...] — prefixed ["host", hostId] so the scan.completed SSE invalidation refreshes it with no extra wiring. Rows render severity pill, catalog title, control ids (or native rule id) and category; the footer "View all N failed rules" uses total_failing and routes to the Compliance tab. Three honest states: never-scanned keeps the original empty copy, zero failing renders "No failing rules", and errors render inline with a Retry. Evidence is never requested or displayed (api-host-compliance C-02). No Remediate action until Phase 7.'
+      priority: critical
+      references_constraints: [C-10]
