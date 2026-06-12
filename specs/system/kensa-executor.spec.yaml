@@ -10,7 +10,7 @@ spec:
     feature: Kensa scan execution bridge
     description: >
       The executor invokes Kensa (Go module github.com/Hanalyx/kensa
-      pinned to v0.2.1) to run a scan against a single host using the
+      pinned to v0.3.1) to run a scan against a single host using the
       FULL rule corpus applicable to the host's detected OS
       capabilities. The Kensa API (`Kensa.Scan(ctx, host, rules,
       opts...)` per kensa-go/api/kensa.go:228) takes a `[]*api.Rule`

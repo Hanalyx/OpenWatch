@@ -10,7 +10,7 @@ import (
 // KensaModuleVersion is the version pin recorded in the spec's context
 // block. AC-10 source-inspects to verify this matches the corresponding
 // entry in app/go.mod.
-const KensaModuleVersion = "v0.2.1"
+const KensaModuleVersion = "v0.3.1"
 
 // Sentinel errors returned by Executor.Run. Tests use errors.Is for
 // classification; the audit emission path maps each to a typed

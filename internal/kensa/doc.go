@@ -32,7 +32,7 @@
 //     is invoked directly via *kensa.Kensa. Spec AC-12 source-inspects
 //     to confirm no type `ScanEngine interface` (or similar) is declared.
 //
-// Kensa version pin: github.com/Hanalyx/kensa v0.1.1 (matches the
+// Kensa version pin: github.com/Hanalyx/kensa v0.3.1 (matches the
 // version recorded in the spec's context block; AC-10 verifies the
-// match between this comment, the spec, and app/go.mod).
+// match between this comment, the spec, and go.mod).
 package kensa
