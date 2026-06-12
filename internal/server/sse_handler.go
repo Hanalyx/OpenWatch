@@ -20,6 +20,7 @@ package server
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -68,6 +69,19 @@ func (h *handlers) GetEventsStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// SSE is a long-lived stream: the http.Server's global WriteTimeout
+	// (60s) would otherwise hard-kill this response at the deadline —
+	// the first write after it fails, the handler returns, and the
+	// subscription silently dies (observed live: subscribe ->
+	// unsubscribe at exactly +60.001s, bus_no_subscribers on every
+	// publish after that). Clear the per-connection write deadline for
+	// THIS stream only; the 15s keepalives + client disconnect (ctx
+	// cancellation) bound the connection's lifetime instead.
+	if err := http.NewResponseController(w).SetWriteDeadline(time.Time{}); err != nil {
+		slog.WarnContext(r.Context(), "sse: clear write deadline failed; stream will die at the server WriteTimeout",
+			slog.String("error", err.Error()))
+	}
+
 	// SSE headers. text/event-stream is mandatory; Cache-Control
 	// prevents intermediaries from buffering; X-Accel-Buffering
 	// tells nginx to disable its proxy buffer on a per-response basis.
@@ -79,7 +93,13 @@ func (h *handlers) GetEventsStream(w http.ResponseWriter, r *http.Request) {
 	flusher.Flush()
 
 	sub := h.bus.Subscribe(eventbus.SubscribeOptions{Kinds: topics})
-	defer sub.Unsubscribe()
+	slog.InfoContext(r.Context(), "sse subscribed",
+		slog.Any("topics", topics))
+	defer func() {
+		sub.Unsubscribe()
+		slog.InfoContext(r.Context(), "sse unsubscribed",
+			slog.Any("topics", topics))
+	}()
 
 	// Keepalive heartbeats every 15s — a comment line (":keepalive\n\n")
 	// is ignored by EventSource but keeps the TCP socket warm through

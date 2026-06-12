@@ -308,6 +308,8 @@ func (w *ScanWorker) ProcessJob(ctx context.Context, j *queue.Job) {
 
 	// Announce on the event bus so SSE clients refresh compliance
 	// surfaces without polling. Spec api-host-scan / frontend-live-events.
+	// The post-publish metrics snapshot makes silent drops (no
+	// subscriber registered / buffer full) visible in the log.
 	if w.bus != nil {
 		w.bus.Publish(ctx, eventbus.ScanCompleted{
 			ScanID:      j.ID,
@@ -318,6 +320,18 @@ func (w *ScanWorker) ProcessJob(ctx context.Context, j *queue.Job) {
 			Errored:     counts.Error,
 			CompletedAt: w.clock().UTC(),
 		})
+		m := w.bus.Metrics().Snapshot()
+		slog.InfoContext(ctx, "scan completed; scan.completed published",
+			slog.String("scan_id", j.ID.String()),
+			slog.String("host_id", payload.HostID.String()),
+			slog.Int("pass", counts.Pass), slog.Int("fail", counts.Fail),
+			slog.Int64("bus_published", m.PublishedCount),
+			slog.Int64("bus_delivered", m.DeliveredCount),
+			slog.Int64("bus_no_subscribers", m.NoSubscribersCount),
+			slog.Int64("bus_dropped", m.DroppedCount))
+	} else {
+		slog.InfoContext(ctx, "scan completed; no event bus wired (dedicated worker)",
+			slog.String("scan_id", j.ID.String()))
 	}
 
 	// Reset backoff streak on success.

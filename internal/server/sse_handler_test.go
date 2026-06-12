@@ -262,3 +262,32 @@ func withMergedIdentity(dst, src context.Context) context.Context {
 	}
 	return auth.SetIdentity(dst, id)
 }
+
+// @ac AC-08
+// v1.1.0 C-08: the stream must outlive the http.Server WriteTimeout.
+// Source-inspection — the per-connection write deadline is cleared via
+// http.NewResponseController before the loop, and the subscription
+// lifecycle is logged so a silent-death recurrence is operationally
+// visible.
+func TestSSE_WriteDeadlineCleared_SourceInspection(t *testing.T) {
+	t.Run("api-events-stream/AC-08", func(t *testing.T) {
+		wd, err := os.Getwd()
+		if err != nil {
+			t.Fatalf("getwd: %v", err)
+		}
+		raw, err := os.ReadFile(filepath.Join(wd, "sse_handler.go"))
+		if err != nil {
+			t.Fatalf("read sse_handler.go: %v", err)
+		}
+		src := string(raw)
+		for _, needle := range []string{
+			"http.NewResponseController(w).SetWriteDeadline(time.Time{})",
+			`"sse subscribed"`,
+			`"sse unsubscribed"`,
+		} {
+			if !strings.Contains(src, needle) {
+				t.Errorf("sse_handler.go missing %q — streams die at the server WriteTimeout without it (C-08)", needle)
+			}
+		}
+	})
+}
