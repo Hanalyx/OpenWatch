@@ -42,7 +42,7 @@
 |------|----------|--------|-------|
 | Top failed rules card | P1 | **Done** (PR #515) | Live against GET /hosts/{id}/compliance/failed-rules with catalog titles |
 | Compliance trend (last 30 days) card | P1 | **Done** (PR #518) | Live sparkline against the 80% target line from posture_snapshots (system-posture-snapshots); GET /hosts/{id}/compliance/trend. Fleet equivalent powers the hosts-list avg-compliance delta |
-| Open exceptions count on Server intelligence tile #6 | P2 | Placeholder | Renders `—`. Exception governance is scan plan Phase 7 (suppress + skip_reason over host_rule_state); feeds this tile + the host-detail Watchlist Exceptions row + the Settings Exception-workflow stub |
+| Open exceptions count on Server intelligence tile #6 | P2 | **Done** (PR #522) | Live active-exception count via useHostExceptions; the Watchlist row + Compliance-tab Waived/Pending badges + the Settings fleet approver queue (PR #523) all ship the exception governance loop |
 | Updates-pending count on Server intelligence tile #1 | P2 | Placeholder | Renders "No updates pending" always. Needs: collector to surface `available_updates` field on the snapshot (apt/dnf unattended-upgrades parsing) |
 
 ---
@@ -58,7 +58,7 @@
 | Network | P1 | Wired | Renders `intelligenceStateQuery.data.network_interfaces` + `listening_ports` + firewall from `host_system_info` |
 | Audit log | P2 | Stub | Needs host-scoped `audit_events` API hook |
 | Activity | P1 | Stub | **Where "View all" lands today.** Needs full-feed renderer with cursor pagination + source/severity filters on the unified `/api/v1/activity?host_id=X` endpoint |
-| Remediation | P2 | Stub | Kensa Phase 4 (K-2/K-3 done, K-4 risk-aware policies + K-5 snapshot retention pending) |
+| Remediation | P2 | Not started (scoping required) | Host-mutating fixes (apply + rollback). The last scan-plan piece; plan + the five decisions in `docs/engineering/scan_remaining_work.md` |
 | Terminal | P3 | Stub | Browser-based SSH terminal. Web terminal lib + SSH-WS bridge needed |
 
 ---
