@@ -1,0 +1,92 @@
+spec:
+  id: frontend-dashboard
+  title: Dashboard (authenticated fleet overview)
+  version: "1.0.0"
+  status: approved
+  tier: 2
+
+  context:
+    system: openwatch-go
+    feature: The authenticated /dashboard fleet overview — a default grid of widgets, each a lens into a live fleet endpoint
+    description: >
+      /dashboard is the authenticated home (the public homepage lives at
+      "/"; see frontend-homepage). It renders a default grid of read-only
+      widgets wired to fleet endpoints that already ship: liveness, score,
+      scan-queue, compliance trend, top-failing rules, top-failing hosts,
+      and the unified activity feed.
+
+      The openwatch-v1 Dashboard.html prototype additionally specifies
+      per-role presets, a time-range control, and a drag/drop edit mode
+      with an add-widget tray. Those are intentionally DEFERRED for the
+      MVP: this spec covers a single sensible default layout with honest
+      per-widget loading / empty / error states. The archived
+      Python-era Dashboard.tsx (git 7652c1b8) is a design reference only;
+      it is not ported (it targets react-router-dom + the old axios
+      service layer, neither of which exists in the Go-rebuild frontend).
+    related_specs:
+      - frontend-foundation
+      - api-host-compliance
+      - api-activity
+
+  objective:
+    summary: >
+      Visiting /dashboard authenticated renders the widget grid; each
+      widget independently loads from its live endpoint and degrades to a
+      loading / empty / error state without taking down the page. The
+      dashboard is read-only.
+    scope:
+      includes:
+        - 'DashboardPage mounted at /dashboard under the protected subtree'
+        - 'KPI widgets: hosts online (fleet/liveness), avg compliance (fleet/score), scan queue (fleet/scan-queue)'
+        - 'Trend widget (fleet/compliance/trend) as a sparkline'
+        - 'Top failing rules (fleet/top-failing-rules) + top failing hosts (fleet/top-failing-hosts)'
+        - 'Recent activity (/api/v1/activity)'
+        - 'Per-widget loading / empty / error states'
+      excludes:
+        - 'Role presets + per-role layouts (deferred)'
+        - 'Time-range control (deferred)'
+        - 'Drag/drop edit mode + add-widget tray + layout persistence (deferred)'
+        - 'Any new backend endpoint (all widgets read endpoints that already ship)'
+
+  constraints:
+    - id: C-01
+      description: >-
+        The dashboard widgets MUST read only endpoints that already ship:
+        /api/v1/fleet/liveness, /api/v1/fleet/score,
+        /api/v1/fleet/scan-queue, /api/v1/fleet/compliance/trend,
+        /api/v1/fleet/top-failing-rules, /api/v1/fleet/top-failing-hosts,
+        and /api/v1/activity. No new backend endpoint is added for the
+        dashboard
+      type: technical
+      enforcement: error
+    - id: C-02
+      description: >-
+        Each widget MUST own its query (independent useQuery) and render
+        loading, empty, and error states locally, so one endpoint failing
+        does not blank the whole page
+      type: technical
+      enforcement: error
+    - id: C-03
+      description: >-
+        The dashboard MUST be read-only: it issues no mutating request
+        (no api.POST / PUT / DELETE). UI copy carries no em-dashes
+      type: technical
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: 'Source-inspection — router.tsx mounts DashboardPage at path "dashboard" under protectedRoute, and DashboardPage composes the KPI widgets (hosts online, avg compliance, scan queue) plus the trend, top-failing-rules, top-failing-hosts, and recent-activity widgets.'
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-02
+      description: 'Source-inspection — the widgets module issues api.GET against each of the seven live endpoints (fleet/liveness, fleet/score, fleet/scan-queue, fleet/compliance/trend, fleet/top-failing-rules, fleet/top-failing-hosts, /api/v1/activity), each inside a useQuery.'
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-03
+      description: 'Source-inspection — every widget branches on isPending and isError to render loading and error states (WidgetState), so a single endpoint failure is contained to its widget.'
+      priority: high
+      references_constraints: [C-02]
+    - id: AC-04
+      description: 'Source-inspection — the dashboard modules contain no api.POST / api.PUT / api.DELETE call (read-only), and dashboard UI copy contains no em-dash.'
+      priority: high
+      references_constraints: [C-03]
