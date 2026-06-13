@@ -21,6 +21,7 @@ import (
 	"errors"
 	"math"
 	"net/http"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -250,7 +251,8 @@ func (h *handlers) GetHostComplianceFrameworks(
 	ctx := r.Context()
 	hostID := uuid.UUID(id)
 
-	if _, err := h.hosts.GetByID(ctx, hostID); err != nil {
+	hostRow, err := h.hosts.GetByID(ctx, hostID)
+	if err != nil {
 		if errors.Is(err, host.ErrHostNotFound) {
 			writeError(w, http.StatusNotFound, "hosts.not_found", "client",
 				"host not found", false)
@@ -259,6 +261,13 @@ func (h *handlers) GetHostComplianceFrameworks(
 		writeError(w, http.StatusInternalServerError, "server.error", "server",
 			"lookup failed", true)
 		return
+	}
+	osFamily, osVersion := "", ""
+	if hostRow.OSFamily != nil {
+		osFamily = *hostRow.OSFamily
+	}
+	if hostRow.OSVersion != nil {
+		osVersion = *hostRow.OSVersion
 	}
 
 	// Distinct framework keys with mapped-rule counts AND per-lens
@@ -291,6 +300,14 @@ func (h *handlers) GetHostComplianceFrameworks(
 			writeError(w, http.StatusInternalServerError, "server.error", "server",
 				"frameworks scan failed", true)
 			return
+		}
+		// OS-aware lens filtering (spec C-06): a version-pinned
+		// framework only lists when it matches the host's detected OS;
+		// OS-neutral frameworks (NIST, PCI, SRG) always list. The keys
+		// exist because shared rules carry refs for several framework
+		// versions; offering a RHEL 9 lens on a RHEL 8 host is noise.
+		if !frameworkCompatibleWithOS(item.FrameworkId, osFamily, osVersion) {
+			continue
 		}
 		item.Passing = int(passing)
 		item.Failing = int(failing)
@@ -339,4 +356,59 @@ func firstSentence(s string) string {
 		return s[:159] + "."
 	}
 	return s
+}
+
+// osFamilyTokens are the OS family names a framework id may embed as a
+// version-pinned segment (e.g. "rhel8" inside cis_rhel8). Segments not
+// matching any of these (nist, 800, dss, plain numbers) never mark a
+// framework OS-specific.
+var osFamilyTokens = map[string]bool{
+	"rhel": true, "centos": true, "rocky": true, "alma": true,
+	"ol": true, "ubuntu": true, "debian": true, "sles": true,
+	"amzn": true, "windows": true,
+}
+
+// osPinnedSegment matches one underscore-separated segment that pins a
+// framework to an OS release: a known family name immediately followed
+// by digits ("rhel8", "ubuntu2404").
+var osPinnedSegment = regexp.MustCompile(`^([a-z]+)(\d+)$`)
+
+// frameworkCompatibleWithOS reports whether a framework lens should be
+// offered for a host with the given detected OS (spec C-06):
+//
+//   - ids with no OS-pinned segment are OS-neutral -> always true
+//   - an undiscovered host (empty family) cannot be judged -> true
+//   - otherwise the pinned family must equal the host family, and the
+//     pinned digits must equal the host's major version (or the
+//     major+minor concatenation, covering ubuntu2404 vs "24.04")
+func frameworkCompatibleWithOS(frameworkID, osFamily, osVersion string) bool {
+	pinFamily, pinVersion := "", ""
+	for _, seg := range strings.Split(strings.ToLower(frameworkID), "_") {
+		m := osPinnedSegment.FindStringSubmatch(seg)
+		if m != nil && osFamilyTokens[m[1]] {
+			pinFamily, pinVersion = m[1], m[2]
+			break
+		}
+	}
+	if pinFamily == "" {
+		return true // OS-neutral framework
+	}
+	if osFamily == "" {
+		return true // host OS unknown; cannot judge, do not hide
+	}
+	if pinFamily != strings.ToLower(osFamily) {
+		return false
+	}
+	if osVersion == "" {
+		return true // family matches; no version to compare
+	}
+	parts := strings.SplitN(osVersion, ".", 3)
+	major := parts[0]
+	if pinVersion == major {
+		return true
+	}
+	if len(parts) > 1 && pinVersion == major+parts[1] {
+		return true // ubuntu2404 vs "24.04"
+	}
+	return false
 }
