@@ -18,6 +18,7 @@ import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { RefreshCw } from 'lucide-react';
 import api from '@/api/client';
+import { useHostExceptions } from '@/hooks/useHostExceptions';
 
 // Snapshot keys mirror collector.Snapshot (Go struct in
 // internal/intelligence/collector/types.go). additionalProperties is
@@ -73,6 +74,11 @@ export function CardServerIntel({ hostId }: CardServerIntelProps) {
     retry: false,
   });
 
+  // Open-exceptions tile data comes from the exception governance
+  // service, not the intel snapshot (overlay model). Shared query key
+  // with the Watchlist tile = one round-trip.
+  const exc = useHostExceptions(hostId);
+
   // 404 → query.data === null (resolved success), the view renders the
   // "Not collected yet" empty state below.
   return (
@@ -83,6 +89,7 @@ export function CardServerIntel({ hostId }: CardServerIntelProps) {
       snapshot={query.data ?? undefined}
       collectedAt={query.data?.collected_at}
       onRetry={() => query.refetch()}
+      activeExceptions={exc.activeCount}
     />
   );
 }
@@ -97,6 +104,9 @@ export interface CardServerIntelViewProps {
   snapshot?: IntelligenceSnapshot;
   collectedAt?: string;
   onRetry: () => void;
+  // Active (approved, unexpired) exception count for the Open
+  // exceptions tile. Undefined renders the dash placeholder.
+  activeExceptions?: number;
 }
 
 export function CardServerIntelView({
@@ -106,6 +116,7 @@ export function CardServerIntelView({
   snapshot,
   collectedAt,
   onRetry,
+  activeExceptions,
 }: CardServerIntelViewProps) {
   let body: React.ReactNode;
   if (isLoading) {
@@ -124,7 +135,7 @@ export function CardServerIntelView({
   } else if (isError) {
     body = <ErrorState onRetry={onRetry} />;
   } else if (snapshot) {
-    body = <TileGrid snapshot={snapshot} />;
+    body = <TileGrid snapshot={snapshot} activeExceptions={activeExceptions} />;
   } else {
     // Defensive: success with null body — render as empty.
     body = (
@@ -144,7 +155,13 @@ export function CardServerIntelView({
 
 // ── Tile grid ─────────────────────────────────────────────────────────────
 
-function TileGrid({ snapshot }: { snapshot: IntelligenceSnapshot }) {
+function TileGrid({
+  snapshot,
+  activeExceptions,
+}: {
+  snapshot: IntelligenceSnapshot;
+  activeExceptions?: number;
+}) {
   const packagesCount = Object.keys(snapshot.packages ?? {}).length;
   const services = snapshot.services ?? {};
   const servicesTotal = Object.keys(services).length;
@@ -203,7 +220,15 @@ function TileGrid({ snapshot }: { snapshot: IntelligenceSnapshot }) {
         subline={firewall.subline}
         sublineTone={firewall.tone}
       />
-      <Tile label="Open exceptions" value="—" subline="No rules suppressed" />
+      <Tile
+        label="Open exceptions"
+        value={activeExceptions === undefined ? '—' : String(activeExceptions)}
+        subline={
+          activeExceptions
+            ? `${activeExceptions} rule${activeExceptions === 1 ? '' : 's'} waived`
+            : 'No rules suppressed'
+        }
+      />
     </div>
   );
 }

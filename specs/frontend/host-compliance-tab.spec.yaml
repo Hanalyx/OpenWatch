@@ -1,7 +1,7 @@
 spec:
   id: frontend-host-compliance-tab
   title: Host detail Compliance tab — lens UI over the per-host compliance endpoints
-  version: "1.1.0"
+  version: "1.2.0"
   status: approved
   tier: 2
 
@@ -148,3 +148,7 @@ spec:
       description: "Behavior: clicking the strip's Re-scan button issues exactly one POST /api/v1/hosts/{id}/scans with an Idempotency-Key header; a 202 renders the 'Scan queued' note and a 409 renders 'Scan already running' as an informational note (no thrown error, no retry UI). Source inspection: the tab contains no Export control"
       priority: critical
       references_constraints: [C-04]
+    - id: AC-09
+      description: 'v1.2.0 - exception overlay (api-compliance-exceptions): the tab reads the host exceptions via useHostExceptions and annotates the rules table with an Exception column - a Waived pill for rules with an active (approved) exception, a Pending pill for rules with a requested one, and for a FAILING rule with no exception and a caller holding exception:request a Request button that opens a modal (reason required, optional expiry) posting POST /hosts/{id}/exceptions and invalidating ["host", hostId, "exceptions"] on success. The overlay NEVER changes a rule status chip - the failing rule still shows Non-compliant (overlay model, never mutates the lens).'
+      priority: high
+      references_constraints: [C-03]

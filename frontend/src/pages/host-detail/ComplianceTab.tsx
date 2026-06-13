@@ -42,10 +42,12 @@
 
 import { useMemo, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '@/api/client';
 import { apiErrorMessage } from '@/api/errors';
 import type { components } from '@/api/schema';
+import { useAuthStore } from '@/store/useAuthStore';
+import { useHostExceptions } from '@/hooks/useHostExceptions';
 import { SeverityPill } from '@/pages/host-detail/SeverityPill';
 
 type LensResponse = components['schemas']['HostComplianceLensResponse'];
@@ -113,6 +115,13 @@ export function ComplianceTab({
   // refetches. Spec C-03 / AC-04.
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [search, setSearch] = useState('');
+
+  // Exception overlay: which failing rules are waived (active) or have
+  // a pending request. Never mutates the lens data (overlay model).
+  const exc = useHostExceptions(hostId);
+  const canRequest = useAuthStore((st) => st.hasPermission)('exception:request');
+  // The rule a Request-exception modal is open for (null = closed).
+  const [requestRule, setRequestRule] = useState<LensRule | null>(null);
 
   let body: ReactNode;
   // isPending (not isLoading): isLoading goes false between retry
@@ -192,6 +201,10 @@ export function ComplianceTab({
           search={search}
           onSearchChange={setSearch}
           frameworkActive={!!framework}
+          activeRuleIds={exc.activeRuleIds}
+          pendingRuleIds={exc.pendingRuleIds}
+          canRequest={canRequest}
+          onRequest={setRequestRule}
         />
       </>
     );
@@ -215,6 +228,17 @@ export function ComplianceTab({
         onFrameworkChange={onFrameworkChange}
       />
       {body}
+      {requestRule && (
+        <RequestExceptionModal
+          hostId={hostId}
+          rule={requestRule}
+          onClose={() => setRequestRule(null)}
+          onSuccess={() => {
+            setRequestRule(null);
+            exc.refetch();
+          }}
+        />
+      )}
     </section>
   );
 }
@@ -891,6 +915,10 @@ function RulesTable({
   search,
   onSearchChange,
   frameworkActive,
+  activeRuleIds,
+  pendingRuleIds,
+  canRequest,
+  onRequest,
 }: {
   rules: LensRule[];
   filter: StatusFilter;
@@ -898,6 +926,10 @@ function RulesTable({
   search: string;
   onSearchChange: (next: string) => void;
   frameworkActive: boolean;
+  activeRuleIds: Set<string>;
+  pendingRuleIds: Set<string>;
+  canRequest: boolean;
+  onRequest: (rule: LensRule) => void;
 }) {
   const counts = useMemo(() => {
     const c: Record<StatusFilter, number> = {
@@ -1019,6 +1051,7 @@ function RulesTable({
               <Th>Rule and framework refs</Th>
               <Th width={160}>Category</Th>
               <Th width={110}>Last checked</Th>
+              <Th width={150}>Exception</Th>
             </tr>
           </thead>
           <tbody>
@@ -1048,6 +1081,15 @@ function RulesTable({
                 <td style={{ ...td, color: 'var(--ow-fg-2)' }}>{r.category}</td>
                 <td style={{ ...td, color: 'var(--ow-fg-3)', whiteSpace: 'nowrap', fontSize: 12 }}>
                   {relativeTime(r.last_checked_at)}
+                </td>
+                <td style={td}>
+                  <ExceptionCell
+                    rule={r}
+                    waived={activeRuleIds.has(r.rule_id)}
+                    pending={pendingRuleIds.has(r.rule_id)}
+                    canRequest={canRequest}
+                    onRequest={onRequest}
+                  />
                 </td>
               </tr>
             ))}
@@ -1120,6 +1162,245 @@ function StatusChip({ status }: { status: string }) {
       <span aria-hidden style={{ width: 6, height: 6, borderRadius: '50%', background: s.fg }} />
       {s.label}
     </span>
+  );
+}
+
+// ExceptionCell renders, for a rule's row, the exception governance
+// state: a Waived pill (active approved exception), a Pending pill (a
+// request awaiting review), or - for an unwaived FAILING rule and a
+// caller with exception:request - a Request button. Non-failing rules
+// with no exception render nothing. The overlay never changes the
+// rule's status chip.
+function ExceptionCell({
+  rule,
+  waived,
+  pending,
+  canRequest,
+  onRequest,
+}: {
+  rule: LensRule;
+  waived: boolean;
+  pending: boolean;
+  canRequest: boolean;
+  onRequest: (rule: LensRule) => void;
+}) {
+  if (waived) {
+    return (
+      <span style={{ ...excPill, color: 'var(--ow-info)', background: 'var(--ow-bg-2)' }}>
+        Waived
+      </span>
+    );
+  }
+  if (pending) {
+    return (
+      <span style={{ ...excPill, color: 'var(--ow-warn)', background: 'var(--ow-bg-2)' }}>
+        Pending
+      </span>
+    );
+  }
+  if (rule.status === 'fail' && canRequest) {
+    return (
+      <button
+        type="button"
+        onClick={() => onRequest(rule)}
+        style={{
+          height: 26,
+          padding: '0 10px',
+          background: 'var(--ow-bg-2)',
+          color: 'var(--ow-fg-1)',
+          border: '1px solid var(--ow-line)',
+          borderRadius: 7,
+          fontSize: 11,
+          fontWeight: 600,
+          cursor: 'pointer',
+        }}
+      >
+        Request exception
+      </button>
+    );
+  }
+  return <span style={{ color: 'var(--ow-fg-3)', fontSize: 11 }}>—</span>;
+}
+
+const excPill: CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  padding: '2px 8px',
+  borderRadius: 999,
+  fontSize: 11,
+  fontWeight: 600,
+  whiteSpace: 'nowrap',
+};
+
+// RequestExceptionModal collects the reason (required) and an optional
+// expiry, then POSTs /hosts/{id}/exceptions. The host-detail
+// exceptions query is refreshed by the parent on success. A 409 (an
+// open exception already exists) surfaces inline. Spec
+// api-compliance-exceptions.
+function RequestExceptionModal({
+  hostId,
+  rule,
+  onClose,
+  onSuccess,
+}: {
+  hostId: string;
+  rule: LensRule;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const queryClient = useQueryClient();
+  const [reason, setReason] = useState('');
+  const [expires, setExpires] = useState('');
+
+  const mutation = useMutation({
+    mutationFn: async () => {
+      const { error, response } = await api.POST('/api/v1/hosts/{id}/exceptions', {
+        params: { path: { id: hostId } },
+        body: {
+          rule_id: rule.rule_id,
+          reason: reason.trim(),
+          expires_at: expires ? new Date(expires).toISOString() : null,
+        },
+      });
+      if (error || !response.ok) {
+        if (response.status === 409) {
+          throw new Error('An open exception already exists for this rule.');
+        }
+        throw new Error(apiErrorMessage(error, `Request failed (${response.status})`));
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['host', hostId, 'exceptions'] });
+      onSuccess();
+    },
+  });
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Request compliance exception"
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(0,0,0,0.5)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 1000,
+      }}
+      onClick={onClose}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: 460,
+          maxWidth: '90vw',
+          background: 'var(--ow-bg-1)',
+          border: '1px solid var(--ow-line)',
+          borderRadius: 'var(--ow-radius)',
+          padding: 20,
+        }}
+      >
+        <h3 style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 600 }}>Request exception</h3>
+        <div style={{ color: 'var(--ow-fg-2)', fontSize: 12, marginBottom: 4 }}>{rule.title}</div>
+        <div
+          style={{
+            fontFamily: 'var(--ow-font-mono)',
+            fontSize: 11,
+            color: 'var(--ow-fg-3)',
+            marginBottom: 14,
+          }}
+        >
+          {rule.rule_id}
+        </div>
+
+        <label style={{ display: 'block', fontSize: 12, color: 'var(--ow-fg-2)', marginBottom: 4 }}>
+          Reason (required)
+        </label>
+        <textarea
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          rows={3}
+          aria-label="Exception reason"
+          placeholder="Why is this failure an accepted risk?"
+          style={{
+            width: '100%',
+            background: 'var(--ow-bg-2)',
+            border: '1px solid var(--ow-line)',
+            borderRadius: 7,
+            color: 'var(--ow-fg-0)',
+            fontSize: 13,
+            padding: 8,
+            resize: 'vertical',
+            marginBottom: 14,
+          }}
+        />
+
+        <label style={{ display: 'block', fontSize: 12, color: 'var(--ow-fg-2)', marginBottom: 4 }}>
+          Expires (optional)
+        </label>
+        <input
+          type="date"
+          value={expires}
+          onChange={(e) => setExpires(e.target.value)}
+          aria-label="Exception expiry date"
+          style={{
+            background: 'var(--ow-bg-2)',
+            border: '1px solid var(--ow-line)',
+            borderRadius: 7,
+            color: 'var(--ow-fg-0)',
+            fontSize: 13,
+            padding: '6px 8px',
+            marginBottom: 16,
+          }}
+        />
+
+        {mutation.error && (
+          <div style={{ color: 'var(--ow-crit)', fontSize: 12, marginBottom: 12 }} role="alert">
+            {(mutation.error as Error).message}
+          </div>
+        )}
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              height: 32,
+              padding: '0 14px',
+              background: 'var(--ow-bg-2)',
+              color: 'var(--ow-fg-1)',
+              border: '1px solid var(--ow-line)',
+              borderRadius: 7,
+              fontSize: 12,
+              cursor: 'pointer',
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={reason.trim() === '' || mutation.isPending}
+            onClick={() => mutation.mutate()}
+            style={{
+              height: 32,
+              padding: '0 14px',
+              background: 'var(--ow-info)',
+              color: 'var(--ow-info-on)',
+              border: 0,
+              borderRadius: 7,
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: reason.trim() === '' || mutation.isPending ? 'default' : 'pointer',
+              opacity: reason.trim() === '' || mutation.isPending ? 0.6 : 1,
+            }}
+          >
+            {mutation.isPending ? 'Submitting' : 'Submit request'}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

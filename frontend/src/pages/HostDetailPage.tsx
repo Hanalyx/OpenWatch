@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import api from '@/api/client';
+import { useHostExceptions } from '@/hooks/useHostExceptions';
 import { apiErrorCode, apiErrorMessage } from '@/api/errors';
 import { EditHostModal } from '@/components/hosts/EditHostModal';
 import { useBreadcrumbStore } from '@/store/useBreadcrumbStore';
@@ -1400,6 +1401,15 @@ function HeroWatchlist({ hostId }: { hostId: string }) {
         ? 'No alerts firing'
         : `Worst severity: ${worst}`;
 
+  const exc = useHostExceptions(hostId);
+  const excSubtext = exc.isError
+    ? 'Failed to load exceptions'
+    : exc.isPending
+      ? 'Loading'
+      : exc.activeCount === 0
+        ? 'No suppressed rules'
+        : `${exc.activeCount} rule${exc.activeCount === 1 ? '' : 's'} waived`;
+
   return (
     <article style={heroCard} aria-labelledby="hero-watch-title">
       <header style={heroHead}>
@@ -1407,7 +1417,7 @@ function HeroWatchlist({ hostId }: { hostId: string }) {
         <Bell size={14} aria-hidden />
       </header>
       <WatchlistRow label={'Active alerts'} value={count} subtext={alertsSubtext} />
-      <WatchlistRow label={'Exceptions'} value={0} subtext="No suppressed rules" />
+      <WatchlistRow label={'Exceptions'} value={exc.activeCount} subtext={excSubtext} />
       <div
         style={{
           marginTop: 6,
@@ -1418,7 +1428,9 @@ function HeroWatchlist({ hostId }: { hostId: string }) {
           lineHeight: 1.5,
         }}
       >
-        Exceptions (operator rule waivers) ship with the remediation work.
+        {exc.pendingCount > 0
+          ? `${exc.pendingCount} exception ${exc.pendingCount === 1 ? 'request awaits' : 'requests await'} review.`
+          : 'Exceptions are operator-approved rule waivers (accepted risk).'}
       </div>
     </article>
   );
