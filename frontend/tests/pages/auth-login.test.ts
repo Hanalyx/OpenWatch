@@ -3,7 +3,7 @@
 // AC traceability (this file):
 //
 //   AC-01  /login renders username + password + submit
-//   AC-02  Successful login: no access_token stored; redirect to / or return_to
+//   AC-02  Successful login: no access_token stored; redirect to /dashboard or return_to
 //   AC-03  mfa_required: form re-renders with otp field; user+pass preserved
 //   AC-04  Valid otp on second submission included in POST body
 //   AC-05  Wrong password: generic invalid_credentials message
@@ -179,10 +179,40 @@ describe('frontend-auth-login — structural', () => {
     expect(LOGIN_SRC).not.toMatch(/localStorage\.setItem\([^)]*refresh_token/);
     expect(LOGIN_SRC).not.toMatch(/sessionStorage\.setItem\([^)]*refresh_token/);
     // Cross-check: useAuthStore.setIdentity is called with the
-    // identity SHAPE returned by /auth/me — NOT a token bag.
-    expect(LOGIN_SRC).toMatch(/setIdentity\(\s*identity\s*\)/);
+    // identity SHAPE returned by /auth/me — NOT a token bag. The local
+    // is named nextIdentity (it would otherwise shadow the store's
+    // identity selector).
+    expect(LOGIN_SRC).toMatch(/setIdentity\(\s*nextIdentity\s*\)/);
     // Auth store comment pins the never-store contract.
     const authStoreSrc = readFileSync(resolve(process.cwd(), 'src/store/useAuthStore.ts'), 'utf8');
     expect(authStoreSrc).toMatch(/MUST NEVER hold access_token or refresh_token/);
+  });
+
+  // @ac AC-15
+  test('frontend-auth-login/AC-15 — Request access + Forgot password surface an honest note, no fake submit', () => {
+    // Both affordances toggle an inline administrator-contact note.
+    expect(LOGIN_SRC).toMatch(/workspace administrator/i);
+    expect(LOGIN_SRC).toMatch(/accessNote/);
+    // No POST to a request-access or password-reset endpoint, and no
+    // fabricated "request submitted" success state.
+    expect(LOGIN_SRC).not.toMatch(/request[-_]?access|reset[-_]?password|password[-_/:]reset/i);
+    expect(LOGIN_SRC).not.toMatch(/request submitted/i);
+    // UI copy carries no em-dash (code comments stripped first).
+    const stripped = LOGIN_SRC.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+    expect(stripped).not.toContain('—');
+  });
+
+  // @ac AC-16
+  test('frontend-auth-login/AC-16 — password defaults hidden with a labeled visibility toggle', () => {
+    // Default obscured; the input type derives from showPassword.
+    expect(LOGIN_SRC).toMatch(/const \[showPassword, setShowPassword\] = useState\(false\)/);
+    expect(LOGIN_SRC).toMatch(/showPassword \? 'text' : 'password'/);
+    // The toggle is a labeled button whose aria-label reflects state.
+    expect(LOGIN_SRC).toMatch(/aria-label=\{showPassword \? 'Hide password' : 'Show password'\}/);
+    // It sits before the submit control (tab order username->password->submit).
+    const toggleIdx = LOGIN_SRC.indexOf('setShowPassword');
+    const submitIdx = LOGIN_SRC.indexOf('type="submit"');
+    expect(toggleIdx).toBeGreaterThan(-1);
+    expect(submitIdx).toBeGreaterThan(toggleIdx);
   });
 });

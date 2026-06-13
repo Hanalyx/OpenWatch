@@ -12,6 +12,7 @@ import { LoginPage } from '@/pages/LoginPage';
 import { HostsListPage } from '@/pages/HostsListPage';
 import { HostDetailPage } from '@/pages/HostDetailPage';
 import { AddHostPage } from '@/pages/AddHostPage';
+import { HomePage } from '@/pages/HomePage';
 import { HomePlaceholderPage } from '@/pages/HomePlaceholderPage';
 import { ForbiddenPage } from '@/pages/ForbiddenPage';
 import { ProfilePage } from '@/pages/settings/ProfilePage';
@@ -66,9 +67,21 @@ const protectedRoute = createRoute({
   component: AppFrame,
 });
 
-const homeRoute = createRoute({
-  getParentRoute: () => protectedRoute,
+// Public, non-login landing at "/". It sits under the root route (NOT
+// the protected subtree): no AppFrame, no auth guard. Its "Enter
+// console" CTA routes to /login.
+const publicHomeRoute = createRoute({
+  getParentRoute: () => rootRoute,
   path: '/',
+  component: HomePage,
+});
+
+// Authenticated dashboard home, moved off "/" to /dashboard so "/" can
+// host the public homepage. The post-login default destination is
+// /dashboard.
+const dashboardRoute = createRoute({
+  getParentRoute: () => protectedRoute,
+  path: 'dashboard',
   component: HomePlaceholderPage,
 });
 
@@ -190,8 +203,9 @@ const forbiddenRoute = createRoute({
 
 const routeTree = rootRoute.addChildren([
   loginRoute,
+  publicHomeRoute,
   protectedRoute.addChildren([
-    homeRoute,
+    dashboardRoute,
     hostsListRoute,
     addHostRoute,
     hostDetailRoute,

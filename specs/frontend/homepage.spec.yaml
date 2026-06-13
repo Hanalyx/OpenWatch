@@ -1,0 +1,94 @@
+spec:
+  id: frontend-homepage
+  title: Public homepage (Radar hero)
+  version: "1.0.0"
+  status: approved
+  tier: 2
+
+  context:
+    system: openwatch-go
+    feature: The public, non-login landing page at "/" — the Radar "Eyrie" hero that routes visitors into the console
+    description: >
+      "/" is the public marketing/landing surface, distinct from the
+      authenticated dashboard (which lives at /dashboard). It renders the
+      Radar hero concept ported from
+      docs/engineering/prototypes/openwatch-v1/home/Eyrie - Radar.html:
+      an animated canvas sweep over demo host nodes, the OpenWatch
+      wordmark, and an "Enter console" call to action.
+
+      The page is deliberately outside the protected route subtree: it
+      mounts no AppFrame, runs no auth guard, and makes no authenticated
+      API calls. A public surface MUST NOT expose real fleet numbers, so
+      the telemetry readout is static demo art, not live data. "Enter
+      console" routes to /login; an already-authenticated visitor who
+      signs in lands at /dashboard.
+    related_specs:
+      - frontend-foundation
+      - frontend-auth-login
+
+  objective:
+    summary: >
+      Visiting "/" anonymously renders the Radar hero with no
+      authenticated data and no shell chrome, and the primary CTA routes
+      to /login. The animation is accessible (decorative, cleaned up on
+      unmount, reduced-motion aware).
+    scope:
+      includes:
+        - 'Public route at "/" under the root route (no AppFrame, no guard)'
+        - 'Radar canvas hero (RadarField) as decorative, aria-hidden art'
+        - '"Enter console" CTA routing to /login'
+        - 'Static demo telemetry readout (never live fleet data)'
+        - 'requestAnimationFrame cleanup + prefers-reduced-motion handling'
+      excludes:
+        - 'Authenticated dashboard content (frontend-foundation / /dashboard)'
+        - 'Login form behavior (frontend-auth-login)'
+        - 'Any public stats endpoint (none exists; none is added)'
+
+  constraints:
+    - id: C-01
+      description: >-
+        "/" MUST resolve to a public route whose parent is the root route
+        (NOT the protected subtree): it mounts no AppFrame, runs no auth
+        guard (no beforeLoad redirect), and issues no authenticated API
+        call. The authenticated dashboard MUST live at /dashboard under
+        the protected subtree
+      type: security
+      enforcement: error
+    - id: C-02
+      description: The homepage primary CTA ("Enter console") MUST route to /login. The prototype's direct Dashboard link is a mock; the real flow goes through authentication
+      type: technical
+      enforcement: error
+    - id: C-03
+      description: >-
+        The homepage MUST NOT render live or authenticated fleet data.
+        The telemetry readout values are static literals (demo art). The
+        radar canvas MUST carry aria-hidden (it is decoration). UI copy
+        carries no em-dashes
+      type: security
+      enforcement: error
+    - id: C-04
+      description: >-
+        The radar animation MUST register a requestAnimationFrame loop
+        that is cancelled on unmount (no leak) and MUST honor
+        prefers-reduced-motion by drawing a single static frame instead
+        of animating
+      type: technical
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: 'Source-inspection of router.tsx — a publicHomeRoute is defined at path "/" with getParentRoute returning rootRoute (not protectedRoute) and component HomePage; a dashboardRoute is defined at path "dashboard" under protectedRoute. The homepage route carries no beforeLoad guard.'
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-02
+      description: 'Source-inspection of HomePage — it renders a Link with to="/login" (the Enter console CTA) and makes no authenticated data call (no api.GET / api.POST / fetch in the component).'
+      priority: critical
+      references_constraints: [C-02, C-01]
+    - id: AC-03
+      description: 'Source-inspection — the RadarField canvas carries aria-hidden; the HomePage telemetry readout is built from literal values (not a fetched query); HomePage copy contains no em-dash.'
+      priority: high
+      references_constraints: [C-03]
+    - id: AC-04
+      description: 'Source-inspection of RadarField — the effect calls cancelAnimationFrame in its cleanup return and reads matchMedia("(prefers-reduced-motion: reduce)") to gate the animation loop.'
+      priority: high
+      references_constraints: [C-04]

@@ -10,6 +10,7 @@ import {
   Settings as SettingsIcon,
 } from 'lucide-react';
 import { Tooltip } from '@mui/material';
+import owIcon from '@/assets/openwatch-icon.png';
 
 // Sidebar — 56px-wide icon rail. Sticky, full-viewport-height. The
 // only chrome that persists across every page.
@@ -29,7 +30,7 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { to: '/', label: 'Dashboard', icon: <LayoutDashboard size={18} />, enabled: true },
+  { to: '/dashboard', label: 'Dashboard', icon: <LayoutDashboard size={18} />, enabled: true },
   { to: '/hosts', label: 'Hosts', icon: <Server size={18} />, enabled: true },
   { to: '/groups', label: 'Groups', icon: <Boxes size={18} />, enabled: false },
   { to: '/scans', label: 'Scans', icon: <Search size={18} />, enabled: false },
@@ -59,21 +60,25 @@ export function Sidebar() {
       }}
       aria-label="Primary navigation"
     >
-      <Link to="/" aria-label="OpenWatch home">
+      <Link to="/dashboard" aria-label="OpenWatch home">
         <div
           style={{
             width: 32,
             height: 32,
             borderRadius: 8,
-            background: 'linear-gradient(135deg, var(--ow-info), var(--ow-brand-2))',
+            background: '#fff',
             display: 'grid',
             placeItems: 'center',
-            fontWeight: 700,
-            color: 'white',
+            overflow: 'hidden',
             marginBottom: 12,
+            boxShadow: '0 0 0 1px rgba(255,255,255,0.10), 0 4px 16px rgba(0,0,0,0.35)',
           }}
         >
-          ow
+          <img
+            src={owIcon}
+            alt=""
+            style={{ width: '84%', height: '84%', objectFit: 'contain', display: 'block' }}
+          />
         </div>
       </Link>
 
@@ -111,7 +116,7 @@ export function Sidebar() {
           );
         }
 
-        const isActive = item.to === '/' ? currentPath === '/' : currentPath.startsWith(item.to);
+        const isActive = currentPath.startsWith(item.to);
         return (
           <Tooltip key={item.to} title={item.label} placement="right">
             <Link
