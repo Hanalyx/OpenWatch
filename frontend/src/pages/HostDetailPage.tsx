@@ -402,7 +402,7 @@ export function HostDetailPage() {
                   host={detailQuery.data.host}
                   liveness={detailQuery.data.liveness}
                 />
-                <HeroWatchlist />
+                <HeroWatchlist hostId={hostId} />
               </section>
 
               {/* OVERVIEW_BODY */}
@@ -1354,16 +1354,59 @@ function BandLine({ label, color }: { label: string; color: string }) {
   );
 }
 
-function HeroWatchlist() {
-  // Alerts + exceptions subsystem deferred (BACKLOG); render the
-  // prototype's two-metric layout with 0s and empty-state subtext. AC-30.
+// severityRank orders alert severities so the subtext can name the
+// worst one firing.
+const SEVERITY_RANK: Record<string, number> = {
+  critical: 5,
+  high: 4,
+  medium: 3,
+  low: 2,
+  info: 1,
+};
+
+// HeroWatchlist: the Active alerts row is LIVE against
+// GET /alerts?state=active&host_id= (api-alerts). The Exceptions row
+// stays an honest pending state: operator rule waivers are the
+// exception-governance work (scan plan, remediation track) and have
+// no backend yet. AC-30.
+function HeroWatchlist({ hostId }: { hostId: string }) {
+  const alertsQuery = useQuery({
+    queryKey: ['host', hostId, 'active_alerts'],
+    queryFn: async () => {
+      const { data, error, response } = await api.GET('/api/v1/alerts', {
+        params: { query: { state: 'active', host_id: hostId, limit: 100 } },
+      });
+      if (error || !response.ok) {
+        throw new Error(apiErrorMessage(error, `Failed to load (${response.status})`));
+      }
+      return data!;
+    },
+    enabled: !!hostId,
+    refetchInterval: 60_000,
+  });
+
+  const items = alertsQuery.data?.items ?? [];
+  const count = items.length;
+  const worst = items.reduce<string | null>(
+    (acc, a) =>
+      (SEVERITY_RANK[a.severity] ?? 0) > (acc ? (SEVERITY_RANK[acc] ?? 0) : 0) ? a.severity : acc,
+    null,
+  );
+  const alertsSubtext = alertsQuery.isError
+    ? 'Failed to load alerts'
+    : alertsQuery.isPending
+      ? 'Loading'
+      : count === 0
+        ? 'No alerts firing'
+        : `Worst severity: ${worst}`;
+
   return (
     <article style={heroCard} aria-labelledby="hero-watch-title">
       <header style={heroHead}>
         <span id="hero-watch-title">Watchlist</span>
         <Bell size={14} aria-hidden />
       </header>
-      <WatchlistRow label={'Active alerts'} value={0} subtext="No alerts firing" />
+      <WatchlistRow label={'Active alerts'} value={count} subtext={alertsSubtext} />
       <WatchlistRow label={'Exceptions'} value={0} subtext="No suppressed rules" />
       <div
         style={{
@@ -1375,7 +1418,7 @@ function HeroWatchlist() {
           lineHeight: 1.5,
         }}
       >
-        Populated by the alerts subsystem (BACKLOG).
+        Exceptions (operator rule waivers) ship with the remediation work.
       </div>
     </article>
   );

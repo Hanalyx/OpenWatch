@@ -24,6 +24,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/activity"
 	"github.com/Hanalyx/openwatch/internal/alertrouter"
 	stdoutchan "github.com/Hanalyx/openwatch/internal/alertrouter/channels/stdout"
+	"github.com/Hanalyx/openwatch/internal/alerts"
 	"github.com/Hanalyx/openwatch/internal/audit"
 	"github.com/Hanalyx/openwatch/internal/config"
 	"github.com/Hanalyx/openwatch/internal/correlation"
@@ -533,6 +534,7 @@ func cmdServe(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 		WithDiscovery(discoSvc).
 		WithEventBus(bus).
 		WithActivity(activity.NewService(pool)).
+		WithAlerts(alerts.NewService(pool, audit.Emit)).
 		WithScanQueue(scanQueueKey).
 		WithScanWorker(scanWorker).
 		WithRuleCatalog(ruleCatalog).

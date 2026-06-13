@@ -163,7 +163,7 @@ spec:
       priority: high
       references_constraints: [C-05]
     - id: AC-22
-      description: 'Watchlist card renders the prototype empty-state ("Alerts subsystem — coming soon") naming the alerts/exceptions backend as the subsystem that will populate it.'
+      description: 'v1.4.0 - the Watchlist card no longer carries a coming-soon blob: the alerts half is live (AC-30) and the only pending note left is the footer naming operator rule waivers (exceptions) as shipping with the remediation work.'
       priority: high
       references_constraints: [C-05]
     - id: AC-23
@@ -195,7 +195,7 @@ spec:
       priority: high
       references_constraints: [C-05]
     - id: AC-30
-      description: 'HeroWatchlist empty state MUST render the prototype''s structured rows: "Active alerts 0" with subtext "No alerts firing", "Exceptions 0" with subtext "No suppressed rules", then a single-line footer naming the alerts subsystem. No "Not yet available" blob.'
+      description: 'v1.4.0 - HeroWatchlist''s Active alerts row is LIVE against GET /api/v1/alerts?state=active&host_id= with queryKey ["host", hostId, "active_alerts"]: the count renders the active-alert total, subtext "No alerts firing" at zero or the worst firing severity otherwise, with honest loading/error subtext. The Exceptions row stays the honest pending state ("Exceptions 0" / "No suppressed rules") and the footer names operator rule waivers as shipping with the remediation work - no BACKLOG reference, no fabricated exception counts.'
       priority: high
       references_constraints: [C-05]
     - id: AC-31

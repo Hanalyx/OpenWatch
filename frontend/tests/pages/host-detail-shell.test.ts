@@ -13,15 +13,15 @@
 //   AC-19  test('frontend-host-detail/AC-19 — 4 hero stat cards in prototype order')
 //   AC-20  test('frontend-host-detail/AC-20 — connectivity card SSH endpoint + last seen + actions')
 //   AC-21  test('frontend-host-detail/AC-21 — auto-scan empty state names backend subsystem')
-//   AC-22  test('frontend-host-detail/AC-22 — watchlist empty state names backend subsystem')
+//   AC-22  test('frontend-host-detail/AC-22 — watchlist carries no coming-soon blob; only the exceptions footer pends')
 //   AC-23  test('frontend-host-detail/AC-23 — overview body two-column grid with named children')
 //   AC-24  test('frontend-host-detail/AC-24 — top failed / server intel / trend cards have empty states')
 //   AC-25  test('frontend-host-detail/AC-25 — system card has 3 spec-groups with placeholders')
 //   AC-26  test('frontend-host-detail/AC-26 — recent activity card pulls from monitoring history')
 //   AC-27  test('frontend-host-detail/AC-27 — breadcrumb above back link')
 //   AC-28  test('frontend-host-detail/AC-28 — tabs row has lucide icons next to labels')
-//   AC-29  test('frontend-host-detail/AC-29 — Auto-scan empty state shows structured rows')
-//   AC-30  test('frontend-host-detail/AC-30 — Watchlist empty state shows structured rows')
+//   AC-29  test('frontend-host-detail/AC-29 — Auto-scan tile is live against the schedule endpoint')
+//   AC-30  test('frontend-host-detail/AC-30 — Watchlist: live Active alerts row, honest Exceptions pending')
 //   AC-31  test('frontend-host-detail/AC-31 — Connectivity hero has prominent band status line')
 //   AC-32  test('frontend-host-detail/AC-32 — round chevron back button in page-head')
 //   AC-33  test('frontend-host-detail/AC-33 — Maintenance toggle is a switch with knob')
@@ -175,9 +175,12 @@ describe('frontend-host-detail — prototype shell', () => {
   });
 
   // @ac AC-22
-  test('frontend-host-detail/AC-22 — watchlist empty state names backend subsystem', () => {
+  test('frontend-host-detail/AC-22 — watchlist carries no coming-soon blob; only the exceptions footer pends', () => {
     expect(PAGE_SRC).toContain('HeroWatchlist');
-    expect(PAGE_SRC).toMatch(/alerts? (subsystem|backend)/i);
+    // The alerts half is live (AC-30); the sole pending note is the
+    // exceptions footer naming the remediation track.
+    expect(PAGE_SRC).not.toMatch(/alerts? (subsystem|backend).*(BACKLOG|coming soon)/i);
+    expect(PAGE_SRC).toContain('ship with the remediation work');
   });
 
   // @ac AC-23
@@ -301,16 +304,26 @@ describe('frontend-host-detail — prototype shell', () => {
   });
 
   // @ac AC-30
-  test('frontend-host-detail/AC-30 — Watchlist empty state shows structured rows', () => {
-    const watchFn = PAGE_SRC.indexOf('function HeroWatchlist');
-    expect(watchFn).toBeGreaterThan(-1);
-    const next = PAGE_SRC.indexOf('\nfunction ', watchFn + 1);
-    const body = PAGE_SRC.slice(watchFn, next);
-    expect(body).toContain("'Active alerts'");
-    expect(body).toContain("'Exceptions'");
-    expect(body).toMatch(/No alerts firing/);
-    expect(body).toMatch(/No suppressed rules/);
-    expect(body).toMatch(/alerts? (subsystem|backend)/i);
+  test('frontend-host-detail/AC-30 — Watchlist: live Active alerts row, honest Exceptions pending', () => {
+    const tile = PAGE_SRC.slice(
+      PAGE_SRC.indexOf('function HeroWatchlist'),
+      PAGE_SRC.indexOf('function WatchlistRow'),
+    );
+    expect(tile.length).toBeGreaterThan(0);
+    // Live alerts read, host-scoped and state-filtered.
+    expect(tile).toContain("queryKey: ['host', hostId, 'active_alerts']");
+    expect(tile).toContain("api.GET('/api/v1/alerts'");
+    expect(tile).toContain("state: 'active', host_id: hostId");
+    // Zero state + worst-severity subtext + honest load/error states.
+    expect(tile).toContain("'No alerts firing'");
+    expect(tile).toContain('Worst severity:');
+    expect(tile).toContain("'Failed to load alerts'");
+    // Exceptions row stays the honest pending state; footer names the
+    // remediation track, not BACKLOG.
+    expect(tile).toContain('subtext="No suppressed rules"');
+    expect(tile).toContain('Exceptions (operator rule waivers) ship with the remediation work.');
+    expect(PAGE_SRC).not.toContain('alerts subsystem (BACKLOG)');
+    expect(PAGE_SRC).toContain('<HeroWatchlist hostId={hostId} />');
   });
 
   // @ac AC-31
