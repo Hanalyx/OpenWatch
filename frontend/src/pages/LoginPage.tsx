@@ -5,13 +5,22 @@ import { z } from 'zod';
 import { useNavigate, useSearch } from '@tanstack/react-router';
 import api from '@/api/client';
 import { useAuthStore, type Identity } from '@/store/useAuthStore';
+import { RadarField } from '@/components/RadarField';
+import owIcon from '@/assets/openwatch-icon.png';
 
 // Login page — frontend-auth-login spec.
 //
 // Per app/docs/frontend_architecture_adr.md D-08, login uses session
 // cookies, not localStorage tokens. The body's access_token /
 // refresh_token are IGNORED. On success we re-fetch /auth/me to
-// populate the identity store, then redirect to return_to (or /).
+// populate the identity store, then redirect to return_to (or
+// /dashboard, the authenticated home — "/" is now the public homepage).
+//
+// The visual treatment (Radar backdrop, console card) is ported from
+// docs/engineering/prototypes/openwatch-v1/login.html. The Request
+// access and Forgot password affordances have no backend endpoint yet,
+// so they surface an honest "contact your administrator" note rather
+// than a form that fakes a submission.
 
 const schema = z.object({
   username: z.string().min(1, 'Username is required'),
@@ -25,19 +34,25 @@ interface LoginSearch {
   return_to?: string;
 }
 
+// Post-login default destination. "/" is the public homepage, so an
+// authenticated user falls back to /dashboard, not /.
+const DEFAULT_DEST = '/dashboard';
+
 function safeReturnTo(raw: string | undefined): string {
   // Open-redirect prevention (C-07 / AC-10): only allow paths that
   // begin with "/" and not "//" (which is protocol-relative).
-  if (!raw) return '/';
+  if (!raw) return DEFAULT_DEST;
   let decoded: string;
   try {
     decoded = decodeURIComponent(raw);
   } catch {
-    return '/';
+    return DEFAULT_DEST;
   }
-  if (!decoded.startsWith('/') || decoded.startsWith('//')) return '/';
+  if (!decoded.startsWith('/') || decoded.startsWith('//')) return DEFAULT_DEST;
   return decoded;
 }
+
+const SCAN = 'rgb(96,212,228)';
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -49,11 +64,20 @@ export function LoginPage() {
   const [mfaRequired, setMfaRequired] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  // "Keep me signed in" is a UI preference only: the server-set session
+  // cookie governs persistence, and login C-01 forbids extra fields on
+  // the first submission, so this flag is not sent. Kept for parity with
+  // the design; wires to a backend "remember" option when one ships.
+  const [rememberMe, setRememberMe] = useState(true);
+  // accessNote toggles the honest "contact your admin" note shared by
+  // the Forgot password + Request access affordances (no backend yet).
+  const [accessNote, setAccessNote] = useState(false);
 
   // Auto-redirect when a session cookie is already valid — bootstrapAuth
   // populates identity on app boot if /auth/me returns 200. If the user
   // arrives at /login already authenticated, send them straight to
-  // return_to (or /).
+  // return_to (or /dashboard).
   useEffect(() => {
     if (!authLoading && identity) {
       const dest = safeReturnTo(search.return_to);
@@ -92,7 +116,7 @@ export function LoginPage() {
             role: string;
             mfa_enabled?: boolean;
           };
-          const identity: Identity = {
+          const nextIdentity: Identity = {
             id: meTyped.id,
             username: meTyped.username,
             email: meTyped.email,
@@ -110,7 +134,7 @@ export function LoginPage() {
                 : ['host:read'],
             mfaEnabled: !!meTyped.mfa_enabled,
           };
-          setIdentity(identity);
+          setIdentity(nextIdentity);
         }
         const dest = safeReturnTo(search.return_to);
         navigate({ to: dest });
@@ -150,119 +174,408 @@ export function LoginPage() {
   return (
     <div
       style={{
-        display: 'grid',
-        placeItems: 'center',
-        minHeight: '100vh',
-        padding: 28,
+        position: 'fixed',
+        inset: 0,
+        overflow: 'hidden',
         background: 'var(--ow-bg-0)',
+        color: 'var(--ow-fg-0)',
       }}
     >
-      <title>Sign in — OpenWatch</title>
-      <form
-        onSubmit={handleSubmit(onSubmit)}
-        noValidate
-        aria-label="Sign in"
+      <title>Sign in · OpenWatch</title>
+      <style>{`
+        @keyframes ow-pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+        @media (prefers-reduced-motion: reduce) { .ow-pulse { animation: none !important; } }
+      `}</style>
+
+      <RadarField dim />
+
+      {/* vignette + scanlines — pure decoration */}
+      <div
+        aria-hidden="true"
         style={{
-          width: 360,
-          background: 'var(--ow-bg-1)',
-          border: '1px solid var(--ow-line)',
-          borderRadius: 'var(--ow-radius)',
-          padding: 28,
+          position: 'fixed',
+          inset: 0,
+          pointerEvents: 'none',
+          zIndex: 2,
+          background:
+            'radial-gradient(ellipse 90% 80% at 50% 45%, transparent 30%, rgba(3,5,9,0.7) 72%, rgba(3,5,9,0.96) 100%)',
+        }}
+      />
+      <div
+        aria-hidden="true"
+        style={{
+          position: 'fixed',
+          inset: 0,
+          pointerEvents: 'none',
+          zIndex: 3,
+          opacity: 0.3,
+          mixBlendMode: 'multiply',
+          background:
+            'repeating-linear-gradient(to bottom, transparent 0 2px, rgba(0,0,0,0.18) 2px 3px)',
+        }}
+      />
+
+      {/* top brand bar */}
+      <div
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          zIndex: 6,
           display: 'flex',
-          flexDirection: 'column',
-          gap: 14,
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '30px 44px',
         }}
       >
-        <h1 style={{ margin: 0, fontSize: 20, fontWeight: 600 }}>Sign in to OpenWatch</h1>
-
-        <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <span style={{ fontSize: 13, color: 'var(--ow-fg-1)' }}>Username</span>
-          <input
-            type="text"
-            autoComplete="username"
-            autoFocus
-            disabled={submitting}
-            {...register('username')}
-            style={inputStyle}
-          />
-          {formState.errors.username && (
-            <span role="alert" style={errorStyle}>
-              {formState.errors.username.message}
-            </span>
-          )}
-        </label>
-
-        <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <span style={{ fontSize: 13, color: 'var(--ow-fg-1)' }}>Password</span>
-          <input
-            type="password"
-            autoComplete="current-password"
-            disabled={submitting}
-            {...register('password')}
-            style={inputStyle}
-          />
-          {formState.errors.password && (
-            <span role="alert" style={errorStyle}>
-              {formState.errors.password.message}
-            </span>
-          )}
-        </label>
-
-        {mfaRequired && (
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <span style={{ fontSize: 13, color: 'var(--ow-fg-1)' }}>Authenticator code</span>
-            <input
-              type="text"
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              maxLength={6}
-              autoFocus
-              disabled={submitting}
-              {...register('otp')}
-              style={inputStyle}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div
+            aria-hidden="true"
+            style={{
+              width: 34,
+              height: 34,
+              borderRadius: 9,
+              background: '#fff',
+              display: 'grid',
+              placeItems: 'center',
+              overflow: 'hidden',
+              boxShadow: '0 0 0 1px rgba(255,255,255,0.10), 0 4px 16px rgba(0,0,0,0.35)',
+            }}
+          >
+            <img
+              src={owIcon}
+              alt=""
+              style={{ width: '84%', height: '84%', objectFit: 'contain', display: 'block' }}
             />
-          </label>
-        )}
-
-        {errorMessage && (
-          <div role="alert" style={errorBanner}>
-            {errorMessage}
           </div>
-        )}
-
-        <button
-          type="submit"
-          disabled={submitting}
-          aria-busy={submitting}
+          <span style={{ fontWeight: 700, letterSpacing: '0.02em', fontSize: 16 }}>OpenWatch</span>
+        </div>
+        <span
           style={{
-            height: 36,
-            background: 'var(--ow-info)',
-            color: 'var(--ow-info-on)',
-            border: 0,
-            borderRadius: 6,
-            fontFamily: 'inherit',
-            fontSize: 13,
-            fontWeight: 600,
-            cursor: submitting ? 'not-allowed' : 'pointer',
-            opacity: submitting ? 0.7 : 1,
+            fontSize: 11.5,
+            color: 'var(--ow-fg-2)',
+            border: '1px solid var(--ow-line)',
+            borderRadius: 999,
+            padding: '5px 11px',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 7,
+            background: 'rgba(10,14,20,0.5)',
           }}
         >
-          {submitting ? 'Signing in…' : 'Sign in'}
-        </button>
-      </form>
+          <span
+            className="ow-pulse"
+            aria-hidden="true"
+            style={{
+              width: 6,
+              height: 6,
+              borderRadius: '50%',
+              background: SCAN,
+              boxShadow: `0 0 8px ${SCAN}`,
+              animation: 'ow-pulse 1.8s ease-in-out infinite',
+            }}
+          />
+          <span style={{ color: 'var(--ow-fg-1)', fontWeight: 600 }}>Eyrie</span>
+          <span>· pre-release</span>
+        </span>
+      </div>
+
+      {/* sign-in card */}
+      <div
+        style={{
+          position: 'fixed',
+          inset: 0,
+          zIndex: 5,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 24,
+        }}
+      >
+        <form
+          onSubmit={handleSubmit(onSubmit)}
+          noValidate
+          aria-label="Sign in"
+          style={{
+            width: 420,
+            maxWidth: '100%',
+            background: 'var(--ow-bg-1)',
+            border: '1px solid var(--ow-line)',
+            borderRadius: 16,
+            boxShadow: '0 30px 80px rgba(0,0,0,0.55)',
+            padding: '34px 34px 28px',
+          }}
+        >
+          <div
+            style={{
+              fontFamily: 'var(--ow-font-mono, monospace)',
+              fontSize: 11,
+              letterSpacing: '0.28em',
+              textTransform: 'uppercase',
+              color: SCAN,
+            }}
+          >
+            Secure console access
+          </div>
+          <h1
+            style={{
+              fontSize: 26,
+              fontWeight: 700,
+              letterSpacing: '-0.02em',
+              margin: '12px 0 6px',
+            }}
+          >
+            Sign in to OpenWatch
+          </h1>
+          <p
+            style={{ color: 'var(--ow-fg-2)', fontSize: 13.5, margin: '0 0 24px', lineHeight: 1.5 }}
+          >
+            Authenticate to enter the Eyrie console and view your fleet.
+          </p>
+
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 7, marginBottom: 14 }}>
+            <span style={{ fontSize: 12, color: 'var(--ow-fg-2)', fontWeight: 500 }}>Username</span>
+            <input
+              type="text"
+              autoComplete="username"
+              autoFocus
+              disabled={submitting}
+              {...register('username')}
+              style={inputStyle}
+            />
+            {formState.errors.username && (
+              <span role="alert" style={errorStyle}>
+                {formState.errors.username.message}
+              </span>
+            )}
+          </label>
+
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 7, marginBottom: 14 }}>
+            <span style={{ fontSize: 12, color: 'var(--ow-fg-2)', fontWeight: 500 }}>Password</span>
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+              <input
+                type={showPassword ? 'text' : 'password'}
+                autoComplete="current-password"
+                disabled={submitting}
+                {...register('password')}
+                style={{ ...inputStyle, paddingRight: 40, width: '100%' }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                aria-pressed={showPassword}
+                style={{
+                  position: 'absolute',
+                  right: 6,
+                  height: 30,
+                  width: 30,
+                  display: 'grid',
+                  placeItems: 'center',
+                  background: 'transparent',
+                  border: 0,
+                  color: 'var(--ow-fg-3)',
+                  cursor: 'pointer',
+                }}
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" />
+                  <circle cx="12" cy="12" r="3" />
+                </svg>
+              </button>
+            </div>
+            {formState.errors.password && (
+              <span role="alert" style={errorStyle}>
+                {formState.errors.password.message}
+              </span>
+            )}
+          </label>
+
+          {mfaRequired && (
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 7, marginBottom: 14 }}>
+              <span style={{ fontSize: 12, color: 'var(--ow-fg-2)', fontWeight: 500 }}>
+                Authenticator code
+              </span>
+              <input
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                maxLength={6}
+                autoFocus
+                disabled={submitting}
+                {...register('otp')}
+                style={inputStyle}
+              />
+            </label>
+          )}
+
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              margin: '4px 0 20px',
+            }}
+          >
+            <label
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                fontSize: 12.5,
+                color: 'var(--ow-fg-1)',
+                cursor: 'pointer',
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+                style={{ accentColor: 'var(--ow-info)' }}
+              />
+              Keep me signed in
+            </label>
+            <button
+              type="button"
+              onClick={() => setAccessNote((v) => !v)}
+              style={{
+                fontSize: 12.5,
+                color: SCAN,
+                background: 'none',
+                border: 0,
+                cursor: 'pointer',
+                padding: 0,
+              }}
+            >
+              Forgot password?
+            </button>
+          </div>
+
+          {errorMessage && (
+            <div role="alert" style={errorBanner}>
+              {errorMessage}
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={submitting}
+            aria-busy={submitting}
+            style={{
+              width: '100%',
+              height: 48,
+              background: 'var(--ow-info)',
+              color: 'var(--ow-info-on)',
+              border: 0,
+              borderRadius: 10,
+              fontFamily: 'inherit',
+              fontSize: 15,
+              fontWeight: 700,
+              cursor: submitting ? 'not-allowed' : 'pointer',
+              opacity: submitting ? 0.7 : 1,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 10,
+            }}
+          >
+            {submitting ? 'Signing in…' : 'Enter console'}
+          </button>
+
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12,
+              margin: '22px 0',
+              color: 'var(--ow-fg-3)',
+              fontSize: 11.5,
+              fontFamily: 'var(--ow-font-mono, monospace)',
+              letterSpacing: '0.06em',
+            }}
+          >
+            <span style={{ flex: 1, height: 1, background: 'var(--ow-line)' }} />
+            NEW TO OPENWATCH
+            <span style={{ flex: 1, height: 1, background: 'var(--ow-line)' }} />
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setAccessNote((v) => !v)}
+            aria-expanded={accessNote}
+            style={{
+              width: '100%',
+              height: 46,
+              background: 'rgba(10,14,20,0.5)',
+              color: 'var(--ow-fg-0)',
+              border: '1px solid var(--ow-line)',
+              borderRadius: 10,
+              fontFamily: 'inherit',
+              fontWeight: 600,
+              fontSize: 14,
+              cursor: 'pointer',
+            }}
+          >
+            Request access
+          </button>
+
+          <p
+            style={{
+              fontSize: 12,
+              color: 'var(--ow-fg-3)',
+              textAlign: 'center',
+              marginTop: 16,
+              lineHeight: 1.5,
+            }}
+          >
+            {accessNote
+              ? 'Access and password resets are handled by your workspace administrator. Contact them to request a seat or reset your credentials.'
+              : 'Access is provisioned by your workspace administrator.'}
+          </p>
+        </form>
+      </div>
+
+      <div
+        aria-hidden="true"
+        style={{
+          position: 'fixed',
+          left: 0,
+          right: 0,
+          bottom: 26,
+          zIndex: 5,
+          textAlign: 'center',
+          fontFamily: 'var(--ow-font-mono, monospace)',
+          fontSize: 11,
+          color: 'var(--ow-fg-3)',
+          letterSpacing: '0.08em',
+        }}
+      >
+        EYRIE // ENCRYPTED SESSION // TLS 1.3
+      </div>
     </div>
   );
 }
 
 const inputStyle: React.CSSProperties = {
-  height: 34,
-  padding: '0 10px',
+  height: 46,
+  padding: '0 13px',
   background: 'var(--ow-bg-2)',
   border: '1px solid var(--ow-line)',
-  borderRadius: 6,
+  borderRadius: 9,
   color: 'var(--ow-fg-0)',
   fontFamily: 'inherit',
-  fontSize: 13,
+  fontSize: 14,
 };
 
 const errorStyle: React.CSSProperties = {
@@ -274,7 +587,8 @@ const errorBanner: React.CSSProperties = {
   padding: '10px 12px',
   background: 'var(--ow-crit-bg)',
   border: '1px solid var(--ow-crit)',
-  borderRadius: 6,
+  borderRadius: 8,
   color: 'var(--ow-crit)',
   fontSize: 13,
+  marginBottom: 14,
 };

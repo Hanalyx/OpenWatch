@@ -1,7 +1,7 @@
 spec:
   id: frontend-auth-login
   title: Frontend login + MFA + return_to
-  version: "1.1.0"
+  version: "1.2.0"
   status: approved
   tier: 1
 
@@ -23,8 +23,16 @@ spec:
       otp field; the next submission resends username + password + otp.
 
       After successful authentication, the user is redirected to the
-      return_to query parameter (decoded), defaulting to / when absent
-      or invalid.
+      return_to query parameter (decoded), defaulting to /dashboard when
+      absent or invalid. ("/" is the public, non-login homepage, so the
+      authenticated default is /dashboard, not /.)
+
+      v1.2.0 ports the visual treatment from the openwatch-v1 login.html
+      prototype (the Radar backdrop + console card, a labeled
+      password-visibility toggle). The Request access and Forgot
+      password affordances have no backend endpoint yet, so they surface
+      an honest "contact your workspace administrator" note rather than a
+      form that fabricates a submission.
 
       Tier 1 because login is the primary auth surface — a regression
       here is a fleet-wide outage.
@@ -79,7 +87,7 @@ spec:
       type: security
       enforcement: error
     - id: C-07
-      description: After successful login, the frontend MUST redirect to the return_to query parameter (URL-decoded). Invalid or external URLs (any URL not beginning with "/") MUST fall back to "/" — no open-redirect vulnerability
+      description: After successful login, the frontend MUST redirect to the return_to query parameter (URL-decoded). Invalid or external URLs (any URL not beginning with "/", or beginning with "//") MUST fall back to "/dashboard" (the authenticated home) — no open-redirect vulnerability
       type: security
       enforcement: error
     - id: C-08
@@ -90,13 +98,31 @@ spec:
       description: Password and otp values MUST NEVER appear in console.log / console.warn / console.error output, even on error paths. The login service code MUST scrub any field literally named "password" or "otp" before any console emission
       type: security
       enforcement: error
+    - id: C-10
+      description: >-
+        The Request access and Forgot password affordances MUST NOT post
+        to a non-existent endpoint or fabricate a success state. While no
+        backend exists for them, they MUST surface an honest note
+        directing the user to their workspace administrator. UI copy
+        carries no em-dashes
+      type: technical
+      enforcement: error
+    - id: C-11
+      description: >-
+        The password field MUST default to obscured (type=password) and
+        provide a visibility toggle implemented as a <button> with an
+        aria-label that reflects the current state (show vs hide). The
+        toggle MUST NOT degrade the keyboard tab order username ->
+        password -> submit
+      type: technical
+      enforcement: error
 
   acceptance_criteria:
     - id: AC-01
       description: Navigating to /login with no session renders the form with username + password fields and a submit button.
       priority: critical
     - id: AC-02
-      description: Submitting valid credentials (no MFA) yields a 200 response; the openwatch_session cookie is observed in document.cookie has-set state; the frontend redirects to / (or return_to if present); the body's access_token is NOT stored in localStorage, sessionStorage, or memory.
+      description: Submitting valid credentials (no MFA) yields a 200 response; the openwatch_session cookie is observed in document.cookie has-set state; the frontend redirects to /dashboard (or return_to if present); the body's access_token is NOT stored in localStorage, sessionStorage, or memory.
       priority: critical
       references_constraints: [C-01, C-02]
     - id: AC-03
@@ -128,7 +154,7 @@ spec:
       priority: critical
       references_constraints: [C-07]
     - id: AC-10
-      description: Navigating to /login?return_to=https%3A%2F%2Fevil.example.com lands the user at / after successful login (open-redirect prevention).
+      description: Navigating to /login?return_to=https%3A%2F%2Fevil.example.com lands the user at /dashboard after successful login (open-redirect prevention).
       priority: critical
       references_constraints: [C-07]
     - id: AC-11
@@ -147,3 +173,11 @@ spec:
       description: Source-inspection — the login form's submit handler does NOT include code paths that write access_token or refresh_token to localStorage, sessionStorage, or any Zustand store.
       priority: critical
       references_constraints: [C-02]
+    - id: AC-15
+      description: 'Source-inspection — the Request access and Forgot password affordances toggle an inline administrator-contact note (referencing the workspace administrator); the component issues no api.POST to a request-access or password-reset endpoint and renders no fabricated "request submitted" success state. Login UI copy contains no em-dash.'
+      priority: high
+      references_constraints: [C-10]
+    - id: AC-16
+      description: 'Source-inspection — the password input defaults to type=password (obscured), and a visibility toggle implemented as a <button type="button"> carries an aria-label that reflects state (show vs hide password). The toggle sits between the password and submit controls so the username -> password -> submit tab order is preserved.'
+      priority: high
+      references_constraints: [C-11]
