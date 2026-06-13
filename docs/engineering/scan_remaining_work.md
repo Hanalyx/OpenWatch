@@ -12,6 +12,16 @@
 > |------|------|---------------------|
 > | Phase 5 tail — bulk scan endpoint | small | no |
 > | Phase 7 — remediation | large (own track) | **yes** |
+>
+> **GA scope decision (2026-06-05): remediation ships as a BETA feature in the
+> GA release.** It is in-scope for GA but explicitly labelled *beta* — surfaced
+> behind a `Beta` badge, gated by the `remediation:*` RBAC perms, and limited to
+> the first-slice posture (per-rule manual, approval-gated, snapshot+rollback)
+> ratified in the decisions below. The beta label sets the expectation that the
+> auto/policy-driven and bulk-sequenced postures are *not* in GA and that the
+> blast-radius surface is still hardening. Everything else in this file (the
+> five decisions, the likely shape, the sequencing) stands — "beta in GA" is a
+> labelling + scope-boundary decision, not a change to the build order.
 
 ---
 
