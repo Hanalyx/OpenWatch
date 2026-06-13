@@ -1095,6 +1095,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/hosts/{id}/compliance/schedule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One host's adaptive-scan schedule (Auto-scan tile)
+         * @description The host's row from the adaptive scheduler: compliance state,
+         *     next scheduled scan, current interval, and the pause flags
+         *     (per-host maintenance + the scheduler-wide enabled/maintenance
+         *     config). A host without a schedule row returns state unknown
+         *     with a null next_scan_at - never an error.
+         *     Spec api-system-scan-config.
+         */
+        get: operations["getHostComplianceSchedule"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/hosts/{id}/compliance/trend": {
         parameters: {
             query?: never;
@@ -2123,6 +2148,23 @@ export interface components {
             overrides: {
                 [key: string]: string;
             };
+        };
+        HostComplianceSchedule: {
+            /** @description The scan config enabled flag */
+            scheduler_enabled: boolean;
+            /** @description True when the scheduler dispatches nothing fleet-wide (disabled or global maintenance) */
+            scheduler_paused: boolean;
+            /** @enum {string} */
+            compliance_state: "critical" | "non_compliant" | "partial" | "mostly_compliant" | "compliant" | "unknown";
+            /**
+             * Format: date-time
+             * @description Null when the host has no schedule row yet
+             */
+            next_scan_at?: string | null;
+            /** @description Current per-state interval; 0 when unseeded */
+            interval_minutes: number;
+            /** @description Per-host maintenance flag on the schedule row */
+            host_maintenance: boolean;
         };
         HostComplianceTrend: {
             /** @description One entry per day with a snapshot, oldest first */
@@ -4650,6 +4692,46 @@ export interface operations {
                 };
             };
             /** @description Host not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getHostComplianceSchedule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Schedule projection for the host */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HostComplianceSchedule"];
+                };
+            };
+            /** @description Caller lacks host:read permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unknown or deleted host */
             404: {
                 headers: {
                     [name: string]: unknown;

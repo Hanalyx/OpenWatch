@@ -18,7 +18,9 @@ import (
 	"github.com/Hanalyx/openwatch/internal/auth"
 	"github.com/Hanalyx/openwatch/internal/host"
 	"github.com/Hanalyx/openwatch/internal/posture"
+	"github.com/Hanalyx/openwatch/internal/scheduler"
 	"github.com/Hanalyx/openwatch/internal/server/api"
+	"github.com/Hanalyx/openwatch/internal/systemconfig"
 )
 
 // trendDays clamps the ?days window into [1, 90], defaulting to 30.
@@ -135,4 +137,54 @@ func (h *handlers) GetFleetComplianceTrend(
 		})
 	}
 	writeJSON(w, http.StatusOK, resp)
+}
+
+// GetHostComplianceSchedule implements api.ServerInterface.
+// Backs the host detail Auto-scan tile: the host's schedule row plus
+// the scheduler-wide pause flags. Read view lives in internal/scheduler
+// (table owner). Spec api-system-scan-config AC-10.
+func (h *handlers) GetHostComplianceSchedule(
+	w http.ResponseWriter,
+	r *http.Request,
+	id openapitypes.UUID,
+) {
+	if denied := auth.EnforcePermission(w, r, auth.HostRead); denied {
+		return
+	}
+	ctx := r.Context()
+	hostID := uuid.UUID(id)
+
+	if _, err := h.hosts.GetByID(ctx, hostID); err != nil {
+		if errors.Is(err, host.ErrHostNotFound) {
+			writeError(w, http.StatusNotFound, "hosts.not_found", "client",
+				"host not found", false)
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "server.error", "server",
+			"lookup failed", true)
+		return
+	}
+
+	info, err := scheduler.HostSchedule(ctx, h.pool, hostID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "server.error", "server",
+			"schedule query failed", true)
+		return
+	}
+
+	cfg := systemconfig.DefaultScan()
+	if h.sysCfg != nil {
+		if loaded, cfgErr := h.sysCfg.LoadScan(ctx); cfgErr == nil {
+			cfg = loaded
+		}
+	}
+
+	writeJSON(w, http.StatusOK, api.HostComplianceSchedule{
+		SchedulerEnabled: cfg.Enabled,
+		SchedulerPaused:  !cfg.Enabled || cfg.MaintenanceGlobal,
+		ComplianceState:  api.HostComplianceScheduleComplianceState(info.State),
+		NextScanAt:       info.NextScanAt,
+		IntervalMinutes:  info.IntervalMinutes,
+		HostMaintenance:  info.Maintenance,
+	})
 }

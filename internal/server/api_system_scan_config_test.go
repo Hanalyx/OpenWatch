@@ -11,6 +11,7 @@
 //	AC-07  TestAPI_ScanSchedulePreview_ProjectionFigures
 //	AC-08  TestAPI_ScanVariables_GET_ListsCatalogWithFlags
 //	AC-09  TestAPI_ScanVariables_PUT_OverridesValidationAndAudit
+//	AC-10  TestAPI_HostComplianceSchedule_TileRead
 package server
 
 import (
@@ -592,6 +593,93 @@ func TestAPI_ScanVariables_PUT_OverridesValidationAndAudit(t *testing.T) {
 				t.Fatalf("no SystemConfigChanged audit row for scan_variables")
 			}
 			time.Sleep(50 * time.Millisecond)
+		}
+	})
+}
+
+// @ac AC-10
+// AC-10 (v1.2.0): the Auto-scan tile read — schedule row + scheduler
+// flags; unseeded hosts degrade to unknown; 404 + RBAC.
+func TestAPI_HostComplianceSchedule_TileRead(t *testing.T) {
+	t.Run("api-system-scan-config/AC-10", func(t *testing.T) {
+		url, pool := freshAPIServer(t)
+		now := time.Now().UTC().Truncate(time.Second)
+
+		seeded := seedHostForIntel(t, pool)
+		seedScheduleRow(t, pool, seeded, "mostly_compliant", now.Add(6*time.Hour), false)
+		if _, err := pool.Exec(context.Background(), `
+			UPDATE host_compliance_schedule SET current_interval_minutes = 1440
+			 WHERE host_id = $1`, seeded); err != nil {
+			t.Fatalf("set interval: %v", err)
+		}
+		unseeded := seedHostForIntel(t, pool)
+
+		type schedResp struct {
+			SchedulerEnabled bool       `json:"scheduler_enabled"`
+			SchedulerPaused  bool       `json:"scheduler_paused"`
+			ComplianceState  string     `json:"compliance_state"`
+			NextScanAt       *time.Time `json:"next_scan_at"`
+			IntervalMinutes  int        `json:"interval_minutes"`
+			HostMaintenance  bool       `json:"host_maintenance"`
+		}
+		fetch := func(id string) (int, schedResp) {
+			t.Helper()
+			req := asRole(t, "GET", url+"/api/v1/hosts/"+id+"/compliance/schedule",
+				auth.RoleViewer, nil)
+			resp := doReq(t, req)
+			defer resp.Body.Close()
+			var body schedResp
+			if resp.StatusCode == http.StatusOK {
+				if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+					t.Fatalf("decode: %v", err)
+				}
+			}
+			return resp.StatusCode, body
+		}
+
+		status, body := fetch(seeded.String())
+		if status != http.StatusOK {
+			t.Fatalf("status = %d, want 200", status)
+		}
+		if body.ComplianceState != "mostly_compliant" || body.IntervalMinutes != 1440 ||
+			body.NextScanAt == nil || !body.NextScanAt.Equal(now.Add(6*time.Hour)) ||
+			body.HostMaintenance || !body.SchedulerEnabled || body.SchedulerPaused {
+			t.Errorf("seeded = %+v, want mostly_compliant/1440m/next+6h, enabled, not paused", body)
+		}
+
+		// Unseeded host: unknown with nulls, never an error.
+		status, body = fetch(unseeded.String())
+		if status != http.StatusOK || body.ComplianceState != "unknown" ||
+			body.NextScanAt != nil || body.IntervalMinutes != 0 {
+			t.Errorf("unseeded: status=%d body=%+v, want 200 unknown/null/0", status, body)
+		}
+
+		// Paused scheduler reflects in the flags.
+		putBody := validScanBody()
+		putBody["maintenance_global"] = true
+		putReq := asRole(t, "PUT", url+"/api/v1/system/scan/config", auth.RoleAdmin, putBody)
+		putResp := doReq(t, putReq)
+		putResp.Body.Close()
+		_, body = fetch(seeded.String())
+		if !body.SchedulerPaused || !body.SchedulerEnabled {
+			t.Errorf("after global maintenance: %+v, want paused=true enabled=true", body)
+		}
+
+		// Unknown host: 404. Anonymous: rejected.
+		ghost := uuid.Must(uuid.NewV7())
+		status, _ = fetch(ghost.String())
+		if status != http.StatusNotFound {
+			t.Errorf("ghost = %d, want 404", status)
+		}
+		anon, _ := http.NewRequest("GET",
+			url+"/api/v1/hosts/"+seeded.String()+"/compliance/schedule", nil)
+		anonResp, err := http.DefaultClient.Do(anon)
+		if err != nil {
+			t.Fatalf("anon: %v", err)
+		}
+		anonResp.Body.Close()
+		if anonResp.StatusCode != http.StatusUnauthorized && anonResp.StatusCode != http.StatusForbidden {
+			t.Errorf("anonymous = %d, want 401/403", anonResp.StatusCode)
 		}
 	})
 }

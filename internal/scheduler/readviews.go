@@ -10,9 +10,12 @@ package scheduler
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -112,4 +115,40 @@ func PreviewSchedule(ctx context.Context, pool *pgxpool.Pool, now time.Time) (Sc
 		return p, fmt.Errorf("scheduler: iterate preview buckets: %w", err)
 	}
 	return p, nil
+}
+
+// HostScheduleInfo is the per-host schedule projection backing the
+// host detail Auto-scan tile.
+type HostScheduleInfo struct {
+	State           ComplianceState
+	NextScanAt      *time.Time
+	IntervalMinutes int
+	Maintenance     bool
+	// Found is false when the host has no schedule row yet (created
+	// before seeding existed and never backfilled, or mid-create);
+	// callers render the unknown state rather than erroring.
+	Found bool
+}
+
+// HostSchedule returns one host's schedule row. A missing row is not
+// an error: Found=false with the zero values (state unknown).
+func HostSchedule(ctx context.Context, pool *pgxpool.Pool, hostID uuid.UUID) (HostScheduleInfo, error) {
+	info := HostScheduleInfo{State: StateUnknown}
+	var state string
+	var next time.Time
+	err := pool.QueryRow(ctx, `
+		SELECT compliance_state, next_scheduled_scan,
+		       current_interval_minutes, maintenance_mode
+		  FROM host_compliance_schedule WHERE host_id = $1`, hostID).
+		Scan(&state, &next, &info.IntervalMinutes, &info.Maintenance)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return info, nil
+		}
+		return info, fmt.Errorf("scheduler: host schedule %s: %w", hostID, err)
+	}
+	info.State = ComplianceState(state)
+	info.NextScanAt = &next
+	info.Found = true
+	return info, nil
 }

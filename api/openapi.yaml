@@ -1551,6 +1551,39 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
 
+  /api/v1/hosts/{id}/compliance/schedule:
+    get:
+      operationId: getHostComplianceSchedule
+      summary: One host's adaptive-scan schedule (Auto-scan tile)
+      description: |
+        The host's row from the adaptive scheduler: compliance state,
+        next scheduled scan, current interval, and the pause flags
+        (per-host maintenance + the scheduler-wide enabled/maintenance
+        config). A host without a schedule row returns state unknown
+        with a null next_scan_at - never an error.
+        Spec api-system-scan-config.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: Schedule projection for the host
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/HostComplianceSchedule'}
+        '404':
+          description: Unknown or deleted host
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '403':
+          description: Caller lacks host:read permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
   /api/v1/hosts/{id}/compliance/trend:
     get:
       operationId: getHostComplianceTrend
@@ -3050,6 +3083,32 @@ components:
           type: object
           additionalProperties: {type: string}
           description: Variable name to override value. PUT replaces the full map
+
+    HostComplianceSchedule:
+      type: object
+      required: [scheduler_enabled, scheduler_paused, compliance_state,
+                 interval_minutes, host_maintenance]
+      properties:
+        scheduler_enabled:
+          type: boolean
+          description: The scan config enabled flag
+        scheduler_paused:
+          type: boolean
+          description: True when the scheduler dispatches nothing fleet-wide (disabled or global maintenance)
+        compliance_state:
+          type: string
+          enum: [critical, non_compliant, partial, mostly_compliant, compliant, unknown]
+        next_scan_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Null when the host has no schedule row yet
+        interval_minutes:
+          type: integer
+          description: Current per-state interval; 0 when unseeded
+        host_maintenance:
+          type: boolean
+          description: Per-host maintenance flag on the schedule row
 
     HostComplianceTrend:
       type: object

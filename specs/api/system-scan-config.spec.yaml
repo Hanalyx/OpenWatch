@@ -1,7 +1,7 @@
 spec:
   id: api-system-scan-config
   title: Adaptive compliance scan scheduler config + fleet-state + schedule-preview HTTP surface
-  version: "1.1.0"
+  version: "1.2.0"
   status: approved
   tier: 2
 
@@ -25,6 +25,7 @@ spec:
         GET /api/v1/system/scan/schedule-preview  - 24h forward projection
         GET /api/v1/system/scan/variables         - corpus-used template variables (v1.1.0)
         PUT /api/v1/system/scan/variables         - replace operator overrides (v1.1.0)
+        GET /api/v1/hosts/{id}/compliance/schedule - per-host schedule for the Auto-scan tile (v1.2.0)
 
       PUT semantics DIVERGE from the sibling configs deliberately:
       ladder minutes are CLAMPED into [5, 2880] and rate_limit into
@@ -130,3 +131,7 @@ spec:
       description: 'v1.1.0 - PUT /system/scan/variables with a valid override persists it (subsequent GET shows overridden: true and the new effective value); an override equal to the built-in default is dropped (GET shows overridden: false); an unknown variable name returns 400 validation.field_invalid naming the key and persists nothing; a viewer PUT returns 403; a successful PUT emits SystemConfigChanged with config_key scan_variables'
       priority: critical
       references_constraints: [C-02, C-04, C-07]
+    - id: AC-10
+      description: 'v1.2.0 - GET /hosts/{id}/compliance/schedule returns the host schedule row (compliance_state, next_scan_at, interval_minutes, host_maintenance) plus the scheduler-wide flags (scheduler_enabled, scheduler_paused = disabled OR global maintenance); a host without a schedule row returns state unknown with null next_scan_at and interval 0, never an error; unknown hosts 404 hosts.not_found before any schedule read; anonymous callers are rejected and a viewer succeeds'
+      priority: critical
+      references_constraints: [C-02]

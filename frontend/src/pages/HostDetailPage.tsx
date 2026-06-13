@@ -397,7 +397,7 @@ export function HostDetailPage() {
                 aria-label="Host hero stats"
               >
                 <HeroCompliance summary={detailQuery.data.compliance_summary} lastScan={null} />
-                <HeroAutoScan />
+                <HeroAutoScan hostId={hostId} />
                 <HeroConnectivity
                   host={detailQuery.data.host}
                   liveness={detailQuery.data.liveness}
@@ -1151,20 +1151,71 @@ function HeroCompliance({
   );
 }
 
-function HeroAutoScan() {
-  // Adaptive compliance scheduler is deferred (BACKLOG); render the
-  // prototype's structured rows with placeholder values so the card
-  // shape matches a future "Enabled" state. AC-29.
+// HeroAutoScan is LIVE against GET /hosts/{id}/compliance/schedule
+// (api-system-scan-config AC-10). The ['host', hostId] query-key
+// prefix rides the scan.completed SSE invalidation, so the Next/
+// Interval rows re-anchor right after each scan.
+function HeroAutoScan({ hostId }: { hostId: string }) {
+  const schedQuery = useQuery({
+    queryKey: ['host', hostId, 'compliance_schedule'],
+    queryFn: async () => {
+      const { data, error, response } = await api.GET('/api/v1/hosts/{id}/compliance/schedule', {
+        params: { path: { id: hostId } },
+      });
+      if (error || !response.ok) {
+        throw new Error(apiErrorMessage(error, `Failed to load (${response.status})`));
+      }
+      return data!;
+    },
+    enabled: !!hostId,
+    refetchInterval: 60_000,
+  });
+
+  const sched = schedQuery.data;
+  const status: { label: string; color: string } = !sched
+    ? { label: schedQuery.isError ? 'Unavailable' : 'Loading', color: 'var(--ow-fg-3)' }
+    : sched.scheduler_paused
+      ? { label: 'Paused', color: 'var(--ow-warn)' }
+      : sched.host_maintenance
+        ? { label: 'Host paused', color: 'var(--ow-warn)' }
+        : { label: 'On', color: 'var(--ow-ok)' };
+
+  const nextLabel =
+    sched?.next_scan_at && !sched.scheduler_paused && !sched.host_maintenance
+      ? formatNextScan(sched.next_scan_at)
+      : null;
+  const intervalLabel =
+    sched && sched.interval_minutes > 0 ? formatIntervalMins(sched.interval_minutes) : null;
+  const stateLabel = sched ? sched.compliance_state.replace(/_/g, ' ') : null;
+
   return (
     <article style={heroCard} aria-labelledby="hero-autoscan-title">
       <header style={heroHead}>
         <span id="hero-autoscan-title">Auto-scan</span>
         <Clock size={14} aria-hidden />
       </header>
-      <BandLine label="Disabled" color="var(--ow-fg-3)" />
+      <BandLine label={status.label} color={status.color} />
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12 }}>
-        <KvRow k={'Next'} v={<span style={{ color: 'var(--ow-fg-3)' }}>—</span>} />
-        <KvRow k={'Interval'} v={<span style={{ color: 'var(--ow-fg-3)' }}>—</span>} />
+        <KvRow
+          k={'Next'}
+          v={
+            nextLabel ? (
+              <span style={{ fontVariantNumeric: 'tabular-nums' }}>{nextLabel}</span>
+            ) : (
+              <span style={{ color: 'var(--ow-fg-3)' }}>—</span>
+            )
+          }
+        />
+        <KvRow
+          k={'Interval'}
+          v={
+            intervalLabel ? (
+              <span style={{ fontVariantNumeric: 'tabular-nums' }}>{intervalLabel}</span>
+            ) : (
+              <span style={{ color: 'var(--ow-fg-3)' }}>—</span>
+            )
+          }
+        />
       </div>
       <div
         style={{
@@ -1176,10 +1227,37 @@ function HeroAutoScan() {
           lineHeight: 1.5,
         }}
       >
-        Populated by the adaptive compliance scheduler (BACKLOG).
+        {sched?.scheduler_paused
+          ? 'Scheduler paused in Settings. On-demand scans stay available.'
+          : sched?.host_maintenance
+            ? 'This host is paused for maintenance. On-demand scans stay available.'
+            : stateLabel
+              ? `Cadence follows the compliance state (${stateLabel}).`
+              : 'Cadence follows the adaptive compliance scheduler.'}
       </div>
     </article>
   );
+}
+
+// formatNextScan renders the next scheduled scan as a relative time
+// ("in 4h", "in 25 min", "due now").
+function formatNextScan(iso: string): string {
+  const t = new Date(iso).getTime();
+  if (Number.isNaN(t)) return '—';
+  const seconds = Math.round((t - Date.now()) / 1000);
+  if (seconds <= 0) return 'due now';
+  if (seconds < 3600) return `in ${Math.max(1, Math.round(seconds / 60))} min`;
+  if (seconds < 86400) return `in ${Math.round(seconds / 3600)}h`;
+  return `in ${Math.round(seconds / 86400)}d`;
+}
+
+// formatIntervalMins humanizes the per-state interval.
+function formatIntervalMins(mins: number): string {
+  if (mins < 60) return `Every ${mins} min`;
+  const h = mins / 60;
+  if (Number.isInteger(h) && h < 24) return `Every ${h}h`;
+  if (Number.isInteger(h / 24)) return `Every ${h / 24}d`;
+  return `Every ${mins} min`;
 }
 
 // bandLabel returns the human-facing label + accent color for a band.

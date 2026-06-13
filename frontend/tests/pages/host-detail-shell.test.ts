@@ -276,17 +276,28 @@ describe('frontend-host-detail — prototype shell', () => {
   });
 
   // @ac AC-29
-  test('frontend-host-detail/AC-29 — Auto-scan empty state shows structured rows', () => {
-    // The card body has a status line + Next/Interval rows even when
-    // there is no scheduler — not just a blob of empty-state text.
-    const autoScanFn = PAGE_SRC.indexOf('function HeroAutoScan');
-    expect(autoScanFn).toBeGreaterThan(-1);
-    const next = PAGE_SRC.indexOf('\nfunction ', autoScanFn + 1);
-    const body = PAGE_SRC.slice(autoScanFn, next);
-    expect(body).toMatch(/Disabled/);
-    expect(body).toContain("'Next'");
-    expect(body).toContain("'Interval'");
-    expect(body).toMatch(/adaptive compliance scheduler/i);
+  test('frontend-host-detail/AC-29 — Auto-scan tile is live against the schedule endpoint', () => {
+    const tile = PAGE_SRC.slice(
+      PAGE_SRC.indexOf('function HeroAutoScan'),
+      PAGE_SRC.indexOf('function formatNextScan'),
+    );
+    expect(tile.length).toBeGreaterThan(0);
+    expect(tile).toContain("queryKey: ['host', hostId, 'compliance_schedule']");
+    expect(tile).toContain("api.GET('/api/v1/hosts/{id}/compliance/schedule'");
+    // Status states: On / Paused / Host paused.
+    expect(tile).toContain("{ label: 'On', color: 'var(--ow-ok)' }");
+    expect(tile).toContain("{ label: 'Paused', color: 'var(--ow-warn)' }");
+    expect(tile).toContain("{ label: 'Host paused', color: 'var(--ow-warn)' }");
+    // Structured rows survive: Next + Interval with dash fallbacks.
+    expect(tile).toContain("k={'Next'}");
+    expect(tile).toContain("k={'Interval'}");
+    // Footer explains the pause cause or the cadence driver; the
+    // BACKLOG placeholder is gone.
+    expect(tile).toContain('Scheduler paused in Settings.');
+    expect(tile).toContain('Cadence follows the compliance state');
+    expect(PAGE_SRC).not.toContain('adaptive compliance scheduler (BACKLOG)');
+    // The page passes the host id into the tile.
+    expect(PAGE_SRC).toContain('<HeroAutoScan hostId={hostId} />');
   });
 
   // @ac AC-30
