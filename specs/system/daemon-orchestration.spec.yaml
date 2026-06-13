@@ -1,7 +1,7 @@
 spec:
   id: system-daemon-orchestration
   title: openwatch serve daemon lifecycle and Slice B runtime wiring
-  version: "1.1.0"
+  version: "1.2.0"
   status: approved
   tier: 1
 
@@ -101,6 +101,11 @@ spec:
       type: technical
       enforcement: error
 
+    - id: C-09
+      description: 'v1.2.0 - EVERY server.Server WithX builder method (the dependency injectors that populate handler fields) MUST be invoked in the cmd/openwatch/main.go serve chain. A builder defined but not called leaves its handler field nil, and the guarded handlers return 503 server.unavailable in production while passing tests that wire it in their fixture - the exact gap that left every /api/v1/alerts endpoint 503 until the alerts service was wired. The guard is generic (enumerates builders from server.go source) so a newly added builder is covered automatically'
+      type: technical
+      enforcement: error
+
   acceptance_criteria:
     - id: AC-01
       description: openwatch serve binary builds cleanly with the Slice B imports — alertrouter, alertrouter/channels/stdout, eventbus, liveness — present in cmd/openwatch/main.go's import block.
@@ -142,3 +147,7 @@ spec:
       description: 'v1.1.0 — Source-inspection: cmd/openwatch/main.go contains a slog.WarnContext call inside cmdServe whose msg contains "intelligence scheduler paused at startup" (or "paused" in the message), AND whose body references cfgStore.LoadIntelligence + MaintenanceGlobal. Verified by reading the file and asserting both patterns appear next to each other'
       priority: critical
       references_constraints: [C-08]
+    - id: AC-11
+      description: 'v1.2.0 - Source-inspection: enumerate every "func (s *Server) WithX" builder declared in internal/server/*.go (excluding _test files) and assert each WithX token appears in cmd/openwatch/main.go. Fails if any builder is unwired - the generic regression guard that the per-service AC-08/AC-09 checks specialize. Catches the alerts-service class of gap for every current and future builder'
+      priority: critical
+      references_constraints: [C-09]

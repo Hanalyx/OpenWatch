@@ -10,6 +10,7 @@
 //   AC-08  TestCmdServe_DiscoveryServiceWired
 //   AC-09  TestCmdServe_IntelligenceSchedulerWired
 //   AC-10  TestCmdServe_MaintenancePauseWarnLog
+//   AC-11  TestCmdServe_AllServerBuildersWired
 //
 // These tests are source-inspection — they read app/cmd/openwatch/main.go
 // and the Slice B package directories and assert structural invariants.
@@ -292,6 +293,52 @@ func TestCmdServe_MaintenancePauseWarnLog(t *testing.T) {
 		warnRe := regexp.MustCompile(`slog\.WarnContext\(bootCtx,\s*"intelligence scheduler paused at startup"`)
 		if !warnRe.MatchString(src) {
 			t.Error(`main.go missing slog.WarnContext(bootCtx, "intelligence scheduler paused at startup", ...)`)
+		}
+	})
+}
+
+// @ac AC-11
+// AC-11: every server.Server WithX builder must be invoked in the
+// serve chain. Generic guard - enumerates builders from server.go
+// source so a newly added builder is covered automatically. This is
+// the regression backstop for the class of gap that left every
+// /api/v1/alerts endpoint 503 (alerts service defined a builder but
+// main.go never called it).
+func TestCmdServe_AllServerBuildersWired(t *testing.T) {
+	t.Run("system-daemon-orchestration/AC-11", func(t *testing.T) {
+		_, file, _, _ := runtime.Caller(0)
+		serverDir := filepath.Join(filepath.Dir(file), "..", "..", "internal", "server")
+		entries, err := os.ReadDir(serverDir)
+		if err != nil {
+			t.Fatalf("read server dir: %v", err)
+		}
+
+		builderRe := regexp.MustCompile(`func \(s \*Server\) (With[A-Za-z]+)\(`)
+		builders := map[string]bool{}
+		for _, e := range entries {
+			name := e.Name()
+			if !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+				continue
+			}
+			b, err := os.ReadFile(filepath.Join(serverDir, name))
+			if err != nil {
+				t.Fatalf("read %s: %v", name, err)
+			}
+			for _, m := range builderRe.FindAllStringSubmatch(string(b), -1) {
+				builders[m[1]] = true
+			}
+		}
+		if len(builders) == 0 {
+			t.Fatal("found no Server WithX builders — enumeration regex is broken")
+		}
+
+		main := mainGoSource(t)
+		for b := range builders {
+			// The chain formats each call on its own line ("\n\t\tWithX(")
+			// so match the bare token followed by '('.
+			if !regexp.MustCompile(`\b` + b + `\(`).MatchString(main) {
+				t.Errorf("server builder %s is defined but never called in main.go — its handler field stays nil and the guarded endpoints 503 in production (the alerts-service gap)", b)
+			}
 		}
 	})
 }
