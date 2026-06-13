@@ -25,16 +25,16 @@ Kensa retrieves SSH credentials from OpenWatch's encrypted store
 SSH connection to target host
         |
         v
-338 YAML rules evaluated (check commands, config values, file permissions)
+539 YAML rules evaluated (check commands, config values, file permissions)
         |
         v
 Each rule returns: pass/fail, severity, detail, evidence
         |
         v
-Results stored in PostgreSQL (scan_findings table)
+Write-on-change: changed verdicts -> transactions; current state -> host_rule_state
         |
         v
-Posture snapshot updated, alerts generated if thresholds met
+Daily posture snapshot rolls up; drift alerts generated if thresholds met
 ```
 
 Key points:
@@ -58,11 +58,11 @@ Key points:
 | PCI-DSS v4.0 | pci-dss-v4.0 | 45 |
 | FedRAMP Moderate | fedramp-moderate | 87 |
 
-Framework mappings come from two sources synced to the database by
-KensaRuleSyncService:
-
-1. **Inline references** -- per-rule `references:` fields in YAML rule files.
-2. **Mapping files** -- authoritative `mappings/*.yaml` files for full coverage.
+Framework mappings are carried per-rule as Kensa's normalized `framework_refs`
+(a multi-valued framework_id -> control-ids map, since one rule can satisfy
+several controls within a framework). They are stored on each `host_rule_state`
+row as `framework_refs` JSONB and projected into the lens views at query time --
+there is no separate sync service in the Go rebuild.
 
 ---
 
@@ -72,9 +72,13 @@ KensaRuleSyncService:
 
 1. Navigate to **Hosts** and select the host you want to scan.
 2. On the host detail page, click **Run Scan**.
-3. Select a compliance framework from the dropdown (or leave blank to run all
-   338 rules without framework filtering).
-4. Click **Start Scan**.
+
+A scan always runs the **full applicable rule corpus** -- you do not pick a
+framework to scan. Frameworks (CIS, STIG, NIST, PCI) are **reporting lenses**
+applied at view time on the Compliance tab: one scan, viewed through any
+framework. The lens bar only offers frameworks compatible with the host's
+detected OS (a RHEL 8 host does not show CIS/STIG RHEL 9 or 10 lenses);
+OS-neutral frameworks (NIST, PCI, SRG) always appear.
 
 ![Running a scan from the host detail page](../images/scanning/run-scan.png)
 
@@ -206,17 +210,24 @@ compliance state. You do not need to trigger manual scans for routine monitoring
 
 ### How It Works
 
-| Compliance State | Score Range | Scan Interval |
-|------------------|-------------|---------------|
-| Compliant | 100% | Every 24 hours |
-| Mostly compliant | 80--99% | Every 12 hours |
-| Partial | 50--79% | Every 6 hours |
-| Low | 20--49% | Every 2 hours |
-| Critical | < 20% or critical findings | Every 1 hour |
-| Unknown | Never scanned | Immediate |
-| Maintenance | Paused | Every 48 hours (max) |
+A host is classified into one of five score bands (plus Unknown for
+never-scanned hosts) after every scan, and the next scan is scheduled from the
+band's interval. The intervals below are the **defaults** -- they are
+operator-editable per band under **Settings -> Scanning & monitoring ->
+Compliance scanner**, clamped to a 5-minute floor and a 48-hour ceiling.
 
-The maximum interval is 48 hours. No active host goes unscanned longer than that.
+| Compliance State | Score Range | Default Interval |
+|------------------|-------------|------------------|
+| Critical | < 20%, or any critical finding | Every 4 hours |
+| Non-compliant | 20--49% | Every 8 hours |
+| Partial | 50--69% | Every 12 hours |
+| Mostly compliant | 70--89% | Every 24 hours |
+| Compliant | >= 90% | Every 48 hours |
+| Unknown | Never scanned | Every 6 hours (due immediately on first sight) |
+
+The maximum interval is 48 hours. No active host goes unscanned longer than
+that. A per-host or fleet-wide maintenance flag pauses scheduled scans without
+affecting on-demand Run Scan.
 
 ### Viewing a Host's Schedule
 
