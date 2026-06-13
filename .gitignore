@@ -843,6 +843,7 @@ docs/guides/DEVELOPER_DOCUMENTATION_STYLE_GUIDE.md
 SESSION_LOG.md
 BACKLOG.md
 MONGODB_INDEX_MIGRATION_PLAN.md
+docs/engineering/navigation_mvp_plan.md
 
 # Dependency upgrade analysis documents (generated during updates)
 DEPENDENCY_UPGRADES_STATUS.md
