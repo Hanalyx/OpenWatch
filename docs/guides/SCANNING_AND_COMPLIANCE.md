@@ -256,6 +256,57 @@ on the host detail page. This bypasses the schedule and runs at highest priority
 
 ---
 
+## Compliance Exceptions
+
+A compliance exception is a documented, operator-approved waiver for a failing
+rule on a host -- accepted risk ("rule X on host Y is accepted because Z, until
+date D"). Exceptions are governed through a request and approval workflow.
+
+**Overlay model (important):** an exception **never changes a rule's scan
+verdict**. A failing rule with an active exception still shows as failing in the
+raw results and still counts against the raw compliance score -- Kensa's verdict
+is authoritative. The exception is a governance annotation that marks the
+failure as accepted risk wherever it surfaces. This keeps the score honest and
+keeps the audit trail showing both "the control failed" and "the failure was
+formally accepted."
+
+### Lifecycle
+
+```
+requested -> approved  -> (active until expiry) -> revoked | expired
+          -> rejected
+```
+
+### Who can do what (separation of duties)
+
+| Action | Permission | Roles |
+|--------|------------|-------|
+| Request an exception | exception:request | ops_lead, auditor, security_admin, admin |
+| Approve / reject a request | exception:approve | auditor, security_admin, admin |
+| Revoke an active exception | exception:revoke | security_admin, admin |
+| View exceptions | exception:read | all roles above + viewer |
+
+The requester **cannot** approve their own request.
+
+### Requesting an exception
+
+1. On the host's **Compliance** tab, find a failing rule.
+2. Click **Request exception** in its row.
+3. Enter the reason (required) and an optional expiry date.
+4. Submit. The rule now shows a **Pending** badge.
+
+### Approving / managing exceptions
+
+The fleet queue lives at **Settings -> Compliance policies -> Exception
+workflow**. Filter by status (Pending / Active / Rejected / Revoked / Expired),
+and on a pending request an approver can **Approve** or **Reject**; on an active
+exception, **Revoke** ends it before its expiry. Once approved, the rule shows a
+**Waived** badge everywhere it appears (the host's Compliance tab, the Watchlist
+tile, the Server-intelligence Open-exceptions count). Approved exceptions whose
+expiry passes are swept to **expired** automatically.
+
+---
+
 ## Alert Management
 
 Alerts are generated automatically when scan results meet configured thresholds.

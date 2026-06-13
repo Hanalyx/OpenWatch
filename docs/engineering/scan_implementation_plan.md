@@ -11,11 +11,11 @@
 | 2 — Top failed rules | **DONE** | GET /hosts/{id}/compliance/failed-rules (no-evidence C-02, multi-valued control_ids) + RuleCatalog titles + live card. Verified: hrm01's real 147 failures render with catalog titles |
 | 3 — Compliance tab lens | **DONE** | GET /hosts/{id}/compliance (+/frameworks) with C-05 reconciliation; ComplianceTab.tsx lens UI. Live: lens switch recounts 68.1% all-rules -> 71.4% under stig_rhel8 (266 rules exactly). Prototype-fidelity pass done 2026-06-12: per-lens scores on chips + overall aggregate, result-mix/scan panels, duration_seconds, catalog descriptions, search, in-strip Re-scan (specs v1.2.0 / v1.1.0) |
 | 4 — Adaptive scheduler + settings | **DONE** (2026-06-12; scan variables shipped in PR #517, surfaced on Settings > Compliance policies) | system-scheduler v3.0.0: ladder from systemconfig (RunManaged per-tick refresh), five bands + migration 0024 backfill, PersistAfterScan after every scan, dispatch logbook rows. api-system-scan-config (6 endpoints incl. scan/variables + scan/schedule + host schedule tile) + wired Settings section. Scan variables SHIPPED (PR #517): VariableCatalog over the 20 corpus-used vars, operator overrides on Settings > Compliance policies, per-scan corpus reload. Live: first tick auto-dispatched all 9 seeded hosts; fleet classified across the five bands; a UI variable override reloaded the corpus on the next scan. **Phase 4 fully DONE.** |
-| 5 — Fleet surfaces | **mostly DONE** | Per-host Scan buttons, scan-queue KPI, hosts-list compliance_summary enrichment (real % + tier colors + critical_failing), avg/critical KPIs from real data. Remaining: bulk scan (POST /hosts:scan); the avg-compliance delta shipped with Phase 6 |
+| 5 — Fleet surfaces | **mostly DONE** | Per-host Scan, scan-queue KPI, hosts-list compliance_summary enrichment, avg/critical KPIs, fleet avg-compliance delta. Remaining: **bulk scan** (POST /hosts:scan) -> see `scan_remaining_work.md` |
 | 6 — Trend / posture snapshots | **DONE** (2026-06-12, PR #518) | posture_snapshots daily rollup (hourly cron + boot pass); GET /hosts/{id}/compliance/trend + /fleet/compliance/trend; live trend card + avg-compliance delta. Shipped alongside: the host-detail hero strip went fully live (Auto-scan tile -> GET /compliance/schedule, Watchlist tile -> live active-alerts) and OS-aware framework lens filtering (api-host-compliance v1.3.0 — a RHEL 8 host no longer offers RHEL 9/10 lenses) |
-| 7 — Remediation + exceptions | **NEXT (starting 2026-06-13)** | DefaultWithTransportFactory available since kensa v0.3.2; the in-memory transport's Put/Get stubs implement here if remediation mechanisms need them. Exception governance (suppress + skip_reason over host_rule_state) feeds the host-detail Watchlist Exceptions row + the Settings Exception-workflow stub. Open Kensa ratification: rule-ordering (depends_on/conflicts/supersedes) is unexported — a new ratification if remediation sequencing needs it |
+| 7 — Exceptions / Remediation | **Exceptions DONE (rc.6); remediation NOT STARTED** | Exception governance complete end to end (PRs #521/#522/#523): lifecycle, separation of duties, overlay model, host-detail surfaces + fleet approver queue. **Remediation** (host-mutating, scoping required) -> see `scan_remaining_work.md` |
 
-All risks R1-R6 resolved. Fleet self-scans on the adaptive ladder (9 hosts seeded, classified across all five bands; 3 critical re-scan every 4h). Merged PRs: #515 (Phases 0-3 + scheduler core), #517 (scan variables), #518 (posture trend + live hero tiles + OS-aware lenses), #519 (service-wiring guard).
+All risks R1-R6 resolved. Fleet self-scans on the adaptive ladder (9 hosts seeded, classified across all five bands; 3 critical re-scan every 4h). Merged PRs: #515 (Phases 0-3 + scheduler core), #517 (scan variables), #518 (posture trend + live hero tiles + OS-aware lenses), #519 (service-wiring guard), #521/#522/#523 (exception governance: backend + host-detail surfaces + fleet approver queue). All of the above shipped in release **v0.2.0-rc.6** (2026-06-13). **7 of 8 phases complete**; remaining: Phase 7 remediation (the host-mutating half, its own track) + the Phase 5 bulk-scan endpoint.
 
 Operational follow-ups still open (small, not blocking Phase 7):
 - Bulk scan endpoint (POST /hosts:scan) — the last Phase 5 item.
@@ -196,12 +196,11 @@ validate). "Spec" = a new/updated `.spec.yaml` with enforcing tests.
 - **Host Detail tie-in:** show `next scan` + last-scan freshness; trend card's "auto-scan resumes" copy becomes real.
 - **Exit:** a fresh host gets scanned without anyone clicking; interval adapts to compliance state; the Settings section edits the live ladder and the strip/queue readouts move.
 
-### Phase 5 — Host Management fleet surfaces
-**Goal:** the fleet page's scan/compliance columns + bulk scan.
-- **API:** extend the hosts list to include `compliance_summary` (%, passed, failed, total) + `last_scan_at` + `scan_status`; `GET /api/v1/fleet/compliance` (avg, distribution, 24 h delta for the health banner); scan-queue depth (from the job queue / scan-runs). `POST /api/v1/hosts:scan` (bulk, selection or whole-fleet, idempotency-keyed).
-- **Frontend (Host Management):** compliance column + tier coloring, last-scan cell, per-host + fleet `Run scan`, "Scan queue" + "Avg. compliance" stats, fleet-health banner, "down first / compliance asc" sort.
-- **Spec:** `api-fleet-compliance` (new); update `frontend-hosts-list`.
-- **Exit:** the fleet table matches the prototype with live data.
+### Phase 5 — Host Management fleet surfaces — **mostly DONE**
+Compliance columns, tier coloring, per-host Scan, scan-queue + avg-compliance
+KPIs, and the fleet-health delta all shipped (PRs #515 / #518). The one
+remaining piece — the **bulk scan endpoint** (`POST /hosts:scan`) — now lives in
+[`scan_remaining_work.md`](scan_remaining_work.md).
 
 ### Phase 6 — Compliance trend (posture snapshots)
 **Goal:** the 30-day trend card.
@@ -210,12 +209,16 @@ validate). "Spec" = a new/updated `.spec.yaml` with enforcing tests.
 - **Frontend:** replace the trend empty-state with the chart.
 - **Spec:** `system-posture-snapshots` + `api-compliance-trend`.
 
-### Phase 7 — Remediation + exceptions *(larger; separate track)*
-**Goal:** the `Remediate` action and `Add exception` flow.
-- **Backend:** wire `kensa.Remediate()` behind the same transport/adapter (transactional apply + rollback; Kensa Phase 4 K-4/K-5); exception governance against `host_rule_state` (suppress + `skip_reason`). The transport's `Put`/`Get` stubs get real implementations here if remediation mechanisms need them.
-- **Open ratification (flagged by Kensa, deferred to this phase):** `LoadRules` deliberately does not expose `depends_on`/`conflicts`/`supersedes` ordering — if remediation sequencing needs ordering semantics, that's a new Kensa ratification, not something OpenWatch re-implements.
-- **API/Frontend:** `POST …/rules/{rule_id}:remediate`, exception request/approve flow, suppressed-rule rendering.
-- **Spec:** `system-remediation`, `api-host-remediation`, `frontend-remediation-tab`.
+### Phase 7 — Remediation + exceptions
+**Exceptions: DONE** (PRs #521 backend, #522 host-detail surfaces, #523 fleet
+approver queue) — DB-backed request→approve/reject→revoke/expire lifecycle,
+separation of duties, the overlay model (a waiver never changes a rule's raw
+verdict). Specs `api-compliance-exceptions`, `frontend-host-compliance-tab`,
+`frontend-settings-exception-queue`.
+
+**Remediation: NOT STARTED** — the host-mutating half, its own track with a
+scoping decision required first. Full plan + the five decisions in
+[`scan_remaining_work.md`](scan_remaining_work.md).
 
 ---
 
