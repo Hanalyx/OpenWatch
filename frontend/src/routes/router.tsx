@@ -13,7 +13,7 @@ import { HostsListPage } from '@/pages/HostsListPage';
 import { HostDetailPage } from '@/pages/HostDetailPage';
 import { AddHostPage } from '@/pages/AddHostPage';
 import { HomePage } from '@/pages/HomePage';
-import { HomePlaceholderPage } from '@/pages/HomePlaceholderPage';
+import { DashboardPage } from '@/pages/dashboard/DashboardPage';
 import { ForbiddenPage } from '@/pages/ForbiddenPage';
 import { ProfilePage } from '@/pages/settings/ProfilePage';
 import { PreferencesPage } from '@/pages/settings/PreferencesPage';
@@ -78,11 +78,14 @@ const publicHomeRoute = createRoute({
 
 // Authenticated dashboard home, moved off "/" to /dashboard so "/" can
 // host the public homepage. The post-login default destination is
-// /dashboard.
+// /dashboard. The fleet endpoints its widgets read enforce system:read
+// server-side (widgets surface a 403 as an error state); the frontend
+// identity model does not track system:read, so no extra route guard is
+// added beyond the protectedRoute auth gate.
 const dashboardRoute = createRoute({
   getParentRoute: () => protectedRoute,
   path: 'dashboard',
-  component: HomePlaceholderPage,
+  component: DashboardPage,
 });
 
 const hostsListRoute = createRoute({
