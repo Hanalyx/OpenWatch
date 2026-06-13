@@ -19,6 +19,8 @@
 //	AC-13  TestHostComplianceLensHandler_NeverReferencesSensitiveColumn
 //	AC-14  TestHostComplianceFrameworks_ScoresAndOverallAggregate
 //	AC-15  TestHostComplianceLens_DurationAndDescription
+//	AC-16  TestHostComplianceFrameworks_OSAwareFiltering
+//	       TestFrameworkCompatibleWithOS_Table (non-DSN)
 //	       TestFirstSentence_TrimsCatalogProse (non-DSN)
 package server
 
@@ -913,6 +915,114 @@ func TestFirstSentence_TrimsCatalogProse(t *testing.T) {
 			if got := firstSentence(c.in); got != c.want {
 				t.Errorf("firstSentence(%.30q) = %q, want %q", c.in, got, c.want)
 			}
+		}
+	})
+}
+
+// @ac AC-16
+// AC-16 (unit half): the compatibility table — neutral ids, family
+// mismatch, major match, major+minor concatenation, unknown-OS pass.
+func TestFrameworkCompatibleWithOS_Table(t *testing.T) {
+	t.Run("api-host-compliance/AC-16", func(t *testing.T) {
+		cases := []struct {
+			id, family, version string
+			want                bool
+		}{
+			// OS-neutral ids always list.
+			{"nist_800_53", "rhel", "8.10", true},
+			{"pci_dss_4", "rhel", "8.10", true},
+			{"srg", "ubuntu", "24.04", true},
+			// Version-pinned: family + major must match.
+			{"cis_rhel8", "rhel", "8.10", true},
+			{"stig_rhel8", "rhel", "8.10", true},
+			{"cis_rhel9", "rhel", "8.10", false},
+			{"stig_rhel10", "rhel", "8.10", false},
+			{"cis_rhel9", "rhel", "9.7", true},
+			// Family mismatch always hides.
+			{"cis_rhel8", "ubuntu", "24.04", false},
+			{"cis_ubuntu2404", "rhel", "8.10", false},
+			// major+minor concatenation (ubuntu2404 vs "24.04").
+			{"cis_ubuntu2404", "ubuntu", "24.04", true},
+			{"cis_ubuntu2404", "ubuntu", "22.04", false},
+			// Unknown host OS: cannot judge, never hide.
+			{"cis_rhel9", "", "", true},
+			// Family match without a stored version: family wins.
+			{"cis_rhel8", "rhel", "", true},
+		}
+		for _, c := range cases {
+			if got := frameworkCompatibleWithOS(c.id, c.family, c.version); got != c.want {
+				t.Errorf("compatible(%q, %q, %q) = %v, want %v", c.id, c.family, c.version, got, c.want)
+			}
+		}
+	})
+}
+
+// @ac AC-16
+// AC-16 (endpoint half, DSN): version-mismatched lenses vanish from
+// the picker on a discovered host, everything lists on an
+// undiscovered one, and deep-linked lens queries stay unfiltered.
+func TestHostComplianceFrameworks_OSAwareFiltering(t *testing.T) {
+	t.Run("api-host-compliance/AC-16", func(t *testing.T) {
+		url, pool := freshAPIServer(t)
+		base := time.Now().UTC().Truncate(time.Second)
+
+		refs := `{"cis_rhel8": ["1.1"], "cis_rhel9": ["1.1"], "stig_rhel10": ["V-1"],
+		          "nist_800_53": ["AC-6"], "pci_dss_4": ["2.2"], "srg": ["SRG-1"]}`
+
+		rhel8 := seedHostForIntel(t, pool)
+		if _, err := pool.Exec(context.Background(), `
+			UPDATE hosts SET os_family = 'rhel', os_version = '8.10' WHERE id = $1`, rhel8); err != nil {
+			t.Fatalf("set os: %v", err)
+		}
+		seedRuleState(t, pool, rhel8, "fwk-a", "fail", "high", base, 1, refs)
+
+		unknown := seedHostForIntel(t, pool) // os_family NULL
+		seedRuleState(t, pool, unknown, "fwk-a", "pass", "low", base, 1, refs)
+
+		fetch := func(id string) []string {
+			t.Helper()
+			req := asRole(t, "GET", url+"/api/v1/hosts/"+id+"/compliance/frameworks",
+				auth.RoleViewer, nil)
+			resp := doReq(t, req)
+			defer resp.Body.Close()
+			if resp.StatusCode != http.StatusOK {
+				t.Fatalf("status = %d, want 200", resp.StatusCode)
+			}
+			var body struct {
+				Frameworks []struct {
+					FrameworkID string `json:"framework_id"`
+				} `json:"frameworks"`
+			}
+			if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+				t.Fatalf("decode: %v", err)
+			}
+			out := make([]string, 0, len(body.Frameworks))
+			for _, f := range body.Frameworks {
+				out = append(out, f.FrameworkID)
+			}
+			return out
+		}
+
+		got := fetch(rhel8.String())
+		want := []string{"cis_rhel8", "nist_800_53", "pci_dss_4", "srg"}
+		if len(got) != len(want) {
+			t.Fatalf("rhel8 lenses = %v, want %v", got, want)
+		}
+		for i := range want {
+			if got[i] != want[i] {
+				t.Errorf("rhel8 lenses[%d] = %s, want %s", i, got[i], want[i])
+			}
+		}
+
+		if got := fetch(unknown.String()); len(got) != 6 {
+			t.Errorf("unknown-OS lenses = %v, want all 6 (filtering disabled)", got)
+		}
+
+		// Deep-linked mismatched lens still projects (only the picker
+		// filters).
+		status, body := getLens(t, url, auth.RoleViewer, rhel8.String(), "?framework=cis_rhel9")
+		if status != http.StatusOK || len(body.Rules) != 1 {
+			t.Errorf("deep-linked cis_rhel9 lens: status=%d rules=%d, want 200/1", status, len(body.Rules))
 		}
 	})
 }

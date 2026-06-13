@@ -227,3 +227,18 @@ describe('frontend-hosts-list — v1.3.0 real fleet compliance', () => {
     expect(clean.criticalIssues.scope).toBe('No data');
   });
 });
+
+describe('frontend-hosts-list v1.4.0 — fleet trend delta', () => {
+  // @ac AC-19
+  test('frontend-hosts-list/AC-19 — avg-compliance delta reads the fleet trend; empty below two days', () => {
+    expect(PAGE_SRC).toContain("queryKey: ['fleet', 'compliance', 'trend']");
+    expect(PAGE_SRC).toContain("api.GET('/api/v1/fleet/compliance/trend'");
+    // Delta only renders with >= 2 snapshot days.
+    expect(PAGE_SRC).toContain('if (days.length >= 2)');
+    expect(PAGE_SRC).toMatch(/vs yesterday/);
+    // Tier by direction.
+    expect(PAGE_SRC).toContain("diff > 0 ? 'ok' : diff < 0 ? 'crit' : 'neutral'");
+    // kpisFromHosts itself never fabricates a delta.
+    expect(PAGE_SRC).toMatch(/avgCompliance: \{ value: avgCompliance, target: 80, delta: '',/);
+  });
+});

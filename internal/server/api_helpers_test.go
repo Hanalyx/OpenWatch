@@ -150,6 +150,7 @@ func freshAPIServer(t *testing.T) (string, *pgxpool.Pool) {
 	// clears it — leftover scan jobs from earlier fixtures broke the
 	// api-host-scan job-count assertions (caught by the DSN-gated CI
 	// run; scan_runs IS cascaded via its hosts FK).
+	_, _ = pool.Exec(ctx, "TRUNCATE TABLE posture_snapshots")
 	_, _ = pool.Exec(ctx, "TRUNCATE TABLE job_queue")
 	// TRUNCATE…CASCADE delegates child cleanup to the schema — the
 	// hosts row has 11 FK-referencing children and a hand-rolled

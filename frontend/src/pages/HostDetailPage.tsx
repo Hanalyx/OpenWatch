@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams, useSearch, useNavigate, Link } from '@tanstack/react-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   Activity as ActivityIcon,
   AlertTriangle,
@@ -397,12 +397,12 @@ export function HostDetailPage() {
                 aria-label="Host hero stats"
               >
                 <HeroCompliance summary={detailQuery.data.compliance_summary} lastScan={null} />
-                <HeroAutoScan />
+                <HeroAutoScan hostId={hostId} />
                 <HeroConnectivity
                   host={detailQuery.data.host}
                   liveness={detailQuery.data.liveness}
                 />
-                <HeroWatchlist />
+                <HeroWatchlist hostId={hostId} />
               </section>
 
               {/* OVERVIEW_BODY */}
@@ -423,7 +423,7 @@ export function HostDetailPage() {
                     onViewAll={() => goToTab('compliance')}
                   />
                   <CardServerIntel hostId={detailQuery.data.host.id} />
-                  <CardComplianceTrend />
+                  <CardComplianceTrend hostId={hostId} />
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0 }}>
                   <CardSystem
@@ -1151,20 +1151,71 @@ function HeroCompliance({
   );
 }
 
-function HeroAutoScan() {
-  // Adaptive compliance scheduler is deferred (BACKLOG); render the
-  // prototype's structured rows with placeholder values so the card
-  // shape matches a future "Enabled" state. AC-29.
+// HeroAutoScan is LIVE against GET /hosts/{id}/compliance/schedule
+// (api-system-scan-config AC-10). The ['host', hostId] query-key
+// prefix rides the scan.completed SSE invalidation, so the Next/
+// Interval rows re-anchor right after each scan.
+function HeroAutoScan({ hostId }: { hostId: string }) {
+  const schedQuery = useQuery({
+    queryKey: ['host', hostId, 'compliance_schedule'],
+    queryFn: async () => {
+      const { data, error, response } = await api.GET('/api/v1/hosts/{id}/compliance/schedule', {
+        params: { path: { id: hostId } },
+      });
+      if (error || !response.ok) {
+        throw new Error(apiErrorMessage(error, `Failed to load (${response.status})`));
+      }
+      return data!;
+    },
+    enabled: !!hostId,
+    refetchInterval: 60_000,
+  });
+
+  const sched = schedQuery.data;
+  const status: { label: string; color: string } = !sched
+    ? { label: schedQuery.isError ? 'Unavailable' : 'Loading', color: 'var(--ow-fg-3)' }
+    : sched.scheduler_paused
+      ? { label: 'Paused', color: 'var(--ow-warn)' }
+      : sched.host_maintenance
+        ? { label: 'Host paused', color: 'var(--ow-warn)' }
+        : { label: 'On', color: 'var(--ow-ok)' };
+
+  const nextLabel =
+    sched?.next_scan_at && !sched.scheduler_paused && !sched.host_maintenance
+      ? formatNextScan(sched.next_scan_at)
+      : null;
+  const intervalLabel =
+    sched && sched.interval_minutes > 0 ? formatIntervalMins(sched.interval_minutes) : null;
+  const stateLabel = sched ? sched.compliance_state.replace(/_/g, ' ') : null;
+
   return (
     <article style={heroCard} aria-labelledby="hero-autoscan-title">
       <header style={heroHead}>
         <span id="hero-autoscan-title">Auto-scan</span>
         <Clock size={14} aria-hidden />
       </header>
-      <BandLine label="Disabled" color="var(--ow-fg-3)" />
+      <BandLine label={status.label} color={status.color} />
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12 }}>
-        <KvRow k={'Next'} v={<span style={{ color: 'var(--ow-fg-3)' }}>—</span>} />
-        <KvRow k={'Interval'} v={<span style={{ color: 'var(--ow-fg-3)' }}>—</span>} />
+        <KvRow
+          k={'Next'}
+          v={
+            nextLabel ? (
+              <span style={{ fontVariantNumeric: 'tabular-nums' }}>{nextLabel}</span>
+            ) : (
+              <span style={{ color: 'var(--ow-fg-3)' }}>—</span>
+            )
+          }
+        />
+        <KvRow
+          k={'Interval'}
+          v={
+            intervalLabel ? (
+              <span style={{ fontVariantNumeric: 'tabular-nums' }}>{intervalLabel}</span>
+            ) : (
+              <span style={{ color: 'var(--ow-fg-3)' }}>—</span>
+            )
+          }
+        />
       </div>
       <div
         style={{
@@ -1176,10 +1227,37 @@ function HeroAutoScan() {
           lineHeight: 1.5,
         }}
       >
-        Populated by the adaptive compliance scheduler (BACKLOG).
+        {sched?.scheduler_paused
+          ? 'Scheduler paused in Settings. On-demand scans stay available.'
+          : sched?.host_maintenance
+            ? 'This host is paused for maintenance. On-demand scans stay available.'
+            : stateLabel
+              ? `Cadence follows the compliance state (${stateLabel}).`
+              : 'Cadence follows the adaptive compliance scheduler.'}
       </div>
     </article>
   );
+}
+
+// formatNextScan renders the next scheduled scan as a relative time
+// ("in 4h", "in 25 min", "due now").
+function formatNextScan(iso: string): string {
+  const t = new Date(iso).getTime();
+  if (Number.isNaN(t)) return '—';
+  const seconds = Math.round((t - Date.now()) / 1000);
+  if (seconds <= 0) return 'due now';
+  if (seconds < 3600) return `in ${Math.max(1, Math.round(seconds / 60))} min`;
+  if (seconds < 86400) return `in ${Math.round(seconds / 3600)}h`;
+  return `in ${Math.round(seconds / 86400)}d`;
+}
+
+// formatIntervalMins humanizes the per-state interval.
+function formatIntervalMins(mins: number): string {
+  if (mins < 60) return `Every ${mins} min`;
+  const h = mins / 60;
+  if (Number.isInteger(h) && h < 24) return `Every ${h}h`;
+  if (Number.isInteger(h / 24)) return `Every ${h / 24}d`;
+  return `Every ${mins} min`;
 }
 
 // bandLabel returns the human-facing label + accent color for a band.
@@ -1276,16 +1354,59 @@ function BandLine({ label, color }: { label: string; color: string }) {
   );
 }
 
-function HeroWatchlist() {
-  // Alerts + exceptions subsystem deferred (BACKLOG); render the
-  // prototype's two-metric layout with 0s and empty-state subtext. AC-30.
+// severityRank orders alert severities so the subtext can name the
+// worst one firing.
+const SEVERITY_RANK: Record<string, number> = {
+  critical: 5,
+  high: 4,
+  medium: 3,
+  low: 2,
+  info: 1,
+};
+
+// HeroWatchlist: the Active alerts row is LIVE against
+// GET /alerts?state=active&host_id= (api-alerts). The Exceptions row
+// stays an honest pending state: operator rule waivers are the
+// exception-governance work (scan plan, remediation track) and have
+// no backend yet. AC-30.
+function HeroWatchlist({ hostId }: { hostId: string }) {
+  const alertsQuery = useQuery({
+    queryKey: ['host', hostId, 'active_alerts'],
+    queryFn: async () => {
+      const { data, error, response } = await api.GET('/api/v1/alerts', {
+        params: { query: { state: 'active', host_id: hostId, limit: 100 } },
+      });
+      if (error || !response.ok) {
+        throw new Error(apiErrorMessage(error, `Failed to load (${response.status})`));
+      }
+      return data!;
+    },
+    enabled: !!hostId,
+    refetchInterval: 60_000,
+  });
+
+  const items = alertsQuery.data?.items ?? [];
+  const count = items.length;
+  const worst = items.reduce<string | null>(
+    (acc, a) =>
+      (SEVERITY_RANK[a.severity] ?? 0) > (acc ? (SEVERITY_RANK[acc] ?? 0) : 0) ? a.severity : acc,
+    null,
+  );
+  const alertsSubtext = alertsQuery.isError
+    ? 'Failed to load alerts'
+    : alertsQuery.isPending
+      ? 'Loading'
+      : count === 0
+        ? 'No alerts firing'
+        : `Worst severity: ${worst}`;
+
   return (
     <article style={heroCard} aria-labelledby="hero-watch-title">
       <header style={heroHead}>
         <span id="hero-watch-title">Watchlist</span>
         <Bell size={14} aria-hidden />
       </header>
-      <WatchlistRow label={'Active alerts'} value={0} subtext="No alerts firing" />
+      <WatchlistRow label={'Active alerts'} value={count} subtext={alertsSubtext} />
       <WatchlistRow label={'Exceptions'} value={0} subtext="No suppressed rules" />
       <div
         style={{
@@ -1297,7 +1418,7 @@ function HeroWatchlist() {
           lineHeight: 1.5,
         }}
       >
-        Populated by the alerts subsystem (BACKLOG).
+        Exceptions (operator rule waivers) ship with the remediation work.
       </div>
     </article>
   );
@@ -1491,14 +1612,135 @@ function CardTopFailed({
 // SeverityPill now lives in @/pages/host-detail/SeverityPill so the
 // Compliance tab can share it (frontend-host-compliance-tab).
 
-function CardComplianceTrend() {
-  return (
-    <Card title="Compliance trend · last 30 days">
+// CardComplianceTrend renders the 30-day score line from the daily
+// posture snapshot rollup (api-compliance-trend). The query key carries
+// the ['host', hostId] prefix so scan.completed SSE invalidation
+// refreshes it with the rest of the page.
+function CardComplianceTrend({ hostId }: { hostId: string }) {
+  const trendQuery = useQuery({
+    queryKey: ['host', hostId, 'compliance_trend'],
+    queryFn: async () => {
+      const { data, error, response } = await api.GET('/api/v1/hosts/{id}/compliance/trend', {
+        params: { path: { id: hostId }, query: { days: 30 } },
+      });
+      if (error || !response.ok) {
+        throw new Error(apiErrorMessage(error, `Failed to load (${response.status})`));
+      }
+      return data!;
+    },
+    enabled: !!hostId,
+  });
+
+  const days = trendQuery.data?.days ?? [];
+  let body: ReactNode;
+  if (trendQuery.isPending) {
+    body = <div style={{ color: 'var(--ow-fg-2)', fontSize: 12 }}>Loading…</div>;
+  } else if (trendQuery.isError) {
+    body = (
+      <div style={{ color: 'var(--ow-crit)', fontSize: 12, display: 'flex', gap: 8 }}>
+        Failed to load trend{' '}
+        <button type="button" onClick={() => trendQuery.refetch()} style={smallTextBtn}>
+          <RefreshCw size={11} /> Retry
+        </button>
+      </div>
+    );
+  } else if (days.length === 0) {
+    body = (
       <EmptyState
-        primary="Not enough data yet"
-        secondary="Trend chart is populated by posture snapshots (point-in-time aggregates). The posture snapshot subsystem is deferred — see BACKLOG."
+        primary="No snapshots yet"
+        secondary="Daily posture snapshots build this trend. The first point appears after the next hourly rollup of scan results."
       />
-    </Card>
+    );
+  } else {
+    const latest = days[days.length - 1]!;
+    const first = days[0]!;
+    const diff = Math.round((latest.score_pct - first.score_pct) * 10) / 10;
+    body = (
+      <>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+          <span
+            style={{
+              fontSize: 22,
+              fontWeight: 700,
+              fontVariantNumeric: 'tabular-nums',
+              color: 'var(--ow-fg-0)',
+            }}
+          >
+            {latest.score_pct}%
+          </span>
+          {days.length > 1 && (
+            <span
+              style={{
+                fontSize: 11,
+                fontWeight: 600,
+                color: diff > 0 ? 'var(--ow-ok)' : diff < 0 ? 'var(--ow-crit)' : 'var(--ow-fg-3)',
+              }}
+            >
+              {diff > 0 ? '+' : ''}
+              {diff}% over {days.length} days
+            </span>
+          )}
+        </div>
+        <TrendSparkline days={days} />
+      </>
+    );
+  }
+
+  return <Card title="Compliance trend · last 30 days">{body}</Card>;
+}
+
+// TrendSparkline draws the score line (0..100 domain) over the
+// snapshot points. Pure SVG, no chart dependency: the card needs one
+// readable line, not an axis system.
+function TrendSparkline({ days }: { days: { date: string; score_pct: number }[] }) {
+  const W = 280;
+  const H = 64;
+  const PAD = 4;
+  const n = days.length;
+  const x = (i: number) => (n === 1 ? W / 2 : PAD + (i * (W - 2 * PAD)) / (n - 1));
+  const y = (score: number) => PAD + (1 - score / 100) * (H - 2 * PAD);
+  const points = days.map((d, i) => `${x(i)},${y(d.score_pct)}`).join(' ');
+  return (
+    <div style={{ marginTop: 10 }}>
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        style={{ width: '100%', height: 64, display: 'block' }}
+        role="img"
+        aria-label="Compliance score trend"
+      >
+        {/* Target line at 80%. */}
+        <line
+          x1={PAD}
+          x2={W - PAD}
+          y1={y(80)}
+          y2={y(80)}
+          stroke="var(--ow-line)"
+          strokeDasharray="3 3"
+        />
+        {n > 1 && <polyline points={points} fill="none" stroke="var(--ow-info)" strokeWidth={2} />}
+        {days.map((d, i) => (
+          <circle
+            key={d.date}
+            cx={x(i)}
+            cy={y(d.score_pct)}
+            r={n === 1 ? 3 : 2}
+            fill="var(--ow-info)"
+          />
+        ))}
+      </svg>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          fontSize: 10,
+          color: 'var(--ow-fg-3)',
+          marginTop: 2,
+        }}
+      >
+        <span>{days[0]!.date}</span>
+        <span>{days[days.length - 1]!.date}</span>
+      </div>
+    </div>
   );
 }
 

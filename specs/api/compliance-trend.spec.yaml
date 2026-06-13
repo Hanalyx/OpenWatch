@@ -1,0 +1,70 @@
+spec:
+  id: api-compliance-trend
+  title: Compliance trend endpoints (per-host + fleet)
+  version: "1.0.0"
+  status: approved
+  tier: 2
+
+  context:
+    system: openwatch-go
+    feature: Read endpoints over posture_snapshots for the host trend card and the hosts-page fleet delta
+    description: >
+      GET /api/v1/hosts/{id}/compliance/trend?days=N returns the
+      host's daily posture points (date, score_pct, passing, failing,
+      total) over the trailing window, oldest first. GET
+      /api/v1/fleet/compliance/trend?days=N returns per-day fleet
+      aggregates (avg_score_pct, hosts, failing, critical_hosts).
+
+      days defaults to 30 and is CLAMPED into [1, 90] - never
+      rejected. Days without snapshots are absent from the arrays
+      (the chart renders gaps); a host or fleet with no snapshots
+      returns an empty days array, never an error.
+
+      Handlers are thin: RBAC (host:read), the host 404 pre-read, and
+      the clamp live in the handler; the queries live in
+      internal/posture (system-posture-snapshots).
+
+    related_specs:
+      - system-posture-snapshots
+      - api-host-compliance
+      - system-rbac
+
+  objective:
+    summary: >
+      Two bounded reads that light up the 30-day trend card and the
+      average-compliance delta without touching the scan path.
+    scope:
+      includes:
+        - GET /api/v1/hosts/{id}/compliance/trend
+        - GET /api/v1/fleet/compliance/trend
+      excludes:
+        - Per-framework trend slices
+        - CSV/report export
+
+  constraints:
+    - id: C-01
+      description: 'Both endpoints require host:read; anonymous callers are rejected. The host endpoint returns 404 hosts.not_found for unknown or deleted hosts BEFORE any snapshot read (same lookup as the compliance lens)'
+      type: security
+      enforcement: error
+    - id: C-02
+      description: 'days is clamped into [1, 90] with default 30 - an out-of-range value is clamped, never rejected. Points return oldest-first; missing days are absent; no snapshots means an empty array, never an error'
+      type: technical
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: 'A host with snapshot rows across several days returns them oldest-first with date/score_pct/passing/failing/total round-tripping; rows outside the requested window are excluded; a host with no snapshots returns {days: []}'
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-02
+      description: 'The host endpoint returns 404 hosts.not_found for an unknown id; anonymous callers are rejected on both endpoints; a viewer (host:read) succeeds on both'
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-03
+      description: 'The fleet endpoint aggregates per day across hosts (avg_score_pct to one decimal, hosts count, summed failing, critical_hosts count), excludes soft-deleted hosts, and returns {days: []} when no snapshots exist'
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-04
+      description: 'days=0 clamps to 1, days=500 clamps to 90, absent days defaults to 30 - verified by seeding rows just inside/outside each boundary; none of the three returns a 4xx'
+      priority: high
+      references_constraints: [C-02]

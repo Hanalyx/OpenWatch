@@ -1,7 +1,7 @@
 spec:
   id: frontend-host-detail
   title: Host Detail page layout, behavior, and empty-state contracts
-  version: "1.3.0"
+  version: "1.4.0"
   status: approved
   tier: 2
 
@@ -47,14 +47,14 @@ spec:
         - 'Tabs row with all 10 prototype tabs; only Overview is functional'
         - '4-column hero stat strip: Compliance, Auto-scan, Connectivity, Watchlist'
         - 'Two-column Overview body: left (Top failed rules, Server intelligence, Compliance trend); right (System, Recent activity)'
+        - 'Live Compliance trend card over the daily posture snapshots (v1.4.0)'
         - 'Empty-state cards that name the deferred backend subsystem'
       excludes:
         - 'Functional Audit log / Activity / Remediation / Terminal tabs — backend subsystems missing (v1.3.0: Compliance is live via frontend-host-compliance-tab; Packages / Services / Users / Network are live via frontend-host-detail-inventory-tabs)'
         - 'Hardware metric collection (CPU/Disk/Memory)'
         - 'Server intelligence collection (packages/services/users/network)'
-        - 'Adaptive compliance scheduler'
+        - 'Adaptive compliance scheduler (configuration surface; the page consumes its results)'
         - 'Alert thresholds / Watchlist'
-        - 'Posture snapshot trend chart'
 
   constraints:
     - id: C-01
@@ -163,7 +163,7 @@ spec:
       priority: high
       references_constraints: [C-05]
     - id: AC-22
-      description: 'Watchlist card renders the prototype empty-state ("Alerts subsystem — coming soon") naming the alerts/exceptions backend as the subsystem that will populate it.'
+      description: 'v1.4.0 - the Watchlist card no longer carries a coming-soon blob: the alerts half is live (AC-30) and the only pending note left is the footer naming operator rule waivers (exceptions) as shipping with the remediation work.'
       priority: high
       references_constraints: [C-05]
     - id: AC-23
@@ -191,11 +191,11 @@ spec:
       priority: high
       references_constraints: [C-04]
     - id: AC-29
-      description: 'HeroAutoScan empty state MUST render the prototype''s structured rows: a status line ("● Disabled" gray dot until the scheduler ships), Next row ("—"), Interval row ("—"), then a single-line footer naming the adaptive compliance scheduler. No "Not yet available" blob.'
+      description: 'v1.4.0 - HeroAutoScan is LIVE against GET /hosts/{id}/compliance/schedule with queryKey ["host", hostId, "compliance_schedule"] (the host prefix rides the scan.completed SSE invalidation). Status line: On (ok) when dispatching, Paused (warn) when the scheduler is disabled or in global maintenance, Host paused (warn) on the per-host flag. Next renders the relative next-scan time and Interval the humanized per-state cadence; both fall back to an em-dash glyph when paused or unseeded. The footer names the pause cause or the compliance state driving the cadence - never a BACKLOG reference.'
       priority: high
       references_constraints: [C-05]
     - id: AC-30
-      description: 'HeroWatchlist empty state MUST render the prototype''s structured rows: "Active alerts 0" with subtext "No alerts firing", "Exceptions 0" with subtext "No suppressed rules", then a single-line footer naming the alerts subsystem. No "Not yet available" blob.'
+      description: 'v1.4.0 - HeroWatchlist''s Active alerts row is LIVE against GET /api/v1/alerts?state=active&host_id= with queryKey ["host", hostId, "active_alerts"]: the count renders the active-alert total, subtext "No alerts firing" at zero or the worst firing severity otherwise, with honest loading/error subtext. The Exceptions row stays the honest pending state ("Exceptions 0" / "No suppressed rules") and the footer names operator rule waivers as shipping with the remediation work - no BACKLOG reference, no fabricated exception counts.'
       priority: high
       references_constraints: [C-05]
     - id: AC-31
@@ -226,3 +226,7 @@ spec:
       description: 'v1.2.0 — the Top failed rules card is LIVE: it queries GET /api/v1/hosts/{id}/compliance/failed-rules with limit 5 (plus the ?framework= search param when present) under query key ["host", hostId, "failed_rules", ...] — prefixed ["host", hostId] so the scan.completed SSE invalidation refreshes it with no extra wiring. Rows render severity pill, catalog title, control ids (or native rule id) and category; the footer "View all N failed rules" uses total_failing and routes to the Compliance tab. Three honest states: never-scanned keeps the original empty copy, zero failing renders "No failing rules", and errors render inline with a Retry. Evidence is never requested or displayed (api-host-compliance C-02). No Remediate action until Phase 7.'
       priority: critical
       references_constraints: [C-10]
+    - id: AC-38
+      description: 'v1.4.0 - the Compliance trend card is LIVE: it queries /api/v1/hosts/{id}/compliance/trend with queryKey ["host", hostId, "compliance_trend"] (the host prefix gives free scan.completed refresh), renders the score sparkline plus the latest score and the over-window delta when snapshots exist, and an honest empty state ("No snapshots yet", naming the hourly rollup) when none do; the loading guard is isPending'
+      priority: high
+      references_constraints: [C-04]

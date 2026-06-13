@@ -24,6 +24,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/activity"
 	"github.com/Hanalyx/openwatch/internal/alertrouter"
 	stdoutchan "github.com/Hanalyx/openwatch/internal/alertrouter/channels/stdout"
+	"github.com/Hanalyx/openwatch/internal/alerts"
 	"github.com/Hanalyx/openwatch/internal/audit"
 	"github.com/Hanalyx/openwatch/internal/config"
 	"github.com/Hanalyx/openwatch/internal/correlation"
@@ -42,6 +43,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/license"
 	"github.com/Hanalyx/openwatch/internal/liveness"
 	openlog "github.com/Hanalyx/openwatch/internal/log"
+	"github.com/Hanalyx/openwatch/internal/posture"
 	compsched "github.com/Hanalyx/openwatch/internal/scheduler"
 	"github.com/Hanalyx/openwatch/internal/secretkey"
 	"github.com/Hanalyx/openwatch/internal/server"
@@ -512,6 +514,11 @@ func cmdServe(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 			slog.Bool("maintenance_global", scanCfg.MaintenanceGlobal))
 	}
 
+	// Posture snapshots — hourly per-host rollup powering the 30-day
+	// trend card + fleet delta. One pass fires immediately at start so
+	// a fresh boot has today's row. Spec system-posture-snapshots.
+	posture.Run(ctx, pool, 0)
+
 	scanWorker := worker.NewScanWorker(worker.Config{
 		Pool:     pool,
 		Executor: scanExecutor,
@@ -527,6 +534,7 @@ func cmdServe(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 		WithDiscovery(discoSvc).
 		WithEventBus(bus).
 		WithActivity(activity.NewService(pool)).
+		WithAlerts(alerts.NewService(pool, audit.Emit)).
 		WithScanQueue(scanQueueKey).
 		WithScanWorker(scanWorker).
 		WithRuleCatalog(ruleCatalog).

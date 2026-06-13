@@ -1,7 +1,7 @@
 spec:
   id: frontend-hosts-list
   title: Hosts list — fleet dashboard with search, filter, card/table views
-  version: "1.3.0"
+  version: "1.4.0"
   status: approved
   tier: 2
 
@@ -153,3 +153,6 @@ spec:
       description: 'v1.3.0 — the Critical issues KPI value is the sum of criticalFailing (compliance_summary.critical_failing) across all hosts. When the sum is nonzero the KPI scope reads "N hosts affected" where N is the count of hosts with criticalFailing > 0; the "No data" scope remains only when the sum is zero. The dev-fixtures KPI path keeps its canned numbers.'
       priority: high
       references_constraints: [C-02]
+    - id: AC-19
+      description: 'v1.4.0 - the average-compliance KPI delta reads the fleet trend (GET /api/v1/fleet/compliance/trend, queryKey ["fleet", "compliance", "trend"]): with two or more snapshot days it renders "(+/-)N% vs yesterday" (tier ok when rising, crit when falling, neutral on no change); with fewer days the delta stays empty - never a fabricated zero'
+      priority: high

@@ -1551,6 +1551,104 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
 
+  /api/v1/hosts/{id}/compliance/schedule:
+    get:
+      operationId: getHostComplianceSchedule
+      summary: One host's adaptive-scan schedule (Auto-scan tile)
+      description: |
+        The host's row from the adaptive scheduler: compliance state,
+        next scheduled scan, current interval, and the pause flags
+        (per-host maintenance + the scheduler-wide enabled/maintenance
+        config). A host without a schedule row returns state unknown
+        with a null next_scan_at - never an error.
+        Spec api-system-scan-config.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: Schedule projection for the host
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/HostComplianceSchedule'}
+        '404':
+          description: Unknown or deleted host
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '403':
+          description: Caller lacks host:read permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
+  /api/v1/hosts/{id}/compliance/trend:
+    get:
+      operationId: getHostComplianceTrend
+      summary: Daily compliance posture trend for one host
+      description: |
+        Per-day posture snapshots over the trailing window (default 30
+        days, clamped 1..90): score_pct, passing, failing, total. Days
+        without a snapshot are absent from the array; history
+        accumulates from the daily rollup going forward. Spec
+        api-compliance-trend.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+        - name: days
+          in: query
+          required: false
+          schema: {type: integer, default: 30}
+          description: Trailing window in days; clamped into [1, 90]
+      responses:
+        '200':
+          description: Daily points, oldest first
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/HostComplianceTrend'}
+        '404':
+          description: Unknown or deleted host
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '403':
+          description: Caller lacks host:read permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
+  /api/v1/fleet/compliance/trend:
+    get:
+      operationId: getFleetComplianceTrend
+      summary: Daily fleet compliance trend
+      description: |
+        Per-day fleet aggregates over the trailing window (default 30
+        days, clamped 1..90): average score across snapshotted hosts,
+        host count, total failing rules, and hosts carrying critical
+        findings. Powers the hosts-page average-compliance delta.
+        Spec api-compliance-trend.
+      parameters:
+        - name: days
+          in: query
+          required: false
+          schema: {type: integer, default: 30}
+          description: Trailing window in days; clamped into [1, 90]
+      responses:
+        '200':
+          description: Daily fleet points, oldest first
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/FleetComplianceTrend'}
+        '403':
+          description: Caller lacks host:read permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
   /api/v1/hosts/{id}/compliance/frameworks:
     get:
       operationId: getHostComplianceFrameworks
@@ -2985,6 +3083,78 @@ components:
           type: object
           additionalProperties: {type: string}
           description: Variable name to override value. PUT replaces the full map
+
+    HostComplianceSchedule:
+      type: object
+      required: [scheduler_enabled, scheduler_paused, compliance_state,
+                 interval_minutes, host_maintenance]
+      properties:
+        scheduler_enabled:
+          type: boolean
+          description: The scan config enabled flag
+        scheduler_paused:
+          type: boolean
+          description: True when the scheduler dispatches nothing fleet-wide (disabled or global maintenance)
+        compliance_state:
+          type: string
+          enum: [critical, non_compliant, partial, mostly_compliant, compliant, unknown]
+        next_scan_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Null when the host has no schedule row yet
+        interval_minutes:
+          type: integer
+          description: Current per-state interval; 0 when unseeded
+        host_maintenance:
+          type: boolean
+          description: Per-host maintenance flag on the schedule row
+
+    HostComplianceTrend:
+      type: object
+      required: [days]
+      properties:
+        days:
+          type: array
+          description: One entry per day with a snapshot, oldest first
+          items:
+            type: object
+            required: [date, score_pct, passing, failing, total]
+            properties:
+              date:
+                type: string
+                format: date
+              score_pct:
+                type: number
+              passing:
+                type: integer
+              failing:
+                type: integer
+              total:
+                type: integer
+
+    FleetComplianceTrend:
+      type: object
+      required: [days]
+      properties:
+        days:
+          type: array
+          description: One entry per day with snapshots, oldest first
+          items:
+            type: object
+            required: [date, avg_score_pct, hosts, failing, critical_hosts]
+            properties:
+              date:
+                type: string
+                format: date
+              avg_score_pct:
+                type: number
+              hosts:
+                type: integer
+              failing:
+                type: integer
+              critical_hosts:
+                type: integer
 
     FleetComplianceStates:
       type: object
