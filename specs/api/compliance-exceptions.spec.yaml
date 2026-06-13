@@ -1,7 +1,7 @@
 spec:
   id: api-compliance-exceptions
   title: Compliance exception governance - operator rule waivers (request/approve/revoke lifecycle)
-  version: "1.0.0"
+  version: "1.1.0"
   status: approved
   tier: 1
 
@@ -122,3 +122,7 @@ spec:
       description: 'Endpoint RBAC + lifecycle: POST /hosts/{id}/exceptions requires exception:request and 404s an unknown host; GET endpoints require exception:read; POST :approve/:reject require exception:approve; POST :revoke requires exception:revoke; anonymous callers are rejected on all six; an ops_lead (request, no approve) is 403 on :approve. A full request->approve->revoke happy path round-trips through the HTTP layer'
       priority: critical
       references_constraints: [C-05, C-03]
+    - id: AC-07
+      description: 'v1.1.0 - the list responses (GET /hosts/{id}/exceptions and GET /compliance/exceptions) populate host_name via a join on hosts so the fleet approver queue is readable without resolving UUIDs; the fleet list excludes soft-deleted hosts (JOIN ... deleted_at IS NULL); single-row lifecycle results (request/approve/reject/revoke) leave host_name empty'
+      priority: high
+      references_constraints: [C-05]

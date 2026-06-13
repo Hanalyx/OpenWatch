@@ -4,6 +4,7 @@
 // internal/exception.
 //
 //	AC-06  TestAPI_Exceptions_LifecycleAndRBAC
+//	AC-07  (host_name assertion folded into AC-06's fleet check)
 package server
 
 import (
@@ -17,7 +18,8 @@ import (
 )
 
 // @ac AC-06
-// AC-06: RBAC bars on all six endpoints + a full request->approve->
+// @ac AC-07
+// AC-06: RBAC bars on all six endpoints; AC-07: list host_name join + a full request->approve->
 // revoke happy path through HTTP; ops_lead (request, no approve) is
 // 403 on :approve; separation of duties holds at the HTTP layer.
 func TestAPI_Exceptions_LifecycleAndRBAC(t *testing.T) {
@@ -26,9 +28,10 @@ func TestAPI_Exceptions_LifecycleAndRBAC(t *testing.T) {
 		hostID := seedHostForIntel(t, pool)
 
 		type exc struct {
-			ID     string `json:"id"`
-			Status string `json:"status"`
-			RuleID string `json:"rule_id"`
+			ID       string `json:"id"`
+			Status   string `json:"status"`
+			RuleID   string `json:"rule_id"`
+			HostName string `json:"host_name"`
 		}
 
 		// --- request: ops_lead can, viewer cannot, unknown host 404 ---
@@ -177,5 +180,11 @@ func TestAPI_Exceptions_LifecycleAndRBAC(t *testing.T) {
 		if len(fleet.Exceptions) != 1 || fleet.Exceptions[0].Status != "revoked" {
 			t.Errorf("fleet revoked filter = %+v, want 1 revoked", fleet.Exceptions)
 		}
+		// v1.1.0: list responses carry the joined hostname (AC-07).
+		t.Run("api-compliance-exceptions/AC-07", func(t *testing.T) {
+			if fleet.Exceptions[0].HostName == "" {
+				t.Errorf("fleet exception host_name empty; want the joined hostname")
+			}
+		})
 	})
 }

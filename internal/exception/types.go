@@ -38,8 +38,12 @@ const (
 
 // Exception is one compliance_exceptions row.
 type Exception struct {
-	ID          uuid.UUID
-	HostID      uuid.UUID
+	ID     uuid.UUID
+	HostID uuid.UUID
+	// HostName is populated by the list queries (ListForHost,
+	// ListFleet) via a join; the single-row lifecycle ops leave it
+	// empty (the UI re-fetches the list after a mutation).
+	HostName    string
 	RuleID      string
 	Reason      string
 	Status      Status

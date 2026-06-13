@@ -44,6 +44,10 @@ func toAPIException(e exception.Exception) api.Exception {
 		n := e.ReviewNote
 		out.ReviewNote = &n
 	}
+	if e.HostName != "" {
+		hn := e.HostName
+		out.HostName = &hn
+	}
 	return out
 }
 
