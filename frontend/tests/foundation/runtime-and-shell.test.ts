@@ -11,6 +11,8 @@
 //   AC-13  axe-core light-mode scan of the shell shape
 //   AC-16  extendTheme called with cssVarPrefix:"ow" + dark + light colorSchemes
 //   AC-17  Route table includes /login + at least one guarded route via redirect
+//   AC-18  Sidebar renders unrouted destinations as disabled "coming soon"
+//          controls, never as Links to a not-found path
 
 import { describe, expect, test, vi, beforeEach, afterEach } from 'vitest';
 import { readFileSync, existsSync } from 'node:fs';
@@ -152,6 +154,46 @@ describe('frontend-foundation — runtime + shell', () => {
     expect(ROUTER_SRC).toMatch(/return_to:/);
     // Multiple child routes hang off the protected subtree.
     expect(ROUTER_SRC).toMatch(/getParentRoute:\s*\(\)\s*=>\s*protectedRoute/);
+  });
+
+  // @ac AC-18
+  test('frontend-foundation/AC-18 — sidebar disables unrouted destinations instead of linking to a not-found path', () => {
+    // The NavItem contract carries an explicit enabled flag, and the
+    // disabled branch renders a non-navigating control (not a Link).
+    expect(SIDEBAR_SRC).toMatch(/enabled:\s*boolean/);
+    expect(SIDEBAR_SRC).toMatch(/if\s*\(\s*!item\.enabled\s*\)/);
+    // Disabled entries render a native disabled <button> with a label
+    // and a "coming soon" affordance (keyboard-correct + axe-clean).
+    expect(SIDEBAR_SRC).toMatch(/<button[\s\S]*?disabled/);
+    expect(SIDEBAR_SRC).toMatch(/coming soon/);
+    // User-facing copy (the nav labels) carries no em-dash. Scoped to
+    // the label literals, since code comments may legitimately use one.
+    const labels = (SIDEBAR_SRC.match(/label:\s*'[^']*'/g) ?? []).join(' ');
+    expect(labels).not.toContain('—');
+
+    // Core invariant — enabled item <=> its route exists in router.tsx.
+    // A disabled (coming-soon) item MUST NOT have a route yet; an
+    // enabled item MUST. Each navItems entry sits on one source line,
+    // so a per-line match tolerates the icon's own {…} braces.
+    const navRe = /to:\s*['"]([^'"]+)['"][^\n]*?enabled:\s*(true|false)/g;
+    const items = [...SIDEBAR_SRC.matchAll(navRe)].map((m) => ({
+      to: m[1] as string,
+      enabled: m[2] === 'true',
+    }));
+    expect(items.length).toBe(7); // all seven destinations present
+
+    const routeExists = (to: string): boolean => {
+      if (to === '/') return /path:\s*['"]\/['"]/.test(ROUTER_SRC);
+      const seg = to.replace(/^\//, '');
+      return new RegExp(`path:\\s*['"]${seg}['"]`).test(ROUTER_SRC);
+    };
+
+    for (const item of items) {
+      expect(
+        routeExists(item.to),
+        `${item.to}: enabled=${item.enabled} must match route-exists=${routeExists(item.to)}`,
+      ).toBe(item.enabled);
+    }
   });
 });
 
