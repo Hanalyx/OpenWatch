@@ -1406,6 +1406,226 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
 
+  /api/v1/hosts/{id}/exceptions:
+    get:
+      operationId: getHostExceptions
+      summary: List a host's compliance exceptions
+      description: |
+        Per-host exception list for the Compliance tab + Watchlist row.
+        By default returns open rows (requested + approved); ?history=true
+        returns every row. RBAC: exception:read. Spec
+        api-compliance-exceptions.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+        - name: history
+          in: query
+          required: false
+          schema: {type: boolean, default: false}
+      responses:
+        '200':
+          description: Exceptions, newest first
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ExceptionList'}
+        '404':
+          description: Unknown or deleted host
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '403':
+          description: Caller lacks exception:read permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+    post:
+      operationId: postHostException
+      summary: Request a compliance exception (rule waiver) on a host
+      description: |
+        Submits a requested exception for a host+rule. One open
+        (requested or approved) exception is allowed per host+rule; a
+        duplicate returns 409. The requester is the authenticated user.
+        RBAC: exception:request. Spec api-compliance-exceptions.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ExceptionRequest'}
+      responses:
+        '201':
+          description: The requested exception
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Exception'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '404':
+          description: Unknown or deleted host
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '403':
+          description: Caller lacks exception:request permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '409':
+          description: An open exception already exists for this host and rule
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
+  /api/v1/compliance/exceptions:
+    get:
+      operationId: getComplianceExceptions
+      summary: Fleet-wide compliance exception queue
+      description: |
+        Fleet exception list, optionally filtered by status (requested,
+        approved, rejected, revoked, expired). Newest first, capped at
+        500. RBAC: exception:read. Spec api-compliance-exceptions.
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema: {type: string, enum: [requested, approved, rejected, revoked, expired]}
+        - name: limit
+          in: query
+          required: false
+          schema: {type: integer, default: 200}
+      responses:
+        '200':
+          description: Exceptions, newest first
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ExceptionList'}
+        '403':
+          description: Caller lacks exception:read permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
+  /api/v1/exceptions/{xid}:approve:
+    post:
+      operationId: postExceptionApprove
+      summary: Approve a requested exception
+      description: |
+        requested -> approved. The reviewer must differ from the
+        requester (separation of duties, 409). RBAC: exception:approve.
+        Spec api-compliance-exceptions.
+      parameters:
+        - name: xid
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ExceptionReview'}
+      responses:
+        '200':
+          description: The approved exception
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Exception'}
+        '403':
+          description: Caller lacks exception:approve permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '404':
+          description: Exception not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '409':
+          description: Not in the requested state, or reviewer is the requester
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
+  /api/v1/exceptions/{xid}:reject:
+    post:
+      operationId: postExceptionReject
+      summary: Reject a requested exception
+      description: |
+        requested -> rejected. The reviewer must differ from the
+        requester (409). RBAC: exception:approve. Spec
+        api-compliance-exceptions.
+      parameters:
+        - name: xid
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ExceptionReview'}
+      responses:
+        '200':
+          description: The rejected exception
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Exception'}
+        '403':
+          description: Caller lacks exception:approve permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '404':
+          description: Exception not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '409':
+          description: Not in the requested state, or reviewer is the requester
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
+  /api/v1/exceptions/{xid}:revoke:
+    post:
+      operationId: postExceptionRevoke
+      summary: Revoke an active exception before its expiry
+      description: |
+        approved -> revoked. RBAC: exception:revoke (dangerous). Spec
+        api-compliance-exceptions.
+      parameters:
+        - name: xid
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ExceptionReview'}
+      responses:
+        '200':
+          description: The revoked exception
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Exception'}
+        '403':
+          description: Caller lacks exception:revoke permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '404':
+          description: Exception not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '409':
+          description: Not in the approved state
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
   /api/v1/system/connectivity/status:
     get:
       operationId: getSystemConnectivityStatus
@@ -3083,6 +3303,49 @@ components:
           type: object
           additionalProperties: {type: string}
           description: Variable name to override value. PUT replaces the full map
+
+    Exception:
+      type: object
+      required: [id, host_id, rule_id, reason, status, requested_by, requested_at]
+      properties:
+        id:           {type: string, format: uuid}
+        host_id:      {type: string, format: uuid}
+        rule_id:      {type: string}
+        reason:       {type: string}
+        status:
+          type: string
+          enum: [requested, approved, rejected, revoked, expired]
+        requested_by: {type: string, format: uuid}
+        reviewed_by:  {type: string, format: uuid, nullable: true}
+        review_note:  {type: string}
+        expires_at:   {type: string, format: date-time, nullable: true}
+        requested_at: {type: string, format: date-time}
+        reviewed_at:  {type: string, format: date-time, nullable: true}
+
+    ExceptionList:
+      type: object
+      required: [exceptions]
+      properties:
+        exceptions:
+          type: array
+          items: {$ref: '#/components/schemas/Exception'}
+
+    ExceptionRequest:
+      type: object
+      required: [rule_id, reason]
+      properties:
+        rule_id:    {type: string}
+        reason:     {type: string}
+        expires_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Optional expiry; null means active until revoked
+
+    ExceptionReview:
+      type: object
+      properties:
+        note: {type: string, description: Optional reviewer note}
 
     HostComplianceSchedule:
       type: object

@@ -24,6 +24,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/credential"
 	"github.com/Hanalyx/openwatch/internal/db"
 	"github.com/Hanalyx/openwatch/internal/db/migrations"
+	"github.com/Hanalyx/openwatch/internal/exception"
 	"github.com/Hanalyx/openwatch/internal/identity"
 	"github.com/Hanalyx/openwatch/internal/intelligence/discovery"
 	"github.com/Hanalyx/openwatch/internal/kensa"
@@ -151,6 +152,7 @@ func freshAPIServer(t *testing.T) (string, *pgxpool.Pool) {
 	// api-host-scan job-count assertions (caught by the DSN-gated CI
 	// run; scan_runs IS cascaded via its hosts FK).
 	_, _ = pool.Exec(ctx, "TRUNCATE TABLE posture_snapshots")
+	_, _ = pool.Exec(ctx, "TRUNCATE TABLE compliance_exceptions")
 	_, _ = pool.Exec(ctx, "TRUNCATE TABLE job_queue")
 	// TRUNCATE…CASCADE delegates child cleanup to the schema — the
 	// hosts row has 11 FK-referencing children and a hand-rolled
@@ -260,6 +262,7 @@ func freshAPIServer(t *testing.T) (string, *pgxpool.Pool) {
 		t.Fatalf("DeriveQueueKey: %v", err)
 	}
 	s.WithScanQueue(scanKey)
+	s.WithExceptions(exception.NewService(pool, audit.Emit))
 	// Variable catalog fixture: two corpus-style variables (one a
 	// configure-me placeholder) so the scan-variables endpoints are
 	// testable without the on-disk kensa corpus.

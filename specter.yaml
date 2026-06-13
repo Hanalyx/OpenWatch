@@ -68,6 +68,7 @@ domains:
             - api-host-compliance
             - api-system-scan-config
             - api-compliance-trend
+            - api-compliance-exceptions
             - system-posture-snapshots
             - frontend-host-compliance-tab
 settings:

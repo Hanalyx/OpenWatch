@@ -15,6 +15,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/correlation"
 	"github.com/Hanalyx/openwatch/internal/credential"
 	"github.com/Hanalyx/openwatch/internal/eventbus"
+	"github.com/Hanalyx/openwatch/internal/exception"
 	"github.com/Hanalyx/openwatch/internal/fleetrollup"
 	"github.com/Hanalyx/openwatch/internal/host"
 	"github.com/Hanalyx/openwatch/internal/intelligence/discovery"
@@ -76,6 +77,10 @@ type handlers struct {
 	// exercise it. The key is scheduler.DeriveQueueKey output — the
 	// same HMAC key the worker verifies. Spec api-host-scan.
 	scanQueueKey []byte
+
+	// Compliance exception governance service. Set via
+	// (*Server).WithExceptions; nil makes the exception endpoints 503.
+	exceptionSvc *exception.Service
 
 	// Kensa variable catalog (corpus-used template variables). Set via
 	// (*Server).WithVariableCatalog; nil renders an empty variables
