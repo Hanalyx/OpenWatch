@@ -20,16 +20,22 @@ interface NavItem {
   to: string;
   label: string;
   icon: React.ReactNode;
+  // enabled is false for destinations whose route is not yet in the
+  // route table (frontend/src/routes/router.tsx). Those entries render
+  // as disabled "coming soon" controls instead of Links, so the rail
+  // never points at a path that resolves to not-found.
+  // Spec: frontend-foundation C-12 / AC-18.
+  enabled: boolean;
 }
 
 const navItems: NavItem[] = [
-  { to: '/', label: 'Dashboard', icon: <LayoutDashboard size={18} /> },
-  { to: '/hosts', label: 'Hosts', icon: <Server size={18} /> },
-  { to: '/groups', label: 'Groups', icon: <Boxes size={18} /> },
-  { to: '/scans', label: 'Scans', icon: <Search size={18} /> },
-  { to: '/activity', label: 'Activity', icon: <Activity size={18} /> },
-  { to: '/reports', label: 'Reports', icon: <BarChart3 size={18} /> },
-  { to: '/terminal', label: 'Terminal', icon: <Terminal size={18} /> },
+  { to: '/', label: 'Dashboard', icon: <LayoutDashboard size={18} />, enabled: true },
+  { to: '/hosts', label: 'Hosts', icon: <Server size={18} />, enabled: true },
+  { to: '/groups', label: 'Groups', icon: <Boxes size={18} />, enabled: false },
+  { to: '/scans', label: 'Scans', icon: <Search size={18} />, enabled: false },
+  { to: '/activity', label: 'Activity', icon: <Activity size={18} />, enabled: false },
+  { to: '/reports', label: 'Reports', icon: <BarChart3 size={18} />, enabled: false },
+  { to: '/terminal', label: 'Terminal', icon: <Terminal size={18} />, enabled: false },
 ];
 
 export function Sidebar() {
@@ -72,6 +78,39 @@ export function Sidebar() {
       </Link>
 
       {navItems.map((item) => {
+        // Unbuilt destinations render as a disabled control with a
+        // "coming soon" affordance — never a Link to a missing route.
+        // A native disabled <button> is keyboard-correct and axe-clean;
+        // it is wrapped in a span so the Tooltip still fires on hover
+        // (disabled elements emit no pointer events of their own).
+        if (!item.enabled) {
+          return (
+            <Tooltip key={item.to} title={`${item.label} (coming soon)`} placement="right">
+              <span style={{ display: 'inline-flex' }}>
+                <button
+                  type="button"
+                  disabled
+                  aria-label={`${item.label} (coming soon)`}
+                  style={{
+                    width: 40,
+                    height: 40,
+                    display: 'grid',
+                    placeItems: 'center',
+                    borderRadius: 8,
+                    border: 'none',
+                    background: 'transparent',
+                    color: 'var(--ow-fg-3)',
+                    opacity: 0.45,
+                    cursor: 'default',
+                  }}
+                >
+                  {item.icon}
+                </button>
+              </span>
+            </Tooltip>
+          );
+        }
+
         const isActive = item.to === '/' ? currentPath === '/' : currentPath.startsWith(item.to);
         return (
           <Tooltip key={item.to} title={item.label} placement="right">

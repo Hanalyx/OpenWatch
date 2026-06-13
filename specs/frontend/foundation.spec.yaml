@@ -1,7 +1,7 @@
 spec:
   id: frontend-foundation
   title: Frontend foundation — theme, color scheme, layout shell, route guards
-  version: "1.0.0"
+  version: "1.1.0"
   status: approved
   tier: 1
 
@@ -102,6 +102,17 @@ spec:
       description: No PII or secret value MAY appear in client-side console.log / console.warn / console.error output. Error boundary error messages MUST be scrubbed of any field literally named "evidence", "token", "password", "secret", "private_key" before logging
       type: security
       enforcement: error
+    - id: C-12
+      description: >-
+        The sidebar MUST NOT render a navigation Link to a path that has
+        no matching route in the route table (such a Link resolves to
+        not-found when clicked). A nav destination whose route is not yet
+        implemented MUST instead render as a disabled, non-navigating
+        control carrying an aria-label and a "coming soon" affordance.
+        Only destinations whose route exists may render as active Links.
+        UI copy carries no em-dashes
+      type: technical
+      enforcement: error
 
   acceptance_criteria:
     - id: AC-01
@@ -172,3 +183,14 @@ spec:
       description: The route table includes /login (anonymous) and at least one guarded route; the guard component renders a redirect to /login?return_to=... on missing session, NOT a thrown exception.
       priority: high
       references_constraints: [C-06]
+    - id: AC-18
+      description: >-
+        Source-inspection — each Sidebar nav item carries an explicit
+        enabled flag; items with enabled:false render as a disabled
+        <button> (not a Link) with an aria-label and a "coming soon"
+        title, while enabled items render as Links. Every Link target in
+        the sidebar's nav list corresponds to a path present in
+        router.tsx (no Link points at an unrouted path). UI copy contains
+        no em-dash.
+      priority: high
+      references_constraints: [C-12]
