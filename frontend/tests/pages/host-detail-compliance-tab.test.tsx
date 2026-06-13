@@ -410,3 +410,28 @@ describe('frontend-host-compliance-tab — re-scan', () => {
     expect(TAB_SRC).not.toMatch(/aria-label=["']Export/);
   });
 });
+
+describe('frontend-host-compliance-tab v1.2.0 — exception overlay', () => {
+  // @ac AC-09
+  test('frontend-host-compliance-tab/AC-09 — waived/pending badges + request action; overlay never mutates the lens', () => {
+    // Source inspection over the tab.
+    expect(TAB_SRC).toContain('useHostExceptions(hostId)');
+    expect(TAB_SRC).toContain("hasPermission)('exception:request')");
+    // Exception column cell with the three states.
+    expect(TAB_SRC).toContain('function ExceptionCell');
+    expect(TAB_SRC).toMatch(/Waived/);
+    expect(TAB_SRC).toMatch(/Pending/);
+    expect(TAB_SRC).toContain('Request exception');
+    // Request modal posts and invalidates the host exceptions key.
+    expect(TAB_SRC).toContain('function RequestExceptionModal');
+    expect(TAB_SRC).toContain("api.POST('/api/v1/hosts/{id}/exceptions'");
+    expect(TAB_SRC).toContain(
+      "queryClient.invalidateQueries({ queryKey: ['host', hostId, 'exceptions'] })",
+    );
+    // Reason required: submit disabled until non-empty.
+    expect(TAB_SRC).toMatch(/disabled=\{reason\.trim\(\) === ''/);
+    // Overlay model: the request button only on FAILING rules; the
+    // status chip is untouched (no remap of r.status by the overlay).
+    expect(TAB_SRC).toContain("rule.status === 'fail' && canRequest");
+  });
+});

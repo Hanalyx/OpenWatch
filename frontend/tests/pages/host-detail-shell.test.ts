@@ -177,10 +177,10 @@ describe('frontend-host-detail — prototype shell', () => {
   // @ac AC-22
   test('frontend-host-detail/AC-22 — watchlist carries no coming-soon blob; only the exceptions footer pends', () => {
     expect(PAGE_SRC).toContain('HeroWatchlist');
-    // The alerts half is live (AC-30); the sole pending note is the
-    // exceptions footer naming the remediation track.
+    // Both halves are live now (alerts + exceptions); no coming-soon
+    // blob, no remediation-track placeholder remains.
     expect(PAGE_SRC).not.toMatch(/alerts? (subsystem|backend).*(BACKLOG|coming soon)/i);
-    expect(PAGE_SRC).toContain('ship with the remediation work');
+    expect(PAGE_SRC).not.toContain('ship with the remediation work');
   });
 
   // @ac AC-23
@@ -318,10 +318,15 @@ describe('frontend-host-detail — prototype shell', () => {
     expect(tile).toContain("'No alerts firing'");
     expect(tile).toContain('Worst severity:');
     expect(tile).toContain("'Failed to load alerts'");
-    // Exceptions row stays the honest pending state; footer names the
-    // remediation track, not BACKLOG.
-    expect(tile).toContain('subtext="No suppressed rules"');
-    expect(tile).toContain('Exceptions (operator rule waivers) ship with the remediation work.');
+    // Exceptions row is LIVE against the host exceptions hook: the
+    // active count + a subtext that names waived rules or the pending
+    // queue; the remediation-track placeholder is gone.
+    expect(tile).toContain('useHostExceptions(hostId)');
+    expect(tile).toContain('value={exc.activeCount}');
+    expect(tile).toContain("'No suppressed rules'");
+    expect(tile).toContain('waived');
+    expect(tile).toMatch(/review/);
+    expect(tile).not.toContain('ship with the remediation work');
     expect(PAGE_SRC).not.toContain('alerts subsystem (BACKLOG)');
     expect(PAGE_SRC).toContain('<HeroWatchlist hostId={hostId} />');
   });
