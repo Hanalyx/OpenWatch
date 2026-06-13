@@ -1,0 +1,124 @@
+spec:
+  id: api-compliance-exceptions
+  title: Compliance exception governance - operator rule waivers (request/approve/revoke lifecycle)
+  version: "1.0.0"
+  status: approved
+  tier: 1
+
+  context:
+    system: openwatch-go
+    feature: Operator-approved rule waivers with a request -> approve/reject -> revoke/expire lifecycle, DB-backed, as a governance overlay that never mutates scan results
+    description: >
+      A compliance exception is an operator's documented acceptance of
+      a failing rule on a host ("we accept this risk: rule X on host Y,
+      because Z, until date D"). Scan plan Phase 7, exception
+      governance. DB-backed (decision 2026-06-13): an exception is
+      approval-workflow data with a lifecycle, queries, and an audit
+      trail - relational, not a signed static policy file.
+
+      OVERLAY MODEL (load-bearing): an exception NEVER mutates
+      host_rule_state. A failing rule with an active exception stays
+      'fail' in the raw scan results - Kensa's verdict is
+      authoritative. The exception is an OpenWatch governance
+      annotation the lens/UI reads to mark a failure as accepted risk;
+      the raw compliance score stays honest. host_rule_state.skip_reason
+      is for Kensa capability-gate skips and is unrelated.
+
+      Lifecycle: requested -> approved | rejected ; approved -> revoked
+      | expired. "Active" (suppressing) = approved AND not past
+      expires_at. The expiry sweep flips approved->expired on a cron
+      tick and emits compliance.exception.expired; count/annotation
+      queries also guard on expires_at so they are correct between
+      sweeps.
+
+      Separation of duties: the requester cannot review their own
+      request (enforced in the service, on top of the distinct
+      exception:request vs exception:approve RBAC permissions). Role
+      grants (auth/permissions.yaml): viewer reads; ops_lead requests;
+      auditor + security_admin approve; security_admin revokes
+      (dangerous).
+
+      Endpoints:
+        POST /hosts/{id}/exceptions          - request (exception:request)
+        GET  /hosts/{id}/exceptions          - per-host list (exception:read)
+        GET  /compliance/exceptions          - fleet queue (exception:read)
+        POST /exceptions/{xid}:approve       - approve (exception:approve)
+        POST /exceptions/{xid}:reject        - reject  (exception:approve)
+        POST /exceptions/{xid}:revoke        - revoke  (exception:revoke)
+
+      Each transition emits its compliance.exception.* audit code
+      (requested/approved/rejected/revoked/expired).
+
+    related_specs:
+      - api-host-compliance
+      - system-rbac
+      - system-audit-emission
+
+  objective:
+    summary: >
+      A correct, auditable waiver lifecycle with separation of duties,
+      one open exception per host+rule, and an overlay that leaves the
+      raw scan verdict untouched.
+    scope:
+      includes:
+        - compliance_exceptions table (migration 0026) + the lifecycle service
+        - Request / Approve / Reject / Revoke / ListForHost / ListFleet / ActiveCountForHost / ActiveRuleIDsForHost / ExpireSweep
+        - The six HTTP endpoints with their RBAC bars
+        - Expiry sweep on a cron tick, wired in serve
+      excludes:
+        - Fleet-wide / host-group exceptions (per-host + per-rule only in v1)
+        - Comment threads (exception:comment is reserved; not built in v1)
+        - Score recomputation under exceptions (overlay only; the raw score is unchanged)
+        - The remediation half of Phase 7
+
+  constraints:
+    - id: C-01
+      description: 'An exception NEVER mutates host_rule_state: the failing rule stays fail in the raw scan results. The service only reads host-scoped exception rows for annotation (ActiveRuleIDsForHost) and counts (ActiveCountForHost); no exception code path writes to host_rule_state or transactions'
+      type: technical
+      enforcement: error
+    - id: C-02
+      description: 'At most ONE open (requested or approved) exception may exist per (host_id, rule_id), enforced by a partial-unique index; a duplicate Request returns ErrDuplicateOpen. Rejected/revoked/expired rows are historical and do not block a fresh request'
+      type: technical
+      enforcement: error
+    - id: C-03
+      description: 'Lifecycle transitions are guarded: Approve/Reject require status=requested, Revoke requires status=approved; a transition from any other state returns ErrWrongState. The transition locks the row (FOR UPDATE) so concurrent reviewers cannot double-transition. Each transition emits the matching compliance.exception.* audit code'
+      type: technical
+      enforcement: error
+    - id: C-04
+      description: 'Separation of duties: Approve and Reject reject a reviewer equal to the requester (ErrSelfReview), independent of RBAC. Revoke does not (revoking an active exception is not a self-review concern)'
+      type: security
+      enforcement: error
+    - id: C-05
+      description: 'RBAC: request requires exception:request, read endpoints require exception:read, approve+reject require exception:approve, revoke requires exception:revoke; anonymous callers are rejected on all. The host-scoped endpoints 404 hosts.not_found for unknown hosts before any exception read'
+      type: security
+      enforcement: error
+    - id: C-06
+      description: '"Active" (suppressing) is status=approved AND (expires_at IS NULL OR expires_at > now()). ActiveCountForHost and ActiveRuleIDsForHost apply this predicate so they are correct even before the expiry sweep runs. ExpireSweep flips approved+past-expiry to expired and emits compliance.exception.expired per row; it is idempotent'
+      type: technical
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: 'Request inserts a requested row (host_id, rule_id, reason, requested_by, optional expires_at) and emits compliance.exception.requested; a second Request for the same host+rule while one is requested-or-approved returns ErrDuplicateOpen; an empty rule_id or reason returns ErrInvalidInput; a fresh Request after the prior one was rejected/revoked/expired succeeds'
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-02
+      description: 'Approve (requester != reviewer) moves requested->approved, sets reviewed_by/reviewed_at, emits compliance.exception.approved; Reject moves requested->rejected and emits rejected; Revoke moves approved->revoked and emits revoked. Approving/Rejecting a non-requested row, or Revoking a non-approved row, returns ErrWrongState'
+      priority: critical
+      references_constraints: [C-03]
+    - id: AC-03
+      description: 'Approve and Reject with reviewer == requester return ErrSelfReview and leave the row unchanged; Revoke with reviewer == requester succeeds (no self-review guard)'
+      priority: critical
+      references_constraints: [C-04]
+    - id: AC-04
+      description: 'ActiveCountForHost and ActiveRuleIDsForHost count/return only approved, non-expired rows (requested, rejected, revoked, expired, and approved-but-past-expiry are excluded); host_rule_state is never written by any exception path (source inspection of internal/exception)'
+      priority: critical
+      references_constraints: [C-01, C-06]
+    - id: AC-05
+      description: 'ExpireSweep flips every approved row whose expires_at has passed to expired, emits compliance.exception.expired per flipped row, returns the count, and is idempotent (a second run flips zero); approved rows with a future or null expires_at are untouched'
+      priority: high
+      references_constraints: [C-06]
+    - id: AC-06
+      description: 'Endpoint RBAC + lifecycle: POST /hosts/{id}/exceptions requires exception:request and 404s an unknown host; GET endpoints require exception:read; POST :approve/:reject require exception:approve; POST :revoke requires exception:revoke; anonymous callers are rejected on all six; an ops_lead (request, no approve) is 403 on :approve. A full request->approve->revoke happy path round-trips through the HTTP layer'
+      priority: critical
+      references_constraints: [C-05, C-03]

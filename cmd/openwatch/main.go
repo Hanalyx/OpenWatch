@@ -34,6 +34,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/db"
 	"github.com/Hanalyx/openwatch/internal/db/migrations"
 	"github.com/Hanalyx/openwatch/internal/eventbus"
+	"github.com/Hanalyx/openwatch/internal/exception"
 	"github.com/Hanalyx/openwatch/internal/identity"
 	"github.com/Hanalyx/openwatch/internal/intelligence/collector"
 	"github.com/Hanalyx/openwatch/internal/intelligence/discovery"
@@ -519,6 +520,11 @@ func cmdServe(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 	// a fresh boot has today's row. Spec system-posture-snapshots.
 	posture.Run(ctx, pool, 0)
 
+	// Compliance exception governance + its hourly expiry sweep.
+	// Spec api-compliance-exceptions.
+	exceptionSvc := exception.NewService(pool, audit.Emit)
+	exceptionSvc.Run(ctx, 0)
+
 	scanWorker := worker.NewScanWorker(worker.Config{
 		Pool:     pool,
 		Executor: scanExecutor,
@@ -538,7 +544,8 @@ func cmdServe(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 		WithScanQueue(scanQueueKey).
 		WithScanWorker(scanWorker).
 		WithRuleCatalog(ruleCatalog).
-		WithVariableCatalog(varCatalog)
+		WithVariableCatalog(varCatalog).
+		WithExceptions(exceptionSvc)
 	runErr := srv.Run(ctx)
 
 	// Shutdown order REVERSE of boot (C-02). liveness.Run + alertrouter

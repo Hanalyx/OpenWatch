@@ -19,6 +19,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/config"
 	"github.com/Hanalyx/openwatch/internal/correlation"
 	"github.com/Hanalyx/openwatch/internal/eventbus"
+	"github.com/Hanalyx/openwatch/internal/exception"
 	"github.com/Hanalyx/openwatch/internal/idempotency"
 	"github.com/Hanalyx/openwatch/internal/identity"
 	"github.com/Hanalyx/openwatch/internal/kensa"
@@ -112,6 +113,14 @@ func (s *Server) WithScanQueue(queueKey []byte) *Server {
 // falls back to rule ids. Spec api-host-compliance.
 func (s *Server) WithRuleCatalog(c *kensa.RuleCatalog) *Server {
 	s.handlers.ruleCatalog = c
+	return s
+}
+
+// WithExceptions threads the compliance exception governance service
+// into the API handlers. Nil makes the exception endpoints 503.
+// Spec api-compliance-exceptions.
+func (s *Server) WithExceptions(e *exception.Service) *Server {
+	s.handlers.exceptionSvc = e
 	return s
 }
 

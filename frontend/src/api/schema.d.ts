@@ -997,6 +997,123 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/hosts/{id}/exceptions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List a host's compliance exceptions
+         * @description Per-host exception list for the Compliance tab + Watchlist row.
+         *     By default returns open rows (requested + approved); ?history=true
+         *     returns every row. RBAC: exception:read. Spec
+         *     api-compliance-exceptions.
+         */
+        get: operations["getHostExceptions"];
+        put?: never;
+        /**
+         * Request a compliance exception (rule waiver) on a host
+         * @description Submits a requested exception for a host+rule. One open
+         *     (requested or approved) exception is allowed per host+rule; a
+         *     duplicate returns 409. The requester is the authenticated user.
+         *     RBAC: exception:request. Spec api-compliance-exceptions.
+         */
+        post: operations["postHostException"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/compliance/exceptions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Fleet-wide compliance exception queue
+         * @description Fleet exception list, optionally filtered by status (requested,
+         *     approved, rejected, revoked, expired). Newest first, capped at
+         *     500. RBAC: exception:read. Spec api-compliance-exceptions.
+         */
+        get: operations["getComplianceExceptions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/exceptions/{xid}:approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve a requested exception
+         * @description requested -> approved. The reviewer must differ from the
+         *     requester (separation of duties, 409). RBAC: exception:approve.
+         *     Spec api-compliance-exceptions.
+         */
+        post: operations["postExceptionApprove"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/exceptions/{xid}:reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reject a requested exception
+         * @description requested -> rejected. The reviewer must differ from the
+         *     requester (409). RBAC: exception:approve. Spec
+         *     api-compliance-exceptions.
+         */
+        post: operations["postExceptionReject"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/exceptions/{xid}:revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Revoke an active exception before its expiry
+         * @description approved -> revoked. RBAC: exception:revoke (dangerous). Spec
+         *     api-compliance-exceptions.
+         */
+        post: operations["postExceptionRevoke"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/system/connectivity/status": {
         parameters: {
             query?: never;
@@ -2148,6 +2265,43 @@ export interface components {
             overrides: {
                 [key: string]: string;
             };
+        };
+        Exception: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            host_id: string;
+            rule_id: string;
+            reason: string;
+            /** @enum {string} */
+            status: "requested" | "approved" | "rejected" | "revoked" | "expired";
+            /** Format: uuid */
+            requested_by: string;
+            /** Format: uuid */
+            reviewed_by?: string | null;
+            review_note?: string;
+            /** Format: date-time */
+            expires_at?: string | null;
+            /** Format: date-time */
+            requested_at: string;
+            /** Format: date-time */
+            reviewed_at?: string | null;
+        };
+        ExceptionList: {
+            exceptions: components["schemas"]["Exception"][];
+        };
+        ExceptionRequest: {
+            rule_id: string;
+            reason: string;
+            /**
+             * Format: date-time
+             * @description Optional expiry; null means active until revoked
+             */
+            expires_at?: string | null;
+        };
+        ExceptionReview: {
+            /** @description Optional reviewer note */
+            note?: string;
         };
         HostComplianceSchedule: {
             /** @description The scan config enabled flag */
@@ -4517,6 +4671,293 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             /** @description Caller lacks system:config:write permission */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getHostExceptions: {
+        parameters: {
+            query?: {
+                history?: boolean;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Exceptions, newest first */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionList"];
+                };
+            };
+            /** @description Caller lacks exception:read permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unknown or deleted host */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    postHostException: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExceptionRequest"];
+            };
+        };
+        responses: {
+            /** @description The requested exception */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Exception"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            /** @description Caller lacks exception:request permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unknown or deleted host */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description An open exception already exists for this host and rule */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getComplianceExceptions: {
+        parameters: {
+            query?: {
+                status?: "requested" | "approved" | "rejected" | "revoked" | "expired";
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Exceptions, newest first */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionList"];
+                };
+            };
+            /** @description Caller lacks exception:read permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    postExceptionApprove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                xid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ExceptionReview"];
+            };
+        };
+        responses: {
+            /** @description The approved exception */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Exception"];
+                };
+            };
+            /** @description Caller lacks exception:approve permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Exception not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not in the requested state, or reviewer is the requester */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    postExceptionReject: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                xid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ExceptionReview"];
+            };
+        };
+        responses: {
+            /** @description The rejected exception */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Exception"];
+                };
+            };
+            /** @description Caller lacks exception:approve permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Exception not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not in the requested state, or reviewer is the requester */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    postExceptionRevoke: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                xid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ExceptionReview"];
+            };
+        };
+        responses: {
+            /** @description The revoked exception */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Exception"];
+                };
+            };
+            /** @description Caller lacks exception:revoke permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Exception not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not in the approved state */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
