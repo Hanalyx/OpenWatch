@@ -12,6 +12,79 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [0.2.0-rc.6] Eyrie — 2026-06-13
+
+The compliance-scanning candidate: this RC turns OpenWatch from a scanner
+shell into a working compliance platform. Kensa now scans real hosts on an
+adaptive schedule, results are viewable through any framework lens, posture
+trends accumulate, and operators can govern failing rules with approved
+exceptions. Still a pre-release, pending the GA fleet-verification gate.
+
+### Added
+
+- **End-to-end compliance scanning.** On-demand scans (`POST
+  /hosts/{id}/scans`, the Run scan button) run the full ~539-rule Kensa
+  corpus against a host over an in-memory SSH transport (no private key on
+  disk), persist results write-on-change to `transactions` + `host_rule_state`,
+  and refresh the UI over the live event stream. (#515)
+- **Lens model on the Compliance tab.** One scan, viewed through any
+  framework: `GET /hosts/{id}/compliance` (+ `/frameworks`) projects the
+  per-rule results through CIS / STIG / NIST / PCI / SRG at query time. The
+  lens bar is OS-aware — a RHEL 8 host no longer offers RHEL 9/10 lenses,
+  while OS-neutral frameworks always appear. (#515, #518)
+- **Adaptive compliance scheduler.** Hosts auto-scan on a five-band,
+  state-driven cadence (critical 4h … compliant 48h), operator-editable per
+  band under Settings → Scanning & monitoring. Scan-queue depth, fleet
+  per-state counts, and a 24-hour schedule strip are exposed. (#515)
+- **Scan variables.** Operator overrides for the corpus's templated rule
+  variables (Settings → Compliance policies), reloaded into the rule corpus
+  on the next scan. (#517)
+- **Posture trends.** A daily posture-snapshot rollup powers the 30-day
+  per-host trend card and the fleet average-compliance delta on the hosts
+  list. (#518)
+- **Live host-detail hero tiles.** Auto-scan (next scan + cadence),
+  Watchlist (active alerts + waived-rule count), and Connectivity now render
+  real data instead of placeholders. (#518)
+- **Compliance exception governance.** Operator-approved rule waivers with a
+  request → approve/reject → revoke/expire lifecycle, separation of duties,
+  and an audit trail. An exception never changes a rule's raw verdict (a
+  waived failure stays failing); it is a read-time overlay marking accepted
+  risk. Surfaced on the host detail (Waived/Pending badges + a request modal)
+  and a fleet approver queue under Settings → Compliance policies.
+  (#521, #522, #523)
+- **New migrations** 0023–0026: `scan_runs` (scan logbook), compliance-state
+  five-band CHECK + backfill, `posture_snapshots`, `compliance_exceptions`.
+
+### Changed
+
+- All tracked documentation reconciled with the Go codebase, including the
+  Scanning & Compliance operator guide and the bannered legacy guides; the
+  backlog rewritten for the Go rebuild. (#505, #507, #508, #520, #481)
+
+### Fixed
+
+- SSE event streams were silently killed at the HTTP server's 60-second
+  write timeout; per-stream write deadlines are now cleared. (#515)
+- The alerts lifecycle service was never wired into the serve path, so every
+  `/api/v1/alerts*` endpoint returned 503 in production while passing tests.
+  Wired, plus a generic guard that every server builder is registered in
+  `main.go`. (#518, #519)
+- Correlation-ID generation now reads the clock under the lock, restoring
+  per-ID uniqueness under concurrency. (#503)
+- Cleared the live CodeQL warnings; prototype mockups excluded from scans. (#514)
+
+### CI / tooling
+
+- `specter check --test` annotation-hygiene gate and a pre-push annotation
+  hook; restored four dropped connectivity API specs; perf latency budgets
+  made non-gating to stop CI flakes. (#512, #509, #510, #506)
+
+### Dependencies
+
+- npm production and development group bumps. (#489, #513)
+
+---
+
 ## [0.2.0-rc.5] Eyrie — 2026-06-08
 
 Package-refresh candidate: re-cuts the signed RPM/DEB from `main` so the
