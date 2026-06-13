@@ -9,6 +9,7 @@ import {
   Btn,
 } from '@/components/settings/primitives';
 import { ScanVariablesCard } from '@/components/settings/ScanVariablesCard';
+import { ExceptionQueue } from '@/components/settings/ExceptionQueue';
 
 // Settings → Compliance policies.
 //
@@ -90,46 +91,23 @@ export function PoliciesPage() {
         </SettingCard>
       </Section>
 
-      {/* ────────── Exception workflow (stub) ────────── */}
-      <Section title="Exception workflow">
-        <BackendPendingBanner
-          slice="Exception endpoints"
-          text="Rule exceptions (approvals, expiry) are not built yet in the Go backend."
-        />
-        <SettingCard>
-          {[
-            { name: 'Approval levels', description: 'Who can approve a rule exception.' },
-            {
-              name: 'Expiry policy',
-              description: 'Default duration before exceptions auto-expire.',
-            },
-          ].map((row, i) => (
-            <div
-              key={row.name}
-              style={{
-                display: 'grid',
-                gridTemplateColumns: '1fr minmax(180px, auto)',
-                gap: 20,
-                alignItems: 'center',
-                padding: '16px 20px',
-                borderTop: i === 0 ? 'none' : '1px solid var(--ow-line)',
-                opacity: 0.7,
-              }}
-            >
-              <div>
-                <div style={{ fontWeight: 500, color: 'var(--ow-fg-0)' }}>{row.name}</div>
-                <div
-                  style={{ color: 'var(--ow-fg-2)', fontSize: 12, marginTop: 4, lineHeight: 1.5 }}
-                >
-                  {row.description}
-                </div>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                <Btn disabled>Configure</Btn>
-              </div>
-            </div>
-          ))}
-        </SettingCard>
+      {/* ────────── Exception workflow (LIVE) ────────── */}
+      <Section title="Exception workflow" badge="Live" badgeTier="ok">
+        <p
+          style={{
+            margin: '0 0 12px',
+            color: 'var(--ow-fg-2)',
+            fontSize: 13,
+            lineHeight: 1.5,
+          }}
+        >
+          Operator-approved rule waivers across the fleet. Approving an exception records accepted
+          risk: the rule still fails in scans (the raw verdict is unchanged), but the failure is
+          marked waived everywhere it surfaces. Pending requests need an approver
+          (exception:approve); active exceptions can be revoked before they expire
+          (exception:revoke).
+        </p>
+        <ExceptionQueue />
       </Section>
     </SettingsLayout>
   );

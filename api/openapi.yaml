@@ -3310,6 +3310,9 @@ components:
       properties:
         id:           {type: string, format: uuid}
         host_id:      {type: string, format: uuid}
+        host_name:
+          type: string
+          description: Hostname, populated on list responses (empty on single-row lifecycle results)
         rule_id:      {type: string}
         reason:       {type: string}
         status:

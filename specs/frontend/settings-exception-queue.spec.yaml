@@ -1,0 +1,80 @@
+spec:
+  id: frontend-settings-exception-queue
+  title: Settings Compliance policies - exception approver queue
+  version: "1.0.0"
+  status: approved
+  tier: 2
+
+  context:
+    system: openwatch-go
+    feature: The fleet exception governance queue on Settings > Compliance policies - status-filtered list with permission-gated approve/reject/revoke
+    description: >
+      The approver counterpart to the host-detail request surfaces
+      (frontend-host-compliance-tab v1.2.0). Replaces the
+      Exception-workflow stub on the Compliance policies page with a
+      live queue over api-compliance-exceptions:
+
+        GET  /api/v1/compliance/exceptions?status=  - the fleet list
+        POST /api/v1/exceptions/{xid}:approve|:reject|:revoke
+
+      The default view is the Pending queue (status=requested) since
+      that is the approver's primary job. Each row shows the rule id,
+      a link to the host (host_name from the v1.1.0 join), the reason,
+      the status, and the expiry. Actions are gated by the caller's
+      permissions: Approve + Reject (exception:approve) on requested
+      rows, Revoke (exception:revoke) on approved rows; rows the
+      caller cannot act on (or terminal-state rows) render a dash.
+
+      Separation of duties and the state guards are enforced
+      server-side; the UI surfaces a 409 inline and refreshes. A
+      transition invalidates the whole queue cache (a row moves
+      between status filters).
+
+    related_specs:
+      - api-compliance-exceptions
+      - frontend-host-compliance-tab
+      - frontend-settings-scan-config
+
+  objective:
+    summary: >
+      A usable approver queue: filter by status, see the
+      decision-relevant fields with a host link, and act within the
+      caller's authority, with honest error + empty states.
+    scope:
+      includes:
+        - ExceptionQueue component on the Compliance policies page (replaces the stub)
+        - GET /compliance/exceptions with a status filter, keyed ["compliance", "exceptions", status]
+        - approve/reject/revoke mutations invalidating ["compliance", "exceptions"]
+        - 'Permission gating: exception:approve for approve/reject, exception:revoke for revoke'
+      excludes:
+        - A reviewer-note prompt (the API note is optional; v1 acts directly)
+        - Bulk actions
+        - Approval-level / default-expiry policy config (no backend)
+
+  constraints:
+    - id: C-01
+      description: 'The queue queries GET /api/v1/compliance/exceptions with the status filter and key ["compliance", "exceptions", status]; the default status is requested (the pending queue). The approve/reject/revoke mutations POST the matching /exceptions/{xid}:action and invalidate ["compliance", "exceptions"] on success'
+      type: technical
+      enforcement: error
+    - id: C-02
+      description: 'Actions are permission-gated: Approve and Reject render only with exception:approve and only on requested rows; Revoke renders only with exception:revoke and only on approved rows. A row the caller cannot act on, or a terminal-state row (rejected/revoked/expired), renders a dash. The server still enforces the bars; the UI gate is a usability layer'
+      type: security
+      enforcement: error
+    - id: C-03
+      description: 'A 409 (state already changed, or separation-of-duties at the server) surfaces inline as an actionable message, not a crash; the host cell links to the host detail page using host_name when present. UI copy carries no em-dashes'
+      type: technical
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: 'Source inspection: ExceptionQueue queries "/api/v1/compliance/exceptions" with queryKey ["compliance", "exceptions", status], defaults the status state to "requested", and the review mutation POSTs "/api/v1/exceptions/{xid}:" actions and invalidates queryKey ["compliance", "exceptions"] on success'
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-02
+      description: 'Source inspection: Approve and Reject buttons render under canApprove (exception:approve) on requested rows; Revoke renders under canRevoke (exception:revoke) on approved rows; a non-actionable or terminal row renders a dash. The permission flags read from useAuthStore.hasPermission'
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-03
+      description: 'Source inspection: a 409 maps to an inline "already changed state" message (not a throw to an error boundary); the host cell is a Link to /hosts/$hostId showing host_name. PoliciesPage mounts <ExceptionQueue /> in the Exception workflow section and no longer renders the BackendPendingBanner there'
+      priority: high
+      references_constraints: [C-03]

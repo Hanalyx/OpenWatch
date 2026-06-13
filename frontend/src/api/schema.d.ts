@@ -2271,6 +2271,8 @@ export interface components {
             id: string;
             /** Format: uuid */
             host_id: string;
+            /** @description Hostname, populated on list responses (empty on single-row lifecycle results) */
+            host_name?: string;
             rule_id: string;
             reason: string;
             /** @enum {string} */

@@ -8,6 +8,7 @@
 //	AC-03  TestSeparationOfDuties
 //	AC-04  TestActiveQueries_OverlayNeverMutatesRuleState
 //	AC-05  TestExpireSweep_FlipsAndIdempotent
+//	AC-07  TestListHostNameJoin
 package exception
 
 import (
@@ -303,6 +304,54 @@ func TestExpireSweep_FlipsAndIdempotent(t *testing.T) {
 		// idempotent.
 		if n2, _ := svc.ExpireSweep(ctx); n2 != 0 {
 			t.Errorf("second sweep = %d, want 0", n2)
+		}
+	})
+}
+
+// @ac AC-07
+// AC-07 (v1.1.0): the list queries join hosts and populate HostName so
+// the approver queue is readable; the fleet list excludes soft-deleted
+// hosts; single-row lifecycle results leave HostName empty.
+func TestListHostNameJoin(t *testing.T) {
+	t.Run("api-compliance-exceptions/AC-07", func(t *testing.T) {
+		pool := freshPool(t)
+		ctx := context.Background()
+		user := seedUser(t, pool, "req")
+		hostID := seedHost(t, pool, user)
+
+		// Name the host so the join has something to return.
+		if _, err := pool.Exec(ctx,
+			`UPDATE hosts SET hostname = 'queue-host-01' WHERE id = $1`, hostID); err != nil {
+			t.Fatalf("name host: %v", err)
+		}
+
+		svc := NewService(pool, fakeEmitter(&[]emitCall{}))
+
+		// Single-row result (Request) leaves HostName empty.
+		e, err := svc.Request(ctx, hostID, "rule-x", "reason", user, nil)
+		if err != nil {
+			t.Fatalf("Request: %v", err)
+		}
+		if e.HostName != "" {
+			t.Errorf("Request HostName = %q, want empty (single-row path)", e.HostName)
+		}
+
+		// List paths populate HostName via the join.
+		forHost, err := svc.ListForHost(ctx, hostID, false)
+		if err != nil || len(forHost) != 1 || forHost[0].HostName != "queue-host-01" {
+			t.Errorf("ListForHost HostName = %+v, want queue-host-01", forHost)
+		}
+		fleet, err := svc.ListFleet(ctx, StatusRequested, 50)
+		if err != nil || len(fleet) != 1 || fleet[0].HostName != "queue-host-01" {
+			t.Errorf("ListFleet HostName = %+v, want queue-host-01", fleet)
+		}
+
+		// Soft-deleted host drops out of the fleet list.
+		if _, err := pool.Exec(ctx, `UPDATE hosts SET deleted_at = now() WHERE id = $1`, hostID); err != nil {
+			t.Fatalf("soft delete: %v", err)
+		}
+		if fleet, _ := svc.ListFleet(ctx, StatusRequested, 50); len(fleet) != 0 {
+			t.Errorf("fleet after soft-delete = %d rows, want 0", len(fleet))
 		}
 	})
 }

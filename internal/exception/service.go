@@ -33,11 +33,30 @@ func NewService(pool *pgxpool.Pool, emit EmitFunc) *Service {
 const selectCols = `id, host_id, rule_id, reason, status, requested_by,
 	reviewed_by, COALESCE(review_note, ''), expires_at, requested_at, reviewed_at`
 
+// listCols adds the joined hostname for the list queries. Aliased
+// "e." since the list queries join hosts as h.
+const listCols = `e.id, e.host_id, COALESCE(h.hostname, ''), e.rule_id, e.reason,
+	e.status, e.requested_by, e.reviewed_by, COALESCE(e.review_note, ''),
+	e.expires_at, e.requested_at, e.reviewed_at`
+
 func scanException(row pgx.Row) (Exception, error) {
 	var e Exception
 	var status string
 	if err := row.Scan(&e.ID, &e.HostID, &e.RuleID, &e.Reason, &status,
 		&e.RequestedBy, &e.ReviewedBy, &e.ReviewNote, &e.ExpiresAt,
+		&e.RequestedAt, &e.ReviewedAt); err != nil {
+		return Exception{}, err
+	}
+	e.Status = Status(status)
+	return e, nil
+}
+
+// scanListException scans a list row (listCols), including hostname.
+func scanListException(row pgx.Row) (Exception, error) {
+	var e Exception
+	var status string
+	if err := row.Scan(&e.ID, &e.HostID, &e.HostName, &e.RuleID, &e.Reason,
+		&status, &e.RequestedBy, &e.ReviewedBy, &e.ReviewNote, &e.ExpiresAt,
 		&e.RequestedAt, &e.ReviewedAt); err != nil {
 		return Exception{}, err
 	}
@@ -153,11 +172,12 @@ func (s *Service) review(ctx context.Context, id, reviewedBy uuid.UUID, note str
 // false, only open rows (requested + approved) are returned; true
 // returns every row, newest first.
 func (s *Service) ListForHost(ctx context.Context, hostID uuid.UUID, includeHistory bool) ([]Exception, error) {
-	q := `SELECT ` + selectCols + ` FROM compliance_exceptions WHERE host_id = $1`
+	q := `SELECT ` + listCols + ` FROM compliance_exceptions e
+		JOIN hosts h ON h.id = e.host_id WHERE e.host_id = $1`
 	if !includeHistory {
-		q += ` AND status IN ('requested','approved')`
+		q += ` AND e.status IN ('requested','approved')`
 	}
-	q += ` ORDER BY requested_at DESC`
+	q += ` ORDER BY e.requested_at DESC`
 	return s.queryList(ctx, q, hostID)
 }
 
@@ -168,12 +188,13 @@ func (s *Service) ListFleet(ctx context.Context, status Status, limit int) ([]Ex
 		limit = 200
 	}
 	if status == "" {
-		return s.queryList(ctx, `SELECT `+selectCols+`
-			FROM compliance_exceptions ORDER BY requested_at DESC LIMIT $1`, limit)
+		return s.queryList(ctx, `SELECT `+listCols+`
+			FROM compliance_exceptions e JOIN hosts h ON h.id = e.host_id AND h.deleted_at IS NULL
+			ORDER BY e.requested_at DESC LIMIT $1`, limit)
 	}
-	return s.queryList(ctx, `SELECT `+selectCols+`
-		FROM compliance_exceptions WHERE status = $1
-		ORDER BY requested_at DESC LIMIT $2`, string(status), limit)
+	return s.queryList(ctx, `SELECT `+listCols+`
+		FROM compliance_exceptions e JOIN hosts h ON h.id = e.host_id AND h.deleted_at IS NULL
+		WHERE e.status = $1 ORDER BY e.requested_at DESC LIMIT $2`, string(status), limit)
 }
 
 func (s *Service) queryList(ctx context.Context, q string, args ...any) ([]Exception, error) {
@@ -184,7 +205,7 @@ func (s *Service) queryList(ctx context.Context, q string, args ...any) ([]Excep
 	defer rows.Close()
 	out := []Exception{}
 	for rows.Next() {
-		e, err := scanException(rows)
+		e, err := scanListException(rows)
 		if err != nil {
 			return nil, fmt.Errorf("exception: scan: %w", err)
 		}

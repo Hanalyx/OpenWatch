@@ -4,6 +4,7 @@
 // internal/exception.
 //
 //	AC-06  TestAPI_Exceptions_LifecycleAndRBAC
+//	AC-07  (service-level; see internal/exception TestListHostNameJoin)
 package server
 
 import (
@@ -26,9 +27,10 @@ func TestAPI_Exceptions_LifecycleAndRBAC(t *testing.T) {
 		hostID := seedHostForIntel(t, pool)
 
 		type exc struct {
-			ID     string `json:"id"`
-			Status string `json:"status"`
-			RuleID string `json:"rule_id"`
+			ID       string `json:"id"`
+			Status   string `json:"status"`
+			RuleID   string `json:"rule_id"`
+			HostName string `json:"host_name"`
 		}
 
 		// --- request: ops_lead can, viewer cannot, unknown host 404 ---
@@ -176,6 +178,11 @@ func TestAPI_Exceptions_LifecycleAndRBAC(t *testing.T) {
 		_ = json.NewDecoder(fr.Body).Decode(&fleet)
 		if len(fleet.Exceptions) != 1 || fleet.Exceptions[0].Status != "revoked" {
 			t.Errorf("fleet revoked filter = %+v, want 1 revoked", fleet.Exceptions)
+		}
+		// v1.1.0: list responses carry the joined hostname (AC-07,
+		// covered by the dedicated service test).
+		if fleet.Exceptions[0].HostName == "" {
+			t.Errorf("fleet exception host_name empty; want the joined hostname")
 		}
 	})
 }
