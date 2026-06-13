@@ -2,7 +2,7 @@
 
 **Status:** Phases 0-2 SHIPPED (branch feat/scan-foundation, 15 commits, live-verified) · **Updated:** 2026-06-12 · **Owner:** TBD
 
-## Status snapshot (2026-06-12)
+## Status snapshot (2026-06-13)
 
 | Phase | Status | Evidence |
 |-------|--------|----------|
@@ -10,12 +10,18 @@
 | 1 — On-demand scan | **DONE** | POST /hosts/{id}/scans (idempotency, RBAC, 409 single-flight) + Run scan button + scan.completed SSE refresh. Found+fixed a latent platform bug: http.Server WriteTimeout killed ALL SSE streams at 60s |
 | 2 — Top failed rules | **DONE** | GET /hosts/{id}/compliance/failed-rules (no-evidence C-02, multi-valued control_ids) + RuleCatalog titles + live card. Verified: hrm01's real 147 failures render with catalog titles |
 | 3 — Compliance tab lens | **DONE** | GET /hosts/{id}/compliance (+/frameworks) with C-05 reconciliation; ComplianceTab.tsx lens UI. Live: lens switch recounts 68.1% all-rules -> 71.4% under stig_rhel8 (266 rules exactly). Prototype-fidelity pass done 2026-06-12: per-lens scores on chips + overall aggregate, result-mix/scan panels, duration_seconds, catalog descriptions, search, in-strip Re-scan (specs v1.2.0 / v1.1.0) |
-| 4 — Adaptive scheduler + settings | **DONE** (2026-06-12; scan variables shipped in PR #517, surfaced on Settings > Compliance policies) | system-scheduler v3.0.0: ladder from systemconfig (RunManaged per-tick refresh), five bands + migration 0024 backfill, PersistAfterScan after every scan, dispatch logbook rows. api-system-scan-config (4 endpoints) + wired Settings section. Live: first tick auto-dispatched all 9 seeded hosts; fleet classified 3 crit / 1 non-compl / 2 partial / 2 mostly / 1 unknown. Remaining: scan-variables sub-section (needs a kensa.RuleVariables endpoint) |
+| 4 — Adaptive scheduler + settings | **DONE** (2026-06-12; scan variables shipped in PR #517, surfaced on Settings > Compliance policies) | system-scheduler v3.0.0: ladder from systemconfig (RunManaged per-tick refresh), five bands + migration 0024 backfill, PersistAfterScan after every scan, dispatch logbook rows. api-system-scan-config (6 endpoints incl. scan/variables + scan/schedule + host schedule tile) + wired Settings section. Scan variables SHIPPED (PR #517): VariableCatalog over the 20 corpus-used vars, operator overrides on Settings > Compliance policies, per-scan corpus reload. Live: first tick auto-dispatched all 9 seeded hosts; fleet classified across the five bands; a UI variable override reloaded the corpus on the next scan. **Phase 4 fully DONE.** |
 | 5 — Fleet surfaces | **mostly DONE** | Per-host Scan buttons, scan-queue KPI, hosts-list compliance_summary enrichment (real % + tier colors + critical_failing), avg/critical KPIs from real data. Remaining: bulk scan (POST /hosts:scan); the avg-compliance delta shipped with Phase 6 |
-| 6 — Trend / posture snapshots | **DONE** (2026-06-12) | posture_snapshots daily rollup (hourly cron + boot pass); GET /hosts/{id}/compliance/trend + /fleet/compliance/trend; live trend card + avg-compliance delta. History accumulates forward (no transactions replay) |
-| 7 — Remediation + exceptions | not started | DefaultWithTransportFactory available since kensa v0.3.2; transport Put/Get stubs waiting |
+| 6 — Trend / posture snapshots | **DONE** (2026-06-12, PR #518) | posture_snapshots daily rollup (hourly cron + boot pass); GET /hosts/{id}/compliance/trend + /fleet/compliance/trend; live trend card + avg-compliance delta. Shipped alongside: the host-detail hero strip went fully live (Auto-scan tile -> GET /compliance/schedule, Watchlist tile -> live active-alerts) and OS-aware framework lens filtering (api-host-compliance v1.3.0 — a RHEL 8 host no longer offers RHEL 9/10 lenses) |
+| 7 — Remediation + exceptions | **NEXT (starting 2026-06-13)** | DefaultWithTransportFactory available since kensa v0.3.2; the in-memory transport's Put/Get stubs implement here if remediation mechanisms need them. Exception governance (suppress + skip_reason over host_rule_state) feeds the host-detail Watchlist Exceptions row + the Settings Exception-workflow stub. Open Kensa ratification: rule-ordering (depends_on/conflicts/supersedes) is unexported — a new ratification if remediation sequencing needs it |
 
-All risks R1-R6 resolved. Scanned fleet so far: owas-hrm01 (367/147/25/0, 68.1%), owas-rhl10 (247/288, 45.8%), owas-rhn01. Operational follow-up noted: deadline-free SSE streams outlive graceful shutdown's 30s grace (cancel streams on shutdown ctx).
+All risks R1-R6 resolved. Fleet self-scans on the adaptive ladder (9 hosts seeded, classified across all five bands; 3 critical re-scan every 4h). Merged PRs: #515 (Phases 0-3 + scheduler core), #517 (scan variables), #518 (posture trend + live hero tiles + OS-aware lenses), #519 (service-wiring guard).
+
+Operational follow-ups still open (small, not blocking Phase 7):
+- Bulk scan endpoint (POST /hosts:scan) — the last Phase 5 item.
+- Deadline-free SSE streams outlive graceful shutdown's 30s grace (cancel on shutdown ctx).
+- Scan-context Capabilities line needs stored capability data from Kensa.
+- Found + fixed during the host-detail tile work: the alerts lifecycle service was never wired in serve (every /api/v1/alerts endpoint 503'd in production); a generic source-test (system-daemon-orchestration AC-11) now guards that EVERY server builder is wired in main.go.
 
 Covers end-to-end compliance scanning for the OpenWatch Go rebuild: wiring the
 Kensa engine, triggering scans (on-demand + adaptive auto-scan), persisting and
