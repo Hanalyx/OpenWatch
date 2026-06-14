@@ -44,6 +44,8 @@ spec:
       includes:
         - 'ActivityPage at /activity: useInfiniteQuery over GET /api/v1/activity'
         - 'Source + severity single-select filters; host_id deep-link via search param'
+        - 'Toolbar: client-side search over loaded events, a time-range segment backed by the since param, a Live poll toggle, an Acknowledge-all over loaded alert rows, an event count'
+        - 'Cosmetic category chip + hostname entity pill per row'
         - 'Cursor pagination (Load more) + hidden_count surfaced'
         - 'Alert-source rows: acknowledge/silence/resolve gated by alert:write'
         - 'Detail drawer: basic for all sources, enriched for alert via GET /alerts/{id}'
@@ -88,6 +90,17 @@ spec:
         UI copy carries no em-dashes
       type: technical
       enforcement: error
+    - id: C-05
+      description: >-
+        The toolbar MUST use only honest data: the time-range segment maps
+        the selected window (1h/24h/7d/All) to the `since` query param;
+        the Live toggle drives a poll refetch (refetchInterval), not a
+        fabricated stream; search filters the already-loaded items
+        client-side (there is no server text search); Acknowledge-all acts
+        only on loaded source==='alert' rows the caller may act on. The
+        category chip is a cosmetic per-source label, not a backend filter
+      type: technical
+      enforcement: error
 
   acceptance_criteria:
     - id: AC-01
@@ -106,3 +119,13 @@ spec:
       description: 'Source-inspection — the activity modules issue no api.POST/PUT/DELETE other than the /api/v1/alerts/{id}: lifecycle actions, and activity UI copy contains no em-dash.'
       priority: high
       references_constraints: [C-04]
+    - id: AC-05
+      description: >-
+        Source-inspection — ActivityPage derives a since param from the
+        selected range segment, sets refetchInterval from the Live toggle,
+        filters loaded items client-side by the search text, exposes an
+        Acknowledge-all that iterates loaded alert-source rows, and renders
+        a per-source category label on each row. The histogram and the
+        Status/Group facets are absent.
+      priority: high
+      references_constraints: [C-05]

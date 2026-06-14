@@ -5,6 +5,7 @@
 //   AC-02  alert-source lifecycle actions gated by alert:write; route + sidebar
 //   AC-03  drawer fetches /alerts/{id} only for source==='alert'; basic for all
 //   AC-04  read-only apart from alert actions; no em-dash copy
+//   AC-05  toolbar uses honest data (since/Live/search/ack-all/category); no histogram
 
 import { describe, expect, test } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -91,5 +92,22 @@ describe('frontend-activity — unified event feed', () => {
     for (const src of [PAGE_SRC, DRAWER_SRC]) {
       expect(stripComments(src)).not.toContain('—');
     }
+  });
+
+  // @ac AC-05
+  test('frontend-activity/AC-05 — toolbar uses honest data; no histogram / status / group facets', () => {
+    // range segment -> since param
+    expect(PAGE_SRC).toMatch(/const since = rangeMs \?/);
+    expect(PAGE_SRC).toMatch(/since\s*\?\s*\{\s*since\s*\}/);
+    // Live toggle -> poll refetch (not a fabricated stream)
+    expect(PAGE_SRC).toMatch(/refetchInterval:\s*live\s*\?/);
+    // search is client-side over loaded items
+    expect(PAGE_SRC).toMatch(/allItems\.filter\(/);
+    expect(PAGE_SRC).toMatch(/toLowerCase\(\)\s*\.includes/);
+    // Acknowledge-all iterates loaded alert-source rows
+    expect(PAGE_SRC).toMatch(/const ackAll = /);
+    expect(PAGE_SRC).toMatch(/a\.source === 'alert'/);
+    // cosmetic per-source category label on each row
+    expect(PAGE_SRC).toMatch(/CATEGORY\[a\.source\]/);
   });
 });
