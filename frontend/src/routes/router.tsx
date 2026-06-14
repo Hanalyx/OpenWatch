@@ -17,6 +17,7 @@ import { DashboardPage } from '@/pages/dashboard/DashboardPage';
 import { GroupsPage } from '@/pages/groups/GroupsPage';
 import { ActivityPage } from '@/pages/activity/ActivityPage';
 import { ScansPage } from '@/pages/scans/ScansPage';
+import { ReportsPage } from '@/pages/reports/ReportsPage';
 import { ForbiddenPage } from '@/pages/ForbiddenPage';
 import { ProfilePage } from '@/pages/settings/ProfilePage';
 import { PreferencesPage } from '@/pages/settings/PreferencesPage';
@@ -104,6 +105,19 @@ const scansRoute = createRoute({
   getParentRoute: () => protectedRoute,
   path: 'scans',
   component: ScansPage,
+});
+
+// Compliance report library. GET /api/v1/reports enforces host:read
+// server-side; generate enforces host:write. Gate the route on host:read.
+const reportsRoute = createRoute({
+  getParentRoute: () => protectedRoute,
+  path: 'reports',
+  beforeLoad: () => {
+    if (!useAuthStore.getState().hasPermission('host:read')) {
+      throw redirect({ to: '/_forbidden' });
+    }
+  },
+  component: ReportsPage,
 });
 
 const hostsListRoute = createRoute({
@@ -242,6 +256,7 @@ const routeTree = rootRoute.addChildren([
     dashboardRoute,
     activityRoute,
     scansRoute,
+    reportsRoute,
     hostsListRoute,
     groupsRoute,
     addHostRoute,

@@ -35,7 +35,7 @@ const navItems: NavItem[] = [
   { to: '/groups', label: 'Groups', icon: <Boxes size={18} />, enabled: true },
   { to: '/scans', label: 'Scans', icon: <Search size={18} />, enabled: true },
   { to: '/activity', label: 'Activity', icon: <Activity size={18} />, enabled: true },
-  { to: '/reports', label: 'Reports', icon: <BarChart3 size={18} />, enabled: false },
+  { to: '/reports', label: 'Reports', icon: <BarChart3 size={18} />, enabled: true },
   { to: '/terminal', label: 'Terminal', icon: <Terminal size={18} />, enabled: false },
 ];
 

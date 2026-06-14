@@ -1232,6 +1232,72 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List generated reports (newest first)
+         * @description Returns the Reports library: every generated report, newest
+         *     first. RBAC: host:read. Spec api-reports.
+         */
+        get: operations["getReports"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/reports:generate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Generate a Fleet Compliance Executive Summary
+         * @description Computes a point-in-time posture snapshot from current data
+         *     (host_rule_state pass/fail counts + critical, host count, top
+         *     failing rules) and stores it as an immutable report. The MVP
+         *     generates only the executive summary for all hosts. RBAC:
+         *     host:write. Spec api-reports.
+         */
+        post: operations["postReportGenerate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/reports/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Fetch one report (with its stored JSON posture)
+         * @description Returns a single report by id, including the stored JSON
+         *     content. RBAC: host:read. Spec api-reports.
+         */
+        get: operations["getReportByID"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/system/connectivity/status": {
         parameters: {
             query?: never;
@@ -2474,6 +2540,31 @@ export interface components {
         GroupListResponse: {
             summary: components["schemas"]["GroupSummary"];
             groups: components["schemas"]["GroupWithRollup"][];
+        };
+        Report: {
+            /** Format: uuid */
+            id: string;
+            title: string;
+            /** @enum {string} */
+            kind: "executive";
+            scope_label: string;
+            /** Format: date-time */
+            data_as_of: string;
+            generated_by: string;
+            format: string;
+            /**
+             * @description The rendered JSON posture document. For an executive summary:
+             *     compliance_pct, host_count, passing_rules, failing_rules,
+             *     critical_issues, top_failing_rules.
+             */
+            content: {
+                [key: string]: unknown;
+            };
+            /** Format: date-time */
+            created_at: string;
+        };
+        ReportListResponse: {
+            reports: components["schemas"]["Report"][];
         };
         GroupCreate: {
             name: string;
@@ -5512,6 +5603,135 @@ export interface operations {
             };
             /** @description Caller lacks host:write permission */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getReports: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The reports library */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportListResponse"];
+                };
+            };
+            /** @description Caller is not authenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Caller lacks host:read permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    postReportGenerate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            /** @description The generated report */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Report"];
+                };
+            };
+            /** @description Caller is not authenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Caller lacks host:write permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getReportByID: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The report */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Report"];
+                };
+            };
+            /** @description Caller is not authenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Caller lacks host:read permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Report not found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

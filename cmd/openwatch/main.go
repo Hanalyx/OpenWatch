@@ -46,6 +46,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/liveness"
 	openlog "github.com/Hanalyx/openwatch/internal/log"
 	"github.com/Hanalyx/openwatch/internal/posture"
+	"github.com/Hanalyx/openwatch/internal/report"
 	compsched "github.com/Hanalyx/openwatch/internal/scheduler"
 	"github.com/Hanalyx/openwatch/internal/secretkey"
 	"github.com/Hanalyx/openwatch/internal/server"
@@ -547,7 +548,8 @@ func cmdServe(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 		WithRuleCatalog(ruleCatalog).
 		WithVariableCatalog(varCatalog).
 		WithExceptions(exceptionSvc).
-		WithGroups(group.NewService(pool))
+		WithGroups(group.NewService(pool)).
+		WithReports(report.NewService(pool))
 	runErr := srv.Run(ctx)
 
 	// Shutdown order REVERSE of boot (C-02). liveness.Run + alertrouter

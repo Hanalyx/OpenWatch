@@ -1,0 +1,202 @@
+spec:
+  id: api-reports
+  title: Reports library - point-in-time Fleet Compliance Executive Summary artifacts (list / generate / fetch)
+  version: "1.0.0"
+  status: approved
+  tier: 2
+
+  context:
+    system: openwatch-go
+    feature: A library of immutable compliance reports whose one MVP kind, the Fleet Compliance Executive Summary, is computed from data that already exists and stored as a frozen JSON document
+    description: >
+      A report is a point-in-time, immutable compliance artifact. The MVP
+      builds exactly ONE kind, the Fleet Compliance Executive Summary, and
+      a three-endpoint surface over it: list the library, generate a new
+      summary, and fetch one report with its stored content.
+
+      DERIVED, THEN FROZEN (load-bearing): Generate computes a posture
+      snapshot from data that already exists and writes it once. It reads
+      host_rule_state for the pass and fail counts and the critical count,
+      the active (non-deleted) host count from hosts, and the top failing
+      rules (the rules failing on the most hosts) from host_rule_state.
+      The same counting shape as the Groups fleet rollup is used so the
+      numbers agree across the app: compliance_pct is passing over
+      evaluated (evaluated = current_status in pass or fail) rounded half
+      up to a whole percent, and nil when nothing has been evaluated (so
+      an unscanned fleet is distinguishable from a fully failing one). The
+      computed ExecutiveContent is marshalled to JSON and stored in the
+      row's content column; the row is WRITE-ONCE and is never recomputed,
+      so data_as_of records the instant the posture was sampled.
+
+      CONTENT IS A WIRE CONTRACT: the detail view and any later renderer
+      read the frozen JSON by exact key (compliance_pct, host_count,
+      passing_rules, failing_rules, critical_issues, top_failing_rules).
+      compliance_pct encodes as JSON null when unevaluated (not 0, not
+      omitted) and top_failing_rules always serializes as a list (never
+      JSON null), ordered most-failing first and capped at a small
+      leadership-facing limit.
+
+      STORAGE SHAPE: a report row carries a fixed title ("Fleet Compliance
+      - Executive Summary"), a kind (only 'executive' in the MVP), a fixed
+      scope_label ('All hosts'), data_as_of, generated_by (the calling
+      principal's id, or 'system' when the request is anonymous), a format
+      (always 'json' in the MVP), the JSON content, and created_at. The
+      library lists newest first.
+
+      RBAC: the two read endpoints (list, fetch) require host:read; the
+      generate action requires host:write. Anonymous callers are rejected
+      on all three. Handlers map report.ErrNotFound to 404
+      (reports.not_found); a fetch for an unknown id 404s.
+
+      Endpoints:
+        GET  /api/v1/reports            - list the library, newest first (host:read)
+        POST /api/v1/reports:generate   - generate an executive summary for all hosts (host:write)
+        GET  /api/v1/reports/{id}       - fetch one report with its stored content (host:read)
+
+    related_specs:
+      - api-groups
+      - api-host-compliance
+      - system-rbac
+
+  objective:
+    summary: >
+      A correct, auditable reports library whose one MVP kind, the Fleet
+      Compliance Executive Summary, is computed once from the
+      authoritative posture tables, stored as a frozen JSON document, and
+      served behind a host:read view / host:write generate RBAC bar. No
+      signing, no PDF or OSCAL rendering, no scheduled dispatch.
+    scope:
+      includes:
+        - reports table (migration 0028) and the internal/report service
+        - Generate / List / Get over the executive summary kind
+        - The three HTTP endpoints with their RBAC bars (host:read view, host:write generate)
+        - Executive content computed from host_rule_state (pass/fail counts, critical, compliance_pct) plus the active host count and the top failing rules
+        - The frozen JSON content as a wire contract (exact keys, nil compliance encoding, list-never-null top-failing)
+        - The write-once row whose data_as_of is the posture sample instant and whose format is json
+      excludes:
+        - Ed25519 signing and the "Signed" badge (the MVP stores no signature; format stays json)
+        - PDF and OSCAL rendering or export (the rich signed-report viewer and OSCAL artifact are deferred)
+        - The Scheduled dispatcher (auto-generated and delivered reports)
+        - The Templates gallery (the six prototype templates beyond the one executive kind)
+        - Retention sweeps (rows are kept; no expiry or purge in the MVP)
+        - Report kinds other than executive (attestation, remediation, exceptions) and any scope picker
+
+  constraints:
+    - id: C-01
+      description: >-
+        The frozen executive content is a JSON wire contract: it
+        serializes the exact keys compliance_pct, host_count,
+        passing_rules, failing_rules, critical_issues, and
+        top_failing_rules; compliance_pct encodes as JSON null when nothing
+        is evaluated (not 0, not omitted); top_failing_rules always
+        serializes as a list (never JSON null), ordered most-failing first
+        and capped at the small leadership-facing limit.
+      type: technical
+      enforcement: error
+    - id: C-02
+      description: >-
+        compliance_pct is passing over evaluated (evaluated =
+        current_status in pass or fail) rounded half up to a whole percent,
+        and nil (never 0) when nothing has been evaluated, so an unscanned
+        fleet is distinguishable from a fully failing one.
+      type: technical
+      enforcement: error
+    - id: C-03
+      description: >-
+        The MVP generates exactly one kind: the artifact's identity is
+        fixed (title "Fleet Compliance - Executive Summary", scope_label
+        "All hosts", kind 'executive', format 'json') and the top-failing
+        embed limit is a small constant. The library lists newest first by
+        created_at.
+      type: technical
+      enforcement: error
+    - id: C-04
+      description: >-
+        Generate computes the executive content from the authoritative
+        posture tables and freezes it: passing_rules, failing_rules, and
+        critical_issues come from host_rule_state (failing rows of critical
+        severity for critical_issues); host_count is the active (deleted_at
+        IS NULL) host count; top_failing_rules lists the rules failing on
+        the most hosts, ordered by failing host count then rule id. The row
+        is write-once - data_as_of is the sampling instant, generated_by is
+        the supplied actor, and the row is never recomputed thereafter.
+      type: technical
+      enforcement: error
+    - id: C-05
+      description: >-
+        List returns every report ordered by created_at descending (newest
+        first); Get returns one report by id or report.ErrNotFound, which
+        the handler maps to 404 reports.not_found. Two generations yield
+        two distinct immutable rows (no in-place update).
+      type: technical
+      enforcement: error
+    - id: C-06
+      description: >-
+        RBAC: GET /api/v1/reports and GET /api/v1/reports/{id} require
+        host:read; POST /api/v1/reports:generate requires host:write;
+        anonymous callers are rejected on all three (auth.EnforcePermission
+        with auth.HostRead or auth.HostWrite). A host:read-only caller is
+        403 on generate. generated_by records the calling principal's id,
+        or 'system' when the request is anonymous, and the wire surfaces no
+        signing, PDF, or OSCAL fields.
+      type: security
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: >-
+        The executive content marshals to the exact wire keys
+        (compliance_pct, host_count, passing_rules, failing_rules,
+        critical_issues, top_failing_rules); a never-evaluated fleet
+        encodes compliance_pct as JSON null (not 0, not omitted); an
+        explicitly empty top-failing slice serializes as [] (never JSON
+        null) and a populated one preserves the service's most-failing
+        first order.
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-02
+      description: >-
+        compliance_pct rounds passing over evaluated half up to a whole
+        percent and returns nil (not 0) when nothing was evaluated, so the
+        document distinguishes an unscanned fleet from a fully failing one.
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-03
+      description: >-
+        The fixed executive identity is pinned: the title "Fleet Compliance
+        - Executive Summary", scope_label "All hosts", kind 'executive',
+        and the small top-failing embed cap are stable constants the
+        library and any later signing depend on.
+      priority: high
+      references_constraints: [C-03]
+    - id: AC-04
+      description: >-
+        Generate, over seeded host_rule_state and hosts, samples the live
+        posture and freezes it: passing_rules and failing_rules match the
+        pass and fail row counts, critical_issues counts the failing rows
+        of critical severity, compliance_pct is the rounded
+        passing-over-evaluated percent, host_count is the active host count
+        (soft-deleted hosts excluded), and top_failing_rules leads with the
+        rule failing on the most hosts. The stored row carries the fixed
+        title/scope/kind/format, the supplied generated_by, and a
+        data_as_of at the sampling instant.
+      priority: critical
+      references_constraints: [C-04, C-06]
+    - id: AC-05
+      description: >-
+        Generate over a fleet with hosts but no evaluated rule_state rows
+        reports nil compliance_pct (never scanned, not 0%), zero pass and
+        fail and critical counts, the active host_count, and an empty
+        (non-null) top_failing_rules list, so the document and any later
+        renderer never see a JSON null slice.
+      priority: high
+      references_constraints: [C-01, C-02]
+    - id: AC-06
+      description: >-
+        List returns reports newest first by created_at and an empty list
+        before any generation; Get fetches the matching report by id and
+        round-trips its generated_by; an unknown id returns ErrNotFound.
+        Two generations yield two distinct immutable rows ordered by
+        creation time (reports are never recomputed in place).
+      priority: high
+      references_constraints: [C-05]

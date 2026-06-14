@@ -25,6 +25,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/liveness"
 	"github.com/Hanalyx/openwatch/internal/policy"
 	"github.com/Hanalyx/openwatch/internal/queue"
+	"github.com/Hanalyx/openwatch/internal/report"
 	"github.com/Hanalyx/openwatch/internal/server/api"
 	"github.com/Hanalyx/openwatch/internal/systemconfig"
 	"github.com/Hanalyx/openwatch/internal/users"
@@ -87,6 +88,10 @@ type handlers struct {
 	// (*Server).WithGroups; nil makes the group endpoints 503.
 	// Spec api-groups.
 	groupSvc *group.Service
+
+	// Reports library service. Set via (*Server).WithReports; nil makes
+	// the report endpoints 503. Spec api-reports.
+	reportSvc *report.Service
 
 	// Kensa variable catalog (corpus-used template variables). Set via
 	// (*Server).WithVariableCatalog; nil renders an empty variables

@@ -1873,6 +1873,96 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
 
+  /api/v1/reports:
+    get:
+      operationId: getReports
+      summary: List generated reports (newest first)
+      description: |
+        Returns the Reports library: every generated report, newest
+        first. RBAC: host:read. Spec api-reports.
+      responses:
+        '200':
+          description: The reports library
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ReportListResponse'}
+        '401':
+          description: Caller is not authenticated
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '403':
+          description: Caller lacks host:read permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
+  /api/v1/reports:generate:
+    post:
+      operationId: postReportGenerate
+      summary: Generate a Fleet Compliance Executive Summary
+      description: |
+        Computes a point-in-time posture snapshot from current data
+        (host_rule_state pass/fail counts + critical, host count, top
+        failing rules) and stores it as an immutable report. The MVP
+        generates only the executive summary for all hosts. RBAC:
+        host:write. Spec api-reports.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: The generated report
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Report'}
+        '401':
+          description: Caller is not authenticated
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '403':
+          description: Caller lacks host:write permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
+  /api/v1/reports/{id}:
+    get:
+      operationId: getReportByID
+      summary: Fetch one report (with its stored JSON posture)
+      description: |
+        Returns a single report by id, including the stored JSON
+        content. RBAC: host:read. Spec api-reports.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: The report
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Report'}
+        '401':
+          description: Caller is not authenticated
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '403':
+          description: Caller lacks host:read permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '404':
+          description: Report not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
   /api/v1/system/connectivity/status:
     get:
       operationId: getSystemConnectivityStatus
@@ -3675,6 +3765,36 @@ components:
         groups:
           type: array
           items: {$ref: '#/components/schemas/GroupWithRollup'}
+
+    Report:
+      type: object
+      required: [id, title, kind, scope_label, data_as_of, generated_by, format, content, created_at]
+      properties:
+        id: {type: string, format: uuid}
+        title: {type: string}
+        kind:
+          type: string
+          enum: [executive]
+        scope_label: {type: string}
+        data_as_of: {type: string, format: date-time}
+        generated_by: {type: string}
+        format: {type: string}
+        content:
+          type: object
+          additionalProperties: true
+          description: |
+            The rendered JSON posture document. For an executive summary:
+            compliance_pct, host_count, passing_rules, failing_rules,
+            critical_issues, top_failing_rules.
+        created_at: {type: string, format: date-time}
+
+    ReportListResponse:
+      type: object
+      required: [reports]
+      properties:
+        reports:
+          type: array
+          items: {$ref: '#/components/schemas/Report'}
 
     GroupCreate:
       type: object
