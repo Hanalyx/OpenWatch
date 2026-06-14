@@ -1,0 +1,102 @@
+spec:
+  id: api-scans
+  title: Scans API — durable scan history, evidence, and OSCAL export
+  version: "1.0.0"
+  status: approved
+  tier: 2
+
+  context:
+    system: openwatch-go
+    feature: Compliance scan history + evidence read surface
+    description: >
+      The /api/v1/scans surface reads the durable per-scan store
+      (system-scan-results-store) so an operator can walk a host's scan
+      history, open one scan, and inspect any rule's verdict, evidence,
+      and OSCAL export. This is the SANCTIONED home for compliance
+      evidence: the raw per-command check output the host-detail
+      Compliance tab deliberately omits (api-host-compliance C-02) is
+      exposed HERE, gated by scan:read, so a compliance officer reads a
+      historical scan's proof without needing host:read. OSCAL documents
+      are reconstructed on demand from the stored outcomes via Kensa's
+      exporter (pkg/kensa.ExportOSCALOutcome / ExportOSCALScan).
+    related_specs:
+      - system-scan-results-store
+      - system-scan-runs
+      - api-host-compliance
+      - system-rbac
+
+  objective:
+    summary: >
+      Five read endpoints under /api/v1/scans, all gated scan:read: list a
+      host's scans (cursor paginated), one scan's metadata + per-rule
+      results (no inline evidence), one rule's full evidence, and per-rule
+      + whole-scan OSCAL export.
+    scope:
+      includes:
+        - GET /scans?host_id=&limit=&cursor= (newest first)
+        - GET /scans/{id} (metadata + per-rule results, no raw output)
+        - GET /scans/{id}/rules/{ruleId}/evidence (the drill-down payload)
+        - GET /scans/{id}/rules/{ruleId}/oscal (per-rule OSCAL AR)
+        - GET /scans/{id}/oscal (whole-scan OSCAL AR)
+        - scan:read on every endpoint
+      excludes:
+        - The durable write path (system-scan-results-store)
+        - The host-detail Compliance tab (stays evidence-free)
+        - OSCAL document internals (Kensa owns the exporter + schema)
+        - Fleet-wide (host_id-optional) scan listing (future)
+
+  constraints:
+    - id: C-01
+      description: Every /api/v1/scans endpoint MUST require scan:read — an anonymous caller gets 401/403, and the endpoint is unreachable without the permission. Enforced in-handler via auth.EnforcePermission(scan:read)
+      type: security
+      enforcement: error
+    - id: C-02
+      description: Raw check output (command, stdout, stderr) MUST be exposed ONLY under /api/v1/scans/** — never under /api/v1/hosts/**/compliance**. The scan-detail list payload carries has_evidence but no raw output; only the per-rule evidence endpoint returns the checks. This is the deliberate counterpart to api-host-compliance C-02 (which keeps the host tab evidence-free)
+      type: security
+      enforcement: error
+    - id: C-03
+      description: GET /scans MUST require host_id, return the host's scan_runs newest-first with queued_at cursor pagination and limit clamped to [1,100], and 404 when the host is unknown
+      type: technical
+      enforcement: error
+    - id: C-04
+      description: GET /scans/{id} MUST return the scan's metadata plus every rule's durable verdict for that scan, and 404 when the scan is unknown
+      type: technical
+      enforcement: error
+    - id: C-05
+      description: GET /scans/{id}/rules/{ruleId}/evidence MUST return the stored evidence unwrapped (detail, optional error, the structured checks) plus result metadata, and 404 when the (scan, rule) pair is absent
+      type: technical
+      enforcement: error
+    - id: C-06
+      description: The OSCAL endpoints MUST reconstruct a valid OSCAL 1.0.6 Assessment Results document from the stored outcomes via Kensa's exporter (per-rule and whole-scan), return it as a downloadable JSON attachment, and 404 when the scan/rule is unknown
+      type: technical
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: An anonymous request to a /api/v1/scans endpoint returns 401/403; a viewer session (which holds scan:read) returns 200.
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-02
+      description: GET /scans with an unknown host_id returns 404; with a host that has scans it returns the scans newest-first; limit and cursor paginate (page size honored, next_cursor advances to older rows).
+      priority: high
+      references_constraints: [C-03]
+    - id: AC-03
+      description: GET /scans/{id} for a persisted scan returns 200 with the scan metadata and one result per persisted rule; an unknown scan id returns 404.
+      priority: critical
+      references_constraints: [C-04]
+    - id: AC-04
+      description: The scan-detail JSON payload contains no raw check-output keys ("command", "stdout", "stderr"); each result carries has_evidence indicating whether a drill-down is available.
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-05
+      description: GET /scans/{id}/rules/{ruleId}/evidence returns the verdict detail and the structured checks (command, stdout, exit_code, expected/actual) for a rule with evidence; an unknown (scan, rule) pair returns 404.
+      priority: high
+      references_constraints: [C-05]
+    - id: AC-06
+      description: GET /scans/{id}/rules/{ruleId}/oscal and GET /scans/{id}/oscal each return a parseable OSCAL 1.0.6 Assessment Results JSON document (Content-Disposition attachment) reconstructed from the stored outcomes; an unknown scan/rule returns 404.
+      priority: high
+      references_constraints: [C-06]
+    - id: AC-07
+      description: Source-inspection — the scan evidence surface lives only in scans_handlers.go; the api-host-compliance pinned handler files (host_compliance_handler.go, host_compliance_lens_handler.go) still contain no occurrence of the token "evidence", so the host tab stays evidence-free while /scans owns evidence.
+      priority: high
+      references_constraints: [C-02]

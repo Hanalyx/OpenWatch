@@ -26,6 +26,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/policy"
 	"github.com/Hanalyx/openwatch/internal/queue"
 	"github.com/Hanalyx/openwatch/internal/report"
+	"github.com/Hanalyx/openwatch/internal/scanresult"
 	"github.com/Hanalyx/openwatch/internal/server/api"
 	"github.com/Hanalyx/openwatch/internal/systemconfig"
 	"github.com/Hanalyx/openwatch/internal/users"
@@ -92,6 +93,10 @@ type handlers struct {
 	// Reports library service. Set via (*Server).WithReports; nil makes
 	// the report endpoints 503. Spec api-reports.
 	reportSvc *report.Service
+
+	// Durable per-scan results reader. Set via (*Server).WithScanResults;
+	// nil makes the /api/v1/scans endpoints 503. Spec api-scans.
+	scanResultSvc *scanresult.Reader
 
 	// Kensa variable catalog (corpus-used template variables). Set via
 	// (*Server).WithVariableCatalog; nil renders an empty variables

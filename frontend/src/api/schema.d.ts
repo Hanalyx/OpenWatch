@@ -1298,6 +1298,124 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/scans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List a host's compliance scans (newest first)
+         * @description Returns the scan_runs history for one host, newest first, backing
+         *     the scan-history drill-down at /scans (expand a host to see its
+         *     scans). host_id is required. Cursor pagination by queued_at.
+         *     RBAC: scan:read. Spec api-scans.
+         */
+        get: operations["getScans"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/scans/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One scan's metadata + per-rule results (no inline evidence)
+         * @description Returns a scan's scan_runs metadata plus every rule's durable
+         *     verdict for that scan (status, severity, framework refs,
+         *     has_evidence). The raw check output is NOT inlined here; fetch it
+         *     per rule via the evidence endpoint. RBAC: scan:read. Spec
+         *     api-scans.
+         */
+        get: operations["getScanById"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/scans/{id}/rules/{ruleId}/evidence": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One rule's full evidence for a scan (the drill-down payload)
+         * @description Returns one rule's durable evidence for a scan: the verdict
+         *     detail, the structured per-command checks (command, captured
+         *     output, exit code, expected/actual), and framework refs. This is
+         *     the proof behind the verdict, exposed only under /api/v1/scans and
+         *     gated by scan:read (the host-detail Compliance tab stays
+         *     evidence-free). Spec api-scans.
+         */
+        get: operations["getScanRuleEvidence"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/scans/{id}/rules/{ruleId}/oscal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One rule's outcome as an OSCAL 1.0.6 Assessment Results document
+         * @description Renders one rule's stored outcome as a standalone OSCAL 1.0.6
+         *     Assessment Results document (one finding + observation),
+         *     reconstructed from the durable scan store via Kensa's exporter.
+         *     RBAC: scan:read. Spec api-scans.
+         */
+        get: operations["getScanRuleOSCAL"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/scans/{id}/oscal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A whole scan as an OSCAL 1.0.6 Assessment Results document
+         * @description Renders an entire scan as a single OSCAL 1.0.6 Assessment Results
+         *     document (one finding + observation per rule), reconstructed from
+         *     the durable scan store via Kensa's exporter — the audit-window
+         *     artifact for that scan. RBAC: scan:read. Spec api-scans.
+         */
+        get: operations["getScanOSCAL"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/system/connectivity/status": {
         parameters: {
             query?: never;
@@ -2565,6 +2683,86 @@ export interface components {
         };
         ReportListResponse: {
             reports: components["schemas"]["Report"][];
+        };
+        /** @description One scan_runs row — a scan's metadata and outcome counts. */
+        ScanSummary: {
+            /** Format: uuid */
+            scan_id: string;
+            /** Format: uuid */
+            host_id: string;
+            /** @description queued | running | completed | failed */
+            status: string;
+            /** @description on_demand | scheduled */
+            trigger_source: string;
+            /** Format: date-time */
+            queued_at: string;
+            /** Format: date-time */
+            started_at?: string | null;
+            /** Format: date-time */
+            finished_at?: string | null;
+            policy_version: string;
+            rules_pass: number;
+            rules_fail: number;
+            rules_skipped: number;
+            rules_error: number;
+        };
+        ScanList: {
+            scans: components["schemas"]["ScanSummary"][];
+            /**
+             * Format: date-time
+             * @description Pass as ?cursor= to fetch the next page; absent when exhausted
+             */
+            next_cursor?: string;
+        };
+        /** @description One rule's durable verdict for a scan. No inline check output. */
+        ScanRuleResult: {
+            rule_id: string;
+            /** @description pass | fail | skipped | error */
+            status: string;
+            /** @description critical | high | medium | low | "" when unset */
+            severity: string;
+            /** @description framework_id -> control ids */
+            framework_refs: {
+                [key: string]: string[];
+            };
+            skip_reason?: string;
+            /** @description true when this rule has stored check output to drill into */
+            has_evidence: boolean;
+        };
+        ScanDetail: {
+            scan: components["schemas"]["ScanSummary"];
+            results: components["schemas"]["ScanRuleResult"][];
+        };
+        /** @description One command's reproducible evidence (mirrors kensa CheckEvidence). */
+        ScanCheckEvidence: {
+            method: string;
+            command?: string;
+            stdout?: string;
+            stderr?: string;
+            exit_code: number;
+            expected?: string;
+            actual?: string;
+            truncated?: boolean;
+        };
+        /** @description One rule's full drill-down payload — the stored evidence unwrapped plus metadata. */
+        ScanRuleEvidence: {
+            rule_id: string;
+            /** @description pass | fail | skipped | error */
+            status: string;
+            severity: string;
+            /** @description human-readable verdict context */
+            detail: string;
+            /** @description present only when status is error */
+            error?: string;
+            checks: components["schemas"]["ScanCheckEvidence"][];
+            framework_refs: {
+                [key: string]: string[];
+            };
+            skip_reason?: string;
+        };
+        /** @description An OSCAL 1.0.6 Assessment Results document (JSON), as produced by Kensa's exporter. Opaque to OpenWatch — passed through verbatim. */
+        OscalDocument: {
+            [key: string]: unknown;
         };
         GroupCreate: {
             name: string;
@@ -5731,6 +5929,257 @@ export interface operations {
                 };
             };
             /** @description Report not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getScans: {
+        parameters: {
+            query: {
+                host_id: string;
+                limit?: number;
+                /** @description queued_at of the last row already seen (RFC3339); omit to start at the newest */
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The host's scan history page */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScanList"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            /** @description Caller is not authenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Caller lacks scan:read permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Host not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getScanById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The scan detail */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScanDetail"];
+                };
+            };
+            /** @description Caller is not authenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Caller lacks scan:read permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Scan not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getScanRuleEvidence: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                ruleId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The rule's evidence */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScanRuleEvidence"];
+                };
+            };
+            /** @description Caller is not authenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Caller lacks scan:read permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Scan or rule not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getScanRuleOSCAL: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                ruleId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OSCAL 1.0.6 Assessment Results JSON */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OscalDocument"];
+                };
+            };
+            /** @description Caller is not authenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Caller lacks scan:read permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Scan or rule not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getScanOSCAL: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OSCAL 1.0.6 Assessment Results JSON */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OscalDocument"];
+                };
+            };
+            /** @description Caller is not authenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Caller lacks scan:read permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Scan not found */
             404: {
                 headers: {
                     [name: string]: unknown;

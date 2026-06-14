@@ -551,7 +551,8 @@ func cmdServe(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 		WithVariableCatalog(varCatalog).
 		WithExceptions(exceptionSvc).
 		WithGroups(group.NewService(pool)).
-		WithReports(report.NewService(pool))
+		WithReports(report.NewService(pool)).
+		WithScanResults(scanresult.NewReader(pool))
 	runErr := srv.Run(ctx)
 
 	// Shutdown order REVERSE of boot (C-02). liveness.Run + alertrouter
