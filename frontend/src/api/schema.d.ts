@@ -1114,6 +1114,124 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/groups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Fleet group summary + every group with its rollup
+         * @description Returns the Groups-page KPI summary and the full list of groups
+         *     (sites first, then OS categories), each with its computed member
+         *     rollup. RBAC: host:read. Spec api-groups.
+         */
+        get: operations["getGroups"];
+        put?: never;
+        /**
+         * Create a group
+         * @description Create a site (manual membership) or an OS category (manual
+         *     workload group or auto group keyed on os_family). RBAC:
+         *     host:write. Spec api-groups.
+         */
+        post: operations["postGroup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/groups/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete a group
+         * @description Removes the group (members cascade). RBAC: host:write. Spec
+         *     api-groups.
+         */
+        delete: operations["deleteGroup"];
+        options?: never;
+        head?: never;
+        /**
+         * Update a group's display fields
+         * @description Patch name, subtype, and color. Kind and membership are
+         *     immutable. RBAC: host:write. Spec api-groups.
+         */
+        patch: operations["patchGroup"];
+        trace?: never;
+    };
+    "/api/v1/groups/{id}:maintenance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Toggle a group's maintenance flag
+         * @description Sets the maintenance flag on or off. RBAC: host:write. Spec
+         *     api-groups.
+         */
+        post: operations["postGroupMaintenance"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/groups/{id}/members": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add a host to a manual group
+         * @description Assigns a host to a manual group (auto groups derive their
+         *     members and reject this with 400). RBAC: host:write. Spec
+         *     api-groups.
+         */
+        post: operations["postGroupMember"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/groups/{id}/members/{host_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove a host from a manual group
+         * @description Removes a host from a manual group. RBAC: host:write. Spec
+         *     api-groups.
+         */
+        delete: operations["deleteGroupMember"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/system/connectivity/status": {
         parameters: {
             query?: never;
@@ -2304,6 +2422,81 @@ export interface components {
         ExceptionReview: {
             /** @description Optional reviewer note */
             note?: string;
+        };
+        Group: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            /** @enum {string} */
+            kind: "site" | "os_category";
+            /** @description Free-form sub-classifier (may be empty) */
+            subtype: string;
+            /** @description Design-token color key (e.g. info) */
+            color: string;
+            /** @enum {string} */
+            membership: "manual" | "auto";
+            /** @description OS family an auto group matches on (empty for manual groups) */
+            match_family?: string;
+            maintenance: boolean;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        GroupMember: {
+            /** Format: uuid */
+            host_id: string;
+            hostname: string;
+            /** @description Host monitoring band (online, down, unknown, ...) */
+            status: string;
+        };
+        GroupRollup: {
+            hosts: number;
+            online: number;
+            down: number;
+            critical_hosts: number;
+            /** @description Mean compliance across scanned members; null when none scanned */
+            avg_compliance_pct?: number | null;
+            members: components["schemas"]["GroupMember"][];
+        };
+        GroupWithRollup: components["schemas"]["Group"] & {
+            rollup: components["schemas"]["GroupRollup"];
+        };
+        GroupSummary: {
+            groups: number;
+            sites: number;
+            os_categories: number;
+            hosts_maintenance: number;
+            /** @description Fleet mean compliance; null when nothing scanned */
+            avg_compliance_pct?: number | null;
+            ungrouped: number;
+        };
+        GroupListResponse: {
+            summary: components["schemas"]["GroupSummary"];
+            groups: components["schemas"]["GroupWithRollup"][];
+        };
+        GroupCreate: {
+            name: string;
+            /** @enum {string} */
+            kind: "site" | "os_category";
+            subtype?: string;
+            color?: string;
+            /** @enum {string} */
+            membership: "manual" | "auto";
+            /** @description Required for auto membership; must be empty for manual */
+            match_family?: string;
+        };
+        GroupUpdate: {
+            name: string;
+            subtype?: string;
+            color?: string;
+        };
+        GroupMaintenanceRequest: {
+            on: boolean;
+        };
+        GroupMemberRequest: {
+            /** Format: uuid */
+            host_id: string;
         };
         HostComplianceSchedule: {
             /** @description The scan config enabled flag */
@@ -4960,6 +5153,365 @@ export interface operations {
             };
             /** @description Not in the approved state */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getGroups: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Summary plus groups with rollups */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GroupListResponse"];
+                };
+            };
+            /** @description Caller is not authenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Caller lacks host:read permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    postGroup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GroupCreate"];
+            };
+        };
+        responses: {
+            /** @description The created group */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Group"];
+                };
+            };
+            /** @description Invalid group definition */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Caller is not authenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Caller lacks host:write permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description An auto group already exists for that OS family */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    deleteGroup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Caller is not authenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Caller lacks host:write permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Group not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    patchGroup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GroupUpdate"];
+            };
+        };
+        responses: {
+            /** @description The updated group */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Group"];
+                };
+            };
+            /** @description Invalid update */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Caller is not authenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Caller lacks host:write permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Group not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    postGroupMaintenance: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GroupMaintenanceRequest"];
+            };
+        };
+        responses: {
+            /** @description The updated group */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Group"];
+                };
+            };
+            /** @description Caller is not authenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Caller lacks host:write permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Group not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    postGroupMember: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GroupMemberRequest"];
+            };
+        };
+        responses: {
+            /** @description Member added */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Cannot add a member to an auto group */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Caller is not authenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Caller lacks host:write permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Group not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    deleteGroupMember: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                host_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Member removed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Caller is not authenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Caller lacks host:write permission */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

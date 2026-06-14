@@ -25,6 +25,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/db"
 	"github.com/Hanalyx/openwatch/internal/db/migrations"
 	"github.com/Hanalyx/openwatch/internal/exception"
+	"github.com/Hanalyx/openwatch/internal/group"
 	"github.com/Hanalyx/openwatch/internal/identity"
 	"github.com/Hanalyx/openwatch/internal/intelligence/discovery"
 	"github.com/Hanalyx/openwatch/internal/kensa"
@@ -263,6 +264,10 @@ func freshAPIServer(t *testing.T) (string, *pgxpool.Pool) {
 	}
 	s.WithScanQueue(scanKey)
 	s.WithExceptions(exception.NewService(pool, audit.Emit))
+	// Spec api-groups: wire the host-group service so /api/v1/groups and
+	// its sub-routes reach a real handler instead of the 503 not-wired
+	// guard.
+	s.WithGroups(group.NewService(pool))
 	// Variable catalog fixture: two corpus-style variables (one a
 	// configure-me placeholder) so the scan-variables endpoints are
 	// testable without the on-disk kensa corpus.

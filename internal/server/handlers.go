@@ -17,6 +17,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/eventbus"
 	"github.com/Hanalyx/openwatch/internal/exception"
 	"github.com/Hanalyx/openwatch/internal/fleetrollup"
+	"github.com/Hanalyx/openwatch/internal/group"
 	"github.com/Hanalyx/openwatch/internal/host"
 	"github.com/Hanalyx/openwatch/internal/intelligence/discovery"
 	"github.com/Hanalyx/openwatch/internal/kensa"
@@ -81,6 +82,11 @@ type handlers struct {
 	// Compliance exception governance service. Set via
 	// (*Server).WithExceptions; nil makes the exception endpoints 503.
 	exceptionSvc *exception.Service
+
+	// Host group service (sites + OS categories). Set via
+	// (*Server).WithGroups; nil makes the group endpoints 503.
+	// Spec api-groups.
+	groupSvc *group.Service
 
 	// Kensa variable catalog (corpus-used template variables). Set via
 	// (*Server).WithVariableCatalog; nil renders an empty variables

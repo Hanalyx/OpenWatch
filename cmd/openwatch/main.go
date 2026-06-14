@@ -35,6 +35,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/db/migrations"
 	"github.com/Hanalyx/openwatch/internal/eventbus"
 	"github.com/Hanalyx/openwatch/internal/exception"
+	"github.com/Hanalyx/openwatch/internal/group"
 	"github.com/Hanalyx/openwatch/internal/identity"
 	"github.com/Hanalyx/openwatch/internal/intelligence/collector"
 	"github.com/Hanalyx/openwatch/internal/intelligence/discovery"
@@ -545,7 +546,8 @@ func cmdServe(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 		WithScanWorker(scanWorker).
 		WithRuleCatalog(ruleCatalog).
 		WithVariableCatalog(varCatalog).
-		WithExceptions(exceptionSvc)
+		WithExceptions(exceptionSvc).
+		WithGroups(group.NewService(pool))
 	runErr := srv.Run(ctx)
 
 	// Shutdown order REVERSE of boot (C-02). liveness.Run + alertrouter

@@ -1626,6 +1626,253 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
 
+  /api/v1/groups:
+    get:
+      operationId: getGroups
+      summary: Fleet group summary + every group with its rollup
+      description: |
+        Returns the Groups-page KPI summary and the full list of groups
+        (sites first, then OS categories), each with its computed member
+        rollup. RBAC: host:read. Spec api-groups.
+      responses:
+        '200':
+          description: Summary plus groups with rollups
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/GroupListResponse'}
+        '401':
+          description: Caller is not authenticated
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '403':
+          description: Caller lacks host:read permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+    post:
+      operationId: postGroup
+      summary: Create a group
+      description: |
+        Create a site (manual membership) or an OS category (manual
+        workload group or auto group keyed on os_family). RBAC:
+        host:write. Spec api-groups.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/GroupCreate'}
+      responses:
+        '201':
+          description: The created group
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Group'}
+        '400':
+          description: Invalid group definition
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '401':
+          description: Caller is not authenticated
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '403':
+          description: Caller lacks host:write permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '409':
+          description: An auto group already exists for that OS family
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
+  /api/v1/groups/{id}:
+    patch:
+      operationId: patchGroup
+      summary: Update a group's display fields
+      description: |
+        Patch name, subtype, and color. Kind and membership are
+        immutable. RBAC: host:write. Spec api-groups.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/GroupUpdate'}
+      responses:
+        '200':
+          description: The updated group
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Group'}
+        '400':
+          description: Invalid update
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '401':
+          description: Caller is not authenticated
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '403':
+          description: Caller lacks host:write permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '404':
+          description: Group not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+    delete:
+      operationId: deleteGroup
+      summary: Delete a group
+      description: |
+        Removes the group (members cascade). RBAC: host:write. Spec
+        api-groups.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '204':
+          description: Deleted
+        '401':
+          description: Caller is not authenticated
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '403':
+          description: Caller lacks host:write permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '404':
+          description: Group not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
+  /api/v1/groups/{id}:maintenance:
+    post:
+      operationId: postGroupMaintenance
+      summary: Toggle a group's maintenance flag
+      description: |
+        Sets the maintenance flag on or off. RBAC: host:write. Spec
+        api-groups.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/GroupMaintenanceRequest'}
+      responses:
+        '200':
+          description: The updated group
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Group'}
+        '401':
+          description: Caller is not authenticated
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '403':
+          description: Caller lacks host:write permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '404':
+          description: Group not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
+  /api/v1/groups/{id}/members:
+    post:
+      operationId: postGroupMember
+      summary: Add a host to a manual group
+      description: |
+        Assigns a host to a manual group (auto groups derive their
+        members and reject this with 400). RBAC: host:write. Spec
+        api-groups.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/GroupMemberRequest'}
+      responses:
+        '204':
+          description: Member added
+        '400':
+          description: Cannot add a member to an auto group
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '401':
+          description: Caller is not authenticated
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '403':
+          description: Caller lacks host:write permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '404':
+          description: Group not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
+  /api/v1/groups/{id}/members/{host_id}:
+    delete:
+      operationId: deleteGroupMember
+      summary: Remove a host from a manual group
+      description: |
+        Removes a host from a manual group. RBAC: host:write. Spec
+        api-groups.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+        - name: host_id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '204':
+          description: Member removed
+        '401':
+          description: Caller is not authenticated
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '403':
+          description: Caller lacks host:write permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
   /api/v1/system/connectivity/status:
     get:
       operationId: getSystemConnectivityStatus
@@ -3349,6 +3596,122 @@ components:
       type: object
       properties:
         note: {type: string, description: Optional reviewer note}
+
+    Group:
+      type: object
+      required: [id, name, kind, subtype, color, membership, maintenance,
+                 created_at, updated_at]
+      properties:
+        id:          {type: string, format: uuid}
+        name:        {type: string}
+        kind:
+          type: string
+          enum: [site, os_category]
+        subtype:     {type: string, description: Free-form sub-classifier (may be empty)}
+        color:       {type: string, description: Design-token color key (e.g. info)}
+        membership:
+          type: string
+          enum: [manual, auto]
+        match_family:
+          type: string
+          description: OS family an auto group matches on (empty for manual groups)
+        maintenance: {type: boolean}
+        created_at:  {type: string, format: date-time}
+        updated_at:  {type: string, format: date-time}
+
+    GroupMember:
+      type: object
+      required: [host_id, hostname, status]
+      properties:
+        host_id:  {type: string, format: uuid}
+        hostname: {type: string}
+        status:
+          type: string
+          description: Host monitoring band (online, down, unknown, ...)
+
+    GroupRollup:
+      type: object
+      required: [hosts, online, down, critical_hosts, members]
+      properties:
+        hosts:          {type: integer}
+        online:         {type: integer}
+        down:           {type: integer}
+        critical_hosts: {type: integer}
+        avg_compliance_pct:
+          type: integer
+          nullable: true
+          description: Mean compliance across scanned members; null when none scanned
+        members:
+          type: array
+          items: {$ref: '#/components/schemas/GroupMember'}
+
+    GroupWithRollup:
+      allOf:
+        - $ref: '#/components/schemas/Group'
+        - type: object
+          required: [rollup]
+          properties:
+            rollup: {$ref: '#/components/schemas/GroupRollup'}
+
+    GroupSummary:
+      type: object
+      required: [groups, sites, os_categories, hosts_maintenance, ungrouped]
+      properties:
+        groups:           {type: integer}
+        sites:            {type: integer}
+        os_categories:    {type: integer}
+        hosts_maintenance: {type: integer}
+        avg_compliance_pct:
+          type: integer
+          nullable: true
+          description: Fleet mean compliance; null when nothing scanned
+        ungrouped:        {type: integer}
+
+    GroupListResponse:
+      type: object
+      required: [summary, groups]
+      properties:
+        summary: {$ref: '#/components/schemas/GroupSummary'}
+        groups:
+          type: array
+          items: {$ref: '#/components/schemas/GroupWithRollup'}
+
+    GroupCreate:
+      type: object
+      required: [name, kind, membership]
+      properties:
+        name: {type: string}
+        kind:
+          type: string
+          enum: [site, os_category]
+        subtype: {type: string}
+        color:   {type: string}
+        membership:
+          type: string
+          enum: [manual, auto]
+        match_family:
+          type: string
+          description: Required for auto membership; must be empty for manual
+
+    GroupUpdate:
+      type: object
+      required: [name]
+      properties:
+        name:    {type: string}
+        subtype: {type: string}
+        color:   {type: string}
+
+    GroupMaintenanceRequest:
+      type: object
+      required: [on]
+      properties:
+        on: {type: boolean}
+
+    GroupMemberRequest:
+      type: object
+      required: [host_id]
+      properties:
+        host_id: {type: string, format: uuid}
 
     HostComplianceSchedule:
       type: object

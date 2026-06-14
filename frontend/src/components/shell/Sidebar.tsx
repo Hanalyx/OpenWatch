@@ -32,7 +32,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { to: '/dashboard', label: 'Dashboard', icon: <LayoutDashboard size={18} />, enabled: true },
   { to: '/hosts', label: 'Hosts', icon: <Server size={18} />, enabled: true },
-  { to: '/groups', label: 'Groups', icon: <Boxes size={18} />, enabled: false },
+  { to: '/groups', label: 'Groups', icon: <Boxes size={18} />, enabled: true },
   { to: '/scans', label: 'Scans', icon: <Search size={18} />, enabled: false },
   { to: '/activity', label: 'Activity', icon: <Activity size={18} />, enabled: true },
   { to: '/reports', label: 'Reports', icon: <BarChart3 size={18} />, enabled: false },

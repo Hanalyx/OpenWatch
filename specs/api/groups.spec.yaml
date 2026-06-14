@@ -1,0 +1,246 @@
+spec:
+  id: api-groups
+  title: Host groups - operator SITES (manual) and OS CATEGORIES (auto/manual) with per-group rollups
+  version: "1.0.0"
+  status: approved
+  tier: 2
+
+  context:
+    system: openwatch-go
+    feature: Host grouping with two kinds (site, os_category), two membership models (manual, auto by os_family), a maintenance flag, and computed per-group rollups for the Groups page
+    description: >
+      A group is an operator's lens over the fleet. There are two
+      kinds: a SITE is an environment or topology grouping (Production,
+      Development, DR) whose hosts are assigned explicitly; an
+      OS_CATEGORY is a platform or workload grouping that is either
+      AUTO (every host whose os_family equals the group's match_family,
+      e.g. an RHEL group of all RHEL hosts) or MANUAL (a curated
+      workload group like Database). A host belongs to many groups.
+
+      AUTO MEMBERSHIP IS DERIVED, NOT STORED (load-bearing): an auto
+      group's members are computed live from hosts.os_family at query
+      time. There is no backfill and no row in group_members for auto
+      members, so a newly discovered host joins its OS group with no
+      write. Manual membership lives in group_members and is edited via
+      Add/Remove member.
+
+      Validation couples kind and membership: a site must be manual; an
+      auto group must carry a match_family and a manual group must not;
+      at most one auto group may exist per os_family (two RHEL auto
+      groups would double count). These are enforced in the service
+      (sentinel errors) on top of the table CHECK and the partial
+      unique index.
+
+      ROLLUP SEMANTICS (load-bearing): the list view computes per group,
+      over the group's resolved member set, hosts (member count), online
+      and down from host_liveness.reachability_status (reachable /
+      unreachable), critical_hosts (distinct member hosts with a failing
+      critical rule in host_rule_state), and avg_compliance_pct from
+      host_rule_state (passing / evaluated, evaluated = pass+fail, nil
+      when no member host has been scanned). The fleet Summary KPIs
+      count groups, sites, os_categories, hosts in any maintenance
+      group, ungrouped active hosts (no manual group and no auto match),
+      and fleet avg_compliance_pct.
+
+      The maintenance flag pauses scanning and alerting for a group's
+      hosts (surfaced in the UI; enforcement is a follow-up). Kind and
+      membership are immutable after create; only name, subtype, and
+      color are editable.
+
+      Endpoints (the fleet KPI row ships inside the list response, so a
+      single GET serves both the summary and the groups):
+        POST   /groups                            - create (host:write)
+        GET    /groups                            - fleet summary + groups with rollups (host:read)
+        PATCH  /groups/{id}                        - edit name/subtype/color (host:write)
+        DELETE /groups/{id}                        - delete, members cascade (host:write)
+        POST   /groups/{id}:maintenance            - toggle maintenance (host:write)
+        POST   /groups/{id}/members                - add a host to a manual group (host:write)
+        DELETE /groups/{id}/members/{host_id}      - remove a host (host:write)
+
+    related_specs:
+      - api-host-compliance
+      - system-liveness-loop
+      - system-rbac
+
+  objective:
+    summary: >
+      A correct, auditable group model: coupled kind/membership
+      validation, derived (never stored) auto membership, a maintenance
+      flag, and rollups that read liveness and compliance from the
+      authoritative tables, behind a host:read view / host:write mutate
+      RBAC bar.
+    scope:
+      includes:
+        - groups + group_members tables (migration 0027) and the internal/group service
+        - Create / Get / Update / Delete / SetMaintenance / AddMember / RemoveMember / List / Summary
+        - The seven HTTP endpoints with their RBAC bars (the fleet summary ships inside GET /groups)
+        - Derived auto membership (hosts.os_family) and manual membership (group_members)
+        - Per-group rollups (liveness + compliance) and the fleet Summary KPIs
+      excludes:
+        - Maintenance enforcement on the scan scheduler and alert dispatch (flag is surfaced only in v1)
+        - Nested or hierarchical groups (a host belongs to many flat groups)
+        - Per-member rollup pagination (the card preview is a bounded chip list)
+        - Group-scoped compliance exceptions (per host plus per rule only; see api-compliance-exceptions)
+
+  constraints:
+    - id: C-01
+      description: >-
+        Create couples kind and membership: a site must be manual
+        (else ErrSiteMustBeManual); auto membership requires a non-empty
+        match_family (else ErrAutoNeedsFamily) and manual membership must
+        not set match_family (else ErrManualHasFamily); kind must be site
+        or os_category (else ErrInvalidKind), membership manual or auto
+        (else ErrInvalidMembership), and name non-empty (else
+        ErrEmptyName). A second auto group for an os_family already
+        claimed returns ErrDuplicateFamily (partial unique index
+        groups_one_auto_per_family on the 23505).
+      type: technical
+      enforcement: error
+    - id: C-02
+      description: >-
+        Auto membership is derived, never stored: an auto group's member
+        set is computed live as the active hosts (deleted_at IS NULL)
+        whose os_family equals match_family, with no row written to
+        group_members. Manual membership reads group_members. AddMember
+        rejects an auto group (its members are derived) and RemoveMember
+        only affects manual rows. A newly discovered host appears in its
+        auto group with no backfill write.
+      type: technical
+      enforcement: error
+    - id: C-03
+      description: >-
+        Kind and membership are immutable after create: Update patches
+        only name, subtype, and color (empty name returns ErrEmptyName,
+        empty color defaults to info) and never alters kind, membership,
+        or match_family. Get and Update on an unknown id return
+        ErrNotFound; Delete on an unknown id returns ErrNotFound and a
+        successful Delete cascades group_members.
+      type: technical
+      enforcement: error
+    - id: C-04
+      description: >-
+        Per-group rollup reads the authoritative tables over the
+        resolved member set: online and down count member hosts whose
+        host_liveness.reachability_status is reachable and unreachable
+        respectively; critical_hosts counts distinct member hosts with a
+        failing critical rule in host_rule_state; avg_compliance_pct is
+        passing over evaluated (evaluated = current_status in pass or
+        fail) rounded to a whole percent and is nil when no member host
+        has an evaluated row. The member chip list is bounded (at most 8,
+        ordered by hostname).
+      type: technical
+      enforcement: error
+    - id: C-05
+      description: >-
+        Fleet Summary reports groups, sites, and os_categories counts;
+        hosts_maintenance as the distinct active hosts that belong to any
+        maintenance group (manual member or auto match); ungrouped as the
+        active hosts in no manual group and matching no auto group; and
+        avg_compliance_pct across all active hosts (passing over
+        evaluated, nil when nothing evaluated). All host counts exclude
+        soft-deleted hosts.
+      type: technical
+      enforcement: error
+    - id: C-06
+      description: >-
+        RBAC: the read endpoint (GET /groups, which returns the fleet
+        summary plus the groups with rollups) requires host:read; every
+        mutation (POST /groups, PATCH, DELETE, POST :maintenance, POST and
+        DELETE members) requires host:write; anonymous callers are
+        rejected on all. Handlers map service sentinels to status codes:
+        ErrNotFound to 404, the Create validation sentinels to 400,
+        ErrDuplicateFamily to 409, and the add-to-auto-group rejection to
+        400.
+      type: security
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: >-
+        Create with kind=site and membership=auto returns
+        ErrSiteMustBeManual; membership=auto with an empty match_family
+        returns ErrAutoNeedsFamily; membership=manual with a match_family
+        set returns ErrManualHasFamily; an unknown kind returns
+        ErrInvalidKind, an unknown membership ErrInvalidMembership, and an
+        empty name ErrEmptyName. A valid site (manual) and a valid auto
+        os_category (match_family set) both insert and round-trip their
+        fields; an empty color defaults to info.
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-02
+      description: >-
+        Creating a second auto group for an os_family already claimed by
+        an auto group returns ErrDuplicateFamily (23505 mapped via the
+        groups_one_auto_per_family partial unique index); a manual group
+        naming the same family in a workload context is unaffected since
+        the index only covers membership=auto rows.
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-03
+      description: >-
+        An auto group's members are derived live: after creating an auto
+        group for os_family X with two matching active hosts, List shows
+        hosts=2 with no group_members rows written; inserting a third
+        active host with os_family X makes the count 3 on the next List
+        with no backfill; a soft-deleted matching host is excluded.
+        AddMember on an auto group is rejected.
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-04
+      description: >-
+        For a manual group, AddMember inserts a group_members row
+        (idempotent on conflict) and RemoveMember deletes it; List
+        reflects the manual member set. Adding the same host twice does
+        not duplicate the membership.
+      priority: high
+      references_constraints: [C-02]
+    - id: AC-05
+      description: >-
+        Update patches name, subtype, and color only and leaves kind,
+        membership, and match_family unchanged; an empty name returns
+        ErrEmptyName and an empty color defaults to info. Get and Update
+        on an unknown id return ErrNotFound; Delete removes the group and
+        cascades its group_members, and Delete on an unknown id returns
+        ErrNotFound.
+      priority: high
+      references_constraints: [C-03]
+    - id: AC-06
+      description: >-
+        SetMaintenance(on) and SetMaintenance(off) flip the maintenance
+        flag, bump updated_at, and return the updated group; SetMaintenance
+        on an unknown id returns ErrNotFound. The flag does not alter
+        membership or rollup member resolution.
+      priority: high
+      references_constraints: [C-03]
+    - id: AC-07
+      description: >-
+        For a group whose member hosts have known liveness and rule
+        state, List rollup reports online and down from
+        host_liveness.reachability_status (reachable / unreachable),
+        critical_hosts as the distinct members with a failing critical
+        rule, and avg_compliance_pct as the rounded passing-over-evaluated
+        percent; a group whose members have no evaluated rule_state row
+        reports avg_compliance_pct nil. The member chip list is capped at
+        8 hostname-ordered entries.
+      priority: critical
+      references_constraints: [C-04]
+    - id: AC-08
+      description: >-
+        Summary reports groups, sites, and os_categories counts;
+        hosts_maintenance as the distinct active hosts in any maintenance
+        group (manual member or auto match), ungrouped as active hosts in
+        no manual group and matching no auto group, and avg_compliance_pct
+        across active hosts (nil when nothing evaluated). Soft-deleted
+        hosts are excluded from every count.
+      priority: high
+      references_constraints: [C-05]
+    - id: AC-09
+      description: >-
+        RBAC and status mapping: GET /groups requires host:read and a
+        viewer succeeds; every mutation requires host:write and a
+        host:read-only caller is 403; anonymous callers are rejected on
+        all endpoints. An unknown id on PATCH/DELETE/:maintenance yields
+        404, the Create validation sentinels yield 400, ErrDuplicateFamily
+        yields 409, and adding a member to an auto group yields 400.
+      priority: critical
+      references_constraints: [C-06]
