@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import api from '@/api/client';
+import { useBreadcrumbStore } from '@/store/useBreadcrumbStore';
 import { apiErrorMessage } from '@/api/errors';
 
 // ScansPage — the fleet scan overview at /scans, composed entirely from
@@ -33,6 +34,12 @@ const TONE = {
 };
 
 export function ScansPage() {
+  const setCrumbs = useBreadcrumbStore((s) => s.setCrumbs);
+  useEffect(() => {
+    setCrumbs([{ label: 'Infrastructure' }, { label: 'Scans' }]);
+    return () => setCrumbs([]);
+  }, [setCrumbs]);
+
   const [tab, setTab] = useState<'coverage' | 'history'>('coverage');
 
   const queueQ = useQuery({

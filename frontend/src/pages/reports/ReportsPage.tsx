@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/api/client';
+import { useBreadcrumbStore } from '@/store/useBreadcrumbStore';
 import { apiErrorMessage } from '@/api/errors';
 import { useAuthStore } from '@/store/useAuthStore';
 import type { components } from '@/api/schema';
@@ -57,6 +58,12 @@ function formatDate(iso: string): string {
 }
 
 export function ReportsPage() {
+  const setCrumbs = useBreadcrumbStore((s) => s.setCrumbs);
+  useEffect(() => {
+    setCrumbs([{ label: 'Compliance' }, { label: 'Reports' }]);
+    return () => setCrumbs([]);
+  }, [setCrumbs]);
+
   const [tab, setTab] = useState<'library' | 'templates' | 'scheduled'>('library');
   const [selectedId, setSelectedId] = useState<string | null>(null);
 

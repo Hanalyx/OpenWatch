@@ -1,7 +1,7 @@
 spec:
   id: frontend-foundation
   title: Frontend foundation — theme, color scheme, layout shell, route guards
-  version: "1.1.0"
+  version: "1.2.0"
   status: approved
   tier: 1
 
@@ -113,6 +113,17 @@ spec:
         UI copy carries no em-dashes
       type: technical
       enforcement: error
+    - id: C-13
+      description: >-
+        Every top-level navigation page MUST set the topbar breadcrumb for
+        its route by calling useBreadcrumbStore.setCrumbs in a useEffect,
+        with a cleanup that clears it (returns setCrumbs([])), so the
+        topbar always reflects the current page and never shows a stale
+        crumb from the previously visited page. The crumb labels match the
+        page's place in the information architecture (e.g. Infrastructure /
+        Hosts, Compliance / Reports). UI copy carries no em-dashes
+      type: technical
+      enforcement: error
 
   acceptance_criteria:
     - id: AC-01
@@ -194,3 +205,13 @@ spec:
         no em-dash.
       priority: high
       references_constraints: [C-12]
+    - id: AC-19
+      description: >-
+        Source-inspection — every top-level page (HostsListPage,
+        DashboardPage, ActivityPage, ScansPage, GroupsPage, ReportsPage)
+        calls useBreadcrumbStore setCrumbs([...]) inside a useEffect whose
+        cleanup clears the crumbs (setCrumbs([])). Reports uses the
+        Compliance category; the others use Infrastructure (Dashboard a
+        single crumb). No page renders without setting its breadcrumb.
+      priority: high
+      references_constraints: [C-13]
