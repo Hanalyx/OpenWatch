@@ -41,6 +41,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/eventbus"
 	"github.com/Hanalyx/openwatch/internal/kensa"
 	"github.com/Hanalyx/openwatch/internal/queue"
+	"github.com/Hanalyx/openwatch/internal/scanresult"
 	"github.com/Hanalyx/openwatch/internal/scanruns"
 	"github.com/Hanalyx/openwatch/internal/scheduler"
 	"github.com/Hanalyx/openwatch/internal/transactionlog"
@@ -72,12 +73,13 @@ const tickJitter = 5 * time.Second
 // ScanWorker is the production worker. One per process. Constructed at
 // boot in cmd/openwatch/worker.go via NewScanWorker; held until SIGTERM.
 type ScanWorker struct {
-	pool     *pgxpool.Pool
-	executor *kensa.Executor
-	writer   *transactionlog.Writer
-	queueKey []byte
-	bus      *eventbus.Bus      // nil = no scan.completed publication (dedicated worker process)
-	sched    *scheduler.Service // nil = no post-scan schedule update (legacy tests)
+	pool        *pgxpool.Pool
+	executor    *kensa.Executor
+	writer      *transactionlog.Writer
+	scanResults *scanresult.Writer // nil = durable per-scan results not recorded (legacy tests)
+	queueKey    []byte
+	bus         *eventbus.Bus      // nil = no scan.completed publication (dedicated worker process)
+	sched       *scheduler.Service // nil = no post-scan schedule update (legacy tests)
 
 	pollInterval time.Duration
 
@@ -106,6 +108,13 @@ type Config struct {
 	QueueKey     []byte // scheduler.DeriveQueueKey output
 	PollInterval time.Duration
 	Emit         EmitFunc
+
+	// ScanResults, when non-nil, durably records every rule's outcome +
+	// evidence for every scan (the /api/v1/scans audit memory). It is
+	// written alongside Writer, never instead of it. nil disables the
+	// durable write (legacy tests that only assert transaction-log
+	// behavior leave it unset).
+	ScanResults *scanresult.Writer
 
 	// Bus, when non-nil, receives scan.completed events after outcomes
 	// persist. The serve process passes its SSE bus; the dedicated
@@ -144,6 +153,7 @@ func NewScanWorker(cfg Config) *ScanWorker {
 		pool:         cfg.Pool,
 		executor:     cfg.Executor,
 		writer:       cfg.Writer,
+		scanResults:  cfg.ScanResults,
 		queueKey:     cfg.QueueKey,
 		bus:          cfg.Bus,
 		sched:        cfg.Sched,
@@ -304,6 +314,27 @@ func (w *ScanWorker) ProcessJob(ctx context.Context, j *queue.Job) {
 			slog.String("error", err.Error()))
 		w.recordTransientFailure(ctx, j.ID, payload.HostID, kensa.ReasonKensaError)
 		return
+	}
+
+	// Durable audit memory: record EVERY rule's outcome + evidence for
+	// this scan so the historical scan stays browsable/OSCAL-exportable
+	// (the transaction log above keeps only current state + changes).
+	// Written before MarkCompleted so a run is not marked completed until
+	// its durable record lands. Both writers are scan_id-idempotent, so a
+	// transient failure here retries the whole scan and self-heals.
+	if w.scanResults != nil {
+		if err := w.scanResults.Persist(ctx, scanresult.PersistBatch{
+			ScanID:  j.ID,
+			HostID:  payload.HostID,
+			Results: toScanResultResults(result.Outcomes),
+		}); err != nil {
+			slog.WarnContext(ctx, "worker scanResults.Persist failed",
+				slog.String("scan_id", j.ID.String()),
+				slog.String("host_id", payload.HostID.String()),
+				slog.String("error", err.Error()))
+			w.recordTransientFailure(ctx, j.ID, payload.HostID, kensa.ReasonKensaError)
+			return
+		}
 	}
 
 	// Scan-run logbook: completed, with per-outcome counts.
@@ -571,6 +602,25 @@ func toTransactionLogResults(outcomes []kensa.RuleOutcome) []transactionlog.Resu
 		out[i] = transactionlog.Result{
 			RuleID:        o.RuleID,
 			Status:        transactionlog.Status(o.Status),
+			Severity:      o.Severity,
+			Evidence:      o.Evidence,
+			FrameworkRefs: o.FrameworkRefs,
+			SkipReason:    o.SkipReason,
+		}
+	}
+	return out
+}
+
+// toScanResultResults converts kensa.RuleOutcome values to
+// scanresult.Result values for the durable per-scan store. Mirrors
+// toTransactionLogResults; the two consume the SAME kensa.Evidence bytes
+// so their evidence caps must agree (see scanresult.MaxEvidenceBytes).
+func toScanResultResults(outcomes []kensa.RuleOutcome) []scanresult.Result {
+	out := make([]scanresult.Result, len(outcomes))
+	for i, o := range outcomes {
+		out[i] = scanresult.Result{
+			RuleID:        o.RuleID,
+			Status:        scanresult.Status(o.Status),
 			Severity:      o.Severity,
 			Evidence:      o.Evidence,
 			FrameworkRefs: o.FrameworkRefs,

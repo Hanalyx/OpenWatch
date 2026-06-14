@@ -28,6 +28,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/kensa"
 	"github.com/Hanalyx/openwatch/internal/license"
 	openlog "github.com/Hanalyx/openwatch/internal/log"
+	"github.com/Hanalyx/openwatch/internal/scanresult"
 	"github.com/Hanalyx/openwatch/internal/scheduler"
 	"github.com/Hanalyx/openwatch/internal/secretkey"
 	owssh "github.com/Hanalyx/openwatch/internal/ssh"
@@ -190,6 +191,7 @@ func cmdWorker(cfg *config.Config, args []string, stdout, stderr *os.File) int {
 	}
 	executor := kensa.NewExecutor(bridge, audit.Emit).WithScanFunc(scanFn)
 	writer := transactionlog.NewWriter(pool, audit.Emit)
+	scanResultsWriter := scanresult.NewWriter(pool)
 
 	// Post-scan schedule updates run here too: the dedicated worker
 	// classifies each completed scan into a compliance state so
@@ -211,6 +213,7 @@ func cmdWorker(cfg *config.Config, args []string, stdout, stderr *os.File) int {
 		Pool:         pool,
 		Executor:     executor,
 		Writer:       writer,
+		ScanResults:  scanResultsWriter,
 		QueueKey:     queueKey,
 		PollInterval: *pollInterval,
 		Emit:         audit.Emit,

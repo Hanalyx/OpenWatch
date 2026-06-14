@@ -75,6 +75,7 @@ domains:
             - frontend-groups
             - api-reports
             - frontend-reports
+            - system-scan-results-store
 settings:
     specs_dir: specs
     # Honored by `specter coverage` (not by `specter sync` — CI passes
