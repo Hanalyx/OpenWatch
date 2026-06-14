@@ -7,6 +7,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"testing"
@@ -23,6 +24,9 @@ import (
 func TestAPI_Groups_RBACAndStatusMapping(t *testing.T) {
 	t.Run("api-groups/AC-09", func(t *testing.T) {
 		url, pool := freshAPIServer(t)
+		if _, err := pool.Exec(context.Background(), "TRUNCATE TABLE group_members, groups CASCADE"); err != nil {
+			t.Fatalf("truncate groups: %v", err)
+		}
 		hostID := seedHostForIntel(t, pool)
 
 		type grp struct {
