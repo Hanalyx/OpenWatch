@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { Link, useSearch } from '@tanstack/react-router';
 import api from '@/api/client';
+import { useBreadcrumbStore } from '@/store/useBreadcrumbStore';
 import { apiErrorMessage } from '@/api/errors';
 import { useAuthStore } from '@/store/useAuthStore';
 import type { components } from '@/api/schema';
@@ -66,6 +67,12 @@ interface ActivitySearch {
 }
 
 export function ActivityPage() {
+  const setCrumbs = useBreadcrumbStore((s) => s.setCrumbs);
+  useEffect(() => {
+    setCrumbs([{ label: 'Infrastructure' }, { label: 'Activity' }]);
+    return () => setCrumbs([]);
+  }, [setCrumbs]);
+
   const search = useSearch({ strict: false }) as ActivitySearch;
   const hostId = search.host_id;
   const hasPermission = useAuthStore((s) => s.hasPermission);

@@ -1,4 +1,6 @@
+import { useEffect } from 'react';
 import { useAuthStore } from '@/store/useAuthStore';
+import { useBreadcrumbStore } from '@/store/useBreadcrumbStore';
 import {
   KpiHostsOnline,
   KpiAvgCompliance,
@@ -19,6 +21,12 @@ import {
 // loading / empty / error states.
 
 export function DashboardPage() {
+  const setCrumbs = useBreadcrumbStore((s) => s.setCrumbs);
+  useEffect(() => {
+    setCrumbs([{ label: 'Dashboard' }]);
+    return () => setCrumbs([]);
+  }, [setCrumbs]);
+
   const identity = useAuthStore((s) => s.identity);
 
   return (

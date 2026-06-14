@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Plus, Boxes, Building2, MonitorCog, MoreVertical } from 'lucide-react';
 import api from '@/api/client';
+import { useBreadcrumbStore } from '@/store/useBreadcrumbStore';
 import { apiErrorMessage } from '@/api/errors';
 import type { components } from '@/api/schema';
 import { Modal, Btn, FormField, Select, Toggle, Callout } from '@/components/settings/primitives';
@@ -61,6 +62,12 @@ function statusDotColor(status: string): string {
 // ── page ───────────────────────────────────────────────────────────
 
 export function GroupsPage() {
+  const setCrumbs = useBreadcrumbStore((s) => s.setCrumbs);
+  useEffect(() => {
+    setCrumbs([{ label: 'Infrastructure' }, { label: 'Groups' }]);
+    return () => setCrumbs([]);
+  }, [setCrumbs]);
+
   const canWrite = useAuthStore((s) => s.hasPermission('host:write'));
   const [createOpen, setCreateOpen] = useState(false);
 
