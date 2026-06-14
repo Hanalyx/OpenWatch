@@ -16,6 +16,7 @@ import { HomePage } from '@/pages/HomePage';
 import { DashboardPage } from '@/pages/dashboard/DashboardPage';
 import { GroupsPage } from '@/pages/groups/GroupsPage';
 import { ActivityPage } from '@/pages/activity/ActivityPage';
+import { ScansPage } from '@/pages/scans/ScansPage';
 import { ForbiddenPage } from '@/pages/ForbiddenPage';
 import { ProfilePage } from '@/pages/settings/ProfilePage';
 import { PreferencesPage } from '@/pages/settings/PreferencesPage';
@@ -96,6 +97,13 @@ const activityRoute = createRoute({
   getParentRoute: () => protectedRoute,
   path: 'activity',
   component: ActivityPage,
+});
+
+// Fleet scan overview (coverage + compliance change history).
+const scansRoute = createRoute({
+  getParentRoute: () => protectedRoute,
+  path: 'scans',
+  component: ScansPage,
 });
 
 const hostsListRoute = createRoute({
@@ -233,6 +241,7 @@ const routeTree = rootRoute.addChildren([
   protectedRoute.addChildren([
     dashboardRoute,
     activityRoute,
+    scansRoute,
     hostsListRoute,
     groupsRoute,
     addHostRoute,
