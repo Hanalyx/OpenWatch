@@ -131,7 +131,7 @@ func TestScans_ListByHost_OrderingPaginationAnd404(t *testing.T) {
 		// Page 1 (limit 2): newest first -> s3, s2; next_cursor present.
 		var page struct {
 			Scans []struct {
-				ScanId string `json:"scan_id"`
+				ScanID string `json:"scan_id"`
 			} `json:"scans"`
 			NextCursor *time.Time `json:"next_cursor"`
 		}
@@ -141,7 +141,7 @@ func TestScans_ListByHost_OrderingPaginationAnd404(t *testing.T) {
 			t.Fatalf("decode page1: %v", err)
 		}
 		resp.Body.Close()
-		if len(page.Scans) != 2 || page.Scans[0].ScanId != s3.String() || page.Scans[1].ScanId != s2.String() {
+		if len(page.Scans) != 2 || page.Scans[0].ScanID != s3.String() || page.Scans[1].ScanID != s2.String() {
 			t.Fatalf("page1 = %+v, want [s3 s2] newest-first", page.Scans)
 		}
 		if page.NextCursor == nil {
@@ -154,14 +154,14 @@ func TestScans_ListByHost_OrderingPaginationAnd404(t *testing.T) {
 		resp = doReq(t, req)
 		var page2 struct {
 			Scans []struct {
-				ScanId string `json:"scan_id"`
+				ScanID string `json:"scan_id"`
 			} `json:"scans"`
 		}
 		if err := json.NewDecoder(resp.Body).Decode(&page2); err != nil {
 			t.Fatalf("decode page2: %v", err)
 		}
 		resp.Body.Close()
-		if len(page2.Scans) != 1 || page2.Scans[0].ScanId != s1.String() {
+		if len(page2.Scans) != 1 || page2.Scans[0].ScanID != s1.String() {
 			t.Errorf("page2 = %+v, want [s1]", page2.Scans)
 		}
 	})
@@ -181,7 +181,7 @@ func TestScanById_ShapeAnd404(t *testing.T) {
 		var detail struct {
 			Scan    map[string]any `json:"scan"`
 			Results []struct {
-				RuleId      string  `json:"rule_id"`
+				RuleID      string  `json:"rule_id"`
 				Title       string  `json:"title"`
 				Category    string  `json:"category"`
 				Status      string  `json:"status"`
@@ -209,9 +209,9 @@ func TestScanById_ShapeAnd404(t *testing.T) {
 		// "uncategorized" (both never empty), and description is omitted.
 		for _, rr := range detail.Results {
 			if rr.Title == "" || rr.Category == "" {
-				t.Errorf("rule %s: title=%q category=%q, both must be non-empty (fallbacks)", rr.RuleId, rr.Title, rr.Category)
+				t.Errorf("rule %s: title=%q category=%q, both must be non-empty (fallbacks)", rr.RuleID, rr.Title, rr.Category)
 			}
-			if rr.RuleId == "r-pass" {
+			if rr.RuleID == "r-pass" {
 				if rr.Title != "r-pass" || rr.Category != "uncategorized" {
 					t.Errorf("no-catalog fallback wrong: title=%q category=%q", rr.Title, rr.Category)
 				}
@@ -269,7 +269,7 @@ func TestScanRuleEvidence_ShapeAnd404(t *testing.T) {
 		})
 
 		var ev struct {
-			RuleId string `json:"rule_id"`
+			RuleID string `json:"rule_id"`
 			Status string `json:"status"`
 			Detail string `json:"detail"`
 			Checks []struct {

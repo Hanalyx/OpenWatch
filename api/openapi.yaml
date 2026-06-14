@@ -2012,7 +2012,7 @@ paths:
 
   /api/v1/scans/{id}:
     get:
-      operationId: getScanById
+      operationId: getScanByID
       summary: One scan's metadata + per-rule results (no inline evidence)
       description: |
         Returns a scan's scan_runs metadata plus every rule's durable

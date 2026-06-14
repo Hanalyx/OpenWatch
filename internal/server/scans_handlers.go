@@ -92,8 +92,8 @@ func (h *handlers) GetScans(w http.ResponseWriter, r *http.Request, params api.G
 	writeJSON(w, http.StatusOK, resp)
 }
 
-// GetScanById returns a scan's metadata + per-rule results. Spec api-scans.
-func (h *handlers) GetScanById(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+// GetScanByID returns a scan's metadata + per-rule results. Spec api-scans.
+func (h *handlers) GetScanByID(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
 	if denied := auth.EnforcePermission(w, r, auth.ScanRead); denied {
 		return
 	}
@@ -155,14 +155,14 @@ func (h *handlers) GetScanById(w http.ResponseWriter, r *http.Request, id openap
 
 // GetScanRuleEvidence returns one rule's full evidence for a scan — the
 // drill-down payload (Formatted + Evidence views). Spec api-scans.
-func (h *handlers) GetScanRuleEvidence(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, ruleId string) {
+func (h *handlers) GetScanRuleEvidence(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, ruleID string) {
 	if denied := auth.EnforcePermission(w, r, auth.ScanRead); denied {
 		return
 	}
 	if !h.scanResultsReady(w) {
 		return
 	}
-	d, err := h.scanResultSvc.RuleEvidence(r.Context(), uuid.UUID(id), ruleId)
+	d, err := h.scanResultSvc.RuleEvidence(r.Context(), uuid.UUID(id), ruleID)
 	if err != nil {
 		if errors.Is(err, scanresult.ErrRuleNotFound) {
 			writeError(w, http.StatusNotFound, "scans.not_found", "client", "scan or rule not found", false)
@@ -192,7 +192,7 @@ func (h *handlers) GetScanRuleEvidence(w http.ResponseWriter, r *http.Request, i
 
 // GetScanRuleOSCAL streams one rule's outcome as an OSCAL 1.0.6
 // Assessment Results document. Spec api-scans.
-func (h *handlers) GetScanRuleOSCAL(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, ruleId string) {
+func (h *handlers) GetScanRuleOSCAL(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, ruleID string) {
 	if denied := auth.EnforcePermission(w, r, auth.ScanRead); denied {
 		return
 	}
@@ -206,7 +206,7 @@ func (h *handlers) GetScanRuleOSCAL(w http.ResponseWriter, r *http.Request, id o
 	if !ok {
 		return
 	}
-	outcome, err := h.scanResultSvc.ReconstructOutcome(ctx, scanID, ruleId)
+	outcome, err := h.scanResultSvc.ReconstructOutcome(ctx, scanID, ruleID)
 	if err != nil {
 		if errors.Is(err, scanresult.ErrRuleNotFound) || errors.Is(err, scanresult.ErrScanNotFound) {
 			writeError(w, http.StatusNotFound, "scans.not_found", "client", "scan or rule not found", false)
@@ -220,7 +220,7 @@ func (h *handlers) GetScanRuleOSCAL(w http.ResponseWriter, r *http.Request, id o
 		writeError(w, http.StatusInternalServerError, "server.error", "server", "oscal export failed", true)
 		return
 	}
-	writeOSCAL(w, doc, fmt.Sprintf("oscal-%s-%s.json", scanID, ruleId))
+	writeOSCAL(w, doc, fmt.Sprintf("oscal-%s-%s.json", scanID, ruleID))
 }
 
 // GetScanOSCAL streams a whole scan as an OSCAL 1.0.6 Assessment Results

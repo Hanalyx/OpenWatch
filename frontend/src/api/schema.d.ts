@@ -1336,7 +1336,7 @@ export interface paths {
          *     per rule via the evidence endpoint. RBAC: scan:read. Spec
          *     api-scans.
          */
-        get: operations["getScanById"];
+        get: operations["getScanByID"];
         put?: never;
         post?: never;
         delete?: never;
@@ -5998,7 +5998,7 @@ export interface operations {
             };
         };
     };
-    getScanById: {
+    getScanByID: {
         parameters: {
             query?: never;
             header?: never;
