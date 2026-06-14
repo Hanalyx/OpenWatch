@@ -67,7 +67,7 @@ type Rollup struct {
 }
 
 // GroupWithRollup is a group plus its computed metrics.
-type GroupWithRollup struct {
+type GroupWithRollup struct { //nolint:revive // name intentionally mirrors the api.GroupWithRollup OpenAPI schema
 	Group
 	Rollup
 }

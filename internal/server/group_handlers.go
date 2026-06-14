@@ -296,7 +296,7 @@ func (h *handlers) PostGroupMember(w http.ResponseWriter, r *http.Request, id op
 // DeleteGroupMember implements api.ServerInterface.
 // Spec api-groups.
 func (h *handlers) DeleteGroupMember(
-	w http.ResponseWriter, r *http.Request, id openapitypes.UUID, hostId openapitypes.UUID,
+	w http.ResponseWriter, r *http.Request, id openapitypes.UUID, hostID openapitypes.UUID,
 ) {
 	if denied := auth.EnforcePermission(w, r, auth.HostWrite); denied {
 		return
@@ -304,7 +304,7 @@ func (h *handlers) DeleteGroupMember(
 	if !h.groupSvcReady(w) {
 		return
 	}
-	err := h.groupSvc.RemoveMember(r.Context(), uuid.UUID(id), uuid.UUID(hostId))
+	err := h.groupSvc.RemoveMember(r.Context(), uuid.UUID(id), uuid.UUID(hostID))
 	if mapGroupErr(w, err) {
 		return
 	}
