@@ -14,6 +14,7 @@ import { HostDetailPage } from '@/pages/HostDetailPage';
 import { AddHostPage } from '@/pages/AddHostPage';
 import { HomePage } from '@/pages/HomePage';
 import { DashboardPage } from '@/pages/dashboard/DashboardPage';
+import { ActivityPage } from '@/pages/activity/ActivityPage';
 import { ForbiddenPage } from '@/pages/ForbiddenPage';
 import { ProfilePage } from '@/pages/settings/ProfilePage';
 import { PreferencesPage } from '@/pages/settings/PreferencesPage';
@@ -86,6 +87,14 @@ const dashboardRoute = createRoute({
   getParentRoute: () => protectedRoute,
   path: 'dashboard',
   component: DashboardPage,
+});
+
+// Unified activity feed. Read-only feed + alert-source lifecycle actions;
+// host_id deep-link via search params.
+const activityRoute = createRoute({
+  getParentRoute: () => protectedRoute,
+  path: 'activity',
+  component: ActivityPage,
 });
 
 const hostsListRoute = createRoute({
@@ -209,6 +218,7 @@ const routeTree = rootRoute.addChildren([
   publicHomeRoute,
   protectedRoute.addChildren([
     dashboardRoute,
+    activityRoute,
     hostsListRoute,
     addHostRoute,
     hostDetailRoute,

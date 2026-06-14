@@ -1,0 +1,131 @@
+spec:
+  id: frontend-activity
+  title: Activity feed (unified event stream)
+  version: "1.0.0"
+  status: approved
+  tier: 2
+
+  context:
+    system: openwatch-go
+    feature: The /activity unified event feed — a day-grouped stream over GET /api/v1/activity with filters, pagination, alert-source lifecycle actions, and a detail drawer
+    description: >
+      /activity renders the unified activity feed (api-activity): a
+      read-only UNION projection of five sources (alert, transaction,
+      intelligence, audit, monitoring) into
+      {id, source, severity, host_id, title, summary, occurred_at} with
+      cursor pagination and an RBAC-suppression hidden_count.
+
+      The openwatch-v1 Activity.html prototype is much richer (facet rail,
+      severity histogram, "routed to" delivery panel, live tail, per-event
+      acknowledge/mute across all sources, rich payload drawer). Most of
+      that is backend-gated; the scope is recorded in
+      docs/engineering/activity_page_scope.md. This spec covers the MVP
+      that ships with zero new backend:
+
+        - the day-grouped stream with source + severity filters and a
+          host_id deep-link, cursor "Load more", and hidden_count;
+        - alert-source lifecycle actions (acknowledge / silence / resolve)
+          — the only mutable substrate, reachable because the activity row
+          id IS the alert id for that source;
+        - a detail drawer: basic fields for any source, enriched for
+          source === "alert" via GET /alerts/{id}.
+    related_specs:
+      - api-activity
+      - system-alerts
+      - frontend-foundation
+
+  objective:
+    summary: >
+      A user opens /activity, filters by source/severity, pages through
+      the stream, acts on alert-source rows within their authority, and
+      opens any row for detail — with honest empty / error states and an
+      RBAC-suppression count.
+    scope:
+      includes:
+        - 'ActivityPage at /activity: useInfiniteQuery over GET /api/v1/activity'
+        - 'Source + severity single-select filters; host_id deep-link via search param'
+        - 'Toolbar: client-side search over loaded events, a time-range segment backed by the since param, a Live poll toggle, an Acknowledge-all over loaded alert rows, an event count'
+        - 'Cosmetic category chip + hostname entity pill per row'
+        - 'Cursor pagination (Load more) + hidden_count surfaced'
+        - 'Alert-source rows: acknowledge/silence/resolve gated by alert:write'
+        - 'Detail drawer: basic for all sources, enriched for alert via GET /alerts/{id}'
+      excludes:
+        - 'Severity histogram (no aggregate endpoint)'
+        - 'Facet rail / multi-select facets'
+        - '"Routed to" delivery panel (notifications persistence is greenfield)'
+        - 'Live tail (alert/audit/transaction not on the SSE bus)'
+        - 'Ack/mute on non-alert sources (immutable logs; would need new state table)'
+        - 'Rich payload drawer for audit/intelligence/transaction/monitoring (need per-id GETs)'
+
+  constraints:
+    - id: C-01
+      description: >-
+        ActivityPage MUST read GET /api/v1/activity via an infinite query
+        keyed on the source/severity/host_id filters, advancing pages by
+        next_cursor, and MUST surface hidden_count (the RBAC-suppressed
+        row count). Source and severity are single-value filters
+      type: technical
+      enforcement: error
+    - id: C-02
+      description: >-
+        Lifecycle actions (acknowledge / silence / resolve) MUST render
+        ONLY on rows whose source === "alert" AND only when the caller has
+        alert:write, and MUST POST /api/v1/alerts/{id}:<action> using the
+        activity row id. Non-alert rows are immutable and MUST expose no
+        mutation
+      type: security
+      enforcement: error
+    - id: C-03
+      description: >-
+        Clicking a row opens a detail drawer. The drawer MUST fetch
+        GET /api/v1/alerts/{id} ONLY when source === "alert" (enabled
+        gate); for every other source it renders the activity item's own
+        fields without an extra fetch
+      type: technical
+      enforcement: error
+    - id: C-04
+      description: >-
+        The feed is read-only apart from the alert lifecycle actions: the
+        page MUST NOT issue any mutating request to a non-alert endpoint.
+        UI copy carries no em-dashes
+      type: technical
+      enforcement: error
+    - id: C-05
+      description: >-
+        The toolbar MUST use only honest data: the time-range segment maps
+        the selected window (1h/24h/7d/All) to the `since` query param;
+        the Live toggle drives a poll refetch (refetchInterval), not a
+        fabricated stream; search filters the already-loaded items
+        client-side (there is no server text search); Acknowledge-all acts
+        only on loaded source==='alert' rows the caller may act on. The
+        category chip is a cosmetic per-source label, not a backend filter
+      type: technical
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: 'Source-inspection — ActivityPage uses useInfiniteQuery against "/api/v1/activity" with source/severity/host_id query params, derives the next page from next_cursor (getNextPageParam), renders a Load more control gated on hasNextPage, and renders hidden_count.'
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-02
+      description: 'Source-inspection — the alert lifecycle actions render under a source === "alert" check AND hasPermission("alert:write"); the mutation POSTs "/api/v1/alerts/{id}:" acknowledge/silence/resolve via the activity row id. The router mounts ActivityPage at path "activity" under protectedRoute and the sidebar Activity entry is enabled.'
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-03
+      description: 'Source-inspection — ActivityDrawer queries GET "/api/v1/alerts/{id}" with enabled gated on source === "alert"; it renders the basic activity fields (title/source/severity/host/time) unconditionally so non-alert sources still get a drawer.'
+      priority: high
+      references_constraints: [C-03]
+    - id: AC-04
+      description: 'Source-inspection — the activity modules issue no api.POST/PUT/DELETE other than the /api/v1/alerts/{id}: lifecycle actions, and activity UI copy contains no em-dash.'
+      priority: high
+      references_constraints: [C-04]
+    - id: AC-05
+      description: >-
+        Source-inspection — ActivityPage derives a since param from the
+        selected range segment, sets refetchInterval from the Live toggle,
+        filters loaded items client-side by the search text, exposes an
+        Acknowledge-all that iterates loaded alert-source rows, and renders
+        a per-source category label on each row. The histogram and the
+        Status/Group facets are absent.
+      priority: high
+      references_constraints: [C-05]
