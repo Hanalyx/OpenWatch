@@ -360,7 +360,7 @@ function OscalScanButton({ scanId }: { scanId: string }) {
 }
 
 function Wrap({ children }: { children: React.ReactNode }) {
-  return <div style={{ padding: '24px 28px', maxWidth: 1280 }}>{children}</div>;
+  return <div style={{ padding: '24px 28px', width: '100%' }}>{children}</div>;
 }
 
 function Meta({ label, children, tone }: { label: string; children: React.ReactNode; tone?: string }) {
