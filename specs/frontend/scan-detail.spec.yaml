@@ -1,0 +1,95 @@
+spec:
+  id: frontend-scan-detail
+  title: Scan detail page + per-rule evidence/OSCAL drill-down
+  version: "1.0.0"
+  status: approved
+  tier: 2
+
+  context:
+    system: openwatch-go
+    feature: The /scans host-history expansion and the /scans/$scanId scan detail page with a per-rule Formatted/Evidence/OSCAL drill-down
+    description: >
+      The durable scan store (api-scans) is surfaced in the UI as: a host
+      row on /scans that expands to its scan history, and a scan detail
+      page at /scans/$scanId showing the scan metadata, every rule's
+      verdict, and a per-rule drill-down with three views — a Formatted
+      human summary, the raw Evidence (commands + output), and an OSCAL
+      export. This is the evidence surface (gated scan:read); the
+      host-detail Compliance tab stays current-state and evidence-free
+      (frontend-host-compliance-tab). Evidence is fetched lazily so the
+      list stays cheap; OSCAL is a download.
+    related_specs:
+      - api-scans
+      - frontend-scans
+      - frontend-host-compliance-tab
+      - frontend-foundation
+
+  objective:
+    summary: >
+      A compliance reviewer expands a host on /scans, opens a scan, and
+      drills into any rule to read its proof or export OSCAL — without
+      needing host-detail access.
+    scope:
+      includes:
+        - /scans host row expands to its scan history (GET /scans?host_id=)
+        - each scan row links to /scans/$scanId
+        - 'ScanDetailPage: metadata header + per-rule results table'
+        - per-rule RuleDetailPanel with Formatted/Evidence/OSCAL views
+        - lazy evidence fetch; OSCAL download (per-rule + whole-scan)
+        - scan:read route guard
+      excludes:
+        - The durable store + API (api-scans)
+        - The host Compliance tab (stays evidence-free)
+        - OSCAL document internals (Kensa owns them)
+
+  constraints:
+    - id: C-01
+      description: router.tsx MUST mount ScanDetailPage at path "scans/$scanId" under protectedRoute with a beforeLoad guard that redirects to /_forbidden when the identity lacks scan:read
+      type: security
+      enforcement: error
+    - id: C-02
+      description: ScanDetailPage MUST set the topbar breadcrumb (Infrastructure / Scans / scan-id prefix) via useBreadcrumbStore.setCrumbs in a useEffect with a clearing cleanup, and load the scan via GET /api/v1/scans/{id}. UI copy carries no em-dashes
+      type: technical
+      enforcement: error
+    - id: C-03
+      description: Each rule row MUST expand a RuleDetailPanel offering three views via a tablist — Formatted (default), Evidence, OSCAL. The raw command output appears only inside the panel, never in the rule list row
+      type: technical
+      enforcement: error
+    - id: C-04
+      description: Evidence MUST be fetched lazily — the evidence query (key ['scan', scanId, 'rule', ruleId, 'evidence']) is enabled only when the rule has evidence and the active view is not OSCAL, so opening the page issues no per-rule evidence requests
+      type: technical
+      enforcement: error
+    - id: C-05
+      description: OSCAL export MUST be a download via fetch with credentials include — per-rule to /api/v1/scans/{id}/rules/{ruleId}/oscal and whole-scan to /api/v1/scans/{id}/oscal
+      type: technical
+      enforcement: error
+    - id: C-06
+      description: The /scans Coverage tab MUST expand a host into its scan history via GET /api/v1/scans?host_id= and each scan row MUST link to /scans/$scanId (the row toggle no longer deep-links to the host detail page)
+      type: technical
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: Source-inspection — router.tsx mounts ScanDetailPage at path "scans/$scanId" under protectedRoute and its beforeLoad redirects to /_forbidden unless hasPermission('scan:read').
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-02
+      description: Source-inspection — ScanDetailPage calls useBreadcrumbStore setCrumbs([...]) in a useEffect whose cleanup clears it (setCrumbs([])), the crumbs include Infrastructure and Scans, it queries GET /api/v1/scans/{id}, and the file contains no em-dash.
+      priority: high
+      references_constraints: [C-02]
+    - id: AC-03
+      description: Rendered — RuleDetailPanel shows a Formatted/Evidence/OSCAL tablist; clicking Evidence reveals the raw command and stdout from the evidence payload; the default Formatted view shows the verdict detail.
+      priority: high
+      references_constraints: [C-03]
+    - id: AC-04
+      description: Rendered — mounting RuleDetailPanel with the OSCAL view active issues no evidence GET (lazy gate); switching to Formatted/Evidence triggers exactly one evidence fetch for the rule. Source-inspection confirms the query key and the enabled gate.
+      priority: high
+      references_constraints: [C-04]
+    - id: AC-05
+      description: Source-inspection — the OSCAL download paths /api/v1/scans/{...}/rules/{...}/oscal and /api/v1/scans/{...}/oscal are fetched with credentials 'include' (RuleDetailPanel and ScanDetailPage).
+      priority: high
+      references_constraints: [C-05]
+    - id: AC-06
+      description: Source-inspection — ScansPage's Coverage tab queries GET /api/v1/scans with a host_id query param and renders scan rows linking to /scans/$scanId; the host cell is a toggle button, not a /hosts/$hostId Link.
+      priority: high
+      references_constraints: [C-06]

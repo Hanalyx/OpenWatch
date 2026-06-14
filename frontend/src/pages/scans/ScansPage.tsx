@@ -159,6 +159,10 @@ function CoverageTab({
   isError: boolean;
   error: unknown;
 }) {
+  // Expand a host inline to reveal its durable scan history; each scan
+  // links to the scan detail page. Replaces the old direct host-detail
+  // deep link so a compliance officer drills into scans, not the host.
+  const [openHost, setOpenHost] = useState<string | null>(null);
   if (isError)
     return (
       <Panel>
@@ -190,44 +194,124 @@ function CoverageTab({
         const age = ageLabel(h.last_scan_at);
         const cs = h.compliance_summary;
         const pct = cs && cs.total > 0 ? Math.round((cs.passing / cs.total) * 100) : null;
+        const open = openHost === h.id;
         return (
-          <Row key={h.id} cols="1.4fr 110px 110px 1fr" first={i === 0}>
-            <Link
-              to="/hosts/$hostId"
-              params={{ hostId: h.id }}
-              style={{ color: 'var(--ow-link)', textDecoration: 'none', fontSize: 13 }}
-            >
-              {h.hostname}
-            </Link>
-            <span style={{ fontSize: 13, color: 'var(--ow-fg-1)' }}>
-              {pct === null ? 'n/a' : `${pct}%`}
-            </span>
-            <span
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 7,
-                fontSize: 12,
-                fontWeight: 500,
-                color: TONE[age.tone],
-              }}
-            >
+          <div key={h.id}>
+            <Row cols="1.4fr 110px 110px 1fr" first={i === 0}>
+              <button
+                type="button"
+                onClick={() => setOpenHost(open ? null : h.id)}
+                aria-expanded={open}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 7,
+                  background: 'transparent',
+                  border: 0,
+                  padding: 0,
+                  color: 'var(--ow-link)',
+                  fontSize: 13,
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                }}
+              >
+                <span aria-hidden style={{ color: 'var(--ow-fg-3)', fontSize: 11 }}>{open ? '▾' : '▸'}</span>
+                {h.hostname}
+              </button>
+              <span style={{ fontSize: 13, color: 'var(--ow-fg-1)' }}>
+                {pct === null ? 'n/a' : `${pct}%`}
+              </span>
               <span
                 style={{
-                  width: 8,
-                  height: 8,
-                  borderRadius: '50%',
-                  background: TONE[age.tone],
-                  flexShrink: 0,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 7,
+                  fontSize: 12,
+                  fontWeight: 500,
+                  color: TONE[age.tone],
                 }}
-              />
-              {age.tone === 'ok' ? 'current' : age.tone === 'warn' ? 'stale' : 'never'}
-            </span>
-            <span style={{ fontSize: 12, color: 'var(--ow-fg-3)' }}>{age.text}</span>
-          </Row>
+              >
+                <span
+                  style={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: '50%',
+                    background: TONE[age.tone],
+                    flexShrink: 0,
+                  }}
+                />
+                {age.tone === 'ok' ? 'current' : age.tone === 'warn' ? 'stale' : 'never'}
+              </span>
+              <span style={{ fontSize: 12, color: 'var(--ow-fg-3)' }}>{age.text}</span>
+            </Row>
+            {open ? <HostScanHistory hostId={h.id} /> : null}
+          </div>
         );
       })}
     </Panel>
+  );
+}
+
+// HostScanHistory lazily lists a host's durable scans (newest first);
+// each row links to the scan detail page. Spec frontend-scan-detail.
+function HostScanHistory({ hostId }: { hostId: string }) {
+  const q = useQuery({
+    queryKey: ['scans', hostId],
+    queryFn: async () => {
+      const { data, error } = await api.GET('/api/v1/scans', {
+        params: { query: { host_id: hostId, limit: 20 } },
+      });
+      if (error || !data) throw new Error(apiErrorMessage(error, 'Failed to load scans'));
+      return data;
+    },
+  });
+  if (q.isPending) return <SubState text="Loading scans." />;
+  if (q.isError) return <SubState tone="crit" text={apiErrorMessage(q.error, 'Failed to load scans')} />;
+  const scans = q.data.scans ?? [];
+  if (scans.length === 0) return <SubState text="No scans recorded for this host yet." />;
+  return (
+    <div style={{ background: 'var(--ow-bg-1)', padding: '2px 16px 8px 34px' }}>
+      {scans.map((s) => (
+        <Link
+          key={s.scan_id}
+          to="/scans/$scanId"
+          params={{ scanId: s.scan_id }}
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '1.2fr 80px 80px 90px',
+            gap: 12,
+            padding: '7px 0',
+            alignItems: 'center',
+            color: 'var(--ow-fg-1)',
+            textDecoration: 'none',
+            fontSize: 12,
+            borderTop: '1px solid var(--ow-line)',
+          }}
+        >
+          <span style={{ color: 'var(--ow-link)' }}>
+            {s.finished_at ? new Date(s.finished_at).toLocaleString() : s.status}
+          </span>
+          <span style={{ color: 'var(--ow-ok)' }}>{s.rules_pass} pass</span>
+          <span style={{ color: 'var(--ow-crit)' }}>{s.rules_fail} fail</span>
+          <span style={{ color: 'var(--ow-fg-3)', fontFamily: 'var(--ow-font-mono)' }}>{s.scan_id.slice(0, 8)}</span>
+        </Link>
+      ))}
+    </div>
+  );
+}
+
+function SubState({ text, tone }: { text: string; tone?: 'crit' }) {
+  return (
+    <div
+      style={{
+        padding: '8px 16px 8px 34px',
+        background: 'var(--ow-bg-1)',
+        fontSize: 12,
+        color: tone === 'crit' ? 'var(--ow-crit)' : 'var(--ow-fg-3)',
+      }}
+    >
+      {text}
+    </div>
   );
 }
 
