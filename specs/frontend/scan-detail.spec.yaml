@@ -52,15 +52,15 @@ spec:
       type: technical
       enforcement: error
     - id: C-03
-      description: Each rule row MUST expand a RuleDetailPanel offering three views via a tablist — Formatted (default), Evidence, OSCAL. The raw command output appears only inside the panel, never in the rule list row
+      description: Each rule row MUST expand a RuleDetailPanel offering three views via a tablist — Formatted (default, a human summary), Evidence, and OSCAL. Evidence MUST render the full evidence result verbatim as JSON, and OSCAL MUST render the full OSCAL 1.0.6 document verbatim as JSON (raw, not a formatted layout); both offer a Download action. The raw command output appears only inside the panel, never in the rule list row
       type: technical
       enforcement: error
     - id: C-04
-      description: Evidence MUST be fetched lazily — the evidence query (key ['scan', scanId, 'rule', ruleId, 'evidence']) is enabled only when the rule has evidence and the active view is not OSCAL, so opening the page issues no per-rule evidence requests
+      description: Evidence and OSCAL MUST be fetched lazily — the evidence query (key ['scan', scanId, 'rule', ruleId, 'evidence']) is enabled only when the rule has evidence and the active view is not OSCAL, and the OSCAL query (key ['scan', scanId, 'rule', ruleId, 'oscal']) mounts only when the OSCAL view is active; opening the page issues no per-rule evidence or OSCAL requests
       type: technical
       enforcement: error
     - id: C-05
-      description: OSCAL export MUST be a download via fetch with credentials include — per-rule to /api/v1/scans/{id}/rules/{ruleId}/oscal and whole-scan to /api/v1/scans/{id}/oscal
+      description: The per-rule OSCAL document MUST be fetched via the typed client from /api/v1/scans/{id}/rules/{ruleId}/oscal (rendered inline as JSON with a Download action), and the whole-scan OSCAL MUST download from /api/v1/scans/{id}/oscal via fetch with credentials include
       type: technical
       enforcement: error
     - id: C-06
@@ -72,7 +72,7 @@ spec:
         The scan-detail rules table MUST present rich rows matching the
         prototype — a STATUS column (colored dot + Compliant / Non-compliant
         / N/A / Error word), a SEVERITY pill, the catalog title with the
-        one-line verdict beneath it (the rule's detail, falling back to its
+        one-line catalog description beneath it (falling back to the rule's
         skip reason) and its framework refs rendered as tags colored by
         family (CIS / STIG / NIST / PCI), and the CATEGORY column — plus a
         search box (filtering by rule id, title, or framework control id)
@@ -91,15 +91,15 @@ spec:
       priority: high
       references_constraints: [C-02]
     - id: AC-03
-      description: Rendered — RuleDetailPanel shows a Formatted/Evidence/OSCAL tablist; clicking Evidence reveals the raw command and stdout from the evidence payload; the default Formatted view shows the verdict detail.
+      description: Rendered — RuleDetailPanel shows a Formatted/Evidence/OSCAL tablist; the default Formatted view shows the verdict detail; clicking Evidence renders the full evidence result as raw JSON (in a pre) and OSCAL renders the OSCAL document as raw JSON. Source-inspection confirms both go through JSON.stringify.
       priority: high
       references_constraints: [C-03]
     - id: AC-04
-      description: Rendered — mounting RuleDetailPanel with the OSCAL view active issues no evidence GET (lazy gate); switching to Formatted/Evidence triggers exactly one evidence fetch for the rule. Source-inspection confirms the query key and the enabled gate.
+      description: Rendered — the default Formatted view fetches evidence exactly once; switching to OSCAL fetches the OSCAL document on demand without re-fetching evidence; a rule with no evidence fetches neither. Source-inspection confirms the evidence and OSCAL query keys and the lazy enabled gate.
       priority: high
       references_constraints: [C-04]
     - id: AC-05
-      description: Source-inspection — the OSCAL download paths /api/v1/scans/{...}/rules/{...}/oscal and /api/v1/scans/{...}/oscal are fetched with credentials 'include' (RuleDetailPanel and ScanDetailPage).
+      description: Source-inspection — RuleDetailPanel fetches the per-rule OSCAL via api.GET('/api/v1/scans/{id}/rules/{ruleId}/oscal'), and ScanDetailPage downloads the whole-scan OSCAL from /api/v1/scans/{id}/oscal with credentials 'include'.
       priority: high
       references_constraints: [C-05]
     - id: AC-06
@@ -111,8 +111,9 @@ spec:
         Source-inspection — ScanDetailPage renders the rich rules table.
         A STATUS map produces Compliant / Non-compliant / N/A, a SEVERITY
         pill renders, framework refs are flattened into family-colored
-        tags (CIS / STIG / NIST), the verdict line falls back from detail
-        to skip_reason, a search input and status filter chips are present,
+        tags (CIS / STIG / NIST), the sub-line shows the catalog
+        description falling back to skip_reason, a search input and status
+        filter chips are present,
         and a CATEGORY column renders. The file contains no em-dash and no
         Fix or remediation control.
       priority: high

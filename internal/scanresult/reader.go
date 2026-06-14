@@ -79,10 +79,6 @@ type RuleResult struct {
 	FrameworkRefs map[string][]string
 	SkipReason    string
 	HasEvidence   bool
-	// Detail is the one-line verdict from the rule's evidence (e.g.
-	// "PermitRootLogin is set to yes; should be no"), surfaced inline in
-	// the scan-detail row. Empty when the rule captured no evidence.
-	Detail string
 }
 
 // RuleEvidenceDetail is the per-rule drill-down payload: the stored
@@ -176,14 +172,12 @@ func (rd *Reader) GetScan(ctx context.Context, scanID uuid.UUID) (ScanSummary, e
 // error) for a scan with no recorded results.
 func (rd *Reader) ScanResults(ctx context.Context, scanID uuid.UUID) ([]RuleResult, error) {
 	rows, err := rd.pool.Query(ctx, `
-		SELECT sr.rule_id, sr.status, COALESCE(sr.severity, ''),
-		       sr.framework_refs, COALESCE(sr.skip_reason, ''),
-		       sr.evidence_hash IS NOT NULL,
-		       COALESCE(se.evidence->>'detail', '')
-		  FROM scan_results sr
-		  LEFT JOIN scan_evidence se ON se.evidence_hash = sr.evidence_hash
-		 WHERE sr.scan_id = $1
-		 ORDER BY `+severityRankSQL+`, sr.rule_id ASC`,
+		SELECT rule_id, status, COALESCE(severity, ''),
+		       framework_refs, COALESCE(skip_reason, ''),
+		       evidence_hash IS NOT NULL
+		  FROM scan_results
+		 WHERE scan_id = $1
+		 ORDER BY `+severityRankSQL+`, rule_id ASC`,
 		scanID)
 	if err != nil {
 		return nil, fmt.Errorf("scanresult: scan results: %w", err)
@@ -197,7 +191,7 @@ func (rd *Reader) ScanResults(ctx context.Context, scanID uuid.UUID) ([]RuleResu
 			refsRaw []byte
 		)
 		if err := rows.Scan(&rr.RuleID, &rr.Status, &rr.Severity,
-			&refsRaw, &rr.SkipReason, &rr.HasEvidence, &rr.Detail); err != nil {
+			&refsRaw, &rr.SkipReason, &rr.HasEvidence); err != nil {
 			return nil, fmt.Errorf("scanresult: scan result row: %w", err)
 		}
 		rr.FrameworkRefs = decodeRefs(refsRaw)

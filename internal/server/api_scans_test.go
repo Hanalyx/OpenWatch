@@ -185,7 +185,7 @@ func TestScanById_ShapeAnd404(t *testing.T) {
 				Title       string  `json:"title"`
 				Category    string  `json:"category"`
 				Status      string  `json:"status"`
-				Detail      *string `json:"detail"`
+				Description *string `json:"description"`
 				HasEvidence bool    `json:"has_evidence"`
 			} `json:"results"`
 		}
@@ -204,10 +204,9 @@ func TestScanById_ShapeAnd404(t *testing.T) {
 		if detail.Scan["scan_id"] != scanID.String() {
 			t.Errorf("scan.scan_id = %v, want %s", detail.Scan["scan_id"], scanID)
 		}
-		// Title/category are catalog-resolved; the test server wires no
-		// catalog, so title falls back to rule_id and category to
-		// "uncategorized" (never empty), and the verdict detail surfaces
-		// for the rule that carries evidence.
+		// Title/category/description are catalog-resolved; the test server
+		// wires no catalog, so title falls back to rule_id, category to
+		// "uncategorized" (both never empty), and description is omitted.
 		for _, rr := range detail.Results {
 			if rr.Title == "" || rr.Category == "" {
 				t.Errorf("rule %s: title=%q category=%q, both must be non-empty (fallbacks)", rr.RuleId, rr.Title, rr.Category)
@@ -216,8 +215,8 @@ func TestScanById_ShapeAnd404(t *testing.T) {
 				if rr.Title != "r-pass" || rr.Category != "uncategorized" {
 					t.Errorf("no-catalog fallback wrong: title=%q category=%q", rr.Title, rr.Category)
 				}
-				if rr.Detail == nil || *rr.Detail != "ok" {
-					t.Errorf("r-pass detail = %v, want the verdict %q", rr.Detail, "ok")
+				if rr.Description != nil && *rr.Description != "" {
+					t.Errorf("r-pass description = %v, want empty without a catalog", *rr.Description)
 				}
 			}
 		}

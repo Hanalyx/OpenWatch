@@ -2725,8 +2725,8 @@ export interface components {
             status: string;
             /** @description critical | high | medium | low | "" when unset */
             severity: string;
-            /** @description one-line verdict from the rule's evidence (the "why"); empty when no evidence */
-            detail?: string;
+            /** @description one-line catalog description of what the rule checks; empty when uncatalogued */
+            description?: string;
             /** @description framework_id -> control ids */
             framework_refs: {
                 [key: string]: string[];

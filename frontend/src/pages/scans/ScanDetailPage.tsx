@@ -243,7 +243,7 @@ function RuleRow({
 }) {
   const st = STATUS[rule.status] ?? { tone: 'var(--ow-fg-2)', label: rule.status };
   const sev = SEVERITY[rule.severity];
-  const why = rule.detail || rule.skip_reason || '';
+  const why = rule.description || rule.skip_reason || '';
   const tags = flattenRefs(rule.framework_refs ?? {});
   return (
     <div style={{ borderTop: first ? 'none' : '1px solid var(--ow-line)' }}>

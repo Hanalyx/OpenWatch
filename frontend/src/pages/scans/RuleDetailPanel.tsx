@@ -104,80 +104,83 @@ function CheckSummary({ c }: { c: Check }) {
   );
 }
 
+// EvidenceView renders the full evidence result verbatim as JSON (the
+// raw proof, not a formatted view).
 function EvidenceView({ ev }: { ev: Evidence }) {
-  if (ev.checks.length === 0) return <Note>No raw command evidence for this rule.</Note>;
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      {ev.checks.map((c, i) => (
-        <div key={i} style={{ borderTop: i === 0 ? 'none' : '1px solid var(--ow-line)', paddingTop: i === 0 ? 0 : 12 }}>
-          <Field label="method" value={c.method} />
-          {c.command ? <Field label="command" value={c.command} mono /> : null}
-          {c.expected ? <Field label="expected" value={c.expected} /> : null}
-          {c.actual ? <Field label="actual" value={c.actual} /> : null}
-          <Field label="exit_code" value={String(c.exit_code)} />
-          {c.stdout ? <Block label="stdout" value={c.stdout} /> : null}
-          {c.stderr ? <Block label="stderr" value={c.stderr} /> : null}
-          {c.truncated ? <Note>Output truncated at the capture cap.</Note> : null}
-        </div>
-      ))}
-    </div>
-  );
+  return <JsonBlock data={ev} filename="evidence.json" />;
 }
 
+// OscalView lazily fetches and renders the full OSCAL 1.0.6 Assessment
+// Results document as JSON (the standards artifact verbatim). Mounts only
+// when the OSCAL tab is active, so the fetch is on demand.
 function OscalView({ scanId, ruleId }: { scanId: string; ruleId: string }) {
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
+  const q = useQuery({
+    queryKey: ['scan', scanId, 'rule', ruleId, 'oscal'],
+    queryFn: async () => {
+      const { data, error } = await api.GET('/api/v1/scans/{id}/rules/{ruleId}/oscal', {
+        params: { path: { id: scanId, ruleId } },
+      });
+      if (error || !data) throw new Error(apiErrorMessage(error, 'Failed to load OSCAL'));
+      return data as Record<string, unknown>;
+    },
+  });
+  if (q.isPending) return <Note>Loading OSCAL.</Note>;
+  if (q.isError) return <Note tone="crit">{apiErrorMessage(q.error, 'Failed to load OSCAL')}</Note>;
+  return <JsonBlock data={q.data} filename={`oscal-${scanId}-${ruleId}.json`} />;
+}
 
-  async function download() {
-    setBusy(true);
-    setErr(null);
-    try {
-      const path = `/api/v1/scans/${scanId}/rules/${ruleId}/oscal`;
-      const res = await fetch(`${window.location.origin}${path}`, { credentials: 'include' });
-      if (!res.ok) {
-        setErr(`Export failed (HTTP ${res.status}).`);
-        return;
-      }
-      const blob = await res.blob();
-      const objUrl = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = objUrl;
-      a.download = `oscal-${scanId}-${ruleId}.json`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(objUrl);
-    } catch {
-      setErr('Export failed.');
-    } finally {
-      setBusy(false);
-    }
+// JsonBlock pretty-prints any value as scrollable JSON with a Download
+// action. Used for the Evidence and OSCAL views (raw result, not formatted).
+function JsonBlock({ data, filename }: { data: unknown; filename: string }) {
+  const text = JSON.stringify(data, null, 2);
+  function download() {
+    const blob = new Blob([text], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
   }
-
   return (
-    <div style={{ fontSize: 13, color: 'var(--ow-fg-1)' }}>
-      <p style={{ margin: '0 0 12px' }}>
-        Export this rule as an OSCAL 1.0.6 Assessment Results document for an auditor or GRC tool.
-      </p>
-      <button
-        type="button"
-        onClick={download}
-        disabled={busy}
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 6 }}>
+        <button
+          type="button"
+          onClick={download}
+          style={{
+            background: 'transparent',
+            color: 'var(--ow-link)',
+            border: '1px solid var(--ow-line)',
+            borderRadius: 'var(--ow-radius)',
+            padding: '4px 10px',
+            fontSize: 12,
+            cursor: 'pointer',
+          }}
+        >
+          Download
+        </button>
+      </div>
+      <pre
         style={{
-          background: 'var(--ow-info)',
-          color: '#fff',
-          border: 0,
+          margin: 0,
+          padding: 12,
+          background: 'var(--ow-bg-1)',
+          border: '1px solid var(--ow-line)',
           borderRadius: 'var(--ow-radius)',
-          padding: '8px 16px',
-          fontSize: 13,
-          fontWeight: 500,
-          cursor: busy ? 'default' : 'pointer',
-          opacity: busy ? 0.6 : 1,
+          fontFamily: 'var(--ow-font-mono)',
+          fontSize: 12,
+          lineHeight: 1.5,
+          color: 'var(--ow-fg-1)',
+          whiteSpace: 'pre',
+          overflow: 'auto',
+          maxHeight: 460,
         }}
       >
-        {busy ? 'Exporting.' : 'Download OSCAL'}
-      </button>
-      {err ? <Note tone="crit">{err}</Note> : null}
+        {text}
+      </pre>
     </div>
   );
 }
@@ -202,43 +205,6 @@ function SwitchTab({ label, active, onClick }: { label: string; active: boolean;
     >
       {label}
     </button>
-  );
-}
-
-function Field({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
-  return (
-    <div style={{ display: 'flex', gap: 8, fontSize: 12, marginBottom: 2 }}>
-      <span style={{ color: 'var(--ow-fg-3)', minWidth: 76 }}>{label}</span>
-      <span style={{ color: 'var(--ow-fg-0)', fontFamily: mono ? 'var(--ow-font-mono)' : undefined, wordBreak: 'break-all' }}>
-        {value}
-      </span>
-    </div>
-  );
-}
-
-function Block({ label, value }: { label: string; value: string }) {
-  return (
-    <div style={{ marginTop: 6 }}>
-      <div style={{ fontSize: 11, color: 'var(--ow-fg-3)', marginBottom: 3 }}>{label}</div>
-      <pre
-        style={{
-          margin: 0,
-          padding: 8,
-          background: 'var(--ow-bg-1)',
-          border: '1px solid var(--ow-line)',
-          borderRadius: 'var(--ow-radius)',
-          fontFamily: 'var(--ow-font-mono)',
-          fontSize: 12,
-          color: 'var(--ow-fg-1)',
-          whiteSpace: 'pre-wrap',
-          wordBreak: 'break-all',
-          maxHeight: 220,
-          overflow: 'auto',
-        }}
-      >
-        {value}
-      </pre>
-    </div>
   );
 }
 

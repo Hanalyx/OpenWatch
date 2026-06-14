@@ -4042,9 +4042,9 @@ components:
         category: {type: string, description: catalog category (falls back to "uncategorized")}
         status:   {type: string, description: 'pass | fail | skipped | error'}
         severity: {type: string, description: 'critical | high | medium | low | "" when unset'}
-        detail:
+        description:
           type: string
-          description: one-line verdict from the rule's evidence (the "why"); empty when no evidence
+          description: one-line catalog description of what the rule checks; empty when uncatalogued
         framework_refs:
           type: object
           additionalProperties:

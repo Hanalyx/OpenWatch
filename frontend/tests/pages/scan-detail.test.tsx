@@ -45,11 +45,19 @@ const EVIDENCE = {
   checks: [{ method: 'config_value', command: 'grep MaxAuthTries /etc/ssh/sshd_config', stdout: 'MaxAuthTries 4', exit_code: 0 }],
   framework_refs: {},
 };
+const OSCAL_DOC = { 'assessment-results': { uuid: 'oscal-1', results: [] } };
+
+const evidenceCalls = () => getMock.mock.calls.filter((c) => String(c[0]).endsWith('/evidence')).length;
+const oscalCalls = () => getMock.mock.calls.filter((c) => String(c[0]).endsWith('/oscal')).length;
+const inPre = (needle: string) => (content: string, el: Element | null) =>
+  el?.tagName === 'PRE' && content.includes(needle);
 
 describe('frontend-scan-detail', () => {
   beforeEach(() => {
     getMock.mockReset();
-    getMock.mockResolvedValue({ data: EVIDENCE, error: undefined });
+    getMock.mockImplementation((path: string) =>
+      Promise.resolve({ data: String(path).endsWith('/oscal') ? OSCAL_DOC : EVIDENCE, error: undefined }),
+    );
   });
 
   // @ac AC-01
@@ -74,7 +82,7 @@ describe('frontend-scan-detail', () => {
   });
 
   // @ac AC-03
-  test('frontend-scan-detail/AC-03 — RuleDetailPanel Formatted/Evidence/OSCAL switch', async () => {
+  test('frontend-scan-detail/AC-03 — Formatted/Evidence/OSCAL switch; Evidence+OSCAL are raw JSON', async () => {
     renderPanel();
     // Three view tabs present.
     expect(screen.getByRole('tab', { name: 'Formatted' })).toBeTruthy();
@@ -82,38 +90,43 @@ describe('frontend-scan-detail', () => {
     expect(screen.getByRole('tab', { name: 'OSCAL' })).toBeTruthy();
     // Formatted (default) shows the verdict detail.
     await waitFor(() => expect(screen.getByText('host is compliant')).toBeTruthy());
-    // Evidence shows the raw command + stdout.
+    // Evidence renders the full result as raw JSON (in a <pre>), not a formatted layout.
     fireEvent.click(screen.getByRole('tab', { name: 'Evidence' }));
-    await waitFor(() => expect(screen.getByText('grep MaxAuthTries /etc/ssh/sshd_config')).toBeTruthy());
-    expect(screen.getByText('MaxAuthTries 4')).toBeTruthy();
+    await waitFor(() => expect(screen.getByText(inPre('grep MaxAuthTries /etc/ssh/sshd_config'))).toBeTruthy());
+    expect(screen.getByText(inPre('"checks"'))).toBeTruthy();
+    // OSCAL renders the OSCAL document as raw JSON.
+    fireEvent.click(screen.getByRole('tab', { name: 'OSCAL' }));
+    await waitFor(() => expect(screen.getByText(inPre('assessment-results'))).toBeTruthy());
+    // Both views go through a JSON dump.
+    expect(PANEL_SRC).toMatch(/JSON\.stringify/);
   });
 
   // @ac AC-04
-  test('frontend-scan-detail/AC-04 — evidence fetched lazily (not under OSCAL)', async () => {
-    // Source: query key + lazy enabled gate.
+  test('frontend-scan-detail/AC-04 — evidence fetched lazily; OSCAL fetched on demand without re-fetching evidence', async () => {
+    // Source: evidence query key + lazy enabled gate; OSCAL has its own key.
     expect(PANEL_SRC).toMatch(/queryKey: \['scan', scanId, 'rule', ruleId, 'evidence'\]/);
     expect(PANEL_SRC).toMatch(/enabled: hasEvidence && view !== 'oscal'/);
+    expect(PANEL_SRC).toMatch(/queryKey: \['scan', scanId, 'rule', ruleId, 'oscal'\]/);
 
-    // Render: open the panel, immediately switch to OSCAL — no evidence GET fires
-    // for the OSCAL view (the formatted default fetches once, then OSCAL is inert).
+    // Default Formatted view fetches evidence once.
     renderPanel();
+    await waitFor(() => expect(evidenceCalls()).toBe(1));
+    // Switching to OSCAL fetches OSCAL but does NOT re-fetch evidence.
     fireEvent.click(screen.getByRole('tab', { name: 'OSCAL' }));
-    await screen.findByText('Download OSCAL');
-    // Only the initial Formatted view's fetch happened; OSCAL adds none.
-    expect(getMock.mock.calls.length).toBeLessThanOrEqual(1);
-    // A rule with no evidence never fetches.
+    await waitFor(() => expect(oscalCalls()).toBe(1));
+    expect(evidenceCalls()).toBe(1);
+    // A rule with no evidence never fetches evidence.
     getMock.mockClear();
     renderPanel({ hasEvidence: false });
     await screen.findByText('No evidence was captured for this rule.');
-    expect(getMock).not.toHaveBeenCalled();
+    expect(evidenceCalls()).toBe(0);
   });
 
   // @ac AC-05
-  test('frontend-scan-detail/AC-05 — OSCAL download paths with credentials include', () => {
-    // Per-rule OSCAL from the panel.
-    expect(PANEL_SRC).toContain('/rules/${ruleId}/oscal');
-    expect(PANEL_SRC).toMatch(/credentials: 'include'/);
-    // Whole-scan OSCAL from the page.
+  test('frontend-scan-detail/AC-05 — OSCAL fetched per rule; whole-scan downloaded with credentials', () => {
+    // Per-rule OSCAL fetched via the typed client from the oscal endpoint.
+    expect(PANEL_SRC).toContain("api.GET('/api/v1/scans/{id}/rules/{ruleId}/oscal'");
+    // Whole-scan OSCAL download from the page with the session cookie.
     expect(PAGE_SRC).toContain('/api/v1/scans/${scanId}/oscal');
     expect(PAGE_SRC).toMatch(/credentials: 'include'/);
   });
@@ -138,8 +151,8 @@ describe('frontend-scan-detail', () => {
     expect(PAGE_SRC).toMatch(/function fwTag/);
     expect(PAGE_SRC).toMatch(/CIS-\$\{control\}/);
     expect(PAGE_SRC).toMatch(/flattenRefs/);
-    // Verdict line falls back detail -> skip_reason.
-    expect(PAGE_SRC).toMatch(/rule\.detail \|\| rule\.skip_reason/);
+    // Sub-line shows the catalog description, falling back to skip_reason.
+    expect(PAGE_SRC).toMatch(/rule\.description \|\| rule\.skip_reason/);
     // Search + status filter chips.
     expect(PAGE_SRC).toMatch(/Search rules or framework IDs/);
     expect(PAGE_SRC).toMatch(/setStatusFilter/);
