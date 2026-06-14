@@ -181,9 +181,12 @@ func TestScanById_ShapeAnd404(t *testing.T) {
 		var detail struct {
 			Scan    map[string]any `json:"scan"`
 			Results []struct {
-				RuleId      string `json:"rule_id"`
-				Status      string `json:"status"`
-				HasEvidence bool   `json:"has_evidence"`
+				RuleId      string  `json:"rule_id"`
+				Title       string  `json:"title"`
+				Category    string  `json:"category"`
+				Status      string  `json:"status"`
+				Detail      *string `json:"detail"`
+				HasEvidence bool    `json:"has_evidence"`
 			} `json:"results"`
 		}
 		req := asRole(t, "GET", url+"/api/v1/scans/"+scanID.String(), auth.RoleViewer, nil)
@@ -200,6 +203,23 @@ func TestScanById_ShapeAnd404(t *testing.T) {
 		}
 		if detail.Scan["scan_id"] != scanID.String() {
 			t.Errorf("scan.scan_id = %v, want %s", detail.Scan["scan_id"], scanID)
+		}
+		// Title/category are catalog-resolved; the test server wires no
+		// catalog, so title falls back to rule_id and category to
+		// "uncategorized" (never empty), and the verdict detail surfaces
+		// for the rule that carries evidence.
+		for _, rr := range detail.Results {
+			if rr.Title == "" || rr.Category == "" {
+				t.Errorf("rule %s: title=%q category=%q, both must be non-empty (fallbacks)", rr.RuleId, rr.Title, rr.Category)
+			}
+			if rr.RuleId == "r-pass" {
+				if rr.Title != "r-pass" || rr.Category != "uncategorized" {
+					t.Errorf("no-catalog fallback wrong: title=%q category=%q", rr.Title, rr.Category)
+				}
+				if rr.Detail == nil || *rr.Detail != "ok" {
+					t.Errorf("r-pass detail = %v, want the verdict %q", rr.Detail, "ok")
+				}
+			}
 		}
 
 		// Unknown scan -> 404.

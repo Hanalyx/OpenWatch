@@ -67,6 +67,19 @@ spec:
       description: The /scans Coverage tab MUST expand a host into its scan history via GET /api/v1/scans?host_id= and each scan row MUST link to /scans/$scanId (the row toggle no longer deep-links to the host detail page)
       type: technical
       enforcement: error
+    - id: C-07
+      description: >-
+        The scan-detail rules table MUST present rich rows matching the
+        prototype — a STATUS column (colored dot + Compliant / Non-compliant
+        / N/A / Error word), a SEVERITY pill, the catalog title with the
+        one-line verdict beneath it (the rule's detail, falling back to its
+        skip reason) and its framework refs rendered as tags colored by
+        family (CIS / STIG / NIST / PCI), and the CATEGORY column — plus a
+        search box (filtering by rule id, title, or framework control id)
+        and status filter chips showing per-status counts. UI copy carries
+        no em-dashes and renders no non-functional remediation controls.
+      type: technical
+      enforcement: error
 
   acceptance_criteria:
     - id: AC-01
@@ -93,3 +106,14 @@ spec:
       description: Source-inspection — ScansPage's Coverage tab queries GET /api/v1/scans with a host_id query param and renders scan rows linking to /scans/$scanId; the host cell is a toggle button, not a /hosts/$hostId Link.
       priority: high
       references_constraints: [C-06]
+    - id: AC-07
+      description: >-
+        Source-inspection — ScanDetailPage renders the rich rules table.
+        A STATUS map produces Compliant / Non-compliant / N/A, a SEVERITY
+        pill renders, framework refs are flattened into family-colored
+        tags (CIS / STIG / NIST), the verdict line falls back from detail
+        to skip_reason, a search input and status filter chips are present,
+        and a CATEGORY column renders. The file contains no em-dash and no
+        Fix or remediation control.
+      priority: high
+      references_constraints: [C-07]

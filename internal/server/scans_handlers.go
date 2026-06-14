@@ -119,12 +119,29 @@ func (h *handlers) GetScanById(w http.ResponseWriter, r *http.Request, id openap
 	}
 	resp := api.ScanDetail{Scan: toAPIScanSummary(summary), Results: []api.ScanRuleResult{}}
 	for _, rr := range results {
+		// Resolve the human title + category from the rule catalog (same
+		// source the host compliance lens uses); fall back to rule_id /
+		// "uncategorized" when the catalog has no entry. Catalog text only,
+		// never stored check output.
+		title, category := rr.RuleID, "uncategorized"
+		if meta, ok := h.ruleCatalog.Get(rr.RuleID); ok {
+			title = meta.Title
+			if meta.Category != "" {
+				category = meta.Category
+			}
+		}
 		out := api.ScanRuleResult{
 			RuleId:        rr.RuleID,
+			Title:         title,
+			Category:      category,
 			Status:        rr.Status,
 			Severity:      rr.Severity,
 			FrameworkRefs: rr.FrameworkRefs,
 			HasEvidence:   rr.HasEvidence,
+		}
+		if rr.Detail != "" {
+			d := rr.Detail
+			out.Detail = &d
 		}
 		if rr.SkipReason != "" {
 			s := rr.SkipReason

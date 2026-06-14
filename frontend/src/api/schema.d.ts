@@ -2717,10 +2717,16 @@ export interface components {
         /** @description One rule's durable verdict for a scan. No inline check output. */
         ScanRuleResult: {
             rule_id: string;
+            /** @description human rule title from the catalog (falls back to rule_id) */
+            title: string;
+            /** @description catalog category (falls back to "uncategorized") */
+            category: string;
             /** @description pass | fail | skipped | error */
             status: string;
             /** @description critical | high | medium | low | "" when unset */
             severity: string;
+            /** @description one-line verdict from the rule's evidence (the "why"); empty when no evidence */
+            detail?: string;
             /** @description framework_id -> control ids */
             framework_refs: {
                 [key: string]: string[];

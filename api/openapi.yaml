@@ -4035,11 +4035,16 @@ components:
     ScanRuleResult:
       type: object
       description: One rule's durable verdict for a scan. No inline check output.
-      required: [rule_id, status, severity, framework_refs, has_evidence]
+      required: [rule_id, title, category, status, severity, framework_refs, has_evidence]
       properties:
         rule_id:  {type: string}
+        title:    {type: string, description: human rule title from the catalog (falls back to rule_id)}
+        category: {type: string, description: catalog category (falls back to "uncategorized")}
         status:   {type: string, description: 'pass | fail | skipped | error'}
         severity: {type: string, description: 'critical | high | medium | low | "" when unset'}
+        detail:
+          type: string
+          description: one-line verdict from the rule's evidence (the "why"); empty when no evidence
         framework_refs:
           type: object
           additionalProperties:

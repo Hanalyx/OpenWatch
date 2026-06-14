@@ -126,4 +126,26 @@ describe('frontend-scan-detail', () => {
     // The Coverage host cell is a toggle button, not a /hosts deep link.
     expect(SCANS_SRC).toMatch(/setOpenHost\(/);
   });
+
+  // @ac AC-07
+  test('frontend-scan-detail/AC-07 — rich rules table: status/severity/framework tags/verdict/search/filter', () => {
+    // Status words + severity pills.
+    expect(PAGE_SRC).toContain("label: 'Compliant'");
+    expect(PAGE_SRC).toContain("label: 'Non-compliant'");
+    expect(PAGE_SRC).toContain("label: 'N/A'");
+    expect(PAGE_SRC).toMatch(/SEVERITY/);
+    // Framework refs flattened into family-colored tags (CIS/STIG/NIST).
+    expect(PAGE_SRC).toMatch(/function fwTag/);
+    expect(PAGE_SRC).toMatch(/CIS-\$\{control\}/);
+    expect(PAGE_SRC).toMatch(/flattenRefs/);
+    // Verdict line falls back detail -> skip_reason.
+    expect(PAGE_SRC).toMatch(/rule\.detail \|\| rule\.skip_reason/);
+    // Search + status filter chips.
+    expect(PAGE_SRC).toMatch(/Search rules or framework IDs/);
+    expect(PAGE_SRC).toMatch(/setStatusFilter/);
+    // Honest affordances: no Fix / remediation control on a historical scan.
+    expect(PAGE_SRC).not.toMatch(/>Fix</);
+    // No em-dash in copy.
+    expect(stripComments(PAGE_SRC)).not.toContain('—');
+  });
 });

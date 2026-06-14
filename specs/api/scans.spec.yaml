@@ -59,7 +59,7 @@ spec:
       type: technical
       enforcement: error
     - id: C-04
-      description: GET /scans/{id} MUST return the scan's metadata plus every rule's durable verdict for that scan, and 404 when the scan is unknown
+      description: GET /scans/{id} MUST return the scan's metadata plus every rule's durable verdict for that scan, and 404 when the scan is unknown. Each rule carries the catalog-resolved title (falling back to rule_id) and category (falling back to "uncategorized") plus the one-line verdict detail from its evidence — never inline raw check output
       type: technical
       enforcement: error
     - id: C-05
@@ -81,7 +81,7 @@ spec:
       priority: high
       references_constraints: [C-03]
     - id: AC-03
-      description: GET /scans/{id} for a persisted scan returns 200 with the scan metadata and one result per persisted rule; an unknown scan id returns 404.
+      description: GET /scans/{id} for a persisted scan returns 200 with the scan metadata and one result per persisted rule; each result carries a non-empty title (rule_id fallback when uncatalogued) and category ("uncategorized" fallback) and the verdict detail for a rule with evidence; an unknown scan id returns 404.
       priority: critical
       references_constraints: [C-04]
     - id: AC-04
