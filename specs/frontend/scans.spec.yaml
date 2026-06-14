@@ -1,0 +1,80 @@
+spec:
+  id: frontend-scans
+  title: Scans overview (coverage + change history)
+  version: "1.0.0"
+  status: approved
+  tier: 2
+
+  context:
+    system: openwatch-go
+    feature: The /scans fleet scan overview — a scan-queue header plus Coverage and History tabs, composed from endpoints that already ship
+    description: >
+      /scans is the fleet scan overview. It is composed entirely from
+      endpoints that already exist (no new backend):
+        - GET /api/v1/fleet/scan-queue   -> running / queued KPIs
+        - GET /api/v1/hosts              -> per-host coverage (last_scan_at
+                                            + compliance_summary)
+        - GET /api/v1/fleet/recent-changes -> the compliance change history
+
+      The openwatch-v1 Scans.html prototype is a richer per-scan-run
+      operations view: a 5-KPI row, a Live tab (running scans with
+      progress + a live event log), a per-scan History (type / trigger /
+      duration / delta), and Rules / Config tabs. Most of that is
+      backend-gated: OpenWatch exposes NO scan-run listing endpoint (the
+      scan-queue is counts only), so per-scan rows, the failed/skipped/
+      auto-remediation KPIs, and the Rules tab cannot be backed without
+      new telemetry. This spec covers the data-faithful subset, styled to
+      the prototype: the scan-queue header + Coverage + change History.
+    related_specs:
+      - api-host-compliance
+      - frontend-foundation
+      - system-scan-runs
+
+  objective:
+    summary: >
+      Opening /scans shows real coverage (how fresh each host's scan is)
+      and the recent compliance change history, with a running/queued
+      scan-queue header, in the prototype's visual language.
+    scope:
+      includes:
+        - 'ScansPage at /scans: scan-queue header (running/queued) + up-to-date count'
+        - 'Coverage tab: per-host freshness from last_scan_at + compliance_summary'
+        - 'History tab: recent compliance changes from fleet/recent-changes'
+        - 'Prototype styling: KPI cards, bottom-border tabs, freshness/status pips'
+      excludes:
+        - 'Live per-scan-run rows + progress + live log (no scan-run listing endpoint)'
+        - 'Per-scan History with type/trigger/duration/delta (per-rule transitions only)'
+        - 'Failed/Skipped/Auto-remediation KPIs (no per-scan host outcomes; remediation unbuilt)'
+        - 'Rules tab (rule inventory) and Config tab (lives under Settings)'
+
+  constraints:
+    - id: C-01
+      description: >-
+        ScansPage MUST compose only endpoints that already ship:
+        GET /api/v1/fleet/scan-queue, GET /api/v1/hosts, and
+        GET /api/v1/fleet/recent-changes. No new backend endpoint is
+        added for /scans
+      type: technical
+      enforcement: error
+    - id: C-02
+      description: >-
+        The page MUST be read-only (no mutating request) and surface
+        honest data only: freshness is derived from last_scan_at against
+        the 48h scheduler interval; a host with no last_scan_at renders
+        "never". UI copy carries no em-dashes
+      type: technical
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: 'Source-inspection — ScansPage queries GET /api/v1/fleet/scan-queue (running/queued) and GET /api/v1/hosts, and renders an up-to-date count plus a running and a queued KPI. router.tsx mounts ScansPage at path "scans" under protectedRoute and the sidebar Scans entry is enabled.'
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-02
+      description: 'Source-inspection — the Coverage tab renders per-host rows from GET /api/v1/hosts using last_scan_at for a freshness pip (current within 48h, stale beyond, never when null) and compliance_summary for a percentage; the History tab renders GET /api/v1/fleet/recent-changes rows.'
+      priority: high
+      references_constraints: [C-01]
+    - id: AC-03
+      description: 'Source-inspection — the Scans page issues no api.POST/PUT/DELETE (read-only), and its UI copy contains no em-dash.'
+      priority: high
+      references_constraints: [C-02]
