@@ -20,10 +20,12 @@ import (
 	"github.com/Hanalyx/openwatch/internal/correlation"
 	"github.com/Hanalyx/openwatch/internal/eventbus"
 	"github.com/Hanalyx/openwatch/internal/exception"
+	"github.com/Hanalyx/openwatch/internal/group"
 	"github.com/Hanalyx/openwatch/internal/idempotency"
 	"github.com/Hanalyx/openwatch/internal/identity"
 	"github.com/Hanalyx/openwatch/internal/kensa"
 	"github.com/Hanalyx/openwatch/internal/license"
+	"github.com/Hanalyx/openwatch/internal/report"
 	"github.com/Hanalyx/openwatch/internal/server/api"
 	"github.com/Hanalyx/openwatch/internal/users"
 	"github.com/Hanalyx/openwatch/internal/worker"
@@ -121,6 +123,22 @@ func (s *Server) WithRuleCatalog(c *kensa.RuleCatalog) *Server {
 // Spec api-compliance-exceptions.
 func (s *Server) WithExceptions(e *exception.Service) *Server {
 	s.handlers.exceptionSvc = e
+	return s
+}
+
+// WithGroups threads the host group service (sites + OS categories)
+// into the API handlers so /api/v1/groups and its sub-routes are
+// routable. Nil makes the group endpoints 503. Spec api-groups.
+func (s *Server) WithGroups(g *group.Service) *Server {
+	s.handlers.groupSvc = g
+	return s
+}
+
+// WithReports threads the reports library service into the API handlers
+// so /api/v1/reports and its sub-routes are routable. Nil makes the
+// report endpoints 503. Spec api-reports.
+func (s *Server) WithReports(rep *report.Service) *Server {
+	s.handlers.reportSvc = rep
 	return s
 }
 

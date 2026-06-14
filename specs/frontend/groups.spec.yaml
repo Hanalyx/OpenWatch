@@ -1,0 +1,140 @@
+spec:
+  id: frontend-groups
+  title: Groups page - fleet KPIs, Sites and OS-category cards, maintenance toggle, create
+  version: "1.0.0"
+  status: approved
+  tier: 2
+
+  context:
+    system: openwatch-go
+    feature: The Groups page - a KPI row plus Sites and OS-category card sections with per-group rollups, a maintenance toggle, and a create flow, over api-groups
+    description: >
+      GroupsPage is the operator's fleet-organization view over
+      api-groups. A single query against GET /api/v1/groups returns both
+      the KPI summary (groups, sites, os_categories, hosts_maintenance,
+      ungrouped, and fleet avg_compliance_pct) and the full group list,
+      so the page renders a KPI row from the response summary and two card
+      sections partitioned from the response groups: Sites (kind=site) and
+      OS categories (kind=os_category). Each group card shows the name,
+      subtype, the member rollup (hosts, online, down, critical_hosts,
+      avg_compliance_pct), and a bounded member chip preview.
+
+      Mutations go through the api-groups bars: Create (POST /groups)
+      and the per-card maintenance toggle (POST /groups/{id}:maintenance)
+      require host:write, so the create control and the toggle are
+      permission gated via useAuthStore.hasPermission; a host:read-only
+      caller sees the cards but not the write controls. A successful
+      create or toggle invalidates the groups query so the KPIs and
+      cards refresh.
+
+      Styling follows the dashboard primitives: WidgetCard-like cards and
+      KPI values built from inline styles over the --ow-* design tokens,
+      with honest loading, empty, and error states (apiErrorMessage). The
+      api client is @/api/client; queries use api.GET. UI copy carries no
+      em-dashes.
+
+    related_specs:
+      - api-groups
+      - frontend-dashboard
+      - frontend-settings-scan-config
+
+  objective:
+    summary: >
+      A usable Groups page: read the fleet KPIs and the Sites plus
+      OS-category cards with their rollups, toggle maintenance and create
+      a group within the caller's authority, with honest loading, empty,
+      and error states.
+    scope:
+      includes:
+        - GroupsPage with a KPI row and card sections from a single GET /groups (summary + groups)
+        - 'Sites section (kind=site) and OS-category section (kind=os_category)'
+        - Per-card rollup display (hosts, online, down, critical_hosts, avg_compliance_pct, member chips)
+        - Create mutation (POST /groups) and maintenance toggle (POST /groups/{id}:maintenance), permission gated
+        - Query invalidation of the groups key on a successful mutation
+      excludes:
+        - The member-management drawer (Add/Remove member) - a follow-up surface
+        - Editing name/subtype/color (PATCH) - a follow-up surface
+        - Delete confirmation flow
+        - Maintenance enforcement (the toggle only sets the flag; scheduler/alerting enforcement is backend follow-up)
+
+  constraints:
+    - id: C-01
+      description: >-
+        GroupsPage issues a single query keyed ["groups"] against GET
+        /api/v1/groups via api.GET from @/api/client; the response carries
+        both the KPI summary and the group list. The page reads the KPI
+        row from the response summary and partitions the response groups
+        into a Sites section (kind=site) and an OS-category section
+        (kind=os_category). Each card renders the rollup fields (hosts,
+        online, down, critical_hosts, avg_compliance_pct) and the bounded
+        member chip preview.
+      type: technical
+      enforcement: error
+    - id: C-02
+      description: >-
+        The write controls are permission gated via
+        useAuthStore.hasPermission("host:write"): the Create control and
+        the per-card maintenance toggle render only for a host:write
+        caller; a host:read-only caller sees the cards and KPIs but no
+        write control. The server still enforces the bars; the UI gate is
+        a usability layer.
+      type: security
+      enforcement: error
+    - id: C-03
+      description: >-
+        Create (POST /api/v1/groups) and the maintenance toggle (POST
+        /api/v1/groups/{id}:maintenance) invalidate the groups query
+        (queryKey ["groups"]) on success so the KPIs and cards refresh.
+        Loading, empty, and error states are honest: apiErrorMessage
+        drives the error text rather than a crash, and an empty section
+        renders an empty state, not a blank card grid. Prose UI copy
+        carries no em-dashes (the no-data value placeholder glyph, shared
+        across the app, is not prose copy).
+      type: technical
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: >-
+        Source inspection: GroupsPage issues a single query with queryKey
+        ["groups"] against "/api/v1/groups" via api.GET from @/api/client,
+        reads summary and groups off the response, and partitions the
+        groups by kind into a Sites section (kind=site) and an OS-category
+        section (kind=os_category). The KPI row reads
+        groups/sites/os_categories/hosts_maintenance/ungrouped and
+        avg_compliance_pct from the summary.
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-02
+      description: >-
+        Source inspection: each group card renders the rollup fields
+        (hosts, online, down, critical_hosts, avg_compliance_pct) and the
+        member chip preview, styled with the --ow-* design tokens (no raw
+        color literals for the card chrome).
+      priority: high
+      references_constraints: [C-01]
+    - id: AC-03
+      description: >-
+        Source inspection: the Create control and the per-card
+        maintenance toggle render under hasPermission("host:write") from
+        useAuthStore; a host:read-only caller sees no write control. The
+        permission flag reads from useAuthStore.hasPermission.
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-04
+      description: >-
+        Source inspection: the Create mutation POSTs "/api/v1/groups" and
+        the maintenance toggle POSTs "/api/v1/groups/{id}:maintenance",
+        and both invalidate the queryKey ["groups"] on success.
+      priority: critical
+      references_constraints: [C-03]
+    - id: AC-05
+      description: >-
+        Source inspection: the page renders honest loading, empty, and
+        error states. Error text comes from apiErrorMessage (not a raw
+        throw to an error boundary) and an empty section renders an empty
+        state string rather than a blank grid. Prose UI copy contains no
+        em-dash (the shared single-glyph no-data value placeholder is not
+        prose copy).
+      priority: high
+      references_constraints: [C-03]
