@@ -44,7 +44,7 @@ func TestRules_ListShape(t *testing.T) {
 		var body struct {
 			Total int `json:"total"`
 			Rules []struct {
-				Id            string              `json:"id"`
+				ID            string              `json:"id"`
 				Title         string              `json:"title"`
 				Description   string              `json:"description"`
 				Severity      string              `json:"severity"`
@@ -73,21 +73,21 @@ func TestRules_ListShape(t *testing.T) {
 		}
 		var sawAutomated, sawManual bool
 		for _, r := range body.Rules {
-			if r.Id == "" || r.Title == "" || r.Severity == "" || r.Category == "" {
-				t.Errorf("rule %q missing required fields: %+v", r.Id, r)
+			if r.ID == "" || r.Title == "" || r.Severity == "" || r.Category == "" {
+				t.Errorf("rule %q missing required fields: %+v", r.ID, r)
 			}
 			if len(r.FrameworkRefs) == 0 {
-				t.Errorf("rule %q has no framework_refs", r.Id)
+				t.Errorf("rule %q has no framework_refs", r.ID)
 			}
 			if r.Remediation.Manual {
 				sawManual = true
 				if r.Remediation.Mechanism != "manual" {
-					t.Errorf("rule %q manual but mechanism=%q", r.Id, r.Remediation.Mechanism)
+					t.Errorf("rule %q manual but mechanism=%q", r.ID, r.Remediation.Mechanism)
 				}
 			} else {
 				sawAutomated = true
 				if r.Remediation.Mechanism == "" || r.Remediation.Mechanism == "manual" {
-					t.Errorf("rule %q automated but mechanism=%q", r.Id, r.Remediation.Mechanism)
+					t.Errorf("rule %q automated but mechanism=%q", r.ID, r.Remediation.Mechanism)
 				}
 			}
 		}
