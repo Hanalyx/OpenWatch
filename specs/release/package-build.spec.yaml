@@ -18,6 +18,7 @@ spec:
       - system-http-server
       - system-config
       - system-license-validation
+      - system-kensa-executor
 
   objective:
     summary: >
@@ -36,6 +37,9 @@ spec:
         - Post-install systemd reload
         - Pre-uninstall stop+disable
         - Multi-arch builds (amd64 + arm64) via ARCH, cross-compiled with CGO disabled
+        - Kensa rule corpus shipped as a separate noarch/all kensa-rules package
+        - Hard dependency from openwatch on kensa-rules so a corpus-less install fails fast
+        - Install-time provisioning of the production identity keys (JWT signing key + credential DEK) that the server refuses to auto-generate
       excludes:
         - Signed package distribution (separate release infra)
         - FIPS variant (Day 12 ships a second binary build)
@@ -76,6 +80,31 @@ spec:
     - id: C-09
       description: Build scripts MUST support a target architecture via ARCH (amd64 | arm64), cross-compiling the binary with the matching GOARCH and CGO disabled, and labeling the artifact with the correct package arch (x86_64/aarch64 for RPM, amd64/arm64 for DEB)
       type: technical
+      enforcement: error
+    - id: C-10
+      description: >
+        The Kensa rule corpus MUST ship as a separate kensa-rules package
+        (noarch RPM + Architecture:all DEB) installing the corpus to
+        /usr/share/kensa/rules (the engine's default load path), staged from
+        the vendored kensa module so air-gapped builds need no network. The
+        openwatch RPM MUST declare Requires: kensa-rules and the openwatch DEB
+        MUST list kensa-rules in Depends, so an install without the corpus
+        fails fast rather than booting a scan-incapable service.
+      type: technical
+      enforcement: error
+    - id: C-11
+      description: >
+        The server refuses to auto-generate its signing material in production
+        and exits if it is missing. Therefore both packages MUST provision the
+        identity keys at install time via a post-install scriptlet: an RSA
+        >=2048-bit JWT signing key at /etc/openwatch/keys/jwt_private.pem (mode
+        0640, root:openwatch) and a 32-byte AES-256 credential DEK at
+        /etc/openwatch/keys/credential.key (mode 0600, openwatch:openwatch).
+        Generation MUST be generate-if-absent (never overwrite, so upgrades do
+        not invalidate tokens or render stored secrets undecryptable). The key
+        files MUST NOT be shipped in the package payload (they must be unique
+        per install). openssl MUST be a package dependency.
+      type: security
       enforcement: error
 
   acceptance_criteria:
@@ -133,3 +162,27 @@ spec:
       description: Both build scripts accept ARCH=arm64 and cross-compile the binary via GOARCH with CGO disabled, mapping to the correct package arch (aarch64 RPM / arm64 DEB); source-inspection verifies the arch mapping and the GOARCH/CGO_ENABLED=0 build invocation.
       priority: high
       references_constraints: [C-09]
+    - id: AC-15
+      description: make kensa-rules produces a noarch kensa-rules .rpm and an Architecture=all kensa-rules .deb under dist/, and each payload contains /usr/share/kensa/rules holding the full corpus (>=500 *.yml rule files).
+      priority: critical
+      references_constraints: [C-10]
+    - id: AC-16
+      description: The openwatch RPM spec declares Requires kensa-rules and the openwatch DEB control lists kensa-rules in Depends (source-inspection of packaging/rpm/openwatch.spec and packaging/deb/control).
+      priority: critical
+      references_constraints: [C-10]
+    - id: AC-17
+      description: make packages builds the kensa-rules corpus package alongside the openwatch artifacts (the Makefile packages target depends on the kensa-rules target).
+      priority: high
+      references_constraints: [C-10]
+    - id: AC-18
+      description: The RPM %post and the DEB postinst invoke the identity-key provisioning helper, and the shipped helper (packaging/common/provision-identity-keys.sh) generates the JWT key (RSA 2048 via openssl genrsa, 0640 root:openwatch) and the credential DEK (32 bytes via openssl rand, 0600 openwatch:openwatch) only when absent. Source-inspection of the scriptlets and the helper.
+      priority: critical
+      references_constraints: [C-11]
+    - id: AC-19
+      description: The openwatch RPM spec declares Requires openssl and the openwatch DEB control lists openssl in Depends (source-inspection).
+      priority: high
+      references_constraints: [C-11]
+    - id: AC-20
+      description: The package payloads ship the empty /etc/openwatch/keys directory and the provisioning helper at /usr/lib/openwatch/, but do NOT contain jwt_private.pem or credential.key (verified via rpm -qpl and dpkg-deb -c — the keys are generated per-install, never packaged).
+      priority: critical
+      references_constraints: [C-11]

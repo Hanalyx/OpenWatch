@@ -1,6 +1,7 @@
 #!/bin/sh
-# Post-install: reload systemd so the new unit is visible.
-# Spec release-package-build AC-08.
+# Post-install: reload systemd so the new unit is visible, and provision the
+# identity keys the server requires in production (it refuses to auto-generate
+# them and exits without them). Spec release-package-build AC-08, AC-18.
 
 set -e
 
@@ -8,6 +9,10 @@ if [ "$1" = "configure" ]; then
     if command -v systemctl >/dev/null 2>&1; then
         systemctl daemon-reload || :
     fi
+    # Generate-if-absent, so reconfigure/upgrade never clobbers live keys.
+    # preinst already created the openwatch user/group. Not guarded: a real
+    # failure should abort configure rather than leave an unbootable service.
+    /usr/lib/openwatch/provision-identity-keys.sh
 fi
 
 exit 0

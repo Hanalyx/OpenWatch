@@ -61,6 +61,7 @@ mkdir -p "$SRC_DIR"
 cp "$DIST_DIR/openwatch"                      "$SRC_DIR/openwatch"
 cp "$APP_DIR/packaging/common/openwatch.toml" "$SRC_DIR/openwatch.toml"
 cp "$APP_DIR/packaging/common/openwatch.service" "$SRC_DIR/openwatch.service"
+cp "$APP_DIR/packaging/common/provision-identity-keys.sh" "$SRC_DIR/provision-identity-keys.sh"
 
 # Demo TLS cert.
 bash "$APP_DIR/packaging/common/gen-demo-cert.sh" "$SRC_DIR" >/dev/null

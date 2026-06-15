@@ -27,6 +27,16 @@ URL:            https://github.com/Hanalyx/openwatch
 Source0:        %{name}-%{version}.tar.gz
 
 Requires:       postgresql-server
+# Hard dependency on the rule corpus: the kensa engine loads rules from
+# /usr/share/kensa/rules at runtime and cannot scan without them. Declaring
+# it here makes a corpus-less install fail fast (air-gapped operators install
+# both files in one transaction: dnf install ./openwatch-*.rpm ./kensa-rules-*.rpm)
+# rather than the service booting and every scan failing. Unversioned so the
+# corpus can advance on its own line; tighten to a floor when OTA lands.
+Requires:       kensa-rules
+# openssl: the %post scriptlet generates the JWT signing key and credential
+# DEK at install time (the server refuses to auto-generate them in production).
+Requires:       openssl
 Requires(pre):  shadow-utils
 
 %description
@@ -48,9 +58,15 @@ install -m 0755 openwatch           %{buildroot}/usr/bin/openwatch
 
 install -d -m 0750                  %{buildroot}/etc/openwatch
 install -d -m 0750                  %{buildroot}/etc/openwatch/tls
+# Identity-key directory. The keys themselves are NOT shipped in the payload
+# (they must be unique per install); %post generates them into here.
+install -d -m 0750                  %{buildroot}/etc/openwatch/keys
 install -m 0640 openwatch.toml      %{buildroot}/etc/openwatch/openwatch.toml
 install -m 0644 cert.pem            %{buildroot}/etc/openwatch/tls/cert.pem
 install -m 0600 key.pem             %{buildroot}/etc/openwatch/tls/key.pem
+
+install -d -m 0755                  %{buildroot}/usr/lib/openwatch
+install -m 0755 provision-identity-keys.sh %{buildroot}/usr/lib/openwatch/provision-identity-keys.sh
 
 install -d -m 0755                  %{buildroot}/etc/systemd/system
 install -m 0644 openwatch.service   %{buildroot}/etc/systemd/system/openwatch.service
@@ -68,6 +84,13 @@ getent passwd openwatch >/dev/null || \
 %post
 # AC-07: pick up the new unit file.
 systemctl daemon-reload || :
+
+# Provision the identity keys (JWT signing key + credential DEK) the server
+# requires in production. Generate-if-absent, so upgrades never clobber the
+# live keys. Runs after %pre created the openwatch user/group. Not guarded
+# with `|| :`: a real failure here (e.g. a filesystem error) should surface
+# as a scriptlet warning, not silently leave an unbootable service.
+/usr/lib/openwatch/provision-identity-keys.sh
 
 %preun
 # AC-09: stop and disable cleanly so removal doesn't leave a running orphan.
@@ -88,6 +111,10 @@ systemctl daemon-reload || :
 %attr(0644, root, openwatch)        /etc/openwatch/tls/cert.pem
 %attr(0600, openwatch, openwatch)   /etc/openwatch/tls/key.pem
 %attr(0644, root, root)             /etc/systemd/system/openwatch.service
+# Identity-key directory ships empty (0750); %post generates the per-install
+# keys into it. The key files are intentionally NOT packaged.
+%dir %attr(0750, root, openwatch)   /etc/openwatch/keys
+%attr(0755, root, root)             /usr/lib/openwatch/provision-identity-keys.sh
 %dir %attr(0750, openwatch, openwatch) /var/lib/openwatch
 %dir %attr(0750, openwatch, openwatch) /var/log/openwatch
 

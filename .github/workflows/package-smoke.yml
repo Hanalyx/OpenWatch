@@ -47,6 +47,8 @@ jobs:
           path: |
             dist/openwatch-*.rpm
             dist/openwatch_*.deb
+            dist/kensa-rules-*.rpm
+            dist/kensa-rules_*.deb
           retention-days: 3
 
   smoke:
@@ -74,12 +76,17 @@ jobs:
         run: |
           set -eux
           if [ "${{ matrix.kind }}" = "rpm" ]; then
-            # dnf resolves the postgresql-server dependency from the distro repos.
-            dnf install -y ./dist/openwatch-*.x86_64.rpm
+            # Both local files in one transaction: dnf resolves
+            # postgresql-server from the distro repos and the hard
+            # kensa-rules dependency from the local noarch RPM. Installing
+            # openwatch alone MUST fail (corpus dependency unsatisfiable
+            # offline) — passing here proves the both-file air-gapped path.
+            dnf install -y ./dist/openwatch-*.x86_64.rpm ./dist/kensa-rules-*.noarch.rpm
           else
             apt-get update
-            # apt install of a local .deb pulls declared deps.
-            apt-get install -y ./dist/openwatch_*_amd64.deb
+            # apt install of local .debs pulls declared deps; the openwatch
+            # .deb Depends on kensa-rules, satisfied by the local all .deb.
+            apt-get install -y ./dist/openwatch_*_amd64.deb ./dist/kensa-rules_*_all.deb
           fi
 
       - name: Smoke-test the install
@@ -92,6 +99,19 @@ jobs:
           test -f /etc/openwatch/tls/cert.pem
           # System user created by the post-install scriptlet.
           id openwatch
+          # Kensa rule corpus landed at the engine's default load path, and
+          # carries the full rule set — a scan-capable install, not a stub.
+          test -d /usr/share/kensa/rules
+          rule_count="$(find /usr/share/kensa/rules -name '*.yml' | wc -l)"
+          test "$rule_count" -ge 500
+          # Identity keys provisioned by the post-install scriptlet (the server
+          # refuses to auto-generate them and exits without them).
+          test -f /etc/openwatch/keys/jwt_private.pem
+          test -f /etc/openwatch/keys/credential.key
+          # JWT key is a valid RSA key; DEK is exactly 32 bytes; DEK is 0600.
+          openssl rsa -in /etc/openwatch/keys/jwt_private.pem -noout -check
+          test "$(stat -c '%s' /etc/openwatch/keys/credential.key)" -eq 32
+          test "$(stat -c '%a' /etc/openwatch/keys/credential.key)" = "600"
           # Binary runs (no DB needed for these).
           /usr/bin/openwatch --version
           /usr/bin/openwatch check-config

@@ -709,6 +709,8 @@ dist/
 !packaging/rpm/*.spec
 # Same exception for the Go rebuild's RPM spec
 !app/packaging/rpm/*.spec
+# The kensa-rules corpus package ships its own RPM spec
+!packaging/kensa-rules/*.spec
 
 # RPM creation scripts (temporary)
 create-rpm.sh
