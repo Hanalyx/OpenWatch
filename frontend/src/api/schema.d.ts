@@ -1416,6 +1416,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the Kensa rule library (the full rule catalog)
+         * @description Returns every Kensa rule with its normalized framework references
+         *     and a remediation summary, for the rule-library browser on /scans.
+         *     Reference data (the corpus is static), filtered client-side. RBAC:
+         *     scan:read. Spec api-rules.
+         */
+        get: operations["getRules"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/system/connectivity/status": {
         parameters: {
             query?: never;
@@ -2713,6 +2736,39 @@ export interface components {
              * @description Pass as ?cursor= to fetch the next page; absent when exhausted
              */
             next_cursor?: string;
+        };
+        /** @description Host-independent remediation summary from the kensa read model (facts only; risk level is operator policy, owned by OpenWatch). */
+        RuleRemediation: {
+            /** @description true when an automated (non-manual) remediation exists */
+            available: boolean;
+            /** @description distinct remediation mechanisms across implementations (e.g. config_set, service_enabled) */
+            mechanisms: string[];
+            /** @description services the remediation reloads or restarts */
+            restarts_services: string[];
+            /** @description kensa reboot signal: "boot-param" (staged boot change, pending reboot) or "none" (not a complete requires-reboot answer) */
+            reboot_behavior: string;
+        };
+        /** @description One normalized Kensa rule for the library browser. */
+        RuleListItem: {
+            id: string;
+            title: string;
+            description: string;
+            /** @description the rule's apply path is a capturable atomic transaction (the "atomic" signal) */
+            transactional: boolean;
+            /** @description critical | high | medium | low */
+            severity: string;
+            category: string;
+            tags: string[];
+            /** @description framework_id -> control ids (same shape as scan results) */
+            framework_refs: {
+                [key: string]: string[];
+            };
+            remediation: components["schemas"]["RuleRemediation"];
+        };
+        RuleList: {
+            rules: components["schemas"]["RuleListItem"][];
+            /** @description total rules in the library */
+            total: number;
         };
         /** @description One rule's durable verdict for a scan. No inline check output. */
         ScanRuleResult: {
@@ -6187,6 +6243,44 @@ export interface operations {
             };
             /** @description Scan not found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getRules: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The rule library */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuleList"];
+                };
+            };
+            /** @description Caller is not authenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Caller lacks scan:read permission */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

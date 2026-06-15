@@ -279,6 +279,28 @@ func freshAPIServer(t *testing.T) (string, *pgxpool.Pool) {
 		{Name: "banner_text", Default: "Authorized use only", Rules: []string{"r-banner"}, ConfigureMe: true},
 		{Name: "ssh_max_auth_tries", Default: "4", Rules: []string{"r-ssh-auth", "r-ssh-tries"}},
 	}))
+	// Spec api-rules: wire a small fixture rule library so /api/v1/rules
+	// reaches a real handler without the on-disk corpus.
+	s.WithRuleLibrary(kensa.NewRuleLibraryFromItems([]kensa.RuleListItem{
+		{
+			ID: "sshd-root-login-disabled", Title: "Disable SSH root login",
+			Description: "Root login over SSH must be disabled.", Severity: "high", Category: "network",
+			Tags:          []string{"ssh"},
+			FrameworkRefs: map[string][]string{"cis_rhel9": {"5.2.8"}, "nist_800_53": {"AC-6"}},
+			Transactional: true,
+			Remediation: kensa.RemediationSummary{
+				Available: true, Mechanisms: []string{"config_set_dropin"}, RebootBehavior: "none",
+			},
+		},
+		{
+			ID: "manual-only-rule", Title: "A manual rule",
+			Description: "Needs manual remediation.", Severity: "medium", Category: "audit",
+			Tags:          []string{},
+			FrameworkRefs: map[string][]string{"nist_800_53": {"AU-2"}},
+			Transactional: false,
+			Remediation:   kensa.RemediationSummary{Available: false, Mechanisms: []string{}, RebootBehavior: "none"},
+		},
+	}))
 
 	// Register a ScanWorker on the in-process worker so claimed scan
 	// jobs are processed (HMAC verify + scan_runs lifecycle) instead of

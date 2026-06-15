@@ -1,0 +1,98 @@
+// @spec api-rules
+//
+// AC traceability (this file; AC-01/AC-02 live in internal/kensa/library_test.go):
+//   AC-03  TestRules_RBAC_AnonymousRejected_ViewerAllowed
+//   AC-04  TestRules_ListShape
+
+package server
+
+import (
+	"encoding/json"
+	"net/http"
+	"testing"
+
+	"github.com/Hanalyx/openwatch/internal/auth"
+)
+
+// @ac AC-03
+func TestRules_RBAC_AnonymousRejected_ViewerAllowed(t *testing.T) {
+	t.Run("api-rules/AC-03", func(t *testing.T) {
+		url, _ := freshAPIServer(t)
+
+		// Anonymous: no session cookie.
+		resp := doGet(t, url+"/api/v1/rules")
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusUnauthorized && resp.StatusCode != http.StatusForbidden {
+			t.Errorf("anonymous status = %d, want 401/403", resp.StatusCode)
+		}
+
+		// Viewer holds scan:read.
+		req := asRole(t, "GET", url+"/api/v1/rules", auth.RoleViewer, nil)
+		resp2 := doReq(t, req)
+		resp2.Body.Close()
+		if resp2.StatusCode != http.StatusOK {
+			t.Errorf("viewer status = %d, want 200 (scan:read suffices)", resp2.StatusCode)
+		}
+	})
+}
+
+// @ac AC-04
+func TestRules_ListShape(t *testing.T) {
+	t.Run("api-rules/AC-04", func(t *testing.T) {
+		url, _ := freshAPIServer(t)
+
+		var body struct {
+			Total int `json:"total"`
+			Rules []struct {
+				ID            string              `json:"id"`
+				Title         string              `json:"title"`
+				Description   string              `json:"description"`
+				Severity      string              `json:"severity"`
+				Category      string              `json:"category"`
+				Tags          []string            `json:"tags"`
+				FrameworkRefs map[string][]string `json:"framework_refs"`
+				Transactional bool                `json:"transactional"`
+				Remediation   struct {
+					Available        bool     `json:"available"`
+					Mechanisms       []string `json:"mechanisms"`
+					RestartsServices []string `json:"restarts_services"`
+					RebootBehavior   string   `json:"reboot_behavior"`
+				} `json:"remediation"`
+			} `json:"rules"`
+		}
+		req := asRole(t, "GET", url+"/api/v1/rules", auth.RoleViewer, nil)
+		resp := doReq(t, req)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("status = %d, want 200", resp.StatusCode)
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		resp.Body.Close()
+
+		// The fixture library (freshAPIServer) wires two rules.
+		if body.Total != 2 || len(body.Rules) != 2 {
+			t.Fatalf("total=%d rules=%d, want 2/2 (fixture)", body.Total, len(body.Rules))
+		}
+		var sawAutomated, sawManual bool
+		for _, r := range body.Rules {
+			if r.ID == "" || r.Title == "" || r.Severity == "" || r.Category == "" {
+				t.Errorf("rule %q missing required fields: %+v", r.ID, r)
+			}
+			if len(r.FrameworkRefs) == 0 {
+				t.Errorf("rule %q has no framework_refs", r.ID)
+			}
+			if r.Remediation.Available {
+				sawAutomated = true
+				if len(r.Remediation.Mechanisms) == 0 {
+					t.Errorf("rule %q available but no mechanisms", r.ID)
+				}
+			} else {
+				sawManual = true
+			}
+		}
+		if !sawAutomated || !sawManual {
+			t.Errorf("expected both an automated and a manual remediation in the fixture")
+		}
+	})
+}

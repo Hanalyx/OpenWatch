@@ -119,6 +119,14 @@ func (s *Server) WithRuleCatalog(c *kensa.RuleCatalog) *Server {
 	return s
 }
 
+// WithRuleLibrary threads the normalized kensa rule library into the API
+// handlers so /api/v1/rules is routable. Nil makes that endpoint 503.
+// Spec api-rules.
+func (s *Server) WithRuleLibrary(l *kensa.RuleLibrary) *Server {
+	s.handlers.ruleLibrary = l
+	return s
+}
+
 // WithExceptions threads the compliance exception governance service
 // into the API handlers. Nil makes the exception endpoints 503.
 // Spec api-compliance-exceptions.

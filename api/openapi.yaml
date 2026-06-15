@@ -2169,6 +2169,33 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
 
+  /api/v1/rules:
+    get:
+      operationId: getRules
+      summary: List the Kensa rule library (the full rule catalog)
+      description: |
+        Returns every Kensa rule with its normalized framework references
+        and a remediation summary, for the rule-library browser on /scans.
+        Reference data (the corpus is static), filtered client-side. RBAC:
+        scan:read. Spec api-rules.
+      x-required-permission: scan:read
+      responses:
+        '200':
+          description: The rule library
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/RuleList'}
+        '401':
+          description: Caller is not authenticated
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '403':
+          description: Caller lacks scan:read permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
   /api/v1/system/connectivity/status:
     get:
       operationId: getSystemConnectivityStatus
@@ -4031,6 +4058,57 @@ components:
           type: string
           format: date-time
           description: Pass as ?cursor= to fetch the next page; absent when exhausted
+
+    RuleRemediation:
+      type: object
+      description: >-
+        Host-independent remediation summary from the kensa read model
+        (facts only; risk level is operator policy, owned by OpenWatch).
+      required: [available, mechanisms, restarts_services, reboot_behavior]
+      properties:
+        available:   {type: boolean, description: true when an automated (non-manual) remediation exists}
+        mechanisms:
+          type: array
+          items: {type: string}
+          description: distinct remediation mechanisms across implementations (e.g. config_set, service_enabled)
+        restarts_services:
+          type: array
+          items: {type: string}
+          description: services the remediation reloads or restarts
+        reboot_behavior:
+          type: string
+          description: 'kensa reboot signal: "boot-param" (staged boot change, pending reboot) or "none" (not a complete requires-reboot answer)'
+
+    RuleListItem:
+      type: object
+      description: One normalized Kensa rule for the library browser.
+      required: [id, title, description, severity, category, tags, framework_refs, transactional, remediation]
+      properties:
+        id:          {type: string}
+        title:       {type: string}
+        description: {type: string}
+        transactional: {type: boolean, description: the rule's apply path is a capturable atomic transaction (the "atomic" signal)}
+        severity:    {type: string, description: 'critical | high | medium | low'}
+        category:    {type: string}
+        tags:
+          type: array
+          items: {type: string}
+        framework_refs:
+          type: object
+          additionalProperties:
+            type: array
+            items: {type: string}
+          description: framework_id -> control ids (same shape as scan results)
+        remediation: {$ref: '#/components/schemas/RuleRemediation'}
+
+    RuleList:
+      type: object
+      required: [rules, total]
+      properties:
+        rules:
+          type: array
+          items: {$ref: '#/components/schemas/RuleListItem'}
+        total: {type: integer, description: total rules in the library}
 
     ScanRuleResult:
       type: object

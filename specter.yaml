@@ -78,6 +78,8 @@ domains:
             - system-scan-results-store
             - api-scans
             - frontend-scan-detail
+            - api-rules
+            - frontend-rules-library
 settings:
     specs_dir: specs
     # Honored by `specter coverage` (not by `specter sync` — CI passes
