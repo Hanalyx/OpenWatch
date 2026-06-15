@@ -167,6 +167,15 @@ func freshAPIServer(t *testing.T) (string, *pgxpool.Pool) {
 	// Clear custom roles only — built-in rows are seeded by migration 0006
 	// and must survive between tests.
 	_, _ = pool.Exec(ctx, "DELETE FROM roles WHERE is_built_in = false")
+	// Re-seed the singleton auth_policy row to its defaults. The TRUNCATE
+	// users CASCADE above cascades to auth_policy (its updated_by FKs
+	// users), so the migration-seeded row is gone; INSERT…ON CONFLICT both
+	// restores it and resets a prior test's PUT. Runs before New() primes
+	// the identity windows below.
+	_, _ = pool.Exec(ctx, `INSERT INTO auth_policy (id) VALUES (true)
+		ON CONFLICT (id) DO UPDATE
+		SET require_mfa = false, session_idle_timeout_seconds = 900,
+		    session_absolute_timeout_seconds = 43200, updated_by = NULL`)
 
 	audit.Init(audit.NewStore(pool), audit.WriterOptions{
 		ChannelBuffer: 256,

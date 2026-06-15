@@ -100,11 +100,21 @@ export function LoginPage() {
       };
       if (mfaRequired && values.otp) body.otp = values.otp;
 
-      const { response, error } = await api.POST('/api/v1/auth/login', {
+      const {
+        data: loginData,
+        response,
+        error,
+      } = await api.POST('/api/v1/auth/login', {
         body,
       });
 
       if (response.ok) {
+        // Soft require-MFA enforcement: the session is issued, but workspace
+        // policy requires this user to enroll in MFA before doing anything
+        // else. Land them on the profile page where enrollment lives.
+        const enrollmentRequired = !!(
+          loginData as { mfa_enrollment_required?: boolean } | undefined
+        )?.mfa_enrollment_required;
         // IMPORTANT (C-02): we do NOT read access_token / refresh_token
         // from the response body. Session cookie is the credential.
         const { data: me } = await api.GET('/api/v1/auth/me');
@@ -138,12 +148,18 @@ export function LoginPage() {
                     'token:read',
                     'token:write',
                     'token:delete',
+                    'system:auth_policy_read',
+                    'system:auth_policy_write',
                     'admin',
                   ]
                 : ['host:read', 'scan:read'],
             mfaEnabled: !!meTyped.mfa_enabled,
           };
           setIdentity(nextIdentity);
+        }
+        if (enrollmentRequired) {
+          navigate({ to: '/settings/profile' });
+          return;
         }
         const dest = safeReturnTo(search.return_to);
         navigate({ to: dest });

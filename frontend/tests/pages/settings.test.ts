@@ -63,6 +63,7 @@ const NOTIF_SRC = readFileSync(
   'utf8',
 );
 const SEC_SRC = readFileSync(resolve(process.cwd(), 'src/pages/settings/SecurityPage.tsx'), 'utf8');
+const LOGIN_SRC = readFileSync(resolve(process.cwd(), 'src/pages/LoginPage.tsx'), 'utf8');
 const PREFS_STORE_SRC = readFileSync(
   resolve(process.cwd(), 'src/store/usePreferencesStore.ts'),
   'utf8',
@@ -392,7 +393,23 @@ describe('frontend-settings — structural', () => {
     // Write/delete controls gate on their permissions.
     expect(SEC_SRC).toMatch(/hasPermission\)\('token:write'\)/);
     expect(SEC_SRC).toMatch(/hasPermission\)\('token:delete'\)/);
-    // SSO + auth-policy stay pending.
+    // SSO stays pending (still renders a BackendPendingBanner).
     expect(SEC_SRC).toContain('BackendPendingBanner');
+  });
+
+  test('frontend-settings/AC-25 — Security: live auth-policy section + login enrollment routing', () => {
+    // Auth-policy section loads + saves the policy, perm-gated.
+    expect(SEC_SRC).toMatch(/queryKey:\s*\['auth-policy'\]/);
+    expect(SEC_SRC).toMatch(/api\.GET\(\s*['"]\/api\/v1\/auth-policy['"]/);
+    expect(SEC_SRC).toMatch(/api\.PUT\(\s*['"]\/api\/v1\/auth-policy['"]/);
+    expect(SEC_SRC).toMatch(/invalidateQueries\(\{\s*queryKey:\s*\['auth-policy'\]/);
+    expect(SEC_SRC).toMatch(/hasPermission\)\('system:auth_policy_read'\)/);
+    expect(SEC_SRC).toMatch(/hasPermission\)\('system:auth_policy_write'\)/);
+    // require-MFA toggle + timeout steppers.
+    expect(SEC_SRC).toContain('<Toggle');
+    expect(SEC_SRC).toContain('<Stepper');
+    // Login routes a non-enrolled user to enrollment when policy requires MFA.
+    expect(LOGIN_SRC).toContain('mfa_enrollment_required');
+    expect(LOGIN_SRC).toMatch(/navigate\(\{\s*to:\s*['"]\/settings\/profile['"]/);
   });
 });

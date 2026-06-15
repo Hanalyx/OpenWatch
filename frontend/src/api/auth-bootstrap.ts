@@ -34,6 +34,8 @@ function permissionsForRole(role: string): string[] {
       'token:read',
       'token:write',
       'token:delete',
+      'system:auth_policy_read',
+      'system:auth_policy_write',
       'admin',
     ];
   }
@@ -78,6 +80,8 @@ export async function bootstrapAuth(): Promise<void> {
         'token:read',
         'token:write',
         'token:delete',
+        'system:auth_policy_read',
+        'system:auth_policy_write',
         'admin',
       ],
       mfaEnabled: false,

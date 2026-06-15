@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -25,15 +26,59 @@ var (
 	ErrSessionExpired  = errors.New("identity: session expired")
 )
 
-// Inactivity + absolute timeout windows. Locked per spec C-06; do not
-// loosen without amending the spec.
+// Default inactivity + absolute timeout windows. These are the baseline
+// per spec C-06; a security admin may override them via the auth policy
+// (Settings -> Security). The defaults preserve the historical behaviour
+// (15-minute idle, 12-hour absolute) until the policy changes them.
 const (
-	SessionInactivityWindow = 15 * time.Minute
-	SessionAbsoluteWindow   = 12 * time.Hour
+	DefaultSessionInactivityWindow = 15 * time.Minute
+	DefaultSessionAbsoluteWindow   = 12 * time.Hour
 	// SessionTokenBytes is the entropy of the presentation token. 32 bytes
 	// (256-bit) per spec C-05.
 	SessionTokenBytes = 32
 )
+
+// Windows carries the active session timeout configuration. The idle
+// window bounds inactivity; the absolute window caps total lifetime
+// regardless of activity.
+//
+// Spec system-auth-policy C-02, system-auth-identity C-06.
+type Windows struct {
+	Idle     time.Duration
+	Absolute time.Duration
+}
+
+// sessionWindows holds the active windows, swappable at runtime by the
+// auth-policy service. An atomic pointer keeps the read path (every
+// session verification) lock-free; the default (nil) preserves the
+// historical constants so code paths that never set a policy — and tests
+// — behave exactly as before.
+var sessionWindows atomic.Pointer[Windows]
+
+// SetSessionWindows installs the active session timeout windows. Called at
+// startup once the auth policy is loaded, and again whenever an admin
+// updates the policy. Non-positive fields fall back to the defaults so a
+// malformed policy can never disable session expiry.
+//
+// Spec system-auth-policy AC-05.
+func SetSessionWindows(w Windows) {
+	if w.Idle <= 0 {
+		w.Idle = DefaultSessionInactivityWindow
+	}
+	if w.Absolute <= 0 {
+		w.Absolute = DefaultSessionAbsoluteWindow
+	}
+	sessionWindows.Store(&w)
+}
+
+// CurrentWindows returns the active windows, or the defaults when no
+// policy has been installed.
+func CurrentWindows() Windows {
+	if w := sessionWindows.Load(); w != nil {
+		return *w
+	}
+	return Windows{Idle: DefaultSessionInactivityWindow, Absolute: DefaultSessionAbsoluteWindow}
+}
 
 // RefreshCookieName is the HttpOnly cookie carrying the refresh token's
 // presentation form. Set at login and rotated by the refresh-cookie
@@ -74,13 +119,14 @@ func IssueSession(ctx context.Context, pool *pgxpool.Pool, userID uuid.UUID, rem
 		return "", Session{}, fmt.Errorf("identity: uuid: %w", err)
 	}
 	now := time.Now().UTC()
+	win := CurrentWindows()
 	sess = Session{
 		ID:                id,
 		UserID:            userID,
 		CreatedAt:         now,
 		LastSeen:          now,
-		ExpiresAt:         now.Add(SessionInactivityWindow),
-		AbsoluteExpiresAt: now.Add(SessionAbsoluteWindow),
+		ExpiresAt:         now.Add(win.Idle),
+		AbsoluteExpiresAt: now.Add(win.Absolute),
 		RemoteAddr:        remoteAddr,
 		UserAgent:         userAgent,
 	}
@@ -139,7 +185,7 @@ func VerifySession(ctx context.Context, pool *pgxpool.Pool, token string) (Sessi
 
 	// Touch last_seen and extend expires_at by the inactivity window —
 	// but never beyond absolute_expires_at.
-	newExpires := now.Add(SessionInactivityWindow)
+	newExpires := now.Add(CurrentWindows().Idle)
 	if newExpires.After(s.AbsoluteExpiresAt) {
 		newExpires = s.AbsoluteExpiresAt
 	}

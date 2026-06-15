@@ -75,6 +75,19 @@ func (h *handlers) PostAuthLogin(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Soft require-MFA enforcement: when workspace policy requires MFA but
+	// this user has not enrolled, still issue the session (so they can reach
+	// the auth-gated enrollment endpoint) but flag the response so the
+	// client forces enrollment before anything else. Hard-blocking here
+	// would lock out a user whose only path to enroll is behind login.
+	// Spec system-auth-policy AC-03, AC-04.
+	mfaEnrollmentRequired := false
+	if !enrolled && h.authPolicySvc != nil {
+		if pol, err := h.authPolicySvc.Get(r.Context()); err == nil && pol.RequireMFA {
+			mfaEnrollmentRequired = true
+		}
+	}
+
 	// Mint session + refresh + access tokens. All three share this users row.
 	sessionToken, _, err := identity.IssueSession(r.Context(), h.pool, u.ID, r.RemoteAddr, r.UserAgent())
 	if err != nil {
@@ -125,11 +138,15 @@ func (h *handlers) PostAuthLogin(w http.ResponseWriter, r *http.Request) {
 		"username": u.Username,
 	})
 
-	writeJSON(w, http.StatusOK, api.AuthLoginResponse{
+	resp := api.AuthLoginResponse{
 		AccessToken:  access,
 		RefreshToken: refresh,
 		User:         userToMe(u, string(role)),
-	})
+	}
+	if mfaEnrollmentRequired {
+		resp.MfaEnrollmentRequired = &mfaEnrollmentRequired
+	}
+	writeJSON(w, http.StatusOK, resp)
 }
 
 // PostAuthLogout revokes the calling session by reading the cookie and

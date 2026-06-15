@@ -1,0 +1,103 @@
+spec:
+  id: system-auth-policy
+  title: Workspace authentication policy — require-MFA + session timeout windows
+  version: "1.0.0"
+  status: approved
+  tier: 1
+
+  context:
+    system: openwatch-go
+    feature: >-
+      The workspace authentication policy is a single row (migration 0033)
+      holding the require-MFA flag and the session idle/absolute timeout
+      windows. internal/authpolicy owns the store; it primes the identity
+      package's active session windows so a change takes effect for newly
+      issued sessions and the rolling idle extension immediately.
+    description: >-
+      Promoting the session windows from hard-coded identity constants to
+      data lets a security admin tune them from Settings -> Security without
+      a redeploy. The defaults match the historical constants (15-minute
+      idle, 12-hour absolute), so the promotion is behaviour-preserving
+      until an admin changes the policy. require_mfa is soft-enforced at
+      login: a password-valid but non-enrolled user is still issued a
+      session (so they can reach the auth-gated enrollment endpoint) but the
+      login response flags mfa_enrollment_required.
+    related_specs:
+      - system-auth-identity
+      - api-auth-policy
+      - system-rbac
+
+  objective:
+    summary: >-
+      Lock the singleton store, the window bounds validation, the
+      identity-window priming, and the soft require-MFA login signal.
+    scope:
+      includes:
+        - "auth_policy migration 0033 (singleton row, seeded defaults)"
+        - "Get returns the stored policy; Update validates + persists + re-primes identity windows"
+        - "identity.Windows are runtime-swappable (SetSessionWindows / CurrentWindows); defaults preserve 15m/12h"
+        - "Soft require-MFA: login issues a session but flags mfa_enrollment_required for a non-enrolled user"
+      excludes:
+        - "SSO / external IdP policy (separate slice)"
+        - "Per-user policy overrides (policy is workspace-wide)"
+
+  constraints:
+    - id: C-01
+      description: >-
+        The auth_policy table MUST hold at most one row (singleton: BOOLEAN
+        primary key pinned to TRUE via CHECK). The migration MUST seed that
+        row with the behaviour-preserving defaults (require_mfa false,
+        900 s idle, 43200 s absolute).
+      type: technical
+      enforcement: error
+    - id: C-02
+      description: >-
+        Update MUST reject (ErrInvalidParams) an idle window outside
+        5 min..24 h, an absolute window outside 1 h..30 d, or an absolute
+        window shorter than the idle window. A valid Update MUST persist the
+        values and re-prime the identity session windows so the change is
+        effective without a restart.
+      type: security
+      enforcement: error
+    - id: C-03
+      description: >-
+        identity.SetSessionWindows MUST coerce a non-positive idle or
+        absolute field to its default, so a malformed policy can never
+        disable session expiry. CurrentWindows MUST return the defaults
+        (15 min / 12 h) when no policy has been installed.
+      type: security
+      enforcement: error
+    - id: C-04
+      description: >-
+        require_mfa enforcement MUST be soft at login: a password-valid user
+        without MFA enrolled is still issued a session, and the login
+        response flags mfa_enrollment_required. The flag MUST be set only
+        when policy require_mfa is true AND the user is not enrolled.
+      type: security
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: Get on a freshly migrated database returns the seeded defaults (require_mfa false, idle 15m, absolute 12h); the auth_policy table rejects a second row insert (singleton CHECK).
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-02
+      description: Update with valid values persists them and a subsequent Get returns them; Update returns ErrInvalidParams for an out-of-bounds idle window, an out-of-bounds absolute window, and an absolute shorter than idle.
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-03
+      description: "Source inspection — PostAuthLogin sets mfa_enrollment_required only when authPolicySvc.Get reports RequireMFA AND the user is not enrolled; the session/cookies are still issued in that branch (no early return)."
+      priority: critical
+      references_constraints: [C-04]
+    - id: AC-04
+      description: "Source inspection — login soft enforcement does not block: there is no writeError/return on the require_mfa-and-not-enrolled path; the response carries the flag alongside the issued tokens."
+      priority: high
+      references_constraints: [C-04]
+    - id: AC-05
+      description: SetSessionWindows with a zero or negative idle/absolute coerces to the default; after Update, IssueSession stamps expires_at and absolute_expires_at using the updated windows.
+      priority: critical
+      references_constraints: [C-02, C-03]
+    - id: AC-06
+      description: "Source inspection — server.New constructs the authpolicy service and calls Prime so the identity windows reflect the stored policy from the first request; Prime failure is non-fatal (defaults remain)."
+      priority: high
+      references_constraints: [C-03]

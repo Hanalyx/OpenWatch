@@ -3097,6 +3097,37 @@ paths:
           description: Revoked (idempotent)
         '403': {$ref: '#/components/responses/Forbidden'}
 
+  # Spec: api-auth-policy — workspace authentication policy.
+  /api/v1/auth-policy:
+    get:
+      operationId: getAuthPolicy
+      summary: View the workspace authentication policy
+      x-required-permission: system:auth_policy_read
+      responses:
+        '200':
+          description: Current policy
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AuthPolicy'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+    put:
+      operationId: putAuthPolicy
+      summary: Replace the workspace authentication policy
+      x-required-permission: system:auth_policy_write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AuthPolicyUpdateRequest'}
+      responses:
+        '200':
+          description: Policy updated
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AuthPolicy'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+
 components:
   responses:
     BadRequest:
@@ -3142,6 +3173,12 @@ components:
         access_token:  {type: string}
         refresh_token: {type: string}
         user:          {$ref: '#/components/schemas/AuthMeResponse'}
+        mfa_enrollment_required:
+          type: boolean
+          description: >-
+            True when workspace policy requires MFA but the user has not
+            enrolled. The session is still issued (soft enforcement); the
+            client must force MFA enrollment before anything else.
 
     AuthRefreshRequest:
       type: object
@@ -3317,6 +3354,34 @@ components:
       properties:
         token:     {type: string, description: The raw secret. Shown once.}
         api_token: {$ref: '#/components/schemas/ApiToken'}
+
+    AuthPolicy:
+      type: object
+      required: [require_mfa, session_idle_timeout_seconds, session_absolute_timeout_seconds, updated_at]
+      description: Workspace-wide authentication policy.
+      properties:
+        require_mfa:
+          type: boolean
+          description: When true, every user must have MFA enrolled (soft-enforced at login).
+        session_idle_timeout_seconds:
+          type: integer
+          description: Inactivity window. A session expires this many seconds after its last use.
+        session_absolute_timeout_seconds:
+          type: integer
+          description: Absolute lifetime cap regardless of activity, in seconds.
+        updated_at: {type: string, format: date-time}
+        updated_by: {type: string, format: uuid, nullable: true}
+
+    AuthPolicyUpdateRequest:
+      type: object
+      required: [require_mfa, session_idle_timeout_seconds, session_absolute_timeout_seconds]
+      description: >-
+        Replaces the whole policy. Bounds (enforced server-side): idle
+        300..86400 s, absolute 3600..2592000 s, absolute >= idle.
+      properties:
+        require_mfa: {type: boolean}
+        session_idle_timeout_seconds:     {type: integer, minimum: 300, maximum: 86400}
+        session_absolute_timeout_seconds: {type: integer, minimum: 3600, maximum: 2592000}
 
     UserCreateRequest:
       type: object

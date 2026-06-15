@@ -153,6 +153,10 @@ events:
     severity: warning
     description: API key invalidated
 
+  - code: auth.policy.updated
+    severity: warning
+    description: Workspace authentication policy changed (require-MFA, session timeouts)
+
   # =========================================================================
   # authz — RBAC and authorization
   # =========================================================================
