@@ -9,6 +9,8 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/smtp"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -92,10 +94,52 @@ func renderPayload(typ ChannelType, a alertrouter.Alert) ([]byte, error) {
 	}
 }
 
-// deliver POSTs the rendered alert to a single channel. A non-2xx
+// deliver routes a single alert to one channel: SMTP for email, HTTP POST
+// for slack/webhook.
+func deliver(ctx context.Context, client *http.Client, ch Channel, a alertrouter.Alert) error {
+	if ch.Type == TypeEmail {
+		return deliverEmail(ch, a)
+	}
+	return deliverHTTP(ctx, client, ch, a)
+}
+
+// deliverEmail sends the alert via SMTP. smtp.SendMail upgrades to
+// STARTTLS when the relay offers it, and PlainAuth refuses to send the
+// credential over an unencrypted connection to a non-localhost host — the
+// secure default. Auth is omitted when no username is configured.
+func deliverEmail(ch Channel, a alertrouter.Alert) error {
+	cfg := ch.Config
+	addr := net.JoinHostPort(cfg.SMTPHost, strconv.Itoa(cfg.SMTPPort))
+	var auth smtp.Auth
+	if cfg.Username != "" {
+		auth = smtp.PlainAuth("", cfg.Username, cfg.Password, cfg.SMTPHost)
+	}
+	subject := fmt.Sprintf("[OpenWatch] [%s] %s", a.Severity, a.Title)
+	msg := buildEmailMessage(cfg.From, cfg.To, subject, a.Body)
+	if err := smtp.SendMail(addr, auth, cfg.From, cfg.To, msg); err != nil {
+		return fmt.Errorf("notification: email send via %q: %w", ch.Name, err)
+	}
+	return nil
+}
+
+// buildEmailMessage assembles a minimal RFC 5322 message.
+func buildEmailMessage(from string, to []string, subject, body string) []byte {
+	var b bytes.Buffer
+	fmt.Fprintf(&b, "From: %s\r\n", from)
+	fmt.Fprintf(&b, "To: %s\r\n", strings.Join(to, ", "))
+	fmt.Fprintf(&b, "Subject: %s\r\n", subject)
+	b.WriteString("MIME-Version: 1.0\r\n")
+	b.WriteString("Content-Type: text/plain; charset=utf-8\r\n")
+	b.WriteString("\r\n")
+	b.WriteString(body)
+	b.WriteString("\r\n")
+	return b.Bytes()
+}
+
+// deliverHTTP POSTs the rendered alert to a single channel. A non-2xx
 // response is an error. The body is drained + closed so the connection
 // can be reused.
-func deliver(ctx context.Context, client *http.Client, ch Channel, a alertrouter.Alert) error {
+func deliverHTTP(ctx context.Context, client *http.Client, ch Channel, a alertrouter.Alert) error {
 	body, err := renderPayload(ch.Type, a)
 	if err != nil {
 		return fmt.Errorf("notification: render payload: %w", err)

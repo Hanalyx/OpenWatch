@@ -248,33 +248,70 @@ function ChannelModal({
   onClose: () => void;
 }) {
   const queryClient = useQueryClient();
-  const [type, setType] = useState<'slack' | 'webhook'>(
-    (channel?.type as 'slack' | 'webhook') ?? 'slack',
+  const [type, setType] = useState<'slack' | 'webhook' | 'email'>(
+    (channel?.type as 'slack' | 'webhook' | 'email') ?? 'slack',
   );
   const [name, setName] = useState(channel?.name ?? '');
   const [url, setUrl] = useState('');
   const [token, setToken] = useState('');
+  // Email/SMTP fields.
+  const [smtpHost, setSmtpHost] = useState('');
+  const [smtpPort, setSmtpPort] = useState('587');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
   const [enabled, setEnabled] = useState(channel?.enabled ?? true);
   const [severity, setSeverity] = useState(channel?.tag_filter?.severity ?? '');
   const [error, setError] = useState<string | null>(null);
+
+  const effectiveType = mode === 'edit' ? (channel?.type as string) : type;
+
+  // secretFields collects the type-specific secret payload, shared by
+  // create (always sent) and edit (sent only when the operator re-enters
+  // a secret, so a blank leaves the stored one untouched).
+  function secretFields(): Record<string, unknown> {
+    if (effectiveType === 'email') {
+      if (!smtpHost) return {};
+      return {
+        smtp_host: smtpHost,
+        smtp_port: Number(smtpPort) || 0,
+        from,
+        to: to
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean),
+        ...(username ? { username } : {}),
+        ...(password ? { password } : {}),
+      };
+    }
+    if (!url) return {};
+    return { url, ...(effectiveType === 'webhook' && token ? { token } : {}) };
+  }
 
   const mutation = useMutation({
     mutationFn: async () => {
       const tagFilter = severity ? { severity } : {};
       if (mode === 'create') {
-        const body: Record<string, unknown> = { type, name, enabled, url, tag_filter: tagFilter };
-        if (type === 'webhook' && token) body.token = token;
+        const body: Record<string, unknown> = {
+          type,
+          name,
+          enabled,
+          tag_filter: tagFilter,
+          ...secretFields(),
+        };
         const { response, error: e } = await api.POST('/api/v1/notifications/channels', {
           body: body as never,
         });
         if (!response.ok) throw new Error(apiErrorMessage(e, 'Create failed'));
       } else {
-        const body: Record<string, unknown> = { name, enabled, tag_filter: tagFilter };
-        // A blank url on edit leaves the existing secret untouched.
-        if (url) {
-          body.url = url;
-          if (channel?.type === 'webhook' && token) body.token = token;
-        }
+        // A blank secret on edit leaves the existing config untouched.
+        const body: Record<string, unknown> = {
+          name,
+          enabled,
+          tag_filter: tagFilter,
+          ...secretFields(),
+        };
         const { response, error: e } = await api.PATCH('/api/v1/notifications/channels/{id}', {
           params: { path: { id: channel!.id } },
           body: body as never,
@@ -288,8 +325,6 @@ function ChannelModal({
     },
     onError: (e: Error) => setError(e.message),
   });
-
-  const effectiveType = mode === 'edit' ? (channel?.type as string) : type;
 
   return (
     <Modal
@@ -319,11 +354,12 @@ function ChannelModal({
         <FormField label="Type">
           <Select
             value={type}
-            onChange={(v) => setType(v as 'slack' | 'webhook')}
+            onChange={(v) => setType(v as 'slack' | 'webhook' | 'email')}
             ariaLabel="Channel type"
             options={[
               { value: 'slack', label: 'Slack (incoming webhook)' },
               { value: 'webhook', label: 'Generic webhook' },
+              { value: 'email', label: 'Email (SMTP)' },
             ]}
           />
         </FormField>
@@ -331,31 +367,97 @@ function ChannelModal({
       <FormField label="Name">
         <input style={inputStyle} value={name} onChange={(e) => setName(e.target.value)} />
       </FormField>
-      <FormField
-        label={effectiveType === 'slack' ? 'Slack webhook URL (https)' : 'Webhook URL (https)'}
-        error={mode === 'edit' ? undefined : error ? '' : undefined}
-      >
-        <input
-          style={inputStyle}
-          type="url"
-          value={url}
-          placeholder={
-            mode === 'edit' ? 'Leave blank to keep current' : 'https://hooks.slack.com/services/...'
-          }
-          onChange={(e) => setUrl(e.target.value)}
-        />
-      </FormField>
-      {effectiveType === 'webhook' && (
-        <FormField label="Bearer token (optional)">
-          <input
-            style={inputStyle}
-            type="password"
-            value={token}
-            placeholder={mode === 'edit' ? 'Leave blank to keep current' : ''}
-            autoComplete="new-password"
-            onChange={(e) => setToken(e.target.value)}
-          />
-        </FormField>
+      {effectiveType === 'email' ? (
+        <>
+          <div style={{ display: 'flex', gap: 12 }}>
+            <div style={{ flex: 2 }}>
+              <FormField label="SMTP host">
+                <input
+                  style={inputStyle}
+                  value={smtpHost}
+                  placeholder={mode === 'edit' ? 'Leave blank to keep current' : 'smtp.example.com'}
+                  onChange={(e) => setSmtpHost(e.target.value)}
+                />
+              </FormField>
+            </div>
+            <div style={{ flex: 1 }}>
+              <FormField label="Port">
+                <input
+                  style={inputStyle}
+                  type="number"
+                  value={smtpPort}
+                  onChange={(e) => setSmtpPort(e.target.value)}
+                />
+              </FormField>
+            </div>
+          </div>
+          <FormField label="Username (optional)">
+            <input
+              style={inputStyle}
+              value={username}
+              autoComplete="off"
+              placeholder={mode === 'edit' ? 'Leave blank to keep current' : ''}
+              onChange={(e) => setUsername(e.target.value)}
+            />
+          </FormField>
+          <FormField label="Password (optional)">
+            <input
+              style={inputStyle}
+              type="password"
+              value={password}
+              autoComplete="new-password"
+              placeholder={mode === 'edit' ? 'Leave blank to keep current' : ''}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </FormField>
+          <FormField label="From address">
+            <input
+              style={inputStyle}
+              type="email"
+              value={from}
+              placeholder="openwatch@example.com"
+              onChange={(e) => setFrom(e.target.value)}
+            />
+          </FormField>
+          <FormField label="Recipients (comma-separated)">
+            <input
+              style={inputStyle}
+              value={to}
+              placeholder="secops@example.com, oncall@example.com"
+              onChange={(e) => setTo(e.target.value)}
+            />
+          </FormField>
+        </>
+      ) : (
+        <>
+          <FormField
+            label={effectiveType === 'slack' ? 'Slack webhook URL (https)' : 'Webhook URL (https)'}
+          >
+            <input
+              style={inputStyle}
+              type="url"
+              value={url}
+              placeholder={
+                mode === 'edit'
+                  ? 'Leave blank to keep current'
+                  : 'https://hooks.slack.com/services/...'
+              }
+              onChange={(e) => setUrl(e.target.value)}
+            />
+          </FormField>
+          {effectiveType === 'webhook' && (
+            <FormField label="Bearer token (optional)">
+              <input
+                style={inputStyle}
+                type="password"
+                value={token}
+                placeholder={mode === 'edit' ? 'Leave blank to keep current' : ''}
+                autoComplete="new-password"
+                onChange={(e) => setToken(e.target.value)}
+              />
+            </FormField>
+          )}
+        </>
       )}
       <FormField label="Deliver for">
         <Select

@@ -2038,15 +2038,15 @@ export interface components {
         UsersListResponse: {
             users: components["schemas"]["UserResponse"][];
         };
-        /** @description A delivery channel. The target URL + token are secret and are NEVER returned; target_hint is the non-secret URL host. */
+        /** @description A delivery channel. The target secret (URL + token, or SMTP host/credentials) is NEVER returned; target_hint is the non-secret host (URL host for slack/webhook, SMTP host for email). */
         NotificationChannel: {
             /** Format: uuid */
             id: string;
             /** @enum {string} */
-            type: "slack" | "webhook";
+            type: "slack" | "webhook" | "email";
             name: string;
             enabled: boolean;
-            /** @description Non-secret URL host (e.g. hooks.slack.com) */
+            /** @description Non-secret host (URL host or SMTP host) */
             target_hint: string;
             /** @description Alert tags this channel matches; empty = every alert */
             tag_filter: {
@@ -2060,26 +2060,45 @@ export interface components {
         NotificationChannelList: {
             channels: components["schemas"]["NotificationChannel"][];
         };
+        /** @description For slack/webhook supply url (https, public host). For email supply smtp_host/smtp_port/from/to (and username/password if the relay authenticates). All secrets are stored encrypted and never returned. */
         NotificationChannelCreate: {
             /** @enum {string} */
-            type: "slack" | "webhook";
+            type: "slack" | "webhook" | "email";
             name: string;
             /** @default true */
             enabled: boolean;
-            /** @description Target URL (https, public host). Stored encrypted; never returned. */
-            url: string;
-            /** @description Optional bearer token for webhook auth. Stored encrypted; never returned. */
+            /** @description Target URL (https, public host) for slack/webhook. Stored encrypted. */
+            url?: string;
+            /** @description Optional bearer token for webhook auth. Stored encrypted. */
             token?: string;
+            /** @description SMTP relay host (email). Stored encrypted. */
+            smtp_host?: string;
+            /** @description SMTP relay port (email) */
+            smtp_port?: number;
+            /** @description SMTP auth username (email). Stored encrypted. */
+            username?: string;
+            /** @description SMTP auth password (email). Stored encrypted. */
+            password?: string;
+            /** @description Envelope From address (email). */
+            from?: string;
+            /** @description Recipient addresses (email). */
+            to?: string[];
             tag_filter?: {
                 [key: string]: string;
             };
         };
-        /** @description Updates name/enabled/tag_filter. Supplying url replaces the secret config (token optional); omitting url leaves the secret unchanged. */
+        /** @description Updates name/enabled/tag_filter. Supplying the secret config (url for slack/webhook, or smtp_host for email) replaces it; omitting it leaves the stored secret unchanged. */
         NotificationChannelUpdate: {
             name: string;
             enabled: boolean;
             url?: string;
             token?: string;
+            smtp_host?: string;
+            smtp_port?: number;
+            username?: string;
+            password?: string;
+            from?: string;
+            to?: string[];
             tag_filter?: {
                 [key: string]: string;
             };

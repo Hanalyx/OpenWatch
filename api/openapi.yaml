@@ -3164,14 +3164,15 @@ components:
       type: object
       required: [id, type, name, enabled, target_hint, tag_filter, created_at, updated_at]
       description: >-
-        A delivery channel. The target URL + token are secret and are
-        NEVER returned; target_hint is the non-secret URL host.
+        A delivery channel. The target secret (URL + token, or SMTP
+        host/credentials) is NEVER returned; target_hint is the non-secret
+        host (URL host for slack/webhook, SMTP host for email).
       properties:
         id:          {type: string, format: uuid}
-        type:        {type: string, enum: [slack, webhook]}
+        type:        {type: string, enum: [slack, webhook, email]}
         name:        {type: string}
         enabled:     {type: boolean}
-        target_hint: {type: string, description: Non-secret URL host (e.g. hooks.slack.com)}
+        target_hint: {type: string, description: Non-secret host (URL host or SMTP host)}
         tag_filter:
           type: object
           additionalProperties: {type: string}
@@ -3187,17 +3188,30 @@ components:
           items: {$ref: '#/components/schemas/NotificationChannel'}
     NotificationChannelCreate:
       type: object
-      required: [type, name, url]
+      required: [type, name]
+      description: >-
+        For slack/webhook supply url (https, public host). For email supply
+        smtp_host/smtp_port/from/to (and username/password if the relay
+        authenticates). All secrets are stored encrypted and never returned.
       properties:
-        type:    {type: string, enum: [slack, webhook]}
+        type:    {type: string, enum: [slack, webhook, email]}
         name:    {type: string, minLength: 1, maxLength: 256}
         enabled: {type: boolean, default: true}
         url:
           type: string
-          description: Target URL (https, public host). Stored encrypted; never returned.
+          description: Target URL (https, public host) for slack/webhook. Stored encrypted.
         token:
           type: string
-          description: Optional bearer token for webhook auth. Stored encrypted; never returned.
+          description: Optional bearer token for webhook auth. Stored encrypted.
+        smtp_host: {type: string, description: SMTP relay host (email). Stored encrypted.}
+        smtp_port: {type: integer, description: SMTP relay port (email), e.g. 587.}
+        username:  {type: string, description: SMTP auth username (email). Stored encrypted.}
+        password:  {type: string, description: SMTP auth password (email). Stored encrypted.}
+        from:      {type: string, description: Envelope From address (email).}
+        to:
+          type: array
+          items: {type: string}
+          description: Recipient addresses (email).
         tag_filter:
           type: object
           additionalProperties: {type: string}
@@ -3205,13 +3219,22 @@ components:
       type: object
       required: [name, enabled]
       description: >-
-        Updates name/enabled/tag_filter. Supplying url replaces the secret
-        config (token optional); omitting url leaves the secret unchanged.
+        Updates name/enabled/tag_filter. Supplying the secret config
+        (url for slack/webhook, or smtp_host for email) replaces it;
+        omitting it leaves the stored secret unchanged.
       properties:
-        name:    {type: string, minLength: 1, maxLength: 256}
-        enabled: {type: boolean}
-        url:     {type: string}
-        token:   {type: string}
+        name:      {type: string, minLength: 1, maxLength: 256}
+        enabled:   {type: boolean}
+        url:       {type: string}
+        token:     {type: string}
+        smtp_host: {type: string}
+        smtp_port: {type: integer}
+        username:  {type: string}
+        password:  {type: string}
+        from:      {type: string}
+        to:
+          type: array
+          items: {type: string}
         tag_filter:
           type: object
           additionalProperties: {type: string}

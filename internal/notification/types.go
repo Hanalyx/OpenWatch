@@ -26,22 +26,41 @@ type ChannelType string
 const (
 	TypeSlack   ChannelType = "slack"
 	TypeWebhook ChannelType = "webhook"
+	TypeEmail   ChannelType = "email"
 )
 
 // IsValid reports whether t is a supported channel type.
 func (t ChannelType) IsValid() bool {
+	return t == TypeSlack || t == TypeWebhook || t == TypeEmail
+}
+
+// IsHTTP reports whether the channel delivers over HTTP (slack/webhook),
+// as opposed to SMTP (email).
+func (t ChannelType) IsHTTP() bool {
 	return t == TypeSlack || t == TypeWebhook
 }
 
 // Config is the decrypted, in-process-only secret payload for a channel.
-// It is never serialized to the API or logged.
+// It is never serialized to the API or logged. The URL/Token fields apply
+// to HTTP channels (slack/webhook); the SMTP* + mail fields apply to email.
 type Config struct {
 	// URL is the Slack incoming-webhook URL or the generic webhook
 	// endpoint. Must be https to a public host (SSRF guard).
-	URL string `json:"url"`
+	URL string `json:"url,omitempty"`
 	// Token, when set (webhook only), is sent as an Authorization:
 	// Bearer header. Optional.
 	Token string `json:"token,omitempty"`
+
+	// Email/SMTP fields (TypeEmail). The relay may be an internal host —
+	// SMTP is operator-trusted infrastructure, so the public-host SSRF
+	// block that applies to webhook/slack is NOT applied here; TLS
+	// (STARTTLS) + auth still protect the credential.
+	SMTPHost string   `json:"smtp_host,omitempty"`
+	SMTPPort int      `json:"smtp_port,omitempty"`
+	Username string   `json:"username,omitempty"`
+	Password string   `json:"password,omitempty"`
+	From     string   `json:"from,omitempty"`
+	To       []string `json:"to,omitempty"`
 }
 
 // Channel is a stored delivery channel. Config is populated only on the
