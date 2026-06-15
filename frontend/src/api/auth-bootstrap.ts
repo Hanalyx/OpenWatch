@@ -27,6 +27,10 @@ function permissionsForRole(role: string): string[] {
       'credential:delete',
       'scan:read',
       'audit:read',
+      'notification:read',
+      'notification:write',
+      'notification:delete',
+      'notification:test',
       'admin',
     ];
   }
@@ -64,6 +68,10 @@ export async function bootstrapAuth(): Promise<void> {
         'credential:write',
         'scan:read',
         'audit:read',
+        'notification:read',
+        'notification:write',
+        'notification:delete',
+        'notification:test',
         'admin',
       ],
       mfaEnabled: false,

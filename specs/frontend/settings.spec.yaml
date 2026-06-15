@@ -1,7 +1,7 @@
 spec:
   id: frontend-settings
   title: Settings — two-pane shell with 11 sub-pages
-  version: "1.4.0"
+  version: "1.5.0"
   status: draft
   tier: 2
 
@@ -62,7 +62,8 @@ spec:
         - "Users & teams — list from GET /api/v1/users (admin-gated), with roles per member, Invite (POST /users) and Manage (role assign/unassign + soft-delete) modals (v1.4.0)"
         - "Audit log — filterable, cursor-paginated GET /api/v1/audit/events, audit:read gated, read-only (v1.3.0)"
         - "About — version from GET /api/v1/version + license state from GET /api/v1/license (v1.3.0)"
-        - "Notifications, Integrations, Security — structural shells with Backend Pending banner"
+        - "Notifications — Slack/webhook channel CRUD + test over /api/v1/notifications/channels, notification:read gated, secrets write-only (v1.5.0)"
+        - "Integrations, Security — structural shells with Backend Pending banner"
         - "All control widgets themed via --ow-* tokens"
       excludes:
         - "PATCH /auth/me wiring (backend endpoint deferred)"
@@ -140,10 +141,9 @@ spec:
       enforcement: error
     - id: C-09
       description: >-
-        The remaining stubbed pages (Notifications, Integrations,
-        Security) MUST each render a BackendPendingBanner identifying
-        the slice that unblocks them. Every interactive control on
-        these pages MUST be disabled
+        The remaining stubbed pages (Integrations, Security) MUST each
+        render a BackendPendingBanner identifying the slice that unblocks
+        them. Every interactive control on these pages MUST be disabled
       type: technical
       enforcement: error
     - id: C-10
@@ -187,6 +187,18 @@ spec:
         /api/v1/license (tier, status, entitled features, expiry) —
         never hardcoded. Version stays sourced from GET /api/v1/version.
       type: technical
+      enforcement: error
+    - id: C-15
+      description: >-
+        v1.5.0 — Notifications (src/pages/settings/NotificationsPage.tsx)
+        MUST be gated on hasPermission('notification:read') (ForbiddenPage
+        otherwise) and list channels from GET /api/v1/notifications/channels
+        keyed ['notification-channels']. Add/Edit MUST POST/PATCH and Delete
+        MUST DELETE that resource, and Test MUST POST the :test sub-route;
+        every mutation invalidates ['notification-channels']. The page MUST
+        render only the non-secret target_hint (never a url/token) and gate
+        write/delete/test controls on notification:write/delete/test.
+      type: security
       enforcement: error
 
   acceptance_criteria:
@@ -247,7 +259,7 @@ spec:
       priority: critical
       references_constraints: [C-08]
     - id: AC-15
-      description: v1.3.0 — Each remaining stubbed Settings page (Notifications, Integrations, Security — three now that Audit log and About are wired and Compliance policies hosts the live scan-variables section) renders a single BackendPendingBanner naming the slice. Visible controls render disabled. PoliciesPage lives in its own file with per-section banners on its remaining stub sections.
+      description: v1.5.0 — Each remaining stubbed Settings page (Integrations, Security — two now that Notifications, Audit log and About are wired and Compliance policies hosts the live scan-variables section) renders a single BackendPendingBanner naming the slice. Visible controls render disabled. PoliciesPage lives in its own file with per-section banners on its remaining stub sections.
       priority: high
       references_constraints: [C-09]
     - id: AC-16
@@ -278,3 +290,7 @@ spec:
       description: "v1.4.0 source-inspection: per-member Manage opens ManageUserModal, which assigns/unassigns roles via POST /api/v1/users/{id}/roles:assign and :unassign, soft-deletes via DELETE /api/v1/users/{id}, sources the assignable list from GET /api/v1/roles, and invalidates the ['users'] query on every mutation success."
       priority: high
       references_constraints: [C-08]
+    - id: AC-23
+      description: "v1.5.0 source-inspection: NotificationsPage gates on hasPermission('notification:read') returning ForbiddenPage when absent; it lists from GET /api/v1/notifications/channels keyed ['notification-channels']; Add/Edit call api.POST/PATCH '/api/v1/notifications/channels', Delete calls api.DELETE, Test calls POST '/api/v1/notifications/channels/{id}:test', and every mutation invalidates ['notification-channels']; the page renders channel.target_hint and references no response url/token field. AC-15 stub set excludes Notifications."
+      priority: high
+      references_constraints: [C-15]

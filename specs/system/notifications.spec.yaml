@@ -1,0 +1,107 @@
+spec:
+  id: system-notifications
+  title: Notification channels — encrypted store + SSRF-guarded delivery
+  version: "1.0.0"
+  status: approved
+  tier: 2
+
+  context:
+    system: openwatch-go
+    feature: >-
+      Operator-managed alert-delivery channels (Slack, generic webhook).
+      A row per channel in notification_channels carries its routing tag
+      filter and an AES-256-GCM encrypted config (target URL + optional
+      bearer token). The notification.DispatchChannel adapts the store to
+      the existing alertrouter.Channel seam, fanning every fired alert out
+      to all enabled, tag-matching channels.
+    description: >-
+      Slice 2a ships Slack + webhook (both https POST). Email/SMTP is a
+      follow-up. Secrets never touch a column in plaintext and are never
+      returned by the API; the non-secret target_hint (URL host) is stored
+      alongside for display so the list/read path never decrypts. Outbound
+      delivery is SSRF-guarded: only https URLs to public hosts are dialed
+      (literal private/loopback/link-local IPs rejected at validate time;
+      the resolved IP re-checked at dial time to close the TOCTOU gap).
+    related_specs:
+      - api-notifications
+      - system-alerts
+      - system-credential-store
+
+  objective:
+    summary: >-
+      Lock the encrypted-at-rest channel store, the SSRF guard, the
+      secret-free list/read path, and the alertrouter dispatch fan-out.
+    scope:
+      includes:
+        - "notification_channels migration 0030 (config_ciphertext BYTEA, target_hint, tag_filter JSONB)"
+        - "Create/List/Get/Update/Delete with config encrypted via secretkey.Active()"
+        - "SSRF guard: https-only, public-host-only, dial-time re-check"
+        - "DispatchChannel.Send fans out to enabled tag-matching channels"
+      excludes:
+        - "Email/SMTP channel (follow-up slice 2b)"
+        - "Delivery retry/backoff + per-delivery history (follow-up)"
+
+  constraints:
+    - id: C-01
+      description: >-
+        The channel target (URL + optional token) MUST be encrypted with
+        secretkey.Active() before persistence (config_ciphertext BYTEA) and
+        MUST NEVER be stored in a plaintext column. The list/read paths
+        (List, Get) MUST NOT decrypt — they return target_hint (the URL
+        host) only. Decryption happens only on the delivery + test paths.
+      type: security
+      enforcement: error
+    - id: C-02
+      description: >-
+        Outbound delivery MUST be SSRF-guarded. safeURLHost MUST reject any
+        non-https URL and any literal loopback/private/link-local/
+        unspecified IP (and localhost names) at validate time; the delivery
+        HTTP client MUST re-check the post-DNS resolved IP at dial time and
+        refuse non-public addresses.
+      type: security
+      enforcement: error
+    - id: C-03
+      description: >-
+        DispatchChannel.Send MUST deliver only to enabled channels whose
+        tag filter matches the alert (empty filter = wildcard), and a
+        delivery failure to one channel MUST NOT stop delivery to the
+        others (it returns the first error for the router's failure metric).
+      type: technical
+      enforcement: error
+    - id: C-04
+      description: >-
+        The notification package MUST NOT import any external notification
+        SDK (Slack/webhook clients); delivery uses net/http + encoding/json
+        only, mirroring alertrouter's no-SDK rule.
+      type: technical
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: Create encrypts the config and persists config_ciphertext + target_hint; a round-trip getDecrypted returns the original URL + token, and the ciphertext column never equals the plaintext URL bytes.
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-02
+      description: List and Get return channels with Config zero (TargetHint set, no URL/token); they issue no decrypt. Source inspection — neither List nor Get calls decryptConfig.
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-03
+      description: "safeURLHost rejects http:// URLs, returns ErrInvalidConfig for literal private/loopback/link-local IPs (127.0.0.1, 10.0.0.1, 169.254.169.254, ::1) and localhost, and accepts a public https host returning its hostname."
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-04
+      description: isBlockedIP returns true for loopback, RFC1918 private, link-local, and unspecified addresses, and false for a public address (e.g. 1.1.1.1); the delivery client's dial Control refuses a blocked resolved IP.
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-05
+      description: DispatchChannel.Send delivers to an enabled wildcard channel and to a channel whose tag filter matches the alert tags, and skips a disabled channel and a non-matching tag filter; matchesTags treats an empty filter as a wildcard.
+      priority: high
+      references_constraints: [C-03]
+    - id: AC-06
+      description: Update with ReplaceConfig=false leaves config_ciphertext + target_hint unchanged (name/enabled/tag_filter only); Update with ReplaceConfig=true re-encrypts and refreshes target_hint. Delete is idempotent for a missing id.
+      priority: high
+      references_constraints: [C-01]
+    - id: AC-07
+      description: Source inspection — the notification package imports no external Slack/webhook SDK (only net/http + encoding/json for delivery).
+      priority: high
+      references_constraints: [C-04]

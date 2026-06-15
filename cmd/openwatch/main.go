@@ -45,6 +45,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/license"
 	"github.com/Hanalyx/openwatch/internal/liveness"
 	openlog "github.com/Hanalyx/openwatch/internal/log"
+	"github.com/Hanalyx/openwatch/internal/notification"
 	"github.com/Hanalyx/openwatch/internal/posture"
 	"github.com/Hanalyx/openwatch/internal/report"
 	"github.com/Hanalyx/openwatch/internal/scanresult"
@@ -313,6 +314,13 @@ func cmdServe(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 	router.Register(alertrouter.ChannelRegistration{
 		Channel: stdoutchan.New("stdout"),
 	})
+	// The notification dispatcher fans every alert out to all enabled,
+	// tag-matching operator-configured channels (Slack/webhook) loaded
+	// from the DB, so new channels take effect without re-registering.
+	notifSvc := notification.NewService(pool)
+	router.Register(alertrouter.ChannelRegistration{
+		Channel: notification.NewDispatchChannel(notifSvc),
+	})
 	router.Start(ctx) // C-09: subscriber active before any publisher.
 
 	// systemconfig store backs operator-tunable runtime values.
@@ -562,7 +570,8 @@ func cmdServe(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 		WithExceptions(exceptionSvc).
 		WithGroups(group.NewService(pool)).
 		WithReports(report.NewService(pool)).
-		WithScanResults(scanresult.NewReader(pool))
+		WithScanResults(scanresult.NewReader(pool)).
+		WithNotifications(notifSvc)
 	runErr := srv.Run(ctx)
 
 	// Shutdown order REVERSE of boot (C-02). liveness.Run + alertrouter

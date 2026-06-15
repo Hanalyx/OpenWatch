@@ -23,6 +23,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/kensa"
 	"github.com/Hanalyx/openwatch/internal/license"
 	"github.com/Hanalyx/openwatch/internal/liveness"
+	"github.com/Hanalyx/openwatch/internal/notification"
 	"github.com/Hanalyx/openwatch/internal/policy"
 	"github.com/Hanalyx/openwatch/internal/queue"
 	"github.com/Hanalyx/openwatch/internal/report"
@@ -111,6 +112,10 @@ type handlers struct {
 	// Kensa rule library (full normalized corpus). Set via
 	// (*Server).WithRuleLibrary; nil makes /api/v1/rules 503. Spec api-rules.
 	ruleLibrary *kensa.RuleLibrary
+
+	// Notification-channel CRUD + test. Set via (*Server).WithNotifications;
+	// nil makes the /api/v1/notifications endpoints 503. Spec api-notifications.
+	notificationSvc *notification.Service
 }
 
 // newHandlers constructs the ServerInterface implementation. The user

@@ -2960,6 +2960,101 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
 
+  # Spec: api-notifications — operator-managed alert-delivery channels.
+  /api/v1/notifications/channels:
+    get:
+      operationId: getNotificationChannels
+      summary: List notification channels (secrets redacted)
+      x-required-permission: notification:read
+      responses:
+        '200':
+          description: Channel list
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/NotificationChannelList'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '503': {$ref: '#/components/responses/ServiceUnavailable'}
+    post:
+      operationId: postNotificationChannel
+      summary: Create a notification channel
+      x-required-permission: notification:write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/NotificationChannelCreate'}
+      responses:
+        '201':
+          description: Channel created (secret redacted)
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/NotificationChannel'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '503': {$ref: '#/components/responses/ServiceUnavailable'}
+  /api/v1/notifications/channels/{id}:
+    get:
+      operationId: getNotificationChannel
+      summary: Fetch a notification channel (secret redacted)
+      x-required-permission: notification:read
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200':
+          description: Channel
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/NotificationChannel'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '503': {$ref: '#/components/responses/ServiceUnavailable'}
+    patch:
+      operationId: patchNotificationChannel
+      summary: Update a notification channel
+      x-required-permission: notification:write
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/NotificationChannelUpdate'}
+      responses:
+        '200':
+          description: Updated channel (secret redacted)
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/NotificationChannel'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '503': {$ref: '#/components/responses/ServiceUnavailable'}
+    delete:
+      operationId: deleteNotificationChannel
+      summary: Delete a notification channel
+      x-required-permission: notification:delete
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '204':
+          description: Deleted
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '503': {$ref: '#/components/responses/ServiceUnavailable'}
+  /api/v1/notifications/channels/{id}:test:
+    post:
+      operationId: testNotificationChannel
+      summary: Send a synthetic test alert through the channel
+      x-required-permission: notification:test
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '204':
+          description: Test alert delivered
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '503': {$ref: '#/components/responses/ServiceUnavailable'}
+
 components:
   responses:
     BadRequest:
@@ -2969,6 +3064,21 @@ components:
           schema: {$ref: '#/components/schemas/ErrorEnvelope'}
     MethodNotAllowed:
       description: Wrong HTTP method
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+    Forbidden:
+      description: Caller lacks the required permission
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+    ServiceUnavailable:
+      description: Backing service not wired on the server
       content:
         application/json:
           schema: {$ref: '#/components/schemas/ErrorEnvelope'}
@@ -3049,6 +3159,62 @@ components:
         users:
           type: array
           items: {$ref: '#/components/schemas/UserResponse'}
+
+    NotificationChannel:
+      type: object
+      required: [id, type, name, enabled, target_hint, tag_filter, created_at, updated_at]
+      description: >-
+        A delivery channel. The target URL + token are secret and are
+        NEVER returned; target_hint is the non-secret URL host.
+      properties:
+        id:          {type: string, format: uuid}
+        type:        {type: string, enum: [slack, webhook]}
+        name:        {type: string}
+        enabled:     {type: boolean}
+        target_hint: {type: string, description: Non-secret URL host (e.g. hooks.slack.com)}
+        tag_filter:
+          type: object
+          additionalProperties: {type: string}
+          description: Alert tags this channel matches; empty = every alert
+        created_at:  {type: string, format: date-time}
+        updated_at:  {type: string, format: date-time}
+    NotificationChannelList:
+      type: object
+      required: [channels]
+      properties:
+        channels:
+          type: array
+          items: {$ref: '#/components/schemas/NotificationChannel'}
+    NotificationChannelCreate:
+      type: object
+      required: [type, name, url]
+      properties:
+        type:    {type: string, enum: [slack, webhook]}
+        name:    {type: string, minLength: 1, maxLength: 256}
+        enabled: {type: boolean, default: true}
+        url:
+          type: string
+          description: Target URL (https, public host). Stored encrypted; never returned.
+        token:
+          type: string
+          description: Optional bearer token for webhook auth. Stored encrypted; never returned.
+        tag_filter:
+          type: object
+          additionalProperties: {type: string}
+    NotificationChannelUpdate:
+      type: object
+      required: [name, enabled]
+      description: >-
+        Updates name/enabled/tag_filter. Supplying url replaces the secret
+        config (token optional); omitting url leaves the secret unchanged.
+      properties:
+        name:    {type: string, minLength: 1, maxLength: 256}
+        enabled: {type: boolean}
+        url:     {type: string}
+        token:   {type: string}
+        tag_filter:
+          type: object
+          additionalProperties: {type: string}
 
     UserCreateRequest:
       type: object
