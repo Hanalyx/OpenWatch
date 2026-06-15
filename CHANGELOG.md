@@ -10,8 +10,20 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+---
+
+## [0.2.0-rc.7] Eyrie — 2026-06-14
+
+The navigable-application candidate: rc.6 made compliance scanning work, and
+rc.7 makes it a product you move through. The full app shell came alive (a
+public Radar homepage, a live fleet dashboard, an activity feed, a scans
+overview, and Groups + Reports), historical scan evidence is now durable and
+exportable as OSCAL, and the ~539-rule Kensa corpus is browsable. Still a
+pre-release, pending the GA fleet-verification gate.
+
 ### Added
-- **Durable per-scan compliance evidence + `/scans` surface** (PR #535). The
+
+- **Durable per-scan compliance evidence + `/scans` surface** (#535). The
   write-on-change model (`host_rule_state` + `transactions`) overwrote a
   superseded scan's per-rule evidence, leaving historical proof unrecoverable.
   A content-addressed `scan_results` store (migration 0029, `internal/scanresult/`)
@@ -21,14 +33,45 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   per-rule evidence, and per-rule + whole-scan OSCAL 1.0.6 export reconstructed
   on demand via Kensa. A scan-detail page is reached from `/scans` (host
   history -> scan detail -> per-rule Formatted / Evidence / OSCAL drill-down,
-  Evidence and OSCAL shown as raw JSON). The host-detail Compliance tab stays
-  current-state and evidence-free. Specs `system-scan-results-store`,
+  Evidence and OSCAL shown as raw JSON). Specs `system-scan-results-store`,
   `api-scans`, `frontend-scan-detail`.
+- **Kensa rule-library browser** as the Rules tab on `/scans` (#536). The full
+  ~539-rule corpus is browsable with search and severity / category / framework
+  filters, framework-reference tags, and a remediation column (manual / atomic /
+  staged, with reboot and service-restart hints), plus CSV export. Built on the
+  Kensa v0.4.3 read model (`pkg/kensa.LoadRuleSummaries`). `scan:read`-gated.
+  Specs `api-rules`, `frontend-rules-library`.
+- **Per-rule evidence/OSCAL drill-down on the host Compliance tab** (#537). Each
+  rule row on the host-detail Compliance tab expands into the same Formatted /
+  Evidence / OSCAL panel as the scan-detail page. The host-compliance API stays
+  evidence-free: the drill-down reaches the `scan:read`-gated `/scans` evidence
+  endpoints for the host's latest scan, and the control shows only to callers
+  holding `scan:read`. Spec `frontend-host-compliance-tab` v1.3.0.
+- **Public Radar homepage + enhanced login** (#528). An unauthenticated landing
+  page at `/`; the authenticated dashboard moved to `/dashboard`.
+- **Fleet dashboard MVP** at `/dashboard`, wired to the live fleet endpoints
+  (#529).
+- **Activity feed MVP** at `/activity` (#530).
+- **Scans overview MVP** at `/scans` — the home for scan history and the rule
+  library (#531).
+- **Groups + Reports MVP** (#533): Groups organizes the fleet by site and OS
+  category; Reports is a reports library. Specs `api-groups`, `frontend-groups`,
+  `api-reports`, `frontend-reports`.
+
+### Changed
+
+- Remediation is documented as shipping **beta in GA**; remaining scan-platform
+  work split into its own tracking file and reconciled for the release
+  (#525, #526).
 
 ### Fixed
+
+- The topbar breadcrumb is now set on every navigation page instead of going
+  stale after the first route (#534).
+- Unrouted sidebar links are disabled rather than navigating to a 404 (#527).
 - The frontend's synthesized role->permission baseline omitted `scan:read`,
   which would have redirected every user away from the new scan-detail route
-  even though the backend grants `scan:read` to all built-in roles.
+  even though the backend grants `scan:read` to all built-in roles (#535).
 
 ---
 
