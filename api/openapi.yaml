@@ -3032,6 +3032,12 @@ components:
         id:                       {type: string, format: uuid}
         username:                 {type: string}
         email:                    {type: string}
+        roles:
+          type: array
+          items: {type: string}
+          description: >-
+            Role IDs assigned to the user. Populated by the list endpoint
+            (GET /users); other responses may omit it.
         last_password_change_at:  {type: string, format: date-time}
         created_at:               {type: string, format: date-time}
         updated_at:               {type: string, format: date-time}

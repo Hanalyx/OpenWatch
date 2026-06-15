@@ -234,7 +234,7 @@ func (h *handlers) identityUUID(r *http.Request) *uuid.UUID {
 // inferred from the user's role assignments at the call site; this
 // struct intentionally carries no is_admin flag.
 func userResponse(u users.User) api.UserResponse {
-	return api.UserResponse{
+	resp := api.UserResponse{
 		Id:                   openapitypes.UUID(u.ID),
 		Username:             u.Username,
 		Email:                u.Email,
@@ -242,6 +242,13 @@ func userResponse(u users.User) api.UserResponse {
 		CreatedAt:            &u.CreatedAt,
 		UpdatedAt:            &u.UpdatedAt,
 	}
+	// Roles is populated only by the list path (ListUsers); lookups that
+	// don't join user_roles leave it nil, and we omit it rather than emit
+	// a misleading empty/null array.
+	if u.Roles != nil {
+		resp.Roles = &u.Roles
+	}
+	return resp
 }
 
 // writeErrorWithDetail is the writeError variant that includes a

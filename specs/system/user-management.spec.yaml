@@ -109,3 +109,7 @@ spec:
     - id: AC-12
       description: Migration 0006 seeds the 5 built-in roles (viewer, auditor, ops_lead, security_admin, admin) with is_built_in=true; PrimaryRoleFor + AssignRole both work without any additional setup post-migrate.
       priority: critical
+    - id: AC-13
+      description: ListUsers returns each non-deleted user with its assigned role ids aggregated into User.Roles (a non-nil empty slice when the user has no roles); a user with {viewer, ops_lead} lists both ids, and a soft-deleted user does not appear at all.
+      priority: high
+      references_constraints: [C-05]
