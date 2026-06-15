@@ -1,7 +1,7 @@
 spec:
   id: frontend-host-detail
   title: Host Detail page layout, behavior, and empty-state contracts
-  version: "1.4.0"
+  version: "1.5.0"
   status: approved
   tier: 2
 
@@ -230,3 +230,7 @@ spec:
       description: 'v1.4.0 - the Compliance trend card is LIVE: it queries /api/v1/hosts/{id}/compliance/trend with queryKey ["host", hostId, "compliance_trend"] (the host prefix gives free scan.completed refresh), renders the score sparkline plus the latest score and the over-window delta when snapshots exist, and an honest empty state ("No snapshots yet", naming the hourly rollup) when none do; the loading guard is isPending'
       priority: high
       references_constraints: [C-04]
+
+    - id: AC-39
+      description: 'v1.5.0 - the page-head Edit button is gated on host:write (hidden for callers without it), and the page-head three-dot actions menu (HostActionsMenu with showEdit false) offers Delete gated on host:delete: an explicit confirmation modal precedes DELETE /api/v1/hosts/{id}, and on success the app navigates to /hosts. Source-inspection of HostDetailPage.tsx + HostActionsMenu.tsx.'
+      priority: high
