@@ -39,6 +39,7 @@ spec:
         - Multi-arch builds (amd64 + arm64) via ARCH, cross-compiled with CGO disabled
         - Kensa rule corpus shipped as a separate noarch/all kensa-rules package
         - Hard dependency from openwatch on kensa-rules so a corpus-less install fails fast
+        - Install-time provisioning of the production identity keys (JWT signing key + credential DEK) that the server refuses to auto-generate
       excludes:
         - Signed package distribution (separate release infra)
         - FIPS variant (Day 12 ships a second binary build)
@@ -90,6 +91,20 @@ spec:
         MUST list kensa-rules in Depends, so an install without the corpus
         fails fast rather than booting a scan-incapable service.
       type: technical
+      enforcement: error
+    - id: C-11
+      description: >
+        The server refuses to auto-generate its signing material in production
+        and exits if it is missing. Therefore both packages MUST provision the
+        identity keys at install time via a post-install scriptlet: an RSA
+        >=2048-bit JWT signing key at /etc/openwatch/keys/jwt_private.pem (mode
+        0640, root:openwatch) and a 32-byte AES-256 credential DEK at
+        /etc/openwatch/keys/credential.key (mode 0600, openwatch:openwatch).
+        Generation MUST be generate-if-absent (never overwrite, so upgrades do
+        not invalidate tokens or render stored secrets undecryptable). The key
+        files MUST NOT be shipped in the package payload (they must be unique
+        per install). openssl MUST be a package dependency.
+      type: security
       enforcement: error
 
   acceptance_criteria:
@@ -159,3 +174,15 @@ spec:
       description: make packages builds the kensa-rules corpus package alongside the openwatch artifacts (the Makefile packages target depends on the kensa-rules target).
       priority: high
       references_constraints: [C-10]
+    - id: AC-18
+      description: The RPM %post and the DEB postinst invoke the identity-key provisioning helper, and the shipped helper (packaging/common/provision-identity-keys.sh) generates the JWT key (RSA 2048 via openssl genrsa, 0640 root:openwatch) and the credential DEK (32 bytes via openssl rand, 0600 openwatch:openwatch) only when absent. Source-inspection of the scriptlets and the helper.
+      priority: critical
+      references_constraints: [C-11]
+    - id: AC-19
+      description: The openwatch RPM spec declares Requires openssl and the openwatch DEB control lists openssl in Depends (source-inspection).
+      priority: high
+      references_constraints: [C-11]
+    - id: AC-20
+      description: The package payloads ship the empty /etc/openwatch/keys directory and the provisioning helper at /usr/lib/openwatch/, but do NOT contain jwt_private.pem or credential.key (verified via rpm -qpl and dpkg-deb -c — the keys are generated per-install, never packaged).
+      priority: critical
+      references_constraints: [C-11]

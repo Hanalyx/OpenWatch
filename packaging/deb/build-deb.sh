@@ -49,7 +49,12 @@ trap 'rm -rf "$STAGE"' EXIT
 
 mkdir -p "$STAGE/DEBIAN"
 mkdir -p "$STAGE/usr/bin"
+mkdir -p "$STAGE/usr/lib/openwatch"
 mkdir -p "$STAGE/etc/openwatch/tls"
+# Identity-key directory ships empty (0750); postinst generates the
+# per-install keys into it. The key files are not part of the payload.
+mkdir -p "$STAGE/etc/openwatch/keys"
+chmod 0750 "$STAGE/etc/openwatch/keys"
 mkdir -p "$STAGE/etc/systemd/system"
 mkdir -p "$STAGE/var/lib/openwatch"
 mkdir -p "$STAGE/var/log/openwatch"
@@ -58,6 +63,7 @@ mkdir -p "$STAGE/var/log/openwatch"
 install -m 0755 "$DIST_DIR/openwatch"                       "$STAGE/usr/bin/openwatch"
 install -m 0640 "$APP_DIR/packaging/common/openwatch.toml"  "$STAGE/etc/openwatch/openwatch.toml"
 install -m 0644 "$APP_DIR/packaging/common/openwatch.service" "$STAGE/etc/systemd/system/openwatch.service"
+install -m 0755 "$APP_DIR/packaging/common/provision-identity-keys.sh" "$STAGE/usr/lib/openwatch/provision-identity-keys.sh"
 
 # Demo TLS cert (chmod inside the script).
 bash "$APP_DIR/packaging/common/gen-demo-cert.sh" "$STAGE/etc/openwatch/tls" >/dev/null

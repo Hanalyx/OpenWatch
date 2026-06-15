@@ -104,6 +104,14 @@ jobs:
           test -d /usr/share/kensa/rules
           rule_count="$(find /usr/share/kensa/rules -name '*.yml' | wc -l)"
           test "$rule_count" -ge 500
+          # Identity keys provisioned by the post-install scriptlet (the server
+          # refuses to auto-generate them and exits without them).
+          test -f /etc/openwatch/keys/jwt_private.pem
+          test -f /etc/openwatch/keys/credential.key
+          # JWT key is a valid RSA key; DEK is exactly 32 bytes; DEK is 0600.
+          openssl rsa -in /etc/openwatch/keys/jwt_private.pem -noout -check
+          test "$(stat -c '%s' /etc/openwatch/keys/credential.key)" -eq 32
+          test "$(stat -c '%a' /etc/openwatch/keys/credential.key)" = "600"
           # Binary runs (no DB needed for these).
           /usr/bin/openwatch --version
           /usr/bin/openwatch check-config

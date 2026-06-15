@@ -118,7 +118,14 @@ packages:
    (`openwatch.toml` plus a self-signed TLS cert/key), the `systemd` unit, and
    the `/var/lib/openwatch` and `/var/log/openwatch` data directories. The
    `kensa-rules` package installs the rule corpus to `/usr/share/kensa/rules`.
-3. Reloads `systemd`. It does **not** start the service — you do that in Step 7,
+3. Generates the identity keys the server requires in production —
+   `/etc/openwatch/keys/jwt_private.pem` (RSA-2048 JWT signing key) and
+   `/etc/openwatch/keys/credential.key` (AES-256 credential DEK). This is
+   generate-if-absent: a reinstall or upgrade never overwrites existing keys
+   (regenerating them would invalidate sessions and make stored SSH/MFA
+   secrets undecryptable). The server does **not** auto-generate these — it
+   exits if they are missing — so the package lays them down at install time.
+4. Reloads `systemd`. It does **not** start the service — you do that in Step 7,
    after the database and admin user exist.
 
 Confirm the install:
