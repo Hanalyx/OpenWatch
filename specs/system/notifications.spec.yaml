@@ -1,7 +1,7 @@
 spec:
   id: system-notifications
   title: Notification channels — encrypted store + SSRF-guarded delivery
-  version: "1.1.0"
+  version: "1.2.0"
   status: approved
   tier: 2
 
@@ -44,11 +44,14 @@ spec:
   constraints:
     - id: C-01
       description: >-
-        The channel target (URL + optional token) MUST be encrypted with
-        secretkey.Active() before persistence (config_ciphertext BYTEA) and
-        MUST NEVER be stored in a plaintext column. The list/read paths
-        (List, Get) MUST NOT decrypt — they return target_hint (the URL
-        host) only. Decryption happens only on the delivery + test paths.
+        The channel secret MUST be encrypted with secretkey.Active() before
+        persistence (config_ciphertext BYTEA) and MUST NEVER be stored in a
+        plaintext column. The list/read paths (List, Get) MAY decrypt to
+        surface NON-secret config (for email: smtp host/port/from/to/
+        username, so the edit form can pre-fill), but MUST redact secrets via
+        redactConfig — the SMTP password, and the slack/webhook URL + token,
+        are NEVER returned. A decrypt failure on read is non-fatal (the
+        channel still lists, without pre-fill).
       type: security
       enforcement: error
     - id: C-02
@@ -82,7 +85,7 @@ spec:
       priority: critical
       references_constraints: [C-01]
     - id: AC-02
-      description: List and Get return channels with Config zero (TargetHint set, no URL/token); they issue no decrypt. Source inspection — neither List nor Get calls decryptConfig.
+      description: List and Get route through scanRedacted; redactConfig clears the email password (returning host/port/from/to/username for pre-fill) and returns an empty Config for slack/webhook (URL/token stay hidden). The read path never returns the password, URL, or token. Source inspection of redactConfig + scanRedacted.
       priority: critical
       references_constraints: [C-01]
     - id: AC-03

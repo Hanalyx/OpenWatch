@@ -178,7 +178,7 @@ func toAPINotificationChannel(c notification.Channel) api.NotificationChannel {
 	if tags == nil {
 		tags = map[string]string{}
 	}
-	return api.NotificationChannel{
+	out := api.NotificationChannel{
 		Id:         openapitypes.UUID(c.ID),
 		Type:       api.NotificationChannelType(c.Type),
 		Name:       c.Name,
@@ -188,6 +188,28 @@ func toAPINotificationChannel(c notification.Channel) api.NotificationChannel {
 		CreatedAt:  c.CreatedAt,
 		UpdatedAt:  c.UpdatedAt,
 	}
+	// Email channels surface their NON-secret config so the edit form can
+	// pre-fill. The store already redacted the password; the slack/webhook
+	// URL + token stay hidden (their Config is zeroed on read).
+	if c.Type == notification.TypeEmail {
+		if c.Config.SMTPPort != 0 {
+			p := c.Config.SMTPPort
+			out.SmtpPort = &p
+		}
+		if c.Config.From != "" {
+			f := c.Config.From
+			out.From = &f
+		}
+		if len(c.Config.To) > 0 {
+			to := c.Config.To
+			out.To = &to
+		}
+		if c.Config.Username != "" {
+			u := c.Config.Username
+			out.Username = &u
+		}
+	}
+	return out
 }
 
 func derefTagFilter(m *map[string]string) map[string]string {

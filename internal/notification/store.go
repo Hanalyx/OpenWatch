@@ -126,7 +126,7 @@ func (s *Service) Create(ctx context.Context, p CreateParams) (Channel, error) {
 // List returns all channels without secrets (Config zero).
 func (s *Service) List(ctx context.Context) ([]Channel, error) {
 	const stmt = `
-		SELECT id, type, name, enabled, target_hint, tag_filter, created_at, updated_at
+		SELECT id, type, name, enabled, target_hint, tag_filter, config_ciphertext, created_at, updated_at
 		FROM notification_channels
 		ORDER BY created_at ASC`
 	rows, err := s.pool.Query(ctx, stmt)
@@ -136,7 +136,7 @@ func (s *Service) List(ctx context.Context) ([]Channel, error) {
 	defer rows.Close()
 	out := []Channel{}
 	for rows.Next() {
-		c, err := scanMeta(rows)
+		c, err := scanRedacted(rows)
 		if err != nil {
 			return nil, err
 		}
@@ -145,12 +145,12 @@ func (s *Service) List(ctx context.Context) ([]Channel, error) {
 	return out, rows.Err()
 }
 
-// Get returns a single channel without its secret.
+// Get returns a single channel with its non-secret config (no password).
 func (s *Service) Get(ctx context.Context, id uuid.UUID) (Channel, error) {
 	const stmt = `
-		SELECT id, type, name, enabled, target_hint, tag_filter, created_at, updated_at
+		SELECT id, type, name, enabled, target_hint, tag_filter, config_ciphertext, created_at, updated_at
 		FROM notification_channels WHERE id = $1`
-	c, err := scanMeta(s.pool.QueryRow(ctx, stmt, id))
+	c, err := scanRedacted(s.pool.QueryRow(ctx, stmt, id))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return Channel{}, ErrChannelNotFound
@@ -158,6 +158,44 @@ func (s *Service) Get(ctx context.Context, id uuid.UUID) (Channel, error) {
 		return Channel{}, err
 	}
 	return c, nil
+}
+
+// scanRedacted scans a channel row INCLUDING its config, decrypts it, and
+// strips the secret material — leaving the non-secret fields safe to return
+// on a read (for email: smtp host/port/from/to/username; the password and
+// the slack/webhook URL are never exposed). A decrypt failure is non-fatal:
+// the channel still lists with an empty config (no pre-fill).
+func scanRedacted(row rowScanner) (Channel, error) {
+	var (
+		c      Channel
+		typ    string
+		tags   []byte
+		cipher []byte
+	)
+	if err := row.Scan(&c.ID, &typ, &c.Name, &c.Enabled, &c.TargetHint,
+		&tags, &cipher, &c.CreatedAt, &c.UpdatedAt); err != nil {
+		return Channel{}, err
+	}
+	c.Type = ChannelType(typ)
+	if err := json.Unmarshal(tags, &c.TagFilter); err != nil {
+		return Channel{}, fmt.Errorf("notification: unmarshal tags: %w", err)
+	}
+	if cfg, err := decryptConfig(cipher); err == nil {
+		c.Config = redactConfig(cfg, c.Type)
+	}
+	return c, nil
+}
+
+// redactConfig clears secret material. Email keeps its non-secret fields
+// (host/port/from/to/username) so the edit form can pre-fill; the password
+// is dropped. Slack/webhook expose nothing (the URL is itself the secret —
+// only target_hint is shown).
+func redactConfig(cfg Config, typ ChannelType) Config {
+	if typ == TypeEmail {
+		cfg.Password = ""
+		return cfg
+	}
+	return Config{}
 }
 
 // getDecrypted returns a channel WITH its decrypted Config. Internal:
@@ -210,6 +248,16 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, p UpdateParams) (Cha
 		return Channel{}, fmt.Errorf("notification: marshal tags: %w", err)
 	}
 	if p.ReplaceConfig {
+		// Now that the edit form pre-fills the non-secret email fields, an
+		// update normally re-sends the whole config but with a BLANK
+		// password (the operator rarely re-types it). Preserve the stored
+		// password in that case so editing from/to/host doesn't wipe the
+		// credential. Re-typing the password overrides it as expected.
+		if existing.Type == TypeEmail && p.Config.Password == "" {
+			if old, gErr := s.getDecrypted(ctx, id); gErr == nil && old.Config.Password != "" {
+				p.Config.Password = old.Config.Password
+			}
+		}
 		hint, vErr := validate(existing.Type, p.Name, p.Config)
 		if vErr != nil {
 			return Channel{}, vErr
@@ -283,24 +331,6 @@ func (s *Service) listEnabledDecrypted(ctx context.Context) ([]Channel, error) {
 // rowScanner is satisfied by both pgx.Row and pgx.Rows.
 type rowScanner interface {
 	Scan(dest ...any) error
-}
-
-// scanMeta scans the non-secret columns into a Channel.
-func scanMeta(row rowScanner) (Channel, error) {
-	var (
-		c    Channel
-		typ  string
-		tags []byte
-	)
-	if err := row.Scan(&c.ID, &typ, &c.Name, &c.Enabled, &c.TargetHint, &tags,
-		&c.CreatedAt, &c.UpdatedAt); err != nil {
-		return Channel{}, err
-	}
-	c.Type = ChannelType(typ)
-	if err := json.Unmarshal(tags, &c.TagFilter); err != nil {
-		return Channel{}, fmt.Errorf("notification: unmarshal tags: %w", err)
-	}
-	return c, nil
 }
 
 func encryptConfig(cfg Config) ([]byte, error) {

@@ -252,15 +252,20 @@ function ChannelModal({
     (channel?.type as 'slack' | 'webhook' | 'email') ?? 'slack',
   );
   const [name, setName] = useState(channel?.name ?? '');
+  // URL + token are secrets (slack/webhook) — never pre-filled.
   const [url, setUrl] = useState('');
   const [token, setToken] = useState('');
-  // Email/SMTP fields.
-  const [smtpHost, setSmtpHost] = useState('');
-  const [smtpPort, setSmtpPort] = useState('587');
-  const [username, setUsername] = useState('');
+  // Email/SMTP fields pre-fill from the channel's NON-secret config on edit
+  // (the read path returns smtp_host via target_hint, plus port/from/to/
+  // username). The password is the only email secret and stays blank — the
+  // server keeps the stored one unless re-entered.
+  const isEmail = channel?.type === 'email';
+  const [smtpHost, setSmtpHost] = useState(isEmail ? (channel?.target_hint ?? '') : '');
+  const [smtpPort, setSmtpPort] = useState(channel?.smtp_port ? String(channel.smtp_port) : '587');
+  const [username, setUsername] = useState(channel?.username ?? '');
   const [password, setPassword] = useState('');
-  const [from, setFrom] = useState('');
-  const [to, setTo] = useState('');
+  const [from, setFrom] = useState(channel?.from ?? '');
+  const [to, setTo] = useState((channel?.to ?? []).join(', '));
   const [enabled, setEnabled] = useState(channel?.enabled ?? true);
   const [severity, setSeverity] = useState(channel?.tag_filter?.severity ?? '');
   const [error, setError] = useState<string | null>(null);
