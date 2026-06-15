@@ -43,6 +43,27 @@ type Lookups interface {
 	RoleForUser(ctx context.Context, userID uuid.UUID) (auth.RoleID, error)
 }
 
+// TokenAuthenticator resolves a raw API token (auth.APITokenPrefix-prefixed
+// bearer value) to an identity. Optional: when nil, bearer values are
+// treated only as JWTs.
+type TokenAuthenticator interface {
+	AuthenticateToken(ctx context.Context, raw string) (auth.Identity, error)
+}
+
+// BinderOption configures optional binder behavior.
+type BinderOption func(*binderConfig)
+
+type binderConfig struct {
+	tokenAuth TokenAuthenticator
+}
+
+// WithTokenAuth enables API-token (owk_) authentication on the bearer
+// path. Tokens carrying auth.APITokenPrefix route here; everything else
+// stays on the JWT path.
+func WithTokenAuth(ta TokenAuthenticator) BinderOption {
+	return func(c *binderConfig) { c.tokenAuth = ta }
+}
+
 // Binder is the production identity-binding middleware. Reads either:
 //
 //	Cookie "openwatch_session"   → looks up via VerifySession
@@ -55,10 +76,14 @@ type Lookups interface {
 // downstream.
 //
 // Spec system-auth-identity AC-17, AC-18, AC-21, C-11, C-12.
-func Binder(pool *pgxpool.Pool, lookups Lookups) func(http.Handler) http.Handler {
+func Binder(pool *pgxpool.Pool, lookups Lookups, opts ...BinderOption) func(http.Handler) http.Handler {
+	var cfg binderConfig
+	for _, o := range opts {
+		o(&cfg)
+	}
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			id, reason := resolveIdentity(r.Context(), pool, lookups, r)
+			id, reason := resolveIdentity(r.Context(), pool, lookups, cfg, r)
 			if reason != "" {
 				emitLoginFailure(r, reason)
 				// Credential was presented but rejected. Short-circuit with
@@ -109,7 +134,7 @@ func writeSessionInvalid(w http.ResponseWriter, r *http.Request, reason string) 
 // rejection. Anonymous-because-nothing-was-presented also returns "" for
 // reason (no audit emission for unauthenticated probes; only for
 // presented-but-rejected credentials).
-func resolveIdentity(ctx context.Context, pool *pgxpool.Pool, lookups Lookups, r *http.Request) (auth.Identity, string) {
+func resolveIdentity(ctx context.Context, pool *pgxpool.Pool, lookups Lookups, cfg binderConfig, r *http.Request) (auth.Identity, string) {
 	if cookie, err := r.Cookie(SessionCookieName); err == nil && cookie.Value != "" {
 		sess, err := VerifySession(ctx, pool, cookie.Value)
 		switch {
@@ -134,6 +159,15 @@ func resolveIdentity(ctx context.Context, pool *pgxpool.Pool, lookups Lookups, r
 
 	if h := r.Header.Get("Authorization"); strings.HasPrefix(h, "Bearer ") {
 		token := strings.TrimPrefix(h, "Bearer ")
+		// API service-account tokens (owk_) route to the token
+		// authenticator; everything else is a session JWT.
+		if cfg.tokenAuth != nil && strings.HasPrefix(token, auth.APITokenPrefix) {
+			id, err := cfg.tokenAuth.AuthenticateToken(ctx, token)
+			if err != nil {
+				return anon(), "invalid_api_token"
+			}
+			return id, ""
+		}
 		claims, err := VerifyJWT(token)
 		switch {
 		case errors.Is(err, ErrJWTExpired):

@@ -10,6 +10,7 @@ import (
 
 	"github.com/Hanalyx/openwatch/internal/activity"
 	"github.com/Hanalyx/openwatch/internal/alerts"
+	"github.com/Hanalyx/openwatch/internal/apitoken"
 	"github.com/Hanalyx/openwatch/internal/audit"
 	"github.com/Hanalyx/openwatch/internal/auth"
 	"github.com/Hanalyx/openwatch/internal/correlation"
@@ -116,6 +117,11 @@ type handlers struct {
 	// Notification-channel CRUD + test. Set via (*Server).WithNotifications;
 	// nil makes the /api/v1/notifications endpoints 503. Spec api-notifications.
 	notificationSvc *notification.Service
+
+	// API service-account tokens. Always wired in server.New (it only
+	// wraps the pool), so the /api/v1/tokens endpoints are never 503.
+	// Spec api-tokens.
+	apiTokenSvc *apitoken.Service
 }
 
 // newHandlers constructs the ServerInterface implementation. The user

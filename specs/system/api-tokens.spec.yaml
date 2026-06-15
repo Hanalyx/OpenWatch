@@ -1,0 +1,90 @@
+spec:
+  id: system-api-tokens
+  title: API service-account tokens — hashed store + bearer authentication
+  version: "1.0.0"
+  status: approved
+  tier: 1
+
+  context:
+    system: openwatch-go
+    feature: >-
+      Long-lived API tokens let automation (CI, scripts) call the REST API
+      without an interactive session. internal/apitoken owns the token
+      store and the AuthenticateToken adapter the identity binder uses to
+      resolve an owk_-prefixed bearer value to an auth.Identity.
+    description: >-
+      A token is 32 bytes of crypto/rand, base64url-encoded behind the
+      auth.APITokenPrefix ("owk_"). Only its SHA-256 hash is persisted —
+      high entropy makes a fast hash safe (no brute-force surface) and
+      enables an indexed lookup on the auth path. The raw token is returned
+      to the operator exactly once, at creation. A token carries a role;
+      its effective permissions are that role's, re-evaluated by the RBAC
+      middleware on every request, so a later role change applies and a
+      revoked token stops working immediately.
+    related_specs:
+      - api-tokens
+      - system-auth-identity
+      - system-rbac
+
+  objective:
+    summary: >-
+      Lock the hashed-at-rest store, the once-only secret return, the
+      reject-revoked/expired/unknown authentication, and the binder routing
+      of owk_ bearer values.
+    scope:
+      includes:
+        - "api_tokens migration 0032 (token_hash unique, role FK RESTRICT, partial live-token index)"
+        - "Create returns the raw secret once; only the SHA-256 hash is stored"
+        - "AuthenticateToken: reject unknown/revoked/expired; stamp last_used_at"
+        - "identity.Binder routes auth.APITokenPrefix bearer values to the token authenticator"
+      excludes:
+        - "Per-token permission subsets (tokens are role-scoped)"
+        - "Token rotation / expiry-warning jobs (follow-up)"
+
+  constraints:
+    - id: C-01
+      description: >-
+        The raw token MUST NOT be persisted: only its SHA-256 hash is
+        stored (token_hash), and the raw value is returned exactly once
+        from Create. The stored hash MUST NOT equal the raw token bytes.
+      type: security
+      enforcement: error
+    - id: C-02
+      description: >-
+        AuthenticateToken MUST reject (ErrInvalidToken, anonymous identity)
+        an unknown, revoked (revoked_at set), or expired (expires_at in the
+        past) token. A successful authentication returns an auth.Identity
+        carrying the token's role; permissions are NOT embedded (the RBAC
+        middleware derives them from the role per request).
+      type: security
+      enforcement: error
+    - id: C-03
+      description: >-
+        The identity binder MUST route a Bearer value carrying
+        auth.APITokenPrefix to the token authenticator (when configured)
+        and treat all other bearer values as session JWTs. A rejected token
+        falls through to anonymous (no panic, no JWT parse attempt).
+      type: security
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: Create returns a raw token beginning with auth.APITokenPrefix; the persisted token_hash equals sha256(raw) and does NOT contain the raw token bytes; the returned metadata carries the prefix but no secret.
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-02
+      description: AuthenticateToken on the freshly created raw token returns an Identity with the token's role and a non-empty ID; the token's last_used_at is stamped after authentication.
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-03
+      description: AuthenticateToken returns ErrInvalidToken for an unknown token, for a revoked token (after Revoke), and for an expired token (expires_at in the past). Revoke is idempotent for an already-revoked or missing id.
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-04
+      description: "Source inspection — identity.Binder's resolveIdentity routes a Bearer value with auth.APITokenPrefix to cfg.tokenAuth.AuthenticateToken and only falls through to VerifyJWT for non-prefixed values; a token-auth error returns the anonymous identity with reason invalid_api_token."
+      priority: critical
+      references_constraints: [C-03]
+    - id: AC-05
+      description: List returns tokens newest-first with no secret material (no token_hash); Create with an empty name or unknown role_id returns ErrInvalidParams.
+      priority: high
+      references_constraints: [C-01]

@@ -25,6 +25,7 @@
 //   AC-21  Users: Invite member opens AddUserModal (POST /users) + roles roster
 //   AC-22  Users: Manage opens ManageUserModal (role assign/unassign + delete)
 //   AC-23  Notifications: notification:read gate, channel CRUD + test, secret-free
+//   AC-24  Security: admin gate, live API tokens (list/create/revoke), secret-once
 
 import { describe, expect, test } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -61,6 +62,7 @@ const NOTIF_SRC = readFileSync(
   resolve(process.cwd(), 'src/pages/settings/NotificationsPage.tsx'),
   'utf8',
 );
+const SEC_SRC = readFileSync(resolve(process.cwd(), 'src/pages/settings/SecurityPage.tsx'), 'utf8');
 const PREFS_STORE_SRC = readFileSync(
   resolve(process.cwd(), 'src/store/usePreferencesStore.ts'),
   'utf8',
@@ -202,19 +204,18 @@ describe('frontend-settings — structural', () => {
   });
 
   // @ac AC-15
-  test('frontend-settings/AC-15 — two stubbed pages each render BackendPendingBanner; Notifications/Audit/About/Policies graduated', () => {
+  test('frontend-settings/AC-15 — Integrations is the only full stub; Notifications/Security/Audit/About/Policies graduated', () => {
     expect(STUBBED_SRC).toContain('BackendPendingBanner');
-    // The two remaining stub exports must be present and StubShell-based.
-    const expected = ['IntegrationsPage', 'SecurityPage'];
-    for (const name of expected) {
-      expect(STUBBED_SRC).toContain(`export function ${name}`);
-    }
+    // Integrations is the only remaining full StubShell page.
+    expect(STUBBED_SRC).toContain('export function IntegrationsPage');
     expect(STUBBED_SRC).toMatch(/<StubShell/);
-    // Audit log + Notifications graduated to their own files: not stubs here.
+    // Audit, Notifications, Security graduated to their own files.
     expect(STUBBED_SRC).not.toContain('export function AuditPage');
     expect(STUBBED_SRC).not.toContain('export function NotificationsPage');
+    expect(STUBBED_SRC).not.toContain('export function SecurityPage');
     expect(ROUTER_SRC).toContain("from '@/pages/settings/AuditPage'");
     expect(ROUTER_SRC).toContain("from '@/pages/settings/NotificationsPage'");
+    expect(ROUTER_SRC).toContain("from '@/pages/settings/SecurityPage'");
     // About graduated too: it renders live version + license, not a
     // BackendPendingBanner. It still lives in this file but is not a stub.
     expect(STUBBED_SRC).toContain('export function AboutPage');
@@ -368,5 +369,30 @@ describe('frontend-settings — structural', () => {
     expect(NOTIF_SRC).toMatch(/hasPermission\)\('notification:write'\)/);
     expect(NOTIF_SRC).toMatch(/hasPermission\)\('notification:delete'\)/);
     expect(NOTIF_SRC).toMatch(/hasPermission\)\('notification:test'\)/);
+  });
+
+  // @ac AC-24
+  test('frontend-settings/AC-24 — Security: admin gate, live API tokens, secret shown once', () => {
+    // Page gated on admin.
+    expect(SEC_SRC).toMatch(/hasPermission\)\('admin'\)/);
+    expect(SEC_SRC).toContain('ForbiddenPage');
+    // API-tokens list keyed ['api-tokens'].
+    expect(SEC_SRC).toMatch(/queryKey:\s*\['api-tokens'\]/);
+    expect(SEC_SRC).toMatch(/api\.GET\(\s*['"]\/api\/v1\/tokens['"]/);
+    // Create + revoke endpoints.
+    expect(SEC_SRC).toMatch(/api\.POST\(\s*['"]\/api\/v1\/tokens['"]/);
+    expect(SEC_SRC).toMatch(/api\.DELETE\(\s*['"]\/api\/v1\/tokens\/\{id\}['"]/);
+    // Both mutations invalidate the list.
+    expect(SEC_SRC).toMatch(/invalidateQueries\(\{\s*queryKey:\s*\['api-tokens'\]/);
+    // Secret shown once: a copy control + a not-shown-again warning; list
+    // renders only the prefix (no raw token/secret list field).
+    expect(SEC_SRC).toMatch(/not be shown again/i);
+    expect(SEC_SRC).toContain('token.prefix');
+    expect(SEC_SRC).not.toMatch(/token\.(token|secret|hash)\b/);
+    // Write/delete controls gate on their permissions.
+    expect(SEC_SRC).toMatch(/hasPermission\)\('token:write'\)/);
+    expect(SEC_SRC).toMatch(/hasPermission\)\('token:delete'\)/);
+    // SSO + auth-policy stay pending.
+    expect(SEC_SRC).toContain('BackendPendingBanner');
   });
 });

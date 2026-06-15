@@ -1,0 +1,68 @@
+spec:
+  id: api-tokens
+  title: API tokens REST API
+  version: "1.0.0"
+  status: approved
+  tier: 2
+
+  context:
+    system: openwatch-go
+    feature: >-
+      CRUD-lite for API service-account tokens under /api/v1/tokens:
+      list, create (secret returned once), revoke. Backed by
+      internal/apitoken (system-api-tokens).
+    description: >-
+      Three operations, each RBAC-gated by a distinct token:* permission.
+      The raw secret appears only in the create response; the list never
+      returns it. The token endpoints are always wired (the service only
+      wraps the pool).
+    related_specs:
+      - system-api-tokens
+      - system-rbac
+
+  objective:
+    summary: >-
+      Lock the route contracts, the per-verb RBAC, and the once-only
+      secret exposure.
+    scope:
+      includes:
+        - "GET /api/v1/tokens (token:read)"
+        - "POST /api/v1/tokens (token:write) — secret in the response once"
+        - "DELETE /api/v1/tokens/{id} (token:delete)"
+      excludes:
+        - "Token usage/audit history endpoints (follow-up)"
+
+  constraints:
+    - id: C-01
+      description: >-
+        Each operation MUST enforce its permission via
+        auth.EnforcePermission before any work: list → token:read, create →
+        token:write, delete → token:delete. A caller lacking it gets 403.
+      type: security
+      enforcement: error
+    - id: C-02
+      description: >-
+        The raw token MUST appear ONLY in the POST create response
+        (ApiTokenCreated.token). The list response (ApiToken) MUST carry no
+        secret field — only the non-secret prefix. The ApiToken response
+        struct declares no token/hash field.
+      type: security
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: GET /tokens returns 200 with a tokens array for a caller with token:read; an anonymous caller is denied (401 or 403) and a caller without the permission gets 403.
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-02
+      description: POST /tokens with name + role_id returns 201 with ApiTokenCreated whose token field is a non-empty owk_-prefixed secret AND whose api_token metadata carries the prefix; a subsequent GET /tokens returns the token metadata but the raw secret appears in no list entry.
+      priority: critical
+      references_constraints: [C-01, C-02]
+    - id: AC-03
+      description: DELETE /tokens/{id} returns 204 and gates on token:delete (a caller without it gets 403). POST with an unknown role_id returns 400.
+      priority: high
+      references_constraints: [C-01]
+    - id: AC-04
+      description: Source inspection — the api.ApiToken response struct declares no Token/Hash/Secret field (only Prefix).
+      priority: critical
+      references_constraints: [C-02]
