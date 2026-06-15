@@ -81,6 +81,12 @@ const (
 	NotificationDelete Permission = "notification:delete"
 	// Send a test notification through a channel
 	NotificationTest Permission = "notification:test"
+	// View API tokens (metadata only; secrets are never shown)
+	TokenRead Permission = "token:read"
+	// Create API tokens for automation
+	TokenWrite Permission = "token:write"
+	// Revoke API tokens
+	TokenDelete Permission = "token:delete"
 	// View license status, features, quotas, and history
 	LicenseRead Permission = "license:read"
 	// Install or replace the active license file
@@ -398,6 +404,27 @@ var Permissions = map[Permission]PermissionMeta{
 		Dangerous:    false,
 		LicenseGated: "",
 	},
+	TokenRead: {
+		ID:           TokenRead,
+		Category:     "token",
+		Description:  `View API tokens (metadata only; secrets are never shown)`,
+		Dangerous:    false,
+		LicenseGated: "",
+	},
+	TokenWrite: {
+		ID:           TokenWrite,
+		Category:     "token",
+		Description:  `Create API tokens for automation`,
+		Dangerous:    false,
+		LicenseGated: "",
+	},
+	TokenDelete: {
+		ID:           TokenDelete,
+		Category:     "token",
+		Description:  `Revoke API tokens`,
+		Dangerous:    true,
+		LicenseGated: "",
+	},
 	LicenseRead: {
 		ID:           LicenseRead,
 		Category:     "license",
@@ -620,6 +647,9 @@ var permissionOrder = []Permission{
 	NotificationWrite,
 	NotificationDelete,
 	NotificationTest,
+	TokenRead,
+	TokenWrite,
+	TokenDelete,
 	LicenseRead,
 	LicenseInstall,
 	LicenseRevoke,
@@ -695,6 +725,7 @@ var categoryOrder = []string{
 	"exception",
 	"alert",
 	"notification",
+	"token",
 	"license",
 	"policy",
 	"remediation",
@@ -722,6 +753,7 @@ var categoryDescriptions = map[string]string{
 	"exception":     `Compliance exception lifecycle`,
 	"alert":         `Alert lifecycle and threshold management`,
 	"notification":  `Notification channels and dispatch`,
+	"token":         `API service-account tokens for automation`,
 	"license":       `License install, view, history`,
 	"policy":        `Policy reload, install, history`,
 	"remediation":   `Remediation request, approve, execute, rollback`,

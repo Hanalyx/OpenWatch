@@ -1987,6 +1987,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/tokens": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List API tokens (metadata only; secrets never returned) */
+        get: operations["getAPITokens"];
+        put?: never;
+        /** Create an API token (the secret is returned once, here only) */
+        post: operations["postAPIToken"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tokens/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Revoke an API token */
+        delete: operations["deleteAPIToken"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2102,6 +2137,40 @@ export interface components {
             tag_filter?: {
                 [key: string]: string;
             };
+        };
+        /** @description API token metadata. The secret is NEVER included. */
+        ApiToken: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            /** @description Non-secret display prefix (e.g. owk_a1b2c3d4) */
+            prefix: string;
+            /** @description The role whose permissions the token carries */
+            role_id: string;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            expires_at?: string | null;
+            /** Format: date-time */
+            last_used_at?: string | null;
+            /** Format: date-time */
+            revoked_at?: string | null;
+        };
+        ApiTokenList: {
+            tokens: components["schemas"]["ApiToken"][];
+        };
+        ApiTokenCreateRequest: {
+            name: string;
+            /** @description Role the token acts as (must be a known role) */
+            role_id: string;
+            /** Format: date-time */
+            expires_at?: string | null;
+        };
+        /** @description The raw token is shown ONCE, in this create response only. Store it now; it cannot be retrieved again. */
+        ApiTokenCreated: {
+            /** @description The raw secret. Shown once. */
+            token: string;
+            api_token: components["schemas"]["ApiToken"];
         };
         UserCreateRequest: {
             username: string;
@@ -7499,6 +7568,74 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    getAPITokens: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Token list */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiTokenList"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    postAPIToken: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ApiTokenCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Token created; the raw secret is present in this response only */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiTokenCreated"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    deleteAPIToken: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Revoked (idempotent) */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: components["responses"]["Forbidden"];
         };
     };
 }

@@ -1,7 +1,7 @@
 spec:
   id: frontend-settings
   title: Settings — two-pane shell with 11 sub-pages
-  version: "1.5.0"
+  version: "1.6.0"
   status: draft
   tier: 2
 
@@ -63,7 +63,8 @@ spec:
         - "Audit log — filterable, cursor-paginated GET /api/v1/audit/events, audit:read gated, read-only (v1.3.0)"
         - "About — version from GET /api/v1/version + license state from GET /api/v1/license (v1.3.0)"
         - "Notifications — Slack/webhook channel CRUD + test over /api/v1/notifications/channels, notification:read gated, secrets write-only (v1.5.0)"
-        - "Integrations, Security — structural shells with Backend Pending banner"
+        - "Security & auth — live API-tokens section (list/create/revoke over /api/v1/tokens, secret shown once); SSO + auth-policy stay Backend Pending (v1.6.0)"
+        - "Integrations — structural shell with Backend Pending banner"
         - "All control widgets themed via --ow-* tokens"
       excludes:
         - "PATCH /auth/me wiring (backend endpoint deferred)"
@@ -141,9 +142,11 @@ spec:
       enforcement: error
     - id: C-09
       description: >-
-        The remaining stubbed pages (Integrations, Security) MUST each
-        render a BackendPendingBanner identifying the slice that unblocks
-        them. Every interactive control on these pages MUST be disabled
+        The remaining stubbed page (Integrations) MUST render a
+        BackendPendingBanner identifying the slice that unblocks it. Every
+        interactive control on it MUST be disabled. (Security & auth keeps
+        BackendPendingBanner only on its SSO + auth-policy sections; its
+        API-tokens section is live per C-16.)
       type: technical
       enforcement: error
     - id: C-10
@@ -198,6 +201,19 @@ spec:
         every mutation invalidates ['notification-channels']. The page MUST
         render only the non-secret target_hint (never a url/token) and gate
         write/delete/test controls on notification:write/delete/test.
+      type: security
+      enforcement: error
+    - id: C-16
+      description: >-
+        v1.6.0 — Security & auth (src/pages/settings/SecurityPage.tsx) MUST
+        gate the page on hasPermission('admin') (ForbiddenPage otherwise)
+        and render a live API-tokens section: list from GET /api/v1/tokens
+        keyed ['api-tokens'] (token:read), Create via POST /api/v1/tokens
+        (token:write) showing the returned secret ONCE with a copy control
+        and a "won't be shown again" warning, Revoke via DELETE
+        /api/v1/tokens/{id} (token:delete); each mutation invalidates
+        ['api-tokens']. The list MUST render only the non-secret prefix.
+        SSO + authentication-policy sections stay BackendPendingBanner.
       type: security
       enforcement: error
 
@@ -259,7 +275,7 @@ spec:
       priority: critical
       references_constraints: [C-08]
     - id: AC-15
-      description: v1.5.0 — Each remaining stubbed Settings page (Integrations, Security — two now that Notifications, Audit log and About are wired and Compliance policies hosts the live scan-variables section) renders a single BackendPendingBanner naming the slice. Visible controls render disabled. PoliciesPage lives in its own file with per-section banners on its remaining stub sections.
+      description: v1.6.0 — The remaining stubbed Settings page (Integrations — the only full stub now that Notifications, Audit log, About are wired, Security hosts a live API-tokens section, and Compliance policies hosts the live scan-variables section) renders a single BackendPendingBanner naming the slice. Visible controls render disabled. PoliciesPage lives in its own file with per-section banners on its remaining stub sections.
       priority: high
       references_constraints: [C-09]
     - id: AC-16
@@ -294,3 +310,7 @@ spec:
       description: "v1.5.0 source-inspection: NotificationsPage gates on hasPermission('notification:read') returning ForbiddenPage when absent; it lists from GET /api/v1/notifications/channels keyed ['notification-channels']; Add/Edit call api.POST/PATCH '/api/v1/notifications/channels', Delete calls api.DELETE, Test calls POST '/api/v1/notifications/channels/{id}:test', and every mutation invalidates ['notification-channels']; the page renders channel.target_hint and references no response url/token field. AC-15 stub set excludes Notifications."
       priority: high
       references_constraints: [C-15]
+    - id: AC-24
+      description: "v1.6.0 source-inspection: SecurityPage gates the page on hasPermission('admin') (ForbiddenPage otherwise); the API-tokens section lists from GET /api/v1/tokens keyed ['api-tokens'], Create calls api.POST '/api/v1/tokens' and renders the returned token once (a copy control + a not-shown-again warning), Revoke calls api.DELETE '/api/v1/tokens/{id}', and both mutations invalidate ['api-tokens']; the list renders token.prefix and references no raw token/secret list field; write/delete controls gate on token:write/token:delete; SSO + auth-policy sections still render BackendPendingBanner."
+      priority: high
+      references_constraints: [C-16]

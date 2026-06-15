@@ -43,6 +43,8 @@ categories:
     description: Alert lifecycle and threshold management
   - id: notification
     description: Notification channels and dispatch
+  - id: token
+    description: API service-account tokens for automation
   - id: license
     description: License install, view, history
   - id: policy
@@ -244,6 +246,22 @@ permissions:
   - id: notification:test
     category: notification
     description: Send a test notification through a channel
+
+  # =========================================================================
+  # token (API service-account tokens)
+  # =========================================================================
+  - id: token:read
+    category: token
+    description: View API tokens (metadata only; secrets are never shown)
+
+  - id: token:write
+    category: token
+    description: Create API tokens for automation
+
+  - id: token:delete
+    category: token
+    description: Revoke API tokens
+    dangerous: true
 
   # =========================================================================
   # license
@@ -504,6 +522,7 @@ roles:
       - exception:*
       - alert:*
       - notification:*
+      - token:*
       - license:read
       - license:install
       - policy:read

@@ -3055,6 +3055,48 @@ paths:
         '404': {$ref: '#/components/responses/NotFound'}
         '503': {$ref: '#/components/responses/ServiceUnavailable'}
 
+  # Spec: api-tokens — API service-account tokens for automation.
+  /api/v1/tokens:
+    get:
+      operationId: getAPITokens
+      summary: List API tokens (metadata only; secrets never returned)
+      x-required-permission: token:read
+      responses:
+        '200':
+          description: Token list
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ApiTokenList'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+    post:
+      operationId: postAPIToken
+      summary: Create an API token (the secret is returned once, here only)
+      x-required-permission: token:write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ApiTokenCreateRequest'}
+      responses:
+        '201':
+          description: Token created; the raw secret is present in this response only
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ApiTokenCreated'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /api/v1/tokens/{id}:
+    delete:
+      operationId: deleteAPIToken
+      summary: Revoke an API token
+      x-required-permission: token:delete
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '204':
+          description: Revoked (idempotent)
+        '403': {$ref: '#/components/responses/Forbidden'}
+
 components:
   responses:
     BadRequest:
@@ -3238,6 +3280,43 @@ components:
         tag_filter:
           type: object
           additionalProperties: {type: string}
+
+    ApiToken:
+      type: object
+      required: [id, name, prefix, role_id, created_at]
+      description: API token metadata. The secret is NEVER included.
+      properties:
+        id:           {type: string, format: uuid}
+        name:         {type: string}
+        prefix:       {type: string, description: Non-secret display prefix (e.g. owk_a1b2c3d4)}
+        role_id:      {type: string, description: The role whose permissions the token carries}
+        created_at:   {type: string, format: date-time}
+        expires_at:   {type: string, format: date-time, nullable: true}
+        last_used_at: {type: string, format: date-time, nullable: true}
+        revoked_at:   {type: string, format: date-time, nullable: true}
+    ApiTokenList:
+      type: object
+      required: [tokens]
+      properties:
+        tokens:
+          type: array
+          items: {$ref: '#/components/schemas/ApiToken'}
+    ApiTokenCreateRequest:
+      type: object
+      required: [name, role_id]
+      properties:
+        name:       {type: string, minLength: 1, maxLength: 256}
+        role_id:    {type: string, description: Role the token acts as (must be a known role)}
+        expires_at: {type: string, format: date-time, nullable: true}
+    ApiTokenCreated:
+      type: object
+      required: [token, api_token]
+      description: >-
+        The raw token is shown ONCE, in this create response only. Store
+        it now; it cannot be retrieved again.
+      properties:
+        token:     {type: string, description: The raw secret. Shown once.}
+        api_token: {$ref: '#/components/schemas/ApiToken'}
 
     UserCreateRequest:
       type: object

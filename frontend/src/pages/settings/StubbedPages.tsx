@@ -2,7 +2,6 @@ import { useEffect, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/api/client';
 import { useBreadcrumbStore } from '@/store/useBreadcrumbStore';
-import { useAuthStore } from '@/store/useAuthStore';
 import { SettingsLayout } from '@/components/settings/SettingsLayout';
 import {
   PageHead,
@@ -12,7 +11,6 @@ import {
   Btn,
   StatusPill,
 } from '@/components/settings/primitives';
-import { ForbiddenPage } from '@/pages/ForbiddenPage';
 
 // Stubbed Settings pages.
 //
@@ -100,48 +98,6 @@ export function IntegrationsPage() {
             { name: 'PagerDuty', description: 'Page on critical alerts.' },
             { name: 'Splunk', description: 'Forward audit events.' },
             { name: 'Grafana', description: 'Expose fleet metrics.' },
-          ]}
-        />
-      </Section>
-    </StubShell>
-  );
-}
-
-// ── Security & auth ─────────────────────────────────────────────────────
-export function SecurityPage() {
-  const isAdmin = useAuthStore((s) => s.hasPermission('admin'));
-  if (!isAdmin) return <ForbiddenPage />;
-  return (
-    <StubShell
-      title="Security & auth"
-      description="Single sign-on, authentication policies, and API tokens for the workspace."
-      slice="Slice C (SSO + auth policy)"
-      pendingText="OIDC/SAML configuration and authentication-policy endpoints pending."
-      crumb="Security & auth"
-    >
-      <Section title="Single sign-on">
-        <StubCard
-          rows={[
-            {
-              name: 'OIDC provider',
-              description: 'Configure the identity provider (Okta, Auth0, Google, Azure AD, etc.).',
-            },
-            { name: 'SAML provider', description: 'SP-initiated and IdP-initiated flows.' },
-          ]}
-        />
-      </Section>
-      <Section title="Authentication policy">
-        <StubCard
-          rows={[
-            { name: 'Require MFA', description: 'Enforce TOTP for every member.' },
-            { name: 'Session timeout', description: 'Idle and absolute session limits.' },
-          ]}
-        />
-      </Section>
-      <Section title="API tokens">
-        <StubCard
-          rows={[
-            { name: 'Service tokens', description: 'Create long-lived tokens for automation.' },
           ]}
         />
       </Section>

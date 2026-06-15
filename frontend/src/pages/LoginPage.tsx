@@ -135,6 +135,9 @@ export function LoginPage() {
                     'notification:write',
                     'notification:delete',
                     'notification:test',
+                    'token:read',
+                    'token:write',
+                    'token:delete',
                     'admin',
                   ]
                 : ['host:read', 'scan:read'],

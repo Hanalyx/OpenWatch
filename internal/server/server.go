@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/Hanalyx/openwatch/internal/apitoken"
 	"github.com/Hanalyx/openwatch/internal/config"
 	"github.com/Hanalyx/openwatch/internal/correlation"
 	"github.com/Hanalyx/openwatch/internal/eventbus"
@@ -204,7 +205,10 @@ func New(cfg *config.Config, pool *pgxpool.Pool) *Server {
 	// reject on its own — that's the handler's job via EnforcePermission.
 	// Per app/specs/system/auth-identity.spec.yaml AC-17.
 	usrSvc := users.NewService(pool, nil)
-	r.Use(identity.Binder(pool, usrSvc))
+	// API service-account tokens (owk_) authenticate on the bearer path
+	// via the token service; the same instance backs the /tokens handlers.
+	apiTokenSvc := apitoken.NewService(pool)
+	r.Use(identity.Binder(pool, usrSvc, identity.WithTokenAuth(apiTokenSvc)))
 
 	// Idempotency middleware: short-circuits replays of mutating requests
 	// that include an Idempotency-Key header. No-op for GET/HEAD/OPTIONS.
@@ -234,6 +238,9 @@ func New(cfg *config.Config, pool *pgxpool.Pool) *Server {
 	// Spec-AC equivalence: the 402 envelope + audit emit happen via
 	// license.DenyFeature regardless of where the check is.
 	apiHandlers := newHandlers(pool)
+	// The token service is always available (it only wraps the pool), so
+	// wire it directly rather than via an optional WithX setter.
+	apiHandlers.apiTokenSvc = apiTokenSvc
 	api.HandlerFromMux(apiHandlers, r)
 	_ = license.PremiumDiagnostics // ensure import is exercised
 
