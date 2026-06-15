@@ -254,7 +254,7 @@ func New(cfg *config.Config, pool *pgxpool.Pool) *Server {
 	if pool != nil {
 		primeCtx, primeCancel := context.WithTimeout(context.Background(), 5*time.Second)
 		if err := apiHandlers.authPolicySvc.Prime(primeCtx); err != nil {
-			slog.Warn("auth policy prime skipped; using default session windows", "error", err)
+			slog.WarnContext(primeCtx, "auth policy prime skipped; using default session windows", "error", err)
 		}
 		primeCancel()
 	}
