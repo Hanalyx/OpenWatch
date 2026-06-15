@@ -177,8 +177,9 @@ func (s *Service) getDecrypted(ctx context.Context, id uuid.UUID) (Channel, erro
 // Update mutates name/enabled/tag_filter, and the secret config only when
 // ReplaceConfig is set.
 func (s *Service) Update(ctx context.Context, id uuid.UUID, p UpdateParams) (Channel, error) {
-	existing, err := s.Get(ctx, id)
-	if err != nil {
+	// Existence check (404 path); the row's current values are not read —
+	// a meta-only update leaves config_ciphertext + target_hint untouched.
+	if _, err := s.Get(ctx, id); err != nil {
 		return Channel{}, err
 	}
 	if strings.TrimSpace(p.Name) == "" {
@@ -188,13 +189,11 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, p UpdateParams) (Cha
 	if err != nil {
 		return Channel{}, fmt.Errorf("notification: marshal tags: %w", err)
 	}
-	hint := existing.TargetHint
 	if p.ReplaceConfig {
-		h, vErr := safeURLHost(p.Config.URL)
+		hint, vErr := safeURLHost(p.Config.URL)
 		if vErr != nil {
 			return Channel{}, vErr
 		}
-		hint = h
 		cipher, eErr := encryptConfig(p.Config)
 		if eErr != nil {
 			return Channel{}, eErr
