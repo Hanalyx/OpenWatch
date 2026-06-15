@@ -1,0 +1,78 @@
+spec:
+  id: frontend-rules-library
+  title: Rule library tab on /scans
+  version: "1.0.0"
+  status: approved
+  tier: 2
+
+  context:
+    system: openwatch-go
+    feature: The Rules tab on /scans — a browser over the full Kensa rule catalog
+    description: >
+      The /scans page gains a Rules tab that browses the Kensa rule library
+      (GET /api/v1/rules, api-rules). It is reference data — the whole list
+      is fetched once and filtered entirely client-side by search, severity,
+      category, and framework family. Each row shows the rule title +
+      description + id, its framework refs as family-colored tags (the same
+      tag styling as the scan-detail page), a severity pill, the category,
+      and a remediation summary (mechanism + atomic/manual). Export
+      downloads the filtered set as CSV. Per honest affordances there are no
+      bulk-select checkboxes or per-row action menus — there is no real
+      bulk action on catalog rules (scans run per host; remediation is a
+      later phase).
+    related_specs:
+      - api-rules
+      - frontend-scans
+      - frontend-scan-detail
+
+  objective:
+    summary: >
+      A user opens the Rules tab, searches and filters the 500+ rule
+      catalog, and exports the filtered set — all client-side.
+    scope:
+      includes:
+        - Rules tab mounted in ScansPage rendering RulesTab
+        - GET /api/v1/rules fetched once (queryKey ['rules'])
+        - client-side search + severity + category + framework filters
+        - family-colored framework tags, severity pill, remediation summary
+        - CSV export of the filtered rules
+      excludes:
+        - Server-side search/paging (api-rules returns the whole list)
+        - Bulk-select / per-row action menus (no real bulk action)
+        - Per-rule remediation execution (later phase)
+
+  constraints:
+    - id: C-01
+      description: ScansPage MUST mount a Rules tab in its tab switcher that renders RulesTab; RulesTab MUST fetch the catalog via GET /api/v1/rules with queryKey ['rules'] (reference data, cached)
+      type: technical
+      enforcement: error
+    - id: C-02
+      description: Filtering (search over id/title/description/framework ids, severity, category, framework family) MUST be client-side — selecting a filter issues NO network request, and the "showing M of N" count reflects the filtered subset
+      type: technical
+      enforcement: error
+    - id: C-03
+      description: Each rule row MUST render the title, description, rule id, its framework refs as family-colored tags (CIS / STIG / NIST / PCI), a severity pill, the category, and a remediation summary distinguishing an automated mechanism (atomic) from a manual one
+      type: technical
+      enforcement: error
+    - id: C-04
+      description: Export MUST download the currently-filtered rules as a CSV (client-side, no network). The tab MUST render no bulk-select checkboxes or per-row action menus, and UI copy carries no em-dashes
+      type: technical
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: Source-inspection — ScansPage's tab union includes 'rules', renders <RulesTab /> for that tab, and RulesTab calls api.GET('/api/v1/rules') with queryKey ['rules'].
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-02
+      description: Rendered — with a mocked rule list, RulesTab shows each rule's title and a framework tag; the header shows the total and "showing N of N".
+      priority: high
+      references_constraints: [C-03]
+    - id: AC-03
+      description: Rendered — typing in the search box narrows the visible rows to matches and updates the "showing M of N" count, issuing no additional GET (one fetch total). Source-inspection confirms the filter is computed client-side (useMemo over the fetched rules).
+      priority: high
+      references_constraints: [C-02]
+    - id: AC-04
+      description: Source-inspection — RulesTab provides a CSV Export built client-side from the filtered rules, renders no input[type=checkbox] bulk-select and no kebab/action-menu control, and contains no em-dash.
+      priority: high
+      references_constraints: [C-04]

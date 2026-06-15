@@ -468,6 +468,15 @@ func cmdServe(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 			slog.String("error", catalogErr.Error()))
 		ruleCatalog = nil
 	}
+	// Rule library (full normalized corpus) for the /api/v1/rules browser —
+	// same corpus resolution, same non-fatal posture (nil makes /rules 503).
+	// Spec api-rules.
+	ruleLibrary, libErr := kensa.NewRuleLibrary(scanRulesDir)
+	if libErr != nil {
+		slog.WarnContext(bootCtx, "kensa rule library unavailable; /api/v1/rules disabled",
+			slog.String("error", libErr.Error()))
+		ruleLibrary = nil
+	}
 	// Variable catalog for the Settings scan-variables surface — same
 	// corpus resolution, same non-fatal posture (without it the
 	// endpoint lists nothing and rejects overrides).
@@ -548,6 +557,7 @@ func cmdServe(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 		WithScanQueue(scanQueueKey).
 		WithScanWorker(scanWorker).
 		WithRuleCatalog(ruleCatalog).
+		WithRuleLibrary(ruleLibrary).
 		WithVariableCatalog(varCatalog).
 		WithExceptions(exceptionSvc).
 		WithGroups(group.NewService(pool)).

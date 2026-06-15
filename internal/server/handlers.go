@@ -107,6 +107,10 @@ type handlers struct {
 	// fine — the failed-rules endpoint falls back to rule ids for
 	// titles. Spec api-host-compliance.
 	ruleCatalog *kensa.RuleCatalog
+
+	// Kensa rule library (full normalized corpus). Set via
+	// (*Server).WithRuleLibrary; nil makes /api/v1/rules 503. Spec api-rules.
+	ruleLibrary *kensa.RuleLibrary
 }
 
 // newHandlers constructs the ServerInterface implementation. The user

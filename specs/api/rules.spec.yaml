@@ -1,0 +1,77 @@
+spec:
+  id: api-rules
+  title: Rule library API + normalization
+  version: "1.0.0"
+  status: approved
+  tier: 2
+
+  context:
+    system: openwatch-go
+    feature: Kensa rule-library browser
+    description: >
+      /api/v1/rules serves the full Kensa rule catalog as reference data
+      for the rule-library browser on /scans. The corpus is static, so it
+      is loaded and NORMALIZED once at boot into internal/kensa.RuleLibrary
+      and returned whole; the browser filters client-side. The
+      normalization is the point: the raw rule schema exposes framework
+      references as a heterogeneous nested map (cis.<distro>.section vs
+      stig.<distro>.vuln_id vs nist_800_53 arrays) and remediation as a
+      per-implementation struct, so the library flattens both into a stable
+      shape no consumer has to re-derive — framework_refs in the same
+      framework_id -> control-ids form as scan results, and a host-
+      independent remediation summary.
+    related_specs:
+      - api-scans
+      - api-host-compliance
+      - system-rbac
+
+  objective:
+    summary: >
+      One call — GET /api/v1/rules (scan:read) — returns every rule with
+      its normalized framework refs and remediation summary.
+    scope:
+      includes:
+        - Normalize References (nested per-framework map) -> framework_refs
+        - Summarize the default implementation's remediation
+        - GET /api/v1/rules returns the whole list + total, scan:read
+      excludes:
+        - Server-side search/filter/paging (client-side in the browser)
+        - Per-rule remediation execution (Phase 7 remediation)
+        - Reboot/risk fields (absent from the kensa rule schema; pending a
+          Kensa-side read model)
+
+  constraints:
+    - id: C-01
+      description: References MUST be normalized to framework_refs (framework_id -> control ids) in the same shape as scan_results.framework_refs — a nested per-distro object becomes "<framework>_<distro>" with the control id taken from the first recognized field (section, then vuln_id, then stig_id/control_id/id); a top-level array is taken verbatim; control slices are deduped and sorted
+      type: technical
+      enforcement: error
+    - id: C-02
+      description: The remediation summary MUST report the DEFAULT implementation's mechanism (falling back to the first implementation), with manual=true when the mechanism is "manual" or empty — the library has no host context, so it must not depend on capability-gated implementation selection
+      type: technical
+      enforcement: error
+    - id: C-03
+      description: GET /api/v1/rules MUST require scan:read — an anonymous caller gets 401/403; the endpoint is unreachable without the permission
+      type: security
+      enforcement: error
+    - id: C-04
+      description: GET /api/v1/rules MUST return the whole normalized rule list and a total count; each item carries id, title, description, severity, category, tags, framework_refs, and remediation
+      type: technical
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: normalizeFrameworkRefs flattens a mixed References map — CIS nested section, STIG nested vuln_id (preferred over stig_id), and a NIST top-level array — into framework_id -> control ids keyed "<framework>_<distro>" for nested entries, with controls deduped and sorted.
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-02
+      description: summarizeRemediation returns the default implementation's mechanism (or the first when none is default), and sets manual=true for a "manual" or empty mechanism.
+      priority: high
+      references_constraints: [C-02]
+    - id: AC-03
+      description: An anonymous request to GET /api/v1/rules returns 401/403; a viewer session (which holds scan:read) returns 200.
+      priority: critical
+      references_constraints: [C-03]
+    - id: AC-04
+      description: GET /api/v1/rules returns total == len(rules) and a rules array whose items carry id/title/description/severity/category/tags/framework_refs/remediation; the remediation summary distinguishes an automated mechanism from a manual one.
+      priority: high
+      references_constraints: [C-04]

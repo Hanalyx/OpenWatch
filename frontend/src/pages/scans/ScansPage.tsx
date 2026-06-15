@@ -4,6 +4,7 @@ import { Link } from '@tanstack/react-router';
 import api from '@/api/client';
 import { useBreadcrumbStore } from '@/store/useBreadcrumbStore';
 import { apiErrorMessage } from '@/api/errors';
+import { RulesTab } from './RulesTab';
 
 // ScansPage — the fleet scan overview at /scans, composed entirely from
 // endpoints that already ship (no new backend):
@@ -40,7 +41,7 @@ export function ScansPage() {
     return () => setCrumbs([]);
   }, [setCrumbs]);
 
-  const [tab, setTab] = useState<'coverage' | 'history'>('coverage');
+  const [tab, setTab] = useState<'coverage' | 'history' | 'rules'>('coverage');
 
   const queueQ = useQuery({
     queryKey: ['fleet', 'scan_queue'],
@@ -123,6 +124,9 @@ export function ScansPage() {
         <Tab id="history" active={tab === 'history'} onClick={() => setTab('history')}>
           History
         </Tab>
+        <Tab id="rules" active={tab === 'rules'} onClick={() => setTab('rules')}>
+          Rules
+        </Tab>
       </div>
 
       {tab === 'coverage' ? (
@@ -132,12 +136,14 @@ export function ScansPage() {
           isError={hostsQ.isError}
           error={hostsQ.error}
         />
-      ) : (
+      ) : tab === 'history' ? (
         <HistoryTab
           hostName={(id: string) =>
             hosts.find((h) => h.id === id)?.hostname ?? `${id.slice(0, 8)}…`
           }
         />
+      ) : (
+        <RulesTab />
       )}
     </div>
   );
