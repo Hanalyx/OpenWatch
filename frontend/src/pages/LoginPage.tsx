@@ -131,6 +131,10 @@ export function LoginPage() {
                     'credential:write',
                     'scan:read',
                     'audit:read',
+                    'notification:read',
+                    'notification:write',
+                    'notification:delete',
+                    'notification:test',
                     'admin',
                   ]
                 : ['host:read', 'scan:read'],

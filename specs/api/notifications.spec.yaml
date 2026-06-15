@@ -1,0 +1,83 @@
+spec:
+  id: api-notifications
+  title: Notification channels REST API
+  version: "1.0.0"
+  status: approved
+  tier: 2
+
+  context:
+    system: openwatch-go
+    feature: >-
+      CRUD + test for operator-managed alert-delivery channels under
+      /api/v1/notifications/channels. Backed by internal/notification
+      (system-notifications). Secrets (URL + token) are write-only: never
+      returned in any response.
+    description: >-
+      Six operations: list, create, get, patch, delete, and test-send.
+      Each is RBAC-gated by a distinct notification:* permission. Responses
+      carry only the non-secret channel metadata (id, type, name, enabled,
+      target_hint, tag_filter, timestamps). When the service is not wired,
+      every endpoint returns 503.
+    related_specs:
+      - system-notifications
+      - system-rbac
+
+  objective:
+    summary: >-
+      Lock the route contracts, the per-verb RBAC, the write-only secret
+      handling (no url/token in any response), and the 503-when-unwired
+      behavior.
+    scope:
+      includes:
+        - "GET /api/v1/notifications/channels (notification:read)"
+        - "POST /api/v1/notifications/channels (notification:write)"
+        - "GET/PATCH/DELETE /api/v1/notifications/channels/{id} (read/write/delete)"
+        - "POST /api/v1/notifications/channels/{id}:test (notification:test)"
+      excludes:
+        - "Delivery history endpoints (follow-up)"
+
+  constraints:
+    - id: C-01
+      description: >-
+        Each operation MUST enforce its permission via
+        auth.EnforcePermission before any work: list/get → notification:read,
+        create/patch → notification:write, delete → notification:delete,
+        test → notification:test. A caller lacking it gets 403.
+      type: security
+      enforcement: error
+    - id: C-02
+      description: >-
+        No response body across any notification endpoint MUST contain the
+        channel url or token. The API response schema (NotificationChannel)
+        has no url/token field; only target_hint (the non-secret host).
+      type: security
+      enforcement: error
+    - id: C-03
+      description: >-
+        When notificationSvc is nil every endpoint MUST return 503. A create
+        with a non-https or private-host url MUST return 400 (mapped from
+        ErrInvalidConfig); an unknown id on get/patch/test MUST return 404.
+      type: technical
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: GET /notifications/channels returns 200 with a channels array (NotificationChannelList) for a caller with notification:read; an anonymous caller gets 401 and a caller without the permission gets 403.
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-02
+      description: POST /notifications/channels with a valid slack/webhook body creates the channel and returns 201 with the redacted NotificationChannel (target_hint set, no url/token key anywhere in the JSON).
+      priority: critical
+      references_constraints: [C-01, C-02]
+    - id: AC-03
+      description: PATCH /notifications/channels/{id} updates name/enabled/tag_filter (and replaces the secret only when url is supplied) and returns 200 redacted; DELETE returns 204 and gates on notification:delete.
+      priority: high
+      references_constraints: [C-01, C-02]
+    - id: AC-04
+      description: "POST /notifications/channels/{id}:test gates on notification:test and returns 204 on delivery success / 404 for an unknown id / 400 when delivery fails."
+      priority: high
+      references_constraints: [C-01]
+    - id: AC-05
+      description: A POST with an http:// or private-host url returns 400 (ErrInvalidConfig). With notificationSvc nil, every endpoint returns 503. Source inspection — the api.NotificationChannel response struct declares no Url/Token field.
+      priority: critical
+      references_constraints: [C-02, C-03]

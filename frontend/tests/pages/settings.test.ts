@@ -24,6 +24,7 @@
 //   AC-20  About: license state from GET /api/v1/license, not hardcoded
 //   AC-21  Users: Invite member opens AddUserModal (POST /users) + roles roster
 //   AC-22  Users: Manage opens ManageUserModal (role assign/unassign + delete)
+//   AC-23  Notifications: notification:read gate, channel CRUD + test, secret-free
 
 import { describe, expect, test } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -54,6 +55,10 @@ const STUBBED_SRC = readFileSync(
 const AUDIT_SRC = readFileSync(resolve(process.cwd(), 'src/pages/settings/AuditPage.tsx'), 'utf8');
 const USERMUT_SRC = readFileSync(
   resolve(process.cwd(), 'src/pages/settings/UserMutations.tsx'),
+  'utf8',
+);
+const NOTIF_SRC = readFileSync(
+  resolve(process.cwd(), 'src/pages/settings/NotificationsPage.tsx'),
   'utf8',
 );
 const PREFS_STORE_SRC = readFileSync(
@@ -197,17 +202,19 @@ describe('frontend-settings — structural', () => {
   });
 
   // @ac AC-15
-  test('frontend-settings/AC-15 — three stubbed pages each render BackendPendingBanner; Audit/About/Policies graduated', () => {
+  test('frontend-settings/AC-15 — two stubbed pages each render BackendPendingBanner; Notifications/Audit/About/Policies graduated', () => {
     expect(STUBBED_SRC).toContain('BackendPendingBanner');
-    // The three remaining stub exports must be present and StubShell-based.
-    const expected = ['NotificationsPage', 'IntegrationsPage', 'SecurityPage'];
+    // The two remaining stub exports must be present and StubShell-based.
+    const expected = ['IntegrationsPage', 'SecurityPage'];
     for (const name of expected) {
       expect(STUBBED_SRC).toContain(`export function ${name}`);
     }
     expect(STUBBED_SRC).toMatch(/<StubShell/);
-    // Audit log graduated to its own file (v1.3.0): no longer a stub here.
+    // Audit log + Notifications graduated to their own files: not stubs here.
     expect(STUBBED_SRC).not.toContain('export function AuditPage');
+    expect(STUBBED_SRC).not.toContain('export function NotificationsPage');
     expect(ROUTER_SRC).toContain("from '@/pages/settings/AuditPage'");
+    expect(ROUTER_SRC).toContain("from '@/pages/settings/NotificationsPage'");
     // About graduated too: it renders live version + license, not a
     // BackendPendingBanner. It still lives in this file but is not a stub.
     expect(STUBBED_SRC).toContain('export function AboutPage');
@@ -337,5 +344,29 @@ describe('frontend-settings — structural', () => {
     expect(USERMUT_SRC).toMatch(/api\.GET\(\s*['"]\/api\/v1\/roles['"]/);
     // Every mutation invalidates the users list.
     expect(USERMUT_SRC).toMatch(/invalidateQueries\(\{\s*queryKey:\s*\['users'\]/);
+  });
+
+  // @ac AC-23
+  test('frontend-settings/AC-23 — Notifications: notification:read gate, CRUD + test, secret-free', () => {
+    // Gated on notification:read with a ForbiddenPage fallback.
+    expect(NOTIF_SRC).toMatch(/hasPermission\)\('notification:read'\)/);
+    expect(NOTIF_SRC).toContain('ForbiddenPage');
+    // List keyed ['notification-channels'].
+    expect(NOTIF_SRC).toMatch(/queryKey:\s*\['notification-channels'\]/);
+    expect(NOTIF_SRC).toMatch(/api\.GET\(\s*['"]\/api\/v1\/notifications\/channels['"]/);
+    // CRUD + test endpoints.
+    expect(NOTIF_SRC).toMatch(/api\.POST\(\s*['"]\/api\/v1\/notifications\/channels['"]/);
+    expect(NOTIF_SRC).toMatch(/api\.PATCH\(\s*['"]\/api\/v1\/notifications\/channels\/\{id\}['"]/);
+    expect(NOTIF_SRC).toMatch(/api\.DELETE\(\s*['"]\/api\/v1\/notifications\/channels\/\{id\}['"]/);
+    expect(NOTIF_SRC).toContain('/api/v1/notifications/channels/{id}:test');
+    // Mutations invalidate the list.
+    expect(NOTIF_SRC).toMatch(/invalidateQueries\(\{\s*queryKey:\s*\['notification-channels'\]/);
+    // Renders the non-secret hint, never a url/token secret field.
+    expect(NOTIF_SRC).toContain('target_hint');
+    expect(NOTIF_SRC).not.toMatch(/channel\.(url|token)\b/);
+    // Write/delete/test controls gate on their permissions.
+    expect(NOTIF_SRC).toMatch(/hasPermission\)\('notification:write'\)/);
+    expect(NOTIF_SRC).toMatch(/hasPermission\)\('notification:delete'\)/);
+    expect(NOTIF_SRC).toMatch(/hasPermission\)\('notification:test'\)/);
   });
 });

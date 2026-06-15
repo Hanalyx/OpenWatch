@@ -31,6 +31,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/kensa"
 	"github.com/Hanalyx/openwatch/internal/license"
 	"github.com/Hanalyx/openwatch/internal/liveness"
+	"github.com/Hanalyx/openwatch/internal/notification"
 	"github.com/Hanalyx/openwatch/internal/scanresult"
 	"github.com/Hanalyx/openwatch/internal/scheduler"
 	"github.com/Hanalyx/openwatch/internal/secretkey"
@@ -272,6 +273,9 @@ func freshAPIServer(t *testing.T) (string, *pgxpool.Pool) {
 	// Spec api-scans: wire the durable per-scan results reader so
 	// /api/v1/scans and its sub-routes reach a real handler.
 	s.WithScanResults(scanresult.NewReader(pool))
+	// Spec api-notifications: wire the notification-channel service so
+	// /api/v1/notifications/channels reaches a real handler.
+	s.WithNotifications(notification.NewService(pool))
 	// Variable catalog fixture: two corpus-style variables (one a
 	// configure-me placeholder) so the scan-variables endpoints are
 	// testable without the on-disk kensa corpus.

@@ -1933,6 +1933,60 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/notifications/channels": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List notification channels (secrets redacted) */
+        get: operations["getNotificationChannels"];
+        put?: never;
+        /** Create a notification channel */
+        post: operations["postNotificationChannel"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notifications/channels/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Fetch a notification channel (secret redacted) */
+        get: operations["getNotificationChannel"];
+        put?: never;
+        post?: never;
+        /** Delete a notification channel */
+        delete: operations["deleteNotificationChannel"];
+        options?: never;
+        head?: never;
+        /** Update a notification channel */
+        patch: operations["patchNotificationChannel"];
+        trace?: never;
+    };
+    "/api/v1/notifications/channels/{id}:test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Send a synthetic test alert through the channel */
+        post: operations["testNotificationChannel"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1972,6 +2026,8 @@ export interface components {
             id: string;
             username: string;
             email: string;
+            /** @description Role IDs assigned to the user. Populated by the list endpoint (GET /users); other responses may omit it. */
+            roles?: string[];
             /** Format: date-time */
             last_password_change_at?: string;
             /** Format: date-time */
@@ -1981,6 +2037,52 @@ export interface components {
         };
         UsersListResponse: {
             users: components["schemas"]["UserResponse"][];
+        };
+        /** @description A delivery channel. The target URL + token are secret and are NEVER returned; target_hint is the non-secret URL host. */
+        NotificationChannel: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            type: "slack" | "webhook";
+            name: string;
+            enabled: boolean;
+            /** @description Non-secret URL host (e.g. hooks.slack.com) */
+            target_hint: string;
+            /** @description Alert tags this channel matches; empty = every alert */
+            tag_filter: {
+                [key: string]: string;
+            };
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        NotificationChannelList: {
+            channels: components["schemas"]["NotificationChannel"][];
+        };
+        NotificationChannelCreate: {
+            /** @enum {string} */
+            type: "slack" | "webhook";
+            name: string;
+            /** @default true */
+            enabled: boolean;
+            /** @description Target URL (https, public host). Stored encrypted; never returned. */
+            url: string;
+            /** @description Optional bearer token for webhook auth. Stored encrypted; never returned. */
+            token?: string;
+            tag_filter?: {
+                [key: string]: string;
+            };
+        };
+        /** @description Updates name/enabled/tag_filter. Supplying url replaces the secret config (token optional); omitting url leaves the secret unchanged. */
+        NotificationChannelUpdate: {
+            name: string;
+            enabled: boolean;
+            url?: string;
+            token?: string;
+            tag_filter?: {
+                [key: string]: string;
+            };
         };
         UserCreateRequest: {
             username: string;
@@ -3192,6 +3294,33 @@ export interface components {
         };
         /** @description Wrong HTTP method */
         MethodNotAllowed: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ErrorEnvelope"];
+            };
+        };
+        /** @description Caller lacks the required permission */
+        Forbidden: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ErrorEnvelope"];
+            };
+        };
+        /** @description Resource not found */
+        NotFound: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ErrorEnvelope"];
+            };
+        };
+        /** @description Backing service not wired on the server */
+        ServiceUnavailable: {
             headers: {
                 [name: string]: unknown;
             };
@@ -7201,6 +7330,156 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
+        };
+    };
+    getNotificationChannels: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Channel list */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationChannelList"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    postNotificationChannel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NotificationChannelCreate"];
+            };
+        };
+        responses: {
+            /** @description Channel created (secret redacted) */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationChannel"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            403: components["responses"]["Forbidden"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    getNotificationChannel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Channel */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationChannel"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    deleteNotificationChannel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: components["responses"]["Forbidden"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    patchNotificationChannel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NotificationChannelUpdate"];
+            };
+        };
+        responses: {
+            /** @description Updated channel (secret redacted) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationChannel"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    testNotificationChannel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Test alert delivered */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            503: components["responses"]["ServiceUnavailable"];
         };
     };
 }

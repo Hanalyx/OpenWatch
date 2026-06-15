@@ -25,6 +25,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/identity"
 	"github.com/Hanalyx/openwatch/internal/kensa"
 	"github.com/Hanalyx/openwatch/internal/license"
+	"github.com/Hanalyx/openwatch/internal/notification"
 	"github.com/Hanalyx/openwatch/internal/report"
 	"github.com/Hanalyx/openwatch/internal/scanresult"
 	"github.com/Hanalyx/openwatch/internal/server/api"
@@ -156,6 +157,14 @@ func (s *Server) WithReports(rep *report.Service) *Server {
 // makes the scan endpoints 503. Spec api-scans.
 func (s *Server) WithScanResults(rd *scanresult.Reader) *Server {
 	s.handlers.scanResultSvc = rd
+	return s
+}
+
+// WithNotifications threads the notification-channel service into the API
+// handlers so /api/v1/notifications/channels is routable. Nil makes the
+// notification endpoints 503. Spec api-notifications.
+func (s *Server) WithNotifications(svc *notification.Service) *Server {
+	s.handlers.notificationSvc = svc
 	return s
 }
 

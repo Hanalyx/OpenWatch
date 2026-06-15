@@ -83,40 +83,6 @@ function StubCard({ rows }: { rows: { name: string; description: string }[] }) {
   );
 }
 
-// ── Notifications ───────────────────────────────────────────────────────
-export function NotificationsPage() {
-  return (
-    <StubShell
-      title="Notifications"
-      description="How OpenWatch tells you about scan failures, drift events, and compliance regressions."
-      slice="Slice C (notification channels)"
-      pendingText="Slack / email / webhook channel CRUD pending."
-      crumb="Notifications"
-    >
-      <Section title="Channels">
-        <StubCard
-          rows={[
-            { name: 'Email', description: 'Per-event email digests + critical alerts.' },
-            { name: 'Slack', description: 'Webhook delivery to channels.' },
-            { name: 'Webhooks', description: 'Forward events to any HTTPS endpoint.' },
-          ]}
-        />
-      </Section>
-      <Section title="Event routing">
-        <StubCard
-          rows={[
-            {
-              name: 'Critical alerts',
-              description: 'High-severity drift, scan failure, unreachable hosts.',
-            },
-            { name: 'Compliance regressions', description: 'Per-framework score drops.' },
-          ]}
-        />
-      </Section>
-    </StubShell>
-  );
-}
-
 // ── Integrations ────────────────────────────────────────────────────────
 export function IntegrationsPage() {
   return (

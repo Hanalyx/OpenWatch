@@ -25,12 +25,8 @@ import { PreferencesPage } from '@/pages/settings/PreferencesPage';
 import { CredentialsPage } from '@/pages/settings/CredentialsPage';
 import { UsersPage } from '@/pages/settings/UsersPage';
 import { ScanningPage } from '@/pages/settings/ScanningPage';
-import {
-  NotificationsPage,
-  IntegrationsPage,
-  SecurityPage,
-  AboutPage,
-} from '@/pages/settings/StubbedPages';
+import { IntegrationsPage, SecurityPage, AboutPage } from '@/pages/settings/StubbedPages';
+import { NotificationsPage } from '@/pages/settings/NotificationsPage';
 import { AuditPage } from '@/pages/settings/AuditPage';
 import { PoliciesPage } from '@/pages/settings/PoliciesPage';
 
