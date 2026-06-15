@@ -410,6 +410,102 @@ func TestBuild_MultiArchSupport(t *testing.T) {
 	})
 }
 
+// kensaRulesRPMPath returns the kensa-rules noarch RPM under dist/,
+// building it via `make kensa-rules` if necessary.
+func kensaRulesRPMPath(t *testing.T) string {
+	t.Helper()
+	dir := appDir(t)
+	haveTool(t, "rpmbuild")
+	runMake(t, dir, "kensa-rules")
+	return findArtifact(t, filepath.Join(dir, "dist"), "kensa-rules-*.rpm")
+}
+
+// kensaRulesDebPath returns the kensa-rules all DEB under dist/, building
+// it via `make kensa-rules` if necessary.
+func kensaRulesDebPath(t *testing.T) string {
+	t.Helper()
+	dir := appDir(t)
+	haveTool(t, "dpkg-deb")
+	runMake(t, dir, "kensa-rules")
+	return findArtifact(t, filepath.Join(dir, "dist"), "kensa-rules_*.deb")
+}
+
+// @ac AC-15
+// AC-15: the kensa-rules RPM (noarch) and DEB (all) each carry the full
+// corpus under /usr/share/kensa/rules.
+func TestKensaRules_CorpusPayload(t *testing.T) {
+	t.Run("release-package-build/AC-15", func(t *testing.T) {
+		const wantRules = 500
+		ruleLine := regexp.MustCompile(`/usr/share/kensa/rules/.*\.yml`)
+
+		rpm := kensaRulesRPMPath(t)
+		// noarch: the corpus is arch-independent.
+		if arch := strings.TrimSpace(rpmQuery(t, rpm, "%{ARCH}")); arch != "noarch" {
+			t.Errorf("kensa-rules RPM arch = %q, want noarch", arch)
+		}
+		rpmFiles := rpmQuery(t, rpm, "[%{FILENAMES}\n]")
+		if n := len(ruleLine.FindAllString(rpmFiles, -1)); n < wantRules {
+			t.Errorf("kensa-rules RPM has %d rule files under /usr/share/kensa/rules, want >=%d", n, wantRules)
+		}
+
+		deb := kensaRulesDebPath(t)
+		debFiles := debContents(t, deb)
+		if n := len(ruleLine.FindAllString(debFiles, -1)); n < wantRules {
+			t.Errorf("kensa-rules DEB has %d rule files under /usr/share/kensa/rules, want >=%d", n, wantRules)
+		}
+		// Architecture: all in the DEB control.
+		if info := debInfo(t, deb); !strings.Contains(info, "Architecture: all") {
+			t.Errorf("kensa-rules DEB control lacks Architecture: all\ninfo:\n%s", info)
+		}
+	})
+}
+
+// @ac AC-16
+// AC-16: the openwatch packages declare a hard dependency on kensa-rules
+// so a corpus-less install fails fast.
+func TestOpenwatch_DependsOnKensaRules(t *testing.T) {
+	t.Run("release-package-build/AC-16", func(t *testing.T) {
+		dir := appDir(t)
+		read := func(p string) string {
+			b, err := os.ReadFile(p)
+			if err != nil {
+				t.Fatalf("read %s: %v", p, err)
+			}
+			return string(b)
+		}
+		spec := read(filepath.Join(dir, "packaging", "rpm", "openwatch.spec"))
+		if !regexp.MustCompile(`(?m)^Requires:\s+kensa-rules\b`).MatchString(spec) {
+			t.Error("openwatch.spec must declare `Requires: kensa-rules`")
+		}
+		control := read(filepath.Join(dir, "packaging", "deb", "control"))
+		depends := ""
+		for _, line := range strings.Split(control, "\n") {
+			if strings.HasPrefix(line, "Depends:") {
+				depends = line
+				break
+			}
+		}
+		if !strings.Contains(depends, "kensa-rules") {
+			t.Errorf("deb/control Depends must list kensa-rules, got %q", depends)
+		}
+	})
+}
+
+// @ac AC-17
+// AC-17: make packages builds the kensa-rules corpus package too.
+func TestMake_PackagesBuildsKensaRules(t *testing.T) {
+	t.Run("release-package-build/AC-17", func(t *testing.T) {
+		dir := appDir(t)
+		b, err := os.ReadFile(filepath.Join(dir, "Makefile"))
+		if err != nil {
+			t.Fatalf("read Makefile: %v", err)
+		}
+		if !regexp.MustCompile(`(?m)^packages:.*\bkensa-rules\b`).MatchString(string(b)) {
+			t.Error("Makefile `packages` target must depend on kensa-rules")
+		}
+	})
+}
+
 // readDebControlScript extracts a named maintainer script from a DEB
 // using `dpkg-deb --ctrl-tarfile` piped to `tar`. Returns the script body
 // as a string.

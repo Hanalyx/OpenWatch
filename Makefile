@@ -259,10 +259,18 @@ rpm-arm64:
 deb-arm64:
 	@ARCH=arm64 bash packaging/deb/build-deb.sh
 
-# All four release artifacts: RPM + DEB for amd64 and arm64.
+# Kensa rule corpus, packaged separately (noarch RPM + arch:all DEB). The
+# openwatch packages declare a hard dependency on this; an install needs
+# both. Version tracks the vendored kensa module, not the platform.
+.PHONY: kensa-rules
+kensa-rules:
+	@bash packaging/kensa-rules/build-kensa-rules.sh
+
+# All release artifacts: openwatch RPM + DEB for amd64 and arm64, plus the
+# arch-independent kensa-rules corpus package (one RPM + one DEB).
 .PHONY: packages
-packages: rpm rpm-arm64 deb deb-arm64
-	@echo "built RPM + DEB (amd64 + arm64) in $(DIST_DIR)/"
+packages: rpm rpm-arm64 deb deb-arm64 kensa-rules
+	@echo "built openwatch RPM + DEB (amd64 + arm64) and kensa-rules in $(DIST_DIR)/"
 
 # -----------------------------------------------------------------------------
 # FIPS build (Day 12: microsoft/go toolchain)

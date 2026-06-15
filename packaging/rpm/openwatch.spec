@@ -27,6 +27,13 @@ URL:            https://github.com/Hanalyx/openwatch
 Source0:        %{name}-%{version}.tar.gz
 
 Requires:       postgresql-server
+# Hard dependency on the rule corpus: the kensa engine loads rules from
+# /usr/share/kensa/rules at runtime and cannot scan without them. Declaring
+# it here makes a corpus-less install fail fast (air-gapped operators install
+# both files in one transaction: dnf install ./openwatch-*.rpm ./kensa-rules-*.rpm)
+# rather than the service booting and every scan failing. Unversioned so the
+# corpus can advance on its own line; tighten to a floor when OTA lands.
+Requires:       kensa-rules
 Requires(pre):  shadow-utils
 
 %description
