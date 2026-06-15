@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/Hanalyx/openwatch/internal/apitoken"
+	"github.com/Hanalyx/openwatch/internal/authpolicy"
 	"github.com/Hanalyx/openwatch/internal/config"
 	"github.com/Hanalyx/openwatch/internal/correlation"
 	"github.com/Hanalyx/openwatch/internal/eventbus"
@@ -241,6 +242,22 @@ func New(cfg *config.Config, pool *pgxpool.Pool) *Server {
 	// The token service is always available (it only wraps the pool), so
 	// wire it directly rather than via an optional WithX setter.
 	apiHandlers.apiTokenSvc = apiTokenSvc
+	// The auth-policy service is likewise always available. Prime the
+	// identity session windows from the stored policy so sessions honour
+	// it from the first request. Best-effort: a missing policy row (e.g.
+	// a test pool without the 0033 migration) leaves the identity defaults
+	// in place, which are behaviour-preserving.
+	apiHandlers.authPolicySvc = authpolicy.NewService(pool)
+	// Guard on a non-nil pool: a few unit tests construct New(cfg, nil) to
+	// assert wiring that doesn't touch the DB. The identity defaults remain
+	// in place when priming is skipped.
+	if pool != nil {
+		primeCtx, primeCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		if err := apiHandlers.authPolicySvc.Prime(primeCtx); err != nil {
+			slog.Warn("auth policy prime skipped; using default session windows", "error", err)
+		}
+		primeCancel()
+	}
 	api.HandlerFromMux(apiHandlers, r)
 	_ = license.PremiumDiagnostics // ensure import is exercised
 

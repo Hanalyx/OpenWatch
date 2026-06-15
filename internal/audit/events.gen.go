@@ -57,6 +57,8 @@ const (
 	AuthApiKeyCreated Code = "auth.api_key.created"
 	// API key invalidated
 	AuthApiKeyRevoked Code = "auth.api_key.revoked"
+	// Workspace authentication policy changed (require-MFA, session timeouts)
+	AuthPolicyUpdated Code = "auth.policy.updated"
 	// RBAC denied an authenticated request
 	AuthzPermissionDenied Code = "authz.permission.denied"
 	// Role assigned to user
@@ -431,6 +433,13 @@ var Metadata = map[Code]EventMeta{
 		Category:    "auth",
 		Severity:    SeverityWarning,
 		Description: `API key invalidated`,
+		ActorTypes:  nil,
+	},
+	AuthPolicyUpdated: {
+		Code:        AuthPolicyUpdated,
+		Category:    "auth",
+		Severity:    SeverityWarning,
+		Description: `Workspace authentication policy changed (require-MFA, session timeouts)`,
 		ActorTypes:  nil,
 	},
 	AuthzPermissionDenied: {
@@ -1314,6 +1323,7 @@ var codeOrder = []Code{
 	AuthPasswordPolicyFailed,
 	AuthApiKeyCreated,
 	AuthApiKeyRevoked,
+	AuthPolicyUpdated,
 	AuthzPermissionDenied,
 	AuthzRoleAssigned,
 	AuthzRoleRemoved,

@@ -65,7 +65,13 @@ spec:
       type: security
       enforcement: error
     - id: C-06
-      description: Session inactivity timeout MUST be 15 minutes; absolute timeout MUST be 12 hours
+      description: >-
+        The DEFAULT session inactivity timeout MUST be 15 minutes and the
+        default absolute timeout MUST be 12 hours
+        (identity.DefaultSessionInactivityWindow / DefaultSessionAbsoluteWindow).
+        These windows are overridable at runtime by the workspace
+        authentication policy (see system-auth-policy); when no policy is
+        installed the defaults apply, preserving historical behaviour.
       type: security
       enforcement: error
     - id: C-07

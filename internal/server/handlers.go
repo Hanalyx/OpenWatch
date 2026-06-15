@@ -13,6 +13,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/apitoken"
 	"github.com/Hanalyx/openwatch/internal/audit"
 	"github.com/Hanalyx/openwatch/internal/auth"
+	"github.com/Hanalyx/openwatch/internal/authpolicy"
 	"github.com/Hanalyx/openwatch/internal/correlation"
 	"github.com/Hanalyx/openwatch/internal/credential"
 	"github.com/Hanalyx/openwatch/internal/eventbus"
@@ -122,6 +123,11 @@ type handlers struct {
 	// wraps the pool), so the /api/v1/tokens endpoints are never 503.
 	// Spec api-tokens.
 	apiTokenSvc *apitoken.Service
+
+	// Workspace authentication policy (require-MFA, session timeouts).
+	// Always wired in server.New (it only wraps the pool), so the
+	// /api/v1/auth-policy endpoints are never 503. Spec api-auth-policy.
+	authPolicySvc *authpolicy.Service
 }
 
 // newHandlers constructs the ServerInterface implementation. The user

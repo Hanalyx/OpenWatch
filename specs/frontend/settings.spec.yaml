@@ -1,7 +1,7 @@
 spec:
   id: frontend-settings
   title: Settings — two-pane shell with 11 sub-pages
-  version: "1.6.0"
+  version: "1.7.0"
   status: draft
   tier: 2
 
@@ -63,7 +63,7 @@ spec:
         - "Audit log — filterable, cursor-paginated GET /api/v1/audit/events, audit:read gated, read-only (v1.3.0)"
         - "About — version from GET /api/v1/version + license state from GET /api/v1/license (v1.3.0)"
         - "Notifications — Slack/webhook channel CRUD + test over /api/v1/notifications/channels, notification:read gated, secrets write-only (v1.5.0)"
-        - "Security & auth — live API-tokens section (list/create/revoke over /api/v1/tokens, secret shown once); SSO + auth-policy stay Backend Pending (v1.6.0)"
+        - "Security & auth — live API-tokens section (list/create/revoke over /api/v1/tokens, secret shown once) + live authentication-policy section (require-MFA toggle + idle/absolute session timeouts over /api/v1/auth-policy, system:auth_policy_* gated); SSO stays Backend Pending (v1.7.0)"
         - "Integrations — structural shell with Backend Pending banner"
         - "All control widgets themed via --ow-* tokens"
       excludes:
@@ -145,8 +145,8 @@ spec:
         The remaining stubbed page (Integrations) MUST render a
         BackendPendingBanner identifying the slice that unblocks it. Every
         interactive control on it MUST be disabled. (Security & auth keeps
-        BackendPendingBanner only on its SSO + auth-policy sections; its
-        API-tokens section is live per C-16.)
+        BackendPendingBanner only on its SSO section; its API-tokens and
+        authentication-policy sections are live per C-16.)
       type: technical
       enforcement: error
     - id: C-10
@@ -213,7 +213,11 @@ spec:
         and a "won't be shown again" warning, Revoke via DELETE
         /api/v1/tokens/{id} (token:delete); each mutation invalidates
         ['api-tokens']. The list MUST render only the non-secret prefix.
-        SSO + authentication-policy sections stay BackendPendingBanner.
+        v1.7.0 — it MUST also render a live authentication-policy section:
+        GET /api/v1/auth-policy keyed ['auth-policy'] (system:auth_policy_read),
+        a require-MFA Toggle + idle/absolute timeout Steppers, Save via PUT
+        /api/v1/auth-policy (system:auth_policy_write) invalidating
+        ['auth-policy']. Only the SSO section stays BackendPendingBanner.
       type: security
       enforcement: error
 
@@ -311,6 +315,11 @@ spec:
       priority: high
       references_constraints: [C-15]
     - id: AC-24
-      description: "v1.6.0 source-inspection: SecurityPage gates the page on hasPermission('admin') (ForbiddenPage otherwise); the API-tokens section lists from GET /api/v1/tokens keyed ['api-tokens'], Create calls api.POST '/api/v1/tokens' and renders the returned token once (a copy control + a not-shown-again warning), Revoke calls api.DELETE '/api/v1/tokens/{id}', and both mutations invalidate ['api-tokens']; the list renders token.prefix and references no raw token/secret list field; write/delete controls gate on token:write/token:delete; SSO + auth-policy sections still render BackendPendingBanner."
+      description: "v1.6.0 source-inspection: SecurityPage gates the page on hasPermission('admin') (ForbiddenPage otherwise); the API-tokens section lists from GET /api/v1/tokens keyed ['api-tokens'], Create calls api.POST '/api/v1/tokens' and renders the returned token once (a copy control + a not-shown-again warning), Revoke calls api.DELETE '/api/v1/tokens/{id}', and both mutations invalidate ['api-tokens']; the list renders token.prefix and references no raw token/secret list field; write/delete controls gate on token:write/token:delete; the SSO section still renders BackendPendingBanner."
+      priority: high
+      references_constraints: [C-16]
+
+    - id: AC-25
+      description: "v1.7.0 source-inspection: SecurityPage's authentication-policy section loads GET /api/v1/auth-policy keyed ['auth-policy'] (gated on system:auth_policy_read), renders a require-MFA Toggle plus idle/absolute timeout Steppers seeded from the policy, and Saves via api.PUT '/api/v1/auth-policy' (gated on system:auth_policy_write) invalidating ['auth-policy']; LoginPage reads mfa_enrollment_required from the login response and routes to /settings/profile when it is set."
       priority: high
       references_constraints: [C-16]

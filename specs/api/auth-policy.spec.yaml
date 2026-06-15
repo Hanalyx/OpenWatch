@@ -1,0 +1,70 @@
+spec:
+  id: api-auth-policy
+  title: Authentication policy REST API
+  version: "1.0.0"
+  status: approved
+  tier: 2
+
+  context:
+    system: openwatch-go
+    feature: >-
+      Read + replace the workspace authentication policy under
+      /api/v1/auth-policy: GET (system:auth_policy_read) and PUT
+      (system:auth_policy_write). Backed by internal/authpolicy
+      (system-auth-policy).
+    description: >-
+      Two operations on a single workspace policy. GET returns the current
+      require-MFA flag and session timeout windows (seconds). PUT replaces
+      the whole policy, validating the window bounds server-side, and audits
+      the change. The endpoints are always wired (the service only wraps the
+      pool).
+    related_specs:
+      - system-auth-policy
+      - system-rbac
+
+  objective:
+    summary: >-
+      Lock the route contract, the per-verb RBAC, the bounds rejection, and
+      the audit emission.
+    scope:
+      includes:
+        - "GET /api/v1/auth-policy (system:auth_policy_read)"
+        - "PUT /api/v1/auth-policy (system:auth_policy_write) — full replace, bounds-validated"
+        - "auth.policy.updated audit on a successful PUT"
+      excludes:
+        - "SSO provider configuration endpoints (separate slice)"
+
+  constraints:
+    - id: C-01
+      description: >-
+        GET MUST enforce system:auth_policy_read and PUT MUST enforce
+        system:auth_policy_write via auth.EnforcePermission before any work.
+        A caller lacking the permission gets 403; an anonymous caller is
+        denied.
+      type: security
+      enforcement: error
+    - id: C-02
+      description: >-
+        PUT MUST reject an out-of-bounds window with 400 (auth_policy.invalid)
+        rather than persisting it. A successful PUT MUST emit an
+        auth.policy.updated audit event carrying the new values.
+      type: security
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: GET /auth-policy returns 200 with require_mfa + both timeout-seconds fields for a caller with system:auth_policy_read; a caller without it gets 403.
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-02
+      description: PUT /auth-policy with valid values returns 200 with the updated policy and gates on system:auth_policy_write (a caller without it gets 403); a subsequent GET returns the new values.
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-03
+      description: PUT /auth-policy with an out-of-bounds window (idle below 300 s, or absolute below idle) returns 400 with code auth_policy.invalid and does not change the stored policy.
+      priority: high
+      references_constraints: [C-02]
+    - id: AC-04
+      description: "Source inspection — PutAuthPolicy emits audit.AuthPolicyUpdated with the require_mfa + timeout values on the success path."
+      priority: high
+      references_constraints: [C-02]

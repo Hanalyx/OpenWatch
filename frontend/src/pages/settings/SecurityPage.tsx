@@ -10,9 +10,13 @@ import {
   PageHead,
   Section,
   SettingCard,
+  SettingRow,
+  FirstSettingRow,
   BackendPendingBanner,
   Btn,
   StatusPill,
+  Toggle,
+  Stepper,
   Modal,
   FormField,
   Select,
@@ -23,14 +27,16 @@ import type { components } from '@/api/schema';
 
 type ApiToken = components['schemas']['ApiToken'];
 type RoleEntry = components['schemas']['RoleEntry'];
+type AuthPolicy = components['schemas']['AuthPolicy'];
 
 // Settings -> Security & auth.
 //
 // API tokens (token:* ) are live: service-account tokens for automation,
-// shown once at creation. SSO (OIDC/SAML) and authentication policy remain
-// backend-pending stubs.
+// shown once at creation. Authentication policy (require-MFA + session
+// timeouts) is live via system:auth_policy_*. SSO (OIDC/SAML) remains a
+// backend-pending stub.
 //
-// Spec: frontend-settings v1.6.0, api-tokens.
+// Spec: frontend-settings v1.7.0, api-tokens, api-auth-policy.
 
 const inputStyle = {
   background: 'var(--ow-bg-2)',
@@ -64,6 +70,8 @@ export function SecurityPage() {
   const canRead = useAuthStore((s) => s.hasPermission)('token:read');
   const canWrite = useAuthStore((s) => s.hasPermission)('token:write');
   const canDelete = useAuthStore((s) => s.hasPermission)('token:delete');
+  const canReadPolicy = useAuthStore((s) => s.hasPermission)('system:auth_policy_read');
+  const canWritePolicy = useAuthStore((s) => s.hasPermission)('system:auth_policy_write');
   const [addOpen, setAddOpen] = useState(false);
   useEffect(() => {
     setCrumbs([{ label: 'Settings' }, { label: 'Security & auth' }]);
@@ -93,16 +101,19 @@ export function SecurityPage() {
 
       <Section title="Single sign-on">
         <BackendPendingBanner
-          slice="Slice C (SSO + auth policy)"
+          slice="Slice C (SSO)"
           text="OIDC/SAML provider configuration is pending."
         />
       </Section>
 
       <Section title="Authentication policy">
-        <BackendPendingBanner
-          slice="Slice C (SSO + auth policy)"
-          text="MFA-enforcement and session-timeout policy endpoints are pending."
-        />
+        {canReadPolicy ? (
+          <AuthPolicySection canWrite={canWritePolicy} />
+        ) : (
+          <Callout tier="info">
+            You do not have permission to view the authentication policy.
+          </Callout>
+        )}
       </Section>
 
       <Section title="API tokens">
@@ -138,6 +149,137 @@ export function SecurityPage() {
 }
 
 const pad = { padding: 20, color: 'var(--ow-fg-2)', fontSize: 13 } as const;
+
+// AuthPolicySection — live require-MFA + session-timeout policy.
+// Timeouts are stored in seconds; presented as minutes (idle) and hours
+// (absolute). Bounds mirror the server (idle 5m..24h, absolute 1h..30d).
+// Spec: api-auth-policy, frontend-settings.
+function AuthPolicySection({ canWrite }: { canWrite: boolean }) {
+  const queryClient = useQueryClient();
+  const [requireMfa, setRequireMfa] = useState(false);
+  const [idleMin, setIdleMin] = useState(15);
+  const [absHrs, setAbsHrs] = useState(12);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  const policyQuery = useQuery({
+    queryKey: ['auth-policy'],
+    queryFn: async () => {
+      const { data, error, response } = await api.GET('/api/v1/auth-policy');
+      if (error || !response.ok) throw new Error(apiErrorMessage(error, 'Failed to load policy'));
+      return data!;
+    },
+  });
+
+  // Seed local state once the policy loads.
+  useEffect(() => {
+    const p = policyQuery.data;
+    if (!p) return;
+    setRequireMfa(p.require_mfa);
+    setIdleMin(Math.round(p.session_idle_timeout_seconds / 60));
+    setAbsHrs(Math.round(p.session_absolute_timeout_seconds / 3600));
+  }, [policyQuery.data]);
+
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      const body: AuthPolicy = {
+        require_mfa: requireMfa,
+        session_idle_timeout_seconds: idleMin * 60,
+        session_absolute_timeout_seconds: absHrs * 3600,
+        updated_at: new Date().toISOString(),
+      };
+      const { data, response, error } = await api.PUT('/api/v1/auth-policy', {
+        body: body as never,
+      });
+      if (!response.ok || !data) throw new Error(apiErrorMessage(error, 'Save failed'));
+      return data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['auth-policy'] }),
+    onError: (e: Error) => setSaveError(e.message),
+  });
+
+  if (policyQuery.isPending) return <div style={pad}>Loading policy.</div>;
+  if (policyQuery.isError) {
+    return (
+      <div role="alert" style={pad}>
+        Failed to load authentication policy. {apiErrorMessage(policyQuery.error, '')}
+      </div>
+    );
+  }
+
+  const p = policyQuery.data;
+  const dirty =
+    p.require_mfa !== requireMfa ||
+    Math.round(p.session_idle_timeout_seconds / 60) !== idleMin ||
+    Math.round(p.session_absolute_timeout_seconds / 3600) !== absHrs;
+
+  return (
+    <>
+      <SettingCard>
+        <FirstSettingRow
+          name="Require MFA"
+          description="Every user must enroll in multi-factor authentication. Users without MFA are forced to enroll at next sign-in."
+          control={
+            <Toggle
+              value={requireMfa}
+              onChange={setRequireMfa}
+              ariaLabel="Require MFA"
+              disabled={!canWrite}
+            />
+          }
+        />
+        <SettingRow
+          name="Idle timeout"
+          description="A session ends after this period of inactivity (5 minutes to 24 hours)."
+          control={
+            <Stepper
+              value={idleMin}
+              min={5}
+              max={1440}
+              step={5}
+              unit="min"
+              onChange={setIdleMin}
+              disabled={!canWrite}
+            />
+          }
+        />
+        <SettingRow
+          name="Absolute timeout"
+          description="A session cannot live longer than this regardless of activity (1 hour to 30 days)."
+          control={
+            <Stepper
+              value={absHrs}
+              min={1}
+              max={720}
+              step={1}
+              unit="hr"
+              onChange={setAbsHrs}
+              disabled={!canWrite}
+            />
+          }
+        />
+      </SettingCard>
+      {saveError && (
+        <div style={{ marginTop: 10 }}>
+          <Callout tier="crit">{saveError}</Callout>
+        </div>
+      )}
+      {canWrite && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}>
+          <Btn
+            variant="primary"
+            disabled={!dirty || saveMutation.isPending}
+            onClick={() => {
+              setSaveError(null);
+              saveMutation.mutate();
+            }}
+          >
+            {saveMutation.isPending ? 'Saving.' : 'Save policy'}
+          </Btn>
+        </div>
+      )}
+    </>
+  );
+}
 
 function TokenRow({
   token,

@@ -123,6 +123,10 @@ const (
 	SystemRead Permission = "system:read"
 	// Modify runtime system configuration
 	SystemConfigWrite Permission = "system:config_write"
+	// View the workspace authentication policy (require-MFA, session timeouts)
+	SystemAuthPolicyRead Permission = "system:auth_policy_read"
+	// Modify the workspace authentication policy (require-MFA, session timeouts)
+	SystemAuthPolicyWrite Permission = "system:auth_policy_write"
 	// View roles and built-in role definitions
 	RoleRead Permission = "role:read"
 	// Create or update custom roles (Stage 2)
@@ -551,6 +555,20 @@ var Permissions = map[Permission]PermissionMeta{
 		Dangerous:    true,
 		LicenseGated: "",
 	},
+	SystemAuthPolicyRead: {
+		ID:           SystemAuthPolicyRead,
+		Category:     "system",
+		Description:  `View the workspace authentication policy (require-MFA, session timeouts)`,
+		Dangerous:    false,
+		LicenseGated: "",
+	},
+	SystemAuthPolicyWrite: {
+		ID:           SystemAuthPolicyWrite,
+		Category:     "system",
+		Description:  `Modify the workspace authentication policy (require-MFA, session timeouts)`,
+		Dangerous:    true,
+		LicenseGated: "",
+	},
 	RoleRead: {
 		ID:           RoleRead,
 		Category:     "role",
@@ -668,6 +686,8 @@ var permissionOrder = []Permission{
 	AuditExport,
 	SystemRead,
 	SystemConfigWrite,
+	SystemAuthPolicyRead,
+	SystemAuthPolicyWrite,
 	RoleRead,
 	RoleWrite,
 	RoleAssign,

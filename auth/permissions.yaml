@@ -362,6 +362,15 @@ permissions:
     description: Modify runtime system configuration
     dangerous: true
 
+  - id: system:auth_policy_read
+    category: system
+    description: View the workspace authentication policy (require-MFA, session timeouts)
+
+  - id: system:auth_policy_write
+    category: system
+    description: Modify the workspace authentication policy (require-MFA, session timeouts)
+    dangerous: true
+
   # =========================================================================
   # role - role administration
   # =========================================================================
@@ -532,6 +541,8 @@ roles:
       - integration:*
       - audit:*
       - system:read
+      - system:auth_policy_read
+      - system:auth_policy_write
 
   - id: admin
     description: Full system administration
