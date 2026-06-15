@@ -12,7 +12,6 @@ import {
   Clock,
   FileText,
   LayoutGrid,
-  MoreVertical,
   Package,
   Pencil,
   Play,
@@ -30,6 +29,8 @@ import api from '@/api/client';
 import { useHostExceptions } from '@/hooks/useHostExceptions';
 import { apiErrorCode, apiErrorMessage } from '@/api/errors';
 import { EditHostModal } from '@/components/hosts/EditHostModal';
+import { HostActionsMenu } from '@/components/hosts/HostActionsMenu';
+import { useAuthStore } from '@/store/useAuthStore';
 import { useBreadcrumbStore } from '@/store/useBreadcrumbStore';
 import { CardSystem, pickNumber, pickString } from '@/pages/host-detail/CardSystem';
 import { osDisplayLabel } from '@/utils/osLabel';
@@ -502,6 +503,7 @@ function PageHead({
   intelligenceSnapshot: Record<string, unknown> | null;
 }) {
   const [editOpen, setEditOpen] = useState(false);
+  const canWrite = useAuthStore((s) => s.hasPermission('host:write'));
   const band: MonitoringBand =
     host.maintenance_mode === true ? 'maintenance' : (liveness?.monitoring_state ?? 'unknown');
 
@@ -646,17 +648,23 @@ function PageHead({
             <TerminalIcon size={14} /> Terminal
           </button>
           <RunScanButton host={host} />
-          <button
-            type="button"
-            onClick={() => setEditOpen(true)}
-            aria-label={`Edit ${host.hostname}`}
-            style={ghostBtn}
-          >
-            <Pencil size={12} /> Edit
-          </button>
-          <button type="button" style={iconBtn} title="More" disabled>
-            <MoreVertical size={14} />
-          </button>
+          {canWrite && (
+            <button
+              type="button"
+              onClick={() => setEditOpen(true)}
+              aria-label={`Edit ${host.hostname}`}
+              style={ghostBtn}
+            >
+              <Pencil size={12} /> Edit
+            </button>
+          )}
+          <HostActionsMenu
+            hostId={host.id}
+            hostname={host.hostname}
+            showEdit={false}
+            afterDelete="navigate"
+            buttonStyle={iconBtn}
+          />
         </div>
       </div>
       <EditHostModal open={editOpen} onClose={() => setEditOpen(false)} host={host} />

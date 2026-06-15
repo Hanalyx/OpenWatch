@@ -242,3 +242,30 @@ describe('frontend-hosts-list v1.4.0 — fleet trend delta', () => {
     expect(PAGE_SRC).toMatch(/avgCompliance: \{ value: avgCompliance, target: 80, delta: '',/);
   });
 });
+
+describe('frontend-hosts-list v1.5.0 — card/row actions menu', () => {
+  // @ac AC-20
+  test('frontend-hosts-list/AC-20 — card + row render HostActionsMenu; edit (host:write) + delete (host:delete) with confirm', () => {
+    // Both the card and the table row mount the actions menu.
+    expect(PAGE_SRC).toContain('HostActionsMenu');
+    expect((PAGE_SRC.match(/<HostActionsMenu/g) ?? []).length).toBeGreaterThanOrEqual(2);
+
+    const MENU_SRC = readFileSync(
+      resolve(process.cwd(), 'src/components/hosts/HostActionsMenu.tsx'),
+      'utf8',
+    );
+    // Permission gating: Edit -> host:write, Delete -> host:delete; a caller
+    // with neither gets no menu.
+    expect(MENU_SRC).toMatch(/hasPermission\('host:write'\)/);
+    expect(MENU_SRC).toMatch(/hasPermission\('host:delete'\)/);
+    expect(MENU_SRC).toMatch(/if \(!showEditItem && !canDelete\) return null/);
+    // Edit fetches the full host then opens EditHostModal (PATCH path).
+    expect(MENU_SRC).toContain("api.GET('/api/v1/hosts/{id}'");
+    expect(MENU_SRC).toContain('EditHostModal');
+    // Delete is confirmed before the DELETE call and invalidates ['hosts'].
+    expect(MENU_SRC).toContain('DeleteHostModal');
+    expect(MENU_SRC).toContain("api.DELETE('/api/v1/hosts/{id}'");
+    expect(MENU_SRC).toMatch(/cannot be undone/i);
+    expect(MENU_SRC).toContain("queryKey: ['hosts']");
+  });
+});

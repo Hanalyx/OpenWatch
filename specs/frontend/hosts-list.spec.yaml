@@ -1,7 +1,7 @@
 spec:
   id: frontend-hosts-list
   title: Hosts list — fleet dashboard with search, filter, card/table views
-  version: "1.4.0"
+  version: "1.5.0"
   status: approved
   tier: 2
 
@@ -155,4 +155,8 @@ spec:
       references_constraints: [C-02]
     - id: AC-19
       description: 'v1.4.0 - the average-compliance KPI delta reads the fleet trend (GET /api/v1/fleet/compliance/trend, queryKey ["fleet", "compliance", "trend"]): with two or more snapshot days it renders "(+/-)N% vs yesterday" (tier ok when rising, crit when falling, neutral on no change); with fewer days the delta stays empty - never a fabricated zero'
+      priority: high
+
+    - id: AC-20
+      description: 'v1.5.0 - each host card and table row renders a three-dot (kebab) actions menu (HostActionsMenu). Edit (gated on host:write) fetches the full host via GET /api/v1/hosts/{id} then opens EditHostModal (PATCH /api/v1/hosts/{id}). Delete (gated on host:delete, dangerous) opens an explicit confirmation modal before calling DELETE /api/v1/hosts/{id} and invalidating the ["hosts"] query on success. A caller with neither host:write nor host:delete sees no menu at all. Source-inspection of HostActionsMenu.tsx + HostsListPage.tsx.'
       priority: high
