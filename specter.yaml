@@ -86,6 +86,8 @@ domains:
             - api-tokens
             - system-auth-policy
             - api-auth-policy
+            - system-sso
+            - api-sso
 settings:
     specs_dir: specs
     # Honored by `specter coverage` (not by `specter sync` — CI passes

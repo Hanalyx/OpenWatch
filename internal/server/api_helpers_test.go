@@ -157,6 +157,8 @@ func freshAPIServer(t *testing.T) (string, *pgxpool.Pool) {
 	_, _ = pool.Exec(ctx, "TRUNCATE TABLE posture_snapshots")
 	_, _ = pool.Exec(ctx, "TRUNCATE TABLE compliance_exceptions")
 	_, _ = pool.Exec(ctx, "TRUNCATE TABLE job_queue")
+	// SSO config + federation links (cascades to identities + auth states).
+	_, _ = pool.Exec(ctx, "TRUNCATE TABLE sso_providers CASCADE")
 	// TRUNCATE…CASCADE delegates child cleanup to the schema — the
 	// hosts row has 11 FK-referencing children and a hand-rolled
 	// list rots every time a new FK is added. CASCADE bypasses

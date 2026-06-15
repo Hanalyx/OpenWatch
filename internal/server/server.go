@@ -31,6 +31,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/report"
 	"github.com/Hanalyx/openwatch/internal/scanresult"
 	"github.com/Hanalyx/openwatch/internal/server/api"
+	"github.com/Hanalyx/openwatch/internal/sso"
 	"github.com/Hanalyx/openwatch/internal/users"
 	"github.com/Hanalyx/openwatch/internal/worker"
 	"github.com/go-chi/chi/v5"
@@ -248,6 +249,9 @@ func New(cfg *config.Config, pool *pgxpool.Pool) *Server {
 	// a test pool without the 0033 migration) leaves the identity defaults
 	// in place, which are behaviour-preserving.
 	apiHandlers.authPolicySvc = authpolicy.NewService(pool)
+	// SSO (OIDC) is always available; it wraps the pool + the mandated
+	// outbound client. The endpoints 503 only the rare config-less paths.
+	apiHandlers.ssoSvc = sso.NewService(pool)
 	// Guard on a non-nil pool: a few unit tests construct New(cfg, nil) to
 	// assert wiring that doesn't touch the DB. The identity defaults remain
 	// in place when priming is skipped.

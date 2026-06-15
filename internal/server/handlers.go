@@ -31,6 +31,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/report"
 	"github.com/Hanalyx/openwatch/internal/scanresult"
 	"github.com/Hanalyx/openwatch/internal/server/api"
+	"github.com/Hanalyx/openwatch/internal/sso"
 	"github.com/Hanalyx/openwatch/internal/systemconfig"
 	"github.com/Hanalyx/openwatch/internal/users"
 	"github.com/Hanalyx/openwatch/internal/version"
@@ -128,6 +129,10 @@ type handlers struct {
 	// Always wired in server.New (it only wraps the pool), so the
 	// /api/v1/auth-policy endpoints are never 503. Spec api-auth-policy.
 	authPolicySvc *authpolicy.Service
+
+	// SSO (OIDC) providers + sign-in flow. Always wired in server.New (it
+	// wraps the pool + the mandated outbound client). Spec api-sso.
+	ssoSvc *sso.Service
 }
 
 // newHandlers constructs the ServerInterface implementation. The user

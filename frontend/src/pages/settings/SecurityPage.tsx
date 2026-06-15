@@ -12,7 +12,6 @@ import {
   SettingCard,
   SettingRow,
   FirstSettingRow,
-  BackendPendingBanner,
   Btn,
   StatusPill,
   Toggle,
@@ -28,15 +27,15 @@ import type { components } from '@/api/schema';
 type ApiToken = components['schemas']['ApiToken'];
 type RoleEntry = components['schemas']['RoleEntry'];
 type AuthPolicy = components['schemas']['AuthPolicy'];
+type SSOProvider = components['schemas']['SSOProvider'];
 
-// Settings -> Security & auth.
+// Settings -> Security & auth. All three sections are live:
+//   - Single sign-on: OIDC provider CRUD (admin:sso_provider); the client
+//     secret is write-only.
+//   - Authentication policy: require-MFA + session timeouts (system:auth_policy_*).
+//   - API tokens: service-account tokens (token:*), secret shown once.
 //
-// API tokens (token:* ) are live: service-account tokens for automation,
-// shown once at creation. Authentication policy (require-MFA + session
-// timeouts) is live via system:auth_policy_*. SSO (OIDC/SAML) remains a
-// backend-pending stub.
-//
-// Spec: frontend-settings v1.7.0, api-tokens, api-auth-policy.
+// Spec: frontend-settings v1.8.0, api-sso, api-tokens, api-auth-policy.
 
 const inputStyle = {
   background: 'var(--ow-bg-2)',
@@ -72,6 +71,7 @@ export function SecurityPage() {
   const canDelete = useAuthStore((s) => s.hasPermission)('token:delete');
   const canReadPolicy = useAuthStore((s) => s.hasPermission)('system:auth_policy_read');
   const canWritePolicy = useAuthStore((s) => s.hasPermission)('system:auth_policy_write');
+  const canManageSSO = useAuthStore((s) => s.hasPermission)('admin:sso_provider');
   const [addOpen, setAddOpen] = useState(false);
   useEffect(() => {
     setCrumbs([{ label: 'Settings' }, { label: 'Security & auth' }]);
@@ -100,10 +100,13 @@ export function SecurityPage() {
       />
 
       <Section title="Single sign-on">
-        <BackendPendingBanner
-          slice="Slice C (SSO)"
-          text="OIDC/SAML provider configuration is pending."
-        />
+        {canManageSSO ? (
+          <SSOSection />
+        ) : (
+          <Callout tier="info">
+            You do not have permission to manage single sign-on providers.
+          </Callout>
+        )}
       </Section>
 
       <Section title="Authentication policy">
@@ -278,6 +281,267 @@ function AuthPolicySection({ canWrite }: { canWrite: boolean }) {
         </div>
       )}
     </>
+  );
+}
+
+// SSOSection — live OIDC provider CRUD. The client secret is write-only
+// (never returned); editing leaves it unchanged unless re-entered.
+// Spec: api-sso, frontend-settings.
+function SSOSection() {
+  const queryClient = useQueryClient();
+  const [modal, setModal] = useState<{ provider?: SSOProvider } | null>(null);
+
+  const providersQuery = useQuery({
+    queryKey: ['sso-providers'],
+    queryFn: async () => {
+      const { data, error, response } = await api.GET('/api/v1/sso/providers');
+      if (error || !response.ok)
+        throw new Error(apiErrorMessage(error, 'Failed to load providers'));
+      return data!.providers;
+    },
+  });
+
+  const providers = providersQuery.data ?? [];
+
+  return (
+    <>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 10 }}>
+        <Btn variant="primary" onClick={() => setModal({})}>
+          <Plus size={14} /> Add provider
+        </Btn>
+      </div>
+      <SettingCard>
+        {providersQuery.isPending ? (
+          <div style={pad}>Loading providers.</div>
+        ) : providersQuery.isError ? (
+          <div role="alert" style={pad}>
+            Failed to load SSO providers. {apiErrorMessage(providersQuery.error, '')}
+          </div>
+        ) : providers.length === 0 ? (
+          <div style={{ ...pad, textAlign: 'center' }}>
+            No SSO providers. Add an OIDC provider to let users sign in with it.
+          </div>
+        ) : (
+          providers.map((p, i) => (
+            <SSOProviderRow
+              key={p.id}
+              provider={p}
+              isFirst={i === 0}
+              onEdit={() => setModal({ provider: p })}
+              onDeleted={() => queryClient.invalidateQueries({ queryKey: ['sso-providers'] })}
+            />
+          ))
+        )}
+      </SettingCard>
+      {modal && <SSOProviderModal provider={modal.provider} onClose={() => setModal(null)} />}
+    </>
+  );
+}
+
+function SSOProviderRow({
+  provider,
+  isFirst,
+  onEdit,
+  onDeleted,
+}: {
+  provider: SSOProvider;
+  isFirst: boolean;
+  onEdit: () => void;
+  onDeleted: () => void;
+}) {
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      const { response, error } = await api.DELETE('/api/v1/sso/providers/{id}', {
+        params: { path: { id: provider.id } },
+      });
+      if (!response.ok) throw new Error(apiErrorMessage(error, 'Delete failed'));
+    },
+    onSuccess: onDeleted,
+  });
+
+  return (
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: '1fr 110px auto',
+        gap: 12,
+        alignItems: 'center',
+        padding: '14px 20px',
+        borderTop: isFirst ? 'none' : '1px solid var(--ow-line)',
+      }}
+    >
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontWeight: 500 }}>{provider.name}</div>
+        <div
+          style={{
+            color: 'var(--ow-fg-3)',
+            fontSize: 11,
+            marginTop: 2,
+            fontFamily: 'var(--ow-font-mono)',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {provider.issuer}
+        </div>
+      </div>
+      <span>
+        {provider.enabled ? (
+          <StatusPill tier="ok">Enabled</StatusPill>
+        ) : (
+          <StatusPill tier="warn">Disabled</StatusPill>
+        )}
+      </span>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <Btn size="sm" onClick={onEdit}>
+          Edit
+        </Btn>
+        <Btn
+          size="sm"
+          variant="danger"
+          disabled={deleteMutation.isPending}
+          onClick={() => deleteMutation.mutate()}
+        >
+          <Trash2 size={13} /> Delete
+        </Btn>
+      </div>
+    </div>
+  );
+}
+
+function SSOProviderModal({ provider, onClose }: { provider?: SSOProvider; onClose: () => void }) {
+  const queryClient = useQueryClient();
+  const editing = !!provider;
+  const [name, setName] = useState(provider?.name ?? '');
+  const [issuer, setIssuer] = useState(provider?.issuer ?? '');
+  const [clientId, setClientId] = useState(provider?.client_id ?? '');
+  const [clientSecret, setClientSecret] = useState('');
+  const [scopes, setScopes] = useState(provider?.scopes ?? 'openid email profile');
+  const [defaultRole, setDefaultRole] = useState(provider?.default_role ?? 'viewer');
+  const [enabled, setEnabled] = useState(provider?.enabled ?? false);
+  const [error, setError] = useState<string | null>(null);
+
+  const rolesQuery = useQuery({
+    queryKey: ['roles'],
+    queryFn: async () => {
+      const { data, error: e, response } = await api.GET('/api/v1/roles');
+      if (e || !response.ok) throw new Error(apiErrorMessage(e, 'Failed to load roles'));
+      return data!.roles;
+    },
+  });
+
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      const body: Record<string, unknown> = {
+        name,
+        issuer,
+        client_id: clientId,
+        scopes,
+        default_role: defaultRole,
+        enabled,
+      };
+      if (clientSecret) body.client_secret = clientSecret;
+      if (editing) {
+        const { response, error: e } = await api.PUT('/api/v1/sso/providers/{id}', {
+          params: { path: { id: provider!.id } },
+          body: body as never,
+        });
+        if (!response.ok) throw new Error(apiErrorMessage(e, 'Save failed'));
+      } else {
+        const { response, error: e } = await api.POST('/api/v1/sso/providers', {
+          body: body as never,
+        });
+        if (!response.ok) throw new Error(apiErrorMessage(e, 'Create failed'));
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sso-providers'] });
+      onClose();
+    },
+    onError: (e: Error) => setError(e.message),
+  });
+
+  const canSave = name && issuer && clientId && (editing || clientSecret);
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={editing ? 'Edit SSO provider' : 'Add SSO provider'}
+      width={560}
+      footer={
+        <>
+          <Btn onClick={onClose} disabled={saveMutation.isPending}>
+            Cancel
+          </Btn>
+          <Btn
+            variant="primary"
+            disabled={!canSave || saveMutation.isPending}
+            onClick={() => {
+              setError(null);
+              saveMutation.mutate();
+            }}
+          >
+            {saveMutation.isPending ? 'Saving.' : editing ? 'Save provider' : 'Add provider'}
+          </Btn>
+        </>
+      }
+    >
+      <FormField label="Name">
+        <input style={inputStyle} value={name} onChange={(e) => setName(e.target.value)} />
+      </FormField>
+      <FormField label="Issuer URL">
+        <input
+          style={inputStyle}
+          value={issuer}
+          placeholder="https://idp.example.com"
+          onChange={(e) => setIssuer(e.target.value)}
+        />
+      </FormField>
+      <FormField label="Client ID">
+        <input style={inputStyle} value={clientId} onChange={(e) => setClientId(e.target.value)} />
+      </FormField>
+      <FormField label={editing ? 'Client secret (leave blank to keep)' : 'Client secret'}>
+        <input
+          style={inputStyle}
+          type="password"
+          value={clientSecret}
+          placeholder={editing ? '••••••••' : ''}
+          onChange={(e) => setClientSecret(e.target.value)}
+        />
+      </FormField>
+      <FormField label="Scopes">
+        <input style={inputStyle} value={scopes} onChange={(e) => setScopes(e.target.value)} />
+      </FormField>
+      <FormField label="Default role for new users">
+        <Select
+          value={defaultRole}
+          onChange={setDefaultRole}
+          ariaLabel="Default role"
+          options={(rolesQuery.data ?? [{ id: 'viewer' } as RoleEntry]).map((r: RoleEntry) => ({
+            value: r.id,
+            label: r.id,
+          }))}
+        />
+      </FormField>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginTop: 12,
+        }}
+      >
+        <span style={{ fontSize: 13, color: 'var(--ow-fg-1)' }}>Enabled</span>
+        <Toggle value={enabled} onChange={setEnabled} ariaLabel="Provider enabled" />
+      </div>
+      {error && (
+        <div style={{ marginTop: 12 }}>
+          <Callout tier="crit">{error}</Callout>
+        </div>
+      )}
+    </Modal>
   );
 }
 

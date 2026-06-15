@@ -3128,6 +3128,119 @@ paths:
         '400': {$ref: '#/components/responses/BadRequest'}
         '403': {$ref: '#/components/responses/Forbidden'}
 
+  # Spec: api-sso — SSO (OIDC) provider configuration + sign-in flow.
+  /api/v1/sso/providers:
+    get:
+      operationId: getSSOProviders
+      summary: List SSO providers (metadata only; client secret never returned)
+      x-required-permission: admin:sso_provider
+      responses:
+        '200':
+          description: Provider list
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/SSOProviderList'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+    post:
+      operationId: postSSOProvider
+      summary: Create an SSO provider
+      x-required-permission: admin:sso_provider
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/SSOProviderCreateRequest'}
+      responses:
+        '201':
+          description: Provider created
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/SSOProvider'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /api/v1/sso/providers/enabled:
+    get:
+      operationId: getSSOProvidersEnabled
+      summary: List enabled SSO providers for the sign-in picker (anonymous)
+      responses:
+        '200':
+          description: Enabled providers (id + name only)
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/SSOEnabledList'}
+  /api/v1/sso/providers/{id}:
+    get:
+      operationId: getSSOProvider
+      summary: View one SSO provider (metadata only)
+      x-required-permission: admin:sso_provider
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200':
+          description: Provider
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/SSOProvider'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+    put:
+      operationId: putSSOProvider
+      summary: Update an SSO provider (omit client_secret to keep the existing one)
+      x-required-permission: admin:sso_provider
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/SSOProviderUpdateRequest'}
+      responses:
+        '200':
+          description: Provider updated
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/SSOProvider'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+    delete:
+      operationId: deleteSSOProvider
+      summary: Delete an SSO provider (cascades its identities + states)
+      x-required-permission: admin:sso_provider
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '204':
+          description: Deleted
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+
+  # Anonymous sign-in flow. Both endpoints 302-redirect (to the IdP, then
+  # back to the app); they carry no JSON success body.
+  /api/v1/auth/sso/{id}/login:
+    get:
+      operationId: getAuthSSOLogin
+      summary: Begin SSO sign-in — redirects to the IdP authorization endpoint
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+        - {name: return_to, in: query, required: false, schema: {type: string}}
+      responses:
+        '302':
+          description: Redirect to the identity provider
+        '404': {$ref: '#/components/responses/NotFound'}
+  /api/v1/auth/sso/{id}/callback:
+    get:
+      operationId: getAuthSSOCallback
+      summary: SSO redirect-back — exchanges the code, issues a session, redirects into the app
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+        - {name: code, in: query, required: false, schema: {type: string}}
+        - {name: state, in: query, required: false, schema: {type: string}}
+        - {name: error, in: query, required: false, schema: {type: string}}
+      responses:
+        '302':
+          description: Redirect into the app (success) or to /login with an error
+
 components:
   responses:
     BadRequest:
@@ -3382,6 +3495,66 @@ components:
         require_mfa: {type: boolean}
         session_idle_timeout_seconds:     {type: integer, minimum: 300, maximum: 86400}
         session_absolute_timeout_seconds: {type: integer, minimum: 3600, maximum: 2592000}
+
+    SSOProvider:
+      type: object
+      required: [id, name, type, issuer, client_id, scopes, default_role, enabled, created_at]
+      description: SSO provider metadata. The client secret is NEVER included.
+      properties:
+        id:           {type: string, format: uuid}
+        name:         {type: string}
+        type:         {type: string, description: Protocol (oidc)}
+        issuer:       {type: string, description: OIDC issuer URL}
+        client_id:    {type: string}
+        scopes:       {type: string, description: Space-delimited OAuth scopes}
+        default_role: {type: string, description: Role granted to users provisioned via this provider}
+        enabled:      {type: boolean}
+        created_at:   {type: string, format: date-time}
+        updated_at:   {type: string, format: date-time}
+    SSOProviderList:
+      type: object
+      required: [providers]
+      properties:
+        providers:
+          type: array
+          items: {$ref: '#/components/schemas/SSOProvider'}
+    SSOProviderCreateRequest:
+      type: object
+      required: [name, issuer, client_id, client_secret]
+      properties:
+        name:          {type: string, minLength: 1, maxLength: 256}
+        issuer:        {type: string, description: OIDC issuer URL (https)}
+        client_id:     {type: string, minLength: 1}
+        client_secret: {type: string, minLength: 1, description: Stored encrypted; never returned}
+        scopes:        {type: string, description: 'Space-delimited; openid is always added'}
+        default_role:  {type: string, description: 'Role for provisioned users (default viewer)'}
+        enabled:       {type: boolean}
+    SSOProviderUpdateRequest:
+      type: object
+      required: [name, issuer, client_id]
+      description: Omit client_secret (or send empty) to keep the stored secret.
+      properties:
+        name:          {type: string, minLength: 1, maxLength: 256}
+        issuer:        {type: string}
+        client_id:     {type: string, minLength: 1}
+        client_secret: {type: string, description: Optional; empty keeps the existing secret}
+        scopes:        {type: string}
+        default_role:  {type: string}
+        enabled:       {type: boolean}
+    SSOEnabledProvider:
+      type: object
+      required: [id, name]
+      description: The minimal, non-secret shape rendered on the anonymous login page.
+      properties:
+        id:   {type: string, format: uuid}
+        name: {type: string}
+    SSOEnabledList:
+      type: object
+      required: [providers]
+      properties:
+        providers:
+          type: array
+          items: {$ref: '#/components/schemas/SSOEnabledProvider'}
 
     UserCreateRequest:
       type: object

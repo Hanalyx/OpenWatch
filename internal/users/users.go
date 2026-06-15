@@ -9,6 +9,8 @@ package users
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"time"
@@ -118,6 +120,61 @@ func (s *Service) CreateUser(ctx context.Context, p CreateParams) (User, error) 
 	)
 	if err != nil {
 		return User{}, fmt.Errorf("users: insert: %w", err)
+	}
+	return u, nil
+}
+
+// CreateFederatedUser provisions a user authenticated by an external IdP
+// (SSO). The account has NO usable password: a random 32-byte secret is
+// hashed and discarded, so local password login can never succeed — the
+// user authenticates only through the identity provider. The supplied role
+// is assigned in the same call. Username/email uniqueness is enforced by
+// the DB; a collision with an existing active user surfaces as an error
+// (the caller maps it) rather than silently merging accounts.
+//
+// Spec system-sso AC-08.
+func (s *Service) CreateFederatedUser(ctx context.Context, username, email string, role auth.RoleID) (User, error) {
+	// Unusable password: 32 bytes of entropy, hashed and never disclosed.
+	raw := make([]byte, 32)
+	if _, err := rand.Read(raw); err != nil {
+		return User{}, fmt.Errorf("users: federated entropy: %w", err)
+	}
+	hash, err := identity.HashPassword(base64.RawURLEncoding.EncodeToString(raw))
+	if err != nil {
+		return User{}, fmt.Errorf("users: hash federated password: %w", err)
+	}
+	id, err := uuid.NewV7()
+	if err != nil {
+		return User{}, fmt.Errorf("users: uuid: %w", err)
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return User{}, fmt.Errorf("users: begin: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	var u User
+	const insUser = `
+		INSERT INTO users (id, username, email, password_hash)
+		VALUES ($1, $2, $3, $4)
+		RETURNING id, username, email, last_password_change_at, created_at, updated_at`
+	if err := tx.QueryRow(ctx, insUser, id, username, email, hash).Scan(
+		&u.ID, &u.Username, &u.Email,
+		&u.LastPasswordChangeAt, &u.CreatedAt, &u.UpdatedAt,
+	); err != nil {
+		return User{}, fmt.Errorf("users: insert federated: %w", err)
+	}
+	const insRole = `
+		INSERT INTO user_roles (user_id, role_id, granted_by)
+		VALUES ($1, $2, NULL)`
+	if _, err := tx.Exec(ctx, insRole, u.ID, string(role)); err != nil {
+		if isFKViolation(err) {
+			return User{}, ErrUnknownRole
+		}
+		return User{}, fmt.Errorf("users: assign federated role: %w", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return User{}, fmt.Errorf("users: commit federated: %w", err)
 	}
 	return u, nil
 }

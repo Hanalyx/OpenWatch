@@ -1,0 +1,116 @@
+spec:
+  id: system-sso
+  title: Single sign-on (OIDC) — provider store + authorization-code flow
+  version: "1.0.0"
+  status: approved
+  tier: 1
+
+  context:
+    system: openwatch-go
+    feature: >-
+      internal/sso owns SSO provider configuration (migration 0034) and the
+      OpenID Connect authorization-code sign-in flow. Providers are
+      admin-configured; their client secret is AES-256-GCM encrypted at
+      rest. The runtime flow uses PKCE (S256), a CSRF state, and a
+      replay-guard nonce, and verifies the ID token's RS256 signature
+      against the provider JWKS before provisioning a user or issuing a
+      session.
+    description: >-
+      A first successful sign-in provisions a passwordless local user keyed
+      on the stable OIDC sub (not the mutable email) and records the
+      federation link in sso_identities; later sign-ins reuse it. Per-login
+      state (state, nonce, PKCE verifier) lives in sso_auth_states and is
+      consumed exactly once at callback.
+    related_specs:
+      - api-sso
+      - system-auth-identity
+      - system-user-management
+      - system-rbac
+
+  objective:
+    summary: >-
+      Lock the encrypted-at-rest secret, the PKCE/state/nonce flow, the
+      JWKS-backed ID-token validation, the single-use auth state, and the
+      provision-or-link user mapping.
+    scope:
+      includes:
+        - "sso_providers / sso_identities / sso_auth_states (migration 0034)"
+        - "Provider CRUD: secret encrypted on write, never returned on read; https issuer required"
+        - "BuildAuthURL: authorize URL with code+PKCE(S256)+state+nonce; persists single-use auth state"
+        - "OIDC discovery validated (issuer match + endpoints present)"
+        - "HandleCallback: ID-token RS256/JWKS signature + iss/aud/exp/nonce checks; provision-or-link"
+      excludes:
+        - "SAML (separate slice)"
+        - "Dynamic client registration / provider-initiated logout"
+
+  constraints:
+    - id: C-01
+      description: >-
+        The client secret MUST be stored AES-256-GCM encrypted
+        (client_secret_enc) and MUST NOT appear on any read path — the
+        Provider struct returned by List/Get carries no secret field. The
+        issuer MUST be an https URL (discovery, token, and JWKS calls ride
+        it).
+      type: security
+      enforcement: error
+    - id: C-02
+      description: >-
+        BuildAuthURL MUST use the authorization-code flow with PKCE S256
+        (code_challenge derived from a per-login verifier), a random state,
+        and a random nonce, and MUST persist them as a single-use
+        sso_auth_states row with a bounded TTL. The verifier and nonce MUST
+        NOT leave the server (only the S256 challenge does).
+      type: security
+      enforcement: error
+    - id: C-03
+      description: >-
+        HandleCallback MUST consume the auth state exactly once (a second
+        consume fails; an expired state is rejected), MUST verify the ID
+        token's RS256 signature against the provider JWKS, and MUST reject
+        the token unless iss matches the issuer, aud contains the client id,
+        exp is in the future, and nonce equals the stored nonce. Any failure
+        returns an error and provisions no user / issues no session.
+      type: security
+      enforcement: error
+    - id: C-04
+      description: >-
+        The federation link is keyed on (provider, sub). A first sign-in
+        provisions a passwordless local user with the provider's default
+        role and records the link; subsequent sign-ins for the same sub
+        reuse the linked user (no duplicate provisioning).
+      type: technical
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: Create persists a provider with the client secret encrypted (the stored client_secret_enc is not the plaintext bytes); List/Get return the metadata with no secret field; Create rejects a non-https issuer and a missing name/client_id/client_secret with ErrInvalidParams.
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-02
+      description: Update with a non-empty client_secret replaces it; Update with an empty client_secret leaves the stored secret intact (a later sign-in still authenticates). Update of an unknown id returns ErrProviderNotFound.
+      priority: high
+      references_constraints: [C-01]
+    - id: AC-03
+      description: BuildAuthURL returns the provider authorization endpoint with response_type=code, the client_id, the redirect_uri, a scope containing openid, a state, a nonce, code_challenge, and code_challenge_method=S256; it persists exactly one sso_auth_states row carrying the matching nonce + a PKCE verifier whose S256 hash equals the challenge.
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-04
+      description: discover rejects a document whose issuer does not match the configured issuer, and one missing the authorization/token/jwks endpoints (ErrDiscovery).
+      priority: high
+      references_constraints: [C-03]
+    - id: AC-05
+      description: consumeAuthState returns the row once then deletes it (a second consume returns ErrStateNotFound); a row past its expiry returns ErrStateExpired.
+      priority: critical
+      references_constraints: [C-03]
+    - id: AC-06
+      description: HandleCallback against a stub IdP validates a correctly-signed ID token (matching iss/aud/exp/nonce) and returns the claims' subject; it returns ErrTokenValidation for a token signed by a non-JWKS key (bad signature), for a mismatched nonce, and for a wrong audience.
+      priority: critical
+      references_constraints: [C-03]
+    - id: AC-07
+      description: HandleCallback provisions a new user on first sign-in (Provisioned true, an sso_identities row created via the injected ProvisionFunc) and returns the same user without re-provisioning on a second sign-in for the same subject.
+      priority: critical
+      references_constraints: [C-04]
+    - id: AC-08
+      description: users.CreateFederatedUser creates an active user with the given role assigned and a password hash that is NOT the empty string and cannot be produced from a known password (random entropy); it surfaces a uniqueness collision as an error rather than merging.
+      priority: high
+      references_constraints: [C-04]
