@@ -22,6 +22,8 @@
 //   AC-18  axe-core dependency present (browser scan runs via Playwright)
 //   AC-19  Audit log: audit:read gate, infinite query, cursor, read-only
 //   AC-20  About: license state from GET /api/v1/license, not hardcoded
+//   AC-21  Users: Invite member opens AddUserModal (POST /users) + roles roster
+//   AC-22  Users: Manage opens ManageUserModal (role assign/unassign + delete)
 
 import { describe, expect, test } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -50,6 +52,10 @@ const STUBBED_SRC = readFileSync(
   'utf8',
 );
 const AUDIT_SRC = readFileSync(resolve(process.cwd(), 'src/pages/settings/AuditPage.tsx'), 'utf8');
+const USERMUT_SRC = readFileSync(
+  resolve(process.cwd(), 'src/pages/settings/UserMutations.tsx'),
+  'utf8',
+);
 const PREFS_STORE_SRC = readFileSync(
   resolve(process.cwd(), 'src/store/usePreferencesStore.ts'),
   'utf8',
@@ -303,5 +309,33 @@ describe('frontend-settings — structural', () => {
     expect(STUBBED_SRC).toMatch(/api\.GET\(\s*['"]\/api\/v1\/version['"]/);
     // The old "License view pending" stub copy is gone.
     expect(STUBBED_SRC).not.toContain('License view pending');
+  });
+
+  // @ac AC-21
+  test('frontend-settings/AC-21 — Users Invite opens AddUserModal (POST /users) + roles roster', () => {
+    // Invite button is no longer statically disabled; it gates on write
+    // permission and opens the modal.
+    expect(USERS_SRC).toContain('AddUserModal');
+    expect(USERS_SRC).toMatch(/onClick=\{\(\)\s*=>\s*setAddOpen\(true\)\}/);
+    expect(USERS_SRC).toMatch(/hasPermission\)\('user:write'\)/);
+    // Roster renders per-member roles.
+    expect(USERS_SRC).toMatch(/user\.roles/);
+    // The create modal POSTs /users and invalidates ['users'].
+    expect(USERMUT_SRC).toMatch(/api\.POST\(\s*['"]\/api\/v1\/users['"]/);
+    expect(USERMUT_SRC).toMatch(/invalidateQueries\(\{\s*queryKey:\s*\['users'\]/);
+  });
+
+  // @ac AC-22
+  test('frontend-settings/AC-22 — Users Manage opens ManageUserModal (role assign/unassign + delete)', () => {
+    expect(USERS_SRC).toContain('ManageUserModal');
+    // Role assign + unassign endpoints.
+    expect(USERMUT_SRC).toContain('/api/v1/users/{id}/roles:assign');
+    expect(USERMUT_SRC).toContain('/api/v1/users/{id}/roles:unassign');
+    // Soft-delete.
+    expect(USERMUT_SRC).toMatch(/api\.DELETE\(\s*['"]\/api\/v1\/users\/\{id\}['"]/);
+    // Assignable roles sourced from GET /roles.
+    expect(USERMUT_SRC).toMatch(/api\.GET\(\s*['"]\/api\/v1\/roles['"]/);
+    // Every mutation invalidates the users list.
+    expect(USERMUT_SRC).toMatch(/invalidateQueries\(\{\s*queryKey:\s*\['users'\]/);
   });
 });

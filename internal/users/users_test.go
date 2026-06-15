@@ -393,3 +393,57 @@ func TestBuiltInRolesSeeded(t *testing.T) {
 		}
 	})
 }
+
+// @ac AC-13
+// AC-13: ListUsers aggregates each user's role ids into User.Roles
+// (non-nil empty slice when none); soft-deleted users are excluded.
+func TestListUsers_PopulatesRoles(t *testing.T) {
+	t.Run("system-user-management/AC-13", func(t *testing.T) {
+		svc, _ := freshService(t, nil)
+		ctx := context.Background()
+		withRoles, _ := svc.CreateUser(ctx, CreateParams{
+			Username: "ac13roles", Email: "ac13roles@example.com", Password: strongPW(),
+		})
+		_ = svc.AssignRole(ctx, withRoles.ID, auth.RoleViewer, nil)
+		_ = svc.AssignRole(ctx, withRoles.ID, auth.RoleOpsLead, nil)
+		none, _ := svc.CreateUser(ctx, CreateParams{
+			Username: "ac13none", Email: "ac13none@example.com", Password: strongPW(),
+		})
+		gone, _ := svc.CreateUser(ctx, CreateParams{
+			Username: "ac13gone", Email: "ac13gone@example.com", Password: strongPW(),
+		})
+		_ = svc.SoftDelete(ctx, gone.ID)
+
+		list, err := svc.ListUsers(ctx)
+		if err != nil {
+			t.Fatalf("ListUsers: %v", err)
+		}
+		byID := map[uuid.UUID]User{}
+		for _, u := range list {
+			byID[u.ID] = u
+		}
+		if _, ok := byID[gone.ID]; ok {
+			t.Error("soft-deleted user appeared in ListUsers")
+		}
+		// The no-role user lists with a non-nil empty Roles slice.
+		nu, ok := byID[none.ID]
+		if !ok {
+			t.Fatal("no-role user missing from ListUsers")
+		}
+		if nu.Roles == nil || len(nu.Roles) != 0 {
+			t.Errorf("no-role user Roles = %v, want non-nil empty slice", nu.Roles)
+		}
+		// The two-role user lists both ids (subquery orders them).
+		ru, ok := byID[withRoles.ID]
+		if !ok {
+			t.Fatal("roled user missing from ListUsers")
+		}
+		seen := map[string]bool{}
+		for _, r := range ru.Roles {
+			seen[r] = true
+		}
+		if !seen[string(auth.RoleViewer)] || !seen[string(auth.RoleOpsLead)] {
+			t.Errorf("roled user Roles = %v, want viewer + ops_lead", ru.Roles)
+		}
+	})
+}

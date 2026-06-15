@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { UserPlus } from 'lucide-react';
 import api from '@/api/client';
@@ -6,28 +6,31 @@ import { apiErrorMessage } from '@/api/errors';
 import { useBreadcrumbStore } from '@/store/useBreadcrumbStore';
 import { useAuthStore } from '@/store/useAuthStore';
 import { SettingsLayout } from '@/components/settings/SettingsLayout';
-import { PageHead, Section, SettingCard, Btn, StatusPill } from '@/components/settings/primitives';
+import { PageHead, Section, SettingCard, Btn } from '@/components/settings/primitives';
 import { ForbiddenPage } from '@/pages/ForbiddenPage';
+import { AddUserModal, ManageUserModal, type ManagedUser } from './UserMutations';
 
 // Settings → Users & teams.
 //
-// Wired to GET /api/v1/users (admin-gated). Member detail page +
-// invite flow deferred to follow-up.
+// Wired to GET /api/v1/users (admin-gated). Invite (POST /users) and
+// per-member Manage (role assign/unassign + soft-delete) open modals
+// from UserMutations. The roster shows each member's assigned roles
+// (UserResponse.roles, populated by the list endpoint).
 
 interface UserRow {
   id: string;
   username: string;
   email: string;
-  role: string;
-  is_active?: boolean;
-  mfa_enabled?: boolean;
+  roles?: string[];
   created_at: string;
-  last_login_at?: string | null;
 }
 
 export function UsersPage() {
   const setCrumbs = useBreadcrumbStore((s) => s.setCrumbs);
-  const isAdmin = useAuthStore((s) => s.hasPermission('admin'));
+  const isAdmin = useAuthStore((s) => s.hasPermission)('admin');
+  const canWrite = useAuthStore((s) => s.hasPermission)('user:write') || isAdmin;
+  const [addOpen, setAddOpen] = useState(false);
+  const [manageTarget, setManageTarget] = useState<ManagedUser | null>(null);
   useEffect(() => {
     setCrumbs([{ label: 'Settings' }, { label: 'Users & teams' }]);
     return () => setCrumbs([]);
@@ -55,7 +58,7 @@ export function UsersPage() {
         title="Users & teams"
         description="Workspace members and their roles. Only admins can invite new members."
         actions={
-          <Btn variant="primary" disabled>
+          <Btn variant="primary" disabled={!canWrite} onClick={() => setAddOpen(true)}>
             <UserPlus size={14} /> Invite member
           </Btn>
         }
@@ -114,28 +117,57 @@ export function UsersPage() {
         {usersQuery.data && usersQuery.data.length > 0 && (
           <SettingCard>
             {usersQuery.data.map((user, i) => (
-              <UserRow key={user.id} user={user} isFirst={i === 0} />
+              <UserRowItem
+                key={user.id}
+                user={user}
+                isFirst={i === 0}
+                canManage={canWrite}
+                onManage={() =>
+                  setManageTarget({
+                    id: user.id,
+                    username: user.username,
+                    email: user.email,
+                    roles: user.roles ?? [],
+                  })
+                }
+              />
             ))}
           </SettingCard>
         )}
       </Section>
+
+      <AddUserModal open={addOpen} onClose={() => setAddOpen(false)} />
+      <ManageUserModal
+        open={manageTarget !== null}
+        onClose={() => setManageTarget(null)}
+        user={manageTarget}
+      />
     </SettingsLayout>
   );
 }
 
-function UserRow({ user, isFirst }: { user: UserRow; isFirst: boolean }) {
+function UserRowItem({
+  user,
+  isFirst,
+  canManage,
+  onManage,
+}: {
+  user: UserRow;
+  isFirst: boolean;
+  canManage: boolean;
+  onManage: () => void;
+}) {
   const initials = user.username
     .split(/[\s._-]/)
     .map((s) => s[0]?.toUpperCase() ?? '')
     .slice(0, 2)
     .join('');
-  const status: 'ok' | 'warn' | 'crit' = user.is_active === false ? 'crit' : 'ok';
-  const statusLabel = user.is_active === false ? 'Disabled' : 'Active';
+  const roles = user.roles ?? [];
   return (
     <div
       style={{
         display: 'grid',
-        gridTemplateColumns: '1fr 110px 90px auto',
+        gridTemplateColumns: '1fr minmax(160px, 1.2fr) auto',
         gap: 16,
         alignItems: 'center',
         padding: '14px 20px',
@@ -173,17 +205,28 @@ function UserRow({ user, isFirst }: { user: UserRow; isFirst: boolean }) {
           </div>
         </div>
       </div>
-      <span
-        style={{
-          fontSize: 12,
-          color: 'var(--ow-fg-1)',
-          textTransform: 'capitalize',
-        }}
-      >
-        {user.role}
-      </span>
-      <StatusPill tier={status}>{statusLabel}</StatusPill>
-      <Btn size="sm" disabled>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+        {roles.length === 0 ? (
+          <span style={{ fontSize: 12, color: 'var(--ow-fg-3)' }}>No roles</span>
+        ) : (
+          roles.map((r) => (
+            <span
+              key={r}
+              style={{
+                padding: '2px 8px',
+                borderRadius: 'var(--ow-radius-sm)',
+                background: 'var(--ow-bg-3)',
+                color: 'var(--ow-fg-1)',
+                fontSize: 12,
+                fontFamily: 'var(--ow-font-mono)',
+              }}
+            >
+              {r}
+            </span>
+          ))
+        )}
+      </div>
+      <Btn size="sm" disabled={!canManage} onClick={onManage}>
         Manage
       </Btn>
     </div>

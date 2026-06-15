@@ -39,11 +39,17 @@ type Role struct {
 // ListUsers returns all active users. Slice A keeps the result flat —
 // cursor pagination lands when scan volumes make it necessary.
 func (s *Service) ListUsers(ctx context.Context) ([]User, error) {
+	// The roles aggregate is a correlated subquery (one row per user, no
+	// join fan-out) so a user with no roles still lists with an empty array.
 	const stmt = `
-		SELECT id, username, email, last_password_change_at, created_at, updated_at
-		FROM users
-		WHERE deleted_at IS NULL
-		ORDER BY created_at ASC`
+		SELECT u.id, u.username, u.email, u.last_password_change_at, u.created_at, u.updated_at,
+		       COALESCE(ARRAY(
+		         SELECT ur.role_id FROM user_roles ur
+		         WHERE ur.user_id = u.id ORDER BY ur.role_id
+		       ), '{}') AS roles
+		FROM users u
+		WHERE u.deleted_at IS NULL
+		ORDER BY u.created_at ASC`
 	rows, err := s.pool.Query(ctx, stmt)
 	if err != nil {
 		return nil, fmt.Errorf("users: list: %w", err)
@@ -54,7 +60,7 @@ func (s *Service) ListUsers(ctx context.Context) ([]User, error) {
 		var u User
 		if err := rows.Scan(
 			&u.ID, &u.Username, &u.Email,
-			&u.LastPasswordChangeAt, &u.CreatedAt, &u.UpdatedAt,
+			&u.LastPasswordChangeAt, &u.CreatedAt, &u.UpdatedAt, &u.Roles,
 		); err != nil {
 			return nil, fmt.Errorf("users: scan: %w", err)
 		}

@@ -43,6 +43,10 @@ type User struct {
 	LastPasswordChangeAt time.Time
 	CreatedAt            time.Time
 	UpdatedAt            time.Time
+	// Roles holds the role IDs assigned to the user (from user_roles).
+	// Populated by ListUsers via an aggregate; other lookups (login path,
+	// GetUserByID) leave it nil since they do not need the membership join.
+	Roles []string
 }
 
 // CreateParams is the input to CreateUser. Plaintext password is hashed

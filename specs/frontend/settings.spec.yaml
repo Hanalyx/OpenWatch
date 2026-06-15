@@ -1,7 +1,7 @@
 spec:
   id: frontend-settings
   title: Settings — two-pane shell with 11 sub-pages
-  version: "1.3.0"
+  version: "1.4.0"
   status: draft
   tier: 2
 
@@ -59,7 +59,7 @@ spec:
         - "Preferences — theme/density/accent/landing/host-view/date-format/reduce-motion persisted to localStorage"
         - "SSH & credentials — list from GET /api/v1/credentials with Add (POST), Replace (POST+DELETE) and Delete (DELETE) modals"
         - "SSH keys section is a derived view of key-bearing credentials; Add/Replace/Delete a key operates on the parent credential"
-        - "Users & teams — list from GET /api/v1/users (admin-gated)"
+        - "Users & teams — list from GET /api/v1/users (admin-gated), with roles per member, Invite (POST /users) and Manage (role assign/unassign + soft-delete) modals (v1.4.0)"
         - "Audit log — filterable, cursor-paginated GET /api/v1/audit/events, audit:read gated, read-only (v1.3.0)"
         - "About — version from GET /api/v1/version + license state from GET /api/v1/license (v1.3.0)"
         - "Notifications, Integrations, Security — structural shells with Backend Pending banner"
@@ -130,7 +130,12 @@ spec:
         Users & teams MUST be gated to roles with the admin permission.
         Non-admin sessions visiting /settings/users render the 403
         ForbiddenPage. Admin sessions see the list from GET
-        /api/v1/users
+        /api/v1/users. v1.4.0 — the roster renders each member's roles
+        (UserResponse.roles). Invite (POST /api/v1/users) and Manage
+        (role assign/unassign via /users/{id}/roles:assign|:unassign,
+        soft-delete via DELETE /users/{id}) open modals; all four
+        mutations invalidate the ['users'] query on success. Write
+        controls are gated on user:write (admin implies it).
       type: security
       enforcement: error
     - id: C-09
@@ -265,3 +270,11 @@ spec:
       description: "v1.3.0 source-inspection: AboutPage fetches GET /api/v1/license via useQuery keyed ['license'] and renders the returned tier/status/features (mapped through LICENSE_TIER_LABEL / LICENSE_STATUS), with no hardcoded tier or feature list; version stays sourced from GET /api/v1/version."
       priority: high
       references_constraints: [C-14]
+    - id: AC-21
+      description: "v1.4.0 source-inspection: the Invite member button is enabled (gated on user:write/admin, not statically disabled) and opens AddUserModal, which POSTs /api/v1/users with {username,email,password} and invalidates the ['users'] query on success. The roster renders user.roles per member."
+      priority: high
+      references_constraints: [C-08]
+    - id: AC-22
+      description: "v1.4.0 source-inspection: per-member Manage opens ManageUserModal, which assigns/unassigns roles via POST /api/v1/users/{id}/roles:assign and :unassign, soft-deletes via DELETE /api/v1/users/{id}, sources the assignable list from GET /api/v1/roles, and invalidates the ['users'] query on every mutation success."
+      priority: high
+      references_constraints: [C-08]
