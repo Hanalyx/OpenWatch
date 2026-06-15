@@ -262,6 +262,9 @@ describe('frontend-hosts-list v1.5.0 — card/row actions menu', () => {
     // Edit fetches the full host then opens EditHostModal (PATCH path).
     expect(MENU_SRC).toContain("api.GET('/api/v1/hosts/{id}'");
     expect(MENU_SRC).toContain('EditHostModal');
+    // The GET response nests the record under `host`; the menu MUST unwrap it
+    // so the edit form pre-fills (passing the wrapper leaves every field blank).
+    expect(MENU_SRC).toMatch(/\.host\b/);
     // Delete is confirmed before the DELETE call and invalidates ['hosts'].
     expect(MENU_SRC).toContain('DeleteHostModal');
     expect(MENU_SRC).toContain("api.DELETE('/api/v1/hosts/{id}'");
