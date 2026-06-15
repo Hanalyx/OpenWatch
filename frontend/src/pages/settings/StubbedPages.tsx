@@ -10,6 +10,7 @@ import {
   SettingCard,
   BackendPendingBanner,
   Btn,
+  StatusPill,
 } from '@/components/settings/primitives';
 import { ForbiddenPage } from '@/pages/ForbiddenPage';
 
@@ -182,37 +183,20 @@ export function SecurityPage() {
   );
 }
 
-// ── Audit log ───────────────────────────────────────────────────────────
-export function AuditPage() {
-  const isAdmin = useAuthStore((s) => s.hasPermission('admin'));
-  if (!isAdmin) return <ForbiddenPage />;
-  return (
-    <StubShell
-      title="Audit log"
-      description="Every authentication, policy change, and remediation action OpenWatch has performed in this workspace."
-      slice="Slice B (audit query API)"
-      pendingText="GET /audit/events exists but the filterable UI is pending."
-      crumb="Audit log"
-    >
-      <Section title="Recent events">
-        <SettingCard>
-          <div
-            style={{
-              padding: 40,
-              textAlign: 'center',
-              color: 'var(--ow-fg-2)',
-              fontSize: 13,
-            }}
-          >
-            Audit table will render here.
-          </div>
-        </SettingCard>
-      </Section>
-    </StubShell>
-  );
-}
-
 // ── About ───────────────────────────────────────────────────────────────
+const LICENSE_TIER_LABEL: Record<string, string> = {
+  free: 'Free',
+  openwatch_plus: 'OpenWatch+',
+  enterprise: 'Enterprise',
+};
+const LICENSE_STATUS: Record<string, { label: string; tier: 'ok' | 'warn' | 'crit' }> = {
+  active: { label: 'Active', tier: 'ok' },
+  grace: { label: 'Grace period', tier: 'warn' },
+  expired: { label: 'Expired', tier: 'crit' },
+  no_license: { label: 'No license', tier: 'warn' },
+  invalid: { label: 'Invalid', tier: 'crit' },
+};
+
 export function AboutPage() {
   const setCrumbs = useBreadcrumbStore((s) => s.setCrumbs);
   useEffect(() => {
@@ -233,6 +217,19 @@ export function AboutPage() {
     staleTime: 5 * 60 * 1000,
   });
   const v = versionQuery.data;
+
+  // License state from the live binary (GET /api/v1/license) — tier, status,
+  // and entitled features are read at request time, never hardcoded.
+  const licenseQuery = useQuery({
+    queryKey: ['license'],
+    queryFn: async () => {
+      const { data, error } = await api.GET('/api/v1/license');
+      if (error) throw error;
+      return data!;
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+  const lic = licenseQuery.data;
 
   return (
     <SettingsLayout>
@@ -266,11 +263,84 @@ export function AboutPage() {
       </Section>
       <Section title="License">
         <SettingCard>
-          <div style={{ padding: 20, color: 'var(--ow-fg-2)', fontSize: 13 }}>
-            License view pending —{' '}
-            <code style={{ fontFamily: 'var(--ow-font-mono)' }}>GET /api/v1/license</code> exists;
-            UI rendering follows in a focused PR.
-          </div>
+          {licenseQuery.isError ? (
+            <div role="alert" style={{ padding: 20, color: 'var(--ow-fg-1)', fontSize: 13 }}>
+              Failed to load license state.
+            </div>
+          ) : (
+            <div
+              style={{
+                padding: 20,
+                display: 'grid',
+                gridTemplateColumns: '180px 1fr',
+                rowGap: 12,
+                alignItems: 'center',
+                fontSize: 13,
+              }}
+            >
+              <span style={{ color: 'var(--ow-fg-2)' }}>Tier</span>
+              <span>{lic ? (LICENSE_TIER_LABEL[lic.tier] ?? lic.tier) : '…'}</span>
+
+              <span style={{ color: 'var(--ow-fg-2)' }}>Status</span>
+              <span>
+                {lic ? (
+                  <StatusPill tier={LICENSE_STATUS[lic.status]?.tier ?? 'warn'}>
+                    {LICENSE_STATUS[lic.status]?.label ?? lic.status}
+                  </StatusPill>
+                ) : (
+                  '…'
+                )}
+              </span>
+
+              {lic?.customer_id ? (
+                <>
+                  <span style={{ color: 'var(--ow-fg-2)' }}>Customer</span>
+                  <span style={{ fontFamily: 'var(--ow-font-mono)' }}>{lic.customer_id}</span>
+                </>
+              ) : null}
+
+              {lic?.expires_at ? (
+                <>
+                  <span style={{ color: 'var(--ow-fg-2)' }}>Expires</span>
+                  <span>
+                    {new Date(lic.expires_at).toLocaleDateString()}
+                    {lic.in_grace_period ? (
+                      <span style={{ color: 'var(--ow-warn)', marginLeft: 8, fontSize: 12 }}>
+                        (in grace period)
+                      </span>
+                    ) : null}
+                  </span>
+                </>
+              ) : null}
+
+              <span style={{ color: 'var(--ow-fg-2)', alignSelf: 'start' }}>Features</span>
+              <span>
+                {lic && lic.features.length > 0 ? (
+                  <span style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {lic.features.map((f) => (
+                      <span
+                        key={f}
+                        style={{
+                          padding: '2px 8px',
+                          borderRadius: 'var(--ow-radius-sm)',
+                          background: 'var(--ow-bg-3)',
+                          color: 'var(--ow-fg-1)',
+                          fontSize: 12,
+                          fontFamily: 'var(--ow-font-mono)',
+                        }}
+                      >
+                        {f}
+                      </span>
+                    ))}
+                  </span>
+                ) : (
+                  <span style={{ color: 'var(--ow-fg-3)' }}>
+                    {lic ? 'No paid features entitled' : '…'}
+                  </span>
+                )}
+              </span>
+            </div>
+          )}
         </SettingCard>
       </Section>
     </SettingsLayout>

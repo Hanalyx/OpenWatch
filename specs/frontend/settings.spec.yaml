@@ -1,7 +1,7 @@
 spec:
   id: frontend-settings
   title: Settings — two-pane shell with 11 sub-pages
-  version: "1.2.0"
+  version: "1.3.0"
   status: draft
   tier: 2
 
@@ -60,7 +60,9 @@ spec:
         - "SSH & credentials — list from GET /api/v1/credentials with Add (POST), Replace (POST+DELETE) and Delete (DELETE) modals"
         - "SSH keys section is a derived view of key-bearing credentials; Add/Replace/Delete a key operates on the parent credential"
         - "Users & teams — list from GET /api/v1/users (admin-gated)"
-        - "Scanning, Policies, Notifications, Integrations, Security, Audit, About — structural shells with Backend Pending banner"
+        - "Audit log — filterable, cursor-paginated GET /api/v1/audit/events, audit:read gated, read-only (v1.3.0)"
+        - "About — version from GET /api/v1/version + license state from GET /api/v1/license (v1.3.0)"
+        - "Notifications, Integrations, Security — structural shells with Backend Pending banner"
         - "All control widgets themed via --ow-* tokens"
       excludes:
         - "PATCH /auth/me wiring (backend endpoint deferred)"
@@ -133,9 +135,10 @@ spec:
       enforcement: error
     - id: C-09
       description: >-
-        The 7 stubbed pages MUST each render a BackendPendingBanner
-        identifying the slice that unblocks them. Every interactive
-        control on these pages MUST be disabled
+        The remaining stubbed pages (Notifications, Integrations,
+        Security) MUST each render a BackendPendingBanner identifying
+        the slice that unblocks them. Every interactive control on
+        these pages MUST be disabled
       type: technical
       enforcement: error
     - id: C-10
@@ -157,6 +160,27 @@ spec:
         Every interactive element across all 11 pages MUST be
         reachable by keyboard alone. axe-core MUST report zero
         violations across wcag2a + wcag2aa in both color modes
+      type: technical
+      enforcement: error
+    - id: C-13
+      description: >-
+        v1.3.0 — Audit log (src/pages/settings/AuditPage.tsx) MUST be
+        gated on hasPermission('audit:read'): a caller without it
+        renders the 403 ForbiddenPage and issues no request. With it,
+        the page fetches GET /api/v1/audit/events via useInfiniteQuery
+        keyed on the applied filters (action, actor_type, since, until),
+        renders one row per event newest-first, and pages via the
+        response next_cursor (Load more). Filter inputs are draft state
+        applied on submit — typing MUST NOT issue a request per
+        keystroke. The page is read-only: it MUST contain no write
+        control (no POST/PATCH/PUT/DELETE).
+      type: technical
+      enforcement: error
+    - id: C-14
+      description: >-
+        v1.3.0 — About MUST render license state from GET
+        /api/v1/license (tier, status, entitled features, expiry) —
+        never hardcoded. Version stays sourced from GET /api/v1/version.
       type: technical
       enforcement: error
 
@@ -218,7 +242,7 @@ spec:
       priority: critical
       references_constraints: [C-08]
     - id: AC-15
-      description: v1.2.0 — Each remaining stubbed Settings page (Notifications, Integrations, Security, Audit, About — five now that Compliance policies hosts the live scan-variables section per frontend-settings-scan-config) renders a single BackendPendingBanner naming the slice. Visible controls render disabled. PoliciesPage lives in its own file with per-section banners on its remaining stub sections.
+      description: v1.3.0 — Each remaining stubbed Settings page (Notifications, Integrations, Security — three now that Audit log and About are wired and Compliance policies hosts the live scan-variables section) renders a single BackendPendingBanner naming the slice. Visible controls render disabled. PoliciesPage lives in its own file with per-section banners on its remaining stub sections.
       priority: high
       references_constraints: [C-09]
     - id: AC-16
@@ -230,6 +254,14 @@ spec:
       priority: critical
       references_constraints: [C-04]
     - id: AC-18
-      description: axe-core scan of /settings/profile, /settings/preferences, /settings/credentials, /settings/users, and /settings/notifications reports zero violations across wcag2a + wcag2aa in both color modes.
+      description: axe-core scan of /settings/profile, /settings/preferences, /settings/credentials, /settings/users, /settings/audit, and /settings/notifications reports zero violations across wcag2a + wcag2aa in both color modes.
       priority: critical
       references_constraints: [C-12]
+    - id: AC-19
+      description: "v1.3.0 source-inspection + behavior: AuditPage gates on hasPermission('audit:read') returning ForbiddenPage when absent; it calls useInfiniteQuery against '/api/v1/audit/events' with getNextPageParam reading next_cursor; the filter form applies on submit (draft state distinct from the applied queryKey) so keystrokes issue no request; and the page contains no api.POST/PATCH/PUT/DELETE call (read-only)."
+      priority: high
+      references_constraints: [C-13]
+    - id: AC-20
+      description: "v1.3.0 source-inspection: AboutPage fetches GET /api/v1/license via useQuery keyed ['license'] and renders the returned tier/status/features (mapped through LICENSE_TIER_LABEL / LICENSE_STATUS), with no hardcoded tier or feature list; version stays sourced from GET /api/v1/version."
+      priority: high
+      references_constraints: [C-14]

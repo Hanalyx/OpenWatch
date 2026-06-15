@@ -20,6 +20,8 @@
 //   AC-16  No var(--mui- or hardcoded HEX literals in settings code
 //   AC-17  Password handler doesn't console.log/warn/error secret values
 //   AC-18  axe-core dependency present (browser scan runs via Playwright)
+//   AC-19  Audit log: audit:read gate, infinite query, cursor, read-only
+//   AC-20  About: license state from GET /api/v1/license, not hardcoded
 
 import { describe, expect, test } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -47,6 +49,7 @@ const STUBBED_SRC = readFileSync(
   resolve(process.cwd(), 'src/pages/settings/StubbedPages.tsx'),
   'utf8',
 );
+const AUDIT_SRC = readFileSync(resolve(process.cwd(), 'src/pages/settings/AuditPage.tsx'), 'utf8');
 const PREFS_STORE_SRC = readFileSync(
   resolve(process.cwd(), 'src/store/usePreferencesStore.ts'),
   'utf8',
@@ -188,21 +191,20 @@ describe('frontend-settings — structural', () => {
   });
 
   // @ac AC-15
-  test('frontend-settings/AC-15 — five stubbed pages each render BackendPendingBanner; PoliciesPage graduated', () => {
+  test('frontend-settings/AC-15 — three stubbed pages each render BackendPendingBanner; Audit/About/Policies graduated', () => {
     expect(STUBBED_SRC).toContain('BackendPendingBanner');
-    // The five remaining stub exports must be present.
-    const expected = [
-      'NotificationsPage',
-      'IntegrationsPage',
-      'SecurityPage',
-      'AuditPage',
-      'AboutPage',
-    ];
+    // The three remaining stub exports must be present and StubShell-based.
+    const expected = ['NotificationsPage', 'IntegrationsPage', 'SecurityPage'];
     for (const name of expected) {
       expect(STUBBED_SRC).toContain(`export function ${name}`);
     }
-    // Each renders the slice through a StubShell which mounts the banner.
     expect(STUBBED_SRC).toMatch(/<StubShell/);
+    // Audit log graduated to its own file (v1.3.0): no longer a stub here.
+    expect(STUBBED_SRC).not.toContain('export function AuditPage');
+    expect(ROUTER_SRC).toContain("from '@/pages/settings/AuditPage'");
+    // About graduated too: it renders live version + license, not a
+    // BackendPendingBanner. It still lives in this file but is not a stub.
+    expect(STUBBED_SRC).toContain('export function AboutPage');
     // PoliciesPage left the stub file: it lives in its own page with the
     // live scan-variables section and per-section banners on the
     // remaining stubs (frontend-settings-scan-config AC-06).
@@ -271,5 +273,35 @@ describe('frontend-settings — structural', () => {
     const deps = { ...(pkg.dependencies ?? {}), ...(pkg.devDependencies ?? {}) };
     expect(deps['axe-core']).toBeTruthy();
     expect(deps['@axe-core/playwright']).toBeTruthy();
+  });
+
+  // @ac AC-19
+  test('frontend-settings/AC-19 — Audit log: audit:read gate, infinite query, cursor, read-only', () => {
+    // Gated on audit:read with a ForbiddenPage fallback.
+    expect(AUDIT_SRC).toMatch(/hasPermission\)\('audit:read'\)/);
+    expect(AUDIT_SRC).toContain('ForbiddenPage');
+    // Cursor-paginated infinite query over the audit events endpoint.
+    expect(AUDIT_SRC).toContain('useInfiniteQuery');
+    expect(AUDIT_SRC).toMatch(/api\.GET\(\s*['"]\/api\/v1\/audit\/events['"]/);
+    expect(AUDIT_SRC).toMatch(/getNextPageParam:\s*\(last\)\s*=>\s*last\.next_cursor/);
+    // Draft filters distinct from the applied filters that key the query,
+    // so typing issues no request per keystroke.
+    expect(AUDIT_SRC).toMatch(/queryKey:\s*\['audit',\s*applied\./);
+    expect(AUDIT_SRC).toMatch(/setApplied\(/);
+    // Read-only: no write verbs anywhere in the page.
+    expect(AUDIT_SRC).not.toMatch(/api\.(POST|PATCH|PUT|DELETE)\(/);
+  });
+
+  // @ac AC-20
+  test('frontend-settings/AC-20 — About renders license state from GET /api/v1/license, not hardcoded', () => {
+    expect(STUBBED_SRC).toMatch(/queryKey:\s*\['license'\]/);
+    expect(STUBBED_SRC).toMatch(/api\.GET\(\s*['"]\/api\/v1\/license['"]/);
+    // Tier + status rendered through the lookup maps (not hardcoded copy).
+    expect(STUBBED_SRC).toContain('LICENSE_TIER_LABEL');
+    expect(STUBBED_SRC).toContain('LICENSE_STATUS');
+    // Version still sourced live.
+    expect(STUBBED_SRC).toMatch(/api\.GET\(\s*['"]\/api\/v1\/version['"]/);
+    // The old "License view pending" stub copy is gone.
+    expect(STUBBED_SRC).not.toContain('License view pending');
   });
 });

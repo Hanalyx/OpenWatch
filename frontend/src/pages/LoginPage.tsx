@@ -130,6 +130,7 @@ export function LoginPage() {
                     'credential:read',
                     'credential:write',
                     'scan:read',
+                    'audit:read',
                     'admin',
                   ]
                 : ['host:read', 'scan:read'],

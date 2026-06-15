@@ -29,9 +29,9 @@ import {
   NotificationsPage,
   IntegrationsPage,
   SecurityPage,
-  AuditPage,
   AboutPage,
 } from '@/pages/settings/StubbedPages';
+import { AuditPage } from '@/pages/settings/AuditPage';
 import { PoliciesPage } from '@/pages/settings/PoliciesPage';
 
 // Top-level route table.
