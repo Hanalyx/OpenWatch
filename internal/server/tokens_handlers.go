@@ -13,8 +13,8 @@ import (
 	"github.com/google/uuid"
 )
 
-// GetApiTokens lists API tokens (metadata only). Spec api-tokens AC-01.
-func (h *handlers) GetApiTokens(w http.ResponseWriter, r *http.Request) {
+// GetAPITokens lists API tokens (metadata only). Spec api-tokens AC-01.
+func (h *handlers) GetAPITokens(w http.ResponseWriter, r *http.Request) {
 	if denied := auth.EnforcePermission(w, r, auth.TokenRead); denied {
 		return
 	}
@@ -31,9 +31,9 @@ func (h *handlers) GetApiTokens(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, api.ApiTokenList{Tokens: out})
 }
 
-// PostApiToken creates a token and returns the raw secret ONCE.
+// PostAPIToken creates a token and returns the raw secret ONCE.
 // Spec api-tokens AC-02.
-func (h *handlers) PostApiToken(w http.ResponseWriter, r *http.Request) {
+func (h *handlers) PostAPIToken(w http.ResponseWriter, r *http.Request) {
 	if denied := auth.EnforcePermission(w, r, auth.TokenWrite); denied {
 		return
 	}
@@ -63,8 +63,8 @@ func (h *handlers) PostApiToken(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, api.ApiTokenCreated{Token: raw, ApiToken: toAPIToken(t)})
 }
 
-// DeleteApiToken revokes a token (idempotent). Spec api-tokens AC-03.
-func (h *handlers) DeleteApiToken(w http.ResponseWriter, r *http.Request, id openapitypes.UUID) {
+// DeleteAPIToken revokes a token (idempotent). Spec api-tokens AC-03.
+func (h *handlers) DeleteAPIToken(w http.ResponseWriter, r *http.Request, id openapitypes.UUID) {
 	if denied := auth.EnforcePermission(w, r, auth.TokenDelete); denied {
 		return
 	}

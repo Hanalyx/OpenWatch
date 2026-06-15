@@ -3058,7 +3058,7 @@ paths:
   # Spec: api-tokens — API service-account tokens for automation.
   /api/v1/tokens:
     get:
-      operationId: getApiTokens
+      operationId: getAPITokens
       summary: List API tokens (metadata only; secrets never returned)
       x-required-permission: token:read
       responses:
@@ -3069,7 +3069,7 @@ paths:
               schema: {$ref: '#/components/schemas/ApiTokenList'}
         '403': {$ref: '#/components/responses/Forbidden'}
     post:
-      operationId: postApiToken
+      operationId: postAPIToken
       summary: Create an API token (the secret is returned once, here only)
       x-required-permission: token:write
       requestBody:
@@ -3087,7 +3087,7 @@ paths:
         '403': {$ref: '#/components/responses/Forbidden'}
   /api/v1/tokens/{id}:
     delete:
-      operationId: deleteApiToken
+      operationId: deleteAPIToken
       summary: Revoke an API token
       x-required-permission: token:delete
       parameters:

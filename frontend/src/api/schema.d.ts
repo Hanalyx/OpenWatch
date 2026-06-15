@@ -1995,10 +1995,10 @@ export interface paths {
             cookie?: never;
         };
         /** List API tokens (metadata only; secrets never returned) */
-        get: operations["getApiTokens"];
+        get: operations["getAPITokens"];
         put?: never;
         /** Create an API token (the secret is returned once, here only) */
-        post: operations["postApiToken"];
+        post: operations["postAPIToken"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2016,7 +2016,7 @@ export interface paths {
         put?: never;
         post?: never;
         /** Revoke an API token */
-        delete: operations["deleteApiToken"];
+        delete: operations["deleteAPIToken"];
         options?: never;
         head?: never;
         patch?: never;
@@ -7570,7 +7570,7 @@ export interface operations {
             503: components["responses"]["ServiceUnavailable"];
         };
     };
-    getApiTokens: {
+    getAPITokens: {
         parameters: {
             query?: never;
             header?: never;
@@ -7591,7 +7591,7 @@ export interface operations {
             403: components["responses"]["Forbidden"];
         };
     };
-    postApiToken: {
+    postAPIToken: {
         parameters: {
             query?: never;
             header?: never;
@@ -7617,7 +7617,7 @@ export interface operations {
             403: components["responses"]["Forbidden"];
         };
     };
-    deleteApiToken: {
+    deleteAPIToken: {
         parameters: {
             query?: never;
             header?: never;

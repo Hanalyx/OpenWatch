@@ -2855,8 +2855,8 @@ type PutSystemScanConfigJSONRequestBody = ScanConfig
 // PutSystemScanVariablesJSONRequestBody defines body for PutSystemScanVariables for application/json ContentType.
 type PutSystemScanVariablesJSONRequestBody = ScanVariableOverrides
 
-// PostApiTokenJSONRequestBody defines body for PostApiToken for application/json ContentType.
-type PostApiTokenJSONRequestBody = ApiTokenCreateRequest
+// PostAPITokenJSONRequestBody defines body for PostAPIToken for application/json ContentType.
+type PostAPITokenJSONRequestBody = ApiTokenCreateRequest
 
 // PostUsersJSONRequestBody defines body for PostUsers for application/json ContentType.
 type PostUsersJSONRequestBody = UserCreateRequest
@@ -3186,13 +3186,13 @@ type ServerInterface interface {
 	PutSystemScanVariables(w http.ResponseWriter, r *http.Request)
 	// List API tokens (metadata only; secrets never returned)
 	// (GET /api/v1/tokens)
-	GetApiTokens(w http.ResponseWriter, r *http.Request)
+	GetAPITokens(w http.ResponseWriter, r *http.Request)
 	// Create an API token (the secret is returned once, here only)
 	// (POST /api/v1/tokens)
-	PostApiToken(w http.ResponseWriter, r *http.Request)
+	PostAPIToken(w http.ResponseWriter, r *http.Request)
 	// Revoke an API token
 	// (DELETE /api/v1/tokens/{id})
-	DeleteApiToken(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+	DeleteAPIToken(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
 	// List users
 	// (GET /api/v1/users)
 	GetUsers(w http.ResponseWriter, r *http.Request)
@@ -3852,19 +3852,19 @@ func (_ Unimplemented) PutSystemScanVariables(w http.ResponseWriter, r *http.Req
 
 // List API tokens (metadata only; secrets never returned)
 // (GET /api/v1/tokens)
-func (_ Unimplemented) GetApiTokens(w http.ResponseWriter, r *http.Request) {
+func (_ Unimplemented) GetAPITokens(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
 // Create an API token (the secret is returned once, here only)
 // (POST /api/v1/tokens)
-func (_ Unimplemented) PostApiToken(w http.ResponseWriter, r *http.Request) {
+func (_ Unimplemented) PostAPIToken(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
 // Revoke an API token
 // (DELETE /api/v1/tokens/{id})
-func (_ Unimplemented) DeleteApiToken(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+func (_ Unimplemented) DeleteAPIToken(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -6943,11 +6943,11 @@ func (siw *ServerInterfaceWrapper) PutSystemScanVariables(w http.ResponseWriter,
 	handler.ServeHTTP(w, r)
 }
 
-// GetApiTokens operation middleware
-func (siw *ServerInterfaceWrapper) GetApiTokens(w http.ResponseWriter, r *http.Request) {
+// GetAPITokens operation middleware
+func (siw *ServerInterfaceWrapper) GetAPITokens(w http.ResponseWriter, r *http.Request) {
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetApiTokens(w, r)
+		siw.Handler.GetAPITokens(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -6957,11 +6957,11 @@ func (siw *ServerInterfaceWrapper) GetApiTokens(w http.ResponseWriter, r *http.R
 	handler.ServeHTTP(w, r)
 }
 
-// PostApiToken operation middleware
-func (siw *ServerInterfaceWrapper) PostApiToken(w http.ResponseWriter, r *http.Request) {
+// PostAPIToken operation middleware
+func (siw *ServerInterfaceWrapper) PostAPIToken(w http.ResponseWriter, r *http.Request) {
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.PostApiToken(w, r)
+		siw.Handler.PostAPIToken(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -6971,8 +6971,8 @@ func (siw *ServerInterfaceWrapper) PostApiToken(w http.ResponseWriter, r *http.R
 	handler.ServeHTTP(w, r)
 }
 
-// DeleteApiToken operation middleware
-func (siw *ServerInterfaceWrapper) DeleteApiToken(w http.ResponseWriter, r *http.Request) {
+// DeleteAPIToken operation middleware
+func (siw *ServerInterfaceWrapper) DeleteAPIToken(w http.ResponseWriter, r *http.Request) {
 
 	var err error
 	_ = err
@@ -6987,7 +6987,7 @@ func (siw *ServerInterfaceWrapper) DeleteApiToken(w http.ResponseWriter, r *http
 	}
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.DeleteApiToken(w, r, id)
+		siw.Handler.DeleteAPIToken(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -7572,13 +7572,13 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Put(options.BaseURL+"/api/v1/system/scan/variables", wrapper.PutSystemScanVariables)
 	})
 	r.Group(func(r chi.Router) {
-		r.Get(options.BaseURL+"/api/v1/tokens", wrapper.GetApiTokens)
+		r.Get(options.BaseURL+"/api/v1/tokens", wrapper.GetAPITokens)
 	})
 	r.Group(func(r chi.Router) {
-		r.Post(options.BaseURL+"/api/v1/tokens", wrapper.PostApiToken)
+		r.Post(options.BaseURL+"/api/v1/tokens", wrapper.PostAPIToken)
 	})
 	r.Group(func(r chi.Router) {
-		r.Delete(options.BaseURL+"/api/v1/tokens/{id}", wrapper.DeleteApiToken)
+		r.Delete(options.BaseURL+"/api/v1/tokens/{id}", wrapper.DeleteAPIToken)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/users", wrapper.GetUsers)
@@ -8000,16 +8000,16 @@ var swaggerSpec = []string{
 	"vnf/RbfM3E6C9ZyXWdxjTdd5Zk60ao3ocywFxDCf59wOo/PHjyAp8ps1wF6jz9Jz/JrkMCRzZax3Qzhk",
 	"GITUE3HRUUcT8PURS/G3Xw6NLAYPBMYe9CrBLvIIRdabpnY9T05OzPcelUwsFhTDUaf8nG6fVSsE+veC",
 	"ZG5eO/oCO06lyI1Ba+TBmahsTTsfBu3Ln729Eb0C645x4f6hHivLCq6pXNY4zxWKRvPVld27iu1aF7ab",
-	"MV/9GO8r9rl9S7ZlErtx9gHsRo1vMd1rQ1Tlc/hjW7inVozrZ1cpg4EqCE53LYxK6Qo5ep6zj7bRTYIk",
-	"uUFa8+rNj5dG6t/Vq88/vAG7dBiWSZfGTH8GHnKfGz3nQgS74ZSxox6I+36RNyS4vvs7RTSqTyJt30sH",
-	"ZPTMgt6QjaM7MAW5pHjeoEcBoTqcb8Js0C3B2EbRhXjFN65qbTlnzycgeEJHmN+O093PN7swRJYxewLp",
-	"B0x1P7CHT+mFOKcpDJkv4aqPrrwDttPaDuwlrIe/DyhbKCROu7L7ERvcoKLDAfah55pG9wAMzlCrFQyu",
-	"cJRq24Pg4y6dWBH8+hWi6ftOlaGZwN59vitEt59s3Dy6A2T56GDrKd4DvqvUYgTlzbTYx3u7ehVZtqda",
-	"NVtzd6gh+4qS3Gate8OjbdlFZ1VF3Z67sr8myd1S/uRWhf9+7aavL9JnH3fyvirhckCfRCm25N1An0gj",
-	"0/q5bfz7rSniV2IXctB5E7OhREbBEvAOTgbvvpEWcLMJJYHTwmfyjIIW+xkG0TYdO3SyTMEPYpofffPP",
-	"bBOwjaRrcbFjfzesadPEbyHmbV96Ey+otC3ajeqfXJMbVLZuiC5965pUGEtltf6U5pnYusTo0UDRpMDC",
-	"xk//+nNIte8KlqV+vVU3Q8IF366FrZWI38sLz4iNKo0iIRmkFEXPZdcWMhs8Hay0ztXT4+PMtEBE7K+f",
-	"PHk8+O3n3/7/AAAA//8=",
+	"MV/9GO8r9rl9S7ZlErtx9gHsRo1vMd1rQ1Tlc/hjW7inVozrZ1cpg4EqCE53LYxK6Qo5ev7hzUfb6CZB",
+	"knKGg7Tm1ZsfL43Uv6tXn394A3bpMCyTLo2Z/gw85D43es6FCHbDKWNHPRD3PSVvSHA9De8U0ag+ibR9",
+	"Lx2Q0TMLekM2ju7AFOSS4nmDHgWE6nC+CbNBtwRjG0UX4hXfuKq15Zw9n4DgCR1hfjtOdz/f7MIQWcbs",
+	"CaQfMNX9wB4+pRfinKYwZL6Eqz668g7YTms7sJewHv4+oGyhkDjtyu5HbHCDig4H2IeeaxrdAzA4Q61W",
+	"MLjCUaptD4KPu3RiRfDrV4im7ztVhmYCe/f5rhDdfrJx8+gOkOWjg62neA/4rlKLEZQ302If7+3qVWTZ",
+	"nmrVbM3doYbsK0pym7XuDY+2ZRedVRV1e+7K/pokd0v5k1sV/vu1m76+SJ993Mn7qoTLAX0SpdiSdwN9",
+	"Io1M6+e28e+3pohfiV3IQedNzIYSGQVLwDs4Gbz7RlrAzSaUBE4Ln8kzClrsZxhE23Ts0MkyBT+IaX70",
+	"zT+zTcA2kq7FxY793bCmTRO/hZi3felNvKDStmg3qn9yTW5Q2bohuvSta1JhLJXV+lOaZ2LrEqNHA0WT",
+	"AgsbP/3rzyHVvitYlvr1Vt0MCRd8uxa2ViJ+Ly88IzaqNIqEZJBSFD2XXVvIbPB0sNI6V0+PjzPTAhGx",
+	"v37y5PHgt59/+/8DAAD//w==",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,
