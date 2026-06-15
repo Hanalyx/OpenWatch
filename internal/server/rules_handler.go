@@ -43,6 +43,14 @@ func toAPIRuleListItem(ru kensa.RuleListItem) api.RuleListItem {
 	if refs == nil {
 		refs = map[string][]string{}
 	}
+	mechs := ru.Remediation.Mechanisms
+	if mechs == nil {
+		mechs = []string{}
+	}
+	restarts := ru.Remediation.RestartsServices
+	if restarts == nil {
+		restarts = []string{}
+	}
 	return api.RuleListItem{
 		Id:            ru.ID,
 		Title:         ru.Title,
@@ -51,9 +59,12 @@ func toAPIRuleListItem(ru kensa.RuleListItem) api.RuleListItem {
 		Category:      ru.Category,
 		Tags:          tags,
 		FrameworkRefs: refs,
+		Transactional: ru.Transactional,
 		Remediation: api.RuleRemediation{
-			Mechanism: ru.Remediation.Mechanism,
-			Manual:    ru.Remediation.Manual,
+			Available:        ru.Remediation.Available,
+			Mechanisms:       mechs,
+			RestartsServices: restarts,
+			RebootBehavior:   ru.Remediation.RebootBehavior,
 		},
 	}
 }

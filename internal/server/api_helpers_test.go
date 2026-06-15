@@ -287,14 +287,18 @@ func freshAPIServer(t *testing.T) (string, *pgxpool.Pool) {
 			Description: "Root login over SSH must be disabled.", Severity: "high", Category: "network",
 			Tags:          []string{"ssh"},
 			FrameworkRefs: map[string][]string{"cis_rhel9": {"5.2.8"}, "nist_800_53": {"AC-6"}},
-			Remediation:   kensa.RemediationSummary{Mechanism: "config_set_dropin", Manual: false},
+			Transactional: true,
+			Remediation: kensa.RemediationSummary{
+				Available: true, Mechanisms: []string{"config_set_dropin"}, RebootBehavior: "none",
+			},
 		},
 		{
 			ID: "manual-only-rule", Title: "A manual rule",
 			Description: "Needs manual remediation.", Severity: "medium", Category: "audit",
 			Tags:          []string{},
 			FrameworkRefs: map[string][]string{"nist_800_53": {"AU-2"}},
-			Remediation:   kensa.RemediationSummary{Mechanism: "manual", Manual: true},
+			Transactional: false,
+			Remediation:   kensa.RemediationSummary{Available: false, Mechanisms: []string{}, RebootBehavior: "none"},
 		},
 	}))
 

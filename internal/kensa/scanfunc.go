@@ -227,7 +227,7 @@ func refsToMap(refs []kensaapi.FrameworkRef) map[string][]string {
 const maxEvidenceDetail = 64 * 1024
 
 // evidenceDoc is the JSON document persisted into the
-// transactions/host_rule_state evidence columns. As of kensa v0.4.2 it
+// transactions/host_rule_state evidence columns. As of kensa v0.4.3 it
 // carries the structured per-command CheckEvidence (the reproducible
 // proof behind the verdict — exact command, captured output, exit
 // status, expected value), not just the human-readable detail string.

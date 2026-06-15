@@ -51,9 +51,12 @@ func TestRules_ListShape(t *testing.T) {
 				Category      string              `json:"category"`
 				Tags          []string            `json:"tags"`
 				FrameworkRefs map[string][]string `json:"framework_refs"`
+				Transactional bool                `json:"transactional"`
 				Remediation   struct {
-					Mechanism string `json:"mechanism"`
-					Manual    bool   `json:"manual"`
+					Available        bool     `json:"available"`
+					Mechanisms       []string `json:"mechanisms"`
+					RestartsServices []string `json:"restarts_services"`
+					RebootBehavior   string   `json:"reboot_behavior"`
 				} `json:"remediation"`
 			} `json:"rules"`
 		}
@@ -79,16 +82,13 @@ func TestRules_ListShape(t *testing.T) {
 			if len(r.FrameworkRefs) == 0 {
 				t.Errorf("rule %q has no framework_refs", r.ID)
 			}
-			if r.Remediation.Manual {
-				sawManual = true
-				if r.Remediation.Mechanism != "manual" {
-					t.Errorf("rule %q manual but mechanism=%q", r.ID, r.Remediation.Mechanism)
+			if r.Remediation.Available {
+				sawAutomated = true
+				if len(r.Remediation.Mechanisms) == 0 {
+					t.Errorf("rule %q available but no mechanisms", r.ID)
 				}
 			} else {
-				sawAutomated = true
-				if r.Remediation.Mechanism == "" || r.Remediation.Mechanism == "manual" {
-					t.Errorf("rule %q automated but mechanism=%q", r.ID, r.Remediation.Mechanism)
-				}
+				sawManual = true
 			}
 		}
 		if !sawAutomated || !sawManual {

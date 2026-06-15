@@ -235,20 +235,32 @@ function RuleRow({ rule, first }: { rule: Rule; first: boolean }) {
         )}
       </span>
       <span style={{ fontSize: 12, color: 'var(--ow-fg-2)' }}>{rule.category}</span>
-      <span style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-        <span style={{ fontSize: 12, fontFamily: 'var(--ow-font-mono)', color: rem.manual ? 'var(--ow-fg-3)' : 'var(--ow-fg-1)' }}>
-          {rem.mechanism || 'none'}
+      <span style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <span style={{ fontSize: 12, fontFamily: 'var(--ow-font-mono)', color: rem.available ? 'var(--ow-fg-1)' : 'var(--ow-fg-3)' }}>
+          {rem.available ? rem.mechanisms.join(', ') || 'automated' : 'manual'}
         </span>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--ow-fg-3)' }}>
-          <span
-            style={{
-              width: 7,
-              height: 7,
-              borderRadius: '50%',
-              background: rem.manual ? 'var(--ow-fg-3)' : 'var(--ow-ok)',
-            }}
-          />
-          {rem.manual ? 'manual' : 'atomic'}
+        <span style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'var(--ow-fg-3)' }}>
+            <span
+              style={{
+                width: 7,
+                height: 7,
+                borderRadius: '50%',
+                background: !rem.available ? 'var(--ow-fg-3)' : rule.transactional ? 'var(--ow-ok)' : 'var(--ow-warn)',
+              }}
+            />
+            {!rem.available ? 'manual' : rule.transactional ? 'atomic' : 'staged'}
+          </span>
+          {rem.reboot_behavior === 'boot-param' ? (
+            <span style={{ fontSize: 10, fontWeight: 600, color: '#e3b341', background: 'rgba(219,154,4,0.15)', padding: '1px 6px', borderRadius: 4 }}>
+              reboot
+            </span>
+          ) : null}
+          {rem.restarts_services.length > 0 ? (
+            <span style={{ fontSize: 10, color: 'var(--ow-fg-3)' }} title={rem.restarts_services.join(', ')}>
+              restarts {rem.restarts_services.length}
+            </span>
+          ) : null}
         </span>
       </span>
     </div>
@@ -257,14 +269,15 @@ function RuleRow({ rule, first }: { rule: Rule; first: boolean }) {
 
 function ExportButton({ rules }: { rules: Rule[] }) {
   function exportCsv() {
-    const head = ['id', 'title', 'severity', 'category', 'frameworks', 'remediation'];
+    const head = ['id', 'title', 'severity', 'category', 'frameworks', 'remediation', 'reboot'];
     const esc = (v: string) => `"${String(v).replace(/"/g, '""')}"`;
     const lines = [head.join(',')];
     for (const r of rules) {
       const fws = Object.entries(r.framework_refs ?? {})
         .flatMap(([fid, cs]) => cs.map((c) => fwTag(fid, c).label))
         .join(' ');
-      lines.push([r.id, r.title, r.severity, r.category, fws, r.remediation.mechanism || 'none'].map(esc).join(','));
+      const rem = r.remediation.available ? r.remediation.mechanisms.join(' ') || 'automated' : 'manual';
+      lines.push([r.id, r.title, r.severity, r.category, fws, rem, r.remediation.reboot_behavior].map(esc).join(','));
     }
     const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);

@@ -4061,20 +4061,33 @@ components:
 
     RuleRemediation:
       type: object
-      description: Host-independent remediation summary for a library rule.
-      required: [mechanism, manual]
+      description: >-
+        Host-independent remediation summary from the kensa read model
+        (facts only; risk level is operator policy, owned by OpenWatch).
+      required: [available, mechanisms, restarts_services, reboot_behavior]
       properties:
-        mechanism: {type: string, description: 'default implementation mechanism (e.g. config_set_dropin, service_enabled, manual); empty when none'}
-        manual:    {type: boolean, description: true when there is no automated mechanism}
+        available:   {type: boolean, description: true when an automated (non-manual) remediation exists}
+        mechanisms:
+          type: array
+          items: {type: string}
+          description: distinct remediation mechanisms across implementations (e.g. config_set, service_enabled)
+        restarts_services:
+          type: array
+          items: {type: string}
+          description: services the remediation reloads or restarts
+        reboot_behavior:
+          type: string
+          description: 'kensa reboot signal: "boot-param" (staged boot change, pending reboot) or "none" (not a complete requires-reboot answer)'
 
     RuleListItem:
       type: object
       description: One normalized Kensa rule for the library browser.
-      required: [id, title, description, severity, category, tags, framework_refs, remediation]
+      required: [id, title, description, severity, category, tags, framework_refs, transactional, remediation]
       properties:
         id:          {type: string}
         title:       {type: string}
         description: {type: string}
+        transactional: {type: boolean, description: the rule's apply path is a capturable atomic transaction (the "atomic" signal)}
         severity:    {type: string, description: 'critical | high | medium | low'}
         category:    {type: string}
         tags:

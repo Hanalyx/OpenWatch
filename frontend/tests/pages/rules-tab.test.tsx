@@ -35,7 +35,8 @@ const RULES = {
       category: 'network',
       tags: ['ssh'],
       framework_refs: { cis_rhel9: ['5.2.8'], nist_800_53: ['AC-6'] },
-      remediation: { mechanism: 'config_set_dropin', manual: false },
+      transactional: true,
+      remediation: { available: true, mechanisms: ['config_set_dropin'], restarts_services: [], reboot_behavior: 'boot-param' },
     },
     {
       id: 'auditd-enabled',
@@ -45,7 +46,8 @@ const RULES = {
       category: 'audit',
       tags: [],
       framework_refs: { cis_rhel9: ['6.3.1.4'], stig_rhel9: ['V-258151'] },
-      remediation: { mechanism: 'service_enabled', manual: false },
+      transactional: true,
+      remediation: { available: true, mechanisms: ['service_enabled'], restarts_services: ['auditd'], reboot_behavior: 'none' },
     },
     {
       id: 'manual-rule',
@@ -55,7 +57,8 @@ const RULES = {
       category: 'system',
       tags: [],
       framework_refs: { nist_800_53: ['CM-6'] },
-      remediation: { mechanism: 'manual', manual: true },
+      transactional: false,
+      remediation: { available: false, mechanisms: [], restarts_services: [], reboot_behavior: 'none' },
     },
   ],
 };

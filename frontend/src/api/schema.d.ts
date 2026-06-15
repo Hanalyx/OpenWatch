@@ -2737,18 +2737,24 @@ export interface components {
              */
             next_cursor?: string;
         };
-        /** @description Host-independent remediation summary for a library rule. */
+        /** @description Host-independent remediation summary from the kensa read model (facts only; risk level is operator policy, owned by OpenWatch). */
         RuleRemediation: {
-            /** @description default implementation mechanism (e.g. config_set_dropin, service_enabled, manual); empty when none */
-            mechanism: string;
-            /** @description true when there is no automated mechanism */
-            manual: boolean;
+            /** @description true when an automated (non-manual) remediation exists */
+            available: boolean;
+            /** @description distinct remediation mechanisms across implementations (e.g. config_set, service_enabled) */
+            mechanisms: string[];
+            /** @description services the remediation reloads or restarts */
+            restarts_services: string[];
+            /** @description kensa reboot signal: "boot-param" (staged boot change, pending reboot) or "none" (not a complete requires-reboot answer) */
+            reboot_behavior: string;
         };
         /** @description One normalized Kensa rule for the library browser. */
         RuleListItem: {
             id: string;
             title: string;
             description: string;
+            /** @description the rule's apply path is a capturable atomic transaction (the "atomic" signal) */
+            transactional: boolean;
             /** @description critical | high | medium | low */
             severity: string;
             category: string;

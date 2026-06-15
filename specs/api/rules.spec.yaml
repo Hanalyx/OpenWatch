@@ -11,15 +11,16 @@ spec:
     description: >
       /api/v1/rules serves the full Kensa rule catalog as reference data
       for the rule-library browser on /scans. The corpus is static, so it
-      is loaded and NORMALIZED once at boot into internal/kensa.RuleLibrary
-      and returned whole; the browser filters client-side. The
-      normalization is the point: the raw rule schema exposes framework
-      references as a heterogeneous nested map (cis.<distro>.section vs
-      stig.<distro>.vuln_id vs nist_800_53 arrays) and remediation as a
-      per-implementation struct, so the library flattens both into a stable
-      shape no consumer has to re-derive — framework_refs in the same
-      framework_id -> control-ids form as scan results, and a host-
-      independent remediation summary.
+      is loaded once at boot into internal/kensa.RuleLibrary via kensa's
+      PUBLIC rule read model (pkg/kensa.LoadRuleSummaries, kensa >= v0.4.3)
+      and returned whole; the browser filters client-side. Kensa owns the
+      normalization (framework references via internal/mappings, the
+      remediation summary), so OpenWatch no longer re-parses the
+      heterogeneous raw rule schema — it only re-shapes the result into
+      plain Go types (framework_refs in the same framework_id -> control-ids
+      form as scan results, plus the transactional flag and remediation
+      facts). Risk level is intentionally OpenWatch's to own (kensa
+      classifies it as operator policy, not a measurement fact).
     related_specs:
       - api-scans
       - api-host-compliance
@@ -42,11 +43,11 @@ spec:
 
   constraints:
     - id: C-01
-      description: References MUST be normalized to framework_refs (framework_id -> control ids) in the same shape as scan_results.framework_refs — a nested per-distro object becomes "<framework>_<distro>" with the control id taken from the first recognized field (section, then vuln_id, then stig_id/control_id/id); a top-level array is taken verbatim; control slices are deduped and sorted
+      description: Framework references MUST come from kensa's public rule read model (pkg/kensa.LoadRuleSummaries / RuleFrameworkRefs, kensa >= v0.4.3), which normalizes the heterogeneous raw references via the canonical internal/mappings scheme — OpenWatch MUST NOT re-parse the raw References map. The handler groups the resulting []FrameworkRef into framework_id -> sorted control ids (the same shape as scan_results.framework_refs)
       type: technical
       enforcement: error
     - id: C-02
-      description: The remediation summary MUST report the DEFAULT implementation's mechanism (falling back to the first implementation), with manual=true when the mechanism is "manual" or empty — the library has no host context, so it must not depend on capability-gated implementation selection
+      description: The remediation summary MUST be kensa's host-independent RemediationSummary — available, the distinct mechanisms, restarts_services, and reboot_behavior ("boot-param" | "none") — plus the rule's transactional ("atomic") flag. It MUST NOT add a remediation risk level (kensa classifies risk as operator policy, owned by OpenWatch) nor a blanket requires-reboot boolean
       type: technical
       enforcement: error
     - id: C-03
@@ -60,11 +61,11 @@ spec:
 
   acceptance_criteria:
     - id: AC-01
-      description: normalizeFrameworkRefs flattens a mixed References map — CIS nested section, STIG nested vuln_id (preferred over stig_id), and a NIST top-level array — into framework_id -> control ids keyed "<framework>_<distro>" for nested entries, with controls deduped and sorted.
+      description: groupRefs groups kensa's already-normalized FrameworkRef list (framework_id + control_id) into a framework_id -> control ids map, dropping empty ids and sorting each control slice.
       priority: critical
       references_constraints: [C-01]
     - id: AC-02
-      description: summarizeRemediation returns the default implementation's mechanism (or the first when none is default), and sets manual=true for a "manual" or empty mechanism.
+      description: fromSummary maps a kensa RuleSummary to the library item, carrying the transactional flag and the remediation facts (available, mechanisms, restarts_services, reboot_behavior) verbatim.
       priority: high
       references_constraints: [C-02]
     - id: AC-03
@@ -72,6 +73,6 @@ spec:
       priority: critical
       references_constraints: [C-03]
     - id: AC-04
-      description: GET /api/v1/rules returns total == len(rules) and a rules array whose items carry id/title/description/severity/category/tags/framework_refs/remediation; the remediation summary distinguishes an automated mechanism from a manual one.
+      description: GET /api/v1/rules returns total == len(rules) and a rules array whose items carry id/title/description/severity/category/tags/framework_refs/transactional/remediation; the remediation summary (available, mechanisms, restarts_services, reboot_behavior) distinguishes an automated remediation from a manual one.
       priority: high
       references_constraints: [C-04]

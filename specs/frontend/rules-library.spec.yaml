@@ -51,7 +51,7 @@ spec:
       type: technical
       enforcement: error
     - id: C-03
-      description: Each rule row MUST render the title, description, rule id, its framework refs as family-colored tags (CIS / STIG / NIST / PCI), a severity pill, the category, and a remediation summary distinguishing an automated mechanism (atomic) from a manual one
+      description: Each rule row MUST render the title, description, rule id, its framework refs as family-colored tags (CIS / STIG / NIST / PCI), a severity pill, the category, and a remediation summary. The remediation cell MUST show the mechanism(s) and a status from the kensa read model — manual (no automated fix), atomic (an automated transactional fix), or staged (automated, non-transactional) — plus a reboot badge when reboot_behavior is "boot-param" and a restarts-services hint when present
       type: technical
       enforcement: error
     - id: C-04
