@@ -32,7 +32,23 @@ type FormShape = z.infer<typeof schema>;
 
 interface LoginSearch {
   return_to?: string;
+  sso_error?: string;
 }
+
+interface SSOOption {
+  id: string;
+  name: string;
+}
+
+const SSO_ERROR_TEXT: Record<string, string> = {
+  denied: 'Single sign-on was cancelled or denied by the provider.',
+  signin: 'Single sign-on failed. Please try again or use your password.',
+  provider: 'That sign-on provider is unavailable. Please try again later.',
+  invalid: 'The sign-on response was invalid. Please try again.',
+  session: 'Could not establish a session after sign-on. Please try again.',
+  state: 'Your sign-on attempt expired. Please try again.',
+  unavailable: 'Single sign-on is not configured for this workspace.',
+};
 
 // Post-login default destination. "/" is the public homepage, so an
 // authenticated user falls back to /dashboard, not /.
@@ -62,7 +78,10 @@ export function LoginPage() {
   const authLoading = useAuthStore((s) => s.loading);
 
   const [mfaRequired, setMfaRequired] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(
+    search.sso_error ? (SSO_ERROR_TEXT[search.sso_error] ?? 'Single sign-on failed.') : null,
+  );
+  const [ssoProviders, setSsoProviders] = useState<SSOOption[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   // "Keep me signed in" is a UI preference only: the server-set session
@@ -84,6 +103,31 @@ export function LoginPage() {
       navigate({ to: dest, replace: true });
     }
   }, [authLoading, identity, navigate, search.return_to]);
+
+  // Fetch the enabled SSO providers for the "Sign in with …" buttons. This
+  // is an anonymous endpoint returning only {id, name}; an empty list (or a
+  // failure) simply renders no buttons.
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const { data, response } = await api.GET('/api/v1/sso/providers/enabled');
+        if (!cancelled && response.ok && data) setSsoProviders(data.providers);
+      } catch {
+        /* no SSO buttons */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // SSO sign-in is a full-page navigation to the backend redirect endpoint
+  // (it 302s to the IdP), not a SPA route. Forward the return_to through.
+  const startSSO = (providerId: string) => {
+    const rt = encodeURIComponent(safeReturnTo(search.return_to));
+    window.location.href = `/api/v1/auth/sso/${providerId}/login?return_to=${rt}`;
+  };
 
   const { register, handleSubmit, setValue, formState } = useForm<FormShape>({
     resolver: zodResolver(schema),
@@ -150,6 +194,7 @@ export function LoginPage() {
                     'token:delete',
                     'system:auth_policy_read',
                     'system:auth_policy_write',
+                    'admin:sso_provider',
                     'admin',
                   ]
                 : ['host:read', 'scan:read'],
@@ -517,6 +562,50 @@ export function LoginPage() {
           >
             {submitting ? 'Signing in…' : 'Enter console'}
           </button>
+
+          {ssoProviders.length > 0 && (
+            <>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 12,
+                  margin: '22px 0 16px',
+                  color: 'var(--ow-fg-3)',
+                  fontSize: 11.5,
+                  fontFamily: 'var(--ow-font-mono, monospace)',
+                  letterSpacing: '0.06em',
+                }}
+              >
+                <span style={{ flex: 1, height: 1, background: 'var(--ow-line)' }} />
+                OR CONTINUE WITH
+                <span style={{ flex: 1, height: 1, background: 'var(--ow-line)' }} />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {ssoProviders.map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => startSSO(p.id)}
+                    style={{
+                      width: '100%',
+                      height: 46,
+                      background: 'rgba(10,14,20,0.5)',
+                      color: 'var(--ow-fg-0)',
+                      border: '1px solid var(--ow-line)',
+                      borderRadius: 10,
+                      fontFamily: 'inherit',
+                      fontWeight: 600,
+                      fontSize: 14,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Sign in with {p.name}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
 
           <div
             style={{

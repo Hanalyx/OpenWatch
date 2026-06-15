@@ -1,0 +1,88 @@
+spec:
+  id: api-sso
+  title: SSO (OIDC) REST API — provider config + sign-in flow
+  version: "1.0.0"
+  status: approved
+  tier: 2
+
+  context:
+    system: openwatch-go
+    feature: >-
+      Admin-gated SSO provider CRUD under /api/v1/sso/providers, an
+      anonymous enabled-provider list for the login page, and the anonymous
+      authorization-code endpoints under /api/v1/auth/sso/{id}/login and
+      /callback. Backed by internal/sso (system-sso).
+    description: >-
+      Provider CRUD is gated by admin:sso_provider and never returns the
+      client secret. The enabled list returns only id + name. The login
+      endpoint 302-redirects to the IdP; the callback exchanges the code,
+      issues a session cookie, and redirects into the app (or to /login with
+      an sso_error on failure).
+    related_specs:
+      - system-sso
+      - system-rbac
+      - api-auth
+
+  objective:
+    summary: >-
+      Lock the per-verb RBAC, the secret-free responses, and the anonymous
+      redirect endpoints.
+    scope:
+      includes:
+        - "GET/POST /api/v1/sso/providers (admin:sso_provider)"
+        - "GET/PUT/DELETE /api/v1/sso/providers/{id} (admin:sso_provider)"
+        - "GET /api/v1/sso/providers/enabled (anonymous; id + name only)"
+        - "GET /api/v1/auth/sso/{id}/login + /callback (anonymous; 302)"
+      excludes:
+        - "SAML endpoints (separate slice)"
+
+  constraints:
+    - id: C-01
+      description: >-
+        Every /api/v1/sso/providers operation MUST enforce admin:sso_provider
+        before any work; an anonymous or under-privileged caller gets 401/403.
+        No provider response (create, list, get, update) may include the
+        client secret.
+      type: security
+      enforcement: error
+    - id: C-02
+      description: >-
+        GET /api/v1/sso/providers/enabled MUST be anonymous and MUST return
+        only id + name for enabled providers (no secret, no issuer, no
+        client_id). The login + callback endpoints MUST be anonymous.
+      type: security
+      enforcement: error
+    - id: C-03
+      description: >-
+        A successful provider create/update/delete MUST emit the matching
+        admin.sso_provider.* audit event. The callback MUST emit
+        auth.login.success on a completed sign-in and auth.login.failure on
+        a rejected one.
+      type: security
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: GET /sso/providers and GET /sso/providers/{id} return 200 for admin and 403 for a caller without admin:sso_provider; an anonymous caller is denied. No response body contains a client_secret field.
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-02
+      description: POST /sso/providers with name+issuer(https)+client_id+client_secret returns 201 with the provider metadata (no secret); a non-https issuer or missing field returns 400; a caller without admin:sso_provider gets 403.
+      priority: critical
+      references_constraints: [C-01, C-03]
+    - id: AC-03
+      description: PUT /sso/providers/{id} updates and returns 200 (admin:sso_provider; 403 otherwise); an unknown id returns 404.
+      priority: high
+      references_constraints: [C-01]
+    - id: AC-04
+      description: DELETE /sso/providers/{id} returns 204 (admin:sso_provider; 403 otherwise) and an unknown id returns 404.
+      priority: high
+      references_constraints: [C-01, C-03]
+    - id: AC-05
+      description: GET /sso/providers/enabled returns 200 to an anonymous caller and lists only enabled providers as {id, name}; a disabled provider is absent and no secret/issuer/client_id is present.
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-06
+      description: GET /auth/sso/{id}/login for an unknown or disabled provider 302-redirects to /login with an sso_error query param (never 500); GET /auth/sso/{id}/callback with a missing code or state 302-redirects to /login?sso_error rather than erroring.
+      priority: high
+      references_constraints: [C-02]

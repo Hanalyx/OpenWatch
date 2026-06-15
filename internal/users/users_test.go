@@ -447,3 +447,35 @@ func TestListUsers_PopulatesRoles(t *testing.T) {
 		}
 	})
 }
+
+// @spec system-sso
+// @ac AC-08
+// CreateFederatedUser provisions a passwordless SSO user with a role, and a
+// username/email collision surfaces as an error (no silent merge).
+func TestCreateFederatedUser(t *testing.T) {
+	t.Run("system-sso/AC-08", func(t *testing.T) {
+		svc, pool := freshService(t, nil)
+		ctx := context.Background()
+		u, err := svc.CreateFederatedUser(ctx, "fed@example.com", "fed@example.com", auth.RoleViewer)
+		if err != nil {
+			t.Fatalf("CreateFederatedUser: %v", err)
+		}
+		// Default role assigned.
+		var n int
+		_ = pool.QueryRow(ctx,
+			`SELECT count(*) FROM user_roles WHERE user_id = $1 AND role_id = 'viewer'`, u.ID).Scan(&n)
+		if n != 1 {
+			t.Errorf("role count = %d, want 1", n)
+		}
+		// A password hash exists (random + unusable) — never empty.
+		var hash string
+		_ = pool.QueryRow(ctx, `SELECT password_hash FROM users WHERE id = $1`, u.ID).Scan(&hash)
+		if hash == "" {
+			t.Error("federated user has empty password_hash")
+		}
+		// Username collision is an error, not a silent merge.
+		if _, err := svc.CreateFederatedUser(ctx, "fed@example.com", "fed@example.com", auth.RoleViewer); err == nil {
+			t.Error("duplicate federated provisioning succeeded, want error")
+		}
+	})
+}

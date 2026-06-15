@@ -36,6 +36,7 @@ function permissionsForRole(role: string): string[] {
       'token:delete',
       'system:auth_policy_read',
       'system:auth_policy_write',
+      'admin:sso_provider',
       'admin',
     ];
   }
@@ -82,6 +83,7 @@ export async function bootstrapAuth(): Promise<void> {
         'token:delete',
         'system:auth_policy_read',
         'system:auth_policy_write',
+        'admin:sso_provider',
         'admin',
       ],
       mfaEnabled: false,

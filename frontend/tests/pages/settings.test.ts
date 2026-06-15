@@ -393,8 +393,6 @@ describe('frontend-settings — structural', () => {
     // Write/delete controls gate on their permissions.
     expect(SEC_SRC).toMatch(/hasPermission\)\('token:write'\)/);
     expect(SEC_SRC).toMatch(/hasPermission\)\('token:delete'\)/);
-    // SSO stays pending (still renders a BackendPendingBanner).
-    expect(SEC_SRC).toContain('BackendPendingBanner');
   });
 
   test('frontend-settings/AC-25 — Security: live auth-policy section + login enrollment routing', () => {
@@ -411,5 +409,20 @@ describe('frontend-settings — structural', () => {
     // Login routes a non-enrolled user to enrollment when policy requires MFA.
     expect(LOGIN_SRC).toContain('mfa_enrollment_required');
     expect(LOGIN_SRC).toMatch(/navigate\(\{\s*to:\s*['"]\/settings\/profile['"]/);
+  });
+
+  test('frontend-settings/AC-26 — Security: live SSO provider CRUD + login sign-in buttons', () => {
+    // SSO section is admin:sso_provider-gated and does provider CRUD.
+    expect(SEC_SRC).toMatch(/hasPermission\)\('admin:sso_provider'\)/);
+    expect(SEC_SRC).toMatch(/queryKey:\s*\['sso-providers'\]/);
+    expect(SEC_SRC).toMatch(/api\.GET\(\s*['"]\/api\/v1\/sso\/providers['"]/);
+    expect(SEC_SRC).toMatch(/api\.POST\(\s*['"]\/api\/v1\/sso\/providers['"]/);
+    expect(SEC_SRC).toMatch(/api\.PUT\(\s*['"]\/api\/v1\/sso\/providers\/\{id\}['"]/);
+    expect(SEC_SRC).toMatch(/api\.DELETE\(\s*['"]\/api\/v1\/sso\/providers\/\{id\}['"]/);
+    // Client secret is write-only: the edit form labels it "leave blank to keep".
+    expect(SEC_SRC).toMatch(/leave blank to keep/i);
+    // Login page fetches enabled providers and starts the backend redirect flow.
+    expect(LOGIN_SRC).toMatch(/api\.GET\(\s*['"]\/api\/v1\/sso\/providers\/enabled['"]/);
+    expect(LOGIN_SRC).toMatch(/\/api\/v1\/auth\/sso\/\$\{providerId\}\/login/);
   });
 });

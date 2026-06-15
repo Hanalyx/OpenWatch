@@ -1,7 +1,7 @@
 spec:
   id: frontend-settings
   title: Settings — two-pane shell with 11 sub-pages
-  version: "1.7.0"
+  version: "1.8.0"
   status: draft
   tier: 2
 
@@ -63,7 +63,7 @@ spec:
         - "Audit log — filterable, cursor-paginated GET /api/v1/audit/events, audit:read gated, read-only (v1.3.0)"
         - "About — version from GET /api/v1/version + license state from GET /api/v1/license (v1.3.0)"
         - "Notifications — Slack/webhook channel CRUD + test over /api/v1/notifications/channels, notification:read gated, secrets write-only (v1.5.0)"
-        - "Security & auth — live API-tokens section (list/create/revoke over /api/v1/tokens, secret shown once) + live authentication-policy section (require-MFA toggle + idle/absolute session timeouts over /api/v1/auth-policy, system:auth_policy_* gated); SSO stays Backend Pending (v1.7.0)"
+        - "Security & auth — all three sections live: SSO OIDC provider CRUD (over /api/v1/sso/providers, admin:sso_provider, secret write-only) + authentication-policy (require-MFA + session timeouts, system:auth_policy_*) + API tokens (secret shown once); LoginPage renders Sign in with X buttons from /api/v1/sso/providers/enabled (v1.8.0)"
         - "Integrations — structural shell with Backend Pending banner"
         - "All control widgets themed via --ow-* tokens"
       excludes:
@@ -217,7 +217,12 @@ spec:
         GET /api/v1/auth-policy keyed ['auth-policy'] (system:auth_policy_read),
         a require-MFA Toggle + idle/absolute timeout Steppers, Save via PUT
         /api/v1/auth-policy (system:auth_policy_write) invalidating
-        ['auth-policy']. Only the SSO section stays BackendPendingBanner.
+        ['auth-policy']. v1.8.0 — it MUST also render a live single-sign-on
+        section (admin:sso_provider): OIDC provider CRUD keyed
+        ['sso-providers'] over /api/v1/sso/providers (GET/POST/PUT/DELETE),
+        the client secret write-only (edit form labels it "leave blank to
+        keep"). All three Security sections are live; no section renders
+        BackendPendingBanner.
       type: security
       enforcement: error
 
@@ -321,5 +326,10 @@ spec:
 
     - id: AC-25
       description: "v1.7.0 source-inspection: SecurityPage's authentication-policy section loads GET /api/v1/auth-policy keyed ['auth-policy'] (gated on system:auth_policy_read), renders a require-MFA Toggle plus idle/absolute timeout Steppers seeded from the policy, and Saves via api.PUT '/api/v1/auth-policy' (gated on system:auth_policy_write) invalidating ['auth-policy']; LoginPage reads mfa_enrollment_required from the login response and routes to /settings/profile when it is set."
+      priority: high
+      references_constraints: [C-16]
+
+    - id: AC-26
+      description: "v1.8.0 source-inspection: SecurityPage's single-sign-on section is gated on admin:sso_provider and does OIDC provider CRUD keyed ['sso-providers'] — api.GET/POST '/api/v1/sso/providers', api.PUT/DELETE '/api/v1/sso/providers/{id}' — with the client secret write-only (edit form labels it 'leave blank to keep'); LoginPage fetches api.GET '/api/v1/sso/providers/enabled' and renders Sign in with X buttons that navigate to '/api/v1/auth/sso/${providerId}/login'."
       priority: high
       references_constraints: [C-16]

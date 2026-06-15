@@ -2040,6 +2040,94 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sso/providers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List SSO providers (metadata only; client secret never returned) */
+        get: operations["getSSOProviders"];
+        put?: never;
+        /** Create an SSO provider */
+        post: operations["postSSOProvider"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sso/providers/enabled": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List enabled SSO providers for the sign-in picker (anonymous) */
+        get: operations["getSSOProvidersEnabled"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sso/providers/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** View one SSO provider (metadata only) */
+        get: operations["getSSOProvider"];
+        /** Update an SSO provider (omit client_secret to keep the existing one) */
+        put: operations["putSSOProvider"];
+        post?: never;
+        /** Delete an SSO provider (cascades its identities + states) */
+        delete: operations["deleteSSOProvider"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/sso/{id}/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Begin SSO sign-in — redirects to the IdP authorization endpoint */
+        get: operations["getAuthSSOLogin"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/sso/{id}/callback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** SSO redirect-back — exchanges the code, issues a session, redirects into the app */
+        get: operations["getAuthSSOCallback"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2210,6 +2298,62 @@ export interface components {
             require_mfa: boolean;
             session_idle_timeout_seconds: number;
             session_absolute_timeout_seconds: number;
+        };
+        /** @description SSO provider metadata. The client secret is NEVER included. */
+        SSOProvider: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            /** @description Protocol (oidc) */
+            type: string;
+            /** @description OIDC issuer URL */
+            issuer: string;
+            client_id: string;
+            /** @description Space-delimited OAuth scopes */
+            scopes: string;
+            /** @description Role granted to users provisioned via this provider */
+            default_role: string;
+            enabled: boolean;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at?: string;
+        };
+        SSOProviderList: {
+            providers: components["schemas"]["SSOProvider"][];
+        };
+        SSOProviderCreateRequest: {
+            name: string;
+            /** @description OIDC issuer URL (https) */
+            issuer: string;
+            client_id: string;
+            /** @description Stored encrypted; never returned */
+            client_secret: string;
+            /** @description Space-delimited; openid is always added */
+            scopes?: string;
+            /** @description Role for provisioned users (default viewer) */
+            default_role?: string;
+            enabled?: boolean;
+        };
+        /** @description Omit client_secret (or send empty) to keep the stored secret. */
+        SSOProviderUpdateRequest: {
+            name: string;
+            issuer: string;
+            client_id: string;
+            /** @description Optional; empty keeps the existing secret */
+            client_secret?: string;
+            scopes?: string;
+            default_role?: string;
+            enabled?: boolean;
+        };
+        /** @description The minimal, non-secret shape rendered on the anonymous login page. */
+        SSOEnabledProvider: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+        };
+        SSOEnabledList: {
+            providers: components["schemas"]["SSOEnabledProvider"][];
         };
         UserCreateRequest: {
             username: string;
@@ -7722,6 +7866,195 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             403: components["responses"]["Forbidden"];
+        };
+    };
+    getSSOProviders: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Provider list */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SSOProviderList"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    postSSOProvider: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SSOProviderCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Provider created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SSOProvider"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    getSSOProvidersEnabled: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Enabled providers (id + name only) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SSOEnabledList"];
+                };
+            };
+        };
+    };
+    getSSOProvider: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Provider */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SSOProvider"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    putSSOProvider: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SSOProviderUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Provider updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SSOProvider"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteSSOProvider: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getAuthSSOLogin: {
+        parameters: {
+            query?: {
+                return_to?: string;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Redirect to the identity provider */
+            302: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getAuthSSOCallback: {
+        parameters: {
+            query?: {
+                code?: string;
+                state?: string;
+                error?: string;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Redirect into the app (success) or to /login with an error */
+            302: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
 }
