@@ -97,7 +97,12 @@ export function HostActionsMenu({
       if (!response.ok || !data) {
         throw new Error(apiErrorMessage(error, `Failed to load host (HTTP ${response.status})`));
       }
-      setEditHost(data as unknown as FullHost);
+      // GET /hosts/{id} wraps the record under `host` (alongside liveness +
+      // compliance_summary). The edit form needs the unwrapped host so its
+      // fields pre-fill — passing the wrapper leaves every field blank.
+      const wrapper = data as unknown as { host?: FullHost };
+      const full = (wrapper.host ?? (data as unknown as FullHost)) as FullHost;
+      setEditHost(full);
     } catch (e) {
       setEditError((e as Error).message);
     } finally {

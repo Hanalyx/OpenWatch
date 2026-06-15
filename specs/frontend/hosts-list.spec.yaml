@@ -158,5 +158,5 @@ spec:
       priority: high
 
     - id: AC-20
-      description: 'v1.5.0 - each host card and table row renders a three-dot (kebab) actions menu (HostActionsMenu). Edit (gated on host:write) fetches the full host via GET /api/v1/hosts/{id} then opens EditHostModal (PATCH /api/v1/hosts/{id}). Delete (gated on host:delete, dangerous) opens an explicit confirmation modal before calling DELETE /api/v1/hosts/{id} and invalidating the ["hosts"] query on success. A caller with neither host:write nor host:delete sees no menu at all. Source-inspection of HostActionsMenu.tsx + HostsListPage.tsx.'
+      description: 'v1.5.0 - each host card and table row renders a three-dot (kebab) actions menu (HostActionsMenu). Edit (gated on host:write) fetches the full host via GET /api/v1/hosts/{id}, unwraps the record nested under the response `host` key, and opens EditHostModal (PATCH /api/v1/hosts/{id}) with every available field pre-filled. Delete (gated on host:delete, dangerous) opens an explicit confirmation modal before calling DELETE /api/v1/hosts/{id} and invalidating the ["hosts"] query on success. A caller with neither host:write nor host:delete sees no menu at all. Source-inspection of HostActionsMenu.tsx + HostsListPage.tsx.'
       priority: high
