@@ -77,6 +77,37 @@ func TestCreate_EncryptsAndRoundTrips(t *testing.T) {
 	})
 }
 
+// @ac AC-08
+func TestCreate_EmailRoundTrips(t *testing.T) {
+	t.Run("system-notifications/AC-08", func(t *testing.T) {
+		svc, _ := freshService(t)
+		ctx := context.Background()
+		c, err := svc.Create(ctx, CreateParams{
+			Type: TypeEmail, Name: "secops-mail", Enabled: true,
+			Config: Config{
+				SMTPHost: "smtp.corp.example", SMTPPort: 587,
+				Username: "ow", Password: "smtp-secret",
+				From: "openwatch@corp.example", To: []string{"sec@corp.example"},
+			},
+		})
+		if err != nil {
+			t.Fatalf("Create email: %v", err)
+		}
+		if c.TargetHint != "smtp.corp.example" {
+			t.Errorf("TargetHint = %q, want smtp.corp.example", c.TargetHint)
+		}
+		dec, err := svc.getDecrypted(ctx, c.ID)
+		if err != nil {
+			t.Fatalf("getDecrypted: %v", err)
+		}
+		if dec.Config.SMTPHost != "smtp.corp.example" || dec.Config.SMTPPort != 587 ||
+			dec.Config.Password != "smtp-secret" || dec.Config.From != "openwatch@corp.example" ||
+			len(dec.Config.To) != 1 || dec.Config.To[0] != "sec@corp.example" {
+			t.Errorf("email config round-trip wrong: %+v", dec.Config)
+		}
+	})
+}
+
 // @ac AC-06
 func TestUpdateAndDelete(t *testing.T) {
 	t.Run("system-notifications/AC-06", func(t *testing.T) {

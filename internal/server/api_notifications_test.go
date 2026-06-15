@@ -106,6 +106,39 @@ func TestNotifications_ResponseHasNoSecretField(t *testing.T) {
 	})
 }
 
+// @ac AC-06
+func TestNotifications_EmailCreateRedactsSecret(t *testing.T) {
+	t.Run("api-notifications/AC-06", func(t *testing.T) {
+		url, _ := freshAPIServer(t)
+		body := map[string]any{
+			"type": "email", "name": "secops-mail",
+			"smtp_host": "smtp.corp.example", "smtp_port": 587,
+			"username": "ow", "password": "smtp-supersecret",
+			"from": "openwatch@corp.example", "to": []string{"sec@corp.example"},
+		}
+		r := doReq(t, asRole(t, "POST", url+"/api/v1/notifications/channels", auth.RoleAdmin, body))
+		raw := readBody(t, r)
+		if r.StatusCode != http.StatusCreated {
+			t.Fatalf("email create = %d, want 201 (body %s)", r.StatusCode, raw)
+		}
+		if strings.Contains(raw, "smtp-supersecret") || strings.Contains(raw, `"password"`) ||
+			strings.Contains(raw, `"username"`) {
+			t.Errorf("email create response leaked credential: %s", raw)
+		}
+		if !strings.Contains(raw, "smtp.corp.example") {
+			t.Errorf("email create response missing smtp host hint: %s", raw)
+		}
+		// Missing recipients → 400.
+		bad := map[string]any{
+			"type": "email", "name": "x",
+			"smtp_host": "smtp.corp.example", "smtp_port": 587, "from": "a@x.com",
+		}
+		if br := doReq(t, asRole(t, "POST", url+"/api/v1/notifications/channels", auth.RoleAdmin, bad)); br.StatusCode != http.StatusBadRequest {
+			t.Errorf("email create without recipients = %d, want 400", br.StatusCode)
+		}
+	})
+}
+
 // @ac AC-03
 func TestNotifications_UpdateDeleteRBAC(t *testing.T) {
 	t.Run("api-notifications/AC-03", func(t *testing.T) {

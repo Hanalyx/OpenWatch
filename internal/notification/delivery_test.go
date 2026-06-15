@@ -93,6 +93,43 @@ func TestMatchesTags(t *testing.T) {
 	})
 }
 
+// @ac AC-08
+func TestValidateEmailAndMessage(t *testing.T) {
+	t.Run("system-notifications/AC-08", func(t *testing.T) {
+		// Missing fields rejected.
+		bad := []Config{
+			{SMTPPort: 587, From: "a@x.com", To: []string{"b@x.com"}},                           // no host
+			{SMTPHost: "mail.x.com", From: "a@x.com", To: []string{"b@x.com"}},                  // no port
+			{SMTPHost: "mail.x.com", SMTPPort: 587, To: []string{"b@x.com"}},                    // no from
+			{SMTPHost: "mail.x.com", SMTPPort: 587, From: "a@x.com"},                            // no recipients
+			{SMTPHost: "mail.x.com", SMTPPort: 99999, From: "a@x.com", To: []string{"b@x.com"}}, // bad port
+		}
+		for i, c := range bad {
+			if _, err := validateEmail(c); err == nil {
+				t.Errorf("validateEmail(bad[%d]) = nil, want rejection", i)
+			}
+		}
+		// Internal relay host is allowed (no SSRF block for SMTP); host is
+		// the target_hint.
+		host, err := validateEmail(Config{
+			SMTPHost: "10.0.0.25", SMTPPort: 587, From: "ow@corp.com", To: []string{"sec@corp.com"},
+		})
+		if err != nil {
+			t.Fatalf("validateEmail(internal relay) = %v, want nil", err)
+		}
+		if host != "10.0.0.25" {
+			t.Errorf("target_hint = %q, want 10.0.0.25", host)
+		}
+		// Message carries From/To/Subject/body.
+		msg := string(buildEmailMessage("ow@corp.com", []string{"a@corp.com", "b@corp.com"}, "Subj", "Body"))
+		for _, want := range []string{"From: ow@corp.com", "To: a@corp.com, b@corp.com", "Subject: Subj", "Body"} {
+			if !strings.Contains(msg, want) {
+				t.Errorf("email message missing %q:\n%s", want, msg)
+			}
+		}
+	})
+}
+
 func TestRenderPayload(t *testing.T) {
 	a := alertrouter.Alert{Type: "drift", Severity: "critical", Title: "Rule failed", Body: "details"}
 	slack, err := renderPayload(TypeSlack, a)

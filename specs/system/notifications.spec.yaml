@@ -1,7 +1,7 @@
 spec:
   id: system-notifications
   title: Notification channels — encrypted store + SSRF-guarded delivery
-  version: "1.0.0"
+  version: "1.1.0"
   status: approved
   tier: 2
 
@@ -105,3 +105,7 @@ spec:
       description: Source inspection — the notification package imports no external Slack/webhook SDK (only net/http + encoding/json for delivery).
       priority: high
       references_constraints: [C-04]
+    - id: AC-08
+      description: "v1.1.0 (Phase 2b) — email channels: validateEmail requires smtp_host, a valid port, a from address, and >=1 recipient (else ErrInvalidConfig) and returns the smtp_host as target_hint; a created email channel round-trips its smtp host/port/username/password/from/to through the encrypted config; deliver routes email via SMTP (net/smtp) and slack/webhook via HTTP. The SMTP host is NOT public-host-restricted (internal relays allowed)."
+      priority: high
+      references_constraints: [C-01, C-03]

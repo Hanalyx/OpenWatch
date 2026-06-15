@@ -1,7 +1,7 @@
 spec:
   id: api-notifications
   title: Notification channels REST API
-  version: "1.0.0"
+  version: "1.1.0"
   status: approved
   tier: 2
 
@@ -80,4 +80,8 @@ spec:
     - id: AC-05
       description: A POST with an http:// or private-host url returns 400 (ErrInvalidConfig). With notificationSvc nil, every endpoint returns 503. Source inspection — the api.NotificationChannel response struct declares no Url/Token field.
       priority: critical
+      references_constraints: [C-02, C-03]
+    - id: AC-06
+      description: "v1.1.0 (Phase 2b) — POST with type=email and smtp_host/smtp_port/from/to creates the channel (201) with the SMTP host as target_hint, and the response JSON contains neither the smtp password nor username; an email body missing smtp_host or recipients returns 400."
+      priority: high
       references_constraints: [C-02, C-03]

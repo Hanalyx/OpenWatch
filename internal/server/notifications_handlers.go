@@ -66,14 +66,12 @@ func (h *handlers) PostNotificationChannel(w http.ResponseWriter, r *http.Reques
 		enabled = *req.Enabled
 	}
 	p := notification.CreateParams{
-		Type:      notification.ChannelType(req.Type),
-		Name:      req.Name,
-		Enabled:   enabled,
-		Config:    notification.Config{URL: req.Url},
+		Type:    notification.ChannelType(req.Type),
+		Name:    req.Name,
+		Enabled: enabled,
+		Config: notificationConfig(req.Url, req.Token, req.SmtpHost, req.SmtpPort,
+			req.Username, req.Password, req.From, req.To),
 		TagFilter: derefTagFilter(req.TagFilter),
-	}
-	if req.Token != nil {
-		p.Config.Token = *req.Token
 	}
 	c, err := h.notificationSvc.Create(r.Context(), p)
 	if err != nil {
@@ -119,14 +117,13 @@ func (h *handlers) PatchNotificationChannel(w http.ResponseWriter, r *http.Reque
 		Enabled:   req.Enabled,
 		TagFilter: derefTagFilter(req.TagFilter),
 	}
-	// A url supplied in the patch replaces the encrypted config; omitting
-	// it leaves the existing secret untouched.
-	if req.Url != nil {
+	// A secret field supplied in the patch (url for slack/webhook,
+	// smtp_host for email) replaces the encrypted config; omitting it
+	// leaves the existing secret untouched.
+	if req.Url != nil || req.SmtpHost != nil {
 		p.ReplaceConfig = true
-		p.Config.URL = *req.Url
-		if req.Token != nil {
-			p.Config.Token = *req.Token
-		}
+		p.Config = notificationConfig(req.Url, req.Token, req.SmtpHost, req.SmtpPort,
+			req.Username, req.Password, req.From, req.To)
 	}
 	c, err := h.notificationSvc.Update(r.Context(), uuid.UUID(id), p)
 	if err != nil {
@@ -198,6 +195,38 @@ func derefTagFilter(m *map[string]string) map[string]string {
 		return map[string]string{}
 	}
 	return *m
+}
+
+// notificationConfig assembles the decrypted Config from the optional
+// request fields. HTTP channels use url/token; email uses the smtp* +
+// from/to fields. Unset pointers stay zero (validated per-type downstream).
+func notificationConfig(url, token, smtpHost *string, smtpPort *int, username, password, from *string, to *[]string) notification.Config {
+	cfg := notification.Config{}
+	if url != nil {
+		cfg.URL = *url
+	}
+	if token != nil {
+		cfg.Token = *token
+	}
+	if smtpHost != nil {
+		cfg.SMTPHost = *smtpHost
+	}
+	if smtpPort != nil {
+		cfg.SMTPPort = *smtpPort
+	}
+	if username != nil {
+		cfg.Username = *username
+	}
+	if password != nil {
+		cfg.Password = *password
+	}
+	if from != nil {
+		cfg.From = *from
+	}
+	if to != nil {
+		cfg.To = *to
+	}
+	return cfg
 }
 
 // writeNotificationErr maps service errors to HTTP status.

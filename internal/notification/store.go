@@ -43,9 +43,28 @@ func validate(typ ChannelType, name string, cfg Config) (string, error) {
 	if strings.TrimSpace(name) == "" {
 		return "", fmt.Errorf("%w: name required", ErrInvalidConfig)
 	}
-	host, err := safeURLHost(cfg.URL)
-	if err != nil {
-		return "", err
+	if typ == TypeEmail {
+		return validateEmail(cfg)
+	}
+	return safeURLHost(cfg.URL)
+}
+
+// validateEmail checks the SMTP config and returns the host as the
+// non-secret target_hint. The relay host is NOT SSRF-restricted (internal
+// mail relays are legitimate); TLS + auth protect the credential.
+func validateEmail(cfg Config) (string, error) {
+	host := strings.TrimSpace(cfg.SMTPHost)
+	if host == "" {
+		return "", fmt.Errorf("%w: smtp host required", ErrInvalidConfig)
+	}
+	if cfg.SMTPPort <= 0 || cfg.SMTPPort > 65535 {
+		return "", fmt.Errorf("%w: smtp port out of range", ErrInvalidConfig)
+	}
+	if strings.TrimSpace(cfg.From) == "" {
+		return "", fmt.Errorf("%w: from address required", ErrInvalidConfig)
+	}
+	if len(cfg.To) == 0 {
+		return "", fmt.Errorf("%w: at least one recipient required", ErrInvalidConfig)
 	}
 	return host, nil
 }
@@ -177,9 +196,10 @@ func (s *Service) getDecrypted(ctx context.Context, id uuid.UUID) (Channel, erro
 // Update mutates name/enabled/tag_filter, and the secret config only when
 // ReplaceConfig is set.
 func (s *Service) Update(ctx context.Context, id uuid.UUID, p UpdateParams) (Channel, error) {
-	// Existence check (404 path); the row's current values are not read —
-	// a meta-only update leaves config_ciphertext + target_hint untouched.
-	if _, err := s.Get(ctx, id); err != nil {
+	// Fetch the existing channel for the 404 path and its (immutable) type,
+	// which selects how a replacement config is validated.
+	existing, err := s.Get(ctx, id)
+	if err != nil {
 		return Channel{}, err
 	}
 	if strings.TrimSpace(p.Name) == "" {
@@ -190,7 +210,7 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, p UpdateParams) (Cha
 		return Channel{}, fmt.Errorf("notification: marshal tags: %w", err)
 	}
 	if p.ReplaceConfig {
-		hint, vErr := safeURLHost(p.Config.URL)
+		hint, vErr := validate(existing.Type, p.Name, p.Config)
 		if vErr != nil {
 			return Channel{}, vErr
 		}
