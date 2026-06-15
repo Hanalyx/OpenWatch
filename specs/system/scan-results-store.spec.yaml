@@ -1,0 +1,117 @@
+spec:
+  id: system-scan-results-store
+  title: Durable per-scan results + content-addressed evidence store
+  version: "1.0.0"
+  status: approved
+  tier: 2
+
+  context:
+    system: openwatch-go
+    feature: Durable compliance audit memory
+    description: >
+      The transaction log (system-transaction-log-writer) keeps only the
+      CURRENT compliance state (host_rule_state) and the state CHANGES
+      (transactions); it overwrites the per-rule evidence of a superseded
+      scan. That is correct for drift/alerts and the live compliance lens,
+      but it cannot answer an audit-window question ("what command output
+      proved rule X passed on the Feb 1 scan?") because the proof was
+      overwritten. This store fills that gap: it retains EVERY rule's
+      outcome and evidence for EVERY scan so a historical scan stays fully
+      browsable and OSCAL-exportable. It is written by the scan worker
+      alongside the transaction log (never instead of it) and is read only
+      by the /api/v1/scans surface (api-scans). Evidence is content-
+      addressed (deduped by sha256) so an unchanged passing rule across N
+      scans stores its proof once — full retention without the per-scan
+      blob explosion the write-on-change model was built to avoid.
+    related_specs:
+      - system-transaction-log-writer
+      - system-scan-runs
+      - api-scans
+
+  objective:
+    summary: >
+      One call — Writer.Persist(ctx, PersistBatch{scanID, hostID, results})
+      — durably records the whole scan. Atomic per scan (whole result or
+      nothing). Idempotent under retry (same scanID is a no-op). Each rule
+      becomes one scan_results row referencing its evidence by content
+      hash; identical evidence content across scans is stored once in
+      scan_evidence.
+    scope:
+      includes:
+        - scan_results INSERT (one row per scan_id×rule_id)
+        - scan_evidence content-addressed dedup (sha256 of raw bytes)
+        - Empty evidence maps to a NULL evidence_hash
+        - Per-rule evidence cap shared with the transaction log writer
+        - Single-transaction atomicity per Persist call
+        - Idempotency on scan_id (re-Persist is a no-op)
+        - FK to scan_runs(id) and hosts(id), ON DELETE RESTRICT
+        - Worker wiring alongside transactionlog.Apply
+      excludes:
+        - Read/query surface (api-scans owns it)
+        - OSCAL reconstruction (api-scans owns it)
+        - Evidence retention/GC sweep (separate future task)
+        - Normalizing transactions/host_rule_state to reference the store
+
+  constraints:
+    - id: C-01
+      description: Writer.Persist MUST be wrapped in a single DB transaction; partial per-scan writes are forbidden (whole result or nothing)
+      type: technical
+      enforcement: error
+    - id: C-02
+      description: scan_evidence MUST be content-addressed — the primary key is the sha256 of the RAW evidence bytes exactly as produced by the kensa executor, computed in Go BEFORE any JSONB cast (Postgres re-serializes JSONB, so a post-cast hash would not match). Dedup is via INSERT ... ON CONFLICT (evidence_hash) DO NOTHING, which preserves the original first_seen_at
+      type: technical
+      enforcement: error
+    - id: C-03
+      description: A result with empty evidence MUST store a NULL evidence_hash on its scan_results row — never a synthesized hash of an empty/"{}" document. NULL is the honest "no evidence captured" signal
+      type: technical
+      enforcement: error
+    - id: C-04
+      description: The per-rule evidence cap MUST equal transactionlog.MaxEvidenceBytes (256 KiB) — the worker hands the SAME evidence bytes to both writers, so the caps must not drift; oversize evidence is rejected before any INSERT with a typed error
+      type: security
+      enforcement: error
+    - id: C-05
+      description: Re-calling Writer.Persist with the same scan_id MUST be a no-op; enforced via a scan_id existence gate plus PRIMARY KEY (scan_id, rule_id) with ON CONFLICT DO NOTHING
+      type: technical
+      enforcement: error
+    - id: C-06
+      description: scan_results FK constraints to scan_runs(id) and hosts(id) MUST be ON DELETE RESTRICT — durable history outlives its scan/host references and is never silently dropped; persisting results for a scan_id with no scan_runs row MUST be rejected
+      type: technical
+      enforcement: error
+    - id: C-07
+      description: The durable write MUST be wired into the worker success path alongside (never instead of) transactionlog.Apply, before scanruns.MarkCompleted, so a run is not marked completed until its durable record lands. The scanresult writer MUST NOT emit audit events (the transaction log already emits finding.persisted; a second emission would double-count)
+      type: technical
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: Writer.Persist with N rule results performs exactly one DB transaction and writes N scan_results rows; a mid-batch DB error rolls back the whole batch so zero scan_results rows persist for that scan.
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-02
+      description: Two distinct scans that both observe a rule with byte-identical evidence produce exactly ONE scan_evidence row; the row's first_seen_at is set by the first scan and is unchanged by the second (ON CONFLICT DO NOTHING).
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-03
+      description: A result whose evidence slice is empty yields a scan_results row with evidence_hash IS NULL and creates no scan_evidence row on its behalf.
+      priority: high
+      references_constraints: [C-03]
+    - id: AC-04
+      description: A result whose evidence exceeds 256 KiB causes Persist to return ErrEvidenceOversize naming the rule, and nothing is written to scan_results or scan_evidence for that batch.
+      priority: critical
+      references_constraints: [C-04]
+    - id: AC-05
+      description: Calling Writer.Persist twice with the same scan_id and body is a no-op on the second call; scan_results and scan_evidence row counts are unchanged and no error is returned.
+      priority: critical
+      references_constraints: [C-05]
+    - id: AC-06
+      description: Persisting results whose scan_id has no scan_runs row fails with a foreign-key violation and writes zero scan_results rows.
+      priority: high
+      references_constraints: [C-06]
+    - id: AC-07
+      description: A result carrying a status outside {pass,fail,skipped,error} causes Persist to return ErrInvalidStatus before any INSERT; nothing persists.
+      priority: high
+      references_constraints: [C-01]
+    - id: AC-08
+      description: Source-inspection — the scan worker calls scanResults.Persist in the scan success path before scanruns.MarkCompleted, and the internal/scanresult writer imports no audit package (no finding.persisted double-emission).
+      priority: high
+      references_constraints: [C-07]

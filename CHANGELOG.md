@@ -10,6 +10,26 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+- **Durable per-scan compliance evidence + `/scans` surface** (PR #535). The
+  write-on-change model (`host_rule_state` + `transactions`) overwrote a
+  superseded scan's per-rule evidence, leaving historical proof unrecoverable.
+  A content-addressed `scan_results` store (migration 0029, `internal/scanresult/`)
+  now retains every rule's outcome and evidence per scan, deduped by content
+  hash. New `scan:read`-gated API under `/api/v1/scans`: scan history by host,
+  scan detail (per-rule verdicts with catalog title/category/description),
+  per-rule evidence, and per-rule + whole-scan OSCAL 1.0.6 export reconstructed
+  on demand via Kensa. A scan-detail page is reached from `/scans` (host
+  history -> scan detail -> per-rule Formatted / Evidence / OSCAL drill-down,
+  Evidence and OSCAL shown as raw JSON). The host-detail Compliance tab stays
+  current-state and evidence-free. Specs `system-scan-results-store`,
+  `api-scans`, `frontend-scan-detail`.
+
+### Fixed
+- The frontend's synthesized role->permission baseline omitted `scan:read`,
+  which would have redirected every user away from the new scan-detail route
+  even though the backend grants `scan:read` to all built-in roles.
+
 ---
 
 ## [0.2.0-rc.6] Eyrie — 2026-06-13

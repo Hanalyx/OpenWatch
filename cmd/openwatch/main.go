@@ -47,6 +47,7 @@ import (
 	openlog "github.com/Hanalyx/openwatch/internal/log"
 	"github.com/Hanalyx/openwatch/internal/posture"
 	"github.com/Hanalyx/openwatch/internal/report"
+	"github.com/Hanalyx/openwatch/internal/scanresult"
 	compsched "github.com/Hanalyx/openwatch/internal/scheduler"
 	"github.com/Hanalyx/openwatch/internal/secretkey"
 	"github.com/Hanalyx/openwatch/internal/server"
@@ -528,13 +529,14 @@ func cmdServe(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 	exceptionSvc.Run(ctx, 0)
 
 	scanWorker := worker.NewScanWorker(worker.Config{
-		Pool:     pool,
-		Executor: scanExecutor,
-		Writer:   transactionlog.NewWriter(pool, audit.Emit),
-		QueueKey: scanQueueKey,
-		Emit:     audit.Emit,
-		Bus:      bus,
-		Sched:    complianceSched,
+		Pool:        pool,
+		Executor:    scanExecutor,
+		Writer:      transactionlog.NewWriter(pool, audit.Emit),
+		ScanResults: scanresult.NewWriter(pool),
+		QueueKey:    scanQueueKey,
+		Emit:        audit.Emit,
+		Bus:         bus,
+		Sched:       complianceSched,
 	})
 
 	srv := server.New(cfg, pool).
@@ -549,7 +551,8 @@ func cmdServe(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 		WithVariableCatalog(varCatalog).
 		WithExceptions(exceptionSvc).
 		WithGroups(group.NewService(pool)).
-		WithReports(report.NewService(pool))
+		WithReports(report.NewService(pool)).
+		WithScanResults(scanresult.NewReader(pool))
 	runErr := srv.Run(ctx)
 
 	// Shutdown order REVERSE of boot (C-02). liveness.Run + alertrouter

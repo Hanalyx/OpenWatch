@@ -226,21 +226,37 @@ func refsToMap(refs []kensaapi.FrameworkRef) map[string][]string {
 // verdict explanation, not a payload dump.
 const maxEvidenceDetail = 64 * 1024
 
-// evidenceJSON wraps kensa's verdict detail (and error, when present)
-// as the JSON document the transactions/host_rule_state evidence
-// columns require.
+// evidenceDoc is the JSON document persisted into the
+// transactions/host_rule_state evidence columns. As of kensa v0.4.2 it
+// carries the structured per-command CheckEvidence (the reproducible
+// proof behind the verdict — exact command, captured output, exit
+// status, expected value), not just the human-readable detail string.
+// The Compliance tab renders Checks (Formatted/Evidence) and OSCAL is
+// reconstructed from these outcomes on demand.
+type evidenceDoc struct {
+	Detail string                   `json:"detail"`
+	Error  string                   `json:"error,omitempty"`
+	Checks []kensaapi.CheckEvidence `json:"checks,omitempty"`
+}
+
+// evidenceJSON wraps kensa's verdict detail, structured per-command
+// evidence, and error (when present) as the JSON document the
+// transactions/host_rule_state evidence columns require. Pathological
+// totals are still caught by the executor's MaxEvidenceBytes guard
+// (C-10/AC-14); kensa already truncates each CheckEvidence field.
 func evidenceJSON(o kensaapi.RuleOutcome) []byte {
 	detail := o.Detail
 	if len(detail) > maxEvidenceDetail {
 		detail = detail[:maxEvidenceDetail] + "…(truncated)"
 	}
-	doc := map[string]string{"detail": detail}
+	doc := evidenceDoc{Detail: detail, Checks: o.Evidence}
 	if o.Err != nil {
-		doc["error"] = o.Err.Error()
+		doc.Error = o.Err.Error()
 	}
 	b, err := json.Marshal(doc)
 	if err != nil {
-		// Marshal of map[string]string cannot fail; belt-and-braces.
+		// CheckEvidence is plain strings/ints; marshal cannot realistically
+		// fail. Belt-and-braces: degrade to a detail-only document.
 		return []byte(`{"detail":"evidence marshal failed"}`)
 	}
 	return b

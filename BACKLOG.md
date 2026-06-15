@@ -3,7 +3,7 @@
 > **Purpose**: Single source of truth for pending work in the **OpenWatch Go** rebuild (`app/`).
 > Updated at the end of each AI session.
 
-**Last Updated**: 2026-06-10
+**Last Updated**: 2026-06-14
 **Active Tree**: `app/` (Go backend + React/TypeScript frontend)
 **Frozen Tree**: `backend/` (legacy Python/FastAPI — FROZEN as of 2026-06-04, see CLAUDE.md)
 
@@ -17,6 +17,14 @@
 | P1 | High — needed for parity with the Python release |
 | P2 | Medium — improves quality, can defer |
 | P3 | Low — nice to have |
+
+---
+
+## Recently Completed (2026-06-14 session)
+
+| Item | PR | Notes |
+|------|----|-------|
+| Durable per-scan compliance evidence + `/scans` surface | #535 | Content-addressed `scan_results` store (migration 0029, `internal/scanresult/`) retains every rule's outcome + evidence per scan (write-on-change overwrote it). `scan:read`-gated API `/api/v1/scans` (history, scan detail, per-rule evidence, per-rule + whole-scan OSCAL). Scan-detail page from `/scans` with per-rule Formatted/Evidence/OSCAL drill-down (Evidence + OSCAL as raw JSON). Host Compliance tab stays evidence-free. Specs system-scan-results-store / api-scans / frontend-scan-detail (100%). Also fixed: frontend permission baseline omitted `scan:read` |
 
 ---
 

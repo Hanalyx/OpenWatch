@@ -26,6 +26,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/kensa"
 	"github.com/Hanalyx/openwatch/internal/license"
 	"github.com/Hanalyx/openwatch/internal/report"
+	"github.com/Hanalyx/openwatch/internal/scanresult"
 	"github.com/Hanalyx/openwatch/internal/server/api"
 	"github.com/Hanalyx/openwatch/internal/users"
 	"github.com/Hanalyx/openwatch/internal/worker"
@@ -139,6 +140,14 @@ func (s *Server) WithGroups(g *group.Service) *Server {
 // report endpoints 503. Spec api-reports.
 func (s *Server) WithReports(rep *report.Service) *Server {
 	s.handlers.reportSvc = rep
+	return s
+}
+
+// WithScanResults threads the durable per-scan results reader into the
+// API handlers so /api/v1/scans and its sub-routes are routable. Nil
+// makes the scan endpoints 503. Spec api-scans.
+func (s *Server) WithScanResults(rd *scanresult.Reader) *Server {
+	s.handlers.scanResultSvc = rd
 	return s
 }
 

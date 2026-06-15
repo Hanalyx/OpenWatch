@@ -25,13 +25,16 @@ function permissionsForRole(role: string): string[] {
       'credential:read',
       'credential:write',
       'credential:delete',
+      'scan:read',
       'admin',
     ];
   }
   if (role === 'operator' || role === 'security') {
-    return ['host:read', 'host:write', 'credential:read', 'credential:write'];
+    return ['host:read', 'host:write', 'credential:read', 'credential:write', 'scan:read'];
   }
-  return ['host:read'];
+  // scan:read is a universal read permission (every built-in role grants
+  // it), so even the viewer baseline can reach the /scans evidence surface.
+  return ['host:read', 'scan:read'];
 }
 
 export async function bootstrapAuth(): Promise<void> {
@@ -58,6 +61,7 @@ export async function bootstrapAuth(): Promise<void> {
         'host:delete',
         'credential:read',
         'credential:write',
+        'scan:read',
         'admin',
       ],
       mfaEnabled: false,

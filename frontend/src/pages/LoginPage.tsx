@@ -129,9 +129,10 @@ export function LoginPage() {
                     'host:delete',
                     'credential:read',
                     'credential:write',
+                    'scan:read',
                     'admin',
                   ]
-                : ['host:read'],
+                : ['host:read', 'scan:read'],
             mfaEnabled: !!meTyped.mfa_enabled,
           };
           setIdentity(nextIdentity);

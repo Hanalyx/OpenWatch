@@ -17,6 +17,7 @@ import { DashboardPage } from '@/pages/dashboard/DashboardPage';
 import { GroupsPage } from '@/pages/groups/GroupsPage';
 import { ActivityPage } from '@/pages/activity/ActivityPage';
 import { ScansPage } from '@/pages/scans/ScansPage';
+import { ScanDetailPage } from '@/pages/scans/ScanDetailPage';
 import { ReportsPage } from '@/pages/reports/ReportsPage';
 import { ForbiddenPage } from '@/pages/ForbiddenPage';
 import { ProfilePage } from '@/pages/settings/ProfilePage';
@@ -105,6 +106,20 @@ const scansRoute = createRoute({
   getParentRoute: () => protectedRoute,
   path: 'scans',
   component: ScansPage,
+});
+
+// Durable scan detail + per-rule evidence/OSCAL drill-down. The evidence
+// surface is gated scan:read (the server enforces it too); a compliance
+// officer reaches it without host:read.
+const scanDetailRoute = createRoute({
+  getParentRoute: () => protectedRoute,
+  path: 'scans/$scanId',
+  beforeLoad: () => {
+    if (!useAuthStore.getState().hasPermission('scan:read')) {
+      throw redirect({ to: '/_forbidden' });
+    }
+  },
+  component: ScanDetailPage,
 });
 
 // Compliance report library. GET /api/v1/reports enforces host:read
@@ -256,6 +271,7 @@ const routeTree = rootRoute.addChildren([
     dashboardRoute,
     activityRoute,
     scansRoute,
+    scanDetailRoute,
     reportsRoute,
     hostsListRoute,
     groupsRoute,
