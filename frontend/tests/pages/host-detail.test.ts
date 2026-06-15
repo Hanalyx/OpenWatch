@@ -137,4 +137,28 @@ describe('frontend-host-detail — structural', () => {
       expect(PAGE_SRC).not.toMatch(re);
     }
   });
+
+  // @ac AC-39
+  test('frontend-host-detail/AC-39 — Edit gated on host:write; three-dot Delete gated on host:delete with confirm + navigate', () => {
+    // Edit button is permission-gated (hidden without host:write).
+    expect(PAGE_SRC).toMatch(/hasPermission\('host:write'\)/);
+    expect(PAGE_SRC).toMatch(/canWrite\s*&&[\s\S]{0,200}setEditOpen\(true\)/);
+    // The page-head mounts the actions menu in delete-only mode, navigating
+    // back to /hosts after a successful delete.
+    expect(PAGE_SRC).toContain('HostActionsMenu');
+    expect(PAGE_SRC).toMatch(/showEdit=\{false\}/);
+    expect(PAGE_SRC).toMatch(/afterDelete="navigate"/);
+
+    const MENU_SRC = readFileSync(
+      resolve(process.cwd(), 'src/components/hosts/HostActionsMenu.tsx'),
+      'utf8',
+    );
+    // Delete is host:delete-gated, confirmed, and hits DELETE /hosts/{id}.
+    expect(MENU_SRC).toMatch(/hasPermission\('host:delete'\)/);
+    expect(MENU_SRC).toContain('DeleteHostModal');
+    expect(MENU_SRC).toContain("api.DELETE('/api/v1/hosts/{id}'");
+    expect(MENU_SRC).toMatch(/cannot be undone/i);
+    // Navigates to /hosts on the detail variant after delete.
+    expect(MENU_SRC).toMatch(/navigate\(\{\s*to:\s*'\/hosts'\s*\}\)/);
+  });
 });

@@ -11,7 +11,6 @@ import {
   List as TableIcon,
   PlayCircle,
   BarChart3,
-  MoreVertical,
   Server,
   Shield,
   AlertTriangle,
@@ -19,6 +18,7 @@ import {
 } from 'lucide-react';
 import api from '@/api/client';
 import { apiErrorMessage } from '@/api/errors';
+import { HostActionsMenu } from '@/components/hosts/HostActionsMenu';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useBreadcrumbStore } from '@/store/useBreadcrumbStore';
 import { osDisplayLabel } from '@/utils/osLabel';
@@ -995,9 +995,7 @@ function HostCard({ host }: { host: DevHost }) {
             <OSChip os={host.os} />
           </div>
         </div>
-        <button type="button" style={iconBtnSm} aria-label="More">
-          <MoreVertical size={14} />
-        </button>
+        <HostActionsMenu hostId={host.id} hostname={displayName} buttonStyle={iconBtnSm} />
       </div>
 
       {/* Status row */}
@@ -1340,9 +1338,7 @@ function HostRow({ host }: { host: DevHost }) {
           <button type="button" style={iconBtnSm} aria-label="View report">
             <BarChart3 size={14} />
           </button>
-          <button type="button" style={iconBtnSm} aria-label="More">
-            <MoreVertical size={14} />
-          </button>
+          <HostActionsMenu hostId={host.id} hostname={displayName} buttonStyle={iconBtnSm} />
         </div>
       </td>
     </tr>
