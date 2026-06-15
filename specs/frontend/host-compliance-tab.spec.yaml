@@ -1,7 +1,7 @@
 spec:
   id: frontend-host-compliance-tab
   title: Host detail Compliance tab — lens UI over the per-host compliance endpoints
-  version: "1.2.0"
+  version: "1.3.0"
   status: approved
   tier: 2
 
@@ -62,9 +62,14 @@ spec:
 
       Out of scope (deferred):
         - Export / report download
-        - Per-rule drill-down drawer
         - Remediate actions (Phase 7)
         - Pagination (the lens response is one bounded payload)
+
+      Added in v1.3.0: a per-rule evidence/OSCAL drill-down. Each rule row
+      expands the shared RuleDetailPanel (Formatted / Evidence / OSCAL),
+      reaching the scan:read-gated /scans endpoints for the host's latest
+      scan_context.scan_id. The drill-down shows only to callers holding
+      scan:read; the host-compliance API itself stays evidence-free.
 
     related_specs:
       - api-host-compliance
@@ -90,7 +95,7 @@ spec:
         - "In-strip Re-scan button reusing the page-head Run scan enqueue semantics"
       excludes:
         - "Export button — deferred, no dead controls"
-        - "Per-rule detail drawer and remediation actions"
+        - "Remediation actions (Phase 7)"
         - "Server-side pagination or filtering beyond ?framework="
 
   constraints:
@@ -111,7 +116,15 @@ spec:
       type: technical
       enforcement: error
     - id: C-05
-      description: 'The tab MUST never reference the host_rule_state stored per-rule check output (sensitive host configuration, api-host-compliance C-02): the string "evidence" (case-insensitive) MUST NOT appear anywhere in ComplianceTab.tsx'
+      description: >-
+        The tab MUST NOT render the host_rule_state stored per-rule check
+        output via the host-compliance API, which stays evidence-free
+        (api-host-compliance C-02 — the lens carries no evidence). Raw
+        evidence is reached ONLY through the per-rule drill-down to the
+        scan:read-gated /scans endpoints (the shared RuleDetailPanel),
+        linked to the host's latest scan_context.scan_id, and the
+        drill-down control is shown ONLY to callers holding scan:read. The
+        tab MUST fetch no evidence from any /hosts compliance endpoint.
       type: security
       enforcement: error
 
@@ -141,7 +154,7 @@ spec:
       priority: critical
       references_constraints: [C-04]
     - id: AC-07
-      description: "Source inspection: ComplianceTab.tsx never contains the string 'evidence' (case-insensitive), so the stored per-rule check output cannot be referenced or rendered"
+      description: "Source inspection: ComplianceTab renders the per-rule evidence/OSCAL drill-down via the shared RuleDetailPanel, gated on hasPermission('scan:read') and linked to scan_context.scan_id; it fetches no evidence from any /hosts compliance endpoint (the host-compliance surface stays evidence-free per api-host-compliance C-02; raw evidence comes only from the scan:read-gated /scans endpoints)."
       priority: critical
       references_constraints: [C-05]
     - id: AC-08

@@ -183,8 +183,15 @@ describe('frontend-host-compliance-tab — structural', () => {
   });
 
   // @ac AC-07
-  test('frontend-host-compliance-tab/AC-07 — no stored check-output reference anywhere in the tab code', () => {
-    expect(TAB_SRC.toLowerCase()).not.toContain('evidence');
+  test('frontend-host-compliance-tab/AC-07 — evidence drill-down via RuleDetailPanel, scan:read-gated, host lens stays evidence-free', () => {
+    // The drill-down reaches the scan:read-gated /scans evidence surface
+    // through the shared panel; it is NOT fetched from a /hosts endpoint.
+    expect(TAB_SRC).toContain('RuleDetailPanel');
+    expect(TAB_SRC).toMatch(/hasPermission\)\('scan:read'\)/);
+    expect(TAB_SRC).toContain('scan_context.scan_id');
+    // The host-compliance surface stays evidence-free: no evidence is
+    // fetched from any /hosts compliance endpoint (evidence lives at /scans).
+    expect(TAB_SRC).not.toMatch(/hosts\/\{id\}\/compliance[^']*evidence/i);
   });
 });
 

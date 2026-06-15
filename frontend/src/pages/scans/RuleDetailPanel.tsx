@@ -32,9 +32,16 @@ export function RuleDetailPanel({
     queryKey: ['scan', scanId, 'rule', ruleId, 'evidence'],
     enabled: hasEvidence && view !== 'oscal',
     queryFn: async () => {
-      const { data, error } = await api.GET('/api/v1/scans/{id}/rules/{ruleId}/evidence', {
-        params: { path: { id: scanId, ruleId } },
-      });
+      const { data, error, response } = await api.GET(
+        '/api/v1/scans/{id}/rules/{ruleId}/evidence',
+        {
+          params: { path: { id: scanId, ruleId } },
+        },
+      );
+      // 404: this rule has no stored evidence in the linked scan (e.g. the
+      // host-tab drill-down points at the latest scan; a never-evaluated or
+      // pre-store rule simply has none). Treat as "no evidence", not an error.
+      if (response?.status === 404) return null;
       if (error || !data) throw new Error(apiErrorMessage(error, 'Failed to load evidence'));
       return data as Evidence;
     },
@@ -50,9 +57,21 @@ export function RuleDetailPanel({
         marginTop: 8,
       }}
     >
-      <div role="tablist" aria-label="Rule detail view" style={{ display: 'flex', gap: 4, marginBottom: 12 }}>
-        <SwitchTab label="Formatted" active={view === 'formatted'} onClick={() => setView('formatted')} />
-        <SwitchTab label="Evidence" active={view === 'evidence'} onClick={() => setView('evidence')} />
+      <div
+        role="tablist"
+        aria-label="Rule detail view"
+        style={{ display: 'flex', gap: 4, marginBottom: 12 }}
+      >
+        <SwitchTab
+          label="Formatted"
+          active={view === 'formatted'}
+          onClick={() => setView('formatted')}
+        />
+        <SwitchTab
+          label="Evidence"
+          active={view === 'evidence'}
+          onClick={() => setView('evidence')}
+        />
         <SwitchTab label="OSCAL" active={view === 'oscal'} onClick={() => setView('oscal')} />
       </div>
 
@@ -64,6 +83,8 @@ export function RuleDetailPanel({
         <Note>Loading evidence.</Note>
       ) : evidenceQ.isError ? (
         <Note tone="crit">{apiErrorMessage(evidenceQ.error, 'Failed to load evidence')}</Note>
+      ) : !evidenceQ.data ? (
+        <Note>No evidence was captured for this rule.</Note>
       ) : view === 'formatted' ? (
         <FormattedView ev={evidenceQ.data} />
       ) : (
@@ -93,12 +114,18 @@ function CheckSummary({ c }: { c: Check }) {
     <div style={{ marginBottom: 10 }}>
       <div style={{ fontSize: 12, color: 'var(--ow-fg-2)', marginBottom: 3 }}>{c.method}</div>
       {c.command ? (
-        <code style={{ fontFamily: 'var(--ow-font-mono)', fontSize: 12, color: 'var(--ow-fg-0)' }}>{c.command}</code>
+        <code style={{ fontFamily: 'var(--ow-font-mono)', fontSize: 12, color: 'var(--ow-fg-0)' }}>
+          {c.command}
+        </code>
       ) : null}
-      <div style={{ display: 'flex', gap: 16, marginTop: 4, fontSize: 12, color: 'var(--ow-fg-2)' }}>
+      <div
+        style={{ display: 'flex', gap: 16, marginTop: 4, fontSize: 12, color: 'var(--ow-fg-2)' }}
+      >
         {c.expected !== undefined && c.expected !== '' ? <span>expected: {c.expected}</span> : null}
         {c.actual !== undefined && c.actual !== '' ? <span>actual: {c.actual}</span> : null}
-        <span style={{ color: exitOk ? 'var(--ow-ok)' : 'var(--ow-warn)' }}>exit {c.exit_code}</span>
+        <span style={{ color: exitOk ? 'var(--ow-ok)' : 'var(--ow-warn)' }}>
+          exit {c.exit_code}
+        </span>
       </div>
     </div>
   );
@@ -185,7 +212,15 @@ function JsonBlock({ data, filename }: { data: unknown; filename: string }) {
   );
 }
 
-function SwitchTab({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+function SwitchTab({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
   return (
     <button
       role="tab"
@@ -210,7 +245,13 @@ function SwitchTab({ label, active, onClick }: { label: string; active: boolean;
 
 function Note({ children, tone }: { children: React.ReactNode; tone?: 'crit' }) {
   return (
-    <p style={{ margin: '8px 0 0', fontSize: 12, color: tone === 'crit' ? 'var(--ow-crit)' : 'var(--ow-fg-3)' }}>
+    <p
+      style={{
+        margin: '8px 0 0',
+        fontSize: 12,
+        color: tone === 'crit' ? 'var(--ow-crit)' : 'var(--ow-fg-3)',
+      }}
+    >
       {children}
     </p>
   );

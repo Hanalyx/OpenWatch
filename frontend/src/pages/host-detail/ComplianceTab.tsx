@@ -40,13 +40,14 @@
 //
 // Spec: frontend-host-compliance-tab v1.1.0.
 
-import { useMemo, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '@/api/client';
 import { apiErrorMessage } from '@/api/errors';
 import type { components } from '@/api/schema';
 import { useAuthStore } from '@/store/useAuthStore';
+import { RuleDetailPanel } from '@/pages/scans/RuleDetailPanel';
 import { useHostExceptions } from '@/hooks/useHostExceptions';
 import { SeverityPill } from '@/pages/host-detail/SeverityPill';
 
@@ -120,6 +121,9 @@ export function ComplianceTab({
   // a pending request. Never mutates the lens data (overlay model).
   const exc = useHostExceptions(hostId);
   const canRequest = useAuthStore((st) => st.hasPermission)('exception:request');
+  // Evidence drill-down is gated scan:read (it reaches the scan:read-only
+  // /scans evidence endpoints): the host lens itself stays evidence-free.
+  const canViewEvidence = useAuthStore((st) => st.hasPermission)('scan:read');
   // The rule a Request-exception modal is open for (null = closed).
   const [requestRule, setRequestRule] = useState<LensRule | null>(null);
 
@@ -205,6 +209,8 @@ export function ComplianceTab({
           pendingRuleIds={exc.pendingRuleIds}
           canRequest={canRequest}
           onRequest={setRequestRule}
+          scanId={lens.scan_context.scan_id ?? null}
+          canViewEvidence={canViewEvidence}
         />
       </>
     );
@@ -919,6 +925,8 @@ function RulesTable({
   pendingRuleIds,
   canRequest,
   onRequest,
+  scanId,
+  canViewEvidence,
 }: {
   rules: LensRule[];
   filter: StatusFilter;
@@ -930,7 +938,15 @@ function RulesTable({
   pendingRuleIds: Set<string>;
   canRequest: boolean;
   onRequest: (rule: LensRule) => void;
+  // scanId is the host's latest completed scan (scan_context.scan_id); the
+  // per-rule evidence drill-down reaches /scans/{scanId}/rules/{ruleId}.
+  // null when never scanned. canViewEvidence gates it on scan:read.
+  scanId: string | null;
+  canViewEvidence: boolean;
 }) {
+  // The rule whose evidence/OSCAL drill-down is expanded (one at a time).
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const canDrill = canViewEvidence && !!scanId;
   const counts = useMemo(() => {
     const c: Record<StatusFilter, number> = {
       all: rules.length,
@@ -1055,44 +1071,83 @@ function RulesTable({
             </tr>
           </thead>
           <tbody>
-            {visible.map((r) => (
-              <tr key={r.rule_id} style={{ borderTop: '1px solid var(--ow-line)' }}>
-                <td style={td}>
-                  <StatusChip status={r.status} />
-                </td>
-                <td style={td}>
-                  <SeverityPill severity={r.severity} />
-                </td>
-                <td style={td}>
-                  <div style={{ color: 'var(--ow-fg-0)', fontWeight: 500 }}>{r.title}</div>
-                  {r.description ? (
-                    <div style={{ color: 'var(--ow-fg-3)', fontSize: 11, marginTop: 2 }}>
-                      {r.description}
-                    </div>
+            {visible.map((r) => {
+              const open = expanded === r.rule_id;
+              return (
+                <Fragment key={r.rule_id}>
+                  <tr style={{ borderTop: '1px solid var(--ow-line)' }}>
+                    <td style={td}>
+                      <StatusChip status={r.status} />
+                    </td>
+                    <td style={td}>
+                      <SeverityPill severity={r.severity} />
+                    </td>
+                    <td style={td}>
+                      {canDrill ? (
+                        <button
+                          type="button"
+                          onClick={() => setExpanded(open ? null : r.rule_id)}
+                          aria-expanded={open}
+                          style={{
+                            background: 'transparent',
+                            border: 0,
+                            padding: 0,
+                            cursor: 'pointer',
+                            textAlign: 'left',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            color: 'var(--ow-fg-0)',
+                            fontWeight: 500,
+                          }}
+                        >
+                          <span aria-hidden style={{ color: 'var(--ow-fg-3)', fontSize: 11 }}>
+                            {open ? '▾' : '▸'}
+                          </span>
+                          {r.title}
+                        </button>
+                      ) : (
+                        <div style={{ color: 'var(--ow-fg-0)', fontWeight: 500 }}>{r.title}</div>
+                      )}
+                      {r.description ? (
+                        <div style={{ color: 'var(--ow-fg-3)', fontSize: 11, marginTop: 2 }}>
+                          {r.description}
+                        </div>
+                      ) : null}
+                      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 5 }}>
+                        {(r.control_ids.length > 0 ? r.control_ids : [r.rule_id]).map((cid) => (
+                          <span key={cid} style={refChip}>
+                            {cid}
+                          </span>
+                        ))}
+                      </div>
+                    </td>
+                    <td style={{ ...td, color: 'var(--ow-fg-2)' }}>{r.category}</td>
+                    <td
+                      style={{ ...td, color: 'var(--ow-fg-3)', whiteSpace: 'nowrap', fontSize: 12 }}
+                    >
+                      {relativeTime(r.last_checked_at)}
+                    </td>
+                    <td style={td}>
+                      <ExceptionCell
+                        rule={r}
+                        waived={activeRuleIds.has(r.rule_id)}
+                        pending={pendingRuleIds.has(r.rule_id)}
+                        canRequest={canRequest}
+                        onRequest={onRequest}
+                      />
+                    </td>
+                  </tr>
+                  {canDrill && open && scanId ? (
+                    <tr>
+                      <td colSpan={6} style={{ padding: '0 10px 12px 24px' }}>
+                        <RuleDetailPanel scanId={scanId} ruleId={r.rule_id} hasEvidence />
+                      </td>
+                    </tr>
                   ) : null}
-                  <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 5 }}>
-                    {(r.control_ids.length > 0 ? r.control_ids : [r.rule_id]).map((cid) => (
-                      <span key={cid} style={refChip}>
-                        {cid}
-                      </span>
-                    ))}
-                  </div>
-                </td>
-                <td style={{ ...td, color: 'var(--ow-fg-2)' }}>{r.category}</td>
-                <td style={{ ...td, color: 'var(--ow-fg-3)', whiteSpace: 'nowrap', fontSize: 12 }}>
-                  {relativeTime(r.last_checked_at)}
-                </td>
-                <td style={td}>
-                  <ExceptionCell
-                    rule={r}
-                    waived={activeRuleIds.has(r.rule_id)}
-                    pending={pendingRuleIds.has(r.rule_id)}
-                    canRequest={canRequest}
-                    onRequest={onRequest}
-                  />
-                </td>
-              </tr>
-            ))}
+                </Fragment>
+              );
+            })}
           </tbody>
         </table>
       )}
