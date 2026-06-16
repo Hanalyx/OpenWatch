@@ -22,14 +22,7 @@ import { HostActionsMenu } from '@/components/hosts/HostActionsMenu';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useBreadcrumbStore } from '@/store/useBreadcrumbStore';
 import { osDisplayLabel } from '@/utils/osLabel';
-import {
-  devHosts,
-  devKpis,
-  devFleetAlert,
-  isDevFixturesEnabled,
-  type DevHost,
-  type MonitoringBand,
-} from '@/api/dev-fixtures';
+import { type DevHost, type DevKpis, type MonitoringBand } from '@/api/host-view-model';
 
 // HostsListPage — Host Management surface, prototype-faithful.
 //
@@ -46,10 +39,8 @@ import {
 //     view toggle (Table / Cards)
 //   • Cards view by default; Table view alternate
 //
-// Dev fixtures: when running under Vite dev AND the
-// __ow_dev_fixtures localStorage flag is set, the prototype's host
-// fixture and KPI numbers are rendered in place of empty backend data
-// so the page layout can be verified end-to-end without a backend.
+// The page always renders real backend data — there is no demo/fixture
+// fallback. An empty fleet shows the honest empty state.
 //
 // Spec: frontend-hosts-list.
 
@@ -163,10 +154,9 @@ export function HostsListPage() {
     retry: 0,
   });
 
-  // If the backend returns empty AND dev fixtures are enabled, populate
-  // with the prototype's HOSTS fixture so the layout is testable.
-  const useFixtures = isDevFixturesEnabled() && (hostsQuery.data?.length ?? 0) === 0;
-  const hosts: DevHost[] = useFixtures ? devHosts : (hostsQuery.data ?? []).map(apiHostToDev);
+  // The list always reflects real backend data; an empty fleet renders the
+  // honest empty state (never substituted with demo/fixture hosts).
+  const hosts: DevHost[] = (hostsQuery.data ?? []).map(apiHostToDev);
 
   const visible = useMemo(() => {
     if (!query) return hosts;
@@ -196,7 +186,6 @@ export function HostsListPage() {
       return data;
     },
     refetchInterval: 30_000,
-    enabled: !useFixtures,
   });
 
   // Fleet trend: yesterday-vs-today average for the avg-compliance
@@ -212,11 +201,10 @@ export function HostsListPage() {
       return data;
     },
     refetchInterval: 60_000,
-    enabled: !useFixtures,
   });
 
-  const kpis = useFixtures ? devKpis : kpisFromHosts(hosts);
-  if (!useFixtures && scanQueueQuery.data) {
+  const kpis = kpisFromHosts(hosts);
+  if (scanQueueQuery.data) {
     const q = scanQueueQuery.data.queued;
     const r = scanQueueQuery.data.running;
     kpis.scanQueue = {
@@ -227,7 +215,7 @@ export function HostsListPage() {
     };
   }
 
-  if (!useFixtures && fleetTrendQuery.data) {
+  if (fleetTrendQuery.data) {
     const days = fleetTrendQuery.data.days;
     if (days.length >= 2) {
       const today = days[days.length - 1]!;
@@ -239,7 +227,7 @@ export function HostsListPage() {
     }
   }
 
-  const fleetAlert = useFixtures ? devFleetAlert : fleetAlertFromHosts(hosts);
+  const fleetAlert = fleetAlertFromHosts(hosts);
 
   const hasFilter = !!(search.env || search.tag || query);
 
@@ -251,7 +239,7 @@ export function HostsListPage() {
   };
 
   const subtitle = useMemo(() => {
-    if (hostsQuery.isLoading && !useFixtures) return 'Loading…';
+    if (hostsQuery.isLoading) return 'Loading…';
     const total = hosts.length;
     if (total === 0) return 'No hosts yet.';
     const downCount = hosts.filter((h) => h.status === 'down').length;
@@ -259,7 +247,7 @@ export function HostsListPage() {
       return `${downCount} of ${total} hosts down. ${kpis.criticalIssues.value} critical issues (${kpis.criticalIssues.scope}).`;
     }
     return `${total} host${total === 1 ? '' : 's'} tracked.`;
-  }, [hosts, hostsQuery.isLoading, useFixtures, kpis.criticalIssues]);
+  }, [hosts, hostsQuery.isLoading, kpis.criticalIssues]);
 
   return (
     <div style={{ padding: '20px 28px' }}>
@@ -414,7 +402,7 @@ export function HostsListPage() {
         <ViewToggle value={view} onChange={(v) => updateSearch({ view: v })} />
       </div>
 
-      {hostsQuery.isError && !useFixtures && (
+      {hostsQuery.isError && (
         <ErrorRegion
           message={apiErrorMessage(hostsQuery.error, 'Failed to load hosts')}
           onRetry={() => hostsQuery.refetch()}
@@ -1578,7 +1566,7 @@ export function apiHostToDev(h: ApiHost): DevHost {
   };
 }
 
-export function kpisFromHosts(hosts: DevHost[]) {
+export function kpisFromHosts(hosts: DevHost[]): DevKpis {
   const total = hosts.length;
   const online = hosts.filter((h) => h.status === 'online').length;
   // v1.3.0 (AC-17): the fleet average is rule-weighted over hosts WITH
@@ -1606,7 +1594,7 @@ export function kpisFromHosts(hosts: DevHost[]) {
       deltaTier: neutral,
     },
     scanQueue: { value: 0, scope: 'Idle', delta: '—', deltaTier: neutral },
-  } satisfies import('@/api/dev-fixtures').DevKpis;
+  } satisfies import('@/api/host-view-model').DevKpis;
 }
 
 function fleetAlertFromHosts(hosts: DevHost[]): FleetAlertContent | null {

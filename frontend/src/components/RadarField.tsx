@@ -29,15 +29,17 @@ interface Node {
   last: number;
 }
 
-// Demo fleet seed — angle, radius fraction, status, label. Static art.
+// Decorative radar seed — angle, radius fraction, status. Abstract art only;
+// nodes carry NO host labels (no real or fake hostnames/IPs). The '·'
+// sentinel renders an unlabeled blip.
 const SEED: { a: number; r: number; s: Node['s']; l: string }[] = [
-  { a: 0.3, r: 0.42, s: 'crit', l: 'owas-rhn01' },
-  { a: 0.62, r: 0.55, s: 'crit', l: 'owas-hrm01' },
-  { a: 1.05, r: 0.34, s: 'warn', l: 'owas-tst01' },
-  { a: 1.55, r: 0.62, s: 'warn', l: 'owas-tst02' },
-  { a: 2.1, r: 0.3, s: 'ok', l: 'owas-ub5s2' },
-  { a: 2.55, r: 0.5, s: 'warn', l: 'owas-ub4m2' },
-  { a: 3.0, r: 0.4, s: 'crit', l: '192.168.1.212' },
+  { a: 0.3, r: 0.42, s: 'crit', l: '·' },
+  { a: 0.62, r: 0.55, s: 'crit', l: '·' },
+  { a: 1.05, r: 0.34, s: 'warn', l: '·' },
+  { a: 1.55, r: 0.62, s: 'warn', l: '·' },
+  { a: 2.1, r: 0.3, s: 'ok', l: '·' },
+  { a: 2.55, r: 0.5, s: 'warn', l: '·' },
+  { a: 3.0, r: 0.4, s: 'crit', l: '·' },
   { a: 3.55, r: 0.58, s: 'warn', l: '·' },
   { a: 3.95, r: 0.33, s: 'crit', l: '·' },
   { a: 4.35, r: 0.66, s: 'warn', l: '·' },
