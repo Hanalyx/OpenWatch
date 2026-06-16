@@ -89,7 +89,7 @@ func TestSignoff_DoD9_AuditQueryable(t *testing.T) {
 		resp.Body.Close()
 		time.Sleep(200 * time.Millisecond)
 
-		resp = doGet(t, url+"/api/v1/audit/events?correlation_id=dod9-001")
+		resp = doReq(t, asRole(t, "GET", url+"/api/v1/audit/events?correlation_id=dod9-001", auth.RoleAuditor, nil))
 		defer resp.Body.Close()
 		var page struct {
 			Items []struct {
