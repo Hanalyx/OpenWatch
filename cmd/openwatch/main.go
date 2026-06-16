@@ -27,6 +27,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/alerts"
 	"github.com/Hanalyx/openwatch/internal/audit"
 	"github.com/Hanalyx/openwatch/internal/config"
+	"github.com/Hanalyx/openwatch/internal/connprofile"
 	"github.com/Hanalyx/openwatch/internal/correlation"
 	"github.com/Hanalyx/openwatch/internal/credential"
 	"github.com/google/uuid"
@@ -505,6 +506,11 @@ func cmdServe(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 		Variables: func(ctx context.Context) (map[string]string, error) {
 			vars, err := cfgStore.LoadScanVars(ctx)
 			return vars, err
+		},
+		Profiles: connprofile.NewStore(pool),
+		Policy: func(ctx context.Context) (bool, error) {
+			cfg, err := cfgStore.LoadSecurity(ctx)
+			return cfg.AllowCredentialSudoPassword, err
 		},
 	}); scanErr != nil {
 		slog.WarnContext(bootCtx, "kensa scan wiring unavailable — on-demand scans will fail until the kensa-rules package is installed (or OPENWATCH_KENSA_RULES_DIR set)",

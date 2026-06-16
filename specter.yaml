@@ -46,6 +46,7 @@ domains:
             - api-activity
             - system-host-inventory
             - system-ssh-connectivity
+            - system-connection-profile
             - api-auth
             - api-users
             - api-credentials

@@ -37,6 +37,20 @@ type DialOptions struct {
 	Mode    Mode
 	Store   KnownHostsStore
 	Timeout time.Duration
+
+	// PreferAuth, when "key" or "password", offers that auth method
+	// FIRST (the other is still offered as fallback). Empty preserves the
+	// historical key-first order. Callers set this from the host's
+	// recorded connection profile to avoid a doomed publickey attempt on
+	// a password-only host (which counts against MaxAuthTries / trips
+	// fail2ban).
+	PreferAuth string
+
+	// ObservedAuth, when non-nil, receives the auth method that actually
+	// authenticated ("key" | "password") after a successful dial. Callers
+	// persist it so the next connection leads with it. Untouched on dial
+	// failure.
+	ObservedAuth *string
 }
 
 // netDial is the network-level dial function. Production uses
@@ -61,7 +75,11 @@ func Dial(ctx context.Context, host string, port int, cred *credential.Credentia
 		opts.Store = NewMemoryStore()
 	}
 
-	authMethods, err := authMethodsFor(cred)
+	if cred == nil {
+		return nil, ErrNoAuthMethod
+	}
+	obs := &authObserver{}
+	authMethods, err := orderedAuthMethods(cred, opts.PreferAuth, obs)
 	if err != nil {
 		return nil, err
 	}
@@ -107,28 +125,13 @@ func Dial(ctx context.Context, host string, port int, cred *credential.Credentia
 		_ = conn.Close()
 		return nil, classifyHandshakeErr(err)
 	}
+	// Handshake succeeded: the last method the observer saw is the one
+	// that authenticated (for single-factor auth — see authObserver). Report
+	// it so the caller can persist the hint.
+	if opts.ObservedAuth != nil {
+		*opts.ObservedAuth = obs.Last()
+	}
 	return ssh.NewClient(sshConn, chans, reqs), nil
-}
-
-// authMethodsFor produces the ssh.AuthMethod list from a resolved
-// credential. Public-key auth is preferred when available; password
-// is added if cred.AuthMethod allows it.
-func authMethodsFor(cred *credential.Credential) ([]ssh.AuthMethod, error) {
-	if cred == nil {
-		return nil, ErrNoAuthMethod
-	}
-	out := []ssh.AuthMethod{}
-	if cred.PrivateKey != "" {
-		signer, err := parseSigner([]byte(cred.PrivateKey), cred.PrivateKeyPassphrase)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, ssh.PublicKeys(signer))
-	}
-	if cred.Password != "" {
-		out = append(out, ssh.Password(cred.Password))
-	}
-	return out, nil
 }
 
 // classifyHandshakeErr maps ssh.NewClientConn errors to the package's
