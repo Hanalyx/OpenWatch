@@ -62,16 +62,23 @@ install -d -m 0750                  %{buildroot}/etc/openwatch/tls
 # (they must be unique per install); %post generates them into here.
 install -d -m 0750                  %{buildroot}/etc/openwatch/keys
 install -m 0640 openwatch.toml      %{buildroot}/etc/openwatch/openwatch.toml
+install -m 0640 upgrade.conf        %{buildroot}/etc/openwatch/upgrade.conf
 install -m 0644 cert.pem            %{buildroot}/etc/openwatch/tls/cert.pem
 install -m 0600 key.pem             %{buildroot}/etc/openwatch/tls/key.pem
 
 install -d -m 0755                  %{buildroot}/usr/lib/openwatch
 install -m 0755 provision-identity-keys.sh %{buildroot}/usr/lib/openwatch/provision-identity-keys.sh
+install -m 0755 openwatch-upgrade.sh %{buildroot}/usr/lib/openwatch/openwatch-upgrade.sh
+install -m 0755 cleanup-backups.sh   %{buildroot}/usr/lib/openwatch/cleanup-backups.sh
 
 install -d -m 0755                  %{buildroot}/etc/systemd/system
 install -m 0644 openwatch.service   %{buildroot}/etc/systemd/system/openwatch.service
+install -m 0644 openwatch-backup-cleanup.service %{buildroot}/etc/systemd/system/openwatch-backup-cleanup.service
+install -m 0644 openwatch-backup-cleanup.timer   %{buildroot}/etc/systemd/system/openwatch-backup-cleanup.timer
 
 install -d -m 0750                  %{buildroot}/var/lib/openwatch
+# Pre-upgrade DB dumps land here (written by the upgrade scriptlet).
+install -d -m 0750                  %{buildroot}/var/lib/openwatch/backups
 install -d -m 0750                  %{buildroot}/var/log/openwatch
 
 %pre
@@ -92,11 +99,24 @@ systemctl daemon-reload || :
 # as a scriptlet warning, not silently leave an unbootable service.
 /usr/lib/openwatch/provision-identity-keys.sh
 
+# Enable the daily pre-upgrade-backup cleanup timer (install + upgrade).
+systemctl enable --now openwatch-backup-cleanup.timer >/dev/null 2>&1 || :
+
+# On UPGRADE ($1 -ge 2), apply pending DB migrations with an auto-backup
+# restore point and a fail-safe service state (stop -> backup+migrate ->
+# start, or leave stopped on failure). Skipped on a FRESH install ($1 == 1):
+# there is no database yet — the operator runs the documented first-run
+# `openwatch migrate` after provisioning Postgres.
+if [ "$1" -ge 2 ]; then
+    /usr/lib/openwatch/openwatch-upgrade.sh
+fi
+
 %preun
 # AC-09: stop and disable cleanly so removal doesn't leave a running orphan.
 if [ $1 -eq 0 ]; then
     systemctl stop openwatch.service >/dev/null 2>&1 || :
     systemctl disable openwatch.service >/dev/null 2>&1 || :
+    systemctl disable --now openwatch-backup-cleanup.timer >/dev/null 2>&1 || :
 fi
 
 %postun
@@ -108,14 +128,20 @@ systemctl daemon-reload || :
 %dir %attr(0750, root, openwatch)   /etc/openwatch
 %dir %attr(0750, root, openwatch)   /etc/openwatch/tls
 %config(noreplace) %attr(0640, root, openwatch) /etc/openwatch/openwatch.toml
+%config(noreplace) %attr(0640, root, openwatch) /etc/openwatch/upgrade.conf
 %attr(0644, root, openwatch)        /etc/openwatch/tls/cert.pem
 %attr(0600, openwatch, openwatch)   /etc/openwatch/tls/key.pem
 %attr(0644, root, root)             /etc/systemd/system/openwatch.service
+%attr(0644, root, root)             /etc/systemd/system/openwatch-backup-cleanup.service
+%attr(0644, root, root)             /etc/systemd/system/openwatch-backup-cleanup.timer
 # Identity-key directory ships empty (0750); %post generates the per-install
 # keys into it. The key files are intentionally NOT packaged.
 %dir %attr(0750, root, openwatch)   /etc/openwatch/keys
 %attr(0755, root, root)             /usr/lib/openwatch/provision-identity-keys.sh
+%attr(0755, root, root)             /usr/lib/openwatch/openwatch-upgrade.sh
+%attr(0755, root, root)             /usr/lib/openwatch/cleanup-backups.sh
 %dir %attr(0750, openwatch, openwatch) /var/lib/openwatch
+%dir %attr(0750, root, openwatch)   /var/lib/openwatch/backups
 %dir %attr(0750, openwatch, openwatch) /var/log/openwatch
 
 %changelog

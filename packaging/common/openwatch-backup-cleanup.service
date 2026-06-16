@@ -1,0 +1,15 @@
+[Unit]
+Description=Prune old OpenWatch pre-upgrade database backups
+Documentation=file:///usr/share/doc/openwatch/UPGRADING.md
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/openwatch/cleanup-backups.sh
+# Backups are root-owned (written by the upgrade scriptlet); prune as root.
+User=root
+# Light hardening — the job only needs to read config and delete dumps.
+ProtectSystem=strict
+ReadWritePaths=/var/lib/openwatch/backups
+ProtectHome=true
+PrivateTmp=true
+NoNewPrivileges=true

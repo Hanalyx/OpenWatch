@@ -8,11 +8,21 @@ set -e
 if [ "$1" = "configure" ]; then
     if command -v systemctl >/dev/null 2>&1; then
         systemctl daemon-reload || :
+        # Enable the daily pre-upgrade-backup cleanup timer (install + upgrade).
+        systemctl enable --now openwatch-backup-cleanup.timer >/dev/null 2>&1 || :
     fi
     # Generate-if-absent, so reconfigure/upgrade never clobbers live keys.
     # preinst already created the openwatch user/group. Not guarded: a real
     # failure should abort configure rather than leave an unbootable service.
     /usr/lib/openwatch/provision-identity-keys.sh
+
+    # UPGRADE: dpkg passes the previously-configured version as $2 (empty on a
+    # fresh install). Apply pending DB migrations with an auto-backup restore
+    # point + fail-safe service state. `set -e` propagates a migration failure
+    # (the helper exits non-zero) so dpkg leaves the package needing attention.
+    if [ -n "${2:-}" ]; then
+        /usr/lib/openwatch/openwatch-upgrade.sh
+    fi
 fi
 
 exit 0

@@ -1,7 +1,7 @@
 spec:
   id: frontend-hosts-list
   title: Hosts list — fleet dashboard with search, filter, card/table views
-  version: "1.5.0"
+  version: "1.6.0"
   status: approved
   tier: 2
 
@@ -134,7 +134,7 @@ spec:
       priority: critical
       references_constraints: [C-02]
     - id: AC-14
-      description: 'v1.2.0 — the Scan queue KPI is live: a query keyed ["fleet", "scan_queue"] calls GET /api/v1/fleet/scan-queue and the tile shows queued+running as the value ("Idle" scope when zero). The dev-fixtures path keeps its canned KPI.'
+      description: 'v1.2.0 — the Scan queue KPI is live: a query keyed ["fleet", "scan_queue"] calls GET /api/v1/fleet/scan-queue and the tile shows queued+running as the value ("Idle" scope when zero).'
       priority: high
       references_constraints: [C-02]
     - id: AC-15
@@ -150,7 +150,7 @@ spec:
       priority: high
       references_constraints: [C-02]
     - id: AC-18
-      description: 'v1.3.0 — the Critical issues KPI value is the sum of criticalFailing (compliance_summary.critical_failing) across all hosts. When the sum is nonzero the KPI scope reads "N hosts affected" where N is the count of hosts with criticalFailing > 0; the "No data" scope remains only when the sum is zero. The dev-fixtures KPI path keeps its canned numbers.'
+      description: 'v1.3.0 — the Critical issues KPI value is the sum of criticalFailing (compliance_summary.critical_failing) across all hosts. When the sum is nonzero the KPI scope reads "N hosts affected" where N is the count of hosts with criticalFailing > 0; the "No data" scope remains only when the sum is zero.'
       priority: high
       references_constraints: [C-02]
     - id: AC-19
@@ -159,4 +159,8 @@ spec:
 
     - id: AC-20
       description: 'v1.5.0 - each host card and table row renders a three-dot (kebab) actions menu (HostActionsMenu). Edit (gated on host:write) fetches the full host via GET /api/v1/hosts/{id}, unwraps the record nested under the response `host` key, and opens EditHostModal (PATCH /api/v1/hosts/{id}) with every available field pre-filled. Delete (gated on host:delete, dangerous) opens an explicit confirmation modal before calling DELETE /api/v1/hosts/{id} and invalidating the ["hosts"] query on success. A caller with neither host:write nor host:delete sees no menu at all. Source-inspection of HostActionsMenu.tsx + HostsListPage.tsx.'
+      priority: high
+
+    - id: AC-21
+      description: 'v1.6.0 — the page has NO demo/fixture fallback. Hosts always come from GET /api/v1/hosts mapped via apiHostToDev; KPIs (kpisFromHosts) and the fleet alert (fleetAlertFromHosts) always compute from that real data; an empty fleet renders the honest empty state. There is no isDevFixturesEnabled / devHosts / devKpis / __ow_dev_fixtures code path anywhere, and bootstrapAuth has no __ow_dev_admin synthetic-identity bypass. Source-inspection: HostsListPage.tsx + auth-bootstrap.ts contain none of those identifiers.'
       priority: high
