@@ -143,6 +143,18 @@ Gaps identified comparing `docs/KENSA_OPENWATCH_BOUNDARY.md` against current Ope
 
 ---
 
+## Testing / Regression Coverage
+
+Gaps where working functionality can break without an automated test failing (identified 2026-06-15). The suite is strong for specced logic + DB integration (988 Go test funcs, race detector, real Postgres) but blind on live execution and full UI flows.
+
+| Item | Priority | Notes |
+|------|----------|-------|
+| Live-host SSH/sudo integration test (gated) | P2 | CI has **no test that actually dials a host and runs sudo** — the dial, `sudo -n`, and `sudo -S` paths are only unit-tested at the command-construction level (the `wrap`/auth-ordering output), never against a real box. Add an opt-in, env-gated test (against `~/Documents/openwatch/test_hosts.csv`) that asserts: key auth, password auth, `sudo -n` (NOPASSWD), and `sudo -S` (password) each actually authenticate/escalate and return real results. Skips when the host env var is unset, so it never gates normal CI. Closes the biggest blind spot (live execution is manual today). |
+| Frontend E2E (Playwright) for critical flows | P2 | **Zero E2E tests** — `0` Playwright files, no config (the CLAUDE.md Playwright note is Python-era). Component-level vitest only, so a wired-up page can be green in vitest and broken in the browser. Stand up Playwright + cover the critical flows: login, the activated Settings pages (Users, Notifications, Security/API tokens, SSO), and host CRUD (add / edit / delete). |
+| Negative-path ACs for security gates | P2 | The scan kill-switch bug this session passed all 988 tests + the specter gate because the scan path simply had **no AC requiring it to honor the switch** — the suite tests specced behavior, so gaps *between* specs slip through. Generalize the pattern of `system-connection-profile/AC-07` (asserts "kill-switch off / key-only cred → no `sudo -S`") across the other security gates: every gate should have a spec'd AC + test for the **disallowed** path, not just the happy path. |
+
+---
+
 ## How to Use This File
 
 1. **Starting a session**: Read this file alongside `CLAUDE.md` and `SESSION_LOG.md`
