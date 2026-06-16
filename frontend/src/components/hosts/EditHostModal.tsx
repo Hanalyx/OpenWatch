@@ -22,7 +22,11 @@ const editSchema = z.object({
     .min(1, 'IP address is required')
     .max(64)
     .refine((v) => ipv4.test(v) || ipv6.test(v), 'Invalid IP address'),
-  port: z.coerce.number().int().min(1).max(65535),
+  // register('port', { valueAsNumber: true }) already yields a number, so
+  // z.number() (not z.coerce.number()) keeps input/output types aligned for
+  // the zod-4 resolver and rejects an empty field (NaN) instead of coercing
+  // it to 0.
+  port: z.number().int().min(1).max(65535),
   environment: z.string().min(1, 'Environment is required').max(64),
   display_name: z.string().max(256).optional(),
   description: z.string().max(1024).optional(),
