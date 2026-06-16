@@ -87,7 +87,7 @@ spec:
       description: make help lists every gate target (vet, lint, vuln, test-race, check) with one-line descriptions so contributors discover them without reading the Makefile.
       priority: high
     - id: AC-07
-      description: .github/workflows/go-ci.yml exists, triggers on every PR/push to main without a paths filter, references the Go source paths (cmd/, internal/, ...) in a path-detection step, and gates the heavy gate steps (Go setup, lint, vuln, test-race, specter) on that step so non-Go PRs short-circuit to success while still reporting the required "Quality + security gates" status check.
+      description: .github/workflows/go-ci.yml exists, triggers on every PR/push to main without a paths filter, references the Go source paths (cmd/, internal/, ...) in a path-detection step, and gates the heavy gate steps (Go setup, lint, vuln, the race+coverage test run, specter) on that step so non-Go PRs short-circuit to success while still reporting the required "Quality + security gates" status check.
       priority: critical
       references_constraints: [C-06]
     - id: AC-08
@@ -95,7 +95,7 @@ spec:
       priority: critical
       references_constraints: [C-06]
     - id: AC-09
-      description: The workflow executes (in order) make vet, make lint, make vuln, make test-race, and specter sync — each as its own step so a failure pinpoints which gate broke.
+      description: The workflow executes (in order) make vet, make lint, make vuln, a single race-detector + JSON test run (`go test -race -json`, which both detects data races and feeds specter ingest — replacing the former separate `make test-race` + non-race json passes), and specter sync — each as its own step so a failure pinpoints which gate broke.
       priority: critical
       references_constraints: [C-06]
     - id: AC-10
