@@ -52,45 +52,8 @@ export async function bootstrapAuth(): Promise<void> {
   const setLoading = useAuthStore.getState().setLoading;
   const setIdentity = useAuthStore.getState().setIdentity;
 
-  // Dev escape hatch — when running in Vite dev mode, set
-  // localStorage["__ow_dev_admin"] to "1" to bypass the /auth/me call
-  // and load a synthetic admin identity. Lets designers/developers
-  // smoke-test guarded routes without a running backend.
-  if (
-    import.meta.env.DEV &&
-    typeof localStorage !== 'undefined' &&
-    localStorage.getItem('__ow_dev_admin') === '1'
-  ) {
-    setIdentity({
-      id: '00000000-0000-0000-0000-000000000001',
-      username: 'dev-admin',
-      email: 'dev@local',
-      role: 'admin',
-      permissions: [
-        'host:read',
-        'host:write',
-        'host:delete',
-        'credential:read',
-        'credential:write',
-        'scan:read',
-        'audit:read',
-        'notification:read',
-        'notification:write',
-        'notification:delete',
-        'notification:test',
-        'token:read',
-        'token:write',
-        'token:delete',
-        'system:auth_policy_read',
-        'system:auth_policy_write',
-        'admin:sso_provider',
-        'admin',
-      ],
-      mfaEnabled: false,
-    });
-    return;
-  }
-
+  // Identity always comes from the real backend (/auth/me) — there is no
+  // synthetic local-bypass identity.
   setLoading(true);
   try {
     const { data, response } = await api.GET('/api/v1/auth/me');
