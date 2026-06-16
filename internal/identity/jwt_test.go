@@ -224,8 +224,12 @@ func TestJWT_RoundTripLatency(t *testing.T) {
 	})
 }
 
-// VerifyJWT against a tampered token returns ErrJWTInvalid. Defensive
-// test; not an AC.
+// @ac AC-26
+// AC-26: VerifyJWT fails closed on a bad signature (the deny side of C-08,
+// complementing the AC-11 happy round-trip). A tampered signature and a
+// garbage bearer value both return ErrJWTInvalid with no claims — so a
+// regression that relaxes verification fails the suite instead of silently
+// passing.
 func TestJWT_VerifyTampered(t *testing.T) {
 	ensureKey(t)
 	userID, _ := uuid.NewV7()
@@ -233,10 +237,25 @@ func TestJWT_VerifyTampered(t *testing.T) {
 	if err != nil {
 		t.Fatalf("IssueJWT: %v", err)
 	}
-	// Flip a byte in the middle of the signature (last segment).
-	tampered := signed[:len(signed)-3] + "AAA"
-	_, err = VerifyJWT(tampered)
-	if !errors.Is(err, ErrJWTInvalid) {
-		t.Errorf("err = %v, want ErrJWTInvalid", err)
-	}
+
+	t.Run("system-auth-identity/AC-26", func(t *testing.T) {
+		// Flip the tail of the signature (last segment) — a structurally
+		// valid JWT whose RS256 signature no longer verifies.
+		tampered := signed[:len(signed)-3] + "AAA"
+		claims, terr := VerifyJWT(tampered)
+		if !errors.Is(terr, ErrJWTInvalid) {
+			t.Errorf("tampered signature: err = %v, want ErrJWTInvalid", terr)
+		}
+		if claims.Role != "" || claims.Subject != "" {
+			t.Errorf("tampered signature: leaked claims (role=%q sub=%q), want none", claims.Role, claims.Subject)
+		}
+	})
+
+	t.Run("garbage token returns ErrJWTInvalid", func(t *testing.T) {
+		for _, tok := range []string{"", "not-a-jwt", "a.b.c", signed + "x"} {
+			if _, terr := VerifyJWT(tok); !errors.Is(terr, ErrJWTInvalid) {
+				t.Errorf("VerifyJWT(%q): err = %v, want ErrJWTInvalid", tok, terr)
+			}
+		}
+	})
 }
