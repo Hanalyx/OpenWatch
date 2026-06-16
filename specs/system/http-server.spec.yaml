@@ -1,7 +1,7 @@
 spec:
   id: system-http-server
   title: HTTPS server with TLS hot-reload
-  version: "1.0.0"
+  version: "1.1.0"
   status: approved
   tier: 2
 
@@ -68,6 +68,19 @@ spec:
       description: The server MUST serve the embedded single-page app for non-API routes (static assets directly, index.html as the client-side-routing fallback) and MUST NOT serve the SPA for unmatched /api/ paths (those return 404).
       type: technical
       enforcement: error
+    - id: C-12
+      description: >-
+        Every response MUST carry security headers, since the single binary
+        serves the SPA + API from one origin with no edge proxy: Strict-
+        Transport-Security (HSTS, >=1 year, includeSubDomains), a Content-
+        Security-Policy that denies framing (frame-ancestors 'none') and
+        restricts default-src to 'self', X-Content-Type-Options nosniff,
+        X-Frame-Options DENY, and Referrer-Policy no-referrer. The CSP for
+        the embedded Swagger UI under /docs may relax script/style to
+        'unsafe-inline' but MUST still deny framing. (C-11 is reserved for
+        the static-delivery spec slice.)
+      type: security
+      enforcement: error
 
   acceptance_criteria:
     - id: AC-01
@@ -120,3 +133,7 @@ spec:
       description: GET an unmatched /api/ path returns 404 and does NOT serve the SPA index.html.
       priority: critical
       references_constraints: [C-10]
+    - id: AC-17
+      description: Every response carries Strict-Transport-Security (max-age >= 1 year, includeSubDomains), Content-Security-Policy (with frame-ancestors 'none' and default-src 'self'), X-Content-Type-Options nosniff, X-Frame-Options DENY, and Referrer-Policy no-referrer. A request under /docs gets a CSP that relaxes script/style to 'unsafe-inline' (for Swagger UI) but still denies framing.
+      priority: high
+      references_constraints: [C-12]
