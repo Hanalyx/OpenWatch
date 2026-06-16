@@ -1,7 +1,7 @@
 spec:
   id: api-tokens
   title: API tokens REST API
-  version: "1.0.0"
+  version: "1.1.0"
   status: approved
   tier: 2
 
@@ -48,6 +48,17 @@ spec:
         struct declares no token/hash field.
       type: security
       enforcement: error
+    - id: C-03
+      description: >-
+        POST /tokens MUST NOT let a caller mint a token more privileged than
+        themselves. The requested role's permission set MUST be a subset of
+        the creating caller's own permissions; if it is not (e.g. a
+        token:write holder requesting role_id=admin), the request is denied
+        403 and no token is created. This closes the privilege-escalation
+        path where a non-admin with token:write could obtain a full-admin
+        bearer token.
+      type: security
+      enforcement: error
 
   acceptance_criteria:
     - id: AC-01
@@ -66,3 +77,7 @@ spec:
       description: Source inspection — the api.ApiToken response struct declares no Token/Hash/Secret field (only Prefix).
       priority: critical
       references_constraints: [C-02]
+    - id: AC-05
+      description: POST /tokens with a role whose permissions exceed the caller's (e.g. a security_admin — who holds token:write but not the admin grant — requesting role_id=admin) returns 403 and creates no token; POST with a role within the caller's grant (e.g. requesting a role the caller's own permissions cover) succeeds 201.
+      priority: critical
+      references_constraints: [C-03]
