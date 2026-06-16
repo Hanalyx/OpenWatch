@@ -30,6 +30,7 @@ import (
 	"github.com/google/uuid"
 	cryptossh "golang.org/x/crypto/ssh"
 
+	"github.com/Hanalyx/openwatch/internal/connprofile"
 	"github.com/Hanalyx/openwatch/internal/credential"
 	owssh "github.com/Hanalyx/openwatch/internal/ssh"
 )
@@ -49,6 +50,42 @@ var (
 // Production wires credential.Service.Resolve; tests inject fakes.
 type CredentialResolver func(ctx context.Context, hostID uuid.UUID) (*credential.Credential, error)
 
+// ConnProfile is the per-host connection memory the scan transport reads
+// to lead with the known-good SSH auth method + sudo mode, and writes when
+// it learns (or re-learns) them. nil disables learning — the transport
+// then behaves statelessly (key-first auth, probe sudo every connection).
+// *connprofile.Store satisfies it; tests pass a fake or nil.
+type ConnProfile interface {
+	Get(ctx context.Context, hostID uuid.UUID) (connprofile.Profile, error)
+	RecordSSHAuth(ctx context.Context, hostID uuid.UUID, m connprofile.SSHAuthMethod) error
+	RecordSudoMode(ctx context.Context, hostID uuid.UUID, m connprofile.SudoMode) error
+}
+
+// SudoPasswordPolicy reports whether the operator permits feeding the
+// credential password to remote sudo (systemconfig
+// SecurityConfig.AllowCredentialSudoPassword — the kill-switch). It is the
+// SAME gate the collector / liveness / discovery paths consult; the scan
+// MUST honor it too or the switch silently fails open on the busiest path.
+// Returning an error is treated as "allowed" to match LoadSecurity's
+// missing-row fallback (default-on).
+type SudoPasswordPolicy func(ctx context.Context) (allowed bool, err error)
+
+// sudoPasswordFor returns the password the transport may use for `sudo -S`,
+// or "" when password-sudo is not permitted. It applies the SAME two gates
+// the other SSH paths enforce: (1) the kill-switch, (2) the credential's
+// auth method must allow password material. Note this gates only the SUDO
+// use of the password — SSH password AUTH is independent and still uses
+// cred.Password directly in the dial.
+func sudoPasswordFor(cred *credential.Credential, allowed bool) string {
+	if !allowed || cred == nil || cred.Password == "" {
+		return ""
+	}
+	if cred.AuthMethod != credential.AuthPassword && cred.AuthMethod != credential.AuthBoth {
+		return ""
+	}
+	return cred.Password
+}
+
 // TransportFactory implements kensa api.TransportFactory for the
 // long-lived Kensa instance. One factory serves every scan: Connect
 // resolves the target host's credential per call, keyed by the host id
@@ -62,6 +99,13 @@ type TransportFactory struct {
 	Mode owssh.Mode
 	// Store is the known-hosts store backing Mode.
 	Store owssh.KnownHostsStore
+	// Profiles is the per-host connection memory (nil disables learning).
+	Profiles ConnProfile
+	// Policy gates whether the credential password may be used for sudo -S
+	// (the AllowCredentialSudoPassword kill-switch). nil => allowed
+	// (default-on, matching DefaultSecurity); production wires the real
+	// systemconfig loader so a flipped switch disables scan password-sudo.
+	Policy SudoPasswordPolicy
 }
 
 // Connect resolves the host's credential and dials
@@ -87,15 +131,117 @@ func (f *TransportFactory) Connect(ctx context.Context, host kensaapi.HostConfig
 	if port == 0 {
 		port = 22
 	}
+
+	// Lead with the host's recorded SSH auth method + sudo mode so the
+	// common case is one publickey-or-password attempt and one sudo form,
+	// not a doomed key attempt or a wasted `sudo -n` round-trip.
+	var prefer string
+	var knownSudo connprofile.SudoMode
+	if f.Profiles != nil {
+		if p, perr := f.Profiles.Get(ctx, hostID); perr == nil {
+			prefer = sshPrefer(p.SSHAuthMethod)
+			knownSudo = p.SudoMode
+		}
+	}
+
+	var observed string
 	client, err := owssh.Dial(ctx, host.Hostname, port, cred, owssh.DialOptions{
-		Mode:    f.Mode,
-		Store:   f.Store,
-		Timeout: owssh.DefaultDialTimeout,
+		Mode:         f.Mode,
+		Store:        f.Store,
+		Timeout:      owssh.DefaultDialTimeout,
+		PreferAuth:   prefer,
+		ObservedAuth: &observed,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("kensa transport: dial %s: %w", host.Hostname, err)
 	}
-	return &sshTransport{client: client, sudo: sudo}, nil
+	if f.Profiles != nil && observed != "" {
+		_ = f.Profiles.RecordSSHAuth(ctx, hostID, connprofile.SSHAuthMethod(observed))
+	}
+
+	// Gate the SUDO use of the password on the kill-switch + auth method —
+	// the same two conditions the collector / liveness / discovery paths
+	// enforce. When disallowed the transport gets no sudo password, so the
+	// probe never attempts sudo -S and the connection degrades to sudo -n.
+	// (SSH password AUTH above is unaffected: the dial already used the
+	// full credential.)
+	sudoAllowed := true
+	if f.Policy != nil {
+		if v, perr := f.Policy(ctx); perr == nil {
+			sudoAllowed = v
+		}
+	}
+	sudoPassword := sudoPasswordFor(cred, sudoAllowed)
+
+	t := &sshTransport{client: client, sudo: sudo, password: sudoPassword}
+
+	// Decide how to reach root, once per connection, and reuse it for
+	// every command. We cannot infer "sudo refused" from a real check's
+	// non-zero exit (checks branch on exit codes), so a dedicated `true`
+	// sentinel removes the ambiguity. The recorded mode only picks which
+	// form to try first — the probe still confirms it, so a stale hint
+	// (sudoers changed) self-heals.
+	switch {
+	case sudo:
+		// probe with the GATED password: when password-sudo is disallowed
+		// sudoPassword is "", so probeSudoMode never attempts sudo -S.
+		t.mode = probeSudoMode(ctx, client, sudoPassword, knownSudo)
+	case host.Sudo: // requested, but the login user is already root
+		t.mode = connprofile.SudoRoot
+	default: // no escalation requested — nothing to learn
+		t.mode = connprofile.SudoUnknown
+	}
+	if f.Profiles != nil && t.mode != connprofile.SudoUnknown && t.mode != knownSudo {
+		_ = f.Profiles.RecordSudoMode(ctx, hostID, t.mode)
+	}
+	return t, nil
+}
+
+// sshPrefer maps a recorded SSH auth method to the ssh dial-layer
+// preference token. Unknown -> "" (historical key-first order).
+func sshPrefer(m connprofile.SSHAuthMethod) string {
+	switch m {
+	case connprofile.AuthKey:
+		return owssh.PreferKey
+	case connprofile.AuthPassword:
+		return owssh.PreferPassword
+	}
+	return ""
+}
+
+// probeSudoMode determines how the connection reaches root by running the
+// innocuous `true` under each sudo form, leading with `prefer` so a host
+// with a recorded mode usually needs a single round-trip. Returns
+// SudoUnknown when neither form works (no NOPASSWD and no usable password)
+// — the transport then degrades to `sudo -n`, exactly as before.
+func probeSudoMode(ctx context.Context, client *cryptossh.Client, password string, prefer connprofile.SudoMode) connprofile.SudoMode {
+	tryN := func() bool {
+		res, err := runRaw(ctx, client, "sudo -n true", nil)
+		return err == nil && res != nil && res.ExitCode == 0
+	}
+	tryS := func() bool {
+		if password == "" {
+			return false
+		}
+		res, err := runRaw(ctx, client, "sudo -S -p '' true", []byte(password+"\n"))
+		return err == nil && res != nil && res.ExitCode == 0
+	}
+	if prefer == connprofile.SudoPassword {
+		if tryS() {
+			return connprofile.SudoPassword
+		}
+		if tryN() {
+			return connprofile.SudoNopasswd
+		}
+		return connprofile.SudoUnknown
+	}
+	if tryN() {
+		return connprofile.SudoNopasswd
+	}
+	if tryS() {
+		return connprofile.SudoPassword
+	}
+	return connprofile.SudoUnknown
 }
 
 // effectiveCredAndSudo applies the per-host username override
@@ -113,17 +259,53 @@ func effectiveCredAndSudo(cred *credential.Credential, host kensaapi.HostConfig)
 
 // sshTransport is one live SSH connection; each Run opens a fresh
 // session on it (sessions are cheap; the TCP+handshake is shared).
+//
+// mode + password are set once at Connect and read-only thereafter, so
+// concurrent Run calls (Kensa may parallelize rule checks on one host)
+// need no synchronization.
 type sshTransport struct {
-	client *cryptossh.Client
-	sudo   bool
+	client   *cryptossh.Client
+	sudo     bool
+	password string
+	mode     connprofile.SudoMode
 }
 
-// Run executes cmd on the host. A non-zero remote exit code is a valid
-// *CommandResult (checks branch on exit codes); only transport-level
-// failures (session open, missing exit status, ctx cancellation)
-// return a non-nil error. Spec AC-20.
+// Run executes cmd on the host, wrapping it for privilege escalation per
+// the connection's determined sudo mode. A non-zero remote exit code is a
+// valid *CommandResult (checks branch on exit codes); only transport-level
+// failures (session open, missing exit status, ctx cancellation) return a
+// non-nil error. Spec AC-19, AC-20.
 func (t *sshTransport) Run(ctx context.Context, cmd string) (*kensaapi.CommandResult, error) {
-	sess, err := t.client.NewSession()
+	line, stdin := t.wrap(cmd)
+	return runRaw(ctx, t.client, line, stdin)
+}
+
+// wrap renders the remote command line and the optional stdin payload for
+// the connection's privilege mode:
+//   - no sudo (root login, or escalation not requested): command verbatim.
+//   - password sudo: `sudo -S -p ” sh -c '<cmd>'` with the credential
+//     password (newline-terminated) on stdin. No `-k`: the scan issues
+//     many commands per host, so we let sudo's own timestamp cache short-
+//     circuit when it can and simply re-supply the password otherwise —
+//     unlike the single-shot liveness/discovery probes, which `-k` to fail
+//     a stale wrong password fast.
+//   - otherwise (nopasswd / unknown): `sudo -n sh -c '<cmd>'`. On unknown
+//     this is the historical degrade-gracefully behaviour.
+func (t *sshTransport) wrap(cmd string) (line string, stdin []byte) {
+	if !t.sudo {
+		return cmd, nil
+	}
+	if t.mode == connprofile.SudoPassword {
+		return "sudo -S -p '' sh -c '" + escapeSingleQuotes(cmd) + "'", []byte(t.password + "\n")
+	}
+	return "sudo -n sh -c '" + escapeSingleQuotes(cmd) + "'", nil
+}
+
+// runRaw executes line on a fresh session of client, optionally feeding
+// stdin (the sudo -S password) to the remote process. Shared by Run and
+// the connection-time sudo probe.
+func runRaw(ctx context.Context, client *cryptossh.Client, line string, stdin []byte) (*kensaapi.CommandResult, error) {
+	sess, err := client.NewSession()
 	if err != nil {
 		return nil, fmt.Errorf("kensa transport: new session: %w", err)
 	}
@@ -132,9 +314,12 @@ func (t *sshTransport) Run(ctx context.Context, cmd string) (*kensaapi.CommandRe
 	var stdout, stderr bytes.Buffer
 	sess.Stdout = &stdout
 	sess.Stderr = &stderr
+	if stdin != nil {
+		sess.Stdin = bytes.NewReader(stdin)
+	}
 
 	start := time.Now()
-	if err := sess.Start(commandLine(cmd, t.sudo)); err != nil {
+	if err := sess.Start(line); err != nil {
 		return nil, fmt.Errorf("kensa transport: start: %w", err)
 	}
 
@@ -187,16 +372,11 @@ func (t *sshTransport) ControlChannelSensitive() bool { return false }
 // Close terminates the underlying SSH connection.
 func (t *sshTransport) Close() error { return t.client.Close() }
 
-// commandLine renders the remote command per the api.Transport
-// contract: with sudo, wrap as sudo -n sh -c with the command
-// single-quoted and embedded single quotes escaped (quote, backslash
-// quote, quote); without sudo, the command passes through unmodified.
-// Spec AC-19.
-func commandLine(cmd string, sudo bool) string {
-	if !sudo {
-		return cmd
-	}
-	return "sudo -n sh -c '" + strings.ReplaceAll(cmd, "'", `'\''`) + "'"
+// escapeSingleQuotes renders cmd safe to embed inside a single-quoted
+// `sh -c '...'` wrapper: each embedded single quote becomes the
+// quote / backslash-quote / quote idiom. Spec AC-19.
+func escapeSingleQuotes(cmd string) string {
+	return strings.ReplaceAll(cmd, "'", `'\''`)
 }
 
 // trimOneTrailingNewline removes exactly one trailing newline (LF or

@@ -7,9 +7,13 @@
 // initial `sudo -n true` returns non-zero AND the credential carries
 // a non-empty Password AND the policy is on, the probe retries via
 // `sudo -S -k -p ” true` with the password fed through stdin. The
-// retry shape is identical to the scan path's ssh.RunSudo and to
-// discovery.probeFirewall — drift between the three is forbidden by
-// the spec's C-09.
+// retry shape is identical across the THREE inline-retry call sites —
+// this probe, the collector's ssh.RunSudo, and discovery.probeFirewall —
+// and drift between them is forbidden by the spec's C-09. (The compliance
+// scan also supports password sudo, but via a different shape — a
+// per-connection sudo-mode probe in internal/kensa, see
+// system-connection-profile — so it is intentionally not part of this
+// trio; it consults the SAME kill-switch + auth-method gate.)
 //
 // This package is kept OUT of internal/liveness because the liveness
 // package's AC-14 invariant forbids credential + crypto/ssh imports.

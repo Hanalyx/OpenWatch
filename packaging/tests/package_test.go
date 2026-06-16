@@ -410,6 +410,213 @@ func TestBuild_MultiArchSupport(t *testing.T) {
 	})
 }
 
+// kensaRulesRPMPath returns the kensa-rules noarch RPM under dist/,
+// building it via `make kensa-rules` if necessary.
+func kensaRulesRPMPath(t *testing.T) string {
+	t.Helper()
+	dir := appDir(t)
+	haveTool(t, "rpmbuild")
+	runMake(t, dir, "kensa-rules")
+	return findArtifact(t, filepath.Join(dir, "dist"), "kensa-rules-*.rpm")
+}
+
+// kensaRulesDebPath returns the kensa-rules all DEB under dist/, building
+// it via `make kensa-rules` if necessary.
+func kensaRulesDebPath(t *testing.T) string {
+	t.Helper()
+	dir := appDir(t)
+	haveTool(t, "dpkg-deb")
+	runMake(t, dir, "kensa-rules")
+	return findArtifact(t, filepath.Join(dir, "dist"), "kensa-rules_*.deb")
+}
+
+// @ac AC-15
+// AC-15: the kensa-rules RPM (noarch) and DEB (all) each carry the full
+// corpus under /usr/share/kensa/rules.
+func TestKensaRules_CorpusPayload(t *testing.T) {
+	t.Run("release-package-build/AC-15", func(t *testing.T) {
+		const wantRules = 500
+		ruleLine := regexp.MustCompile(`/usr/share/kensa/rules/.*\.yml`)
+
+		rpm := kensaRulesRPMPath(t)
+		// noarch: the corpus is arch-independent.
+		if arch := strings.TrimSpace(rpmQuery(t, rpm, "%{ARCH}")); arch != "noarch" {
+			t.Errorf("kensa-rules RPM arch = %q, want noarch", arch)
+		}
+		rpmFiles := rpmQuery(t, rpm, "[%{FILENAMES}\n]")
+		if n := len(ruleLine.FindAllString(rpmFiles, -1)); n < wantRules {
+			t.Errorf("kensa-rules RPM has %d rule files under /usr/share/kensa/rules, want >=%d", n, wantRules)
+		}
+
+		deb := kensaRulesDebPath(t)
+		debFiles := debContents(t, deb)
+		if n := len(ruleLine.FindAllString(debFiles, -1)); n < wantRules {
+			t.Errorf("kensa-rules DEB has %d rule files under /usr/share/kensa/rules, want >=%d", n, wantRules)
+		}
+		// Architecture: all in the DEB control.
+		if info := debInfo(t, deb); !strings.Contains(info, "Architecture: all") {
+			t.Errorf("kensa-rules DEB control lacks Architecture: all\ninfo:\n%s", info)
+		}
+	})
+}
+
+// @ac AC-16
+// AC-16: the openwatch packages declare a hard dependency on kensa-rules
+// so a corpus-less install fails fast.
+func TestOpenwatch_DependsOnKensaRules(t *testing.T) {
+	t.Run("release-package-build/AC-16", func(t *testing.T) {
+		dir := appDir(t)
+		read := func(p string) string {
+			b, err := os.ReadFile(p)
+			if err != nil {
+				t.Fatalf("read %s: %v", p, err)
+			}
+			return string(b)
+		}
+		spec := read(filepath.Join(dir, "packaging", "rpm", "openwatch.spec"))
+		if !regexp.MustCompile(`(?m)^Requires:\s+kensa-rules\b`).MatchString(spec) {
+			t.Error("openwatch.spec must declare `Requires: kensa-rules`")
+		}
+		control := read(filepath.Join(dir, "packaging", "deb", "control"))
+		depends := ""
+		for _, line := range strings.Split(control, "\n") {
+			if strings.HasPrefix(line, "Depends:") {
+				depends = line
+				break
+			}
+		}
+		if !strings.Contains(depends, "kensa-rules") {
+			t.Errorf("deb/control Depends must list kensa-rules, got %q", depends)
+		}
+	})
+}
+
+// @ac AC-17
+// AC-17: make packages builds the kensa-rules corpus package too.
+func TestMake_PackagesBuildsKensaRules(t *testing.T) {
+	t.Run("release-package-build/AC-17", func(t *testing.T) {
+		dir := appDir(t)
+		b, err := os.ReadFile(filepath.Join(dir, "Makefile"))
+		if err != nil {
+			t.Fatalf("read Makefile: %v", err)
+		}
+		if !regexp.MustCompile(`(?m)^packages:.*\bkensa-rules\b`).MatchString(string(b)) {
+			t.Error("Makefile `packages` target must depend on kensa-rules")
+		}
+	})
+}
+
+// @ac AC-18
+// AC-18: the RPM %post and DEB postinst invoke the provisioning helper, and
+// the helper generates both identity keys, generate-if-absent, with the
+// required formats/modes/owners.
+func TestKeys_PostInstallProvisions(t *testing.T) {
+	t.Run("release-package-build/AC-18", func(t *testing.T) {
+		dir := appDir(t)
+		const helperPath = "/usr/lib/openwatch/provision-identity-keys.sh"
+
+		// Scriptlets call the helper.
+		rpm := rpmPath(t)
+		if post := rpmQuery(t, rpm, "%{POSTIN}"); !strings.Contains(post, helperPath) {
+			t.Errorf("RPM %%post does not invoke %s:\n%s", helperPath, post)
+		}
+		deb := debPath(t)
+		if body := readDebControlScript(t, deb, "postinst"); !strings.Contains(body, helperPath) {
+			t.Errorf("DEB postinst does not invoke %s:\n%s", helperPath, body)
+		}
+
+		// The helper does the right thing.
+		helper, err := os.ReadFile(filepath.Join(dir, "packaging", "common", "provision-identity-keys.sh"))
+		if err != nil {
+			t.Fatalf("read helper: %v", err)
+		}
+		h := string(helper)
+		wants := []struct{ what, substr string }{
+			{"generate-if-absent guard", "[ ! -f"},
+			{"RSA JWT key via openssl genrsa", "openssl genrsa"},
+			{"2048 bits", "2048"},
+			{"DEK via openssl rand", "openssl rand"},
+			{"32 bytes", "32"},
+			{"JWT mode 0640", "chmod 0640"},
+			{"DEK mode 0600", "chmod 0600"},
+			{"JWT owner root:openwatch", "root:$OWNER_GROUP"},
+		}
+		for _, w := range wants {
+			if !strings.Contains(h, w.substr) {
+				t.Errorf("helper missing %s (%q)", w.what, w.substr)
+			}
+		}
+	})
+}
+
+// @ac AC-19
+// AC-19: both openwatch packages declare openssl (the provisioning helper
+// needs it).
+func TestKeys_OpensslDependency(t *testing.T) {
+	t.Run("release-package-build/AC-19", func(t *testing.T) {
+		dir := appDir(t)
+		read := func(p string) string {
+			b, err := os.ReadFile(p)
+			if err != nil {
+				t.Fatalf("read %s: %v", p, err)
+			}
+			return string(b)
+		}
+		spec := read(filepath.Join(dir, "packaging", "rpm", "openwatch.spec"))
+		if !regexp.MustCompile(`(?m)^Requires:\s+openssl\b`).MatchString(spec) {
+			t.Error("openwatch.spec must declare `Requires: openssl`")
+		}
+		control := read(filepath.Join(dir, "packaging", "deb", "control"))
+		depends := ""
+		for _, line := range strings.Split(control, "\n") {
+			if strings.HasPrefix(line, "Depends:") {
+				depends = line
+				break
+			}
+		}
+		if !strings.Contains(depends, "openssl") {
+			t.Errorf("deb/control Depends must list openssl, got %q", depends)
+		}
+	})
+}
+
+// @ac AC-20
+// AC-20: the packages ship the helper + an empty keys dir, but NEVER the key
+// files themselves (they are generated unique per install).
+func TestKeys_NotInPayload(t *testing.T) {
+	t.Run("release-package-build/AC-20", func(t *testing.T) {
+		const (
+			helper = "/usr/lib/openwatch/provision-identity-keys.sh"
+			keyDir = "/etc/openwatch/keys"
+			jwt    = "jwt_private.pem"
+			dek    = "credential.key"
+		)
+		rpm := rpmPath(t)
+		rpmFiles := rpmQuery(t, rpm, "[%{FILENAMES}\n]")
+		if !strings.Contains(rpmFiles, helper) {
+			t.Errorf("RPM payload missing the provisioning helper %s", helper)
+		}
+		if !strings.Contains(rpmFiles, keyDir) {
+			t.Errorf("RPM payload missing the %s directory", keyDir)
+		}
+		if strings.Contains(rpmFiles, jwt) || strings.Contains(rpmFiles, dek) {
+			t.Errorf("RPM payload MUST NOT contain key files; got:\n%s", rpmFiles)
+		}
+
+		deb := debPath(t)
+		debFiles := debContents(t, deb)
+		if !strings.Contains(debFiles, helper) {
+			t.Errorf("DEB payload missing the provisioning helper %s", helper)
+		}
+		if !strings.Contains(debFiles, "/etc/openwatch/keys") {
+			t.Errorf("DEB payload missing the keys directory")
+		}
+		if strings.Contains(debFiles, jwt) || strings.Contains(debFiles, dek) {
+			t.Errorf("DEB payload MUST NOT contain key files; got:\n%s", debFiles)
+		}
+	})
+}
+
 // readDebControlScript extracts a named maintainer script from a DEB
 // using `dpkg-deb --ctrl-tarfile` piped to `tar`. Returns the script body
 // as a string.

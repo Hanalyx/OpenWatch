@@ -22,3 +22,15 @@ max_connections = 25
 [logging]
 level  = "info"
 format = "json"
+
+[identity]
+# Signing material the server requires in production — it does NOT
+# auto-generate these and will refuse to start if either is missing. The
+# package's post-install step generates both into /etc/openwatch/keys on
+# first install (generate-if-absent; upgrades never clobber them). These
+# are the built-in defaults, shown here so the paths are discoverable and
+# overridable; you normally do not need to change them.
+#   jwt_private_key:     RSA >= 2048 PEM (PKCS#1 or PKCS#8), mode 0640 root:openwatch
+#   credential_key_file: 32 raw bytes (AES-256), mode 0600 openwatch:openwatch
+jwt_private_key     = "/etc/openwatch/keys/jwt_private.pem"
+credential_key_file = "/etc/openwatch/keys/credential.key"
