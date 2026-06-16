@@ -77,6 +77,9 @@ func Command(dsn, outPath string) (*exec.Cmd, error) {
 	if err != nil {
 		return nil, err
 	}
+	// #nosec G204 -- the command is the constant "pg_dump"; the args are
+	// package-controlled flags + an output path (never user input), and the
+	// connection parameters (incl. the password) travel via env, not argv.
 	cmd := exec.Command("pg_dump", dumpArgs(outPath)...)
 	cmd.Env = env
 	return cmd, nil
@@ -93,6 +96,8 @@ func Run(ctx context.Context, dsn, dir, version, stamp string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	// #nosec G204 -- see Command: constant "pg_dump", package-controlled
+	// args, secrets via env not argv.
 	cmd := exec.CommandContext(ctx, "pg_dump", dumpArgs(out)...)
 	cmd.Env = env
 	if combined, err := cmd.CombinedOutput(); err != nil {
