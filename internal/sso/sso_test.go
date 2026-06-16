@@ -17,13 +17,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"os"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/Hanalyx/openwatch/internal/db"
-	"github.com/Hanalyx/openwatch/internal/db/migrations"
+	"github.com/Hanalyx/openwatch/internal/db/dbtest"
 	"github.com/Hanalyx/openwatch/internal/secretkey"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
@@ -106,20 +104,8 @@ func b64(b []byte) string { return base64.RawURLEncoding.EncodeToString(b) }
 
 func freshSSO(t *testing.T) (*Service, *pgxpool.Pool, *idp) {
 	t.Helper()
-	dsn := os.Getenv("OPENWATCH_TEST_DSN")
-	if dsn == "" {
-		t.Skip("set OPENWATCH_TEST_DSN to run sso tests")
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	t.Cleanup(cancel)
-	pool, err := db.NewPool(ctx, dsn, 5)
-	if err != nil {
-		t.Fatalf("NewPool: %v", err)
-	}
-	t.Cleanup(pool.Close)
-	if err := migrations.Apply(ctx, pool); err != nil {
-		t.Fatalf("migrations: %v", err)
-	}
+	pool := dbtest.Pool(t)
+	ctx := context.Background()
 	if err := secretkey.SetEphemeral(); err != nil {
 		t.Fatalf("secretkey: %v", err)
 	}

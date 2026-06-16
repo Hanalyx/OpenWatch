@@ -31,36 +31,17 @@ import (
 	"time"
 
 	"github.com/Hanalyx/openwatch/internal/alertrouter"
-	"github.com/Hanalyx/openwatch/internal/db"
-	"github.com/Hanalyx/openwatch/internal/db/migrations"
+	"github.com/Hanalyx/openwatch/internal/db/dbtest"
 	"github.com/Hanalyx/openwatch/internal/identity"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func alertsTestDSN(t *testing.T) string {
-	t.Helper()
-	dsn := os.Getenv("OPENWATCH_TEST_DSN")
-	if dsn == "" {
-		t.Skip("set OPENWATCH_TEST_DSN to run alerts integration tests")
-	}
-	return dsn
-}
-
 // freshDB spins up a clean migrated DB and seeds one user.
 func freshDB(t *testing.T) (*pgxpool.Pool, uuid.UUID) {
 	t.Helper()
-	dsn := alertsTestDSN(t)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	t.Cleanup(cancel)
-	pool, err := db.NewPool(ctx, dsn, 5)
-	if err != nil {
-		t.Fatalf("NewPool: %v", err)
-	}
-	t.Cleanup(pool.Close)
-	if err := migrations.Apply(ctx, pool); err != nil {
-		t.Fatalf("migrations.Apply: %v", err)
-	}
+	pool := dbtest.Pool(t)
+	ctx := context.Background()
 	_, _ = pool.Exec(ctx, "TRUNCATE TABLE alerts")
 	_, _ = pool.Exec(ctx, "TRUNCATE TABLE audit_events")
 	_, _ = pool.Exec(ctx, "TRUNCATE TABLE users CASCADE")

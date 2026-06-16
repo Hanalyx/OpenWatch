@@ -19,7 +19,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"os"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -30,8 +29,7 @@ import (
 
 	"github.com/Hanalyx/openwatch/internal/audit"
 	"github.com/Hanalyx/openwatch/internal/correlation"
-	"github.com/Hanalyx/openwatch/internal/db"
-	"github.com/Hanalyx/openwatch/internal/db/migrations"
+	"github.com/Hanalyx/openwatch/internal/db/dbtest"
 	"github.com/Hanalyx/openwatch/internal/kensa"
 	"github.com/Hanalyx/openwatch/internal/queue"
 	"github.com/Hanalyx/openwatch/internal/scheduler"
@@ -44,18 +42,8 @@ import (
 
 func freshPool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
-	dsn := workerTestDSN(t)
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	t.Cleanup(cancel)
-
-	pool, err := db.NewPool(ctx, dsn, 5)
-	if err != nil {
-		t.Fatalf("NewPool: %v", err)
-	}
-	t.Cleanup(pool.Close)
-	if err := migrations.Apply(ctx, pool); err != nil {
-		t.Fatalf("migrations.Apply: %v", err)
-	}
+	pool := dbtest.Pool(t)
+	ctx := context.Background()
 	for _, stmt := range []string{
 		"TRUNCATE TABLE transactions CASCADE",
 		"TRUNCATE TABLE host_rule_state CASCADE",
@@ -69,25 +57,6 @@ func freshPool(t *testing.T) *pgxpool.Pool {
 		}
 	}
 	return pool
-}
-
-// workerTestDSN gates DB-backed tests behind the OPENWATCH_TEST_DSN env.
-// Pure-function tests in source_test.go / backoff_test.go / payload_test.go /
-// advisory_lock_test.go run unconditionally; tests that need a DB skip
-// when unset.
-func workerTestDSN(t *testing.T) string {
-	t.Helper()
-	return mustEnv(t, "OPENWATCH_TEST_DSN")
-}
-
-// mustEnv calls t.Skip if the env var is unset.
-func mustEnv(t *testing.T, name string) string {
-	t.Helper()
-	v := os.Getenv(name)
-	if v == "" {
-		t.Skipf("set %s to run worker integration tests", name)
-	}
-	return v
 }
 
 // ---------------------------------------------------------------------
