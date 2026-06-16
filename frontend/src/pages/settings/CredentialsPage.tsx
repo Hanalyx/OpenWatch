@@ -125,11 +125,43 @@ export function CredentialsPage() {
     retry: 0,
   });
 
+  // Real host inventory — drives the "Covered hosts" coverage stat. A host
+  // is covered when a credential resolves to it: a host-scoped credential,
+  // or any default credential (which covers the whole fleet).
+  const hostsQuery = useQuery({
+    queryKey: ['hosts', 'coverage'],
+    queryFn: async () => {
+      const { data, error } = await api.GET('/api/v1/hosts', {});
+      if (error) throw error;
+      return (data as { hosts: { id: string }[] }).hosts ?? [];
+    },
+    retry: 0,
+  });
+
   const credentials = credsQuery.data ?? [];
   const defaultCount = credentials.filter((c) => c.is_default).length;
   const hostScopedCount = credentials.filter((c) => c.scope === 'host').length;
   const keys = credentialsToKeys(credentials);
   const activeKeys = keys.length;
+
+  // Coverage from real data (no hardcoded fixture). A default credential
+  // covers every host; otherwise only hosts with a host-scoped credential.
+  const totalHosts = hostsQuery.data?.length ?? 0;
+  const hasDefault = credentials.some((c) => c.is_default);
+  const hostScopedTargets = new Set(
+    credentials.filter((c) => c.scope === 'host' && c.scope_id).map((c) => c.scope_id),
+  );
+  const coveredHosts = hasDefault
+    ? totalHosts
+    : (hostsQuery.data ?? []).filter((h) => hostScopedTargets.has(h.id)).length;
+  const coverageTier: 'ok' | 'warn' | 'crit' =
+    totalHosts === 0
+      ? 'warn'
+      : coveredHosts >= totalHosts
+        ? 'ok'
+        : coveredHosts > 0
+          ? 'warn'
+          : 'crit';
 
   // Connection defaults (local state, persists pending backend).
   const [sshPort, setSshPort] = useState(22);
@@ -180,10 +212,12 @@ export function CredentialsPage() {
       <StatMiniRow>
         <StatMini
           label="Covered hosts"
-          value="7"
-          unit={<span style={{ color: 'var(--ow-fg-3)' }}> / 7</span>}
-          hint="All hosts reachable via credentials"
-          tier="ok"
+          value={coveredHosts}
+          unit={<span style={{ color: 'var(--ow-fg-3)' }}> / {totalHosts}</span>}
+          hint={
+            hasDefault ? 'Default credential covers all hosts' : 'Hosts with a credential resolved'
+          }
+          tier={coverageTier}
         />
         <StatMini
           label="Credentials"
