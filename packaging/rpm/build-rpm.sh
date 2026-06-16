@@ -62,6 +62,13 @@ cp "$DIST_DIR/openwatch"                      "$SRC_DIR/openwatch"
 cp "$APP_DIR/packaging/common/openwatch.toml" "$SRC_DIR/openwatch.toml"
 cp "$APP_DIR/packaging/common/openwatch.service" "$SRC_DIR/openwatch.service"
 cp "$APP_DIR/packaging/common/provision-identity-keys.sh" "$SRC_DIR/provision-identity-keys.sh"
+# Upgrade automation: migrate-on-upgrade helper, backup cleanup, systemd
+# timer + units, and the operator-tunable upgrade.conf.
+cp "$APP_DIR/packaging/common/openwatch-upgrade.sh"             "$SRC_DIR/openwatch-upgrade.sh"
+cp "$APP_DIR/packaging/common/cleanup-backups.sh"              "$SRC_DIR/cleanup-backups.sh"
+cp "$APP_DIR/packaging/common/upgrade.conf"                    "$SRC_DIR/upgrade.conf"
+cp "$APP_DIR/packaging/common/openwatch-backup-cleanup.service" "$SRC_DIR/openwatch-backup-cleanup.service"
+cp "$APP_DIR/packaging/common/openwatch-backup-cleanup.timer"   "$SRC_DIR/openwatch-backup-cleanup.timer"
 
 # Demo TLS cert.
 bash "$APP_DIR/packaging/common/gen-demo-cert.sh" "$SRC_DIR" >/dev/null

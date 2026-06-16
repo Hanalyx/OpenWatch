@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily prune of OpenWatch pre-upgrade database backups
+
+[Timer]
+OnCalendar=daily
+# Run on next boot if the machine was off at the scheduled time.
+Persistent=true
+RandomizedDelaySec=1h
+
+[Install]
+WantedBy=timers.target

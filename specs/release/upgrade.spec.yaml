@@ -1,0 +1,93 @@
+spec:
+  id: release-upgrade
+  title: One-command package upgrade with auto-migrate + backup
+  version: "1.0.0"
+  status: approved
+  tier: 2
+
+  context:
+    system: openwatch-go
+    feature: Automatic, safe DB migration on package upgrade
+    description: >
+      The operator upgrades OpenWatch with a single `dnf update openwatch*`
+      (or apt) command; the package post-install scriptlet applies any
+      pending database migrations automatically, taking a pg_dump restore
+      point first, and restarts the service — or, if a migration fails,
+      leaves the service stopped with a clear recovery path. The app schema
+      is in scope; the PostgreSQL ENGINE major-version upgrade is NOT (that
+      is an operator-supervised pg_upgrade, never triggered from a scriptlet).
+    related_specs:
+      - release-package-build
+      - system-config
+
+  objective:
+    summary: >
+      Make a production upgrade one command, safe by construction: never
+      migrate without a restore point, never run a binary against a
+      mismatched schema, and never lose data — for the single-instance
+      appliance model.
+    scope:
+      includes:
+        - openwatch migrate --status (report pending without applying)
+        - openwatch migrate --backup-dir (pg_dump restore point before applying; fail-closed)
+        - pg_dump password delivered via PG* env, never in argv
+        - RPM %post / DEB postinst run the upgrade helper ONLY on upgrade (not fresh install)
+        - Upgrade helper sequence stop -> backup+migrate -> start, fail-safe on error
+        - Backup-cleanup systemd timer + service, keep-most-recent prune
+        - Operator-tunable /etc/openwatch/upgrade.conf (AUTO_BACKUP, retention)
+      excludes:
+        - PostgreSQL engine major-version upgrade (operator-supervised pg_upgrade)
+        - Multi-instance / HA migration coordination (advisory lock + rolling restart)
+        - Zero-downtime upgrades (the appliance model accepts brief downtime during migrate)
+
+  constraints:
+    - id: C-01
+      description: The pre-migration pg_dump MUST receive connection parameters (especially the password) via PG* environment variables, never on the command line / argv.
+      type: security
+      enforcement: error
+    - id: C-02
+      description: When a backup is requested it MUST complete successfully before any migration is applied; a failed backup MUST abort without migrating (fail-closed). Backup is skipped only when the DB has no schema yet (fresh DB).
+      type: technical
+      enforcement: error
+    - id: C-03
+      description: The package scriptlet MUST run the auto-migrate helper ONLY on upgrade (RPM $1 >= 2; DEB configure with a non-empty old-version $2), never on a fresh install (no database exists yet).
+      type: technical
+      enforcement: error
+    - id: C-04
+      description: On migration failure the upgrade helper MUST leave the service STOPPED (never run the new binary against an un-migrated schema) and exit non-zero so the package manager surfaces the problem, printing the restore path.
+      type: technical
+      enforcement: error
+    - id: C-05
+      description: The backup-cleanup MUST always keep the most recent dump regardless of age, pruning only older dumps past the retention window.
+      type: technical
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: dbbackup.Command places the password (and all connection params) in the command Env, never in Args — verified for a DSN carrying a password.
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-02
+      description: dbbackup.DumpFileName is deterministic given (version, stamp) and sanitizes unsafe characters; empty version defaults to a non-empty token.
+      priority: high
+      references_constraints: [C-01]
+    - id: AC-03
+      description: cmdMigrate supports --status (report current version + pending count, no apply) and --backup-dir (pg_dump before Apply, skipped when version==0, fail-closed on backup error) — the backup precedes migrations.Apply and a backup error returns before Apply.
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-04
+      description: The RPM %post guards the upgrade helper on `$1 -ge 2` and the DEB postinst guards it on a non-empty old-version `$2`, so it runs on upgrade only, never on fresh install.
+      priority: critical
+      references_constraints: [C-03]
+    - id: AC-05
+      description: packaging/common/openwatch-upgrade.sh stops the service, runs `openwatch migrate --backup-dir`, starts on success, and on failure leaves the service stopped and exits non-zero with the restore path (source-inspection).
+      priority: critical
+      references_constraints: [C-04]
+    - id: AC-06
+      description: Both packages ship the openwatch-backup-cleanup .service + .timer and enable the timer in %post/postinst; cleanup-backups.sh keeps the most recent dump and prunes older ones past BACKUP_RETENTION_DAYS.
+      priority: high
+      references_constraints: [C-05]
+    - id: AC-07
+      description: The package payloads contain /usr/lib/openwatch/openwatch-upgrade.sh, /usr/lib/openwatch/cleanup-backups.sh, the two systemd units, and the empty /var/lib/openwatch/backups directory; /etc/openwatch/upgrade.conf ships as a noreplace config file.
+      priority: high
+      references_constraints: [C-03]
