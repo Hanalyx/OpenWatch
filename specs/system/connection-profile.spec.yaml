@@ -1,7 +1,7 @@
 spec:
   id: system-connection-profile
   title: Per-host SSH connection learning (auth method + sudo mode)
-  version: "1.0.0"
+  version: "1.1.0"
   status: approved
   tier: 2
 
@@ -37,11 +37,16 @@ spec:
         - Dial-layer auth-method ordering (PreferAuth) + observation (ObservedAuth)
         - Compliance-scan sudo -S support with per-connection sudo-mode probe + learning
         - Default-on sudo -S password fallback (kill-switch retained)
+        - Auth-method learning wired into the OS discovery, OS intelligence
+          (collector), and liveness privilege-probe paths (v1.1.0) — each
+          leads the dial with the host's recorded method and records what
+          authenticated via the shared connprofile store
       excludes:
         - Settings UI/API to toggle the kill-switch (DB-only for now)
-        - Extending auth/sudo learning to the discovery, intelligence, and
-          liveness paths (the substrate + dial mechanism land here; wiring
-          those paths is a follow-up)
+        - sudo-mode (NOPASSWD vs password) learning for the discovery,
+          intelligence, and liveness paths — those still probe sudo mode each
+          cycle; only the SSH auth-method dimension is wired for them so far
+          (the compliance scan learns both)
 
   constraints:
     - id: C-01
@@ -63,6 +68,10 @@ spec:
     - id: C-05
       description: The compliance scan MUST gate its sudo -S use of the credential password on the SAME two conditions the collector/liveness/discovery paths enforce — the AllowCredentialSudoPassword kill-switch is on AND the credential auth method is password or both. When either fails, the scan MUST NOT attempt sudo -S (it degrades to sudo -n). This gates only the sudo use of the password; SSH password authentication is independent.
       type: security
+      enforcement: error
+    - id: C-06
+      description: The OS discovery, OS intelligence (collector), and liveness privilege-probe paths MUST lead the SSH dial with the host's recorded auth method and record the method that authenticated, using the shared connprofile store. This learning MUST be best-effort — a missing host id, an absent profile row, or a store error MUST dial in the default order and MUST NOT fail the connection.
+      type: technical
       enforcement: error
 
   acceptance_criteria:
@@ -94,3 +103,11 @@ spec:
       description: The scan resolves a sudo password only when the kill-switch is on AND the credential auth method is password or both; a key-only credential or a kill-switch set false yields no sudo password (sudoPasswordFor returns empty), so the scan never attempts sudo -S in those cases.
       priority: critical
       references_constraints: [C-05]
+    - id: AC-08
+      description: The discovery/collector SSH transport, when a profile store is wired and the ctx carries a host id (connprofile.WithHostID), sets DialOptions.PreferAuth from the host's recorded SSH auth method and records the observed method via RecordSSHAuth after a successful dial. With no host id on the ctx OR no store wired, it dials in the default order and records nothing.
+      priority: high
+      references_constraints: [C-06]
+    - id: AC-09
+      description: The liveness privilege probe, when WithProfiles is set, leads the dial with the host's recorded SSH auth method and records the method that authenticated; with no profile store wired it passes no preference and records nothing. A profile lookup error is non-fatal (dials in the default order).
+      priority: high
+      references_constraints: [C-06]

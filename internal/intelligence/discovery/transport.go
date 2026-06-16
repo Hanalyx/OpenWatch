@@ -5,10 +5,22 @@ import (
 	"errors"
 	"time"
 
+	"github.com/google/uuid"
+	"golang.org/x/crypto/ssh"
+
+	"github.com/Hanalyx/openwatch/internal/connprofile"
 	"github.com/Hanalyx/openwatch/internal/credential"
 	owssh "github.com/Hanalyx/openwatch/internal/ssh"
-	"golang.org/x/crypto/ssh"
 )
+
+// ConnProfileStore is the subset of connprofile the transport uses to lead
+// with the host's known-good SSH auth method and record what authenticated.
+// nil disables learning (dial in the default key-first order). The host id
+// is read from the context via connprofile.HostIDFrom.
+type ConnProfileStore interface {
+	Get(ctx context.Context, hostID uuid.UUID) (connprofile.Profile, error)
+	RecordSSHAuth(ctx context.Context, hostID uuid.UUID, m connprofile.SSHAuthMethod) error
+}
 
 // SSHTransport is the seam between the discovery service and the actual
 // SSH path. Production uses sshTransport (wraps owssh.Dial + ssh.Session);
@@ -42,8 +54,13 @@ const DefaultProbeTimeout = 10 * time.Second
 // and tests that want a real (not stubbed) transport can construct one
 // without internal package boundaries.
 type SSHTransportProd struct {
-	mode  owssh.Mode
-	store owssh.KnownHostsStore
+	mode     owssh.Mode
+	store    owssh.KnownHostsStore
+	profiles ConnProfileStore
+	// dial is the seam over internal/ssh.Dial — overridden in tests to
+	// exercise the auth-learning path (PreferAuth in / ObservedAuth out)
+	// without standing up a real SSH server. Defaults to dialReal.
+	dial func(ctx context.Context, host string, port int, cred *credential.Credential, opts owssh.DialOptions) (SSHSession, error)
 }
 
 // NewSSHTransport returns a production SSHTransport with the given
@@ -51,24 +68,61 @@ type SSHTransportProd struct {
 // known-hosts store by default; cmd/openwatch can override with a
 // strict + persistent store later.
 func NewSSHTransport(mode owssh.Mode, store owssh.KnownHostsStore) *SSHTransportProd {
-	return &SSHTransportProd{mode: mode, store: store}
+	return &SSHTransportProd{mode: mode, store: store, dial: dialReal}
 }
 
-// Dial opens one SSH client connection and returns it as an SSHSession
-// that multiplexes ssh.Session per Run call.
-func (t *SSHTransportProd) Dial(ctx context.Context, host string, port int, cred *credential.Credential) (SSHSession, error) {
-	if cred == nil {
-		return nil, errors.New("discovery: dial requires a resolved credential")
-	}
-	client, err := owssh.Dial(ctx, host, port, cred, owssh.DialOptions{
-		Mode:    t.mode,
-		Store:   t.store,
-		Timeout: owssh.DefaultDialTimeout,
-	})
+// dialReal is the production dial: open the real SSH client and wrap it.
+func dialReal(ctx context.Context, host string, port int, cred *credential.Credential, opts owssh.DialOptions) (SSHSession, error) {
+	client, err := owssh.Dial(ctx, host, port, cred, opts)
 	if err != nil {
 		return nil, err
 	}
 	return &SSHClientSession{client: client}, nil
+}
+
+// WithProfiles enables per-host SSH auth-method learning: the transport
+// leads the dial with the host's recorded method and records which method
+// authenticated. The host id comes from connprofile.WithHostID on the ctx.
+// nil (the default) keeps the historical key-first, no-learning behaviour.
+func (t *SSHTransportProd) WithProfiles(p ConnProfileStore) *SSHTransportProd {
+	t.profiles = p
+	return t
+}
+
+// Dial opens one SSH client connection and returns it as an SSHSession
+// that multiplexes ssh.Session per Run call. When a profile store is wired
+// and the ctx carries a host id, the dial leads with the host's recorded
+// auth method and records the one that authenticated (a hint, not a lock:
+// both methods are still offered, and a stale hint self-heals).
+func (t *SSHTransportProd) Dial(ctx context.Context, host string, port int, cred *credential.Credential) (SSHSession, error) {
+	if cred == nil {
+		return nil, errors.New("discovery: dial requires a resolved credential")
+	}
+
+	hostID, learn := connprofile.HostIDFrom(ctx)
+	learn = learn && t.profiles != nil
+
+	opts := owssh.DialOptions{
+		Mode:    t.mode,
+		Store:   t.store,
+		Timeout: owssh.DefaultDialTimeout,
+	}
+	var observed string
+	if learn {
+		if p, err := t.profiles.Get(ctx, hostID); err == nil {
+			opts.PreferAuth = string(p.SSHAuthMethod) // "key"/"password" match the ssh.Prefer* tokens
+		}
+		opts.ObservedAuth = &observed
+	}
+
+	sess, err := t.dial(ctx, host, port, cred, opts)
+	if err != nil {
+		return nil, err
+	}
+	if learn && observed != "" {
+		_ = t.profiles.RecordSSHAuth(ctx, hostID, connprofile.SSHAuthMethod(observed))
+	}
+	return sess, nil
 }
 
 // SSHClientSession is the per-host live SSH client. Each Run opens a
