@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/Hanalyx/openwatch/internal/audit"
+	"github.com/Hanalyx/openwatch/internal/connprofile"
 	"github.com/Hanalyx/openwatch/internal/credential"
 	"github.com/Hanalyx/openwatch/internal/eventbus"
 	"github.com/Hanalyx/openwatch/internal/intelligence/probe"
@@ -265,6 +266,10 @@ func (s *Service) discoverWithTransport(ctx context.Context, hf hostFacts) (Syst
 	if s.transport == nil {
 		return SystemFacts{}, errors.New("discovery: ssh transport not wired")
 	}
+
+	// Carry the host id so a profile-aware transport can lead with this
+	// host's known-good SSH auth method and record what authenticated.
+	ctx = connprofile.WithHostID(ctx, hf.HostID)
 
 	sess, err := s.transport.Dial(ctx, hf.Addr, hf.Port, hf.Cred)
 	if err != nil {

@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Hanalyx/openwatch/internal/connprofile"
 	"github.com/Hanalyx/openwatch/internal/credential"
 	"github.com/Hanalyx/openwatch/internal/liveness"
 	"github.com/Hanalyx/openwatch/internal/systemconfig"
@@ -122,16 +123,22 @@ func (p stubPolicy) LoadSecurity(_ context.Context) (systemconfig.SecurityConfig
 }
 
 // stubDialer returns a programmed stubExec without touching real SSH.
+// gotPrefer records the auth-method hint the probe passed, so tests can
+// assert the learning lead-with behaviour; observed is the method the
+// stub reports as having authenticated.
 type stubDialer struct {
-	exec    *stubExec
-	dialErr error
+	exec      *stubExec
+	dialErr   error
+	observed  connprofile.SSHAuthMethod
+	gotPrefer connprofile.SSHAuthMethod
 }
 
-func (d *stubDialer) Dial(_ context.Context, _ *credential.Credential, _ string, _ time.Duration) (SessionExecutor, error) {
+func (d *stubDialer) Dial(_ context.Context, _ *credential.Credential, _ string, _ time.Duration, prefer connprofile.SSHAuthMethod) (SessionExecutor, connprofile.SSHAuthMethod, error) {
+	d.gotPrefer = prefer
 	if d.dialErr != nil {
-		return nil, d.dialErr
+		return nil, "", d.dialErr
 	}
-	return d.exec, nil
+	return d.exec, d.observed, nil
 }
 
 func validCred() *credential.Credential {
@@ -279,7 +286,7 @@ func TestBuildAuthMethods(t *testing.T) {
 			AuthMethod: credential.AuthSSHKey,
 			PrivateKey: keyPEM,
 		}
-		methods, err := buildAuthMethods(cred)
+		methods, err := buildAuthMethods(cred, "", &authObserver{})
 		if err != nil {
 			t.Fatalf("err: %v", err)
 		}
@@ -294,7 +301,7 @@ func TestBuildAuthMethods(t *testing.T) {
 			AuthMethod: credential.AuthPassword,
 			Password:   "p",
 		}
-		methods, err := buildAuthMethods(cred)
+		methods, err := buildAuthMethods(cred, "", &authObserver{})
 		if err != nil {
 			t.Fatalf("err: %v", err)
 		}
@@ -310,7 +317,7 @@ func TestBuildAuthMethods(t *testing.T) {
 			PrivateKey: keyPEM,
 			Password:   "p",
 		}
-		methods, err := buildAuthMethods(cred)
+		methods, err := buildAuthMethods(cred, "", &authObserver{})
 		if err != nil {
 			t.Fatalf("err: %v", err)
 		}
@@ -325,7 +332,7 @@ func TestBuildAuthMethods(t *testing.T) {
 			AuthMethod: credential.AuthBoth,
 			PrivateKey: keyPEM,
 		}
-		methods, err := buildAuthMethods(cred)
+		methods, err := buildAuthMethods(cred, "", &authObserver{})
 		if err != nil {
 			t.Fatalf("err: %v", err)
 		}
@@ -340,7 +347,7 @@ func TestBuildAuthMethods(t *testing.T) {
 			AuthMethod: credential.AuthBoth,
 			Password:   "p",
 		}
-		methods, err := buildAuthMethods(cred)
+		methods, err := buildAuthMethods(cred, "", &authObserver{})
 		if err != nil {
 			t.Fatalf("err: %v", err)
 		}
@@ -354,7 +361,7 @@ func TestBuildAuthMethods(t *testing.T) {
 			Username:   "u",
 			AuthMethod: credential.AuthBoth,
 		}
-		_, err := buildAuthMethods(cred)
+		_, err := buildAuthMethods(cred, "", &authObserver{})
 		if err == nil {
 			t.Errorf("err: want non-nil for empty AuthBoth credential")
 		}
@@ -365,7 +372,7 @@ func TestBuildAuthMethods(t *testing.T) {
 			Username:   "u",
 			AuthMethod: credential.AuthMethod("bogus"),
 		}
-		_, err := buildAuthMethods(cred)
+		_, err := buildAuthMethods(cred, "", &authObserver{})
 		if err == nil {
 			t.Errorf("err: want non-nil for unknown auth method")
 		}
@@ -395,6 +402,72 @@ func TestPrivilegeProbe_NoFallbackOnSudoNSuccess(t *testing.T) {
 		}
 		if exec.callCount() != 1 {
 			t.Errorf("call count: want 1 (sudo -n succeeded; no fallback), got %d", exec.callCount())
+		}
+	})
+}
+
+// stubProfiles is an in-memory connprofile store for the learning tests.
+type stubProfiles struct {
+	mu       sync.Mutex
+	prefer   connprofile.SSHAuthMethod
+	recorded connprofile.SSHAuthMethod
+	getErr   error
+}
+
+func (s *stubProfiles) Get(_ context.Context, _ uuid.UUID) (connprofile.Profile, error) {
+	if s.getErr != nil {
+		return connprofile.Profile{}, s.getErr
+	}
+	return connprofile.Profile{SSHAuthMethod: s.prefer}, nil
+}
+
+func (s *stubProfiles) RecordSSHAuth(_ context.Context, _ uuid.UUID, m connprofile.SSHAuthMethod) error {
+	s.mu.Lock()
+	s.recorded = m
+	s.mu.Unlock()
+	return nil
+}
+
+// @spec system-connection-profile
+// @ac AC-09
+// AC-09 (liveness half): when a profile store is wired, the probe leads
+// the dial with the host's recorded auth method and records the method
+// that authenticated. Without a store, no learning occurs.
+func TestPrivilegeProbe_AuthLearning(t *testing.T) {
+	t.Run("system-connection-profile/AC-09", func(t *testing.T) {
+		hostID := liveness.HostID(uuid.Must(uuid.NewV7()).String())
+		exec := &stubExec{outcomes: map[string]execResult{"sudo -n true": {code: 0}}}
+
+		profiles := &stubProfiles{prefer: connprofile.AuthPassword}
+		dialer := &stubDialer{exec: exec, observed: connprofile.AuthPassword}
+
+		probe := Probe(
+			stubResolver{cred: validCred()},
+			WithDialer(dialer),
+			WithProfiles(profiles),
+		)
+		if _, ok, err := probe(context.Background(), hostID, "192.0.2.1:22", 2*time.Second); !ok {
+			t.Fatalf("ok: want true, got false; err=%v", err)
+		}
+		if dialer.gotPrefer != connprofile.AuthPassword {
+			t.Errorf("lead-with: want dial prefer=password, got %q", dialer.gotPrefer)
+		}
+		if profiles.recorded != connprofile.AuthPassword {
+			t.Errorf("record: want recorded=password, got %q", profiles.recorded)
+		}
+	})
+
+	t.Run("no store: no learning", func(t *testing.T) {
+		hostID := liveness.HostID(uuid.Must(uuid.NewV7()).String())
+		exec := &stubExec{outcomes: map[string]execResult{"sudo -n true": {code: 0}}}
+		dialer := &stubDialer{exec: exec, observed: connprofile.AuthKey}
+
+		probe := Probe(stubResolver{cred: validCred()}, WithDialer(dialer))
+		if _, ok, _ := probe(context.Background(), hostID, "192.0.2.1:22", 2*time.Second); !ok {
+			t.Fatalf("ok: want true")
+		}
+		if dialer.gotPrefer != "" {
+			t.Errorf("no-store: want empty prefer, got %q", dialer.gotPrefer)
 		}
 	})
 }

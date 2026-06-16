@@ -348,11 +348,22 @@ func cmdServe(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 	}
 
 	credSvc := credential.NewService(pool)
+
+	// Per-host SSH connection memory shared by every path that talks to
+	// a managed host: the liveness privilege probe, OS discovery, OS
+	// intelligence collection, and the compliance scan all lead the dial
+	// with this host's last known-good auth method and record what
+	// authenticated. Spec system-connection-profile.
+	connStore := connprofile.NewStore(pool)
+
 	// Spec system-ssh-connectivity v1.2.0 C-09 / AC-18: thread the
 	// SecurityConfig reader so the privilege probe can retry sudo -n
 	// failures via sudo -S -k with the credential password — same
-	// gating as the collector + discovery firewall probe.
-	privProbe := sshprivilege.Probe(credSvc, sshprivilege.WithPolicyLoader(cfgStore))
+	// gating as the collector + discovery firewall probe. WithProfiles
+	// adds the per-host auth-method learning (system-connection-profile).
+	privProbe := sshprivilege.Probe(credSvc,
+		sshprivilege.WithPolicyLoader(cfgStore),
+		sshprivilege.WithProfiles(connStore))
 
 	liveSvc := liveness.NewService(pool, audit.Emit, bus).
 		WithConfigLoader(cfgStore.LoadConnectivity).
@@ -369,6 +380,10 @@ func cmdServe(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 	discoSvc := discovery.NewService(pool, audit.Emit, bus).
 		WithHostLookup(discovery.PoolHostLookup{Pool: pool}).
 		WithCredentialService(credSvc).
+		// Profile-aware transport: lead the dial with the host's learned
+		// SSH auth method + record what authenticated (system-connection-profile).
+		WithSSHTransport(discovery.NewSSHTransport(owssh.ModeTOFU, owssh.NewMemoryStore()).
+			WithProfiles(connStore)).
 		// Spec system-ssh-connectivity v1.2.0 C-09 / AC-20: thread the
 		// SecurityConfig reader so the firewall probe can retry a
 		// sudo -n failure via sudo -S -k with the credential password
@@ -389,7 +404,8 @@ func cmdServe(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 		WithCredentialService(credSvc).
 		WithHostLookup(collector.PoolHostLookup{Pool: pool}).
 		WithSSHTransport(collectorSSHAdapter{
-			inner: discovery.NewSSHTransport(owssh.ModeTOFU, owssh.NewMemoryStore()),
+			inner: discovery.NewSSHTransport(owssh.ModeTOFU, owssh.NewMemoryStore()).
+				WithProfiles(connStore),
 		}).
 		// Spec system-ssh-connectivity v1.1.0 C-09: load the
 		// allow_credential_sudo_password knob at cycle start. When the
@@ -508,7 +524,7 @@ func cmdServe(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 			vars, err := cfgStore.LoadScanVars(ctx)
 			return vars, err
 		},
-		Profiles: connprofile.NewStore(pool),
+		Profiles: connStore,
 		Policy: func(ctx context.Context) (bool, error) {
 			cfg, err := cfgStore.LoadSecurity(ctx)
 			return cfg.AllowCredentialSudoPassword, err

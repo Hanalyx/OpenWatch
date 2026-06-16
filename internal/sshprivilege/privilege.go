@@ -29,10 +29,12 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"sync"
 	"time"
 
 	"golang.org/x/crypto/ssh"
 
+	"github.com/Hanalyx/openwatch/internal/connprofile"
 	"github.com/Hanalyx/openwatch/internal/credential"
 	"github.com/Hanalyx/openwatch/internal/liveness"
 	"github.com/Hanalyx/openwatch/internal/systemconfig"
@@ -72,15 +74,29 @@ type SessionExecutor interface {
 
 // Dialer opens an SSH session against a host. Production uses
 // realDialer (crypto/ssh.Dial); tests inject a stub.
+//
+// prefer is the host's learned SSH auth method (connprofile.AuthUnknown
+// when none): the dialer leads with it but still offers the other method.
+// The returned method is the one that authenticated, for the caller to
+// record. Both are best-effort learning, never a hard requirement.
 type Dialer interface {
-	Dial(ctx context.Context, cred *credential.Credential, addr string, timeout time.Duration) (SessionExecutor, error)
+	Dial(ctx context.Context, cred *credential.Credential, addr string, timeout time.Duration, prefer connprofile.SSHAuthMethod) (SessionExecutor, connprofile.SSHAuthMethod, error)
+}
+
+// ConnProfileStore is the subset of connprofile the probe uses to lead the
+// dial with the host's known-good SSH auth method and record what
+// authenticated. nil (the default) disables learning.
+type ConnProfileStore interface {
+	Get(ctx context.Context, hostID uuid.UUID) (connprofile.Profile, error)
+	RecordSSHAuth(ctx context.Context, hostID uuid.UUID, m connprofile.SSHAuthMethod) error
 }
 
 // probeConfig accumulates the optional dependencies a Probe needs.
 // Constructed by Probe(...) and the With* options.
 type probeConfig struct {
-	dialer Dialer
-	policy PolicyLoader
+	dialer   Dialer
+	policy   PolicyLoader
+	profiles ConnProfileStore
 }
 
 // ProbeOption configures the probe at construction time. Use
@@ -100,6 +116,14 @@ func WithDialer(d Dialer) ProbeOption {
 // Spec system-ssh-connectivity v1.2.0 C-09 / AC-18.
 func WithPolicyLoader(p PolicyLoader) ProbeOption {
 	return func(c *probeConfig) { c.policy = p }
+}
+
+// WithProfiles enables per-host SSH auth-method learning: the probe leads
+// the dial with the host's recorded method and records which method
+// authenticated. nil (the default) keeps the historical key-first,
+// no-learning order. See system-connection-profile.
+func WithProfiles(p ConnProfileStore) ProbeOption {
+	return func(c *probeConfig) { c.profiles = p }
 }
 
 // Probe builds a liveness.PrivilegeProbeFunc backed by the given
@@ -138,11 +162,26 @@ func Probe(resolver Resolver, opts ...ProbeOption) liveness.PrivilegeProbeFunc {
 			return true, false, fmt.Errorf("resolve credential: %w", rerr)
 		}
 
-		exec, derr := cfg.dialer.Dial(ctx, cred, addr, timeout)
+		// Learning: lead the dial with the host's recorded auth method
+		// (if a profile store is wired and a row exists), then record the
+		// method that actually authenticated. Both are best-effort: a
+		// lookup miss just dials in the default order.
+		var prefer connprofile.SSHAuthMethod
+		if cfg.profiles != nil {
+			if p, gerr := cfg.profiles.Get(ctx, id); gerr == nil {
+				prefer = p.SSHAuthMethod
+			}
+		}
+
+		exec, observed, derr := cfg.dialer.Dial(ctx, cred, addr, timeout, prefer)
 		if derr != nil {
 			return true, false, fmt.Errorf("ssh dial: %w", derr)
 		}
 		defer func() { _ = exec.Close() }()
+
+		if cfg.profiles != nil && observed != "" {
+			_ = cfg.profiles.RecordSSHAuth(ctx, id, observed)
+		}
 
 		// Layer 1: sudo -n true. The 80% case where NOPASSWD is set.
 		out, code, runErr := exec.Run(ctx, "sudo -n true")
@@ -193,10 +232,11 @@ func canFallback(ctx context.Context, loader PolicyLoader, cred *credential.Cred
 
 type realDialer struct{}
 
-func (realDialer) Dial(_ context.Context, cred *credential.Credential, addr string, timeout time.Duration) (SessionExecutor, error) {
-	methods, merr := buildAuthMethods(cred)
+func (realDialer) Dial(_ context.Context, cred *credential.Credential, addr string, timeout time.Duration, prefer connprofile.SSHAuthMethod) (SessionExecutor, connprofile.SSHAuthMethod, error) {
+	obs := &authObserver{}
+	methods, merr := buildAuthMethods(cred, prefer, obs)
 	if merr != nil {
-		return nil, merr
+		return nil, "", merr
 	}
 	cfg := &ssh.ClientConfig{
 		User:    cred.Username,
@@ -213,9 +253,34 @@ func (realDialer) Dial(_ context.Context, cred *credential.Credential, addr stri
 
 	client, derr := ssh.Dial("tcp", addr, cfg)
 	if derr != nil {
-		return nil, derr
+		return nil, "", derr
 	}
-	return &realSession{client: client}, nil
+	// obs.Last() is the method that authenticated (single-factor: the
+	// client stops at the first accepted method). "" when nothing fired.
+	return &realSession{client: client}, obs.Last(), nil
+}
+
+// authObserver records which auth-method callback last fired during a
+// handshake. For OpenWatch's single-factor model the client stops at the
+// first accepted method, so the last-attempted method after a SUCCESSFUL
+// handshake is the one that authenticated. Mirrors internal/ssh's observer
+// (kept local so this package stays decoupled from the scan dial path,
+// which pins host keys — see the package doc).
+type authObserver struct {
+	mu   sync.Mutex
+	last connprofile.SSHAuthMethod
+}
+
+func (o *authObserver) note(m connprofile.SSHAuthMethod) {
+	o.mu.Lock()
+	o.last = m
+	o.mu.Unlock()
+}
+
+func (o *authObserver) Last() connprofile.SSHAuthMethod {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.last
 }
 
 // buildAuthMethods translates the resolved credential into the ssh
@@ -226,35 +291,71 @@ func (realDialer) Dial(_ context.Context, cred *credential.Credential, addr stri
 // for AuthBoth was the dialer bug behind the post-v1.2.0 regression
 // where the probe never made it past handshake on password-fallback
 // hosts.
-func buildAuthMethods(cred *credential.Credential) ([]ssh.AuthMethod, error) {
-	switch cred.AuthMethod {
-	case credential.AuthSSHKey:
+//
+// prefer reorders the AuthBoth list to lead with the host's learned
+// method; both methods stay offered (a hint, not a lock). Each method is
+// wrapped so obs records which one authenticated.
+func buildAuthMethods(cred *credential.Credential, prefer connprofile.SSHAuthMethod, obs *authObserver) ([]ssh.AuthMethod, error) {
+	mkKey := func() (ssh.AuthMethod, error) {
 		signer, perr := parseSigner(cred)
 		if perr != nil {
 			return nil, perr
 		}
-		return []ssh.AuthMethod{ssh.PublicKeys(signer)}, nil
+		return ssh.PublicKeysCallback(func() ([]ssh.Signer, error) {
+			obs.note(connprofile.AuthKey)
+			return []ssh.Signer{signer}, nil
+		}), nil
+	}
+	mkPassword := func() ssh.AuthMethod {
+		pw := cred.Password
+		return ssh.PasswordCallback(func() (string, error) {
+			obs.note(connprofile.AuthPassword)
+			return pw, nil
+		})
+	}
+
+	switch cred.AuthMethod {
+	case credential.AuthSSHKey:
+		keyM, perr := mkKey()
+		if perr != nil {
+			return nil, perr
+		}
+		return []ssh.AuthMethod{keyM}, nil
 	case credential.AuthPassword:
-		return []ssh.AuthMethod{ssh.Password(cred.Password)}, nil
+		return []ssh.AuthMethod{mkPassword()}, nil
 	case credential.AuthBoth:
-		var methods []ssh.AuthMethod
+		var keyM, pwM ssh.AuthMethod
 		if cred.PrivateKey != "" {
-			signer, perr := parseSigner(cred)
+			k, perr := mkKey()
 			if perr != nil {
 				return nil, perr
 			}
-			methods = append(methods, ssh.PublicKeys(signer))
+			keyM = k
 		}
 		if cred.Password != "" {
-			methods = append(methods, ssh.Password(cred.Password))
+			pwM = mkPassword()
 		}
-		if len(methods) == 0 {
+		if keyM == nil && pwM == nil {
 			return nil, fmt.Errorf("auth method 'both' but credential carries neither key nor password")
 		}
-		return methods, nil
+		if prefer == connprofile.AuthPassword {
+			return compactMethods(pwM, keyM), nil
+		}
+		return compactMethods(keyM, pwM), nil
 	default:
 		return nil, fmt.Errorf("unknown auth method %q", cred.AuthMethod)
 	}
+}
+
+// compactMethods drops nil entries, preserving order.
+func compactMethods(ms ...ssh.AuthMethod) []ssh.AuthMethod {
+	out := make([]ssh.AuthMethod, 0, len(ms))
+	for _, m := range ms {
+		if m != nil {
+			out = append(out, m)
+		}
+	}
+	return out
 }
 
 type realSession struct {
