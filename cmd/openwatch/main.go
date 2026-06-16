@@ -34,6 +34,7 @@ import (
 
 	"github.com/Hanalyx/openwatch/internal/db"
 	"github.com/Hanalyx/openwatch/internal/db/migrations"
+	"github.com/Hanalyx/openwatch/internal/dbbackup"
 	"github.com/Hanalyx/openwatch/internal/eventbus"
 	"github.com/Hanalyx/openwatch/internal/exception"
 	"github.com/Hanalyx/openwatch/internal/group"
@@ -646,15 +647,36 @@ func parseLogLevel(s string) slog.Level {
 	}
 }
 
-// cmdMigrate connects to the configured database, runs goose Up for every
-// pending migration, and prints the resulting version.
-func cmdMigrate(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
+// cmdMigrate connects to the configured database and runs goose Up for
+// every pending migration.
+//
+// Flags:
+//
+//	--status            report the current version + whether migrations are
+//	                    pending, WITHOUT applying anything (used by the
+//	                    package upgrade scriptlet and by operators).
+//	--backup-dir <dir>  pg_dump to <dir> as a restore point BEFORE applying.
+//	                    Skipped when the DB has no schema yet (fresh install,
+//	                    nothing to back up). If the backup fails the command
+//	                    fails WITHOUT migrating — we never migrate without the
+//	                    restore point we promised.
+func cmdMigrate(cfg *config.Config, args []string, stdout, stderr *os.File) int {
+	fs := flag.NewFlagSet("migrate", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	backupDir := fs.String("backup-dir", "", "pg_dump to this directory before applying (skipped when the DB has no schema yet)")
+	statusOnly := fs.Bool("status", false, "report current version + pending count without applying")
+	if err := fs.Parse(args); err != nil {
+		return 1
+	}
+
 	if err := cfg.Validate(); err != nil {
 		fmt.Fprintf(stderr, "openwatch migrate: invalid config:\n%v\n", err)
 		return 1
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	// Generous timeout: a pg_dump of a large DB before migrating can take
+	// minutes; this is an operator/scriptlet command, not a hot path.
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 
 	pool, err := db.NewPool(ctx, cfg.Database.DSN, cfg.Database.MaxConnections)
@@ -664,23 +686,47 @@ func cmdMigrate(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 	}
 	defer pool.Close()
 
+	curr, files, err := migrations.Status(ctx, pool)
+	if err != nil {
+		fmt.Fprintf(stderr, "openwatch migrate: status: %v\n", err)
+		return 1
+	}
+	total := len(files)
+
+	if *statusOnly {
+		fmt.Fprintf(stdout, "current version: %d\n", curr)
+		if int(curr) >= total {
+			fmt.Fprintln(stdout, "up to date — no migrations pending")
+		} else {
+			fmt.Fprintf(stdout, "PENDING: %d migration(s) not yet applied — run `openwatch migrate`\n", total-int(curr))
+		}
+		return 0
+	}
+
+	// Restore point before applying — only when a schema already exists; a
+	// fresh DB (curr == 0) has nothing to dump. Fail closed on backup error.
+	if *backupDir != "" && curr > 0 {
+		stamp := time.Now().UTC().Format("20060102T150405Z")
+		path, berr := dbbackup.Run(ctx, cfg.Database.DSN, *backupDir, version.Version, stamp)
+		if berr != nil {
+			fmt.Fprintf(stderr, "openwatch migrate: backup failed, refusing to migrate: %v\n", berr)
+			return 1
+		}
+		fmt.Fprintf(stdout, "backed up to %s\n", path)
+	}
+
 	fmt.Fprintf(stdout, "applying migrations against %s ...\n", config.RedactDSN(cfg.Database.DSN))
 	if err := migrations.Apply(ctx, pool); err != nil {
 		fmt.Fprintf(stderr, "openwatch migrate: %v\n", err)
 		return 1
 	}
 
-	version, files, err := migrations.Status(ctx, pool)
+	newVer, _, err := migrations.Status(ctx, pool)
 	if err != nil {
 		fmt.Fprintf(stderr, "openwatch migrate: status: %v\n", err)
 		return 1
 	}
-	fmt.Fprintf(stdout, "  current version: %d\n", version)
-	fmt.Fprintf(stdout, "  migration files: %d\n", len(files))
-	for _, name := range files {
-		fmt.Fprintf(stdout, "    - %s\n", name)
-	}
-	fmt.Fprintln(stdout, "migrations applied")
+	fmt.Fprintf(stdout, "migrations applied — version %d -> %d\n", curr, newVer)
 	return 0
 }
 
@@ -792,6 +838,8 @@ subcommands:
   serve         run the HTTPS API server (default)
   worker        run the scan-job claimer/dispatcher loop
   migrate       apply pending goose migrations
+                  --status            report version + pending count, don't apply
+                  --backup-dir <dir>  pg_dump a restore point before applying
   create-admin  create the first admin user (requires --username --email --password)
   check-config  validate and print resolved config
 
