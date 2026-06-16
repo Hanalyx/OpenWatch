@@ -878,6 +878,7 @@ docs/*
 !docs/.gitkeep
 !docs/README.md
 !docs/INTRODUCTION.md
+!docs/LINUX_DISTRIBUTION_SUPPORT.md
 !docs/guides/
 !docs/architecture/
 !docs/api/

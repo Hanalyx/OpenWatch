@@ -27,6 +27,7 @@ Start here: [Introduction](INTRODUCTION.md) | [Quickstart](guides/QUICKSTART.md)
 | Document | Description |
 |----------|-------------|
 | [Scanning and Compliance](guides/SCANNING_AND_COMPLIANCE.md) | Run scans, read posture scores, detect drift, manage alerts |
+| [Linux Distribution Support](LINUX_DISTRIBUTION_SUPPORT.md) | Which distros work for the server and for scanned hosts — scanning is RHEL-family today (Kensa corpus v0.4.3); non-RHEL hosts are inventory-only |
 | [Hosts and Remediation](guides/HOSTS_AND_REMEDIATION.md) | Add hosts, configure credentials, remediate findings, rollback |
 | [User Roles](guides/USER_ROLES.md) | 6 roles, 33 permissions, workflows per role |
 | [API Guide](guides/API_GUIDE.md) | REST API reference for automation and CI/CD integration |
