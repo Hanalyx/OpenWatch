@@ -7,6 +7,7 @@ if [ "$1" = "remove" ] || [ "$1" = "purge" ]; then
     if command -v systemctl >/dev/null 2>&1; then
         systemctl stop openwatch.service >/dev/null 2>&1 || :
         systemctl disable openwatch.service >/dev/null 2>&1 || :
+        systemctl disable --now openwatch-backup-cleanup.timer >/dev/null 2>&1 || :
     fi
 fi
 
