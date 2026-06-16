@@ -944,7 +944,11 @@ Thumbs.db
 coverage.html
 coverage.txt
 
-# Transient specter run output (frontend); root .specter-results.json is tracked intentionally
+# Transient specter run output. CI regenerates these from a real
+# go test -json + vitest JUnit run (specter ingest), so a committed copy is
+# never consumed by the gate — it only goes stale and produces misleading
+# local `specter coverage` reports. Both are ignored.
+.specter-results.json
 frontend/.specter-results.json
 
 # Local dev bootstrap state (scripts/openwatch.sh)
