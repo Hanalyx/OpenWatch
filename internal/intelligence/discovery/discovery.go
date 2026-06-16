@@ -149,6 +149,17 @@ type PolicyLoader interface {
 	LoadSecurity(ctx context.Context) (systemconfig.SecurityConfig, error)
 }
 
+// SudoProfileStore is the subset of connprofile the discovery service
+// uses to learn the host's SUDO mode for the firewall probe: lead with
+// the recorded mode and record the mode a sudo firewall command confirms.
+// nil disables sudo-mode learning. (SSH auth-method learning is handled
+// separately by the profile-aware transport.) Spec system-connection-
+// profile v1.2.0.
+type SudoProfileStore interface {
+	Get(ctx context.Context, hostID uuid.UUID) (connprofile.Profile, error)
+	RecordSudoMode(ctx context.Context, hostID uuid.UUID, m connprofile.SudoMode) error
+}
+
 type Service struct {
 	pool      *pgxpool.Pool
 	credSvc   *credential.Service
@@ -157,6 +168,7 @@ type Service struct {
 	lookup    HostLookup
 	transport SSHTransport
 	policy    PolicyLoader
+	profiles  SudoProfileStore
 }
 
 // NewService constructs a Service. emit + bus may be nil — Discover
@@ -200,6 +212,15 @@ func (s *Service) WithHostLookup(h HostLookup) *Service {
 // behaves exactly as in v1.1.0.
 func (s *Service) WithPolicyLoader(p PolicyLoader) *Service {
 	s.policy = p
+	return s
+}
+
+// WithProfiles enables per-host sudo-mode learning for the firewall probe:
+// lead with the host's recorded sudo mode and record the mode a sudo
+// firewall command confirms. nil (the default) keeps the historical
+// sudo -n-first probing. Spec system-connection-profile v1.2.0 C-07.
+func (s *Service) WithProfiles(p SudoProfileStore) *Service {
+	s.profiles = p
 	return s
 }
 
@@ -340,9 +361,24 @@ func (s *Service) discoverWithTransport(ctx context.Context, hf hostFacts) (Syst
 			cfg.policy = sec
 		}
 	}
-	if svc, status, ok := probeFirewall(ctx, sess, cfg); ok {
+	// Sudo-mode learning: lead the firewall probe with the host's recorded
+	// mode, and record the mode a sudo command confirms. Best-effort — a
+	// lookup miss leads in the default order. Spec system-connection-
+	// profile v1.2.0 C-07.
+	var knownSudo connprofile.SudoMode
+	if s.profiles != nil {
+		if p, perr := s.profiles.Get(ctx, hf.HostID); perr == nil {
+			knownSudo = p.SudoMode
+			cfg.prefer = knownSudo
+		}
+	}
+	svc, status, learnedSudo, ok := probeFirewall(ctx, sess, cfg)
+	if ok {
 		facts.FirewallService = svc
 		facts.FirewallStatus = status
+	}
+	if s.profiles != nil && learnedSudo != connprofile.SudoUnknown && learnedSudo != knownSudo {
+		_ = s.profiles.RecordSudoMode(ctx, hf.HostID, learnedSudo)
 	}
 
 	return facts, nil

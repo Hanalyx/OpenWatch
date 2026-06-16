@@ -1,7 +1,7 @@
 spec:
   id: system-connection-profile
   title: Per-host SSH connection learning (auth method + sudo mode)
-  version: "1.1.0"
+  version: "1.2.0"
   status: approved
   tier: 2
 
@@ -41,12 +41,18 @@ spec:
           (collector), and liveness privilege-probe paths (v1.1.0) — each
           leads the dial with the host's recorded method and records what
           authenticated via the shared connprofile store
+        - Sudo-mode learning wired into those same three paths (v1.2.0) —
+          each leads sudo with the host's recorded mode and records the
+          mode confirmed to work. The liveness probe is the authoritative
+          learner (innocuous `true` sentinel every cycle); discovery and
+          collector learn opportunistically from their real sudo commands
+          (only a confirmed exit-0 records a mode, never a misobservation)
       excludes:
         - Settings UI/API to toggle the kill-switch (DB-only for now)
-        - sudo-mode (NOPASSWD vs password) learning for the discovery,
-          intelligence, and liveness paths — those still probe sudo mode each
-          cycle; only the SSH auth-method dimension is wired for them so far
-          (the compliance scan learns both)
+        - A dedicated `true`-sentinel sudo probe in discovery/collector —
+          they reuse their existing real sudo commands rather than adding a
+          round-trip, deferring to the liveness probe for authoritative
+          confirmation (system-connection-profile C-04 binds only the scan)
 
   constraints:
     - id: C-01
@@ -71,6 +77,10 @@ spec:
       enforcement: error
     - id: C-06
       description: The OS discovery, OS intelligence (collector), and liveness privilege-probe paths MUST lead the SSH dial with the host's recorded auth method and record the method that authenticated, using the shared connprofile store. This learning MUST be best-effort — a missing host id, an absent profile row, or a store error MUST dial in the default order and MUST NOT fail the connection.
+      type: technical
+      enforcement: error
+    - id: C-07
+      description: The OS discovery, OS intelligence (collector), and liveness privilege-probe paths MUST lead sudo with the host's recorded sudo mode (leading with `sudo -S` only when the mode is password AND the credential password may be fed per C-05's gate) and MUST record the mode confirmed to work. To avoid misrecording, a mode MUST be recorded ONLY on a confirmed exit-0 of a given sudo form — never inferred from a command that exited non-zero for its own reasons. Learning MUST be best-effort and MUST NOT change the sudo password gate (C-05) or fail the connection on a store miss/error.
       type: technical
       enforcement: error
 
@@ -111,3 +121,15 @@ spec:
       description: The liveness privilege probe, when WithProfiles is set, leads the dial with the host's recorded SSH auth method and records the method that authenticated; with no profile store wired it passes no preference and records nothing. A profile lookup error is non-fatal (dials in the default order).
       priority: high
       references_constraints: [C-06]
+    - id: AC-10
+      description: ssh.RunSudo reports the sudo mode OBSERVED to work — SudoNopasswd when `sudo -n` exits 0, SudoPassword when `sudo -S` exits 0, and empty otherwise (never a misobservation from a command that failed for its own reasons). When told prefer=SudoPassword and the password gate is satisfied it leads with `sudo -S`, issuing zero `sudo -n` calls; a stale password preference self-heals by falling back to `sudo -n`. This is the shared primitive the collector threads (lead with the recorded mode, record the confirmed mode once per cycle).
+      priority: critical
+      references_constraints: [C-07]
+    - id: AC-11
+      description: The discovery firewall probe leads its sudo firewall commands with the host's recorded sudo mode and opportunistically records the mode a sudo command confirms (SudoUnknown when none answered via sudo — e.g. a sudoless firewalld host); recording is skipped when the confirmed mode equals the stored one.
+      priority: high
+      references_constraints: [C-07]
+    - id: AC-12
+      description: The liveness privilege probe records the sudo mode it confirms via the `true` sentinel (the authoritative learner, run every cycle), and on a host recorded as needing a password it leads with `sudo -S` (zero `sudo -n` calls); a confirmed mode equal to the stored one is not re-recorded.
+      priority: high
+      references_constraints: [C-07]

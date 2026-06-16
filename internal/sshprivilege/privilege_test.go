@@ -408,22 +408,31 @@ func TestPrivilegeProbe_NoFallbackOnSudoNSuccess(t *testing.T) {
 
 // stubProfiles is an in-memory connprofile store for the learning tests.
 type stubProfiles struct {
-	mu       sync.Mutex
-	prefer   connprofile.SSHAuthMethod
-	recorded connprofile.SSHAuthMethod
-	getErr   error
+	mu           sync.Mutex
+	prefer       connprofile.SSHAuthMethod
+	preferSudo   connprofile.SudoMode
+	recorded     connprofile.SSHAuthMethod
+	recordedSudo connprofile.SudoMode
+	getErr       error
 }
 
 func (s *stubProfiles) Get(_ context.Context, _ uuid.UUID) (connprofile.Profile, error) {
 	if s.getErr != nil {
 		return connprofile.Profile{}, s.getErr
 	}
-	return connprofile.Profile{SSHAuthMethod: s.prefer}, nil
+	return connprofile.Profile{SSHAuthMethod: s.prefer, SudoMode: s.preferSudo}, nil
 }
 
 func (s *stubProfiles) RecordSSHAuth(_ context.Context, _ uuid.UUID, m connprofile.SSHAuthMethod) error {
 	s.mu.Lock()
 	s.recorded = m
+	s.mu.Unlock()
+	return nil
+}
+
+func (s *stubProfiles) RecordSudoMode(_ context.Context, _ uuid.UUID, m connprofile.SudoMode) error {
+	s.mu.Lock()
+	s.recordedSudo = m
 	s.mu.Unlock()
 	return nil
 }
@@ -468,6 +477,60 @@ func TestPrivilegeProbe_AuthLearning(t *testing.T) {
 		}
 		if dialer.gotPrefer != "" {
 			t.Errorf("no-store: want empty prefer, got %q", dialer.gotPrefer)
+		}
+	})
+}
+
+// @spec system-connection-profile
+// @ac AC-12
+// AC-12 (liveness sudo): the probe records the sudo mode it confirms via
+// the `true` sentinel, and on a host known to need a password it leads
+// with sudo -S, skipping the doomed sudo -n.
+func TestPrivilegeProbe_SudoModeLearning(t *testing.T) {
+	t.Run("system-connection-profile/AC-12", func(t *testing.T) {
+		hostID := liveness.HostID(uuid.Must(uuid.NewV7()).String())
+		// NOPASSWD host: sudo -n true succeeds → record nopasswd.
+		exec := &stubExec{outcomes: map[string]execResult{"sudo -n true": {code: 0}}}
+		profiles := &stubProfiles{}
+
+		probe := Probe(
+			stubResolver{cred: validCred()},
+			WithPolicyLoader(stubPolicy{cfg: systemconfig.SecurityConfig{AllowCredentialSudoPassword: true}}),
+			WithDialer(&stubDialer{exec: exec}),
+			WithProfiles(profiles),
+		)
+		if _, ok, err := probe(context.Background(), hostID, "192.0.2.1:22", 2*time.Second); !ok {
+			t.Fatalf("ok: want true, got false; err=%v", err)
+		}
+		if profiles.recordedSudo != connprofile.SudoNopasswd {
+			t.Errorf("record: want sudo mode=nopasswd, got %q", profiles.recordedSudo)
+		}
+	})
+
+	t.Run("known password host leads with sudo -S", func(t *testing.T) {
+		hostID := liveness.HostID(uuid.Must(uuid.NewV7()).String())
+		// Only sudo -S succeeds; sudo -n is NOT seeded (would be exit 1).
+		exec := &stubExec{outcomes: map[string]execResult{"sudo -S -k -p '' true": {code: 0}}}
+		profiles := &stubProfiles{preferSudo: connprofile.SudoPassword}
+
+		probe := Probe(
+			stubResolver{cred: validCred()},
+			WithPolicyLoader(stubPolicy{cfg: systemconfig.SecurityConfig{AllowCredentialSudoPassword: true}}),
+			WithDialer(&stubDialer{exec: exec}),
+			WithProfiles(profiles),
+		)
+		if _, ok, err := probe(context.Background(), hostID, "192.0.2.1:22", 2*time.Second); !ok {
+			t.Fatalf("ok: want true, got false; err=%v", err)
+		}
+		// Led with sudo -S: no sudo -n call recorded, and mode stays
+		// password (already known, no re-record needed).
+		for _, c := range exec.calls {
+			if c.cmd == "sudo -n true" {
+				t.Errorf("led with sudo -n on a known password host: %+v", exec.calls)
+			}
+		}
+		if profiles.recordedSudo != "" {
+			t.Errorf("re-record: want none (mode unchanged), got %q", profiles.recordedSudo)
 		}
 	})
 }

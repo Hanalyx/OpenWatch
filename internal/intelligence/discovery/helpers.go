@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/Hanalyx/openwatch/internal/connprofile"
 	"github.com/Hanalyx/openwatch/internal/credential"
 	"github.com/Hanalyx/openwatch/internal/systemconfig"
 )
@@ -99,6 +100,11 @@ func parseGB(s string) int {
 type sudoFallbackConfig struct {
 	policy systemconfig.SecurityConfig
 	cred   *credential.Credential
+	// prefer is the host's learned sudo mode. When connprofile.SudoPassword
+	// AND the fallback is permitted, runSudoWithFallback leads with
+	// `sudo -S` and skips the doomed `sudo -n` round-trip. Spec
+	// system-connection-profile v1.2.0 C-07.
+	prefer connprofile.SudoMode
 }
 
 // canFallback returns true iff (a) the policy allows the credential
@@ -124,18 +130,44 @@ func (c sudoFallbackConfig) canFallback() bool {
 // reattempts on a failed retry (-k invalidates the host's sudo
 // timestamp cache so a wrong password trips pam once, not three
 // times). Spec C-11 / AC-17.
-func runSudoWithFallback(ctx context.Context, sess SSHSession, sudoCmd string, cfg sudoFallbackConfig) ([]byte, int, error) {
-	out, code, err := sess.Run(ctx, "sudo -n "+sudoCmd)
+// The returned observed is the sudo mode confirmed to work this call
+// (connprofile.SudoNopasswd / SudoPassword on an exit-0 of a given form,
+// SudoUnknown otherwise — never a misobservation from a command that
+// failed for its own reasons).
+func runSudoWithFallback(ctx context.Context, sess SSHSession, sudoCmd string, cfg sudoFallbackConfig) (out []byte, code int, observed connprofile.SudoMode, err error) {
+	// Lead with `sudo -S` when the host is known to need a password and the
+	// fallback is permitted — skips the doomed `sudo -n`. Both forms are
+	// still attempted on a miss (a hint, not a lock), so a stale mode
+	// self-heals.
+	if cfg.prefer == connprofile.SudoPassword && cfg.canFallback() {
+		pw := append([]byte(cfg.cred.Password), '\n')
+		o, c, e := sess.RunWithStdin(ctx, "sudo -S -k -p '' "+sudoCmd, pw)
+		if e == nil && c == 0 {
+			return o, c, connprofile.SudoPassword, nil
+		}
+		// sudo -S did not confirm; the host may have gained NOPASSWD.
+		o2, c2, e2 := sess.Run(ctx, "sudo -n "+sudoCmd)
+		if e2 == nil && c2 == 0 {
+			return o2, c2, connprofile.SudoNopasswd, nil
+		}
+		return o, c, connprofile.SudoUnknown, e
+	}
+
+	out, code, err = sess.Run(ctx, "sudo -n "+sudoCmd)
 	if err == nil && code == 0 {
-		return out, code, nil
+		return out, code, connprofile.SudoNopasswd, nil
 	}
 	if !cfg.canFallback() {
-		return out, code, err
+		return out, code, connprofile.SudoUnknown, err
 	}
 	// Pipe the password (with a trailing newline so sudo flushes
 	// the line) into the remote process's stdin.
 	pw := append([]byte(cfg.cred.Password), '\n')
-	return sess.RunWithStdin(ctx, "sudo -S -k -p '' "+sudoCmd, pw)
+	fOut, fCode, fErr := sess.RunWithStdin(ctx, "sudo -S -k -p '' "+sudoCmd, pw)
+	if fErr == nil && fCode == 0 {
+		return fOut, fCode, connprofile.SudoPassword, nil
+	}
+	return fOut, fCode, connprofile.SudoUnknown, fErr
 }
 
 // probeFirewall tries each known firewall service in order. The first
@@ -148,28 +180,47 @@ func runSudoWithFallback(ctx context.Context, sess SSHSession, sudoCmd string, c
 // the policy permits retries through `sudo -S -k -p ” <cmd>` before
 // the probe falls through to the next firewall. Spec
 // system-ssh-connectivity v1.2.0 C-09 / AC-20.
-func probeFirewall(ctx context.Context, sess SSHSession, cfg sudoFallbackConfig) (service, status string, ok bool) {
+//
+// The returned learned is the sudo mode opportunistically confirmed by a
+// sudo firewall command (SudoUnknown when none answered via sudo — e.g.
+// a sudoless firewalld host, or one with no firewall tool). Spec
+// system-connection-profile v1.2.0 C-07 / AC-11.
+func probeFirewall(ctx context.Context, sess SSHSession, cfg sudoFallbackConfig) (service, status string, learned connprofile.SudoMode, ok bool) {
+	// note records the strongest confirmation a sudo attempt produced.
+	note := func(observed connprofile.SudoMode) {
+		if observed != connprofile.SudoUnknown {
+			learned = observed
+		}
+	}
 	// firewalld via systemctl is sudoless on many distros.
 	if out, code, err := sess.Run(ctx, "systemctl is-active firewalld"); err == nil && code == 0 {
-		return "firewalld", strings.TrimSpace(string(out)), true
+		return "firewalld", strings.TrimSpace(string(out)), learned, true
 	}
 	// ufw — Debian / Ubuntu. Needs sudo on most distros for `status`.
-	if out, code, err := runSudoWithFallback(ctx, sess, "ufw status", cfg); err == nil && code == 0 {
-		return "ufw", firstWord(string(out)), true
+	out, code, observed, err := runSudoWithFallback(ctx, sess, "ufw status", cfg)
+	note(observed)
+	if err == nil && code == 0 {
+		return "ufw", firstWord(string(out)), learned, true
 	}
 	// nftables.
-	if _, code, err := runSudoWithFallback(ctx, sess, "nft list ruleset", cfg); err == nil && code == 0 {
-		return "nftables", "active", true
+	_, code, observed, err = runSudoWithFallback(ctx, sess, "nft list ruleset", cfg)
+	note(observed)
+	if err == nil && code == 0 {
+		return "nftables", "active", learned, true
 	}
 	// iptables fallback.
-	if _, code, err := runSudoWithFallback(ctx, sess, "iptables -L", cfg); err == nil && code == 0 {
-		return "iptables", "active", true
+	_, code, observed, err = runSudoWithFallback(ctx, sess, "iptables -L", cfg)
+	note(observed)
+	if err == nil && code == 0 {
+		return "iptables", "active", learned, true
 	}
 	// firewall-cmd as last resort (RHEL).
-	if out, code, err := runSudoWithFallback(ctx, sess, "firewall-cmd --state", cfg); err == nil && code == 0 {
-		return "firewalld", strings.TrimSpace(string(out)), true
+	out, code, observed, err = runSudoWithFallback(ctx, sess, "firewall-cmd --state", cfg)
+	note(observed)
+	if err == nil && code == 0 {
+		return "firewalld", strings.TrimSpace(string(out)), learned, true
 	}
-	return "", "", false
+	return "", "", learned, false
 }
 
 func firstWord(s string) string {
