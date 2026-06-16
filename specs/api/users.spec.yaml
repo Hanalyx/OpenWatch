@@ -1,7 +1,7 @@
 spec:
   id: api-users
   title: User CRUD + custom-role administration
-  version: "1.0.0"
+  version: "1.1.0"
   status: approved
   tier: 2
 
@@ -54,6 +54,10 @@ spec:
       description: Custom role id MUST NOT collide with a built-in role id (viewer | auditor | ops_lead | security_admin | admin); collision ⇒ 409
       type: security
       enforcement: error
+    - id: C-05
+      description: POST /users/{id}/roles:assign MUST NOT let a caller grant a role more privileged than themselves. The assigned role's permission set MUST be a subset of the assigning caller's own permissions; otherwise the request is denied 403 and no role is assigned. This prevents privilege escalation via role assignment (mirrors the api-tokens C-03 rule; both use auth.RoleGrantsWithin).
+      type: security
+      enforcement: error
 
   acceptance_criteria:
     - id: AC-01
@@ -100,3 +104,7 @@ spec:
       description: POST /roles with id="admin" (built-in collision) returns 409 with error.code = "users.role_id_taken"; POST /roles with an unknown permission returns 400 with error.code = "users.unknown_permission" and detail.invalid_permissions listing them.
       priority: critical
       references_constraints: [C-03, C-04]
+    - id: AC-13
+      description: POST /users/{id}/roles:assign applies the auth.RoleGrantsWithin subset check before assigning — assigning a role within the caller's grant returns 204, and a role whose permissions exceed the caller's is denied 403 with no row written. (Only the admin role currently holds role:assign, and admin's grant covers every role, so the exceeds-grant denial is asserted directly on auth.RoleGrantsWithin; it becomes reachable if a non-admin role is ever granted role:assign.)
+      priority: critical
+      references_constraints: [C-05]

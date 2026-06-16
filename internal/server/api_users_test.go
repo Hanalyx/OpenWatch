@@ -465,3 +465,25 @@ func TestUsers_CreateCustomRole_Conflicts(t *testing.T) {
 		}
 	})
 }
+
+// @ac AC-13
+// AC-13: role assignment must not escalate. A caller may not grant a role
+// whose permissions exceed their own. Only the admin role currently holds
+// role:assign (and admin's grant covers every role), so the exceeds-grant
+// denial is asserted directly on the shared auth.RoleGrantsWithin primitive
+// the handler uses; the within-grant 204 path is covered by AC-08.
+func TestUsers_RoleAssignNoEscalation(t *testing.T) {
+	t.Run("api-users/AC-13", func(t *testing.T) {
+		secAdmin := auth.Identity{RoleID: auth.RoleSecurityAdmin}
+		if auth.RoleGrantsWithin(secAdmin, auth.RoleAdmin) {
+			t.Error("security_admin assigning role_id=admin must be denied (privilege escalation)")
+		}
+		admin := auth.Identity{RoleID: auth.RoleAdmin}
+		if !auth.RoleGrantsWithin(admin, auth.RoleSecurityAdmin) {
+			t.Error("admin assigning role_id=security_admin must be allowed (within grant)")
+		}
+		if !auth.RoleGrantsWithin(admin, auth.RoleAdmin) {
+			t.Error("admin assigning role_id=admin must be allowed")
+		}
+	})
+}
