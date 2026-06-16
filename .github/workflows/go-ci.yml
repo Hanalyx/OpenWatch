@@ -208,7 +208,7 @@ jobs:
         if: steps.paths.outputs.go == 'true'
         run: |
           set +e
-          go test -race -json -timeout 600s -p 1 ./... > /tmp/go-test.json
+          go test -race -json -timeout 600s -p 4 ./... > /tmp/go-test.json
           EXIT=$?
           if [ "$EXIT" -ne 0 ]; then
             echo "::group::Failed tests"

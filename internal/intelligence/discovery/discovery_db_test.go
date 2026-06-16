@@ -8,43 +8,23 @@ package discovery
 
 import (
 	"context"
-	"os"
 	"testing"
 	"time"
 
 	"github.com/Hanalyx/openwatch/internal/credential"
-	"github.com/Hanalyx/openwatch/internal/db"
-	"github.com/Hanalyx/openwatch/internal/db/migrations"
+	"github.com/Hanalyx/openwatch/internal/db/dbtest"
 	"github.com/Hanalyx/openwatch/internal/identity"
 	"github.com/Hanalyx/openwatch/internal/secretkey"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func discoveryTestDSN(t *testing.T) string {
-	t.Helper()
-	dsn := os.Getenv("OPENWATCH_TEST_DSN")
-	if dsn == "" {
-		t.Skip("set OPENWATCH_TEST_DSN to run discovery integration tests")
-	}
-	return dsn
-}
-
 // freshDBHost spins up a clean DB, seeds a user + host + a host-scope
 // SSH credential, and returns the host id + a usable credential.Service.
 func freshDBHost(t *testing.T) (*pgxpool.Pool, uuid.UUID, *credential.Service) {
 	t.Helper()
-	dsn := discoveryTestDSN(t)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	t.Cleanup(cancel)
-	pool, err := db.NewPool(ctx, dsn, 5)
-	if err != nil {
-		t.Fatalf("NewPool: %v", err)
-	}
-	t.Cleanup(pool.Close)
-	if err := migrations.Apply(ctx, pool); err != nil {
-		t.Fatalf("migrations.Apply: %v", err)
-	}
+	pool := dbtest.Pool(t)
+	ctx := context.Background()
 	if err := secretkey.SetEphemeral(); err != nil {
 		t.Fatalf("SetEphemeral: %v", err)
 	}
@@ -54,7 +34,7 @@ func freshDBHost(t *testing.T) (*pgxpool.Pool, uuid.UUID, *credential.Service) {
 
 	createdBy, _ := uuid.NewV7()
 	hash, _ := identity.HashPassword("seed-pw-12345-aa")
-	_, err = pool.Exec(ctx,
+	_, err := pool.Exec(ctx,
 		`INSERT INTO users (id, username, email, password_hash) VALUES ($1, $2, $3, $4)`,
 		createdBy, "disc-creator", "disc@example.com", hash)
 	if err != nil {

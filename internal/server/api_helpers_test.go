@@ -22,8 +22,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/auth"
 	"github.com/Hanalyx/openwatch/internal/config"
 	"github.com/Hanalyx/openwatch/internal/credential"
-	"github.com/Hanalyx/openwatch/internal/db"
-	"github.com/Hanalyx/openwatch/internal/db/migrations"
+	"github.com/Hanalyx/openwatch/internal/db/dbtest"
 	"github.com/Hanalyx/openwatch/internal/exception"
 	"github.com/Hanalyx/openwatch/internal/group"
 	"github.com/Hanalyx/openwatch/internal/identity"
@@ -127,19 +126,16 @@ func doGet(t *testing.T, url string) *http.Response {
 // the underlying pool for assertions.
 func freshAPIServer(t *testing.T) (string, *pgxpool.Pool) {
 	t.Helper()
-	dsn := apiTestDSN(t)
+	// Safety gate: refuse a non-test DSN before we create or touch any DB.
+	// dbtest.Pool gives this package its own isolated, migrated database
+	// (so -p N parallel packages never share tables), but the gate still
+	// guards against pointing OPENWATCH_TEST_DSN at a dev/prod server.
+	_ = apiTestDSN(t)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	t.Cleanup(cancel)
 
-	pool, err := db.NewPool(ctx, dsn, 5)
-	if err != nil {
-		t.Fatalf("NewPool: %v", err)
-	}
-	t.Cleanup(pool.Close)
-	if err := migrations.Apply(ctx, pool); err != nil {
-		t.Fatalf("migrations.Apply: %v", err)
-	}
+	pool := dbtest.Pool(t)
 	_, _ = pool.Exec(ctx, "TRUNCATE TABLE audit_events")
 	_, _ = pool.Exec(ctx, "TRUNCATE TABLE idempotency_keys")
 	_, _ = pool.Exec(ctx, "TRUNCATE TABLE system_config")

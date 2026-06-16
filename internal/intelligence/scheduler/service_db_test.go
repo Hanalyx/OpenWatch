@@ -12,40 +12,20 @@ package scheduler
 import (
 	"context"
 	"errors"
-	"os"
 	"testing"
 	"time"
 
-	"github.com/Hanalyx/openwatch/internal/db"
-	"github.com/Hanalyx/openwatch/internal/db/migrations"
+	"github.com/Hanalyx/openwatch/internal/db/dbtest"
 	"github.com/Hanalyx/openwatch/internal/identity"
 	"github.com/Hanalyx/openwatch/internal/systemconfig"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func schedulerTestDSN(t *testing.T) string {
-	t.Helper()
-	dsn := os.Getenv("OPENWATCH_TEST_DSN")
-	if dsn == "" {
-		t.Skip("set OPENWATCH_TEST_DSN to run scheduler integration tests")
-	}
-	return dsn
-}
-
 func freshDBScheduler(t *testing.T) *pgxpool.Pool {
 	t.Helper()
-	dsn := schedulerTestDSN(t)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	t.Cleanup(cancel)
-	pool, err := db.NewPool(ctx, dsn, 5)
-	if err != nil {
-		t.Fatalf("NewPool: %v", err)
-	}
-	t.Cleanup(pool.Close)
-	if err := migrations.Apply(ctx, pool); err != nil {
-		t.Fatalf("migrations.Apply: %v", err)
-	}
+	pool := dbtest.Pool(t)
+	ctx := context.Background()
 	// CASCADE: hosts is referenced by 11 child tables (alerts,
 	// credentials, host_backoff_state, host_compliance_schedule,
 	// host_intelligence_*, host_liveness, host_monitoring_history,

@@ -13,7 +13,6 @@ package kensa
 
 import (
 	"context"
-	"os"
 	"testing"
 	"time"
 
@@ -21,8 +20,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/Hanalyx/openwatch/internal/audit"
-	"github.com/Hanalyx/openwatch/internal/db"
-	"github.com/Hanalyx/openwatch/internal/db/migrations"
+	"github.com/Hanalyx/openwatch/internal/db/dbtest"
 )
 
 // @ac AC-16
@@ -116,33 +114,13 @@ func TestBackoffPolicy_ComputeSuppressUntil_CapsAt24h(t *testing.T) {
 // Integration tests (require OPENWATCH_TEST_DSN)
 // ---------------------------------------------------------------------
 
-func testDSN(t *testing.T) string {
-	t.Helper()
-	dsn := os.Getenv("OPENWATCH_TEST_DSN")
-	if dsn == "" {
-		t.Skip("set OPENWATCH_TEST_DSN to run kensa backoff integration tests")
-	}
-	return dsn
-}
-
 // freshPool returns a pool against a clean schedule + backoff state.
 // Applies all migrations through 0011 and truncates tables this
 // package writes to.
 func freshPool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
-	dsn := testDSN(t)
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	t.Cleanup(cancel)
-
-	pool, err := db.NewPool(ctx, dsn, 5)
-	if err != nil {
-		t.Fatalf("NewPool: %v", err)
-	}
-	t.Cleanup(pool.Close)
-
-	if err := migrations.Apply(ctx, pool); err != nil {
-		t.Fatalf("migrations.Apply: %v", err)
-	}
+	pool := dbtest.Pool(t)
+	ctx := context.Background()
 
 	for _, stmt := range []string{
 		"TRUNCATE TABLE host_backoff_state CASCADE",

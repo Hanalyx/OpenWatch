@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Hanalyx/openwatch/internal/db/dbtest"
 	"github.com/Hanalyx/openwatch/internal/db/migrations"
 	"github.com/google/uuid"
 )
@@ -46,20 +47,11 @@ func TestNewPool_UnreachableHost(t *testing.T) {
 // reflects the highest applied version after a fresh run.
 func TestApply_RunsAllMigrations(t *testing.T) {
 	t.Run("system-db/AC-03", func(t *testing.T) {
-		dsn := testDSN(t)
-		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-		defer cancel()
-		pool, err := NewPool(ctx, dsn, 5)
-		if err != nil {
-			t.Fatalf("NewPool: %v", err)
-		}
-		defer pool.Close()
-		if err := migrations.Apply(ctx, pool); err != nil {
-			t.Fatalf("Apply: %v", err)
-		}
+		pool := dbtest.Pool(t)
+		ctx := context.Background()
 
 		var highest int64
-		err = pool.QueryRow(ctx,
+		err := pool.QueryRow(ctx,
 			"SELECT MAX(version_id) FROM goose_db_version WHERE version_id > 0",
 		).Scan(&highest)
 		if err != nil {

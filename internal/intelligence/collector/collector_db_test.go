@@ -9,14 +9,12 @@ package collector
 
 import (
 	"context"
-	"os"
 	"testing"
 	"time"
 
 	"github.com/Hanalyx/openwatch/internal/audit"
 	"github.com/Hanalyx/openwatch/internal/credential"
-	"github.com/Hanalyx/openwatch/internal/db"
-	"github.com/Hanalyx/openwatch/internal/db/migrations"
+	"github.com/Hanalyx/openwatch/internal/db/dbtest"
 	"github.com/Hanalyx/openwatch/internal/eventbus"
 	"github.com/Hanalyx/openwatch/internal/identity"
 	"github.com/Hanalyx/openwatch/internal/secretkey"
@@ -24,28 +22,10 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func collectorTestDSN(t *testing.T) string {
-	t.Helper()
-	dsn := os.Getenv("OPENWATCH_TEST_DSN")
-	if dsn == "" {
-		t.Skip("set OPENWATCH_TEST_DSN to run collector integration tests")
-	}
-	return dsn
-}
-
 func freshDBCollector(t *testing.T) (*pgxpool.Pool, uuid.UUID, *credential.Service) {
 	t.Helper()
-	dsn := collectorTestDSN(t)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	t.Cleanup(cancel)
-	pool, err := db.NewPool(ctx, dsn, 5)
-	if err != nil {
-		t.Fatalf("NewPool: %v", err)
-	}
-	t.Cleanup(pool.Close)
-	if err := migrations.Apply(ctx, pool); err != nil {
-		t.Fatalf("migrations.Apply: %v", err)
-	}
+	pool := dbtest.Pool(t)
+	ctx := context.Background()
 	if err := secretkey.SetEphemeral(); err != nil {
 		t.Fatalf("SetEphemeral: %v", err)
 	}
@@ -55,7 +35,7 @@ func freshDBCollector(t *testing.T) (*pgxpool.Pool, uuid.UUID, *credential.Servi
 
 	createdBy, _ := uuid.NewV7()
 	hash, _ := identity.HashPassword("seed-pw-12345-aa")
-	_, err = pool.Exec(ctx,
+	_, err := pool.Exec(ctx,
 		`INSERT INTO users (id, username, email, password_hash) VALUES ($1, $2, $3, $4)`,
 		createdBy, "intel-creator", "intel@example.com", hash)
 	if err != nil {

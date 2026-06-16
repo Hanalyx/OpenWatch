@@ -19,6 +19,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Hanalyx/openwatch/internal/db/dbtest"
 	"github.com/Hanalyx/openwatch/internal/db/migrations"
 	"github.com/google/uuid"
 )
@@ -39,19 +40,8 @@ func testDSN(t *testing.T) string {
 func TestInsertAndGetAuditEvent(t *testing.T) {
 	t.Run("system-db/AC-01", func(t *testing.T) {
 
-		dsn := testDSN(t)
-		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-		defer cancel()
-
-		pool, err := NewPool(ctx, dsn, 5)
-		if err != nil {
-			t.Fatalf("NewPool: %v", err)
-		}
-		defer pool.Close()
-
-		if err := migrations.Apply(ctx, pool); err != nil {
-			t.Fatalf("migrations.Apply: %v", err)
-		}
+		pool := dbtest.Pool(t)
+		ctx := context.Background()
 		_, _ = pool.Exec(ctx, "TRUNCATE TABLE audit_events")
 
 		id := uuid.Must(uuid.NewV7())

@@ -8,23 +8,12 @@ package alertrouter
 
 import (
 	"context"
-	"os"
 	"testing"
 	"time"
 
-	"github.com/Hanalyx/openwatch/internal/db"
-	"github.com/Hanalyx/openwatch/internal/db/migrations"
+	"github.com/Hanalyx/openwatch/internal/db/dbtest"
 	"github.com/google/uuid"
 )
-
-func storeTestDSN(t *testing.T) string {
-	t.Helper()
-	dsn := os.Getenv("OPENWATCH_TEST_DSN")
-	if dsn == "" {
-		t.Skip("set OPENWATCH_TEST_DSN to run alertrouter store integration tests")
-	}
-	return dsn
-}
 
 // @ac AC-20
 // AC-20 (DB-side): PgxStore.Insert called twice with the same
@@ -33,17 +22,8 @@ func storeTestDSN(t *testing.T) string {
 // the in-memory dedup gate is empty.
 func TestPgxStore_DuplicateDedupKeyOccurredAt_IdempotentInsert(t *testing.T) {
 	t.Run("system-alert-router/AC-20", func(t *testing.T) {
-		dsn := storeTestDSN(t)
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		t.Cleanup(cancel)
-		pool, err := db.NewPool(ctx, dsn, 5)
-		if err != nil {
-			t.Fatalf("NewPool: %v", err)
-		}
-		t.Cleanup(pool.Close)
-		if err := migrations.Apply(ctx, pool); err != nil {
-			t.Fatalf("migrations.Apply: %v", err)
-		}
+		pool := dbtest.Pool(t)
+		ctx := context.Background()
 		_, _ = pool.Exec(ctx, "TRUNCATE TABLE alerts")
 
 		store := NewPgxStore(pool)
