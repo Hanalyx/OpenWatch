@@ -23,7 +23,7 @@ import {
   type ApiHost,
   type ApiHostComplianceSummary,
 } from '@/pages/HostsListPage';
-import type { DevHost } from '@/api/dev-fixtures';
+import type { DevHost } from '@/api/host-view-model';
 
 const PAGE_SRC = readFileSync(resolve(process.cwd(), 'src/pages/HostsListPage.tsx'), 'utf8');
 
@@ -270,5 +270,26 @@ describe('frontend-hosts-list v1.5.0 — card/row actions menu', () => {
     expect(MENU_SRC).toContain("api.DELETE('/api/v1/hosts/{id}'");
     expect(MENU_SRC).toMatch(/cannot be undone/i);
     expect(MENU_SRC).toContain("queryKey: ['hosts']");
+  });
+});
+
+describe('frontend-hosts-list v1.6.0 — no demo/fixture data', () => {
+  // @ac AC-21
+  test('frontend-hosts-list/AC-21 — no fixture fallback or synthetic dev identity', () => {
+    const AUTH_SRC = readFileSync(resolve(process.cwd(), 'src/api/auth-bootstrap.ts'), 'utf8');
+    for (const banned of [
+      'isDevFixturesEnabled',
+      'devHosts',
+      'devKpis',
+      'devFleetAlert',
+      'useFixtures',
+      '__ow_dev_fixtures',
+    ]) {
+      expect(PAGE_SRC).not.toContain(banned);
+    }
+    expect(AUTH_SRC).not.toContain('__ow_dev_admin');
+    expect(AUTH_SRC).not.toContain('dev-admin');
+    // Hosts are mapped straight from the real API response.
+    expect(PAGE_SRC).toMatch(/\(hostsQuery\.data \?\? \[\]\)\.map\(apiHostToDev\)/);
   });
 });

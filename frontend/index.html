@@ -39,12 +39,11 @@
       })();
     </script>
 
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
-      rel="stylesheet"
-    />
+    <!--
+      Fonts are self-hosted: bundled from @fontsource in src/main.tsx, so the
+      app pulls NOTHING from an external font CDN at runtime — required for
+      air-gapped deployments. Do not re-add remote font <link> tags here.
+    -->
   </head>
   <body>
     <div id="root"></div>

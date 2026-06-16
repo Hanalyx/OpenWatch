@@ -1,11 +1,11 @@
 # BACKLOG.md — OpenWatch Go Prioritized Work Queue
 
-> **Purpose**: Single source of truth for pending work in the **OpenWatch Go** rebuild (`app/`).
-> Updated at the end of each AI session.
+> **Purpose**: Single source of truth for **pending** work in the OpenWatch Go rebuild (repo root).
+> Completed work is removed from this file; provenance lives in the commit history + `SESSION_LOG.md`.
 
-**Last Updated**: 2026-06-14
-**Active Tree**: `app/` (Go backend + React/TypeScript frontend)
-**Frozen Tree**: `backend/` (legacy Python/FastAPI — FROZEN as of 2026-06-04, see CLAUDE.md)
+**Last Updated**: 2026-06-15
+**Active Tree**: repo root (Go backend `cmd/`+`internal/`, React/TypeScript `frontend/`)
+**Frozen Tree**: the legacy Python/FastAPI backend was archived out of the repo on 2026-06-05 to `~/hanalyx/OWAR/openwatch-python/` (see CLAUDE.md)
 
 ---
 
@@ -20,62 +20,35 @@
 
 ---
 
-## Recently Completed (2026-06-14 session)
+## Packaging / Install
 
-| Item | PR | Notes |
-|------|----|-------|
-| Durable per-scan compliance evidence + `/scans` surface | #535 | Content-addressed `scan_results` store (migration 0029, `internal/scanresult/`) retains every rule's outcome + evidence per scan (write-on-change overwrote it). `scan:read`-gated API `/api/v1/scans` (history, scan detail, per-rule evidence, per-rule + whole-scan OSCAL). Scan-detail page from `/scans` with per-rule Formatted/Evidence/OSCAL drill-down (Evidence + OSCAL as raw JSON). Host Compliance tab stays evidence-free. Specs system-scan-results-store / api-scans / frontend-scan-detail (100%). Also fixed: frontend permission baseline omitted `scan:read` |
-
----
-
-## Recently Completed (2026-06-03 / 2026-06-04 session)
-
-| Item | PR | Notes |
-|------|----|-------|
-| `sudo -S` password fallback wired into liveness privilege probe + discovery firewall queries | #469 | system-ssh-connectivity v1.2.0 C-09. Three call sites (collector, sshprivilege, discovery) share identical retry shape |
-| SSH dialer fix — AuthBoth offers both PublicKeys AND Password | #470 | Latent bug from #469 rollout — handshake failed on AuthBoth before sudo-n ever ran. Affected 4 dev hosts (owas-rhl10/ub22/ub24/ub26) |
-| `hosts.os_family` stores distro ID, not family rollup | #471 | system-host-discovery v1.3.0 AC-22. Migration 0022 backfills existing rows from `host_system_info.os_id`. Fixed "Ubuntu hosts show as Debian" badge bug |
-| Server intelligence card — 2×3 snapshot tile grid | #472 | frontend-host-detail-intelligence-feed v2.0.0. Replaces event-feed v1.0.0 |
-| TRUNCATE…CASCADE test hygiene | #474 | 6 integration test helpers silently discarded `TRUNCATE TABLE hosts` errors caused by Q1 FK additions (transactions, host_rule_state) |
-| `CardServerIntel` cache-shape collision fix | #475 | New card shared a queryKey with the existing `intelligenceStateQuery` but expected a different value shape — silently rendered "Not collected yet" everywhere |
-| Activity service wired into main + `host_id` filter crash fix | #477 | The service had `WithActivity` but no caller — `/api/v1/activity` returned 503. After wiring, host_id-filtered queries crashed with `invalid input syntax for type uuid: ""` (audit leg's `'' = $hostPH` predicate). system-activity AC-13 added |
-| `host_monitoring_history` as 5th source leg + Recent activity card rewrite | #478 | system-activity v1.0.0 → v1.1.0. Card now consumes the unified `/activity?host_id=X` feed |
-| Recent activity card polish — icons, "View all", 5-row slice, long-form date | #479 | Matches mockup. `View all` links to `/hosts/{id}?tab=activity` (tab is a `TabStub` today) |
+| ID | Item | Priority | Status | Notes |
+|----|------|----------|--------|-------|
+| PKG-1 | RPM/DEB install does not provision identity keys — fresh install fails to boot | **P0** | Open | `systemctl enable --now openwatch.service` on a fresh rc7 RPM dies with `/etc/openwatch/keys/jwt_private.pem: no such file or directory`. Root cause: the app deliberately refuses to auto-generate signing keys in production (`cmd/openwatch/main.go:177-204` exits if `identity.jwt_private_key` / `credential_key_file` are missing — no ephemeral fallback), but neither the RPM `%post` (`packaging/rpm/openwatch.spec` — only `daemon-reload`) nor the DEB `postinst` creates `/etc/openwatch/keys/` or generates the keys. The shipped `openwatch.toml` has no `[identity]` section, so the `config.go:81-82` defaults apply: `/etc/openwatch/keys/jwt_private.pem` + `/etc/openwatch/keys/credential.key`. Fix: have `%post`/`postinst` idempotently (only if absent) create `/etc/openwatch/keys/` (0750 root:openwatch) and generate (a) RSA-2048 PEM JWT key (0640 root:openwatch) and (b) 32 raw-byte credential DEK (0600 openwatch:openwatch — `secretkey.LoadFromFile` rejects any group/other perm bits and any length != 32), same pattern as the demo TLS cert. Two keys, distinct rotation semantics: regenerating the credential DEK makes stored SSH creds + MFA secrets undecryptable, so generate-once + back-up; the JWT key only invalidates live sessions. Manual workaround documented for operators in the meantime |
+| PKG-2 | Native package ships no Kensa rule corpus — scanning is dead out of the box | **P0** | Open | The Kensa *engine* is compiled into the binary (`github.com/Hanalyx/kensa v0.4.3` in `go.mod`, integration in `internal/kensa/`), but the ~508-rule YAML corpus is **not** bundled. `kensa.LoadRules` reads from disk at `DefaultPath = /usr/share/kensa/rules` (kensa `pkg/kensa/rules.go`); only `varsub/embedded/defaults.yml` (variable defaults) is `go:embed`ed, not the rules. `packaging/rpm/build-rpm.sh` copies only the binary + `openwatch.toml` + `openwatch.service`; `grep -i kensa packaging/` is empty. `cmd/openwatch/main.go:460-468` (C-16) states the design intent: production/air-gapped installs "rely on the signed kensa-rules package at the loader's default path" — but no such package is produced in this repo. Effect on a fresh install: server boots (rule loading is non-fatal — `main.go:473-496` warns and continues) but scans return no results, `/api/v1/rules` → 503, failed-rules titles fall back to bare rule ids, scan-variables surface disabled. `OPENWATCH_KENSA_RULES_DIR` is a dev-only override (warned loudly). Fix: produce + ship a `kensa-rules` package landing the corpus at `/usr/share/kensa/rules` (RPM `Requires:` / DEB `Depends:`), or vendor the corpus into the openwatch package. Blocks first-run usefulness |
 
 ---
 
-## Active Work — Host Detail Overview Tab (~90% complete)
+## Active Work — Host Detail
 
 | Item | Priority | Status | Notes |
 |------|----------|--------|-------|
-| Top failed rules card | P1 | **Done** (PR #515) | Live against GET /hosts/{id}/compliance/failed-rules with catalog titles |
-| Compliance trend (last 30 days) card | P1 | **Done** (PR #518) | Live sparkline against the 80% target line from posture_snapshots (system-posture-snapshots); GET /hosts/{id}/compliance/trend. Fleet equivalent powers the hosts-list avg-compliance delta |
-| Open exceptions count on Server intelligence tile #6 | P2 | **Done** (PR #522) | Live active-exception count via useHostExceptions; the Watchlist row + Compliance-tab Waived/Pending badges + the Settings fleet approver queue (PR #523) all ship the exception governance loop |
 | Updates-pending count on Server intelligence tile #1 | P2 | Placeholder | Renders "No updates pending" always. Needs: collector to surface `available_updates` field on the snapshot (apt/dnf unattended-upgrades parsing) |
+| Compliance tab | P1 | Stub | TabStub placeholder. Needs: per-host compliance summary from `host_rule_state` |
+| Packages tab | P1 | Partial | Reads `intelligenceStateQuery.data.packages` — works when collector has run. UI exists in `pages/host-detail/InventoryTabs.tsx` |
+| Services tab | P1 | Partial | Same shape as Packages — reads `intelligenceStateQuery.data.services` |
+| Users tab | P1 | Partial | Same shape — reads `intelligenceStateQuery.data.users` |
+| Audit log tab | P2 | Stub | Needs host-scoped `audit_events` API hook |
+| Activity tab | P1 | Stub | **Where "View all" on the Recent activity card lands today.** Needs full-feed renderer with cursor pagination + source/severity filters on the unified `/api/v1/activity?host_id=X` endpoint |
+| Remediation tab | P2 | Not started (scoping required) | Host-mutating fixes (apply + rollback). The last scan-plan piece; plan + the five decisions in `docs/engineering/scan_remaining_work.md` |
+| Terminal tab | P3 | Stub | Browser-based SSH terminal. Web terminal lib + SSH-WS bridge needed |
 
 ---
 
-## Active Work — Host Detail Other Tabs
-
-| Tab | Priority | Status | Notes |
-|-----|----------|--------|-------|
-| Compliance | P1 | Stub | TabStub placeholder. Needs: per-host compliance summary from `host_rule_state` |
-| Packages | P1 | Partial | Reads `intelligenceStateQuery.data.packages` — works when collector has run. UI exists in `pages/host-detail/InventoryTabs.tsx` |
-| Services | P1 | Partial | Same shape as Packages — reads `intelligenceStateQuery.data.services` |
-| Users | P1 | Partial | Same shape — reads `intelligenceStateQuery.data.users` |
-| Network | P1 | Wired | Renders `intelligenceStateQuery.data.network_interfaces` + `listening_ports` + firewall from `host_system_info` |
-| Audit log | P2 | Stub | Needs host-scoped `audit_events` API hook |
-| Activity | P1 | Stub | **Where "View all" lands today.** Needs full-feed renderer with cursor pagination + source/severity filters on the unified `/api/v1/activity?host_id=X` endpoint |
-| Remediation | P2 | Not started (scoping required) | Host-mutating fixes (apply + rollback). The last scan-plan piece; plan + the five decisions in `docs/engineering/scan_remaining_work.md` |
-| Terminal | P3 | Stub | Browser-based SSH terminal. Web terminal lib + SSH-WS bridge needed |
-
----
-
-## Activity Feed Follow-ups (from #478/#479)
+## Activity Feed Follow-ups
 
 | Item | Priority | Notes |
 |------|----------|-------|
-| Build out the Activity tab at `/hosts/{id}?tab=activity` | P1 | "View all" on the Recent activity card lands on a `TabStub` today. Tab should render the full feed (paginated, source/severity filters, time-range) |
 | SSE auto-refresh of `host_activity` query key | P2 | `useLiveEvents.ts` invalidates `['host_intelligence_events', hostId]` + `['intelligence_state', hostId]` on `intelligence.event`. Should also invalidate `['host_activity', hostId]` on any of: `intelligence.event`, `monitoring.band.changed`, `alert.fired`, `scan.completed` |
 | Filter NULL→online transitions on first-contact | P3 | Dev-fleet backend restarts wipe `previous_state` so every reboot writes a NULL→online row, dominating the feed. Real fleets won't see this pattern — defer until production reports it |
 
@@ -85,11 +58,9 @@
 
 | Item | Priority | Status | Notes |
 |------|----------|--------|-------|
-| Adaptive Compliance Scheduler | P1 | **Done** (PR #515/#517) | system-scheduler v3.0.0: five-band ladder from systemconfig, RunManaged 60s tick, PersistAfterScan, Settings section wired. Scan variables shipped (PR #517) on Settings > Compliance policies |
-| Email alert notifications | P1 | Planned | SMTP/SES dispatcher. User preferences table (which alert types). RBAC-gated. The Q1 notification-channels work (Slack/email/webhook) is the foundation |
+| Email alert notifications (dispatch on alert) | P1 | Partial | The notification **channel** layer (Slack/email/webhook CRUD + test) shipped. Remaining: dispatch fired alerts through channels by type + a user-preferences table (which alert types per user), RBAC-gated |
 | In-app notifications | P1 | Planned | Bell icon with unread count, drawer, mark-as-read. Sources: alerts, scan completions, exception approvals, system events. RBAC-filtered. WebSocket or SSE delivery (the existing SSE bus can carry it) |
 | Dashboard layout customization (drag/drop) | P2 | Planned | 3 tiers per spec AC-12: full (admins), limited (analysts), none (auditor). Preset structure ready, needs `@dnd-kit/core` + persistence |
-| Remediation Phase 4 follow-ups | P3 | Mostly Complete | K-4 (risk-aware policies), K-5 (snapshot retention) |
 | Kensa Phase 5 OTA Updates | P3 | Not Started | OTA delivery of rule updates |
 
 ---
@@ -134,6 +105,7 @@ Gaps identified comparing `docs/KENSA_OPENWATCH_BOUNDARY.md` against current Ope
 
 | Item | Priority | Status | Notes |
 |------|----------|--------|-------|
+| Retention sweep for soft-deleted hosts | P3 | Not started | Soft-deleted hosts (`hosts.deleted_at` set by `internal/host/host.go:298 SoftDelete`) are retained **indefinitely** — no purge job exists anywhere, confirmed by a soft-deleted row from 2026-05-25 still present in the dev DB. The row stays for scan-history/audit integrity but is hidden from every query (`WHERE deleted_at IS NULL`). Add an optional retention sweep (a daemon-orchestration tick that hard-deletes `hosts WHERE deleted_at < now() - $window`, cascading scan history), with an operator-configurable window that defaults to disabled (keep forever). Low urgency — host volume is trivial — but closes unbounded soft-deleted-row growth and gives operators a real "forget this host" path |
 | `PATCH /api/v1/credentials/{id}` — in-place credential update | P2 | Deferred | Frontend uses replace-on-save (`<ReplaceCredentialModal>` runs `POST → DELETE`). Real PATCH would close the orphan-credential failure mode |
 | `POST /api/v1/bulk/hosts/analyze-csv` + `import-with-mapping` | P2 | Deferred | Today the wizard runs CSV analysis client-side and submits row-by-row — no atomic semantics, no "update existing", no row caps |
 | Standalone SSH-key vault | P3 | Deferred | Today every credential owns its own key material; no first-class "SSH key" resource. Worth doing when rotation cadence forces N-credentials-share-1-key |
@@ -141,24 +113,52 @@ Gaps identified comparing `docs/KENSA_OPENWATCH_BOUNDARY.md` against current Ope
 | Track B SSE: `Last-Event-ID` resume cursor | P3 | Deferred | Events published while disconnected are lost. Needs persistent event ring; defer until operators report missed transitions |
 | Track B SSE: bus drop counter on a metrics endpoint | P3 | Deferred | `eventbus.Bus.Metrics()` exposes counters but nothing scrapes them. Plumb `/api/v1/system/eventbus/metrics` or merge into existing metrics endpoint |
 | Specter `sync` ignores `settings.tests_glob` | P3 | Worked around | CI passes `--tests '**/*'`; upstream bug. Documented in `specter.yaml` |
-| Strip redundant header `// @ac` traceability blocks (~185 `unreachable_annotation` warnings) | P3 | Deferred | `specter check --test` is at 0 errors and gated in CI (#512), but still emits ~185 warnings from top-of-file `// @ac` summary blocks that duplicate per-test annotations. Non-blocking under the non-strict gate. Can't be a mechanical sweep: de-annotating risks dropping source-walk coverage for any AC covered *only* via its header block — needs a per-AC check first. Once clean, the gate could be tightened to fail on warnings too |
+| Strip redundant header `// @ac` traceability blocks (~185 `unreachable_annotation` warnings) | P3 | Deferred | `specter check --test` is at 0 errors and gated in CI, but still emits ~185 warnings from top-of-file `// @ac` summary blocks that duplicate per-test annotations. Non-blocking under the non-strict gate. Can't be a mechanical sweep: de-annotating risks dropping source-walk coverage for any AC covered *only* via its header block — needs a per-AC check first. Once clean, the gate could be tightened to fail on warnings too |
 
 ---
 
-## CI / Flakes
+## Documentation
+
+| ID | Item | Priority | Status | Notes |
+|----|------|----------|--------|-------|
+| DOC-1 | CLAUDE.md "Packaging Infrastructure" describes a Python-era layout that doesn't exist in the Go native package | P2 | Open | The section claims package contents include `/opt/openwatch/backend/` (Python backend + requirements.txt), `/opt/openwatch/frontend/` (built SPA), and `/opt/openwatch/backend/kensa/` (rules, mappings, config, 508 rules), plus systemd units `openwatch-api`/`openwatch-worker@`/`openwatch-beat` and an nginx reverse proxy. None of that matches the rc7 Go RPM/DEB: the payload is a single `openwatch` Go binary (with embedded SPA), `openwatch.toml`, `openwatch.service`, and demo TLS certs (`packaging/rpm/openwatch.spec` + `build-rpm.sh`). The Kensa-rules-bundled claim is the same gap tracked in PKG-2. Fix: rewrite the section to match the Go packaging, or banner it as historical Python-era reference like the other frozen sections |
+
+---
+
+## CI / Quality
+
+| Item | Priority | Notes |
+|------|----------|-------|
+| Raise specter coverage gate to 100% (all tiers) | P2 | `specter.yaml` currently gates `tier1: 100 / tier2: 80 / tier3: 50` under `strictness: threshold`. Goal: tier2 + tier3 → 100. **Not a config flip** — it is gated on first backfilling real AC tests for every currently-sub-100% spec; raising the threshold before the tests exist would red-wall every PR. Plan: run a full `go test -json` + vitest JUnit ingest, read `specter coverage` for the true gaps, then write the missing-AC tests spec by spec (real tests, not annotation-only), then bump the thresholds. |
+| CI gate speed: per-package DB isolation to drop `-p 1` | P2 | After PR #567 (single race+json pass + golangci cache, ~23min→~12-14min) the Go test step still runs `-p 1` (serial packages) because DB-touching tests share one Postgres and contaminate each other in parallel. Give each parallel test binary its own namespace (per-package `search_path`/schema, or a uniquely-named DB created in `TestMain`) so the suite can run `-p N`. Highest remaining ceiling (could ~halve test wall-clock); real refactor of every DB-touching package's setup — the exact cross-package contamination already seen under default parallelism. |
+| CI gate speed: split the monolith into parallel jobs | P3 | The `Quality + security gates` job runs lint/vuln/test/frontend sequentially (wall-clock = sum). Split into concurrent jobs (lint+vet+vuln vs. test+coverage vs. frontend) so wall-clock = max. **Needs a branch-protection change**: only one job is the required `Quality + security gates` check today, so splitting means updating the required-checks list in the GitHub UI (operator action, not code). Prep the workflow, then flip required checks. |
+
+### Flakes
 
 | Item | Priority | Notes |
 |------|----------|-------|
 | `internal/license.TestVerify_P99Latency` flake under `-race` | P3 | Tight <1ms p99 budget. Bump to 2ms, skip under `-race`, or pre-warm verifier |
-| `internal/audit.TestEmitSync_Latency` flake | P3 | p99 latency assertion, sensitive to CI runner load. Hit on PR #477 — single rerun cleared |
-| `internal/queue.TestEnqueue_LatencyP99` flake | P3 | Same shape — hit on PR #479, single rerun cleared. Trend: three p99 flakes in one session — consider widening all budgets or moving them to a perf-suite that doesn't gate merges |
+| `internal/audit.TestEmitSync_Latency` flake | P3 | p99 latency assertion, sensitive to CI runner load. Single rerun cleared |
+| `internal/queue.TestEnqueue_LatencyP99` flake | P3 | Same shape — single rerun cleared. Trend: consider widening all p99 budgets or moving them to a perf-suite that doesn't gate merges |
+
+---
+
+## Testing / Regression Coverage
+
+Gaps where working functionality can break without an automated test failing (identified 2026-06-15). The suite is strong for specced logic + DB integration (988 Go test funcs, race detector, real Postgres) but blind on live execution and full UI flows.
+
+| Item | Priority | Notes |
+|------|----------|-------|
+| Live-host SSH/sudo integration test (gated) | P2 | CI has **no test that actually dials a host and runs sudo** — the dial, `sudo -n`, and `sudo -S` paths are only unit-tested at the command-construction level (the `wrap`/auth-ordering output), never against a real box. Add an opt-in, env-gated test (against `~/Documents/openwatch/test_hosts.csv`) that asserts: key auth, password auth, `sudo -n` (NOPASSWD), and `sudo -S` (password) each actually authenticate/escalate and return real results. Skips when the host env var is unset, so it never gates normal CI. Closes the biggest blind spot (live execution is manual today). |
+| Frontend E2E (Playwright) for critical flows | P2 | **Zero E2E tests** — `0` Playwright files, no config (the CLAUDE.md Playwright note is Python-era). Component-level vitest only, so a wired-up page can be green in vitest and broken in the browser. Stand up Playwright + cover the critical flows: login, the activated Settings pages (Users, Notifications, Security/API tokens, SSO), and host CRUD (add / edit / delete). |
+| Negative-path ACs for security gates | P2 | The scan kill-switch bug this session passed all 988 tests + the specter gate because the scan path simply had **no AC requiring it to honor the switch** — the suite tests specced behavior, so gaps *between* specs slip through. Generalize the pattern of `system-connection-profile/AC-07` (asserts "kill-switch off / key-only cred → no `sudo -S`") across the other security gates: every gate should have a spec'd AC + test for the **disallowed** path, not just the happy path. |
 
 ---
 
 ## How to Use This File
 
 1. **Starting a session**: Read this file alongside `CLAUDE.md` and `SESSION_LOG.md`
-2. **Picking work**: Default to the highest-priority "Active Work" sections, then the OpenWatch OS or OpenWatch+ planned items
-3. **Completing work**: Move the row out of "Active" into "Recently Completed", note the PR
+2. **Picking work**: Default to the highest-priority "Active Work" + Packaging (P0) items, then the OpenWatch OS or OpenWatch+ planned items
+3. **Completing work**: **Remove** the row from this file; record the PR in the commit message and `SESSION_LOG.md` (this file tracks only pending work)
 4. **Discovering new work**: Add to the most appropriate section
-5. **Ending a session**: Update statuses, prepend SESSION_LOG, create a handoff file in `docs/handoff/` if the next session will be a different operator
+5. **Ending a session**: Update statuses, remove completed rows, prepend `SESSION_LOG.md`, create a handoff file in `docs/handoff/` if the next session will be a different operator
