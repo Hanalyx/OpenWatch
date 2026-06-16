@@ -176,8 +176,11 @@ func TestCIGates_WorkflowHasPostgresService(t *testing.T) {
 }
 
 // @ac AC-09
-// AC-09: workflow runs each gate as its own step (vet, lint, vuln,
-// test-race, specter sync).
+// AC-09: workflow runs each gate as its own step (vet, lint, vuln, the
+// race+JSON test run, specter sync). Race detection and the specter-ingest
+// JSON are produced by a single `go test -race -json` step (replacing the
+// former separate `make test-race` + non-race json passes), so the gate is
+// the presence of `-race` AND `-json` on the test run, not `make test-race`.
 func TestCIGates_WorkflowRunsAllGates(t *testing.T) {
 	t.Run("release-ci-gates/AC-09", func(t *testing.T) {
 		wf := readAppFile(t, ".github/workflows/go-ci.yml")
@@ -185,13 +188,17 @@ func TestCIGates_WorkflowRunsAllGates(t *testing.T) {
 			"make vet",
 			"make lint",
 			"make vuln",
-			"make test-race",
 			"specter sync",
 		}
 		for _, g := range gates {
 			if !strings.Contains(wf, g) {
 				t.Errorf("workflow missing step that runs %q", g)
 			}
+		}
+		// The single race+coverage run must still detect data races AND
+		// emit JSON for specter ingest.
+		if !strings.Contains(wf, "go test -race") || !strings.Contains(wf, "-json") {
+			t.Error("workflow missing the race+JSON test run (`go test -race ... -json`) — race detection must still gate")
 		}
 	})
 }

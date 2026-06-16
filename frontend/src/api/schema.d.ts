@@ -2181,7 +2181,7 @@ export interface components {
         UsersListResponse: {
             users: components["schemas"]["UserResponse"][];
         };
-        /** @description A delivery channel. The target secret (URL + token, or SMTP host/credentials) is NEVER returned; target_hint is the non-secret host (URL host for slack/webhook, SMTP host for email). */
+        /** @description A delivery channel. SECRETS are NEVER returned — the SMTP password, and the slack/webhook URL + token, are write-only. For email channels the NON-secret config is returned so the edit form can pre-fill: smtp_host (also target_hint), smtp_port, from, to, username. */
         NotificationChannel: {
             /** Format: uuid */
             id: string;
@@ -2195,6 +2195,14 @@ export interface components {
             tag_filter: {
                 [key: string]: string;
             };
+            /** @description SMTP port (email channels) */
+            smtp_port?: number | null;
+            /** @description Sender address (email channels) */
+            from?: string | null;
+            /** @description Recipient addresses (email channels) */
+            to?: string[] | null;
+            /** @description SMTP username (email; the password is never returned) */
+            username?: string | null;
             /** Format: date-time */
             created_at: string;
             /** Format: date-time */

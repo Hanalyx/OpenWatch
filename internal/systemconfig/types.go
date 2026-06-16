@@ -111,18 +111,22 @@ var ErrInvalidConfig = errors.New("systemconfig: invalid config")
 // Spec: system-ssh-connectivity v1.1.0 C-09..C-12.
 //
 // AllowCredentialSudoPassword is the policy knob that gates the sudo -S
-// password fallback in the SSH dial layer. Defaults to false (opt-in).
-// When false, the collector and discovery probes behave exactly as in
-// v1.0.0 — every sudo command goes through `sudo -n` and degrades
-// gracefully on NOPASSWD-not-configured hosts.
+// password fallback in the SSH dial layer. Defaults to TRUE: OpenWatch
+// supports the full SSH matrix out of the box (key or password auth,
+// NOPASSWD or password sudo), so a host that needs a sudo password is
+// reachable on a fresh install with no extra configuration. The flag is
+// retained as a kill-switch — a site that forbids feeding credential
+// passwords to remote sudo can set it false, and every privilege path
+// degrades to `sudo -n` only.
 type SecurityConfig struct {
 	AllowCredentialSudoPassword bool `json:"allow_credential_sudo_password"`
 }
 
-// DefaultSecurity returns the baked-in defaults. Fallback is OFF.
+// DefaultSecurity returns the baked-in defaults. The sudo -S password
+// fallback is ON by default (kill-switch, not opt-in).
 func DefaultSecurity() SecurityConfig {
 	return SecurityConfig{
-		AllowCredentialSudoPassword: false,
+		AllowCredentialSudoPassword: true,
 	}
 }
 

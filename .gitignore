@@ -439,6 +439,9 @@ frontend_test.log
 *test*.md
 *test*.js
 *test*.cjs
+# Exception: committed test harness scripts under packaging/tests/ (e.g. the
+# container upgrade test) are real tracked files, not transient scratch.
+!packaging/tests/*test*.sh
 *test*.mjs
 *test*.ts
 *test*.tsx
@@ -709,6 +712,8 @@ dist/
 !packaging/rpm/*.spec
 # Same exception for the Go rebuild's RPM spec
 !app/packaging/rpm/*.spec
+# The kensa-rules corpus package ships its own RPM spec
+!packaging/kensa-rules/*.spec
 
 # RPM creation scripts (temporary)
 create-rpm.sh

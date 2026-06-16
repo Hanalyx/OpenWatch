@@ -60,9 +60,12 @@ This triggers `release.yml` (builds + SBOMs + publishes a pre-release) and
   runners are wired in.)
 
 **Manual (on the RC, against a real fleet — CI cannot reach workstation hosts):**
-1. Install the RC package on a clean VM of at least one RHEL-family and one
-   Debian-family distro: `sudo dnf install ./openwatch-<v>.x86_64.rpm` /
-   `sudo apt install ./openwatch_<v>_amd64.deb`.
+1. Install the RC packages on a clean VM of at least one RHEL-family and one
+   Debian-family distro — both the platform and the rule corpus, in one
+   transaction (openwatch hard-depends on kensa-rules):
+   `sudo dnf install ./openwatch-<v>.x86_64.rpm ./kensa-rules-<kv>.noarch.rpm` /
+   `sudo apt install ./openwatch_<v>_amd64.deb ./kensa-rules_<kv>_all.deb`.
+   Confirm a scan finds the corpus: `test -d /usr/share/kensa/rules`.
 2. `sudo openwatch migrate` && `sudo openwatch create-admin …` &&
    `sudo systemctl enable --now openwatch`; confirm
    `curl -k https://localhost:8443/api/v1/health` is healthy and the UI loads at
@@ -94,8 +97,8 @@ GitHub Release.
 On a clean box, install the **published** artifact and confirm it starts:
 
 ```bash
-# download openwatch-<v>.x86_64.rpm from the release, then:
-sudo dnf install ./openwatch-<v>.x86_64.rpm
+# download openwatch-<v>.x86_64.rpm AND kensa-rules-<kv>.noarch.rpm, then:
+sudo dnf install ./openwatch-<v>.x86_64.rpm ./kensa-rules-<kv>.noarch.rpm
 sudo openwatch migrate && sudo systemctl enable --now openwatch
 curl -k https://localhost:8443/api/v1/health
 ```
