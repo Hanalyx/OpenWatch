@@ -3,7 +3,7 @@
 > **Purpose**: Single source of truth for **pending** work in the OpenWatch Go rebuild (repo root).
 > Completed work is removed from this file; provenance lives in the commit history + `SESSION_LOG.md`.
 
-**Last Updated**: 2026-06-15
+**Last Updated**: 2026-06-16
 **Active Tree**: repo root (Go backend `cmd/`+`internal/`, React/TypeScript `frontend/`)
 **Frozen Tree**: the legacy Python/FastAPI backend was archived out of the repo on 2026-06-05 to `~/hanalyx/OWAR/openwatch-python/` (see CLAUDE.md)
 
@@ -17,15 +17,6 @@
 | P1 | High — needed for parity with the Python release |
 | P2 | Medium — improves quality, can defer |
 | P3 | Low — nice to have |
-
----
-
-## Packaging / Install
-
-| ID | Item | Priority | Status | Notes |
-|----|------|----------|--------|-------|
-| PKG-1 | RPM/DEB install does not provision identity keys — fresh install fails to boot | **P0** | Open | `systemctl enable --now openwatch.service` on a fresh rc7 RPM dies with `/etc/openwatch/keys/jwt_private.pem: no such file or directory`. Root cause: the app deliberately refuses to auto-generate signing keys in production (`cmd/openwatch/main.go:177-204` exits if `identity.jwt_private_key` / `credential_key_file` are missing — no ephemeral fallback), but neither the RPM `%post` (`packaging/rpm/openwatch.spec` — only `daemon-reload`) nor the DEB `postinst` creates `/etc/openwatch/keys/` or generates the keys. The shipped `openwatch.toml` has no `[identity]` section, so the `config.go:81-82` defaults apply: `/etc/openwatch/keys/jwt_private.pem` + `/etc/openwatch/keys/credential.key`. Fix: have `%post`/`postinst` idempotently (only if absent) create `/etc/openwatch/keys/` (0750 root:openwatch) and generate (a) RSA-2048 PEM JWT key (0640 root:openwatch) and (b) 32 raw-byte credential DEK (0600 openwatch:openwatch — `secretkey.LoadFromFile` rejects any group/other perm bits and any length != 32), same pattern as the demo TLS cert. Two keys, distinct rotation semantics: regenerating the credential DEK makes stored SSH creds + MFA secrets undecryptable, so generate-once + back-up; the JWT key only invalidates live sessions. Manual workaround documented for operators in the meantime |
-| PKG-2 | Native package ships no Kensa rule corpus — scanning is dead out of the box | **P0** | Open | The Kensa *engine* is compiled into the binary (`github.com/Hanalyx/kensa v0.4.3` in `go.mod`, integration in `internal/kensa/`), but the ~508-rule YAML corpus is **not** bundled. `kensa.LoadRules` reads from disk at `DefaultPath = /usr/share/kensa/rules` (kensa `pkg/kensa/rules.go`); only `varsub/embedded/defaults.yml` (variable defaults) is `go:embed`ed, not the rules. `packaging/rpm/build-rpm.sh` copies only the binary + `openwatch.toml` + `openwatch.service`; `grep -i kensa packaging/` is empty. `cmd/openwatch/main.go:460-468` (C-16) states the design intent: production/air-gapped installs "rely on the signed kensa-rules package at the loader's default path" — but no such package is produced in this repo. Effect on a fresh install: server boots (rule loading is non-fatal — `main.go:473-496` warns and continues) but scans return no results, `/api/v1/rules` → 503, failed-rules titles fall back to bare rule ids, scan-variables surface disabled. `OPENWATCH_KENSA_RULES_DIR` is a dev-only override (warned loudly). Fix: produce + ship a `kensa-rules` package landing the corpus at `/usr/share/kensa/rules` (RPM `Requires:` / DEB `Depends:`), or vendor the corpus into the openwatch package. Blocks first-run usefulness |
 
 ---
 
@@ -105,6 +96,7 @@ Gaps identified comparing `docs/KENSA_OPENWATCH_BOUNDARY.md` against current Ope
 
 | Item | Priority | Status | Notes |
 |------|----------|--------|-------|
+| Wire SSH auth/sudo learning into discovery / intelligence / liveness | P2 | Not started | #566 landed the substrate (`internal/connprofile` + migration `0035`) and the dial-layer mechanism (`ssh.DialOptions.PreferAuth`/`ObservedAuth`), and wired the **scan** path (auth ordering + per-connection sudo-mode probe, recorded per host). The other three SSH paths — OS discovery, OS intelligence collector, liveness privilege probe — still re-probe each cycle instead of leading with the remembered choice. Their `SSHTransport.Dial` (`internal/intelligence/discovery`, shared by the collector) and the `internal/sshprivilege` dialer take no `hostID`, so thread it + a `connprofile` reader/recorder through. Mechanical — reuses everything from #566 |
 | Retention sweep for soft-deleted hosts | P3 | Not started | Soft-deleted hosts (`hosts.deleted_at` set by `internal/host/host.go:298 SoftDelete`) are retained **indefinitely** — no purge job exists anywhere, confirmed by a soft-deleted row from 2026-05-25 still present in the dev DB. The row stays for scan-history/audit integrity but is hidden from every query (`WHERE deleted_at IS NULL`). Add an optional retention sweep (a daemon-orchestration tick that hard-deletes `hosts WHERE deleted_at < now() - $window`, cascading scan history), with an operator-configurable window that defaults to disabled (keep forever). Low urgency — host volume is trivial — but closes unbounded soft-deleted-row growth and gives operators a real "forget this host" path |
 | `PATCH /api/v1/credentials/{id}` — in-place credential update | P2 | Deferred | Frontend uses replace-on-save (`<ReplaceCredentialModal>` runs `POST → DELETE`). Real PATCH would close the orphan-credential failure mode |
 | `POST /api/v1/bulk/hosts/analyze-csv` + `import-with-mapping` | P2 | Deferred | Today the wizard runs CSV analysis client-side and submits row-by-row — no atomic semantics, no "update existing", no row caps |
@@ -122,6 +114,18 @@ Gaps identified comparing `docs/KENSA_OPENWATCH_BOUNDARY.md` against current Ope
 | ID | Item | Priority | Status | Notes |
 |----|------|----------|--------|-------|
 | DOC-1 | CLAUDE.md "Packaging Infrastructure" describes a Python-era layout that doesn't exist in the Go native package | P2 | Open | The section claims package contents include `/opt/openwatch/backend/` (Python backend + requirements.txt), `/opt/openwatch/frontend/` (built SPA), and `/opt/openwatch/backend/kensa/` (rules, mappings, config, 508 rules), plus systemd units `openwatch-api`/`openwatch-worker@`/`openwatch-beat` and an nginx reverse proxy. None of that matches the rc7 Go RPM/DEB: the payload is a single `openwatch` Go binary (with embedded SPA), `openwatch.toml`, `openwatch.service`, and demo TLS certs (`packaging/rpm/openwatch.spec` + `build-rpm.sh`). The Kensa-rules-bundled claim is the same gap tracked in PKG-2. Fix: rewrite the section to match the Go packaging, or banner it as historical Python-era reference like the other frozen sections |
+
+---
+
+## Deferred Dependency Upgrades
+
+Dependabot major bumps closed (skipped) 2026-06-16, with the reason + revisit path. Dependabot re-raises each on its next version bump.
+
+| Dependency | Bump | Why deferred |
+|------------|------|--------------|
+| `@mui/material` | 7 → 9 | Two majors (Grid v2 API + theme/styling breaking changes). Real component migration; do as a dedicated PR (test empirically first) |
+| `eslint` + `@eslint/js` + `eslint-plugin-react-hooks` | 9 → 10 / 5 → 7 | **Blocked upstream** — `typescript-eslint@8.61` / `eslint-plugin-react@7.37` peer-dep on eslint ≤9, so eslint 10 won't install (`ERESOLVE`). Revisit when the lint ecosystem supports eslint 10; land as one combined PR |
+| `sigstore/cosign-installer` | 3.7 → 4.x | Installs cosign 3.0.5, which **breaks our offline key-based release signing** (`--tlog-upload` removed; default `--new-bundle-format` ignores `--output-signature`; `verify-blob` wants the rekor tlog). When done: pin `with: cosign-release: v2.6.1` (keep current signing) OR migrate to the bundle format + update `RELEASING.md`/`KEYS` verify steps |
 
 ---
 
