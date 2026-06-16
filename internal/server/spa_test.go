@@ -2,6 +2,9 @@
 package server
 
 import (
+	"bytes"
+	"compress/gzip"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -71,6 +74,86 @@ func TestSPA_UnmatchedAPIPathReturns404(t *testing.T) {
 		}
 		if ct := resp.Header.Get("Content-Type"); strings.HasPrefix(ct, "text/html") {
 			t.Errorf("unmatched /api/ path served HTML (%q) — must not serve the SPA", ct)
+		}
+	})
+}
+
+// @ac AC-15
+// AC-15: a compressible static asset is gzip-encoded when (and only when)
+// the client sends Accept-Encoding: gzip, with a Vary: Accept-Encoding
+// header so caches key on it. The gzipped body decodes to the original.
+func TestSPA_GzipWhenAccepted(t *testing.T) {
+	t.Run("system-http-server/AC-15", func(t *testing.T) {
+		h := newSPAHandler()
+
+		req := httptest.NewRequest(http.MethodGet, "/assets/app-abc123.js", nil)
+		req.Header.Set("Accept-Encoding", "gzip, deflate, br")
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		resp := rec.Result()
+		defer resp.Body.Close()
+
+		if got := resp.Header.Get("Content-Encoding"); got != "gzip" {
+			t.Fatalf("Content-Encoding = %q, want gzip", got)
+		}
+		if v := resp.Header.Get("Vary"); !strings.Contains(v, "Accept-Encoding") {
+			t.Errorf("Vary = %q, want to contain Accept-Encoding", v)
+		}
+		gr, err := gzip.NewReader(resp.Body)
+		if err != nil {
+			t.Fatalf("body is not valid gzip: %v", err)
+		}
+		dec, _ := io.ReadAll(gr)
+		if !bytes.Contains(dec, []byte("console.log")) {
+			t.Errorf("decoded gzip body missing original content")
+		}
+
+		// No Accept-Encoding → identity (never force-encode).
+		req2 := httptest.NewRequest(http.MethodGet, "/assets/app-abc123.js", nil)
+		rec2 := httptest.NewRecorder()
+		h.ServeHTTP(rec2, req2)
+		if ce := rec2.Result().Header.Get("Content-Encoding"); ce != "" {
+			t.Errorf("no Accept-Encoding but Content-Encoding = %q, want identity", ce)
+		}
+	})
+}
+
+// @ac AC-16
+// AC-16: content-hashed assets under assets/ are served immutable + long
+// max-age (the browser never re-requests them); the SPA shell (index.html)
+// is no-cache so deploys are picked up; an ETag enables a 304 revalidation.
+func TestSPA_CacheHeaders(t *testing.T) {
+	t.Run("system-http-server/AC-16", func(t *testing.T) {
+		h := newSPAHandler()
+
+		req := httptest.NewRequest(http.MethodGet, "/assets/app-abc123.js", nil)
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		resp := rec.Result()
+		cc := resp.Header.Get("Cache-Control")
+		if !strings.Contains(cc, "immutable") || !strings.Contains(cc, "max-age=31536000") {
+			t.Errorf("asset Cache-Control = %q, want immutable + max-age=31536000", cc)
+		}
+		etag := resp.Header.Get("ETag")
+		if etag == "" {
+			t.Fatal("asset has no ETag")
+		}
+
+		// Matching If-None-Match → 304 Not Modified.
+		req2 := httptest.NewRequest(http.MethodGet, "/assets/app-abc123.js", nil)
+		req2.Header.Set("If-None-Match", etag)
+		rec2 := httptest.NewRecorder()
+		h.ServeHTTP(rec2, req2)
+		if rec2.Result().StatusCode != http.StatusNotModified {
+			t.Errorf("If-None-Match (matching) status = %d, want 304", rec2.Result().StatusCode)
+		}
+
+		// The SPA shell must revalidate so a new deploy is seen immediately.
+		req3 := httptest.NewRequest(http.MethodGet, "/", nil)
+		rec3 := httptest.NewRecorder()
+		h.ServeHTTP(rec3, req3)
+		if got := rec3.Result().Header.Get("Cache-Control"); got != "no-cache" {
+			t.Errorf("index.html Cache-Control = %q, want no-cache", got)
 		}
 	})
 }
