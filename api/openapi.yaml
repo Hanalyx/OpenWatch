@@ -3356,9 +3356,10 @@ components:
       type: object
       required: [id, type, name, enabled, target_hint, tag_filter, created_at, updated_at]
       description: >-
-        A delivery channel. The target secret (URL + token, or SMTP
-        host/credentials) is NEVER returned; target_hint is the non-secret
-        host (URL host for slack/webhook, SMTP host for email).
+        A delivery channel. SECRETS are NEVER returned — the SMTP password,
+        and the slack/webhook URL + token, are write-only. For email channels
+        the NON-secret config is returned so the edit form can pre-fill:
+        smtp_host (also target_hint), smtp_port, from, to, username.
       properties:
         id:          {type: string, format: uuid}
         type:        {type: string, enum: [slack, webhook, email]}
@@ -3369,6 +3370,14 @@ components:
           type: object
           additionalProperties: {type: string}
           description: Alert tags this channel matches; empty = every alert
+        smtp_port: {type: integer, nullable: true, description: SMTP port (email channels)}
+        from:      {type: string, nullable: true, description: Sender address (email channels)}
+        to:
+          type: array
+          nullable: true
+          items: {type: string}
+          description: Recipient addresses (email channels)
+        username:  {type: string, nullable: true, description: SMTP username (email; the password is never returned)}
         created_at:  {type: string, format: date-time}
         updated_at:  {type: string, format: date-time}
     NotificationChannelList:

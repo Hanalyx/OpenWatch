@@ -14,25 +14,41 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/Hanalyx/openwatch/internal/connprofile"
 )
 
 // @ac AC-19
 func TestCommandLine_SudoWrapsAndQuotes(t *testing.T) {
 	t.Run("system-kensa-executor/AC-19", func(t *testing.T) {
-		// Sudo disabled: pass-through, byte for byte.
-		if got := commandLine(`grep -q "^x" /etc/f`, false); got != `grep -q "^x" /etc/f` {
-			t.Errorf("non-sudo command modified: %q", got)
+		// Sudo disabled: pass-through, byte for byte, no stdin.
+		noSudo := &sshTransport{sudo: false}
+		if line, stdin := noSudo.wrap(`grep -q "^x" /etc/f`); line != `grep -q "^x" /etc/f` || stdin != nil {
+			t.Errorf("non-sudo wrap = %q (stdin=%v), want passthrough no-stdin", line, stdin)
 		}
-		// Sudo enabled: sudo -n sh -c wrapping per the api.Transport
-		// contract.
-		if got, want := commandLine("systemctl is-active sshd", true),
-			`sudo -n sh -c 'systemctl is-active sshd'`; got != want {
-			t.Errorf("sudo wrap = %q, want %q", got, want)
+
+		// NOPASSWD mode: sudo -n sh -c wrapping, no stdin.
+		nopasswd := &sshTransport{sudo: true, mode: connprofile.SudoNopasswd}
+		if line, stdin := nopasswd.wrap("systemctl is-active sshd"); line != `sudo -n sh -c 'systemctl is-active sshd'` || stdin != nil {
+			t.Errorf("nopasswd wrap = %q (stdin=%v)", line, stdin)
 		}
 		// Embedded single quotes survive via the '\'' idiom.
-		if got, want := commandLine(`echo it's`, true),
-			`sudo -n sh -c 'echo it'\''s'`; got != want {
-			t.Errorf("quote escape = %q, want %q", got, want)
+		if line, _ := nopasswd.wrap(`echo it's`); line != `sudo -n sh -c 'echo it'\''s'` {
+			t.Errorf("quote escape = %q", line)
+		}
+
+		// Password mode: sudo -S -p '' sh -c wrapping, password (newline
+		// terminated) on stdin, never in the command line.
+		pw := &sshTransport{sudo: true, mode: connprofile.SudoPassword, password: "s3cr3t"}
+		line, stdin := pw.wrap("cat /etc/shadow")
+		if line != `sudo -S -p '' sh -c 'cat /etc/shadow'` {
+			t.Errorf("password wrap line = %q", line)
+		}
+		if string(stdin) != "s3cr3t\n" {
+			t.Errorf("password stdin = %q, want %q", stdin, "s3cr3t\n")
+		}
+		if strings.Contains(line, "s3cr3t") {
+			t.Error("password leaked into the command line")
 		}
 	})
 }

@@ -1,7 +1,7 @@
 spec:
   id: api-notifications
   title: Notification channels REST API
-  version: "1.1.0"
+  version: "1.2.0"
   status: approved
   tier: 2
 
@@ -47,9 +47,12 @@ spec:
       enforcement: error
     - id: C-02
       description: >-
-        No response body across any notification endpoint MUST contain the
-        channel url or token. The API response schema (NotificationChannel)
-        has no url/token field; only target_hint (the non-secret host).
+        No response body across any notification endpoint MUST contain a
+        SECRET: the slack/webhook url + token, or the SMTP password. The
+        NotificationChannel response schema has no url/token/password field.
+        For email channels the response MAY carry the NON-secret config
+        (smtp_port, from, to, username) so the edit form can pre-fill;
+        target_hint is the non-secret host (URL host or SMTP host).
       type: security
       enforcement: error
     - id: C-03
@@ -82,6 +85,10 @@ spec:
       priority: critical
       references_constraints: [C-02, C-03]
     - id: AC-06
-      description: "v1.1.0 (Phase 2b) — POST with type=email and smtp_host/smtp_port/from/to creates the channel (201) with the SMTP host as target_hint, and the response JSON contains neither the smtp password nor username; an email body missing smtp_host or recipients returns 400."
+      description: "v1.1.0 (Phase 2b) — POST with type=email and smtp_host/smtp_port/from/to creates the channel (201) with the SMTP host as target_hint, and the create response JSON contains neither the smtp password nor username; an email body missing smtp_host or recipients returns 400."
       priority: high
       references_constraints: [C-02, C-03]
+    - id: AC-07
+      description: "v1.2.0 — the list/read path returns an email channel's NON-secret config so the edit form can pre-fill: smtp_port, from, to, username appear in the GET /notifications/channels JSON, but the password NEVER does. A PATCH that re-sends the non-secret email fields WITHOUT a password keeps the stored password (the channel still validates and the updated recipients persist)."
+      priority: high
+      references_constraints: [C-02]

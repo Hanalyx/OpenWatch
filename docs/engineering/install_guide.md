@@ -26,7 +26,7 @@ After the steps below you have:
 |------|------|---------|
 | 1 | Install PostgreSQL | `dnf install postgresql-server` / `apt install postgresql` |
 | 2 | Provision the database | `createdb` + role (see below) |
-| 3 | Install the package | `dnf install ./openwatch-*.rpm` / `apt install ./openwatch_*.deb` |
+| 3 | Install the packages | `dnf install ./openwatch-*.rpm ./kensa-rules-*.rpm` / `apt install ./openwatch_*.deb ./kensa-rules_*.deb` |
 | 4 | Configure the database secret | edit `/etc/openwatch/secrets.env` |
 | 5 | Run migrations | `openwatch migrate` |
 | 6 | Create the first admin | `openwatch create-admin --username admin --email …` |
@@ -96,19 +96,36 @@ PGPASSWORD='replace-with-a-strong-password' \
   psql -h 127.0.0.1 -U openwatch -d openwatch -c '\conninfo'
 ```
 
-### Step 3 — Install the package
+### Step 3 — Install the packages
 
 ```bash
-sudo dnf install -y ./openwatch-0.2.0-1.x86_64.rpm
+sudo dnf install -y ./openwatch-0.2.0-1.x86_64.rpm ./kensa-rules-0.4.3-1.noarch.rpm
 ```
 
-Use the filename you downloaded (`aarch64` for arm64). Installing the package:
+Install **both** files in one transaction. `openwatch` declares a hard
+dependency on `kensa-rules` — the rule corpus the scan engine loads from
+`/usr/share/kensa/rules`. Installing `openwatch` alone fails the dependency
+check (by design: a corpus-less node cannot scan). `kensa-rules` is `noarch`
+and versioned on the Kensa content line (e.g. `0.4.3`), independent of the
+platform version, so the rules can update without re-releasing OpenWatch.
+
+Use the filenames you downloaded (`aarch64` for the arm64 openwatch RPM; the
+`kensa-rules` package is the same `noarch` file for every arch). Installing the
+packages:
 
 1. Creates the `openwatch` system user and group (idempotent).
 2. Installs the binary at `/usr/bin/openwatch`, config under `/etc/openwatch/`
    (`openwatch.toml` plus a self-signed TLS cert/key), the `systemd` unit, and
-   the `/var/lib/openwatch` and `/var/log/openwatch` data directories.
-3. Reloads `systemd`. It does **not** start the service — you do that in Step 7,
+   the `/var/lib/openwatch` and `/var/log/openwatch` data directories. The
+   `kensa-rules` package installs the rule corpus to `/usr/share/kensa/rules`.
+3. Generates the identity keys the server requires in production —
+   `/etc/openwatch/keys/jwt_private.pem` (RSA-2048 JWT signing key) and
+   `/etc/openwatch/keys/credential.key` (AES-256 credential DEK). This is
+   generate-if-absent: a reinstall or upgrade never overwrites existing keys
+   (regenerating them would invalidate sessions and make stored SSH/MFA
+   secrets undecryptable). The server does **not** auto-generate these — it
+   exits if they are missing — so the package lays them down at install time.
+4. Reloads `systemd`. It does **not** start the service — you do that in Step 7,
    after the database and admin user exist.
 
 Confirm the install:
@@ -227,15 +244,20 @@ PGPASSWORD='replace-with-a-strong-password' \
   psql -h 127.0.0.1 -U openwatch -d openwatch -c '\conninfo'
 ```
 
-### Step 3 — Install the package
+### Step 3 — Install the packages
 
 ```bash
-sudo apt install -y ./openwatch_0.2.0-rc.5_amd64.deb
+sudo apt install -y ./openwatch_0.2.0-rc.5_amd64.deb ./kensa-rules_0.4.3_all.deb
 ```
 
-Use the filename you downloaded (`arm64` for aarch64). If `apt` reports missing
-dependencies, add `-f`. The package creates the `openwatch` user, installs the
-same files as the RPM, and reloads `systemd` without starting the service.
+Install **both** files together — `openwatch` `Depends` on `kensa-rules` (the
+scan engine's rule corpus at `/usr/share/kensa/rules`), so installing the
+openwatch `.deb` alone fails the dependency check by design. The `kensa-rules`
+package is `Architecture: all` (one file for every arch). Use the openwatch
+filename you downloaded (`arm64` for aarch64). If `apt` reports missing
+dependencies, add `-f`. The packages create the `openwatch` user, install the
+same files as the RPM plus the corpus, and reload `systemd` without starting
+the service.
 
 ```bash
 dpkg -l openwatch
