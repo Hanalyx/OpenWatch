@@ -70,6 +70,16 @@ type Publisher interface {
 // via systemconfig.Store.LoadSecurity. Tests substitute a constant.
 type SudoPolicyLoader func(ctx context.Context) (owssh.SudoPolicy, error)
 
+// ConnProfileStore is the subset of connprofile the collector uses to
+// learn the host's SUDO mode: lead each cycle's sudo commands with the
+// recorded mode and record the mode that actually worked. nil disables
+// sudo-mode learning. (SSH auth-method learning is handled separately by
+// the profile-aware transport.) Spec system-connection-profile v1.2.0.
+type ConnProfileStore interface {
+	Get(ctx context.Context, hostID uuid.UUID) (connprofile.Profile, error)
+	RecordSudoMode(ctx context.Context, hostID uuid.UUID, m connprofile.SudoMode) error
+}
+
 // Service is the OS Intelligence collector. Construct via NewService.
 type Service struct {
 	pool       *pgxpool.Pool
@@ -79,6 +89,7 @@ type Service struct {
 	lookup     HostLookup
 	transport  SSHTransport
 	sudoPolicy SudoPolicyLoader
+	profiles   ConnProfileStore
 }
 
 // NewService constructs a Service. emit + bus may be nil — RunCycle
@@ -111,6 +122,15 @@ func (s *Service) WithHostLookup(h HostLookup) *Service {
 // ssh-connectivity v1.1.0 C-09.
 func (s *Service) WithSudoPolicyLoader(l SudoPolicyLoader) *Service {
 	s.sudoPolicy = l
+	return s
+}
+
+// WithProfiles enables per-host sudo-mode learning: each cycle leads its
+// sudo commands with the host's recorded mode and records the mode that
+// worked. nil (the default) keeps the historical sudo -n-first probing.
+// Spec system-connection-profile v1.2.0 C-07 / AC-10.
+func (s *Service) WithProfiles(p ConnProfileStore) *Service {
+	s.profiles = p
 	return s
 }
 
@@ -253,12 +273,33 @@ func (s *Service) runCycleWithTransport(ctx context.Context, hf hostFacts) (Snap
 	}
 	sudoFallbackCount := 0
 
+	// Sudo-mode learning: lead this cycle's sudo commands with the host's
+	// recorded mode (skips the doomed `sudo -n` on a password-sudo host),
+	// observe what actually worked, and record it once at cycle end.
+	// sudoPrefer threads the observation forward so later sudo commands in
+	// the same cycle also lead correctly. Spec system-connection-profile
+	// v1.2.0 C-07.
+	var knownSudo, learnedSudo connprofile.SudoMode
+	if s.profiles != nil {
+		if p, perr := s.profiles.Get(ctx, hf.HostID); perr == nil {
+			knownSudo = p.SudoMode
+		}
+	}
+	sudoPrefer := string(knownSudo)
+	observeSudo := func(observed string) {
+		if observed != "" {
+			learnedSudo = connprofile.SudoMode(observed)
+			sudoPrefer = observed
+		}
+	}
+
 	snap := Snapshot{CollectedAt: time.Now().UTC()}
 
 	if out, code, err := sess.Run(ctx, "cat /etc/passwd"); err == nil && code == 0 {
 		// Spec v1.1.0 C-09: sudo -n first; sudo -S -k with cred.Password
 		// on fallback if policy + credential allow.
-		shadow, scode, used, serr := owssh.RunSudo(ctx, sess, hf.Cred, policy, "cat /etc/shadow")
+		shadow, scode, used, observed, serr := owssh.RunSudo(ctx, sess, hf.Cred, policy, sudoPrefer, "cat /etc/shadow")
+		observeSudo(observed)
 		if used {
 			sudoFallbackCount++
 		}
@@ -385,7 +426,8 @@ func (s *Service) runCycleWithTransport(ctx context.Context, hf hostFacts) (Snap
 		// (sudo denied) silently drop the entry — partial success.
 		if path == "/etc/shadow" {
 			// Spec v1.1.0 C-09 — same gating as the shadow read above.
-			out, code, used, err := owssh.RunSudo(ctx, sess, hf.Cred, policy, "sha256sum "+path)
+			out, code, used, observed, err := owssh.RunSudo(ctx, sess, hf.Cred, policy, sudoPrefer, "sha256sum "+path)
+			observeSudo(observed)
 			if used {
 				sudoFallbackCount++
 			}
@@ -411,6 +453,13 @@ func (s *Service) runCycleWithTransport(ctx context.Context, hf hostFacts) (Snap
 	// in v1.1.0 to keep the patch tight; the current behavior already
 	// covers ufw-inactive Ubuntu hosts (count=0 via the non-sudo
 	// fallback inside the heredoc).
+
+	// Record the learned sudo mode once per cycle — only when a form was
+	// confirmed AND it differs from what was already stored (a no-op
+	// upsert otherwise). Spec system-connection-profile v1.2.0 C-07.
+	if s.profiles != nil && learnedSudo != connprofile.SudoUnknown && learnedSudo != knownSudo {
+		_ = s.profiles.RecordSudoMode(ctx, hf.HostID, learnedSudo)
+	}
 
 	return snap, sudoFallbackCount, nil
 }

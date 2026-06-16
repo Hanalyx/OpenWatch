@@ -84,11 +84,16 @@ type Dialer interface {
 }
 
 // ConnProfileStore is the subset of connprofile the probe uses to lead the
-// dial with the host's known-good SSH auth method and record what
-// authenticated. nil (the default) disables learning.
+// dial with the host's known-good SSH auth method AND its sudo mode, and
+// to record what actually worked. nil (the default) disables learning.
+//
+// The liveness probe is the authoritative sudo-mode learner: it runs an
+// innocuous `true` sentinel every cycle (~5 min), so unlike the
+// opportunistic discovery/collector paths it reliably confirms the mode.
 type ConnProfileStore interface {
 	Get(ctx context.Context, hostID uuid.UUID) (connprofile.Profile, error)
 	RecordSSHAuth(ctx context.Context, hostID uuid.UUID, m connprofile.SSHAuthMethod) error
+	RecordSudoMode(ctx context.Context, hostID uuid.UUID, m connprofile.SudoMode) error
 }
 
 // probeConfig accumulates the optional dependencies a Probe needs.
@@ -162,14 +167,16 @@ func Probe(resolver Resolver, opts ...ProbeOption) liveness.PrivilegeProbeFunc {
 			return true, false, fmt.Errorf("resolve credential: %w", rerr)
 		}
 
-		// Learning: lead the dial with the host's recorded auth method
-		// (if a profile store is wired and a row exists), then record the
-		// method that actually authenticated. Both are best-effort: a
-		// lookup miss just dials in the default order.
+		// Learning: lead the dial with the host's recorded auth method AND
+		// sudo mode (if a profile store is wired and a row exists), then
+		// record what actually worked. Both are best-effort: a lookup miss
+		// just dials/escalates in the default order.
 		var prefer connprofile.SSHAuthMethod
+		var knownSudo connprofile.SudoMode
 		if cfg.profiles != nil {
 			if p, gerr := cfg.profiles.Get(ctx, id); gerr == nil {
 				prefer = p.SSHAuthMethod
+				knownSudo = p.SudoMode
 			}
 		}
 
@@ -183,27 +190,80 @@ func Probe(resolver Resolver, opts ...ProbeOption) liveness.PrivilegeProbeFunc {
 			_ = cfg.profiles.RecordSSHAuth(ctx, id, observed)
 		}
 
-		// Layer 1: sudo -n true. The 80% case where NOPASSWD is set.
-		out, code, runErr := exec.Run(ctx, "sudo -n true")
-		if runErr == nil && code == 0 {
-			return true, true, nil
+		ok, sudoMode, sudoErr := probeSudo(ctx, exec, cred, cfg.policy, knownSudo)
+		if cfg.profiles != nil && sudoMode != connprofile.SudoUnknown && sudoMode != knownSudo {
+			_ = cfg.profiles.RecordSudoMode(ctx, id, sudoMode)
 		}
-
-		// Layer 2 (v1.2.0): sudo -S -k -p '' true. Only when the
-		// policy + credential permit. Per spec C-09 / AC-19, the
-		// auth method must allow password material AND the password
-		// field must be populated.
-		if !canFallback(ctx, cfg.policy, cred) {
-			return true, false, fmt.Errorf("sudo -n true: exit %d: %s", code, strings.TrimSpace(string(out)))
-		}
-
-		stdin := bytes.NewReader([]byte(cred.Password + "\n"))
-		out2, code2, runErr2 := exec.RunWithStdin(ctx, "sudo -S -k -p '' true", stdin)
-		if runErr2 == nil && code2 == 0 {
-			return true, true, nil
-		}
-		return true, false, fmt.Errorf("sudo -S -k -p '' true: exit %d: %s", code2, strings.TrimSpace(string(out2)))
+		return true, ok, sudoErr
 	}
+}
+
+// probeSudo determines whether sudo works and in which mode, by running
+// the innocuous `true` sentinel under each form. It leads with `sudo -S`
+// when the host is known to need a password (knownSudo == SudoPassword)
+// and the policy + credential permit one — skipping the doomed `sudo -n`.
+// Otherwise it keeps the historical `sudo -n` first order. Both forms are
+// still attempted on a miss (a hint, not a lock), so a stale mode self-
+// heals on the next probe.
+//
+// Returns ok (sudo usable), the mode CONFIRMED to work (SudoUnknown when
+// neither did), and on failure the same diagnostic error the pre-learning
+// probe returned (preserving spec AC-18/AC-19/AC-21 behaviour). Spec
+// system-connection-profile v1.2.0 C-07.
+func probeSudo(
+	ctx context.Context,
+	exec SessionExecutor,
+	cred *credential.Credential,
+	policy PolicyLoader,
+	knownSudo connprofile.SudoMode,
+) (ok bool, mode connprofile.SudoMode, err error) {
+	canPassword := canFallback(ctx, policy, cred)
+
+	runN := func() (bool, []byte, int) {
+		out, code, runErr := exec.Run(ctx, "sudo -n true")
+		return runErr == nil && code == 0, out, code
+	}
+	runS := func() (bool, []byte, int) {
+		stdin := bytes.NewReader([]byte(cred.Password + "\n"))
+		out, code, runErr := exec.RunWithStdin(ctx, "sudo -S -k -p '' true", stdin)
+		return runErr == nil && code == 0, out, code
+	}
+
+	// Lead with sudo -S on a known password-sudo host.
+	if knownSudo == connprofile.SudoPassword && canPassword {
+		if good, _, _ := runS(); good {
+			return true, connprofile.SudoPassword, nil
+		}
+		// sudo -S did not confirm; the host may have gained NOPASSWD.
+		good, out, code := runN()
+		if good {
+			return true, connprofile.SudoNopasswd, nil
+		}
+		return false, connprofile.SudoUnknown,
+			fmt.Errorf("sudo -n true: exit %d: %s", code, strings.TrimSpace(string(out)))
+	}
+
+	// Default order — Layer 1: sudo -n true. The 80% case where NOPASSWD
+	// is set.
+	good, out, code := runN()
+	if good {
+		return true, connprofile.SudoNopasswd, nil
+	}
+
+	// Layer 2 (v1.2.0): sudo -S -k -p '' true. Only when the policy +
+	// credential permit. Per spec C-09 / AC-19, the auth method must allow
+	// password material AND the password field must be populated.
+	if !canPassword {
+		return false, connprofile.SudoUnknown,
+			fmt.Errorf("sudo -n true: exit %d: %s", code, strings.TrimSpace(string(out)))
+	}
+
+	good2, out2, code2 := runS()
+	if good2 {
+		return true, connprofile.SudoPassword, nil
+	}
+	return false, connprofile.SudoUnknown,
+		fmt.Errorf("sudo -S -k -p '' true: exit %d: %s", code2, strings.TrimSpace(string(out2)))
 }
 
 // canFallback returns true iff the policy is on AND the credential is

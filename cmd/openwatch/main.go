@@ -388,7 +388,9 @@ func cmdServe(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 		// SecurityConfig reader so the firewall probe can retry a
 		// sudo -n failure via sudo -S -k with the credential password
 		// — same gating as the collector + the privilege probe.
-		WithPolicyLoader(cfgStore)
+		WithPolicyLoader(cfgStore).
+		// Sudo-mode learning for the firewall probe (system-connection-profile).
+		WithProfiles(connStore)
 
 	// OS Intelligence collector — runs one RunCycle per host: SSH
 	// session, snapshot.Collect (packages/services/users/network/etc.),
@@ -414,7 +416,9 @@ func cmdServe(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 		WithSudoPolicyLoader(func(ctx context.Context) (owssh.SudoPolicy, error) {
 			cfg, err := cfgStore.LoadSecurity(ctx)
 			return owssh.SudoPolicy{AllowCredentialPassword: cfg.AllowCredentialSudoPassword}, err
-		})
+		}).
+		// Sudo-mode learning across the cycle's sudo commands (system-connection-profile).
+		WithProfiles(connStore)
 
 	// Intelligence scheduler — cron-like loop that picks "due" hosts
 	// from host_intelligence_state.next_intelligence_at and dispatches

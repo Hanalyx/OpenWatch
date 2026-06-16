@@ -15,6 +15,7 @@ package discovery
 import (
 	"testing"
 
+	"github.com/Hanalyx/openwatch/internal/connprofile"
 	"github.com/Hanalyx/openwatch/internal/credential"
 	"github.com/Hanalyx/openwatch/internal/systemconfig"
 )
@@ -56,7 +57,7 @@ func TestProbeFirewall_PasswordFallback_UFWSuccess(t *testing.T) {
 			policy: systemconfig.SecurityConfig{AllowCredentialSudoPassword: true},
 			cred:   validHostCred(),
 		}
-		svc, status, ok := probeFirewall(testCtx(t), sess, cfg)
+		svc, status, learned, ok := probeFirewall(testCtx(t), sess, cfg)
 		if !ok {
 			t.Fatalf("ok: want true (fallback succeeded), got false")
 		}
@@ -65,6 +66,10 @@ func TestProbeFirewall_PasswordFallback_UFWSuccess(t *testing.T) {
 		}
 		if status != "active" {
 			t.Errorf("status: want active, got %q", status)
+		}
+		// The sudo -S fallback confirmed password sudo — learned mode.
+		if learned != connprofile.SudoPassword {
+			t.Errorf("learned sudo mode: want %q, got %q", connprofile.SudoPassword, learned)
 		}
 		// The fallback call MUST have been issued through RunWithStdin
 		// with the credential password on stdin.
@@ -106,9 +111,13 @@ func TestProbeFirewall_PasswordFallback_PolicyOff(t *testing.T) {
 			policy: systemconfig.SecurityConfig{AllowCredentialSudoPassword: false},
 			cred:   validHostCred(),
 		}
-		_, _, ok := probeFirewall(testCtx(t), sess, cfg)
+		_, _, learned, ok := probeFirewall(testCtx(t), sess, cfg)
 		if ok {
 			t.Errorf("ok: want false (policy off, no sudo path succeeded), got true")
+		}
+		// Nothing confirmed sudo (policy off, every form denied).
+		if learned != connprofile.SudoUnknown {
+			t.Errorf("learned sudo mode: want unknown, got %q", learned)
 		}
 		if got := len(stub.stdinCalls); got != 0 {
 			t.Errorf("RunWithStdin called %d times with policy off; want 0", got)
@@ -133,13 +142,75 @@ func TestProbeFirewall_NoFallbackOnSudoNSuccess(t *testing.T) {
 			policy: systemconfig.SecurityConfig{AllowCredentialSudoPassword: true},
 			cred:   validHostCred(),
 		}
-		svc, status, ok := probeFirewall(testCtx(t), sess, cfg)
+		svc, status, learned, ok := probeFirewall(testCtx(t), sess, cfg)
 		if !ok || svc != "firewalld" || status != "active" {
 			t.Errorf("first-firewall hit: svc=%q status=%q ok=%v", svc, status, ok)
+		}
+		// Sudoless firewalld hit first — no sudo command ran, so the probe
+		// confirms no sudo mode (learning stays with whatever liveness knows).
+		if learned != connprofile.SudoUnknown {
+			t.Errorf("learned sudo mode: want unknown (sudoless path), got %q", learned)
 		}
 		// Zero RunWithStdin calls — fallback never engaged.
 		if got := len(stub.stdinCalls); got != 0 {
 			t.Errorf("RunWithStdin called %d times though sudo -n was not even attempted", got)
+		}
+	})
+}
+
+// @spec system-connection-profile
+// @ac AC-11
+// AC-11 (discovery sudo): the firewall probe opportunistically reports the
+// sudo mode a real sudo command confirms — NOPASSWD here (sudo -n ufw
+// status exits 0) — and leads with sudo -S when the host is recorded as
+// needing a password.
+func TestProbeFirewall_SudoModeLearning(t *testing.T) {
+	t.Run("system-connection-profile/AC-11", func(t *testing.T) {
+		// NOPASSWD host: firewalld absent, sudo -n ufw status succeeds.
+		stub := newStubSSHTransport()
+		stub.SeedAll()
+		stub.outputs["sudo -n ufw status"] = stubResult{out: []byte("Status: active\n"), exitCode: 0}
+
+		sess, _ := stub.Dial(testCtx(t), "host", 22, validHostCred())
+		cfg := sudoFallbackConfig{
+			policy: systemconfig.SecurityConfig{AllowCredentialSudoPassword: true},
+			cred:   validHostCred(),
+		}
+		svc, _, learned, ok := probeFirewall(testCtx(t), sess, cfg)
+		if !ok || svc != "ufw" {
+			t.Fatalf("probe: ok=%v svc=%q, want true/ufw", ok, svc)
+		}
+		if learned != connprofile.SudoNopasswd {
+			t.Errorf("learned: want %q, got %q", connprofile.SudoNopasswd, learned)
+		}
+		// NOPASSWD confirmed via sudo -n: no password fed to stdin.
+		if got := len(stub.stdinCalls); got != 0 {
+			t.Errorf("RunWithStdin called %d times on a NOPASSWD host; want 0", got)
+		}
+	})
+
+	t.Run("known password host leads with sudo -S", func(t *testing.T) {
+		stub := newStubSSHTransport()
+		stub.SeedAll()
+		// Only sudo -S ufw status is seeded; sudo -n is left unseeded (127).
+		stub.outputs["sudo -S -k -p '' ufw status"] = stubResult{out: []byte("Status: active\n"), exitCode: 0}
+
+		sess, _ := stub.Dial(testCtx(t), "host", 22, validHostCred())
+		cfg := sudoFallbackConfig{
+			policy: systemconfig.SecurityConfig{AllowCredentialSudoPassword: true},
+			cred:   validHostCred(),
+			prefer: connprofile.SudoPassword,
+		}
+		svc, _, learned, ok := probeFirewall(testCtx(t), sess, cfg)
+		if !ok || svc != "ufw" {
+			t.Fatalf("probe: ok=%v svc=%q, want true/ufw", ok, svc)
+		}
+		if learned != connprofile.SudoPassword {
+			t.Errorf("learned: want %q, got %q", connprofile.SudoPassword, learned)
+		}
+		// Led with sudo -S: the password was fed on the first ufw attempt.
+		if len(stub.stdinCalls) == 0 || stub.stdinCalls[0].cmd != "sudo -S -k -p '' ufw status" {
+			t.Errorf("did not lead with sudo -S: stdinCalls=%+v", stub.stdinCalls)
 		}
 	})
 }

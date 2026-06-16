@@ -72,7 +72,7 @@ func TestRunSudo_NopasswdShortCircuits(t *testing.T) {
 		}
 		policy := SudoPolicy{AllowCredentialPassword: true}
 
-		out, code, used, err := RunSudo(context.Background(), sess, cred, policy, "cat /etc/shadow")
+		out, code, used, _, err := RunSudo(context.Background(), sess, cred, policy, "", "cat /etc/shadow")
 		if err != nil {
 			t.Fatalf("unexpected err: %v", err)
 		}
@@ -104,7 +104,7 @@ func TestRunSudo_FallbackEngagesWhenAllowed(t *testing.T) {
 		}
 		policy := SudoPolicy{AllowCredentialPassword: true}
 
-		out, code, used, err := RunSudo(context.Background(), sess, cred, policy, "cat /etc/shadow")
+		out, code, used, _, err := RunSudo(context.Background(), sess, cred, policy, "", "cat /etc/shadow")
 		if err != nil {
 			t.Fatalf("unexpected err: %v", err)
 		}
@@ -142,7 +142,7 @@ func TestRunSudo_NoFallbackWhenPolicyDisabled(t *testing.T) {
 		}
 		policy := SudoPolicy{AllowCredentialPassword: false}
 
-		_, code, used, err := RunSudo(context.Background(), sess, cred, policy, "cat /etc/shadow")
+		_, code, used, _, err := RunSudo(context.Background(), sess, cred, policy, "", "cat /etc/shadow")
 		if err != nil {
 			t.Fatalf("unexpected err: %v", err)
 		}
@@ -170,7 +170,7 @@ func TestRunSudo_NoFallbackWhenSshKeyOnly(t *testing.T) {
 		}
 		policy := SudoPolicy{AllowCredentialPassword: true}
 
-		_, _, used, err := RunSudo(context.Background(), sess, cred, policy, "cat /etc/shadow")
+		_, _, used, _, err := RunSudo(context.Background(), sess, cred, policy, "", "cat /etc/shadow")
 		if err != nil {
 			t.Fatalf("unexpected err: %v", err)
 		}
@@ -197,7 +197,7 @@ func TestRunSudo_WrongPasswordNoRetry(t *testing.T) {
 		}
 		policy := SudoPolicy{AllowCredentialPassword: true}
 
-		_, code, used, err := RunSudo(context.Background(), sess, cred, policy, "cat /etc/shadow")
+		_, code, used, _, err := RunSudo(context.Background(), sess, cred, policy, "", "cat /etc/shadow")
 		if err != nil {
 			t.Fatalf("unexpected err: %v", err)
 		}
@@ -253,11 +253,81 @@ func TestRunSudo_TransportErrorBubblesUp(t *testing.T) {
 	sess := &stubSession{transportErr: errors.New("session closed")}
 	policy := SudoPolicy{AllowCredentialPassword: true}
 	cred := &credential.Credential{AuthMethod: credential.AuthBoth, Password: "x"}
-	_, _, used, err := RunSudo(context.Background(), sess, cred, policy, "ls")
+	_, _, used, _, err := RunSudo(context.Background(), sess, cred, policy, "", "ls")
 	if err == nil || !strings.Contains(err.Error(), "session closed") {
 		t.Errorf("transport error not propagated: err=%v", err)
 	}
 	if used {
 		t.Error("transport error triggered fallback (should bypass)")
 	}
+}
+
+// @spec system-connection-profile
+// @ac AC-10
+// AC-10 (collector/discovery half, sudo): RunSudo reports the sudo mode
+// observed to work (SudoNopasswd / SudoPassword on a confirmed exit-0,
+// "" otherwise), and when told prefer=SudoPassword it leads with sudo -S
+// and skips the doomed sudo -n round-trip.
+func TestRunSudo_SudoModeLearning(t *testing.T) {
+	cred := &credential.Credential{AuthMethod: credential.AuthBoth, Password: "hunter2"} // pragma: allowlist secret
+	policy := SudoPolicy{AllowCredentialPassword: true}
+
+	t.Run("system-connection-profile/AC-10", func(t *testing.T) {
+		// Known password host: lead with sudo -S, no sudo -n attempt.
+		sess := &stubSession{fallbackOK: true}
+		_, code, used, observed, err := RunSudo(context.Background(), sess, cred, policy, SudoPassword, "cat /etc/shadow")
+		if err != nil || code != 0 {
+			t.Fatalf("want success, got code=%d err=%v", code, err)
+		}
+		if !used {
+			t.Error("usedFallback=false; leading with sudo -S should count as fallback")
+		}
+		if observed != SudoPassword {
+			t.Errorf("observed=%q, want %q", observed, SudoPassword)
+		}
+		if len(sess.runCalls) != 0 {
+			t.Errorf("lead-with-password issued %d sudo -n call(s), want 0", len(sess.runCalls))
+		}
+		if len(sess.stdinCalls) != 1 {
+			t.Errorf("want exactly 1 sudo -S call, got %d", len(sess.stdinCalls))
+		}
+	})
+
+	t.Run("nopasswd observed on default order", func(t *testing.T) {
+		sess := &stubSession{nopasswdSucceeds: true}
+		_, _, used, observed, _ := RunSudo(context.Background(), sess, cred, policy, "", "cat /etc/shadow")
+		if used {
+			t.Error("usedFallback=true on a NOPASSWD host")
+		}
+		if observed != SudoNopasswd {
+			t.Errorf("observed=%q, want %q", observed, SudoNopasswd)
+		}
+	})
+
+	t.Run("password observed via default-order fallback", func(t *testing.T) {
+		sess := &stubSession{nopasswdSucceeds: false, fallbackOK: true}
+		_, _, _, observed, _ := RunSudo(context.Background(), sess, cred, policy, "", "cat /etc/shadow")
+		if observed != SudoPassword {
+			t.Errorf("observed=%q, want %q", observed, SudoPassword)
+		}
+	})
+
+	t.Run("no observation when neither form confirms", func(t *testing.T) {
+		// sudo -n denied, password rejected: nothing definitively worked.
+		sess := &stubSession{nopasswdSucceeds: false, fallbackOK: false}
+		_, _, _, observed, _ := RunSudo(context.Background(), sess, cred, policy, "", "cat /etc/shadow")
+		if observed != "" {
+			t.Errorf("observed=%q, want empty (ambiguous)", observed)
+		}
+	})
+
+	t.Run("stale password hint self-heals to nopasswd", func(t *testing.T) {
+		// prefer=password but the host now grants NOPASSWD and rejects the
+		// piped password: lead sudo -S (fails), fall back to sudo -n (ok).
+		sess := &stubSession{nopasswdSucceeds: true, fallbackOK: false}
+		_, code, _, observed, _ := RunSudo(context.Background(), sess, cred, policy, SudoPassword, "cat /etc/shadow")
+		if code != 0 || observed != SudoNopasswd {
+			t.Errorf("self-heal: code=%d observed=%q, want code=0 observed=%q", code, observed, SudoNopasswd)
+		}
+	})
 }
