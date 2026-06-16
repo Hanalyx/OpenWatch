@@ -16,7 +16,9 @@
 # NOT `set -e`: we handle each failure explicitly to control the fail mode.
 set -uo pipefail
 
-CONF=/etc/openwatch/upgrade.conf
+# Config/secrets paths default to the production locations; the env
+# overrides exist ONLY so the e2e test can point them at a scratch fixture.
+CONF="${OPENWATCH_UPGRADE_CONF:-/etc/openwatch/upgrade.conf}"
 AUTO_BACKUP=yes
 BACKUP_DIR=/var/lib/openwatch/backups
 # shellcheck source=/dev/null
@@ -24,7 +26,7 @@ BACKUP_DIR=/var/lib/openwatch/backups
 
 # The migrate command reads the same config the service does; load the DB
 # secret the systemd unit normally injects so a root scriptlet can connect.
-SECRETS=/etc/openwatch/secrets.env
+SECRETS="${OPENWATCH_SECRETS_ENV:-/etc/openwatch/secrets.env}"
 if [ -f "$SECRETS" ]; then
     set -a
     # shellcheck source=/dev/null
