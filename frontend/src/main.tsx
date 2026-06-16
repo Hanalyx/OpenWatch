@@ -14,6 +14,17 @@ import { useLiveEvents } from '@/hooks/useLiveEvents';
 // before React mounts.
 import '@/store/useColorSchemeStore';
 
+// Self-hosted fonts (airgap-safe): bundled by Vite from @fontsource, so the
+// app fetches NOTHING from fonts.googleapis.com / gstatic.com at runtime.
+// Weights mirror the former Google Fonts request: Inter 400/500/600/700,
+// JetBrains Mono 400/500.
+import '@fontsource/inter/400.css';
+import '@fontsource/inter/500.css';
+import '@fontsource/inter/600.css';
+import '@fontsource/inter/700.css';
+import '@fontsource/jetbrains-mono/400.css';
+import '@fontsource/jetbrains-mono/500.css';
+
 import './theme/globals.css';
 
 // Entry point.

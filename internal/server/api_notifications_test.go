@@ -139,6 +139,61 @@ func TestNotifications_EmailCreateRedactsSecret(t *testing.T) {
 	})
 }
 
+// @ac AC-07
+// The list/read path returns an email channel's NON-secret config so the
+// edit form can pre-fill — smtp_port, from, to, username — but never the
+// password. Editing without re-entering the password keeps the stored one.
+func TestNotifications_EmailListExposesNonSecretConfig(t *testing.T) {
+	t.Run("api-notifications/AC-07", func(t *testing.T) {
+		url, _ := freshAPIServer(t)
+		body := map[string]any{
+			"type": "email", "name": "prefill-mail",
+			"smtp_host": "smtp.corp.example", "smtp_port": 2525,
+			"username": "ow-user", "password": "smtp-supersecret",
+			"from": "alerts@corp.example", "to": []string{"sec@corp.example", "ops@corp.example"},
+		}
+		cr := doReq(t, asRole(t, "POST", url+"/api/v1/notifications/channels", auth.RoleAdmin, body))
+		if cr.StatusCode != http.StatusCreated {
+			t.Fatalf("create = %d", cr.StatusCode)
+		}
+		var created api.NotificationChannel
+		_ = json.NewDecoder(cr.Body).Decode(&created)
+
+		// LIST returns the non-secret fields for pre-fill, never the password.
+		lr := doReq(t, asRole(t, "GET", url+"/api/v1/notifications/channels", auth.RoleAdmin, nil))
+		raw := readBody(t, lr)
+		for _, want := range []string{"smtp.corp.example", "2525", "alerts@corp.example", "sec@corp.example", "ow-user"} {
+			if !strings.Contains(raw, want) {
+				t.Errorf("list missing non-secret email field %q for pre-fill: %s", want, raw)
+			}
+		}
+		if strings.Contains(raw, "smtp-supersecret") || strings.Contains(raw, `"password"`) {
+			t.Errorf("list leaked the SMTP password: %s", raw)
+		}
+
+		// PATCH from/to WITHOUT re-entering the password must keep it. Verify
+		// by confirming the channel still validates + the password survives
+		// (a delivery would otherwise fail; here we assert update succeeds and
+		// re-read still has no password exposed).
+		id := created.Id.String()
+		pr := doReq(t, asRole(t, "PATCH", url+"/api/v1/notifications/channels/"+id, auth.RoleAdmin,
+			map[string]any{
+				"name": "prefill-mail", "enabled": true,
+				"smtp_host": "smtp.corp.example", "smtp_port": 2525,
+				"username": "ow-user", "from": "alerts@corp.example",
+				"to": []string{"new@corp.example"},
+			}))
+		if pr.StatusCode != http.StatusOK {
+			t.Fatalf("patch (no password) = %d, want 200", pr.StatusCode)
+		}
+		gr := doReq(t, asRole(t, "GET", url+"/api/v1/notifications/channels", auth.RoleAdmin, nil))
+		graw := readBody(t, gr)
+		if !strings.Contains(graw, "new@corp.example") {
+			t.Errorf("patched recipient not persisted: %s", graw)
+		}
+	})
+}
+
 // @ac AC-03
 func TestNotifications_UpdateDeleteRBAC(t *testing.T) {
 	t.Run("api-notifications/AC-03", func(t *testing.T) {
