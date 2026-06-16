@@ -805,7 +805,7 @@ func cmdCreateAdmin(cfg *config.Config, args []string, stdout, stderr *os.File) 
 	}
 	defer pool.Close()
 
-	svc := users.NewService(pool, nil)
+	svc := users.NewService(pool, identity.DefaultBreachCorpus())
 	u, err := svc.CreateUser(ctx, users.CreateParams{
 		Username:    *username,
 		Email:       *email,

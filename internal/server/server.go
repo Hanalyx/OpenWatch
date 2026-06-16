@@ -212,7 +212,7 @@ func New(cfg *config.Config, pool *pgxpool.Pool) *Server {
 	// non-anonymous Identity on success (anonymous if not). Does NOT
 	// reject on its own — that's the handler's job via EnforcePermission.
 	// Per app/specs/system/auth-identity.spec.yaml AC-17.
-	usrSvc := users.NewService(pool, nil)
+	usrSvc := users.NewService(pool, identity.DefaultBreachCorpus())
 	// API service-account tokens (owk_) authenticate on the bearer path
 	// via the token service; the same instance backs the /tokens handlers.
 	apiTokenSvc := apitoken.NewService(pool)

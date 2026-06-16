@@ -21,6 +21,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/fleetrollup"
 	"github.com/Hanalyx/openwatch/internal/group"
 	"github.com/Hanalyx/openwatch/internal/host"
+	"github.com/Hanalyx/openwatch/internal/identity"
 	"github.com/Hanalyx/openwatch/internal/intelligence/discovery"
 	"github.com/Hanalyx/openwatch/internal/kensa"
 	"github.com/Hanalyx/openwatch/internal/license"
@@ -141,7 +142,7 @@ type handlers struct {
 func newHandlers(pool *pgxpool.Pool) *handlers {
 	return &handlers{
 		pool:        pool,
-		users:       users.NewService(pool, nil),
+		users:       users.NewService(pool, identity.DefaultBreachCorpus()),
 		credentials: credential.NewService(pool),
 		hosts:       host.NewService(pool),
 		fleet:       fleetrollup.NewService(pool),
