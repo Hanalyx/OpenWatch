@@ -439,6 +439,9 @@ frontend_test.log
 *test*.md
 *test*.js
 *test*.cjs
+# Exception: committed test harness scripts under packaging/tests/ (e.g. the
+# container upgrade test) are real tracked files, not transient scratch.
+!packaging/tests/*test*.sh
 *test*.mjs
 *test*.ts
 *test*.tsx
