@@ -125,7 +125,13 @@ Gaps identified comparing `docs/KENSA_OPENWATCH_BOUNDARY.md` against current Ope
 
 ---
 
-## CI / Flakes
+## CI / Quality
+
+| Item | Priority | Notes |
+|------|----------|-------|
+| Raise specter coverage gate to 100% (all tiers) | P2 | `specter.yaml` currently gates `tier1: 100 / tier2: 80 / tier3: 50` under `strictness: threshold`. Goal: tier2 + tier3 → 100. **Not a config flip** — it is gated on first backfilling real AC tests for every currently-sub-100% spec; raising the threshold before the tests exist would red-wall every PR. Plan: run a full `go test -json` + vitest JUnit ingest, read `specter coverage` for the true gaps, then write the missing-AC tests spec by spec (real tests, not annotation-only), then bump the thresholds. |
+
+### Flakes
 
 | Item | Priority | Notes |
 |------|----------|-------|
