@@ -207,6 +207,11 @@ func New(cfg *config.Config, pool *pgxpool.Pool) *Server {
 	// otherwise add. Spec system-http-server C-12.
 	r.Use(securityHeaders)
 
+	// Throttle the authentication endpoints (login + MFA verify) per client
+	// IP against online password/OTP guessing. Per-server-instance so it is
+	// isolated across tests. Spec system-http-server C-13.
+	r.Use(rateLimitAuth(newRateLimiter(authRateLimitPerMinute, time.Minute)))
+
 	// Identity binder. Reads session cookie or Bearer JWT, translates to
 	// auth.Identity via the users.Service Lookups adapter. Sets a
 	// non-anonymous Identity on success (anonymous if not). Does NOT

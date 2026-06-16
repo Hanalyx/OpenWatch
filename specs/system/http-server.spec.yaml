@@ -1,7 +1,7 @@
 spec:
   id: system-http-server
   title: HTTPS server with TLS hot-reload
-  version: "1.1.0"
+  version: "1.2.0"
   status: approved
   tier: 2
 
@@ -81,6 +81,18 @@ spec:
         the static-delivery spec slice.)
       type: security
       enforcement: error
+    - id: C-13
+      description: >-
+        The authentication endpoints (POST /api/v1/auth/login and
+        /api/v1/auth/mfa:verify) MUST be rate-limited per client IP against
+        online password/OTP guessing. Over the limit the server returns 429
+        Too Many Requests with a Retry-After header and does NOT run the
+        credential check. The client IP MUST come from the direct connection
+        (RemoteAddr), not a client-supplied X-Forwarded-For, so an attacker
+        cannot rotate the key. The limit is generous enough that legitimate
+        sign-ins never trip it.
+      type: security
+      enforcement: error
 
   acceptance_criteria:
     - id: AC-01
@@ -137,3 +149,7 @@ spec:
       description: Every response carries Strict-Transport-Security (max-age >= 1 year, includeSubDomains), Content-Security-Policy (with frame-ancestors 'none' and default-src 'self'), X-Content-Type-Options nosniff, X-Frame-Options DENY, and Referrer-Policy no-referrer. A request under /docs gets a CSP that relaxes script/style to 'unsafe-inline' (for Swagger UI) but still denies framing.
       priority: high
       references_constraints: [C-12]
+    - id: AC-18
+      description: The rateLimiter allows up to its limit within the window and denies the limit+1th attempt for the same key (a different key is independent). After the per-IP login budget is exhausted, POST /api/v1/auth/login returns 429 with a Retry-After header.
+      priority: high
+      references_constraints: [C-13]
