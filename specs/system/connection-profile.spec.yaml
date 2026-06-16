@@ -1,0 +1,88 @@
+spec:
+  id: system-connection-profile
+  title: Per-host SSH connection learning (auth method + sudo mode)
+  version: "1.0.0"
+  status: approved
+  tier: 2
+
+  context:
+    system: openwatch-go
+    feature: SSH connection memory shared by all host-communication paths
+    description: >
+      OpenWatch talks to a managed host from several paths (liveness
+      privilege probe, OS discovery, OS intelligence collection, and the
+      compliance scan). Each must decide, per connection, which SSH auth
+      method to offer first (key or password) and how to escalate to root
+      (no sudo, NOPASSWD via `sudo -n`, or a sudo password via `sudo -S`).
+      Without memory every connection re-discovers this: it offers an
+      unauthorized key (a failed publickey attempt that counts against
+      MaxAuthTries and can trip fail2ban) and runs a doomed `sudo -n` on a
+      host that needs a password. This spec records what last worked, per
+      host, so each path leads with the known-good choice — a hint, never a
+      lock: callers still fall back and rewrite the record when the host
+      changes, so a stale hint self-heals.
+    related_specs:
+      - system-ssh-connectivity
+      - system-kensa-executor
+
+  objective:
+    summary: >
+      Support the full SSH matrix on every path — key OR password auth,
+      NOPASSWD OR password sudo — out of the box, and remember per host
+      which combination works so repeat connections avoid wasted/failed
+      attempts.
+    scope:
+      includes:
+        - host_connection_profile table + connprofile store (Get / Record)
+        - Dial-layer auth-method ordering (PreferAuth) + observation (ObservedAuth)
+        - Compliance-scan sudo -S support with per-connection sudo-mode probe + learning
+        - Default-on sudo -S password fallback (kill-switch retained)
+      excludes:
+        - Settings UI/API to toggle the kill-switch (DB-only for now)
+        - Extending auth/sudo learning to the discovery, intelligence, and
+          liveness paths (the substrate + dial mechanism land here; wiring
+          those paths is a follow-up)
+
+  constraints:
+    - id: C-01
+      description: The connection profile MUST be a hint, not a lock — a recorded value only orders the attempts; the path MUST still fall back to the other method and overwrite the record when the working choice changes.
+      type: technical
+      enforcement: error
+    - id: C-02
+      description: Recording one dimension (ssh_auth_method or sudo_mode) MUST NOT clobber the other; an unknown value MUST be a no-op.
+      type: technical
+      enforcement: error
+    - id: C-03
+      description: The sudo password MUST be delivered to the remote sudo via the session stdin pipe, never embedded in the command line / argv.
+      type: security
+      enforcement: error
+    - id: C-04
+      description: The compliance scan MUST determine the sudo mode once per connection via an innocuous `true` sentinel (not by inferring refusal from a real check's non-zero exit) and reuse it for every command on that connection.
+      type: technical
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: connprofile.Store.Get on a host with no recorded profile returns a zero Profile (both dimensions unknown) and a nil error.
+      priority: high
+      references_constraints: [C-02]
+    - id: AC-02
+      description: Recording one dimension preserves the other (COALESCE upsert), and re-recording a dimension overwrites it.
+      priority: critical
+      references_constraints: [C-01, C-02]
+    - id: AC-03
+      description: Recording an unknown SSH auth method or sudo mode is a no-op and creates no row.
+      priority: high
+      references_constraints: [C-02]
+    - id: AC-04
+      description: ssh.Dial offers every available auth method (preference is order, not exclusion); DialOptions.PreferAuth leads with the named method and DialOptions.ObservedAuth reports the method that actually authenticated after a successful dial.
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-05
+      description: The scan transport wraps a command per the connection's sudo mode — NOPASSWD as `sudo -n sh -c '<cmd>'` with no stdin, password as `sudo -S -p '' sh -c '<cmd>'` with the credential password (newline-terminated) on stdin and never in the command line, and no-sudo verbatim.
+      priority: critical
+      references_constraints: [C-03, C-04]
+    - id: AC-06
+      description: The sudo -S password fallback is ON by default (DefaultSecurity().AllowCredentialSudoPassword is true), retained as a kill-switch rather than an opt-in.
+      priority: high
+      references_constraints: [C-01]

@@ -76,6 +76,11 @@ type ScanFuncDeps struct {
 	// changes, so a Settings edit applies to the NEXT scan without a
 	// restart. Nil keeps the boot-loaded corpus (built-in defaults).
 	Variables func(ctx context.Context) (map[string]string, error)
+	// Profiles is the per-host connection memory (nil disables
+	// learning). The scan transport reads it to lead with the host's
+	// known-good SSH auth method + sudo mode, and writes back what it
+	// learns. *connprofile.Store in production.
+	Profiles ConnProfile
 }
 
 // NewProductionScanFunc loads the rule corpus once at construction
@@ -92,9 +97,10 @@ func NewProductionScanFunc(deps ScanFuncDeps) (ScanFunc, error) {
 	}
 	corpus := &corpusCache{rules: rules, dir: deps.RulesDir}
 	factory := &TransportFactory{
-		Resolve: deps.Credentials.Resolve,
-		Mode:    deps.HostKeyMode,
-		Store:   deps.KnownHosts,
+		Resolve:  deps.Credentials.Resolve,
+		Mode:     deps.HostKeyMode,
+		Store:    deps.KnownHosts,
+		Profiles: deps.Profiles,
 	}
 	svc, err := newScanService(factory)
 	if err != nil {

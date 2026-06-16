@@ -21,6 +21,7 @@ import (
 
 	"github.com/Hanalyx/openwatch/internal/audit"
 	"github.com/Hanalyx/openwatch/internal/config"
+	"github.com/Hanalyx/openwatch/internal/connprofile"
 	"github.com/Hanalyx/openwatch/internal/correlation"
 	"github.com/Hanalyx/openwatch/internal/credential"
 	"github.com/Hanalyx/openwatch/internal/db"
@@ -183,6 +184,7 @@ func cmdWorker(cfg *config.Config, args []string, stdout, stderr *os.File) int {
 			vars, err := varStore.LoadScanVars(ctx)
 			return vars, err
 		},
+		Profiles: connprofile.NewStore(pool),
 	})
 	if err != nil {
 		slog.ErrorContext(bootCtx, "kensa scan wiring failed — is the kensa-rules package installed (or OPENWATCH_KENSA_RULES_DIR set)?",
