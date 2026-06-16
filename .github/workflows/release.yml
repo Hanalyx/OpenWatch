@@ -150,7 +150,7 @@ jobs:
       # key-based, no Rekor transparency-log upload.
       - name: Install cosign
         if: steps.keys.outputs.cosign == 'true'
-        uses: sigstore/cosign-installer@v3.7.0
+        uses: sigstore/cosign-installer@v4.1.2
 
       - name: Cosign-sign checksums
         if: steps.keys.outputs.cosign == 'true'
