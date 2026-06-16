@@ -3,6 +3,7 @@
 // AC traceability (this file):
 //
 //	AC-05  TestWrap_BySudoMode
+//	AC-07  TestSudoPasswordFor_GatedByPolicyAndAuthMethod
 
 package kensa
 
@@ -11,7 +12,43 @@ import (
 	"testing"
 
 	"github.com/Hanalyx/openwatch/internal/connprofile"
+	"github.com/Hanalyx/openwatch/internal/credential"
 )
+
+// @ac AC-07
+// AC-07: the scan's sudo password is gated by the SAME two conditions the
+// collector/liveness/discovery paths enforce — the AllowCredentialSudoPassword
+// kill-switch AND the credential auth method (password|both). When either
+// fails the transport gets no sudo password, so it never attempts sudo -S.
+func TestSudoPasswordFor_GatedByPolicyAndAuthMethod(t *testing.T) {
+	t.Run("system-connection-profile/AC-07", func(t *testing.T) {
+		pwBoth := &credential.Credential{AuthMethod: credential.AuthBoth, Password: "pw"}
+		pwOnly := &credential.Credential{AuthMethod: credential.AuthPassword, Password: "pw"}
+		keyOnly := &credential.Credential{AuthMethod: credential.AuthSSHKey, Password: ""}
+		// A key credential that somehow carries a password must still be gated out.
+		keyWithPw := &credential.Credential{AuthMethod: credential.AuthSSHKey, Password: "pw"}
+
+		cases := []struct {
+			name    string
+			cred    *credential.Credential
+			allowed bool
+			want    string
+		}{
+			{"kill-switch off blocks password+both", pwBoth, false, ""},
+			{"kill-switch off blocks password-only", pwOnly, false, ""},
+			{"allowed + both -> password", pwBoth, true, "pw"},
+			{"allowed + password -> password", pwOnly, true, "pw"},
+			{"allowed + ssh_key (no password) -> empty", keyOnly, true, ""},
+			{"allowed + ssh_key carrying a password -> empty (auth-method gate)", keyWithPw, true, ""},
+			{"nil credential -> empty", nil, true, ""},
+		}
+		for _, c := range cases {
+			if got := sudoPasswordFor(c.cred, c.allowed); got != c.want {
+				t.Errorf("%s: sudoPasswordFor = %q, want %q", c.name, got, c.want)
+			}
+		}
+	})
+}
 
 // @ac AC-05
 // AC-05: the scan transport wraps a command per the connection's learned

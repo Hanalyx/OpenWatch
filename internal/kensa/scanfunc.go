@@ -81,6 +81,12 @@ type ScanFuncDeps struct {
 	// known-good SSH auth method + sudo mode, and writes back what it
 	// learns. *connprofile.Store in production.
 	Profiles ConnProfile
+	// Policy gates whether the credential password may be used for
+	// sudo -S (the AllowCredentialSudoPassword kill-switch). nil =>
+	// allowed (default-on). Production wires systemconfig LoadSecurity so
+	// the scan honors the same switch as the collector/liveness/discovery
+	// paths.
+	Policy SudoPasswordPolicy
 }
 
 // NewProductionScanFunc loads the rule corpus once at construction
@@ -101,6 +107,7 @@ func NewProductionScanFunc(deps ScanFuncDeps) (ScanFunc, error) {
 		Mode:     deps.HostKeyMode,
 		Store:    deps.KnownHosts,
 		Profiles: deps.Profiles,
+		Policy:   deps.Policy,
 	}
 	svc, err := newScanService(factory)
 	if err != nil {

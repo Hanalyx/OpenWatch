@@ -126,7 +126,8 @@ func Dial(ctx context.Context, host string, port int, cred *credential.Credentia
 		return nil, classifyHandshakeErr(err)
 	}
 	// Handshake succeeded: the last method the observer saw is the one
-	// that authenticated. Report it so the caller can persist the hint.
+	// that authenticated (for single-factor auth — see authObserver). Report
+	// it so the caller can persist the hint.
 	if opts.ObservedAuth != nil {
 		*opts.ObservedAuth = obs.Last()
 	}

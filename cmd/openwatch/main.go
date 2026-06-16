@@ -508,6 +508,10 @@ func cmdServe(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 			return vars, err
 		},
 		Profiles: connprofile.NewStore(pool),
+		Policy: func(ctx context.Context) (bool, error) {
+			cfg, err := cfgStore.LoadSecurity(ctx)
+			return cfg.AllowCredentialSudoPassword, err
+		},
 	}); scanErr != nil {
 		slog.WarnContext(bootCtx, "kensa scan wiring unavailable — on-demand scans will fail until the kensa-rules package is installed (or OPENWATCH_KENSA_RULES_DIR set)",
 			slog.String("error", scanErr.Error()))

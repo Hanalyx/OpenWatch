@@ -60,6 +60,10 @@ spec:
       description: The compliance scan MUST determine the sudo mode once per connection via an innocuous `true` sentinel (not by inferring refusal from a real check's non-zero exit) and reuse it for every command on that connection.
       type: technical
       enforcement: error
+    - id: C-05
+      description: The compliance scan MUST gate its sudo -S use of the credential password on the SAME two conditions the collector/liveness/discovery paths enforce — the AllowCredentialSudoPassword kill-switch is on AND the credential auth method is password or both. When either fails, the scan MUST NOT attempt sudo -S (it degrades to sudo -n). This gates only the sudo use of the password; SSH password authentication is independent.
+      type: security
+      enforcement: error
 
   acceptance_criteria:
     - id: AC-01
@@ -86,3 +90,7 @@ spec:
       description: The sudo -S password fallback is ON by default (DefaultSecurity().AllowCredentialSudoPassword is true), retained as a kill-switch rather than an opt-in.
       priority: high
       references_constraints: [C-01]
+    - id: AC-07
+      description: The scan resolves a sudo password only when the kill-switch is on AND the credential auth method is password or both; a key-only credential or a kill-switch set false yields no sudo password (sudoPasswordFor returns empty), so the scan never attempts sudo -S in those cases.
+      priority: critical
+      references_constraints: [C-05]

@@ -61,6 +61,31 @@ type ConnProfile interface {
 	RecordSudoMode(ctx context.Context, hostID uuid.UUID, m connprofile.SudoMode) error
 }
 
+// SudoPasswordPolicy reports whether the operator permits feeding the
+// credential password to remote sudo (systemconfig
+// SecurityConfig.AllowCredentialSudoPassword — the kill-switch). It is the
+// SAME gate the collector / liveness / discovery paths consult; the scan
+// MUST honor it too or the switch silently fails open on the busiest path.
+// Returning an error is treated as "allowed" to match LoadSecurity's
+// missing-row fallback (default-on).
+type SudoPasswordPolicy func(ctx context.Context) (allowed bool, err error)
+
+// sudoPasswordFor returns the password the transport may use for `sudo -S`,
+// or "" when password-sudo is not permitted. It applies the SAME two gates
+// the other SSH paths enforce: (1) the kill-switch, (2) the credential's
+// auth method must allow password material. Note this gates only the SUDO
+// use of the password — SSH password AUTH is independent and still uses
+// cred.Password directly in the dial.
+func sudoPasswordFor(cred *credential.Credential, allowed bool) string {
+	if !allowed || cred == nil || cred.Password == "" {
+		return ""
+	}
+	if cred.AuthMethod != credential.AuthPassword && cred.AuthMethod != credential.AuthBoth {
+		return ""
+	}
+	return cred.Password
+}
+
 // TransportFactory implements kensa api.TransportFactory for the
 // long-lived Kensa instance. One factory serves every scan: Connect
 // resolves the target host's credential per call, keyed by the host id
@@ -76,6 +101,11 @@ type TransportFactory struct {
 	Store owssh.KnownHostsStore
 	// Profiles is the per-host connection memory (nil disables learning).
 	Profiles ConnProfile
+	// Policy gates whether the credential password may be used for sudo -S
+	// (the AllowCredentialSudoPassword kill-switch). nil => allowed
+	// (default-on, matching DefaultSecurity); production wires the real
+	// systemconfig loader so a flipped switch disables scan password-sudo.
+	Policy SudoPasswordPolicy
 }
 
 // Connect resolves the host's credential and dials
@@ -129,7 +159,21 @@ func (f *TransportFactory) Connect(ctx context.Context, host kensaapi.HostConfig
 		_ = f.Profiles.RecordSSHAuth(ctx, hostID, connprofile.SSHAuthMethod(observed))
 	}
 
-	t := &sshTransport{client: client, sudo: sudo, password: cred.Password}
+	// Gate the SUDO use of the password on the kill-switch + auth method —
+	// the same two conditions the collector / liveness / discovery paths
+	// enforce. When disallowed the transport gets no sudo password, so the
+	// probe never attempts sudo -S and the connection degrades to sudo -n.
+	// (SSH password AUTH above is unaffected: the dial already used the
+	// full credential.)
+	sudoAllowed := true
+	if f.Policy != nil {
+		if v, perr := f.Policy(ctx); perr == nil {
+			sudoAllowed = v
+		}
+	}
+	sudoPassword := sudoPasswordFor(cred, sudoAllowed)
+
+	t := &sshTransport{client: client, sudo: sudo, password: sudoPassword}
 
 	// Decide how to reach root, once per connection, and reuse it for
 	// every command. We cannot infer "sudo refused" from a real check's
@@ -139,7 +183,9 @@ func (f *TransportFactory) Connect(ctx context.Context, host kensaapi.HostConfig
 	// (sudoers changed) self-heals.
 	switch {
 	case sudo:
-		t.mode = probeSudoMode(ctx, client, cred.Password, knownSudo)
+		// probe with the GATED password: when password-sudo is disallowed
+		// sudoPassword is "", so probeSudoMode never attempts sudo -S.
+		t.mode = probeSudoMode(ctx, client, sudoPassword, knownSudo)
 	case host.Sudo: // requested, but the login user is already root
 		t.mode = connprofile.SudoRoot
 	default: // no escalation requested — nothing to learn

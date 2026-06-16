@@ -185,6 +185,10 @@ func cmdWorker(cfg *config.Config, args []string, stdout, stderr *os.File) int {
 			return vars, err
 		},
 		Profiles: connprofile.NewStore(pool),
+		Policy: func(ctx context.Context) (bool, error) {
+			cfg, err := varStore.LoadSecurity(ctx)
+			return cfg.AllowCredentialSudoPassword, err
+		},
 	})
 	if err != nil {
 		slog.ErrorContext(bootCtx, "kensa scan wiring failed — is the kensa-rules package installed (or OPENWATCH_KENSA_RULES_DIR set)?",

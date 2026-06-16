@@ -16,11 +16,18 @@ const (
 )
 
 // authObserver records which auth method crypto/ssh last attempted during
-// a handshake. Because the client stops at the first method the server
-// accepts, the last-attempted method after a SUCCESSFUL handshake is the
-// one that authenticated. Concurrency-safe: a single ClientConfig is only
-// used by one handshake, but the callbacks may fire from the handshake
-// goroutine.
+// a handshake. The note fires when a method is ATTEMPTED (its callback is
+// invoked), not when it is accepted. For SINGLE-FACTOR auth — OpenWatch's
+// model, where key/password/both are ALTERNATIVE methods, never a required
+// sequence — the client stops at the first method the server accepts
+// (authSuccess), so the last-attempted method after a SUCCESSFUL handshake
+// is the one that authenticated. Under true SSH multi-factor (e.g. sshd
+// AuthenticationMethods "publickey,password") Last() would record only the
+// final factor; OpenWatch does not use SSH MFA, and even then a wrong hint
+// would at worst reorder the next dial (both methods stay offered) — never
+// a failure, and nothing is persisted on an unsuccessful handshake.
+// Concurrency-safe: a single ClientConfig is only used by one handshake,
+// but the callbacks may fire from the handshake goroutine.
 type authObserver struct {
 	mu   sync.Mutex
 	last string
