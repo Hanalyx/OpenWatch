@@ -27,6 +27,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/db"
 	"github.com/Hanalyx/openwatch/internal/identity"
 	"github.com/Hanalyx/openwatch/internal/kensa"
+	"github.com/Hanalyx/openwatch/internal/knownhosts"
 	"github.com/Hanalyx/openwatch/internal/license"
 	openlog "github.com/Hanalyx/openwatch/internal/log"
 	"github.com/Hanalyx/openwatch/internal/scanresult"
@@ -179,7 +180,7 @@ func cmdWorker(cfg *config.Config, args []string, stdout, stderr *os.File) int {
 		Credentials: credSvc,
 		RulesDir:    rulesDir,
 		HostKeyMode: owssh.ModeTOFU,
-		KnownHosts:  owssh.NewMemoryStore(),
+		KnownHosts:  knownhosts.NewStore(pool),
 		Variables: func(ctx context.Context) (map[string]string, error) {
 			vars, err := varStore.LoadScanVars(ctx)
 			return vars, err

@@ -105,11 +105,32 @@ func redactDSN(dsn string) string {
 // status/body assertions instead of plumbing.
 func doReq(t *testing.T, req *http.Request) *http.Response {
 	t.Helper()
+	attachBrowserCSRF(req)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatalf("%s %s: %v", req.Method, req.URL.Path, err)
 	}
 	return resp
+}
+
+// attachBrowserCSRF simulates a real browser's double-submit on a
+// cookie-authenticated unsafe request: when the request carries the session
+// cookie, uses an unsafe method, and has not already set X-CSRF-Token, it
+// adds a matching XSRF-TOKEN cookie + X-CSRF-Token header. This keeps the
+// whole suite green under csrfProtect without editing every call site. Tests
+// that assert the CSRF deny path bypass doReq and call the client directly.
+func attachBrowserCSRF(req *http.Request) {
+	if isSafeMethod(req.Method) || req.Header.Get(csrfHeaderName) != "" {
+		return
+	}
+	for _, c := range req.Cookies() {
+		if c.Name == identity.SessionCookieName {
+			const tok = "test-csrf-token"
+			req.AddCookie(&http.Cookie{Name: csrfCookieName, Value: tok})
+			req.Header.Set(csrfHeaderName, tok)
+			return
+		}
+	}
 }
 
 func doGet(t *testing.T, url string) *http.Response {

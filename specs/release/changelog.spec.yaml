@@ -1,0 +1,120 @@
+spec:
+  id: release-changelog
+  title: Human-readable changelog
+  version: "1.0.0"
+  status: approved
+  tier: 2
+
+  context:
+    system: openwatch-go
+    feature: CHANGELOG.md authoring discipline
+    description: >
+      CHANGELOG.md is the operator-facing record of what changed between
+      releases. Its audience is the system administrator who upgrades the
+      appliance, not the engineer who wrote the code. Every entry therefore
+      describes an observable change in behavior in plain language — what the
+      operator can now do, what no longer breaks, what moved — rather than the
+      internal mechanics, the package layout, or the commit subject. The file
+      follows Keep a Changelog grouping (Added / Changed / Deprecated / Removed
+      / Fixed / Security) and Semantic Versioning, and accumulates entries under
+      an [Unreleased] section between tagged releases.
+    related_specs:
+      - release-package-build
+      - release-commit-conventions
+
+  objective:
+    summary: >
+      Make every changelog line readable by a non-engineer operator: a
+      complete sentence that states the user-visible effect, optionally noting
+      the version a regression was introduced in. No raw commit subjects, no
+      bare file paths, no emoji.
+    scope:
+      includes:
+        - CHANGELOG.md at the repo root
+        - Keep a Changelog category headings (Added/Changed/Deprecated/Removed/Fixed/Security)
+        - One human-readable sentence per entry, describing observable behavior
+        - Optional trailing PR reference for traceability
+        - ISO-dated version sections; an [Unreleased] accumulator
+      excludes:
+        - Per-commit messages (covered by release-commit-conventions)
+        - Auto-generated release notes from PR titles
+        - Marketing copy / release announcements
+
+  constraints:
+    - id: C-01
+      description: >-
+        Every released version section heading MUST be of the form
+        `## [<version>] ... <ISO-date>` (YYYY-MM-DD). The sole exception is the
+        `## [Unreleased]` accumulator, which carries no date.
+      type: technical
+      enforcement: error
+    - id: C-02
+      description: >-
+        Entries MUST be grouped under a category heading drawn ONLY from the
+        Keep a Changelog vocabulary: Added, Changed, Deprecated, Removed, Fixed,
+        Security. No ad-hoc category names.
+      type: technical
+      enforcement: error
+    - id: C-03
+      description: >-
+        Each entry MUST be human-readable: a sentence (>= 5 words) describing
+        the observable, user-facing effect of the change. An entry MUST NOT be a
+        raw commit subject — it MUST NOT begin with a conventional-commit prefix
+        (feat:, fix:, chore:, docs:, refactor:, test:, ci:, perf:, build:,
+        style:) — and MUST NOT be only a bare file path or identifier. It SHOULD
+        lead with the effect (what the operator now sees / can do), not the
+        implementation. Enforcement applies to the actively-edited [Unreleased]
+        section; released sections authored before this spec are grandfathered.
+      type: technical
+      enforcement: error
+    - id: C-04
+      description: >-
+        A changelog entry that fixes a regression SHOULD name the version the
+        regression was introduced in, e.g. "(regression in 0.2.0-rc.5)", so an
+        operator can judge whether they are exposed.
+      type: technical
+      enforcement: warning
+    - id: C-05
+      description: >-
+        CHANGELOG.md MUST contain no emoji, matching the repository-wide
+        no-emoji code-quality rule.
+      type: technical
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: >-
+        Every `## [<version>]` heading in CHANGELOG.md other than `[Unreleased]`
+        carries an ISO date (YYYY-MM-DD); the `[Unreleased]` section exists and
+        carries no date.
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-02
+      description: >-
+        Every `###` category heading in the actively-edited [Unreleased]
+        section is one of Added, Changed, Deprecated, Removed, Fixed, Security.
+        (Released sections predating this spec are grandfathered.)
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-03
+      description: >-
+        Every top-level list entry in the [Unreleased] section is at least 5
+        words long and does not begin with a conventional-commit prefix
+        (feat:/fix:/chore:/docs:/refactor:/test:/ci:/perf:/build:/style:), so
+        each line reads as a user-facing sentence rather than a commit subject.
+        (Released sections predating this spec are grandfathered.)
+      priority: critical
+      references_constraints: [C-03]
+    - id: AC-04
+      description: >-
+        CHANGELOG.md contains no emoji code points (verified by scanning for
+        characters in the common emoji Unicode ranges).
+      priority: high
+      references_constraints: [C-05]
+    - id: AC-05
+      description: >-
+        Any [Unreleased] entry that describes a regression (contains the word
+        "regression") also names a version token (e.g. "0.2.0-rc.5" or a
+        "vX.Y" form) so an operator can tell whether they are exposed.
+      priority: medium
+      references_constraints: [C-04]

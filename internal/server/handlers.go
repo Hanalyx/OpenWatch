@@ -21,6 +21,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/fleetrollup"
 	"github.com/Hanalyx/openwatch/internal/group"
 	"github.com/Hanalyx/openwatch/internal/host"
+	"github.com/Hanalyx/openwatch/internal/identity"
 	"github.com/Hanalyx/openwatch/internal/intelligence/discovery"
 	"github.com/Hanalyx/openwatch/internal/kensa"
 	"github.com/Hanalyx/openwatch/internal/license"
@@ -141,7 +142,7 @@ type handlers struct {
 func newHandlers(pool *pgxpool.Pool) *handlers {
 	return &handlers{
 		pool:        pool,
-		users:       users.NewService(pool, nil),
+		users:       users.NewService(pool, identity.DefaultBreachCorpus()),
 		credentials: credential.NewService(pool),
 		hosts:       host.NewService(pool),
 		fleet:       fleetrollup.NewService(pool),
@@ -372,6 +373,12 @@ func stageZeroFreeFeatures() []string {
 // GetAuditEvents implements api.ServerInterface.GetAuditEvents.
 // Spec: app/specs/api/audit-events-query.spec.yaml.
 func (h *handlers) GetAuditEvents(w http.ResponseWriter, r *http.Request, params api.GetAuditEventsParams) {
+	// The audit trail is security-sensitive (actor ids, IPs, resource ids,
+	// action detail). Require audit:read; an anonymous/unauthorized caller
+	// gets 403 before any query runs. Spec api-audit-events-query C-06/AC-11.
+	if denied := auth.EnforcePermission(w, r, auth.AuditRead); denied {
+		return
+	}
 	limit := int32(50)
 	if params.Limit != nil {
 		// Bound BEFORE narrowing to int32 — guards against negative or

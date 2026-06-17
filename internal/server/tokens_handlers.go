@@ -43,6 +43,14 @@ func (h *handlers) PostAPIToken(w http.ResponseWriter, r *http.Request) {
 			"name, role_id required", false)
 		return
 	}
+	// Anti-escalation: a caller may not mint a token more privileged than
+	// themselves. The requested role's permissions must be a subset of the
+	// caller's own. Spec api-tokens C-03 / AC-05.
+	if !auth.RoleGrantsWithin(auth.FromContext(r.Context()), auth.RoleID(req.RoleId)) {
+		writeError(w, http.StatusForbidden, "authz.role_exceeds_grant", "client",
+			"cannot create a token whose role grants permissions you do not hold", false)
+		return
+	}
 	p := apitoken.CreateParams{
 		Name:      req.Name,
 		RoleID:    auth.RoleID(req.RoleId),

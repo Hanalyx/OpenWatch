@@ -127,6 +127,13 @@ func (h *handlers) PostUserRolesAssign(w http.ResponseWriter, r *http.Request, i
 			"role_id is required", false)
 		return
 	}
+	// Anti-escalation: a caller may not grant a role more privileged than
+	// themselves. Spec api-users C-05 / AC-13 (mirrors api-tokens C-03).
+	if !auth.RoleGrantsWithin(auth.FromContext(r.Context()), auth.RoleID(req.RoleId)) {
+		writeError(w, http.StatusForbidden, "authz.role_exceeds_grant", "client",
+			"cannot assign a role that grants permissions you do not hold", false)
+		return
+	}
 	// Resolve "who is the granter" so audit + DB row record it.
 	grantedBy := h.identityUUID(r)
 	if err := h.users.AssignRole(r.Context(), uuid.UUID(id), auth.RoleID(req.RoleId), grantedBy); err != nil {
