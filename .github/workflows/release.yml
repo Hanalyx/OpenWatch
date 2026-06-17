@@ -133,20 +133,24 @@ jobs:
       - name: Generate CycloneDX SBOMs
         run: |
           export PATH="$HOME/.local/bin:$PATH"
-          mkdir -p dist/sbom
+          # Emit SBOMs flat into dist/ (not dist/sbom/). They publish as flat
+          # release assets, so a sbom/ path prefix in SHA256SUMS would never
+          # match the served filename and `sha256sum -c` would fail for the
+          # .cdx.json lines. The loop globs only packages (*.rpm/*.deb) + the
+          # bare binary, so the new *.cdx.json files are never re-scanned.
           # CycloneDX 1.5 schema the emitted SBOMs validate against:
           #   https://cyclonedx.org/schema/bom-1.5.schema.json
           for art in dist/openwatch dist/openwatch-*.rpm dist/openwatch_*.deb dist/kensa-rules-*.rpm dist/kensa-rules_*.deb; do
             [ -e "$art" ] || continue
             name="$(basename "$art")"
-            syft scan "file:$art" -o "cyclonedx-json=dist/sbom/${name}.cdx.json"
+            syft scan "file:$art" -o "cyclonedx-json=dist/${name}.cdx.json"
           done
-          ls -l dist/sbom
+          ls -l dist/*.cdx.json
 
       - name: Checksums
         run: |
           cd dist
-          sha256sum *.rpm *.deb sbom/*.cdx.json > SHA256SUMS
+          sha256sum *.rpm *.deb *.cdx.json > SHA256SUMS
           cat SHA256SUMS
 
       # Detached GPG signature over the checksum manifest — the universal verify
@@ -195,5 +199,5 @@ jobs:
             dist/SHA256SUMS
             dist/SHA256SUMS.asc
             dist/SHA256SUMS.cosign.sig
-            dist/sbom/*.cdx.json
+            dist/*.cdx.json
             KEYS
