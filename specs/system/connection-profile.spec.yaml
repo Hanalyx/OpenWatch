@@ -1,7 +1,7 @@
 spec:
   id: system-connection-profile
   title: Per-host SSH connection learning (auth method + sudo mode)
-  version: "1.2.0"
+  version: "1.3.0"
   status: approved
   tier: 2
 
@@ -83,6 +83,23 @@ spec:
       description: The OS discovery, OS intelligence (collector), and liveness privilege-probe paths MUST lead sudo with the host's recorded sudo mode (leading with `sudo -S` only when the mode is password AND the credential password may be fed per C-05's gate) and MUST record the mode confirmed to work. To avoid misrecording, a mode MUST be recorded ONLY on a confirmed exit-0 of a given sudo form — never inferred from a command that exited non-zero for its own reasons. Learning MUST be best-effort and MUST NOT change the sudo password gate (C-05) or fail the connection on a store miss/error.
       type: technical
       enforcement: error
+    - id: C-08
+      description: >- # pragma: allowlist secret
+        When a credential carries a password, the dial layer MUST offer a
+        keyboard-interactive auth method IN ADDITION to the bare password
+        method. Hardened servers commonly set PasswordAuthentication no while
+        keeping PAM keyboard-interactive (UsePAM yes + KbdInteractiveAuthentication
+        yes), so a password login is reachable ONLY via keyboard-interactive and
+        the bare `password` method is never offered — a password-only credential
+        would otherwise fail the handshake with "no supported methods remain"
+        ([none]). The keyboard-interactive challenge MUST replay the credential
+        password for HIDDEN (non-echoed) PAM prompts only, and MUST NOT answer
+        echoed/visible prompts with the password (so it never leaks the password
+        into an unexpected visible challenge such as a displayed OTP). This is
+        password-equivalent auth: the observer records it as the password method
+        so learning leads with password next time.
+      type: security
+      enforcement: error
 
   acceptance_criteria:
     - id: AC-01
@@ -133,3 +150,14 @@ spec:
       description: The liveness privilege probe records the sudo mode it confirms via the `true` sentinel (the authoritative learner, run every cycle), and on a host recorded as needing a password it leads with `sudo -S` (zero `sudo -n` calls); a confirmed mode equal to the stored one is not re-recorded.
       priority: high
       references_constraints: [C-07]
+    - id: AC-13
+      description: >- # pragma: allowlist secret
+        orderedAuthMethods offers a keyboard-interactive method whenever the
+        credential has a password: a password-only credential yields TWO methods
+        (password + keyboard-interactive), a key-only credential yields one, and
+        a both credential yields three. The keyboard-interactive challenge
+        replays the password for non-echoed (hidden) questions, leaves echoed
+        questions empty, and notes the password method as used only when it
+        actually answered a hidden prompt.
+      priority: critical
+      references_constraints: [C-08]
