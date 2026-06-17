@@ -10,6 +10,10 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+---
+
+## [0.2.0-rc.8] Eyrie — 2026-06-17
+
 Settings became a working control panel, OpenWatch started learning how to
 reach each host over SSH, package upgrades became a single safe command, and a
 pre-release security review closed a batch of perimeter and access-control
@@ -45,6 +49,14 @@ gaps.
   so the interface renders completely in air-gapped deployments (#561).
 - Updated the frontend build and CI tooling (Vite, Vitest, lucide-react, zod,
   and several GitHub Actions) to current major versions (#571, #572, #573).
+- The web UI now loads faster with no extra infrastructure: the embedded
+  single-page app is gzip-compressed and its content-hashed assets are served
+  with long-lived immutable caching, so the browser fetches each one only once
+  (#582).
+- Seven database migrations land this cycle (0030 through 0036: notification
+  channels, API tokens, authentication policy, SSO, per-host connection profile,
+  and the SSH known-hosts store); the one-command upgrade applies them
+  automatically with a pre-upgrade backup (#552 through #558, #566, #584).
 
 ### Fixed
 
@@ -55,6 +67,8 @@ gaps.
   instead of opening blank (#561).
 - Removed leftover demo and sample data that could appear on the dashboard,
   the activity feed, and the host lists (#562).
+- An expired or invalid session now redirects you to the login page instead of
+  leaving you on a page that silently fails to load (#583).
 
 ### Security
 
