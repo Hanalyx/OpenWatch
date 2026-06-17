@@ -12,6 +12,31 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [0.2.0-rc.9] Eyrie — 2026-06-17
+
+Two fixes that came out of production hardening: password login now works on
+PAM-hardened hosts, and compliance scans run across the fleet in parallel
+instead of one host at a time.
+
+### Changed
+
+- Compliance scans now run several hosts at once instead of strictly one at a
+  time. A new `scan_concurrency` setting (under `[server]`, default 4) controls
+  how many hosts scan in parallel; different hosts run concurrently while two
+  scans of the same host never overlap. Clearing a large fleet that used to take
+  many hours of serial scanning now finishes far sooner (#592).
+
+### Fixed
+
+- Password authentication now works against hardened hosts that accept passwords
+  only through PAM keyboard-interactive (servers with `PasswordAuthentication no`
+  but `UsePAM yes`). Such a host advertised only `keyboard-interactive`, so a
+  password credential previously failed the handshake with "no supported methods
+  remain" even though the password was correct (SSH-key auth was unaffected, and
+  development hosts that offer plain password auth were never affected) (#591).
+
+---
+
 ## [0.2.0-rc.8] Eyrie — 2026-06-17
 
 Settings became a working control panel, OpenWatch started learning how to
