@@ -32,6 +32,10 @@ import (
 type testServerOpts struct {
 	password         string
 	authorizedKeyPEM string
+	// kbdInteractivePassword, when set (and password unset), makes the server
+	// offer ONLY keyboard-interactive — no bare "password" method — mirroring a
+	// hardened host with PasswordAuthentication no + PAM keyboard-interactive.
+	kbdInteractivePassword string
 }
 
 func startTestServer(t *testing.T, opts testServerOpts) (host string, port int, hostKeyMarshalled []byte, stop func()) {
@@ -63,6 +67,15 @@ func startTestServer(t *testing.T, opts testServerOpts) (host string, port int, 
 	}
 	if opts.password != "" {
 		srv.PasswordHandler = func(_ gossh.Context, pw string) bool { return pw == opts.password }
+	}
+	if opts.kbdInteractivePassword != "" {
+		// PAM-style: challenge with a single hidden "Password:" prompt and
+		// accept the answer. No PasswordHandler is set, so the server advertises
+		// keyboard-interactive but NOT the bare password method.
+		srv.KeyboardInteractiveHandler = func(_ gossh.Context, challenge cryptossh.KeyboardInteractiveChallenge) bool {
+			answers, err := challenge("", "", []string{"Password: "}, []bool{false})
+			return err == nil && len(answers) == 1 && answers[0] == opts.kbdInteractivePassword
+		}
 	}
 	if opts.authorizedKeyPEM != "" {
 		// Parse the authorized client public key.
@@ -321,7 +334,7 @@ func TestKnownHosts_TOFU(t *testing.T) {
 // private key. Forced auth failure; inspect error text.
 func TestDial_NoCredentialLeakInError(t *testing.T) {
 	t.Run("system-ssh-connectivity/AC-08", func(t *testing.T) {
-		const secretPW = "super-secret-do-not-leak"
+		const secretPW = "super-secret-do-not-leak" // pragma: allowlist secret
 		host, port, hostKey, _ := startTestServer(t, testServerOpts{password: "correct-pw"})
 		store := NewMemoryStore()
 		_ = store.Put(host, hostKey)

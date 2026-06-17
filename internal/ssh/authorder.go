@@ -12,7 +12,7 @@ import (
 // ssh package stays decoupled from connprofile — callers translate.
 const (
 	PreferKey      = "key"
-	PreferPassword = "password"
+	PreferPassword = "password" // pragma: allowlist secret
 )
 
 // authObserver records which auth method crypto/ssh last attempted during
@@ -58,7 +58,16 @@ func (o *authObserver) Last() string {
 // leads with it. This is the "preference, not a lock" property: the hint
 // optimizes the common case and self-heals when the host changes.
 func orderedAuthMethods(cred *credential.Credential, prefer string, obs *authObserver) ([]ssh.AuthMethod, error) {
-	var keyM, pwM ssh.AuthMethod
+	var keyM ssh.AuthMethod
+	// The password family: the bare "password" method AND a keyboard-interactive
+	// method that replays the same password. Hardened servers commonly set
+	// PasswordAuthentication no while keeping PAM keyboard-interactive
+	// (UsePAM yes + KbdInteractiveAuthentication yes), so a password login is
+	// reachable ONLY via keyboard-interactive — the bare "password" method is
+	// never offered. Offering both makes a password credential work whether the
+	// server advertises "password" (most dev hosts) or "keyboard-interactive"
+	// (hardened/PAM hosts), without weakening the server. See C-08.
+	var pwMethods []ssh.AuthMethod
 
 	if cred.PrivateKey != "" {
 		signer, err := parseSigner([]byte(cred.PrivateKey), cred.PrivateKeyPassphrase)
@@ -72,30 +81,55 @@ func orderedAuthMethods(cred *credential.Credential, prefer string, obs *authObs
 	}
 	if cred.Password != "" {
 		pw := cred.Password
-		pwM = ssh.PasswordCallback(func() (string, error) {
-			obs.note(PreferPassword)
-			return pw, nil
-		})
+		pwMethods = append(pwMethods,
+			ssh.PasswordCallback(func() (string, error) {
+				obs.note(PreferPassword)
+				return pw, nil
+			}),
+			ssh.KeyboardInteractive(passwordKbdChallenge(pw, func() { obs.note(PreferPassword) })),
+		)
 	}
 
-	out := make([]ssh.AuthMethod, 0, 2)
+	out := make([]ssh.AuthMethod, 0, 1+len(pwMethods))
 	if prefer == PreferPassword {
-		// Lead with password, then key as fallback.
-		if pwM != nil {
-			out = append(out, pwM)
-		}
+		// Lead with the password family, then key as fallback.
+		out = append(out, pwMethods...)
 		if keyM != nil {
 			out = append(out, keyM)
 		}
 		return out, nil
 	}
-	// Default order (prefer == "key" or unset): key first, then password.
-	// Matches the historical pre-learning behaviour.
+	// Default order (prefer == "key" or unset): key first, then the password
+	// family. Matches the historical pre-learning behaviour.
 	if keyM != nil {
 		out = append(out, keyM)
 	}
-	if pwM != nil {
-		out = append(out, pwM)
-	}
+	out = append(out, pwMethods...)
 	return out, nil
+}
+
+// passwordKbdChallenge builds a keyboard-interactive challenge that replays pw
+// for PAM password prompts. It answers HIDDEN (non-echoed) prompts — the shape
+// of a "Password:" challenge — with pw, and leaves echoed/visible prompts empty
+// so the password is never sent into an unexpected visible challenge (e.g. a
+// displayed OTP or an informational prompt). onAnswer fires only when the
+// password was actually supplied for at least one hidden prompt, so the
+// observer records the password method only when it really authenticated. See
+// C-08. OpenWatch is single-factor: a multi-prompt MFA challenge cannot be
+// satisfied by a lone password and simply fails, which is correct.
+func passwordKbdChallenge(pw string, onAnswer func()) ssh.KeyboardInteractiveChallenge {
+	return func(_, _ string, questions []string, echos []bool) ([]string, error) {
+		answers := make([]string, len(questions))
+		answered := false
+		for i := range questions {
+			if i < len(echos) && !echos[i] {
+				answers[i] = pw
+				answered = true
+			}
+		}
+		if answered && onAnswer != nil {
+			onAnswer()
+		}
+		return answers, nil
+	}
 }
