@@ -18,6 +18,14 @@
 %{!?ow_release: %global ow_release 1}
 
 Name:           openwatch
+# Epoch 1 is a permanent, deliberate bump. Releases rc.3 through rc.8 shipped
+# with the pre-release suffix stripped, so they all carried the NVR
+# openwatch-0.2.0-1 (Epoch 0). The build now encodes pre-releases with a tilde
+# (0.2.0~rc.N, which sorts below GA 0.2.0), but 0.2.0~rc.N < 0.2.0 would read as
+# a DOWNGRADE from those mis-versioned installs. Epoch 1 sorts strictly above
+# Epoch 0, so `dnf upgrade` cleanly moves a bare-0.2.0 install onto the
+# correctly-versioned packages. Epoch is sticky: never lower it.
+Epoch:          1
 Version:        %{ow_version}
 Release:        %{ow_release}%{?dist}
 Summary:        OpenWatch Compliance Platform (Go binary)

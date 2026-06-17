@@ -650,3 +650,52 @@ func sizeOr(info os.FileInfo) int64 {
 
 // Verify there's no spurious error import.
 var _ = errors.New
+
+// @ac AC-21
+// AC-21: pre-release versions are tilde-encoded with Epoch 1 across both
+// packages, and the binary keeps the true semver. Source-inspection backstop
+// for the rc.3..rc.8 regression where the suffix was stripped, collapsing
+// every RC to the same NVR (openwatch-0.2.0-1) so dnf saw the next RC as
+// already installed.
+func TestPackaging_PreReleaseVersioning(t *testing.T) {
+	t.Run("release-package-build/AC-21", func(t *testing.T) {
+		dir := appDir(t)
+		read := func(rel string) string {
+			b, err := os.ReadFile(filepath.Join(dir, rel))
+			if err != nil {
+				t.Fatalf("read %s: %v", rel, err)
+			}
+			return string(b)
+		}
+		rpmBuild := read("packaging/rpm/build-rpm.sh")
+		spec := read("packaging/rpm/openwatch.spec")
+		debBuild := read("packaging/deb/build-deb.sh")
+
+		// The stripping bug must be gone, replaced by a tilde conversion.
+		if strings.Contains(rpmBuild, "${VERSION%%-*}") {
+			t.Error("build-rpm.sh still strips the pre-release suffix (${VERSION%%-*}); use a tilde instead")
+		}
+		if !strings.Contains(rpmBuild, `${VERSION/-/\~}`) {
+			t.Error("build-rpm.sh must tilde-encode the version (${VERSION/-/\\~})")
+		}
+		// RPM spec carries Epoch.
+		if !regexp.MustCompile(`(?m)^Epoch:\s*1\b`).MatchString(spec) {
+			t.Error("openwatch.spec must declare 'Epoch: 1'")
+		}
+		// DEB: tilde upstream + epoch prefix in the control version.
+		if !strings.Contains(debBuild, `${VERSION/-/\~}`) {
+			t.Error("build-deb.sh must tilde-encode the upstream version")
+		}
+		if !strings.Contains(debBuild, "DEB_EPOCH") || !strings.Contains(debBuild, `${DEB_EPOCH}:${DEB_UPSTREAM}`) {
+			t.Error("build-deb.sh must prefix the control version with the epoch (1:upstream)")
+		}
+		// Both scripts build the binary with the FULL semver, not the
+		// tilde/stripped package version.
+		if !strings.Contains(rpmBuild, `make build VERSION="$VERSION"`) {
+			t.Error("build-rpm.sh must build the binary with the full $VERSION (true semver)")
+		}
+		if !strings.Contains(debBuild, `make build VERSION="$VERSION"`) {
+			t.Error("build-deb.sh must build the binary with the full $VERSION (true semver)")
+		}
+	})
+}
