@@ -11,6 +11,11 @@
 listen   = "0.0.0.0:8443"
 tls_cert = "/etc/openwatch/tls/cert.pem"
 tls_key  = "/etc/openwatch/tls/key.pem"
+# How many compliance scans run at once in this process (different hosts in
+# parallel; same-host scans never overlap). Default 4. Raise for large fleets,
+# minding the DB pool and how many SSH sessions your targets tolerate; set 1
+# for strictly one-at-a-time. See docs/guides/SCALING_GUIDE.md.
+scan_concurrency = 4
 
 [database]
 # Replace with a real DSN. The package does not provision Postgres.

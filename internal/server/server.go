@@ -303,12 +303,14 @@ func New(cfg *config.Config, pool *pgxpool.Pool) *Server {
 		},
 	}
 
-	// Stage-0 in-process worker that drains diagnostics.test_job from the
-	// queue. Started by Run, stopped on shutdown. Spec
+	// In-process worker that drains the job queue (diagnostics, discovery,
+	// and — via WithScanProcessor — scans). Started by Run, stopped on
+	// shutdown. ScanConcurrency fans it out so a fleet of queued scans does
+	// not drain one host at a time (system-job-queue C-07). Spec
 	// release-stage-0-signoff AC-10.
 	var wkr *worker.Worker
 	if pool != nil {
-		wkr = worker.New(pool)
+		wkr = worker.New(pool).WithConcurrency(cfg.Server.ScanConcurrency)
 	}
 	return &Server{cfg: cfg, router: r, srv: srv, cm: cm, wkr: wkr, handlers: apiHandlers}
 }

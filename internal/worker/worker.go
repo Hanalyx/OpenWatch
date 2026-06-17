@@ -42,21 +42,42 @@ type HostDiscoveryRunner interface {
 
 // Worker drains pending jobs from job_queue. One Worker per process is
 // enough for Stage 0; multi-worker setups are Stage 2.
+//
+// The worker can run several claim/process loops concurrently
+// (WithConcurrency) so a fleet of queued scans does not drain one host at a
+// time; the queue's SKIP LOCKED claim and the scan path's per-host advisory
+// lock keep concurrent draining safe (system-job-queue C-07).
 type Worker struct {
-	pool      *pgxpool.Pool
-	stop      chan struct{}
-	wg        sync.WaitGroup
-	discovery HostDiscoveryRunner
-	scanProc  *ScanWorker
+	pool        *pgxpool.Pool
+	stop        chan struct{}
+	wg          sync.WaitGroup
+	discovery   HostDiscoveryRunner
+	scanProc    *ScanWorker
+	concurrency int
 }
 
 // New constructs a Worker bound to the given pool. Call Start to begin
-// the drain loop and Stop to exit cleanly.
+// the drain loop and Stop to exit cleanly. Defaults to one (serial) loop;
+// call WithConcurrency to fan out.
 func New(pool *pgxpool.Pool) *Worker {
 	return &Worker{
-		pool: pool,
-		stop: make(chan struct{}),
+		pool:        pool,
+		stop:        make(chan struct{}),
+		concurrency: 1,
 	}
+}
+
+// WithConcurrency sets how many claim/process loops run at once. A value < 1
+// clamps to 1 (strictly serial). Each loop independently claims jobs via
+// SKIP LOCKED, so N loops process up to N distinct hosts in parallel while the
+// per-host advisory lock still serializes same-host work. Spec
+// system-job-queue C-07.
+func (w *Worker) WithConcurrency(n int) *Worker {
+	if n < 1 {
+		n = 1
+	}
+	w.concurrency = n
+	return w
 }
 
 // WithDiscovery registers the OS Discovery runner. When set, the
@@ -81,11 +102,18 @@ func (w *Worker) WithScanProcessor(sw *ScanWorker) *Worker {
 	return w
 }
 
-// Start kicks off the drain loop on a background goroutine. Returns
-// immediately. Safe to call once per Worker.
+// Start kicks off w.concurrency drain loops on background goroutines. Returns
+// immediately. Safe to call once per Worker. Each loop claims jobs
+// independently (SKIP LOCKED), so up to w.concurrency jobs run at once.
 func (w *Worker) Start(ctx context.Context) {
-	w.wg.Add(1)
-	go w.loop(ctx)
+	n := w.concurrency
+	if n < 1 {
+		n = 1
+	}
+	w.wg.Add(n)
+	for i := 0; i < n; i++ {
+		go w.loop(ctx)
+	}
 }
 
 // Stop signals the loop to exit and waits for the in-flight drain (if
