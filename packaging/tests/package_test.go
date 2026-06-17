@@ -178,8 +178,8 @@ func TestSpec_RPMParses(t *testing.T) {
 }
 
 // @ac AC-04
-// AC-04: the RPM payload contains the binary, config, systemd unit,
-// and demo cert.
+// AC-04: the RPM payload contains the binary, config, and systemd unit.
+// The demo TLS cert is provisioned at install time, NOT shipped (AC-22).
 func TestRPM_PayloadContents(t *testing.T) {
 	t.Run("release-package-build/AC-04", func(t *testing.T) {
 		rpm := rpmPath(t)
@@ -188,7 +188,6 @@ func TestRPM_PayloadContents(t *testing.T) {
 			"/usr/bin/openwatch",
 			"/etc/openwatch/openwatch.toml",
 			"/etc/systemd/system/openwatch.service",
-			"/etc/openwatch/tls/cert.pem",
 		}
 		for _, f := range mustHave {
 			if !strings.Contains(out, f) {
@@ -218,7 +217,8 @@ func TestDEB_ControlShape(t *testing.T) {
 }
 
 // @ac AC-06
-// AC-06: DEB payload contains the same critical files as the RPM.
+// AC-06: DEB payload contains the same critical files as the RPM. The demo
+// TLS cert is provisioned at install time, NOT shipped (AC-22).
 func TestDEB_PayloadContents(t *testing.T) {
 	t.Run("release-package-build/AC-06", func(t *testing.T) {
 		deb := debPath(t)
@@ -227,7 +227,6 @@ func TestDEB_PayloadContents(t *testing.T) {
 			"./usr/bin/openwatch",
 			"./etc/openwatch/openwatch.toml",
 			"./etc/systemd/system/openwatch.service",
-			"./etc/openwatch/tls/cert.pem",
 		}
 		for _, f := range mustHave {
 			if !strings.Contains(out, f) {
@@ -613,6 +612,87 @@ func TestKeys_NotInPayload(t *testing.T) {
 		}
 		if strings.Contains(debFiles, jwt) || strings.Contains(debFiles, dek) {
 			t.Errorf("DEB payload MUST NOT contain key files; got:\n%s", debFiles)
+		}
+	})
+}
+
+// @ac AC-22
+// AC-22: the demo TLS cert is provisioned at install time (generate-if-absent)
+// and NEVER shipped in the payload, so a package upgrade cannot revert an
+// operator's replacement certificate. Mirrors the identity-key model
+// (AC-18/AC-20). This is the regression guard for the pre-release finding that
+// a non-%config demo cert at the prod path was silently overwriting operator
+// certs on every upgrade.
+func TestTLS_PostInstallProvisions(t *testing.T) {
+	t.Run("release-package-build/AC-22", func(t *testing.T) {
+		dir := appDir(t)
+		const helperPath = "/usr/lib/openwatch/provision-tls-cert.sh"
+
+		// Scriptlets call the TLS helper.
+		rpm := rpmPath(t)
+		if post := rpmQuery(t, rpm, "%{POSTIN}"); !strings.Contains(post, helperPath) {
+			t.Errorf("RPM %%post does not invoke %s:\n%s", helperPath, post)
+		}
+		deb := debPath(t)
+		if body := readDebControlScript(t, deb, "postinst"); !strings.Contains(body, helperPath) {
+			t.Errorf("DEB postinst does not invoke %s:\n%s", helperPath, body)
+		}
+
+		// The helper is generate-if-absent and mints a self-signed cert with
+		// the right key strength, modes, and owners.
+		helper, err := os.ReadFile(filepath.Join(dir, "packaging", "common", "provision-tls-cert.sh"))
+		if err != nil {
+			t.Fatalf("read helper: %v", err)
+		}
+		h := string(helper)
+		wants := []struct{ what, substr string }{
+			{"generate-if-absent guard", "[ ! -e"},
+			{"self-signed cert via openssl req -x509", "openssl req -x509"},
+			{"2048-bit RSA key", "rsa:2048"},
+			{"cert mode 0644", "chmod 0644"},
+			{"key mode 0600", "chmod 0600"},
+			{"key owner openwatch:openwatch", "$OWNER_GROUP:$OWNER_GROUP"},
+		}
+		for _, w := range wants {
+			if !strings.Contains(h, w.substr) {
+				t.Errorf("TLS helper missing %s (%q)", w.what, w.substr)
+			}
+		}
+
+		// Payload ships the empty tls dir + the helper, but NEVER the cert/key
+		// files themselves (that is what made upgrades clobber operator certs).
+		const tlsDir = "/etc/openwatch/tls"
+		rpmFiles := rpmQuery(t, rpm, "[%{FILENAMES}\n]")
+		if !strings.Contains(rpmFiles, helperPath) {
+			t.Errorf("RPM payload missing the TLS helper %s", helperPath)
+		}
+		if !strings.Contains(rpmFiles, tlsDir) {
+			t.Errorf("RPM payload missing the %s directory", tlsDir)
+		}
+		if strings.Contains(rpmFiles, "tls/cert.pem") || strings.Contains(rpmFiles, "tls/key.pem") {
+			t.Errorf("RPM payload MUST NOT ship the TLS cert/key; got:\n%s", rpmFiles)
+		}
+
+		debFiles := debContents(t, deb)
+		if !strings.Contains(debFiles, helperPath) {
+			t.Errorf("DEB payload missing the TLS helper %s", helperPath)
+		}
+		if !strings.Contains(debFiles, tlsDir) {
+			t.Errorf("DEB payload missing the %s directory", tlsDir)
+		}
+		if strings.Contains(debFiles, "tls/cert.pem") || strings.Contains(debFiles, "tls/key.pem") {
+			t.Errorf("DEB payload MUST NOT ship the TLS cert/key; got:\n%s", debFiles)
+		}
+
+		// The build scripts no longer stage a demo cert into the payload.
+		for _, bs := range []string{"rpm/build-rpm.sh", "deb/build-deb.sh"} {
+			b, err := os.ReadFile(filepath.Join(dir, "packaging", bs))
+			if err != nil {
+				t.Fatalf("read %s: %v", bs, err)
+			}
+			if regexp.MustCompile(`(?m)^\s*bash\b.*gen-demo-cert\.sh`).MatchString(string(b)) {
+				t.Errorf("%s still stages a demo cert into the payload via gen-demo-cert.sh", bs)
+			}
 		}
 	})
 }

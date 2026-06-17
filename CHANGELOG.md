@@ -10,6 +10,16 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- A package upgrade no longer overwrites your TLS certificate. The demo
+  certificate previously shipped inside the package at the production path, so
+  `dnf update` or `apt upgrade` silently replaced an operator-installed
+  certificate with a fresh self-signed demo on every upgrade. The demo
+  certificate is now generated at install time only when the TLS files are
+  absent (the same generate-if-absent model already used for the server's
+  identity keys), so a certificate you put in place survives upgrades untouched.
+
 ### Changed
 
 - Updated the bundled Kensa scan engine and rule corpus to v0.5.0. v0.5.0 adds

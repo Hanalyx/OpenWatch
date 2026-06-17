@@ -49,8 +49,9 @@ Requires(pre):  shadow-utils
 
 %description
 OpenWatch is the Go rebuild of the compliance scanning platform.
-This package ships the single binary, default TOML config, embedded
-demo TLS cert, and a hardened systemd unit. Operators replace
+This package ships the single binary, default TOML config, and a
+hardened systemd unit. A demo TLS cert is generated at install time
+(generate-if-absent, so upgrades never overwrite it). Operators replace
 /etc/openwatch/tls/* with their own certificate before production use.
 
 %prep
@@ -65,17 +66,20 @@ install -d -m 0755                  %{buildroot}/usr/bin
 install -m 0755 openwatch           %{buildroot}/usr/bin/openwatch
 
 install -d -m 0750                  %{buildroot}/etc/openwatch
+# TLS directory. The demo cert + key are NOT shipped in the payload — if they
+# were, a package upgrade would silently overwrite an operator's replacement
+# certificate (TLS files are not %config). %post generates a demo cert here
+# only when absent, mirroring the identity-key model below.
 install -d -m 0750                  %{buildroot}/etc/openwatch/tls
 # Identity-key directory. The keys themselves are NOT shipped in the payload
 # (they must be unique per install); %post generates them into here.
 install -d -m 0750                  %{buildroot}/etc/openwatch/keys
 install -m 0640 openwatch.toml      %{buildroot}/etc/openwatch/openwatch.toml
 install -m 0640 upgrade.conf        %{buildroot}/etc/openwatch/upgrade.conf
-install -m 0644 cert.pem            %{buildroot}/etc/openwatch/tls/cert.pem
-install -m 0600 key.pem             %{buildroot}/etc/openwatch/tls/key.pem
 
 install -d -m 0755                  %{buildroot}/usr/lib/openwatch
 install -m 0755 provision-identity-keys.sh %{buildroot}/usr/lib/openwatch/provision-identity-keys.sh
+install -m 0755 provision-tls-cert.sh %{buildroot}/usr/lib/openwatch/provision-tls-cert.sh
 install -m 0755 openwatch-upgrade.sh %{buildroot}/usr/lib/openwatch/openwatch-upgrade.sh
 install -m 0755 cleanup-backups.sh   %{buildroot}/usr/lib/openwatch/cleanup-backups.sh
 
@@ -107,6 +111,10 @@ systemctl daemon-reload || :
 # as a scriptlet warning, not silently leave an unbootable service.
 /usr/lib/openwatch/provision-identity-keys.sh
 
+# Provision a demo TLS cert + key (generate-if-absent). Not shipped in the
+# payload so an upgrade never overwrites an operator's replacement cert.
+/usr/lib/openwatch/provision-tls-cert.sh
+
 # Enable the daily pre-upgrade-backup cleanup timer (install + upgrade).
 systemctl enable --now openwatch-backup-cleanup.timer >/dev/null 2>&1 || :
 
@@ -134,11 +142,12 @@ systemctl daemon-reload || :
 %files
 %attr(0755, root, root)             /usr/bin/openwatch
 %dir %attr(0750, root, openwatch)   /etc/openwatch
+# TLS dir ships empty (0750); %post generates the demo cert/key into it
+# generate-if-absent. The cert/key files are intentionally NOT packaged, so
+# a package upgrade cannot revert an operator's replacement certificate.
 %dir %attr(0750, root, openwatch)   /etc/openwatch/tls
 %config(noreplace) %attr(0640, root, openwatch) /etc/openwatch/openwatch.toml
 %config(noreplace) %attr(0640, root, openwatch) /etc/openwatch/upgrade.conf
-%attr(0644, root, openwatch)        /etc/openwatch/tls/cert.pem
-%attr(0600, openwatch, openwatch)   /etc/openwatch/tls/key.pem
 %attr(0644, root, root)             /etc/systemd/system/openwatch.service
 %attr(0644, root, root)             /etc/systemd/system/openwatch-backup-cleanup.service
 %attr(0644, root, root)             /etc/systemd/system/openwatch-backup-cleanup.timer
@@ -146,6 +155,7 @@ systemctl daemon-reload || :
 # keys into it. The key files are intentionally NOT packaged.
 %dir %attr(0750, root, openwatch)   /etc/openwatch/keys
 %attr(0755, root, root)             /usr/lib/openwatch/provision-identity-keys.sh
+%attr(0755, root, root)             /usr/lib/openwatch/provision-tls-cert.sh
 %attr(0755, root, root)             /usr/lib/openwatch/openwatch-upgrade.sh
 %attr(0755, root, root)             /usr/lib/openwatch/cleanup-backups.sh
 %dir %attr(0750, openwatch, openwatch) /var/lib/openwatch
