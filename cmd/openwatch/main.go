@@ -30,6 +30,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/connprofile"
 	"github.com/Hanalyx/openwatch/internal/correlation"
 	"github.com/Hanalyx/openwatch/internal/credential"
+	"github.com/Hanalyx/openwatch/internal/knownhosts"
 	"github.com/google/uuid"
 
 	"github.com/Hanalyx/openwatch/internal/db"
@@ -382,7 +383,7 @@ func cmdServe(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 		WithCredentialService(credSvc).
 		// Profile-aware transport: lead the dial with the host's learned
 		// SSH auth method + record what authenticated (system-connection-profile).
-		WithSSHTransport(discovery.NewSSHTransport(owssh.ModeTOFU, owssh.NewMemoryStore()).
+		WithSSHTransport(discovery.NewSSHTransport(owssh.ModeTOFU, knownhosts.NewStore(pool)).
 			WithProfiles(connStore)).
 		// Spec system-ssh-connectivity v1.2.0 C-09 / AC-20: thread the
 		// SecurityConfig reader so the firewall probe can retry a
@@ -406,7 +407,7 @@ func cmdServe(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 		WithCredentialService(credSvc).
 		WithHostLookup(collector.PoolHostLookup{Pool: pool}).
 		WithSSHTransport(collectorSSHAdapter{
-			inner: discovery.NewSSHTransport(owssh.ModeTOFU, owssh.NewMemoryStore()).
+			inner: discovery.NewSSHTransport(owssh.ModeTOFU, knownhosts.NewStore(pool)).
 				WithProfiles(connStore),
 		}).
 		// Spec system-ssh-connectivity v1.1.0 C-09: load the
@@ -523,7 +524,7 @@ func cmdServe(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 		Credentials: credSvc,
 		RulesDir:    scanRulesDir,
 		HostKeyMode: owssh.ModeTOFU,
-		KnownHosts:  owssh.NewMemoryStore(),
+		KnownHosts:  knownhosts.NewStore(pool),
 		Variables: func(ctx context.Context) (map[string]string, error) {
 			vars, err := cfgStore.LoadScanVars(ctx)
 			return vars, err
