@@ -173,6 +173,204 @@ func (s *Service) GetByID(ctx context.Context, id uuid.UUID) (*Credential, error
 	return s.queryOne(ctx, `WHERE id = $1 AND is_active = true`, id)
 }
 
+// UpdateParams is the input to Update. Every field is a pointer: nil
+// means "leave unchanged" — this is what makes the endpoint a true
+// PATCH. scope and scope_id are intentionally absent; a credential's
+// scope is immutable (switch a host between default and override by
+// creating/cloning/deleting host-scope rows, not by mutating scope).
+//
+// Secret semantics: a non-nil, non-empty Password / PrivateKey /
+// PrivateKeyPassphrase re-encrypts and replaces that secret; a nil
+// pointer keeps the existing ciphertext untouched (no re-entry needed).
+// When AuthMethod narrows away from a secret (e.g. both -> ssh_key),
+// the now-irrelevant ciphertext is nulled regardless of what was sent.
+type UpdateParams struct {
+	ID                   uuid.UUID
+	Name                 *string
+	Description          *string
+	Username             *string
+	AuthMethod           *AuthMethod
+	Password             *string
+	PrivateKey           *string
+	PrivateKeyPassphrase *string
+	IsDefault            *bool
+}
+
+// UpdateResult reports the post-update shape for audit emission.
+type UpdateResult struct {
+	Scope         Scope
+	AuthMethod    AuthMethod
+	SecretRotated bool
+}
+
+// Update applies a partial change to an existing active credential.
+// Runs in a single transaction with SELECT ... FOR UPDATE so the
+// auto-demote of a prior system default and the new default set are
+// atomic. Returns ErrNotFound for an unknown or soft-deleted id,
+// ErrMissingSecret when the resulting auth_method lacks its secret,
+// ErrUnknownAuthMethod for a bad method, and ErrMultipleSystemDefaults
+// only as a belt against a concurrent default race.
+//
+// Spec AC-16..AC-21.
+func (s *Service) Update(ctx context.Context, p UpdateParams) (UpdateResult, error) {
+	dek, err := secretkey.Active()
+	if err != nil {
+		return UpdateResult{}, err
+	}
+
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return UpdateResult{}, fmt.Errorf("credential: update begin: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	const sel = `
+		SELECT scope, name, COALESCE(description, ''), username, auth_method,
+		       encrypted_password, encrypted_private_key, encrypted_private_key_passphrase,
+		       COALESCE(ssh_key_fingerprint, ''), COALESCE(ssh_key_type, ''),
+		       COALESCE(ssh_key_bits, 0), COALESCE(ssh_key_comment, ''),
+		       is_default, is_active
+		  FROM credentials
+		 WHERE id = $1
+		 FOR UPDATE`
+	var (
+		curScope, curName, curDesc, curUser, curMethod string
+		curEncPw, curEncKey, curEncPass                []byte
+		curKeyFP, curKeyType, curKeyComment            string
+		curKeyBits                                     int
+		curIsDefault, isActive                         bool
+	)
+	if err := tx.QueryRow(ctx, sel, p.ID).Scan(
+		&curScope, &curName, &curDesc, &curUser, &curMethod,
+		&curEncPw, &curEncKey, &curEncPass,
+		&curKeyFP, &curKeyType, &curKeyBits, &curKeyComment,
+		&curIsDefault, &isActive,
+	); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return UpdateResult{}, ErrNotFound
+		}
+		return UpdateResult{}, fmt.Errorf("credential: update select: %w", err)
+	}
+	if !isActive {
+		// A soft-deleted credential is invisible to the API and cannot
+		// be revived through PATCH.
+		return UpdateResult{}, ErrNotFound
+	}
+
+	// Effective auth_method: override or keep.
+	method := AuthMethod(curMethod)
+	if p.AuthMethod != nil {
+		method = *p.AuthMethod
+	}
+	switch method {
+	case AuthSSHKey, AuthPassword, AuthBoth:
+	default:
+		return UpdateResult{}, ErrUnknownAuthMethod
+	}
+
+	// Re-encrypt any freshly supplied secret. A nil pointer keeps the
+	// existing ciphertext.
+	newEncPw, newEncKey, newEncPass := curEncPw, curEncKey, curEncPass
+	secretRotated := false
+	if p.Password != nil && *p.Password != "" {
+		newEncPw, err = dek.Encrypt([]byte(*p.Password))
+		if err != nil {
+			return UpdateResult{}, fmt.Errorf("credential: encrypt password: %w", err)
+		}
+		secretRotated = true
+	}
+	if p.PrivateKey != nil && *p.PrivateKey != "" {
+		newEncKey, err = dek.Encrypt([]byte(*p.PrivateKey))
+		if err != nil {
+			return UpdateResult{}, fmt.Errorf("credential: encrypt key: %w", err)
+		}
+		secretRotated = true
+	}
+	if p.PrivateKeyPassphrase != nil && *p.PrivateKeyPassphrase != "" {
+		newEncPass, err = dek.Encrypt([]byte(*p.PrivateKeyPassphrase))
+		if err != nil {
+			return UpdateResult{}, fmt.Errorf("credential: encrypt passphrase: %w", err)
+		}
+		secretRotated = true
+	}
+
+	// Null the secrets (and key metadata) the effective method no longer
+	// uses, so a narrowed credential doesn't keep dead ciphertext around.
+	newKeyFP, newKeyType, newKeyComment, newKeyBits := curKeyFP, curKeyType, curKeyComment, curKeyBits
+	switch method {
+	case AuthSSHKey:
+		newEncPw = nil
+	case AuthPassword:
+		newEncKey, newEncPass = nil, nil
+		newKeyFP, newKeyType, newKeyComment, newKeyBits = "", "", "", 0
+	}
+
+	// The resulting credential must carry the secret(s) its method needs,
+	// from either a fresh value or the retained ciphertext.
+	if (method == AuthSSHKey || method == AuthBoth) && newEncKey == nil {
+		return UpdateResult{}, ErrMissingSecret
+	}
+	if (method == AuthPassword || method == AuthBoth) && newEncPw == nil {
+		return UpdateResult{}, ErrMissingSecret
+	}
+
+	// Metadata overrides.
+	name, desc, user := curName, curDesc, curUser
+	if p.Name != nil {
+		name = *p.Name
+	}
+	if p.Description != nil {
+		desc = *p.Description
+	}
+	if p.Username != nil {
+		user = *p.Username
+	}
+	if name == "" || user == "" {
+		return UpdateResult{}, errors.New("credential: username and name are required")
+	}
+
+	isDefault := curIsDefault
+	if p.IsDefault != nil {
+		isDefault = *p.IsDefault
+	}
+	// Auto-demote the prior system default before promoting this row, so
+	// the one-active-system-default invariant holds at every statement
+	// boundary (decision: editing a credential to be the new default
+	// silently steps over the old one).
+	if isDefault && Scope(curScope) == ScopeSystem {
+		const demote = `
+			UPDATE credentials SET is_default = false, updated_at = now()
+			 WHERE scope = 'system' AND is_default = true AND is_active = true AND id <> $1`
+		if _, err := tx.Exec(ctx, demote, p.ID); err != nil {
+			return UpdateResult{}, fmt.Errorf("credential: demote default: %w", err)
+		}
+	}
+
+	const upd = `
+		UPDATE credentials SET
+			name = $2, description = $3, username = $4, auth_method = $5,
+			encrypted_password = $6, encrypted_private_key = $7,
+			encrypted_private_key_passphrase = $8,
+			ssh_key_fingerprint = $9, ssh_key_type = $10, ssh_key_bits = $11,
+			ssh_key_comment = $12, is_default = $13, updated_at = now()
+		 WHERE id = $1`
+	if _, err := tx.Exec(ctx, upd,
+		p.ID, name, nilIfEmpty(desc), user, string(method),
+		newEncPw, newEncKey, newEncPass,
+		nilIfEmpty(newKeyFP), nilIfEmpty(newKeyType), nilIfZero(newKeyBits), nilIfEmpty(newKeyComment),
+		isDefault,
+	); err != nil {
+		if isUniqueViolation(err) && strings.Contains(err.Error(), "idx_credentials_one_system_default") {
+			return UpdateResult{}, ErrMultipleSystemDefaults
+		}
+		return UpdateResult{}, fmt.Errorf("credential: update exec: %w", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return UpdateResult{}, fmt.Errorf("credential: update commit: %w", err)
+	}
+	return UpdateResult{Scope: Scope(curScope), AuthMethod: method, SecretRotated: secretRotated}, nil
+}
+
 // CloneParams describes the target row CloneCredential should create.
 // The source row's secret material (ciphertext columns) is copied
 // verbatim — no decrypt/re-encrypt round-trip. This keeps the DEK off

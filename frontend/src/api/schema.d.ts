@@ -518,7 +518,11 @@ export interface paths {
         delete: operations["deleteCredentialByID"];
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Update a credential in place
+         * @description Partial update of an existing active credential. Only the fields present in the body change; omitted fields are left untouched. Secret material (password, private_key, private_key_passphrase) is re-encrypted only when a non-empty value is supplied — omitting a secret keeps the stored ciphertext, so metadata can be edited without re-entering the key or password. scope and scope_id are immutable. Setting is_default=true on a system credential atomically demotes the previous system default.
+         */
+        patch: operations["patchCredentialByID"];
         trace?: never;
     };
     "/api/v1/credentials/{id}:clone": {
@@ -2715,6 +2719,21 @@ export interface components {
             private_key_passphrase?: string;
             is_default?: boolean;
         };
+        CredentialUpdateRequest: {
+            name?: string;
+            description?: string;
+            username?: string;
+            /** @enum {string} */
+            auth_method?: "ssh_key" | "password" | "both";
+            /** @description Re-encrypts and replaces the stored password when non-empty; omit to keep the current secret */
+            password?: string;
+            /** @description Re-encrypts and replaces the stored key when non-empty; omit to keep the current secret */
+            private_key?: string;
+            /** @description Re-encrypts and replaces the stored passphrase when non-empty; omit to keep the current secret */
+            private_key_passphrase?: string;
+            /** @description Setting true on a system credential atomically demotes the previous system default */
+            is_default?: boolean;
+        };
         CredentialCloneRequest: {
             /** @enum {string} */
             scope: "system" | "host";
@@ -4622,6 +4641,59 @@ export interface operations {
             };
             /** @description Credential not found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    patchCredentialByID: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CredentialUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Updated credential metadata */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CredentialResponse"];
+                };
+            };
+            /** @description Validation failure (unknown auth_method, missing required secret) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Credential not found or already soft-deleted */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description is_default=true collides with an existing system default */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

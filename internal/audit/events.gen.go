@@ -140,6 +140,8 @@ const (
 	//
 	CredentialCreated Code = "credential.created"
 	//
+	CredentialUpdated Code = "credential.updated"
+	//
 	CredentialDeleted Code = "credential.deleted"
 	//
 	ScanQueued Code = "scan.queued"
@@ -717,6 +719,13 @@ var Metadata = map[Code]EventMeta{
 	},
 	CredentialCreated: {
 		Code:        CredentialCreated,
+		Category:    "credential",
+		Severity:    SeverityInfo,
+		Description: ``,
+		ActorTypes:  nil,
+	},
+	CredentialUpdated: {
+		Code:        CredentialUpdated,
 		Category:    "credential",
 		Severity:    SeverityInfo,
 		Description: ``,
@@ -1364,6 +1373,7 @@ var codeOrder = []Code{
 	SystemFilesystemUnmounted,
 	HostBulkImported,
 	CredentialCreated,
+	CredentialUpdated,
 	CredentialDeleted,
 	ScanQueued,
 	ScanStarted,

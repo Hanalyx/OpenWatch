@@ -140,6 +140,88 @@ func (h *handlers) GetCredentialByID(w http.ResponseWriter, r *http.Request, id 
 	writeJSON(w, http.StatusOK, credentialResponse(m))
 }
 
+// PatchCredentialByID applies a partial update to an existing active
+// credential. Omitted secrets keep the stored ciphertext; setting
+// is_default=true on a system credential atomically demotes the prior
+// default.
+// Spec api-credentials v1.2.0 AC-16..AC-21.
+func (h *handlers) PatchCredentialByID(w http.ResponseWriter, r *http.Request, id openapitypes.UUID) {
+	if denied := auth.EnforcePermission(w, r, auth.CredentialWrite); denied {
+		return
+	}
+	var req api.CredentialUpdateRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "validation.field_invalid", "client",
+			"invalid request body", false)
+		return
+	}
+
+	// Mirror PostCredentials AC-05: a freshly supplied SSH key MUST pass
+	// NIST SP 800-57 validation before it replaces the stored ciphertext.
+	if req.PrivateKey != nil && *req.PrivateKey != "" {
+		pass := ""
+		if req.PrivateKeyPassphrase != nil {
+			pass = *req.PrivateKeyPassphrase
+		}
+		if err := ssh.ValidateAuthKey([]byte(*req.PrivateKey), pass); err != nil {
+			writeError(w, http.StatusBadRequest, "credentials.invalid_key", "client",
+				err.Error(), false)
+			return
+		}
+	}
+
+	params := credential.UpdateParams{
+		ID:                   uuid.UUID(id),
+		Name:                 req.Name,
+		Description:          req.Description,
+		Username:             req.Username,
+		Password:             req.Password,
+		PrivateKey:           req.PrivateKey,
+		PrivateKeyPassphrase: req.PrivateKeyPassphrase,
+		IsDefault:            req.IsDefault,
+	}
+	if req.AuthMethod != nil {
+		m := credential.AuthMethod(*req.AuthMethod)
+		params.AuthMethod = &m
+	}
+
+	res, err := h.credentials.Update(r.Context(), params)
+	if err != nil {
+		switch {
+		case errors.Is(err, credential.ErrNotFound):
+			writeError(w, http.StatusNotFound, "credentials.not_found", "client",
+				"credential not found", false)
+		case errors.Is(err, credential.ErrMissingSecret):
+			writeError(w, http.StatusBadRequest, "credentials.missing_secret", "client",
+				"required secret missing for auth_method", false)
+		case errors.Is(err, credential.ErrUnknownAuthMethod):
+			writeError(w, http.StatusBadRequest, "validation.field_invalid", "client",
+				"unknown auth_method", false)
+		case errors.Is(err, credential.ErrMultipleSystemDefaults):
+			writeError(w, http.StatusConflict, "credentials.multiple_system_defaults", "client",
+				"another system default already exists", false)
+		default:
+			writeError(w, http.StatusInternalServerError, "server.error", "server",
+				err.Error(), true)
+		}
+		return
+	}
+	emitAudit(r, audit.CredentialUpdated, id.String(), map[string]any{
+		"credential_id":  id.String(),
+		"scope":          string(res.Scope),
+		"auth_method":    string(res.AuthMethod),
+		"secret_rotated": res.SecretRotated,
+	})
+
+	updated, err := h.credentials.GetMetadataByID(r.Context(), uuid.UUID(id))
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "server.error", "server",
+			"update succeeded but lookup failed", true)
+		return
+	}
+	writeJSON(w, http.StatusOK, credentialResponse(updated))
+}
+
 // PostCredentialClone copies the source credential's secret material
 // into a new row with the target scope/scope_id. The bulk-import flow
 // uses this to attach a chosen credential template to every newly
