@@ -33,6 +33,22 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 const PAGE_SRC = readFileSync(resolve(process.cwd(), 'src/pages/HostDetailPage.tsx'), 'utf8');
+const EDIT_HOST_SRC = readFileSync(
+  resolve(process.cwd(), 'src/components/hosts/EditHostModal.tsx'),
+  'utf8',
+);
+const HOST_CRED_SRC = readFileSync(
+  resolve(process.cwd(), 'src/components/hosts/HostCredentialModal.tsx'),
+  'utf8',
+);
+
+// HeroConnectivity body slice — from its declaration to the next
+// top-level function. Used by the v1.6.0 credential/reconnect ACs.
+function heroConnectivityBody(): string {
+  const start = PAGE_SRC.indexOf('function HeroConnectivity');
+  const next = PAGE_SRC.indexOf('\nfunction ', start + 1);
+  return PAGE_SRC.slice(start, next);
+}
 
 // Source-position of each band's sentinel marker. AC-01 asserts these
 // appear in declaration order — moving any of them out of place fails.
@@ -419,5 +435,50 @@ describe('frontend-host-detail v1.4.0 — live compliance trend card', () => {
     expect(card).toMatch(/over \{days\.length\} days/);
     // The page passes the host id into the card.
     expect(PAGE_SRC).toContain('<CardComplianceTrend hostId={hostId} />');
+  });
+});
+
+describe('frontend-host-detail v1.6.0 — per-host credential management + reconnect', () => {
+  // @ac AC-40
+  test('frontend-host-detail/AC-40 — Connectivity Auth row resolves the real credential, no hardcoded system_default', () => {
+    const body = heroConnectivityBody();
+    // Auth label is data-driven from the resolve endpoint under the
+    // shared query key.
+    expect(body).toContain('/api/v1/hosts/{host_id}/credentials:resolve');
+    expect(body).toContain("['host-credential-resolve', host.id]");
+    // The hardcoded literal is gone from the whole page.
+    expect(PAGE_SRC).not.toContain('system_default');
+    // Source tag distinguishes a host override from the default.
+    expect(body).toMatch(/'host' : 'default'/);
+  });
+
+  // @ac AC-41
+  test('frontend-host-detail/AC-41 — Reconnect calls discovery:run (idempotent), maps 502, invalidates host', () => {
+    const body = heroConnectivityBody();
+    expect(body).toContain("/api/v1/hosts/{id}/discovery:run");
+    expect(body).toContain("'Idempotency-Key'");
+    expect(body).toContain('502');
+    expect(body).toContain("queryKey: ['host', host.id]");
+    // Gated on host:write; no longer a disabled placeholder.
+    expect(body).toContain('canWriteHost');
+    expect(body).not.toContain('Reconnect (deferred)');
+  });
+
+  // @ac AC-42
+  test('frontend-host-detail/AC-42 — Edit credentials + Manage SSH credential open the shared HostCredentialModal with the four tier transitions', () => {
+    // Both entry points mount the shared modal.
+    expect(PAGE_SRC).toContain('<HostCredentialModal');
+    expect(PAGE_SRC).not.toContain('Edit credentials (deferred)');
+    expect(EDIT_HOST_SRC).toContain('onManageCredential');
+
+    // The modal implements all four source transitions.
+    expect(HOST_CRED_SRC).toContain('/api/v1/credentials/{id}:clone'); // clone default
+    expect(HOST_CRED_SRC).toMatch(/scope:\s*'host'/); // new host override
+    expect(HOST_CRED_SRC).toContain("api.PATCH('/api/v1/credentials/{id}'"); // edit override
+    expect(HOST_CRED_SRC).toContain("api.DELETE('/api/v1/credentials/{id}'"); // revert
+    // Every mutation refreshes the resolved source.
+    expect(HOST_CRED_SRC).toContain("['host-credential-resolve', host.id]");
+    // Mutating controls gated on credential:write.
+    expect(HOST_CRED_SRC).toContain("hasPermission('credential:write')");
   });
 });

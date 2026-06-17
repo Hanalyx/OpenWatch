@@ -39,7 +39,7 @@ export interface Credential {
   updated_at: string;
 }
 
-const credentialSchema = z
+export const credentialSchema = z
   .object({
     name: z.string().min(1, 'Required').max(256, 'Too long'),
     description: z.string().max(1024, 'Too long').optional(),
@@ -67,7 +67,7 @@ const credentialSchema = z
     }
   });
 
-type FormShape = z.infer<typeof credentialSchema>;
+export type FormShape = z.infer<typeof credentialSchema>;
 
 // Edit uses the same fields but secrets are always optional: a blank
 // password / key means "keep the stored ciphertext" (PATCH semantics).
@@ -75,7 +75,7 @@ type FormShape = z.infer<typeof credentialSchema>;
 // lacks and supplies nothing, the backend rejects it with
 // credentials.missing_secret — surfaced as a server error rather than
 // pre-validated here (the form can't see which secrets are stored).
-const credentialEditSchema = z.object({
+export const credentialEditSchema = z.object({
   name: z.string().min(1, 'Required').max(256, 'Too long'),
   description: z.string().max(1024, 'Too long').optional(),
   username: z.string().min(1, 'Required').max(256, 'Too long'),
@@ -90,7 +90,7 @@ const credentialEditSchema = z.object({
 // rejects with a plain TypeError when the connection refuses, DNS
 // fails, or CORS blocks. We surface a clearer message so the operator
 // doesn't see "Failed to fetch".
-function isNetworkError(err: unknown): boolean {
+export function isNetworkError(err: unknown): boolean {
   if (!(err instanceof Error)) return false;
   return (
     err.name === 'TypeError' &&
@@ -98,7 +98,7 @@ function isNetworkError(err: unknown): boolean {
   );
 }
 
-function describeNetworkError(): string {
+export function describeNetworkError(): string {
   return 'Cannot reach the OpenWatch API. Start the backend (./dist/openwatch serve) or check that the Vite proxy target (https://localhost:8443) is responding.';
 }
 
@@ -513,7 +513,7 @@ export function DeleteCredentialModal({
 // Shared form fields
 // ─────────────────────────────────────────────────────────────────────────
 
-function CredentialFormFields({
+export function CredentialFormFields({
   register,
   authMethod,
   errors,

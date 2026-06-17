@@ -53,6 +53,13 @@ interface Props {
   open: boolean;
   onClose: () => void;
   host: EditableHost;
+  /**
+   * When provided, renders a "Manage SSH credential" link that hands off
+   * to the per-host credential modal. The host record itself stores no
+   * credential (api-credentials uses a scope/scope_id tier model), so
+   * credential editing lives in its own modal.
+   */
+  onManageCredential?: () => void;
 }
 
 function splitTags(csv: string | undefined): string[] {
@@ -63,7 +70,7 @@ function splitTags(csv: string | undefined): string[] {
     .filter((t) => t.length > 0);
 }
 
-export function EditHostModal({ open, onClose, host }: Props) {
+export function EditHostModal({ open, onClose, host, onManageCredential }: Props) {
   const queryClient = useQueryClient();
   const [serverError, setServerError] = useState<string | null>(null);
   const { register, handleSubmit, formState, reset } = useForm<EditForm>({
@@ -196,6 +203,26 @@ export function EditHostModal({ open, onClose, host }: Props) {
         <FormField label="Username" error={formState.errors.username?.message}>
           <input type="text" {...register('username')} style={inputStyle} />
         </FormField>
+
+        {onManageCredential && (
+          <div style={{ margin: '-4px 0 14px' }}>
+            <button
+              type="button"
+              onClick={onManageCredential}
+              disabled={submitting}
+              style={{
+                background: 'transparent',
+                border: 0,
+                padding: 0,
+                color: 'var(--ow-info)',
+                fontSize: 12,
+                cursor: submitting ? 'default' : 'pointer',
+              }}
+            >
+              Manage SSH credential (key or password) →
+            </button>
+          </div>
+        )}
 
         <FormField
           label="Tags"

@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams, useSearch, useNavigate, Link } from '@tanstack/react-router';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
@@ -29,6 +29,7 @@ import api from '@/api/client';
 import { useHostExceptions } from '@/hooks/useHostExceptions';
 import { apiErrorCode, apiErrorMessage } from '@/api/errors';
 import { EditHostModal } from '@/components/hosts/EditHostModal';
+import { HostCredentialModal } from '@/components/hosts/HostCredentialModal';
 import { HostActionsMenu } from '@/components/hosts/HostActionsMenu';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useBreadcrumbStore } from '@/store/useBreadcrumbStore';
@@ -503,7 +504,9 @@ function PageHead({
   intelligenceSnapshot: Record<string, unknown> | null;
 }) {
   const [editOpen, setEditOpen] = useState(false);
+  const [credOpen, setCredOpen] = useState(false);
   const canWrite = useAuthStore((s) => s.hasPermission('host:write'));
+  const canReadCred = useAuthStore((s) => s.hasPermission('credential:read'));
   const band: MonitoringBand =
     host.maintenance_mode === true ? 'maintenance' : (liveness?.monitoring_state ?? 'unknown');
 
@@ -667,7 +670,24 @@ function PageHead({
           />
         </div>
       </div>
-      <EditHostModal open={editOpen} onClose={() => setEditOpen(false)} host={host} />
+      <EditHostModal
+        open={editOpen}
+        onClose={() => setEditOpen(false)}
+        host={host}
+        onManageCredential={
+          canReadCred
+            ? () => {
+                setEditOpen(false);
+                setCredOpen(true);
+              }
+            : undefined
+        }
+      />
+      <HostCredentialModal
+        open={credOpen}
+        onClose={() => setCredOpen(false)}
+        host={{ id: host.id, hostname: host.hostname }}
+      />
     </section>
   );
 }
@@ -1295,10 +1315,70 @@ function HeroConnectivity({
   host: HostResponse;
   liveness: HostLiveness | null;
 }) {
+  const queryClient = useQueryClient();
+  const canReadCred = useAuthStore((s) => s.hasPermission('credential:read'));
+  const canWriteHost = useAuthStore((s) => s.hasPermission('host:write'));
+  const [credOpen, setCredOpen] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+
   const band: MonitoringBand =
     host.maintenance_mode === true ? 'maintenance' : (liveness?.monitoring_state ?? 'unknown');
   const { label: BAND_HEADLINE, color } = bandLabel(band);
   const lastSeen = liveness?.last_probe_at ? relativeMinutes(liveness.last_probe_at) : '—';
+
+  // Resolve the host's effective credential for the Auth row (shared
+  // query key with HostCredentialModal, so edits refresh this label).
+  const credResolve = useQuery({
+    queryKey: ['host-credential-resolve', host.id],
+    enabled: canReadCred,
+    queryFn: async () => {
+      const { data, response } = await api.POST('/api/v1/hosts/{host_id}/credentials:resolve', {
+        params: { path: { host_id: host.id } },
+      });
+      if (!response.ok) return null; // 404 none_available or any error
+      return data as { scope: 'system' | 'host'; name: string };
+    },
+  });
+
+  const authValue: ReactNode = (() => {
+    if (!canReadCred) return host.username ? 'configured' : '—';
+    if (credResolve.isLoading) return '…';
+    const r = credResolve.data;
+    if (!r) return 'none';
+    return (
+      <span title={r.name}>
+        {r.name} <span style={{ color: 'var(--ow-fg-3)' }}>({r.scope === 'host' ? 'host' : 'default'})</span>
+      </span>
+    );
+  })();
+
+  // Reconnect = synchronous OS discovery (POST /discovery:run). It opens
+  // one SSH session with the resolved credential and refreshes OS facts,
+  // bypassing the scan queue entirely. A 502 means the credential or SSH
+  // dial failed — exactly the signal an operator wants after editing it.
+  const reconnect = useMutation({
+    mutationFn: async () => {
+      const { response } = await api.POST('/api/v1/hosts/{id}/discovery:run', {
+        params: {
+          path: { id: host.id },
+          header: { 'Idempotency-Key': crypto.randomUUID() },
+        },
+      });
+      if (response.status === 502) throw new Error('Host unreachable (SSH or credential failed)');
+      if (!response.ok) throw new Error(`Reconnect failed (${response.status})`);
+    },
+    onSuccess: () => {
+      setNote('Reconnected. OS facts refreshed.');
+      queryClient.invalidateQueries({ queryKey: ['host', host.id] });
+      queryClient.invalidateQueries({ queryKey: ['hosts'] });
+      window.setTimeout(() => setNote(null), 5000);
+    },
+    onError: (e: Error) => {
+      setNote(e.message);
+      window.setTimeout(() => setNote(null), 6000);
+    },
+  });
+
   return (
     <article style={heroCard} aria-labelledby="hero-conn-title">
       <header style={heroHead}>
@@ -1319,26 +1399,48 @@ function HeroConnectivity({
               </span>
             }
           />
-          <KvRow k="Auth" v={host.username ? 'system_default' : '—'} />
+          <KvRow k="Auth" v={authValue} />
           <KvRow k="Last seen" v={lastSeen} />
+        </div>
+      )}
+      {note && (
+        <div role="status" style={{ marginTop: 6, fontSize: 11, color: 'var(--ow-fg-2)' }}>
+          {note}
         </div>
       )}
       <div
         style={{
           display: 'flex',
-          gap: 6,
+          gap: 10,
           marginTop: 6,
           paddingTop: 8,
           borderTop: '1px solid var(--ow-line)',
         }}
       >
-        <button type="button" style={smallTextBtn} title="Reconnect (deferred)" disabled>
-          Reconnect
+        <button
+          type="button"
+          style={smallTextBtn}
+          onClick={() => reconnect.mutate()}
+          disabled={!canWriteHost || reconnect.isPending}
+          title="Run OS discovery now: validates the SSH credential and refreshes facts, bypassing the scan queue"
+        >
+          {reconnect.isPending ? 'Reconnecting…' : 'Reconnect'}
         </button>
-        <button type="button" style={smallTextBtn} title="Edit credentials (deferred)" disabled>
+        <button
+          type="button"
+          style={smallTextBtn}
+          onClick={() => setCredOpen(true)}
+          disabled={!canReadCred}
+          title="View or change this host's SSH credential"
+        >
           Edit credentials
         </button>
       </div>
+      <HostCredentialModal
+        open={credOpen}
+        onClose={() => setCredOpen(false)}
+        host={{ id: host.id, hostname: host.hostname }}
+      />
     </article>
   );
 }
