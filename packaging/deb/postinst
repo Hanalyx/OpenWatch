@@ -16,6 +16,10 @@ if [ "$1" = "configure" ]; then
     # failure should abort configure rather than leave an unbootable service.
     /usr/lib/openwatch/provision-identity-keys.sh
 
+    # Provision a demo TLS cert + key (generate-if-absent). Not shipped in the
+    # payload so an upgrade never overwrites an operator's replacement cert.
+    /usr/lib/openwatch/provision-tls-cert.sh
+
     # UPGRADE: dpkg passes the previously-configured version as $2 (empty on a
     # fresh install). Apply pending DB migrations with an auto-backup restore
     # point + fail-safe service state. `set -e` propagates a migration failure

@@ -70,6 +70,7 @@ cp "$DIST_DIR/openwatch"                      "$SRC_DIR/openwatch"
 cp "$APP_DIR/packaging/common/openwatch.toml" "$SRC_DIR/openwatch.toml"
 cp "$APP_DIR/packaging/common/openwatch.service" "$SRC_DIR/openwatch.service"
 cp "$APP_DIR/packaging/common/provision-identity-keys.sh" "$SRC_DIR/provision-identity-keys.sh"
+cp "$APP_DIR/packaging/common/provision-tls-cert.sh"      "$SRC_DIR/provision-tls-cert.sh"
 # Upgrade automation: migrate-on-upgrade helper, backup cleanup, systemd
 # timer + units, and the operator-tunable upgrade.conf.
 cp "$APP_DIR/packaging/common/openwatch-upgrade.sh"             "$SRC_DIR/openwatch-upgrade.sh"
@@ -78,8 +79,9 @@ cp "$APP_DIR/packaging/common/upgrade.conf"                    "$SRC_DIR/upgrade
 cp "$APP_DIR/packaging/common/openwatch-backup-cleanup.service" "$SRC_DIR/openwatch-backup-cleanup.service"
 cp "$APP_DIR/packaging/common/openwatch-backup-cleanup.timer"   "$SRC_DIR/openwatch-backup-cleanup.timer"
 
-# Demo TLS cert.
-bash "$APP_DIR/packaging/common/gen-demo-cert.sh" "$SRC_DIR" >/dev/null
+# The demo TLS cert is NOT staged into the payload — provision-tls-cert.sh
+# generates it at install time (generate-if-absent), so a package upgrade
+# cannot revert an operator's replacement certificate.
 
 (cd "$STAGE_DIR" && tar czf "$RPMTOP/SOURCES/openwatch-${RPM_VERSION}.tar.gz" "openwatch-${RPM_VERSION}")
 rm -rf "$STAGE_DIR"

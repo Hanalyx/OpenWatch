@@ -36,6 +36,16 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   rules. The `kensa-rules` package version tracks the engine, so it becomes
   0.5.0 in the next build.
 
+### Fixed
+
+- A package upgrade no longer overwrites your TLS certificate. The demo
+  certificate previously shipped inside the package at the production path, so
+  `dnf update` or `apt upgrade` silently replaced an operator-installed
+  certificate with a fresh self-signed demo on every upgrade. The demo
+  certificate is now generated at install time only when the TLS files are
+  absent (the same generate-if-absent model already used for the server's
+  identity keys), so a certificate you put in place survives upgrades untouched.
+
 ---
 
 ## [0.2.0-rc.9] Eyrie — 2026-06-17

@@ -1,7 +1,7 @@
 spec:
   id: release-package-build
   title: Native RPM and DEB packaging
-  version: "1.1.0"
+  version: "1.2.0"
   status: approved
   tier: 2
 
@@ -11,7 +11,7 @@ spec:
     description: >
       The Go binary ships as a native RPM (CentOS Stream 9 / RHEL 9
       derivatives) and DEB (Ubuntu 24.04+). Air-gapped install:
-      single binary, default config, embedded test cert, systemd unit.
+      single binary, default config, install-generated demo cert, systemd unit.
       Operator runs `dnf install ./openwatch-*.rpm` or `apt install
       ./openwatch-*.deb` and the service is wired up.
     related_specs:
@@ -33,7 +33,7 @@ spec:
         - DEB control files + build script
         - systemd unit definition
         - Default openwatch.toml shipped under /etc/openwatch/
-        - Demo cert under /etc/openwatch/tls/ (operators replace)
+        - Demo cert generated at /etc/openwatch/tls/ at install time, generate-if-absent (operators replace; upgrades never overwrite)
         - Post-install systemd reload
         - Pre-uninstall stop+disable
         - Multi-arch builds (amd64 + arm64) via ARCH, cross-compiled with CGO disabled
@@ -62,7 +62,18 @@ spec:
       type: security
       enforcement: error
     - id: C-05
-      description: Both packages MUST ship a demo TLS cert under /etc/openwatch/tls/ with key mode 0600 owned by openwatch:openwatch
+      description: >
+        Both packages MUST provide a demo TLS cert + key at
+        /etc/openwatch/tls/ (cert.pem mode 0644 root:openwatch, key.pem mode
+        0600 openwatch:openwatch) so the service boots out of the box. To
+        prevent a package upgrade from silently overwriting an operator's
+        replacement certificate (TLS files are not %config / conffiles, so the
+        package manager replaces them unconditionally), the cert + key MUST NOT
+        be shipped in the package payload; they MUST be generated at install
+        time by a post-install scriptlet, generate-if-absent (never overwrite).
+        The packages ship only the empty /etc/openwatch/tls directory plus the
+        provisioning helper. openssl MUST be a package dependency (shared with
+        C-11).
       type: security
       enforcement: error
     - id: C-06
@@ -136,16 +147,16 @@ spec:
       description: The RPM spec file passes `rpm -q --specfile packaging/rpm/openwatch.spec` without errors.
       priority: critical
     - id: AC-04
-      description: The RPM payload contains /usr/bin/openwatch, /etc/openwatch/openwatch.toml, /etc/systemd/system/openwatch.service, and /etc/openwatch/tls/cert.pem.
+      description: The RPM payload contains /usr/bin/openwatch, /etc/openwatch/openwatch.toml, and /etc/systemd/system/openwatch.service. The demo TLS cert is generated at install time, not shipped in the payload (see AC-22).
       priority: critical
-      references_constraints: [C-01, C-02, C-03, C-05]
+      references_constraints: [C-01, C-02, C-03]
     - id: AC-05
       description: The DEB control file lists package name "openwatch", a valid Depends line, and Maintainer.
       priority: critical
     - id: AC-06
-      description: The DEB payload (via dpkg-deb -c) contains /usr/bin/openwatch, /etc/openwatch/openwatch.toml, /etc/systemd/system/openwatch.service, and /etc/openwatch/tls/cert.pem.
+      description: The DEB payload (via dpkg-deb -c) contains /usr/bin/openwatch, /etc/openwatch/openwatch.toml, and /etc/systemd/system/openwatch.service. The demo TLS cert is generated at install time, not shipped in the payload (see AC-22).
       priority: critical
-      references_constraints: [C-01, C-02, C-03, C-05]
+      references_constraints: [C-01, C-02, C-03]
     - id: AC-07
       description: The RPM post-install script invokes systemctl daemon-reload (verified via rpm -q --scripts).
       priority: high
@@ -213,3 +224,17 @@ spec:
         NVR-collision regression.
       priority: critical
       references_constraints: [C-12]
+    - id: AC-22
+      description: >-
+        The RPM %post and the DEB postinst invoke the TLS-cert provisioning
+        helper, and the shipped helper (packaging/common/provision-tls-cert.sh)
+        generates a self-signed cert (openssl req -x509; cert.pem 0644
+        root:openwatch, key.pem 0600 openwatch:openwatch) only when both files
+        are absent. The package payloads ship the empty /etc/openwatch/tls
+        directory and the helper at /usr/lib/openwatch/provision-tls-cert.sh,
+        but do NOT contain cert.pem or key.pem (verified via rpm -qpl and
+        dpkg-deb -c), and the build scripts no longer stage a cert into the
+        payload — so a package upgrade never reverts an operator's replacement
+        certificate.
+      priority: critical
+      references_constraints: [C-05]

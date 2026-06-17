@@ -57,7 +57,11 @@ trap 'rm -rf "$STAGE"' EXIT
 mkdir -p "$STAGE/DEBIAN"
 mkdir -p "$STAGE/usr/bin"
 mkdir -p "$STAGE/usr/lib/openwatch"
+# TLS directory ships empty (0750); postinst generates the demo cert/key into
+# it (generate-if-absent). The cert/key files are not part of the payload, so
+# an upgrade cannot revert an operator's replacement certificate.
 mkdir -p "$STAGE/etc/openwatch/tls"
+chmod 0750 "$STAGE/etc/openwatch/tls"
 # Identity-key directory ships empty (0750); postinst generates the
 # per-install keys into it. The key files are not part of the payload.
 mkdir -p "$STAGE/etc/openwatch/keys"
@@ -77,11 +81,13 @@ install -m 0644 "$APP_DIR/packaging/common/openwatch.service" "$STAGE/etc/system
 install -m 0644 "$APP_DIR/packaging/common/openwatch-backup-cleanup.service" "$STAGE/etc/systemd/system/openwatch-backup-cleanup.service"
 install -m 0644 "$APP_DIR/packaging/common/openwatch-backup-cleanup.timer"   "$STAGE/etc/systemd/system/openwatch-backup-cleanup.timer"
 install -m 0755 "$APP_DIR/packaging/common/provision-identity-keys.sh" "$STAGE/usr/lib/openwatch/provision-identity-keys.sh"
+install -m 0755 "$APP_DIR/packaging/common/provision-tls-cert.sh"      "$STAGE/usr/lib/openwatch/provision-tls-cert.sh"
 install -m 0755 "$APP_DIR/packaging/common/openwatch-upgrade.sh"       "$STAGE/usr/lib/openwatch/openwatch-upgrade.sh"
 install -m 0755 "$APP_DIR/packaging/common/cleanup-backups.sh"         "$STAGE/usr/lib/openwatch/cleanup-backups.sh"
 
-# Demo TLS cert (chmod inside the script).
-bash "$APP_DIR/packaging/common/gen-demo-cert.sh" "$STAGE/etc/openwatch/tls" >/dev/null
+# The demo TLS cert is NOT staged into the payload — postinst generates it at
+# install time (generate-if-absent), so apt upgrade cannot revert an
+# operator's replacement certificate. The tls/ dir ships empty.
 
 # Step 3: control + maintainer scripts.
 # Render control with the actual version and target arch inserted.
