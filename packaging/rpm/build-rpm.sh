@@ -26,8 +26,14 @@ if [ -z "${VERSION:-}" ]; then
         VERSION="0.1.0"
     fi
 fi
-# Strip any -dev / -alpha / -rc suffixes — RPM version field doesn't allow them.
-RPM_VERSION="${VERSION%%-*}"
+# RPM versions cannot contain '-', so encode a pre-release suffix with '~'
+# (tilde), which RPM sorts BELOW the final release and orders RCs correctly:
+#   0.2.0~rc.7  <  0.2.0~rc.8  <  0.2.0   (GA)
+# A bare GA version (no '-') is left unchanged. Do NOT strip the suffix — that
+# collapsed every RC to the same NVR (openwatch-0.2.0-1), so dnf saw rc.8 as
+# already installed. The spec carries Epoch:1 to step over those earlier
+# bare-0.2.0 RCs on upgrade.
+RPM_VERSION="${VERSION/-/\~}"
 RPM_RELEASE="${RPM_RELEASE:-1}"
 DIST_DIR="${APP_DIR}/dist"
 
@@ -45,8 +51,10 @@ mkdir -p "$DIST_DIR"
 # outside rpmbuild's %build so the chroot needs no Go toolchain. CGO is
 # disabled for a portable binary that cross-compiles without a C toolchain
 # (the embedded frontend SPA is arch-independent).
-echo ">> building openwatch binary (version=${RPM_VERSION}, arch=${RPM_ARCH})"
-GOOS=linux GOARCH="$GOARCH" CGO_ENABLED=0 make build VERSION="$RPM_VERSION" >/dev/null
+# Build the binary with the FULL version (e.g. 0.2.0-rc.8) so `openwatch
+# --version` reports the real pre-release, not the tilde-encoded RPM form.
+echo ">> building openwatch binary (version=${VERSION}, arch=${RPM_ARCH})"
+GOOS=linux GOARCH="$GOARCH" CGO_ENABLED=0 make build VERSION="$VERSION" >/dev/null
 
 # Step 2: stage the rpmbuild tree.
 RPMTOP="$(mktemp -d)"

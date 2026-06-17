@@ -25,8 +25,15 @@ if [ -z "${VERSION:-}" ]; then
         VERSION="0.1.0"
     fi
 fi
-# DEB allows hyphens; reuse upstream version as-is.
-DEB_VERSION="$VERSION"
+# Pre-release ordering: DEB (like RPM) needs '~' to sort a pre-release BELOW
+# the final release (0.2.0~rc.8 < 0.2.0). A plain hyphen revision (0.2.0-rc.8)
+# sorts ABOVE 0.2.0, so GA would never supersede an RC. Epoch 1 steps over the
+# rc.3..rc.8 .debs already published with the hyphen form. The control file
+# carries the epoch; the .deb filename omits it (Debian convention). The binary
+# keeps the true semver ($VERSION, e.g. 0.2.0-rc.8).
+DEB_EPOCH="${DEB_EPOCH:-1}"
+DEB_UPSTREAM="${VERSION/-/\~}"                 # 0.2.0-rc.8 -> 0.2.0~rc.8 (GA unchanged)
+DEB_VERSION="${DEB_EPOCH}:${DEB_UPSTREAM}"     # control Version field (e.g. 1:0.2.0~rc.8)
 # Target architecture (Debian names, which match GOARCH for our targets).
 ARCH="${ARCH:-amd64}"
 case "$ARCH" in
@@ -40,8 +47,8 @@ mkdir -p "$DIST_DIR"
 # Step 1: build the Go binary for the target arch. CGO is disabled so the
 # binary is portable and cross-compiles without a C toolchain (the embedded
 # frontend SPA is arch-independent).
-echo ">> building openwatch binary (version=${DEB_VERSION}, arch=${ARCH})"
-GOOS=linux GOARCH="$ARCH" CGO_ENABLED=0 make build VERSION="$DEB_VERSION" >/dev/null
+echo ">> building openwatch binary (version=${VERSION}, arch=${ARCH})"
+GOOS=linux GOARCH="$ARCH" CGO_ENABLED=0 make build VERSION="$VERSION" >/dev/null
 
 # Step 2: stage the package tree.
 STAGE="$(mktemp -d)"
@@ -90,6 +97,6 @@ install -m 0755 "$APP_DIR/packaging/deb/postrm"    "$STAGE/DEBIAN/postrm"
 
 # Step 4: dpkg-deb.
 echo ">> running dpkg-deb"
-OUT="$DIST_DIR/openwatch_${DEB_VERSION}_${ARCH}.deb"
+OUT="$DIST_DIR/openwatch_${DEB_UPSTREAM}_${ARCH}.deb"
 dpkg-deb --root-owner-group --build "$STAGE" "$OUT" >/dev/null
 echo ">> wrote $(basename "$OUT") to $DIST_DIR/"
