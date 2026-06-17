@@ -247,7 +247,7 @@ PGPASSWORD='replace-with-a-strong-password' \
 ### Step 3 — Install the packages
 
 ```bash
-sudo apt install -y ./openwatch_0.2.0-rc.5_amd64.deb ./kensa-rules_0.4.3_all.deb
+sudo apt install -y ./openwatch_0.2.0-rc.7_amd64.deb ./kensa-rules_0.4.3_all.deb
 ```
 
 Install **both** files together — `openwatch` `Depends` on `kensa-rules` (the
@@ -401,6 +401,63 @@ curl -k https://localhost:8443/api/v1/health
 
 The database ping inside `/health` failed. Check `journalctl -u openwatch` for
 the underlying error.
+
+---
+
+## Upgrading
+
+Upgrading is one command. Download the newer `openwatch` package (and the newer
+`kensa-rules` package if the rule corpus moved) and install it the same way you
+did originally:
+
+```bash
+# RHEL family
+sudo dnf install -y ./openwatch-<new>.x86_64.rpm ./kensa-rules-<new>.noarch.rpm
+
+# Debian / Ubuntu
+sudo apt install -y ./openwatch_<new>_amd64.deb ./kensa-rules_<new>_all.deb
+```
+
+On an upgrade (and only on an upgrade — never on a fresh install) the package
+post-install step runs the upgrade helper, which:
+
+1. Checks the database is reachable. If it is not, it leaves the service alone,
+   prints how to finish later (`openwatch migrate && systemctl restart
+   openwatch`), and does **not** fail the package transaction.
+2. Stops the service so the old binary never runs against a half-migrated
+   schema.
+3. Takes a full `pg_dump` restore point into `/var/lib/openwatch/backups/`
+   before touching the schema. If the backup fails, it aborts **without**
+   migrating (fail-closed) — your data is untouched.
+4. Applies any pending migrations, then starts the service again.
+
+If a migration fails, the helper leaves the service **stopped** and exits
+non-zero so the package manager surfaces the problem, and it prints the restore
+path. Your data is intact (each migration runs in its own transaction and rolls
+back on error). After fixing the cause:
+
+```bash
+openwatch migrate            # re-apply; reads the same DSN from secrets.env
+sudo systemctl start openwatch
+```
+
+To preview what an upgrade would apply without changing anything:
+
+```bash
+sudo -u openwatch openwatch migrate --status
+```
+
+Tunables live in `/etc/openwatch/upgrade.conf` (a `noreplace` config file):
+`AUTO_BACKUP=yes|no` toggles the pre-migration dump, and
+`BACKUP_RETENTION_DAYS` controls pruning. A `systemd` timer
+(`openwatch-backup-cleanup.timer`) prunes old dumps daily but **always keeps the
+most recent one** regardless of age.
+
+> Scope: this automates the OpenWatch **application** schema only. A PostgreSQL
+> **engine** major-version upgrade (for example PostgreSQL 15 -> 16) is a
+> separate, operator-supervised `pg_upgrade` and is never triggered from a
+> package scriptlet. See `specs/release/upgrade.spec.yaml` for the full
+> contract.
 
 ---
 
