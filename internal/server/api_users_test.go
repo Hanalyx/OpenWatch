@@ -45,6 +45,15 @@ func asRole(t *testing.T, method, url string, role auth.RoleID, body any) *http.
 			t.Fatalf("asRole: no fixture session for role %q (seeded: %v)", role, seededRoles)
 		}
 		req.AddCookie(cookie)
+		// Attach a matching double-submit CSRF pair on unsafe methods, the
+		// way a real browser echoes the XSRF-TOKEN cookie into X-CSRF-Token.
+		// Without this, csrfProtect would 403 every cookie-authenticated
+		// mutating request in the suite.
+		if !isSafeMethod(method) {
+			const tok = "test-csrf-token"
+			req.AddCookie(&http.Cookie{Name: csrfCookieName, Value: tok})
+			req.Header.Set(csrfHeaderName, tok)
+		}
 	}
 	return req
 }

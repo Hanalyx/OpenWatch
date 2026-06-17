@@ -119,6 +119,10 @@ func (h *handlers) PostAuthLogin(w http.ResponseWriter, r *http.Request) {
 		SameSite: http.SameSiteLaxMode,
 	})
 
+	// Issue the double-submit CSRF token alongside the session so the SPA can
+	// echo it on subsequent unsafe requests. Spec system-http-server C-14.
+	setCSRFCookie(w, newCSRFToken())
+
 	// Set the refresh cookie so the browser can call /auth/refresh-cookie
 	// when the session expires. JS cannot read this cookie; only the
 	// refresh-cookie endpoint consumes it. Same lifetime as the refresh
@@ -302,6 +306,8 @@ func (h *handlers) PostAuthRefreshCookie(w http.ResponseWriter, r *http.Request)
 		Secure:   true,
 		SameSite: http.SameSiteLaxMode,
 	})
+	// Rotate the CSRF token with the session. Spec system-http-server C-14.
+	setCSRFCookie(w, newCSRFToken())
 	http.SetCookie(w, &http.Cookie{
 		Name:     identity.RefreshCookieName,
 		Value:    pair.RefreshToken,

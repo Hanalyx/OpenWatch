@@ -1,7 +1,7 @@
 spec:
   id: system-http-server
   title: HTTPS server with TLS hot-reload
-  version: "1.2.0"
+  version: "1.3.0"
   status: approved
   tier: 2
 
@@ -93,6 +93,19 @@ spec:
         sign-ins never trip it.
       type: security
       enforcement: error
+    - id: C-14
+      description: >-
+        Unsafe (POST/PUT/PATCH/DELETE), cookie-authenticated requests MUST
+        be CSRF-protected by double-submit: the server issues a non-HttpOnly
+        XSRF-TOKEN cookie at login and on refresh, and the request MUST echo
+        it in the X-CSRF-Token header (constant-time compared) or get 403.
+        The check is gated on ambient authority — it applies only when the
+        openwatch_session cookie is present; Bearer/token requests, the
+        /api/v1/auth/* lifecycle endpoints, and requests with no session
+        cookie are exempt. This makes the frontend's double-submit real
+        rather than relying on SameSite=Lax alone.
+      type: security
+      enforcement: error
 
   acceptance_criteria:
     - id: AC-01
@@ -153,3 +166,7 @@ spec:
       description: The rateLimiter allows up to its limit within the window and denies the limit+1th attempt for the same key (a different key is independent). After the per-IP login budget is exhausted, POST /api/v1/auth/login returns 429 with a Retry-After header.
       priority: high
       references_constraints: [C-13]
+    - id: AC-19
+      description: A cookie-authenticated unsafe request (session cookie present) with no X-CSRF-Token, or a header that does not match the XSRF-TOKEN cookie, returns 403 authz.csrf_invalid; the same request with a matching X-CSRF-Token proceeds. A request carrying no session cookie, or an Authorization (Bearer) header, or to an /api/v1/auth/* path, is exempt. POST /auth/login Set-Cookies a non-HttpOnly XSRF-TOKEN.
+      priority: critical
+      references_constraints: [C-14]

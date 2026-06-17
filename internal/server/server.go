@@ -212,6 +212,10 @@ func New(cfg *config.Config, pool *pgxpool.Pool) *Server {
 	// isolated across tests. Spec system-http-server C-13.
 	r.Use(rateLimitAuth(newRateLimiter(authRateLimitPerMinute, time.Minute)))
 
+	// Double-submit CSRF protection on unsafe, cookie-authenticated requests.
+	// Spec system-http-server C-14.
+	r.Use(csrfProtect)
+
 	// Identity binder. Reads session cookie or Bearer JWT, translates to
 	// auth.Identity via the users.Service Lookups adapter. Sets a
 	// non-anonymous Identity on success (anonymous if not). Does NOT
