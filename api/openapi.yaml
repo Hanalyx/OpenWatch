@@ -658,6 +658,47 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+    patch:
+      operationId: patchCredentialByID
+      summary: Update a credential in place
+      description: >
+        Partial update of an existing active credential. Only the fields
+        present in the body change; omitted fields are left untouched.
+        Secret material (password, private_key, private_key_passphrase)
+        is re-encrypted only when a non-empty value is supplied — omitting
+        a secret keeps the stored ciphertext, so metadata can be edited
+        without re-entering the key or password. scope and scope_id are
+        immutable. Setting is_default=true on a system credential atomically
+        demotes the previous system default.
+      x-required-permission: credential:write
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CredentialUpdateRequest'}
+      responses:
+        '200':
+          description: Updated credential metadata
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CredentialResponse'}
+        '400':
+          description: Validation failure (unknown auth_method, missing required secret)
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '404':
+          description: Credential not found or already soft-deleted
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '409':
+          description: is_default=true collides with an existing system default
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
     delete:
       operationId: deleteCredentialByID
       summary: Soft-delete a credential
@@ -4029,6 +4070,23 @@ components:
         private_key:            {type: string}
         private_key_passphrase: {type: string}
         is_default:             {type: boolean}
+
+    # Partial update shape. Every field is optional; only the fields
+    # present are changed. Omitting a secret keeps the stored ciphertext,
+    # so metadata can be edited without re-entering the key or password.
+    # scope and scope_id are intentionally absent — a credential's scope
+    # is immutable.
+    CredentialUpdateRequest:
+      type: object
+      properties:
+        name:                   {type: string, minLength: 1, maxLength: 256}
+        description:            {type: string, maxLength: 1024}
+        username:               {type: string, minLength: 1, maxLength: 256}
+        auth_method:            {type: string, enum: [ssh_key, password, both]}
+        password:               {type: string, description: "Re-encrypts and replaces the stored password when non-empty; omit to keep the current secret"}
+        private_key:            {type: string, description: "Re-encrypts and replaces the stored key when non-empty; omit to keep the current secret"}
+        private_key_passphrase: {type: string, description: "Re-encrypts and replaces the stored passphrase when non-empty; omit to keep the current secret"}
+        is_default:             {type: boolean, description: "Setting true on a system credential atomically demotes the previous system default"}
 
     # Clone target shape. The source credential's secret material is
     # inherited verbatim (no plaintext crosses the wire); only the new

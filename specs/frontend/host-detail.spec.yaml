@@ -1,7 +1,7 @@
 spec:
   id: frontend-host-detail
   title: Host Detail page layout, behavior, and empty-state contracts
-  version: "1.5.0"
+  version: "1.6.0"
   status: approved
   tier: 2
 
@@ -95,6 +95,14 @@ spec:
       enforcement: error
     - id: C-10
       description: 'Compliance hero card MUST render the percentage from compliance_summary.passing / compliance_summary.total. When total is 0, render the prototype empty-state ("No scan data yet") rather than NaN%. Pass/fail stacked bar widths come from the same numerator/denominator. The header sub-cell shows "LAST SCAN <date>" (the prototype''s subhead) — the Framework selector belongs on the Compliance tab, NOT this hero card'
+      type: technical
+      enforcement: error
+    - id: C-11
+      description: 'v1.6.0 - Per-host credential management is LIVE. The Connectivity hero Auth row MUST reflect the resolved credential from POST /api/v1/hosts/{host_id}/credentials:resolve (queryKey ["host-credential-resolve", hostId]) — showing the credential name with a host/default source tag — NOT a hardcoded "system_default" string. The Connectivity card "Edit credentials" action and the page-head Edit modal "Manage SSH credential" link MUST open a shared HostCredentialModal. The Connectivity card "Reconnect" action MUST call POST /api/v1/hosts/{id}/discovery:run (Idempotency-Key header), surface a 502 as a credential/SSH failure, and invalidate ["host", hostId] on success. None of these three controls may remain disabled "(deferred)" placeholders.'
+      type: technical
+      enforcement: error
+    - id: C-12
+      description: 'v1.6.0 - HostCredentialModal MUST switch a host between credential sources using only the tier model (there is no host.credential_id). When the host inherits the system default it offers: clone the default to this host (POST /credentials/{id}:clone with scope=host, which keeps the stored secret) and set a different host credential (POST /credentials scope=host scope_id=hostId). When the host has its own override it offers in-place edit (PATCH /credentials/{id}) and revert to system default (DELETE the host-scope credential). Every mutation MUST invalidate ["host-credential-resolve", hostId]. Credential-mutating controls MUST be gated on credential:write; a viewer with only credential:read sees the resolved source read-only.'
       type: technical
       enforcement: error
 
@@ -234,3 +242,15 @@ spec:
     - id: AC-39
       description: 'v1.5.0 - the page-head Edit button is gated on host:write (hidden for callers without it), and the page-head three-dot actions menu (HostActionsMenu with showEdit false) offers Delete gated on host:delete: an explicit confirmation modal precedes DELETE /api/v1/hosts/{id}, and on success the app navigates to /hosts. Source-inspection of HostDetailPage.tsx + HostActionsMenu.tsx.'
       priority: high
+    - id: AC-40
+      description: 'v1.6.0 - the Connectivity hero Auth row is data-driven: HeroConnectivity issues api.POST to /api/v1/hosts/{host_id}/credentials:resolve under queryKey ["host-credential-resolve", hostId] and renders the resolved credential name with a (host) or (default) source tag. The hardcoded "system_default" literal is gone from the connectivity card. Source-inspection of HostDetailPage.tsx.'
+      priority: high
+      references_constraints: [C-11]
+    - id: AC-41
+      description: 'v1.6.0 - the Connectivity card "Reconnect" button is wired (no longer disabled "(deferred)"): it calls api.POST "/api/v1/hosts/{id}/discovery:run" with an Idempotency-Key header, maps a 502 response to a credential/SSH failure note, and on success invalidates ["host", hostId]; it is gated on host:write. Source-inspection of HostDetailPage.tsx.'
+      priority: high
+      references_constraints: [C-11]
+    - id: AC-42
+      description: 'v1.6.0 - the Connectivity card "Edit credentials" button and the EditHostModal "Manage SSH credential" link both open HostCredentialModal for the host. HostCredentialModal resolves the source and renders the four tier transitions (clone default, set different host credential, edit override via PATCH, revert override via DELETE), each invalidating ["host-credential-resolve", hostId]; mutating controls are gated on credential:write. Source-inspection of HostDetailPage.tsx, EditHostModal.tsx, and HostCredentialModal.tsx.'
+      priority: high
+      references_constraints: [C-11, C-12]
