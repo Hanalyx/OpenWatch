@@ -455,7 +455,7 @@ describe('frontend-host-detail v1.6.0 — per-host credential management + recon
   // @ac AC-41
   test('frontend-host-detail/AC-41 — Reconnect calls discovery:run (idempotent), maps 502, invalidates host', () => {
     const body = heroConnectivityBody();
-    expect(body).toContain("/api/v1/hosts/{id}/discovery:run");
+    expect(body).toContain('/api/v1/hosts/{id}/discovery:run');
     expect(body).toContain("'Idempotency-Key'");
     expect(body).toContain('502');
     expect(body).toContain("queryKey: ['host', host.id]");

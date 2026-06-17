@@ -1347,7 +1347,8 @@ function HeroConnectivity({
     if (!r) return 'none';
     return (
       <span title={r.name}>
-        {r.name} <span style={{ color: 'var(--ow-fg-3)' }}>({r.scope === 'host' ? 'host' : 'default'})</span>
+        {r.name}{' '}
+        <span style={{ color: 'var(--ow-fg-3)' }}>({r.scope === 'host' ? 'host' : 'default'})</span>
       </span>
     );
   })();
