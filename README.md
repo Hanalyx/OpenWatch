@@ -20,7 +20,7 @@ OpenWatch is the compliance operating system for teams managing Linux infrastruc
 > Python/FastAPI implementation was archived out of the repo on 2026-06-05). The
 > Go tree lives at the **repo root**: Go 1.26 backend (`cmd/`, `internal/`),
 > React 19 + TanStack frontend (`frontend/`), PostgreSQL-only. The current
-> version is `0.2.0-rc.7`, a pre-release — not a GA build.
+> version is `0.2.0-rc.8`, a pre-release — not a GA build.
 
 ![OpenWatch Compliance Dashboard](docs/images/dashboard-preview.png)
 

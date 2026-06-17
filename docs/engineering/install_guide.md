@@ -247,7 +247,7 @@ PGPASSWORD='replace-with-a-strong-password' \
 ### Step 3 — Install the packages
 
 ```bash
-sudo apt install -y ./openwatch_0.2.0-rc.7_amd64.deb ./kensa-rules_0.4.3_all.deb
+sudo apt install -y ./openwatch_0.2.0-rc.8_amd64.deb ./kensa-rules_0.4.3_all.deb
 ```
 
 Install **both** files together — `openwatch` `Depends` on `kensa-rules` (the
