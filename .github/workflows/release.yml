@@ -48,7 +48,7 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install rpmbuild
-        run: sudo apt-get update && sudo apt-get install -y rpm
+        run: bash .github/scripts/install-rpmbuild.sh
 
       # Builds all four artifacts: RPM + DEB for amd64 and arm64. arm64 is a
       # CGO-disabled cross-compile, so no C cross-toolchain is required.
