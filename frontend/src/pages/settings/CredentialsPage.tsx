@@ -23,7 +23,7 @@ import {
 } from '@/components/settings/primitives';
 import {
   AddCredentialModal,
-  ReplaceCredentialModal,
+  EditCredentialModal,
   DeleteCredentialModal,
   type Credential as MutableCredential,
 } from './CredentialMutations';
@@ -552,7 +552,7 @@ export function CredentialsPage() {
       {dirty && <SaveBar onReset={resetDefaults} />}
 
       <AddCredentialModal open={addOpen} onClose={() => setAddOpen(false)} />
-      <ReplaceCredentialModal
+      <EditCredentialModal
         open={replaceTarget !== null}
         onClose={() => setReplaceTarget(null)}
         credential={replaceTarget as MutableCredential | null}
@@ -698,7 +698,7 @@ function CredentialRow({
           <IconBtn label="Test connection (pending)" disabled>
             <Check size={12} />
           </IconBtn>
-          <IconBtn label="Replace credential" disabled={!canWrite} onClick={() => onReplace(cred)}>
+          <IconBtn label="Edit credential" disabled={!canWrite} onClick={() => onReplace(cred)}>
             <Edit3 size={12} />
           </IconBtn>
           <IconBtn
@@ -825,7 +825,7 @@ function KeyRow({
           <Copy size={12} />
         </IconBtn>
         <IconBtn
-          label="Replace key (replaces parent credential)"
+          label="Edit key (edits parent credential)"
           disabled={!canWrite}
           onClick={onReplace}
         >

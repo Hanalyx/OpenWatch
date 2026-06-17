@@ -8,18 +8,19 @@ import api from '@/api/client';
 import { apiErrorMessage } from '@/api/errors';
 import { Modal, FormField, Btn, Callout } from '@/components/settings/primitives';
 
-// Credential mutation modals — Add, Replace (no PATCH endpoint), Delete.
+// Credential mutation modals — Add, Edit, Delete.
 //
 // Wired against:
-//   • POST /api/v1/credentials  (credential:write)
-//   • DELETE /api/v1/credentials/{id}  (credential:delete)
+//   • POST   /api/v1/credentials       (credential:write)
+//   • PATCH  /api/v1/credentials/{id}   (credential:write)
+//   • DELETE /api/v1/credentials/{id}   (credential:delete)
 //
-// Update strategy: the backend has no PATCH endpoint for credentials.
-// The Replace flow creates a new credential with the user's edits, then
-// soft-deletes the old one. The order matters: create first → if it
-// fails, the existing credential is preserved.
+// Update strategy: a real in-place PATCH (api-credentials v1.2.0). Secret
+// fields left blank keep the stored ciphertext — no re-entry needed — so
+// editing name/username/auth_method does not require re-pasting the key or
+// password. This replaced the old create-then-delete "Replace" workaround.
 //
-// Spec: frontend-settings v1.1.0 (Credentials mutations).
+// Spec: frontend-settings (Credentials mutations).
 
 // ─────────────────────────────────────────────────────────────────────────
 // Shared types + schema
@@ -67,6 +68,23 @@ const credentialSchema = z
   });
 
 type FormShape = z.infer<typeof credentialSchema>;
+
+// Edit uses the same fields but secrets are always optional: a blank
+// password / key means "keep the stored ciphertext" (PATCH semantics).
+// If the operator switches auth_method to one whose secret the credential
+// lacks and supplies nothing, the backend rejects it with
+// credentials.missing_secret — surfaced as a server error rather than
+// pre-validated here (the form can't see which secrets are stored).
+const credentialEditSchema = z.object({
+  name: z.string().min(1, 'Required').max(256, 'Too long'),
+  description: z.string().max(1024, 'Too long').optional(),
+  username: z.string().min(1, 'Required').max(256, 'Too long'),
+  auth_method: z.enum(['ssh_key', 'password', 'both']),
+  password: z.string().optional(),
+  private_key: z.string().optional(),
+  private_key_passphrase: z.string().optional(),
+  is_default: z.boolean(),
+});
 
 // Detect the openapi-fetch wrapper's network-failure case. fetch
 // rejects with a plain TypeError when the connection refuses, DNS
@@ -210,10 +228,10 @@ export function AddCredentialModal({ open, onClose }: { open: boolean; onClose: 
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// Replace (update) credential modal
+// Edit credential modal — in-place PATCH (api-credentials v1.2.0)
 // ─────────────────────────────────────────────────────────────────────────
 
-export function ReplaceCredentialModal({
+export function EditCredentialModal({
   open,
   onClose,
   credential,
@@ -224,11 +242,9 @@ export function ReplaceCredentialModal({
 }) {
   const queryClient = useQueryClient();
   const [serverError, setServerError] = useState<string | null>(null);
-  const [phase, setPhase] = useState<'idle' | 'creating' | 'deleting' | 'orphan'>('idle');
-  const [orphanId, setOrphanId] = useState<string | null>(null);
 
   const { register, handleSubmit, watch, formState, reset } = useForm<FormShape>({
-    resolver: zodResolver(credentialSchema),
+    resolver: zodResolver(credentialEditSchema),
     mode: 'onTouched',
     values: credential
       ? {
@@ -246,21 +262,19 @@ export function ReplaceCredentialModal({
 
   const authMethod = watch('auth_method');
 
-  const replaceMutation = useMutation({
+  const editMutation = useMutation({
     mutationFn: async (values: FormShape) => {
       if (!credential) throw new Error('No credential selected');
 
-      // Step 1 — create the replacement.
-      setPhase('creating');
+      // PATCH body: metadata always sent; secrets only when the operator
+      // typed a new value (blank = keep the stored ciphertext).
       const body: Record<string, unknown> = {
-        scope: credential.scope,
-        scope_id: credential.scope_id ?? undefined,
         name: values.name,
+        description: values.description ?? '',
         username: values.username,
         auth_method: values.auth_method,
         is_default: values.is_default,
       };
-      if (values.description) body.description = values.description;
       if (values.auth_method !== 'ssh_key' && values.password) {
         body.password = values.password;
       }
@@ -270,55 +284,30 @@ export function ReplaceCredentialModal({
           body.private_key_passphrase = values.private_key_passphrase;
         }
       }
-      let create: { response: Response; data?: unknown; error?: unknown };
+
+      let response: Response;
+      let error: unknown;
       try {
-        create = await api.POST('/api/v1/credentials', { body: body as never });
+        const result = await api.PATCH('/api/v1/credentials/{id}', {
+          params: { path: { id: credential.id } },
+          body: body as never,
+        });
+        response = result.response;
+        error = result.error;
       } catch (fetchErr) {
         if (isNetworkError(fetchErr)) throw new Error(describeNetworkError());
         throw fetchErr;
       }
-      if (!create.response.ok) {
+      if (!response.ok) {
         throw new Error(
-          apiErrorMessage(
-            create.error,
-            `Failed to create replacement (HTTP ${create.response.status})`,
-          ),
+          apiErrorMessage(error, `Failed to update credential (HTTP ${response.status})`),
         );
       }
-      const created = create.data as Credential;
-
-      // Step 2 — delete the old.
-      setPhase('deleting');
-      let del: { response: Response; error?: unknown };
-      try {
-        del = await api.DELETE('/api/v1/credentials/{id}', {
-          params: { path: { id: credential.id } },
-        });
-      } catch (fetchErr) {
-        setOrphanId(created.id);
-        setPhase('orphan');
-        if (isNetworkError(fetchErr))
-          throw new Error(
-            `Replacement created (id ${created.id}) but the API became unreachable before the original could be removed. Delete it manually when the backend is back.`,
-          );
-        throw fetchErr;
-      }
-      if (!del.response.ok && del.response.status !== 204) {
-        // Old credential delete failed — leave the new one in place but
-        // surface the orphan so the operator knows two now exist.
-        setOrphanId(created.id);
-        setPhase('orphan');
-        throw new Error(
-          `Replacement created (id ${created.id}) but the original could not be removed. Delete it manually.`,
-        );
-      }
-      setPhase('idle');
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['credentials'] });
       reset();
       setServerError(null);
-      setOrphanId(null);
       onClose();
     },
     onError: (err: Error) => {
@@ -328,17 +317,14 @@ export function ReplaceCredentialModal({
 
   const onSubmit = (values: FormShape) => {
     setServerError(null);
-    setOrphanId(null);
-    replaceMutation.mutate(values);
+    editMutation.mutate(values);
   };
 
-  const submitting = replaceMutation.isPending;
+  const submitting = editMutation.isPending;
   const handleClose = () => {
     if (submitting) return;
     reset();
     setServerError(null);
-    setOrphanId(null);
-    setPhase('idle');
     onClose();
   };
 
@@ -346,7 +332,7 @@ export function ReplaceCredentialModal({
     <Modal
       open={open}
       onClose={handleClose}
-      title="Replace credential"
+      title="Edit credential"
       width={540}
       preventClose={submitting}
       footer={
@@ -363,46 +349,26 @@ export function ReplaceCredentialModal({
           >
             {submitting ? (
               <>
-                <Loader2 size={14} />{' '}
-                {phase === 'creating'
-                  ? 'Creating new…'
-                  : phase === 'deleting'
-                    ? 'Removing old…'
-                    : 'Saving…'}
+                <Loader2 size={14} /> Saving…
               </>
             ) : (
-              'Replace credential'
+              'Save changes'
             )}
           </Btn>
         </>
       }
     >
-      <Callout tier="warn">
-        <strong style={{ color: 'var(--ow-fg-0)' }}>
-          Backend has no PATCH endpoint for credentials.
-        </strong>{' '}
-        Saving creates a replacement with the new values, then removes the original. Secret material
-        must be re-entered.
-      </Callout>
-
-      <form onSubmit={handleSubmit(onSubmit)} noValidate style={{ marginTop: 14 }}>
+      <form onSubmit={handleSubmit(onSubmit)} noValidate>
         <CredentialFormFields
           register={register}
           authMethod={authMethod}
           errors={formState.errors}
           disabled={submitting}
+          mode="edit"
         />
         {serverError && (
           <div style={{ marginTop: 12 }}>
-            <Callout tier="crit">
-              <div>{serverError}</div>
-              {orphanId && (
-                <div style={{ marginTop: 6, fontSize: 11, color: 'var(--ow-fg-3)' }}>
-                  Orphan credential id:{' '}
-                  <code style={{ fontFamily: 'var(--ow-font-mono)' }}>{orphanId}</code>
-                </div>
-              )}
-            </Callout>
+            <Callout tier="crit">{serverError}</Callout>
           </div>
         )}
       </form>
@@ -552,12 +518,17 @@ function CredentialFormFields({
   authMethod,
   errors,
   disabled,
+  mode = 'create',
 }: {
   register: ReturnType<typeof useForm<FormShape>>['register'];
   authMethod: FormShape['auth_method'];
   errors: ReturnType<typeof useForm<FormShape>>['formState']['errors'];
   disabled?: boolean;
+  mode?: 'create' | 'edit';
 }) {
+  // In edit mode a blank secret keeps the stored ciphertext, so the
+  // field labels say so and don't imply re-entry is required.
+  const keepHint = mode === 'edit' ? ' (leave blank to keep current)' : '';
   return (
     <>
       <FormField label="Name" error={errors.name?.message}>
@@ -615,7 +586,7 @@ function CredentialFormFields({
       </FormField>
 
       {authMethod !== 'ssh_key' && (
-        <FormField label="Password" error={errors.password?.message}>
+        <FormField label={`Password${keepHint}`} error={errors.password?.message}>
           <input
             type="password"
             autoComplete="off"
@@ -628,7 +599,7 @@ function CredentialFormFields({
 
       {authMethod !== 'password' && (
         <>
-          <FormField label="SSH private key" error={errors.private_key?.message}>
+          <FormField label={`SSH private key${keepHint}`} error={errors.private_key?.message}>
             <textarea
               rows={4}
               disabled={disabled}

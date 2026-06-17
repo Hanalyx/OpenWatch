@@ -1,7 +1,7 @@
 spec:
   id: frontend-settings
   title: Settings — two-pane shell with 11 sub-pages
-  version: "1.8.0"
+  version: "1.9.0"
   status: draft
   tier: 2
 
@@ -57,8 +57,8 @@ spec:
         - "Active nav item highlighted with warn-pip on Security & auth"
         - "Profile — identity from /auth/me + password change + MFA enroll + sessions placeholder"
         - "Preferences — theme/density/accent/landing/host-view/date-format/reduce-motion persisted to localStorage"
-        - "SSH & credentials — list from GET /api/v1/credentials with Add (POST), Replace (POST+DELETE) and Delete (DELETE) modals"
-        - "SSH keys section is a derived view of key-bearing credentials; Add/Replace/Delete a key operates on the parent credential"
+        - "SSH & credentials — list from GET /api/v1/credentials with Add (POST), Edit (in-place PATCH /credentials/{id}) and Delete (DELETE) modals; editing keeps the stored secret when the field is left blank (v1.9.0)"
+        - "SSH keys section is a derived view of key-bearing credentials; Add/Edit/Delete a key operates on the parent credential"
         - "Users & teams — list from GET /api/v1/users (admin-gated), with roles per member, Invite (POST /users) and Manage (role assign/unassign + soft-delete) modals (v1.4.0)"
         - "Audit log — filterable, cursor-paginated GET /api/v1/audit/events, audit:read gated, read-only (v1.3.0)"
         - "About — version from GET /api/v1/version + license state from GET /api/v1/license (v1.3.0)"
