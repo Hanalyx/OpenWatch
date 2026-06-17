@@ -1,7 +1,7 @@
 spec:
   id: system-auth-identity
   title: Auth identity primitives (password, session, JWT, MFA)
-  version: "1.2.0"
+  version: "1.3.0"
   status: approved
   tier: 1
 
@@ -104,6 +104,17 @@ spec:
       enforcement: error
     - id: C-14
       description: POST /api/v1/auth/refresh-cookie MUST consume the openwatch_refresh cookie via the same ConsumeRefreshToken rotation contract as the body-token flow (C-07), Set-Cookie a new openwatch_session AND a new openwatch_refresh, and return 200 with the refreshed Identity. On missing/expired/revoked/reused refresh cookie it returns 401 and clears both cookies.
+      type: security
+      enforcement: error
+    - id: C-15
+      description: >-
+        Password validation in PRODUCTION MUST run the breach-corpus check
+        against a non-nil corpus. The pre-release bug was that every
+        production users.NewService passed a nil corpus, silently disabling
+        C-02. The default is an always-on embedded baseline of the most
+        common compromised passwords (identity.DefaultBreachCorpus), so an
+        air-gapped install rejects breached passwords with no external file;
+        an operator may extend coverage with a full HIBP dump.
       type: security
       enforcement: error
 
@@ -210,3 +221,7 @@ spec:
       description: "VerifyJWT fails closed on a bad signature — the deny side of C-08, not only the happy round-trip (AC-11). A token whose RS256 signature does not verify against the system public key (e.g. a tampered signature segment) returns ErrJWTInvalid, and a structurally malformed/garbage bearer value returns ErrJWTInvalid; in neither case are claims returned. This makes the signature-verification deny path a spec'd contract so a regression that relaxes verification (accepting an unsigned/alg=none/foreign-key token) fails the suite rather than silently passing."
       priority: critical
       references_constraints: [C-08]
+    - id: AC-27
+      description: identity.DefaultBreachCorpus() loads a non-empty embedded baseline; ValidatePassword with it rejects common compromised passwords that pass the length floor (e.g. "password123", "qwerty123", "Password1") with ErrPasswordBreached, and accepts a strong unique password. Production users.NewService is wired with this corpus, not nil.
+      priority: critical
+      references_constraints: [C-15]

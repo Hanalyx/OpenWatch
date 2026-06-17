@@ -1,6 +1,6 @@
 # OpenWatch security hardening guide
 
-**Applies to:** OpenWatch 0.2.0-rc.5 (Go single-binary build; pre-release)
+**Applies to:** OpenWatch 0.2.0 pre-release (rc series; Go single-binary build)
 **Audience:** System administrators, security engineers, compliance officers
 
 This guide covers the security controls you operate when you deploy OpenWatch
@@ -61,6 +61,20 @@ Hardening steps you perform at the host level:
 
 Source: `packaging/common/openwatch.service`,
 `docs/engineering/install_guide.md` (Step 2).
+
+### Outbound SSH to managed hosts
+
+When OpenWatch connects to a managed host it validates the host key on a
+trust-on-first-use basis and **persists** the accepted key in PostgreSQL
+(`ssh_known_hosts`, migration 0036). The first connection records the key; every
+later connection compares against it and is rejected if the key changed
+(`ErrHostKeyMismatch`). Because the store is durable, a service restart does not
+re-trust hosts, so an attacker cannot MITM the first scan after a restart to
+harvest credentials. Presented keys are also strength-validated per NIST SP
+800-57 (RSA >= 2048, Ed25519 always accepted). To rotate a host's key
+intentionally (a re-provisioned host), delete its row from `ssh_known_hosts` so
+the next connection re-learns it. Source: `internal/knownhosts/store.go`,
+`internal/ssh/`.
 
 ---
 
@@ -164,7 +178,7 @@ Source: `packaging/common/openwatch.service`, `internal/config/config.go`
 | Session inactivity timeout | 15 minutes | `internal/identity/sessions.go` (`SessionInactivityWindow`) |
 | Session absolute timeout | 12 hours | `internal/identity/sessions.go` (`SessionAbsoluteWindow`) |
 | Password policy | Length only — 8 chars (regular), 15 chars (admin), max 128; NIST SP 800-63B | `internal/identity/password.go` |
-| Breach check | Optional corpus lookup rejects known-compromised passwords | `internal/identity/password.go` |
+| Breach check | Always-on in production: new passwords are screened against an embedded common/breached corpus (airgap-safe); point `OPENWATCH_BREACH_CORPUS_FILE` at a full HIBP list to extend it | `internal/identity/password.go`, `internal/identity/breach_corpus_default.go` |
 | MFA | TOTP enrollment and verification | `internal/identity/mfa.go` |
 
 The password policy is deliberately length-based with no character-class rules,
@@ -173,12 +187,12 @@ per NIST SP 800-63B. The first admin is created out-of-band with
 
 Source: `internal/identity/`, `cmd/openwatch/main.go` (`cmdCreateAdmin`).
 
-> Not yet implemented: there is no failed-login throttle, account lockout, or
-> per-IP brute-force backoff in the auth handlers. The Argon2id cost (~50–100 ms
-> per verification) is the only built-in slow-down on online guessing. Until
-> rate limiting lands (Section 9), protect `/api/v1/auth/login` with an upstream
-> control (a reverse proxy with rate limiting, or network ACLs) if you expose
-> 8443 beyond a trusted network. Source: `internal/server/auth_handlers.go`.
+`/api/v1/auth/login` and `/auth/mfa:verify` are rate-limited per client IP
+(Section 10), which throttles online guessing in addition to the Argon2id cost
+(~50-100 ms per verification). There is still no per-account lockout after N
+failed attempts, so for an internet-facing 8443 a reverse proxy or network ACL
+is still worthwhile as defense in depth. Source:
+`internal/server/auth_handlers.go`, `internal/server/ratelimit.go`.
 
 ---
 
@@ -297,7 +311,7 @@ Hardening steps:
 
 ---
 
-## 10. Rate limiting and request controls — current state
+## 10. Rate limiting, CSRF, and security headers
 
 The HTTP server sets request-hardening timeouts and size limits:
 
@@ -309,15 +323,22 @@ The HTTP server sets request-hardening timeouts and size limits:
 | `IdleTimeout` | 120 s | `internal/server/server.go` |
 | `MaxHeaderBytes` | 64 KiB | `internal/server/server.go` |
 
-> Not yet implemented: there is no per-user or per-IP HTTP rate-limiting
-> middleware, and no HTTP security-header middleware (HSTS, CSP, `X-Frame-Options`,
-> `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`). The
-> `RateLimit` constants in the codebase belong to the intelligence and discovery
-> schedulers (how many hosts to enqueue per tick), not to the HTTP surface.
-> Until these land, enforce request rate limiting and inject security response
-> headers at an upstream reverse proxy if you expose 8443 publicly. Source:
-> `internal/server/server.go`, `internal/intelligence/scheduler/service.go`,
-> `internal/intelligence/discovery/scheduler/service.go`.
+The single binary serves the SPA and the API from one origin with no required
+edge proxy, so the perimeter controls run in the application itself:
+
+| Control | Behavior | Source |
+|---------|----------|--------|
+| Auth rate limiting | Per-client-IP sliding window on `POST /api/v1/auth/login` and `/auth/mfa:verify`; over the limit returns `429` + `Retry-After` and skips the credential check. The key is the direct connection address (`RemoteAddr`), not a client-supplied `X-Forwarded-For`. | `internal/server/ratelimit.go` |
+| CSRF | Double-submit token: login and refresh set a non-HttpOnly `XSRF-TOKEN` cookie, and unsafe (POST/PUT/PATCH/DELETE) cookie-authenticated requests must echo it in `X-CSRF-Token` (constant-time compare) or get `403 authz.csrf_invalid`. Bearer/token requests and `/api/v1/auth/*` are exempt. | `internal/server/csrf.go` |
+| Security headers | Every response carries HSTS (>=1 year, includeSubDomains), a Content-Security-Policy that denies framing (`frame-ancestors 'none'`, `default-src 'self'`; `/docs` relaxes script/style for Swagger but still denies framing), `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, and `Referrer-Policy: no-referrer`. | `internal/server/security_headers.go` |
+
+> Scope notes: auth rate limiting covers the credential-guessing surface, not
+> every route — there is still no general per-route HTTP limiter, and no request
+> body-size cap (`http.MaxBytesReader`) on JSON endpoints. If you expose 8443
+> publicly, an upstream reverse proxy is still useful for global rate limiting
+> and body-size enforcement. The scheduler `RateLimit` constants are unrelated
+> (they bound how many hosts the intelligence and discovery schedulers enqueue
+> per tick), see `internal/intelligence/scheduler/service.go`.
 
 ---
 

@@ -201,12 +201,27 @@ func New(cfg *config.Config, pool *pgxpool.Pool) *Server {
 	// auth, idempotency) depends on correlation_id being on context.
 	r.Use(correlation.HTTPMiddleware)
 
+	// Security response headers (HSTS, CSP, nosniff, frame-deny,
+	// referrer-policy) on every response — the single binary serves the SPA
+	// + API from one origin, so this is the hardening an edge proxy would
+	// otherwise add. Spec system-http-server C-12.
+	r.Use(securityHeaders)
+
+	// Throttle the authentication endpoints (login + MFA verify) per client
+	// IP against online password/OTP guessing. Per-server-instance so it is
+	// isolated across tests. Spec system-http-server C-13.
+	r.Use(rateLimitAuth(newRateLimiter(authRateLimitPerMinute, time.Minute)))
+
+	// Double-submit CSRF protection on unsafe, cookie-authenticated requests.
+	// Spec system-http-server C-14.
+	r.Use(csrfProtect)
+
 	// Identity binder. Reads session cookie or Bearer JWT, translates to
 	// auth.Identity via the users.Service Lookups adapter. Sets a
 	// non-anonymous Identity on success (anonymous if not). Does NOT
 	// reject on its own — that's the handler's job via EnforcePermission.
 	// Per app/specs/system/auth-identity.spec.yaml AC-17.
-	usrSvc := users.NewService(pool, nil)
+	usrSvc := users.NewService(pool, identity.DefaultBreachCorpus())
 	// API service-account tokens (owk_) authenticate on the bearer path
 	// via the token service; the same instance backs the /tokens handlers.
 	apiTokenSvc := apitoken.NewService(pool)

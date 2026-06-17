@@ -45,6 +45,15 @@ func asRole(t *testing.T, method, url string, role auth.RoleID, body any) *http.
 			t.Fatalf("asRole: no fixture session for role %q (seeded: %v)", role, seededRoles)
 		}
 		req.AddCookie(cookie)
+		// Attach a matching double-submit CSRF pair on unsafe methods, the
+		// way a real browser echoes the XSRF-TOKEN cookie into X-CSRF-Token.
+		// Without this, csrfProtect would 403 every cookie-authenticated
+		// mutating request in the suite.
+		if !isSafeMethod(method) {
+			const tok = "test-csrf-token"
+			req.AddCookie(&http.Cookie{Name: csrfCookieName, Value: tok})
+			req.Header.Set(csrfHeaderName, tok)
+		}
 	}
 	return req
 }
@@ -462,6 +471,28 @@ func TestUsers_CreateCustomRole_Conflicts(t *testing.T) {
 		invalid, _ := envelope.Error.Detail["invalid_permissions"].([]any)
 		if len(invalid) != 1 || invalid[0] != "doesnt:exist" {
 			t.Errorf("invalid_permissions = %v, want [doesnt:exist]", invalid)
+		}
+	})
+}
+
+// @ac AC-13
+// AC-13: role assignment must not escalate. A caller may not grant a role
+// whose permissions exceed their own. Only the admin role currently holds
+// role:assign (and admin's grant covers every role), so the exceeds-grant
+// denial is asserted directly on the shared auth.RoleGrantsWithin primitive
+// the handler uses; the within-grant 204 path is covered by AC-08.
+func TestUsers_RoleAssignNoEscalation(t *testing.T) {
+	t.Run("api-users/AC-13", func(t *testing.T) {
+		secAdmin := auth.Identity{RoleID: auth.RoleSecurityAdmin}
+		if auth.RoleGrantsWithin(secAdmin, auth.RoleAdmin) {
+			t.Error("security_admin assigning role_id=admin must be denied (privilege escalation)")
+		}
+		admin := auth.Identity{RoleID: auth.RoleAdmin}
+		if !auth.RoleGrantsWithin(admin, auth.RoleSecurityAdmin) {
+			t.Error("admin assigning role_id=security_admin must be allowed (within grant)")
+		}
+		if !auth.RoleGrantsWithin(admin, auth.RoleAdmin) {
+			t.Error("admin assigning role_id=admin must be allowed")
 		}
 	})
 }

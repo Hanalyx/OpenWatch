@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/Hanalyx/openwatch/internal/audit"
+	"github.com/Hanalyx/openwatch/internal/auth"
 	"github.com/Hanalyx/openwatch/internal/correlation"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -48,7 +49,7 @@ func TestAPI_AuditEvents_DefaultNewestFirst(t *testing.T) {
 		}
 		time.Sleep(100 * time.Millisecond) // let writer flush
 
-		resp := doGet(t, url+"/api/v1/audit/events")
+		resp := doReq(t, asRole(t, "GET", url+"/api/v1/audit/events", auth.RoleAuditor, nil))
 		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusOK {
 			t.Fatalf("status = %d, want 200", resp.StatusCode)
@@ -78,7 +79,7 @@ func TestAPI_AuditEvents_DefaultNewestFirst(t *testing.T) {
 func TestAPI_AuditEvents_LimitExceeded(t *testing.T) {
 	t.Run("api-audit-events-query/AC-03", func(t *testing.T) {
 		url, _ := freshAPIServer(t)
-		resp := doGet(t, url+"/api/v1/audit/events?limit=500")
+		resp := doReq(t, asRole(t, "GET", url+"/api/v1/audit/events?limit=500", auth.RoleAuditor, nil))
 		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusBadRequest {
 			t.Errorf("status = %d, want 400", resp.StatusCode)
@@ -112,7 +113,7 @@ func TestAPI_AuditEvents_LimitHonored(t *testing.T) {
 	t.Run("api-audit-events-query/AC-02", func(t *testing.T) {
 		url, _ := freshAPIServer(t)
 		generateEvents(t, url, 15, "limit-test")
-		resp := doGet(t, url+"/api/v1/audit/events?limit=10")
+		resp := doReq(t, asRole(t, "GET", url+"/api/v1/audit/events?limit=10", auth.RoleAuditor, nil))
 		defer resp.Body.Close()
 		var page struct {
 			Items []map[string]any `json:"items"`
@@ -134,7 +135,7 @@ func TestAPI_AuditEvents_ActionFilter(t *testing.T) {
 	t.Run("api-audit-events-query/AC-04", func(t *testing.T) {
 		url, _ := freshAPIServer(t)
 		generateEvents(t, url, 3, "action-test")
-		resp := doGet(t, url+"/api/v1/audit/events?action=integration.plugin.executed")
+		resp := doReq(t, asRole(t, "GET", url+"/api/v1/audit/events?action=integration.plugin.executed", auth.RoleAuditor, nil))
 		defer resp.Body.Close()
 		var page struct {
 			Items []struct {
@@ -159,7 +160,7 @@ func TestAPI_AuditEvents_CorrelationIdFilter(t *testing.T) {
 	t.Run("api-audit-events-query/AC-05", func(t *testing.T) {
 		url, _ := freshAPIServer(t)
 		generateEvents(t, url, 3, "corr-test")
-		resp := doGet(t, url+"/api/v1/audit/events?correlation_id=corr-test-A")
+		resp := doReq(t, asRole(t, "GET", url+"/api/v1/audit/events?correlation_id=corr-test-A", auth.RoleAuditor, nil))
 		defer resp.Body.Close()
 		var page struct {
 			Items []struct {
@@ -192,8 +193,8 @@ func TestAPI_AuditEvents_TimeWindow(t *testing.T) {
 		// exclusive past (after+1s) bound the generated window.
 		sinceParam := before.Add(-1 * time.Second).Format(time.RFC3339)
 		untilParam := after.Add(1 * time.Second).Format(time.RFC3339)
-		resp := doGet(t, url+
-			"/api/v1/audit/events?since="+sinceParam+"&until="+untilParam)
+		resp := doReq(t, asRole(t, "GET", url+
+			"/api/v1/audit/events?since="+sinceParam+"&until="+untilParam, auth.RoleAuditor, nil))
 		defer resp.Body.Close()
 		var page struct {
 			Items []struct {
@@ -217,7 +218,7 @@ func TestAPI_AuditEvents_CursorPagination(t *testing.T) {
 	t.Run("api-audit-events-query/AC-07", func(t *testing.T) {
 		url, _ := freshAPIServer(t)
 		generateEvents(t, url, 6, "cursor-test")
-		resp := doGet(t, url+"/api/v1/audit/events?limit=3")
+		resp := doReq(t, asRole(t, "GET", url+"/api/v1/audit/events?limit=3", auth.RoleAuditor, nil))
 		defer resp.Body.Close()
 		var first struct {
 			Items []struct {
@@ -230,7 +231,7 @@ func TestAPI_AuditEvents_CursorPagination(t *testing.T) {
 			t.Fatalf("expected non-null next_cursor when more rows exist; got %v", first.NextCursor)
 		}
 		// Fetch next page.
-		resp2 := doGet(t, url+"/api/v1/audit/events?limit=3&cursor="+*first.NextCursor)
+		resp2 := doReq(t, asRole(t, "GET", url+"/api/v1/audit/events?limit=3&cursor="+*first.NextCursor, auth.RoleAuditor, nil))
 		defer resp2.Body.Close()
 		var second struct {
 			Items []struct {
@@ -257,7 +258,7 @@ func TestAPI_AuditEvents_LastPageNullCursor(t *testing.T) {
 	t.Run("api-audit-events-query/AC-08", func(t *testing.T) {
 		url, _ := freshAPIServer(t)
 		generateEvents(t, url, 2, "last-page-test")
-		resp := doGet(t, url+"/api/v1/audit/events?limit=200")
+		resp := doReq(t, asRole(t, "GET", url+"/api/v1/audit/events?limit=200", auth.RoleAuditor, nil))
 		defer resp.Body.Close()
 		var page struct {
 			NextCursor *string `json:"next_cursor"`
@@ -278,7 +279,7 @@ func TestAPI_AuditEvents_ItemShape(t *testing.T) {
 	t.Run("api-audit-events-query/AC-09", func(t *testing.T) {
 		url, _ := freshAPIServer(t)
 		generateEvents(t, url, 1, "shape-test")
-		resp := doGet(t, url+"/api/v1/audit/events?limit=1")
+		resp := doReq(t, asRole(t, "GET", url+"/api/v1/audit/events?limit=1", auth.RoleAuditor, nil))
 		defer resp.Body.Close()
 		var page struct {
 			Items []map[string]json.RawMessage `json:"items"`
@@ -312,7 +313,7 @@ func TestAPI_AuditEvents_RedactionVisible(t *testing.T) {
 		emitSensitiveAuditEvent(t, pool, "redaction-test-corr")
 		time.Sleep(150 * time.Millisecond)
 
-		resp := doGet(t, url+"/api/v1/audit/events?correlation_id=redaction-test-corr")
+		resp := doReq(t, asRole(t, "GET", url+"/api/v1/audit/events?correlation_id=redaction-test-corr", auth.RoleAuditor, nil))
 		defer resp.Body.Close()
 		var page struct {
 			Items []struct {
@@ -337,6 +338,35 @@ func TestAPI_AuditEvents_RedactionVisible(t *testing.T) {
 		}
 		if !found {
 			t.Errorf("redactions = %v, want to include 'password'", item.Redactions)
+		}
+	})
+}
+
+// @ac AC-11
+// AC-11: the audit trail is security-sensitive — an anonymous caller gets
+// 403 with no events; an authenticated caller holding audit:read gets 200.
+// Regression guard for the pre-release finding where GetAuditEvents had no
+// authorization at all (anonymous full-trail disclosure).
+func TestAPI_AuditEvents_RequiresAuditRead(t *testing.T) {
+	t.Run("api-audit-events-query/AC-11", func(t *testing.T) {
+		url, _ := freshAPIServer(t)
+
+		// Anonymous → 403, and no event body leaks.
+		anon := doReq(t, asRole(t, "GET", url+"/api/v1/audit/events", "", nil))
+		defer anon.Body.Close()
+		if anon.StatusCode != http.StatusForbidden {
+			t.Fatalf("anonymous GET /audit/events = %d, want 403", anon.StatusCode)
+		}
+		body, _ := io.ReadAll(anon.Body)
+		if strings.Contains(string(body), "\"items\"") {
+			t.Errorf("anonymous response leaked an events list: %s", string(body))
+		}
+
+		// Authenticated with audit:read → 200.
+		ok := doReq(t, asRole(t, "GET", url+"/api/v1/audit/events", auth.RoleAuditor, nil))
+		defer ok.Body.Close()
+		if ok.StatusCode != http.StatusOK {
+			t.Errorf("auditor GET /audit/events = %d, want 200", ok.StatusCode)
 		}
 	})
 }

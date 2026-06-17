@@ -157,3 +157,49 @@ func TestSPA_CacheHeaders(t *testing.T) {
 		}
 	})
 }
+
+// @ac AC-17
+// AC-17: every response carries the security headers (HSTS, CSP, nosniff,
+// frame-deny, referrer-policy); /docs gets a Swagger-compatible CSP that
+// still denies framing. Regression guard for the pre-release finding that
+// the server set NO security headers at all.
+func TestSecurityHeaders(t *testing.T) {
+	t.Run("system-http-server/AC-17", func(t *testing.T) {
+		next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
+		h := securityHeaders(next)
+
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/dashboard", nil))
+		hd := rec.Header()
+		if !strings.Contains(hd.Get("Strict-Transport-Security"), "includeSubDomains") {
+			t.Errorf("HSTS = %q", hd.Get("Strict-Transport-Security"))
+		}
+		if hd.Get("X-Content-Type-Options") != "nosniff" {
+			t.Errorf("X-Content-Type-Options = %q, want nosniff", hd.Get("X-Content-Type-Options"))
+		}
+		if hd.Get("X-Frame-Options") != "DENY" {
+			t.Errorf("X-Frame-Options = %q, want DENY", hd.Get("X-Frame-Options"))
+		}
+		if hd.Get("Referrer-Policy") != "no-referrer" {
+			t.Errorf("Referrer-Policy = %q, want no-referrer", hd.Get("Referrer-Policy"))
+		}
+		csp := hd.Get("Content-Security-Policy")
+		if !strings.Contains(csp, "frame-ancestors 'none'") || !strings.Contains(csp, "default-src 'self'") {
+			t.Errorf("app CSP missing frame-ancestors/default-src: %q", csp)
+		}
+		if strings.Contains(csp, "script-src 'self' 'unsafe-inline'") {
+			t.Errorf("app CSP must not allow inline scripts: %q", csp)
+		}
+
+		// /docs gets a relaxed (Swagger-compatible) CSP, still no framing.
+		rec2 := httptest.NewRecorder()
+		h.ServeHTTP(rec2, httptest.NewRequest(http.MethodGet, "/docs", nil))
+		dcsp := rec2.Header().Get("Content-Security-Policy")
+		if !strings.Contains(dcsp, "script-src 'self' 'unsafe-inline'") {
+			t.Errorf("/docs CSP should relax script-src: %q", dcsp)
+		}
+		if !strings.Contains(dcsp, "frame-ancestors 'none'") {
+			t.Errorf("/docs CSP must still deny framing: %q", dcsp)
+		}
+	})
+}

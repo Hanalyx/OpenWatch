@@ -1,7 +1,7 @@
 spec:
   id: api-audit-events-query
   title: Audit events list endpoint
-  version: "1.0.0"
+  version: "1.1.0"
   status: approved
   tier: 2
 
@@ -47,6 +47,10 @@ spec:
       description: Each item MUST include id, correlation_id, action, severity, actor_type, occurred_at, recorded_at, detail (redacted), redactions
       type: technical
       enforcement: error
+    - id: C-06
+      description: GET /audit/events MUST require the audit:read permission. The audit trail is security-sensitive (actor ids, IPs, resource ids, action detail); an anonymous or unauthorized caller MUST receive 403 and MUST NOT receive any events. Enforcement is via auth.EnforcePermission(AuditRead) as the first statement of the handler, matching every sibling data handler.
+      type: security
+      enforcement: error
 
   acceptance_criteria:
     - id: AC-01
@@ -82,3 +86,7 @@ spec:
     - id: AC-10
       description: Stored detail with redacted fields shows "<REDACTED>" placeholders; redactions lists scrubbed names.
       priority: critical
+    - id: AC-11
+      description: GET /audit/events with no session/credential (anonymous) returns 403 and no event body — the deny path runs before any query. A caller holding audit:read returns 200. (A role lacking audit:read is denied by the same auth.EnforcePermission mechanism, covered generically by system-rbac.)
+      priority: critical
+      references_constraints: [C-06]

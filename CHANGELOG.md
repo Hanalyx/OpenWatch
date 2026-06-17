@@ -10,6 +10,74 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+Settings became a working control panel, OpenWatch started learning how to
+reach each host over SSH, package upgrades became a single safe command, and a
+pre-release security review closed a batch of perimeter and access-control
+gaps.
+
+### Added
+
+- Settings > Users now lets you invite people, manage their accounts, and
+  assign roles from the UI instead of showing a placeholder (#552, #553).
+- Settings > Notifications can now send compliance alerts to Slack, a generic
+  webhook, or email over SMTP, and each channel can be edited after creation
+  (#554, #555).
+- Settings > Security is live end to end: scoped API tokens you can create and
+  revoke, an authentication policy (password strength and session timeouts),
+  and single sign-on through an OIDC identity provider (#556, #557, #558).
+- Settings > Audit and About now browse the audit log in-app and show the live
+  license and build details instead of static text (#552).
+- Each host's actions menu now has Edit and Delete entries so you can correct
+  or remove a host without leaving the list (#560).
+- OpenWatch now learns how to reach each host: it records which SSH
+  authentication method and sudo style actually worked and reuses them on the
+  next discovery, intelligence, and liveness pass, so it stops retrying
+  combinations that already failed (#566, #575, #576).
+
+### Changed
+
+- Upgrading is now one command. `dnf update` (or `apt upgrade`) applies any
+  pending database migrations automatically, takes a full database backup
+  first, and on a failed migration leaves the service stopped with clear
+  recovery steps instead of running against a half-migrated schema. The
+  PostgreSQL engine upgrade itself stays an operator-supervised step (#569).
+- Web fonts now ship inside the application instead of loading from a font CDN,
+  so the interface renders completely in air-gapped deployments (#561).
+- Updated the frontend build and CI tooling (Vite, Vitest, lucide-react, zod,
+  and several GitHub Actions) to current major versions (#571, #572, #573).
+
+### Fixed
+
+- A fresh install now boots on the first try: the Kensa rule corpus and the
+  server identity keys are provisioned during installation rather than failing
+  at first startup (#564).
+- The SMTP notification channel edit form now pre-fills its current settings
+  instead of opening blank (#561).
+- Removed leftover demo and sample data that could appear on the dashboard,
+  the activity feed, and the host lists (#562).
+
+### Security
+
+A pre-release security review (six parallel audit dimensions, every
+high-severity finding re-verified by hand) closed eight findings (#584):
+
+- State-changing requests made with a session cookie are now CSRF-protected
+  with a double-submit token; a request without a matching token is rejected.
+- The login and MFA-verify endpoints are now rate-limited per client address
+  to slow online password and one-time-code guessing.
+- Every response now carries security headers: HSTS, a content-security policy
+  that forbids framing, no-sniff, and a strict referrer policy.
+- SSH host keys learned on first connection are now stored in the database, so
+  a restart no longer re-trusts every host and a changed host key is detected
+  across restarts.
+- New passwords are now screened against a built-in list of common and breached
+  passwords, with an option to point at a full breach corpus; the check now
+  runs in production instead of being silently skipped.
+- Reading the audit-event API now requires the audit-read permission instead of
+  being open to any caller.
+- Creating an API token or assigning a role can no longer grant more access
+  than the caller already holds.
+
 ---
 
 ## [0.2.0-rc.7] Eyrie — 2026-06-14

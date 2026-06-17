@@ -132,3 +132,31 @@ func TestTokens_BearerAuthenticatesRequest(t *testing.T) {
 		}
 	})
 }
+
+// @ac AC-05
+// AC-05: anti-privilege-escalation on token creation. A caller may not mint
+// a token whose role grants permissions the caller doesn't hold. Regression
+// guard for the pre-release finding where a token:write holder could request
+// role_id=admin and obtain a full-admin bearer token.
+func TestTokens_CreateNoPrivilegeEscalation(t *testing.T) {
+	t.Run("api-tokens/AC-05", func(t *testing.T) {
+		url, _ := freshAPIServer(t)
+
+		// security_admin holds token:write but NOT the full admin grant →
+		// requesting role_id=admin must be denied 403, with no token created.
+		deny := doReq(t, asRole(t, "POST", url+"/api/v1/tokens", auth.RoleSecurityAdmin,
+			map[string]any{"name": "escalate", "role_id": "admin"}))
+		defer deny.Body.Close()
+		if deny.StatusCode != http.StatusForbidden {
+			t.Fatalf("security_admin minting an admin token = %d, want 403", deny.StatusCode)
+		}
+
+		// A role within the caller's grant (admin → security_admin) succeeds.
+		ok := doReq(t, asRole(t, "POST", url+"/api/v1/tokens", auth.RoleAdmin,
+			map[string]any{"name": "within", "role_id": "security_admin"}))
+		defer ok.Body.Close()
+		if ok.StatusCode != http.StatusCreated {
+			t.Errorf("admin minting a security_admin token = %d, want 201", ok.StatusCode)
+		}
+	})
+}
