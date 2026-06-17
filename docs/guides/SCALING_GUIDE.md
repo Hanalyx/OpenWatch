@@ -17,21 +17,43 @@ OpenWatch has two long-lived processes and one database:
 
 | Component | What it does | How you scale it today |
 |-----------|--------------|------------------------|
-| `openwatch serve` | HTTPS API + embedded UI + in-process schedulers (liveness, intelligence, discovery) | Vertical: more CPU/RAM on the host. The process is stateless apart from PostgreSQL, so horizontal API replicas are possible in principle but not yet packaged (see "Not yet implemented"). |
-| `openwatch worker` | Drains the PostgreSQL scan-job queue and runs Kensa scans over SSH | Run more `openwatch worker` processes against the same database. The queue uses `SELECT ... FOR UPDATE SKIP LOCKED`, so multiple workers cooperate without double-claiming a job. |
+| `openwatch serve` | HTTPS API + embedded UI + in-process schedulers (liveness, intelligence, discovery) **and an in-process worker that drains the scan-job queue** | Raise `[server].scan_concurrency` (how many scans run at once in this process); then vertical CPU/RAM. Stateless apart from PostgreSQL. |
+| `openwatch worker` | An **optional, additional** process that also drains the scan-job queue and runs Kensa scans over SSH | Run one or more for extra/off-box capacity. The queue uses `SELECT ... FOR UPDATE SKIP LOCKED`, so the serve worker and any `openwatch worker` processes cooperate without double-claiming a job. |
 | PostgreSQL | All state: hosts, scans, transactions, audit events, queue | Vertical first (CPU, RAM, faster disk), then tune `max_connections` and the OpenWatch pool size. |
 
-The scan worker is a separate process from the API server. `openwatch serve`
-runs the liveness, intelligence, and discovery schedulers in-process, but it
-does **not** drain the scan-job queue. You must run `openwatch worker`
-separately for scans to execute. Verify the split in `cmd/openwatch/main.go`
-(`cmdServe`) and `cmd/openwatch/worker.go` (`cmdWorker`).
+`openwatch serve` runs an in-process worker that **does** drain the scan-job
+queue — the single-binary deployment scans with no extra process. By default it
+runs **`scan_concurrency` (4) scans concurrently** (`internal/worker/worker.go`,
+wired in `internal/server/server.go`). A separate `openwatch worker` is
+optional, for additional or off-box capacity.
 
 ## Scaling the scan workers
 
 Scans are the most resource-intensive work OpenWatch does: each one opens an SSH
 session to a target host and runs Kensa's native YAML checks. Worker throughput
 is the usual first bottleneck.
+
+### Scan concurrency (the first knob to turn)
+
+The in-process worker runs `[server].scan_concurrency` scan loops at once
+(default `4`). Each loop independently claims a job with `SKIP LOCKED`, so up to
+that many **different hosts** scan in parallel; a per-host advisory lock still
+prevents two scans of the **same** host from overlapping. This is the simplest
+way to clear a large queue — one config value, no extra processes:
+
+```toml
+# /etc/openwatch/openwatch.toml
+[server]
+scan_concurrency = 8
+```
+
+Restart `openwatch` to apply. Sizing: scans are SSH/IO-bound (they spend most of
+their time waiting on the remote host), so concurrency can comfortably exceed
+CPU core count. Mind two ceilings — the PostgreSQL pool (`[database].max_connections`
+/ pool size: each in-flight scan uses a connection plus the advisory-lock
+transaction) and how many simultaneous SSH sessions your targets and network
+tolerate. `8`–`16` is a reasonable range for a few dozen to a few hundred hosts;
+set it to `1` to restore strictly one-at-a-time draining.
 
 ### Run more worker processes
 

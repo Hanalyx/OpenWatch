@@ -1,7 +1,7 @@
 spec:
   id: system-job-queue
   title: PostgreSQL job queue with correlation propagation
-  version: "1.0.0"
+  version: "1.1.0"
   status: approved
   tier: 1
 
@@ -62,6 +62,20 @@ spec:
       description: Forbidigo lint MUST reject raw "INSERT INTO job_queue" outside internal/queue/ and "http.DefaultClient" outside internal/httpclient/
       type: technical
       enforcement: error
+    - id: C-07
+      description: >-
+        The in-process worker MUST be able to run up to a configured number of
+        claim/process loops CONCURRENTLY (ServerConfig.ScanConcurrency, default
+        4, clamped to >= 1), so a fleet of queued scans does not drain strictly
+        one host at a time. Concurrency is safe by construction and adds NO new
+        locking: SKIP LOCKED (C-04) guarantees the N loops claim disjoint jobs,
+        and the scan path's per-host advisory lock (system-worker-subcommand
+        C-09) still serializes any two jobs for the SAME host. Each loop keeps
+        the existing per-job contract (a fresh correlation context per job,
+        C-02). The default is conservative; operators tune it up for large
+        fleets or down to 1 to restore strictly-serial draining.
+      type: technical
+      enforcement: error
 
   acceptance_criteria:
     - id: AC-01
@@ -105,3 +119,12 @@ spec:
       description: Lint forbids raw "INSERT INTO job_queue" outside internal/queue/ and "http.DefaultClient" outside internal/httpclient/.
       priority: high
       references_constraints: [C-06]
+    - id: AC-12
+      description: >-
+        With Worker.WithConcurrency(N) and N pending jobs whose processing
+        blocks, the worker runs exactly N jobs concurrently and holds the
+        (N+1)th pending until one finishes (bounded fan-out). Stop waits for all
+        in-flight loops to drain. WithConcurrency clamps a value < 1 up to 1, so
+        the default-1 worker stays strictly serial.
+      priority: critical
+      references_constraints: [C-07]

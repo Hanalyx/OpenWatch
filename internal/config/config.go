@@ -46,6 +46,11 @@ type ServerConfig struct {
 	Listen  string `toml:"listen"`
 	TLSCert string `toml:"tls_cert"`
 	TLSKey  string `toml:"tls_key"`
+	// ScanConcurrency is how many scan/job loops the in-process worker runs
+	// at once. The PostgreSQL queue (SKIP LOCKED) and the per-host advisory
+	// lock make concurrent draining safe; this only bounds the fan-out. Set
+	// to 1 to restore strictly-serial draining. Default 4.
+	ScanConcurrency int `toml:"scan_concurrency"`
 }
 
 // DatabaseConfig governs the PostgreSQL connection.
@@ -65,9 +70,10 @@ type LoggingConfig struct {
 func Defaults() *Config {
 	return &Config{
 		Server: ServerConfig{
-			Listen:  "0.0.0.0:8443",
-			TLSCert: "/etc/openwatch/tls/cert.pem",
-			TLSKey:  "/etc/openwatch/tls/key.pem",
+			Listen:          "0.0.0.0:8443",
+			TLSCert:         "/etc/openwatch/tls/cert.pem",
+			TLSKey:          "/etc/openwatch/tls/key.pem",
+			ScanConcurrency: 4,
 		},
 		Database: DatabaseConfig{
 			DSN:            "postgres://openwatch@localhost/openwatch?sslmode=disable",
