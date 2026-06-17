@@ -216,9 +216,26 @@ internal/server/openapi_embed.yaml: api/openapi.yaml
 #   - $(SPA_DIR)/index.html  — a lightweight stub so go vet/lint/test compile
 #     the embed without a Node toolchain (created on demand, fast).
 #   - make spa               — the real `vite build` output, for release binaries.
+#
+# The stub also stages assets/app-abc123.js — a content-hashed asset fixture the
+# static-delivery tests (system-http-server AC-15/AC-16) serve to assert gzip +
+# immutable caching. It must stay >=256 bytes and compressible so the handler's
+# gzip path engages, and contain `console.log` (the gzip test decodes and checks
+# for it). The directory is gitignored, so this stub is what CI tests against.
 $(SPA_DIR)/index.html:
-	@mkdir -p $(SPA_DIR)
+	@mkdir -p $(SPA_DIR)/assets
 	@printf '%s\n' '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>OpenWatch</title></head><body>OpenWatch SPA placeholder. Run `make spa` (or `make build`) to embed the real UI.</body></html>' > $@
+	@printf '%s\n' \
+	  '// OpenWatch SPA placeholder asset (test stub for static-delivery tests).' \
+	  '// Run `make spa` (or `make build`) to embed the real Vite output instead.' \
+	  'console.log("OpenWatch SPA placeholder");' \
+	  '/* padding so the stub exceeds the 256-byte gzip threshold and stays   */' \
+	  '/* compressible (repeated lines shrink well under gzip). ------------- */' \
+	  '/* filler ------------------------------------------------------------ */' \
+	  '/* filler ------------------------------------------------------------ */' \
+	  '/* filler ------------------------------------------------------------ */' \
+	  '/* filler ------------------------------------------------------------ */' \
+	  > $(SPA_DIR)/assets/app-abc123.js
 
 # Build the real frontend and stage it into the embed directory. Uses
 # `vite build` directly rather than the frontend `build` script's `tsc -b`,

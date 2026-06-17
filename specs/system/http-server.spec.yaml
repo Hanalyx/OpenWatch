@@ -1,7 +1,7 @@
 spec:
   id: system-http-server
   title: HTTPS server with TLS hot-reload
-  version: "1.3.0"
+  version: "1.4.0"
   status: approved
   tier: 2
 
@@ -68,6 +68,10 @@ spec:
       description: The server MUST serve the embedded single-page app for non-API routes (static assets directly, index.html as the client-side-routing fallback) and MUST NOT serve the SPA for unmatched /api/ paths (those return 404).
       type: technical
       enforcement: error
+    - id: C-11
+      description: The embedded SPA MUST be served with production static-delivery semantics so the single binary needs no reverse proxy for performance — gzip-encode compressible assets when the client sends Accept-Encoding gzip (with Vary Accept-Encoding) and never otherwise; serve Vite's content-hashed assets/ files as immutable with a long max-age while keeping index.html no-cache so deploys are seen immediately; and set an ETag so non-immutable responses revalidate as a 304. Compression and hashing are computed once at startup, not per request.
+      type: technical
+      enforcement: error
     - id: C-12
       description: >-
         Every response MUST carry security headers, since the single binary
@@ -77,8 +81,8 @@ spec:
         restricts default-src to 'self', X-Content-Type-Options nosniff,
         X-Frame-Options DENY, and Referrer-Policy no-referrer. The CSP for
         the embedded Swagger UI under /docs may relax script/style to
-        'unsafe-inline' but MUST still deny framing. (C-11 is reserved for
-        the static-delivery spec slice.)
+        'unsafe-inline' but MUST still deny framing. (C-11 is the
+        static-delivery spec slice.)
       type: security
       enforcement: error
     - id: C-13
@@ -158,6 +162,14 @@ spec:
       description: GET an unmatched /api/ path returns 404 and does NOT serve the SPA index.html.
       priority: critical
       references_constraints: [C-10]
+    - id: AC-15
+      description: A compressible static asset is gzip-encoded (Content-Encoding gzip, Vary Accept-Encoding, body decodes to the original) when and only when the request sends Accept-Encoding gzip; without it the response is identity-encoded.
+      priority: high
+      references_constraints: [C-11]
+    - id: AC-16
+      description: A content-hashed asset under assets/ is served with Cache-Control immutable + max-age=31536000 and an ETag; a matching If-None-Match returns 304; index.html is served Cache-Control no-cache so a new deploy is picked up.
+      priority: high
+      references_constraints: [C-11]
     - id: AC-17
       description: Every response carries Strict-Transport-Security (max-age >= 1 year, includeSubDomains), Content-Security-Policy (with frame-ancestors 'none' and default-src 'self'), X-Content-Type-Options nosniff, X-Frame-Options DENY, and Referrer-Policy no-referrer. A request under /docs gets a CSP that relaxes script/style to 'unsafe-inline' (for Swagger UI) but still denies framing.
       priority: high
