@@ -12,7 +12,7 @@ injection/SSH/SSRF · web/HTTP/audit · supply-chain/packaging.
 
 ## Verdict
 
-**Conditionally release-ready.** The cryptographic and data-handling core is
+**Release-ready (pending CI + the medium/low backlog).** The cryptographic and data-handling core is
 strong — correct AES-256-GCM at rest, sound Argon2id, no SQL injection /
 command injection / path traversal / unsafe deserialization, secrets never
 on argv or in logs, strong SSRF defense. The problems were **missing
@@ -22,8 +22,8 @@ the gate for an internet-facing release.
 
 | State | Count |
 |-------|-------|
-| **Fixed** (PR #584, specced + tested) | 5 |
-| **Open — release blockers** | 3 |
+| **Fixed** (PR #584, specced + tested) | 8 |
+| **Open — release blockers** | 0 |
 | Open — medium | ~7 |
 | Open — low / informational | ~12 |
 | Verified strong (no action) | many |
@@ -39,6 +39,9 @@ the gate for an internet-facing release.
 | 3 | Med-High | `roles:assign` had no subset/self guard (escalation primitive; only admin holds `role:assign` today, so defense-in-depth). | Same `RoleGrantsWithin` check on assignment. | `api-users` C-05/AC-13 |
 | 4 | **High** | **No security headers** on an origin serving SPA + API (clickjacking, SSL-strip, MIME-sniff, no XSS defense-in-depth). | `securityHeaders` middleware: HSTS, CSP (`frame-ancestors 'none'`, `default-src 'self'`), nosniff, `X-Frame-Options: DENY`, Referrer-Policy. | `system-http-server` C-12/AC-17 |
 | 5 | **High** | **Breach-password check dead in production** — every `users.NewService` passed a `nil` corpus, so compromised passwords were accepted. | Always-on embedded baseline (`DefaultBreachCorpus`, 129 common passwords, airgap-safe) wired at all 3 prod sites; operator HIBP override via `OPENWATCH_BREACH_CORPUS_FILE`. | `system-auth-identity` C-15/AC-27 |
+| 6 | **High** | **No CSRF enforcement** — frontend double-submit was theater; only `SameSite=Lax` protected mutations. | `csrfProtect` middleware (constant-time double-submit) + `XSRF-TOKEN` cookie at login/refresh; gated on the session cookie; Bearer/`/auth/*` exempt. | `system-http-server` C-14/AC-19 |
+| 7 | **High** | **No login rate-limiting / lockout** — unlimited online guessing. | Dependency-free per-IP sliding-window limiter on `/auth/login` + `/auth/mfa:verify`; 429 + Retry-After. | `system-http-server` C-13/AC-18 |
+| 8 | Med-High | **SSH host-key in-memory per-process TOFU** — MITM on first scan after every restart. | PostgreSQL-backed `KnownHostsStore` (migration 0036) wired at all 4 dial sites → durable TOFU across restarts. | `system-ssh-connectivity` C-13/AC-22 |
 
 > #1, #2, #4, #5 are mutually reinforcing: weak-password acceptance + no
 > CSRF (below) + clickjacking + anonymous data access formed a realistic
@@ -47,9 +50,12 @@ the gate for an internet-facing release.
 
 ---
 
-## Open — release blockers (next batch)
+## ~~Open — release blockers~~ → ALL FIXED in PR #584
 
-### B-1 (High) — CSRF is not enforced server-side
+The three blockers below are **now closed** (see fixed rows 6-8 above). The
+original analysis is retained for the record.
+
+### B-1 (High) — CSRF is not enforced server-side  ✅ FIXED
 State-changing endpoints authenticate via the `openwatch_session` cookie.
 The frontend advertises a double-submit scheme (`client.ts`), but **no
 server code sets an `XSRF-TOKEN` cookie or validates `X-CSRF-Token`** — the
@@ -59,7 +65,7 @@ middleware requiring `X-CSRF-Token == XSRF-TOKEN` on unsafe methods for
 cookie-authenticated requests (matches what the frontend already sends).
 *Evidence:* `internal/server/server.go` chain; `frontend/src/api/client.ts`.
 
-### B-2 (High) — No login rate-limiting or account lockout
+### B-2 (High) — No login rate-limiting or account lockout  ✅ FIXED
 `PostAuthLogin` / `PostAuthMFAVerify` have no throttle, no failed-attempt
 counter, no lockout (confirmed: no rate-limiter anywhere in the HTTP chain).
 Direct online password / OTP guessing + credential-stuffing. Flagged
@@ -69,7 +75,7 @@ counter) with stricter buckets on `/auth/*`, plus progressive backoff/lockout.
 Derive client IP from a trusted-proxy config (see L-7).
 *Evidence:* `internal/server/auth_handlers.go:27`.
 
-### B-3 (Med-High) — SSH host-key trust is in-memory, per-process TOFU
+### B-3 (Med-High) — SSH host-key trust is in-memory, per-process TOFU  ✅ FIXED
 Every production dial uses `ModeTOFU` + `NewMemoryStore()` (no persistent
 store, no `ModeStrict`). A network attacker can MITM the **first** scan after
 every daemon restart and harvest the credentials presented to each host. The
@@ -132,12 +138,9 @@ open-redirect handled (`safeReturnTo`).
 
 ## Recommendation
 
-1. **Merge PR #584** (the 5 fixes).
-2. **Close B-1, B-2, B-3 before any internet-facing release.** B-1/B-2 are
-   self-contained middlewares (a focused day); B-3 is a persistent-store
-   change. For a purely air-gapped/segmented deployment, B-1/B-2 risk is
-   lower and B-3 is the priority (it protects credentials in transit to
-   managed hosts).
+1. **Merge PR #584** (all 8 fixes — the 5 quick wins + B-1/B-2/B-3).
+2. **Smoke-test the CSP against the running SPA + /docs** before release (it
+   is a single tunable const).
 3. Work the medium list as a fast-follow; the lows can be batched post-GA.
 4. Add a CI guard that fails the release if the binary contains a font-CDN
    or other external-host string (airgap regression backstop).
