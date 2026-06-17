@@ -1,7 +1,7 @@
 github.com/BurntSushi/toml v1.6.0 h1:dRaEfpa2VI55EwlIW72hMRHdWouJeRF7TPYhI+AUQjk=
 github.com/BurntSushi/toml v1.6.0/go.mod h1:ukJfTF/6rtPPRCnwkur4qwRxa8vTRFBF0uk2lLoLwho=
-github.com/Hanalyx/kensa v0.4.3 h1:C9Zj/+m4jJivizK5aXPJ+u2PYA4la3qHHNILoGdBwkQ=
-github.com/Hanalyx/kensa v0.4.3/go.mod h1:oEJt9i8spIWwy6i6uF1YgShrLS67kFXKIWr+J1eYBOY=
+github.com/Hanalyx/kensa v0.5.0 h1:yXDD/Oj+Czq3v5dB/LjWk1F8HEfw692jqTdWi6LSFfU=
+github.com/Hanalyx/kensa v0.5.0/go.mod h1:oEJt9i8spIWwy6i6uF1YgShrLS67kFXKIWr+J1eYBOY=
 github.com/RaveNoX/go-jsoncommentstrip v1.0.0/go.mod h1:78ihd09MekBnJnxpICcwzCMzGrKSKYe4AqU6PDYYpjk=
 github.com/andybalholm/brotli v1.2.1 h1:R+f5xP285VArJDRgowrfb9DqL18yVK0gKAW/F+eTWro=
 github.com/andybalholm/brotli v1.2.1/go.mod h1:rzTDkvFWvIrjDXZHkuS16NPggd91W3kUSvPlQ1pLaKY=

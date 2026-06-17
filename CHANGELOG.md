@@ -10,6 +10,15 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- Updated the bundled Kensa scan engine and rule corpus to v0.5.0. v0.5.0 adds
+  native sudo-with-password support for hosts where passwordless sudo is
+  disallowed (a common CIS/STIG control); the change is backward-compatible and
+  OpenWatch's existing scan behavior is unchanged. The corpus stays at 539
+  rules. The `kensa-rules` package version tracks the engine, so it becomes
+  0.5.0 in the next build.
+
 ---
 
 ## [0.2.0-rc.9] Eyrie — 2026-06-17

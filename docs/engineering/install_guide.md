@@ -106,7 +106,7 @@ Install **both** files in one transaction. `openwatch` declares a hard
 dependency on `kensa-rules` — the rule corpus the scan engine loads from
 `/usr/share/kensa/rules`. Installing `openwatch` alone fails the dependency
 check (by design: a corpus-less node cannot scan). `kensa-rules` is `noarch`
-and versioned on the Kensa content line (e.g. `0.4.3`), independent of the
+and versioned on the Kensa content line (e.g. `0.5.0`), independent of the
 platform version, so the rules can update without re-releasing OpenWatch.
 
 Use the filenames you downloaded (`aarch64` for the arm64 openwatch RPM; the
