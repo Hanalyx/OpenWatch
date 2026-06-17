@@ -55,6 +55,22 @@ jobs:
       - name: Build packages (amd64 + arm64)
         run: make packages
 
+      # Pre-release packages carry a '~' in their filename (e.g.
+      # openwatch-0.2.0~rc.8-1.x86_64.rpm). GitHub release assets replace '~'
+      # with '.', which would desync the served asset names from the
+      # SHA256SUMS manifest computed below and break `sha256sum -c`. Normalize
+      # to the form GitHub will serve BEFORE signing, SBOMs, and checksums so
+      # they all agree. The package INTERNAL version keeps the '~' (that is what
+      # dnf/apt compare); only the filename label changes.
+      - name: Normalize artifact filenames for GitHub Releases
+        run: |
+          shopt -s nullglob
+          cd dist
+          for f in *~*; do
+            mv -- "$f" "${f//\~/.}"
+          done
+          ls -1
+
       # Detect which signing keys are configured. The `secrets` context is not
       # allowed in `if:`, so resolve presence here (secrets ARE allowed via env)
       # and gate the signing steps on these outputs.

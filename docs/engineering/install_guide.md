@@ -99,7 +99,7 @@ PGPASSWORD='replace-with-a-strong-password' \
 ### Step 3 — Install the packages
 
 ```bash
-sudo dnf install -y ./openwatch-0.2.0~rc.8-1.x86_64.rpm ./kensa-rules-0.4.3-1.noarch.rpm
+sudo dnf install -y ./openwatch-*.x86_64.rpm ./kensa-rules-*.noarch.rpm
 ```
 
 Install **both** files in one transaction. `openwatch` declares a hard
@@ -247,7 +247,7 @@ PGPASSWORD='replace-with-a-strong-password' \
 ### Step 3 — Install the packages
 
 ```bash
-sudo apt install -y ./openwatch_0.2.0~rc.8_amd64.deb ./kensa-rules_0.4.3_all.deb
+sudo apt install -y ./openwatch_*_amd64.deb ./kensa-rules_*_all.deb
 ```
 
 Install **both** files together — `openwatch` `Depends` on `kensa-rules` (the
