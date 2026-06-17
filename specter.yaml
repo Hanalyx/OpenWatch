@@ -26,6 +26,7 @@ domains:
             - system-job-queue
             - system-policy
             - release-package-build
+            - release-changelog
             - release-upgrade
             - release-fips-build
             - release-stage-0-signoff
