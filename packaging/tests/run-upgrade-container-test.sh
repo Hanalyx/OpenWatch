@@ -22,11 +22,21 @@ RPMS="$(mktemp -d)"
 trap 'rm -rf "$RPMS"' EXIT
 mkdir -p "$RPMS/old" "$RPMS/new"
 
-echo ">> building OLD (release 1) and NEW (release 2) RPMs"
+# Pin to the host/container RPM arch. dist/ can hold leftover cross-built
+# RPMs of the other arch (the packaging Go suite cross-builds arm64), and the
+# rockylinux:9 container runs the host platform — so glob a single arch only,
+# or installing both arches collides on /usr/bin/openwatch.
+case "$(uname -m)" in
+    x86_64)          RPM_ARCH=x86_64 ;;
+    aarch64|arm64)   RPM_ARCH=aarch64 ;;
+    *) echo "unsupported host arch $(uname -m)" >&2; exit 1 ;;
+esac
+
+echo ">> building OLD (release 1) and NEW (release 2) ${RPM_ARCH} RPMs"
 make rpm >/dev/null
-cp dist/openwatch-*-1.*.rpm "$RPMS/old/"
+cp dist/openwatch-*-1."${RPM_ARCH}".rpm "$RPMS/old/"
 RPM_RELEASE=2 bash packaging/rpm/build-rpm.sh >/dev/null
-cp dist/openwatch-*-2.*.rpm "$RPMS/new/"
+cp dist/openwatch-*-2."${RPM_ARCH}".rpm "$RPMS/new/"
 
 # Derive the current head migration so the in-container test never hardcodes a
 # migration number: HEAD_VER is its goose version_id (filename digits, leading
