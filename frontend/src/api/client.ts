@@ -34,6 +34,29 @@ function readCookie(name: string): string | null {
   return null;
 }
 
+// Authentication-failure envelope codes — "you are not signed in", as
+// opposed to an authz (permission) denial, which is a 403 and must NOT log
+// the user out. Mirrors auth-error-redirect.ts so the interceptor and the
+// QueryCache onError handler agree on what counts as a session failure.
+const AUTH_FAILURE_CODES = new Set(['auth.session_invalid', 'auth.session_expired', 'auth.required']);
+
+// isAuthFailureResponse reports whether a response is a 401 carrying an
+// authentication-failure code. Reads a CLONE so the caller's body stays
+// intact. A 401 with no parseable envelope is treated as an auth failure
+// (fail closed — a session-expiry 401 must redirect even if the body is
+// empty); a non-401 is never an auth failure.
+async function isAuthFailureResponse(response: Response): Promise<boolean> {
+  if (response.status !== 401) return false;
+  try {
+    const body = await response.clone().json();
+    const code = body?.error?.code;
+    if (typeof code === 'string') return AUTH_FAILURE_CODES.has(code);
+  } catch {
+    // Unparseable body on a 401 → treat as a session failure.
+  }
+  return true;
+}
+
 // Mark a request as already having been retried so the onResponse
 // middleware doesn't try to refresh-and-retry a refresh itself or
 // loop on a request that came back 401 after refresh.
@@ -152,10 +175,18 @@ baseClient.use({
       const token = readCookie(CSRF_COOKIE);
       if (token) retried.headers.set(CSRF_HEADER, token);
     }
-    // A replay that still 401s is handled by the global, code-aware
-    // QueryCache/MutationCache onError handler (main.tsx): it redirects
-    // only for auth.* codes, so an authz (permission) 401 is left alone.
-    return fetch(retried);
+    // Replay once. A replay that still 401s with an authentication code
+    // means the rotated session didn't take — trigger the login redirect
+    // HERE rather than relying on the query to throw. Most openapi-fetch
+    // queries surface {error} without throwing, so the QueryCache onError
+    // redirect (auth-error-redirect.ts) would never fire for them; the
+    // interceptor is the reliable place to catch a terminal auth 401. An
+    // authz (permission) 401 is left alone — it is not a session failure.
+    const replayed = await fetch(retried);
+    if (await isAuthFailureResponse(replayed)) {
+      onAuthFailure();
+    }
+    return replayed;
   },
 });
 

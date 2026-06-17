@@ -214,7 +214,22 @@ spec:
       priority: high
       references_constraints: [C-13, C-14]
     - id: AC-25
-      description: Browser API client (src/api/client.ts) attaches an onResponse middleware that intercepts HTTP 401. On a 401 the middleware calls POST /api/v1/auth/refresh-cookie once and, if it returns 200, replays the original request exactly once with the rotated cookies. If refresh-cookie itself returns 401 the middleware clears useAuthStore.identity and navigates to /login. The retry MUST NOT loop — a second 401 on the same request after refresh returns the error to the caller.
+      description: >-
+        Browser API client (src/api/client.ts) attaches an onResponse
+        middleware that intercepts HTTP 401. On a 401 the middleware calls
+        POST /api/v1/auth/refresh-cookie once and, if it returns 200,
+        replays the original request exactly once with the rotated cookies.
+        If refresh-cookie itself returns 401 the middleware clears
+        useAuthStore.identity and navigates to /login. The retry MUST NOT
+        loop — a second 401 on the same request after refresh is returned to
+        the caller without a further retry. When that terminal 401 carries
+        an authentication-failure code (auth.session_invalid /
+        auth.session_expired / auth.required, or an unparseable 401 body)
+        the middleware ALSO clears identity and navigates to /login — it does
+        NOT rely on the query throwing, because openapi-fetch surfaces
+        {error} without throwing so the QueryCache onError redirect would
+        never fire for such a query. An authz (permission) 401 is returned
+        untouched (a permission denial is not a session failure).
       priority: critical
       references_constraints: [C-14]
     - id: AC-26
