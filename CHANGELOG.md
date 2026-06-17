@@ -10,6 +10,32 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- SSH credentials can now be edited in place. The Settings credentials page
+  updates a credential directly instead of deleting and recreating it, so
+  changing a name, username, or authentication method no longer forces you to
+  re-enter the key or password. Leave a secret field blank to keep the stored
+  one.
+- Per-host SSH credential management from the host detail page. A host can be
+  given its own credential, have that credential edited in place, or be reverted
+  to the workspace default, all from the host Edit dialog and the Connectivity
+  card's Edit credentials link.
+- A Reconnect action on the host Connectivity card runs OS discovery
+  immediately, ahead of the scan queue, so you can confirm a host is reachable
+  and its SSH credential works right after changing it.
+
+### Changed
+
+- The host Connectivity card now shows the credential the host actually uses
+  (its own override or the workspace default) instead of a fixed label.
+- Updated the bundled Kensa scan engine and rule corpus to v0.5.0. v0.5.0 adds
+  native sudo-with-password support for hosts where passwordless sudo is
+  disallowed (a common CIS/STIG control); the change is backward-compatible and
+  OpenWatch's existing scan behavior is unchanged. The corpus stays at 539
+  rules. The `kensa-rules` package version tracks the engine, so it becomes
+  0.5.0 in the next build.
+
 ### Fixed
 
 - A package upgrade no longer overwrites your TLS certificate. The demo
@@ -19,15 +45,6 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   certificate is now generated at install time only when the TLS files are
   absent (the same generate-if-absent model already used for the server's
   identity keys), so a certificate you put in place survives upgrades untouched.
-
-### Changed
-
-- Updated the bundled Kensa scan engine and rule corpus to v0.5.0. v0.5.0 adds
-  native sudo-with-password support for hosts where passwordless sudo is
-  disallowed (a common CIS/STIG control); the change is backward-compatible and
-  OpenWatch's existing scan behavior is unchanged. The corpus stays at 539
-  rules. The `kensa-rules` package version tracks the engine, so it becomes
-  0.5.0 in the next build.
 
 ---
 

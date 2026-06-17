@@ -455,6 +455,16 @@ events:
         scope: {type: string, enum: [system, host]}
         auth_method: {type: string, enum: [ssh_key, password, both]}
 
+  - code: credential.updated
+    severity: info
+    detail_schema:
+      type: object
+      properties:
+        credential_id: {type: string}
+        scope: {type: string, enum: [system, host]}
+        auth_method: {type: string, enum: [ssh_key, password, both]}
+        secret_rotated: {type: boolean}
+
   - code: credential.deleted
     severity: warning
     detail_schema:

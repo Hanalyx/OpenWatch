@@ -6,6 +6,7 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
@@ -630,6 +631,257 @@ func TestCredentials_Resolve_NoneAvailable(t *testing.T) {
 		b, _ := io.ReadAll(resp.Body)
 		if !strings.Contains(string(b), "credentials.none_available") {
 			t.Errorf("body lacks credentials.none_available: %s", b)
+		}
+	})
+}
+
+// seedAPICredential creates a credential via the admin POST route and
+// returns its id. Used by the PATCH tests to get a concrete row to
+// update without reaching into SQL.
+func seedAPICredential(t *testing.T, url string, body map[string]any) string {
+	t.Helper()
+	req := asRole(t, "POST", url+"/api/v1/credentials", auth.RoleAdmin, body)
+	resp := doReq(t, req)
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusCreated {
+		b, _ := io.ReadAll(resp.Body)
+		t.Fatalf("seed credential: status=%d body=%s", resp.StatusCode, b)
+	}
+	var created map[string]any
+	_ = json.NewDecoder(resp.Body).Decode(&created)
+	return created["id"].(string)
+}
+
+// encPassword reads the raw encrypted_password ciphertext for a
+// credential id. The PATCH tests use it to prove the stored secret is
+// untouched when only metadata changes (and after a rejected update).
+func encPassword(t *testing.T, pool *pgxpool.Pool, id string) []byte {
+	t.Helper()
+	var enc []byte
+	if err := pool.QueryRow(context.Background(),
+		`SELECT encrypted_password FROM credentials WHERE id = $1`, id).Scan(&enc); err != nil {
+		t.Fatalf("read encrypted_password: %v", err)
+	}
+	return enc
+}
+
+// @ac AC-16
+// AC-16: PATCH changing only metadata returns 200 with updated
+// metadata; no secret leaks; the stored ciphertext is untouched.
+func TestCredentials_Patch_MetadataOnly(t *testing.T) {
+	t.Run("api-credentials/AC-16", func(t *testing.T) {
+		url, pool := freshAPIServer(t)
+		id := seedAPICredential(t, url, map[string]any{
+			"scope": "system", "name": "ac16-before", "username": "u-before",
+			"auth_method": "password", "password": "keep-this-secret-12345",
+		})
+		encBefore := encPassword(t, pool, id)
+
+		req := asRole(t, "PATCH", url+"/api/v1/credentials/"+id, auth.RoleAdmin,
+			map[string]any{"name": "ac16-after", "description": "edited", "username": "u-after"})
+		resp := doReq(t, req)
+		raw, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("status = %d body=%s", resp.StatusCode, raw)
+		}
+		for _, leaky := range []string{
+			`"password":`, `"private_key":`, `"private_key_passphrase":`,
+			`"encrypted_password":`, `"encrypted_private_key":`,
+		} {
+			if strings.Contains(string(raw), leaky) {
+				t.Errorf("response leaks %s: %s", leaky, raw)
+			}
+		}
+		var got map[string]any
+		_ = json.Unmarshal(raw, &got)
+		if got["name"] != "ac16-after" || got["username"] != "u-after" {
+			t.Errorf("metadata not updated: %s", raw)
+		}
+		// Ciphertext must be byte-identical: no re-entry, no re-encrypt.
+		encAfter := encPassword(t, pool, id)
+		if !bytes.Equal(encBefore, encAfter) {
+			t.Errorf("stored ciphertext changed on a metadata-only PATCH")
+		}
+	})
+}
+
+// @ac AC-17
+// AC-17: PATCH without credential:write → 403; credential unchanged.
+func TestCredentials_Patch_DeniedWithoutPermission(t *testing.T) {
+	t.Run("api-credentials/AC-17", func(t *testing.T) {
+		url, _ := freshAPIServer(t)
+		id := seedAPICredential(t, url, map[string]any{
+			"scope": "system", "name": "ac17-keep", "username": "u",
+			"auth_method": "password", "password": "x",
+		})
+
+		req := asRole(t, "PATCH", url+"/api/v1/credentials/"+id, auth.RoleViewer,
+			map[string]any{"name": "ac17-hacked"})
+		resp := doReq(t, req)
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusForbidden {
+			t.Fatalf("status = %d, want 403", resp.StatusCode)
+		}
+
+		req = asRole(t, "GET", url+"/api/v1/credentials/"+id, auth.RoleAdmin, nil)
+		resp = doReq(t, req)
+		raw, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		var got map[string]any
+		_ = json.Unmarshal(raw, &got)
+		if got["name"] != "ac17-keep" {
+			t.Errorf("name = %v after denied PATCH, want unchanged", got["name"])
+		}
+	})
+}
+
+// @ac AC-18
+// AC-18: PATCH on an unknown id → 404; PATCH on a soft-deleted
+// credential → 404 (no revive).
+func TestCredentials_Patch_NotFound(t *testing.T) {
+	t.Run("api-credentials/AC-18", func(t *testing.T) {
+		url, _ := freshAPIServer(t)
+
+		// Unknown id.
+		req := asRole(t, "PATCH", url+"/api/v1/credentials/"+uuid.Must(uuid.NewV7()).String(),
+			auth.RoleAdmin, map[string]any{"name": "nope"})
+		resp := doReq(t, req)
+		raw, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusNotFound {
+			t.Fatalf("unknown id status = %d body=%s, want 404", resp.StatusCode, raw)
+		}
+		if !strings.Contains(string(raw), "credentials.not_found") {
+			t.Errorf("body lacks credentials.not_found: %s", raw)
+		}
+
+		// Soft-deleted credential cannot be revived through PATCH.
+		id := seedAPICredential(t, url, map[string]any{
+			"scope": "system", "name": "ac18-del", "username": "u",
+			"auth_method": "password", "password": "x",
+		})
+		req = asRole(t, "DELETE", url+"/api/v1/credentials/"+id, auth.RoleAdmin, nil)
+		resp = doReq(t, req)
+		resp.Body.Close()
+		req = asRole(t, "PATCH", url+"/api/v1/credentials/"+id, auth.RoleAdmin,
+			map[string]any{"name": "ac18-revived"})
+		resp = doReq(t, req)
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusNotFound {
+			t.Errorf("soft-deleted PATCH status = %d, want 404", resp.StatusCode)
+		}
+	})
+}
+
+// @ac AC-19
+// AC-19: PATCH that leaves the effective auth_method without its
+// required secret → 400 credentials.missing_secret; unchanged.
+func TestCredentials_Patch_MissingSecret(t *testing.T) {
+	t.Run("api-credentials/AC-19", func(t *testing.T) {
+		url, _ := freshAPIServer(t)
+		// Password-only credential; switching to ssh_key with no key
+		// stored and none supplied leaves the method secret-less.
+		id := seedAPICredential(t, url, map[string]any{
+			"scope": "system", "name": "ac19", "username": "u",
+			"auth_method": "password", "password": "x",
+		})
+
+		req := asRole(t, "PATCH", url+"/api/v1/credentials/"+id, auth.RoleAdmin,
+			map[string]any{"auth_method": "ssh_key"})
+		resp := doReq(t, req)
+		raw, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusBadRequest {
+			t.Fatalf("status = %d body=%s, want 400", resp.StatusCode, raw)
+		}
+		if !strings.Contains(string(raw), "credentials.missing_secret") {
+			t.Errorf("body lacks credentials.missing_secret: %s", raw)
+		}
+
+		// auth_method unchanged.
+		req = asRole(t, "GET", url+"/api/v1/credentials/"+id, auth.RoleAdmin, nil)
+		resp = doReq(t, req)
+		raw, _ = io.ReadAll(resp.Body)
+		resp.Body.Close()
+		var got map[string]any
+		_ = json.Unmarshal(raw, &got)
+		if got["auth_method"] != "password" {
+			t.Errorf("auth_method = %v after rejected PATCH, want password", got["auth_method"])
+		}
+	})
+}
+
+// @ac AC-20
+// AC-20: PATCH is_default=true on a system credential atomically
+// demotes the prior system default.
+func TestCredentials_Patch_DefaultAutoDemote(t *testing.T) {
+	t.Run("api-credentials/AC-20", func(t *testing.T) {
+		url, _ := freshAPIServer(t)
+		oldDefault := seedAPICredential(t, url, map[string]any{
+			"scope": "system", "name": "ac20-old-default", "username": "u",
+			"auth_method": "password", "password": "x", "is_default": true,
+		})
+		// A second system credential, not default (allowed — the unique
+		// index only constrains is_default=true rows).
+		newDefault := seedAPICredential(t, url, map[string]any{
+			"scope": "system", "name": "ac20-new-default", "username": "u",
+			"auth_method": "password", "password": "x",
+		})
+
+		req := asRole(t, "PATCH", url+"/api/v1/credentials/"+newDefault, auth.RoleAdmin,
+			map[string]any{"is_default": true})
+		resp := doReq(t, req)
+		raw, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("status = %d body=%s, want 200", resp.StatusCode, raw)
+		}
+		var got map[string]any
+		_ = json.Unmarshal(raw, &got)
+		if got["is_default"] != true {
+			t.Errorf("patched credential is_default = %v, want true", got["is_default"])
+		}
+
+		// The prior default was demoted.
+		req = asRole(t, "GET", url+"/api/v1/credentials/"+oldDefault, auth.RoleAdmin, nil)
+		resp = doReq(t, req)
+		raw, _ = io.ReadAll(resp.Body)
+		resp.Body.Close()
+		var old map[string]any
+		_ = json.Unmarshal(raw, &old)
+		if old["is_default"] != false {
+			t.Errorf("prior default is_default = %v, want false (auto-demoted)", old["is_default"])
+		}
+	})
+}
+
+// @ac AC-21
+// AC-21: PATCH supplying an unparseable/weak private_key → 400
+// credentials.invalid_key; stored ciphertext untouched.
+func TestCredentials_Patch_InvalidKeyRejected(t *testing.T) {
+	t.Run("api-credentials/AC-21", func(t *testing.T) {
+		url, pool := freshAPIServer(t)
+		id := seedAPICredential(t, url, map[string]any{
+			"scope": "system", "name": "ac21", "username": "u",
+			"auth_method": "password", "password": "keep-me-67890",
+		})
+		encBefore := encPassword(t, pool, id)
+
+		req := asRole(t, "PATCH", url+"/api/v1/credentials/"+id, auth.RoleAdmin,
+			map[string]any{"auth_method": "both", "private_key": weakRSAPEM(t)})
+		resp := doReq(t, req)
+		raw, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusBadRequest {
+			t.Fatalf("status = %d body=%s, want 400", resp.StatusCode, raw)
+		}
+		if !strings.Contains(string(raw), "credentials.invalid_key") {
+			t.Errorf("body lacks credentials.invalid_key: %s", raw)
+		}
+		encAfter := encPassword(t, pool, id)
+		if !bytes.Equal(encBefore, encAfter) {
+			t.Errorf("stored ciphertext changed despite a rejected PATCH")
 		}
 	})
 }

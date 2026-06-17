@@ -604,6 +604,18 @@ cache/
 # applies for genuine build artifacts (dist/, openapi_embed.yaml).
 !app/**
 
+# The Go tree was promoted from app/ to the repo root (2026-06-05), so the
+# !app/** negation above no longer reaches it. The safety-net name patterns
+# (*credential*, *secret*) wrongly catch these Go source package directories —
+# they are source code, not secrets. Genuine build artifacts under internal/
+# are ignored by their own explicit rules further down (internal/server/
+# openapi_embed.yaml, internal/server/spa/), so this negation does not expose
+# them.
+!internal/credential/
+!internal/credential/**
+!internal/secretkey/
+!internal/secretkey/**
+
 # Configuration files that might contain secrets
 *config.local.*
 *settings.local.*
