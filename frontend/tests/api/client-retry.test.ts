@@ -171,5 +171,39 @@ describe('api/client — 401 retry middleware', () => {
     });
     const refreshCalls = calls.filter((u) => u.includes('/auth/refresh-cookie')).length;
     expect(refreshCalls).toBe(1);
+    // An authz (permission) 401 is NOT a session failure: no logout.
+    expect(navigateSpy).not.toHaveBeenCalled();
+    expect(useAuthStore.getState().identity).not.toBeNull();
+  });
+
+  test('system-auth-identity/AC-25 — replay still 401 with an auth code → cleared + navigate to /login', async () => {
+    // Refresh-cookie reports success, but the replayed request STILL 401s
+    // with an authentication code (the rotated session didn't take). The
+    // interceptor must redirect here — openapi-fetch queries surface
+    // {error} WITHOUT throwing, so the QueryCache onError redirect never
+    // fires for them and the user would otherwise be stuck on a rendered
+    // "session invalid" envelope with no way to sign in.
+    useAuthStore.getState().setIdentity({
+      id: '1',
+      username: 'tester',
+      email: 't@e.com',
+      role: 'admin',
+      permissions: [],
+      mfaEnabled: false,
+    });
+    const mock = queueResponses(
+      envelope('auth.session_invalid', 'session expired'), // 1. original 401
+      jsonOK({ username: 'tester', email: 't@e.com', role: 'admin', permissions: [] }), // 2. refresh 200
+      envelope('auth.session_invalid', 'still invalid'), // 3. replay still 401 (auth)
+    );
+    globalThis.fetch = mock;
+
+    const { default: api } = await import('@/api/client');
+    const result = await api.GET('/api/v1/system/connectivity/config', {});
+
+    expect(result.response.status).toBe(401);
+    expect(mock).toHaveBeenCalledTimes(3);
+    expect(useAuthStore.getState().identity).toBeNull();
+    expect(navigateSpy).toHaveBeenCalledWith('/login');
   });
 });
