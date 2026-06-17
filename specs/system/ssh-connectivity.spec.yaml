@@ -1,7 +1,7 @@
 spec:
   id: system-ssh-connectivity
   title: SSH connectivity check against resolved credentials
-  version: "1.2.0"
+  version: "1.3.0"
   status: approved
   tier: 2
 
@@ -76,6 +76,18 @@ spec:
       enforcement: error
     - id: C-12
       description: When sudo -n succeeds, the password fallback path MUST NOT execute and the credential password MUST NOT be transmitted. Source-inspection enforces (AC-15) — there is exactly one call site that passes a password to sudo and it is unreachable after a sudo -n success on the same command.
+      type: security
+      enforcement: error
+    - id: C-13
+      description: >-
+        TOFU's "store the first key" (C-05) MUST be DURABLE in production:
+        the known-hosts store MUST persist across process restarts. The
+        in-memory store is per-process, so a restart re-TOFUs every host and
+        a network attacker can MITM the first scan after each restart to
+        harvest credentials. Production therefore wires a PostgreSQL-backed
+        KnownHostsStore (internal/knownhosts, table ssh_known_hosts) at every
+        dial site, not an in-memory store. A changed key is still rejected
+        (ErrHostKeyMismatch) by the dial layer.
       type: security
       enforcement: error
 
@@ -161,3 +173,7 @@ spec:
       description: 'v1.2.0 — Negative invariant across all three sites: a sudo -n exit 0 MUST NOT trigger the fallback. Source-walk asserts that the three call sites (ssh.RunSudo, sshprivilege.Probe, discovery.probeFirewall) all gate the sudo -S retry behind a non-zero exit code from sudo -n and a runtime policy/credential check.'
       priority: high
       references_constraints: [C-09, C-12]
+    - id: AC-22
+      description: The PostgreSQL known-hosts store (internal/knownhosts) round-trips Put/Get for a hostname and returns (nil,false) for an absent host; a key stored by one Store instance is visible to a fresh Store instance on the same database (the durable-TOFU-across-restart guarantee), and re-Putting the same key is idempotent.
+      priority: critical
+      references_constraints: [C-13]

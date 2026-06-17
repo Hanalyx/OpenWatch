@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/Hanalyx/openwatch/internal/auth"
 )
 
 // @ac AC-01
@@ -239,7 +241,7 @@ func TestAPI_Echo_QueryableAuditEvent(t *testing.T) {
 		resp.Body.Close()
 		time.Sleep(150 * time.Millisecond)
 
-		resp = doGet(t, url+"/api/v1/audit/events?correlation_id=queryable-corr")
+		resp = doReq(t, asRole(t, "GET", url+"/api/v1/audit/events?correlation_id=queryable-corr", auth.RoleAuditor, nil))
 		defer resp.Body.Close()
 		var page struct {
 			Items []struct {

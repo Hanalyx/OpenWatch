@@ -574,6 +574,10 @@ cache/
 *password*
 *passwd*
 *credential*
+# Exception: the embedded breach-corpus baseline is NOT a secret — it is a
+# public list of the most common compromised passwords, embedded via
+# go:embed and required by the build.
+!internal/identity/common_passwords.txt
 *auth_key*
 *api_key*
 *private_key*
