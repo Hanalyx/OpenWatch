@@ -390,9 +390,9 @@ paths:
   /api/v1/diagnostics:require-remediation-execute:
     post:
       operationId: postDiagnosticsRequireRemediationExecute
-      summary: Stage-0 RBAC+license demo; requires remediation:execute + remediation_execution feature
+      summary: Stage-0 RBAC+license demo; requires remediation:execute (RBAC) + premium_diagnostics (license)
       x-required-permission: remediation:execute
-      x-required-feature: remediation_execution
+      x-required-feature: premium_diagnostics
       parameters:
         - name: Idempotency-Key
           in: header
@@ -1996,32 +1996,25 @@ paths:
   /api/v1/remediation/requests/{rid}:dry-run:
     post:
       operationId: dryRunRemediation
-      summary: Dry-run a remediation (OpenWatch+)
+      summary: Dry-run a remediation (preview)
       description: |
-        Connects to the host and reports what would change without applying.
-        License-gated: requires remediation:execute AND the
-        remediation_execution feature; returns 402 on the free tier. The
-        execution body is the OpenWatch+ licensed track. Spec api-remediation.
+        Would connect to the host and report what an apply changes, without
+        applying. Free core (remediation:execute). Not yet implemented; returns
+        501. Spec api-remediation.
       x-required-permission: remediation:execute
-      x-required-feature: remediation_execution
       parameters:
         - name: rid
           in: path
           required: true
           schema: {type: string, format: uuid}
       responses:
-        '402':
-          description: License does not include remediation_execution
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
         '403':
           description: Caller lacks remediation:execute permission
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
         '501':
-          description: Licensed execution body not yet implemented (OpenWatch+ track)
+          description: Dry-run not yet implemented
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
@@ -2029,32 +2022,35 @@ paths:
   /api/v1/remediation/requests/{rid}:execute:
     post:
       operationId: executeRemediation
-      summary: Execute a remediation against the host (OpenWatch+)
+      summary: Execute an approved single-rule remediation (free core)
       description: |
-        Applies the fix (Capture/Apply/Validate/Commit). License-gated:
-        requires remediation:execute AND remediation_execution; returns 402 on
-        the free tier. The execution body is the OpenWatch+ licensed track.
-        Spec api-remediation.
+        Applies the fix on the host (Kensa Capture/Apply/Validate/Commit),
+        queued to the remediation worker. Free core: requires
+        remediation:execute (single-rule manual remediation is not
+        license-gated). The request must be in the 'approved' state; poll
+        GET /requests/{rid} for the executed|failed outcome. Spec api-remediation.
       x-required-permission: remediation:execute
-      x-required-feature: remediation_execution
+      x-audit-events: [remediation.executed]
       parameters:
         - name: rid
           in: path
           required: true
           schema: {type: string, format: uuid}
       responses:
-        '402':
-          description: License does not include remediation_execution
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '202':
+          description: Execution queued; poll GET /requests/{rid} for executed|failed
         '403':
           description: Caller lacks remediation:execute permission
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
-        '501':
-          description: Licensed execution body not yet implemented (OpenWatch+ track)
+        '404':
+          description: Remediation request not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '409':
+          description: Request is not in the approved state
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
@@ -2062,32 +2058,33 @@ paths:
   /api/v1/remediation/requests/{rid}:rollback:
     post:
       operationId: rollbackRemediation
-      summary: Roll back an executed remediation (OpenWatch+)
+      summary: Roll back an executed remediation (free core)
       description: |
-        Restores the captured pre-state. License-gated: requires
-        remediation:rollback AND remediation_execution; returns 402 on the
-        free tier. The execution body is the OpenWatch+ licensed track. Spec
-        api-remediation.
+        Restores the captured pre-state, queued to the remediation worker. Free
+        core: requires remediation:rollback. The request must be in the
+        'executed' state. Spec api-remediation.
       x-required-permission: remediation:rollback
-      x-required-feature: remediation_execution
+      x-audit-events: [remediation.rolled_back]
       parameters:
         - name: rid
           in: path
           required: true
           schema: {type: string, format: uuid}
       responses:
-        '402':
-          description: License does not include remediation_execution
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '202':
+          description: Rollback queued
         '403':
           description: Caller lacks remediation:rollback permission
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
-        '501':
-          description: Licensed execution body not yet implemented (OpenWatch+ track)
+        '404':
+          description: Remediation request not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '409':
+          description: Request is not in the executed state
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}

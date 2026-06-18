@@ -51,6 +51,10 @@ export function useHostRemediations(hostId: string): HostRemediations {
       return data!.requests;
     },
     enabled: !!hostId,
+    // While a fix is mid-flight ('executing'), poll so the row advances
+    // to executed/failed without a manual refresh. Idle otherwise.
+    refetchInterval: (q) =>
+      (q.state.data ?? []).some((r) => r.status === 'executing') ? 4000 : false,
   });
 
   const items = query.data ?? [];

@@ -4,11 +4,11 @@
 // lifecycle invariants (one-open, state guards, separation of duties, the
 // never-touch-a-host invariant) live in the service.
 //
-// The act verbs (:dry-run, :execute, :rollback) are OpenWatch+ licensed: they
-// enforce the dangerous, license-gated remediation:execute / remediation:rollback
-// permission (403 then 402 via the RBAC+license middleware) and, for an entitled
-// caller, report 501 because the host-mutating body is the licensed track
-// (docs/engineering/remediation_licensed_plan.md), not built in the core.
+// The act verbs :execute and :rollback are FREE core (Tier A): they enforce the
+// dangerous-but-ungated remediation:execute / remediation:rollback permission,
+// guard the request's lifecycle state, and enqueue an HMAC-signed remediation
+// job the worker drains (202 Accepted). :dry-run stays 501 (not yet built) but
+// is no longer license-gated.
 //
 // Spec: specs/api/remediation.spec.yaml
 
@@ -23,10 +23,13 @@ import (
 	"github.com/google/uuid"
 	openapitypes "github.com/oapi-codegen/runtime/types"
 
+	"github.com/Hanalyx/openwatch/internal/audit"
 	"github.com/Hanalyx/openwatch/internal/auth"
 	"github.com/Hanalyx/openwatch/internal/host"
+	"github.com/Hanalyx/openwatch/internal/queue"
 	"github.com/Hanalyx/openwatch/internal/remediation"
 	"github.com/Hanalyx/openwatch/internal/server/api"
+	"github.com/Hanalyx/openwatch/internal/worker"
 )
 
 // toAPIRemediation maps a service request to the wire shape.
@@ -292,29 +295,135 @@ func (h *handlers) RejectRemediation(w http.ResponseWriter, r *http.Request, rid
 	h.reviewRemediation(w, r, rid, h.remediationSvc.Reject)
 }
 
-// licensedRemediationAct enforces the dangerous, license-gated permission
-// (403 then 402 via the RBAC+license middleware) and, when the caller is
-// entitled, reports 501: the host-mutating execution body is the OpenWatch+
-// licensed track, not built in the core. Spec api-remediation AC-06.
-func (h *handlers) licensedRemediationAct(w http.ResponseWriter, r *http.Request, perm auth.Permission) {
-	if denied := auth.EnforcePermission(w, r, perm); denied {
+// DryRunRemediation implements api.ServerInterface. Dry-run is not yet built
+// (501); it requires remediation:execute but is no longer license-gated.
+func (h *handlers) DryRunRemediation(w http.ResponseWriter, r *http.Request, _ openapitypes.UUID) {
+	if denied := auth.EnforcePermission(w, r, auth.RemediationExecute); denied {
 		return
 	}
 	writeError(w, http.StatusNotImplemented, "remediation.not_implemented", "server",
-		"remediation execution is an OpenWatch+ feature not yet implemented", false)
+		"remediation dry-run is not yet implemented", false)
 }
 
-// DryRunRemediation implements api.ServerInterface (OpenWatch+ licensed).
-func (h *handlers) DryRunRemediation(w http.ResponseWriter, r *http.Request, _ openapitypes.UUID) {
-	h.licensedRemediationAct(w, r, auth.RemediationExecute)
+// ExecuteRemediation implements api.ServerInterface (FREE core, Tier A).
+// Requires remediation:execute. The request must be in 'approved' state (409
+// otherwise). Enqueues an HMAC-signed remediation job (202 Accepted); the
+// worker applies the rule, records the journal, transitions executed|failed,
+// and flips the rule to pass on a committed run. Spec api-remediation AC-06.
+func (h *handlers) ExecuteRemediation(w http.ResponseWriter, r *http.Request, rid openapitypes.UUID) {
+	if denied := auth.EnforcePermission(w, r, auth.RemediationExecute); denied {
+		return
+	}
+	if !h.remediationSvcReady(w) {
+		return
+	}
+	if h.scanQueueKey == nil {
+		writeError(w, http.StatusServiceUnavailable, "server.unavailable", "server",
+			"remediation queue not wired", true)
+		return
+	}
+	ctx := r.Context()
+	rq, err := h.remediationSvc.Get(ctx, uuid.UUID(rid))
+	if mapRemediationErr(w, err) {
+		return
+	}
+	if rq.Status != remediation.StatusApproved {
+		writeError(w, http.StatusConflict, "remediation.wrong_state", "client",
+			"only an approved request can be executed", false)
+		return
+	}
+
+	body := worker.MarshalRemediationJob(h.scanQueueKey, worker.RemediationPayload{
+		RequestID: rq.ID,
+		HostID:    rq.HostID,
+		RuleID:    rq.RuleID,
+		Action:    worker.RemediationActionExecute,
+	})
+	jobID, err := queue.Enqueue(ctx, h.pool, worker.RemediationJobType, body)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "server.error", "server",
+			"enqueue failed", true)
+		return
+	}
+	h.emitRemediationActQueued(ctx, r, rq, worker.RemediationActionExecute, jobID)
+	h.writeRemediationAccepted(w, rq, jobID)
 }
 
-// ExecuteRemediation implements api.ServerInterface (OpenWatch+ licensed).
-func (h *handlers) ExecuteRemediation(w http.ResponseWriter, r *http.Request, _ openapitypes.UUID) {
-	h.licensedRemediationAct(w, r, auth.RemediationExecute)
+// RollbackRemediation implements api.ServerInterface (FREE core, Tier A).
+// Requires remediation:rollback. The request must be in 'executed' state (409
+// otherwise). Enqueues a rollback job (202 Accepted). Spec api-remediation AC-06.
+func (h *handlers) RollbackRemediation(w http.ResponseWriter, r *http.Request, rid openapitypes.UUID) {
+	if denied := auth.EnforcePermission(w, r, auth.RemediationRollback); denied {
+		return
+	}
+	if !h.remediationSvcReady(w) {
+		return
+	}
+	if h.scanQueueKey == nil {
+		writeError(w, http.StatusServiceUnavailable, "server.unavailable", "server",
+			"remediation queue not wired", true)
+		return
+	}
+	ctx := r.Context()
+	rq, err := h.remediationSvc.Get(ctx, uuid.UUID(rid))
+	if mapRemediationErr(w, err) {
+		return
+	}
+	if rq.Status != remediation.StatusExecuted {
+		writeError(w, http.StatusConflict, "remediation.wrong_state", "client",
+			"only an executed request can be rolled back", false)
+		return
+	}
+
+	body := worker.MarshalRemediationJob(h.scanQueueKey, worker.RemediationPayload{
+		RequestID: rq.ID,
+		HostID:    rq.HostID,
+		RuleID:    rq.RuleID,
+		Action:    worker.RemediationActionRollback,
+	})
+	jobID, err := queue.Enqueue(ctx, h.pool, worker.RemediationJobType, body)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "server.error", "server",
+			"enqueue failed", true)
+		return
+	}
+	h.emitRemediationActQueued(ctx, r, rq, worker.RemediationActionRollback, jobID)
+	h.writeRemediationAccepted(w, rq, jobID)
 }
 
-// RollbackRemediation implements api.ServerInterface (OpenWatch+ licensed).
-func (h *handlers) RollbackRemediation(w http.ResponseWriter, r *http.Request, _ openapitypes.UUID) {
-	h.licensedRemediationAct(w, r, auth.RemediationRollback)
+// writeRemediationAccepted writes the 202 envelope for a queued act. The body
+// echoes the request id + the enqueued job id so the client can poll.
+func (h *handlers) writeRemediationAccepted(w http.ResponseWriter, rq remediation.Request, jobID uuid.UUID) {
+	writeJSON(w, http.StatusAccepted, map[string]any{
+		"request_id": rq.ID.String(),
+		"job_id":     jobID.String(),
+		"status":     "queued",
+	})
+}
+
+// emitRemediationActQueued records who asked for an execute/rollback, from
+// where. The terminal remediation.executed / remediation.rolled_back audit
+// follows from the worker once the job completes.
+func (h *handlers) emitRemediationActQueued(ctx context.Context, r *http.Request,
+	rq remediation.Request, action string, jobID uuid.UUID) {
+	ident := auth.FromContext(r.Context())
+	detail, _ := json.Marshal(map[string]string{
+		"request_id": rq.ID.String(),
+		"host_id":    rq.HostID.String(),
+		"rule_id":    rq.RuleID,
+		"action":     action,
+		"job_id":     jobID.String(),
+		"outcome":    "queued",
+	})
+	code := audit.RemediationExecuted
+	if action == worker.RemediationActionRollback {
+		code = audit.RemediationRolledBack
+	}
+	audit.Emit(ctx, code, audit.Event{
+		ActorType:    "user",
+		ActorID:      ident.ID,
+		ResourceType: "remediation_request",
+		ResourceID:   rq.ID.String(),
+		Detail:       detail,
+	})
 }

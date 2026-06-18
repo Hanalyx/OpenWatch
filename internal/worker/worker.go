@@ -53,6 +53,7 @@ type Worker struct {
 	wg          sync.WaitGroup
 	discovery   HostDiscoveryRunner
 	scanProc    *ScanWorker
+	remProc     *RemediationWorker
 	concurrency int
 }
 
@@ -99,6 +100,15 @@ func (w *Worker) WithDiscovery(d HostDiscoveryRunner) *Worker {
 // wins). Spec api-host-scan / system-scan-runs.
 func (w *Worker) WithScanProcessor(sw *ScanWorker) *Worker {
 	w.scanProc = sw
+	return w
+}
+
+// WithRemediationProcessor registers a RemediationWorker whose ProcessJob
+// handles "remediation" jobs claimed by THIS worker's loop. Like scan jobs,
+// queue.Dequeue is not type-filtered, so the in-process worker must route
+// remediation jobs rather than fail them as unsupported. Spec api-remediation.
+func (w *Worker) WithRemediationProcessor(rw *RemediationWorker) *Worker {
+	w.remProc = rw
 	return w
 }
 
@@ -187,6 +197,12 @@ func (w *Worker) process(ctx context.Context, j *queue.Job) {
 			return
 		}
 		w.scanProc.ProcessJob(ctx, j)
+	case RemediationJobType:
+		if w.remProc == nil {
+			_ = queue.Fail(ctx, w.pool, j.ID, "remediation processor not registered on this worker")
+			return
+		}
+		w.remProc.ProcessJob(ctx, j)
 	default:
 		_ = queue.Fail(ctx, w.pool, j.ID, "unsupported job_type for Stage 0 worker: "+j.JobType)
 	}

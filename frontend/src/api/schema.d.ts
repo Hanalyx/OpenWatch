@@ -339,7 +339,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Stage-0 RBAC+license demo; requires remediation:execute + remediation_execution feature */
+        /** Stage-0 RBAC+license demo; requires remediation:execute (RBAC) + premium_diagnostics (license) */
         post: operations["postDiagnosticsRequireRemediationExecute"];
         delete?: never;
         options?: never;
@@ -1312,11 +1312,10 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Dry-run a remediation (OpenWatch+)
-         * @description Connects to the host and reports what would change without applying.
-         *     License-gated: requires remediation:execute AND the
-         *     remediation_execution feature; returns 402 on the free tier. The
-         *     execution body is the OpenWatch+ licensed track. Spec api-remediation.
+         * Dry-run a remediation (preview)
+         * @description Would connect to the host and report what an apply changes, without
+         *     applying. Free core (remediation:execute). Not yet implemented; returns
+         *     501. Spec api-remediation.
          */
         post: operations["dryRunRemediation"];
         delete?: never;
@@ -1335,11 +1334,12 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Execute a remediation against the host (OpenWatch+)
-         * @description Applies the fix (Capture/Apply/Validate/Commit). License-gated:
-         *     requires remediation:execute AND remediation_execution; returns 402 on
-         *     the free tier. The execution body is the OpenWatch+ licensed track.
-         *     Spec api-remediation.
+         * Execute an approved single-rule remediation (free core)
+         * @description Applies the fix on the host (Kensa Capture/Apply/Validate/Commit),
+         *     queued to the remediation worker. Free core: requires
+         *     remediation:execute (single-rule manual remediation is not
+         *     license-gated). The request must be in the 'approved' state; poll
+         *     GET /requests/{rid} for the executed|failed outcome. Spec api-remediation.
          */
         post: operations["executeRemediation"];
         delete?: never;
@@ -1358,11 +1358,10 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Roll back an executed remediation (OpenWatch+)
-         * @description Restores the captured pre-state. License-gated: requires
-         *     remediation:rollback AND remediation_execution; returns 402 on the
-         *     free tier. The execution body is the OpenWatch+ licensed track. Spec
-         *     api-remediation.
+         * Roll back an executed remediation (free core)
+         * @description Restores the captured pre-state, queued to the remediation worker. Free
+         *     core: requires remediation:rollback. The request must be in the
+         *     'executed' state. Spec api-remediation.
          */
         post: operations["rollbackRemediation"];
         delete?: never;
@@ -6744,15 +6743,6 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description License does not include remediation_execution */
-            402: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
             /** @description Caller lacks remediation:execute permission */
             403: {
                 headers: {
@@ -6762,7 +6752,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Licensed execution body not yet implemented (OpenWatch+ track) */
+            /** @description Dry-run not yet implemented */
             501: {
                 headers: {
                     [name: string]: unknown;
@@ -6784,14 +6774,12 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description License does not include remediation_execution */
-            402: {
+            /** @description Execution queued; poll GET /requests/{rid} for executed|failed */
+            202: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
+                content?: never;
             };
             /** @description Caller lacks remediation:execute permission */
             403: {
@@ -6802,8 +6790,17 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Licensed execution body not yet implemented (OpenWatch+ track) */
-            501: {
+            /** @description Remediation request not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Request is not in the approved state */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -6824,14 +6821,12 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description License does not include remediation_execution */
-            402: {
+            /** @description Rollback queued */
+            202: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
+                content?: never;
             };
             /** @description Caller lacks remediation:rollback permission */
             403: {
@@ -6842,8 +6837,17 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Licensed execution body not yet implemented (OpenWatch+ track) */
-            501: {
+            /** @description Remediation request not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Request is not in the executed state */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

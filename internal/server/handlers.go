@@ -576,6 +576,13 @@ func (h *handlers) PostDiagnosticsRequireRemediationExecute(w http.ResponseWrite
 	if denied := auth.EnforcePermission(w, r, auth.RemediationExecute); denied {
 		return
 	}
+	// Stage-0 walking-skeleton demo of the RBAC-then-license ordering. Since
+	// remediation:execute became free core (single-rule manual remediation is
+	// no longer license_gated), this demo gates on premium_diagnostics to keep
+	// exercising the "RBAC passes, license fails" path (system-rbac AC-10).
+	if denied := license.EnforceFeature(w, r, license.PremiumDiagnostics); denied {
+		return
+	}
 	requireDiagnosticEcho(w, r, h.pool, "diagnostics:require-remediation-execute")
 }
 

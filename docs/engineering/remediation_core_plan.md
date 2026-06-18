@@ -55,6 +55,24 @@ of that line. The paid side is the companion doc.
 > engine lives in-core (AGPL); the open-core "separate plugin" option applies
 > only to the bulk/auto engine.
 
+> **Execution status (2026-06-18): implemented, blocked on a Kensa packaging
+> gap.** The full execute path is built and tested — apply-enabled SSH transport,
+> `kensa.Remediate`/`Rollback` wiring (`internal/kensa/remediatefunc.go`), a
+> queued remediation worker (`internal/worker/remediation_worker.go`), the
+> `:execute`/`:rollback` handlers, and the lifecycle-aware **Fix** button. A live
+> test proved the request flows end to end into Kensa's engine. It then fails at
+> preflight: **`mechanism "file_permissions" is not registered`**. kensa v0.5.0
+> keeps its apply handlers in `kensa/internal/handlers/*`, registered only via
+> blank imports that are internal to the kensa module; Go forbids an external
+> module (OpenWatch) from importing them, and kensa v0.5.0 exposes no public
+> handler-registration package. So `Kensa.Remediate` cannot succeed from an
+> external consumer. **Resolution is Kensa-side**: a public, blank-importable
+> handler bundle (e.g. `github.com/Hanalyx/kensa/handlers`) or have
+> `DefaultWithTransportFactory` register them. Until then the engine fails
+> gracefully (the request shows "Remediation engine unavailable in this build…"
+> and **no host is changed** — the failure is before any apply). When kensa ships
+> the public bundle, OpenWatch needs only a version bump.
+
 The free tier is a complete **see-and-govern** loop: an operator can discover
 what is fixable, understand the projected compliance-score impact, request the
 fix, route it through approval, and audit every fix that was applied. The one

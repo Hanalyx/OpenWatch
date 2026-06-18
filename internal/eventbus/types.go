@@ -49,6 +49,14 @@ const (
 	// compliance surfaces without polling. Spec api-host-scan /
 	// system-scan-runs.
 	EventKindScanCompleted EventKind = "scan.completed"
+
+	// EventKindRemediationCompleted is emitted by the remediation worker
+	// once a queued remediation execute/rollback finishes (the request
+	// reached a terminal state and, on a committed execute, the rule was
+	// flipped to pass in host_rule_state). SSE subscribers refresh the
+	// remediation queue + host compliance surfaces without polling.
+	// Spec api-remediation.
+	EventKindRemediationCompleted EventKind = "remediation.completed"
 )
 
 // AllEventKinds is the closed set, in registration order. Spec AC-07's
@@ -61,6 +69,7 @@ var AllEventKinds = []EventKind{
 	EventKindHostDiscovered,
 	EventKindIntelligenceEvent,
 	EventKindScanCompleted,
+	EventKindRemediationCompleted,
 }
 
 // Event is the contract every bus event satisfies. Implementations are
@@ -225,6 +234,26 @@ func (s ScanCompleted) Kind() EventKind { return EventKindScanCompleted }
 
 // Timestamp satisfies Event.
 func (s ScanCompleted) Timestamp() time.Time { return s.CompletedAt }
+
+// RemediationCompleted is fired by the remediation worker once a queued
+// execute or rollback finishes. Action distinguishes the two; FinalStatus is
+// the request's terminal lifecycle state (executed | failed | rolled_back);
+// RuleFlipped is true when a committed execute flipped the rule to pass.
+type RemediationCompleted struct {
+	RequestID   uuid.UUID
+	HostID      uuid.UUID
+	RuleID      string
+	Action      string // "execute" | "rollback"
+	FinalStatus string // executed | failed | rolled_back
+	RuleFlipped bool
+	CompletedAt time.Time
+}
+
+// Kind satisfies Event.
+func (r RemediationCompleted) Kind() EventKind { return EventKindRemediationCompleted }
+
+// Timestamp satisfies Event.
+func (r RemediationCompleted) Timestamp() time.Time { return r.CompletedAt }
 
 // DefaultBufferSize is the per-subscriber channel buffer when
 // SubscribeOptions.BufferSize is zero. Spec C-04.

@@ -71,7 +71,7 @@ type Request struct {
 }
 
 // Step is one remediation_transactions row (the per-step Kensa journal).
-// Written only by the licensed execute path; empty in the free build.
+// Written by the execute path; empty until a request is executed.
 type Step struct {
 	ID          uuid.UUID
 	RuleID      string
@@ -80,6 +80,31 @@ type Step struct {
 	DryRun      bool
 	AppliedAt   *time.Time
 }
+
+// ExecTxn is a neutral, kensa-free view of one Kensa remediation transaction
+// outcome. The worker maps kensa.RemediationTxn into this shape before calling
+// RecordExecution, so internal/remediation never imports internal/kensa (which
+// would create an import cycle: kensa -> credential -> ... and the worker
+// already depends on both).
+type ExecTxn struct {
+	// TxnID is the Kensa transaction id (the rollback handle). Stored as
+	// remediation_transactions.kensa_txn_id.
+	TxnID uuid.UUID
+	// Status is the per-transaction outcome: committed | rolled_back |
+	// partially_applied | errored. Mapped to the phase_result CHECK enum
+	// (committed | rolled_back | skipped) for the journal row.
+	Status string
+	// Evidence is the signed evidence envelope (or a summary), stored in the
+	// remediation_transactions.evidence JSONB column.
+	Evidence []byte
+	// Err is the transaction error string, empty on success.
+	Err string
+}
+
+// TxnCommitted reports whether s is the terminal "rule now passes" status.
+// Kensa runs Validate before Commit, so a committed transaction means the
+// rule's check passed on the host.
+func (t ExecTxn) Committed() bool { return t.Status == "committed" }
 
 var (
 	// ErrNotFound is returned when a remediation request id does not exist.

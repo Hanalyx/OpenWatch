@@ -4,20 +4,19 @@
 // internal/remediation.
 //
 //	AC-05  TestAPI_Remediation_LifecycleAndRBAC
-//	AC-06  TestAPI_Remediation_LicenseGate
+//	AC-06  TestAPI_Remediation_ExecuteFreeCore
 package server
 
 import (
+	"context"
 	"encoding/json"
-	"io"
 	"net/http"
-	"strings"
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/Hanalyx/openwatch/internal/auth"
-	"github.com/Hanalyx/openwatch/internal/license"
 )
 
 type apiRem struct {
@@ -156,16 +155,18 @@ func TestAPI_Remediation_LifecycleAndRBAC(t *testing.T) {
 }
 
 // @ac AC-06
-// AC-06: the license gate on the act verbs. ops_lead lacks remediation:execute
-// (403, RBAC fails first); security_admin has it but the free tier lacks
-// remediation_execution (402 license.feature_unavailable); once the feature is
-// licensed the gate opens and the not-yet-built body reports 501.
-func TestAPI_Remediation_LicenseGate(t *testing.T) {
+// AC-06: execute/rollback are FREE core (no license). A holder of
+// remediation:execute executing an APPROVED request gets 202 and enqueues a
+// remediation job; a caller lacking remediation:execute is 403; executing a
+// non-approved (pending) request is 409; rolling back a non-executed request
+// is 409. No act endpoint returns 402.
+func TestAPI_Remediation_ExecuteFreeCore(t *testing.T) {
 	t.Run("api-remediation/AC-06", func(t *testing.T) {
 		url, pool := freshAPIServer(t)
 		hostID := seedHostForIntel(t, pool)
 		base := url + "/api/v1/remediation/requests"
 
+		// ops_lead requests; security_admin approves (separation of duties).
 		or := doReq(t, asRole(t, "POST", base, auth.RoleOpsLead,
 			map[string]any{"host_id": hostID.String(), "rule_id": "rule-x"}))
 		var created apiRem
@@ -173,34 +174,65 @@ func TestAPI_Remediation_LicenseGate(t *testing.T) {
 		or.Body.Close()
 		execURL := base + "/" + created.ID + ":execute"
 
-		// ops_lead lacks remediation:execute -> 403 (RBAC fails before license).
-		o := doReq(t, asRole(t, "POST", execURL, auth.RoleOpsLead, map[string]any{}))
+		// viewer has remediation:read but NOT remediation:execute -> 403 (RBAC).
+		o := doReq(t, asRole(t, "POST", execURL, auth.RoleViewer, map[string]any{}))
 		o.Body.Close()
 		if o.StatusCode != http.StatusForbidden {
-			t.Fatalf("ops_lead execute status = %d, want 403", o.StatusCode)
+			t.Fatalf("viewer execute status = %d, want 403", o.StatusCode)
 		}
 
-		// security_admin has the perm; free tier -> 402 license.feature_unavailable.
-		f := doReq(t, asRole(t, "POST", execURL, auth.RoleSecurityAdmin, map[string]any{}))
-		body, _ := io.ReadAll(f.Body)
-		f.Body.Close()
-		if f.StatusCode != http.StatusPaymentRequired {
-			t.Fatalf("free-tier execute status = %d, want 402; body=%s", f.StatusCode, body)
-		}
-		if !strings.Contains(string(body), "license.feature_unavailable") {
-			t.Errorf("402 body lacks license.feature_unavailable: %s", body)
+		// security_admin has the perm, but the request is still pending
+		// (not approved) -> 409 wrong_state. NOT 402.
+		pre := doReq(t, asRole(t, "POST", execURL, auth.RoleSecurityAdmin, map[string]any{}))
+		pre.Body.Close()
+		if pre.StatusCode != http.StatusConflict {
+			t.Fatalf("execute-before-approve status = %d, want 409", pre.StatusCode)
 		}
 
-		// With remediation_execution licensed, the gate opens; the core does
-		// not implement the host-mutating body -> 501.
-		if _, err := license.LoadJWT(mintTestLicenseJWT(t, []string{"remediation_execution"}), license.VerifyOptions{}); err != nil {
-			t.Fatalf("load license: %v", err)
+		// Approve it (security_admin != ops_lead requester).
+		ap := doReq(t, asRole(t, "POST", base+"/"+created.ID+":approve",
+			auth.RoleSecurityAdmin, map[string]any{"note": "ok"}))
+		ap.Body.Close()
+		if ap.StatusCode != http.StatusOK {
+			t.Fatalf("approve status = %d, want 200", ap.StatusCode)
 		}
-		t.Cleanup(license.Reset)
-		l := doReq(t, asRole(t, "POST", execURL, auth.RoleSecurityAdmin, map[string]any{}))
-		l.Body.Close()
-		if l.StatusCode != http.StatusNotImplemented {
-			t.Errorf("licensed execute status = %d, want 501", l.StatusCode)
+
+		// Now execute -> 202 Accepted, a remediation job enqueued.
+		ex := doReq(t, asRole(t, "POST", execURL, auth.RoleSecurityAdmin, map[string]any{}))
+		var acc struct {
+			RequestID string `json:"request_id"`
+			JobID     string `json:"job_id"`
+			Status    string `json:"status"`
+		}
+		_ = json.NewDecoder(ex.Body).Decode(&acc)
+		ex.Body.Close()
+		if ex.StatusCode != http.StatusAccepted {
+			t.Fatalf("execute status = %d, want 202", ex.StatusCode)
+		}
+		if acc.Status != "queued" || acc.JobID == "" {
+			t.Errorf("execute body = %+v, want queued + job_id", acc)
+		}
+		if n := countRemediationJobs(t, pool); n != 1 {
+			t.Errorf("enqueued remediation jobs = %d, want 1", n)
+		}
+
+		// rollback on a not-executed request -> 409 (still approved/executing).
+		rb := doReq(t, asRole(t, "POST", base+"/"+created.ID+":rollback",
+			auth.RoleSecurityAdmin, map[string]any{}))
+		rb.Body.Close()
+		if rb.StatusCode != http.StatusConflict {
+			t.Errorf("rollback-before-execute status = %d, want 409", rb.StatusCode)
 		}
 	})
+}
+
+// countRemediationJobs counts pending remediation jobs on the queue.
+func countRemediationJobs(t *testing.T, pool *pgxpool.Pool) int {
+	t.Helper()
+	var n int
+	if err := pool.QueryRow(context.Background(),
+		`SELECT count(*) FROM job_queue WHERE job_type = 'remediation'`).Scan(&n); err != nil {
+		t.Fatalf("count remediation jobs: %v", err)
+	}
+	return n
 }

@@ -199,6 +199,16 @@ func (s *Server) WithScanWorker(sw *worker.ScanWorker) *Server {
 	return s
 }
 
+// WithRemediationWorker registers the remediation processor on the in-process
+// job worker, so "remediation" jobs claimed by the serve process execute
+// instead of dead-ending. Spec api-remediation.
+func (s *Server) WithRemediationWorker(rw *worker.RemediationWorker) *Server {
+	if s.wkr != nil {
+		s.wkr.WithRemediationProcessor(rw)
+	}
+	return s
+}
+
 // New constructs a Server from validated config and DB pool. The returned
 // Server has the foundation middleware chain mounted (correlation first,
 // then idempotency) and the Stage-0 API routes generated from

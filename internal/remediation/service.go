@@ -334,6 +334,29 @@ func frameworkClass(fwID string) string {
 func round2(f float64) float64  { return math.Round(f*100) / 100 }
 func f64ptr(f float64) *float64 { return &f }
 
+// Audit-code aliases for the execution path (execution.go). Kept here next to
+// emitEvent so the audit import stays in one file's mental model.
+const (
+	auditRemediationExecuted   = audit.RemediationExecuted
+	auditRemediationRolledBack = audit.RemediationRolledBack
+)
+
+// emitAudit records one remediation.* audit row with a caller-supplied detail
+// payload (the execution path builds richer detail than emitEvent's fixed
+// shape). actor is the user who invoked the action.
+func (s *Service) emitAudit(ctx context.Context, code audit.Code, rq Request, actor uuid.UUID, detail []byte) {
+	if s.emit == nil {
+		return
+	}
+	s.emit(ctx, code, audit.Event{
+		ActorType:    "user",
+		ActorID:      actor.String(),
+		ResourceType: "remediation_request",
+		ResourceID:   rq.ID.String(),
+		Detail:       detail,
+	})
+}
+
 // emitEvent records one remediation.* audit row. actor is the
 // requester/reviewer.
 func (s *Service) emitEvent(ctx context.Context, code audit.Code, rq Request, actor uuid.UUID, outcome string) {

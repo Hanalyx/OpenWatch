@@ -80,6 +80,7 @@ type ScanWorker struct {
 	queueKey    []byte
 	bus         *eventbus.Bus      // nil = no scan.completed publication (dedicated worker process)
 	sched       *scheduler.Service // nil = no post-scan schedule update (legacy tests)
+	remProc     *RemediationWorker // nil = "remediation" jobs fail (legacy tests)
 
 	pollInterval time.Duration
 
@@ -129,6 +130,12 @@ type Config struct {
 	// schedule on completion.
 	Sched *scheduler.Service
 
+	// RemediationProcessor, when non-nil, handles "remediation" job_type
+	// rows this worker claims. queue.Dequeue is not type-filtered, so the
+	// dedicated worker subcommand routes remediation jobs to it rather than
+	// dead-lettering them. Spec api-remediation.
+	RemediationProcessor *RemediationWorker
+
 	// clock allows tests to inject a controllable time source.
 	// Production passes time.Now.
 	Clock func() time.Time
@@ -157,6 +164,7 @@ func NewScanWorker(cfg Config) *ScanWorker {
 		queueKey:     cfg.QueueKey,
 		bus:          cfg.Bus,
 		sched:        cfg.Sched,
+		remProc:      cfg.RemediationProcessor,
 		pollInterval: cfg.PollInterval,
 		clock:        cfg.Clock,
 		emit:         cfg.Emit,
@@ -241,8 +249,18 @@ func (w *ScanWorker) ProcessJob(ctx context.Context, j *queue.Job) {
 		}
 	}()
 
-	// Non-scan jobs land on the wrong worker. Fail fast — no executor
-	// invocation, no advisory lock.
+	// Dispatch by job type: this one worker drains the queue (queue.Dequeue
+	// is not type-filtered) and routes by JobType. Remediation jobs go to the
+	// remediation processor when wired; anything else that isn't a scan fails
+	// fast — no executor invocation, no advisory lock.
+	if j.JobType == RemediationJobType {
+		if w.remProc == nil {
+			_ = queue.Fail(ctx, w.pool, j.ID, "remediation processor not registered on this worker")
+			return
+		}
+		w.remProc.ProcessJob(ctx, j)
+		return
+	}
 	if j.JobType != ScanJobType {
 		_ = queue.Fail(ctx, w.pool, j.ID, fmt.Sprintf("unsupported job_type %q (scan worker)", j.JobType))
 		return

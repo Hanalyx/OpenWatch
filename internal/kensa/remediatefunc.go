@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	kensaapi "github.com/Hanalyx/kensa/api"
@@ -193,11 +194,25 @@ func mapTxns(in []kensaapi.TransactionResult) []RemediationTxn {
 			Evidence: txnEvidence(t),
 		}
 		if t.Error != nil {
-			txn.Err = t.Error.Error()
+			txn.Err = friendlyTxnErr(t.Error.Error())
 		}
 		out = append(out, txn)
 	}
 	return out
+}
+
+// friendlyTxnErr translates kensa's internal preflight error
+// (`mechanism "X" is not registered`) into an operator-facing message. kensa
+// v0.5.0 keeps its apply-mechanism handlers in internal/handlers/* and registers
+// them only via internal blank imports, so an external Go consumer (OpenWatch)
+// cannot register them and Remediate fails preflight before any host change.
+// Tracked upstream; lifts with a kensa release that exposes a public handler
+// bundle. See docs/engineering/remediation_core_plan.md.
+func friendlyTxnErr(raw string) string {
+	if strings.Contains(raw, "not registered") {
+		return "Remediation engine unavailable in this build: the bundled Kensa version does not register host-mutation handlers for external callers (kensa v0.5.0 limitation). No host change was attempted."
+	}
+	return raw
 }
 
 // txnEvidence marshals the signed evidence envelope (or a transaction

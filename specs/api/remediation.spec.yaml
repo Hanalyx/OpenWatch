@@ -1,20 +1,23 @@
 spec:
   id: api-remediation
-  title: Remediation governance - request/approve lifecycle + projected lift (OpenWatch Core, free)
-  version: "1.0.0"
+  title: Remediation governance - request/approve lifecycle, projected lift, and queued single-rule execute/rollback (OpenWatch Core, free)
+  version: "1.1.0"
   status: approved
   tier: 1
 
   context:
     system: openwatch-go
     feature: >
-      The free (AGPLv3 core) half of Phase 7 remediation: a see-and-govern
+      The free (AGPLv3 core) Phase 7 remediation surface: a see-govern-and-act
       loop over failing rules. Operators view what is remediable and the
-      projected compliance-score lift, request a fix, and route it through
-      approval. The act of mutating a host (dry-run / execute / rollback) is
-      the OpenWatch+ licensed track and is NOT in this spec - those endpoints
-      are gated by the remediation_execution license feature and return 402
-      without it.
+      projected compliance-score lift, request a fix, route it through
+      approval, then EXECUTE the approved single-rule fix (Tier A free core):
+      an HMAC-signed remediation job is enqueued and a worker applies the rule
+      on the host via Kensa (Capture/Apply/Validate/Commit), records the
+      per-step journal, and flips the rule to pass in host_rule_state on a
+      committed run. A previously executed request can be ROLLED BACK. execute
+      and rollback are FREE (remediation:execute / remediation:rollback, no
+      license). Only :dry-run remains unbuilt (501).
     description: >
       A remediation request is an operator's intent to fix a failing rule on a
       host ("apply the fix for rule X on host Y"). It carries a request ->
@@ -24,15 +27,28 @@ spec:
       Reject are pure state transitions over remediation_requests, and
       ProjectLift is a read-only projection over host_rule_state.
 
-      OPEN-CORE BOUNDARY (load-bearing): read (remediation:read), request
-      (remediation:request), and approve/reject (remediation:approve) are free.
-      dry-run/execute/rollback require BOTH the dangerous remediation:execute /
-      remediation:rollback permission AND the remediation_execution license
-      feature; without the license the gate returns 402
-      license.feature_unavailable. The free build wires the gate; the execution
-      body is the licensed track (remediation_licensed_plan.md).
+      OPEN-CORE BOUNDARY: read (remediation:read), request
+      (remediation:request), approve/reject (remediation:approve), and the act
+      verbs execute (remediation:execute) and rollback (remediation:rollback)
+      are ALL free core. execute/rollback enforce their dangerous-but-ungated
+      permission (no license feature); a caller lacking the permission is 403.
+      Only :dry-run remains unbuilt and returns 501 (no license gate).
 
-      Lifecycle: pending_approval -> approved | rejected. Separation of duties:
+      Execute/rollback are asynchronous and mirror the scan job path: the
+      handler guards the request's state, enqueues an HMAC-signed remediation
+      job on the PostgreSQL job queue (signed with the same queue key as scans,
+      domain-separated), and returns 202 Accepted. One worker drains the queue
+      and dispatches by job_type ("scan" vs "remediation"). The worker
+      transitions approved -> executing -> executed | failed (execute) or
+      executed -> rolled_back (rollback), writes the remediation_transactions
+      journal, and on a committed execute flips THAT one rule to pass in
+      host_rule_state via the transaction-log writer (Kensa's Validate runs
+      before Commit, so the rule passes - no full re-scan), so the compliance
+      score moves. It then emits remediation.executed / remediation.rolled_back
+      and publishes remediation.completed on the event bus.
+
+      Lifecycle: pending_approval -> approved | rejected -> executing ->
+      executed | failed -> rolled_back. Separation of duties:
       the requester cannot review their own request (enforced in the service,
       on top of the distinct remediation:request vs remediation:approve RBAC
       permissions).
@@ -60,13 +76,14 @@ spec:
       includes:
         - remediation_requests + remediation_transactions tables (migration 0037)
         - The free lifecycle service - Request / Approve / Reject / Get / ListRequests / ListSteps / ProjectLift
+        - The execution service methods - MarkExecuting / RecordExecution / MarkRolledBack + the remediation_transactions journal
         - The free HTTP endpoints (list, get, request, approve, reject, steps, audit-events)
-        - The license gate on the act endpoints (:dry-run, :execute, :rollback) returning 402 without remediation_execution
+        - The queued single-rule execute/rollback (Tier A free core) - HMAC-signed remediation job, worker dispatch by job_type, host_rule_state flip-to-pass on a committed run
       excludes:
-        - The act of mutating a host - dry-run / execute / rollback bodies (OpenWatch+ licensed track)
+        - :dry-run (returns 501, not yet built; no longer license-gated)
         - The fleet auto-remediation policy engine (remediation_auto, licensed)
         - Bulk / grouped remediation and Kensa rule ordering (blocked on a Kensa ratification)
-        - Score recomputation (ProjectLift is an estimate, it does not change the stored score)
+        - Full re-scan after a remediation (only the single remediated rule is flipped to pass)
 
   constraints:
     - id: C-01
@@ -90,8 +107,12 @@ spec:
       type: security
       enforcement: error
     - id: C-06
-      description: 'License gate (open-core boundary): the act endpoints :dry-run, :execute, :rollback require the remediation_execution license feature; without it the gate returns 402 license.feature_unavailable. read/request/approve/reject carry no license requirement and succeed on the free tier. The gate is enforced via the RBAC+license middleware (remediation:execute / remediation:rollback are license_gated to remediation_execution)'
+      description: 'Execute/rollback are FREE core (Tier A), NOT license-gated. :execute requires remediation:execute; the request must be in approved state (409 otherwise); the handler enqueues an HMAC-signed remediation job (signed with the same queue key as scans, domain-separated) and returns 202. :rollback requires remediation:rollback; the request must be in executed state (409 otherwise); it enqueues a rollback job and returns 202. A caller lacking the permission is 403 (RBAC). :dry-run requires remediation:execute and returns 501 (unbuilt), no license gate. No remediation act endpoint returns 402.'
       type: security
+      enforcement: error
+    - id: C-08
+      description: 'The worker drains ONE queue and dispatches by job_type. A remediation job HMAC-verifies its payload (request_id, host_id, rule_id, action, optional txn_id) before any host-mutating side effect; a missing/mismatched tag dead-letters the job (queue.Fail) and emits scheduler.job.hmac_rejected, with no executor call. The worker transitions approved -> executing (MarkExecuting, row-locked) -> executed | failed (RecordExecution), writes the remediation_transactions journal, and on a committed transaction flips that one rule to pass in host_rule_state via the transaction-log writer (idempotent on the request id as synthetic scan id). Rollback transitions executed -> rolled_back only on a clean restore. The worker emits remediation.executed / remediation.rolled_back and publishes remediation.completed on the event bus.'
+      type: technical
       enforcement: error
     - id: C-07
       description: 'ProjectLift is read-only and best-effort: for a failing rule it returns per-framework projected score deltas derived from host_rule_state.framework_refs (delta ~= 100/N where N is the count of that framework''s rules on the host); when framework data is absent or unparseable it returns an empty projection and never errors or blocks the request'
@@ -120,6 +141,10 @@ spec:
       priority: critical
       references_constraints: [C-05, C-03]
     - id: AC-06
-      description: 'License gate: on the free tier (no remediation_execution feature) POST /requests/{id}:dry-run, :execute, :rollback return 402 license.feature_unavailable, while POST /requests (request), :approve, :reject and the GET reads return their normal status codes. A caller lacking remediation:execute is 403 before the license check (RBAC fails first)'
+      description: 'Execute/rollback are FREE core: a caller WITH remediation:execute executing an approved request gets 202 and a remediation job is enqueued; a caller LACKING remediation:execute is 403; executing a non-approved request is 409; rolling back (remediation:rollback) a non-executed request is 409. No remediation act endpoint returns 402. :dry-run returns 501. request/approve/reject and the GET reads return their normal status codes.'
       priority: critical
       references_constraints: [C-06]
+    - id: AC-07
+      description: 'Worker execution path: a queued remediation job with a valid HMAC drives an approved request approved -> executing -> executed when the executor returns a committed transaction, writes a remediation_transactions journal row (kensa_txn_id, phase_result=committed), and flips the rule to pass in host_rule_state (the compliance score moves). A committed run that the executor reports as errored, or a host-side failure, transitions the request to failed and writes no flip. A job whose payload HMAC does not verify is dead-lettered (queue.Fail) with scheduler.job.hmac_rejected and no executor invocation.'
+      priority: critical
+      references_constraints: [C-08]
