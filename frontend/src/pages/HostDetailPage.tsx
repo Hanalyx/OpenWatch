@@ -1353,7 +1353,17 @@ function RemediationRowAction({
       });
       if (error || !response.ok) {
         if (response.status === 409) {
-          throw new Error('This request already changed state.');
+          // The backend distinguishes the two 409 reasons by code: a
+          // separation-of-duties block (you requested it) versus the row
+          // having already been actioned by someone else. Surface the real
+          // one rather than a single blanket message.
+          const code = (error as { error?: { code?: string } } | undefined)?.error?.code;
+          if (code === 'remediation.self_review') {
+            throw new Error(
+              'You cannot approve or reject your own request. A different reviewer must action it.',
+            );
+          }
+          throw new Error(apiErrorMessage(error, 'This request already changed state.'));
         }
         throw new Error(apiErrorMessage(error, `Review failed (${response.status})`));
       }
