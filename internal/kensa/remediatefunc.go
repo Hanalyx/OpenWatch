@@ -203,14 +203,14 @@ func mapTxns(in []kensaapi.TransactionResult) []RemediationTxn {
 
 // friendlyTxnErr translates kensa's internal preflight error
 // (`mechanism "X" is not registered`) into an operator-facing message. kensa
-// v0.5.0 keeps its apply-mechanism handlers in internal/handlers/* and registers
-// them only via internal blank imports, so an external Go consumer (OpenWatch)
-// cannot register them and Remediate fails preflight before any host change.
-// Tracked upstream; lifts with a kensa release that exposes a public handler
-// bundle. See docs/engineering/remediation_core_plan.md.
+// v0.5.1+ registers the apply handlers via pkg/kensa.Default*, so this path is
+// not expected to fire; it is kept as defense-in-depth against a future
+// packaging regression (the original gap was kensa #94 / v0.5.0). A live "not
+// registered" still means no host change was attempted (the engine fails at
+// preflight, before any apply).
 func friendlyTxnErr(raw string) string {
 	if strings.Contains(raw, "not registered") {
-		return "Remediation engine unavailable in this build: the bundled Kensa version does not register host-mutation handlers for external callers (kensa v0.5.0 limitation). No host change was attempted."
+		return "Remediation engine unavailable in this build: the bundled Kensa version does not register host-mutation handlers. No host change was attempted."
 	}
 	return raw
 }

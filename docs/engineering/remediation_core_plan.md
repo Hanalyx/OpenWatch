@@ -55,23 +55,26 @@ of that line. The paid side is the companion doc.
 > engine lives in-core (AGPL); the open-core "separate plugin" option applies
 > only to the bulk/auto engine.
 
-> **Execution status (2026-06-18): implemented, blocked on a Kensa packaging
-> gap.** The full execute path is built and tested — apply-enabled SSH transport,
-> `kensa.Remediate`/`Rollback` wiring (`internal/kensa/remediatefunc.go`), a
-> queued remediation worker (`internal/worker/remediation_worker.go`), the
-> `:execute`/`:rollback` handlers, and the lifecycle-aware **Fix** button. A live
-> test proved the request flows end to end into Kensa's engine. It then fails at
-> preflight: **`mechanism "file_permissions" is not registered`**. kensa v0.5.0
-> keeps its apply handlers in `kensa/internal/handlers/*`, registered only via
-> blank imports that are internal to the kensa module; Go forbids an external
-> module (OpenWatch) from importing them, and kensa v0.5.0 exposes no public
-> handler-registration package. So `Kensa.Remediate` cannot succeed from an
-> external consumer. **Resolution is Kensa-side**: a public, blank-importable
-> handler bundle (e.g. `github.com/Hanalyx/kensa/handlers`) or have
-> `DefaultWithTransportFactory` register them. Until then the engine fails
-> gracefully (the request shows "Remediation engine unavailable in this build…"
-> and **no host is changed** — the failure is before any apply). When kensa ships
-> the public bundle, OpenWatch needs only a version bump.
+> **Execution status (2026-06-18): live and working as of kensa v0.5.1.** The
+> full execute path — apply-enabled SSH transport, `kensa.Remediate`/`Rollback`
+> wiring (`internal/kensa/remediatefunc.go`), the queued remediation worker
+> (`internal/worker/remediation_worker.go`), the `:execute`/`:rollback` handlers,
+> and the lifecycle-aware **Fix** button — is implemented and **verified end to
+> end against a real host**: an approved `cron-d-permissions` fix applied
+> `/etc/cron.d` `755`→`700` (committed, rule flipped to pass, score moved), then
+> rollback restored `755`.
+>
+> The first live test (on kensa v0.5.0) surfaced a real upstream blocker:
+> kensa kept its apply handlers in `kensa/internal/handlers/*`, registered only
+> via blank imports internal to the kensa module, so an external consumer could
+> not register them and `Kensa.Remediate` failed preflight
+> (`mechanism "file_permissions" is not registered`). Filed as
+> [kensa #94](https://github.com/Hanalyx/kensa/issues/94); fixed in **kensa
+> v0.5.1** (public `pkg/kensa/handlers` bundle auto-registered by `Default*`).
+> OpenWatch needed only the version bump. `friendlyTxnErr` in
+> `remediatefunc.go` is retained as defense-in-depth against any future
+> packaging regression (a "not registered" failure is always before any apply,
+> so no host is changed).
 
 The free tier is a complete **see-and-govern** loop: an operator can discover
 what is fixable, understand the projected compliance-score impact, request the
