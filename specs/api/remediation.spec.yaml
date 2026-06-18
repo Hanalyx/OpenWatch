@@ -1,0 +1,125 @@
+spec:
+  id: api-remediation
+  title: Remediation governance - request/approve lifecycle + projected lift (OpenWatch Core, free)
+  version: "1.0.0"
+  status: approved
+  tier: 1
+
+  context:
+    system: openwatch-go
+    feature: >
+      The free (AGPLv3 core) half of Phase 7 remediation: a see-and-govern
+      loop over failing rules. Operators view what is remediable and the
+      projected compliance-score lift, request a fix, and route it through
+      approval. The act of mutating a host (dry-run / execute / rollback) is
+      the OpenWatch+ licensed track and is NOT in this spec - those endpoints
+      are gated by the remediation_execution license feature and return 402
+      without it.
+    description: >
+      A remediation request is an operator's intent to fix a failing rule on a
+      host ("apply the fix for rule X on host Y"). It carries a request ->
+      approve | reject lifecycle, DB-backed, mirroring the exception governance
+      overlay (api-compliance-exceptions). The free service NEVER connects to a
+      host and NEVER mutates host_rule_state or transactions: Request, Approve,
+      Reject are pure state transitions over remediation_requests, and
+      ProjectLift is a read-only projection over host_rule_state.
+
+      OPEN-CORE BOUNDARY (load-bearing): read (remediation:read), request
+      (remediation:request), and approve/reject (remediation:approve) are free.
+      dry-run/execute/rollback require BOTH the dangerous remediation:execute /
+      remediation:rollback permission AND the remediation_execution license
+      feature; without the license the gate returns 402
+      license.feature_unavailable. The free build wires the gate; the execution
+      body is the licensed track (remediation_licensed_plan.md).
+
+      Lifecycle: pending_approval -> approved | rejected. Separation of duties:
+      the requester cannot review their own request (enforced in the service,
+      on top of the distinct remediation:request vs remediation:approve RBAC
+      permissions).
+
+      Projected lift: ProjectLift reads host_rule_state.framework_refs for a
+      failing rule and estimates the per-framework score delta if the rule
+      flips to pass (one passing rule is 1/N of that framework's rules on the
+      host). It is best-effort: when framework data is unavailable it returns an
+      empty projection and never fails the request.
+
+    related_specs:
+      - api-compliance-exceptions
+      - api-host-compliance
+      - system-rbac
+      - system-license-enforcement
+      - system-audit-emission
+
+  objective:
+    summary: >
+      A correct, auditable remediation request/approve lifecycle with
+      separation of duties, one open request per host+rule, a read-only
+      projected-lift estimate, and a license gate that keeps host mutation
+      behind OpenWatch+ - all without ever touching a host in the free path.
+    scope:
+      includes:
+        - remediation_requests + remediation_transactions tables (migration 0037)
+        - The free lifecycle service - Request / Approve / Reject / Get / ListRequests / ListSteps / ProjectLift
+        - The free HTTP endpoints (list, get, request, approve, reject, steps, audit-events)
+        - The license gate on the act endpoints (:dry-run, :execute, :rollback) returning 402 without remediation_execution
+      excludes:
+        - The act of mutating a host - dry-run / execute / rollback bodies (OpenWatch+ licensed track)
+        - The fleet auto-remediation policy engine (remediation_auto, licensed)
+        - Bulk / grouped remediation and Kensa rule ordering (blocked on a Kensa ratification)
+        - Score recomputation (ProjectLift is an estimate, it does not change the stored score)
+
+  constraints:
+    - id: C-01
+      description: 'The free remediation path NEVER mutates a host and NEVER writes host_rule_state or transactions: Request/Approve/Reject only write remediation_requests, and ProjectLift only reads host_rule_state. No free code path opens an SSH/Kensa transport (source inspection of internal/remediation)'
+      type: technical
+      enforcement: error
+    - id: C-02
+      description: 'At most ONE open remediation request may exist per (host_id, rule_id), enforced by a partial-unique index over in-flight statuses (pending_approval, approved, dry_run_complete, executing); a duplicate Request returns ErrDuplicateOpen. Terminal rows (rejected, executed, rolled_back, failed) are historical and do not block a fresh request'
+      type: technical
+      enforcement: error
+    - id: C-03
+      description: 'Lifecycle transitions are guarded: Approve and Reject require status=pending_approval; a transition from any other state returns ErrWrongState. The transition locks the row (FOR UPDATE) so concurrent reviewers cannot double-transition. Approve emits remediation.approved; Reject emits remediation.approved with detail.outcome=rejected (the registered taxonomy has no separate rejected code)'
+      type: technical
+      enforcement: error
+    - id: C-04
+      description: 'Separation of duties: Approve and Reject reject a reviewer equal to the requester (ErrSelfReview), independent of RBAC'
+      type: security
+      enforcement: error
+    - id: C-05
+      description: 'RBAC: request requires remediation:request, read endpoints require remediation:read, approve+reject require remediation:approve; anonymous callers are rejected on all. Request 404s hosts.not_found for an unknown host_id before any remediation write'
+      type: security
+      enforcement: error
+    - id: C-06
+      description: 'License gate (open-core boundary): the act endpoints :dry-run, :execute, :rollback require the remediation_execution license feature; without it the gate returns 402 license.feature_unavailable. read/request/approve/reject carry no license requirement and succeed on the free tier. The gate is enforced via the RBAC+license middleware (remediation:execute / remediation:rollback are license_gated to remediation_execution)'
+      type: security
+      enforcement: error
+    - id: C-07
+      description: 'ProjectLift is read-only and best-effort: for a failing rule it returns per-framework projected score deltas derived from host_rule_state.framework_refs (delta ~= 100/N where N is the count of that framework''s rules on the host); when framework data is absent or unparseable it returns an empty projection and never errors or blocks the request'
+      type: technical
+      enforcement: warning
+
+  acceptance_criteria:
+    - id: AC-01
+      description: 'Request inserts a pending_approval row (host_id, rule_id, requested_by, optional scan_run_id and projected-lift snapshot) and emits remediation.requested; a second Request for the same host+rule while one is open (pending_approval/approved/dry_run_complete/executing) returns ErrDuplicateOpen; an empty rule_id returns ErrInvalidInput; a fresh Request after the prior one reached a terminal state succeeds'
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-02
+      description: 'Approve (requester != reviewer) moves pending_approval->approved, sets reviewed_by/reviewed_at, emits remediation.approved; Reject moves pending_approval->rejected and emits remediation.approved with detail.outcome=rejected. Approving or Rejecting a non-pending_approval row returns ErrWrongState'
+      priority: critical
+      references_constraints: [C-03]
+    - id: AC-03
+      description: 'Approve and Reject with reviewer == requester return ErrSelfReview and leave the row unchanged'
+      priority: critical
+      references_constraints: [C-04]
+    - id: AC-04
+      description: 'No free remediation path writes host_rule_state or transactions, and no free path opens a host transport (source inspection of internal/remediation). ProjectLift returns per-framework deltas for a failing rule read from host_rule_state, and degrades to an empty projection (no error) when framework_refs is absent'
+      priority: critical
+      references_constraints: [C-01, C-07]
+    - id: AC-05
+      description: 'Endpoint RBAC + lifecycle: POST /api/v1/remediation/requests requires remediation:request and 404s an unknown host_id; GET /requests, GET /requests/{id}, GET /requests/{id}/steps require remediation:read; POST :approve and :reject require remediation:approve; anonymous callers are rejected on all. A full request->approve happy path round-trips through the HTTP layer'
+      priority: critical
+      references_constraints: [C-05, C-03]
+    - id: AC-06
+      description: 'License gate: on the free tier (no remediation_execution feature) POST /requests/{id}:dry-run, :execute, :rollback return 402 license.feature_unavailable, while POST /requests (request), :approve, :reject and the GET reads return their normal status codes. A caller lacking remediation:execute is 403 before the license check (RBAC fails first)'
+      priority: critical
+      references_constraints: [C-06]

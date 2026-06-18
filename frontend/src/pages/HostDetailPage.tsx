@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams, useSearch, useNavigate, Link } from '@tanstack/react-router';
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import {
   Activity as ActivityIcon,
   AlertTriangle,
@@ -27,6 +27,8 @@ import {
 import type { LucideIcon } from 'lucide-react';
 import api from '@/api/client';
 import { useHostExceptions } from '@/hooks/useHostExceptions';
+import { useHostRemediations } from '@/hooks/useHostRemediations';
+import { formatLift } from '@/components/hosts/RequestRemediationModal';
 import { apiErrorCode, apiErrorMessage } from '@/api/errors';
 import { EditHostModal } from '@/components/hosts/EditHostModal';
 import { HostCredentialModal } from '@/components/hosts/HostCredentialModal';
@@ -178,7 +180,10 @@ const TAB_ORDER: { id: TabId; label: string; icon: LucideIcon }[] = [
 
 // Backend subsystem that populates each tab when it lands. Surfaces
 // inside the per-tab empty state so operators know what's deferred.
-const TAB_BACKEND_SUBSYSTEM: Record<Exclude<TabId, 'overview' | 'compliance'>, string> = {
+const TAB_BACKEND_SUBSYSTEM: Record<
+  Exclude<TabId, 'overview' | 'compliance' | 'remediation'>,
+  string
+> = {
   packages: 'Server Intelligence collection — installed-package inventory deferred (BACKLOG).',
   services: 'Server Intelligence collection — running services inventory deferred (BACKLOG).',
   users: 'Server Intelligence collection — user accounts inventory deferred (BACKLOG).',
@@ -186,7 +191,6 @@ const TAB_BACKEND_SUBSYSTEM: Record<Exclude<TabId, 'overview' | 'compliance'>, s
   audit_log:
     'Audit query API — host-scoped audit feed deferred to the unified /activity page (BACKLOG).',
   activity: 'Unified Activity feed — combined transactions + audits + alerts deferred (BACKLOG).',
-  remediation: 'Remediation engine — Kensa-side remediation pipeline deferred (BACKLOG).',
   terminal: 'Web terminal — SSH-in-browser deferred; use a host-side SSH client in the meantime.',
 };
 
@@ -480,6 +484,8 @@ export function HostDetailPage() {
                   : null
               }
             />
+          ) : activeTab === 'remediation' ? (
+            <RemediationTab hostId={detailQuery.data.host.id} />
           ) : (
             <TabStub tab={activeTab} subsystem={TAB_BACKEND_SUBSYSTEM[activeTab]} />
           )}
@@ -1109,6 +1115,390 @@ function TabStub({ tab, subsystem }: { tab: TabId; subsystem: string }) {
     </section>
   );
 }
+
+// ─────────────────────────────────────────────────────────────────────────
+// Remediation tab — free-tier governance surface.
+//
+// Read-only list of this host's remediation requests (useHostRemediations,
+// newest first). The free tier drives only the request -> approve | reject
+// lifecycle: an approver with remediation:approve sees Approve / Reject on
+// pending rows; everyone else sees "Awaiting approval". The host-mutating
+// apply step (dry-run / execute / rollback) is an OpenWatch+ feature,
+// rendered as a DISABLED upsell control that is never wired to the act
+// endpoints (they return 402 on the free tier).
+//
+// Spec: frontend-remediation-tab AC-03.
+// ─────────────────────────────────────────────────────────────────────────
+
+const REM_STATUS_STYLE: Record<string, { fg: string; bg: string; label: string }> = {
+  pending_approval: { fg: 'var(--ow-warn)', bg: 'var(--ow-warn-bg)', label: 'Pending approval' },
+  approved: { fg: 'var(--ow-info)', bg: 'var(--ow-bg-2)', label: 'Approved' },
+  rejected: { fg: 'var(--ow-fg-3)', bg: 'var(--ow-bg-2)', label: 'Rejected' },
+  dry_run_complete: { fg: 'var(--ow-info)', bg: 'var(--ow-bg-2)', label: 'Dry-run complete' },
+  executing: { fg: 'var(--ow-warn)', bg: 'var(--ow-warn-bg)', label: 'Executing' },
+  executed: { fg: 'var(--ow-ok)', bg: 'var(--ow-ok-bg)', label: 'Executed' },
+  rolled_back: { fg: 'var(--ow-fg-2)', bg: 'var(--ow-bg-2)', label: 'Rolled back' },
+  failed: { fg: 'var(--ow-crit)', bg: 'var(--ow-crit-bg)', label: 'Failed' },
+};
+
+function RemStatusChip({ status }: { status: string }) {
+  const s = REM_STATUS_STYLE[status] ?? {
+    fg: 'var(--ow-fg-2)',
+    bg: 'var(--ow-bg-2)',
+    label: status,
+  };
+  return (
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 6,
+        padding: '2px 8px',
+        borderRadius: 999,
+        background: s.bg,
+        color: s.fg,
+        fontSize: 11,
+        fontWeight: 600,
+        whiteSpace: 'nowrap',
+      }}
+    >
+      <span aria-hidden style={{ width: 6, height: 6, borderRadius: '50%', background: s.fg }} />
+      {s.label}
+    </span>
+  );
+}
+
+function RemediationTab({ hostId }: { hostId: string }) {
+  const rem = useHostRemediations(hostId);
+  const canApprove = useAuthStore((s) => s.hasPermission('remediation:approve'));
+
+  let body: ReactNode;
+  if (rem.isPending) {
+    body = (
+      <div role="status" style={{ color: 'var(--ow-fg-3)', fontSize: 12, padding: '16px 0' }}>
+        Loading remediation requests
+      </div>
+    );
+  } else if (rem.isError) {
+    body = (
+      <div role="alert" style={{ color: 'var(--ow-crit)', fontSize: 12, padding: '16px 0' }}>
+        Failed to load remediation requests.{' '}
+        <button
+          type="button"
+          onClick={() => rem.refetch()}
+          style={{
+            background: 'none',
+            border: '1px solid var(--ow-line)',
+            borderRadius: 6,
+            color: 'var(--ow-fg-1)',
+            fontSize: 11,
+            padding: '2px 8px',
+            cursor: 'pointer',
+          }}
+        >
+          Retry
+        </button>
+      </div>
+    );
+  } else if (rem.items.length === 0) {
+    body = (
+      <div role="status" style={{ color: 'var(--ow-fg-3)', fontSize: 12, padding: '16px 0' }}>
+        No remediation requests for this host yet. Request a fix from a failing rule on the
+        Compliance tab.
+      </div>
+    );
+  } else {
+    body = (
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+        <thead>
+          <tr>
+            <RemTh width={150}>Status</RemTh>
+            <RemTh>Rule</RemTh>
+            <RemTh width={200}>Projected lift</RemTh>
+            <RemTh width={220}>Action</RemTh>
+          </tr>
+        </thead>
+        <tbody>
+          {rem.items.map((r) => {
+            const lift = formatLift(r.projected_lift);
+            return (
+              <tr key={r.id} style={{ borderTop: '1px solid var(--ow-line)' }}>
+                <td style={remTd}>
+                  <RemStatusChip status={r.status} />
+                </td>
+                <td style={remTd}>
+                  <span style={{ fontFamily: 'var(--ow-font-mono)', color: 'var(--ow-fg-0)' }}>
+                    {r.rule_id}
+                  </span>
+                </td>
+                <td
+                  style={{ ...remTd, color: 'var(--ow-fg-2)', fontVariantNumeric: 'tabular-nums' }}
+                >
+                  {lift ?? <span style={{ color: 'var(--ow-fg-3)' }}>—</span>}
+                </td>
+                <td style={remTd}>
+                  <RemediationRowAction request={r} hostId={hostId} canApprove={canApprove} />
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    );
+  }
+
+  return (
+    <section
+      role="tabpanel"
+      aria-label="Remediation"
+      style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 16 }}
+    >
+      <RemediationExplainer />
+      <section
+        aria-label="Remediation requests"
+        style={{
+          background: 'var(--ow-bg-1)',
+          border: '1px solid var(--ow-line)',
+          borderRadius: 'var(--ow-radius)',
+          padding: 18,
+        }}
+      >
+        <h3 style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 600 }}>Remediation requests</h3>
+        {body}
+      </section>
+      <RemediationUpsell />
+    </section>
+  );
+}
+
+// RemediationExplainer states the atomic transaction model as static
+// copy (the model the OpenWatch+ apply step follows): Capture, Apply,
+// Validate, Commit, with a rollback to the captured state on failure.
+function RemediationExplainer() {
+  const phases = ['Capture', 'Apply', 'Validate', 'Commit'];
+  return (
+    <div
+      style={{
+        background: 'var(--ow-bg-1)',
+        border: '1px solid var(--ow-line)',
+        borderRadius: 'var(--ow-radius)',
+        padding: '14px 18px',
+      }}
+    >
+      <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--ow-fg-0)', marginBottom: 8 }}>
+        Atomic remediation model
+      </div>
+      <div
+        style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}
+      >
+        {phases.map((p, i) => (
+          <span key={p} style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '3px 10px',
+                borderRadius: 999,
+                border: '1px solid var(--ow-line)',
+                background: 'var(--ow-bg-2)',
+                color: 'var(--ow-fg-1)',
+                fontSize: 12,
+                fontWeight: 600,
+              }}
+            >
+              {p}
+            </span>
+            {i < phases.length - 1 ? (
+              <ChevronRight size={14} style={{ color: 'var(--ow-fg-3)' }} aria-hidden />
+            ) : null}
+          </span>
+        ))}
+      </div>
+      <div style={{ color: 'var(--ow-fg-2)', fontSize: 12, lineHeight: 1.5 }}>
+        Each approved fix captures the current host state, applies the change, validates the result,
+        then commits. A failed validation rolls back to the captured state, so a host is never left
+        half-fixed. The free tier governs the request and approval. Applying the fix on the host is
+        an OpenWatch+ feature.
+      </div>
+    </div>
+  );
+}
+
+// RemediationRowAction renders the per-row free-tier action. On a
+// pending_approval row, a caller with remediation:approve gets Approve
+// and Reject (POST :approve / :reject, invalidate on success, 409
+// inline); without the permission, "Awaiting approval". Non-pending
+// rows are terminal or in the licensed track and render a dash.
+function RemediationRowAction({
+  request,
+  hostId,
+  canApprove,
+}: {
+  request: { id: string; status: string };
+  hostId: string;
+  canApprove: boolean;
+}) {
+  const queryClient = useQueryClient();
+  const [note, setNote] = useState<string | null>(null);
+
+  const review = useMutation({
+    mutationFn: async (action: 'approve' | 'reject') => {
+      const path = `/api/v1/remediation/requests/{rid}:${action}` as
+        | '/api/v1/remediation/requests/{rid}:approve'
+        | '/api/v1/remediation/requests/{rid}:reject';
+      const { error, response } = await api.POST(path, {
+        params: { path: { rid: request.id } },
+        body: {},
+      });
+      if (error || !response.ok) {
+        if (response.status === 409) {
+          throw new Error('This request already changed state.');
+        }
+        throw new Error(apiErrorMessage(error, `Review failed (${response.status})`));
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['host', hostId, 'remediations'] });
+    },
+    onError: (e: Error) => {
+      setNote(e.message);
+      window.setTimeout(() => setNote(null), 5000);
+    },
+  });
+
+  if (request.status !== 'pending_approval') {
+    return <span style={{ color: 'var(--ow-fg-3)', fontSize: 11 }}>—</span>;
+  }
+  if (!canApprove) {
+    return <span style={{ color: 'var(--ow-fg-3)', fontSize: 11 }}>Awaiting approval</span>;
+  }
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+      <button
+        type="button"
+        disabled={review.isPending}
+        onClick={() => review.mutate('approve')}
+        style={{
+          height: 26,
+          padding: '0 12px',
+          background: 'var(--ow-info)',
+          color: 'var(--ow-info-on)',
+          border: 0,
+          borderRadius: 7,
+          fontSize: 11,
+          fontWeight: 600,
+          cursor: review.isPending ? 'default' : 'pointer',
+          opacity: review.isPending ? 0.6 : 1,
+        }}
+      >
+        Approve
+      </button>
+      <button
+        type="button"
+        disabled={review.isPending}
+        onClick={() => review.mutate('reject')}
+        style={{
+          height: 26,
+          padding: '0 12px',
+          background: 'var(--ow-bg-2)',
+          color: 'var(--ow-fg-1)',
+          border: '1px solid var(--ow-line)',
+          borderRadius: 7,
+          fontSize: 11,
+          fontWeight: 600,
+          cursor: review.isPending ? 'default' : 'pointer',
+          opacity: review.isPending ? 0.6 : 1,
+        }}
+      >
+        Reject
+      </button>
+      {note && (
+        <span role="alert" style={{ fontSize: 11, color: 'var(--ow-crit)' }}>
+          {note}
+        </span>
+      )}
+    </span>
+  );
+}
+
+// RemediationUpsell renders the host-mutating apply affordance as a
+// DISABLED OpenWatch+ control. It is intentionally NOT wired to the
+// host-mutating act endpoints (dry-run, execute, rollback), which
+// return 402 on the free tier. There is no frontend entitlement hook
+// yet, so the upsell always shows.
+// TODO: when a frontend license/entitlement hook lands, hide this when
+// the remediation_execution feature is licensed and surface the live
+// Execute / Rollback controls instead.
+function RemediationUpsell() {
+  return (
+    <div
+      style={{
+        background: 'var(--ow-bg-1)',
+        border: '1px dashed var(--ow-line)',
+        borderRadius: 'var(--ow-radius)',
+        padding: 18,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 16,
+      }}
+    >
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--ow-fg-0)', marginBottom: 4 }}>
+          Apply fixes automatically (OpenWatch+)
+        </div>
+        <div style={{ color: 'var(--ow-fg-2)', fontSize: 12, lineHeight: 1.5 }}>
+          Approving a request records the decision. Applying the fix on the host (dry-run, execute,
+          and rollback) is an OpenWatch+ feature. The free tier stops at governance.
+        </div>
+      </div>
+      <button
+        type="button"
+        disabled
+        aria-disabled="true"
+        title="Applying remediations on the host is an OpenWatch+ feature"
+        style={{
+          height: 32,
+          padding: '0 16px',
+          background: 'var(--ow-bg-2)',
+          color: 'var(--ow-fg-3)',
+          border: '1px solid var(--ow-line)',
+          borderRadius: 7,
+          fontSize: 12,
+          fontWeight: 600,
+          cursor: 'not-allowed',
+          flexShrink: 0,
+        }}
+      >
+        Execute on host (OpenWatch+)
+      </button>
+    </div>
+  );
+}
+
+function RemTh({ children, width }: { children: ReactNode; width?: number }) {
+  return (
+    <th
+      style={{
+        width,
+        textAlign: 'left',
+        padding: '6px 10px 8px 0',
+        color: 'var(--ow-fg-3)',
+        fontSize: 11,
+        fontWeight: 600,
+        textTransform: 'uppercase',
+        letterSpacing: '0.04em',
+      }}
+    >
+      {children}
+    </th>
+  );
+}
+
+const remTd: CSSProperties = {
+  padding: '9px 10px 9px 0',
+  verticalAlign: 'top',
+};
 
 // ─────────────────────────────────────────────────────────────────────────
 // Hero stat strip — band 5

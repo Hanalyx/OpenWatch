@@ -1667,6 +1667,330 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
 
+  # ===========================================================================
+  # Remediation (Phase 7). Free core: request -> approve | reject + projected
+  # lift (see-and-govern). The act verbs (:dry-run, :execute, :rollback) are
+  # OpenWatch+ licensed (remediation_execution) and return 402 on the free
+  # tier. Spec api-remediation; plan docs/engineering/remediation_core_plan.md.
+  # ===========================================================================
+  /api/v1/remediation/requests:
+    get:
+      operationId: listRemediationRequests
+      summary: List remediation requests (fleet or filtered)
+      description: |
+        Remediation request queue, newest first, optionally filtered by
+        status, host_id, or rule_id; capped at limit (default 200). RBAC:
+        remediation:read. Spec api-remediation.
+      x-required-permission: remediation:read
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [pending_approval, approved, rejected, dry_run_complete, executing, executed, rolled_back, failed]
+        - name: host_id
+          in: query
+          required: false
+          schema: {type: string, format: uuid}
+        - name: rule_id
+          in: query
+          required: false
+          schema: {type: string}
+        - name: limit
+          in: query
+          required: false
+          schema: {type: integer, default: 200}
+      responses:
+        '200':
+          description: Remediation requests, newest first
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/RemediationRequestList'}
+        '403':
+          description: Caller lacks remediation:read permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+    post:
+      operationId: requestRemediation
+      summary: Request a remediation (fix) for a failing rule on a host
+      description: |
+        Submits a pending_approval remediation request for a host+rule and
+        records the projected per-framework compliance lift. One open request
+        is allowed per host+rule; a duplicate returns 409. The requester is
+        the authenticated user. This NEVER contacts the host. RBAC:
+        remediation:request. Spec api-remediation.
+      x-required-permission: remediation:request
+      x-audit-events: [remediation.requested]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/RemediationRequestCreate'}
+      responses:
+        '201':
+          description: The created remediation request (pending approval)
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/RemediationRequest'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '404':
+          description: Unknown or deleted host
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '403':
+          description: Caller lacks remediation:request permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '409':
+          description: An open remediation request already exists for this host and rule
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
+  /api/v1/remediation/requests/{rid}:
+    get:
+      operationId: getRemediationRequest
+      summary: Get a remediation request
+      description: 'RBAC: remediation:read. Spec api-remediation.'
+      x-required-permission: remediation:read
+      parameters:
+        - name: rid
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: The remediation request
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/RemediationRequest'}
+        '404':
+          description: Remediation request not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '403':
+          description: Caller lacks remediation:read permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
+  /api/v1/remediation/requests/{rid}/steps:
+    get:
+      operationId: listRemediationSteps
+      summary: List a remediation request's transaction journal (steps)
+      description: |
+        Per-step Kensa transaction journal (Capture/Apply/Validate/Commit
+        outcomes). Empty until the request is executed (executing is the
+        OpenWatch+ licensed track). RBAC: remediation:read. Spec
+        api-remediation.
+      x-required-permission: remediation:read
+      parameters:
+        - name: rid
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: Steps, in apply order
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/RemediationStepList'}
+        '404':
+          description: Remediation request not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '403':
+          description: Caller lacks remediation:read permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
+  /api/v1/remediation/requests/{rid}:approve:
+    post:
+      operationId: approveRemediation
+      summary: Approve a pending remediation request
+      description: |
+        pending_approval -> approved. The reviewer must differ from the
+        requester (separation of duties, 409). RBAC: remediation:approve.
+        Spec api-remediation.
+      x-required-permission: remediation:approve
+      x-audit-events: [remediation.approved]
+      parameters:
+        - name: rid
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/RemediationReview'}
+      responses:
+        '200':
+          description: The approved remediation request
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/RemediationRequest'}
+        '403':
+          description: Caller lacks remediation:approve permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '404':
+          description: Remediation request not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '409':
+          description: Not in the pending_approval state, or reviewer is the requester
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
+  /api/v1/remediation/requests/{rid}:reject:
+    post:
+      operationId: rejectRemediation
+      summary: Reject a pending remediation request
+      description: |
+        pending_approval -> rejected. The reviewer must differ from the
+        requester (409). RBAC: remediation:approve. Spec api-remediation.
+      x-required-permission: remediation:approve
+      x-audit-events: [remediation.approved]
+      parameters:
+        - name: rid
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/RemediationReview'}
+      responses:
+        '200':
+          description: The rejected remediation request
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/RemediationRequest'}
+        '403':
+          description: Caller lacks remediation:approve permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '404':
+          description: Remediation request not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '409':
+          description: Not in the pending_approval state, or reviewer is the requester
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
+  /api/v1/remediation/requests/{rid}:dry-run:
+    post:
+      operationId: dryRunRemediation
+      summary: Dry-run a remediation (OpenWatch+)
+      description: |
+        Connects to the host and reports what would change without applying.
+        License-gated: requires remediation:execute AND the
+        remediation_execution feature; returns 402 on the free tier. The
+        execution body is the OpenWatch+ licensed track. Spec api-remediation.
+      x-required-permission: remediation:execute
+      x-required-feature: remediation_execution
+      parameters:
+        - name: rid
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '402':
+          description: License does not include remediation_execution
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '403':
+          description: Caller lacks remediation:execute permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '501':
+          description: Licensed execution body not yet implemented (OpenWatch+ track)
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
+  /api/v1/remediation/requests/{rid}:execute:
+    post:
+      operationId: executeRemediation
+      summary: Execute a remediation against the host (OpenWatch+)
+      description: |
+        Applies the fix (Capture/Apply/Validate/Commit). License-gated:
+        requires remediation:execute AND remediation_execution; returns 402 on
+        the free tier. The execution body is the OpenWatch+ licensed track.
+        Spec api-remediation.
+      x-required-permission: remediation:execute
+      x-required-feature: remediation_execution
+      parameters:
+        - name: rid
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '402':
+          description: License does not include remediation_execution
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '403':
+          description: Caller lacks remediation:execute permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '501':
+          description: Licensed execution body not yet implemented (OpenWatch+ track)
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
+  /api/v1/remediation/requests/{rid}:rollback:
+    post:
+      operationId: rollbackRemediation
+      summary: Roll back an executed remediation (OpenWatch+)
+      description: |
+        Restores the captured pre-state. License-gated: requires
+        remediation:rollback AND remediation_execution; returns 402 on the
+        free tier. The execution body is the OpenWatch+ licensed track. Spec
+        api-remediation.
+      x-required-permission: remediation:rollback
+      x-required-feature: remediation_execution
+      parameters:
+        - name: rid
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '402':
+          description: License does not include remediation_execution
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '403':
+          description: Caller lacks remediation:rollback permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '501':
+          description: Licensed execution body not yet implemented (OpenWatch+ track)
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
   /api/v1/groups:
     get:
       operationId: getGroups
@@ -4498,6 +4822,90 @@ components:
       type: object
       properties:
         note: {type: string, description: Optional reviewer note}
+
+    ProjectedLift:
+      type: object
+      description: >
+        Estimated per-framework compliance-score delta (percentage points) if
+        the rule flips to pass. Best-effort; a field is null when that
+        framework's data is unavailable for the host.
+      properties:
+        cis:  {type: number, format: double, nullable: true}
+        stig: {type: number, format: double, nullable: true}
+        nist: {type: number, format: double, nullable: true}
+
+    RemediationRequest:
+      type: object
+      required: [id, host_id, rule_id, status, requested_by, requested_at]
+      properties:
+        id:           {type: string, format: uuid}
+        host_id:      {type: string, format: uuid}
+        host_name:
+          type: string
+          description: Hostname, populated on list responses (empty on single-row lifecycle results)
+        rule_id:      {type: string}
+        status:
+          type: string
+          enum: [pending_approval, approved, rejected, dry_run_complete, executing, executed, rolled_back, failed]
+        requested_by: {type: string, format: uuid}
+        reviewed_by:  {type: string, format: uuid, nullable: true}
+        review_note:  {type: string}
+        scan_run_id:  {type: string, format: uuid, nullable: true}
+        mechanism:
+          type: string
+          description: Kensa remediation handler id (empty when unknown at request time)
+        reboot_required: {type: boolean}
+        transactional:   {type: boolean}
+        projected_lift:  {$ref: '#/components/schemas/ProjectedLift'}
+        requested_at: {type: string, format: date-time}
+        reviewed_at:  {type: string, format: date-time, nullable: true}
+
+    RemediationRequestList:
+      type: object
+      required: [requests]
+      properties:
+        requests:
+          type: array
+          items: {$ref: '#/components/schemas/RemediationRequest'}
+
+    RemediationRequestCreate:
+      type: object
+      required: [host_id, rule_id]
+      properties:
+        host_id: {type: string, format: uuid}
+        rule_id: {type: string}
+        scan_run_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Optional provenance - the scan run whose finding this remediates
+
+    RemediationReview:
+      type: object
+      properties:
+        note: {type: string, description: Optional reviewer note}
+
+    RemediationStep:
+      type: object
+      required: [id, rule_id, dry_run]
+      properties:
+        id:        {type: string, format: uuid}
+        rule_id:   {type: string}
+        mechanism: {type: string}
+        phase_result:
+          type: string
+          nullable: true
+          enum: [committed, rolled_back, skipped]
+        dry_run:    {type: boolean}
+        applied_at: {type: string, format: date-time, nullable: true}
+
+    RemediationStepList:
+      type: object
+      required: [steps]
+      properties:
+        steps:
+          type: array
+          items: {$ref: '#/components/schemas/RemediationStep'}
 
     Group:
       type: object

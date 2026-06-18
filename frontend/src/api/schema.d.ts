@@ -1118,6 +1118,191 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/remediation/requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List remediation requests (fleet or filtered)
+         * @description Remediation request queue, newest first, optionally filtered by
+         *     status, host_id, or rule_id; capped at limit (default 200). RBAC:
+         *     remediation:read. Spec api-remediation.
+         */
+        get: operations["listRemediationRequests"];
+        put?: never;
+        /**
+         * Request a remediation (fix) for a failing rule on a host
+         * @description Submits a pending_approval remediation request for a host+rule and
+         *     records the projected per-framework compliance lift. One open request
+         *     is allowed per host+rule; a duplicate returns 409. The requester is
+         *     the authenticated user. This NEVER contacts the host. RBAC:
+         *     remediation:request. Spec api-remediation.
+         */
+        post: operations["requestRemediation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/remediation/requests/{rid}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a remediation request
+         * @description RBAC: remediation:read. Spec api-remediation.
+         */
+        get: operations["getRemediationRequest"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/remediation/requests/{rid}/steps": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List a remediation request's transaction journal (steps)
+         * @description Per-step Kensa transaction journal (Capture/Apply/Validate/Commit
+         *     outcomes). Empty until the request is executed (executing is the
+         *     OpenWatch+ licensed track). RBAC: remediation:read. Spec
+         *     api-remediation.
+         */
+        get: operations["listRemediationSteps"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/remediation/requests/{rid}:approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve a pending remediation request
+         * @description pending_approval -> approved. The reviewer must differ from the
+         *     requester (separation of duties, 409). RBAC: remediation:approve.
+         *     Spec api-remediation.
+         */
+        post: operations["approveRemediation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/remediation/requests/{rid}:reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reject a pending remediation request
+         * @description pending_approval -> rejected. The reviewer must differ from the
+         *     requester (409). RBAC: remediation:approve. Spec api-remediation.
+         */
+        post: operations["rejectRemediation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/remediation/requests/{rid}:dry-run": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Dry-run a remediation (OpenWatch+)
+         * @description Connects to the host and reports what would change without applying.
+         *     License-gated: requires remediation:execute AND the
+         *     remediation_execution feature; returns 402 on the free tier. The
+         *     execution body is the OpenWatch+ licensed track. Spec api-remediation.
+         */
+        post: operations["dryRunRemediation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/remediation/requests/{rid}:execute": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Execute a remediation against the host (OpenWatch+)
+         * @description Applies the fix (Capture/Apply/Validate/Commit). License-gated:
+         *     requires remediation:execute AND remediation_execution; returns 402 on
+         *     the free tier. The execution body is the OpenWatch+ licensed track.
+         *     Spec api-remediation.
+         */
+        post: operations["executeRemediation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/remediation/requests/{rid}:rollback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Roll back an executed remediation (OpenWatch+)
+         * @description Restores the captured pre-state. License-gated: requires
+         *     remediation:rollback AND remediation_execution; returns 402 on the
+         *     free tier. The execution body is the OpenWatch+ licensed track. Spec
+         *     api-remediation.
+         */
+        post: operations["rollbackRemediation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/groups": {
         parameters: {
             query?: never;
@@ -3029,6 +3214,73 @@ export interface components {
         ExceptionReview: {
             /** @description Optional reviewer note */
             note?: string;
+        };
+        /** @description Estimated per-framework compliance-score delta (percentage points) if the rule flips to pass. Best-effort; a field is null when that framework's data is unavailable for the host. */
+        ProjectedLift: {
+            /** Format: double */
+            cis?: number | null;
+            /** Format: double */
+            stig?: number | null;
+            /** Format: double */
+            nist?: number | null;
+        };
+        RemediationRequest: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            host_id: string;
+            /** @description Hostname, populated on list responses (empty on single-row lifecycle results) */
+            host_name?: string;
+            rule_id: string;
+            /** @enum {string} */
+            status: "pending_approval" | "approved" | "rejected" | "dry_run_complete" | "executing" | "executed" | "rolled_back" | "failed";
+            /** Format: uuid */
+            requested_by: string;
+            /** Format: uuid */
+            reviewed_by?: string | null;
+            review_note?: string;
+            /** Format: uuid */
+            scan_run_id?: string | null;
+            /** @description Kensa remediation handler id (empty when unknown at request time) */
+            mechanism?: string;
+            reboot_required?: boolean;
+            transactional?: boolean;
+            projected_lift?: components["schemas"]["ProjectedLift"];
+            /** Format: date-time */
+            requested_at: string;
+            /** Format: date-time */
+            reviewed_at?: string | null;
+        };
+        RemediationRequestList: {
+            requests: components["schemas"]["RemediationRequest"][];
+        };
+        RemediationRequestCreate: {
+            /** Format: uuid */
+            host_id: string;
+            rule_id: string;
+            /**
+             * Format: uuid
+             * @description Optional provenance - the scan run whose finding this remediates
+             */
+            scan_run_id?: string | null;
+        };
+        RemediationReview: {
+            /** @description Optional reviewer note */
+            note?: string;
+        };
+        RemediationStep: {
+            /** Format: uuid */
+            id: string;
+            rule_id: string;
+            mechanism?: string;
+            /** @enum {string|null} */
+            phase_result?: "committed" | "rolled_back" | "skipped" | null;
+            dry_run: boolean;
+            /** Format: date-time */
+            applied_at?: string | null;
+        };
+        RemediationStepList: {
+            steps: components["schemas"]["RemediationStep"][];
         };
         Group: {
             /** Format: uuid */
@@ -5984,6 +6236,398 @@ export interface operations {
             };
             /** @description Not in the approved state */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listRemediationRequests: {
+        parameters: {
+            query?: {
+                status?: "pending_approval" | "approved" | "rejected" | "dry_run_complete" | "executing" | "executed" | "rolled_back" | "failed";
+                host_id?: string;
+                rule_id?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Remediation requests, newest first */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RemediationRequestList"];
+                };
+            };
+            /** @description Caller lacks remediation:read permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    requestRemediation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RemediationRequestCreate"];
+            };
+        };
+        responses: {
+            /** @description The created remediation request (pending approval) */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RemediationRequest"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            /** @description Caller lacks remediation:request permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unknown or deleted host */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description An open remediation request already exists for this host and rule */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getRemediationRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                rid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The remediation request */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RemediationRequest"];
+                };
+            };
+            /** @description Caller lacks remediation:read permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Remediation request not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listRemediationSteps: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                rid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Steps, in apply order */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RemediationStepList"];
+                };
+            };
+            /** @description Caller lacks remediation:read permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Remediation request not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    approveRemediation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                rid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["RemediationReview"];
+            };
+        };
+        responses: {
+            /** @description The approved remediation request */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RemediationRequest"];
+                };
+            };
+            /** @description Caller lacks remediation:approve permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Remediation request not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not in the pending_approval state, or reviewer is the requester */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    rejectRemediation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                rid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["RemediationReview"];
+            };
+        };
+        responses: {
+            /** @description The rejected remediation request */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RemediationRequest"];
+                };
+            };
+            /** @description Caller lacks remediation:approve permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Remediation request not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not in the pending_approval state, or reviewer is the requester */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    dryRunRemediation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                rid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description License does not include remediation_execution */
+            402: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Caller lacks remediation:execute permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Licensed execution body not yet implemented (OpenWatch+ track) */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    executeRemediation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                rid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description License does not include remediation_execution */
+            402: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Caller lacks remediation:execute permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Licensed execution body not yet implemented (OpenWatch+ track) */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    rollbackRemediation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                rid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description License does not include remediation_execution */
+            402: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Caller lacks remediation:rollback permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Licensed execution body not yet implemented (OpenWatch+ track) */
+            501: {
                 headers: {
                     [name: string]: unknown;
                 };

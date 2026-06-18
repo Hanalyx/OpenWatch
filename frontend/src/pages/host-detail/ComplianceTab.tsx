@@ -49,6 +49,8 @@ import type { components } from '@/api/schema';
 import { useAuthStore } from '@/store/useAuthStore';
 import { RuleDetailPanel } from '@/pages/scans/RuleDetailPanel';
 import { useHostExceptions } from '@/hooks/useHostExceptions';
+import { useHostRemediations } from '@/hooks/useHostRemediations';
+import { RequestRemediationModal } from '@/components/hosts/RequestRemediationModal';
 import { SeverityPill } from '@/pages/host-detail/SeverityPill';
 
 type LensResponse = components['schemas']['HostComplianceLensResponse'];
@@ -121,11 +123,18 @@ export function ComplianceTab({
   // a pending request. Never mutates the lens data (overlay model).
   const exc = useHostExceptions(hostId);
   const canRequest = useAuthStore((st) => st.hasPermission)('exception:request');
+  // Remediation overlay: which failing rules already carry an in-flight
+  // remediation request (open set), to suppress a duplicate per-rule
+  // action. Parallel to the exception overlay; never mutates the lens.
+  const rem = useHostRemediations(hostId);
+  const canRequestRemediation = useAuthStore((st) => st.hasPermission)('remediation:request');
   // Evidence drill-down is gated scan:read (it reaches the scan:read-only
   // /scans evidence endpoints): the host lens itself stays evidence-free.
   const canViewEvidence = useAuthStore((st) => st.hasPermission)('scan:read');
   // The rule a Request-exception modal is open for (null = closed).
   const [requestRule, setRequestRule] = useState<LensRule | null>(null);
+  // The rule a Request-remediation modal is open for (null = closed).
+  const [remediateRule, setRemediateRule] = useState<LensRule | null>(null);
 
   let body: ReactNode;
   // isPending (not isLoading): isLoading goes false between retry
@@ -209,6 +218,9 @@ export function ComplianceTab({
           pendingRuleIds={exc.pendingRuleIds}
           canRequest={canRequest}
           onRequest={setRequestRule}
+          remediationOpenRuleIds={rem.openRuleIds}
+          canRequestRemediation={canRequestRemediation}
+          onRequestRemediation={setRemediateRule}
           scanId={lens.scan_context.scan_id ?? null}
           canViewEvidence={canViewEvidence}
         />
@@ -242,6 +254,18 @@ export function ComplianceTab({
           onSuccess={() => {
             setRequestRule(null);
             exc.refetch();
+          }}
+        />
+      )}
+      {remediateRule && (
+        <RequestRemediationModal
+          hostId={hostId}
+          ruleId={remediateRule.rule_id}
+          ruleTitle={remediateRule.title}
+          onClose={() => setRemediateRule(null)}
+          onSuccess={() => {
+            setRemediateRule(null);
+            rem.refetch();
           }}
         />
       )}
@@ -925,6 +949,9 @@ function RulesTable({
   pendingRuleIds,
   canRequest,
   onRequest,
+  remediationOpenRuleIds,
+  canRequestRemediation,
+  onRequestRemediation,
   scanId,
   canViewEvidence,
 }: {
@@ -938,6 +965,9 @@ function RulesTable({
   pendingRuleIds: Set<string>;
   canRequest: boolean;
   onRequest: (rule: LensRule) => void;
+  remediationOpenRuleIds: Set<string>;
+  canRequestRemediation: boolean;
+  onRequestRemediation: (rule: LensRule) => void;
   // scanId is the host's latest completed scan (scan_context.scan_id); the
   // per-rule evidence drill-down reaches /scans/{scanId}/rules/{ruleId}.
   // null when never scanned. canViewEvidence gates it on scan:read.
@@ -1068,6 +1098,7 @@ function RulesTable({
               <Th width={160}>Category</Th>
               <Th width={110}>Last checked</Th>
               <Th width={150}>Exception</Th>
+              <Th width={160}>Remediation</Th>
             </tr>
           </thead>
           <tbody>
@@ -1137,10 +1168,18 @@ function RulesTable({
                         onRequest={onRequest}
                       />
                     </td>
+                    <td style={td}>
+                      <RemediationCell
+                        rule={r}
+                        requested={remediationOpenRuleIds.has(r.rule_id)}
+                        canRequest={canRequestRemediation}
+                        onRequest={onRequestRemediation}
+                      />
+                    </td>
                   </tr>
                   {canDrill && open && scanId ? (
                     <tr>
-                      <td colSpan={6} style={{ padding: '0 10px 12px 24px' }}>
+                      <td colSpan={7} style={{ padding: '0 10px 12px 24px' }}>
                         <RuleDetailPanel scanId={scanId} ruleId={r.rule_id} hasEvidence />
                       </td>
                     </tr>
@@ -1286,6 +1325,55 @@ const excPill: CSSProperties = {
   fontWeight: 600,
   whiteSpace: 'nowrap',
 };
+
+// RemediationCell renders, for a rule's row, the remediation governance
+// state: a "Remediation requested" pill when an open request already
+// exists, or - for an unwaived FAILING rule and a caller with
+// remediation:request - a Request button that opens the confirm modal.
+// Non-failing rules with no open request render nothing. This is the
+// request/approval half of the workflow only; applying the fix on the
+// host is the OpenWatch+ track surfaced on the Remediation tab.
+function RemediationCell({
+  rule,
+  requested,
+  canRequest,
+  onRequest,
+}: {
+  rule: LensRule;
+  requested: boolean;
+  canRequest: boolean;
+  onRequest: (rule: LensRule) => void;
+}) {
+  if (requested) {
+    return (
+      <span style={{ ...excPill, color: 'var(--ow-info)', background: 'var(--ow-bg-2)' }}>
+        Remediation requested
+      </span>
+    );
+  }
+  if (rule.status === 'fail' && canRequest) {
+    return (
+      <button
+        type="button"
+        onClick={() => onRequest(rule)}
+        style={{
+          height: 26,
+          padding: '0 10px',
+          background: 'var(--ow-bg-2)',
+          color: 'var(--ow-fg-1)',
+          border: '1px solid var(--ow-line)',
+          borderRadius: 7,
+          fontSize: 11,
+          fontWeight: 600,
+          cursor: 'pointer',
+        }}
+      >
+        Request remediation
+      </button>
+    );
+  }
+  return <span style={{ color: 'var(--ow-fg-3)', fontSize: 11 }}>—</span>;
+}
 
 // RequestExceptionModal collects the reason (required) and an optional
 // expiry, then POSTs /hosts/{id}/exceptions. The host-detail

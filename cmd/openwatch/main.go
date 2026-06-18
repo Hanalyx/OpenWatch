@@ -50,6 +50,7 @@ import (
 	openlog "github.com/Hanalyx/openwatch/internal/log"
 	"github.com/Hanalyx/openwatch/internal/notification"
 	"github.com/Hanalyx/openwatch/internal/posture"
+	"github.com/Hanalyx/openwatch/internal/remediation"
 	"github.com/Hanalyx/openwatch/internal/report"
 	"github.com/Hanalyx/openwatch/internal/scanresult"
 	compsched "github.com/Hanalyx/openwatch/internal/scheduler"
@@ -573,6 +574,10 @@ func cmdServe(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 	exceptionSvc := exception.NewService(pool, audit.Emit)
 	exceptionSvc.Run(ctx, 0)
 
+	// Remediation governance (free core: request/approve/reject + projected
+	// lift; the act verbs are OpenWatch+ licensed). Spec api-remediation.
+	remediationSvc := remediation.NewService(pool, audit.Emit)
+
 	scanWorker := worker.NewScanWorker(worker.Config{
 		Pool:        pool,
 		Executor:    scanExecutor,
@@ -596,6 +601,7 @@ func cmdServe(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 		WithRuleLibrary(ruleLibrary).
 		WithVariableCatalog(varCatalog).
 		WithExceptions(exceptionSvc).
+		WithRemediation(remediationSvc).
 		WithGroups(group.NewService(pool)).
 		WithReports(report.NewService(pool)).
 		WithScanResults(scanresult.NewReader(pool)).

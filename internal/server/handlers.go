@@ -29,6 +29,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/notification"
 	"github.com/Hanalyx/openwatch/internal/policy"
 	"github.com/Hanalyx/openwatch/internal/queue"
+	"github.com/Hanalyx/openwatch/internal/remediation"
 	"github.com/Hanalyx/openwatch/internal/report"
 	"github.com/Hanalyx/openwatch/internal/scanresult"
 	"github.com/Hanalyx/openwatch/internal/server/api"
@@ -89,6 +90,11 @@ type handlers struct {
 	// Compliance exception governance service. Set via
 	// (*Server).WithExceptions; nil makes the exception endpoints 503.
 	exceptionSvc *exception.Service
+
+	// Remediation governance service (free core: request/approve/reject +
+	// projected lift). Set via (*Server).WithRemediation; nil makes the
+	// remediation endpoints 503. Spec api-remediation.
+	remediationSvc *remediation.Service
 
 	// Host group service (sites + OS categories). Set via
 	// (*Server).WithGroups; nil makes the group endpoints 503.

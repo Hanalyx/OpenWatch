@@ -28,6 +28,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/kensa"
 	"github.com/Hanalyx/openwatch/internal/license"
 	"github.com/Hanalyx/openwatch/internal/notification"
+	"github.com/Hanalyx/openwatch/internal/remediation"
 	"github.com/Hanalyx/openwatch/internal/report"
 	"github.com/Hanalyx/openwatch/internal/scanresult"
 	"github.com/Hanalyx/openwatch/internal/server/api"
@@ -136,6 +137,14 @@ func (s *Server) WithRuleLibrary(l *kensa.RuleLibrary) *Server {
 // Spec api-compliance-exceptions.
 func (s *Server) WithExceptions(e *exception.Service) *Server {
 	s.handlers.exceptionSvc = e
+	return s
+}
+
+// WithRemediation threads the remediation governance service (free core)
+// into the API handlers. Nil makes the remediation endpoints 503.
+// Spec api-remediation.
+func (s *Server) WithRemediation(rm *remediation.Service) *Server {
+	s.handlers.remediationSvc = rm
 	return s
 }
 
