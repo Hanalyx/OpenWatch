@@ -106,6 +106,12 @@ type TransportFactory struct {
 	// (default-on, matching DefaultSecurity); production wires the real
 	// systemconfig loader so a flipped switch disables scan password-sudo.
 	Policy SudoPasswordPolicy
+	// Apply makes the produced transport report ControlChannelSensitive()
+	// true, so the Kensa engine permits APPLY steps (host mutation). The
+	// scan path leaves this false (read-only); only the remediation factory
+	// sets it true. This is the load-bearing gate that keeps a scan
+	// connection from ever changing a host.
+	Apply bool
 }
 
 // Connect resolves the host's credential and dials
@@ -173,7 +179,7 @@ func (f *TransportFactory) Connect(ctx context.Context, host kensaapi.HostConfig
 	}
 	sudoPassword := sudoPasswordFor(cred, sudoAllowed)
 
-	t := &sshTransport{client: client, sudo: sudo, password: sudoPassword}
+	t := &sshTransport{client: client, sudo: sudo, password: sudoPassword, apply: f.Apply}
 
 	// Decide how to reach root, once per connection, and reuse it for
 	// every command. We cannot infer "sudo refused" from a real check's
@@ -268,6 +274,9 @@ type sshTransport struct {
 	sudo     bool
 	password string
 	mode     connprofile.SudoMode
+	// apply mirrors TransportFactory.Apply: true only for remediation
+	// connections, gating ControlChannelSensitive (host mutation).
+	apply bool
 }
 
 // Run executes cmd on the host, wrapping it for privilege escalation per
@@ -367,7 +376,7 @@ func (t *sshTransport) Get(_ context.Context, remotePath, _ string) error {
 
 // ControlChannelSensitive reports false: the scan transport never
 // applies changes, so no in-flight change can disrupt it. Spec AC-21.
-func (t *sshTransport) ControlChannelSensitive() bool { return false }
+func (t *sshTransport) ControlChannelSensitive() bool { return t.apply }
 
 // Close terminates the underlying SSH connection.
 func (t *sshTransport) Close() error { return t.client.Close() }
