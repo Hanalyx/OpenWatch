@@ -16,6 +16,16 @@ if [ "$1" = "configure" ]; then
     # failure should abort configure rather than leave an unbootable service.
     /usr/lib/openwatch/provision-identity-keys.sh
 
+    # Restore an operator TLS cert/key that preinst stashed before dpkg removed
+    # the orphaned demo cert during an upgrade from a cert-shipping release
+    # (<= rc.9). The restore runs BEFORE provisioning so the operator's file
+    # wins over a freshly generated demo.
+    for f in cert.pem key.pem; do
+        if [ -f "/etc/openwatch/tls/.$f.dpkg-bak" ]; then
+            mv -f "/etc/openwatch/tls/.$f.dpkg-bak" "/etc/openwatch/tls/$f"
+        fi
+    done
+
     # Provision a demo TLS cert + key (generate-if-absent). Not shipped in the
     # payload so an upgrade never overwrites an operator's replacement cert.
     /usr/lib/openwatch/provision-tls-cert.sh

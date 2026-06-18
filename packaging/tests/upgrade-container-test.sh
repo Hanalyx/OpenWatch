@@ -48,6 +48,13 @@ echo "### install OLD package (release 1)"
 rpm -i --nodeps /rpms/old/openwatch-*.rpm
 echo "OPENWATCH_DATABASE_DSN=$DSN" > /etc/openwatch/secrets.env
 
+# Simulate an operator who replaced the demo TLS cert with their own. It MUST
+# survive the upgrade — including the transition from a release that shipped
+# the cert in its payload (the cert/key are %ghost in current packages, so rpm
+# must not reclaim the operator's file). release-package-build C-05 / AC-22.
+echo "OPERATOR-TLS-CERT-SENTINEL-DO-NOT-CLOBBER" > /etc/openwatch/tls/cert.pem
+echo "OPERATOR-TLS-KEY-SENTINEL"                 > /etc/openwatch/tls/key.pem
+
 echo "### bring DB to head, then roll back the head migration ($HEAD_VER) to simulate the prior version"
 set -a; . /etc/openwatch/secrets.env; set +a
 openwatch migrate >/dev/null
@@ -76,8 +83,12 @@ fail=0
 ls /var/lib/openwatch/backups/openwatch-pre-upgrade-*.sql >/dev/null 2>&1 || { echo "FAIL: no pre-upgrade backup"; fail=1; }
 grep -q "stop openwatch.service"  /tmp/systemctl.log || { echo "FAIL: service not stopped"; fail=1; }
 grep -q "start openwatch.service" /tmp/systemctl.log || { echo "FAIL: service not restarted"; fail=1; }
+grep -q "OPERATOR-TLS-CERT-SENTINEL-DO-NOT-CLOBBER" /etc/openwatch/tls/cert.pem 2>/dev/null \
+    || { echo "FAIL: operator TLS cert was NOT preserved across the upgrade (cert.pem=$(head -1 /etc/openwatch/tls/cert.pem 2>/dev/null || echo MISSING))"; fail=1; }
+grep -q "OPERATOR-TLS-KEY-SENTINEL" /etc/openwatch/tls/key.pem 2>/dev/null \
+    || { echo "FAIL: operator TLS key was NOT preserved across the upgrade"; fail=1; }
 if [ "$fail" -eq 0 ]; then
-    echo "RESULT: PASS - the package upgrade migrated $PREV_VER -> $HEAD_VER with a backup and a stop/start"
+    echo "RESULT: PASS - the package upgrade migrated $PREV_VER -> $HEAD_VER with a backup, a stop/start, and preserved the operator TLS cert"
 else
     echo "RESULT: FAIL"
     exit 1

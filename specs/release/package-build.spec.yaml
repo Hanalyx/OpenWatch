@@ -1,7 +1,7 @@
 spec:
   id: release-package-build
   title: Native RPM and DEB packaging
-  version: "1.2.0"
+  version: "1.3.0"
   status: approved
   tier: 2
 
@@ -73,7 +73,12 @@ spec:
         time by a post-install scriptlet, generate-if-absent (never overwrite).
         The packages ship only the empty /etc/openwatch/tls directory plus the
         provisioning helper. openssl MUST be a package dependency (shared with
-        C-11).
+        C-11). Additionally, an operator's certificate MUST survive the one-time
+        upgrade FROM a release that DID ship the cert in its payload (<= rc.9):
+        the RPM MUST declare the cert/key paths %ghost (rpm tracks the path with
+        no payload content, so it does not reclaim the operator's file as an
+        orphan), and the DEB MUST stash an existing cert/key in preinst (before
+        dpkg removes the orphaned file) and restore it in postinst.
       type: security
       enforcement: error
     - id: C-06
@@ -232,9 +237,13 @@ spec:
         root:openwatch, key.pem 0600 openwatch:openwatch) only when both files
         are absent. The package payloads ship the empty /etc/openwatch/tls
         directory and the helper at /usr/lib/openwatch/provision-tls-cert.sh,
-        but do NOT contain cert.pem or key.pem (verified via rpm -qpl and
-        dpkg-deb -c), and the build scripts no longer stage a cert into the
-        payload — so a package upgrade never reverts an operator's replacement
-        certificate.
+        but do NOT contain cert.pem or key.pem as real payload content (verified
+        via rpm -qpl and dpkg-deb -c), and the build scripts no longer stage a
+        cert into the payload. For the one-time upgrade from a cert-shipping
+        release (<= rc.9): the RPM declares the cert/key paths %ghost (file flag
+        'g', no content) so rpm does not reclaim the operator's orphaned file,
+        and the DEB preinst stashes the cert/key to a .dpkg-bak on upgrade while
+        the postinst restores them — so a package upgrade never reverts (or
+        removes) an operator's replacement certificate, including the transition.
       priority: critical
       references_constraints: [C-05]
