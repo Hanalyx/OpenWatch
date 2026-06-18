@@ -554,6 +554,107 @@ paths:
         '204':
           description: Role removed (idempotent)
 
+  /api/v1/users/{id}:reset-password:
+    post:
+      operationId: postUserResetPassword
+      summary: Admin-reset a user's password (own or another's)
+      description: |
+        Sets a user's password on administrator authority - no current
+        password required. The new password runs through the role-aware
+        policy + breach screen; the target's active sessions are revoked so
+        they must re-authenticate. RBAC: admin:user_manage. Spec api-users.
+      x-required-permission: admin:user_manage
+      x-audit-events: [admin.user.password_reset]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/UserPasswordResetRequest'}
+      responses:
+        '204':
+          description: Password reset; the target's sessions were revoked
+        '400':
+          description: New password rejected by policy (too short/long/breached)
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '403':
+          description: Caller lacks admin:user_manage permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
+  /api/v1/users/{id}:disable:
+    post:
+      operationId: postUserDisable
+      summary: Disable a user account
+      description: |
+        Marks the account disabled: it can no longer authenticate (login is
+        rejected) and the user's active sessions are revoked immediately. An
+        admin cannot disable their own account (lockout prevention, 409).
+        RBAC: admin:user_manage. Spec api-users.
+      x-required-permission: admin:user_manage
+      x-audit-events: [admin.user.disabled]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200':
+          description: The disabled user
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/UserResponse'}
+        '403':
+          description: Caller lacks admin:user_manage permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '409':
+          description: Cannot disable your own account
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
+  /api/v1/users/{id}:enable:
+    post:
+      operationId: postUserEnable
+      summary: Re-enable a disabled user account
+      description: |
+        Clears the disabled flag so the user can authenticate again with a
+        fresh login (sessions revoked while disabled stay dead). RBAC:
+        admin:user_manage. Spec api-users.
+      x-required-permission: admin:user_manage
+      x-audit-events: [admin.user.enabled]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200':
+          description: The re-enabled user
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/UserResponse'}
+        '403':
+          description: Caller lacks admin:user_manage permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
   /api/v1/roles:create:
     post:
       operationId: postRolesCreate
@@ -3708,6 +3809,17 @@ components:
         last_password_change_at:  {type: string, format: date-time}
         created_at:               {type: string, format: date-time}
         updated_at:               {type: string, format: date-time}
+        disabled_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Non-null when the account is disabled (cannot authenticate)
+
+    UserPasswordResetRequest:
+      type: object
+      required: [new_password]
+      properties:
+        new_password: {type: string, minLength: 1, maxLength: 256}
 
     UsersListResponse:
       type: object

@@ -26,6 +26,9 @@
 //   AC-22  Users: Manage opens ManageUserModal (role assign/unassign + delete)
 //   AC-23  Notifications: notification:read gate, channel CRUD + test, secret-free
 //   AC-24  Security: admin gate, live API tokens (list/create/revoke), secret-once
+//   AC-27  Users: admin password reset (admin:user_manage) + surfaces policy errors
+//   AC-28  Users: disable/enable toggle + disabled status on row + modal
+//   AC-29  Users: self-disable 409 inline + no em-dashes in copy
 
 import { describe, expect, test } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -424,5 +427,51 @@ describe('frontend-settings — structural', () => {
     // Login page fetches enabled providers and starts the backend redirect flow.
     expect(LOGIN_SRC).toMatch(/api\.GET\(\s*['"]\/api\/v1\/sso\/providers\/enabled['"]/);
     expect(LOGIN_SRC).toMatch(/\/api\/v1\/auth\/sso\/\$\{providerId\}\/login/);
+  });
+
+  // @ac AC-27
+  test('frontend-settings/AC-27 — Users Manage: admin password reset gated + surfaces policy errors', () => {
+    // Admin-authority actions gate on admin:user_manage || isAdmin.
+    expect(USERMUT_SRC).toMatch(/hasPermission\)\('admin:user_manage'\)\s*\|\|\s*isAdmin/);
+    expect(USERMUT_SRC).toMatch(/const canManage\s*=/);
+    // Reset password POSTs the reset endpoint with { new_password }.
+    expect(USERMUT_SRC).toContain('/api/v1/users/{id}:reset-password');
+    expect(USERMUT_SRC).toMatch(/new_password:/);
+    // A 400 policy failure is surfaced via apiErrorMessage.
+    expect(USERMUT_SRC).toMatch(/apiErrorMessage\(error,/);
+    // Reset invalidates the users list on success.
+    expect(USERMUT_SRC).toMatch(/invalidateQueries\(\{\s*queryKey:\s*\['users'\]/);
+  });
+
+  // @ac AC-28
+  test('frontend-settings/AC-28 — Users Manage: disable/enable toggle + disabled status', () => {
+    // Disable + enable endpoints.
+    expect(USERMUT_SRC).toContain('/api/v1/users/{id}:disable');
+    expect(USERMUT_SRC).toContain('/api/v1/users/{id}:enable');
+    // Toggle keys off disabled_at and labels the two states.
+    expect(USERMUT_SRC).toMatch(/disabled_at/);
+    expect(USERMUT_SRC).toContain('Disable account');
+    expect(USERMUT_SRC).toContain('Enable account');
+    // Disabled status surfaced in the modal and on the roster row.
+    expect(USERMUT_SRC).toContain('Disabled');
+    expect(USERS_SRC).toMatch(/disabled_at/);
+    expect(USERS_SRC).toContain('Disabled');
+  });
+
+  // @ac AC-29
+  test('frontend-settings/AC-29 — Users Manage: self-disable 409 inline + no em-dashes', () => {
+    // Toggle errors route through the shared action-error Callout.
+    expect(USERMUT_SRC).toMatch(/onError:\s*\(err: Error\)\s*=>\s*setActionError\(err\.message\)/);
+    expect(USERMUT_SRC).toContain('<Callout tier="crit">{actionError}</Callout>');
+    // No em-dashes in the user-facing reset/disable copy (project rule).
+    // Comments may use them; the visible button/label strings must not.
+    expect('Disable account').not.toContain('—');
+    expect('Enable account').not.toContain('—');
+    expect('Reset password').not.toContain('—');
+    // The reset-password helper copy uses parentheses, not em-dashes.
+    const resetCopy =
+      USERMUT_SRC.match(/Set a new password on admin authority[^<]*/)?.[0] ?? '';
+    expect(resetCopy.length).toBeGreaterThan(0);
+    expect(resetCopy).not.toContain('—');
   });
 });

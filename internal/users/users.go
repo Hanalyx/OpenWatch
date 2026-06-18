@@ -27,6 +27,12 @@ var (
 	ErrUserNotFound   = errors.New("users: not found")
 	ErrUnknownRole    = errors.New("users: role does not exist")
 	ErrUserHasNoRoles = errors.New("users: user has no roles assigned")
+	// ErrUserDisabled is returned when an operation targets a disabled
+	// account, or (for the login path) when a disabled user authenticates.
+	ErrUserDisabled = errors.New("users: account is disabled")
+	// ErrCannotDisableSelf guards an admin from disabling their own account
+	// (lockout prevention).
+	ErrCannotDisableSelf = errors.New("users: cannot disable your own account")
 )
 
 // User is the safe shape returned by every read API. PasswordHash is
@@ -45,6 +51,10 @@ type User struct {
 	LastPasswordChangeAt time.Time
 	CreatedAt            time.Time
 	UpdatedAt            time.Time
+	// DisabledAt is non-nil when the account is disabled (cannot
+	// authenticate). Distinct from a soft-delete: a disabled account is
+	// recoverable via Enable.
+	DisabledAt *time.Time
 	// Roles holds the role IDs assigned to the user (from user_roles).
 	// Populated by ListUsers via an aggregate; other lookups (login path,
 	// GetUserByID) leave it nil since they do not need the membership join.
@@ -185,7 +195,7 @@ func (s *Service) CreateFederatedUser(ctx context.Context, username, email strin
 // Spec AC-04.
 func (s *Service) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
 	const stmt = `
-		SELECT id, username, email, last_password_change_at, created_at, updated_at
+		SELECT id, username, email, last_password_change_at, created_at, updated_at, disabled_at
 		FROM users
 		WHERE id = $1 AND deleted_at IS NULL`
 	return s.queryOne(ctx, stmt, id)
@@ -197,7 +207,7 @@ func (s *Service) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
 // Spec AC-05.
 func (s *Service) GetUserByUsername(ctx context.Context, username string) (User, error) {
 	const stmt = `
-		SELECT id, username, email, last_password_change_at, created_at, updated_at
+		SELECT id, username, email, last_password_change_at, created_at, updated_at, disabled_at
 		FROM users
 		WHERE username = $1 AND deleted_at IS NULL`
 	return s.queryOne(ctx, stmt, username)
@@ -209,14 +219,14 @@ func (s *Service) GetUserByUsername(ctx context.Context, username string) (User,
 // returns the hash to the caller.
 func (s *Service) VerifyUserPassword(ctx context.Context, username, password string) (User, error) {
 	const stmt = `
-		SELECT id, username, email, last_password_change_at, created_at, updated_at, password_hash
+		SELECT id, username, email, last_password_change_at, created_at, updated_at, disabled_at, password_hash
 		FROM users
 		WHERE username = $1 AND deleted_at IS NULL`
 	var u User
 	var hash string
 	err := s.pool.QueryRow(ctx, stmt, username).Scan(
 		&u.ID, &u.Username, &u.Email,
-		&u.LastPasswordChangeAt, &u.CreatedAt, &u.UpdatedAt,
+		&u.LastPasswordChangeAt, &u.CreatedAt, &u.UpdatedAt, &u.DisabledAt,
 		&hash,
 	)
 	if err != nil {
@@ -279,6 +289,64 @@ func (s *Service) SoftDelete(ctx context.Context, id uuid.UUID) error {
 	tag, err := s.pool.Exec(ctx, stmt, id)
 	if err != nil {
 		return fmt.Errorf("users: soft delete: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrUserNotFound
+	}
+	return nil
+}
+
+// AdminResetPassword sets a user's password on an administrator's authority:
+// unlike the self-service password change it does NOT require the current
+// password. The new password still runs through the role-aware policy +
+// breach screen (via UpdatePassword). The target's active sessions are then
+// revoked so they must re-authenticate with the new password.
+//
+// Spec api-users (admin reset-password).
+func (s *Service) AdminResetPassword(ctx context.Context, id uuid.UUID, newPassword string) error {
+	if err := s.UpdatePassword(ctx, id, newPassword); err != nil {
+		return err
+	}
+	if err := identity.RevokeAllSessionsForUser(ctx, s.pool, id); err != nil {
+		return fmt.Errorf("users: revoke sessions after reset: %w", err)
+	}
+	return nil
+}
+
+// Disable marks an account disabled (disabled_at = now). A disabled user
+// cannot authenticate: the login path rejects them and disabling revokes
+// their active sessions so the cutoff is immediate. Idempotent: disabling an
+// already-disabled user refreshes the timestamp. ErrUserNotFound for unknown
+// or soft-deleted users.
+//
+// Spec api-users (disable/enable).
+func (s *Service) Disable(ctx context.Context, id uuid.UUID) error {
+	const stmt = `UPDATE users SET disabled_at = now(), updated_at = now()
+	              WHERE id = $1 AND deleted_at IS NULL`
+	tag, err := s.pool.Exec(ctx, stmt, id)
+	if err != nil {
+		return fmt.Errorf("users: disable: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrUserNotFound
+	}
+	if err := identity.RevokeAllSessionsForUser(ctx, s.pool, id); err != nil {
+		return fmt.Errorf("users: revoke sessions on disable: %w", err)
+	}
+	return nil
+}
+
+// Enable clears the disabled flag. The user can authenticate again with a
+// fresh login; sessions revoked while disabled stay dead. ErrUserNotFound for
+// unknown or soft-deleted users.
+//
+// Spec api-users (disable/enable).
+func (s *Service) Enable(ctx context.Context, id uuid.UUID) error {
+	const stmt = `UPDATE users SET disabled_at = NULL, updated_at = now()
+	              WHERE id = $1 AND deleted_at IS NULL`
+	tag, err := s.pool.Exec(ctx, stmt, id)
+	if err != nil {
+		return fmt.Errorf("users: enable: %w", err)
 	}
 	if tag.RowsAffected() == 0 {
 		return ErrUserNotFound
@@ -387,7 +455,7 @@ func (s *Service) queryOne(ctx context.Context, stmt string, arg any) (User, err
 	var u User
 	err := s.pool.QueryRow(ctx, stmt, arg).Scan(
 		&u.ID, &u.Username, &u.Email,
-		&u.LastPasswordChangeAt, &u.CreatedAt, &u.UpdatedAt,
+		&u.LastPasswordChangeAt, &u.CreatedAt, &u.UpdatedAt, &u.DisabledAt,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {

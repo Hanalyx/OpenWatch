@@ -6,24 +6,31 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Loader2, Trash2, X } from 'lucide-react';
 import api from '@/api/client';
 import { apiErrorMessage } from '@/api/errors';
+import { useAuthStore } from '@/store/useAuthStore';
 import { Modal, FormField, Btn, Callout, Select } from '@/components/settings/primitives';
 
-// User mutation modals — Add (create) and Manage (roles + soft-delete).
+// User mutation modals — Add (create) and Manage (roles + soft-delete +
+// admin password reset + disable/enable).
 //
 // Wired against:
-//   • POST   /api/v1/users                     (user:write)
-//   • POST   /api/v1/users/{id}/roles:assign   (role:assign)
-//   • POST   /api/v1/users/{id}/roles:unassign (role:assign)
-//   • DELETE /api/v1/users/{id}                (user:delete)
-//   • GET    /api/v1/roles                      (assignable role list)
+//   • POST   /api/v1/users                       (user:write)
+//   • POST   /api/v1/users/{id}/roles:assign     (role:assign)
+//   • POST   /api/v1/users/{id}/roles:unassign   (role:assign)
+//   • DELETE /api/v1/users/{id}                  (user:delete)
+//   • GET    /api/v1/roles                        (assignable role list)
+//   • POST   /api/v1/users/{id}:reset-password   (admin:user_manage)
+//   • POST   /api/v1/users/{id}:disable          (admin:user_manage)
+//   • POST   /api/v1/users/{id}:enable           (admin:user_manage)
 //
-// Spec: frontend-settings v1.4.0 (Users invite + manage).
+// Spec: frontend-settings v1.4.0 (Users invite + manage), v1.10.0
+// (admin password reset + disable/enable).
 
 export interface ManagedUser {
   id: string;
   username: string;
   email: string;
   roles?: string[];
+  disabled_at?: string | null;
 }
 
 const inputStyle = {
@@ -161,6 +168,10 @@ export function ManageUserModal({
   user: ManagedUser | null;
 }) {
   const queryClient = useQueryClient();
+  const isAdmin = useAuthStore((s) => s.hasPermission)('admin');
+  // Admin authority actions (reset password, disable/enable) gate on
+  // admin:user_manage; admin implies it so the dev admin works too.
+  const canManage = useAuthStore((s) => s.hasPermission)('admin:user_manage') || isAdmin;
   const [actionError, setActionError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [addRole, setAddRole] = useState('');
@@ -222,7 +233,60 @@ export function ManageUserModal({
     onError: (err: Error) => setActionError(err.message),
   });
 
-  const busy = assignMutation.isPending || deleteMutation.isPending;
+  // Admin password reset — sets a new password on administrator authority
+  // (no current password). The new value is screened by the role-aware
+  // policy + breach corpus server-side; a 400 carries the human reason.
+  const [newPassword, setNewPassword] = useState('');
+  const [resetDone, setResetDone] = useState(false);
+  const resetMutation = useMutation({
+    mutationFn: async (value: string) => {
+      const { response, error } = await api.POST('/api/v1/users/{id}:reset-password', {
+        params: { path: { id: user!.id } },
+        body: { new_password: value },
+      });
+      if (!response.ok) {
+        // 400 surfaces the policy reason (too short / breached / etc.).
+        throw new Error(apiErrorMessage(error, `Failed to reset password (HTTP ${response.status})`));
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      setActionError(null);
+      setNewPassword('');
+      setResetDone(true);
+    },
+    onError: (err: Error) => {
+      setResetDone(false);
+      setActionError(err.message);
+    },
+  });
+
+  // Disable / enable — disabling your own account is rejected server-side
+  // (409 users.cannot_disable_self); surface that reason inline.
+  const toggleMutation = useMutation({
+    mutationFn: async (action: 'disable' | 'enable') => {
+      const path =
+        action === 'disable' ? '/api/v1/users/{id}:disable' : '/api/v1/users/{id}:enable';
+      const { response, error } = await api.POST(path, {
+        params: { path: { id: user!.id } },
+      });
+      if (!response.ok) {
+        throw new Error(apiErrorMessage(error, `Failed to update account (HTTP ${response.status})`));
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      setActionError(null);
+    },
+    onError: (err: Error) => setActionError(err.message),
+  });
+
+  const busy =
+    assignMutation.isPending ||
+    deleteMutation.isPending ||
+    resetMutation.isPending ||
+    toggleMutation.isPending;
+  const isDisabled = user?.disabled_at != null;
   const assignable = (rolesQuery.data ?? []).map((r) => r.id).filter((id) => !current.includes(id));
 
   const handleClose = () => {
@@ -230,6 +294,8 @@ export function ManageUserModal({
     setActionError(null);
     setConfirmDelete(false);
     setAddRole('');
+    setNewPassword('');
+    setResetDone(false);
     onClose();
   };
 
@@ -247,7 +313,24 @@ export function ManageUserModal({
         </Btn>
       }
     >
-      <div style={{ fontSize: 12, color: 'var(--ow-fg-2)', marginBottom: 16 }}>{user.email}</div>
+      <div style={{ fontSize: 12, color: 'var(--ow-fg-2)', marginBottom: 16 }}>
+        {user.email}
+        {isDisabled && (
+          <span
+            style={{
+              marginLeft: 8,
+              padding: '2px 8px',
+              borderRadius: 'var(--ow-radius-sm)',
+              background: 'var(--ow-crit-bg)',
+              color: 'var(--ow-crit)',
+              fontSize: 11,
+              fontWeight: 600,
+            }}
+          >
+            Disabled
+          </span>
+        )}
+      </div>
 
       <div style={{ fontSize: 12, color: 'var(--ow-fg-1)', fontWeight: 500, marginBottom: 8 }}>
         Roles
@@ -312,6 +395,92 @@ export function ManageUserModal({
           Add
         </Btn>
       </div>
+
+      {canManage && (
+        <div
+          style={{
+            borderTop: '1px solid var(--ow-line)',
+            marginTop: 16,
+            paddingTop: 16,
+          }}
+        >
+          <div style={{ fontSize: 12, color: 'var(--ow-fg-1)', fontWeight: 500, marginBottom: 8 }}>
+            Reset password
+          </div>
+          <p style={{ fontSize: 11, color: 'var(--ow-fg-3)', margin: '0 0 8px' }}>
+            Set a new password on admin authority (no current password needed). The user is signed
+            out of all sessions.
+          </p>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <input
+              type="password"
+              style={inputStyle}
+              disabled={busy}
+              autoComplete="new-password"
+              aria-label="New password"
+              placeholder="New password"
+              value={newPassword}
+              onChange={(e) => {
+                setNewPassword(e.target.value);
+                setResetDone(false);
+              }}
+            />
+            <Btn
+              disabled={busy || !newPassword}
+              onClick={() => newPassword && resetMutation.mutate(newPassword)}
+            >
+              {resetMutation.isPending ? (
+                <>
+                  <Loader2 size={13} /> Resetting.
+                </>
+              ) : (
+                'Reset password'
+              )}
+            </Btn>
+          </div>
+          {resetDone && (
+            <p style={{ fontSize: 11, color: 'var(--ow-ok)', margin: '8px 0 0' }}>
+              Password reset. The user must sign in again.
+            </p>
+          )}
+
+          <div style={{ marginTop: 16 }}>
+            <div
+              style={{ fontSize: 12, color: 'var(--ow-fg-1)', fontWeight: 500, marginBottom: 8 }}
+            >
+              Account status
+            </div>
+            {isDisabled ? (
+              <Btn
+                disabled={busy}
+                onClick={() => toggleMutation.mutate('enable')}
+              >
+                {toggleMutation.isPending ? (
+                  <>
+                    <Loader2 size={13} /> Enabling.
+                  </>
+                ) : (
+                  'Enable account'
+                )}
+              </Btn>
+            ) : (
+              <Btn
+                variant="danger"
+                disabled={busy}
+                onClick={() => toggleMutation.mutate('disable')}
+              >
+                {toggleMutation.isPending ? (
+                  <>
+                    <Loader2 size={13} /> Disabling.
+                  </>
+                ) : (
+                  'Disable account'
+                )}
+              </Btn>
+            )}
+          </div>
+        </div>
+      )}
 
       <div
         style={{
