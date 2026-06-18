@@ -26,7 +26,7 @@ const (
 	AuditExport Feature = "audit_export"
 	// Point-in-time compliance posture queries, drift forecasts, historical reconstruction from the transaction log
 	TemporalQueries Feature = "temporal_queries"
-	// Apply Kensa remediation against hosts with dry-run, execute, and rollback
+	// Bulk and automated remediation - apply many rules / fleet-wide and policy-driven auto-remediation (single-rule manual remediation is free core)
 	RemediationExecution Feature = "remediation_execution"
 	// Multi-stage exception approval workflow with policy enforcement
 	StructuredExceptions Feature = "structured_exceptions"
@@ -77,7 +77,7 @@ var FeatureRegistry = map[Feature]FeatureMeta{
 	RemediationExecution: {
 		ID:          RemediationExecution,
 		Tier:        TierOpenWatchPlus,
-		Description: `Apply Kensa remediation against hosts with dry-run, execute, and rollback`,
+		Description: `Bulk and automated remediation - apply many rules / fleet-wide and policy-driven auto-remediation (single-rule manual remediation is free core)`,
 		Introduced:  "1.0.0",
 	},
 	StructuredExceptions: {

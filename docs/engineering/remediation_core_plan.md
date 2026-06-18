@@ -42,10 +42,18 @@ of that line. The paid side is the companion doc.
 | Approve / reject a request (`remediation:approve`) | ✅ | |
 | View transaction history + signed evidence (`remediation:read`) | ✅ | |
 | Configure the approvals policy (who approves, dual-approval) | ✅ | |
-| **Dry-run a fix** (`remediation:execute`) | | ✅ `remediation_execution` |
-| **Execute a fix on a host** (`remediation:execute`) | | ✅ `remediation_execution` |
-| **Rollback** (`remediation:rollback`) | | ✅ `remediation_execution` |
-| Bulk / fleet / auto-remediation policy engine | | ✅ (proposed `remediation_auto`) |
+| **Execute a single-rule fix on a host** (`remediation:execute`) | ✅ | |
+| **Rollback** (`remediation:rollback`) | ✅ | |
+| Bulk / fleet remediation (many rules at once) | | ✅ `remediation_execution` |
+| Auto-remediation policy engine (scheduled / policy-driven) | | ✅ `remediation_execution` |
+
+> **Boundary update (2026-06-18):** the free/paid line moved. Per-rule **manual
+> execute + rollback are now free core** (Tier A) — the requester gets a **Fix**
+> button on their approved request and applies the fix to that one finding. The
+> OpenWatch+ `remediation_execution` feature now gates **bulk** (many rules /
+> fleet) and **auto** remediation only. Because Tier A is free, its execution
+> engine lives in-core (AGPL); the open-core "separate plugin" option applies
+> only to the bulk/auto engine.
 
 The free tier is a complete **see-and-govern** loop: an operator can discover
 what is fixable, understand the projected compliance-score impact, request the
