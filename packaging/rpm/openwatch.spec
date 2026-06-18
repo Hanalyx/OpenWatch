@@ -145,7 +145,12 @@ systemctl daemon-reload || :
 # TLS dir ships empty (0750); %post generates the demo cert/key into it
 # generate-if-absent. The cert/key files are intentionally NOT packaged, so
 # a package upgrade cannot revert an operator's replacement certificate.
+# They are declared %ghost — rpm tracks the paths (no payload content, nothing
+# laid down or verified) so that on an upgrade FROM a release that DID ship the
+# cert (<= rc.9), rpm does not reclaim/erase the operator's file as an orphan.
 %dir %attr(0750, root, openwatch)   /etc/openwatch/tls
+%ghost %attr(0644, root, openwatch)      /etc/openwatch/tls/cert.pem
+%ghost %attr(0600, openwatch, openwatch) /etc/openwatch/tls/key.pem
 %config(noreplace) %attr(0640, root, openwatch) /etc/openwatch/openwatch.toml
 %config(noreplace) %attr(0640, root, openwatch) /etc/openwatch/upgrade.conf
 %attr(0644, root, root)             /etc/systemd/system/openwatch.service

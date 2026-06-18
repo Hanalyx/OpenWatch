@@ -11,6 +11,20 @@
 
 set -e
 
+# On upgrade FROM a release that shipped the demo TLS cert in its payload
+# (<= rc.9), dpkg removes that now-orphaned cert/key during unpack because
+# rc.10+ no longer own those paths. Stash a copy first so postinst can restore
+# an operator's replacement certificate. rc.10+ generate the cert in postinst
+# and never ship it, so a steady-state upgrade has nothing to remove and this
+# is a harmless round-trip. (The RPM uses %ghost to the same end.)
+if [ "$1" = "upgrade" ]; then
+    for f in cert.pem key.pem; do
+        if [ -f "/etc/openwatch/tls/$f" ]; then
+            cp -p "/etc/openwatch/tls/$f" "/etc/openwatch/tls/.$f.dpkg-bak" 2>/dev/null || :
+        fi
+    done
+fi
+
 getent group openwatch >/dev/null || groupadd --system openwatch
 getent passwd openwatch >/dev/null || \
     useradd --system --gid openwatch \

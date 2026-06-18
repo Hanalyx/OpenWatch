@@ -659,20 +659,30 @@ func TestTLS_PostInstallProvisions(t *testing.T) {
 			}
 		}
 
-		// Payload ships the empty tls dir + the helper, but NEVER the cert/key
-		// files themselves (that is what made upgrades clobber operator certs).
+		// Payload ships the empty tls dir + the helper, and carries NO real
+		// cert/key content. On RPM the cert/key paths are declared %ghost so
+		// rpm tracks them (flag 'g') without laying down content — this stops a
+		// package upgrade FROM a cert-shipping release (<= rc.9) from reclaiming
+		// the operator's file as an orphan, while still never shipping a cert.
 		const tlsDir = "/etc/openwatch/tls"
-		rpmFiles := rpmQuery(t, rpm, "[%{FILENAMES}\n]")
-		if !strings.Contains(rpmFiles, helperPath) {
+		if !strings.Contains(rpmQuery(t, rpm, "[%{FILENAMES}\n]"), helperPath) {
 			t.Errorf("RPM payload missing the TLS helper %s", helperPath)
 		}
-		if !strings.Contains(rpmFiles, tlsDir) {
+		rpmGhost := rpmQuery(t, rpm, "[%{FILENAMES} %{FILEFLAGS:fflags}\n]")
+		if !strings.Contains(rpmGhost, tlsDir) {
 			t.Errorf("RPM payload missing the %s directory", tlsDir)
 		}
-		if strings.Contains(rpmFiles, "tls/cert.pem") || strings.Contains(rpmFiles, "tls/key.pem") {
-			t.Errorf("RPM payload MUST NOT ship the TLS cert/key; got:\n%s", rpmFiles)
+		for _, p := range []string{"cert.pem", "key.pem"} {
+			re := regexp.MustCompile(`/etc/openwatch/tls/` + regexp.QuoteMeta(p) + `\s+\S*g\S*`)
+			if !re.MatchString(rpmGhost) {
+				t.Errorf("RPM tls/%s MUST be declared %%ghost (flag 'g', no payload content); file list:\n%s", p, rpmGhost)
+			}
 		}
 
+		// DEB has no %ghost: the cert/key are not in the payload, and preinst
+		// stashes an operator's cert before dpkg removes the orphan on upgrade,
+		// while postinst restores it. So the cert/key are NEVER real payload
+		// files in either format.
 		debFiles := debContents(t, deb)
 		if !strings.Contains(debFiles, helperPath) {
 			t.Errorf("DEB payload missing the TLS helper %s", helperPath)
@@ -682,6 +692,16 @@ func TestTLS_PostInstallProvisions(t *testing.T) {
 		}
 		if strings.Contains(debFiles, "tls/cert.pem") || strings.Contains(debFiles, "tls/key.pem") {
 			t.Errorf("DEB payload MUST NOT ship the TLS cert/key; got:\n%s", debFiles)
+		}
+
+		// DEB preinst backs up an operator cert on upgrade; postinst restores it.
+		preinst := readPackagingFile(t, dir, "deb", "preinst")
+		if !strings.Contains(preinst, ".dpkg-bak") || !strings.Contains(preinst, `"$1" = "upgrade"`) {
+			t.Errorf("deb/preinst must back up the TLS cert/key (.dpkg-bak) on upgrade")
+		}
+		postinst := readPackagingFile(t, dir, "deb", "postinst")
+		if !strings.Contains(postinst, ".dpkg-bak") || !strings.Contains(postinst, "mv -f") {
+			t.Errorf("deb/postinst must restore the preserved TLS cert/key (.dpkg-bak)")
 		}
 
 		// The build scripts no longer stage a demo cert into the payload.
@@ -695,6 +715,16 @@ func TestTLS_PostInstallProvisions(t *testing.T) {
 			}
 		}
 	})
+}
+
+// readPackagingFile reads packaging/<sub>/<name> as a string.
+func readPackagingFile(t *testing.T, appDir, sub, name string) string {
+	t.Helper()
+	b, err := os.ReadFile(filepath.Join(appDir, "packaging", sub, name))
+	if err != nil {
+		t.Fatalf("read packaging/%s/%s: %v", sub, name, err)
+	}
+	return string(b)
 }
 
 // readDebControlScript extracts a named maintainer script from a DEB

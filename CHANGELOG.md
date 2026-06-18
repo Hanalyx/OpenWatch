@@ -53,7 +53,9 @@ overwriting an operator's TLS certificate.
   certificate is now generated at install time only when the TLS files are
   absent (the same generate-if-absent model already used for the server's
   identity keys), so a certificate you put in place survives upgrades untouched
-  (#596).
+  (#596). This also covers the one-time upgrade from an earlier build that did
+  ship the demo certificate (rc.9 and before): your certificate is preserved
+  rather than removed during that transition too (#598).
 
 ---
 
