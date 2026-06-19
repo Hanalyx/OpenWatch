@@ -207,7 +207,10 @@ func (h *handlers) RequestRemediation(w http.ResponseWriter, r *http.Request) {
 		s := uuid.UUID(*req.ScanRunId)
 		scanRunID = &s
 	}
-	rq, err := h.remediationSvc.Request(ctx, hostID, req.RuleId, scanRunID, requestedBy)
+	// Free-core: single-rule manual remediation is auto-approved (no separate
+	// approver). Bulk/auto remediation (OpenWatch+) will request with approval
+	// required via its own gated handler.
+	rq, err := h.remediationSvc.Request(ctx, hostID, req.RuleId, scanRunID, requestedBy, false)
 	if mapRemediationErr(w, err) {
 		return
 	}

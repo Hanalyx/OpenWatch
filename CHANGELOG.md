@@ -12,6 +12,14 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- Remediation: free-core single-rule remediation is now **auto-approved** on
+  request, so an operator can apply a fix without a separate approver. This
+  removes the self-review deadlock for single-operator workspaces (you could
+  request a fix but never approve your own request). The request lifecycle and
+  the approve/reject flow with separation of duties are retained for the
+  licensed bulk/automated remediation track (which requests with approval
+  required). See `docs/engineering/remediation_governance_adr.md` ("A-keep").
+
 - CI release safety: the release workflow now fails closed on a `v*` tag push
   when no GPG signing key is configured, rather than publishing unsigned
   packages. Manual `workflow_dispatch` trial builds stay permissive (warn +

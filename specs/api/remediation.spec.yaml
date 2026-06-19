@@ -121,7 +121,7 @@ spec:
 
   acceptance_criteria:
     - id: AC-01
-      description: 'Request inserts a pending_approval row (host_id, rule_id, requested_by, optional scan_run_id and projected-lift snapshot) and emits remediation.requested; a second Request for the same host+rule while one is open (pending_approval/approved/dry_run_complete/executing) returns ErrDuplicateOpen; an empty rule_id returns ErrInvalidInput; a fresh Request after the prior one reached a terminal state succeeds'
+      description: 'Approval is conditional on the remediation track. A free-core Request (requiresApproval=false) is AUTO-APPROVED: it inserts an approved row (host_id, rule_id, requested_by, optional scan_run_id and projected-lift snapshot, reviewed_at set, reviewed_by NULL, an auto-approved review_note) and emits remediation.requested then remediation.approved. A requiresApproval=true Request (the licensed bulk/auto track) inserts pending_approval instead. A second Request for the same host+rule while one is open (pending_approval/approved/dry_run_complete/executing) returns ErrDuplicateOpen; an empty rule_id returns ErrInvalidInput; a fresh Request after the prior one reached a terminal state succeeds'
       priority: critical
       references_constraints: [C-02]
     - id: AC-02
@@ -137,11 +137,11 @@ spec:
       priority: critical
       references_constraints: [C-01, C-07]
     - id: AC-05
-      description: 'Endpoint RBAC + lifecycle: POST /api/v1/remediation/requests requires remediation:request and 404s an unknown host_id; GET /requests, GET /requests/{id}, GET /requests/{id}/steps require remediation:read; POST :approve and :reject require remediation:approve; anonymous callers are rejected on all. A full request->approve happy path round-trips through the HTTP layer'
+      description: 'Endpoint RBAC + lifecycle: POST /api/v1/remediation/requests requires remediation:request, 404s an unknown host_id, and (free core) returns the request AUTO-APPROVED; GET /requests, GET /requests/{id}, GET /requests/{id}/steps require remediation:read; POST :approve and :reject require remediation:approve and enforce separation of duties (the requester cannot approve their own request, 409); anonymous callers are rejected on all. The approve endpoint is exercised on an approval-required (pending_approval) request since the free-core request auto-approves'
       priority: critical
       references_constraints: [C-05, C-03]
     - id: AC-06
-      description: 'Execute/rollback are FREE core: a caller WITH remediation:execute executing an approved request gets 202 and a remediation job is enqueued; a caller LACKING remediation:execute is 403; executing a non-approved request is 409; rolling back (remediation:rollback) a non-executed request is 409. No remediation act endpoint returns 402. :dry-run returns 501. request/approve/reject and the GET reads return their normal status codes.'
+      description: 'Execute/rollback are FREE core: a caller WITH remediation:execute executing an approved request gets 202 and a remediation job is enqueued. A free-core request is auto-approved, so it executes directly with no separate approval step. A caller LACKING remediation:execute is 403; executing a non-approved (pending_approval) request is 409; rolling back (remediation:rollback) a non-executed request is 409. No remediation act endpoint returns 402. :dry-run returns 501. request/approve/reject and the GET reads return their normal status codes.'
       priority: critical
       references_constraints: [C-06]
     - id: AC-07
