@@ -85,7 +85,7 @@ spec:
       priority: critical
       references_constraints: [C-01]
     - id: AC-02
-      description: 'GET /api/v1/system/intelligence/config with a caller missing system:read returns 403 authz.permission_denied'
+      description: 'GET /api/v1/system/intelligence/config as an anonymous caller returns 401 auth.required (an authenticated caller missing system:read returns 403 authz.permission_denied)'
       priority: critical
       references_constraints: [C-02]
     - id: AC-03

@@ -53,7 +53,7 @@ spec:
       type: technical
       enforcement: error
     - id: C-02
-      description: Every endpoint MUST require the system:read permission via auth.EnforcePermission. Both anonymous callers and authenticated callers without system:read return 403 authz.permission_denied (matches the established RBAC pattern — see system-rbac AC-09)
+      description: Every endpoint MUST require the system:read permission via auth.EnforcePermission. Anonymous callers return 401 auth.required; authenticated callers without system:read return 403 authz.permission_denied (matches the established RBAC pattern — see system-rbac AC-09)
       type: security
       enforcement: error
     - id: C-03

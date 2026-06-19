@@ -81,7 +81,7 @@ spec:
       priority: critical
       references_constraints: [C-01]
     - id: AC-02
-      description: 'GET /api/v1/intelligence/events without an authenticated session returns 403'
+      description: 'GET /api/v1/intelligence/events as an anonymous caller (no/expired session) returns 401 auth.required'
       priority: critical
       references_constraints: [C-01]
     - id: AC-03

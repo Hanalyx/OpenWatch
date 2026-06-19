@@ -97,7 +97,7 @@ spec:
       description: RequirePermission middleware allows the request when the identity grants the permission and the license gate passes.
       priority: critical
     - id: AC-09
-      description: RequirePermission middleware denies with 403 authz.permission_denied when the identity lacks the permission.
+      description: "RequirePermission / EnforcePermission distinguishes the two denial classes by HTTP status. An ANONYMOUS caller (no credentials, or a session cookie that expired in the browser and is no longer sent) is denied 401 auth.required so the SPA redirects to login. An AUTHENTICATED caller whose role lacks the permission is denied 403 authz.permission_denied. The authz.permission.denied audit event is emitted in both cases."
       priority: critical
       references_constraints: [C-03, C-04]
     - id: AC-10

@@ -470,13 +470,13 @@ func TestAPI_Fleet_Anonymous_Returns403(t *testing.T) {
 		req, _ := http.NewRequest("GET", url+"/api/v1/fleet/score", nil)
 		resp := doReq(t, req)
 		defer resp.Body.Close()
-		if resp.StatusCode != http.StatusForbidden {
+		if resp.StatusCode != http.StatusUnauthorized {
 			b, _ := io.ReadAll(resp.Body)
-			t.Fatalf("status = %d, want 403; body=%s", resp.StatusCode, b)
+			t.Fatalf("status = %d, want 401 (anonymous); body=%s", resp.StatusCode, b)
 		}
 		b, _ := io.ReadAll(resp.Body)
-		if !strings.Contains(string(b), "authz.permission_denied") {
-			t.Errorf("body lacks authz.permission_denied: %s", b)
+		if !strings.Contains(string(b), "auth.required") {
+			t.Errorf("body lacks auth.required: %s", b)
 		}
 	})
 }

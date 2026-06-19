@@ -64,7 +64,7 @@ spec:
       type: technical
       enforcement: error
     - id: C-04
-      description: Reads require system:read and the mutating PUT requires system:write; a caller lacking the permission gets 403, and an anonymous caller is rejected.
+      description: Reads require system:read and the mutating PUT requires system:write; a caller lacking the permission gets 403, and an anonymous caller is rejected with 401 auth.required.
       type: security
       enforcement: error
 
@@ -90,7 +90,7 @@ spec:
       priority: high
       references_constraints: [C-04]
     - id: AC-07
-      description: PUT /api/v1/system/connectivity/config by an anonymous caller is rejected (not authenticated).
+      description: PUT /api/v1/system/connectivity/config by an anonymous caller is rejected with 401 auth.required.
       priority: high
       references_constraints: [C-04]
     - id: AC-08
@@ -98,6 +98,6 @@ spec:
       priority: high
       references_constraints: [C-03]
     - id: AC-09
-      description: GET /api/v1/system/connectivity/status by an anonymous caller is rejected (not authenticated).
+      description: GET /api/v1/system/connectivity/status by an anonymous caller is rejected with 401 auth.required.
       priority: high
       references_constraints: [C-04]

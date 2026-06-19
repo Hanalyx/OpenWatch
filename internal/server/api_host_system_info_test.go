@@ -170,8 +170,8 @@ func TestAPI_HostSystemInfo_GET_Anonymous_Forbidden(t *testing.T) {
 			t.Fatalf("GET: %v", err)
 		}
 		defer resp.Body.Close()
-		if resp.StatusCode != http.StatusForbidden {
-			t.Fatalf("expected 403 anon, got %d", resp.StatusCode)
+		if resp.StatusCode != http.StatusUnauthorized {
+			t.Fatalf("expected 401 anon, got %d", resp.StatusCode)
 		}
 	})
 }
