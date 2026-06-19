@@ -12,6 +12,11 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- Remediation now updates live. The Remediation tab and the compliance score
+  refresh automatically when a queued fix or rollback finishes, over the SSE
+  event stream (new `remediation.completed` topic), instead of requiring a
+  manual page refresh.
+
 - CI release safety: the release workflow now fails closed on a `v*` tag push
   when no GPG signing key is configured, rather than publishing unsigned
   packages. Manual `workflow_dispatch` trial builds stay permissive (warn +
@@ -23,6 +28,12 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   match the version pinned in CI, so local runs reproduce CI.
 
 ### Fixed
+
+- Applying several fixes on the same host at once no longer fails the extra
+  ones. Concurrent remediations on a host now serialize: a fix whose host is
+  busy backs off and requeues (with a short delay, via a new delayed-visibility
+  column on the job queue) until the host is free, instead of colliding on the
+  per-host SSH guard and being marked failed.
 
 - Documentation version drift: operator guides referenced `0.2.0-rc.5` while
   `packaging/version.env` was `0.2.0-rc.10`; all guides now match.

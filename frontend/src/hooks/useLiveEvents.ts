@@ -31,6 +31,7 @@ export const ALL_TOPICS = [
   'host.discovered',
   'intelligence.event',
   'scan.completed',
+  'remediation.completed',
 ] as const;
 
 type Topic = (typeof ALL_TOPICS)[number];
@@ -138,6 +139,20 @@ export function useLiveEvents(options: UseLiveEventsOptions = {}) {
         const hostId = (env.payload?.HostID ?? env.payload?.host_id) as string | undefined;
         queryClient.invalidateQueries({ queryKey: ['hosts'] });
         if (hostId) {
+          queryClient.invalidateQueries({ queryKey: ['host', hostId] });
+        }
+      },
+      // remediation.completed -> the Remediation tab + Compliance score update
+      // without a manual refresh. The worker publishes this when a queued
+      // execute/rollback reaches its terminal state (executed | failed |
+      // rolled_back); a committed execute also flips the rule to pass, so the
+      // host detail (compliance) is invalidated too.
+      'remediation.completed': (e) => {
+        const env = parseEnvelope(e);
+        if (!env) return;
+        const hostId = (env.payload?.HostID ?? env.payload?.host_id) as string | undefined;
+        if (hostId) {
+          queryClient.invalidateQueries({ queryKey: ['host', hostId, 'remediations'] });
           queryClient.invalidateQueries({ queryKey: ['host', hostId] });
         }
       },

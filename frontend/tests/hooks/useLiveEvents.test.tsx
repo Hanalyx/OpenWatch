@@ -83,8 +83,8 @@ beforeEach(() => {
 });
 
 // @ac AC-01
-// AC-01: ALL_TOPICS exported as the closed set of 5 topics (v1.1.0
-// adds scan.completed).
+// AC-01: ALL_TOPICS exported as the closed set (v1.1.0 adds scan.completed;
+// v1.2.0 adds remediation.completed).
 test('frontend-live-events/AC-01 — ALL_TOPICS is the closed v1.0 set', () => {
   const want = [
     'host.changed',
@@ -92,9 +92,10 @@ test('frontend-live-events/AC-01 — ALL_TOPICS is the closed v1.0 set', () => {
     'host.discovered',
     'intelligence.event',
     'scan.completed',
+    'remediation.completed',
   ];
   expect([...ALL_TOPICS]).toEqual(want);
-  expect(ALL_TOPICS.length).toBe(5);
+  expect(ALL_TOPICS.length).toBe(6);
 });
 
 // Helper to mount the hook and return the stub + spies.
@@ -122,6 +123,19 @@ test('frontend-live-events/AC-02 — host.changed invalidates [hosts] + [host, i
   const calls = spy.mock.calls.map((c) => c[0]?.queryKey);
   expect(calls).toContainEqual(['hosts']);
   expect(calls).toContainEqual(['host', 'h-aaa']);
+});
+
+// @ac AC-09
+// AC-09: remediation.completed invalidates the host's remediations list (the
+// Remediation tab updates without a manual refresh) and the host detail (a
+// committed fix flips a rule to pass, moving the compliance score). The worker
+// publishes HostID (Go field name).
+test('frontend-live-events/AC-09 — remediation.completed invalidates [host, id, remediations] + [host, id]', () => {
+  const { es, spy } = mountHook();
+  es.fire('remediation.completed', { HostID: 'h-rem' });
+  const calls = spy.mock.calls.map((c) => c[0]?.queryKey);
+  expect(calls).toContainEqual(['host', 'h-rem', 'remediations']);
+  expect(calls).toContainEqual(['host', 'h-rem']);
 });
 
 // @ac AC-03
