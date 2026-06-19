@@ -111,4 +111,20 @@ settings:
         - dist
         - .git
         - vendor
+    # Coverage is gated in CI in two layers (see .github/workflows/go-ci.yml):
+    #
+    #   1. STRUCTURAL, 100% (hard): `specter sync --strictness annotation` —
+    #      every AC in every spec must have at least one test annotation. No AC
+    #      may silently lose its test. This is the enforced "100% coverage".
+    #   2. OUTCOME (this setting): `specter sync` at `threshold` — the tests
+    #      that actually run in the hermetic CI lane must pass at the per-tier
+    #      thresholds above.
+    #
+    # We intentionally do NOT use `zero-tolerance` for the outcome layer: a
+    # handful of ACs are covered by legitimately environment-gated tests (the
+    # real Kensa rule corpus via OPENWATCH_KENSA_RULES_DIR; the native-package
+    # runtime-boot harness) that correctly t.Skip() in the unit lane. Under
+    # zero-tolerance a skip counts as a failure, which would force those tests
+    # to either always run (heavy, wrong lane) or drop their skip guards. A
+    # skip is not a coverage gap — layer 1 already proves the test exists.
     strictness: threshold
