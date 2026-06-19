@@ -180,12 +180,16 @@ func TestIsDangerous(t *testing.T) {
 // AC-07: LicenseGate returns the feature id for gated perms, "" otherwise.
 func TestLicenseGate(t *testing.T) {
 	t.Run("system-rbac/AC-07", func(t *testing.T) {
-		if got := LicenseGate(RemediationExecute); got != "remediation_execution" {
-			t.Errorf("LicenseGate(remediation:execute) = %q, want remediation_execution", got)
+		// remediation:execute is FREE CORE (single-rule manual execute) and is
+		// therefore NOT license-gated; only bulk/auto remediation is licensed,
+		// gated at the handler via license.EnforceFeature(remediation_execution).
+		if got := LicenseGate(RemediationExecute); got != "" {
+			t.Errorf("LicenseGate(remediation:execute) = %q, want \"\" (single-rule execute is free core)", got)
 		}
 		if got := LicenseGate(HostRead); got != "" {
 			t.Errorf("LicenseGate(host:read) = %q, want \"\"", got)
 		}
+		// audit:export is the gated case — LicenseGate returns its feature id.
 		if got := LicenseGate(AuditExport); got != "audit_export" {
 			t.Errorf("LicenseGate(audit:export) = %q, want audit_export", got)
 		}
